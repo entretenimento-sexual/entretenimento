@@ -1,0 +1,30 @@
+/* src/app/core/header/search/search.component.css */
+.search {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.search input[type="text"] {
+  width: 200px;
+  height: 35px;
+  border: none;
+  border-radius: 20px;
+  padding: 10px 40px 10px 20px;     /* Adicionando padding no top e bottom */
+  height: auto;     /* Fazendo o height auto para permitir o padding */
+  transition: width 0.4s ease;
+}
+
+.search button {
+  position: absolute;
+  right: 0;
+  height: 35px;
+  width: 35px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+}
+
+.search button .fa {
+  color: #000;
+}

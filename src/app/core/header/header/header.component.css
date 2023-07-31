@@ -1,0 +1,9 @@
+/* src\app\core\header\header\header.component.css */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  background: linear-gradient(to right, #c33764, #1d2671);
+  box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.2);
+}

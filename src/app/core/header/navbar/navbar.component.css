@@ -1,0 +1,12 @@
+/* src/app/core/header/navbar/navbar.component.css */
+
+
+.navbar a {
+  color: #ffffff;
+  text-decoration: none;
+  margin-right: 20px;
+}
+
+.navbar a:hover {
+  color: #a3a1a1;
+}

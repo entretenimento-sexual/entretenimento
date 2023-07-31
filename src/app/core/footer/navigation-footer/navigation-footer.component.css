@@ -1,0 +1,19 @@
+/* src\app\core\footer\navigation-footer\navigation-footer.component.css */
+
+.navigation-footer ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.navigation-footer li {
+  margin-bottom: 5px;
+}
+
+.navigation-footer li a {
+  color: #ffffff;
+  text-decoration: none;
+}
+
+.navigation-footer li a:hover {
+  color: #a3a1a1;
+}

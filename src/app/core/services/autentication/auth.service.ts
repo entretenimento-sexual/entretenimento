@@ -2,6 +2,7 @@
 import { Injectable } from '@angular/core';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { GoogleAuthProvider, FacebookAuthProvider } from "firebase/auth";
+import { Observable } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -30,5 +31,9 @@ export class AuthService {
   facebookLogin() {
     const provider = new FacebookAuthProvider();
     return this.auth.signInWithPopup(provider);
+  }
+
+  getToken(): Observable<string | null> {
+    return this.auth.idToken;
   }
 }
