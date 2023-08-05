@@ -1,3 +1,4 @@
+//src\app\layout\main-layout\main-layout.component.ts
 import { Component } from '@angular/core';
 
 @Component({

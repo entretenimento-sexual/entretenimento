@@ -9,6 +9,7 @@ import { UserPreferencesComponent } from './user-preferences/user-preferences.co
 
 import { UserProfileService } from './services-profile/user-profile.service';
 import { UserProfileResolve } from './services-profile/user-profile.resolve';
+import { AngularFirestoreModule } from '@angular/fire/compat/firestore';
 
 @NgModule({
   declarations: [
@@ -18,6 +19,7 @@ import { UserProfileResolve } from './services-profile/user-profile.resolve';
   ],
   imports: [
     CommonModule,
+    AngularFirestoreModule,
     RouterModule.forChild([
       {
         path: '',
@@ -34,6 +36,7 @@ import { UserProfileResolve } from './services-profile/user-profile.resolve';
       },
     ])
   ],
-  providers: [UserProfileService, UserProfileResolve]
+  providers: [UserProfileService, UserProfileResolve],
+  exports: [UserDetailsComponent] // Exporte o UserDetailsComponent para que ele possa ser usado em outros módulos
 })
 export class UserProfileModule { }

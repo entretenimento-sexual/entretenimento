@@ -1,0 +1,15 @@
+/* src\app\user-profile\user-details\user-details.component.css */
+div {
+  margin: 20px;
+  padding: 10px;
+  border: 1px solid #ccc;
+}
+
+h2 {
+  color: #333;
+  margin-bottom: 10px;
+}
+
+p {
+  color: #666;
+}

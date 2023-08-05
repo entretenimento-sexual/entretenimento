@@ -1,1 +1,8 @@
-<p>user-details works!</p>
+<!-- src\app\user-profile\user-details\user-details.component.html -->
+<div *ngIf="userProfile">
+  <h2>{{ userProfile.nome }}</h2>
+  <!-- Adicione aqui outros campos que você quer exibir -->
+  <p>Email: {{ userProfile.email }}</p>
+  <p>Idade: {{ userProfile.idade }}</p>
+  <!-- E assim por diante, para outras propriedades que você possa ter -->
+</div>
