@@ -1,3 +1,4 @@
+//src\app\core\footer\contact-footer\contact-footer.component.ts
 import { Component } from '@angular/core';
 
 @Component({

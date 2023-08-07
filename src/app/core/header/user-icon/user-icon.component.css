@@ -1,2 +1,14 @@
-/* src\app\core\header\user-icon\user-icon.component.css
- */
+/* src\app\core\header\user-icon\user-icon.component.css */
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.dropdown {
+  display: none;
+  /* Adicione estilos conforme necessário */
+}
+
+/* Adicione estilos conforme desejar para os botões de login */

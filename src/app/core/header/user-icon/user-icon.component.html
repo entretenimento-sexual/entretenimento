@@ -1,4 +1,17 @@
-<p>avatar do usuário</p>
+<!-- src\app\core\header\user-icon\user-icon.component.html -->
+
+<div *ngIf="userProfile; else notLoggedIn">
+  <img [src]="userProfile.image" alt="Avatar do Usuário" class="avatar">
+  <div class="dropdown">
+    <button (click)="logout()">Logout</button>
+  </div>
+</div>
+
+<ng-template #notLoggedIn>
+  <button (click)="authService.googleLogin()">Login com Google</button>
+  <button (click)="authService.facebookLogin()">Login com Facebook</button>
+
+</ng-template>
 
 <!-- O componente <app-user-icon> sugerido é destinado a representar a interação do usuário com a aplicação. Normalmente, em
   um cabeçalho de aplicativo, é comum ter um ícone que represente o usuário atualmente logado, ou uma opção para o
