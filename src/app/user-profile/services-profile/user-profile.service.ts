@@ -29,5 +29,10 @@ export class UserProfileService {
     // Como ainda não temos a API, vamos retornar um Observable mockado.
 
   }
+  getUserPhotos(userId: string) {
+    // Suponho que esteja usando o AngularFirestore para fazer isso
+    return this.firestore.collection('photos', ref => ref.where('userId', '==', userId)).valueChanges();
+  }
+
 }
 

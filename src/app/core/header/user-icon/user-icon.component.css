@@ -4,11 +4,23 @@
   height: 40px;
   border-radius: 50%;
   object-fit: cover;
+  margin-right: 10px;
+  /* Espaçamento à direita do avatar */
 }
 
-.dropdown {
-  display: none;
-  /* Adicione estilos conforme necessário */
+.buttons-container,
+.login-modal {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  /* Alinha os elementos no centro verticalmente */
 }
 
-/* Adicione estilos conforme desejar para os botões de login */
+.login-modal {
+  flex-direction: column;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  margin-top: 10px;
+}

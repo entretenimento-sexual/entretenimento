@@ -8,6 +8,8 @@ import { AngularFireModule } from '@angular/fire/compat';
 import { AngularFirestoreModule } from '@angular/fire/compat/firestore';
 import { AngularFireDatabaseModule } from '@angular/fire/compat/database';
 import { AngularFireAuthModule } from '@angular/fire/compat/auth';
+import { AngularFireStorageModule } from '@angular/fire/compat/storage';
+
 
 // Módulos do seu projeto
 import { HomeModule } from './home/home.module';
@@ -27,13 +29,14 @@ import { environment } from '../environments/environment';
 import { AppRoutingModule } from './app-routing.module';
 import { AppComponent } from './app.component';
 import { ExtaseGuard } from './guards/extase.guard';
-
+import { AuthenticationModule } from './authentication/authentication.module';
 
 
 @NgModule({
   declarations: [
-    AppComponent,
+    AppComponent
   ],
+
   imports: [
     BrowserModule,
     AppRoutingModule,
@@ -41,6 +44,7 @@ import { ExtaseGuard } from './guards/extase.guard';
     HttpClientModule,
     ReactiveFormsModule,
     HomeModule,
+    AuthenticationModule,
     UserProfileModule,
     PublicContentModule,
     ExplorationModule,
@@ -51,7 +55,9 @@ import { ExtaseGuard } from './guards/extase.guard';
     AngularFireModule.initializeApp(environment.firebaseConfig), // Inicialização do Firebase
     AngularFirestoreModule, // Importação do Firestore
     AngularFireAuthModule,
-    AngularFireDatabaseModule
+    AngularFireDatabaseModule,
+    AngularFireStorageModule
+
   ],
   providers: [
     AuthService,

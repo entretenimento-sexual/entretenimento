@@ -10,12 +10,14 @@ import { UserPreferencesComponent } from './user-preferences/user-preferences.co
 import { UserProfileService } from './services-profile/user-profile.service';
 import { UserProfileResolve } from './services-profile/user-profile.resolve';
 import { AngularFirestoreModule } from '@angular/fire/compat/firestore';
+import { UserPhotosComponent } from './user-photos/user-photos.component';
 
 @NgModule({
   declarations: [
     UserDetailsComponent,
     UserEditComponent,
-    UserPreferencesComponent
+    UserPreferencesComponent,
+    UserPhotosComponent
   ],
   imports: [
     CommonModule,

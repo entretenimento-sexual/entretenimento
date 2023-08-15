@@ -1,14 +1,13 @@
-// src\app\authentication\register-component\register-component.component.ts
-
+// src\app\authentication\register-component\register-component.ts
 import { Component } from '@angular/core';
 import { AuthService } from '../../core/services/autentication/auth.service';
 
 @Component({
   selector: 'app-register-component',
-  templateUrl: './register-component.component.html',
-  styleUrls: ['./register-component.component.css']
+  templateUrl: './register.component.html',
+  styleUrls: ['./register.component.css']
 })
-export class RegisterComponentComponent {
+export class RegisterComponent {
   email: string = '';
   password: string = '';
   role: 'xereta' | 'animando' | 'decidido' | 'articulador' | 'extase' = 'xereta'; // role padrão
@@ -26,14 +25,18 @@ export class RegisterComponentComponent {
   }
 
   // Método para atualizar o role
-  updateRole(newRole: 'xereta' | 'animando' | 'decidido' | 'articulador' | 'extase') {
-    const userId: string = ''; // Aqui, você precisa obter o ID do usuário de alguma forma.
-    this.authService.updateUserRole(userId, newRole)
-      .then(() => {
+  async updateRole(newRole: 'xereta' | 'animando' | 'decidido' | 'articulador' | 'extase') {
+    try {
+      const userId = await this.authService.getUserId();
+      if (userId) {
+        await this.authService.updateUserRole(userId, newRole);
         this.role = newRole; // Atualiza a propriedade role do componente
-      })
-      .catch(error => {
-        // Lida com erros de atualização
-      });
+      } else {
+        throw new Error('User ID not found.');
+      }
+    } catch (error) {
+      // Lida com erros de atualização
+      console.error("Erro ao atualizar o role:", error);
+    }
   }
 }

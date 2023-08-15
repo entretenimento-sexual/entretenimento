@@ -5,7 +5,17 @@ div {
   border: 1px solid #ccc;
 }
 
-h2 {
+.avatar {
+  width: 100px;
+  /* ou o tamanho que preferir */
+  height: 100px;
+  border-radius: 50%;
+  /* para tornar a imagem circular */
+  margin-bottom: 10px;
+}
+
+h2,
+h3 {
   color: #333;
   margin-bottom: 10px;
 }

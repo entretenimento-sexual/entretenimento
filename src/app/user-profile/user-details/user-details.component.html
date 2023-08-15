@@ -1,8 +1,12 @@
 <!-- src\app\user-profile\user-details\user-details.component.html -->
+<!-- Use *ngIf para verificar se userProfile existe antes de tentar acessar suas propriedades -->
 <div *ngIf="userProfile">
-  <h2>{{ userProfile.nome }}</h2>
-  <!-- Adicione aqui outros campos que você quer exibir -->
+  <img [src]="userProfile.avatar" alt="Avatar do usuário" class="avatar">
+  <h2>{{ userProfile.nickname }}</h2>
+  <h3>{{ userProfile.nome }}</h3>
   <p>Email: {{ userProfile.email }}</p>
   <p>Idade: {{ userProfile.idade }}</p>
-  <!-- E assim por diante, para outras propriedades que você possa ter -->
+
+  <!-- Aqui é onde incluímos o componente de fotos -->
+  <app-user-photos [userId]="userProfile.id"></app-user-photos>
 </div>

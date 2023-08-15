@@ -1,3 +1,4 @@
+//src\app\core\services\autentication\auth.service.ts
 import { Injectable } from '@angular/core';
 import { AngularFireAuth } from '@angular/fire/compat/auth';
 import { AngularFireDatabase } from '@angular/fire/compat/database';
@@ -9,11 +10,14 @@ import { Observable } from 'rxjs';
 })
 export class AuthService {
 
-  constructor(private auth: AngularFireAuth, private db: AngularFireDatabase) { }
+  user$: Observable<any>;
+
+  constructor(private auth: AngularFireAuth, private db: AngularFireDatabase) {
+    this.user$ = this.auth.authState; // Inicializamos o Observable aqui
+  }
 
   signup(email: string, password: string, role: 'xereta' | 'animando' | 'decidido' | 'articulador' | 'extase') {
     return this.auth.createUserWithEmailAndPassword(email, password).then(data => {
-      // verifique se o usuário não é nulo antes de usá-lo
       if (data.user) {
         return this.db.object(`/users/${data.user.uid}`).set({
           role: role
@@ -51,12 +55,28 @@ export class AuthService {
     });
   }
 
-  isLoggedIn(): boolean {
-    return this.isUserAuthenticated();
+  async getUserId(): Promise<string | null> {
+    const user = await this.auth.currentUser;
+    return user ? user.uid : null;
   }
 
-  getUserProfile(): Promise<string | null> {
-    return this.getCurrentUserRole();
+  isLoggedIn(): boolean {
+    let isAuthenticated = false;
+
+    this.user$.subscribe(user => {
+      isAuthenticated = !!user;
+    }).unsubscribe();;
+
+    return isAuthenticated;
+  }
+
+  async getUserProfile(): Promise<any> {
+    const user = await this.auth.currentUser;
+    if (user) {
+      const userSnapshot = await this.db.object(`/users/${user.uid}`).valueChanges().toPromise();
+      return userSnapshot;
+    }
+    return null;
   }
 
   isUserAuthenticated(): boolean {
@@ -69,7 +89,6 @@ export class AuthService {
     if (user) {
       const userSnapshot = await this.db.object(`/users/${user.uid}`).valueChanges().toPromise();
       return (userSnapshot as any)?.role || null;
-
     }
     return null;
   }

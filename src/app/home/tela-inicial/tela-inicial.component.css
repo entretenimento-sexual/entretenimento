@@ -1,0 +1,6 @@
+/* src\app\home\tela-inicial\tela-inicial.component.css */
+.black-screen {
+  background-color: black;
+  width: 100vw;
+  height: 50vh;
+}

@@ -14,3 +14,8 @@ body {
   font-family: sans-serif;
 }
 
+.router-outlet-container {
+  min-height: 55vh;
+  /* outras propriedades de estilo que você queira adicionar */
+}
+

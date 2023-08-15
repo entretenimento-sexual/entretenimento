@@ -4,10 +4,10 @@ import { AuthService } from '../../core/services/autentication/auth.service';
 
 @Component({
   selector: 'app-login-component',
-  templateUrl: './login-component.component.html',
-  styleUrls: ['./login-component.component.css']
+  templateUrl: './login-component.html',
+  styleUrls: ['./login-component.css']
 })
-export class LoginComponentComponent {
+export class LoginComponent {
   email: string = '';
   password: string = '';
 

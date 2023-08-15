@@ -1,5 +1,5 @@
 <!-- src\app\core\header\navbar\navbar.component.html -->
-<nav>
+<nav class="navbar">
   <a routerLink="/">
     <img src="path/to/your/logo.png" alt="Logo" width="30" height="30">
   </a>
@@ -8,6 +8,9 @@
       <a routerLink="/">Home</a>
     </li>
     <!-- outras páginas -->
+    <li *ngIf="userId">
+      <a [routerLink]="['/user-profile', userId]">Ver Perfil</a>
+    </li>
     <li>
       <a routerLink="/login">Login</a>
     </li>
