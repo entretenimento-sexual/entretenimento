@@ -1,42 +1,59 @@
-// src\app\authentication\register-component\register-component.ts
+// src\app\authentication\register-component\register.component.ts
 import { Component } from '@angular/core';
-import { AuthService } from '../../core/services/autentication/auth.service';
+import { AuthService } from 'src/app/core/services/autentication/auth.service'; // Importe o serviço de autenticação que você criou
 
 @Component({
   selector: 'app-register-component',
   templateUrl: './register.component.html',
-  styleUrls: ['./register.component.css']
+  styleUrls: ['./register.component.css', '../authentication.css']
 })
 export class RegisterComponent {
-  email: string = '';
-  password: string = '';
-  role: 'xereta' | 'animando' | 'decidido' | 'articulador' | 'extase' = 'xereta'; // role padrão
+  public nickname: string = '';
+  public email: string = '';
+  public password: string = '';
+  public errorMessage: string = '';  // Para armazenar mensagens de erro
+  public successMessage: string = '';  // Para armazenar mensagens de sucesso
+  public nicknameStatus: string = '';  // Para armazenar o status do apelido
 
   constructor(private authService: AuthService) { }
 
-  register() {
-    this.authService.signup(this.email, this.password, this.role)
-      .then(result => {
-        // Lida com o registro bem-sucedido
-      })
-      .catch(error => {
-        // Lida com erros de registro
-      });
-  }
+  async onRegister() {
+    this.errorMessage = '';
+    this.successMessage = '';
 
-  // Método para atualizar o role
-  async updateRole(newRole: 'xereta' | 'animando' | 'decidido' | 'articulador' | 'extase') {
     try {
-      const userId = await this.authService.getUserId();
-      if (userId) {
-        await this.authService.updateUserRole(userId, newRole);
-        this.role = newRole; // Atualiza a propriedade role do componente
+      await this.authService.register(this.email, this.password, this.nickname);
+      this.successMessage = 'Seu cadastro foi iniciado com sucesso. Enviamos um e-mail de verificação, entre no seu e-mail para validar o e-mail e continuar seu cadastro.';
+    } catch (error: any) {
+      console.error('Erro completo:', JSON.stringify(error, null, 2)); // Isso irá ajudá-lo a ver o erro completo
+      if ('code' in error) {
+        if (error.code === 'auth/weak-password') {
+          this.errorMessage = 'A senha deve ter pelo menos 6 caracteres.';
+        } else if (error.code === 'auth/email-already-in-use') {
+          this.errorMessage = 'Esse e-mail já está em uso.';
+        } else if (error.code === 'auth/invalid-email') {
+          this.errorMessage = 'Endereço de email inválido';
+        } else {
+          this.errorMessage = 'Ocorreu um erro desconhecido. Código: ' + error.code;
+        }
       } else {
-        throw new Error('User ID not found.');
+        this.errorMessage = 'Ocorreu um erro desconhecido.';
       }
-    } catch (error) {
-      // Lida com erros de atualização
-      console.error("Erro ao atualizar o role:", error);
+    }
+  }
+  async checkNickname() {
+    if (this.nickname.length >= 3 && this.nickname.length <= 20) {
+      const exists = await this.authService.checkIfNicknameExists(this.nickname);
+      if (exists) {
+        this.nicknameStatus = 'Apelido já está em uso';
+      } else {
+        this.nicknameStatus = 'Apelido disponível';
+      }
+    } else if (this.nickname.length > 20) {
+      this.nicknameStatus = 'Apelido muito longo';
+    } else {
+      this.nicknameStatus = '';
     }
   }
 }
+

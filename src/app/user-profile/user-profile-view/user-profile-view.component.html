@@ -1,0 +1,10 @@
+<!-- src\app\user-profile\user-profile-view\user-profile-view.component.html -->
+<div *ngIf="dados.length">
+  <h2>Dados do Firestore</h2>
+  <div *ngFor="let item of dados">
+    <p>
+      Nome: {{ item.nome }}<br>
+      Idade: {{ item.idade }}
+    </p>
+  </div>
+</div>

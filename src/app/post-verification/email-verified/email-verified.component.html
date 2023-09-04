@@ -1,0 +1,14 @@
+<!-- src\app\post-verification\email-verified\email-verified.component.html -->
+<div *ngIf="isEmailVerified; else notVerified">
+  <h1>Bem-vindo a rede social do sexo!</h1>
+  <p>Obrigado por verificar o seu e-mail.</p>
+  <form (ngSubmit)="onSubmit()">
+    <!-- Seu formulário aqui -->
+  </form>
+  <p>Conheça as vantagens de ser um usuário assinante:</p>
+  <!-- Vantagens aqui -->
+</div>
+
+<ng-template #notVerified>
+  <p>A verificação do e-mail falhou ou está pendente.</p>
+</ng-template>

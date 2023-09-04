@@ -1,0 +1,9 @@
+/* src\app\footer\copyright-footer\copyright-footer.component.css */
+.copyright-container {
+  padding: 1px 0;
+}
+
+/* Isso fará com que o texto <small> fique branco */
+.copyright-container small {
+  color: white;
+}

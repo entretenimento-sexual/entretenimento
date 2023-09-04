@@ -1,0 +1,10 @@
+<!-- src/app/layout/profile-list/profile-list.component.html -->
+
+<div class="profile-list-container" *ngIf="user">
+  <div *ngIf="!user.preferences">
+    <!-- Conteúdo padrão para usuários sem preferências -->
+  </div>
+  <div *ngIf="user.preferences">
+    <!-- Conteúdo com base nas preferências do usuário -->
+  </div>
+</div>

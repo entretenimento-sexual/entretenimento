@@ -1,24 +1,17 @@
-// src\app\core\layout\layout.module.ts
+// src/app/layout/layout.module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-import { UserProfileModule } from '../user-profile/user-profile.module'; // Importe o módulo de perfil do usuário aqui
-
-import { MainLayoutComponent } from './main-layout/main-layout.component';
-import { ErrorPageComponent } from './error-page/error-page.component';
+import { ProfileListComponent } from './profile-list/profile-list.component';
 
 @NgModule({
   declarations: [
-    MainLayoutComponent,
-    ErrorPageComponent
+    ProfileListComponent
   ],
   imports: [
-    CommonModule,
-    UserProfileModule // Adicione o módulo de perfil do usuário às importações
+    CommonModule
   ],
   exports: [
-    MainLayoutComponent,
-    ErrorPageComponent
+    ProfileListComponent
   ]
 })
 export class LayoutModule { }

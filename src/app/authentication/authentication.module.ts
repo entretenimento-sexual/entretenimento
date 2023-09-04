@@ -3,8 +3,6 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms'; // Para usar ngModel e outros recursos de formulários
 
-// Importe o serviço de autenticação
-import { AuthService } from '../core/services/autentication/auth.service'; // Caminho ajustado para o seu serviço de autenticação
 
 // Importe o RouterModule se este módulo tiver rotas
 import { RouterModule } from '@angular/router';
@@ -33,7 +31,7 @@ import { EspiarComponent } from './espiar/espiar.component';
   ],
 
   providers: [
-    AuthService // Se você tiver um serviço de autenticação
+   
   ]
 })
 export class AuthenticationModule { }

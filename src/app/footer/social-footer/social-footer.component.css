@@ -1,0 +1,13 @@
+/* src\app\footer\social-footer\social-footer.component.css */
+.social-footer {
+  text-align: center;
+  padding: 1em;
+}
+
+.social-icon {
+  margin: 0 10px;
+  font-size: 1.5em;
+  text-decoration: none;
+  color: white;
+  /* ou qualquer cor que combine com o seu design */
+}

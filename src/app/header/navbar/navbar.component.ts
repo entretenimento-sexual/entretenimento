@@ -1,0 +1,53 @@
+//src\app\header\navbar\navbar.component.ts
+import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Subscription } from 'rxjs';
+import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { SocialAuthService } from 'src/app/core/services/autentication/social-auth.service';
+
+@Component({
+  selector: 'app-navbar',
+  templateUrl: './navbar.component.html',
+  styleUrls: ['./navbar.component.css']
+})
+
+export class NavbarComponent implements OnInit, OnDestroy {
+  // Indica se o usuário está autenticado.
+  public isAuthenticated: boolean = false;
+  // Armazena o nome do usuário para exibição.
+  public userName: string = '';
+  // Subscription para acompanhar mudanças nos dados do usuário.
+  private userSubscription?: Subscription;
+  // Indica se o usuário possui o role "xereta".
+  public isXereta: boolean = false;
+
+  constructor(private authService: SocialAuthService) { }
+
+  ngOnInit(): void {
+    // Quando o componente é inicializado, nós nos inscrevemos para ouvir as mudanças nos dados do usuário.
+    this.userSubscription = this.authService.user$.subscribe(user => {
+      // Define isAuthenticated como verdadeiro se o usuário existir.
+      this.isAuthenticated = !!user;
+      // Define isXereta como verdadeiro se o role do usuário for 'xereta'.
+      this.isXereta = user?.role === 'xereta';
+      if (user) {
+        // Se o usuário existir, extraia o nome para exibição.
+        this.userName = user.displayName || 'Usuário';
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    // Quando o componente é destruído, encerramos a assinatura para evitar vazamentos de memória.
+    this.userSubscription?.unsubscribe();
+  }
+
+  // Método para fazer login com o Google.
+  loginComGoogle(): void {
+    this.authService.googleLogin();
+  }
+
+  // Método para fazer logout.
+  logout(): void {
+    this.authService.logout();
+  }
+}
