@@ -18,6 +18,10 @@ const routes: Routes = [
   { path: 'register-component', component: RegisterComponent },
   { path: 'login', component: LoginComponent },
   { path: 'espiar', component: EspiarComponent },
+  {
+    path: 'perfil/:id',
+    loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule)
+  }
   // { path: '**', component: SeuComponente404 }   rota coringa
 ];
 

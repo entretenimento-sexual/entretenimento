@@ -20,14 +20,15 @@ export class SocialAuthService {
   user$: Observable<IUserDados | null> = this.userSubject.asObservable();
 
   constructor() {
-    onAuthStateChanged(auth, (user: FirebaseUser | null) => {
+    onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
       if (user) {
+        const dadosFirestore = await this.buscarDadosDoFirestore(user.uid);
         const userData: IUserDados = {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
           photoURL: user.photoURL,
-          role: 'xereta',
+          role: dadosFirestore?.role || 'xereta',
           lastLoginDate: Timestamp.fromDate(new Date()),
           firstLogin: Timestamp.fromDate(new Date()) // Este será substituído, se já existir
         };
@@ -80,6 +81,19 @@ export class SocialAuthService {
     } catch (error) {
       console.error('Erro ao salvar dados do usuário:', error);
     }
+  }
+
+  private async buscarDadosDoFirestore(uid: string): Promise<IUserDados | null> {
+    try {
+      const userRef = doc(db, 'users', uid);
+      const docSnap = await getDoc(userRef);
+      if (docSnap.exists()) {
+        return docSnap.data() as IUserDados;
+      }
+    } catch (error) {
+      console.error('Erro ao buscar dados do usuário:', error);
+    }
+    return null;
   }
 
   async logout(): Promise<void> {

@@ -13,39 +13,51 @@ import { SocialAuthService } from 'src/app/core/services/autentication/social-au
 
 export class EspiarComponent implements OnInit, OnDestroy {
   public isAuthenticated: boolean = false;
-  private userSubscription?: Subscription;
+  private userSubscription!: Subscription;
 
   constructor(private router: Router,
     private authService: SocialAuthService,
-    ) { }
+  ) { }
 
   ngOnInit(): void {
+    // Inicializa a variável `userSubscription` no construtor
     this.userSubscription = this.authService.user$.subscribe(user => {
       this.isAuthenticated = !!user;
+
+      // Verifica se o usuário já está autenticado
       if (this.isAuthenticated) {
-        // Redirecionar para o componente ProfileList se o usuário está autenticado
+        // Redireciona para o componente ProfileList se o usuário está autenticado
         this.router.navigate(['/profile-list']);
       }
     });
   }
 
   ngOnDestroy(): void {
+    // Desvincula a subscrição `userSubscription`
     this.userSubscription?.unsubscribe();
   }
 
   loginComGoogle(): void {
-    this.authService.googleLogin().then(() => {
-      // Redirecionar para o componente ProfileList após o login bem-sucedido
-      this.router.navigate(['/profile-list']);
-    });
+    // Verifica se o usuário já está autenticado
+    if (!this.isAuthenticated) {
+      // Permite que o usuário faça login com o Google
+      this.authService.googleLogin().then(() => {
+        // Redireciona para o componente ProfileList após o login bem-sucedido
+        this.router.navigate(['/profile-list']);
+      });
+    }
   }
 
   logout(): void {
-    this.authService.logout().then(() => {
-      // Redirecionar para a página que você deseja após o logout
-      this.router.navigate(['/']);
-    }).catch(error => {
-      console.error('Erro ao fazer logout:', error);
-    });
+    // Verifica se o usuário está autenticado
+    if (this.isAuthenticated) {
+      // Desloga o usuário
+      this.authService.logout().then(() => {
+        // Redireciona para a página que você deseja após o logout
+        this.router.navigate(['/']);
+      }).catch(error => {
+        console.error('Erro ao fazer logout:', error);
+      });
+    }
   }
 }

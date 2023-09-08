@@ -1,10 +1,30 @@
-<!-- src\app\user-profile\user-profile-view\user-profile-view.component.html -->
-<div *ngIf="dados.length">
-  <h2>Dados do Firestore</h2>
-  <div *ngFor="let item of dados">
-    <p>
-      Nome: {{ item.nome }}<br>
-      Idade: {{ item.idade }}
+<div class="profile-container">
+  <div class="profile-header">
+    <img src="caminho/para/imagem/perfil.jpg" alt="Foto de Perfil" class="profile-picture">
+    <h2>{{ userName || 'Nome do Usuário' }}</h2>
+    <p class="profile-stats">
+      <!-- <strong>Seguidores:</strong> {{ followerCount }}
+      <strong>Seguindo:</strong> {{ followingCount }} -->
     </p>
+  </div>
+  <div class="profile-content">
+    <div class="profile-info">
+      <h3>Meu perfil</h3>
+      <p><strong>Apelido:</strong> {{ userNickname || 'Não informado' }}</p>
+      <p><strong>Idade:</strong> {{ userIdade || 'Não informado' }}</p>
+      <!-- <p><strong>Sobre:</strong> {{ userAbout || 'Não informado' }}</p> -->
+    </div>
+    <div class="profile-interests">
+      <h3>Interesses</h3>
+      <ul>
+        <li>Tema 1</li>
+        <li>Tema 2</li>
+        <li>Tema 3</li>
+      </ul>
+    </div>
+  </div>
+  <div class="profile-footer">
+    <a href="mensagem.html" class="btn btn-primary">Enviar mensagem</a>
+    <a href="perfil.html" class="btn btn-secondary">Ver perfil</a>
   </div>
 </div>

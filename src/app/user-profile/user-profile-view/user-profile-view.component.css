@@ -1,0 +1,36 @@
+/* src\app\user-profile\user-profile-view\user-profile-view.component.css */
+.profile-container {
+  font-family: Arial, sans-serif;
+  max-width: 600px;
+  margin: 50px auto;
+  border: 1px solid #eaeaea;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.profile-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.profile-picture {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin-right: 20px;
+}
+
+.profile-content {
+  margin-bottom: 20px;
+}
+
+.profile-info,
+.profile-interests {
+  margin-bottom: 20px;
+}
+
+.profile-footer {
+  text-align: center;
+}

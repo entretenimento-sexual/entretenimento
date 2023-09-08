@@ -7,7 +7,7 @@ import { Router } from '@angular/router';
 
 import { initializeApp } from 'firebase/app';
 import { getAuth, signOut, User, createUserWithEmailAndPassword, sendEmailVerification, applyActionCode } from 'firebase/auth';
-import { getFirestore, doc, setDoc, Timestamp, collection, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, Timestamp, collection, query, where, getDocs, getDoc } from 'firebase/firestore';
 
 import { environment } from 'src/environments/environment';
 
@@ -63,26 +63,16 @@ export class AuthService {
           url: 'http://localhost:4200/email-verified'
         });
 
-        const userData = {
-          uid: user.uid,
-          email: user.email,
-          role: 'animado',  // atribuindo a role 'animado'
-          nickname,  // armazenando o nickname
-          createdAt: Timestamp.fromDate(new Date())  // data de criação do usuário
-          // outras informações que você queira salvar
-        };
+        // Não salvamos os dados no Firestore aqui. Apenas enviamos o e-mail de verificação.
 
-        // Salvando no Firestore
-        const userRef = doc(db, "users", user.uid);
-        await setDoc(userRef, userData, { merge: true });
-
-        console.log('Usuário registrado e dados salvos no Firestore:', user);
+        console.log('Usuário registrado e e-mail de verificação enviado:', user);
       }
     } catch (error) {
       console.error('Erro ao registrar usuário:', error);
       throw error;
     }
   }
+
 
   async checkIfNicknameExists(nickname: string): Promise<boolean> {
     try {
@@ -142,10 +132,43 @@ export class AuthService {
       await applyActionCode(auth, actionCode);
       // Endereço de e-mail foi verificado
       console.log('A verificação do e-mail foi bem-sucedida.');
+
+      const user = auth.currentUser;
+      if (user) {
+        const userData = {
+          uid: user.uid,
+          email: user.email,
+          role: 'animado',
+          createdAt: Timestamp.fromDate(new Date())
+          // outras informações que você queira salvar, como nickname.
+          // (certifique-se de que o nickname ainda esteja disponível)
+        };
+
+        // Salvando no Firestore após verificação de e-mail
+        const userRef = doc(db, "users", user.uid);
+        await setDoc(userRef, userData, { merge: true });
+        console.log('Dados do usuário salvos no Firestore após a verificação do e-mail.');
+      }
+
       return true;
     } catch (error) {
       console.error('Erro ao aplicar o código de ação:', error);
       return false;
+    }
+  }
+
+  async getUserById(uid: string): Promise<IUserDados | null> {
+    try {
+      const userRef = doc(db, 'users', uid);
+      const userSnapshot = await getDoc(userRef);  // Aqui, use getDoc em vez de getDocs
+      if (!userSnapshot.exists()) {
+        console.log('Nenhum usuário encontrado com o uid:', uid);
+        return null;
+      }
+      return userSnapshot.data() as IUserDados;
+    } catch (error) {
+      console.error('Erro ao obter usuário por uid:', error);
+      throw error;
     }
   }
 

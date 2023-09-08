@@ -1,7 +1,6 @@
 //src\app\header\navbar\navbar.component.ts
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Subscription } from 'rxjs';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { SocialAuthService } from 'src/app/core/services/autentication/social-auth.service';
 
 @Component({
@@ -20,6 +19,8 @@ export class NavbarComponent implements OnInit, OnDestroy {
   // Indica se o usuário possui o role "xereta".
   public isXereta: boolean = false;
 
+  public userId: string = '';
+
   constructor(private authService: SocialAuthService) { }
 
   ngOnInit(): void {
@@ -27,11 +28,16 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.userSubscription = this.authService.user$.subscribe(user => {
       // Define isAuthenticated como verdadeiro se o usuário existir.
       this.isAuthenticated = !!user;
-      // Define isXereta como verdadeiro se o role do usuário for 'xereta'.
-      this.isXereta = user?.role === 'xereta';
+
       if (user) {
         // Se o usuário existir, extraia o nome para exibição.
         this.userName = user.displayName || 'Usuário';
+
+        // Assumindo que seu objeto 'user' tenha uma propriedade 'id'.
+        this.userId = user.uid || '';
+
+        // Define isXereta como verdadeiro se o role do usuário for 'xereta'.
+        this.isXereta = user.role === 'xereta';
       }
     });
   }
