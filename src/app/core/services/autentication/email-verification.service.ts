@@ -1,6 +1,6 @@
 // src\app\core\services\autentication\email-verification.service.ts
 import { Injectable } from '@angular/core';
-import { getAuth } from 'firebase/auth';
+import { getAuth, User, sendEmailVerification, applyActionCode } from 'firebase/auth';
 
 @Injectable({
   providedIn: 'root'
@@ -16,12 +16,12 @@ export class EmailVerificationService {
   // Métodos relacionados ao oobCode
 
   setCode(code: string): void {
-    console.log('Definindo oobCode:', code); // Log quando o código é definido
+    console.log('Definindo oobCode:', code);
     this.code = code;
   }
 
   getCode(): string | null {
-    console.log('Recuperando oobCode:', this.code); // Log quando o código é obtido
+    console.log('Recuperando oobCode:', this.code);
     return this.code;
   }
 
@@ -43,4 +43,37 @@ export class EmailVerificationService {
     console.log("Atualizando o status de verificação de email para:", isVerified);
     // Aqui, adicione sua lógica para atualizar o campo emailVerified no Firestore
   }
+
+  async sendEmailVerification(user: User, settings: any): Promise<void> {
+    await sendEmailVerification(user, settings);
+    console.log('E-mail de verificação enviado:', user);
+  }
+
+  async handleEmailVerification(actionCode: string): Promise<boolean> {
+    if (!actionCode) {
+      console.error("ActionCode não fornecido.");
+      return false;
+    }
+    console.log("ActionCode recebido:", actionCode);
+
+    try {
+      await applyActionCode(getAuth(), actionCode);
+      console.log('A verificação do e-mail foi bem-sucedida.');
+
+      const isEmailReloadedAndVerified = await this.reloadCurrentUser();
+
+      if (isEmailReloadedAndVerified) {
+        console.log("Estado de verificação do e-mail do usuário recarregado com sucesso.");
+      } else {
+        console.error("Erro ao recarregar o estado de verificação do e-mail do usuário.");
+      }
+
+      return isEmailReloadedAndVerified;
+
+    } catch (error) {
+      console.error('Erro ao aplicar o código de ação:', error);
+      return false;
+    }
+  }
+
 }

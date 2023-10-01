@@ -13,5 +13,7 @@ export interface IUserDados {
   lastLoginDate: Timestamp; // Data do último login
   firstLogin?: Timestamp; // Data do primeiro login
   emailVerified?: boolean;
+  gender?: string;
+  orientation?: string;
 }
 

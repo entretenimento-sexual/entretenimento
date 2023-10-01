@@ -1,10 +1,8 @@
 <!-- src/app/layout/profile-list/profile-list.component.html -->
-
-<div class="profile-list-container" *ngIf="user">
-  <div *ngIf="!user.preferences">
-    <!-- Conteúdo padrão para usuários sem preferências -->
-  </div>
-  <div *ngIf="user.preferences">
-    <!-- Conteúdo com base nas preferências do usuário -->
+<div class="profile-list-container" *ngIf="profiles && profiles.length">
+  <div *ngFor="let profile of profiles">
+    <!-- Exiba as informações do perfil aqui. Por exemplo: -->
+    <h3>{{ profile.name }}</h3>
+    <p>{{ profile.description }}</p>
   </div>
 </div>

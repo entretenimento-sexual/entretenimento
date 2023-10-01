@@ -1,36 +1,116 @@
 /* src\app\user-profile\user-profile-view\user-profile-view.component.css */
 .profile-container {
-  font-family: Arial, sans-serif;
-  max-width: 600px;
-  margin: 50px auto;
-  border: 1px solid #eaeaea;
-  border-radius: 8px;
+  display: flex;
+  flex-direction: row;
+  align-items: start;
   padding: 20px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  max-width: 1200px;
+  /* Ajuste conforme necessário */
+  margin: 0 auto;
+}
+
+.sidebar {
+  width: 25%;
+  max-width: 250px;
+  padding: 20px;
+  margin-right: 20px;
+}
+
+.profile-nav a {
+  text-decoration: none;
+  color: #007BFF;
+  padding: 10px 0;  /* Aumentando o espaçamento */
+  font-size: 18px;  /* Aumentando o tamanho da fonte */
+  font-family: 'Roboto', sans-serif;  /* Escolhendo uma fonte bonita */
 }
 
 .profile-header {
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  width: 200px;
+  height: 200px;
+  overflow: hidden;
   margin-bottom: 20px;
+  border-radius: 50%;  /* Certifique-se de que o contêiner seja um círculo perfeito */
 }
 
 .profile-picture {
-  width: 80px;
-  height: 80px;
+  object-fit: cover;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  margin-right: 20px;
+  border: 2px solid #ddd;
 }
 
-.profile-content {
-  margin-bottom: 20px;
+.profile-picture:hover {
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
 }
 
-.profile-info,
-.profile-interests {
-  margin-bottom: 20px;
-}
-
-.profile-footer {
+.user-nickname {
   text-align: center;
+  font-size: 24px;  /* Aumenta o tamanho da fonte */
+  font-weight: bold;  /* Fonte em negrito */
+  margin-top: -10px;  /* Aproxima o apelido da imagem */
+  color: #333;  /* Cor mais escura para o apelido, mas pode ajustar conforme desejar */
+  font-family: 'Roboto', sans-serif;  /* Usando a fonte Roboto */
+}
+
+.profile-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.profile-nav a {
+  text-decoration: none;
+  color: #ff6565;  /* Mudança de cor */
+  padding: 10px 0;
+  font-size: 18px;
+  font-family: 'Roboto', sans-serif;
+  font-weight: bold;  /* Fonte em negrito */
+}
+
+.profile-nav i {
+  margin-right: 8px;  /* Espaçamento entre o ícone e o texto */
+}
+
+.profile-nav a:hover {
+  text-decoration: underline;
+}
+
+.content {
+  flex: 1;
+  /* O restante das estilizações para o conteúdo principal vai aqui */
+}
+
+.btn {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  text-decoration: none;
+  margin-right: 10px;
+}
+
+.btn-primary {
+  background-color: #007BFF;
+  color: white;
+}
+
+.btn-secondary {
+  background-color: #6C757D;
+  color: white;
+}
+
+@media only screen and (max-width: 600px) {
+  .profile-container {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    max-width: 100%;
+  }
 }

@@ -1,0 +1,39 @@
+/* src\app\authentication\suggested-profiles\suggested-profiles.component.css */
+/* Container Principal */
+.authentication-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Espaçamento entre os cards */
+.profile-card {
+  margin-bottom: 20px;
+  transition: transform 0.3s;
+}
+
+/* Efeito hover nos cards para mostrar que são interativos */
+.profile-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Botões */
+button.mat-button {
+  background-color: #1976d2;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+button.mat-button:hover {
+  background-color: #1565c0;
+}
+
+/* Mensagem quando não há perfis */
+.no-profile-message {
+  font-weight: 500;
+  font-size: 18px;
+  color: #757575;
+}

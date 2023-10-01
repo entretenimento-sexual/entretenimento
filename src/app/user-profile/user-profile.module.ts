@@ -1,18 +1,21 @@
-//src\app\user-profile\user-profile.module.ts
+// src\app\user-profile\user-profile.module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-import { UserProfileRoutingModule } from './user-profile-routing.module';
+import { FormsModule } from '@angular/forms';
+import { RouterModule, Routes } from '@angular/router';
 import { UserProfileViewComponent } from './user-profile-view/user-profile-view.component';
 
+const routes: Routes = [
+  { path: '', component: UserProfileViewComponent }
+];
 
 @NgModule({
-  declarations: [
-    UserProfileViewComponent
-  ],
+  declarations: [UserProfileViewComponent],
   imports: [
     CommonModule,
-    UserProfileRoutingModule
-  ]
+    FormsModule,
+    RouterModule.forChild(routes)
+  ],
+  exports: [UserProfileViewComponent]
 })
 export class UserProfileModule { }

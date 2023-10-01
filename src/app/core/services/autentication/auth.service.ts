@@ -1,71 +1,87 @@
-// src\app\core\services\autentication\auth.service.ts
+//src\app\core\services\autentication\auth.service.ts
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, from, Observable, of } from 'rxjs';
-import { catchError, tap, map } from 'rxjs/operators';
+import { catchError, tap } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { Router } from '@angular/router';
 
-import { initializeApp } from 'firebase/app';
-import { getAuth, signOut, User, createUserWithEmailAndPassword, sendEmailVerification, applyActionCode } from 'firebase/auth';
-import { getFirestore, doc, setDoc, Timestamp, collection, query, where, getDocs, getDoc } from 'firebase/firestore';
+import { getAuth, signOut, User, createUserWithEmailAndPassword, applyActionCode } from 'firebase/auth';
+import { Timestamp } from 'firebase/firestore';
 
-import { environment } from 'src/environments/environment';
+import { FirestoreService } from './firestore.service';
+import { EmailVerificationService } from './email-verification.service';
+import { PreRegisterServiceService } from './pre-register.service';
 
-// Inicialização do Firebase
-const app = initializeApp(environment.firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+const auth = getAuth();
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
-  // BehaviorSubject para manter o estado do usuário
+
   private userSubject = new BehaviorSubject<IUserDados | null>(null);
+
+  // Observable do usuário
   user$: Observable<IUserDados | null> = this.userSubject.asObservable();
 
-  constructor(private router: Router) {
-    // Inicializa o ouvinte de estado de autenticação
+  constructor(
+    private router: Router,
+    private firestoreService: FirestoreService,
+    private emailVerificationService: EmailVerificationService,
+    private preRegisterService: PreRegisterServiceService
+  ) {
     this.initAuthStateListener();
   }
-  // Inicializa um listener para observar mudanças no estado de autenticação do usuário
+
+  // Inicia o ouvinte de mudança de autenticação
   private initAuthStateListener(): void {
     auth.onAuthStateChanged(user => {
       console.log('Estado da autenticação mudou:', user);
       this.userSubject.next(this.mapUserToUserDados(user));
     });
   }
-  // Converte o objeto User do Firebase para o objeto IUserDados
+
+  // Mapeia o usuário do Firebase para o formato IUserDados
   private mapUserToUserDados(user: User | null): IUserDados | null {
     if (!user) return null;
 
     const now = new Date();
-    const timestampNow = Timestamp.fromDate(now);  // Convertendo para Timestamp
+    const timestampNow = Timestamp.fromDate(now);
 
     return {
       uid: user.uid,
       email: user.email,
       displayName: user.displayName || null,
       photoURL: user.photoURL || null,
-      role: 'xereta',
-      lastLoginDate: timestampNow,  // Usando Timestamp
-      firstLogin: timestampNow  // Usando Timestamp
+      role: 'animando',
+      lastLoginDate: timestampNow,
+      firstLogin: timestampNow
     };
   }
 
-  async register(email: string, password: string, nickname: string = ''): Promise<void> {
+  // Registro de novo usuário
+  async register(email: string, password: string, nickname: string = '', userPreferences: any = {}): Promise<void> {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       if (user) {
-
-        await sendEmailVerification(user, {
+        this.emailVerificationService.sendEmailVerification(user, {
           url: 'http://localhost:4200/email-verified'
         });
 
-        // Não salvamos os dados no Firestore aqui. Apenas enviamos o e-mail de verificação.
+        const currentUserData = this.mapUserToUserDados(user);
 
-        console.log('Usuário registrado e e-mail de verificação enviado:', user);
+        console.log('Dados do usuário antes de salvar:', currentUserData); // Linha adicionada
+
+        if (currentUserData) {
+          currentUserData.nickname = nickname; // Aqui, adicionamos o apelido ao objeto currentUserData.
+          await this.saveUserToFirestore(currentUserData);
+          await this.preRegisterService.saveUserPreferences(userPreferences);
+        } else {
+          console.warn('currentUserData é null. Não é possível salvar preferências.');
+        }
+
+        console.log('Usuário registrado:', user);
       }
     } catch (error) {
       console.error('Erro ao registrar usuário:', error);
@@ -73,29 +89,37 @@ export class AuthService {
     }
   }
 
-
-  async checkIfNicknameExists(nickname: string): Promise<boolean> {
-    try {
-      // Define a coleção e a consulta
-      const userCollection = collection(db, 'users');
-      const q = query(userCollection, where('nickname', '==', nickname));
-
-      // Executa a consulta
-      const querySnapshot = await getDocs(q);
-
-      // Verifica se o apelido já existe
-      if (querySnapshot.size > 0) {
-        return true; // O apelido já existe
-      } else {
-        return false; // O apelido está disponível
+  async resendVerificationEmail(): Promise<void> {
+    if (auth.currentUser) {
+      try {
+        await this.emailVerificationService.sendEmailVerification(auth.currentUser, {
+          url: 'http://localhost:4200/email-verified'
+        });
+      } catch (error) {
+        console.error('Erro ao reenviar o e-mail de verificação:', error);
+        throw error;
       }
-    } catch (error) {
-      console.error('Erro ao verificar a existência do apelido:', error);
-      throw error; // Re-lança o erro
+    } else {
+      console.error('Nenhum usuário autenticado encontrado');
+      throw new Error('Nenhum usuário autenticado encontrado');
     }
   }
 
-  // Método para deslogar o usuário
+  async saveUserToFirestore(user: IUserDados) {
+    try {
+      await this.firestoreService.saveUserDataAfterEmailVerification(user); // Use o método apropriado aqui
+    } catch (error) {
+      console.error('Erro ao salvar usuário no Firestore:', error);
+      throw error;
+    }
+  }
+
+  // Checa se o nickname existe
+  async checkIfNicknameExists(nickname: string): Promise<boolean> {
+    return this.firestoreService.checkIfNicknameExists(nickname);
+  }
+
+  // Desloga o usuário
   logout(): Observable<void> {
     return from(signOut(auth)).pipe(
       tap(() => {
@@ -114,63 +138,16 @@ export class AuthService {
     return !!this.userSubject.value;
   }
 
-  // Retorna os dados do usuário atual
+  // Retorna o usuário atual
   get currentUser(): IUserDados | null {
     return this.userSubject.value;
   }
 
-  async handleEmailVerification(actionCode: string, continueUrl: string = '', lang: string = 'pt'): Promise<boolean> {
-    if (!actionCode) {
-      console.error("ActionCode não fornecido.");
-      return false;
-    }
-    console.log("ActionCode recebido:", actionCode);
-    console.log("ContinueUrl recebido:", continueUrl);
-    console.log("Lang recebido:", lang);
-
-    try {
-      await applyActionCode(auth, actionCode);
-      // Endereço de e-mail foi verificado
-      console.log('A verificação do e-mail foi bem-sucedida.');
-
-      const user = auth.currentUser;
-      if (user) {
-        const userData = {
-          uid: user.uid,
-          email: user.email,
-          role: 'animado',
-          createdAt: Timestamp.fromDate(new Date())
-          // outras informações que você queira salvar, como nickname.
-          // (certifique-se de que o nickname ainda esteja disponível)
-        };
-
-        // Salvando no Firestore após verificação de e-mail
-        const userRef = doc(db, "users", user.uid);
-        await setDoc(userRef, userData, { merge: true });
-        console.log('Dados do usuário salvos no Firestore após a verificação do e-mail.');
-      }
-
-      return true;
-    } catch (error) {
-      console.error('Erro ao aplicar o código de ação:', error);
-      return false;
-    }
-  }
-
+  // Busca usuário pelo ID
   async getUserById(uid: string): Promise<IUserDados | null> {
-    try {
-      const userRef = doc(db, 'users', uid);
-      const userSnapshot = await getDoc(userRef);  // Aqui, use getDoc em vez de getDocs
-      if (!userSnapshot.exists()) {
-        console.log('Nenhum usuário encontrado com o uid:', uid);
-        return null;
-      }
-      return userSnapshot.data() as IUserDados;
-    } catch (error) {
-      console.error('Erro ao obter usuário por uid:', error);
-      throw error;
-    }
+    console.log("Chamando getUserById no AuthService com UID:", uid);
+    const userData = await this.firestoreService.getUserById(uid);
+    console.log('Dados recuperados do Firestore:', userData);
+    return userData;
   }
-
 }
-

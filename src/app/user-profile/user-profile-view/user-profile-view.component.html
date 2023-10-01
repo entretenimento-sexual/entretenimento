@@ -1,18 +1,32 @@
+<!-- src\app\user-profile\user-profile-view\user-profile-view.component.html -->
 <div class="profile-container">
-  <div class="profile-header">
-    <img src="caminho/para/imagem/perfil.jpg" alt="Foto de Perfil" class="profile-picture">
-    <h2>{{ userName || 'Nome do Usuário' }}</h2>
-    <p class="profile-stats">
-      <!-- <strong>Seguidores:</strong> {{ followerCount }}
-      <strong>Seguindo:</strong> {{ followingCount }} -->
-    </p>
+  <div class="sidebar">
+    <div class="profile-header">
+      <img [src]="photoURL" alt="Foto de Perfil" class="profile-picture">
+    </div>
+    <p class="user-nickname"><strong>{{ userNickname }}</strong></p>
+
+    <nav class="profile-nav">
+      <a href="#">><i class="fas fa-user"></i>Meu perfil</a>
+      <a href="#"><i class="fas fa-map-marker-alt"></i>Minha região</a>
+      <a href="#"><i class="fas fa-images"></i>Minhas fotos </a>
+      <a href="#"><i class="fas fa-cogs"></i> Minhas preferências</a>
+      <a href="#"><i class="fas fa-users"></i> Meus amigos</a>
+      <a href="#"><i class="fas fa-star"></i> Meus favoritos</a>
+      <a href="#"><i class="fas fa-comments"></i> Bate-papo</a>
+      <!-- Você pode adicionar mais links conforme necessário -->
+    </nav>
   </div>
+
+  <div class="content">
+
   <div class="profile-content">
-    <div class="profile-info">
+    <div class="profile-info" *ngIf="userName || userNickname || userIdade">
       <h3>Meu perfil</h3>
-      <p><strong>Apelido:</strong> {{ userNickname || 'Não informado' }}</p>
-      <p><strong>Idade:</strong> {{ userIdade || 'Não informado' }}</p>
-      <!-- <p><strong>Sobre:</strong> {{ userAbout || 'Não informado' }}</p> -->
+
+      <ng-container *ngIf="userIdade">
+        <p><strong>Idade:</strong> {{ userIdade }}</p>
+      </ng-container>
     </div>
     <div class="profile-interests">
       <h3>Interesses</h3>
@@ -23,6 +37,7 @@
       </ul>
     </div>
   </div>
+
   <div class="profile-footer">
     <a href="mensagem.html" class="btn btn-primary">Enviar mensagem</a>
     <a href="perfil.html" class="btn btn-secondary">Ver perfil</a>

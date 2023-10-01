@@ -9,29 +9,37 @@ import { RouterModule } from '@angular/router';
 import { LoginComponent } from './login-component/login-component';
 import { RegisterComponent } from './register-component/register.component';
 import { EspiarComponent } from './espiar/espiar.component';
+import { ProgressiveSignupComponent } from './progressive-signup/progressive-signup.component';
+import { AuthenticationRoutingModule } from './authentication-routing.module';
+import { FirestoreService } from '../core/services/autentication/firestore.service';
+import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
+import { MatCardModule } from '@angular/material/card';
 
 
 @NgModule({
   declarations: [
     LoginComponent,
     RegisterComponent,
-    EspiarComponent
+    EspiarComponent,
+    ProgressiveSignupComponent,
+    SuggestedProfilesComponent
   ],
 
   imports: [
     CommonModule,
     FormsModule, // Se você estiver usando formulários
-    RouterModule // Se este módulo tiver rotas
+    RouterModule, AuthenticationRoutingModule, // Se este módulo tiver rotas
+    MatCardModule
   ],
 
   exports: [
     LoginComponent,
     RegisterComponent,
-    EspiarComponent
+    EspiarComponent,
+    ProgressiveSignupComponent,
+    SuggestedProfilesComponent
   ],
 
-  providers: [
-   
-  ]
+  providers: [FirestoreService ]
 })
 export class AuthenticationModule { }

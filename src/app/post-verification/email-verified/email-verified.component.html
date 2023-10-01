@@ -1,14 +1,57 @@
 <!-- src\app\post-verification\email-verified\email-verified.component.html -->
-<div *ngIf="isEmailVerified; else notVerified">
-  <h1>Bem-vindo a rede social do sexo!</h1>
+<div *ngIf="isLoading">
+  <p>Verificando seu e-mail...</p>
+</div>
+
+<!-- Conteúdo quando o e-mail é verificado -->
+<div *ngIf="!isLoading && isEmailVerified">
+  <h1>Bem-vindo à rede social do sexo!</h1>
   <p>Obrigado por verificar o seu e-mail.</p>
-  <form (ngSubmit)="onSubmit()">
-    <!-- Seu formulário aqui -->
+  <p>Continue seu cadastro para aproveitar todos os recursos!</p>
+
+  <form (ngSubmit)="onSubmit()" #form="ngForm">
+    <!-- Identidade de Gênero -->
+    <label>Identidade de gênero:</label>
+    <select [(ngModel)]="gender" name="gender" required (change)="checkFieldValidity('gender', gender)">
+      <option value="homem">Homem</option>
+      <option value="mulher">Mulher</option>
+      <option value="casal-ele-ele">Casal (Ele/Ele)</option>
+      <option value="casal-ele-ela">Casal (Ele/Ela)</option>
+      <option value="casal-ela-ela">Casal (Ela/Ela)</option>
+      <option value="travesti">Travesti</option>
+      <option value="transexual">Transexual</option>
+      <option value="crossdressers">Crossdressers</option>
+    </select>
+    <div *ngIf="isFieldInvalid('gender')" class="error-message">{{ formErrors['gender'] }}</div>
+
+    <!-- Orientação Sexual -->
+    <label>Eu sou:</label>
+    <select [(ngModel)]="orientation" name="orientation">
+      <option value="bissexual">Bissexual</option>
+      <option value="homossexual">Homossexual</option>
+      <option value="heterossexual">Heterossexual</option>
+      <option value="pansexual">Pansexual</option>
+    </select>
+
+    <!-- Outras perguntas -->
+    <!-- Você pode adicionar outras perguntas relacionadas à identidade e preferências do usuário aqui -->
+
+    <!-- Upload de Fotos -->
+    <label>Foto principal:</label>
+    <input type="file" (change)="uploadFile($event)" required multiple>
+    <div *ngIf="isFieldInvalid('selectedFile')" class="error-message">{{ formErrors['selectedFile'] }}</div>
+
+    <button type="submit" [disabled]="!form.valid">Concluir Cadastro</button>
   </form>
+  <div *ngIf="uploadMessage" class="alert alert-warning">
+    {{ uploadMessage }}
+  </div>
+
   <p>Conheça as vantagens de ser um usuário assinante:</p>
   <!-- Vantagens aqui -->
 </div>
 
-<ng-template #notVerified>
+<!-- Mensagem de erro -->
+<div *ngIf="!isLoading && !isEmailVerified">
   <p>A verificação do e-mail falhou ou está pendente.</p>
-</ng-template>
+</div>
