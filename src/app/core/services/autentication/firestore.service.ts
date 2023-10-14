@@ -67,18 +67,16 @@ export class FirestoreService {
 
       // 4. Atualiza ou salva o documento no Firestore.
       const userRef = doc(this.db, "users", user.uid);
-      await setDoc(userRef, userData, { merge: true })
-        .then(() => {
-          console.log("Documento atualizado/salvo com sucesso!");
-        })
-        .catch((error) => {
-          console.error("Erro ao atualizar/salvar documento:", error);
-        });
+      await setDoc(userRef, userData, { merge: true });
+
+      console.log("Documento atualizado/salvo com sucesso!");
+
     } catch (error) {
       console.error("Erro ao salvar os dados do usuário após verificação de e-mail:", error);
       throw error;
     }
   }
+
 
   async getUserById(uid: string): Promise<IUserDados | null> {
     console.log('Método getUserById foi chamado com UID:', uid);

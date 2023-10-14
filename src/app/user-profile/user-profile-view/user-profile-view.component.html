@@ -7,7 +7,9 @@
     <p class="user-nickname"><strong>{{ userNickname }}</strong></p>
 
     <nav class="profile-nav">
-      <a href="#">><i class="fas fa-user"></i>Meu perfil</a>
+      <a href="#" *ngIf="currentRoute !== '/perfil/meu-perfil'">
+        <i class="fas fa-user"></i>Meu perfil
+      </a>
       <a href="#"><i class="fas fa-map-marker-alt"></i>Minha região</a>
       <a href="#"><i class="fas fa-images"></i>Minhas fotos </a>
       <a href="#"><i class="fas fa-cogs"></i> Minhas preferências</a>

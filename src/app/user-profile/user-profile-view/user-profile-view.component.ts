@@ -1,6 +1,6 @@
 // src\app\user-profile\user-profile-view\user-profile-view.component.ts
 import { Component, OnInit } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 
 @Component({
@@ -15,12 +15,15 @@ export class UserProfileViewComponent implements OnInit {
   userNickname?: string | null | undefined = null;
   userIdade?: string | null | undefined = null;
   public photoURL: string = '';
+  public currentRoute: string = '';
 
   constructor(private route: ActivatedRoute,
+              private router: Router,
               private authService: AuthService
     ) { }
 
   async ngOnInit(): Promise<void> {
+    this.currentRoute = this.router.url;
     console.log("Inicializando UserProfileViewComponent.");
     this.userId = this.route.snapshot.paramMap.get('id');
     console.log('UserID obtido da rota:', this.userId);

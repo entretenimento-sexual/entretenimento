@@ -160,7 +160,7 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
 
     this.authService.saveUserToFirestore(dadosDoUsuario).then(() => {
       console.log('Dados do usuário salvos com sucesso');
-      this.router.navigateByUrl('/perfil/meu-perfil');
+      this.router.navigate([`/perfil/${this.uid}`]);
     }).catch(erro => {
       console.error('Erro ao salvar dados do usuário:', erro);
     });

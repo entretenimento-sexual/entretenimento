@@ -14,7 +14,6 @@ export class EmailVerificationService {
   }
 
   // Métodos relacionados ao oobCode
-
   setCode(code: string): void {
     console.log('Definindo oobCode:', code);
     this.code = code;

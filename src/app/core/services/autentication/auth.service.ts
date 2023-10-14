@@ -5,7 +5,7 @@ import { catchError, tap } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { Router } from '@angular/router';
 
-import { getAuth, signOut, User, createUserWithEmailAndPassword, applyActionCode } from 'firebase/auth';
+import { getAuth, signOut, User, createUserWithEmailAndPassword, applyActionCode, signInWithEmailAndPassword } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
 
 import { FirestoreService } from './firestore.service';
@@ -149,5 +149,23 @@ export class AuthService {
     const userData = await this.firestoreService.getUserById(uid);
     console.log('Dados recuperados do Firestore:', userData);
     return userData;
+  }
+
+  async login(email: string, password: string): Promise<IUserDados | null> {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      if (user) {
+        console.log('Usuário logado com sucesso:', user);
+        return this.mapUserToUserDados(user);
+      } else {
+        console.warn('Dados do usuário não encontrados após o login.');
+        return null;
+      }
+    } catch (error) {
+      console.error('Erro ao fazer login:', error);
+      throw error;
+    }
   }
 }

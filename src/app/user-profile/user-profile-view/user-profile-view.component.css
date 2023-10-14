@@ -2,7 +2,7 @@
 .profile-container {
   display: flex;
   flex-direction: row;
-  align-items: start;
+  align-items: flex-start;
   padding: 20px;
   max-width: 1200px;
   /* Ajuste conforme necessário */

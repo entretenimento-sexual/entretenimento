@@ -14,9 +14,11 @@
       <li class="navbar-item" *ngIf="isAuthenticated">
         <a [routerLink]="['/perfil', userId]" class="navbar-link">Meu Perfil</a>
       </li>
-      
+
       <li class="navbar-item" *ngIf="isAuthenticated"><a routerLink="/contato" class="navbar-link">Contato</a></li>
-      <li class="navbar-item" *ngIf="isAuthenticated"><a (click)="logout()" class="navbar-link">Logout</a></li>
+      <li class="navbar-item" *ngIf="isAuthenticated">
+        <a href="javascript:void(0);" (click)="logout()" class="navbar-link">Sair</a>
+      </li>
       <li class="navbar-item" *ngIf="isAuthenticated">{{ userName }}</li>
 
       <!-- Quando o usuário não estiver logado -->

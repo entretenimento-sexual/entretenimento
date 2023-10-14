@@ -1,6 +1,8 @@
-// src\app\authentication\login-component\login-component.component.ts
+// src\app\authentication\login-component\login-component.ts
 import { Component } from '@angular/core';
-import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { Router } from '@angular/router';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { AuthService } from 'src/app/core/services/autentication/auth.service';
 
 @Component({
   selector: 'app-login-component',
@@ -10,21 +12,33 @@ import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
 export class LoginComponent {
   email: string = '';
   password: string = '';
+  errorMessage: string = '';
+  uid: string | null = null;
 
-  constructor() { }
+  constructor(private authService: AuthService, private router: Router) { }
 
   async login(): Promise<void> {
-    const auth = getAuth();
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, this.email, this.password);
-      // O usuário está agora logado
-      console.log('Usuário logado com sucesso:', userCredential.user);
+      const user: IUserDados | null = await this.authService.login(this.email, this.password);
+      console.log('Usuário logado com sucesso:', user);
+
+      // Atualizando a propriedade uid com o valor retornado após o login
+      this.uid = user?.uid || null;
+
+      if (this.uid) {
+        this.router.navigate([`/perfil/${this.uid}`]);
+      } else {
+        console.warn('UID do usuário não encontrado, redirecionando para o perfil padrão');
+        this.router.navigate(['/perfil/meu-perfil']);
+      }
+
     } catch (error) {
+      if (typeof error === 'object' && error !== null && 'message' in error) {
+        this.errorMessage = "Erro ao fazer login: " + error.message;
+      } else {
+        this.errorMessage = "Erro ao fazer login.";
+      }
       console.error('Erro ao fazer login:', error);
     }
   }
 }
-
-
-
-
