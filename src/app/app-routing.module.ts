@@ -6,6 +6,7 @@ import { RegisterComponent } from './authentication/register-component/register.
 import { LoginComponent } from './authentication/login-component/login-component';
 import { EspiarComponent } from './authentication/espiar/espiar.component';
 import { ProfileListComponent } from './layout/profile-list/profile-list.component';
+import { AuthGuard } from './core/guards/auth.guard';
 
 // import { SeuComponente404 } from './seu-componente-404/seu-componente-404.component'; // Exemplo de componente 404
 
@@ -19,7 +20,8 @@ const routes: Routes = [
   // Neste caso, estamos removendo a rota duplicada e utilizando somente a que possui :id.
   {
     path: 'perfil/:id',
-    loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule)
+    loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule),
+    canActivate: [AuthGuard]
   },
 
   { path: 'profile-list', component: ProfileListComponent }, // rota para a lista de perfis

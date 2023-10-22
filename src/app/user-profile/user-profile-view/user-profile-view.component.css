@@ -5,26 +5,19 @@
   align-items: flex-start;
   padding: 20px;
   max-width: 1200px;
-  /* Ajuste conforme necessário */
   margin: 0 auto;
 }
 
-.sidebar {
+.sidebar {/* --- Estilos da barra lateral --- */
   width: 25%;
   max-width: 250px;
   padding: 20px;
   margin-right: 20px;
+  transition: transform 0.5s;
+  transform: translateX(0);
 }
 
-.profile-nav a {
-  text-decoration: none;
-  color: #007BFF;
-  padding: 10px 0;  /* Aumentando o espaçamento */
-  font-size: 18px;  /* Aumentando o tamanho da fonte */
-  font-family: 'Roboto', sans-serif;  /* Escolhendo uma fonte bonita */
-}
-
-.profile-header {
+.profile-header {/* --- Estilos do cabeçalho do perfil --- */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -33,7 +26,7 @@
   height: 200px;
   overflow: hidden;
   margin-bottom: 20px;
-  border-radius: 50%;  /* Certifique-se de que o contêiner seja um círculo perfeito */
+  border-radius: 50%;
 }
 
 .profile-picture {
@@ -50,14 +43,14 @@
 
 .user-nickname {
   text-align: center;
-  font-size: 24px;  /* Aumenta o tamanho da fonte */
-  font-weight: bold;  /* Fonte em negrito */
-  margin-top: -10px;  /* Aproxima o apelido da imagem */
-  color: #333;  /* Cor mais escura para o apelido, mas pode ajustar conforme desejar */
-  font-family: 'Roboto', sans-serif;  /* Usando a fonte Roboto */
+  font-size: 24px;
+  font-weight: bold;
+  margin-top: -10px;
+  color: #333;
+  font-family: 'Roboto', sans-serif;
 }
 
-.profile-nav {
+.profile-nav {/* --- Estilos da navegação do perfil --- */
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -65,27 +58,23 @@
 
 .profile-nav a {
   text-decoration: none;
-  color: #ff6565;  /* Mudança de cor */
+  color: #ff6565;
   padding: 10px 0;
   font-size: 18px;
   font-family: 'Roboto', sans-serif;
-  font-weight: bold;  /* Fonte em negrito */
+  font-weight: bold;
 }
 
-.profile-nav i {
-  margin-right: 8px;  /* Espaçamento entre o ícone e o texto */
-}
+.profile-nav i {margin-right: 8px;}
 
-.profile-nav a:hover {
-  text-decoration: underline;
-}
+.profile-nav a:hover {  text-decoration: underline;}
 
-.content {
+.content {/* --- Estilos do conteúdo principal --- */
   flex: 1;
-  /* O restante das estilizações para o conteúdo principal vai aqui */
+  padding-left: 20px;
 }
 
-.btn {
+.btn {/* --- Estilos dos botões --- */
   padding: 10px 15px;
   border: none;
   border-radius: 5px;
@@ -103,14 +92,24 @@
   background-color: #6C757D;
   color: white;
 }
-
 @media only screen and (max-width: 600px) {
-  .profile-container {
-    flex-direction: column;
+  .profile-container {    flex-direction: column;  }
+
+        .sidebar:not(.visible) {
+          display: none;           /* Esconde o sidebar */
+          transform: translateX(-200%);
+        }
+
+        .sidebar.visible {
+          display: block;          /* Mostra o sidebar */
+          transform: translateX(0);
+          width: 60%;
+        }
+
+  .content {
+          padding-left: 0;
+        }
   }
 
-  .sidebar {
-    width: 100%;
-    max-width: 100%;
-  }
-}
+
+

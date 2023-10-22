@@ -11,7 +11,7 @@
 
   <form (ngSubmit)="onSubmit()" #form="ngForm">
     <!-- Identidade de Gênero -->
-    <label>Identidade de gênero:</label>
+    <label>Quero me cadastrar como:</label>
     <select [(ngModel)]="gender" name="gender" required (change)="checkFieldValidity('gender', gender)">
       <option value="homem">Homem</option>
       <option value="mulher">Mulher</option>

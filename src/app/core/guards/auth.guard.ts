@@ -1,8 +1,8 @@
 // src\app\core\guards\auth.guard.ts
 import { Injectable } from '@angular/core';
 import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router } from '@angular/router';
-import { Observable } from 'rxjs';
-import { AuthService } from '../services/autentication/auth.service'; // Ajuste o caminho se necessário
+import { Observable, map, take, tap } from 'rxjs';
+import { AuthService } from '../services/autentication/auth.service';
 
 @Injectable({
   providedIn: 'root'
@@ -13,15 +13,17 @@ export class AuthGuard implements CanActivate {
 
   canActivate(
     next: ActivatedRouteSnapshot,
-    state: RouterStateSnapshot): Observable<boolean> | Promise<boolean> | boolean {
-
-    const isAuthenticated = this.authService.isUserAuthenticated(); // Supondo que o seu serviço de autenticação tenha um método isAuthenticated()
-
-    if (isAuthenticated) {
-      return true;
-    } else {
-      this.router.navigate(['/authentication/login-component']); // Ajuste para a rota de login correta
-      return false;
-    }
+    state: RouterStateSnapshot): Observable<boolean> {
+    return this.authService.user$.pipe(
+      take(1),  // pega apenas o primeiro valor emitido
+      tap(user => {
+        if (!user) {
+          this.router.navigate(['/login']);
+        }
+      }),
+      map(user => !!user)
+    );
   }
+
+
 }

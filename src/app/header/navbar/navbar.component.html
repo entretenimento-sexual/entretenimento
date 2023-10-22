@@ -5,22 +5,21 @@
       <a routerLink="/" class="navbar-brand">
         <app-logo></app-logo>
       </a>
+      <button class="hamburger-btn" (click)="onToggleSidebar()">
+        &#9776; <!-- Este é um caractere Unicode para o ícone de hambúrguer -->
+      </button>
     </div>
     <ul class="navbar-menu">
 
-      <!-- Quando o usuário estiver logado -->
       <li class="navbar-item" *ngIf="isAuthenticated"><a routerLink="/" class="navbar-link">Início</a></li>
-
       <li class="navbar-item" *ngIf="isAuthenticated">
         <a [routerLink]="['/perfil', userId]" class="navbar-link">Meu Perfil</a>
       </li>
-
       <li class="navbar-item" *ngIf="isAuthenticated"><a routerLink="/contato" class="navbar-link">Contato</a></li>
       <li class="navbar-item" *ngIf="isAuthenticated">
         <a href="javascript:void(0);" (click)="logout()" class="navbar-link">Sair</a>
       </li>
       <li class="navbar-item" *ngIf="isAuthenticated">{{ userName }}</li>
-
       <!-- Quando o usuário não estiver logado -->
       <li class="navbar-item" *ngIf="!isAuthenticated">
         <a routerLink="/espiar" class="navbar-link" title="Acesso limitado ao site">Espiar</a>
@@ -32,7 +31,6 @@
         <a routerLink="/register-component" class="navbar-link"
           title="Se deseja ter uma conta ou perfil conosco, clique aqui">Registrar</a>
       </li>
-
     </ul>
   </div>
 </nav>

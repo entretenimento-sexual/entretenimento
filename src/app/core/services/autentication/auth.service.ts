@@ -1,6 +1,6 @@
 //src\app\core\services\autentication\auth.service.ts
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, from, Observable, of } from 'rxjs';
+import { from, Observable, of, ReplaySubject } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { Router } from '@angular/router';
@@ -19,7 +19,8 @@ const auth = getAuth();
 })
 export class AuthService {
 
-  private userSubject = new BehaviorSubject<IUserDados | null>(null);
+  private userSubject = new ReplaySubject<IUserDados | null>(1);
+  private currentUserValue: IUserDados | null = null;
 
   // Observable do usuário
   user$: Observable<IUserDados | null> = this.userSubject.asObservable();
@@ -36,8 +37,9 @@ export class AuthService {
   // Inicia o ouvinte de mudança de autenticação
   private initAuthStateListener(): void {
     auth.onAuthStateChanged(user => {
-      console.log('Estado da autenticação mudou:', user);
-      this.userSubject.next(this.mapUserToUserDados(user));
+      const userData = this.mapUserToUserDados(user);
+      this.currentUserValue = userData; // Atualize o valor atual aqui
+      this.userSubject.next(userData);
     });
   }
 
@@ -135,12 +137,12 @@ export class AuthService {
 
   // Verifica se o usuário está autenticado
   isUserAuthenticated(): boolean {
-    return !!this.userSubject.value;
+    return !!this.currentUserValue;
   }
 
   // Retorna o usuário atual
   get currentUser(): IUserDados | null {
-    return this.userSubject.value;
+    return this.currentUserValue;
   }
 
   // Busca usuário pelo ID

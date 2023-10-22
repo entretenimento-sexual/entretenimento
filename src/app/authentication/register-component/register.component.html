@@ -31,14 +31,14 @@
     </div>
     <div *ngIf="!formSubmitted">
     <form (submit)="onRegister()">
-      <input type="text" [(ngModel)]="nickname" (input)="checkNickname()" placeholder="Apelido" name="nickname"
+      <input type="text" [(ngModel)]="nickname" (input)="checkNickname()" placeholder="Apelido de até 25 digitos" name="nickname"
         required>
       <div *ngIf="nicknameStatus"
         [ngClass]="{'text-success': nicknameStatus === 'Apelido disponível', 'text-danger': nicknameStatus !== 'Apelido disponível'}">
         {{nicknameStatus}}
       </div>
-      <input type="email" placeholder="E-mail" [(ngModel)]="email" name="email" required />
-      <input type="password" placeholder="Senha" [(ngModel)]="password" name="password" required />
+      <input type="email" placeholder="E-mail (não é exibido)" [(ngModel)]="email" name="email" required />
+      <input type="password" placeholder="Senha (minimo de 6 caracteres)" [(ngModel)]="password" name="password" required />
       <button type="submit">Cadastre-se</button>
     </form>
     </div><!-- fechamento do *ngIf="!formSubmitted"-->

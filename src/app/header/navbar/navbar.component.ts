@@ -3,7 +3,7 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-
+import { SidebarService } from 'src/app/core/services/sidebar.service';
 
 @Component({
   selector: 'app-navbar',
@@ -19,7 +19,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public isXereta: boolean = false;
   public userId: string = '';
 
-  constructor(private authService: AuthService, private router: Router) { }
+  constructor(private authService: AuthService,
+              private router: Router,
+              private sidebarService: SidebarService
+              ) { }
 
   ngOnInit(): void {
     // Quando o componente é inicializado, nós nos inscrevemos para ouvir as mudanças nos dados do usuário.
@@ -28,14 +31,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
       this.isAuthenticated = !!user;
 
       if (user) {
-        // Se o usuário existir, extraia o nome para exibição.
-        this.userName = user.displayName || 'Usuário';
-
-        // Assumindo que seu objeto 'user' tenha uma propriedade 'id'.
-        this.userId = user.uid || '';
-
-        // Define isXereta como verdadeiro se o role do usuário for 'xereta'.
-        this.isXereta = user.role === 'xereta';
+        this.userName = user.displayName || 'Usuário';// Se o usuário existir, extraia o nome para exibição.
+        this.userId = user.uid || '';// Assumindo que seu objeto 'user' tenha uma propriedade 'id'.
+        this.isXereta = user.role === 'xereta';// Define isXereta como verdadeiro se o role do usuário for 'xereta'.
       }
     });
   }
@@ -50,10 +48,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.authService.googleLogin();
   }
  */
-  // Método para fazer logout.
-  logout(): void {
+    logout(): void {
     this.authService.logout().subscribe(() => {
       this.router.navigate(['/login']);
     });
+  }
+
+  onToggleSidebar(): void {
+    console.log("onToggleSidebar chamado!");
+    this.sidebarService.toggleSidebar();
   }
 }

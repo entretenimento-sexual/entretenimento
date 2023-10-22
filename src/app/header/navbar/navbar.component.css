@@ -10,12 +10,22 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-direction: row;
+}
+
+.navbar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;  /* Isso garante que o espaço entre os elementos seja máximo */
+  width: 100%;  /* Ocupa toda a largura disponível */
 }
 
 .navbar-brand {
   font-size: 24px;
   color: white;
   text-decoration: none;
+  display: flex;
+    align-items: center;
 }
 
 .navbar-menu {
@@ -45,3 +55,37 @@
   display: flex;
   align-items: center;
 }
+
+.toggle-sidebar-btn {
+  background-color: transparent;
+  border: none;
+  color: white;
+  font-size: 24px;
+  margin-left: auto; /* para empurrar para o lado direito do container */
+}
+
+.hamburger-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: white;
+  display: none;  /* Escondido por padrão */
+  cursor: pointer;
+
+}
+
+@media only screen and (max-width: 600px) {
+  .hamburger-btn {
+    display: inline-block;
+  }
+
+  .navbar-menu {
+    display: none;    /* oculte os itens do menu em dispositivos pequenos */
+  }
+
+    .hamburger-btn {
+      display: inline-block;
+      margin-left: auto;
+    }
+  }
+

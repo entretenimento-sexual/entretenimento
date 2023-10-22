@@ -1,13 +1,14 @@
 <!-- src\app\user-profile\user-profile-view\user-profile-view.component.html -->
 <div class="profile-container">
-  <div class="sidebar">
+
+    <div class="sidebar" [ngClass]="{'visible': isSidebarVisible}" >
     <div class="profile-header">
       <img [src]="photoURL" alt="Foto de Perfil" class="profile-picture">
     </div>
     <p class="user-nickname"><strong>{{ userNickname }}</strong></p>
 
     <nav class="profile-nav">
-      <a href="#" *ngIf="currentRoute !== '/perfil/meu-perfil'">
+      <a [routerLink]="['/perfil', uid]" *ngIf="!isOnOwnProfile()">
         <i class="fas fa-user"></i>Meu perfil
       </a>
       <a href="#"><i class="fas fa-map-marker-alt"></i>Minha região</a>
