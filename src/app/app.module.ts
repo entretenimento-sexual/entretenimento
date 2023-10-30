@@ -30,6 +30,7 @@ import { EmailVerificationService } from './core/services/autentication/email-ve
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 
 
+
 @NgModule({
   declarations: [AppComponent, AuthenticationTestComponent],
   imports: [

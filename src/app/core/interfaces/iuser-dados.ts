@@ -11,9 +11,10 @@ export interface IUserDados {
   idade?: number; // Idade do usuário
   role: 'xereta' | 'animando' | 'decidido' | 'articulador' | 'extase'; // Função/role do usuário
   lastLoginDate: Timestamp; // Data do último login
-  firstLogin?: Timestamp; // Data do primeiro login
+  firstLogin?: Timestamp | Date;
   emailVerified?: boolean;
   gender?: string;
   orientation?: string;
+  isSidebarOpen?: boolean;
 }
 

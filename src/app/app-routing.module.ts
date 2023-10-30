@@ -24,6 +24,8 @@ const routes: Routes = [
     canActivate: [AuthGuard]
   },
 
+  { path: 'chat', loadChildren: () => import('./chat-module/chat-module.module').then(m => m.ChatModuleModule) },
+
   { path: 'profile-list', component: ProfileListComponent }, // rota para a lista de perfis
   { path: 'register-component', component: RegisterComponent }, // rota para o componente de registro
   { path: 'login', component: LoginComponent }, // rota para o componente de login
