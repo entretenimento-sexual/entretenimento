@@ -1,7 +1,7 @@
 //src\app\shared\date-format.pipe.ts
 import { Pipe, PipeTransform } from '@angular/core';
-import * as moment from 'moment';
-
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 @Pipe({
   name: 'dateFormat'
@@ -9,7 +9,7 @@ import * as moment from 'moment';
 export class DateFormatPipe implements PipeTransform {
 
   transform(value: any, ...args: any[]): any {
-    return moment(value).format('DD/MM/YYYY');
+    return format(new Date(value), 'dd/MM/yyyy', { locale: ptBR });
   }
 
 }

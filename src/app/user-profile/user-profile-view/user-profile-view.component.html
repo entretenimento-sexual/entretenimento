@@ -32,7 +32,9 @@
             <ng-template #notCouple>
             <h1>Sou {{ usuario.nickname }}</h1>
           </ng-template>
-          <p>{{ usuario.gender }}, nesse momento não sou assinante, criado em {{ usuario.firstLogin | dateFormat }}</p>
+          <p>{{ usuario.municipio }}, {{ usuario.estado }}</p>
+          <p>{{ usuario.gender }} {{ usuario.orientation }}</p>
+          <p>perfil criado em {{ usuario.firstLogin | dateFormat }}</p>
         </div>
         <p>Email: {{ usuario.email }}</p>
         <!-- Adicione outros campos conforme necessário -->

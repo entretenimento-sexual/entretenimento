@@ -1,0 +1,7 @@
+/* src\app\header\logo\logo.component.css */
+.logo {
+  height: auto;   /* Mantém a proporção da imagem */
+  max-width: 200px;   /* Limita o tamanho máximo da imagem ao do contêiner */
+  display: block;
+
+}

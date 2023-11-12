@@ -14,7 +14,9 @@ export interface IUserDados {
   firstLogin?: Timestamp | Date;
   emailVerified?: boolean;
   gender?: string;
-  orientation?: string;
+  orientation?: string; //orientação sexual
+  estado?: string; // Estado do usuário
+  municipio?: string; // Município do usuário
   isSidebarOpen?: boolean;
 }
 

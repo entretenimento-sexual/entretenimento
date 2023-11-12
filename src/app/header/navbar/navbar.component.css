@@ -1,54 +1,66 @@
 /* src\app\header\navbar\navbar.component.css */
 .navbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60px;
   background-color: #333;
-  padding: 10px 0;
 }
 
 .navbar-container {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   width: 90%;
   margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-direction: row;
 }
 
 .navbar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;  /* Isso garante que o espaço entre os elementos seja máximo */
-  width: 100%;  /* Ocupa toda a largura disponível */
+  width: 100%; 
 }
 
 .navbar-brand {
-  font-size: 24px;
-  color: white;
   text-decoration: none;
   display: flex;
-    align-items: center;
+  align-items: center;
 }
 
 .navbar-menu {
   list-style-type: none;
+  padding: 0;
+  margin: 0;
   display: flex;
-  gap: 15px;
+  gap: 30px;
+  align-items: center;
+  /* Isso vai centralizar os <li> dentro da <ul> */
+}
+
+.navbar-item {
+    flex-grow: 0;
+    flex-shrink: 0;
 }
 
 .navbar-item a {
-  color: white;
-  text-decoration: none;
   padding: 5px 10px;
   border-radius: 4px;
+  font-size: 16px;
   transition: background-color 0.2s;
+  color: white;
+  text-decoration: none;
+  display: block;
+  /* Faz com que o link preencha o espaço disponível do <li> */
 }
 
 .navbar-item a:hover {
   background-color: #555;
 }
 .navbar-logo {
-  height: 40px;
+  max-height: 100%;
   width: auto;
-  margin-right: 10px;
+  object-fit: contain;
 }
 
 .navbar-brand {
@@ -80,7 +92,7 @@
   }
 
   .navbar-menu {
-    display: none;    /* oculte os itens do menu em dispositivos pequenos */
+    display: none;/* oculte os itens do menu em dispositivos até 600px */
   }
 
     .hamburger-btn {

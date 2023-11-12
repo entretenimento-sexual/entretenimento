@@ -28,6 +28,10 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
   photoURL!: string;
   selectedFile: File | null = null;
   public uploadMessage: string = '';
+  public estados: any[] = [];
+  public municipios: any[] = [];
+  public selectedEstado: string = '';
+  public selectedMunicipio: string = '';
 
   formErrors: { [key: string]: string } = {
     gender: '',
@@ -57,6 +61,27 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
         console.error('oobCode não encontrado');
       }
     });
+    this.loadEstados();
+  }
+
+  async loadEstados() {
+    try {
+      const response = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados');
+      this.estados = await response.json();
+      this.estados.sort((a, b) => a.nome.localeCompare(b.nome)); // Ordena os estados
+    } catch (error) {
+      console.error('Erro ao carregar os estados:', error);
+    }
+  }
+
+  async onEstadoChange() {
+    try {
+      const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${this.selectedEstado}/municipios`);
+      this.municipios = await response.json();
+      this.municipios.sort((a, b) => a.nome.localeCompare(b.nome)); // Ordena os municípios
+    } catch (error) {
+      console.error('Erro ao carregar os municípios:', error);
+    }
   }
 
   ngOnDestroy(): void {
@@ -145,6 +170,8 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
       photoURL: this.photoURL,
       gender: this.gender,
       orientation: this.orientation,
+      estado: this.selectedEstado,
+      municipio: this.selectedMunicipio,
       role: 'animando', // Valor temporário.
       lastLoginDate: agoraTimestamp
     };

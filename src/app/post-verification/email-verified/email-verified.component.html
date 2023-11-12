@@ -36,6 +36,18 @@
     <!-- Outras perguntas -->
     <!-- Você pode adicionar outras perguntas relacionadas à identidade e preferências do usuário aqui -->
 
+    <!-- Estado -->
+    <label>Estado:</label>
+    <select [(ngModel)]="selectedEstado" name="estado" (change)="onEstadoChange()">
+      <option *ngFor="let estado of estados" [value]="estado.sigla">{{ estado.nome }}</option>
+    </select>
+
+    <!-- Município -->
+    <label>Município:</label>
+    <select [(ngModel)]="selectedMunicipio" name="municipio">
+      <option *ngFor="let municipio of municipios" [value]="municipio.nome">{{ municipio.nome }}</option>
+    </select>
+
     <!-- Upload de Fotos -->
     <label>Foto principal:</label>
     <input type="file" (change)="uploadFile($event)" required multiple>
