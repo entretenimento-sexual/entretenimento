@@ -2,22 +2,22 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterModule, Routes } from '@angular/router';
 import { UserProfileViewComponent } from './user-profile-view/user-profile-view.component';
+import { UserProfileEditComponent } from './user-profile-edit/user-profile-edit.component';
 import { SharedModule } from '../shared/shared/shared.module';
-
-const routes: Routes = [
-  { path: '', component: UserProfileViewComponent }
-];
+import { UserProfileRoutingModule } from './user-profile-routing.module';
+import { EditProfileRegionComponent } from './user-profile-edit/edit-profile-region/edit-profile-region.component';
+import { EditProfilePreferencesComponent } from './user-profile-edit/edit-profile-preferences/edit-profile-preferences.component';
+import { EditProfileSocialLinksComponent } from './user-profile-edit/edit-profile-social-links/edit-profile-social-links.component';
+import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/edit-user-profile.component';
 
 @NgModule({
-  declarations: [UserProfileViewComponent],
+  declarations: [UserProfileViewComponent, UserProfileEditComponent, EditProfileRegionComponent, EditProfilePreferencesComponent, EditProfileSocialLinksComponent, EditUserProfileComponent],
   imports: [
     CommonModule,
     FormsModule,
     SharedModule,
-    RouterModule.forChild(routes)
-  ],
-  exports: [UserProfileViewComponent]
+    UserProfileRoutingModule
+  ]
 })
 export class UserProfileModule { }

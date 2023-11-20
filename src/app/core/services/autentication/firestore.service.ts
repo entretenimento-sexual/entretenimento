@@ -152,4 +152,21 @@ export class FirestoreService {
     console.log("Usuários únicos encontrados:", uniqueMatches);
     return uniqueMatches;
   }
+
+  async getProfilesByOrientationAndLocation(gender: string, orientation: string, municipio: string): Promise<IUserDados[]> {
+    try {
+      const userCollection = collection(this.db, 'users');
+      const q = query(userCollection,
+        where('gender', '==', gender),
+        where('orientation', '==', orientation),
+        where('municipio', '==', municipio)
+      );
+
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => doc.data() as IUserDados);
+    } catch (error) {
+      console.error('Erro ao buscar perfis:', error);
+      throw error;
+    }
+  }
 }

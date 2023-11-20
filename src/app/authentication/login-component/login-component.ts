@@ -20,8 +20,6 @@ export class LoginComponent {
   async login(): Promise<void> {
     try {
       const user: IUserDados | null = await this.authService.login(this.email, this.password);
-      console.log('Usuário logado com sucesso:', user);
-
       // Atualizando a propriedade uid com o valor retornado após o login
       this.uid = user?.uid || null;
 

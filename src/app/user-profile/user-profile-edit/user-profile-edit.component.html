@@ -1,0 +1,14 @@
+<!-- src\app\user-profile\user-profile-edit\user-profile-edit.component.html -->
+<form (ngSubmit)="onSubmit()">
+  <!-- Seleção de Gêneros -->
+  <label>Interessado em:</label>
+  <div *ngFor="let genderOption of genderOptions">
+    <input type="checkbox" [value]="genderOption" [(ngModel)]="selectedGenders" name="genderPreferences">
+    <label>{{ genderOption }}</label>
+  </div>
+
+  <!-- Outras Preferências -->
+  <!-- Adicione outros campos conforme necessário -->
+
+  <button type="submit">Salvar Alterações</button>
+</form>

@@ -19,7 +19,7 @@ const routes: Routes = [
   // Carrega o módulo de perfil quando a URL tem 'perfil' (sem ID) ou 'perfil/:id'.
   // Neste caso, estamos removendo a rota duplicada e utilizando somente a que possui :id.
   {
-    path: 'perfil/:id',
+    path: 'perfil',
     loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule),
     canActivate: [AuthGuard]
   },
@@ -30,8 +30,6 @@ const routes: Routes = [
   { path: 'register-component', component: RegisterComponent }, // rota para o componente de registro
   { path: 'login', component: LoginComponent }, // rota para o componente de login
   { path: 'espiar', component: EspiarComponent }, // rota para o componente Espiar
-
-  // Descomente a linha abaixo quando você tiver um componente 404 pronto.
   // { path: '**', component: SeuComponente404 } // rota coringa para capturar URLs não definidas e mostrar uma página 404
 ];
 

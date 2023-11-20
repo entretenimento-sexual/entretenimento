@@ -1,6 +1,6 @@
 <!-- src\app\user-profile\user-profile-view\user-profile-view.component.html -->
 <div class="profile-container">
-
+<!-- Sidebar -->
     <div class="sidebar" [ngClass]="{'visible': isSidebarVisible}">
     <div class="profile-header">
       <img [src]="(usuario$ | async)?.photoURL" alt="Foto de Perfil" class="profile-picture">
@@ -22,7 +22,7 @@
       <!-- Você pode adicionar mais links conforme necessário -->
     </nav>
   </div>
-
+<!-- Dados pessoais -->
   <div class="content">
     <div class="profile-content">
       <div *ngIf="usuario$ | async as usuario; else loading" class="user-details">
@@ -34,22 +34,25 @@
           </ng-template>
           <p>{{ usuario.municipio }}, {{ usuario.estado }}</p>
           <p>{{ usuario.gender }} {{ usuario.orientation }}</p>
+          <p>Email: {{ usuario.email }}</p>
           <p>perfil criado em {{ usuario.firstLogin | dateFormat }}</p>
+          <a [routerLink]="['/perfil', uid, 'editar-dados-pessoais']">Editar Dados Pessoais</a>
         </div>
-        <p>Email: {{ usuario.email }}</p>
+
         <!-- Adicione outros campos conforme necessário -->
       </div>
     <ng-template #loading>
       <p>Carregando...</p>
     </ng-template>
     <div class="profile-interests">
-      <h3>Interesses</h3>
+      <h3>Tenho interesse em</h3>
       <ul>
-        <li>Tema 1</li>
-        <li>Tema 2</li>
-        <li>Tema 3</li>
+        <li>Preferencia em perfil de ...</li>
+        <li>Que seja da região de ...</li>
+        <li>Que fantasiem ...</li>
+        <li>Outros interesses</li>
       </ul>
     </div>
   </div>
-
+<a [routerLink]="['/perfil', uid, 'editar']">Editar Perfil</a>
 </div>

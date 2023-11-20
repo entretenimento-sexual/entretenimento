@@ -1,0 +1,37 @@
+<!-- src\app\user-profile\user-profile-edit\edit-user-profile\edit-user-profile.component.html -->
+<form (ngSubmit)="onSubmit()">
+  <div>
+    <label for="nickname">Meu nickname</label>
+    <input type="text" id="nickname" [(ngModel)]="userData.nickname" name="nickname">
+  </div>
+
+  <!-- Campo de seleção de Estado -->
+  <div>
+    <label for="estado">Estado:</label>
+    <select [(ngModel)]="userData.estado" name="estado" (change)="onEstadoChange(userData.estado ?? '')">
+      <option *ngFor="let estado of estados" [value]="estado.sigla">{{ estado.nome }}</option>
+    </select>
+  </div>
+
+  <!-- Campo de seleção de Município -->
+  <div>
+    <label for="municipio">Município:</label>
+    <select [(ngModel)]="userData.municipio" name="municipio">
+      <option *ngFor="let municipio of municipios" [value]="municipio.nome">{{ municipio.nome }}</option>
+    </select>
+  </div>
+
+  <div>
+    <label for="gender">Gênero:</label>
+    <select id="gender" [(ngModel)]="userData.gender" name="gender">
+      <option *ngFor="let genderOption of genderOptions" [value]="genderOption.value">{{ genderOption.label }}</option>
+    </select>
+  </div>
+
+  <div>
+    <label for="orientation">Orientação:</label>
+    <input type="text" id="orientation" [(ngModel)]="userData.orientation" name="orientation">
+  </div>
+
+  <button type="submit">Salvar Alterações</button>
+</form>

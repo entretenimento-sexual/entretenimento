@@ -1,8 +1,8 @@
 // src\app\authentication\suggested-profiles\suggested-profiles.component.ts
 import { Component, OnInit } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
-import { PreRegisterServiceService } from 'src/app/core/services/autentication/pre-register.service';
+import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { SuggestionService } from 'src/app/core/services/suggestion.service';
 
 @Component({
   selector: 'app-suggested-profiles',
@@ -16,21 +16,20 @@ export class SuggestedProfilesComponent implements OnInit {
   matchingProfilesCount: number = 0;
 
   constructor(
-    private firestoreService: FirestoreService,
-    private preRegisterService: PreRegisterServiceService
+    private authService: AuthService,
+    private suggestionService: SuggestionService
   ) { }
 
   async ngOnInit() {
     try {
-      const token = this.preRegisterService.getToken();
-      const userPreferences = await this.firestoreService.getUserPreferencesByToken(token); // Este método precisa ser criado e implementado
+      const currentUser = this.authService.currentUser; // Obtém o usuário atual
+      if (currentUser) {
+        this.suggestedProfiles = await this.suggestionService.getSuggestedProfilesForUser(currentUser);
+        this.matchingProfilesCount = this.suggestedProfiles.length;
 
-      this.suggestedProfiles = await this.firestoreService.getSuggestedProfilesMatchingPreferences(userPreferences); // Este método também precisa ser criado e implementado
-
-      this.matchingProfilesCount = this.suggestedProfiles.length;
-
-      if (this.matchingProfilesCount === 0) {
-        this.noProfilesMessage = "Atualmente, não temos perfis sugeridos para você. Por favor, volte mais tarde ou verifique novamente após um tempo.";
+        if (this.matchingProfilesCount === 0) {
+          this.noProfilesMessage = "Atualmente, não temos perfis sugeridos para você. Por favor, volte mais tarde ou verifique novamente após um tempo.";
+        }
       }
     } catch (error) {
       console.error('Erro ao buscar perfis sugeridos:', error);
