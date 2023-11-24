@@ -4,7 +4,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UserProfileViewComponent } from './user-profile-view/user-profile-view.component';
 import { UserProfileEditComponent } from './user-profile-edit/user-profile-edit.component';
-import { SharedModule } from '../shared/shared/shared.module';
+import { SharedModule } from '../shared/shared.module';
 import { UserProfileRoutingModule } from './user-profile-routing.module';
 import { EditProfileRegionComponent } from './user-profile-edit/edit-profile-region/edit-profile-region.component';
 import { EditProfilePreferencesComponent } from './user-profile-edit/edit-profile-preferences/edit-profile-preferences.component';

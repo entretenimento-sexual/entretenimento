@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 @Component({
   selector: 'app-edit-user-profile',
@@ -25,6 +26,10 @@ export class EditUserProfileComponent implements OnInit {
     { value: 'transexual', label: 'Transexual' },
     { value: 'crossdressers', label: 'Crossdressers' }
   ];
+
+  isCouple(): boolean {
+    return ['casal-ele-ele', 'casal-ele-ela', 'casal-ela-ela'].includes(this.userData.gender ?? '');
+  }
 
   constructor(
     private authService: AuthService,
@@ -54,6 +59,55 @@ export class EditUserProfileComponent implements OnInit {
       });
     }
   }
+
+  onFileSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file) {
+      this.uploadFile(file);
+    }
+  }
+
+  async uploadFile(file: File): Promise<void> {
+    try {
+      const imageUrl = await this.uploadToStorage(file);
+      this.userData.photoURL = imageUrl; // Atualiza a URL da foto no objeto userData
+    } catch (error) {
+      console.error('Erro durante o upload da imagem:', error);
+      // Tratar o erro conforme necessário
+    }
+  }
+
+  async uploadToStorage(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      if (!this.uid) {
+        reject(new Error('UID do usuário não está disponível'));
+        return;
+      }
+
+      const storage = getStorage();
+      const storageRef = ref(storage, `avatares/${this.uid}.jpg`);
+
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      uploadTask.on('state_changed',
+        (snapshot) => {
+          // Opcional: Atualizar o progresso do upload
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          console.log('Upload is ' + progress + '% done');
+        },
+        (error) => {
+          // Tratar erros no upload
+          reject(error);
+        },
+        async () => {
+          // Upload concluído com sucesso
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve(downloadURL);
+        }
+      );
+    });
+  }
+
 
   async loadEstados() {
     try {

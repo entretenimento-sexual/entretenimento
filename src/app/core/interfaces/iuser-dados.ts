@@ -15,8 +15,11 @@ export interface IUserDados {
   emailVerified?: boolean;
   gender?: string;
   orientation?: string; //orientação sexual
+  partner1Orientation?: string;
+  partner2Orientation?: string;
   estado?: string; // Estado do usuário
   municipio?: string; // Município do usuário
   isSidebarOpen?: boolean;
+
 }
 

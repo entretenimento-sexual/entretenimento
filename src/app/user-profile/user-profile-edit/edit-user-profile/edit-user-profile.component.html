@@ -1,5 +1,18 @@
 <!-- src\app\user-profile\user-profile-edit\edit-user-profile\edit-user-profile.component.html -->
 <form (ngSubmit)="onSubmit()">
+
+  <!-- Exibe a foto do perfil do usuário -->
+  <div class="profile-picture-container">
+    <img [src]="userData.photoURL" alt="Foto de perfil" class="profile-picture">
+  </div>
+
+  <!-- Restante do seu código HTML -->
+
+  <div>
+    <label for="photo">Trocar Foto de Perfil:</label>
+    <input type="file" id="photo" (change)="onFileSelected($event)">
+  </div>
+
   <div>
     <label for="nickname">Meu nickname</label>
     <input type="text" id="nickname" [(ngModel)]="userData.nickname" name="nickname">
@@ -28,10 +41,42 @@
     </select>
   </div>
 
-  <div>
+  <div *ngIf="!isCouple()">
     <label for="orientation">Orientação:</label>
-    <input type="text" id="orientation" [(ngModel)]="userData.orientation" name="orientation">
+    <select id="orientation" [(ngModel)]="userData.orientation" name="orientation">
+      <option value="bissexual">Bissexual</option>
+      <option value="homossexual">Homossexual</option>
+      <option value="heterossexual">Heterossexual</option>
+      <option value="pansexual">Pansexual</option>
+    </select>
   </div>
 
-  <button type="submit">Salvar Alterações</button>
+  <!-- Sempre exibir as caixas de seleção para orientação do casal -->
+  <div *ngIf="isCouple()">
+    <div>
+      <label for="partner1Orientation">Orientação do Parceiro 1:</label>
+      <select id="partner1Orientation" [(ngModel)]="userData.partner1Orientation" name="partner1Orientation">
+        <option value="bissexual">Bissexual</option>
+        <option value="homossexual">Homossexual</option>
+        <option value="heterossexual">Heterossexual</option>
+        <option value="pansexual">Pansexual</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="partner2Orientation">Orientação do Parceiro 2:</label>
+      <select id="partner2Orientation" [(ngModel)]="userData.partner2Orientation" name="partner2Orientation" required>
+        <option value="" disabled selected>Selecione a Orientação</option>
+        <option value="bissexual">Bissexual</option>
+        <option value="homossexual">Homossexual</option>
+        <option value="heterossexual">Heterossexual</option>
+        <option value="pansexual">Pansexual</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="button-group">
+    <button type="submit">Salvar Alterações</button>
+    <a [routerLink]="['/perfil', uid]" class="btn btn-secondary btn-voltar">Voltar sem Salvar</a>
+  </div>
 </form>

@@ -24,6 +24,13 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   public usuario$: Observable<IUserDados | null>;
   public uid!: string | null;
 
+  isCouple(gender: string | undefined): boolean {
+    if (!gender) {
+      return false;
+    }
+    return ['casal-ele-ele', 'casal-ele-ela', 'casal-ela-ela'].includes(gender);
+  }
+
   constructor(
     private route: ActivatedRoute,
     private authService: AuthService,
@@ -35,11 +42,6 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     const userId = this.route.snapshot.paramMap.get('id') || this.authService.currentUser?.uid;
-
-    if (!userId) {
-      console.error('UserID é undefined');
-      return;
-    }
 
     if (!userId) {
       console.error('UserID é undefined');
@@ -68,6 +70,33 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     this.sidebarSubscription = this.sidebarService.isSidebarVisible$.subscribe(
       (isVisible) => this.isSidebarVisible = isVisible ? SidebarState.OPEN : SidebarState.CLOSED
     );
+  }
+
+  getCoupleDescription(gender: string | undefined, partner1Orientation: string | undefined, partner2Orientation: string | undefined): string {
+    if (gender === 'casal-ele-ele') {
+      return `Ele ${this.getOrientationDescription(partner1Orientation)} / Ele ${this.getOrientationDescription(partner2Orientation)}`;
+    } else if (gender === 'casal-ele-ela') {
+      return `Ele ${this.getOrientationDescription(partner1Orientation)} / Ela ${this.getOrientationDescription(partner2Orientation)}`;
+    } else if (gender === 'casal-ela-ela') {
+      return `Ela ${this.getOrientationDescription(partner1Orientation)} / Ela ${this.getOrientationDescription(partner2Orientation)}`;
+    } else {
+      return '';
+    }
+  }
+
+  getOrientationDescription(orientation: string | undefined): string {
+    switch (orientation) {
+      case 'bissexual':
+        return 'bissexual';
+      case 'homossexual':
+        return 'homossexual';
+      case 'heterossexual':
+        return 'heterossexual';
+      case 'pansexual':
+        return 'pansexual';
+      default:
+        return '';
+    }
   }
 
   ngOnDestroy(): void {

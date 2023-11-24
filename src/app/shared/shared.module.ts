@@ -1,13 +1,15 @@
 //src\app\shared\shared\shared.module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { DateFormatPipe } from '../date-format.pipe';
+import { DateFormatPipe } from './date-format.pipe';
+import { CapitalizePipe } from './capitalize.pipe';
+
 
 @NgModule({
-  declarations: [DateFormatPipe],
+  declarations: [DateFormatPipe, CapitalizePipe],
   imports: [
     CommonModule
   ],
-  exports: [DateFormatPipe]
+  exports: [DateFormatPipe, CapitalizePipe]
 })
 export class SharedModule { }
