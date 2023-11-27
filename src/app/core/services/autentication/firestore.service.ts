@@ -2,7 +2,7 @@
 import { Injectable } from '@angular/core';
 import { initializeApp } from 'firebase/app';
 import {
-  getFirestore, collection, query, where, getDocs, doc, setDoc, Timestamp, getDoc
+  getFirestore, collection, query, where, getDocs, doc, setDoc, Timestamp, getDoc, updateDoc
 } from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserDados } from '../../interfaces/iuser-dados';
@@ -169,4 +169,33 @@ export class FirestoreService {
       throw error;
     }
   }
+
+  async saveUserPreferences(uid: string, preferences: any): Promise<void> {
+    try {
+      const preferencesRef = doc(this.db, `users/${uid}/preferences`, 'userPreferences');
+      await setDoc(preferencesRef, preferences);
+      console.log("Preferências salvas com sucesso!");
+    } catch (error) {
+      console.error("Erro ao salvar preferências do usuário:", error);
+      throw error;
+    }
+  }
+
+  async getUserPreferences(uid: string): Promise<any | null> {
+    try {
+      const preferencesRef = doc(this.db, `users/${uid}/preferences`, 'userPreferences');
+      const snapshot = await getDoc(preferencesRef);
+      if (snapshot.exists()) {
+        return snapshot.data();
+      }
+      return null;
+    } catch (error) {
+      console.error("Erro ao buscar preferências do usuário:", error);
+      throw error;
+    }
+  }
 }
+
+
+
+

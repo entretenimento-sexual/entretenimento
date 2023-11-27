@@ -23,6 +23,11 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   public isSidebarVisible = SidebarState.CLOSED;
   public usuario$: Observable<IUserDados | null>;
   public uid!: string | null;
+  public preferences: any;
+
+  objectKeys(obj: any): string[] {
+    return Object.keys(obj);
+  }
 
   isCouple(gender: string | undefined): boolean {
     if (!gender) {
@@ -70,6 +75,17 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     this.sidebarSubscription = this.sidebarService.isSidebarVisible$.subscribe(
       (isVisible) => this.isSidebarVisible = isVisible ? SidebarState.OPEN : SidebarState.CLOSED
     );
+
+    this.usuario$.pipe(
+      tap(usuario => {
+        if (usuario) {
+          this.usuarioService.buscarPreferenciasDoUsuario(usuario.uid)
+            .subscribe((preferencias: any) => {
+              this.preferences = preferencias;
+            });
+        }
+      })
+    ).subscribe();
   }
 
   getCoupleDescription(gender: string | undefined, partner1Orientation: string | undefined, partner2Orientation: string | undefined): string {
@@ -106,4 +122,9 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   isOnOwnProfile(): boolean {
     return this.uid === this.authService.currentUser?.uid;
   }
+
 }
+
+
+
+

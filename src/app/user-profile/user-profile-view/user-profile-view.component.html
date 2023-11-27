@@ -1,10 +1,10 @@
 <!-- src\app\user-profile\user-profile-view\user-profile-view.component.html -->
 <div class="profile-container">
 <!-- Sidebar -->
-    <div class="sidebar" [ngClass]="{'visible': isSidebarVisible}">
-    <div class="profile-header">
+  <aside class="sidebar" [ngClass]="{'visible': isSidebarVisible}">
+    <header class="profile-header">
       <img [src]="(usuario$ | async)?.photoURL" alt="Foto de Perfil" class="profile-picture">
-    </div><!-- profile-header -->
+    </header><!-- profile-header -->
     <p class="user-nickname"><strong>{{ (usuario$ | async)?.nickname }}</strong></p>
 
     <nav class="profile-nav">
@@ -21,12 +21,12 @@
       <a [routerLink]="['/chat']"><i class="fas fa-comments"></i>Bate-papo</a>
       <!-- Você pode adicionar mais links conforme necessário -->
     </nav>
-  </div>
+  </aside>
 <!-- Dados pessoais -->
-  <div class="content">
-    <div class="profile-content">
-      <div *ngIf="usuario$ | async as usuario; else loading" class="user-details">
-        <div class="user-profile-summary">
+  <main class="content">
+  <div class="profile-content">
+  <div *ngIf="usuario$ | async as usuario; else loading" class="user-details">
+      <div class="user-profile-summary">
           <ng-container *ngIf="usuario && isCouple(usuario.gender); else notCouple"> Somos o casal {{ usuario.nickname }}
           <p>{{ getCoupleDescription(usuario.gender, usuario.partner1Orientation, usuario.partner2Orientation) }}</p>
           </ng-container>
@@ -38,22 +38,20 @@
           <!-- <p>Email: {{ usuario.email }}</p> -->
           <p>perfil criado em {{ usuario.firstLogin | dateFormat }}</p>
           <a [routerLink]="['/perfil', uid, 'editar-dados-pessoais']">Editar Dados Pessoais</a>
-        </div>
-
+      </div> <!-- user-profile-summary -->
         <!-- Adicione outros campos conforme necessário -->
-      </div>
+  </div><!-- user-details -->
     <ng-template #loading>
       <p>Carregando...</p>
     </ng-template>
-    <div class="profile-interests">
-      <h3>Tenho interesse em</h3>
+    <div class="profile-interests" *ngIf="preferences">
+      <h3>Tenho interesse em:</h3>
       <ul>
-        <li>Preferencia em perfil de ...</li>
-        <li>Que seja da região de ...</li>
-        <li>Que fantasiem ...</li>
-        <li>Outros interesses</li>
+        <li *ngFor="let key of objectKeys(preferences)" [ngClass]="{'active': preferences[key]}">
+          {{ key | capitalize }}
+        </li>
       </ul>
     </div>
-  </div>
-<a [routerLink]="['/perfil', uid, 'editar']">Editar Perfil</a>
-</div>
+  </div><!--profile-content-->
+<a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar interesses</a>
+</main>

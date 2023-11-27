@@ -19,4 +19,12 @@ export class UsuarioService {
   atualizarUsuario(uid: string, dados: Partial<IUserDados>): Observable<void> {
     return from(this.firestoreService.saveUserDataAfterEmailVerification({ uid, ...dados } as IUserDados));
   }
+
+  salvarPreferenciasDoUsuario(uid: string, preferencias: any): Observable<void> {
+    return from(this.firestoreService.saveUserPreferences(uid, preferencias));
+  }
+
+  buscarPreferenciasDoUsuario(uid: string): Observable<any | null> {
+    return from(this.firestoreService.getUserPreferences(uid));
+  }
 }

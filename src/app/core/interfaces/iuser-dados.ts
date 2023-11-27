@@ -20,6 +20,7 @@ export interface IUserDados {
   estado?: string; // Estado do usuário
   municipio?: string; // Município do usuário
   isSidebarOpen?: boolean;
+  preferences?: string[];
 
 }
 

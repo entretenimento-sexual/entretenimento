@@ -1,4 +1,11 @@
 /* src\styles.css */
+:root {
+  --primary-color: #ff6565;
+  --secondary-color: #333;
+  --font-family-primary: 'Roboto', sans-serif;
+  --font-family-secondary: 'Open Sans', sans-serif;
+}
+
 /* Reset CSS */
 * {
   margin: 0;
@@ -9,7 +16,7 @@
 html,
 body {
   height: 100%;
-  font-family: sans-serif;
+  font-family: var(--font-family-primary);
 }
 
 .router-outlet-container {
@@ -21,3 +28,7 @@ body {
 body { margin: 0;
       font-family: Roboto, "Helvetica Neue", sans-serif;
     }
+
+ul {
+  list-style-type: none;
+}
