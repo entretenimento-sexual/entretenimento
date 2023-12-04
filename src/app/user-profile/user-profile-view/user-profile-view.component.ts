@@ -8,6 +8,8 @@ import { SidebarService } from 'src/app/core/services/sidebar.service';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Timestamp } from 'firebase/firestore';
+import { IUserPreferences } from 'src/app/core/interfaces/iuser-preferences';
+import { ICategoriaMapeamento, mapeamentoCategorias } from 'src/app/core/interfaces/icategoria-mapeamento';
 
 
 enum SidebarState { CLOSED, OPEN }
@@ -25,8 +27,9 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   public uid!: string | null;
   public preferences: any;
 
+
   objectKeys(obj: any): string[] {
-    return Object.keys(obj);
+    return Object.keys(obj).filter(key => obj[key] && obj[key].value);
   }
 
   isCouple(gender: string | undefined): boolean {
@@ -44,6 +47,13 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   ) {
     this.usuario$ = new Observable<IUserDados | null>();
   }
+
+  public categoriasDePreferencias: any = {
+    genero: [],
+    praticaSexual: [],
+    preferenciaFisica: [],
+    relacionamento: []
+  };
 
   ngOnInit(): void {
     const userId = this.route.snapshot.paramMap.get('id') || this.authService.currentUser?.uid;
@@ -80,13 +90,34 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
       tap(usuario => {
         if (usuario) {
           this.usuarioService.buscarPreferenciasDoUsuario(usuario.uid)
-            .subscribe((preferencias: any) => {
-              this.preferences = preferencias;
+            .subscribe((preferencias: IUserPreferences) => {
+              this.agruparPreferencias(preferencias);
             });
         }
       })
     ).subscribe();
   }
+
+  private agruparPreferencias(preferencias: IUserPreferences): void {
+    this.categoriasDePreferencias = {
+      genero: [],
+      praticaSexual: [],
+      preferenciaFisica: [],
+      relacionamento: []
+    };
+
+    for (const key in preferencias) {
+      if (preferencias[key]) {
+        for (const categoria in mapeamentoCategorias) {
+          if (mapeamentoCategorias[categoria as keyof typeof mapeamentoCategorias].includes(key)) {
+            this.categoriasDePreferencias[categoria].push(key);
+            break;
+          }
+        }
+      }
+    }
+  }
+
 
   getCoupleDescription(gender: string | undefined, partner1Orientation: string | undefined, partner2Orientation: string | undefined): string {
     if (gender === 'casal-ele-ele') {

@@ -40,17 +40,28 @@ export class EditProfilePreferencesComponent implements OnInit {
   salvarPreferencias() {
     console.log('Salvando preferências:', this.preferencias);
     this.route.paramMap.subscribe(params => {
-      const uid = params.get('id');
-      if (uid) {
-        this.usuarioService.salvarPreferenciasDoUsuario(uid, this.preferencias)
-          .subscribe({
-            next: () => {
-              console.log('Preferências salvas com sucesso!');
-              this.router.navigate(['/perfil', uid]);
-            },
-            error: erro => console.error('Erro ao salvar preferências', erro)
-          });
-      }
+        const uid = params.get('id');
+        if (uid) {
+            // Cria um novo objeto com as preferências, garantindo que cada uma seja um objeto
+            const preferenciasParaSalvar: {[key: string]: any} = {};
+            for (const key in this.preferencias) {
+                if (this.preferencias.hasOwnProperty(key)) {
+                    // Aqui, cada preferência é transformada em um objeto
+                    preferenciasParaSalvar[key] = { value: this.preferencias[key] };
+                }
+            }
+
+            this.usuarioService.salvarPreferenciasDoUsuario(uid, preferenciasParaSalvar)
+                .subscribe({
+                    next: () => {
+                        console.log('Preferências salvas com sucesso!');
+                        this.router.navigate(['/perfil', uid]);
+                    },
+                    error: erro => console.error('Erro ao salvar preferências', erro)
+                });
+        }
     });
-  }
 }
+
+
+} // finaliza export class

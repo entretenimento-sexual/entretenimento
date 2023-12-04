@@ -44,14 +44,36 @@
     <ng-template #loading>
       <p>Carregando...</p>
     </ng-template>
-    <div class="profile-interests" *ngIf="preferences">
-      <h3>Tenho interesse em:</h3>
-      <ul>
-        <li *ngFor="let key of objectKeys(preferences)" [ngClass]="{'active': preferences[key]}">
-          {{ key | capitalize }}
-        </li>
-      </ul>
-    </div>
+
+
+      <div class="category-container" *ngIf="categoriasDePreferencias.genero.length > 0">
+        <h3 class="category-title">Tenho interesse em:</h3>
+        <ul>
+          <li class="category-item" *ngFor="let pref of categoriasDePreferencias.genero">{{ pref | capitalize }}</li>
+        </ul>
+      </div>
+
+      <div class="category-container" *ngIf="categoriasDePreferencias.praticaSexual.length > 0">
+        <h3 class="category-title">Que curtam:</h3>
+        <ul>
+          <li class="category-item" *ngFor="let pref of categoriasDePreferencias.praticaSexual">{{ pref | capitalize }}</li>
+        </ul>
+      </div>
+
+      <div class="category-container" *ngIf="categoriasDePreferencias.preferenciaFisica.length > 0">
+        <h3 class="category-title">Sejam:</h3>
+        <ul>
+          <li class="category-item" *ngFor="let pref of categoriasDePreferencias.preferenciaFisica">{{ pref | capitalize }}</li>
+        </ul>
+      </div>
+
+      <div class="category-container" *ngIf="categoriasDePreferencias.relacionamento.length > 0">
+        <h3 class="category-title">Sejam:</h3>
+        <ul>
+          <li class="category-item" *ngFor="let pref of categoriasDePreferencias.relacionamento">{{ pref | capitalize }}</li>
+        </ul>
+      </div>
+
   </div><!--profile-content-->
 <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar interesses</a>
 </main>

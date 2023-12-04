@@ -17,9 +17,46 @@ a:hover {
   flex-direction: row;
   align-items: flex-start;
   padding: 20px;
-  max-width: 1200px;
+  max-width: calc(1200px + 20%);
   margin: auto;    /* Centraliza o container */
 }
+
+.profile-content {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.category-container {
+  /* flex-basis: calc(25% - 25px);    Ajusta o tamanho para 50% menos a margem */
+  background-color: #fff;    /* Fundo branco para destacar o conteúdo */
+  border: 1px solid #ddd;    /* Borda sutil */
+    border-radius: 8px;    /* Bordas arredondadas */
+    padding: 15px;    /* Espaçamento interno */
+    margin-bottom: 20px;    /* Espaço entre as categorias */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);    /* Sombra sutil para profundidade */
+    transition: transform 0.3s ease, box-shadow 0.3s ease;    /* Transição suave para hover */
+}
+
+.category-container:hover {
+  transform: translateY(-5px);   /* Efeito de elevação ao passar o mouse */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);   /* Sombra mais proeminente no hover */
+}
+
+.category-title {
+  color: #ff6565;   /* Cor vibrante para o título */
+  margin-bottom: 10px;   /* Espaço entre o título e os itens */
+  font-size: 18px;   /* Tamanho maior para o título */
+}
+
+.category-item {
+  color: #333;   /* Cor escura para boa legibilidade */
+  font-size: 16px;   /* Tamanho confortável para leitura */
+  line-height: 1.5;   /* Espaçamento de linha para melhor legibilidade */
+  list-style-type: none;   /* Remover estilos de lista padrão */
+  padding: 5px 0;   /* Espaçamento entre itens */
+}
+
 
 .profile-picture {
   width: 100%;

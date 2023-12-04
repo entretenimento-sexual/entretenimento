@@ -6,6 +6,7 @@ import {
 } from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserDados } from '../../interfaces/iuser-dados';
+import { IUserPreferences } from '../../interfaces/iuser-preferences';
 
 const app = initializeApp(environment.firebaseConfig);
 
@@ -171,30 +172,38 @@ export class FirestoreService {
   }
 
   async saveUserPreferences(uid: string, preferences: any): Promise<void> {
-    try {
-      const preferencesRef = doc(this.db, `users/${uid}/preferences`, 'userPreferences');
-      await setDoc(preferencesRef, preferences);
-      console.log("Preferências salvas com sucesso!");
-    } catch (error) {
-      console.error("Erro ao salvar preferências do usuário:", error);
-      throw error;
+    const userRef = doc(this.db, `users/${uid}`);
+    const preferencesCollection = collection(userRef, 'preferences');
+
+    for (const [category, preferenceData] of Object.entries(preferences)) {
+      const prefDocRef = doc(preferencesCollection, category);
+      await setDoc(prefDocRef, preferenceData);
     }
   }
 
-  async getUserPreferences(uid: string): Promise<any | null> {
-    try {
-      const preferencesRef = doc(this.db, `users/${uid}/preferences`, 'userPreferences');
-      const snapshot = await getDoc(preferencesRef);
-      if (snapshot.exists()) {
-        return snapshot.data();
-      }
-      return null;
-    } catch (error) {
-      console.error("Erro ao buscar preferências do usuário:", error);
-      throw error;
-    }
+
+  async getUserPreferences(uid: string): Promise<IUserPreferences> {
+    const preferencesCollectionRef = collection(this.db, `users/${uid}/preferences`);
+    const querySnapshot = await getDocs(preferencesCollectionRef);
+
+    const preferences: IUserPreferences = {
+      genero: [],
+      praticaSexual: [],
+      preferenciaFisica: [],
+      relacionamento: []
+    };
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      // Aqui você precisa ajustar de acordo com a estrutura dos seus documentos
+      // Por exemplo, se cada documento na coleção 'preferences' tem um campo 'value'
+      preferences[doc.id] = data['value'];
+    });
+
+    return preferences;
   }
-}
+  }
+
 
 
 
