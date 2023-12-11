@@ -127,7 +127,11 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
               photoURL: this.photoURL,
               nickname: '', // Você precisa ajustar esta parte conforme seu uso
               role: 'animando',
-              lastLoginDate: Timestamp.fromDate(new Date()) // Adicionando a data do último login
+              lastLoginDate: Timestamp.fromDate(new Date()),// Adicionando a data do último login
+              descricao: '',   // Valor padrão ou nulo
+              facebook: '',    // Valor padrão ou nulo
+              instagram: '',   // Valor padrão ou nulo
+              buupe: '',
             };
             await this.firestoreService.saveUserDataAfterEmailVerification(userDataToUpdate);
 
@@ -173,8 +177,13 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
       estado: this.selectedEstado,
       municipio: this.selectedMunicipio,
       role: 'animando', // Valor temporário.
-      lastLoginDate: agoraTimestamp
+      lastLoginDate: agoraTimestamp,
+      descricao: '',   // Valor padrão ou nulo
+      facebook: '',    // Valor padrão ou nulo
+      instagram: '',   // Valor padrão ou nulo
+      buupe: '',
     };
+
     console.log('Criando dadosDoUsuario:', dadosDoUsuario);
     // Recuperando o nickname do localStorage e atribuindo a dadosDoUsuario
     const storedNickname = localStorage.getItem('tempNickname');

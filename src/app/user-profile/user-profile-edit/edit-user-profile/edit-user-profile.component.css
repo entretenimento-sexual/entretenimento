@@ -1,4 +1,8 @@
 /* src\app\user-profile\user-profile-edit\edit-user-profile\edit-user-profile.component.css */
+
+.input-invalid {
+  border: 1px solid red !important;
+}
 form {
   max-width: 600px;
   margin: 20px auto;

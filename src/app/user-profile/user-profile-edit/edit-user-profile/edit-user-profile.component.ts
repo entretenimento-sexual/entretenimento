@@ -5,14 +5,18 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { ValidatorService } from 'src/app/core/services/validator.service';
 
 @Component({
   selector: 'app-edit-user-profile',
   templateUrl: './edit-user-profile.component.html',
   styleUrls: ['./edit-user-profile.component.css']
 })
+
 export class EditUserProfileComponent implements OnInit {
   userData: IUserDados;
+  editForm: FormGroup;
   uid!: string;
   estados: any[] = [];
   municipios: any[] = [];
@@ -24,8 +28,8 @@ export class EditUserProfileComponent implements OnInit {
     { value: 'casal-ela-ela', label: 'Casal (Ela/Ela)' },
     { value: 'travesti', label: 'Travesti' },
     { value: 'transexual', label: 'Transexual' },
-    { value: 'crossdressers', label: 'Crossdressers' }
-  ];
+    { value: 'crossdressers', label: 'Crossdressers' },
+];
 
   isCouple(): boolean {
     return ['casal-ele-ele', 'casal-ele-ela', 'casal-ela-ela'].includes(this.userData.gender ?? '');
@@ -35,9 +39,23 @@ export class EditUserProfileComponent implements OnInit {
     private authService: AuthService,
     private usuarioService: UsuarioService,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private formBuilder: FormBuilder,
+
   ) {
     this.userData = {} as IUserDados; // Inicializa userData
+    this.editForm = this.formBuilder.group({
+      nickname: [''],
+      estado: [''],
+      municipio: [''],
+      gender: [''],
+      orientation: [''],
+      partner1Orientation: [''],
+      partner2Orientation: [''],
+      descricao: [''],
+      facebook: ['', [ValidatorService.facebookValidator()]],
+      instagram: ['', [ValidatorService.instagramValidator()]],
+    });
   }
 
   ngOnInit(): void {
@@ -58,7 +76,28 @@ export class EditUserProfileComponent implements OnInit {
     }
       });
     }
-  }
+
+    this.usuarioService.getUsuario(this.uid).subscribe((userData) => {
+      if (userData) {
+        // Define os valores para o formulário
+        this.editForm.patchValue({
+          nickname: userData.nickname,
+          estado: userData.estado,
+          municipio: userData.municipio,
+          gender: userData.gender,
+          orientation: userData.orientation,
+          partner1Orientation: this.isCouple() ? userData.partner1Orientation : '',
+          partner2Orientation: this.isCouple() ? userData.partner2Orientation : '',
+          descricao: userData.descricao,
+          facebook: userData.facebook || '',
+          instagram: userData.instagram || '',
+
+        });
+
+        this.userData = userData; // Atualiza os dados do usuário
+      }
+    });
+  } // fim do ngOnInit
 
   onFileSelected(event: any): void {
     const file = event.target.files[0];
@@ -90,13 +129,11 @@ export class EditUserProfileComponent implements OnInit {
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on('state_changed',
-        (snapshot) => {
-          // Opcional: Atualizar o progresso do upload
+        (snapshot) => {// Opcional: Atualizar o progresso do upload
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
           console.log('Upload is ' + progress + '% done');
         },
         (error) => {
-          // Tratar erros no upload
           reject(error);
         },
         async () => {
@@ -106,7 +143,7 @@ export class EditUserProfileComponent implements OnInit {
         }
       );
     });
-  }
+  } // fim do método uploadToStorage
 
 
   async loadEstados() {
@@ -122,7 +159,7 @@ export class EditUserProfileComponent implements OnInit {
     } catch (error) {
       console.error('Erro ao carregar os estados:', error);
     }
-  }
+  } // fim do método loadEstados
 
   async onEstadoChange(estadoSigla: string) {
     try {
@@ -135,14 +172,51 @@ export class EditUserProfileComponent implements OnInit {
     } catch (error) {
       console.error('Erro ao carregar os municípios:', error);
     }
-  }
+  } // fim do método onEstadoChange
 
-  onSubmit(): void {
-    // Lógica para atualizar os dados do usuário
-    this.usuarioService.atualizarUsuario(this.uid, this.userData).subscribe(() => {
-      // Redirecionar para a página de visualização do perfil após a atualização
-      this.router.navigate(['/perfil', this.uid]);
+  onSubmit(): void {// Coleta os dados atualizados do formulário
+    const instagramControl = this.editForm.get('instagram');
+    console.log('Instagram Control:', instagramControl?.value, instagramControl?.valid);
+
+    Object.keys(this.editForm.controls).forEach(key => {
+      const control = this.editForm.get(key);
+      console.log(key, control?.value, control?.valid);
     });
-  }
-}
+    console.log('Estado do Formulário:', this.editForm);
+    if (!this.editForm.valid) {
+      console.error('Formulário inválido');
+      return;
+    }
+
+    const formValues = this.editForm.value;
+
+    // Trata campos que podem não estar presentes para todos os usuários
+    if (this.isCouple()) {
+      // Caso seja um casal, garante que os campos partner1Orientation e partner2Orientation tenham valores
+      formValues.partner1Orientation = formValues.partner1Orientation || '';
+      formValues.partner2Orientation = formValues.partner2Orientation || '';
+    } else {
+      // Caso não seja um casal, remove os campos do objeto a ser enviado
+      delete formValues.partner1Orientation;
+      delete formValues.partner2Orientation;
+    }
+
+    // Define valores padrão para campos que podem estar indefinidos
+    formValues.facebook = formValues.facebook || '';
+    formValues.instagram = formValues.instagram || '';
+
+    // Combina os dados atualizados do formulário com os dados existentes do usuário
+    const updatedUserData = { ...this.userData, ...formValues };
+
+    // Atualiza os dados do usuário no Firestore
+    if (this.editForm.valid) {
+      this.usuarioService.atualizarUsuario(this.uid, updatedUserData).subscribe(() => {
+      this.router.navigate(['/perfil', this.uid]);
+      }, error => {
+        console.error('Erro ao atualizar os dados do usuário:', error);
+      });
+    }
+  } // fim do método onSubmit
+  } // fim do método onInit
+
 

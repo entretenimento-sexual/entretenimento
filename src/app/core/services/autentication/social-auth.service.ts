@@ -30,7 +30,11 @@ export class SocialAuthService {
           photoURL: user.photoURL,
           role: dadosFirestore?.role || 'xereta',
           lastLoginDate: Timestamp.fromDate(new Date()),
-          firstLogin: Timestamp.fromDate(new Date()) // Este será substituído, se já existir
+          firstLogin: Timestamp.fromDate(new Date()), // Este será substituído, se já existir
+          descricao: '',   // Valor padrão ou nulo
+          facebook: '',    // Valor padrão ou nulo
+          instagram: '',   // Valor padrão ou nulo
+          buupe: '',
         };
 
         this.userSubject.next(userData);
@@ -54,7 +58,11 @@ export class SocialAuthService {
           photoURL: user.photoURL,
           role: 'xereta',
           lastLoginDate: Timestamp.fromDate(new Date()),
-          firstLogin: Timestamp.fromDate(new Date()) // Este será substituído, se já existir
+          firstLogin: Timestamp.fromDate(new Date()), // Este será substituído, se já existir
+          descricao: '',   // Valor padrão ou nulo
+          facebook: '',    // Valor padrão ou nulo
+          instagram: '',   // Valor padrão ou nulo
+          buupe: '',
         };
 
         await this.salvarDadosNoFirestore(userData);

@@ -4,7 +4,7 @@ h1, h2, h3 {
 }
 
 a {
-  color: var(--primary-color);
+
   transition: color 0.3s ease;
 }
 
@@ -31,11 +31,11 @@ a:hover {
   /* flex-basis: calc(25% - 25px);    Ajusta o tamanho para 50% menos a margem */
   background-color: #fff;    /* Fundo branco para destacar o conteúdo */
   border: 1px solid #ddd;    /* Borda sutil */
-    border-radius: 8px;    /* Bordas arredondadas */
-    padding: 15px;    /* Espaçamento interno */
-    margin-bottom: 20px;    /* Espaço entre as categorias */
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);    /* Sombra sutil para profundidade */
-    transition: transform 0.3s ease, box-shadow 0.3s ease;    /* Transição suave para hover */
+  border-radius: 8px;    /* Bordas arredondadas */
+  padding: 15px;    /* Espaçamento interno */
+  margin-bottom: 20px;    /* Espaço entre as categorias */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);    /* Sombra sutil para profundidade */
+  transition: transform 0.3s ease, box-shadow 0.3s ease;    /* Transição suave para hover */
 }
 
 .category-container:hover {
@@ -49,7 +49,7 @@ a:hover {
   font-size: 18px;   /* Tamanho maior para o título */
 }
 
-.category-item {
+.category-item, p {
   color: #333;   /* Cor escura para boa legibilidade */
   font-size: 16px;   /* Tamanho confortável para leitura */
   line-height: 1.5;   /* Espaçamento de linha para melhor legibilidade */
@@ -77,6 +77,15 @@ a:hover {
   color: var(--secondary-color);
   font-family: var(--font-family);
   width: 250px;
+}
+
+.tag {
+  display: inline-block;
+  background-color: #f0f0f0;
+  border-radius: 15px;
+  padding: 5px 10px;
+  margin: 2px;
+  font-size: 14px;
 }
 
 .sidebar {

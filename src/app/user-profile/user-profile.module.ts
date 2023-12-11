@@ -1,7 +1,7 @@
 // src\app\user-profile\user-profile.module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { UserProfileViewComponent } from './user-profile-view/user-profile-view.component';
 import { UserProfileEditComponent } from './user-profile-edit/user-profile-edit.component';
 import { SharedModule } from '../shared/shared.module';
@@ -12,12 +12,16 @@ import { EditProfileSocialLinksComponent } from './user-profile-edit/edit-profil
 import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/edit-user-profile.component';
 
 @NgModule({
-  declarations: [UserProfileViewComponent, UserProfileEditComponent, EditProfileRegionComponent, EditProfilePreferencesComponent, EditProfileSocialLinksComponent, EditUserProfileComponent],
+  declarations: [UserProfileViewComponent, UserProfileEditComponent, EditProfileRegionComponent,
+                 EditProfilePreferencesComponent, EditProfileSocialLinksComponent,
+                 EditUserProfileComponent],
+                 
   imports: [
     CommonModule,
     FormsModule,
     SharedModule,
-    UserProfileRoutingModule
+    ReactiveFormsModule,
+    UserProfileRoutingModule,
   ]
 })
 export class UserProfileModule { }

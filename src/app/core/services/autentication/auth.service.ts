@@ -57,7 +57,11 @@ export class AuthService {
       photoURL: user.photoURL || null,
       role: 'animando',
       lastLoginDate: timestampNow,
-      firstLogin: timestampNow
+      firstLogin: timestampNow,
+      descricao: '',   // Valor padrão ou nulo
+      facebook: '',    // Valor padrão ou nulo
+      instagram: '',   // Valor padrão ou nulo
+      buupe: '',
     };
   }
 

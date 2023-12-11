@@ -14,13 +14,17 @@ export interface IUserDados {
   firstLogin?: Timestamp | Date;
   emailVerified?: boolean;
   gender?: string;
-  orientation?: string; //orientação sexual
+  orientation?: string; // Orientação sexual
   partner1Orientation?: string;
   partner2Orientation?: string;
   estado?: string; // Estado do usuário
   municipio?: string; // Município do usuário
   isSidebarOpen?: boolean;
   preferences?: string[];
-
+  descricao: string; // Descrição do usuário
+  facebook?: string; // Perfil do Facebook
+  instagram?: string; // Perfil do Instagram
+  buupe: string;
+  // Adicione outras redes sociais conforme necessário
 }
 
