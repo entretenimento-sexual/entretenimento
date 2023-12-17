@@ -8,7 +8,7 @@ import { UsuarioService } from 'src/app/core/services/usuario.service';
 @Component({
   selector: 'app-edit-profile-preferences',
   templateUrl: './edit-profile-preferences.component.html',
-  styleUrls: ['./edit-profile-preferences.component.css']
+  styleUrls: ['./edit-profile-preferences.component.css', '../../user-profile.css']
 })
 
 export class EditProfilePreferencesComponent implements OnInit {

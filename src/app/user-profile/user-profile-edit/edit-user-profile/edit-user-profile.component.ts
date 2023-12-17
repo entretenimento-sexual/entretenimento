@@ -11,7 +11,7 @@ import { ValidatorService } from 'src/app/core/services/validator.service';
 @Component({
   selector: 'app-edit-user-profile',
   templateUrl: './edit-user-profile.component.html',
-  styleUrls: ['./edit-user-profile.component.css']
+  styleUrls: ['./edit-user-profile.component.css', '../../user-profile.css']
 })
 
 export class EditUserProfileComponent implements OnInit {

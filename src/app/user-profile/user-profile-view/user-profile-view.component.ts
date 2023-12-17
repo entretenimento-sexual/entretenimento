@@ -17,8 +17,9 @@ enum SidebarState { CLOSED, OPEN }
 @Component({
   selector: 'app-user-profile-view',
   templateUrl: './user-profile-view.component.html',
-  styleUrls: ['./user-profile-view.component.css']
+  styleUrls: ['./user-profile-view.component.css', '../user-profile.css']
 })
+
 export class UserProfileViewComponent implements OnInit, OnDestroy {
 
   private sidebarSubscription?: Subscription;
