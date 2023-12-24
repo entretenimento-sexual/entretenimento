@@ -1,0 +1,12 @@
+<!-- src\app\layout\perfis-proximos\perfis-proximos.component.html -->
+<div *ngIf="profiles.length > 0; else noProfilesFound">
+  <div *ngFor="let profile of profiles">
+    <h3>{{ profile.nickname }}</h3>
+    <p>{{ profile.gender }}</p>
+    <!-- Adicione mais informações do perfil aqui -->
+  </div>
+</div>
+
+<ng-template #noProfilesFound>
+  <p>Nenhum perfil próximo foi encontrado.</p>
+</ng-template>

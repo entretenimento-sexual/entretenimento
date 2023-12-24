@@ -3,7 +3,6 @@
 /* Estilos Comuns para Formulários */
 .form-common {
   width: 100%;     /* Ocupar toda a largura disponível */
-  max-width: none;     /* Remover qualquer limitação de largura máxima */
   padding: 20px;
   margin: 20px 0;    /* Espaçamento superior e inferior */
   background-color: #f8f8f8;

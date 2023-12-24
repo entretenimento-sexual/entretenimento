@@ -2,16 +2,23 @@
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ProfileListComponent } from './profile-list/profile-list.component';
+import { PerfisProximosComponent } from './perfis-proximos/perfis-proximos.component';
+import { GeolocationService } from '../core/services/geolocation.service';
+import { LayoutRoutingModule } from './layout-routing.module';
 
 @NgModule({
   declarations: [
-    ProfileListComponent
+    ProfileListComponent,
+    PerfisProximosComponent
   ],
   imports: [
-    CommonModule
+    CommonModule,
+    LayoutRoutingModule
   ],
   exports: [
-    ProfileListComponent
-  ]
+    ProfileListComponent,
+    PerfisProximosComponent
+  ],
+  providers: [GeolocationService]
 })
 export class LayoutModule { }

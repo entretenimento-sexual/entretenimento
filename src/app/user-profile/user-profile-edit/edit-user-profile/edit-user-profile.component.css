@@ -1,4 +1,12 @@
 /* src\app\user-profile\user-profile-edit\edit-user-profile\edit-user-profile.component.css */
+.form-myprofile{
+  max-width: 800px; /* Largura máxima para o formulário */
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #f8f8f8;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
 
 .input-invalid {
   border: 1px solid red !important;

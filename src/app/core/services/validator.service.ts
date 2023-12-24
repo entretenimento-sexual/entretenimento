@@ -26,5 +26,14 @@ export class ValidatorService {
       return { 'invalidInstagram': { value: control.value } };
     };
   }
+
+  public static buupeValidator(): ValidatorFn {
+    return (control: AbstractControl): { [key: string]: any } | null => {
+      if (!control.value || /^https:\/\/www\.buupe\.com\/.+$/.test(control.value)) {
+        return null;
+      }
+      return { 'invalidBuupe': { value: control.value } };
+    };
+  }
   // Você pode adicionar mais validadores aqui conforme necessário
 }

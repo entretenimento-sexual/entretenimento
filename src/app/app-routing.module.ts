@@ -24,6 +24,8 @@ const routes: Routes = [
     canActivate: [AuthGuard]
   },
 
+  { path: 'layout', loadChildren: () => import('./layout/layout.module').then(m => m.LayoutModule) },
+
   { path: 'chat', loadChildren: () => import('./chat-module/chat-module.module').then(m => m.ChatModuleModule) },
 
   { path: 'profile-list', component: ProfileListComponent }, // rota para a lista de perfis

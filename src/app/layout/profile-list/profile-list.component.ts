@@ -7,7 +7,7 @@ import { FirestoreService } from 'src/app/core/services/autentication/firestore.
 @Component({
   selector: 'app-profile-list',
   templateUrl: './profile-list.component.html',
-  styleUrls: ['./profile-list.component.css']
+  styleUrls: ['./profile-list.component.css', '../layout-profile-exibe.css']
 })
 export class ProfileListComponent implements OnInit {
   user: any;

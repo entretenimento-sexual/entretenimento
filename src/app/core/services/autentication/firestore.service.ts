@@ -7,6 +7,8 @@ import {
 import { environment } from 'src/environments/environment';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { IUserPreferences } from '../../interfaces/iuser-preferences';
+import { GeoCoordinates } from '../../interfaces/geolocation.interface';
+
 
 const app = initializeApp(environment.firebaseConfig);
 
@@ -30,6 +32,7 @@ enum ValidPreferences {
 @Injectable({
   providedIn: 'root'
 })
+
 export class FirestoreService {
   public db = getFirestore(app);
 
@@ -181,7 +184,6 @@ export class FirestoreService {
     }
   }
 
-
   async getUserPreferences(uid: string): Promise<IUserPreferences> {
     const preferencesCollectionRef = collection(this.db, `users/${uid}/preferences`);
     const querySnapshot = await getDocs(preferencesCollectionRef);
@@ -202,7 +204,44 @@ export class FirestoreService {
 
     return preferences;
   }
+
+  async getProfilesNearLocation(latitude: number, longitude: number): Promise<IUserDados[]> {
+    try {
+      // Realize a consulta no Firestore para buscar os perfis próximos usando as coordenadas.
+      const userCollection = collection(this.db, 'users');
+      const q = query(userCollection, /* adicione as condições de consulta aqui */);
+
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.docs.map(doc => doc.data() as IUserDados);
+    } catch (error) {
+      console.error('Erro ao buscar perfis próximos:', error);
+      throw error;
+    }
   }
+
+  async updateUserLocation(uid: string, location: GeoCoordinates): Promise<void> {
+    try {
+      if (!uid || !location) {
+        throw new Error('UID do usuário ou localização inválidos');
+      }
+
+      // Crie uma referência ao documento do usuário
+      const userRef = doc(this.db, 'users', uid);
+
+      // Atualize as coordenadas de latitude e longitude no documento do usuário
+      await updateDoc(userRef, {
+        latitude: location.latitude,
+        longitude: location.longitude
+      });
+
+      console.log('Localização do usuário atualizada com sucesso.');
+    } catch (error) {
+      console.error('Erro ao atualizar a localização do usuário:', error);
+      throw error;
+    }
+  }
+}
+
 
 
 

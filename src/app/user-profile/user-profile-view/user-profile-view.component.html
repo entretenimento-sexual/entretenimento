@@ -11,8 +11,8 @@
       <a [routerLink]="['/perfil', uid]" *ngIf="!isOnOwnProfile()">
         <i class="fas fa-user"></i>Meu perfil
       </a>
-      <a [routerLink]="['/minha-regiao']">
-      <i class="fas fa-map-marker-alt"></i>Minha região
+      <a [routerLink]="['/layout/perfis-proximos']">
+      <i class="fas fa-map-marker-alt"></i>Perfis próximos
       </a>
       <a href="#"><i class="fas fa-images"></i>Minhas fotos </a>
       <a href="#"><i class="fas fa-cogs"></i>Minhas preferências</a>
@@ -49,6 +49,7 @@
             <h3 class="category-title">Redes Sociais</h3>
             <p *ngIf="usuario?.instagram">Instagram: {{ usuario.instagram }}</p>
             <p *ngIf="usuario?.facebook">Facebook: {{ usuario.facebook }}</p>
+            <p *ngIf="usuario?.buupe">buupe: {{ usuario.buupe }}</p>
             <!-- Exibir outras redes sociais se necessário -->
           </div><!--category-container-->
 

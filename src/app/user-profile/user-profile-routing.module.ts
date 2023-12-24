@@ -7,11 +7,10 @@ import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/
 import { EditProfilePreferencesComponent } from './user-profile-edit/edit-profile-preferences/edit-profile-preferences.component';
 
 const routes: Routes = [
-
   { path: ':id', component: UserProfileViewComponent }, // Rota para visualizar o perfil
   { path: ':id/editar', component: UserProfileEditComponent }, // Rota para editar o perfil
   { path: ':id/editar-dados-pessoais', component: EditUserProfileComponent },
-  { path: ':id/edit-profile-preferences', component: EditProfilePreferencesComponent }
+  { path: ':id/edit-profile-preferences', component: EditProfilePreferencesComponent },
 
 ];
 

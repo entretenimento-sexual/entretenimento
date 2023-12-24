@@ -1,5 +1,5 @@
 <!-- src\app\user-profile\user-profile-edit\edit-user-profile\edit-user-profile.component.html -->
-<form class="form-common" [formGroup]="editForm" (ngSubmit)="onSubmit()">
+<form class="form-myprofile" [formGroup]="editForm" (ngSubmit)="onSubmit()">
 
   <!-- Exibe a foto do perfil do usuário -->
   <div class="profile-picture-container">
@@ -84,8 +84,13 @@
     <input type="text" [(ngModel)]="userData.d4swing" placeholder="D4Swing">
     <input type="text" [(ngModel)]="userData.xvideos" placeholder="XVideos">
     <input type="text" [(ngModel)]="userData.sexocomcafe" placeholder="Sexo Com Café">
-    <input type="text" [(ngModel)]="userData.onlyfans" placeholder="OnlyFans">
-    <input type="text" [(ngModel)]="userData.buupe" placeholder="Buupe">-->
+    <input type="text" [(ngModel)]="userData.onlyfans" placeholder="OnlyFans">-->
+    <input type="text" formContrlName="buupe" placeholder="Buupe"
+      [class.input-invalid]="editForm.get('buupe')?.invalid && editForm.get('buupe')?.touched">
+      <div *ngIf="editForm.get('buupe')?.invalid && editForm.get('buupe')?.touched"
+       class="alert alert-danger border border-danger">
+        URL do Buupe inválida.
+      </div>
     <input type="text" formControlName="facebook" placeholder="Facebook"
       [class.input-invalid]="editForm.get('facebook')?.invalid && editForm.get('facebook')?.touched">
     <div *ngIf="editForm.get('facebook')?.invalid && editForm.get('facebook')?.touched"

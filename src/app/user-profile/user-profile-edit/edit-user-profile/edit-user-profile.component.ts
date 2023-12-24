@@ -55,6 +55,7 @@ export class EditUserProfileComponent implements OnInit {
       descricao: [''],
       facebook: ['', [ValidatorService.facebookValidator()]],
       instagram: ['', [ValidatorService.instagramValidator()]],
+      buupe: ['', [ValidatorService.buupeValidator()]],
     });
   }
 
@@ -91,6 +92,7 @@ export class EditUserProfileComponent implements OnInit {
           descricao: userData.descricao,
           facebook: userData.facebook || '',
           instagram: userData.instagram || '',
+          buupe: userData.buupe || ''
 
         });
 
@@ -204,6 +206,7 @@ export class EditUserProfileComponent implements OnInit {
     // Define valores padrão para campos que podem estar indefinidos
     formValues.facebook = formValues.facebook || '';
     formValues.instagram = formValues.instagram || '';
+    formValues.buupe = formValues.buupe || '';
 
     // Combina os dados atualizados do formulário com os dados existentes do usuário
     const updatedUserData = { ...this.userData, ...formValues };

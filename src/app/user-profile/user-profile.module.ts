@@ -10,18 +10,21 @@ import { EditProfileRegionComponent } from './user-profile-edit/edit-profile-reg
 import { EditProfilePreferencesComponent } from './user-profile-edit/edit-profile-preferences/edit-profile-preferences.component';
 import { EditProfileSocialLinksComponent } from './user-profile-edit/edit-profile-social-links/edit-profile-social-links.component';
 import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/edit-user-profile.component';
+import { LayoutModule } from '../layout/layout.module';
 
 @NgModule({
   declarations: [UserProfileViewComponent, UserProfileEditComponent, EditProfileRegionComponent,
                  EditProfilePreferencesComponent, EditProfileSocialLinksComponent,
                  EditUserProfileComponent],
-                 
+
   imports: [
     CommonModule,
     FormsModule,
     SharedModule,
     ReactiveFormsModule,
     UserProfileRoutingModule,
+    LayoutModule
+
   ]
 })
 export class UserProfileModule { }
