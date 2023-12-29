@@ -39,23 +39,6 @@ input[type="file"] {
   justify-content: space-between;
 }
 
-button, .btn-voltar {
-  width: 45%;
-  padding: 10px;
-  margin: 10px 0;
-  background-color: #ff6565;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 16px;
-  transition: background-color 0.3s;
-}
-
-button:hover {
-  background-color: #e01156;   /* Um tom mais escuro para o hover */
-}
-
 /* Estilos específicos para o tema erótico */
 form {
   background-color: #fee;   /* Um leve tom rosado para o fundo */

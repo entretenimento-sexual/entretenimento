@@ -66,11 +66,13 @@
 
 </div> <!-- preferences-flex-container -->
   <!-- Botões de Ação -->
-        <div class="button-group">
-          <button type="submit">Salvar Preferências</button>
-          <a [routerLink]="['/perfil', (uid$ | async)]" class="btn btn-secondary btn-voltar">Voltar sem Salvar</a>
-        </div><!--button-group-->
+
       </form>
+
+      <div class="button-group">
+        <button type="submit">Salvar Preferências</button>
+        <button (click)="voltarSemSalvar()" class="btn btn-secondary btn-voltar">Voltar sem Salvar</button>
+      </div><!--button-group-->
     </div><!--col-lg-8-->
   </div><!--row justify-content-center-->
 </div><!--container-fluid-->

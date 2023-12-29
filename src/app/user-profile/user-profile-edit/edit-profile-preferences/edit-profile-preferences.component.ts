@@ -12,7 +12,7 @@ import { UsuarioService } from 'src/app/core/services/usuario.service';
 })
 
 export class EditProfilePreferencesComponent implements OnInit {
-  uid$!: Observable<string | null>;
+  uid: string | null = null;
   preferencias: any = {};
 
   constructor(private route: ActivatedRoute,
@@ -20,10 +20,13 @@ export class EditProfilePreferencesComponent implements OnInit {
               private router: Router) { }
 
   ngOnInit() {
+    console.log('EditProfilePreferencesComponent inicializado');
     this.route.paramMap.pipe(
       map(params => params.get('id')),
       switchMap(uid => {
+        console.log('UID obtido da rota:', uid);
         if (uid) {
+          console.log('Buscando preferências para UID:', uid);
           return this.usuarioService.buscarPreferenciasDoUsuario(uid).pipe(
             tap(preferencias => {
               if (preferencias) {
@@ -41,6 +44,7 @@ export class EditProfilePreferencesComponent implements OnInit {
     console.log('Salvando preferências:', this.preferencias);
     this.route.paramMap.subscribe(params => {
         const uid = params.get('id');
+      console.log('Salvando preferências para UID:', uid);
         if (uid) {
             // Cria um novo objeto com as preferências, garantindo que cada uma seja um objeto
             const preferenciasParaSalvar: {[key: string]: any} = {};
@@ -62,6 +66,12 @@ export class EditProfilePreferencesComponent implements OnInit {
         }
     });
 }
-
-
+  voltarSemSalvar() {
+    this.route.paramMap.subscribe(params => {
+      const uid = params.get('id');
+      if (uid) {
+        this.router.navigate(['/perfil', uid]);
+      }
+    });
+  }
 } // finaliza export class

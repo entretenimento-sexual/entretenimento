@@ -40,6 +40,7 @@ export class PerfisProximosComponent implements OnInit {
         // Etapa 2: Carregar perfis próximos.
         const user = this.authService.currentUser; // Obtenha o usuário atual
         if (user && user.uid) {
+          console.log('usuario possui um id:', user.uid)
           await this.loadProfilesNearUserLocation(user.uid);
           // Etapa 3 (opcional): Salvar a localização atualizada no Firestore.
           await this.firestoreService.updateUserLocation(user.uid, this.userLocation);
@@ -78,14 +79,14 @@ export class PerfisProximosComponent implements OnInit {
       }
 
       const { latitude, longitude } = this.userLocation;
-      const maxDistanceKm = 10; // Defina a distância máxima desejada em quilômetros.
+      const maxDistanceKm = 20; // Defina a distância máxima desejada em quilômetros.
 
       // Chame o serviço para obter perfis próximos com base nas coordenadas.
       this.profiles = await this.nearbyProfilesService.getProfilesNearLocation(
         latitude,
         longitude,
         maxDistanceKm,
-      
+
       );
     } catch (error) {
       console.error('Erro ao carregar perfis próximos:', error);

@@ -13,7 +13,7 @@ export class NearbyProfilesService {
 
   async getProfilesNearLocation(latitude: number, longitude: number, maxDistanceKm: number): Promise<IUserDados[]> {
     try {
-      const bounds = geohashQueryBounds([latitude, longitude], maxDistanceKm * 1000);
+      const bounds = geohashQueryBounds([latitude, longitude], maxDistanceKm * 10000);
       const promises = bounds.map((b) => {
         const q = query(collection(this.firestoreService.db, 'users'),
           where('geohash', '>=', b[0]),

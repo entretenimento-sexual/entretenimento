@@ -11,13 +11,17 @@
   }
 
 .category-container {
-  width: 100%;
   background-color: #fff;
   border: 1px solid #ddd;
   border-radius: 8px;
   padding: 15px;
   margin-bottom: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.category-container:hover {
+  transform: translateY(-5px);   /* Efeito de elevação ao passar o mouse */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);   /* Sombra mais proeminente no hover */
 }
 
 .category-title {
@@ -54,8 +58,8 @@ input[type="text"], select {
 
 /* Estilos de Botões */
 button, .btn-voltar {
-  width: 25%;
-  padding: 10px;
+
+  padding: 10px 12px;
   margin: 20px 10%;
   background-color: #ff6565;
   color: white;

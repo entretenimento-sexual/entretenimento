@@ -33,11 +33,6 @@ a:hover {
   /* Organiza as caixas de categoria em coluna */
 }
 
-.category-container:hover {
-  transform: translateY(-5px);   /* Efeito de elevação ao passar o mouse */
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);   /* Sombra mais proeminente no hover */
-}
-
 .category-item, p {
   color: #333;   /* Cor escura para boa legibilidade */
   font-size: 16px;   /* Tamanho confortável para leitura */
@@ -127,11 +122,10 @@ a:hover {
   padding-left: 20px;
 }
 
-.user-profile-summary,
-.user-details {
+.user-profile-summary {
   font-family: var(--font-primary);
   color: var(--secondary-color);
-  line-height: 1.6;   /* Espaçamento de linha para melhor legibilidade */
+  line-height: 1.6;    /* Espaçamento de linha para melhor legibilidade */
   margin-bottom: 1.1em;
 }
 
