@@ -205,7 +205,7 @@ export class FirestoreService {
     return preferences;
   }
 
-  async getProfilesNearLocation(latitude: number, longitude: number): Promise<IUserDados[]> {
+  async getProfilesNearLocation(latitude: number, longitude: number, geohash: string): Promise<IUserDados[]> {
     try {
       // Realize a consulta no Firestore para buscar os perfis próximos usando as coordenadas.
       const userCollection = collection(this.db, 'users');
@@ -219,7 +219,7 @@ export class FirestoreService {
     }
   }
 
-  async updateUserLocation(uid: string, location: GeoCoordinates): Promise<void> {
+  async updateUserLocation(uid: string, location: GeoCoordinates, geohash: string): Promise<void> {
     try {
       if (!uid || !location) {
         throw new Error('UID do usuário ou localização inválidos');
@@ -231,7 +231,8 @@ export class FirestoreService {
       // Atualize as coordenadas de latitude e longitude no documento do usuário
       await updateDoc(userRef, {
         latitude: location.latitude,
-        longitude: location.longitude
+        longitude: location.longitude,
+        geohash: geohash
       });
 
       console.log('Localização do usuário atualizada com sucesso.');
@@ -240,6 +241,8 @@ export class FirestoreService {
       throw error;
     }
   }
+
+  
 }
 
 

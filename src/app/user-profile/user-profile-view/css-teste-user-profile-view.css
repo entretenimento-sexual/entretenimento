@@ -33,7 +33,7 @@
 .button-group {
   display: flex;
   gap: 20px;
-  justify-content: start;
+  justify-content: flex-start;
   flex-wrap: nowrap;
   align-items: center;    /* Alinhamento vertical dos botões */
 }

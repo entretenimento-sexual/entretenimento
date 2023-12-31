@@ -1,5 +1,6 @@
 // src\app\layout\perfis-proximos\perfis-proximos.component.ts
 import { Component, OnInit } from '@angular/core';
+import { geohashForLocation } from 'geofire-common';
 import { GeoCoordinates } from 'src/app/core/interfaces/geolocation.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
@@ -41,9 +42,10 @@ export class PerfisProximosComponent implements OnInit {
         const user = this.authService.currentUser; // Obtenha o usuário atual
         if (user && user.uid) {
           console.log('usuario possui um id:', user.uid)
+          const geohash = geohashForLocation([this.userLocation.latitude, this.userLocation.longitude]);
           await this.loadProfilesNearUserLocation(user.uid);
           // Etapa 3 (opcional): Salvar a localização atualizada no Firestore.
-          await this.firestoreService.updateUserLocation(user.uid, this.userLocation);
+          await this.firestoreService.updateUserLocation(user.uid, this.userLocation, geohash);
         } else {
           console.error('UID do usuário não está disponível.');
           // Lide com as coordenadas inválidas aqui, por exemplo, exibindo uma mensagem para o usuário.

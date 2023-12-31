@@ -61,10 +61,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "browserTarget": "entretenimento:build:production"
+              "buildTarget": "entretenimento:build:production"
             },
             "development": {
-              "browserTarget": "entretenimento:build:development"
+              "buildTarget": "entretenimento:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -72,7 +72,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "entretenimento:build"
+            "buildTarget": "entretenimento:build"
           }
         },
         "test": {

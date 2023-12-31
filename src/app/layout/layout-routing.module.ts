@@ -4,7 +4,7 @@ import { RouterModule, Routes } from '@angular/router';
 import { PerfisProximosComponent } from './perfis-proximos/perfis-proximos.component';
 
 const routes: Routes = [
-  { path: 'layout/perfis-proximos', component: PerfisProximosComponent },
+  { path: 'perfis-proximos', component: PerfisProximosComponent },
   // outras rotas do LayoutModule
 ];
 

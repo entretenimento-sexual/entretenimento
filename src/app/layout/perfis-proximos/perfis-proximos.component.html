@@ -1,9 +1,15 @@
 <!-- src\app\layout\perfis-proximos\perfis-proximos.component.html -->
-<div *ngIf="profiles.length > 0; else noProfilesFound">
-  <div *ngFor="let profile of profiles">
-    <h3>{{ profile.nickname }}</h3>
-    <p>{{ profile.gender }}</p>
-    <!-- Adicione mais informações do perfil aqui -->
+<div *ngIf="profiles.length > 0; else noProfilesFound" class="profiles-container">
+  <div class="card" *ngFor="let profile of profiles">
+    <img [src]="profile.photoURL || 'caminho/para/imagem/padrão.jpg'" alt="{{ profile.nickname }}"
+      class="profile-photo">
+    <div class="card-body">
+      <h5 class="card-title">{{ profile.nickname }}</h5>
+      <p class="card-text">{{ profile.gender | titlecase }}</p>
+      <p class="card-text">Cidade: {{ profile.municipio }}</p>
+      <!-- Adicione mais informações do perfil aqui -->
+      <a href="#" class="btn btn-primary">Ver Perfil</a>
+    </div>
   </div>
 </div>
 
