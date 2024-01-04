@@ -1,0 +1,40 @@
+<!-- src\app\user-profile\user-profile-view\user-profile-preferences\user-profile-preferences.component.html -->
+
+<div class="user-preferences col-lg-6"><!--meus desejos-->
+
+  <div *ngIf="categoriasDePreferencias.genero.length > 0" class="category-container">
+    <h3 class="category-title">Tenho interesse em:</h3>
+    <ul>
+      <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.genero">{{ pref | capitalize }}</li>
+    </ul>
+    <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar busca</a>
+  </div><!--genero-->
+
+  <div *ngIf="categoriasDePreferencias.praticaSexual.length > 0" class="category-container">
+    <h3 class="category-title">Que curtam:</h3>
+    <ul>
+      <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.praticaSexual">{{ pref | capitalize }}
+      </li>
+    </ul>
+    <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar fetiches</a>
+  </div><!--praticaSexual-->
+
+  <div *ngIf="categoriasDePreferencias.preferenciaFisica.length > 0" class="category-container">
+    <h3 class="category-title">Sejam:</h3>
+    <ul>
+      <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.preferenciaFisica">{{ pref | capitalize
+        }}</li>
+    </ul>
+    <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar preferências</a>
+  </div><!--preferenciaFisica-->
+
+  <div *ngIf="categoriasDePreferencias.relacionamento.length > 0" class="category-container">
+    <h3 class="category-title">Desejo:</h3>
+    <ul>
+      <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.relacionamento">{{ pref | capitalize }}
+      </li>
+    </ul>
+    <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar desejos</a>
+  </div><!--relacionamento-->
+
+</div><!--user-preferences-->

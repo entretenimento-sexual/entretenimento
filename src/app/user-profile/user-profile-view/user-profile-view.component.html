@@ -1,27 +1,6 @@
 <!-- src\app\user-profile\user-profile-view\user-profile-view.component.html -->
 <div class="profile-container container-fluid">
-<!-- Sidebar -->
-  <aside class="sidebar col-lg-3" [ngClass]="{'visible': isSidebarVisible}">
-    <header class="profile-header">
-      <img [src]="(usuario$ | async)?.photoURL" alt="Foto de Perfil" class="profile-picture">
-    </header><!-- profile-header -->
-    <p class="user-nickname"><strong>{{ (usuario$ | async)?.nickname }}</strong></p>
-
-    <nav class="profile-nav">
-      <a [routerLink]="['/perfil', uid]" *ngIf="!isOnOwnProfile()">
-        <i class="fas fa-user"></i>Meu perfil
-      </a>
-      <a [routerLink]="['/layout/perfis-proximos']">
-      <i class="fas fa-map-marker-alt"></i>Perfis próximos
-      </a>
-      <a href="#"><i class="fas fa-images"></i>Minhas fotos </a>
-      <a href="#"><i class="fas fa-cogs"></i>Minhas preferências</a>
-      <a href="#"><i class="fas fa-users"></i>Meus amigos</a>
-      <a href="#"><i class="fas fa-star"></i>Meus favoritos</a>
-      <a [routerLink]="['/chat']"><i class="fas fa-comments"></i>Bate-papo</a>
-      <!-- Você pode adicionar mais links conforme necessário -->
-    </nav>
-  </aside><!--sidebar col-md-3-->
+    <app-user-profile-sidebar></app-user-profile-sidebar> <!--quero usar mais oumenos desse jeito-->
 <!-- Dados pessoais -->
 <main class="">
   <div class="">
@@ -66,44 +45,7 @@
       <p>Carregando...</p>
     </ng-template>
 
-    <div class="user-preferences col-lg-6"><!--meus desejos-->
-
-      <div *ngIf="categoriasDePreferencias.genero.length > 0" class="category-container">
-        <h3 class="category-title">Tenho interesse em:</h3>
-        <ul>
-          <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.genero">{{ pref | capitalize }}</li>
-        </ul>
-        <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar busca</a>
-      </div><!--genero-->
-
-      <div *ngIf="categoriasDePreferencias.praticaSexual.length > 0" class="category-container">
-        <h3 class="category-title">Que curtam:</h3>
-        <ul>
-          <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.praticaSexual">{{ pref | capitalize }}
-          </li>
-        </ul>
-        <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar fetiches</a>
-      </div><!--praticaSexual-->
-
-      <div *ngIf="categoriasDePreferencias.preferenciaFisica.length > 0" class="category-container">
-        <h3 class="category-title">Sejam:</h3>
-        <ul>
-          <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.preferenciaFisica">{{ pref | capitalize
-            }}</li>
-        </ul>
-        <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar preferências</a>
-      </div><!--preferenciaFisica-->
-
-      <div *ngIf="categoriasDePreferencias.relacionamento.length > 0" class="category-container">
-        <h3 class="category-title">Desejo:</h3>
-        <ul>
-          <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.relacionamento">{{ pref | capitalize }}
-          </li>
-        </ul>
-        <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar desejos</a>
-      </div><!--relacionamento-->
-
-    </div><!--user-preferences-->
+    <app-user-profile-preferences [uid]="uid"></app-user-profile-preferences>
   </div><!--profile-content row-->
 
 </main><!--content col-md-9-->

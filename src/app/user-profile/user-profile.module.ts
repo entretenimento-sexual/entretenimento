@@ -10,20 +10,24 @@ import { EditProfilePreferencesComponent } from './user-profile-edit/edit-profil
 import { EditProfileSocialLinksComponent } from './user-profile-edit/edit-profile-social-links/edit-profile-social-links.component';
 import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/edit-user-profile.component';
 import { LayoutModule } from '../layout/layout.module';
+import { UserProfileSidebarComponent } from "./user-profile-view/user-profile-sidebar/user-profile-sidebar.component";
+import { UserProfilePreferencesComponent } from "./user-profile-view/user-profile-preferences/user-profile-preferences.component";
+
 
 @NgModule({
-  declarations: [UserProfileViewComponent, EditProfileRegionComponent,
-                 EditProfilePreferencesComponent, EditProfileSocialLinksComponent,
-                 EditUserProfileComponent],
-
-  imports: [
-    CommonModule,
-    FormsModule,
-    SharedModule,
-    ReactiveFormsModule,
-    UserProfileRoutingModule,
-    LayoutModule
-
-  ]
+    declarations: [UserProfileViewComponent, EditProfileRegionComponent,
+        EditProfilePreferencesComponent, EditProfileSocialLinksComponent,
+        EditUserProfileComponent],
+        
+    imports: [
+        CommonModule,
+        FormsModule,
+        SharedModule,
+        ReactiveFormsModule,
+        UserProfileRoutingModule,
+        LayoutModule,
+        UserProfileSidebarComponent,
+        UserProfilePreferencesComponent
+    ]
 })
 export class UserProfileModule { }
