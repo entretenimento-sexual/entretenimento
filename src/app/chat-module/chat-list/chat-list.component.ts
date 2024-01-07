@@ -1,6 +1,9 @@
 //src\app\chat-module\chat-list\chat-list.component.ts
 import { Component, OnInit } from '@angular/core';
+import { Router } from '@angular/router';
+import { Chat } from 'src/app/core/interfaces/chat.interface';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { ChatService } from 'src/app/core/services/chat.service';
 
 @Component({
   selector: 'app-chat-list',
@@ -8,18 +11,22 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
   styleUrls: ['./chat-list.component.css']
 })
 export class ChatListComponent implements OnInit {
-  chats: { id: number, lastMessage: { content: string } }[] = [];
+  chats: Chat[] = [];
 
-  constructor(private authService: AuthService) { }
+  constructor(private authService: AuthService,
+              private chatService: ChatService,
+              private router: Router) { }
 
   ngOnInit() {
     if (this.authService.isUserAuthenticated()) {
-      // Usuário autenticado, carregue a lista de chats
-      // Implemente a lógica para carregar os chats aqui
+      const currentUser = this.authService.currentUser;
+      if (currentUser?.uid) {
+        this.chatService.getChats(currentUser.uid).subscribe(chats => {
+          this.chats = chats;
+        });
+      }
     } else {
-      // Usuário não autenticado, redirecione ou mostre uma mensagem
-      // Por exemplo, redirecionar para a página de login:
-      // this.router.navigate(['/login']);
+      this.router.navigate(['/login']);
     }
 
   }

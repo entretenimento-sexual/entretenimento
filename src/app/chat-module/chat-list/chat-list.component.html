@@ -2,7 +2,7 @@
 <div *ngIf="chats.length > 0; else noMessages">
   <div class="chat-list-container">
     <div class="chat-item" *ngFor="let chat of chats">
-      <p>{{ chat.lastMessage.content }}</p>
+      <p>{{ chat.lastMessage?.content }}</p>
       <a [routerLink]="['/chat', chat.id]">Abrir chat</a>
     </div>
   </div>

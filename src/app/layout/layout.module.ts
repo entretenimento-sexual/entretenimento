@@ -6,10 +6,12 @@ import { PerfisProximosComponent } from './perfis-proximos/perfis-proximos.compo
 import { GeolocationService } from '../core/services/geolocation.service';
 import { LayoutRoutingModule } from './layout-routing.module';
 
+
 @NgModule({
   declarations: [
     ProfileListComponent,
-    PerfisProximosComponent
+    PerfisProximosComponent,
+
   ],
   imports: [
     CommonModule,

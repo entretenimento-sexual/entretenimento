@@ -8,7 +8,7 @@
       <p class="card-text">{{ profile.gender | titlecase }}</p>
       <p class="card-text">Cidade: {{ profile.municipio }}</p>
       <!-- Adicione mais informações do perfil aqui -->
-      <a href="#" class="btn btn-primary">Ver Perfil</a>
+      <a [routerLink]="['/outro-perfil', profile.uid]" class="btn btn-primary">Ver Perfil</a>
     </div>
   </div>
 </div>
