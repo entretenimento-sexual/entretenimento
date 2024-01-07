@@ -30,6 +30,9 @@ import { EmailVerificationService } from './core/services/autentication/email-ve
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { UserProfileModule } from './user-profile/user-profile.module';
 
+//AngularMaterial
+import { MatDialogModule } from '@angular/material/dialog';
+
 
 
 @NgModule({
@@ -54,7 +57,10 @@ import { UserProfileModule } from './user-profile/user-profile.module';
     AuthenticationModule,
     UserProfileModule,
     FooterModule,
-    BrowserAnimationsModule
+    BrowserAnimationsModule,
+
+      //AngularMaterial
+    MatDialogModule,
 
   ],
   providers: [
