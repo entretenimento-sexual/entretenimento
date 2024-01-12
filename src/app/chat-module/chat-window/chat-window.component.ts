@@ -1,5 +1,7 @@
 // src\app\chat-module\chat-window\chat-window.component.ts
 import { Component } from '@angular/core';
+import { Timestamp } from '@firebase/firestore';
+import { ChatService } from 'src/app/core/services/chat.service';
 
 @Component({
   selector: 'app-chat-window',
@@ -7,8 +9,10 @@ import { Component } from '@angular/core';
   styleUrls: ['./chat-window.component.css']
 })
 export class ChatWindowComponent {
-  messages: { content: string, senderId: string, timestamp: Date }[] = [];
+  messages: { content: string, senderId: string, timestamp: Timestamp }[] = [];
   messageContent = ''; // Adicione essa linha para representar o conteúdo da mensagem a ser enviada
+
+  constructor(private chatService: ChatService) { }
 
   // Adicione esse método que será chamado quando o botão "Enviar" for pressionado:
   sendMessage() {
@@ -16,11 +20,11 @@ export class ChatWindowComponent {
       const newMessage = {
         content: this.messageContent.trim(),
         senderId: 'userId', // Substitua 'userId' pelo ID real do usuário
-        timestamp: new Date() // Substitua por um timestamp válido se estiver usando Firebase
+        timestamp: Timestamp.fromDate(new Date()) // Substitua por um timestamp válido se estiver usando Firebase
       };
       this.messages.push(newMessage);
       this.messageContent = '';
+      this.chatService.sendMessage('chatId', newMessage);
     }
   }
-
 }

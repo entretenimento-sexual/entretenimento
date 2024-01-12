@@ -241,8 +241,6 @@ export class FirestoreService {
       throw error;
     }
   }
-
-  
 }
 
 

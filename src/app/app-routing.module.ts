@@ -26,7 +26,7 @@ const routes: Routes = [
 
   { path: 'layout', loadChildren: () => import('./layout/layout.module').then(m => m.LayoutModule) },
 
-  { path: 'chat', loadChildren: () => import('./chat-module/chat-module.module').then(m => m.ChatModuleModule) },
+  { path: 'chat', loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModuleModule) },
 
   { path: 'profile-list', component: ProfileListComponent }, // rota para a lista de perfis
   { path: 'register-component', component: RegisterComponent }, // rota para o componente de registro

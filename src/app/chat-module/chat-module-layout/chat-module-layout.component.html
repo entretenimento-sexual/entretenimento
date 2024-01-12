@@ -1,0 +1,10 @@
+<!-- src\app\chat-module\chat-module-layout\chat-module-layout.component.html -->
+<div class="chat-module-container">
+  <div class="chat-list-sidebar">
+    <app-chat-list [ngStyle]="{'background-color': 'lightblue', 'padding': '10px'}"></app-chat-list>
+  </div>
+  <div class="chat-window-main">
+    <router-outlet></router-outlet> <!-- Onde os chats individuais serão exibidos -->
+  </div>
+</div>
+

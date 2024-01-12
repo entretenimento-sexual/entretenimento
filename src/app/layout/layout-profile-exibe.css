@@ -8,13 +8,13 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: space-around;
-  gap: 20px;
+  gap: 15px;
   margin: 20px;
 }
 
 .card {
-  width: 200px;
-  height: 300px;  /* Reduzindo a altura */
+  width: 225px;
+  height: 350px;  /* Reduzindo a altura */
   border-radius: 15px;  /* Bordas arredondadas */
   box-shadow: 0 6px 12px 0 rgba(0, 0, 0, 0.2);  /* Sombra mais proeminente */
   overflow: hidden;  /* Para arredondar as bordas da imagem também */
@@ -41,14 +41,14 @@
 }
 
 .card-title {
-  margin-bottom: 10px;
+  margin-bottom: 5px;
   font-size: 18px;
   font-weight: bold;
   color: #333;  /* Cor de texto mais escura */
 }
 
 .card-text {
-  margin-bottom: 10px;
+  margin-bottom: 3px;
   color: #666;  /* Cor de texto mais suave */
 }
 

@@ -1,0 +1,16 @@
+/* src\app\chat-module\chat-module-layout\chat-module-layout.component.css */
+.chat-module-container {
+  display: flex;
+}
+
+.chat-list-sidebar {
+  width: 30%;
+  /* Ajuste a largura conforme necessário */
+  /* Estilos adicionais para a barra lateral */
+}
+
+.chat-window-main {
+  width: 70%;
+  /* Ajuste a largura conforme necessário */
+  /* Estilos adicionais para a janela principal de chat */
+}

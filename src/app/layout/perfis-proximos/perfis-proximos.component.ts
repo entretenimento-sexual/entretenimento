@@ -1,6 +1,6 @@
 // src\app\layout\perfis-proximos\perfis-proximos.component.ts
 import { Component, OnInit } from '@angular/core';
-import { geohashForLocation } from 'geofire-common';
+import { distanceBetween, geohashForLocation } from 'geofire-common';
 import { GeoCoordinates } from 'src/app/core/interfaces/geolocation.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
@@ -88,8 +88,17 @@ export class PerfisProximosComponent implements OnInit {
         latitude,
         longitude,
         maxDistanceKm,
-
       );
+      // Calcule a distância para cada perfil
+  this.profiles.forEach(profile => {
+    if (profile.latitude && profile.longitude) {
+      const distance = distanceBetween([profile.latitude, profile.longitude], [latitude, longitude]);
+      console.log(this.profiles)
+      profile.distanciaKm = distance / 1000; // Converta para quilômetros
+
+    }
+  });
+
     } catch (error) {
       console.error('Erro ao carregar perfis próximos:', error);
     }

@@ -27,6 +27,7 @@ export interface IUserDados {
   facebook?: string; // Perfil do Facebook
   instagram?: string; // Perfil do Instagram
   buupe: string;
-  // Adicione outras redes sociais conforme necessário
+  distanciaKm?: number;
+  
 }
 

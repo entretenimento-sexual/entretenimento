@@ -1,5 +1,6 @@
 // src\app\chat-module\chat-message\chat-message.component.ts
-import { Component } from '@angular/core';
+import { Component, Input } from '@angular/core';
+import { Message } from 'src/app/core/interfaces/message.interface';
 
 @Component({
   selector: 'app-chat-message',
@@ -7,5 +8,5 @@ import { Component } from '@angular/core';
   styleUrls: ['./chat-message.component.css']
 })
 export class ChatMessageComponent {
-
+  @Input() message!: Message;
 }
