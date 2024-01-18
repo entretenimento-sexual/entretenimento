@@ -1,12 +1,16 @@
 // chat.service.ts
 import { Injectable } from '@angular/core';
 import {
-  getFirestore, collection, addDoc, doc, Timestamp, setDoc, CollectionReference, query, where, getDocs, deleteDoc, orderBy, limitToLast
+  getFirestore, collection, addDoc, doc, Timestamp, setDoc,
+  CollectionReference, query, where, getDocs, deleteDoc, orderBy,
+  limitToLast, startAfter, onSnapshot, Query, QuerySnapshot, DocumentData, QueryDocumentSnapshot
 } from 'firebase/firestore';
 import { Chat } from '../interfaces/chat.interface';
 import { Message } from '../interfaces/message.interface';
-import { map } from 'rxjs/operators';
-import { from } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
+import { Observable, from } from 'rxjs';
+import { UsuarioService } from './usuario.service';
+import { IUserDados } from '../interfaces/iuser-dados';
 
 @Injectable({
   providedIn: 'root'
@@ -14,29 +18,30 @@ import { from } from 'rxjs';
 export class ChatService {
   private db = getFirestore();
 
-  constructor() { }
-
+  constructor(private usuarioService: UsuarioService) { }
   // Para criar uma nova conversa
-  async createChat(participants: string[]): Promise<void> {
+  async createChat(participants: string[]): Promise<string> {
     const chat: Chat = {
       participants,
       timestamp: Timestamp.now()
     };
 
     try {
-      await addDoc(collection(this.db, 'chats'), chat);
+      const chatDocRef = await addDoc(collection(this.db, 'chats'), chat);
+      return chatDocRef.id; // Retorna o ID do chat criado
     } catch (error) {
       console.error("Erro ao criar chat:", error);
       throw error;
     }
   }
 
-  // Para enviar uma mensagem em uma conversa
-  async sendMessage(chatId: string, message: Message): Promise<void> {
+    // Para enviar uma mensagem em uma conversa
+  async sendMessage(chatId: string, message: Message): Promise<string> {
     try {
       const chatDoc = doc(this.db, 'chats', chatId);
       const messageCollection = collection(chatDoc, 'messages') as CollectionReference<Message>;
-      await addDoc(messageCollection, message);
+      const messageRef = await addDoc(messageCollection, message);
+      return messageRef.id; // Retorna o ID da mensagem criada
     } catch (error) {
       console.error("Erro ao enviar mensagem:", error);
       throw error;
@@ -48,22 +53,34 @@ export class ChatService {
     const q = query(chatsRef, where('participants', 'array-contains', userId));
 
     return from(getDocs(q)).pipe(
-      map(querySnapshot => {
-        return querySnapshot.docs.map(doc => {
+      switchMap(async (querySnapshot: QuerySnapshot<DocumentData>) => {
+        const chatPromises = querySnapshot.docs.map(async (doc: QueryDocumentSnapshot<DocumentData>) => {
           const chatData = doc.data() as Chat;
+          const otherUserId = chatData.participants.find(uid => uid !== userId);
+
+          // Garanta que userDetails seja null quando otherUserId for undefined
+          let userDetails: IUserDados | null = null;
+          if (otherUserId) {
+            userDetails = await this.usuarioService.getUsuario(otherUserId).toPromise() ?? null;
+          }
+
           return {
-            ...chatData, // Espalha todas as propriedades de chatData
-            id: doc.id, // Adiciona o id do documento Firestore
+            ...chatData,
+            id: doc.id,
+            otherParticipantDetails: userDetails
           };
         });
-      })
+        return await Promise.all(chatPromises);
+      }),
+      map(chatsWithDetails => chatsWithDetails.filter(chat => chat.otherParticipantDetails != null))
     );
   }
 
-  async updateChat(chatId: string, updateData: Partial<Chat>): Promise<void> {
+  async updateChat(chatId: string, updateData: Partial<Chat>): Promise<string> {
     try {
       const chatDocRef = doc(this.db, 'chats', chatId);
       await setDoc(chatDocRef, updateData, { merge: true });
+      return chatId;
     } catch (error) {
       console.error("Erro ao atualizar chat:", error);
       throw error;
@@ -79,15 +96,41 @@ export class ChatService {
       }
     }
 
-  getMessages(chatId: string, limit: number = 10) {
-    const messagesRef = collection(this.db, `chats/${chatId}/messages`);
-    const q = query(messagesRef, orderBy('timestamp', 'desc'), limitToLast(limit));
-
-    return from(getDocs(q)).pipe(
-      map(querySnapshot => {
-        return querySnapshot.docs.map(doc => doc.data() as Message);
-      })
-    );
+  async deleteMessage(chatId: string, messageId: string): Promise<void> {
+    try {
+      const messageDocRef = doc(this.db, `chats/${chatId}/messages`, messageId);
+      await deleteDoc(messageDocRef);
+    } catch (error) {
+      console.error("Erro ao deletar mensagem:", error);
+      throw error;
+    }
   }
-  
+
+  getMessages(chatId: string, limit: number = 10, lastMessageTimestamp?: Timestamp, realtime: boolean = false): Observable<Message[]> {
+    const messagesRef = collection(this.db, `chats/${chatId}/messages`);
+    let q: Query<DocumentData>;
+
+    if (lastMessageTimestamp) {
+      q = query(messagesRef, orderBy('timestamp', 'desc'), startAfter(lastMessageTimestamp), limitToLast(limit));
+    } else {
+      q = query(messagesRef, orderBy('timestamp', 'desc'), limitToLast(limit));
+    }
+
+    if (realtime) {
+      return new Observable(observer => {
+        const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+          const messages = snapshot.docs.map(doc => doc.data() as Message);
+          observer.next(messages);
+        }, observer.error);
+
+        return { unsubscribe };
+      });
+    } else {
+      return from(getDocs(q)).pipe(
+        map(querySnapshot => {
+          return querySnapshot.docs.map(doc => doc.data() as Message);
+        })
+      );
+    }
+  }
 }

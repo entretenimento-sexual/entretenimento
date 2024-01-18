@@ -1,0 +1,52 @@
+/* src\app\shared\components-globais\modal-mensagem\modal-mensagem.component.css */
+.modal-title {
+  font-size: 1.25rem;
+  color: #007bff;   /* Ou outra cor conforme sua preferência */
+}
+
+.modal-recipient-name {
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.message-textarea {
+  margin-bottom:1rem;
+  min-height: 150px;
+  resize: vertical;    /* Permite ao usuário ajustar o tamanho verticalmente */
+}
+
+.modal-footer .btn {
+margin: 0 0.5rem; /* Espaçamento entre botões */
+}
+
+.modal-content {
+background-color: #f8f9fa;  /* Cor de fundo suave */
+border-radius: 5px; /* Bordas arredondadas */
+box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Sombra sutil */
+}
+
+.modal-header {
+border-bottom: 1px solid #dee2e6; /* Linha separadora */
+padding: 1rem; /* Espaçamento interno */
+}
+
+.modal-body {
+padding: 1rem; /* Espaçamento interno */
+}
+
+.modal-footer {
+border-top: 1px solid #dee2e6; /* Linha separadora */
+padding: 1rem; /* Espaçamento interno */
+text-align: right; /* Alinhamento dos botões à direita */
+}
+
+/* Estilização do botão de fechar */
+.close {
+color: #6c757d; /* Cor do ícone de fechar */
+opacity: 0.7; /* Opacidade */
+}
+
+.close:hover {
+color: #5a6268; /* Cor ao passar o mouse */
+opacity: 1; /* Opacidade */
+}

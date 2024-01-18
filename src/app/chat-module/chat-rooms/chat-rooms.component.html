@@ -1,0 +1,11 @@
+<!-- src\app\chat-module\chat-rooms\chat-rooms.component.html -->
+<div class="chat-rooms">
+  <button (click)="createRoom()">Criar Sala</button>
+  <ul>
+    <li *ngFor="let room of chatRooms">
+      <span>{{ room.name }}</span>
+      <button (click)="inviteToRoom(room.id)">Convidar</button>
+      <button (click)="openRoom(room.id)">Abrir Sala</button>
+    </li>
+  </ul>
+</div>

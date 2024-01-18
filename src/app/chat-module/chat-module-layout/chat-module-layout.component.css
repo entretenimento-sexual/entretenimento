@@ -5,6 +5,7 @@
 
 .chat-list-sidebar {
   width: 30%;
+
   /* Ajuste a largura conforme necessário */
   /* Estilos adicionais para a barra lateral */
 }
@@ -13,4 +14,12 @@
   width: 70%;
   /* Ajuste a largura conforme necessário */
   /* Estilos adicionais para a janela principal de chat */
+}
+.foto_chat{
+  width: 30px;
+  border-radius: 10px;
+}
+.user-details{
+  padding: 10px;
+  border-bottom: 1px solid black;
 }

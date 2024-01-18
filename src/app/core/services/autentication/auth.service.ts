@@ -1,7 +1,7 @@
 //src\app\core\services\autentication\auth.service.ts
 import { Injectable } from '@angular/core';
 import { from, Observable, of, ReplaySubject } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { catchError, tap, switchMap, first } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { Router } from '@angular/router';
 
@@ -11,12 +11,14 @@ import { Timestamp } from 'firebase/firestore';
 import { FirestoreService } from './firestore.service';
 import { EmailVerificationService } from './email-verification.service';
 import { PreRegisterServiceService } from './pre-register.service';
+import { UsuarioService } from '../usuario.service';
 
 const auth = getAuth();
 
 @Injectable({
   providedIn: 'root'
 })
+
 export class AuthService {
 
   private userSubject = new ReplaySubject<IUserDados | null>(1);
@@ -29,6 +31,7 @@ export class AuthService {
     private router: Router,
     private firestoreService: FirestoreService,
     private emailVerificationService: EmailVerificationService,
+    private usuarioService: UsuarioService,
     private preRegisterService: PreRegisterServiceService
   ) {
     this.initAuthStateListener();
@@ -37,35 +40,27 @@ export class AuthService {
   // Inicia o ouvinte de mudança de autenticação
   private initAuthStateListener(): void {
     auth.onAuthStateChanged(user => {
-      const userData = this.mapUserToUserDados(user);
-      this.currentUserValue = userData; // Atualize o valor atual aqui
-      this.userSubject.next(userData);
+      if (user) {
+        // Se um usuário estiver autenticado, obtemos os dados completos do usuário
+        this.usuarioService.getUsuario(user.uid).subscribe(userData => {
+          // Atualiza o valor atual e emite os dados através do userSubject
+          this.currentUserValue = userData;
+          this.userSubject.next(userData);
+        }, error => {
+          // Em caso de erro, registra o erro e define os valores como null
+          console.error('Erro ao buscar dados do usuário:', error);
+          this.currentUserValue = null;
+          this.userSubject.next(null);
+        });
+      } else {
+        // Se não houver usuário autenticado, define os valores como null
+        this.currentUserValue = null;
+        this.userSubject.next(null);
+      }
     });
   }
 
-  // Mapeia o usuário do Firebase para o formato IUserDados
-  private mapUserToUserDados(user: User | null): IUserDados | null {
-    if (!user) return null;
-
-    const now = new Date();
-    const timestampNow = Timestamp.fromDate(now);
-
-    return {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName || null,
-      photoURL: user.photoURL || null,
-      role: 'animando',
-      lastLoginDate: timestampNow,
-      firstLogin: timestampNow,
-      descricao: '',   // Valor padrão ou nulo
-      facebook: '',    // Valor padrão ou nulo
-      instagram: '',   // Valor padrão ou nulo
-      buupe: '',
-    };
-  }
-
-  // Registro de novo usuário
+// Registro de novo usuário
   async register(email: string, password: string, nickname: string = '', userPreferences: any = {}): Promise<void> {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -75,19 +70,20 @@ export class AuthService {
           url: 'http://localhost:4200/email-verified'
         });
 
-        const currentUserData = this.mapUserToUserDados(user);
-
-        console.log('Dados do usuário antes de salvar:', currentUserData); // Linha adicionada
-
-        if (currentUserData) {
-          currentUserData.nickname = nickname; // Aqui, adicionamos o apelido ao objeto currentUserData.
-          await this.saveUserToFirestore(currentUserData);
-          await this.preRegisterService.saveUserPreferences(userPreferences);
-        } else {
-          console.warn('currentUserData é null. Não é possível salvar preferências.');
-        }
-
-        console.log('Usuário registrado:', user);
+        // Obtenha os dados do usuário mapeados do UsuarioService
+        // Use switchMap para lidar com operações assíncronas
+        this.usuarioService.getUsuario(user.uid).subscribe(async currentUserData => {
+          if (currentUserData) {
+            currentUserData.nickname = nickname;
+            await this.saveUserToFirestore(currentUserData);
+            await this.preRegisterService.saveUserPreferences(userPreferences);
+            console.log('Usuário registrado e preferências salvas.');
+          } else {
+            console.warn('currentUserData é null. Não é possível salvar preferências.');
+          }
+        }, error => {
+          console.error('Erro ao registrar usuário:', error);
+        });
       }
     } catch (error) {
       console.error('Erro ao registrar usuário:', error);
@@ -157,14 +153,16 @@ export class AuthService {
     return userData;
   }
 
-  async login(email: string, password: string): Promise<IUserDados | null> {
+  async login(email: string, password: string): Promise<IUserDados | null | undefined> {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
       if (user) {
         console.log('Usuário logado com sucesso:', user);
-        return this.mapUserToUserDados(user);
+        return this.usuarioService.getUsuario(user.uid).pipe(
+          first()
+        ).toPromise();
       } else {
         console.warn('Dados do usuário não encontrados após o login.');
         return null;

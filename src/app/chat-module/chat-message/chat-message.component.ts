@@ -1,12 +1,29 @@
 // src\app\chat-module\chat-message\chat-message.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnInit } from '@angular/core';
 import { Message } from 'src/app/core/interfaces/message.interface';
+import { UsuarioService } from 'src/app/core/services/usuario.service';
 
 @Component({
   selector: 'app-chat-message',
   templateUrl: './chat-message.component.html',
   styleUrls: ['./chat-message.component.css']
 })
-export class ChatMessageComponent {
+export class ChatMessageComponent implements OnInit {
   @Input() message!: Message;
+  senderName: string = '';
+
+  constructor (private usuarioService: UsuarioService){}
+
+  ngOnInit(): void {
+      if (this.message.senderId){
+        this.usuarioService.getUsuario(this.message.senderId).subscribe(
+          userData => {
+            this.senderName = userData ? userData.nickname || "Usuário desconhecido" : ""
+          },
+          error => console.error("Erro ao buscar nome do usuário", error)
+        );
+
+      }
+  }
+
 }

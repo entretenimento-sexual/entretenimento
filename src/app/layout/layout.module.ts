@@ -5,6 +5,7 @@ import { ProfileListComponent } from './profile-list/profile-list.component';
 import { PerfisProximosComponent } from './perfis-proximos/perfis-proximos.component';
 import { GeolocationService } from '../core/services/geolocation.service';
 import { LayoutRoutingModule } from './layout-routing.module';
+import { SharedModule } from '../shared/shared.module';
 
 
 @NgModule({
@@ -15,7 +16,8 @@ import { LayoutRoutingModule } from './layout-routing.module';
   ],
   imports: [
     CommonModule,
-    LayoutRoutingModule
+    LayoutRoutingModule,
+    SharedModule
   ],
   exports: [
     ProfileListComponent,

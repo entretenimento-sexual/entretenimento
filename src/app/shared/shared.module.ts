@@ -3,13 +3,15 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DateFormatPipe } from './date-format.pipe';
 import { CapitalizePipe } from './capitalize.pipe';
-
+import { ModalMensagemComponent } from './components-globais/modal-mensagem/modal-mensagem.component';
+import { FormsModule } from '@angular/forms';
 
 @NgModule({
-  declarations: [DateFormatPipe, CapitalizePipe],
+  declarations: [DateFormatPipe, CapitalizePipe, ModalMensagemComponent],
   imports: [
-    CommonModule
+    CommonModule,
+    FormsModule
   ],
-  exports: [DateFormatPipe, CapitalizePipe]
+  exports: [DateFormatPipe, CapitalizePipe, ModalMensagemComponent]
 })
 export class SharedModule { }

@@ -1,0 +1,19 @@
+<!-- src\app\shared\components-globais\modal-mensagem\modal-mensagem.component.html -->
+<div class="modal-dialog" role="document">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h5 class="modal-title" id="modalLabel">Enviar Mensagem para {{ data.profile.nickname }}</h5>
+      <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p></p>
+      <textarea [(ngModel)]="mensagem" class="form-control" rows="3"></textarea>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+      <button type="button" class="btn btn-primary" (click)="enviarMensagem()">Enviar</button>
+    </div>
+  </div>
+</div>

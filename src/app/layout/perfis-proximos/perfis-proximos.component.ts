@@ -1,5 +1,6 @@
 // src\app\layout\perfis-proximos\perfis-proximos.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
+import { Router } from '@angular/router';
 import { distanceBetween, geohashForLocation } from 'geofire-common';
 import { GeoCoordinates } from 'src/app/core/interfaces/geolocation.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -7,6 +8,8 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
 import { GeolocationService } from 'src/app/core/services/geolocation.service';
 import { NearbyProfilesService } from 'src/app/core/services/near-profile.service';
+import { MatDialog } from '@angular/material/dialog';
+import { ModalMensagemComponent } from 'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component';
 
 @Component({
   selector: 'app-perfis-proximos',
@@ -14,6 +17,8 @@ import { NearbyProfilesService } from 'src/app/core/services/near-profile.servic
   styleUrls: ['./perfis-proximos.component.css', '../layout-profile-exibe.css']
 })
 export class PerfisProximosComponent implements OnInit {
+  @ViewChild(ModalMensagemComponent)
+  modalMensagem!: ModalMensagemComponent;
 
   userLocation: GeoCoordinates | null = null;
   profiles: IUserDados[] = [];
@@ -23,10 +28,13 @@ export class PerfisProximosComponent implements OnInit {
     private firestoreService: FirestoreService,
     private authService: AuthService,
     private nearbyProfilesService: NearbyProfilesService,
+    private router: Router,
+    private dialog: MatDialog
 
   ) { }
 
   async ngOnInit(): Promise<void> {
+
     try {
       // Etapa 1: Obter a localização do usuário.
       this.userLocation = await this.geolocationService.getCurrentLocation();
@@ -55,6 +63,7 @@ export class PerfisProximosComponent implements OnInit {
         // Lide com as coordenadas inválidas aqui, por exemplo, exibindo uma mensagem para o usuário.
       }
     } catch (error) {
+      // Pedir IA para gerar uma mensagem de erro ao usuário
       console.error('Erro ao obter localização do usuário:', error);
     }
   }
@@ -103,5 +112,30 @@ export class PerfisProximosComponent implements OnInit {
       console.error('Erro ao carregar perfis próximos:', error);
     }
   }
+
+// daqui pra baixo é sobre envio de mensagem
+  abrirModalMensagem(uid: string): void {
+    console.log('UID do perfil selecionado para mensagem:', uid);
+
+    const perfilSelecionado = this.profiles.find(profile => profile.uid === uid)
+    if (perfilSelecionado) {
+      const dialogRef = this.dialog.open(ModalMensagemComponent, {
+        width: '22%',
+        minWidth: 300,
+        data: { profile: perfilSelecionado } // Passe o perfil encontrado como parte dos dados
+      });
+
+      dialogRef.afterClosed().subscribe(result => {
+        // Trate o resultado aqui
+        if (result) {
+          this.router.navigate(['/chat', uid]);
+        }
+      });
+    } else {
+      console.error('Perfil não encontrado com o UID:', uid);
+    }
+  }
 }
+
+
 
