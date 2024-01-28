@@ -44,7 +44,7 @@ export class ModalMensagemComponent {
         const participantes = [currentUserUid, profileUid];
 
         try {
-          const chatId = await this.chatService.createChat(participantes);
+          const chatId = await this.chatService.getOrCreateChatId(participantes);
 
           if (chatId !== null) { // Verifica se chatId não é nulo
             await this.chatService.sendMessage(chatId, mensagem);
@@ -64,9 +64,9 @@ export class ModalMensagemComponent {
         } catch (error) {
           console.error('Erro ao enviar mensagem:', error);
         }
+      } else {
+        console.error('currentUserUid ou profileUid não definidos.');
       }
-    } else {
-      console.error('currentUserUid ou profileUid não definidos.');
     }
   }
 }

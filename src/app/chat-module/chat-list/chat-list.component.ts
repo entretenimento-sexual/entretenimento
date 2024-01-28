@@ -1,5 +1,5 @@
 //src\app\chat-module\chat-list\chat-list.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { Router } from '@angular/router';
 import { Chat } from 'src/app/core/interfaces/chat.interface';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
@@ -12,6 +12,7 @@ import { ChatService } from 'src/app/core/services/chat.service';
 })
 export class ChatListComponent implements OnInit {
   chats: Chat[] = [];
+  @Output() chatSelected = new EventEmitter<string>();
 
   constructor(private authService: AuthService,
               private chatService: ChatService,
@@ -29,5 +30,9 @@ export class ChatListComponent implements OnInit {
       this.router.navigate(['/login']);
     }
 
+  }
+
+  selectChat(chatId: string | undefined) {
+    this.chatSelected.emit(chatId);
   }
 }

@@ -5,6 +5,7 @@ import { ChatService } from 'src/app/core/services/chat.service';
 import { Observable } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Timestamp } from '@firebase/firestore';
+import { Message } from 'src/app/core/interfaces/message.interface';
 
 @Component({
   selector: 'app-chat-module-layout',
@@ -14,7 +15,8 @@ import { Timestamp } from '@firebase/firestore';
 export class ChatModuleLayoutComponent implements OnInit {
   usuario$: Observable<IUserDados | null> | undefined;
   messageContent: string = '';
-  currentChatId: string = ''; // Você precisa definir isso de acordo com a lógica do seu chat
+  currentChatId: string = ''; // Este será o ID do chat atual
+  selectedChatId: string | undefined;
 
   constructor(private authService: AuthService,
               private chatService: ChatService) { }
@@ -28,22 +30,31 @@ export class ChatModuleLayoutComponent implements OnInit {
     });
   }
 
+  onChatSelected(chatId: string | undefined) {
+    this.selectedChatId = chatId;
+  }
+
   sendMessage() {
     const senderId = this.authService.currentUser?.uid;
+    const receiverId = 'ID do destinatário'; // Substitua pelo ID do destinatário da mensagem
 
-    if (this.messageContent.trim() && this.currentChatId && senderId) {
-      const message = {
-        content: this.messageContent,
-        senderId: senderId,
-        timestamp: Timestamp.fromDate(new Date())
-      };
-      this.chatService.sendMessage(this.currentChatId, message)
+    if (this.messageContent.trim() && senderId && receiverId) {
+      this.chatService.getOrCreateChatId([senderId, receiverId])
+        .then((chatId: string) => {
+          const message: Message = {
+            content: this.messageContent,
+            senderId: senderId,
+            timestamp: Timestamp.fromDate(new Date())
+          };
+          return this.chatService.sendMessage(chatId, message);
+        })
         .then(() => {
           console.log("Mensagem enviada com sucesso");
           this.messageContent = '';
         })
-        .catch(error => console.error("Erro ao enviar mensagem:", error));
+        .catch((error: any) => console.error("Erro ao enviar mensagem:", error));
     }
   }
 }
+
 

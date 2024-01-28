@@ -1,14 +1,14 @@
 <!-- src\app\chat-module\chat-list\chat-list.component.html -->
 <div *ngIf="chats.length > 0; else noMessages">
   <div class="chat-list-container">
-    <div class="chat-item" *ngFor="let chat of chats">
+    <div class="chat-item" *ngFor="let chat of chats" (click)="selectChat(chat.id)">
       <img [src]="chat.otherParticipantDetails?.photoURL" alt="Foto do Usuário" class="chat-user-photo">
       <p>{{ chat.otherParticipantDetails?.nickname }}</p>
-      <p>{{ chat.lastMessage?.content }}</p>
-      <a [routerLink]="['/chat', chat.id]">Abrir chat</a>
+      <!-- Removido: <p>{{ chat.lastMessage?.content }}</p> -->
     </div>
   </div>
 </div>
 <ng-template #noMessages>
   <p>Você ainda não tem mensagens para exibir</p>
 </ng-template>
+

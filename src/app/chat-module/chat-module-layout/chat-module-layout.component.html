@@ -14,7 +14,7 @@
     <!-- Seção da Lista de Últimos Usuários com quem Interagiu -->
     <div class="recent-interactions" style="flex-grow: 1; overflow-y: auto;">
       <p>Últimas Interações</p>
-      <app-chat-list></app-chat-list>
+      <app-chat-list (chatSelected)="onChatSelected($event)"></app-chat-list>
     </div><!--recent-interactions-->
   </div><!--user-info-panel-->
 
@@ -29,7 +29,8 @@
 
     <!-- Área de Mensagens do Chat -->
     <div class="chat-area" style="flex-grow: 1; overflow-y: auto;">
-      <router-outlet></router-outlet>
+      <p>exibir mensagens aqui</p>
+      <app-chat-messages-list [chatId]="selectedChatId"></app-chat-messages-list>
     </div>
 
     <!-- Área de Entrada de Mensagens -->

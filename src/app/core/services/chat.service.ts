@@ -11,6 +11,7 @@ import { map, switchMap } from 'rxjs/operators';
 import { Observable, from } from 'rxjs';
 import { UsuarioService } from './usuario.service';
 import { IUserDados } from '../interfaces/iuser-dados';
+import { AuthService } from './autentication/auth.service';
 
 @Injectable({
   providedIn: 'root'
@@ -18,11 +19,34 @@ import { IUserDados } from '../interfaces/iuser-dados';
 export class ChatService {
   private db = getFirestore();
 
-  constructor(private usuarioService: UsuarioService) { }
+  constructor(private usuarioService: UsuarioService,
+              private authService: AuthService) { }
+
+  async getOrCreateChatId(participants: string[]): Promise<string> {
+    const participantsKey = participants.sort().join('_'); // Cria uma chave única
+    const chatsRef = collection(this.db, 'chats');
+    const q = query(chatsRef, where('participantsKey', '==', participantsKey));
+
+    const querySnapshot = await getDocs(q);
+    let existingChatId = null;
+
+    if (!querySnapshot.empty) {
+      existingChatId = querySnapshot.docs[0].id;
+      console.log(`Chat existente encontrado: ${existingChatId}`);
+    }
+
+    if (existingChatId) {
+      return existingChatId;
+    } else {
+      return this.createChat(participants);
+    }
+  }
+
   // Para criar uma nova conversa
   async createChat(participants: string[]): Promise<string> {
     const chat: Chat = {
       participants,
+      participantsKey: participants.sort().join('_'), // Adiciona a chave aqui
       timestamp: Timestamp.now()
     };
 
@@ -41,7 +65,7 @@ export class ChatService {
       const chatDoc = doc(this.db, 'chats', chatId);
       const messageCollection = collection(chatDoc, 'messages') as CollectionReference<Message>;
       const messageRef = await addDoc(messageCollection, message);
-      return messageRef.id; // Retorna o ID da mensagem criada
+      return messageRef.id;
     } catch (error) {
       console.error("Erro ao enviar mensagem:", error);
       throw error;
