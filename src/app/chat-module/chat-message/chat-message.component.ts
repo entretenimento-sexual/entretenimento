@@ -1,6 +1,7 @@
 // src\app\chat-module\chat-message\chat-message.component.ts
 import { Component, Input, OnInit } from '@angular/core';
 import { Message } from 'src/app/core/interfaces/message.interface';
+import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 
 @Component({
@@ -11,10 +12,14 @@ import { UsuarioService } from 'src/app/core/services/usuario.service';
 export class ChatMessageComponent implements OnInit {
   @Input() message!: Message;
   senderName: string = '';
+  currentUserUid: string | undefined;
 
-  constructor (private usuarioService: UsuarioService){}
+  constructor (private usuarioService: UsuarioService,
+                private authService: AuthService){}
 
   ngOnInit(): void {
+    this.currentUserUid = this.authService.currentUser?.uid;
+
       if (this.message.senderId){
         this.usuarioService.getUsuario(this.message.senderId).subscribe(
           userData => {
@@ -26,4 +31,7 @@ export class ChatMessageComponent implements OnInit {
       }
   }
 
+  isMessageSent(): boolean {
+    return this.message.senderId === this.currentUserUid;
+  }
 }

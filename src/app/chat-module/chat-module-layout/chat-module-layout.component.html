@@ -1,7 +1,7 @@
 <!-- src\app\chat-module\chat-module-layout\chat-module-layout.component.html -->
-<div class="chat-module-container" style="border: 1px solid black; display: flex; height: 100vh;">
+<div class="chat-module-container">
 
-  <div class="user-info-panel" style="border: 1px solid black; width: 20%; display: flex; flex-direction: column;">
+  <div class="user-info-panel">
 
     <!-- Seção de Informações do Usuário Logado -->
     <div class="user-details">
@@ -12,29 +12,28 @@
     </div><!--user-details-->
 
     <!-- Seção da Lista de Últimos Usuários com quem Interagiu -->
-    <div class="recent-interactions" style="flex-grow: 1; overflow-y: auto;">
+    <div class="recent-interactions">
       <p>Últimas Interações</p>
       <app-chat-list (chatSelected)="onChatSelected($event)"></app-chat-list>
     </div><!--recent-interactions-->
   </div><!--user-info-panel-->
 
   <!-- Área Principal do Chat -->
-  <div class="chat-window-main" style="border: 1px solid black; flex-grow: 1; display: flex; flex-direction: column;">
+  <div class="chat-window-main">
 
     <!-- Seção das Salas de Bate-Papo -->
     <div class="chat-rooms" style="border-bottom: 1px solid black; padding: 10px;">
-      <p>chat-room</p>
-      <app-chat-rooms></app-chat-rooms>
+            <app-chat-rooms></app-chat-rooms>
     </div><!--chat-rooms-->
 
     <!-- Área de Mensagens do Chat -->
-    <div class="chat-area" style="flex-grow: 1; overflow-y: auto;">
+    <div class="chat-area">
       <p>exibir mensagens aqui</p>
       <app-chat-messages-list [chatId]="selectedChatId"></app-chat-messages-list>
     </div>
 
     <!-- Área de Entrada de Mensagens -->
-    <div class="chat-input" style="border-top: 1px solid black;">
+    <div class="chat-input">
       <textarea [(ngModel)]="messageContent" style="width: 100%;"></textarea>
       <button (click)="sendMessage()" style="width: 100%;">Enviar</button>
     </div>
