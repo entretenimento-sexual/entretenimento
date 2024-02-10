@@ -6,6 +6,7 @@ import { RouterModule } from '@angular/router';
 import { mapeamentoCategorias } from 'src/app/core/interfaces/icategoria-mapeamento';
 import { IUserPreferences } from 'src/app/core/interfaces/iuser-preferences';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { UserPreferencesService } from 'src/app/core/services/preferences/user-preferences.service';
 
 @Component({
     selector: 'app-user-profile-preferences',
@@ -23,11 +24,12 @@ export class UserProfilePreferencesComponent {
     relacionamento: []
   };
 
-  constructor(private usuarioService: UsuarioService) { }
+  constructor(private usuarioService: UsuarioService,
+    private userPreferencesService: UserPreferencesService) { }
 
   ngOnInit(): void {
     if (this.uid) {
-      this.usuarioService.buscarPreferenciasDoUsuario(this.uid)
+      this.userPreferencesService.buscarPreferenciasDoUsuario(this.uid)
         .subscribe((preferencias: IUserPreferences) => {
           this.agruparPreferencias(preferencias);
         });

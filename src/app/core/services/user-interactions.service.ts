@@ -4,6 +4,7 @@ import { IUserDados } from '../interfaces/iuser-dados';
 import { FirestoreService } from './autentication/firestore.service';
 import { AuthService } from './autentication/auth.service';
 import { doc, setDoc, collection, query, where, getDocs } from '@firebase/firestore';
+import { UserProfileService } from './user-profile/user-profile.service';
 
 @Injectable({
   providedIn: 'root'
@@ -13,6 +14,7 @@ export class UserInteractionsService {
 
   constructor(
     private firestoreService: FirestoreService,
+    private userProfileService: UserProfileService,
     private authService: AuthService
   ) { }
 
@@ -22,7 +24,7 @@ export class UserInteractionsService {
     const friends = [];
     for (const docSnapshot of querySnapshot.docs) {
       const friendId = docSnapshot.data()['userId2']; // Corrigido para acessar userId2 corretamente
-      const friendData = await this.firestoreService.getUserById(friendId);
+      const friendData = await this.userProfileService.getUserById(friendId);
       if (friendData) {
         friends.push(friendData);
       }

@@ -11,7 +11,7 @@
           <p>{{ getCoupleDescription(usuario.gender, usuario.partner1Orientation, usuario.partner2Orientation) }}</p>
           </ng-container>
           <ng-template #notCouple>
-            <p>Sou {{ usuario.nickname }}</p>
+            <p *ngIf="usuario?.nickname">Sou {{ usuario.nickname }}</p>
             <p>{{ usuario.gender | capitalize }} {{ usuario.orientation }}</p>
           </ng-template>
           <p>{{ usuario.municipio }}, {{ usuario.estado }}</p>

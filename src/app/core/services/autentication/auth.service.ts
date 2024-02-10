@@ -12,6 +12,8 @@ import { FirestoreService } from './firestore.service';
 import { EmailVerificationService } from './email-verification.service';
 import { PreRegisterServiceService } from './pre-register.service';
 import { UsuarioService } from '../usuario.service';
+import { UserProfileService } from '../user-profile/user-profile.service';
+import { IUserRegistrationData } from 'src/app/post-verification/iuser-registration-data';
 
 const auth = getAuth();
 
@@ -32,7 +34,8 @@ export class AuthService {
     private firestoreService: FirestoreService,
     private emailVerificationService: EmailVerificationService,
     private usuarioService: UsuarioService,
-    private preRegisterService: PreRegisterServiceService
+    private preRegisterService: PreRegisterServiceService,
+    private userProfileService: UserProfileService
   ) {
     this.initAuthStateListener();
   }
@@ -60,56 +63,68 @@ export class AuthService {
     });
   }
 
-// Registro de novo usuário
-  async register(email: string, password: string, nickname: string = '', userPreferences: any = {}): Promise<void> {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      if (user) {
-        this.emailVerificationService.sendEmailVerification(user, {
-          url: 'http://localhost:4200/email-verified'
-        });
+  async register(email: string, password: string, userRegistrationData: IUserRegistrationData, userPreferences: any): Promise<void> {
+    const userCredential = await createUserWithEmailAndPassword(getAuth(), email, password);
+    const user = userCredential.user;
+    if (!user) throw new Error('Falha ao criar usuário.');
 
-        // Obtenha os dados do usuário mapeados do UsuarioService
-        // Use switchMap para lidar com operações assíncronas
-        this.usuarioService.getUsuario(user.uid).subscribe(async currentUserData => {
-          if (currentUserData) {
-            currentUserData.nickname = nickname;
-            await this.saveUserToFirestore(currentUserData);
-            await this.preRegisterService.saveUserPreferences(userPreferences);
-            console.log('Usuário registrado e preferências salvas.');
-          } else {
-            console.warn('currentUserData é null. Não é possível salvar preferências.');
-          }
-        }, error => {
-          console.error('Erro ao registrar usuário:', error);
-        });
-      }
-    } catch (error) {
-      console.error('Erro ao registrar usuário:', error);
-      throw error;
+    if (!user.uid) {
+      throw new Error('UID do usuário não está disponível após a criação da conta.');
+    }
+
+    // Salvar dados adicionais do usuário no Firestore
+    if (user.uid) {
+      userRegistrationData.uid = user.uid;
+      userRegistrationData.firstLogin = Timestamp.fromDate(new Date());
+
+      await this.emailVerificationService.sendEmailVerification(user);
+
+      const userData: IUserRegistrationData = {
+        ...userRegistrationData,
+        uid: user.uid, // Agora garantimos que uid está definido
+        emailVerified: false,
+        estado: userRegistrationData.estado, // Certifique-se de que estado está sendo passado
+        municipio: userRegistrationData.municipio,
+        // outros campos conforme necessário
+      };
+
+      await this.firestoreService.saveInitialUserData(user.uid, userRegistrationData);
+    } else {
+      console.error('UID é undefined');
+      // Lide com o caso de uid não definido conforme necessário
     }
   }
 
+  async verifyEmail(actionCode: string): Promise<void> {
+    await this.emailVerificationService.verifyEmail(actionCode);
+    // Aqui, você pode atualizar o status de verificação de e-mail no Firestore se necessário
+    // E redirecionar o usuário para a página de destino
+    this.router.navigate(['/email-verified']);
+  }
+
+
+  private async saveInitialUserData(uid: string, userData: IUserRegistrationData): Promise<void> {
+    await this.firestoreService.saveInitialUserData(uid, userData);
+  }
+
   async resendVerificationEmail(): Promise<void> {
-    if (auth.currentUser) {
-      try {
-        await this.emailVerificationService.sendEmailVerification(auth.currentUser, {
-          url: 'http://localhost:4200/email-verified'
-        });
-      } catch (error) {
-        console.error('Erro ao reenviar o e-mail de verificação:', error);
-        throw error;
-      }
+    const currentUser = getAuth().currentUser;
+    if (currentUser) {
+      await this.emailVerificationService.sendEmailVerification(currentUser);
     } else {
-      console.error('Nenhum usuário autenticado encontrado');
       throw new Error('Nenhum usuário autenticado encontrado');
     }
   }
 
-  async saveUserToFirestore(user: IUserDados) {
+  async saveUserToFirestore(userRegistrationData: IUserRegistrationData): Promise<void> {
+    if (!userRegistrationData.uid) {
+      console.error('UID do usuário não está definido');
+      return;
+    }
+
     try {
-      await this.firestoreService.saveUserDataAfterEmailVerification(user); // Use o método apropriado aqui
+      // Assumindo que userRegistrationData já inclui o uid e outros campos necessários
+      await this.firestoreService.saveInitialUserData(userRegistrationData.uid, userRegistrationData);
     } catch (error) {
       console.error('Erro ao salvar usuário no Firestore:', error);
       throw error;
@@ -148,7 +163,7 @@ export class AuthService {
   // Busca usuário pelo ID
   async getUserById(uid: string): Promise<IUserDados | null> {
     console.log("Chamando getUserById no AuthService com UID:", uid);
-    const userData = await this.firestoreService.getUserById(uid);
+    const userData = await this.userProfileService.getUserById(uid);
     console.log('Dados recuperados do Firestore:', userData);
     return userData;
   }

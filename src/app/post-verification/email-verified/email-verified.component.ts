@@ -9,6 +9,8 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Timestamp } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytesResumable } from 'firebase/storage';
 import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
+import { IUserRegistrationData } from '../iuser-registration-data';
+
 
 @Component({
   selector: 'app-email-verified',
@@ -19,19 +21,27 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
   public isLoading = true;
   public isEmailVerified = false;
   oobCode: any;
-  gender!: string;
-  orientation!: string;
-  // Propriedades adicionadas
-  uid!: string;
-  email!: string;
-  displayName!: string;
-  photoURL!: string;
+  // Usando a interface IUserRegistrationData para gerenciar os dados do usuário.
+  userData: IUserRegistrationData =
+  { uid: '',
+  email: '',
+  nickname: '',
+  photoURL: '',
+  emailVerified: false,
+};
   selectedFile: File | null = null;
+  isUploading: boolean = false;
   public uploadMessage: string = '';
   public estados: any[] = [];
   public municipios: any[] = [];
   public selectedEstado: string = '';
   public selectedMunicipio: string = '';
+  public gender: string = '';
+  public orientation: string = '';
+  public progressValue: number = 0;
+
+
+  private ngUnsubscribe = new Subject<void>();
 
   formErrors: { [key: string]: string } = {
     gender: '',
@@ -39,9 +49,7 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
     selectedFile: ''
   };
 
-  private ngUnsubscribe = new Subject<void>();
-
-  constructor(
+constructor(
     private authService: AuthService,
     private emailVerificationService: EmailVerificationService,
     private firestoreService: FirestoreService,
@@ -91,8 +99,7 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
 
   async handleEmailVerification(oobCode: string): Promise<void> {
     this.isLoading = true;
-    try {
-      // Verifica o código de ação do email
+    try {  // Verifica o código de ação do email
       const verificationSuccess = await this.emailVerificationService.handleEmailVerification(oobCode);
 
       if (verificationSuccess) {
@@ -106,49 +113,24 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
 
           // Recupera o usuário autenticado atual
           const currentUser = this.authService.currentUser;
-          if (currentUser && currentUser.uid) {
-            this.uid = currentUser.uid;
-            this.email = currentUser.email || '';
-            this.displayName = currentUser.displayName || '';
-            this.photoURL = currentUser.photoURL || '';
-
-            console.log('Dados do usuário após verificação de e-mail:', {
-              uid: this.uid,
-              email: this.email,
-              displayName: this.displayName,
-              photoURL: this.photoURL
-            });
-
-            // Atualiza o status de verificação de e-mail no Firestore
-            const userDataToUpdate: IUserDados = {
-              uid: this.uid,
-              email: this.email,
-              displayName: this.displayName,
-              photoURL: this.photoURL,
-              nickname: '', // Você precisa ajustar esta parte conforme seu uso
-              role: 'animando',
-              lastLoginDate: Timestamp.fromDate(new Date()),// Adicionando a data do último login
-              descricao: '',   // Valor padrão ou nulo
-              facebook: '',    // Valor padrão ou nulo
-              instagram: '',   // Valor padrão ou nulo
-              buupe: '',
+          if (currentUser) {
+            // Atualizando os dados de registro com as informações do usuário atual.
+            this.userData = {
+              uid: currentUser.uid,
+              email: currentUser.email || '',
+              nickname: currentUser.nickname || '',
+              photoURL: currentUser.photoURL || '',
+              emailVerified: true,
             };
-            await this.firestoreService.saveUserDataAfterEmailVerification(userDataToUpdate);
-
-          } else {
-            console.error('Erro ao recuperar o usuário autenticado após a verificação de e-mail');
           }
-        } else {
-          console.error('Erro ao recarregar o estado de verificação do e-mail do usuário após a verificação.');
         }
       }
-    } catch (error) {
-      console.error('Falha ao manusear a verificação de e-mail', error);
-    } finally {
-      this.isLoading = false;  // Finaliza a indicação de carregamento, independentemente de sucesso ou falha
-
-    }
-  }
+      } catch (error) {
+        console.error('Falha ao manusear a verificação de e-mail', error);
+      } finally {
+        this.isLoading = false;
+      }
+    } // até aqui está certo, corrija daqui pra baixo pra mim
 
   async onSubmit(): Promise<void> {
     console.log('Formulário enviado');
@@ -157,7 +139,7 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
       console.log('Arquivo selecionado:', this.selectedFile);
       try {
         const imageUrl = await this.uploadToStorage(this.selectedFile);
-        this.photoURL = imageUrl;
+        this.userData.photoURL = imageUrl;
       } catch (error) {
         console.error('Erro durante o upload da imagem:', error);
         this.uploadMessage = 'Ocorreu um erro ao fazer o upload da imagem. Por favor, tente novamente com um arquivo diferente.';
@@ -167,36 +149,32 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
 
     const agoraTimestamp = Timestamp.fromDate(new Date());
 
-    const dadosDoUsuario: IUserDados = {
-      uid: this.uid,
-      email: this.email,
-      displayName: this.displayName,
-      photoURL: this.photoURL,
+    const initialUserData: IUserRegistrationData = {
+      uid: this.userData.uid,
+      email: this.userData.email,
+      nickname: this.userData.nickname,
+      photoURL: this.userData.photoURL || '',
+      // gender e orientation podem ser adicionados aqui se coletados durante o registro
       gender: this.gender,
       orientation: this.orientation,
       estado: this.selectedEstado,
       municipio: this.selectedMunicipio,
-      role: 'animando', // Valor temporário.
-      lastLoginDate: agoraTimestamp,
-      descricao: '',   // Valor padrão ou nulo
-      facebook: '',    // Valor padrão ou nulo
-      instagram: '',   // Valor padrão ou nulo
-      buupe: '',
+      emailVerified: true,
     };
+   console.log('Criando dadosDoUsuario:', initialUserData);
 
-    console.log('Criando dadosDoUsuario:', dadosDoUsuario);
     // Recuperando o nickname do localStorage e atribuindo a dadosDoUsuario
     const storedNickname = localStorage.getItem('tempNickname');
     if (storedNickname) {
-      dadosDoUsuario.nickname = storedNickname;
+      initialUserData.nickname = storedNickname;
       console.log('Nickname do localStorage:', storedNickname);
       // Removendo o nickname temporário após o uso
       localStorage.removeItem('tempNickname');
     }
 
-    this.authService.saveUserToFirestore(dadosDoUsuario).then(() => {
+    this.authService.saveUserToFirestore(initialUserData).then(() => {
       console.log('Dados do usuário salvos com sucesso');
-      this.router.navigate([`/perfil/${this.uid}`]);
+      this.router.navigate([`/perfil/`, this.userData.uid]);
     }).catch(erro => {
       console.error('Erro ao salvar dados do usuário:', erro);
     });
@@ -221,49 +199,48 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
   }
 
   async uploadToStorage(file: File): Promise<string> {
+    this.isUploading = true; // Inicia o upload
     return new Promise((resolve, reject) => {
-      if (!this.uid) {
-        reject(new Error('UID do usuário não está disponível'));
-        return;
-      }
-
-      // Verificar tamanho da imagem (por exemplo, mínimo de 100KB e máximo de 2MB)
       const fileSizeInKB = file.size / 1024;
       if (fileSizeInKB < 100 || fileSizeInKB > 3072) {
         this.uploadMessage = 'O tamanho do arquivo deve estar entre 100KB e 3MB';
+        this.isUploading = false; // Finaliza o upload devido ao erro
         reject(new Error('O tamanho do arquivo deve estar entre 100KB e 3MB'));
         return;
       }
 
-      // Verificar o tipo de arquivo
       const validMimeTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/bmp', 'image/webp'];
       if (!validMimeTypes.includes(file.type)) {
         this.uploadMessage = 'Formato de imagem inválido. Formatos aceitos: JPEG, PNG, GIF, BMP, WEBP.';
+        this.isUploading = false; // Finaliza o upload devido ao erro
         reject(new Error('Formato de imagem inválido. Por favor, envie uma imagem em um formato válido.'));
         return;
       }
 
       const storage = getStorage();
-      const storageRef = ref(storage, `avatares/${this.uid}.jpg`);
-
+      const storageRef = ref(storage, `avatares/${this.userData.uid}.jpg`);
       const uploadTask = uploadBytesResumable(storageRef, file);
 
       uploadTask.on('state_changed',
         (snapshot) => {
           const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
           console.log('Upload is ' + progress + '% done');
+          this.progressValue = progress;
         },
         (error) => {
           console.error('Erro no upload:', error);
+          this.isUploading = false;
           reject(error);
         },
         async () => {
           const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
           console.log('Arquivo disponível em', downloadURL);
+          this.isUploading = false; // Finaliza o upload com sucesso
           resolve(downloadURL);
         }
       );
     });
   }
-
 }
+
+

@@ -1,8 +1,8 @@
 // src\app\core\services\near-profile.service.ts
 import { Injectable } from '@angular/core';
-import { IUserDados } from '../interfaces/iuser-dados';
+import { IUserDados } from '../../interfaces/iuser-dados';
 import { collection, query, where, getDocs } from '@firebase/firestore';
-import { FirestoreService } from './autentication/firestore.service';
+import { FirestoreService } from '../autentication/firestore.service';
 import { geohashQueryBounds, distanceBetween } from 'geofire-common';
 
 @Injectable({

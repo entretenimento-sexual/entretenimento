@@ -24,6 +24,4 @@ export class AuthGuard implements CanActivate {
       map(user => !!user)
     );
   }
-
-
 }

@@ -31,10 +31,17 @@ export class ChatRoomsComponent implements OnInit {
       return;
     }
 
-    if (this.currentUser.role === 'extase' /* Substitua pelo role de assinante */) {
-      this.createChatRoomWithExpiration(); // Usuário já é um assinante
+    const now = new Date();
+
+    if (this.currentUser.isSubscriber) {
+      // O usuário é assinante e pode criar salas livremente.
+      this.createChatRoomWithExpiration(); // Substitua por lógica real de criação de sala sem expiração
+    } else if (this.currentUser.singleRoomCreationRightExpires && now < new Date(this.currentUser.singleRoomCreationRightExpires)) {
+      // O usuário tem direito a criar uma sala por um pagamento único, e o direito ainda não expirou.
+      this.createChatRoomWithExpiration(new Date(this.currentUser.singleRoomCreationRightExpires));
     } else {
-      this.offerRoomCreationOptions(); // Usuário não é assinante
+      // O usuário não é assinante e não tem direitos especiais.
+      this.offerRoomCreationOptions();
     }
   }
 
@@ -60,12 +67,19 @@ export class ChatRoomsComponent implements OnInit {
     return allowedRoles.includes(role);
   }
 
-  private createChatRoomWithExpiration() {
-    const expirationDate = new Date();
-    expirationDate.setMonth(expirationDate.getMonth() + 1); // Um mês a partir de agora
-
-    // Implemente a lógica para criar a sala de bate-papo no Firestore com a data de expiração
-    // ...
+  private createChatRoomWithExpiration(expirationDate?: Date) {
+    // A lógica para criar a sala de bate-papo no Firestore
+    // Se expirationDate for fornecido, configure a sala para expirar nessa data
+    // Caso contrário, a sala não tem data de expiração
+    if (expirationDate) {
+      // Configura a sala de bate-papo para expirar na 'expirationDate'
+      console.log(`Criando sala com expiração em: ${expirationDate.toISOString()}`);
+    } else {
+      // Configura a sala de bate-papo sem expiração
+      console.log("Criando sala sem expiração.");
+    }
+    // Aqui você implementaria a criação da sala de bate-papo no Firestore,
+    // possivelmente adicionando um campo 'expirationDate' ao documento da sala se 'expirationDate' estiver definido.
   }
 
   private showSubscriptionOptions() {

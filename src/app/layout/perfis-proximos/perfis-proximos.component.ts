@@ -6,10 +6,11 @@ import { GeoCoordinates } from 'src/app/core/interfaces/geolocation.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
-import { GeolocationService } from 'src/app/core/services/geolocation.service';
-import { NearbyProfilesService } from 'src/app/core/services/near-profile.service';
+import { GeolocationService } from 'src/app/core/services/geolocation/geolocation.service';
+import { NearbyProfilesService } from 'src/app/core/services/geolocation/near-profile.service';
 import { MatDialog } from '@angular/material/dialog';
 import { ModalMensagemComponent } from 'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component';
+import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 
 @Component({
   selector: 'app-perfis-proximos',
@@ -29,7 +30,8 @@ export class PerfisProximosComponent implements OnInit {
     private authService: AuthService,
     private nearbyProfilesService: NearbyProfilesService,
     private router: Router,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private userProfileService: UserProfileService
 
   ) { }
 
@@ -53,7 +55,7 @@ export class PerfisProximosComponent implements OnInit {
           const geohash = geohashForLocation([this.userLocation.latitude, this.userLocation.longitude]);
           await this.loadProfilesNearUserLocation(user.uid);
           // Etapa 3 (opcional): Salvar a localização atualizada no Firestore.
-          await this.firestoreService.updateUserLocation(user.uid, this.userLocation, geohash);
+          await this.userProfileService.updateUserLocation(user.uid, this.userLocation, geohash);
         } else {
           console.error('UID do usuário não está disponível.');
           // Lide com as coordenadas inválidas aqui, por exemplo, exibindo uma mensagem para o usuário.

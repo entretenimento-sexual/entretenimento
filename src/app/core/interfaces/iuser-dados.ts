@@ -28,6 +28,11 @@ export interface IUserDados {
   instagram?: string; // Perfil do Instagram
   buupe: string;
   distanciaKm?: number;
-  
+
+  //relativo ao estado geral de usuário
+  isSubscriber: boolean;
+  singleRoomCreationRightExpires?: Date;
+  roomCreationSubscriptionExpires?: Date;
+
 }
 

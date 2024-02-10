@@ -3,6 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { map, switchMap, tap } from 'rxjs/operators';
+import { UserPreferencesService } from 'src/app/core/services/preferences/user-preferences.service';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 
 @Component({
@@ -17,7 +18,8 @@ export class EditProfilePreferencesComponent implements OnInit {
 
   constructor(private route: ActivatedRoute,
               private usuarioService: UsuarioService,
-              private router: Router) { }
+              private router: Router,
+              private userPreferencesService: UserPreferencesService) { }
 
   ngOnInit() {
     console.log('EditProfilePreferencesComponent inicializado');
@@ -27,7 +29,7 @@ export class EditProfilePreferencesComponent implements OnInit {
         console.log('UID obtido da rota:', uid);
         if (uid) {
           console.log('Buscando preferências para UID:', uid);
-          return this.usuarioService.buscarPreferenciasDoUsuario(uid).pipe(
+          return this.userPreferencesService.buscarPreferenciasDoUsuario(uid).pipe(
             tap(preferencias => {
               if (preferencias) {
                 this.preferencias = preferencias;
@@ -55,7 +57,7 @@ export class EditProfilePreferencesComponent implements OnInit {
                 }
             }
 
-            this.usuarioService.salvarPreferenciasDoUsuario(uid, preferenciasParaSalvar)
+          this.userPreferencesService.salvarPreferenciasDoUsuario(uid, preferenciasParaSalvar)
                 .subscribe({
                     next: () => {
                         console.log('Preferências salvas com sucesso!');

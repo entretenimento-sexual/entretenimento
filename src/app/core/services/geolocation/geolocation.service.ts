@@ -1,6 +1,6 @@
 // src\app\core\services\geolocation.service.ts
 import { Injectable } from '@angular/core';
-import { GeoCoordinates } from '../interfaces/geolocation.interface';
+import { GeoCoordinates } from '../../interfaces/geolocation.interface';
 import { geohashForLocation } from 'geofire-common';
 
 @Injectable({

@@ -1,33 +1,15 @@
 // src\app\core\services\firestore.service.ts
 import { Injectable } from '@angular/core';
 import { initializeApp } from 'firebase/app';
-import {
-  getFirestore, collection, query, where, getDocs, doc, setDoc, Timestamp, getDoc, updateDoc
-} from 'firebase/firestore';
+import { getFirestore,collection,query,where,getDocs,doc,setDoc,Timestamp, updateDoc } from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { IUserPreferences } from '../../interfaces/iuser-preferences';
-import { GeoCoordinates } from '../../interfaces/geolocation.interface';
+import { ValidPreferences } from '../../enums/valid-preferences.enum';
+import { IUserRegistrationData } from 'src/app/post-verification/iuser-registration-data';
 
 
 const app = initializeApp(environment.firebaseConfig);
-
-// Enum para Preferências Válidas
-enum ValidPreferences {
-  SWING = 'swing',
-  MENAGE = 'menage',
-  SAMESEX = 'sameSex',
-  EXHIBITION = 'exhibition',
-  PROFESSIONALS = 'professionals',
-  BDSM = 'bdsm',
-  ROLEPLAY = 'roleplay',
-  VOYEURISM = 'voyeurism',
-  FETISH = 'fetish',
-  POLYAMORY = 'polyamory',
-  TRANSSEXUAL = 'transsexual',
-  CROSSDRESSER = 'crossdresser',
-  TRAVESTI = 'travesti'
-}
 
 @Injectable({
   providedIn: 'root'
@@ -46,6 +28,12 @@ export class FirestoreService {
       console.error('Erro ao verificar a existência do apelido:', error);
       throw error;
     }
+  }
+
+  async saveInitialUserData(uid: string, userData: IUserRegistrationData): Promise<void> {
+    const userRef = doc(this.db, "users", uid);
+    console.log("Salvando no Firestore:", userData);
+    await setDoc(userRef, userData, { merge: true });
   }
 
   async saveUserDataAfterEmailVerification(user: IUserDados): Promise<void> {
@@ -81,26 +69,6 @@ export class FirestoreService {
     }
   }
 
-
-  async getUserById(uid: string): Promise<IUserDados | null> {
-    console.log('Método getUserById foi chamado com UID:', uid);
-    try {
-      const userRef = doc(this.db, 'users', uid);
-      const userSnapshot = await getDoc(userRef);
-
-      console.log('Snapshot recuperado:', userSnapshot.data());
-
-      if (!userSnapshot.exists()) {
-        console.log('Nenhum usuário encontrado com o uid:', uid);
-        return null;
-      }
-      return userSnapshot.data() as IUserDados;
-    } catch (error) {
-      console.error('Erro ao obter usuário por uid:', error);
-      throw error;
-    }
-  }
-
   async getSuggestedProfiles(): Promise<IUserDados[]> {
     try {
       const userCollection = collection(this.db, 'users');
@@ -112,21 +80,7 @@ export class FirestoreService {
     }
   }
 
-  async getUserPreferencesByToken(token: string): Promise<any | null> {
-    console.log("Entrando em getUserPreferencesByToken com o token:", token);
-
-    const preRegisterCollection = collection(this.db, "preRegisterPreferences");
-    const preRegisterQuery = query(preRegisterCollection, where("token", "==", token));
-    const userSnapshots = await getDocs(preRegisterQuery);
-
-    if (userSnapshots.empty) {
-      console.log(`Nenhuma preferência encontrada para o token: ${token}`);
-      return null;
-    }
-    return userSnapshots.docs[0].data();
-  }
-
-  async getSuggestedProfilesMatchingPreferences(preferences: any): Promise<IUserDados[]> {
+async getSuggestedProfilesMatchingPreferences(preferences: any): Promise<IUserDados[]> {
     console.log("Entrando em getSuggestedProfilesMatchingPreferences com preferências:", preferences);
 
     let allMatches: IUserDados[] = [];
@@ -174,16 +128,6 @@ export class FirestoreService {
     }
   }
 
-  async saveUserPreferences(uid: string, preferences: any): Promise<void> {
-    const userRef = doc(this.db, `users/${uid}`);
-    const preferencesCollection = collection(userRef, 'preferences');
-
-    for (const [category, preferenceData] of Object.entries(preferences)) {
-      const prefDocRef = doc(preferencesCollection, category);
-      await setDoc(prefDocRef, preferenceData);
-    }
-  }
-
   async getUserPreferences(uid: string): Promise<IUserPreferences> {
     const preferencesCollectionRef = collection(this.db, `users/${uid}/preferences`);
     const querySnapshot = await getDocs(preferencesCollectionRef);
@@ -219,27 +163,11 @@ export class FirestoreService {
     }
   }
 
-  async updateUserLocation(uid: string, location: GeoCoordinates, geohash: string): Promise<void> {
-    try {
-      if (!uid || !location) {
-        throw new Error('UID do usuário ou localização inválidos');
-      }
-
-      // Crie uma referência ao documento do usuário
-      const userRef = doc(this.db, 'users', uid);
-
-      // Atualize as coordenadas de latitude e longitude no documento do usuário
-      await updateDoc(userRef, {
-        latitude: location.latitude,
-        longitude: location.longitude,
-        geohash: geohash
-      });
-
-      console.log('Localização do usuário atualizada com sucesso.');
-    } catch (error) {
-      console.error('Erro ao atualizar a localização do usuário:', error);
-      throw error;
-    }
+  async updateEmailVerificationStatus(uid: string, isVerified: boolean): Promise<void> {
+    const userRef = doc(this.db, "users", uid);
+    await updateDoc(userRef, {
+      emailVerified: isVerified
+    });
   }
 }
 

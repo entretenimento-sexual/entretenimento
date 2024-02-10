@@ -50,8 +50,14 @@
 
     <!-- Upload de Fotos -->
     <label>Foto principal:</label>
-    <input type="file" (change)="uploadFile($event)" required multiple>
+    <input type="file" (change)="uploadFile($event)" multiple>
     <div *ngIf="isFieldInvalid('selectedFile')" class="error-message">{{ formErrors['selectedFile'] }}</div>
+
+    <div *ngIf="isUploading" class="progress-custom">
+      <div class="progress-bar-custom" role="progressbar" [attr.aria-valuenow]="progressValue" aria-valuemin="0"
+        aria-valuemax="100" [style.width]="progressValue + '%'">{{progressValue | number:'1.0-0'}}%</div>
+    </div>
+
 
     <button type="submit" [disabled]="!form.valid">Concluir Cadastro</button>
   </form>

@@ -1,15 +1,17 @@
 // src\app\core\services\autentication\email-verification.service.ts
 import { Injectable } from '@angular/core';
+import { doc, updateDoc } from '@firebase/firestore';
 import { getAuth, User, sendEmailVerification, applyActionCode } from 'firebase/auth';
+import { FirestoreService } from './firestore.service';
 
 @Injectable({
   providedIn: 'root'
 })
-export class EmailVerificationService {
 
+export class EmailVerificationService {
   private code: string | null = null;
 
-  constructor() {
+  constructor(private firestoreService: FirestoreService) {
     console.log("Construtor do EmailVerificationService foi chamado");
   }
 
@@ -38,15 +40,27 @@ export class EmailVerificationService {
   }
 
   // Método para atualizar o status de verificação de e-mail no Firestore (se necessário)
-  updateEmailVerificationStatus(isVerified: boolean): void {
-    console.log("Atualizando o status de verificação de email para:", isVerified);
-    // Aqui, adicione sua lógica para atualizar o campo emailVerified no Firestore
+  async updateEmailVerificationStatus(uid: string, isVerified: boolean): Promise<void> {
+    const userRef = doc(this.firestoreService.db, "users", uid);
+    await updateDoc(userRef, {
+      emailVerified: isVerified
+    });
+    console.log("Status de verificação de e-mail atualizado no Firestore.");
   }
 
-  async sendEmailVerification(user: User, settings: any): Promise<void> {
-    await sendEmailVerification(user, settings);
-    console.log('E-mail de verificação enviado:', user);
+  async sendEmailVerification(user: User): Promise<void> {
+    const actionCodeSettings = {
+      url: 'http://localhost:4200/email-verified',
+      // Adicione outras configurações necessárias aqui
+    };
+    await sendEmailVerification(user, actionCodeSettings);
   }
+
+  async verifyEmail(actionCode: string): Promise<void> {
+    const auth = getAuth();
+    return await applyActionCode(auth, actionCode);
+  }
+
 
   async handleEmailVerification(actionCode: string): Promise<boolean> {
     if (!actionCode) {
@@ -63,10 +77,14 @@ export class EmailVerificationService {
 
       if (isEmailReloadedAndVerified) {
         console.log("Estado de verificação do e-mail do usuário recarregado com sucesso.");
-      } else {
-        console.error("Erro ao recarregar o estado de verificação do e-mail do usuário.");
-      }
 
+        // Obtenha o UID do usuário atual
+        const currentUserUid = getAuth().currentUser?.uid;
+        if (currentUserUid) {
+          // Atualize o status de verificação de e-mail no Firestore
+          await this.firestoreService.updateEmailVerificationStatus(currentUserUid, true);
+        }
+      }
       return isEmailReloadedAndVerified;
 
     } catch (error) {
@@ -74,5 +92,4 @@ export class EmailVerificationService {
       return false;
     }
   }
-
 }

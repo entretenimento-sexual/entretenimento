@@ -57,30 +57,40 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     }
 
     this.uid = userId;
+
+    // Iniciar a assinatura para o Observable do usuário.
     this.usuario$ = this.usuarioService.getUsuario(userId).pipe(
+      tap(user => console.log('Usuário recuperado do serviço:', user)), // Debugging antes da transformação.
       map(user => {
-        if (user && user.firstLogin) {
-          // Verifique se firstLogin é uma instância de Timestamp
-          if (user.firstLogin instanceof Timestamp) {
-            user.firstLogin = user.firstLogin.toDate();
-          }
-          return user;
+        // Verificar se user.firstLogin é uma instância de Timestamp e converter para Date.
+        if (user && user.firstLogin instanceof Timestamp) {
+          console.log('Convertendo firstLogin de Timestamp para Date');
+          user.firstLogin = user.firstLogin.toDate();
         }
-        return null;
+        return user;
       }),
       tap(user => {
+        // Debugging após a transformação.
+        console.log('Usuário após processamento:', user);
         if (user) {
           this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
+          console.log('Estado da Sidebar definido para:', this.isSidebarVisible);
         }
+      }),
+      tap({
+        error: error => console.error('Erro ao recuperar usuário:', error), // Capturar e logar possíveis erros.
+        complete: () => console.log('Observable de usuário completado') // Opcional: Logar a conclusão do Observable.
       })
     );
 
+    // Iniciar a assinatura para a visibilidade da sidebar.
     this.sidebarSubscription = this.sidebarService.isSidebarVisible$.subscribe(
-      (isVisible) => this.isSidebarVisible = isVisible ? SidebarState.OPEN : SidebarState.CLOSED
+      (isVisible) => {
+        this.isSidebarVisible = isVisible ? SidebarState.OPEN : SidebarState.CLOSED;
+        console.log('Visibilidade da Sidebar atualizada para:', isVisible ? 'Aberta' : 'Fechada');
+      }
     );
-
-}
-
+  }
   getCoupleDescription(gender: string | undefined, partner1Orientation: string | undefined, partner2Orientation: string | undefined): string {
     if (gender === 'casal-ele-ele') {
       return `Ele ${this.getOrientationDescription(partner1Orientation)} / Ele ${this.getOrientationDescription(partner2Orientation)}`;

@@ -5,12 +5,16 @@ import { IUserDados } from '../interfaces/iuser-dados';
 import { FirestoreService } from './autentication/firestore.service';
 import { Timestamp } from '@firebase/firestore';
 import { User } from 'firebase/auth';
+import { UserPreferencesService } from './preferences/user-preferences.service';
+import { UserProfileService } from './user-profile/user-profile.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class UsuarioService {
-  constructor(private firestoreService: FirestoreService) { }
+  constructor(private firestoreService: FirestoreService,
+              private userProfileService: UserProfileService,
+              private userPreferencesService: UserPreferencesService) { }
 
   // Mapeia o usuário do Firebase para o formato IUserDados
   private mapUserToUserDados(user: User | null): IUserDados | null {
@@ -31,11 +35,12 @@ export class UsuarioService {
       facebook: '',    // Valor padrão ou nulo
       instagram: '',   // Valor padrão ou nulo
       buupe: '',
+      isSubscriber: false,
     };
   }
 
   getUsuario(uid: string): Observable<IUserDados | null> {
-    return from(this.firestoreService.getUserById(uid)).pipe(
+    return from(this.userProfileService.getUserById(uid)).pipe(
       map(user=> user as IUserDados | null),
       catchError(() => of(null)) // Retorna null em caso de erro
     );
@@ -43,13 +48,5 @@ export class UsuarioService {
 
   atualizarUsuario(uid: string, dados: Partial<IUserDados>): Observable<void> {
     return from(this.firestoreService.saveUserDataAfterEmailVerification({ uid, ...dados } as IUserDados));
-  }
-
-  salvarPreferenciasDoUsuario(uid: string, preferencias: any): Observable<void> {
-    return from(this.firestoreService.saveUserPreferences(uid, preferencias));
-  }
-
-  buscarPreferenciasDoUsuario(uid: string): Observable<any | null> {
-    return from(this.firestoreService.getUserPreferences(uid));
   }
 }

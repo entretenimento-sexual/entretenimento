@@ -24,8 +24,6 @@ import { environment } from '../environments/environment';
 import { AppComponent } from './app.component';
 import { AuthService } from './core/services/autentication/auth.service';
 
-import { AuthenticationTestComponent } from './authentication-test/authentication-test.component';
-
 import { EmailVerificationService } from './core/services/autentication/email-verification.service';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { UserProfileModule } from './user-profile/user-profile.module';
@@ -36,7 +34,7 @@ import { MatDialogModule } from '@angular/material/dialog';
 
 
 @NgModule({
-  declarations: [AppComponent, AuthenticationTestComponent],
+  declarations: [AppComponent],
   imports: [
     // Importações do Angular
     BrowserModule,
