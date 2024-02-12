@@ -1,1 +1,25 @@
-<p>user-photo-gallery works!</p>
+<!-- src\app\user-profile\user-profile-view\user-photo-gallery\user-photo-gallery.component.html -->
+<div class="gallery-container">
+  <!-- Input de arquivo oculto e botão para selecionar o arquivo -->
+  <div class="upload-btn-wrapper">
+    <button class="btn" (click)="fileInput.click()">Selecionar Foto</button>
+    <input type="file" name="foto" #fileInput (change)="handleFileInput($event)" hidden>
+  </div>
+
+  <div *ngIf="mostrarModalPreVisualizacao" class="modal">
+    <img [src]="urlPreVisualizacao" alt="Pré-visualização">
+    <button (click)="editarFoto()">Editar Foto</button>
+    <!-- Botão para fechar o modal -->
+    <button (click)="fecharModalPreVisualizacao()">Fechar</button>
+  </div>
+
+  <progress *ngIf="progress > 0" value="{{ progress }}" max="100"></progress>
+
+  <!-- Exibição da galeria -->
+  <div class="photo-grid">
+    <div *ngIf="fotos.length === 0" class="photo-placeholder">Nenhuma foto carregada.</div>
+    <div class="photo-item" *ngFor="let fotoUrl of fotos">
+      <img [src]="fotoUrl" alt="Foto do usuário">
+    </div>
+  </div>
+</div>

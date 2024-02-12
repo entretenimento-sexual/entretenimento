@@ -1,0 +1,51 @@
+/* src\app\user-profile\user-profile-view\user-photo-gallery\user-photo-gallery.component.css */
+.gallery-container {
+  padding: 20px;
+}
+
+.upload-btn-wrapper {
+  margin-bottom: 20px;
+}
+
+.btn {
+  padding: 10px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 10px;
+  min-height: 450px;  /* Tamanho mínimo da grade */
+}
+
+.photo-item {
+  overflow: hidden;
+  border-radius: 5px;
+}
+
+.photo-item img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+
+.photo-placeholder {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+}
+
+.upload-btn-wrapper input[type="file"] {
+  display: none;
+}
+
+progress {
+  width: 50%;
+  height: 25px;
+}
