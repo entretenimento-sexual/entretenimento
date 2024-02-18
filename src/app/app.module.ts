@@ -31,8 +31,6 @@ import { UserProfileModule } from './user-profile/user-profile.module';
 //AngularMaterial
 import { MatDialogModule } from '@angular/material/dialog';
 
-
-
 @NgModule({
   declarations: [AppComponent],
   imports: [

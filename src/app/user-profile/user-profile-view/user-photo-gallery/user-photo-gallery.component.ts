@@ -4,6 +4,7 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { PhotoService } from 'src/app/core/services/photo/photo.service';
 import { FotoPreviewModalComponent } from 'src/app/shared/components-globais/foto-preview-modal/foto-preview-modal.component';
 import { MatDialog } from '@angular/material/dialog';
+import { ImageProcessingService } from 'src/app/core/services/photo/image-processing.service';
 
 @Component({
   selector: 'app-user-photo-gallery',
@@ -21,7 +22,8 @@ export class UserPhotoGalleryComponent implements OnInit {
 
   constructor(private dialog: MatDialog,
               private photoService: PhotoService,
-              private authService: AuthService) { }
+              private authService: AuthService,
+              private imageProcessingService: ImageProcessingService) { }
 
   ngOnInit(): void {
     this.carregarFotos();
@@ -39,13 +41,14 @@ export class UserPhotoGalleryComponent implements OnInit {
     }
   }
 
-  enviarFoto(file: File): void {
-      const uid = this.authService.currentUser?.uid;
-      const timestamp = new Date().getTime(); // Para garantir um nome de arquivo único
+  enviarFoto(file: File, descricao: string): void {
+    const uid = this.authService.currentUser?.uid;
+    if (uid && file) {
+      const timestamp = new Date().getTime();
       const nomeDoArquivo = `${timestamp}-${file.name}`;
       const filePath = `avatares/${uid}/galeria/${nomeDoArquivo}`;
 
-    this.photoService.uploadFoto(file, filePath).subscribe({
+      this.photoService.uploadFoto(file, filePath, descricao, uid).subscribe({
           next: (result) => {
             if (typeof result === 'number') {
               this.progress = result;
@@ -62,6 +65,7 @@ export class UserPhotoGalleryComponent implements OnInit {
       complete: () => this.progress = 0 // Reseta o progresso
     });
   }
+}
 
 reduzirTamanhoImagem(file: File, maxWidth: number = 800, maxHeight: number = 600): Promise<Blob> {
     return new Promise((resolve, reject) => {
@@ -117,8 +121,8 @@ reduzirTamanhoImagem(file: File, maxWidth: number = 800, maxHeight: number = 600
 
           dialogRef.afterClosed().subscribe(result => {
             if (result?.action === 'salvar' && result.file) {
-              // Corrigido: Chame enviarFoto com o arquivo retornado pelo modal
-              this.enviarFoto(result.file);
+              const descricao = result.descricao || "Sem descrição";
+              this.enviarFoto(result.file, descricao);
             } else if (result === 'excluir') {
               this.arquivoSelecionado = null;
               this.urlPreVisualizacao = null;

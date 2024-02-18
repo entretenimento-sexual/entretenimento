@@ -2,7 +2,7 @@
 <div class="gallery-container">
   <!-- Input de arquivo oculto e botão para selecionar o arquivo -->
   <div class="upload-btn-wrapper">
-    <button class="btn" (click)="fileInput.click()">Selecionar Foto</button>
+    <button class="btn btn-primary btn-sm" (click)="fileInput.click()">Selecionar Foto</button>
     <input type="file" name="foto" #fileInput (change)="handleFileInput($event)" hidden>
   </div>
 
@@ -18,8 +18,24 @@
   <!-- Exibição da galeria -->
   <div class="photo-grid">
     <div *ngIf="fotos.length === 0" class="photo-placeholder">Nenhuma foto carregada.</div>
-    <div class="photo-item" *ngFor="let fotoUrl of fotos">
-      <img [src]="fotoUrl" alt="Foto do usuário">
+    <div class="photo-container">
+      <div class="image_card" *ngFor="let foto of fotos">
+        <mat-card class="photo-card">
+          <mat-card-header>
+            <mat-card-title>Título da Foto</mat-card-title>
+            <!-- Remova a linha abaixo se não houver subtítulo -->
+            <mat-card-subtitle>Subtítulo da Foto</mat-card-subtitle>
+          </mat-card-header>
+          <img mat-card-image [src]="foto" alt="Foto do usuário">
+          <mat-card-content>
+            <p>Descrição da Foto</p>
+          </mat-card-content>
+          <mat-card-actions class="card-actions" align="start">
+            <button mat-button>Like</button>
+            <button mat-button>Share</button>
+          </mat-card-actions>
+        </mat-card>
+      </div>
     </div>
   </div>
 </div>

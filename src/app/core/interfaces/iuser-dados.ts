@@ -30,6 +30,7 @@ export interface IUserDados {
   distanciaKm?: number;
 
   //relativo ao estado geral de usuário
+  isOnline?: boolean;
   isSubscriber: boolean;
   singleRoomCreationRightExpires?: Date;
   roomCreationSubscriptionExpires?: Date;

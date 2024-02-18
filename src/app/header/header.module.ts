@@ -14,7 +14,7 @@ import { GuestBannerComponent } from './guest-banner/guest-banner.component';
   ],
   imports: [
     CommonModule,
-    RouterModule  // Adicione o RouterModule às importações
+    RouterModule  
   ],
   exports: [
     NavbarComponent,

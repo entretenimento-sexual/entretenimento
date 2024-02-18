@@ -163,13 +163,27 @@ export class EditUserProfileComponent implements OnInit {
     }
   } // fim do método loadEstados
 
+  // src\app\user-profile\user-profile-edit\edit-user-profile\edit-user-profile.component.ts
+
   async onEstadoChange(estadoSigla: string) {
     try {
       const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${estadoSigla}/municipios`);
       this.municipios = await response.json();
-      this.municipios.sort((a, b) => a.nome.localeCompare(b.nome)); // Ordena os municípios
-      if (this.userData.estado !== estadoSigla) {
-        this.userData.municipio = '';
+      this.municipios.sort((a, b) => a.nome.localeCompare(b.nome));
+
+      const municipioAtual = this.userData.municipio && this.municipios.find(m => m.nome === this.userData.municipio) ? this.userData.municipio : this.municipios[0].nome;
+      this.editForm.patchValue({ municipio: municipioAtual });
+
+      // Se o estado atual corresponder ao estado do perfil do usuário, tente definir seu município,
+      // caso contrário, redefina a seleção de município (ou defina para o primeiro município da lista como padrão).
+      if (estadoSigla === this.userData.estado && this.municipios.some(m => m.nome === this.userData.municipio)) {
+        this.editForm.patchValue({
+          municipio: this.userData.municipio
+        });
+      } else {
+        this.editForm.patchValue({
+          municipio: this.municipios.length > 0 ? this.municipios[0].nome : ''
+        });
       }
     } catch (error) {
       console.error('Erro ao carregar os municípios:', error);
@@ -201,6 +215,10 @@ export class EditUserProfileComponent implements OnInit {
       // Caso não seja um casal, remove os campos do objeto a ser enviado
       delete formValues.partner1Orientation;
       delete formValues.partner2Orientation;
+    }
+
+    if (formValues.descricao === undefined) {
+      formValues.descricao = '';
     }
 
     // Define valores padrão para campos que podem estar indefinidos

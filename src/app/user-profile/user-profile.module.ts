@@ -13,7 +13,8 @@ import { LayoutModule } from '../layout/layout.module';
 import { UserProfileSidebarComponent } from "./user-profile-view/user-profile-sidebar/user-profile-sidebar.component";
 import { UserProfilePreferencesComponent } from "./user-profile-view/user-profile-preferences/user-profile-preferences.component";
 import { UserPhotoGalleryComponent } from './user-profile-view/user-photo-gallery/user-photo-gallery.component';
-
+import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 
 @NgModule({
     declarations: [UserProfileViewComponent, EditProfileRegionComponent,
@@ -28,7 +29,9 @@ import { UserPhotoGalleryComponent } from './user-profile-view/user-photo-galler
         UserProfileRoutingModule,
         LayoutModule,
         UserProfileSidebarComponent,
-        UserProfilePreferencesComponent
+        UserProfilePreferencesComponent,
+        MatCardModule, MatButtonModule
+
     ]
 })
 export class UserProfileModule { }

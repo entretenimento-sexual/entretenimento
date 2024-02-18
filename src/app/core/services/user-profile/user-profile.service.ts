@@ -34,7 +34,18 @@ export class UserProfileService {
     return null;
   }
 
-
+  /**
+  * Atualiza o estado online do usuário no Firestore.
+  *
+  * @param uid O UID do usuário a ser atualizado.
+  * @param isOnline O novo estado online do usuário (true para online, false para offline).
+  */
+  async atualizarEstadoOnlineUsuario(uid: string, isOnline: boolean): Promise<void> {
+    const userRef = doc(this.firestoreService.db, "users", uid);
+    await updateDoc(userRef, {
+      isOnline: isOnline
+    });
+  }
 
    async updateUserLocation(uid: string, location: GeoCoordinates, geohash: string): Promise<void> {
     try {

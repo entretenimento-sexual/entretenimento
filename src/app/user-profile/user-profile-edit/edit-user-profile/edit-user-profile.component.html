@@ -19,7 +19,7 @@
   <!-- Campo de seleção de Estado -->
   <div>
     <label for="estado">Estado:</label>
-    <select formControlName="estado" name="estado" (change)="onEstadoChange(userData.estado ?? '')">
+    <select formControlName="estado" name="estado" (change)="onEstadoChange(editForm.get('estado')?.value ?? '')">
       <option *ngFor="let estado of estados" [value]="estado.sigla">{{ estado.nome }}</option>
     </select>
   </div>

@@ -1,0 +1,77 @@
+/* src\app\shared\components-globais\texto-dialog\texto-dialog.component.css */
+
+.container_text_dialog{
+  background-color: #f7f7f7;
+}
+
+::ng-deep .mat-dialog-container {
+  display: flex;
+    flex-direction: column;
+    align-items: center;
+    /* Isso ajudará a centralizar todos os elementos filho */
+    justify-content: center;
+    border-radius: 8px;
+    padding: 24px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 600px;
+    margin: auto;
+}
+
+/* Centralizando o título e ajustando a fonte */
+::ng-deep h2[mat-dialog-title] {
+  text-align: center;
+  font-family: 'Roboto', sans-serif;  /* Exemplo de fonte, ajuste conforme necessário */
+  font-weight: 500;  color: #333;  /* Cor do texto, ajuste conforme necessário */
+}
+
+/* Ajustando o background e centralizando o conteúdo do dialog */
+.texto-dialog-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;  /* Faz o conteúdo ocupar toda a largura */
+  padding: 20px 0;  /* Espaçamento interno vertical */
+  border-radius: 8px;  /* Bordas arredondadas */
+}
+
+mat-form-field {
+  width: 80%;  /* Ajuste da largura do campo */
+}
+
+textarea {
+  min-height: 100px;
+  width: 90%;  /* Faz o textarea ocupar toda a largura do mat-form-field */
+}
+
+button {
+  border-radius: 20px;
+  padding: 5px 20px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+/* Ajuste das cores dos botões com valores específicos */
+button[mat-stroked-button] {
+  border: 1px solid #007bff;
+  /* Cor de borda azul */
+  color: #007bff;
+  /* Cor de texto azul */
+}
+
+button[mat-flat-button] {
+  background-color: #007bff;  /* Cor de fundo azul */
+  color: white;  /* Texto branco */
+}
+
+button[mat-stroked-button],button[mat-flat-button] {
+  margin: 0 10px;  /* Espaçamento entre botões */
+}

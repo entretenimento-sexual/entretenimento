@@ -11,6 +11,14 @@ import { AuthGuard } from './core/guards/auth.guard';
 // import { SeuComponente404 } from './seu-componente-404/seu-componente-404.component'; // Exemplo de componente 404
 
 const routes: Routes = [
+
+  {
+    path: '',
+    redirectTo: '/dashboard/principal',
+    pathMatch: 'full'
+  },
+  { path: 'dashboard', loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule) },
+  
   {
     path: '',
     redirectTo: '/progressive-signup',

@@ -1,0 +1,5 @@
+<!-- src\app\dashboard\online-users\online-users.component.html -->
+<div *ngFor="let user of onlineUsersByRegion$ | async">
+  {{ user.nickname }} ({{ user.estado }})
+</div>
+<p>não tá funcionando</p>

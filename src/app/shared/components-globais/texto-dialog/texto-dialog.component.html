@@ -1,0 +1,20 @@
+<!-- src\app\shared\components-globais\texto-dialog\texto-dialog.component.html -->
+<div class="container_text_dialog">
+  <h2 mat-dialog-title>Adicione uma descrição para essa foto</h2>
+
+  <div class="separa">
+    <mat-dialog-content class="texto-dialog-content">
+
+        <mat-form-field appearance="outline">
+          <mat-label>Descrição</mat-label>
+          <textarea matInput [(ngModel)]="descricao"></textarea>
+        </mat-form-field>
+
+    </mat-dialog-content>
+  </div>
+
+    <mat-dialog-actions align="center" class="texto-dialog-actions">
+      <button mat-stroked-button (click)="dialogRef.close()">Cancelar</button> <!-- Botão com borda -->
+      <button mat-flat-button color="primary" (click)="confirmar()">Salvar Foto</button> <!-- Botão plano -->
+    </mat-dialog-actions>
+</div><!--container_text_dialog-->
