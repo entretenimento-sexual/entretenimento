@@ -84,7 +84,7 @@ export class ChatRoomsComponent implements OnInit {
 
   private showSubscriptionOptions() {
     // Mostrar opções de assinatura ou pagamento único para não assinantes
-    const subscribeOption = confirm('Deseja se tornar um assinante?');
+    const subscribeOption = confirm('Você deseja se tornar um assinante?');
     if (subscribeOption) {
       // Redirecionar para a página de assinatura
     } else {

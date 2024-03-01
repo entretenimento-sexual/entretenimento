@@ -1,5 +1,19 @@
 <!-- src\app\dashboard\online-users\online-users.component.html -->
-<div *ngFor="let user of onlineUsersByRegion$ | async">
-  {{ user.nickname }} ({{ user.estado }})
+<div *ngIf="onlineUsersByRegion$ | async as onlineUsers; else noProfilesFound" class="profiles-container">
+  <div class="card" *ngFor="let user of onlineUsers">
+    <img [src]="user.photoURL || 'caminho/para/imagem/padrão.jpg'" alt="{{ user.nickname }}" class="profile-photo">
+    <div class="card-body">
+      <h5 class="card-title">{{ user.nickname }}</h5>
+      <p class="card-text">{{ user.gender | titlecase }}</p>
+      <p class="card-text">{{ user.municipio }}, {{ user.estado }}</p>
+      <!-- Removemos a linha de distância, já que estamos mostrando usuários online, não necessariamente próximos -->
+      <a [routerLink]="['/outro-perfil', user.uid]" class="btn btn-primary">Ver Perfil</a>
+      <!-- Supondo que você tenha uma lógica para abrir modal de mensagem -->
+      <!-- <a class="btn btn-primary" (click)="abrirModalMensagem(user.uid)">Mensagem</a> -->
+    </div>
+  </div>
 </div>
-<p>não tá funcionando</p>
+
+<ng-template #noProfilesFound>
+  <p>Nenhum perfil online foi encontrado.</p>
+</ng-template>

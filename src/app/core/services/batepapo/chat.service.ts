@@ -1,17 +1,17 @@
-// chat.service.ts
+// src\app\core\services\chat.service.ts
 import { Injectable } from '@angular/core';
 import {
   getFirestore, collection, addDoc, doc, Timestamp, setDoc,
   CollectionReference, query, where, getDocs, deleteDoc, orderBy,
   limitToLast, startAfter, onSnapshot, Query, QuerySnapshot, DocumentData, QueryDocumentSnapshot
 } from 'firebase/firestore';
-import { Chat } from '../interfaces/chat.interface';
-import { Message } from '../interfaces/message.interface';
+import { Chat } from '../../interfaces/chat.interface';
+import { Message } from '../../interfaces/message.interface';
 import { map, switchMap } from 'rxjs/operators';
 import { Observable, from } from 'rxjs';
-import { UsuarioService } from './usuario.service';
-import { IUserDados } from '../interfaces/iuser-dados';
-import { AuthService } from './autentication/auth.service';
+import { UsuarioService } from '../usuario.service';
+import { IUserDados } from '../../interfaces/iuser-dados';
+import { AuthService } from '../autentication/auth.service';
 
 @Injectable({
   providedIn: 'root'

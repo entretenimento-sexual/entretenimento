@@ -17,6 +17,10 @@
     <a href="#"><i class="fas fa-users"></i>Meus amigos</a>
     <a href="#"><i class="fas fa-star"></i>Meus favoritos</a>
     <a [routerLink]="['/chat', uid]"><i class="fas fa-comments"></i>Bate-papo</a>
+    
+    <a (click)="createRoomIfSubscriber()" style="cursor: pointer;">
+      <i class="fas fa-comments"></i>Criar sala
+    </a>
     <!-- Você pode adicionar mais links conforme necessário -->
   </nav>
 </aside><!--sidebar col-md-3-->

@@ -2,7 +2,7 @@
 import { Component } from '@angular/core';
 import { Timestamp } from '@firebase/firestore';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { ChatService } from 'src/app/core/services/chat.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat.service';
 
 @Component({
   selector: 'app-chat-window',

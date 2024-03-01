@@ -9,8 +9,8 @@ import { ChatMessageComponent } from './chat-message/chat-message.component';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layout.component';
-import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
 import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-list.component';
+import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
 
 
 @NgModule({
@@ -28,6 +28,7 @@ import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-li
     ChatModuleRoutingModule,
     FormsModule,
     RouterModule
-  ]
+  ],
+  
 })
 export class ChatModuleModule { }

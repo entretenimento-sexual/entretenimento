@@ -23,7 +23,7 @@ export class OnlineUsersComponent implements OnInit {
       withLatestFrom(this.usuarioStateService.user$),
       map(([users, currentUser]) => {
         if (!currentUser) return [];
-        return users.filter(user => user.municipio === currentUser.municipio && user.isOnline);
+        return users.filter(user => user.municipio === currentUser?.municipio && user.isOnline && user.uid !== currentUser?.uid);
       })
     );
   }

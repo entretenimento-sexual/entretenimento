@@ -1,6 +1,6 @@
 // src\app\chat-module\chat-messages-list\chat-messages-list.component.ts
 import { Component, Input, OnInit } from '@angular/core';
-import { ChatService } from 'src/app/core/services/chat.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat.service';
 import { Message } from 'src/app/core/interfaces/message.interface';
 import { Subscription } from 'rxjs';
 

@@ -3,7 +3,7 @@ import { Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { Router } from '@angular/router';
 import { Chat } from 'src/app/core/interfaces/chat.interface';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { ChatService } from 'src/app/core/services/chat.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat.service';
 
 @Component({
   selector: 'app-chat-list',

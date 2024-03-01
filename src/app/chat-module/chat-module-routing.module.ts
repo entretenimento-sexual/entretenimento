@@ -3,16 +3,16 @@ import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layout.component';
 import { AuthGuard } from '../core/guards/auth.guard';
+import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
 
 const routes: Routes = [
   {
     path: ':userId',
     component: ChatModuleLayoutComponent,
     canActivate: [AuthGuard],
-    children: [
-      // Defina rotas filhas conforme necessário
-    ]
+    children: []
   },
+  
 ];
 
 @NgModule({
