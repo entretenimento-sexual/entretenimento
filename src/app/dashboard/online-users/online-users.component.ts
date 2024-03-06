@@ -1,6 +1,6 @@
 //src\app\dashboard\online-users\online-users.component.ts
 import { Component, OnInit } from '@angular/core';
-import { EMPTY, Observable, combineLatest, map } from 'rxjs';
+import { EMPTY, Observable, map } from 'rxjs';
 import { withLatestFrom } from 'rxjs/operators';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UsuarioStateService } from 'src/app/core/services/autentication/usuario-state.service';
@@ -10,10 +10,11 @@ import { UsuarioStateService } from 'src/app/core/services/autentication/usuario
   templateUrl: './online-users.component.html',
   styleUrls: ['./online-users.component.css']
 })
+
 export class OnlineUsersComponent implements OnInit {
   onlineUsersByRegion$: Observable<IUserDados[]> = EMPTY;;
 
-  constructor(private usuarioStateService: UsuarioStateService) { }
+  constructor(private usuarioStateService: UsuarioStateService) {}
 
   ngOnInit(): void {
     this.usuarioStateService.fetchAllUsers();
@@ -28,3 +29,4 @@ export class OnlineUsersComponent implements OnInit {
     );
   }
 }
+

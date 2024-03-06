@@ -12,6 +12,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dialog/confirmacao-dialog.component';
 
+
 @NgModule({
   declarations: [DateFormatPipe, CapitalizePipe, ModalMensagemComponent,
     FotoPreviewModalComponent, TextoDialogComponent, ConfirmacaoDialogComponent],
@@ -22,6 +23,7 @@ import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dia
     MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
+    
   ],
   exports: [DateFormatPipe, CapitalizePipe, ModalMensagemComponent]
 })
