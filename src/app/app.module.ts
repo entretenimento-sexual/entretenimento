@@ -30,7 +30,6 @@ import { UserProfileModule } from './user-profile/user-profile.module';
 
 //AngularMaterial
 import { MatDialogModule } from '@angular/material/dialog';
-import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
 
 @NgModule({
   declarations: [AppComponent],
@@ -42,7 +41,6 @@ import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
     HttpClientModule,
     ReactiveFormsModule,
     PostVerificationModule,
-    NgbModule,
 
     // Configuração do AngularFire
     provideFirebaseApp(() => initializeApp(environment.firebaseConfig)),

@@ -1,8 +1,9 @@
 //src\app\dashboard\online-users\online-users.component.ts
 import { Component, OnInit } from '@angular/core';
-import { EMPTY, Observable, map } from 'rxjs';
-import { withLatestFrom } from 'rxjs/operators';
+import { Observable, map, of } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UsuarioStateService } from 'src/app/core/services/autentication/usuario-state.service';
 
 @Component({
@@ -12,21 +13,35 @@ import { UsuarioStateService } from 'src/app/core/services/autentication/usuario
 })
 
 export class OnlineUsersComponent implements OnInit {
-  onlineUsersByRegion$: Observable<IUserDados[]> = EMPTY;;
+  onlineUsersByRegion$: Observable<IUserDados[]> = of([]);
 
-  constructor(private usuarioStateService: UsuarioStateService) {}
+  constructor(private usuarioStateService: UsuarioStateService,
+    private authService: AuthService,
+   ) {}
 
   ngOnInit(): void {
-    this.usuarioStateService.fetchAllUsers();
-
-    // Combina os dados do usuário corrente com a lista de todos os usuários
+    console.log('Componente OnlineUsers: ngOnInit chamado');
+    this.usuarioStateService.fetchAllUsers(); // Garante a busca de todos os usuários
     this.onlineUsersByRegion$ = this.usuarioStateService.allUsers$.pipe(
-      withLatestFrom(this.usuarioStateService.user$),
-      map(([users, currentUser]) => {
-        if (!currentUser) return [];
-        return users.filter(user => user.municipio === currentUser?.municipio && user.isOnline && user.uid !== currentUser?.uid);
+      switchMap(users => {
+        return this.authService.user$.pipe(
+          map(currentUser => {
+            if (!currentUser) {
+              console.log('Nenhum usuário autenticado encontrado.');
+              return [];
+            }
+            console.log('Usuário autenticado encontrado:', currentUser);
+            const filteredUsers = users.filter(user =>
+              user.isOnline &&
+              user.municipio === currentUser.municipio &&
+              user.uid !== currentUser.uid
+            );
+            console.log('Usuários online filtrados:', filteredUsers);
+            return filteredUsers;
+          })
+        );
       })
     );
   }
-}
 
+}

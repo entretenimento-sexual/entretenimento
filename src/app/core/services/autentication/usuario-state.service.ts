@@ -58,12 +58,15 @@ export class UsuarioStateService {
   }
 
   public fetchAllUsers() {
+    console.log('Buscando todos os usuários...');
     const usersRef = collection(this.firestoreService.db, "users");
     onSnapshot(usersRef, (querySnapshot) => {
+      console.log('Recebido snapshot de todos os usuários.');
       const users: IUserDados[] = [];
       querySnapshot.forEach((doc) => {
         const userData = doc.data() as IUserDados;
         if (userData.isOnline) {
+          console.log('Usuário online detectado:', userData);
           users.push(userData);
         }
       });

@@ -5,7 +5,7 @@ import { catchError, tap, switchMap, first } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { Router } from '@angular/router';
 
-import { getAuth, signOut, User, createUserWithEmailAndPassword, applyActionCode, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
 
 import { FirestoreService } from './firestore.service';
@@ -43,9 +43,11 @@ export class AuthService {
   // Inicia o ouvinte de mudança de autenticação
   private initAuthStateListener(): void {
     auth.onAuthStateChanged(user => {
+      console.log('Estado de autenticação mudou:', user);
       if (user) {
         // Se um usuário estiver autenticado, obtemos os dados completos do usuário
         this.usuarioService.getUsuario(user.uid).subscribe(userData => {
+          console.log('Dados do usuário atualizados:', userData);
           // Atualiza o valor atual e emite os dados através do userSubject
           this.currentUserValue = userData;
           this.userSubject.next(userData);
@@ -57,10 +59,15 @@ export class AuthService {
         });
       } else {
         // Se não houver usuário autenticado, define os valores como null
+        console.log('Nenhum usuário autenticado.');
         this.currentUserValue = null;
         this.userSubject.next(null);
       }
     });
+  }
+
+  getUserAuthenticated(): Observable<IUserDados | null> {
+    return this.user$.pipe(first()); // Pega apenas o primeiro valor emitido
   }
 
   async register(email: string, password: string, userRegistrationData: IUserRegistrationData, userPreferences: any): Promise<void> {
