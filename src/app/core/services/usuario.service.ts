@@ -28,7 +28,7 @@ export class UsuarioService {
       email: user.email,
       displayName: user.displayName || null,
       photoURL: user.photoURL || null,
-      role: 'animando',
+      role: 'basico',
       lastLoginDate: timestampNow,
       firstLogin: timestampNow,
       descricao: '',   // Valor padrão ou nulo
@@ -47,6 +47,8 @@ export class UsuarioService {
   }
 
   atualizarUsuario(uid: string, dados: Partial<IUserDados>): Observable<void> {
-    return from(this.firestoreService.saveUserDataAfterEmailVerification({ uid, ...dados } as IUserDados));
+    const isSubscriber = dados.role && dados.role !== 'free';
+    const dadosAtualizados = { ...dados, isSubscriber };
+    return from(this.firestoreService.saveUserDataAfterEmailVerification({ uid, ...dadosAtualizados } as IUserDados));
   }
 }

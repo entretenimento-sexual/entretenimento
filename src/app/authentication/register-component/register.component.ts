@@ -46,6 +46,7 @@ export class RegisterComponent {
       nickname: this.nickname,
       photoURL: '', // Defina conforme necessário
       emailVerified: false,
+      isSubscriber: false,
       estado: this.selectedEstado,  // Assumindo que você tem essas variáveis
       municipio: this.selectedMunicipio,  // no componente
       // Adicione gender e orientation se estiver coletando esses dados aqui

@@ -6,12 +6,13 @@ import { ChatModuleRoutingModule } from './chat-module-routing.module';
 import { ChatListComponent } from './chat-list/chat-list.component';
 import { ChatWindowComponent } from './chat-window/chat-window.component';
 import { ChatMessageComponent } from './chat-message/chat-message.component';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layout.component';
 import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-list.component';
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
-
+import { CreateRoomModalComponent } from './create-room-modal/create-room-modal.component';
+import { MatDialogModule } from '@angular/material/dialog';
 
 @NgModule({
   declarations: [
@@ -20,15 +21,18 @@ import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
     ChatMessageComponent,
     ChatModuleLayoutComponent,
     ChatRoomsComponent,
-    ChatMessagesListComponent
-
+    ChatMessagesListComponent,
+    CreateRoomModalComponent
   ],
+
   imports: [
     CommonModule,
+    MatDialogModule,
     ChatModuleRoutingModule,
     FormsModule,
-    RouterModule
+    RouterModule,
+    ReactiveFormsModule
   ],
-  
+
 })
 export class ChatModuleModule { }

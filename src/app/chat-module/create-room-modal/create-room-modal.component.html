@@ -1,0 +1,17 @@
+<!-- src\app\chat-module\create-room-modal\create-room-modal.component.html -->
+<form [formGroup]="roomForm" (ngSubmit)="createRoom()">
+  <div class="form-group">
+    <label for="roomName">Nome da Sala</label>
+    <input type="text" formControlName="roomName" id="roomName" required>
+  </div>
+  <div class="form-group">
+    <label for="description">Descrição</label>
+    <textarea formControlName="description" id="description"></textarea>
+  </div>
+  <!-- Opcional: Para permitir que o usuário defina um horário específico -->
+  <div class="form-group">
+    <label for="creationTime">Horário de Criação</label>
+    <input type="datetime-local" formControlName="creationTime" id="creationTime">
+  </div>
+  <button type="submit" [disabled]="!roomForm.valid">Criar Sala</button>
+</form>

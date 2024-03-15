@@ -28,6 +28,7 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
   nickname: '',
   photoURL: '',
   emailVerified: false,
+  isSubscriber: false,
 };
   selectedFile: File | null = null;
   isUploading: boolean = false;
@@ -121,6 +122,7 @@ constructor(
               nickname: currentUser.nickname || '',
               photoURL: currentUser.photoURL || '',
               emailVerified: true,
+              isSubscriber: false,
             };
           }
         }
@@ -160,6 +162,7 @@ constructor(
       estado: this.selectedEstado,
       municipio: this.selectedMunicipio,
       emailVerified: true,
+      isSubscriber: false,
     };
    console.log('Criando dadosDoUsuario:', initialUserData);
 

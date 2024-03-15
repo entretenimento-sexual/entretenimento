@@ -9,6 +9,8 @@ export interface IUserRegistrationData {
   orientation?: string;
   firstLogin?: Timestamp | Date;
   emailVerified: boolean;
-  estado?: string; // Adicionado
-  municipio?: string; // Adicionado
+  estado?: string;
+  municipio?: string;
+  isSubscriber: boolean;
+  role?: string;
 }

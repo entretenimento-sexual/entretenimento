@@ -1,6 +1,6 @@
 //src\app\core\services\autentication\usuario-state.service.ts
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, from } from 'rxjs';
+import { BehaviorSubject, Observable, from, map } from 'rxjs';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { collection, doc, onSnapshot } from '@firebase/firestore';
 import { FirestoreService } from './firestore.service';
@@ -17,6 +17,7 @@ export class UsuarioStateService {
 
   private allUsersSubject = new BehaviorSubject<IUserDados[]>([]);
   public allUsers$ = this.allUsersSubject.asObservable();
+  isLoading: any;
 
   constructor(private firestoreService: FirestoreService,
               private userProfileService: UserProfileService,
@@ -41,7 +42,6 @@ export class UsuarioStateService {
       }
     });
   }
-
 
   setUser(user: IUserDados | null) {
     this.userSubject.next(user);
@@ -80,5 +80,25 @@ export class UsuarioStateService {
 
   atualizarEstadoOnlineUsuario(uid: string, isOnline: boolean) {
     return from(this.userProfileService.updateUserOnlineStatus(uid, isOnline));
+  }
+
+  temAcessoBasico(): Observable<boolean> {
+    return this.user$.pipe(
+      map(user => !!user && ['basico', 'premium', 'vip'].includes(user.role))
+    );
+  }
+
+  // Verifica se o usuário tem acesso ao conteúdo premium
+  temAcessoPremium(): Observable<boolean> {
+    return this.user$.pipe(
+      map(user => !!user && ['premium', 'vip'].includes(user.role))
+    );
+  }
+
+  // Verifica se o usuário tem acesso ao conteúdo VIP
+  temAcessoVip(): Observable<boolean> {
+    return this.user$.pipe(
+      map(user => !!user && user.role === 'vip')
+    );
   }
 }

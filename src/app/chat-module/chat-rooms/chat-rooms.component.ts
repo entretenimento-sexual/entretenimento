@@ -1,7 +1,10 @@
 //src\app\chat-module\chat-rooms\chat-rooms.component.ts
 import { Component, OnInit } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { CreateRoomModalComponent } from '../create-room-modal/create-room-modal.component';
+import { InfoCriaSalaBpComponent } from 'src/app/core/textos-globais/info-cria-sala-bp/info-cria-sala-bp.component';
 
 @Component({
   selector: 'app-chat-rooms',
@@ -14,15 +17,42 @@ export class ChatRoomsComponent implements OnInit {
   chatRooms: any[] = [];
   currentUser: IUserDados | null = null;
 
-  isModalOpen = false;
-
-  constructor(private authService: AuthService) { }
+constructor(private authService: AuthService,
+              public dialog: MatDialog) { }
 
   ngOnInit(): void {
     this.authService.user$.subscribe(user => {
       this.currentUser = user;
     });
     // Aqui você pode carregar as salas de bate-papo do usuário
+  }
+
+  openCreateRoomModal(): void {
+    if (!this.currentUser) {
+      alert('Você precisa estar logado para criar uma sala.');
+      return;
+    }
+
+    const dialogRef = this.dialog.open(CreateRoomModalComponent, {
+      width: '400px',
+      // Passe aqui os dados necessários para o modal, se necessário
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      console.log('O modal de criação de sala foi fechado');
+      // Implemente aqui a lógica para lidar com o resultado do modal
+    });
+  }
+
+  openInfoCriaSalaBpModal(event: Event): void {
+    event.preventDefault();
+    const dialogRef = this.dialog.open(InfoCriaSalaBpComponent, {
+      width: '50vw',
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      console.log('O modal foi fechado');
+    });
   }
 
   createRoom() {
@@ -63,7 +93,7 @@ export class ChatRoomsComponent implements OnInit {
 
   private canCreateRoomBasedOnRole(role: string): boolean {
     // Substitua esta lógica conforme as regras de negócio
-    const allowedRoles = ['animando', 'decidido', 'articulador', 'extase'];
+    const allowedRoles = [ 'premium', 'vip'];
     return allowedRoles.includes(role);
   }
 
@@ -108,23 +138,6 @@ export class ChatRoomsComponent implements OnInit {
 
   openRoom(roomId: string) {
     // Lógica para abrir uma sala específica e visualizar as mensagens
-  }
-
-  openModal(event: Event) {
-    event.preventDefault();
-    this.isModalOpen = true;
-  }
-
-  closeModal() {
-    this.isModalOpen = false;
-  }
-
-  navigateToSubscription() {
-    // Implementar navegação para a página de assinatura
-  }
-
-  startSinglePaymentProcess() {
-    // Implementar lógica para iniciar o processo de pagamento único
   }
 }
 

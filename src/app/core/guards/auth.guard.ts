@@ -14,6 +14,7 @@ export class AuthGuard implements CanActivate {
   canActivate(
     next: ActivatedRouteSnapshot,
     state: RouterStateSnapshot): Observable<boolean> {
+    console.log('Iniciando verificação de autenticação: ', Date.now()); //linha 17
     return this.authService.user$.pipe(
       take(1),  // pega apenas o primeiro valor emitido
       tap(user => {

@@ -71,6 +71,7 @@ export class AuthService {
   }
 
   async register(email: string, password: string, userRegistrationData: IUserRegistrationData, userPreferences: any): Promise<void> {
+    console.log('Iniciando registro para o email:', email);
     const userCredential = await createUserWithEmailAndPassword(getAuth(), email, password);
     const user = userCredential.user;
     if (!user) throw new Error('Falha ao criar usuário.');
@@ -83,14 +84,14 @@ export class AuthService {
     if (user.uid) {
       userRegistrationData.uid = user.uid;
       userRegistrationData.firstLogin = Timestamp.fromDate(new Date());
-
       await this.emailVerificationService.sendEmailVerification(user);
 
       const userData: IUserRegistrationData = {
         ...userRegistrationData,
-        uid: user.uid, // Agora garantimos que uid está definido
+        uid: user.uid,
         emailVerified: false,
-        estado: userRegistrationData.estado, // Certifique-se de que estado está sendo passado
+        isSubscriber: false,
+        estado: userRegistrationData.estado,
         municipio: userRegistrationData.municipio,
         // outros campos conforme necessário
       };
@@ -145,6 +146,7 @@ export class AuthService {
 
   // Desloga o usuário
   logout(): Observable<void> {
+    console.log('Iniciando processo de logout');
     return from(signOut(auth)).pipe(
       tap(() => {
         this.userSubject.next(null);
@@ -176,6 +178,7 @@ export class AuthService {
   }
 
   async login(email: string, password: string): Promise<IUserDados | null | undefined> {
+    console.log('Tentativa de login para o email:', email);
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;

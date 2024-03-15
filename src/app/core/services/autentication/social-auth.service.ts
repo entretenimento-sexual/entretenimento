@@ -28,7 +28,7 @@ export class SocialAuthService {
           email: user.email,
           displayName: user.displayName,
           photoURL: user.photoURL,
-          role: dadosFirestore?.role || 'xereta',
+          role: dadosFirestore?.role || 'free',
           lastLoginDate: Timestamp.fromDate(new Date()),
           descricao: '',   // Valor padrão ou nulo
           facebook: '',    // Valor padrão ou nulo
@@ -56,7 +56,7 @@ export class SocialAuthService {
           email: user.email,
           displayName: user.displayName,
           photoURL: user.photoURL,
-          role: 'xereta',
+          role: 'free',
           lastLoginDate: Timestamp.fromDate(new Date()),
           firstLogin: Timestamp.fromDate(new Date()), // Este será substituído, se já existir
           descricao: '',   // Valor padrão ou nulo

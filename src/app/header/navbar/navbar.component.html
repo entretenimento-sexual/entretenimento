@@ -16,7 +16,7 @@
             <li class="navbar-item" *ngIf="isAuthenticated">
               <a [routerLink]="['/perfil', userId]" class="navbar-link">Meu Perfil</a>
             </li>
-            
+
             <li class="navbar-item" *ngIf="isAuthenticated"><a routerLink="/contato" class="navbar-link">Contato</a></li>
             <li class="navbar-item" *ngIf="isAuthenticated">
               <a href="javascript:void(0);" (click)="logout()" class="navbar-link">Sair</a>
@@ -36,4 +36,4 @@
     </ul>
   </div><!--navbar-container-->
 </nav>
-<app-guest-banner *ngIf="isXereta"></app-guest-banner>
+<app-guest-banner *ngIf="isFree"></app-guest-banner>

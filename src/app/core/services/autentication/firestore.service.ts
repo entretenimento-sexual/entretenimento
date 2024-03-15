@@ -51,7 +51,7 @@ export class FirestoreService {
       // 3. Cria o objeto userData com os dados que serão salvos.
       const userData = {
         ...user, // Primeiro, incluímos todas as propriedades do usuário.
-        role: user.role || 'animado', // Definimos um valor padrão para o role, se necessário.
+        role: user.role || 'basico', // Definimos um valor padrão para o role, se necessário.
         createdAt: Timestamp.fromDate(new Date()) // Data de criação.
       };
 
@@ -67,6 +67,14 @@ export class FirestoreService {
       console.error("Erro ao salvar os dados do usuário após verificação de e-mail:", error);
       throw error;
     }
+  }
+
+  async updateEmailVerificationStatus(uid: string, isVerified: boolean): Promise<void> {
+    const userRef = doc(this.db, "users", uid);
+    await updateDoc(userRef, {
+      emailVerified: isVerified,
+      ...(isVerified ? { role: 'free' } : {})
+    });
   }
 
   async getSuggestedProfiles(): Promise<IUserDados[]> {
@@ -161,13 +169,6 @@ async getSuggestedProfilesMatchingPreferences(preferences: any): Promise<IUserDa
       console.error('Erro ao buscar perfis próximos:', error);
       throw error;
     }
-  }
-
-  async updateEmailVerificationStatus(uid: string, isVerified: boolean): Promise<void> {
-    const userRef = doc(this.db, "users", uid);
-    await updateDoc(userRef, {
-      emailVerified: isVerified
-    });
   }
 }
 

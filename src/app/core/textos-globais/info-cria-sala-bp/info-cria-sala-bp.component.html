@@ -1,0 +1,23 @@
+<!-- src\app\core\textos-globais\info-cria-sala-bp\info-cria-sala-bp.component.html -->
+<div class="modal-overlay"></div>
+<div class="modal-content">
+  <button class="close-button">X</button>
+  <h2 id="modalTitle">Crie suas Salas de Bate-Papo e interaja em grupos</h2>
+  <p>Aqui nesse ambiente, você pode criar e participar de salas de bate-papo para interagir
+    com outros usuários, planeja e combinar eventos ou encontros, e até mesmo simplemente
+    trocas de experiências e conversas picantes.</p>
+  <p>Como <strong>assinante</strong>, você tem a liberdade de criar livremente até 10 salas
+    a qualquer momento.
+    Se ainda não é assinante,
+    não se preocupe! Você pode criar uma sala por um valor simbólico ou explorar as opções de assinatura para mais
+    benefícios.</p>
+  <p>Além disso, qualquer usuário pode participar de salas existentes mediante convite de um assinante. É a oportunidade
+    perfeita para conhecer novas pessoas e compartilhar interesses!</p>
+  <div class="subscription-options">
+    <p>Você gostaria de se tornar um assinante para mais benefícios?</p>
+    <button (click)="navigateToSubscription()" class="button_pergunta">Assinar Agora</button>
+    <p>Ou prefere criar uma sala com um pagamento único?</p>
+    <button (click)="startSinglePaymentProcess()" class="button_pergunta">Criar Sala por R$ 1,99</button>
+  </div>
+  <button class="modal-bottom-close-button">Fechar</button>
+</div>

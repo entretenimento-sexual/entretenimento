@@ -19,9 +19,12 @@ export class ChatModuleLayoutComponent implements OnInit {
   selectedChatId: string | undefined;
 
   constructor(private authService: AuthService,
-              private chatService: ChatService) { }
+              private chatService: ChatService) {
+    console.log('Construtor do ChatModuleLayoutComponent chamado:', Date.now());
+               }
 
   ngOnInit(): void {
+    console.log('ngOnInit do ChatModuleLayoutComponent iniciado:', Date.now());
     this.usuario$ = this.authService.user$;
     // Aqui você também pode definir o currentChatId com base na lógica do seu chat
 

@@ -9,7 +9,8 @@ import { AuthService } from '../services/autentication/auth.service';
   providedIn: 'root'
 })
 export class UserOwnerGuard implements CanActivate {
-  constructor(private authService: AuthService, private router: Router) { }
+  constructor(private authService: AuthService,
+              private router: Router) { }
 
   canActivate(
     next: ActivatedRouteSnapshot,

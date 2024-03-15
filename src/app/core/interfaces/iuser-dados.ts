@@ -11,7 +11,7 @@ export interface IUserDados {
   nickname?: string; // Apelido do usuário
   nome?: string; // Nome completo do usuário
   idade?: number; // Idade do usuário
-  role: 'xereta' | 'animando' | 'decidido' | 'articulador' | 'extase'; // Função/role do usuário
+  role: 'visitante' |'free' | 'basico' | 'premium' | 'vip';
   lastLoginDate: Timestamp; // Data do último login
   firstLogin?: Timestamp | Date;
   emailVerified?: boolean;
@@ -34,6 +34,7 @@ export interface IUserDados {
   isSubscriber: boolean;
   singleRoomCreationRightExpires?: Date;
   roomCreationSubscriptionExpires?: Date;
-
+  monthlyPayer?: boolean;
+  subscriptionExpires?: Date;
 }
 
