@@ -39,11 +39,10 @@ const routes: Routes = [
   { path: 'espiar', component: EspiarComponent }, // rota para o componente Espiar
   { path: 'subscription-plan', component: SubscriptionPlanComponent },
   // { path: '**', component: SeuComponente404 } // rota coringa para capturar URLs não definidas e mostrar uma página 404
-
 ];
 
 @NgModule({
-  imports: [RouterModule.forRoot(routes, { useHash: true, enableTracing: true })],
+  imports: [RouterModule.forRoot(routes)],
   exports: [RouterModule]
 })
 export class AppRoutingModule { }

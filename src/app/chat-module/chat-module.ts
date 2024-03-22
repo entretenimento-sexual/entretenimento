@@ -13,6 +13,9 @@ import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-li
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
 import { CreateRoomModalComponent } from './create-room-modal/create-room-modal.component';
 import { MatDialogModule } from '@angular/material/dialog';
+import { MatButtonModule } from '@angular/material/button';
+import { SharedModule } from '../shared/shared.module';
+import { RoomCreationConfirmationModalComponent } from './room-creation-confirmation-modal/room-creation-confirmation-modal.component';
 
 @NgModule({
   declarations: [
@@ -22,16 +25,19 @@ import { MatDialogModule } from '@angular/material/dialog';
     ChatModuleLayoutComponent,
     ChatRoomsComponent,
     ChatMessagesListComponent,
-    CreateRoomModalComponent
+    CreateRoomModalComponent,
+    RoomCreationConfirmationModalComponent
   ],
 
   imports: [
     CommonModule,
     MatDialogModule,
+    MatButtonModule,
     ChatModuleRoutingModule,
     FormsModule,
     RouterModule,
-    ReactiveFormsModule
+    ReactiveFormsModule,
+    SharedModule
   ],
 
 })

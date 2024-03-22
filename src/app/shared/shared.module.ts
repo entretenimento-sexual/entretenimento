@@ -23,7 +23,7 @@ import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dia
     MatDialogModule,
     MatFormFieldModule,
     MatInputModule,
-    
+
   ],
   exports: [DateFormatPipe, CapitalizePipe, ModalMensagemComponent]
 })

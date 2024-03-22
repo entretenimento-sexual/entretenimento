@@ -50,10 +50,16 @@ export class UsuarioStateService {
   observarMudancasDoUsuario(uid: string) {
     const userRef = doc(this.firestoreService.db, "users", uid);
     onSnapshot(userRef, (docSnapshot) => {
-      const userData = docSnapshot.data() as IUserDados;
-      // Aqui, você pode implementar lógica adicional se necessário
-      // Por exemplo, verificar a validade da assinatura antes de definir isSubscriber
-      this.setUser(userData);
+      if (docSnapshot.exists()) {
+        const userData = docSnapshot.data() as IUserDados;
+        this.userSubject.next(userData);
+      } else {
+        // Trate o caso de o documento do usuário não existir, se necessário.
+        this.userSubject.next(null);
+      }
+    }, error => {
+      console.error("Erro ao observar mudanças do usuário:", error);
+      // Trate erros de observação aqui.
     });
   }
 

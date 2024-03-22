@@ -38,7 +38,7 @@ export class SubscriptionService {
         }
 
         // Verificar se o role atual do usuário engloba o role que está sendo verificado
-        const rolesHierarchy = ['extase', 'articulador', 'decidido', 'animando'];
+        const rolesHierarchy = ['vip', 'premium', 'basico', 'free'];
         const roleIndex = rolesHierarchy.indexOf(user.role);
         const roleToCheckIndex = rolesHierarchy.indexOf(roleToCheck);
         if (roleIndex >= 0 && roleToCheckIndex >= 0 && roleIndex <= roleToCheckIndex) {

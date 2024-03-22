@@ -5,6 +5,9 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { CreateRoomModalComponent } from '../create-room-modal/create-room-modal.component';
 import { InfoCriaSalaBpComponent } from 'src/app/core/textos-globais/info-cria-sala-bp/info-cria-sala-bp.component';
+import { SubscriptionService } from 'src/app/core/services/subscriptions/subscription.service';
+import { RoomCreationConfirmationModalComponent } from '../room-creation-confirmation-modal/room-creation-confirmation-modal.component';
+import { RoomService } from 'src/app/core/services/batepapo/room.service';
 
 @Component({
   selector: 'app-chat-rooms',
@@ -18,7 +21,9 @@ export class ChatRoomsComponent implements OnInit {
   currentUser: IUserDados | null = null;
 
 constructor(private authService: AuthService,
-              public dialog: MatDialog) { }
+            private subscriptionService: SubscriptionService,
+            private roomService: RoomService,
+            public dialog: MatDialog) { }
 
   ngOnInit(): void {
     this.authService.user$.subscribe(user => {
@@ -33,14 +38,45 @@ constructor(private authService: AuthService,
       return;
     }
 
-    const dialogRef = this.dialog.open(CreateRoomModalComponent, {
-      width: '400px',
-      // Passe aqui os dados necessários para o modal, se necessário
-    });
+    this.roomService.countUserRooms(this.currentUser.uid).then(roomCount => {
+      const MAX_ROOMS_ALLOWED = 1;
+      if (roomCount >= MAX_ROOMS_ALLOWED) {
+        alert('Você já atingiu o limite máximo de salas criadas.');
+        return;
+      }
 
-    dialogRef.afterClosed().subscribe(result => {
-      console.log('O modal de criação de sala foi fechado');
-      // Implemente aqui a lógica para lidar com o resultado do modal
+      if (this.currentUser && (this.currentUser.isSubscriber || ['premium', 'vip'].includes(this.currentUser.role))) {
+       const dialogRef = this.dialog.open(CreateRoomModalComponent, {
+        width: '60vw',
+        // Passar dados necessários, se houver
+      });
+
+      dialogRef.afterClosed().subscribe(result => {
+        if (result && result.success) {
+          this.openRoomCreationConfirmationModal(result.roomId, false, result.roomCount, result.roomName);
+        } else if (result && result.error) {
+          alert(result.error); // Mostra a mensagem de erro (e.g., limite de salas atingido).
+        }
+      });
+    } else {
+      this.subscriptionService.promptSubscription({
+        title: "Ação restrita",
+        message: "Você precisa ser assinante ou ter um perfil premium/vip para criar salas. Gostaria de conhecer nossos planos?",
+      });
+    }
+    }).catch(error => {
+      console.error("Erro ao verificar o número de salas criadas pelo usuário: ", error);
+    });
+  }
+
+  private openRoomCreationConfirmationModal(roomId: string, exceededLimit: boolean, roomCount: number, roomName:string): void {
+    this.dialog.open(RoomCreationConfirmationModalComponent, {
+      data: {
+        roomId,
+        exceededLimit,
+        roomCount,
+        roomName,
+      },
     });
   }
 
@@ -91,12 +127,6 @@ constructor(private authService: AuthService,
     }
   }
 
-  private canCreateRoomBasedOnRole(role: string): boolean {
-    // Substitua esta lógica conforme as regras de negócio
-    const allowedRoles = [ 'premium', 'vip'];
-    return allowedRoles.includes(role);
-  }
-
   private createChatRoomWithExpiration(expirationDate?: Date) {
     // A lógica para criar a sala de bate-papo no Firestore
     // Se expirationDate for fornecido, configure a sala para expirar nessa data
@@ -139,5 +169,6 @@ constructor(private authService: AuthService,
   openRoom(roomId: string) {
     // Lógica para abrir uma sala específica e visualizar as mensagens
   }
+
 }
 

@@ -9,9 +9,6 @@
     <textarea formControlName="description" id="description"></textarea>
   </div>
   <!-- Opcional: Para permitir que o usuário defina um horário específico -->
-  <div class="form-group">
-    <label for="creationTime">Horário de Criação</label>
-    <input type="datetime-local" formControlName="creationTime" id="creationTime">
-  </div>
+  
   <button type="submit" [disabled]="!roomForm.valid">Criar Sala</button>
 </form>

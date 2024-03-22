@@ -10,7 +10,7 @@ const routes: Routes = [
   {
     path: ':userId',
     component: ChatModuleLayoutComponent,
-    canActivate: [AuthGuard, BasicGuard],
+    canActivate: [AuthGuard],
   },
 ];
 
