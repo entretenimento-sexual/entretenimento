@@ -2,12 +2,10 @@
 import { Injectable } from '@angular/core';
 import { SubscriptionService } from '../subscriptions/subscription.service';
 import { Observable, switchMap, throwError } from 'rxjs';
-import { AuthService } from '../autentication/auth.service';
 import {
-  addDoc, collection, Timestamp, getFirestore, query, where, getDocs
+  addDoc, collection, Timestamp, getFirestore, query, where, getDocs, serverTimestamp, updateDoc, doc
 } from 'firebase/firestore';
 import { UsuarioStateService } from '../autentication/usuario-state.service';
-import { RoomCreationConfirmationModalComponent } from 'src/app/chat-module/room-creation-confirmation-modal/room-creation-confirmation-modal.component';
 
 @Injectable({
   providedIn: 'root'
@@ -16,17 +14,15 @@ export class RoomService {
   private db = getFirestore();
 
   constructor(
-    private authService: AuthService,
     private subscriptionService: SubscriptionService,
     private usuarioStateService: UsuarioStateService
   ) { }
 
   public async countUserRooms(userId: string): Promise<number> {
-    const roomsRef = collection(this.db, 'rooms');
-    const q = query(roomsRef, where('createdBy', '==', userId));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.length;
-    return querySnapshot.docs.length;
+    const roomsCollectionRef = collection(this.db, 'rooms');
+    const userRoomsQuery = query(roomsCollectionRef, where('createdBy', '==', userId));
+    const userRoomsSnapshot = await getDocs(userRoomsQuery);
+    return userRoomsSnapshot.docs.length;
   }
 
   createRoom(roomDetails: any): Observable<any> {
@@ -72,5 +68,34 @@ export class RoomService {
 
   private canCreateRoomBasedOnRole(role: string): boolean {
     return ['premium', 'vip'].includes(role);
+  }
+
+  async getUserRooms(userId: string): Promise<any[]> {
+    const roomsCollectionRef = collection(this.db, 'rooms');
+    const roomsCreatedByUserQuery = query(roomsCollectionRef, where('createdBy', '==', userId));
+    const roomsSnapshot = await getDocs(roomsCreatedByUserQuery);
+    const roomsData = roomsSnapshot.docs.map(roomDoc => ({
+      roomId: roomDoc.id, // Alterado para 'roomId' para maior clareza
+      ...roomDoc.data()
+    }));
+
+    return roomsData;
+  }
+
+  async sendInvite(roomId: string): Promise<void> {
+    const inviteDoc = {
+      roomId: roomId,
+      status: 'sent',
+      sentTime: serverTimestamp(), // Data/hora atual
+      // Incluir mais detalhes conforme necessário
+    };
+
+    // Adiciona o convite à coleção de convites
+    await addDoc(collection(this.db, 'invites'), inviteDoc);
+  }
+
+  async updateRoom(roomId: string, roomDetails: any): Promise<void> {
+    const roomRef = doc(this.db, 'rooms', roomId);
+    await updateDoc(roomRef, roomDetails);
   }
 }

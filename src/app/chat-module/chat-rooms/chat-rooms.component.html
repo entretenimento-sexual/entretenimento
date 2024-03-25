@@ -6,9 +6,8 @@
   </div>
     <ul>
       <li *ngFor="let room of chatRooms">
-        <span>{{ room.name }}</span>
-        <button (click)="inviteToRoom(room.id)">Convidar</button>
-        <button (click)="openRoom(room.id)">Abrir Sala</button>
+        <span>Sua sala "{{ room.roomName }}" está ativa</span>
+        <!-- Botões adicionais aqui -->
       </li>
     </ul>
 </div>

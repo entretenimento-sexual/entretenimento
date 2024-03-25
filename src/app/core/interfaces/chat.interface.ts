@@ -9,6 +9,8 @@ export interface Chat {
   lastMessage?: Message;
   timestamp: Timestamp;
   otherParticipantDetails?: IUserDados | null;
+  isRoom?: boolean;
+  roomName?: string;
 }
 
 

@@ -28,8 +28,12 @@ constructor(private authService: AuthService,
   ngOnInit(): void {
     this.authService.user$.subscribe(user => {
       this.currentUser = user;
+      if (user?.uid) {
+        this.roomService.getUserRooms(user.uid).then(rooms => {
+          this.chatRooms = rooms;
+        }).catch(error => console.error("Erro ao carregar salas:", error));
+      }
     });
-    // Aqui você pode carregar as salas de bate-papo do usuário
   }
 
   openCreateRoomModal(): void {
@@ -169,6 +173,5 @@ constructor(private authService: AuthService,
   openRoom(roomId: string) {
     // Lógica para abrir uma sala específica e visualizar as mensagens
   }
-
 }
 

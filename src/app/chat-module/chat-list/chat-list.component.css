@@ -1,4 +1,61 @@
 /* src\app\chat-module\chat-list\chat-list.component.css */
+.room-item {
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  padding: 10px;
+  background-color: #f0f0f0;
+  margin-bottom: 5px;  /* Espaçamento entre salas */
+  border-radius: 5px;  /* Bordas arredondadas para salas */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);  /* Sombra leve para dar destaque */
+}
+
+.room-item:hover {
+  background-color: #e0e0e0;
+}
+
+.room-name {
+  font-weight: bold;
+  color: #007bff;  /* Cor azul, mas sinta-se à vontade para escolher outra */
+  display: flex;
+  align-items: center;
+  gap: 5px;  /* Espaçamento entre o ícone e o texto */
+  font-size: 1.2em;  /* Aumenta o tamanho da fonte */
+  padding-bottom: 10px;
+}
+
+.room-name:before {
+  content: "💬";
+  /* Ícone de chat, substitua por um ícone de sua escolha */
+  display: inline-block;
+}
+
+.button {
+  padding: 5px 10px;    /* Padding dos botões */
+    border: 1px solid #007bff;    /* Borda azul */
+    background-color: white;    /* Fundo branco */
+    color: #007bff;    /* Texto azul */
+    cursor: pointer;
+    text-align: center;    /* Centraliza o texto no botão */
+    border-radius: 4px;
+}
+
+.button:hover {
+  background-color: #007bff;  /* Fundo azul ao passar o mouse */
+  color: white;  /* Texto branco ao passar o mouse */
+}
+
+.room-management-buttons {
+  display: flex;
+  gap: 10px;  /* Espaçamento entre os botões */
+  justify-content: flex-end;  /* Alinha os botões à direita */
+  margin-top: 5px;  /* Espaçamento acima dos botões */
+}
+
+.room-management-buttons button {
+  margin-right: 10px;
+}
+
 .chat-list-container {
   list-style-type: none;
   margin: 0;

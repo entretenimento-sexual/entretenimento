@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import {
   getFirestore, collection, addDoc, doc, Timestamp, setDoc,
   CollectionReference, query, where, getDocs, deleteDoc, orderBy,
-  limitToLast, startAfter, onSnapshot, Query, QuerySnapshot, DocumentData, QueryDocumentSnapshot
+  limitToLast, startAfter, onSnapshot, Query, QuerySnapshot, DocumentData, QueryDocumentSnapshot, getDoc
 } from 'firebase/firestore';
 import { Chat } from '../../interfaces/chat.interface';
 import { Message } from '../../interfaces/message.interface';
@@ -11,7 +11,6 @@ import { map, switchMap } from 'rxjs/operators';
 import { Observable, from } from 'rxjs';
 import { UsuarioService } from '../usuario.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { AuthService } from '../autentication/auth.service';
 
 @Injectable({
   providedIn: 'root'
@@ -19,8 +18,7 @@ import { AuthService } from '../autentication/auth.service';
 export class ChatService {
   private db = getFirestore();
 
-  constructor(private usuarioService: UsuarioService,
-              private authService: AuthService) { }
+  constructor(private usuarioService: UsuarioService) { }
 
   async getOrCreateChatId(participants: string[]): Promise<string> {
     const participantsKey = participants.sort().join('_'); // Cria uma chave única
@@ -28,21 +26,13 @@ export class ChatService {
     const q = query(chatsRef, where('participantsKey', '==', participantsKey));
 
     const querySnapshot = await getDocs(q);
-    let existingChatId = null;
-
     if (!querySnapshot.empty) {
-      existingChatId = querySnapshot.docs[0].id;
-      console.log(`Chat existente encontrado: ${existingChatId}`);
-    }
-
-    if (existingChatId) {
-      return existingChatId;
+        return querySnapshot.docs[0].id;
     } else {
-      return this.createChat(participants);
+        return this.createChat(participants);
     }
   }
 
-  // Para criar uma nova conversa
   async createChat(participants: string[]): Promise<string> {
     const chat: Chat = {
       participants,
@@ -132,17 +122,17 @@ export class ChatService {
 
   getMessages(chatId: string, limit: number = 10, lastMessageTimestamp?: Timestamp, realtime: boolean = false): Observable<Message[]> {
     const messagesRef = collection(this.db, `chats/${chatId}/messages`);
-    let q: Query<DocumentData>;
+    let messageQuery: Query<DocumentData>;
 
     if (lastMessageTimestamp) {
-      q = query(messagesRef, orderBy('timestamp', 'desc'), startAfter(lastMessageTimestamp), limitToLast(limit));
+      messageQuery = query(messagesRef, orderBy('timestamp', 'desc'), startAfter(lastMessageTimestamp), limitToLast(limit));
     } else {
-      q = query(messagesRef, orderBy('timestamp', 'desc'), limitToLast(limit));
+      messageQuery = query(messagesRef, orderBy('timestamp', 'desc'), limitToLast(limit));
     }
 
     if (realtime) {
       return new Observable(observer => {
-        const unsubscribe = onSnapshot(q, (snapshot: QuerySnapshot<DocumentData>) => {
+        const unsubscribe = onSnapshot(messageQuery, (snapshot: QuerySnapshot<DocumentData>) => {
           const messages = snapshot.docs.map(doc => doc.data() as Message);
           observer.next(messages);
         }, observer.error);
@@ -150,11 +140,18 @@ export class ChatService {
         return { unsubscribe };
       });
     } else {
-      return from(getDocs(q)).pipe(
+      return from(getDocs(messageQuery)).pipe(
         map(querySnapshot => {
           return querySnapshot.docs.map(doc => doc.data() as Message);
         })
       );
     }
+  }
+
+  getChatDetails(chatId: string): Observable<Chat | undefined> {
+    const chatDocRef = doc(this.db, 'chats', chatId);
+    return from(getDoc(chatDocRef)).pipe(
+      map(docSnapshot => docSnapshot.exists() ? docSnapshot.data() as Chat : undefined)
+    );
   }
 }

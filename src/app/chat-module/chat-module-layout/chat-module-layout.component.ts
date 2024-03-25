@@ -17,6 +17,7 @@ export class ChatModuleLayoutComponent implements OnInit {
   messageContent: string = '';
   currentChatId: string = ''; // Este será o ID do chat atual
   selectedChatId: string | undefined;
+  selectedReceiverId: string | undefined;
 
   constructor(private authService: AuthService,
               private chatService: ChatService) {
@@ -35,14 +36,20 @@ export class ChatModuleLayoutComponent implements OnInit {
 
   onChatSelected(chatId: string | undefined) {
     this.selectedChatId = chatId;
+    if (chatId) {
+      this.chatService.getChatDetails(chatId).subscribe(chat => {
+        if (chat && chat.participants) {
+          // Assume que 'participants' é um array contendo os IDs do usuário e do destinatário
+          this.selectedReceiverId = chat.participants.find(participantId => participantId !== this.authService.currentUser?.uid);
+        }
+      });
+    }
   }
-
   sendMessage() {
     const senderId = this.authService.currentUser?.uid;
-    const receiverId = 'ID do destinatário'; // Substitua pelo ID do destinatário da mensagem
 
-    if (this.messageContent.trim() && senderId && receiverId) {
-      this.chatService.getOrCreateChatId([senderId, receiverId])
+    if (this.messageContent.trim() && senderId && this.selectedReceiverId) {
+      this.chatService.getOrCreateChatId([senderId, this.selectedReceiverId])
         .then((chatId: string) => {
           const message: Message = {
             content: this.messageContent,

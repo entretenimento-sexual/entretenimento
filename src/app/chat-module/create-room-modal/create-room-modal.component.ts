@@ -1,56 +1,106 @@
 //src\app\chat-module\create-room-modal\create-room-modal.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, Inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { RoomService } from 'src/app/core/services/batepapo/room.service';
 import { GenericModalComponent } from 'src/app/shared/components-globais/generic-modal/generic-modal.component';
+import { RoomCreationConfirmationModalComponent } from '../room-creation-confirmation-modal/room-creation-confirmation-modal.component';
 
 @Component({
   selector: 'app-create-room-modal',
   templateUrl: './create-room-modal.component.html',
   styleUrls: ['./create-room-modal.component.css']
 })
-
 export class CreateRoomModalComponent implements OnInit {
   roomForm!: FormGroup;
+  isEditing: boolean = false;
+  roomId: string = '';
 
   constructor(
     private formbuilder: FormBuilder,
-    private roomService: RoomService, // Assumindo que este serviço contém a lógica para interagir com o Firestore
+    private roomService: RoomService,
     public dialogRef: MatDialogRef<CreateRoomModalComponent>,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    @Inject(MAT_DIALOG_DATA) public data: any // Dados recebidos para edição
   ) { }
 
   ngOnInit(): void {
+    this.initializeForm();
+
+    // Carrega os dados da sala se estiver em modo de edição
+    if (this.data?.isEditing) {
+      this.isEditing = true;
+      this.roomId = this.data.roomId;
+      this.roomForm.patchValue({
+        roomName: this.data.roomData.roomName,
+        description: this.data.roomData.description || '', // Preenche com string vazia se não houver descrição
+      });
+    }
+  }
+
+  initializeForm(): void {
     this.roomForm = this.formbuilder.group({
       roomName: ['', Validators.required],
       description: ['']
     });
   }
 
-  createRoom() {
-    if (this.roomForm.valid) {
-      const roomDetails = {
-        ...this.roomForm.value,
-        creationTime: new Date() // Definindo automaticamente no momento da criação
-      };
-      // Chamada ao serviço para criar a sala no Firestore
-      this.roomService.createRoom(roomDetails).subscribe({
-        next: (roomId) => {
-          console.log(`Sala criada com sucesso: ${roomId}`);
-          this.dialogRef.close({ success: true });
+  onSubmit() {
+    if (!this.roomForm.valid) return;
 
-          this.dialog.open(GenericModalComponent, {
-            data: { message: `A sala '${roomDetails.roomName}' foi criada com sucesso!` }
-          });
+    let roomDetails = {
+      ...this.roomForm.value
+  };
 
-        },
-        error: (error) => {
-          console.error(`Erro ao criar a sala: ${error}`);
-          alert(error.message); // Fornece feedback ao usuário
-          this.dialogRef.close({ success: false, error: error.message }); // Pode optar por não fechar o modal em caso de erro
+    if (!this.isEditing) {
+      roomDetails.creationTime = new Date();
+    }
+
+  if (this.isEditing) {
+      this.updateRoom(roomDetails);
+    } else {
+      this.createRoom(roomDetails);
+    }
+  }
+
+  createRoom(roomDetails: any) {
+    this.roomService.createRoom(roomDetails).subscribe({
+      next: (result) => {
+        this.handleSuccess('Sala criada com sucesso', roomDetails);
+      },
+      error: (error) => {
+        this.handleError(error);
+      }
+    });
+  }
+
+  updateRoom(roomDetails: any) {
+    this.roomService.updateRoom(this.roomId, roomDetails).then(() => {
+      this.handleSuccess('Sala atualizada', roomDetails);
+    }).catch((error) => {
+      this.handleError(error);
+    });
+  }
+
+  handleSuccess(action: string, roomDetails: any) {
+    console.log(`Sala ${action} com sucesso`);
+    const wasCreated = action === 'Sala criada com sucesso';
+
+    this.dialogRef.close({ success: true, roomDetails: roomDetails });
+
+      this.dialog.open(RoomCreationConfirmationModalComponent, {
+        data: {
+          roomName: roomDetails.roomName,
+          action: wasCreated ? 'created' : 'updated',
+          exceededLimit: false, // Você pode ajustar essa lógica conforme necessário
+          roomCount: 1, // Isso também pode ser ajustado conforme a lógica de contagem de salas
         }
       });
     }
+
+  handleError(error: any) {
+    console.error(`Erro ao criar/atualizar a sala: ${error}`);
+    alert(`Erro: ${error.message}`);
+    this.dialogRef.close({ success: false, error: error.message });
   }
 }

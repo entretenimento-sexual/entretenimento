@@ -1,14 +1,30 @@
 <!-- src\app\chat-module\chat-list\chat-list.component.html -->
-<div *ngIf="chats.length > 0; else noMessages">
-  <div class="chat-list-container">
-    <div class="chat-item" *ngFor="let chat of chats" (click)="selectChat(chat.id)">
+<div>
+  <!-- Exibição de Salas -->
+  <div *ngIf="rooms.length > 0" class="chat-list-container">
+    <ng-container *ngFor="let room of rooms">
+      <div class="room-item" (click)="selectChat(room.id)">
+        <span class="room-name">{{ room.roomName }}</span>
+        <!-- Botões de gerenciamento para o dono da sala -->
+          <div *ngIf="isOwner(room)" class="room-management-buttons">
+            <button class="button" (click)="deleteRoom(room.id, $event); $event.stopPropagation()">Excluir Sala</button>
+            <button class="button" (click)="inviteUsers(room.id, $event); $event.stopPropagation()">Convidar Usuários</button>
+            <button class="button" (click)="editRoom(room.id, $event); $event.stopPropagation()">Editar Sala</button>
+          </div>
+      </div>
+      <hr> <!-- Linha de separação entre salas e para separar do próximo chat/room -->
+    </ng-container>
+  </div>
+
+  <!-- Exibição de Chats Regulares -->
+  <div *ngIf="regularChats.length > 0" class="chat-list-container">
+    <div *ngFor="let chat of regularChats" class="chat-item" (click)="selectChat(chat.id)">
       <img [src]="chat.otherParticipantDetails?.photoURL" alt="Foto do Usuário" class="chat-user-photo">
       <p>{{ chat.otherParticipantDetails?.nickname }}</p>
-      <!-- Removido: <p>{{ chat.lastMessage?.content }}</p> -->
     </div>
   </div>
 </div>
+
 <ng-template #noMessages>
   <p>Você ainda não tem mensagens para exibir</p>
 </ng-template>
-
