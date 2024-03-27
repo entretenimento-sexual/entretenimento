@@ -2,14 +2,15 @@
 <div>
   <!-- Exibição de Salas -->
   <div *ngIf="rooms.length > 0" class="chat-list-container">
-    <ng-container *ngFor="let room of rooms">
-      <div class="room-item" (click)="selectChat(room.id)">
+    <ng-container *ngFor="let room of rooms$ | async">>
+
+      <div class="room-item" (click)="selectChat(room.roomId)">
         <span class="room-name">{{ room.roomName }}</span>
         <!-- Botões de gerenciamento para o dono da sala -->
           <div *ngIf="isOwner(room)" class="room-management-buttons">
-            <button class="button" (click)="deleteRoom(room.id, $event); $event.stopPropagation()">Excluir Sala</button>
-            <button class="button" (click)="inviteUsers(room.id, $event); $event.stopPropagation()">Convidar Usuários</button>
-            <button class="button" (click)="editRoom(room.id, $event); $event.stopPropagation()">Editar Sala</button>
+            <button class="button" (click)="deleteRoom(room.roomId, $event); $event.stopPropagation()">Excluir Sala</button>
+            <button class="button" (click)="inviteUsers(room.roomId, $event); $event.stopPropagation()">Enviar Convite</button>
+            <button class="button" (click)="editRoom(room.roomId, $event); $event.stopPropagation()">Editar Sala</button>
           </div>
       </div>
       <hr> <!-- Linha de separação entre salas e para separar do próximo chat/room -->

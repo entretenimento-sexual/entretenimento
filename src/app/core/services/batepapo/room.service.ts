@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { SubscriptionService } from '../subscriptions/subscription.service';
 import { Observable, switchMap, throwError } from 'rxjs';
 import {
-  addDoc, collection, Timestamp, getFirestore, query, where, getDocs, serverTimestamp, updateDoc, doc
+  addDoc, collection, Timestamp, getFirestore, query, where, getDocs, serverTimestamp, updateDoc, doc, deleteDoc, onSnapshot
 } from 'firebase/firestore';
 import { UsuarioStateService } from '../autentication/usuario-state.service';
 
@@ -70,16 +70,31 @@ export class RoomService {
     return ['premium', 'vip'].includes(role);
   }
 
-  async getUserRooms(userId: string): Promise<any[]> {
-    const roomsCollectionRef = collection(this.db, 'rooms');
-    const roomsCreatedByUserQuery = query(roomsCollectionRef, where('createdBy', '==', userId));
-    const roomsSnapshot = await getDocs(roomsCreatedByUserQuery);
-    const roomsData = roomsSnapshot.docs.map(roomDoc => ({
-      roomId: roomDoc.id, // Alterado para 'roomId' para maior clareza
-      ...roomDoc.data()
-    }));
+  getUserRooms(userId: string): Observable<any[]> {
+    return new Observable(observer => {
+      const roomsCollectionRef = collection(this.db, 'rooms');
+      const roomsCreatedByUserQuery = query(roomsCollectionRef, where('createdBy', '==', userId));
 
-    return roomsData;
+      const unsubscribe = onSnapshot(roomsCreatedByUserQuery, (querySnapshot) => {
+        console.log("Snapshot recebido", querySnapshot);
+        const rooms: any[] = [];
+        querySnapshot.forEach((doc) => {
+            console.log('Recuperando sala com ID:', doc.id);
+            rooms.push({ roomId: doc.id, ...doc.data() });
+        });
+
+        // Verifica se algum documento foi removido
+        const deletedRoomIds = querySnapshot.docChanges().filter(change => change.type === 'removed').map(change => change.doc.id);
+        // Remove as salas deletadas do array
+        rooms.filter(room => !deletedRoomIds.includes(room.roomId));
+        observer.next(rooms); // Envia o array de salas atualizado para o subscriber
+        
+      }, error => {
+        console.error("Erro ao escutar as salas do usuário:", error);
+        observer.error(error);
+      });
+      return () => unsubscribe(); // Função para finalizar a escuta quando necessário
+    });
   }
 
   async sendInvite(roomId: string): Promise<void> {
@@ -89,7 +104,6 @@ export class RoomService {
       sentTime: serverTimestamp(), // Data/hora atual
       // Incluir mais detalhes conforme necessário
     };
-
     // Adiciona o convite à coleção de convites
     await addDoc(collection(this.db, 'invites'), inviteDoc);
   }
@@ -97,5 +111,16 @@ export class RoomService {
   async updateRoom(roomId: string, roomDetails: any): Promise<void> {
     const roomRef = doc(this.db, 'rooms', roomId);
     await updateDoc(roomRef, roomDetails);
+  }
+
+  async deleteRoom(roomId: string): Promise<void> {
+    try {
+      const roomRef = doc(this.db, 'rooms', roomId);
+      await deleteDoc(roomRef);
+      console.log('Sala excluída com sucesso:', roomId);
+    } catch (error) {
+      console.error('Erro ao excluir a sala:', error);
+      throw new Error('Erro ao excluir a sala.');
+    }
   }
 }

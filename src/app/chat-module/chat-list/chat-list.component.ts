@@ -7,6 +7,8 @@ import { ChatService } from 'src/app/core/services/batepapo/chat.service';
 import { RoomService } from 'src/app/core/services/batepapo/room.service';
 import { CreateRoomModalComponent } from '../create-room-modal/create-room-modal.component';
 import { MatDialog } from '@angular/material/dialog';
+import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
+import { Observable } from 'rxjs';
 
 @Component({
   selector: 'app-chat-list',
@@ -15,6 +17,7 @@ import { MatDialog } from '@angular/material/dialog';
 })
 export class ChatListComponent implements OnInit {
   rooms: any[] = [];
+  rooms$: Observable<any[]> | undefined;
   regularChats: Chat[] = [];
   @Output() chatSelected = new EventEmitter<string>();
 
@@ -29,9 +32,10 @@ export class ChatListComponent implements OnInit {
       this.router.navigate(['/login']);
       return;
     }
-
     const currentUser = this.authService.currentUser;
     if (!currentUser?.uid) return;
+
+    this.rooms$ = this.roomService.getUserRooms(currentUser.uid);
 
     // Carrega apenas chats regulares
     this.chatService.getChats(currentUser.uid).subscribe(chats => {
@@ -39,9 +43,13 @@ export class ChatListComponent implements OnInit {
     });
 
     // Carrega salas de bate-papo
-    this.roomService.getUserRooms(currentUser.uid).then(rooms => {
-      console.log("Salas carregadas:", rooms);
-      this.rooms = rooms.map(room => ({ id: room.roomId, ...room }));
+    this.roomService.getUserRooms(currentUser.uid).subscribe({
+      next: (rooms) => {
+        console.log("Salas atualizadas:", rooms);
+        console.log(rooms); //linha 45
+        this.rooms = rooms;
+      },
+      error: (error) => console.error("Erro ao obter salas:", error)
     });
   }
 
@@ -50,8 +58,12 @@ export class ChatListComponent implements OnInit {
   }
 
   selectChat(chatId: string | undefined) {
-    console.log('Selecionado chatId:', chatId); //linha 50
-    this.chatSelected.emit(chatId);
+    if (chatId) {
+      this.chatSelected.emit(chatId);
+      console.log('Selecionado chatId:', chatId);
+    } else {
+      console.error('O chatId está indefinido.');
+    }
   }
 
   // Verifica se o usuário atual é o dono da sala
@@ -60,13 +72,32 @@ export class ChatListComponent implements OnInit {
   }
 
   deleteRoom(roomId: string | undefined, event: MouseEvent) {
-    if (!roomId) {
-      console.error('ID da sala é undefined.');
-      return;
-    }
     event.stopPropagation();
-    console.log('Solicitada a exclusão da sala com ID:', roomId);
-    // Implemente a lógica de exclusão da sala aqui
+      if (!roomId) {
+        console.error('ID da sala é indefinido.');
+        return;
+      }
+    const dialogRef = this.dialog.open(ConfirmacaoDialogComponent, {
+      width: '400px',
+      data: {
+        title: 'Confirmar Exclusão',
+        message: 'Tem certeza que deseja excluir esta sala? Esta ação irá remover permanentemente a sala, todos os perfis adicionados e todas as mensagens trocadas.'
+      }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.roomService.deleteRoom(roomId)
+          .then(() => {
+            console.log('Sala excluída com sucesso');
+            // Código para atualizar a lista de salas, se necessário
+          })
+          .catch(error => {
+            console.error('Erro ao excluir a sala:', error);
+            // Código para tratar o erro de exclusão
+          });
+      }
+    });
   }
 
   inviteUsers(roomId: string | undefined, event: MouseEvent) {
@@ -81,7 +112,7 @@ export class ChatListComponent implements OnInit {
 
   editRoom(roomId: string, event: MouseEvent) {
     event.stopPropagation();
-    const roomData = this.rooms.find(room => room.id === roomId);
+    const roomData = this.rooms.find(room => room.roomId === roomId);
     if (!roomData) {
       console.error('Sala não encontrada:', roomId);
       return;
@@ -100,4 +131,4 @@ export class ChatListComponent implements OnInit {
       }
     });
   }
-}
+  }

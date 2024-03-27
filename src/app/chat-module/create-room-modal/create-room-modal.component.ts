@@ -86,7 +86,7 @@ export class CreateRoomModalComponent implements OnInit {
     console.log(`Sala ${action} com sucesso`);
     const wasCreated = action === 'Sala criada com sucesso';
 
-    this.dialogRef.close({ success: true, roomDetails: roomDetails });
+    this.dialogRef.close({ success: true, action: action, roomDetails: roomDetails });
 
       this.dialog.open(RoomCreationConfirmationModalComponent, {
         data: {

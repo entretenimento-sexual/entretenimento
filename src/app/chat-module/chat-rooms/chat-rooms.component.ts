@@ -29,11 +29,13 @@ constructor(private authService: AuthService,
     this.authService.user$.subscribe(user => {
       this.currentUser = user;
       if (user?.uid) {
-        this.roomService.getUserRooms(user.uid).then(rooms => {
-          this.chatRooms = rooms;
-        }).catch(error => console.error("Erro ao carregar salas:", error));
-      }
-    });
+        this.roomService.getUserRooms(user.uid).subscribe(rooms => {
+        this.chatRooms = rooms;
+      }, error => {
+        console.error("Erro ao obter salas:", error);
+      });
+    }
+      });
   }
 
   openCreateRoomModal(): void {
@@ -57,7 +59,11 @@ constructor(private authService: AuthService,
 
       dialogRef.afterClosed().subscribe(result => {
         if (result && result.success) {
-          this.openRoomCreationConfirmationModal(result.roomId, false, result.roomCount, result.roomName);
+          if (result.action === 'created') {
+            this.openRoomCreationConfirmationModal(result.roomId, false, result.roomCount, result.roomName, result.action);
+          } else if (result.action === 'updated') {
+            this.openRoomCreationConfirmationModal(result.roomId, false, result.roomCount, result.roomName, 'updated'); 
+          }
         } else if (result && result.error) {
           alert(result.error); // Mostra a mensagem de erro (e.g., limite de salas atingido).
         }
@@ -73,13 +79,14 @@ constructor(private authService: AuthService,
     });
   }
 
-  private openRoomCreationConfirmationModal(roomId: string, exceededLimit: boolean, roomCount: number, roomName:string): void {
+  private openRoomCreationConfirmationModal(roomId: string, exceededLimit: boolean, roomCount: number, roomName: string, action: 'created' | 'updated'): void {
     this.dialog.open(RoomCreationConfirmationModalComponent, {
       data: {
         roomId,
         exceededLimit,
         roomCount,
         roomName,
+        action 
       },
     });
   }
