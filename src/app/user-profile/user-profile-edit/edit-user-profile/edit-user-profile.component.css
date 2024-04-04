@@ -1,0 +1,65 @@
+/* src\app\user-profile\user-profile-edit\edit-user-profile\edit-user-profile.component.css */
+.form-myprofile{
+  max-width: 800px; /* Largura máxima para o formulário */
+  margin: 20px auto;
+  padding: 20px;
+  background-color: #f8f8f8;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.input-invalid {
+  border: 1px solid red !important;
+}
+
+label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #333;
+}
+
+input[type="text"],
+select {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 20px;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  box-sizing: border-box;
+}
+
+input[type="file"] {
+  border: none;
+  margin-bottom: 20px;
+}
+
+.button-group {
+  display: flex;
+  justify-content: space-between;
+}
+
+/* Estilos específicos para o tema erótico */
+form {
+  background-color: #fee;   /* Um leve tom rosado para o fundo */
+}
+
+.profile-picture-container {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.profile-picture {
+  width: 100px;   /* ou qualquer tamanho que desejar */
+  height: 100px;
+  border-radius: 50%;   /* para tornar a imagem circular */
+  object-fit: cover;   /* garante que a imagem cubra toda a área sem distorcer */
+}
+
+/* Responsividade (ajustar conforme necessário) */
+@media (max-width: 768px) {
+  form {
+    width: 90%;
+    margin: 10px auto;
+  }
+}

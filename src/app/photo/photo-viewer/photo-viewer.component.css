@@ -1,0 +1,16 @@
+/* src\app\photo\photo-viewer\photo-viewer.component.css */
+.photo-viewer {
+  border: 0;
+  /* Estilos para o container da visualização */
+}
+
+.photo-viewer img {
+  /* Estilos para a imagem */
+  max-width: 100%;
+  height: auto;
+}
+
+.photo-viewer button {
+  border: 0;
+  /* Estilos para os botões de navegação */
+}

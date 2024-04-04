@@ -1,0 +1,30 @@
+/* src\app\authentication\login-component\login-component.component.css */
+/* src\app\authentication\login-component\login-component.component.css */
+.login-component {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  flex-direction: column;
+}
+
+.login-component .authentication-content-left {
+  display: none;
+}
+
+.login-component .authentication-content-right {
+  width: 100%;
+  max-width: 400px;
+}
+
+@media (max-width: 768px) {
+  .login-component {
+    padding: 20px 0;
+    height: auto;
+  }
+
+  .login-component .authentication-content-right {
+    padding: 15px;
+    max-width: 100%;
+  }
+}

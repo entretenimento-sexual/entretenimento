@@ -1,0 +1,18 @@
+<!-- src\app\chat-module\room-creation-confirmation-modal\room-creation-confirmation-modal.component.html -->
+<h2>{{ data.action === 'created' ? 'Sala Criada' : 'Sala Atualizada' }}</h2>
+<p>Agora você pode {{ data.action === 'created' ? 'ter uma conversa em grupo, interagindo com vários participantes ao mesmo tempo' : 'continuar a conversa com os participantes atualizados' }}.</p>
+
+  <p>Envie convites para os perfis que desejar</p>
+<p>A sala "<strong>{{ data.roomName }}</strong>" foi {{ data.action === 'created' ? 'criada' : 'atualizada' }} com
+  sucesso!</p>
+<div *ngIf="data.exceededLimit">
+  <p>Você atingiu o limite máximo de salas criadas.</p>
+</div>
+<div>
+  <p>Informações adicionais:</p>
+  <ul>
+    <li>Total de salas criadas: {{ data.roomCount }}</li>
+    <!-- Outras informações do usuário -->
+  </ul>
+</div>
+<button (click)="close()">Fechar</button>

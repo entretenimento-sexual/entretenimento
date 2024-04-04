@@ -1,0 +1,22 @@
+<!-- src\app\dashboard\online-users\online-users.component.html -->
+<div class="container mt-3">
+  <h2 class="online-users-title mb-4">Perfis Online na Sua Região</h2>
+  <div class="row row-cols-1 row-cols-md-3 g-4">
+    <div class="col" *ngFor="let user of onlineUsersByRegion$ | async">
+      <div class="card h-100">
+        <img [src]="user.photoURL || 'caminho/para/imagem/padrão.jpg'" class="profile-photo" alt="{{ user.nickname }}">
+        <div class="card-body">
+          <h5 class="card-title">{{ user.nickname }}</h5>
+          <p class="card-text">{{ user.gender | titlecase }}</p>
+          <p class="card-text">{{ user.municipio }}, {{ user.estado }}</p>
+          <!-- Botão para abrir modal ou detalhes do perfil -->
+          <button type="button" class="btn btn-primary">Ver Perfil</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<ng-template #noProfilesFound>
+  <p>Nenhum perfil online foi encontrado na sua região.</p>
+</ng-template>

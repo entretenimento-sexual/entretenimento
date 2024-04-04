@@ -1,0 +1,17 @@
+<!-- src\app\authentication\login-component\login-component.component.html -->
+<div class="authentication-container login-component">
+   <div class="authentication-content-left">
+     <!-- O conteúdo de autenticação que estava aqui anteriormente fica neste div -->
+     </div>
+   <div class="authentication-content-right">
+     <h2 class="authentication-header">Se já tem cadastro<br>Insira seus dados para entrar</h2>
+     <form class="authentication-form" (submit)="login()">
+       <input type="email" [(ngModel)]="email" placeholder="Email" name="email" required>
+       <input type="password" [(ngModel)]="password" placeholder="Password" name="password" required>
+       <button type="submit">Login</button>
+        <p *ngIf="errorMessage" class="alert alert-danger">{{ errorMessage }}</p>
+       <!-- Adicionar um link para resetar a senha se desejado -->
+             <a href="#">Esqueci minha senha</a>
+      </form>
+     </div>
+</div>

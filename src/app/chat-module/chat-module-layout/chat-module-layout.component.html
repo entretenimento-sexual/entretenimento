@@ -1,0 +1,43 @@
+<!-- src\app\chat-module\chat-module-layout\chat-module-layout.component.html -->
+<div class="chat-module-container">
+
+  <div class="user-info-panel">
+
+    <!-- Seção de Informações do Usuário Logado -->
+    <div class="user-details">
+      <img [src]="(usuario$ | async)?.photoURL" alt="Foto" class="foto_chat">
+      <p>{{ (usuario$ | async)?.nickname }}</p>
+      <!-- Outras informações do usuário -->
+      <p>Mensagem Aleatória</p>
+    </div><!--user-details-->
+
+    <!-- Seção da Lista de Últimos Usuários com quem Interagiu -->
+    <div class="recent-interactions">
+      <p>Últimas Interações</p>
+      <app-chat-list (chatSelected)="onChatSelected($event)"></app-chat-list>
+    </div><!--recent-interactions-->
+  </div><!--user-info-panel-->
+
+  <!-- Área Principal do Chat -->
+  <div class="chat-window-main">
+
+    <!-- Seção das Salas de Bate-Papo -->
+    <div class="chat-rooms" style="border-bottom: 1px solid black; padding: 10px;">
+        <app-chat-rooms></app-chat-rooms>
+    </div><!--chat-rooms-->
+
+    <!-- Área de Mensagens do Chat -->
+    <div class="chat-area">
+      <p>exibir mensagens aqui</p>
+      <app-chat-messages-list [chatId]="selectedChatId" [type]="selectedType"></app-chat-messages-list>
+    </div>
+
+    <!-- Área de Entrada de Mensagens -->
+    <div class="chat-input">
+      <textarea [(ngModel)]="messageContent"
+                (keydown.enter)="sendMessage(); $event.preventDefault()"
+                style="width: 100%;"></textarea>
+      <button (click)="sendMessage()" style="width: 10%;">Enviar</button>
+    </div>
+  </div><!--chat-window-main-->
+</div> <!--chat-module-container-->

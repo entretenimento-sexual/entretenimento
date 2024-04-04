@@ -1,0 +1,34 @@
+/* src\app\footer\footer-shared.css */
+.footer-container {
+  background-color: #ff6565;
+
+}
+
+.footer-container {
+  background-color: rgb(255, 101, 101);
+}
+
+h5 {
+  color: white;
+}
+
+ul {
+  list-style-type: none;
+}
+
+li {
+  margin: 5px 0;
+}
+
+a {
+  color: white;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+small {
+  color: white;
+}

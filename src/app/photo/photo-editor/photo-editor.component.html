@@ -1,0 +1,11 @@
+<!-- photo-editor.component.html -->
+<div class="photo-editor">
+  <div class="photo-container">
+    <img [src]="selectedPhoto" alt="Foto para edição">
+  </div>
+  <div class="editor-controls">
+    <button (click)="rotate()">Girar</button>
+    <button (click)="crop()">Recortar</button>
+    <!-- Adicionar outros controles conforme necessário -->
+  </div>
+</div>

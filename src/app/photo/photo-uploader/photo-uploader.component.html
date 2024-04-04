@@ -1,0 +1,8 @@
+<!-- src\app\photo\photo-uploader\photo-uploader.component.html -->
+<div class="photo-uploader">
+  <form (submit)="uploadPhoto()">
+    <input type="file" (change)="onFileSelected($event)" accept="image/*">
+    <button type="submit">Enviar Foto</button>
+  </form>
+  <p *ngIf="uploadStatus">{{ uploadStatus }}</p>
+</div>

@@ -1,0 +1,37 @@
+<!-- src\app\layout\other-user-profile-view\other-user-profile-view.component.html -->
+<div class="user-profile-container">
+  <div class="user-info">
+    <img src="{{ userProfile?.photoURL || 'caminho/para/imagem/padrão.jpg' }}" alt="{{ userProfile?.nickname }}"
+      class="profile-photo">
+    <h2>{{ userProfile?.nickname }}</h2>
+    <p><strong>Email:</strong> {{ userProfile?.email }}</p>
+    <p><strong>Cidade:</strong> {{ userProfile?.municipio }}, {{ userProfile?.estado }}</p>
+    <p><strong>Genero:</strong> {{ userProfile?.gender | titlecase }}</p>
+    <p><strong>Orientação:</strong> {{ userProfile?.orientation }}</p>
+    <p><strong>Sobre mim:</strong> {{ userProfile?.descricao }}</p>
+    <p><strong>Facebook:</strong> <a href="{{ userProfile?.facebook }}">{{ userProfile?.facebook }}</a></p>
+    <p><strong>Interesses:</strong> {{ categoriasDePreferencias?.genero?.join(', ') }}</p>
+    <p><strong>Práticas Sexuais:</strong> {{ categoriasDePreferencias?.praticaSexual?.join(', ') }}</p>
+  </div>
+
+  <div class="user-preferences">
+    <h3>Minhas Preferências:</h3>
+    <div *ngIf="categoriasDePreferencias.genero.length > 0">
+      <h4>Interesse em:</h4>
+      <ul>
+        <li *ngFor="let pref of categoriasDePreferencias.genero">{{ pref | capitalize }}</li>
+      </ul>
+    </div>
+    <div *ngIf="categoriasDePreferencias.praticaSexual.length > 0">
+      <h4>Que curtam:</h4>
+      <ul>
+        <li *ngFor="let pref of categoriasDePreferencias.praticaSexual">{{ pref | capitalize }}</li>
+      </ul>
+    </div>
+    <!-- Adicione mais seções de preferências conforme necessário -->
+  </div>
+</div>
+
+<ng-template #loading>
+  <p>Carregando perfil...</p>
+</ng-template>

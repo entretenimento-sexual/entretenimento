@@ -1,0 +1,21 @@
+<!-- src\app\layout\perfis-proximos\perfis-proximos.component.html -->
+<div *ngIf="profiles.length > 0; else noProfilesFound" class="profiles-container">
+  <div class="card" *ngFor="let profile of profiles">
+    <img [src]="profile.photoURL || 'caminho/para/imagem/padrão.jpg'" alt="{{ profile.nickname }}"
+      class="profile-photo">
+    <div class="card-body">
+      <h5 class="card-title">{{ profile.nickname }}</h5>
+      <p class="card-text">{{ profile.gender | titlecase }}</p>
+      <p class="card-text">{{ profile.municipio }}, {{ profile.estado}}</p>
+      <p class="card-text" *ngIf="profile.distanciaKm">Distância: {{ profile.distanciaKm | number: '1.0-2' }} km</p>
+      <!-- Adicione mais informações do perfil aqui -->
+      <a [routerLink]="['/outro-perfil', profile.uid]" class="btn btn-primary">Ver Perfil</a>
+      <a class="btn btn-primary" (click)="abrirModalMensagem(profile.uid)">Mensagem</a>
+    </div>
+  </div>
+</div>
+
+<ng-template #noProfilesFound>
+  <p>Nenhum perfil próximo foi encontrado.</p>
+</ng-template>
+

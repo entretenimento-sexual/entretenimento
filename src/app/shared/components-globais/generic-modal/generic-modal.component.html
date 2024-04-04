@@ -1,0 +1,19 @@
+<!-- src\app\shared\components-globais\generic-modal\generic-modal.component.html -->
+<div class="modal" [class.modal-open]="exibir">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h4 class="modal-title">{{ titulo }}</h4>
+      <button type="button" class="close" aria-label="Close" (click)="fechar()">
+        <span aria-hidden="true">&times;</span>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div *ngIf="mensagemErro" class="alert alert-danger" role="alert">
+        {{ mensagemErro }}
+      </div>
+      <!-- Conteúdo passado como input -->
+      <ng-content></ng-content>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop" [class.show]="exibir"></div>

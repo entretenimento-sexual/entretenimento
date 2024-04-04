@@ -1,0 +1,55 @@
+/* src\app\user-profile\user-profile-view\user-profile-sidebar\user-profile-sidebar.component.css */
+.sidebar {
+  flex: 1;
+
+  padding: 20px;
+  margin-right: 20px;
+  background-color: #ff4b2b;  /* Cor de fundo vibrante */
+  border-radius: 10px;  /* Cantos arredondados */
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  /* Sombra suave */
+  color: white;  /* Cor do texto */
+  transform: translateX(0);
+  transition: transform 0.3s ease;  /* Transição suave */
+}
+
+.profile-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.profile-picture {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid white;  /* Bordas mais grossas */
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+.profile-nav {
+  display: flex;
+  flex-direction: column;
+  align-items: center;  /* Centraliza os links */
+}
+
+.profile-nav a {
+  text-decoration: none;
+  color: white;
+  padding: 10px 15px;
+  margin: 5px 0;
+  font-family: 'Roboto', sans-serif;
+  font-weight: bold;
+  background-color: rgba(255, 255, 255, 0.1);  /* Fundo sutil para os links */
+  border-radius: 5px;  /* Cantos arredondados para os links */
+  transition: background-color 0.3s, color 0.3s;  /* Transição de cor e fundo */
+}
+
+.profile-nav i {
+  margin-right: 8px;
+}
+
+.profile-nav a:hover {
+  background-color: rgba(255, 255, 255, 0.2);  /* Mudança de cor ao passar o mouse */
+  color: #ff4b2b;
+}

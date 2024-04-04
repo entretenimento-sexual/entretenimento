@@ -1,0 +1,41 @@
+/* src\app\layout\other-user-profile-view\other-user-profile-view.component.css */
+.user-profile-container {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 20px;
+}
+
+.user-info {
+  flex: 1;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+}
+
+.user-preferences {
+  flex: 1;
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 10px;
+}
+
+.profile-photo {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+li {
+  background-color: #e0e0e0;
+  margin-bottom: 5px;
+  padding: 5px;
+  border-radius: 5px;
+}

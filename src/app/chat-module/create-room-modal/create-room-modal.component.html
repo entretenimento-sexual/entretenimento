@@ -1,0 +1,15 @@
+<!-- src\app\chat-module\create-room-modal\create-room-modal.component.html -->
+<form [formGroup]="roomForm" (ngSubmit)="onSubmit()">
+  <h2 mat-dialog-title>{{ isEditing ? 'Edite a Sala' : 'Crie sua Sala' }}</h2>
+  <div class="form-group">
+    <label for="roomName">Nome da Sala</label>
+    <input type="text" formControlName="roomName" id="roomName" required>
+  </div>
+  <div class="form-group">
+    <label for="description">Descrição</label>
+    <textarea formControlName="description" id="description"></textarea>
+  </div>
+  <!-- Opcional: Para permitir que o usuário defina um horário específico -->
+
+  <button type="submit" [disabled]="!roomForm.valid">{{isEditing ? 'Salvar Alterações' : 'Criar Sala'}}</button>
+</form>

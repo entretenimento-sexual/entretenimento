@@ -1,0 +1,23 @@
+/* src\app\chat-module\chat-message\chat-message.component.css */
+.chat-message {
+  margin: 5px 0;
+  padding: 10px;
+  border-radius: 10px;
+  max-width: 80%;
+}
+
+.message-sent {
+  background-color: #e0f7fa;
+  align-self: flex-end;
+  text-align: right;
+}
+
+.message-received {
+  background-color: #f0f0f0;
+  align-self: flex-start;
+}
+
+.message-time {
+  font-size: 8px;
+  color: #666;
+}

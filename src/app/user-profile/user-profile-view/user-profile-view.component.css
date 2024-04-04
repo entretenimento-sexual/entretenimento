@@ -1,0 +1,152 @@
+/* src\app\user-profile\user-profile-view\user-profile-view.component.css */
+h1, h2, h3 {
+  margin-bottom: 0.5em;
+}
+
+a {
+
+  transition: color 0.3s ease;
+}
+
+a:hover {
+  color: darken(var(--primary-color), 10%);
+}
+
+.profile-container {
+  max-width: 80vw;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  margin: auto;
+  padding: 22px 0;    /* Adiciona um espaçamento no topo e no rodapé */
+}
+
+.profile-content {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+}
+
+.user-preferences {
+  display: flex;
+  flex-direction: column;
+  /* Organiza as caixas de categoria em coluna */
+}
+
+.category-item, p {
+  color: #333;   /* Cor escura para boa legibilidade */
+  font-size: 16px;   /* Tamanho confortável para leitura */
+  line-height: 1.5;   /* Espaçamento de linha para melhor legibilidade */
+  list-style-type: none;   /* Remover estilos de lista padrão */
+  padding: 5px 0;   /* Espaçamento entre itens */
+}
+
+
+.user-nickname {
+  text-align: center;
+  margin-top: -10px;
+  margin-left: -52px;
+  color: var(--secondary-color);
+  font-family: var(--font-family);
+  width: 250px;
+}
+
+.tag {
+  display: inline-block;
+  background-color: #f0f0f0;
+  border-radius: 15px;
+  padding: 5px 10px;
+  margin: 2px;
+  font-size: 14px;
+}
+
+
+
+.content {
+  flex: 2;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  padding-left: 20px;
+}
+
+.user-profile-summary {
+  font-family: var(--font-primary);
+  color: var(--secondary-color);
+  line-height: 1.6;    /* Espaçamento de linha para melhor legibilidade */
+  margin-bottom: 1.1em;
+}
+
+.user-profile-summary p,
+.user-details p {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  margin-right: 20px;
+  margin-bottom: 1px;
+}
+
+
+/* Animações para o sidebar */
+@keyframes entrar {
+  from {
+    transform: translateX(-200%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes sair {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-200%);
+  }
+}
+
+@media only screen and (max-width: 600px) {
+  .profile-container {
+    flex-direction: column;
+    margin-left: 20px;
+    padding: 5px;
+  }
+
+  .sidebar:not(.visible) {
+    display: none;
+    animation: sair 0.5s ease-in-out forwards;
+  }
+
+  .sidebar.visible {
+    display: block;
+    animation: entrar 0.5s ease-in-out forwards;
+    width: 60%;
+  }
+
+  .content {
+    padding-left: 0;
+  }
+}
+
+/* @media (min-width: 768px) {
+  .container-fluid {
+    padding-left: 15px;
+    padding-right: 15px;
+  }
+}
+
+@media (min-width: 992px) {
+  .container-fluid {
+    padding-left: 30px;
+    padding-right: 30px;
+  }
+}
+
+@media (min-width: 1200px) {
+  .container-fluid {
+    padding-left: 50px;
+    padding-right: 50px;
+  }
+} */

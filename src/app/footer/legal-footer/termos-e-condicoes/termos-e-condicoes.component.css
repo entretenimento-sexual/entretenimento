@@ -1,0 +1,18 @@
+/* src\app\footer\legal-footer\termos-e-condicoes\termos-e-condicoes.component.css */
+.conteudo_termosecondicoes {
+  padding: 25px;
+}
+p{
+  margin-bottom: 25px;
+}
+.conteudo_termosecondicoes button {
+    margin-top: 20px; /* estilos para o botão de fechar */
+}
+button{
+    background-color: rgba(183, 183, 192, 0.808);
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}

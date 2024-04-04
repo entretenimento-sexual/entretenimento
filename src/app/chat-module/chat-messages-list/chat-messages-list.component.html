@@ -1,0 +1,7 @@
+<!-- src\app\chat-module\chat-messages-list\chat-messages-list.component.html -->
+<div *ngIf="messages.length > 0; else noMessages">
+  <app-chat-message *ngFor="let message of messages" [message]="message"></app-chat-message>
+</div>
+<ng-template #noMessages>
+  <p>Nenhuma mensagem para exibir</p>
+</ng-template>

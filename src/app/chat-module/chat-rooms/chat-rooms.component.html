@@ -1,0 +1,13 @@
+<!-- src\app\chat-module\chat-rooms\chat-rooms.component.html -->
+<div class="chat-rooms">
+  <div class="button_e_saibamais">
+      <button (click)="openCreateRoomModal()" class="button_create_room">Criar Sala de bate-papo</button>
+      <a href="javascript:void(0);" class="saiba-mais-link" (click)="openInfoCriaSalaBpModal($event)">saiba mais</a>
+  </div>
+    <ul>
+      <li *ngFor="let room of chatRooms">
+        <span>Sua sala "{{ room.roomName }}" está ativa</span>
+        <!-- Botões adicionais aqui -->
+      </li>
+    </ul>
+</div>

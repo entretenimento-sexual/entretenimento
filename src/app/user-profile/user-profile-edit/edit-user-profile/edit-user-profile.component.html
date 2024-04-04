@@ -1,0 +1,112 @@
+<!-- src\app\user-profile\user-profile-edit\edit-user-profile\edit-user-profile.component.html -->
+<form class="form-myprofile" [formGroup]="editForm" (ngSubmit)="onSubmit()">
+
+  <!-- Exibe a foto do perfil do usuário -->
+  <div class="profile-picture-container">
+    <img [src]="userData.photoURL" alt="Foto de perfil" class="profile-picture">
+  </div>
+
+  <div>
+    <label for="photo">Trocar Foto de Perfil:</label>
+    <input type="file" id="photo" (change)="onFileSelected($event)">
+  </div>
+
+  <div>
+    <label for="nickname">Meu nickname</label>
+    <input type="text" id="nickname" formControlName="nickname" name="nickname">
+  </div>
+
+  <!-- Campo de seleção de Estado -->
+  <div>
+    <label for="estado">Estado:</label>
+    <select formControlName="estado" name="estado" (change)="onEstadoChange(editForm.get('estado')?.value ?? '')">
+      <option *ngFor="let estado of estados" [value]="estado.sigla">{{ estado.nome }}</option>
+    </select>
+  </div>
+
+  <!-- Campo de seleção de Município -->
+  <div>
+    <label for="municipio">Município:</label>
+    <select formControlName="municipio" name="municipio">
+      <option *ngFor="let municipio of municipios" [value]="municipio.nome">{{ municipio.nome }}</option>
+    </select>
+  </div>
+
+  <div>
+    <label for="gender">Gênero:</label>
+    <select id="gender" formControlName="gender" name="gender">
+      <option *ngFor="let genderOption of genderOptions" [value]="genderOption.value">{{ genderOption.label }}</option>
+    </select>
+  </div>
+
+  <div *ngIf="!isCouple()">
+    <label for="orientation">Orientação:</label>
+    <select id="orientation" formControlName="orientation" name="orientation">
+      <option value="bissexual">Bissexual</option>
+      <option value="homossexual">Homossexual</option>
+      <option value="heterossexual">Heterossexual</option>
+      <option value="pansexual">Pansexual</option>
+    </select>
+  </div>
+
+  <!-- Sempre exibir as caixas de seleção para orientação do casal -->
+  <div *ngIf="isCouple()">
+    <div>
+      <label for="partner1Orientation">Orientação do Parceiro 1:</label>
+      <select id="partner1Orientation" formControlName="partner1Orientation" name="partner1Orientation">
+        <option value="bissexual">Bissexual</option>
+        <option value="homossexual">Homossexual</option>
+        <option value="heterossexual">Heterossexual</option>
+        <option value="pansexual">Pansexual</option>
+      </select>
+    </div>
+
+    <div>
+      <label for="partner2Orientation">Orientação do Parceiro 2:</label>
+      <select id="partner2Orientation" formControlName="partner2Orientation" name="partner2Orientation" required>
+        <option value="" disabled selected>Selecione a Orientação</option>
+        <option value="bissexual">Bissexual</option>
+        <option value="homossexual">Homossexual</option>
+        <option value="heterossexual">Heterossexual</option>
+        <option value="pansexual">Pansexual</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="category-container">
+    <h3 class="category-title">Sobre Mim</h3>
+    <textarea formControlName="descricao" rows="4" placeholder="Descreva-se aqui..."></textarea>
+  </div>
+
+  <div class="category-container">
+    <h3 class="category-title">Minhas Redes Sociais</h3>
+    <!-- <input type="text" [(ngModel)]="userData.sexlog" placeholder="Sexlog">
+    <input type="text" [(ngModel)]="userData.d4swing" placeholder="D4Swing">
+    <input type="text" [(ngModel)]="userData.xvideos" placeholder="XVideos">
+    <input type="text" [(ngModel)]="userData.sexocomcafe" placeholder="Sexo Com Café">
+    <input type="text" [(ngModel)]="userData.onlyfans" placeholder="OnlyFans">-->
+    <input type="text" formContrlName="buupe" placeholder="Buupe"
+      [class.input-invalid]="editForm.get('buupe')?.invalid && editForm.get('buupe')?.touched">
+      <div *ngIf="editForm.get('buupe')?.invalid && editForm.get('buupe')?.touched"
+       class="alert alert-danger border border-danger">
+        URL do Buupe inválida.
+      </div>
+    <input type="text" formControlName="facebook" placeholder="Facebook"
+      [class.input-invalid]="editForm.get('facebook')?.invalid && editForm.get('facebook')?.touched">
+    <div *ngIf="editForm.get('facebook')?.invalid && editForm.get('facebook')?.touched"
+    class="alert alert-danger border border-danger">
+      URL do Facebook inválida.
+    </div>
+
+    <input type="text" formControlName="instagram" placeholder="Instagram">
+    <div *ngIf="editForm.get('instagram')?.invalid && editForm.get('instagram')?.touched">
+      <small class="error">URL do Instagram inválida.</small>
+    </div>
+    <!-- Outras redes sociais -->
+  </div>
+
+  <div class="button-group">
+    <button type="submit">Salvar Alterações</button>
+    <a [routerLink]="['/perfil', this.uid]" class="btn btn-secondary btn-voltar">Voltar sem Salvar</a>
+  </div>
+</form>

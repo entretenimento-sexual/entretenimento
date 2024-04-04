@@ -1,0 +1,6 @@
+<!-- src\app\chat-module\chat-message\chat-message.component.html -->
+<div class="chat-message" [ngClass]="{'message-sent': isMessageSent(), 'message-received': !isMessageSent()}">
+  <p class="message-sender">{{ senderName }}</p>
+  <p class="message-content">{{ message.content }}</p>
+  <p class="message-time">{{ message.timestamp.toDate() | date: 'short' }}</p>
+</div>

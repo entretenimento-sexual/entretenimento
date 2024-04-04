@@ -1,0 +1,47 @@
+<!-- src\app\authentication\progressive-signup\progressive-signup.component.html -->
+<div class="authentication-container">
+  <div class="authentication-content-left">
+    <h2>Descubra um Mundo de Possibilidades</h2>
+    <p class="intro-text">
+      Cada pessoa tem um desejo, uma fantasia ou um tesão escondido. Em nosso universo, criamos o espaço perfeito para
+      que
+      você possa se libertar e explorar seus desejos mais íntimos, sem julgamentos e encontrando pessoas que estão te
+      procurando e vice versa.
+      Seja você solteiro, comprometido ou apenas curioso, nossa comunidade acolhe todos com a promessa de novas
+      experiências e descobertas.
+    </p>
+    <p class="stats-text">
+      Com uma base de mais de <span class="highlight">muitos</span> de usuários reais, somos uma plataforma
+      dedicada a unir pessoas em busca de momentos inesquecíveis. Aqui, a privacidade é garantida, e as oportunidades
+      são
+      infinitas.
+    </p>
+    <p class="intro-text">
+      Por que guardar seus desejos só para você? Conecte-se, compartilhe, e viva intensamente cada momento. O primeiro
+      passo
+      para essa jornada transformadora começa aqui.
+    </p>
+    <a [routerLink]="['/register']" class="explore-link">Cadastre-se agora e mergulhe nessa aventura. É totalmente
+      grátis!</a>
+  </div>
+
+  <div class="authentication-content-right">
+    <h2>O que você procura?</h2>
+    <form (submit)="register()">
+
+      <div class="form-group" *ngFor="let practice of practices">
+        <label>
+          <input type="checkbox" name="practices" [value]="practice.value"
+            (change)="capturePreference($event, practice.value)">
+          {{practice.label}}
+        </label>
+      </div>
+
+      <!-- Você pode continuar adicionando outras opções -->
+
+      <div class="form-group">
+        <button type="submit" class="submit-btn">Enviar</button>
+      </div>
+    </form>
+  </div>
+</div>

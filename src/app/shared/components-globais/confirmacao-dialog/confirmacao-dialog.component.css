@@ -1,0 +1,57 @@
+/* src\app\shared\components-globais\confirmacao-dialog\confirmacao-dialog.component.css */
+
+.dialog-container {
+  padding: 20px;
+  border-radius: 10px;
+  background: #f7f7f7;  /* Fundo mais claro */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);  /* Sombra mais suave */
+  padding: 10%;
+}
+
+.dialog-title {
+  margin-bottom: 20px;
+  color: #5c6bc0;
+  /* Cor mais suave */
+  font-size: 22px;  /* Tamanho ligeiramente menor */
+}
+
+.dialog-content p {
+  margin-bottom: 20px;
+  color: #666;
+  font-size: 16px;
+  line-height: 1.4;    /* Espaçamento de linha para melhor leitura */
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: space-between;
+  /* Botões mais espaçados */
+  margin-top: 20px;
+  /* Espaçamento superior */
+}
+
+.dialog-button,
+.dialog-button-no {
+  border-radius: 4px;
+  /* Bordas arredondadas */
+  padding: 10px 15px;
+  /* Padding maior para botões mais 'clicáveis' */
+}
+
+.dialog-button {
+  color: #1976d2;
+  border: 2px solid #1976d2;
+  /* Bordas definidas */
+}
+
+.dialog-button:hover,
+.dialog-button-no:hover {
+  opacity: 0.8;
+  /* Efeito de hover suave */
+}
+
+.dialog-button-no {
+  color: #d32f2f;
+  border: 2px solid #d32f2f;
+  /* Bordas definidas para o botão 'Não' */
+}
