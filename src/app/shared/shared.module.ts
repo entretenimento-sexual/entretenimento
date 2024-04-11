@@ -5,7 +5,7 @@ import { DateFormatPipe } from './date-format.pipe';
 import { CapitalizePipe } from './capitalize.pipe';
 import { ModalMensagemComponent } from './components-globais/modal-mensagem/modal-mensagem.component';
 import { FormsModule } from '@angular/forms';
-import { FotoPreviewModalComponent } from './components-globais/foto-preview-modal/foto-preview-modal.component';
+import { FotoPreviewModalComponent } from '../photo/foto-preview-modal/foto-preview-modal.component';
 import { TextoDialogComponent } from './components-globais/texto-dialog/texto-dialog.component';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';

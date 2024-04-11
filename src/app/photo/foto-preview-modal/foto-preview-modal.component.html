@@ -1,7 +1,7 @@
-<!-- src\app\shared\components-globais\foto-preview-modal\foto-preview-modal.component.html -->
+<!-- src\app\photo\foto-preview-modal\foto-preview-modal.component.html -->
 <img *ngIf="data.fotoUrl" [src]="data.fotoUrl" alt="Pré-visualização">
 <div class="actions">
-  <button (click)="editarFoto()">Editar</button>
+  <button mat-button (click)="editarFoto()">Editar Foto</button>
   <button (click)="excluirFotoEFechar()">Excluir</button>
   <button (click)="salvarFoto()">Salvar</button>
 </div>

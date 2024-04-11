@@ -1,8 +1,9 @@
-//src\app\shared\components-globais\foto-preview-modal\foto-preview-modal.component.ts
+//src\app\photo\foto-preview-modal\foto-preview-modal.component.ts
 import { Component, Inject, Input } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { TextoDialogComponent } from '../texto-dialog/texto-dialog.component';
-import { ConfirmacaoDialogComponent } from '../confirmacao-dialog/confirmacao-dialog.component';
+import { TextoDialogComponent } from '../../shared/components-globais/texto-dialog/texto-dialog.component';
+import { ConfirmacaoDialogComponent } from '../../shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
+import { PhotoEditorComponent } from '../photo-editor/photo-editor.component';
 
 interface FotoModalData {
   fotoUrl: string | ArrayBuffer | null;
@@ -25,8 +26,15 @@ export class FotoPreviewModalComponent {
 
   // Métodos para editar, excluir, salvar a foto
   editarFoto() {
-    // Implementação da edição
-    alert('Editar foto não implementado');
+    const dialogRef = this.dialog.open(PhotoEditorComponent, {
+      width: '70%',
+      height: '70%',
+      data: { file: this.data.file }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      // Trate o resultado da edição aqui, se necessário
+    });
   }
 
   excluirFoto() {
@@ -61,7 +69,7 @@ export class FotoPreviewModalComponent {
       }
     });
   }
-  
+
   excluirFotoEFechar() {
     this.dialogRef.close('excluir');
   }

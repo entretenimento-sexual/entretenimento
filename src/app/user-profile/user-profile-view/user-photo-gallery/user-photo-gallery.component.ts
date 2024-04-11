@@ -1,10 +1,10 @@
 //src\app\user-profile\user-profile-view\user-photo-gallery\user-photo-gallery.component.ts
 import { Component, OnInit } from '@angular/core';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { PhotoService } from 'src/app/core/services/photo/photo.service';
-import { FotoPreviewModalComponent } from 'src/app/shared/components-globais/foto-preview-modal/foto-preview-modal.component';
+import { FotoPreviewModalComponent } from 'src/app/photo/foto-preview-modal/foto-preview-modal.component';
 import { MatDialog } from '@angular/material/dialog';
-import { ImageProcessingService } from 'src/app/core/services/photo/image-processing.service';
+import { PhotoService } from 'src/app/photo/services-photo/photo.service';
+import { ImageProcessingService } from 'src/app/photo/services-photo/image-processing.service';
 
 @Component({
   selector: 'app-user-photo-gallery',

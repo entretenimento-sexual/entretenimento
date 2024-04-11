@@ -1,5 +1,7 @@
 //src\app\photo\services-photo\image-processing.service.ts
 import { Injectable } from '@angular/core';
+import { fabric } from 'fabric';
+
 
 @Injectable({
   providedIn: 'root'
@@ -62,30 +64,33 @@ export class ImageProcessingService {
 
   ajustarBrilho(file: File, valorBrilho: number): Promise<string> {
     return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.src = URL.createObjectURL(file);
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        document.body.appendChild(canvas); // CamanJS precisa que o canvas esteja no DOM
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
+      const reader = new FileReader();
+      reader.onload = (event: any) => {
+        const imgElement = new Image();
+        imgElement.src = event.target.result;
+        imgElement.onload = () => {
+          const canvas = new fabric.Canvas(document.createElement('canvas'));
+          canvas.setHeight(imgElement.height);
+          canvas.setWidth(imgElement.width);
+          const fabricImage = new fabric.Image(imgElement);
+          canvas.add(fabricImage);
 
-        Caman(canvas, function () {
-          this.brightness(valorBrilho);
-          this.render(() => {
-            canvas.toBlob(blob => {
-              if (blob) {
-                resolve(URL.createObjectURL(blob));
-              } else {
-                reject(new Error('Falha ao ajustar brilho da imagem.'));
-              }
-            }, file.type);
-          });
-        });
+          fabricImage.filters ??= [];
+          fabricImage.filters.push(new fabric.Image.filters.Brightness({
+            brightness: valorBrilho
+          }));
+          fabricImage.applyFilters();
+          canvas.renderAll();
+
+          // Agora, pegando diretamente a string do Data URL
+          resolve(canvas.toDataURL({
+            format: 'png',
+            quality: 1
+          }));
+        };
       };
-      img.onerror = () => reject(new Error('Erro ao carregar imagem.'));
+      reader.onerror = (error) => reject(new Error('Erro ao carregar imagem.'));
+      reader.readAsDataURL(file);
     });
   }
 
