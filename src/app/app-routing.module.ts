@@ -33,6 +33,12 @@ const routes: Routes = [
   { path: 'chat',
   loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModuleModule) },
 
+  {
+    path: 'photos',
+    loadChildren: () => import('./photo/photo.module').then(m => m.PhotoModule),
+    canActivate: [AuthGuard] // Se necessário
+  },
+
   { path: 'profile-list', component: ProfileListComponent }, // rota para a lista de perfis
   { path: 'register-component', component: RegisterComponent }, // rota para o componente de registro
   { path: 'login', component: LoginComponent }, // rota para o componente de login

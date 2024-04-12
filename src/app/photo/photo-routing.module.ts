@@ -4,12 +4,13 @@ import { RouterModule, Routes } from '@angular/router';
 
 import { PhotoUploaderComponent } from './photo-uploader/photo-uploader.component';
 import { PhotoViewerComponent } from './photo-viewer/photo-viewer.component';
+import { UserPhotoGalleryComponent } from './user-photo-gallery/user-photo-gallery.component';
 // Importe outros componentes conforme necessário
 
 const routes: Routes = [
   { path: 'upload', component: PhotoUploaderComponent },
   { path: 'view', component: PhotoViewerComponent },
-  // Defina outras rotas conforme necessário
+    // Defina outras rotas conforme necessário
 ];
 
 @NgModule({

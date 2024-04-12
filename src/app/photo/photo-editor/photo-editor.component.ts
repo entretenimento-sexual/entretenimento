@@ -182,11 +182,11 @@ rotate(): void {
 
   activateBlurBrush(): void {
     if (!this.canvas || !this.image) return;
-    const cursorPath = 'assets\circle_cursor.edit-photo.png';
+    const cursorPath = '\assets\circle_cursor.png';
 
-    this.canvas.defaultCursor = `url('${cursorPath}') 0 32, auto`; // Ajuste os valores 0 32 conforme necessário
-    this.canvas.hoverCursor = `url('${cursorPath}') 0 32, auto`;
-    this.canvas.moveCursor = `url('${cursorPath}') 0 32, auto`;
+    this.canvas.defaultCursor = `url('${cursorPath}') 0 16, auto`; // Ajuste os valores 0 32 conforme necessário
+    this.canvas.hoverCursor = `url('${cursorPath}') 0 16, auto`;
+    this.canvas.moveCursor = `url('${cursorPath}') 0 16, auto`;
 
     this.image.selectable = false;
     this.image.evented = false;

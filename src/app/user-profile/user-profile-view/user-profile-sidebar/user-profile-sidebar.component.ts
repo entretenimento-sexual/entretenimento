@@ -14,8 +14,6 @@ enum SidebarState { CLOSED, OPEN }
 
 @Component({
   selector: 'app-user-profile-sidebar',
-  standalone: true,
-  imports: [CommonModule, RouterModule],
   templateUrl: './user-profile-sidebar.component.html',
   styleUrls: ['./user-profile-sidebar.component.css']
 })

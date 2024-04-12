@@ -30,6 +30,7 @@ import { UserProfileModule } from './user-profile/user-profile.module';
 
 //AngularMaterial
 import { MatDialogModule } from '@angular/material/dialog';
+import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 
 @NgModule({
   declarations: [AppComponent],
@@ -60,7 +61,7 @@ import { MatDialogModule } from '@angular/material/dialog';
   ],
   providers: [
     // Serviços, guards e outros elementos específicos
-    AuthService, EmailVerificationService
+    AuthService, EmailVerificationService, provideAnimationsAsync()
   ],
   bootstrap: [AppComponent]
 })

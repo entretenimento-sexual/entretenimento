@@ -4,7 +4,7 @@ import { RouterModule, Routes } from '@angular/router';
 import { UserProfileViewComponent } from './user-profile-view/user-profile-view.component';
 import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/edit-user-profile.component';
 import { EditProfilePreferencesComponent } from './user-profile-edit/edit-profile-preferences/edit-profile-preferences.component';
-import { UserPhotoGalleryComponent } from './user-profile-view/user-photo-gallery/user-photo-gallery.component';
+import { UserPhotoGalleryComponent } from '../photo/user-photo-gallery/user-photo-gallery.component';
 import { AuthGuard } from '../core/guards/auth.guard';
 import { UserOwnerGuard } from '../core/guards/user.owner.guard';
 

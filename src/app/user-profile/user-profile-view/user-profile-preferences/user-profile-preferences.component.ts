@@ -10,11 +10,10 @@ import { UserPreferencesService } from 'src/app/core/services/preferences/user-p
 
 @Component({
     selector: 'app-user-profile-preferences',
-    standalone: true,
     templateUrl: './user-profile-preferences.component.html',
-    styleUrl: './user-profile-preferences.component.css',
-    imports: [SharedModule, CommonModule, RouterModule]
-})
+    styleUrls: ['./user-profile-preferences.component.css',]
+
+  })
 export class UserProfilePreferencesComponent {
   @Input() uid: string | null = null;
   public categoriasDePreferencias: any = {

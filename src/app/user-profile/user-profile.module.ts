@@ -12,14 +12,19 @@ import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/
 import { LayoutModule } from '../layout/layout.module';
 import { UserProfileSidebarComponent } from "./user-profile-view/user-profile-sidebar/user-profile-sidebar.component";
 import { UserProfilePreferencesComponent } from "./user-profile-view/user-profile-preferences/user-profile-preferences.component";
-import { UserPhotoGalleryComponent } from './user-profile-view/user-photo-gallery/user-photo-gallery.component';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 
 @NgModule({
-    declarations: [UserProfileViewComponent, EditProfileRegionComponent,
-        EditProfilePreferencesComponent, EditProfileSocialLinksComponent,
-        EditUserProfileComponent, UserPhotoGalleryComponent],
+    declarations: [
+      UserProfileViewComponent,
+      EditProfileRegionComponent,
+      EditProfilePreferencesComponent,
+      EditProfileSocialLinksComponent,
+      EditUserProfileComponent,
+      UserProfileSidebarComponent,
+      UserProfilePreferencesComponent
+      ],
 
     imports: [
         CommonModule,
@@ -28,9 +33,8 @@ import { MatCardModule } from '@angular/material/card';
         ReactiveFormsModule,
         UserProfileRoutingModule,
         LayoutModule,
-        UserProfileSidebarComponent,
-        UserProfilePreferencesComponent,
-        MatCardModule, MatButtonModule
+        MatCardModule,
+        MatButtonModule
 
     ]
 })
