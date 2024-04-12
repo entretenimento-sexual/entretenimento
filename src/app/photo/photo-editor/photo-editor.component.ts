@@ -23,7 +23,9 @@ export class PhotoEditorComponent implements OnInit, AfterViewInit {
   isDown: boolean = false;
   cropRect: fabric.Rect | null = null;
 
+
   ngOnInit(): void { }
+
 
   ngAfterViewInit(): void {
     if (this.data.file && this.data.file instanceof File) {
@@ -40,6 +42,10 @@ export class PhotoEditorComponent implements OnInit, AfterViewInit {
         this.initializeCanvas();
         this.adjustImageSize(img);
       }, { crossOrigin: 'anonymous' });
+    };
+    reader.onerror = (error) => {
+      console.error('Erro ao carregar a imagem:', error);
+      // Exibir mensagem de erro para o usuário
     };
     reader.readAsDataURL(this.data.file);
   }
@@ -128,7 +134,7 @@ rotate(): void {
     // Lógica para recortar a imagem
   }
 
-  save(): void {
+  saveAndClose(): void {
     const dataUrl = this.canvas?.toDataURL({
       format: 'png',
       quality: 1
@@ -138,7 +144,8 @@ rotate(): void {
       fetch(dataUrl)
         .then(res => res.blob())
         .then(blob => {
-          this.dialogRef.close(blob);
+          // Feche o diálogo e envie a foto editada de volta
+          this.dialogRef.close({ action: 'salvar', file: blob });
         });
     }
   }
@@ -172,4 +179,62 @@ rotate(): void {
       this.canvas.renderAll();
     }
   }
-}
+
+  activateBlurBrush(): void {
+    if (!this.canvas || !this.image) return;
+    const cursorPath = 'assets\circle_cursor.edit-photo.png';
+
+    this.canvas.defaultCursor = `url('${cursorPath}') 0 32, auto`; // Ajuste os valores 0 32 conforme necessário
+    this.canvas.hoverCursor = `url('${cursorPath}') 0 32, auto`;
+    this.canvas.moveCursor = `url('${cursorPath}') 0 32, auto`;
+
+    this.image.selectable = false;
+    this.image.evented = false;
+    this.canvas.forEachObject((obj) => {
+      obj.selectable = false; // Desativa a seleção de todos os objetos
+    });
+    this.canvas.selection = false; // Desativa a seleção de área
+    this.canvas.renderAll();
+
+    let isDrawing = false;
+    let lastPointer: { x: number; y: number } | null = null;
+
+
+
+    this.canvas.on('mouse:down', (event: fabric.IEvent) => {
+      isDrawing = true;
+      const pointer = this.canvas?.getPointer(event.e);
+      lastPointer = pointer ?? null;
+    });
+
+    this.canvas.on('mouse:move', (event: fabric.IEvent) => {
+      if (!isDrawing || !this.canvas) return;
+      const pointer = this.canvas.getPointer(event.e);
+
+      if (lastPointer) {
+        // Calcular distância entre o último ponto e o atual
+        const distance = Math.sqrt(Math.pow(pointer.x - lastPointer.x, 2) + Math.pow(pointer.y - lastPointer.y, 2));
+
+        // Criar um círculo (pincel de borrão) na posição atual do cursor
+        const brush = new fabric.Circle({
+          left: pointer.x,
+          top: pointer.y,
+          radius: 10,
+          fill: `rgba(255,255,255,${Math.min(1, distance / 10)})`, // Ajusta a opacidade com base na distância
+          selectable: false,
+          evented: false,
+        });
+
+        this.canvas.add(brush);
+      }
+
+      lastPointer = pointer;
+    });
+
+    this.canvas.on('mouse:up', () => {
+      isDrawing = false;
+      lastPointer = null;
+    });
+  }
+
+  }

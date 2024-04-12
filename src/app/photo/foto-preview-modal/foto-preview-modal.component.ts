@@ -33,7 +33,11 @@ export class FotoPreviewModalComponent {
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      // Trate o resultado da edição aqui, se necessário
+      if (result && result.action === 'salvar') {
+        // Atualize a foto exibida com a foto editada
+        this.data.file = result.file;
+        this.data.fotoUrl = URL.createObjectURL(result.file);
+      }
     });
   }
 
