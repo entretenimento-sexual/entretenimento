@@ -2,14 +2,34 @@
 .photo-container {
   width: 100%;
   height: 100%;
-}
-
-.photo-container {
-  width: 100%;
-  height: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.editor-controls {
+  padding-top: 2%;
+  padding-bottom: 1%;
+  display: flex;
+  flex-direction: row;
+  justify-content: center;  /* Centraliza os itens na direção principal (horizontal) */
+  align-items: center;  /* Centraliza os itens na direção cruzada (vertical) */
+  flex-wrap: wrap;  /* Permite que os itens passem para a próxima linha se não couberem */
+  gap: 10px;
+}
+
+.editor-btn {
+  margin: 5px;
+  padding: 8px 16px;
+  border: none;
+  background-color: #007bff;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.editor-btn:hover {
+  background-color: #0056b3;
 }
 
 /* Para o canvas específico */

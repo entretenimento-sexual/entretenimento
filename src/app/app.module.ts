@@ -1,6 +1,6 @@
 // app.module.ts
 // Importações do Angular
-import { NgModule } from '@angular/core';
+import { NgModule, isDevMode } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule, HTTP_INTERCEPTORS } from '@angular/common/http';
@@ -31,6 +31,9 @@ import { UserProfileModule } from './user-profile/user-profile.module';
 //AngularMaterial
 import { MatDialogModule } from '@angular/material/dialog';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { StoreModule } from '@ngrx/store';
+import { EffectsModule } from '@ngrx/effects';
+import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 
 @NgModule({
   declarations: [AppComponent],
@@ -58,6 +61,12 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 
       //AngularMaterial
     MatDialogModule,
+
+      StoreModule.forRoot({}, {}),
+
+      EffectsModule.forRoot([]),
+
+      StoreDevtoolsModule.instrument({ maxAge: 25, logOnly: !isDevMode() }),
   ],
   providers: [
     // Serviços, guards e outros elementos específicos

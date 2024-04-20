@@ -1,5 +1,5 @@
 //src\app\photo\photo-editor\photo-editor.component.ts
-import { Component, Inject, OnInit, AfterViewInit, ViewChild, ElementRef } from '@angular/core';
+import { Component, Inject, OnInit, ViewChild, ElementRef } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { fabric } from 'fabric';
 
@@ -8,233 +8,133 @@ import { fabric } from 'fabric';
   templateUrl: './photo-editor.component.html',
   styleUrls: ['./photo-editor.component.css']
 })
-export class PhotoEditorComponent implements OnInit, AfterViewInit {
+export class PhotoEditorComponent implements OnInit {
   @ViewChild('photoContainer') photoContainer!: ElementRef;
-  canvas?: fabric.Canvas;
-  image?: fabric.Image;
+  private canvas?: fabric.Canvas;
+  private image?: fabric.Image;
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: any,
     private dialogRef: MatDialogRef<PhotoEditorComponent>
   ) { }
 
-  origX: number = 0;
-  origY: number = 0;
-  isDown: boolean = false;
-  cropRect: fabric.Rect | null = null;
-
-
   ngOnInit(): void { }
 
-
   ngAfterViewInit(): void {
-    if (this.data.file && this.data.file instanceof File) {
-      this.loadImage();
-    } else {
-      console.error("O arquivo não é válido");
-    }
+    this.initializeCanvas();
+    this.loadImage(this.data.file);
   }
 
-  loadImage(): void {
-    const reader = new FileReader();
-    reader.onload = (e: any) => {
-      fabric.Image.fromURL(e.target.result, (img) => {
-        this.initializeCanvas();
-        this.adjustImageSize(img);
-      }, { crossOrigin: 'anonymous' });
-    };
-    reader.onerror = (error) => {
-      console.error('Erro ao carregar a imagem:', error);
-      // Exibir mensagem de erro para o usuário
-    };
-    reader.readAsDataURL(this.data.file);
-  }
-
-  initializeCanvas(): void {
+  private initializeCanvas(): void {
     const container = this.photoContainer.nativeElement;
     this.canvas = new fabric.Canvas('canvasID', {
       width: container.clientWidth,
-      height: container.clientHeight
+      height: container.clientHeight,
+      backgroundColor: 'white',
     });
+  }
 
-    // Adiciona manipuladores de eventos para desenhar o retângulo de recorte
-    this.canvas.on('mouse:down', (o) => {
-      if (!this.canvas) return; // Verifica se o canvas existe
-      const pointer = this.canvas.getPointer(o.e);
-      this.origX = pointer.x;
-      this.origY = pointer.y;
-      this.isDown = true;
-      this.cropRect = new fabric.Rect({
-        left: this.origX,
-        top: this.origY,
-        originX: 'left',
-        originY: 'top',
-        width: pointer.x - this.origX,
-        height: pointer.y - this.origY,
-        angle: 0,
-        fill: 'rgba(255,255,255,0.3)',
-        transparentCorners: false
+  private loadImage(imageUrl: string): void {
+    fabric.Image.fromURL(imageUrl, (img) => {
+      if (!this.canvas) return;
+      console.log(`Dimensões da imagem original: ${img.width} x ${img.height}`);
+      img.set({
+        selectable: false,
+        evented: false,
+        hasControls: false,
+        hasBorders: false,
+        lockMovementX: true,
+        lockMovementY: true,
+        lockRotation: true,
+        lockScalingX: true,
+        lockScalingY: true,
+        lockSkewingX: true,
+        lockSkewingY: true,
       });
-      this.canvas.add(this.cropRect);
-    });
 
-    this.canvas.on('mouse:move', (o) => {
-      if (!this.isDown || !this.cropRect || !this.canvas) return; // Adiciona verificação para canvas
-      const pointer = this.canvas.getPointer(o.e);
+      // Aqui ajustamos o tamanho do canvas para corresponder ao da imagem
+      this.canvas.setWidth(img.getScaledWidth());
+      this.canvas.setHeight(img.getScaledHeight());
 
-      if (this.origX > pointer.x) {
-        this.cropRect.set({ left: Math.abs(pointer.x) });
-      }
-      if (this.origY > pointer.y) {
-        this.cropRect.set({ top: Math.abs(pointer.y) });
-      }
-
-      this.cropRect.set({ width: Math.abs(this.origX - pointer.x) });
-      this.cropRect.set({ height: Math.abs(this.origY - pointer.y) });
+      this.image = img;
+      this.canvas.clear(); // Limpa o canvas antes de adicionar a nova imagem
+      this.canvas.add(img);
+      // Não é necessário chamar centerImage, pois o canvas agora tem o tamanho da imagem
       this.canvas.renderAll();
-    });
-
-    this.canvas.on('mouse:up', () => {
-      this.isDown = false;
-      // Aqui você pode opcionalmente chamar um método para tratar o recorte
-    });
+    }, { crossOrigin: 'anonymous' });
   }
 
-  adjustImageSize(img: fabric.Image): void {
-    if (!this.canvas) return; // Adiciona esta linha para verificar se canvas existe
-    const scale = Math.min(
-      this.canvas.getWidth() / (img.width || 1), // Usa 1 como fallback para evitar divisão por zero
-      this.canvas.getHeight() / (img.height || 1)
-    );
 
-    img.scale(scale).set({
-      left: (this.canvas.getWidth() - img.getScaledWidth()) / 2,
-      top: (this.canvas.getHeight() - img.getScaledHeight()) / 2,
-    });
 
-    this.canvas.add(img).renderAll();
-    this.image = img;
-  }
-
-rotate(): void {
-    if (this.image) {
-      this.image.rotate((this.image.angle || 0) + 90);
-      this.canvas?.centerObject(this.image);
-      this.canvas?.renderAll();
-    }
-  }
-
-  initiateCrop(): void {
-    // Ativar a funcionalidade de recorte aqui
-    // Isso pode incluir configurar o canvas para entrar em um "modo de recorte"
-    console.log("Iniciando o recorte.");
-  }
-
-  crop() {
-    // Lógica para recortar a imagem
-  }
-
-  saveAndClose(): void {
-    const dataUrl = this.canvas?.toDataURL({
-      format: 'png',
-      quality: 1
-    });
-
-    if (dataUrl) {
-      fetch(dataUrl)
-        .then(res => res.blob())
-        .then(blob => {
-          // Feche o diálogo e envie a foto editada de volta
-          this.dialogRef.close({ action: 'salvar', file: blob });
-        });
-    }
-  }
-
-  adjustBrightness(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const brightnessValue = parseFloat(input.value);
-
-    if (this.image) {
-      const filter = new fabric.Image.filters.Brightness({
-        brightness: brightnessValue
-      });
-      this.image.filters = [filter];
-      this.image.applyFilters();
-      if (this.canvas && this.image)
-      this.canvas.renderAll();
-    }
-  }
-
-  adjustContrast(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const contrastValue = parseFloat(input.value);
-
-    if (this.image) {
-      const filter = new fabric.Image.filters.Contrast({
-        contrast: contrastValue
-      });
-      this.image.filters = [filter];
-      this.image.applyFilters();
-      if (this.canvas && this.image)
-      this.canvas.renderAll();
-    }
+  private centerImage(img: fabric.Image): void {
+    if (!this.canvas) return;
+    const canvasWidth = this.canvas.getWidth();
+    const canvasHeight = this.canvas.getHeight();
+    console.log(`Dimensões do canvas: ${canvasWidth} x ${canvasHeight}`);
+    const imgWidth = (img.getScaledWidth());
+    const imgHeight = (img.getScaledHeight());
+    console.log(`Dimensões da imagem escalada: ${imgWidth} x ${imgHeight}`);
+    const left = (canvasWidth - imgWidth) / 2;
+    const top = (canvasHeight - imgHeight) / 2;
+    img.set({ left: left, top: top }).setCoords();
+    this.canvas.renderAll();
   }
 
   activateBlurBrush(): void {
-    if (!this.canvas || !this.image) return;
-    const cursorPath = '\assets\circle_cursor.png';
+    if (!this.canvas) {
+      console.error("Canvas não está definido.");
+      return;
+    }
 
-    this.canvas.defaultCursor = `url('${cursorPath}') 0 16, auto`; // Ajuste os valores 0 32 conforme necessário
-    this.canvas.hoverCursor = `url('${cursorPath}') 0 16, auto`;
-    this.canvas.moveCursor = `url('${cursorPath}') 0 16, auto`;
+    this.canvas.isDrawingMode = true;
+    const brush = new fabric.PencilBrush(this.canvas);
+    brush.color = "white"; // Cor padrão do pincel
+    brush.width = 15;
+    this.canvas.freeDrawingBrush = brush;
 
-    this.image.selectable = false;
-    this.image.evented = false;
-    this.canvas.forEachObject((obj) => {
-      obj.selectable = false; // Desativa a seleção de todos os objetos
-    });
-    this.canvas.selection = false; // Desativa a seleção de área
-    this.canvas.renderAll();
+    this.canvas.defaultCursor = 'url(assets/circle_cursor.png)';
+    this.canvas.freeDrawingCursor = 'url(assets/circle_cursor.png) 16 16, crosshair';
 
-    let isDrawing = false;
-    let lastPointer: { x: number; y: number } | null = null;
-
-
-
-    this.canvas.on('mouse:down', (event: fabric.IEvent) => {
-      isDrawing = true;
-      const pointer = this.canvas?.getPointer(event.e);
-      lastPointer = pointer ?? null;
-    });
-
-    this.canvas.on('mouse:move', (event: fabric.IEvent) => {
-      if (!isDrawing || !this.canvas) return;
-      const pointer = this.canvas.getPointer(event.e);
-
-      if (lastPointer) {
-        // Calcular distância entre o último ponto e o atual
-        const distance = Math.sqrt(Math.pow(pointer.x - lastPointer.x, 2) + Math.pow(pointer.y - lastPointer.y, 2));
-
-        // Criar um círculo (pincel de borrão) na posição atual do cursor
-        const brush = new fabric.Circle({
-          left: pointer.x,
-          top: pointer.y,
-          radius: 10,
-          fill: `rgba(255,255,255,${Math.min(1, distance / 10)})`, // Ajusta a opacidade com base na distância
-          selectable: false,
-          evented: false,
-        });
-
-        this.canvas.add(brush);
-      }
-
-      lastPointer = pointer;
-    });
-
-    this.canvas.on('mouse:up', () => {
-      isDrawing = false;
-      lastPointer = null;
+    this.canvas.selection = false;
+    if (this.image) {
+      this.image.selectable = false;
+      this.image.evented = false;
+    }
+  
+    // Atualiza o canvas após desenhar
+    this.canvas.on('path:created', () => {
+      this.canvas?.renderAll();
     });
   }
 
+  changeBrushColor(color: string): void {
+    if (this.canvas && this.canvas.isDrawingMode) {
+      const brush = this.canvas.freeDrawingBrush;
+      brush.color = color;
+    }
   }
+
+  concludeAndClose(): void {
+    if (!this.canvas || !this.image) {
+      console.error("Canvas ou imagem não estão definidos.");
+      return;
+    }
+    this.canvas.isDrawingMode = false;
+    this.centerImage(this.image);
+
+    // Exporta a imagem como URL de dados
+    console.log(`Dimensões antes da exportação: ${this.image.getScaledWidth()} x ${this.image.getScaledHeight()}`);
+    const imageURL = this.canvas.toDataURL({
+      format: 'png',
+      quality: 1, // A qualidade pode ser ajustada conforme necessário
+    });
+
+    // Fecha o dialog e passa a URL da imagem e quaisquer outros dados necessários
+    this.dialogRef.close({
+      imageURL: imageURL,
+      // Inclua quaisquer outros dados que deseja retornar
+    });
+  }
+}
+
+

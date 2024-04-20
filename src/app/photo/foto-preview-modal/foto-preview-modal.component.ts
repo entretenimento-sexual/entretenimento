@@ -26,18 +26,34 @@ export class FotoPreviewModalComponent {
 
   // Métodos para editar, excluir, salvar a foto
   editarFoto() {
+    let imageUrl = this.data.fotoUrl;
+    if (this.data.file instanceof Blob) {
+      imageUrl = URL.createObjectURL(this.data.file);
+    }
+
     const dialogRef = this.dialog.open(PhotoEditorComponent, {
       width: '70%',
       height: '70%',
-      data: { file: this.data.file }
+      data: { file: imageUrl }
     });
 
     dialogRef.afterClosed().subscribe(result => {
-      if (result && result.action === 'salvar') {
+      if (result && result.imageURL) {
         // Atualize a foto exibida com a foto editada
-        this.data.file = result.file;
-        this.data.fotoUrl = URL.createObjectURL(result.file);
-      }
+        this.data.fotoUrl = result.imageURL;
+        // Aqui você pode converter a URL da imagem de volta para um Blob, se necessário, para manter a consistência dos tipos de dados
+        fetch(result.imageURL)
+          .then(res => res.blob())
+          .then(blob => {
+            const tempUrl = URL.createObjectURL(blob);
+            const img = new Image();
+            img.onload = () => {
+              console.log(`Dimensões após conversão para blob: ${img.width} x ${img.height}`);
+              URL.revokeObjectURL(tempUrl);
+            };
+            img.src = tempUrl;
+          });
+        }
     });
   }
 

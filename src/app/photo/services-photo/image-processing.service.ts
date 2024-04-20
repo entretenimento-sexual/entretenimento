@@ -93,7 +93,6 @@ export class ImageProcessingService {
       reader.readAsDataURL(file);
     });
   }
-
   // Você pode adicionar mais métodos aqui conforme necessário
   // Por exemplo, métodos para ajustar brilho, contraste, etc.
 }
