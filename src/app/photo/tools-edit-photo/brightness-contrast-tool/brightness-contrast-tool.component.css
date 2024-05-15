@@ -1,0 +1,20 @@
+/* src\app\photo\tools-edit-photo\brightness-contrast-tool\brightness-contrast-tool.component.css */
+.brightness-contrast-tool {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
+.brightness-contrast-tool div {
+  display: flex;
+  align-items: center;
+}
+
+.brightness-contrast-tool label {
+  flex: 1;
+}
+
+.brightness-contrast-tool input[type="range"] {
+  flex: 3;
+}
