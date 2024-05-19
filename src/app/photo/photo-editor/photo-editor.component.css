@@ -5,17 +5,25 @@
   display: flex;
   justify-content: center;
   align-items: center;
+  overflow: hidden;
 }
 
 .editor-controls {
   padding-top: 2%;
   padding-bottom: 1%;
   display: flex;
-  flex-direction: row;
-  justify-content: center;  /* Centraliza os itens na direção principal (horizontal) */
-  align-items: center;  /* Centraliza os itens na direção cruzada (vertical) */
-  flex-wrap: wrap;  /* Permite que os itens passem para a próxima linha se não couberem */
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+}
+
+.tool-buttons,
+.action-buttons {
+  display: flex;
   gap: 10px;
+  justify-content: center;
+  align-items: center;
 }
 
 .editor-btn {
@@ -32,7 +40,12 @@
   background-color: #0056b3;
 }
 
-/* Para o canvas específico */
+.editor-btn.active {
+  background-color: #0056b3;
+}
+
 #canvasID {
+  max-width: 100%;
+  max-height: 100%;
   cursor: default !important;
 }

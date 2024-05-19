@@ -32,8 +32,10 @@ export class FotoPreviewModalComponent {
     }
 
     const dialogRef = this.dialog.open(PhotoEditorComponent, {
-      width: '70%',
-      height: '70%',
+      width: '70vw',
+      height: '75vh',
+      maxWidth: '80vw',
+      maxHeight: '80vh',
       data: { file: imageUrl }
     });
 

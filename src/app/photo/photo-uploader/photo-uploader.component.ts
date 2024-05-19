@@ -1,17 +1,16 @@
-//src\app\photo\photo-uploader\photo-uploader.component.ts
-import { CommonModule } from '@angular/common';
 import { Component } from '@angular/core';
+import { PhotoUploadService } from '../services-photo/photo-upload.service';
 
 @Component({
   selector: 'app-photo-uploader',
-  standalone: true,
-  imports: [CommonModule],
   templateUrl: './photo-uploader.component.html',
-  styleUrl: './photo-uploader.component.css'
+  styleUrls: ['./photo-uploader.component.css']
 })
 export class PhotoUploaderComponent {
   selectedFile: File | null = null;
   uploadStatus: string | null = null;
+
+  constructor(private photoUploadService: PhotoUploadService) { }
 
   onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -25,12 +24,17 @@ export class PhotoUploaderComponent {
 
   uploadPhoto() {
     if (this.selectedFile) {
-      // Aqui você implementaria a lógica de upload
-      // Por exemplo, enviando o arquivo para um servidor ou Firebase Storage
       this.uploadStatus = 'Enviando...';
-
-      // Após o upload:
-      // this.uploadStatus = 'Upload concluído com sucesso!';
+      this.photoUploadService.uploadPhoto(this.selectedFile).then(
+        (url) => {
+          this.uploadStatus = 'Upload concluído com sucesso!';
+          console.log(`Foto enviada: ${url}`);
+        },
+        (error) => {
+          this.uploadStatus = 'Erro ao enviar foto.';
+          console.error(error);
+        }
+      );
     } else {
       this.uploadStatus = 'Nenhum arquivo selecionado.';
     }

@@ -1,4 +1,4 @@
-//src\app\footer\footer.module.ts
+// src\app\footer\footer.module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ContactFooterComponent } from './contact-footer/contact-footer.component';
