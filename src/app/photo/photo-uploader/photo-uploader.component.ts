@@ -1,5 +1,7 @@
+// src\app\photo\photo-uploader\photo-uploader.component.ts
 import { Component } from '@angular/core';
 import { PhotoUploadService } from '../services-photo/photo-upload.service';
+import { PhotoErrorHandlerService } from '../services-photo/photo-error-handler.service';
 
 @Component({
   selector: 'app-photo-uploader',
@@ -10,7 +12,10 @@ export class PhotoUploaderComponent {
   selectedFile: File | null = null;
   uploadStatus: string | null = null;
 
-  constructor(private photoUploadService: PhotoUploadService) { }
+  constructor(
+    private photoUploadService: PhotoUploadService,
+    private errorHandler: PhotoErrorHandlerService
+  ) { }
 
   onFileSelected(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -32,6 +37,7 @@ export class PhotoUploaderComponent {
         },
         (error) => {
           this.uploadStatus = 'Erro ao enviar foto.';
+          this.errorHandler.handleError(error);
           console.error(error);
         }
       );

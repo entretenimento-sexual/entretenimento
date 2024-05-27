@@ -1,5 +1,4 @@
 //src\app\core\guards\vip.guard.ts
-// src\app\core\guards\vip.guard.ts
 import { Injectable } from '@angular/core';
 import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router } from '@angular/router';
 import { Observable } from 'rxjs';

@@ -1,5 +1,5 @@
 // app.module.ts
-import { NgModule, isDevMode } from '@angular/core';
+import { ErrorHandler, NgModule, isDevMode } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
@@ -22,6 +22,8 @@ import { provideAnimationsAsync } from '@angular/platform-browser/animations/asy
 import { StoreModule } from '@ngrx/store';
 import { EffectsModule } from '@ngrx/effects';
 import { StoreDevtoolsModule } from '@ngrx/store-devtools';
+import { GlobalErrorHandler } from './core/services/error-handler/global-error-handler.service';
+import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';
 
 @NgModule({
   declarations: [AppComponent],
@@ -43,7 +45,11 @@ import { StoreDevtoolsModule } from '@ngrx/store-devtools';
     StoreDevtoolsModule.instrument({ maxAge: 25, logOnly: !isDevMode() }),
   ],
   providers: [
-    AuthService, EmailVerificationService, provideAnimationsAsync()
+    AuthService,
+    EmailVerificationService,
+    { provide: ErrorHandler, useClass: GlobalErrorHandler },
+    ErrorNotificationService,
+    provideAnimationsAsync()
   ],
   bootstrap: [AppComponent]
 })

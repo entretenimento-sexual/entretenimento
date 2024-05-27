@@ -1,21 +1,44 @@
-//src\app\photo\services-photo\face-detection.service.ts
+// src\app\photo\services-photo\face-detection.service.ts
 import { Injectable } from '@angular/core';
 import * as blazeface from '@tensorflow-models/blazeface';
+import { PhotoErrorHandlerService } from './photo-error-handler.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class FaceDetectionService {
-  private model: any;
+  private model: blazeface.BlazeFaceModel | null = null;
 
-  async loadModel(): Promise<void> {
-    this.model = await blazeface.load();
+  constructor(private errorHandler: PhotoErrorHandlerService) {
+    this.loadModel().catch(error => this.errorHandler.handleError(error as Error));
   }
 
-  async detectFaces(canvas: HTMLCanvasElement): Promise<any[]> {
-    if (!this.model) {
-      await this.loadModel();
+  private async loadModel(): Promise<void> {
+    try {
+      if (!this.model) {
+        this.model = await blazeface.load();
+      }
+    } catch (error) {
+      this.errorHandler.handleError(error as Error);
+      throw new Error('Falha ao carregar o modelo de detecção de rostos');
     }
-    return this.model.estimateFaces(canvas, false);
+  }
+
+  public async detectFaces(canvas: HTMLCanvasElement): Promise<blazeface.NormalizedFace[]> {
+    try {
+      if (!this.model) {
+        await this.loadModel();
+      }
+
+      // Verificação para garantir que o modelo não é nulo
+      if (this.model) {
+        return this.model.estimateFaces(canvas, false);
+      } else {
+        throw new Error('O modelo de detecção de rostos não está disponível');
+      }
+    } catch (error) {
+      this.errorHandler.handleError(error as Error);
+      throw new Error('Falha ao detectar rostos');
+    }
   }
 }

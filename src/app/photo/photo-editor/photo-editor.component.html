@@ -1,8 +1,4 @@
-<!-- src\app\photo\photo-editor\photo-editor.component.html -->
-<div #photoContainer class="photo-container">
-  <canvas id="canvasID"></canvas>
-</div>
-<div class="editor-controls">
+<div class="editor-container">
   <div class="tool-buttons">
     <button mat-icon-button (click)="toggleBrush()" class="editor-btn" [class.active]="isBrushActive"
       matTooltip="Alternar Pincel">
@@ -16,6 +12,9 @@
     <app-brush-tool (brushColorChange)="changeBrushColor($event)"></app-brush-tool>
     <app-brightness-contrast-tool></app-brightness-contrast-tool>
     <app-crop-tool (cropStart)="startCrop()" (cropApply)="applyCrop()" (cropCancel)="cancelCrop()"></app-crop-tool>
+  </div>
+  <div #photoContainer class="photo-container">
+    <canvas id="canvasID"></canvas>
   </div>
   <div class="action-buttons">
     <button mat-stroked-button color="primary" (click)="undo()" class="editor-btn" matTooltip="Desfazer">

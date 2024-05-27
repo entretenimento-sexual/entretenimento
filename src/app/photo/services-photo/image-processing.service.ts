@@ -1,98 +1,105 @@
-//src\app\photo\services-photo\image-processing.service.ts
+// src\app\photo\services-photo\image-processing.service.ts
 import { Injectable } from '@angular/core';
 import { fabric } from 'fabric';
-
+import { PhotoErrorHandlerService } from './photo-error-handler.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ImageProcessingService {
 
-  constructor() { }
+  constructor(private errorHandler: PhotoErrorHandlerService) { }
 
-  /**
-   * Método público para redimensionar qualquer imagem para dimensões específicas.
-   *
-   * @param file Arquivo da imagem a ser redimensionada.
-   * @param width Largura desejada para a imagem.
-   * @param height Altura desejada para a imagem.
-   * @returns Uma Promise que resolve com a URL da imagem redimensionada.
-   */
   public redimensionarImagem(file: File, width: number, height: number): Promise<string> {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.src = URL.createObjectURL(file);
       img.onload = () => {
-        const aspectRatio = img.width / img.height;
-        let newWidth = width;
-        let newHeight = height;
+        try {
+          const aspectRatio = img.width / img.height;
+          let newWidth = width;
+          let newHeight = height;
 
-        // Ajusta as dimensões para manter a proporção da imagem original
-        if (aspectRatio > 1) {
-          // Imagem mais larga que alta
-          newHeight = newWidth / aspectRatio;
-        } else if (aspectRatio < 1) {
-          // Imagem mais alta que larga
-          newWidth = newHeight * aspectRatio;
-        }
-
-        // Cria um canvas para realizar o redimensionamento
-        const canvas = document.createElement('canvas');
-        canvas.width = newWidth;
-        canvas.height = newHeight;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          return reject(new Error('Não foi possível obter o contexto do canvas.'));
-        }
-
-        // Desenha a imagem no canvas com as novas dimensões
-        ctx.drawImage(img, 0, 0, newWidth, newHeight);
-
-        // Converte o canvas para blob e então para URL
-        canvas.toBlob(blob => {
-          if (blob) {
-            resolve(URL.createObjectURL(blob));
-          } else {
-            reject(new Error('Falha ao redimensionar imagem.'));
+          if (aspectRatio > 1) {
+            newHeight = Math.round(width / aspectRatio);
+          } else if (aspectRatio < 1) {
+            newWidth = Math.round(height * aspectRatio);
           }
-        }, file.type);
+
+          const canvas = document.createElement('canvas');
+          canvas.width = newWidth;
+          canvas.height = newHeight;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            throw new Error('Não foi possível obter o contexto do canvas.');
+          }
+
+          ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+          canvas.toBlob(blob => {
+            if (blob) {
+              resolve(URL.createObjectURL(blob));
+            } else {
+              throw new Error('Falha ao redimensionar imagem.');
+            }
+          }, file.type);
+        } catch (error) {
+          this.errorHandler.handleError(error as Error);
+          reject(error);
+        }
       };
 
-      img.onerror = () => reject(new Error('Erro ao carregar imagem.'));
+      img.onerror = (error) => {
+        const err = new Error('Erro ao carregar imagem.');
+        this.errorHandler.handleError(err);
+        reject(err);
+      };
     });
   }
 
-  ajustarBrilho(file: File, valorBrilho: number): Promise<string> {
+  public ajustarBrilho(file: File, valorBrilho: number): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (event: any) => {
         const imgElement = new Image();
         imgElement.src = event.target.result;
         imgElement.onload = () => {
-          const canvas = new fabric.Canvas(document.createElement('canvas'));
-          canvas.setHeight(imgElement.height);
-          canvas.setWidth(imgElement.width);
-          const fabricImage = new fabric.Image(imgElement);
-          canvas.add(fabricImage);
+          try {
+            const canvas = new fabric.Canvas(document.createElement('canvas'));
+            canvas.setHeight(imgElement.height);
+            canvas.setWidth(imgElement.width);
+            const fabricImage = new fabric.Image(imgElement);
+            canvas.add(fabricImage);
 
-          fabricImage.filters ??= [];
-          fabricImage.filters.push(new fabric.Image.filters.Brightness({
-            brightness: valorBrilho
-          }));
-          fabricImage.applyFilters();
-          canvas.renderAll();
+            fabricImage.filters ??= [];
+            fabricImage.filters.push(new fabric.Image.filters.Brightness({
+              brightness: valorBrilho
+            }));
+            fabricImage.applyFilters();
+            canvas.renderAll();
 
-          // Agora, pegando diretamente a string do Data URL
-          resolve(canvas.toDataURL({
-            format: 'png',
-            quality: 1
-          }));
+            resolve(canvas.toDataURL({
+              format: 'png',
+              quality: 1
+            }));
+          } catch (error) {
+            this.errorHandler.handleError(error as Error);
+            reject(error);
+          }
+        };
+
+        imgElement.onerror = (error) => {
+          const err = new Error('Erro ao carregar imagem.');
+          this.errorHandler.handleError(err);
+          reject(err);
         };
       };
-      reader.onerror = (error) => reject(new Error('Erro ao carregar imagem.'));
+      reader.onerror = (error) => {
+        const err = new Error('Erro ao carregar imagem.');
+        this.errorHandler.handleError(err);
+        reject(err);
+      };
       reader.readAsDataURL(file);
     });
   }
-  // Você pode adicionar mais métodos aqui conforme necessário
-  // Por exemplo, métodos para ajustar brilho, contraste, etc.
 }
