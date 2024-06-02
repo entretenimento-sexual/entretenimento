@@ -2,7 +2,7 @@
 import { Injectable } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-
+import * as Sentry from '@sentry/angular';
 
 @Injectable({
   providedIn: 'root'

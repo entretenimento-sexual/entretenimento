@@ -17,7 +17,7 @@ export class PhotoEditorComponent implements OnInit, AfterViewInit {
   private cropRect?: fabric.Rect;
   private blurGroup = new fabric.Group([], { selectable: false, evented: false });
   isBrushActive: boolean = false;
-  private blurIntensity: number = 10;
+  private blurIntensity: number = 1500; // Define um valor maior de desfoque
   activeTool: string = 'none';
 
   constructor(
@@ -57,21 +57,21 @@ export class PhotoEditorComponent implements OnInit, AfterViewInit {
         evented: false
       });
 
-      const containerWidth = this.canvas.getWidth();
-      const containerHeight = this.canvas.getHeight();
-      const scaleX = containerWidth / img.width!;
-      const scaleY = containerHeight / img.height!;
+      const scaleX = this.canvas!.getWidth() / img.width!;
+      const scaleY = this.canvas!.getHeight() / img.height!;
       const scale = Math.min(scaleX, scaleY);
 
       if (scale < 1) {
         this.image.set({ scaleX: scale, scaleY: scale });
+      } else {
+        this.image.set({ scaleX: 1, scaleY: 1 });
       }
 
-      this.canvas.setWidth(img.width! * img.scaleX!);
-      this.canvas.setHeight(img.height! * img.scaleY!);
-      this.canvas.add(img);
-      this.canvas.centerObject(img);
-      this.canvas.renderAll();
+      this.canvas!.setWidth(this.image.getScaledWidth());
+      this.canvas!.setHeight(this.image.getScaledHeight());
+      this.canvas!.add(this.image);
+      this.canvas!.centerObject(this.image);
+      this.canvas!.renderAll();
       this.saveState();
     }, { crossOrigin: 'anonymous' });
   }
@@ -95,7 +95,7 @@ export class PhotoEditorComponent implements OnInit, AfterViewInit {
     brush.width = 15;
     this.canvas.freeDrawingBrush = brush;
     this.canvas.isDrawingMode = true;
-    this.canvas.defaultCursor = 'url(assets/blur-cursor.png) 2 2, auto';
+    this.canvas.defaultCursor = 'url(assets/circle-cursor.png) 2 2, auto'; // Certifique-se de que o caminho está correto
     this.canvas.on('path:created', (event) => {
       const path = event.target as fabric.Path;
       if (path) {
@@ -139,7 +139,7 @@ export class PhotoEditorComponent implements OnInit, AfterViewInit {
 
   applyBlurSettings(settings: { active: boolean, intensity: number }) {
     if (settings.active) {
-      this.blurIntensity = settings.intensity;
+      this.blurIntensity = 1500; // Ajusta o desfoque para o valor máximo
       this.activateBlurBrush();
     }
   }
@@ -182,7 +182,7 @@ export class PhotoEditorComponent implements OnInit, AfterViewInit {
   startCrop(): void {
     if (!this.canvas || !this.image) return;
 
-    this.deactivateAllTools(); // Desativa todas as ferramentas antes de ativar o corte
+    this.deactivateAllTools();
     this.setActiveTool('crop');
     this.cropRect = new fabric.Rect({
       left: 50,

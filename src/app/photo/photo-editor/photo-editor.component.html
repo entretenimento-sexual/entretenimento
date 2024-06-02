@@ -1,3 +1,4 @@
+<!-- src\app\photo\photo-editor\photo-editor.component.html -->
 <div class="editor-container">
   <div class="tool-buttons">
     <button mat-icon-button (click)="toggleBrush()" class="editor-btn" [class.active]="isBrushActive"
@@ -8,7 +9,6 @@
       matTooltip="Pincel de Desfoque">
       <mat-icon>blur_on</mat-icon>
     </button>
-    <app-face-blur-tool (blurSettings)="applyBlurSettings($event)"></app-face-blur-tool>
     <app-brush-tool (brushColorChange)="changeBrushColor($event)"></app-brush-tool>
     <app-brightness-contrast-tool></app-brightness-contrast-tool>
     <app-crop-tool (cropStart)="startCrop()" (cropApply)="applyCrop()" (cropCancel)="cancelCrop()"></app-crop-tool>
@@ -28,3 +28,4 @@
     </button>
   </div>
 </div>
+

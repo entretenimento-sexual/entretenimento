@@ -2,9 +2,8 @@
 .editor-container {
   display: flex;
   flex-direction: row;
-  width: 100%;
+  gap: 10px;
   height: 100vh;
-  /* Ajusta a altura para ocupar a tela inteira */
 }
 
 .photo-container {
@@ -13,12 +12,44 @@
   justify-content: center;
   align-items: center;
   overflow: hidden;
-  position: relative;
+}
+
+.tool-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.editor-btn {
+  padding: 8px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.editor-btn:hover {
+  background-color: #0056b3;
+}
+
+.editor-btn.active {
+  background-color: #0056b3;
+}
+
+mat-icon {
+  color: white;
 }
 
 #canvasID {
   max-width: 100%;
   max-height: 100%;
-  width: 100%;
-  height: 100%;
 }
