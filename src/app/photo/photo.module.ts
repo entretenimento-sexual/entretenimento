@@ -15,6 +15,7 @@ import { PhotoEditorComponent } from './photo-editor/photo-editor.component';
 import { BrightnessContrastToolComponent } from './tools-edit-photo/brightness-contrast-tool/brightness-contrast-tool.component';
 import { FaceBlurToolComponent } from './tools-edit-photo/face-blur-tool/face-blur-tool.component';
 import { CropToolComponent } from './tools-edit-photo/crop-tool/crop-tool.component';
+import { ImageEditorComponent } from './image-editor/image-editor.component';
 
 @NgModule({
   declarations: [
@@ -23,7 +24,8 @@ import { CropToolComponent } from './tools-edit-photo/crop-tool/crop-tool.compon
     BrushToolComponent,
     BrightnessContrastToolComponent,
     FaceBlurToolComponent,
-    CropToolComponent
+    CropToolComponent,
+    ImageEditorComponent
   ],
   imports: [
     CommonModule,

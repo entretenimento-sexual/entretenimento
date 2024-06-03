@@ -1,0 +1,23 @@
+/* src\app\photo\image-editor\image-editor.component.css */
+#tui-image-editor-container {
+  border: 1px solid #ddd;
+  margin-bottom: 10px;
+}
+
+.filter-buttons {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 10px;
+}
+
+.filter-buttons button {
+  padding: 10px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+.filter-buttons button:hover {
+  background-color: #0056b3;
+}

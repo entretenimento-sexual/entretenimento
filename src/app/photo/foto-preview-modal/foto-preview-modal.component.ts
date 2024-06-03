@@ -4,6 +4,7 @@ import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dial
 import { TextoDialogComponent } from '../../shared/components-globais/texto-dialog/texto-dialog.component';
 import { ConfirmacaoDialogComponent } from '../../shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { PhotoEditorComponent } from '../photo-editor/photo-editor.component';
+import { ImageEditorComponent } from '../image-editor/image-editor.component';
 
 interface FotoModalData {
   fotoUrl: string | ArrayBuffer | null;
@@ -31,7 +32,7 @@ export class FotoPreviewModalComponent {
       imageUrl = URL.createObjectURL(this.data.file);
     }
 
-    const dialogRef = this.dialog.open(PhotoEditorComponent, {
+    const dialogRef = this.dialog.open(ImageEditorComponent, {
       width: '70vw',
       height: '75vh',
       maxWidth: '80vw',
