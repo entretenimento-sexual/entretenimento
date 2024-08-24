@@ -2,8 +2,9 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "baseUrl": "./",
-    "outDir": "./dist/out-tsc",
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "noImplicitOverride": true,
@@ -19,13 +20,15 @@
     "target": "ES2022",
     "module": "ES2022",
     "useDefineForClassFields": false,
-    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true,
     "lib": [
       "ES2022",
       "dom"
-    ]
+    ],
+     "types": ["node", "jasmine", "estree"]
   },
   "angularCompilerOptions": {
+    "disableTypeScriptVersionCheck": true,
     "enableI18nLegacyMessageIdFormat": false,
     "strictInjectionParameters": true,
     "strictInputAccessModifiers": true,

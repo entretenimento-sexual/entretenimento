@@ -1,5 +1,4 @@
 {
-  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
@@ -14,10 +13,7 @@
           "builder": "@angular-devkit/build-angular:browser",
           "options": {
             "allowedCommonJsDependencies": [
-              "geofire-common",
-              "fabric",
-              "tui-code-snippet",
-              "tui-image-editor"
+              "geofire-common"
             ],
             "outputPath": "dist/entretenimento",
             "index": "src/index.html",
@@ -28,19 +24,21 @@
             "tsConfig": "tsconfig.app.json",
             "assets": [
               "src/favicon.ico",
-              "src/assets"
+              "src/assets",
+              {
+                "glob": "**/*",
+                 "input": "node_modules/@fortawesome/fontawesome-free/webfonts",
+                 "output": "assets/webfonts"
+              }
             ],
             "styles": [
-              "src/styles.css",
-              "node_modules/bootstrap/dist/css/bootstrap.min.css",
-              "node_modules/@angular/material/prebuilt-themes/indigo-pink.css",
-              "node_modules/tui-image-editor/dist/tui-image-editor.css"
-            ],
-            "scripts": [
-              "node_modules/fabric/dist/fabric.js",
-              "node_modules/tui-code-snippet/dist/tui-code-snippet.js",
-              "node_modules/tui-image-editor/dist/tui-image-editor.js"
-            ]
+                "src/styles.css",
+                "node_modules/bootstrap/dist/css/bootstrap.min.css",
+                "node_modules/@angular/material/prebuilt-themes/indigo-pink.css",
+                "node_modules/@fortawesome/fontawesome-free/css/all.css"
+              ],
+
+            "scripts": []
           },
           "configurations": {
             "production": {
@@ -103,13 +101,11 @@
               "src/styles.css",
               "@angular/material/prebuilt-themes/indigo-pink.css",
               "./node_modules/bootstrap/dist/css/bootstrap.min.css",
-              "node_modules/tui-image-editor/dist/tui-image-editor.css"
+              "./node_modules/@fortawesome/fontawesome-free/css/all.css"
             ],
             "scripts": [
-              "./node_modules/bootstrap/dist/js/bootstrap.bundle.min.js",
-              "node_modules/fabric/dist/fabric.js",
-              "node_modules/tui-code-snippet/dist/tui-code-snippet.js",
-              "node_modules/tui-image-editor/dist/tui-image-editor.js"
+              "./node_modules/bootstrap/dist/js/bootstrap.bundle.min.js"
+
             ]
           }
         }

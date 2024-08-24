@@ -1,4 +1,8 @@
 <!-- src\app\dashboard\principal\principal.component.html -->
 <a routerLink="chat-rooms" class="chat-rooms-link">salas de bate-papo</a>
+<div class="photo-actions">
+  <button type="button" class="btn btn-primary" (click)="onUploadPhotoClick()">Enviar Foto</button>
+  <button type="button" class="btn btn-secondary" (click)="onTakePhotoClick()">Tirar Foto</button>
+</div>
 <app-online-users></app-online-users>
 

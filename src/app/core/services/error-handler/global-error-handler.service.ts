@@ -1,4 +1,4 @@
-// src\app\core\services\error-handler\global-error-handler.service.ts
+//src\app\core\services\error-handler\global-error-handler.service.ts
 import { ErrorHandler, Injectable, Injector } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ErrorNotificationService } from './error-notification.service';

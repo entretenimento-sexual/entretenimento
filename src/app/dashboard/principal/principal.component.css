@@ -2,10 +2,27 @@
 .chat-rooms-link {
   display: block;
   width: 100vw;
-  background-color: #f0f0f0;  /* Exemplo de cor de fundo */
+  background-color: #f0f0f0;
+  /* Exemplo de cor de fundo */
   text-align: center;
-  padding: 5px 0;   /* Ajuste conforme necessário para aumentar a altura */
-  color: #000;   /* Cor do texto */
-  text-decoration: none;   /* Remove o sublinhado do link */
-  margin-bottom: 20px;   /* Espaço antes dos usuários online */
+  padding: 5px 0;
+  /* Ajuste conforme necessário para aumentar a altura */
+  color: #000;
+  /* Cor do texto */
+  text-decoration: none;
+  /* Remove o sublinhado do link */
+  margin-bottom: 20px;
+  /* Espaço antes dos usuários online */
+}
+
+.photo-actions {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.btn {
+  padding: 10px 20px;
+  font-size: 16px;
 }

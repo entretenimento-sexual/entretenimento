@@ -1,35 +1,29 @@
 /* src\styles.css */
-
 :root {
   --primary-color: #ff6565;
   --secondary-color: #333;
   --font-family-primary: 'Roboto', sans-serif;
   --font-family-secondary: 'Open Sans', sans-serif;
 }
-
 /* Reset CSS */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
-
 html, body {
   height: 100%;
   font-family: var(--font-family-primary);
 }
-
 body {
   margin: 0;
   font-family: Roboto, "Helvetica Neue", sans-serif;
 }
-
 .router-outlet-container {
   height: 60vh;
   width: 100vw;
   aspect-ratio: 16/9;
 }
-
 ul {
   list-style-type: none;
 }

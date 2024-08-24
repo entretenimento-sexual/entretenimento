@@ -1,7 +1,7 @@
-//src\app\dashboard\online-users\online-users.component.ts
+// src\app\dashboard\online-users\online-users.component.ts
 import { Component, OnInit } from '@angular/core';
-import { Observable, map, of } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UsuarioStateService } from 'src/app/core/services/autentication/usuario-state.service';
@@ -11,13 +11,11 @@ import { UsuarioStateService } from 'src/app/core/services/autentication/usuario
   templateUrl: './online-users.component.html',
   styleUrls: ['./online-users.component.css']
 })
-
 export class OnlineUsersComponent implements OnInit {
   onlineUsersByRegion$: Observable<IUserDados[]> = of([]);
 
   constructor(private usuarioStateService: UsuarioStateService,
-    private authService: AuthService,
-   ) {}
+    private authService: AuthService) { }
 
   ngOnInit(): void {
     console.log('Componente OnlineUsers: ngOnInit chamado');
@@ -43,5 +41,4 @@ export class OnlineUsersComponent implements OnInit {
       })
     );
   }
-
 }

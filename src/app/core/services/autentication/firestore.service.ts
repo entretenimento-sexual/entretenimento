@@ -1,20 +1,19 @@
 // src\app\core\services\firestore.service.ts
 import { Injectable } from '@angular/core';
 import { initializeApp } from 'firebase/app';
-import { getFirestore,collection,query,where,getDocs,doc,setDoc,Timestamp, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, doc, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { IUserPreferences } from '../../interfaces/iuser-preferences';
 import { ValidPreferences } from '../../enums/valid-preferences.enum';
 import { IUserRegistrationData } from 'src/app/post-verification/iuser-registration-data';
 
-
-const app = initializeApp(environment.firebaseConfig);
+// Inicializando o app do Firebase com o novo método modular
+const app = initializeApp(environment.firebase);
 
 @Injectable({
   providedIn: 'root'
 })
-
 export class FirestoreService {
   public db = getFirestore(app);
 
@@ -38,26 +37,20 @@ export class FirestoreService {
 
   async saveUserDataAfterEmailVerification(user: IUserDados): Promise<void> {
     try {
-      // 1. Verifica se o UID do usuário está definido.
       if (!user.uid) {
         throw new Error("UID do usuário não definido!");
       }
-
-      // 2. Verifica se a instância do banco de dados (db) está disponível.
       if (!this.db) {
         throw new Error("Database (db) não definido!");
       }
-
-      // 3. Cria o objeto userData com os dados que serão salvos.
       const userData = {
-        ...user, // Primeiro, incluímos todas as propriedades do usuário.
-        role: user.role || 'basico', // Definimos um valor padrão para o role, se necessário.
-        createdAt: Timestamp.fromDate(new Date()) // Data de criação.
+        ...user,
+        role: user.role || 'basico',
+        createdAt: Timestamp.fromDate(new Date())
       };
 
       console.log("Dados do usuário recebidos:", userData);
 
-      // 4. Atualiza ou salva o documento no Firestore.
       const userRef = doc(this.db, "users", user.uid);
       await setDoc(userRef, userData, { merge: true });
 
@@ -88,7 +81,7 @@ export class FirestoreService {
     }
   }
 
-async getSuggestedProfilesMatchingPreferences(preferences: any): Promise<IUserDados[]> {
+  async getSuggestedProfilesMatchingPreferences(preferences: any): Promise<IUserDados[]> {
     console.log("Entrando em getSuggestedProfilesMatchingPreferences com preferências:", preferences);
 
     let allMatches: IUserDados[] = [];
@@ -149,8 +142,7 @@ async getSuggestedProfilesMatchingPreferences(preferences: any): Promise<IUserDa
 
     querySnapshot.forEach((doc) => {
       const data = doc.data();
-      // Aqui você precisa ajustar de acordo com a estrutura dos seus documentos
-      // Por exemplo, se cada documento na coleção 'preferences' tem um campo 'value'
+      // Ajuste conforme a estrutura dos seus documentos
       preferences[doc.id] = data['value'];
     });
 
@@ -159,7 +151,6 @@ async getSuggestedProfilesMatchingPreferences(preferences: any): Promise<IUserDa
 
   async getProfilesNearLocation(latitude: number, longitude: number, geohash: string): Promise<IUserDados[]> {
     try {
-      // Realize a consulta no Firestore para buscar os perfis próximos usando as coordenadas.
       const userCollection = collection(this.db, 'users');
       const q = query(userCollection, /* adicione as condições de consulta aqui */);
 
@@ -171,9 +162,3 @@ async getSuggestedProfilesMatchingPreferences(preferences: any): Promise<IUserDa
     }
   }
 }
-
-
-
-
-
-

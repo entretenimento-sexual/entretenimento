@@ -23,11 +23,6 @@ const routes: Routes = [
   },
   { path: 'layout', loadChildren: () => import('./layout/layout.module').then(m => m.LayoutModule) },
   { path: 'chat', loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModuleModule) },
-  {
-    path: 'photos',
-    loadChildren: () => import('./photo/photo.module').then(m => m.PhotoModule),
-    canActivate: [AuthGuard]
-  },
   { path: 'profile-list', component: ProfileListComponent },
   { path: 'register-component', component: RegisterComponent },
   { path: 'login', component: LoginComponent },

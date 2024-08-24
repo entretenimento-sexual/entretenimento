@@ -8,7 +8,7 @@ import { Observable, BehaviorSubject } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados'; // Importe a interface aqui
 
 // Inicialização do Firebase
-const app = initializeApp(environment.firebaseConfig);
+const app = initializeApp(environment.firebase);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
