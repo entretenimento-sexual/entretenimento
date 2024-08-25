@@ -1,21 +1,16 @@
 // src/app/photo-editor/photo-editor.module.ts
-import { NgModule, CUSTOM_ELEMENTS_SCHEMA } from '@angular/core';
+import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { PhotoEditorComponent } from './photo-editor/photo-editor.component';
-import { SharedModule } from '../shared/shared.module';
-
+import { AngularPinturaModule } from '@pqina/angular-pintura';
 
 @NgModule({
-  declarations: [
-    PhotoEditorComponent
-  ],
+  declarations: [],
   imports: [
     CommonModule,
     FormsModule,
-    SharedModule, // Adicione esta linha
+    AngularPinturaModule
   ],
-  exports: [PhotoEditorComponent],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA]
+  exports: []
 })
 export class PhotoEditorModule { }

@@ -3,16 +3,11 @@
   display: block;
   width: 100vw;
   background-color: #f0f0f0;
-  /* Exemplo de cor de fundo */
   text-align: center;
-  padding: 5px 0;
-  /* Ajuste conforme necessário para aumentar a altura */
-  color: #000;
-  /* Cor do texto */
-  text-decoration: none;
-  /* Remove o sublinhado do link */
-  margin-bottom: 20px;
-  /* Espaço antes dos usuários online */
+  padding: 5px 0;  /* Ajuste conforme necessário para aumentar a altura */
+  color: #000;  /* Cor do texto */
+  text-decoration: none;  /* Remove o sublinhado do link */
+  margin-bottom: 20px;  /* Espaço antes dos usuários online */
 }
 
 .photo-actions {

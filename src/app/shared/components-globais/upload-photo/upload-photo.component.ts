@@ -1,6 +1,5 @@
-import { Component } from '@angular/core';
-import { NgbModal, NgbModalRef } from '@ng-bootstrap/ng-bootstrap';
-import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
+// src/app/shared/components-globais/upload-photo/upload-photo.component.ts
+import { Component, EventEmitter, Output } from '@angular/core';
 
 @Component({
   selector: 'app-upload-photo',
@@ -8,8 +7,19 @@ import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-ed
   styleUrls: ['./upload-photo.component.css']
 })
 export class UploadPhotoComponent {
+  @Output() photoSelected = new EventEmitter<File>();
+  selectedImageFile!: File;
 
+  onFileSelected(event: any): void {
+    const file = event.target.files[0];
+    if (file) {
+      this.selectedImageFile = file;
+    }
+  }
 
-  constructor() { }
-
+  onFileSelect(): void {
+    if (this.selectedImageFile) {
+      this.photoSelected.emit(this.selectedImageFile);
+    }
+  }
 }

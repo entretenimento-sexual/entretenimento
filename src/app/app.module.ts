@@ -25,6 +25,8 @@ import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 import { AuthService } from './core/services/autentication/auth.service';
 import { EmailVerificationService } from './core/services/autentication/email-verification.service';
 
+import { AngularPinturaModule } from '@pqina/angular-pintura';
+
 
 
 @NgModule({
@@ -47,7 +49,8 @@ import { EmailVerificationService } from './core/services/autentication/email-ve
     PhotoEditorModule,
     AngularFireModule.initializeApp(environment.firebase), // Inicializa o Firebase com as configurações do seu ambiente
     AngularFireStorageModule, // Importa o módulo de armazenamento do Firebase
-    
+    AngularPinturaModule
+
   ],
   providers: [
     AuthService,

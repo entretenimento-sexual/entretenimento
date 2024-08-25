@@ -1,1 +1,7 @@
-<!-- src\app\photo-editor\photo-editor\photo-editor.component.html -->
+<!-- src/app/photo-editor/photo-editor/photo-editor.component.html -->
+<pintura-editor [src]="src" [options]="options" [imageCropAspectRatio]="1" (process)="handleProcess($event)">
+</pintura-editor>
+
+<p *ngIf="result">
+  <img [src]="result" alt="Pré-visualização da Imagem Processada" />
+</p>
