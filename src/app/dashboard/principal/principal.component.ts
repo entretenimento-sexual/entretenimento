@@ -18,8 +18,8 @@ export class PrincipalComponent {
     const modalRef = this.modalService.open(UploadPhotoComponent, { size: 'lg' });
 
     modalRef.componentInstance.photoSelected.subscribe((file: File) => {
-      this.selectedImageFile = file;
-      this.openPhotoEditorWithFile(this.selectedImageFile);
+        this.selectedImageFile = file;
+        this.openPhotoEditorWithFile(this.selectedImageFile);
     });
   }
 

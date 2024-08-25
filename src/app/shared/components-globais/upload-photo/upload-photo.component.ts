@@ -13,7 +13,7 @@ export class UploadPhotoComponent {
   onFileSelected(event: any): void {
     const file = event.target.files[0];
     if (file) {
-      this.selectedImageFile = file;
+      this.photoSelected.emit(file);
     }
   }
 

@@ -48,7 +48,7 @@ export class PhotoEditorComponent implements OnInit {
         enableTransparencyGrid: true,
       };
     } catch (error) {
-      console.error('Erro ao inicializar o PhotoEditorComponent:', error);
+      console.error('Erro ao inicializar o PhotoEditorComponent:', error); //linha 51
     }
   }
 
