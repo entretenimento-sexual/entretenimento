@@ -18,12 +18,14 @@ export class PrincipalComponent {
     const modalRef = this.modalService.open(UploadPhotoComponent, { size: 'lg' });
 
     modalRef.componentInstance.photoSelected.subscribe((file: File) => {
-        this.selectedImageFile = file;
-        this.openPhotoEditorWithFile(this.selectedImageFile);
+      console.log('Arquivo selecionado:', file);
+      this.selectedImageFile = file;
+      this.openPhotoEditorWithFile(this.selectedImageFile);
     });
   }
 
   openPhotoEditorWithFile(file: File): void {
+    console.log('Abrindo editor com o arquivo:', file);
     const editorModalRef = this.modalService.open(PhotoEditorComponent, { size: 'lg' });
     editorModalRef.componentInstance.imageFile = file;
   }
