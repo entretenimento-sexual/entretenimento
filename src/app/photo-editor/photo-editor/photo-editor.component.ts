@@ -10,7 +10,7 @@ import { PinturaEditorOptions, getEditorDefaults, createDefaultImageReader, crea
 })
 export class PhotoEditorComponent implements OnInit {
   @Input() imageFile!: File;
-  src!: string; // Alterado para string
+  src!: string;
   options!: PinturaEditorOptions;
   result?: SafeUrl;
 
@@ -34,7 +34,6 @@ export class PhotoEditorComponent implements OnInit {
           labelButtonExport: 'Salvar',
           labelButtonClose: 'Fechar',
         },
-        imageCropAspectRatio: 1,
         enableToolbar: true,
         enableButtonExport: true,
         enableButtonRevert: true,
@@ -43,12 +42,15 @@ export class PhotoEditorComponent implements OnInit {
         enablePan: true,
         enableZoom: true,
         zoomLevel: 1,
-        status: undefined,
         previewUpscale: true,
         enableTransparencyGrid: true,
+        imageCropAspectRatio: undefined,  // Permite corte livre
+        imageCrop: undefined,  // Desativa o corte inicial para visualizar toda a imagem
+        imageCropLimitToImage: false,  // Permite cortar fora da imagem
+        imageBackgroundColor: [255, 255, 255, 0],  // Fundo transparente
       };
     } catch (error) {
-      console.error('Erro ao inicializar o PhotoEditorComponent:', error); //linha 51
+      console.error('Erro ao inicializar o PhotoEditorComponent:', error);
     }
   }
 
@@ -56,7 +58,6 @@ export class PhotoEditorComponent implements OnInit {
     try {
       const objectURL = URL.createObjectURL(event.dest);
       this.result = this.sanitizer.bypassSecurityTrustResourceUrl(objectURL) as SafeUrl;
-      // Lembre-se de gerenciar a revogação da URL conforme necessário
     } catch (error) {
       console.error('Erro ao processar a imagem:', error);
     }

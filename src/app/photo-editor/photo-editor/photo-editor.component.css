@@ -1,6 +1,6 @@
 /* src\app\photo-editor\photo-editor\photo-editor.component.css */
 ::ng-deep .pintura-editor {
-  height: 600px;
+  height: 90vh;
   max-width: 100%;
   margin: auto;
 }
