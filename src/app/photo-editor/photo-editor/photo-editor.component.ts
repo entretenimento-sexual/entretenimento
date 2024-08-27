@@ -1,7 +1,9 @@
 // src/app/photo-editor/photo-editor/photo-editor.component.ts
 import { Component, Input, OnInit } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
+import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap'; // Se você estiver usando modais do Bootstrap
 import { PinturaEditorOptions, getEditorDefaults, createDefaultImageReader, createDefaultImageWriter } from '@pqina/pintura';
+import { StorageService } from 'src/app/core/services/image-handling/storage.service'; // Certifique-se de importar o StorageService
 
 @Component({
   selector: 'app-photo-editor',
@@ -14,7 +16,11 @@ export class PhotoEditorComponent implements OnInit {
   options!: PinturaEditorOptions;
   result?: SafeUrl;
 
-  constructor(private sanitizer: DomSanitizer) { }
+  constructor(
+              private sanitizer: DomSanitizer,
+              private storageService: StorageService,
+              public activeModal: NgbActiveModal  
+              ) { }
 
   ngOnInit(): void {
     try {
@@ -58,8 +64,28 @@ export class PhotoEditorComponent implements OnInit {
     try {
       const objectURL = URL.createObjectURL(event.dest);
       this.result = this.sanitizer.bypassSecurityTrustResourceUrl(objectURL) as SafeUrl;
+
+      // Agora, chame o método para enviar a imagem processada para o storage
+      this.uploadProcessedFile(event.dest);
     } catch (error) {
       console.error('Erro ao processar a imagem:', error);
+    }
+  }
+
+  async uploadProcessedFile(processedFile: Blob): Promise<void> {
+    try {
+      // Gere um nome de arquivo único, por exemplo, com base no UID do usuário ou timestamp
+      const uid = 'user_uid_aqui';  // Substitua isso pelo UID real do usuário
+      const fileName = `${Date.now()}_${this.imageFile.name}`;
+      const path = `user_profiles/${uid}/${fileName}`;
+
+      const downloadUrl = await this.storageService.uploadFile(new File([processedFile], fileName, { type: this.imageFile.type }), path);
+      console.log('Imagem enviada com sucesso:', downloadUrl);
+
+      // Agora, você pode fechar o modal ou notificar o usuário de que o upload foi concluído
+      this.activeModal.close('uploadSuccess'); // Se estiver usando modais do Bootstrap
+    } catch (error) {
+      console.error('Erro ao fazer upload da imagem editada:', error);
     }
   }
 }

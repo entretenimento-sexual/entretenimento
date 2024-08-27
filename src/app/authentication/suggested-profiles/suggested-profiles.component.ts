@@ -2,7 +2,7 @@
 import { Component, OnInit } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { SuggestionService } from 'src/app/core/services/suggestion.service';
+import { SuggestionService } from 'src/app/core/services/data-handling/suggestion.service';
 
 @Component({
   selector: 'app-suggested-profiles',

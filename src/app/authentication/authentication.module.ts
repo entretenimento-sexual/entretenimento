@@ -13,7 +13,7 @@ import { AuthenticationRoutingModule } from './authentication-routing.module';
 import { FirestoreService } from '../core/services/autentication/firestore.service';
 import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
 import { MatCardModule } from '@angular/material/card';
-import { SuggestionService } from '../core/services/suggestion.service';
+import { SuggestionService } from '../core/services/data-handling/suggestion.service';
 import { AuthService } from '../core/services/autentication/auth.service';
 
 

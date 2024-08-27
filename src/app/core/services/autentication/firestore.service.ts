@@ -1,14 +1,13 @@
-// src\app\core\services\firestore.service.ts
+// src\app\core\services\autentication\firestore.service.ts
 import { Injectable } from '@angular/core';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs, doc, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { IUserPreferences } from '../../interfaces/iuser-preferences';
-import { ValidPreferences } from '../../enums/valid-preferences.enum';
 import { IUserRegistrationData } from 'src/app/post-verification/iuser-registration-data';
+import { StorageService } from '../image-handling/storage.service';  // Importando o StorageService
+import { ValidPreferences } from '../../enums/valid-preferences.enum';
 
-// Inicializando o app do Firebase com o novo método modular
 const app = initializeApp(environment.firebase);
 
 @Injectable({
@@ -16,6 +15,8 @@ const app = initializeApp(environment.firebase);
 })
 export class FirestoreService {
   public db = getFirestore(app);
+
+  constructor(private storageService: StorageService) { }  // Injetando o StorageService
 
   async checkIfNicknameExists(nickname: string): Promise<boolean> {
     try {
@@ -129,24 +130,11 @@ export class FirestoreService {
     }
   }
 
-  async getUserPreferences(uid: string): Promise<IUserPreferences> {
-    const preferencesCollectionRef = collection(this.db, `users/${uid}/preferences`);
-    const querySnapshot = await getDocs(preferencesCollectionRef);
-
-    const preferences: IUserPreferences = {
-      genero: [],
-      praticaSexual: [],
-      preferenciaFisica: [],
-      relacionamento: []
-    };
-
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      // Ajuste conforme a estrutura dos seus documentos
-      preferences[doc.id] = data['value'];
-    });
-
-    return preferences;
+  async saveUserProfileImage(file: File, uid: string): Promise<string> {
+    const path = `user_profiles/${uid}/${file.name}`;
+    const downloadUrl = await this.storageService.uploadFile(file, path);
+    // Agora você pode salvar o downloadUrl no Firestore, associando-o ao usuário, se necessário.
+    return downloadUrl;
   }
 
   async getProfilesNearLocation(latitude: number, longitude: number, geohash: string): Promise<IUserDados[]> {

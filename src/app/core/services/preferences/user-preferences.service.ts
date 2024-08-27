@@ -1,4 +1,4 @@
-//src\app\core\services\preferences\user-preferences.service.ts
+// src\app\core\services\preferences\user-preferences.service.ts
 import { Injectable } from '@angular/core';
 import { collection, doc, getDocs, query, setDoc, where } from '@firebase/firestore';
 import { IUserPreferences } from '../../interfaces/iuser-preferences';
@@ -22,6 +22,25 @@ export class UserPreferencesService {
     }
   }
 
+  async getUserPreferences(uid: string): Promise<IUserPreferences> {
+    const preferencesCollectionRef = collection(this.firestoreService.db, `users/${uid}/preferences`);
+    const querySnapshot = await getDocs(preferencesCollectionRef);
+
+    const preferences: IUserPreferences = {
+      genero: [],
+      praticaSexual: [],
+      preferenciaFisica: [],
+      relacionamento: []
+    };
+
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      preferences[doc.id] = data['value'];
+    });
+
+    return preferences;
+  }
+
   async getUserPreferencesByToken(token: string): Promise<any | null> {
     console.log("Entrando em getUserPreferencesByToken com o token:", token);
 
@@ -41,8 +60,6 @@ export class UserPreferencesService {
   }
 
   buscarPreferenciasDoUsuario(uid: string): Observable<any | null> {
-    return from(this.firestoreService.getUserPreferences(uid));
+    return from(this.getUserPreferences(uid));
   }
 }
-
-

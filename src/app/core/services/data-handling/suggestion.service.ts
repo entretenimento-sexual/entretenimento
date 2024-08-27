@@ -1,7 +1,8 @@
 // src\app\core\services\suggestion.service.ts
 import { Injectable } from '@angular/core';
-import { IUserDados } from '../interfaces/iuser-dados';
-import { FirestoreService } from './autentication/firestore.service';
+import { IUserDados } from '../../interfaces/iuser-dados';
+import { FirestoreService } from '../autentication/firestore.service';
+
 
 @Injectable({
   providedIn: 'root'
