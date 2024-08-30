@@ -1,9 +1,11 @@
 // src/app/photo-editor/photo-editor/photo-editor.component.ts
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnInit, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
-import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap'; // Se você estiver usando modais do Bootstrap
-import { PinturaEditorOptions, getEditorDefaults, createDefaultImageReader, createDefaultImageWriter } from '@pqina/pintura';
-import { StorageService } from 'src/app/core/services/image-handling/storage.service'; // Certifique-se de importar o StorageService
+import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
+import { PinturaEditorOptions, getEditorDefaults, createDefaultImageReader, createDefaultImageWriter, PinturaImageState } from '@pqina/pintura';
+import { StorageService } from 'src/app/core/services/image-handling/storage.service';
+import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
+import locale_pt_br from '@pqina/pintura/locale/pt_PT';
 
 @Component({
   selector: 'app-photo-editor',
@@ -12,15 +14,19 @@ import { StorageService } from 'src/app/core/services/image-handling/storage.ser
 })
 export class PhotoEditorComponent implements OnInit {
   @Input() imageFile!: File;
+  @Input() storedImageState?: string;
+  @ViewChild('editor') editor: any;
+
   src!: string;
   options!: PinturaEditorOptions;
   result?: SafeUrl;
 
   constructor(
-              private sanitizer: DomSanitizer,
-              private storageService: StorageService,
-              public activeModal: NgbActiveModal  
-              ) { }
+    private sanitizer: DomSanitizer,
+    private storageService: StorageService,
+    private firestoreService: FirestoreService,
+    public activeModal: NgbActiveModal
+  ) { }
 
   ngOnInit(): void {
     try {
@@ -28,18 +34,13 @@ export class PhotoEditorComponent implements OnInit {
         throw new Error('imageFile não é um objeto File válido.');
       }
 
-      // Crie uma URL de objeto para o arquivo de imagem
       this.src = URL.createObjectURL(this.imageFile);
 
       this.options = {
         ...getEditorDefaults(),
-        imageReader: createDefaultImageReader(),
-        imageWriter: createDefaultImageWriter(),
-        locale: {
-          ...getEditorDefaults().locale,
-          labelButtonExport: 'Salvar',
-          labelButtonClose: 'Fechar',
-        },
+        imageReader: createDefaultImageReader({ orientImage: true }), // Corrige a orientação da imagem
+        imageWriter: createDefaultImageWriter({ quality: 0.8 }), // Configura a qualidade da imagem
+        locale: locale_pt_br,
         enableToolbar: true,
         enableButtonExport: true,
         enableButtonRevert: true,
@@ -50,23 +51,28 @@ export class PhotoEditorComponent implements OnInit {
         zoomLevel: 1,
         previewUpscale: true,
         enableTransparencyGrid: true,
-        imageCropAspectRatio: undefined,  // Permite corte livre
-        imageCrop: undefined,  // Desativa o corte inicial para visualizar toda a imagem
-        imageCropLimitToImage: false,  // Permite cortar fora da imagem
-        imageBackgroundColor: [255, 255, 255, 0],  // Fundo transparente
+        imageCropAspectRatio: undefined,
+        imageCrop: undefined,
+        imageBackgroundColor: [255, 255, 255, 0],
+        imageState: this.storedImageState ? JSON.parse(this.storedImageState) : undefined,  // Carrega o estado anterior, se disponível
       };
     } catch (error) {
       console.error('Erro ao inicializar o PhotoEditorComponent:', error);
     }
   }
 
-  handleProcess(event: any): void {
+  async handleProcess(event: any): Promise<void> {
     try {
       const objectURL = URL.createObjectURL(event.dest);
       this.result = this.sanitizer.bypassSecurityTrustResourceUrl(objectURL) as SafeUrl;
 
-      // Agora, chame o método para enviar a imagem processada para o storage
-      this.uploadProcessedFile(event.dest);
+      // Salvar o estado da imagem
+      const imageStateStr = this.stringifyImageState(event.imageState);
+      this.saveImageState(imageStateStr);
+
+      // Fazer o upload do arquivo processado
+      await this.uploadProcessedFile(event.dest);
+
     } catch (error) {
       console.error('Erro ao processar a imagem:', error);
     }
@@ -74,7 +80,6 @@ export class PhotoEditorComponent implements OnInit {
 
   async uploadProcessedFile(processedFile: Blob): Promise<void> {
     try {
-      // Gere um nome de arquivo único, por exemplo, com base no UID do usuário ou timestamp
       const uid = 'user_uid_aqui';  // Substitua isso pelo UID real do usuário
       const fileName = `${Date.now()}_${this.imageFile.name}`;
       const path = `user_profiles/${uid}/${fileName}`;
@@ -82,10 +87,21 @@ export class PhotoEditorComponent implements OnInit {
       const downloadUrl = await this.storageService.uploadFile(new File([processedFile], fileName, { type: this.imageFile.type }), path);
       console.log('Imagem enviada com sucesso:', downloadUrl);
 
-      // Agora, você pode fechar o modal ou notificar o usuário de que o upload foi concluído
-      this.activeModal.close('uploadSuccess'); // Se estiver usando modais do Bootstrap
+      this.activeModal.close('uploadSuccess');
     } catch (error) {
       console.error('Erro ao fazer upload da imagem editada:', error);
     }
+  }
+
+  saveImageState(imageStateStr: string): void {
+    this.firestoreService.saveImageState('user_uid_aqui', imageStateStr);
+  }
+
+  stringifyImageState(imageState: PinturaImageState): string {
+    return JSON.stringify(imageState, (k, v) => (v === undefined ? null : v));
+  }
+
+  parseImageState(str: string): PinturaImageState {
+    return JSON.parse(str);
   }
 }

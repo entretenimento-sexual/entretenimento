@@ -37,6 +37,7 @@
     "@tensorflow/tfjs": "^4.20.0",
     "axios": "^1.7.3",
     "bootstrap": "^5.3.3",
+    "browser-image-compression": "^2.0.2",
     "date-fns": "^3.6.0",
     "firebase": "^10.12.5",
     "firebase-admin": "^12.3.0",

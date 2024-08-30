@@ -149,4 +149,10 @@ export class FirestoreService {
       throw error;
     }
   }
+
+  async saveImageState(uid: string, imageStateStr: string): Promise<void> {
+    // Cria uma referência para a subcoleção "imageStates" dentro do documento do usuário
+    const imageStateRef = doc(this.db, `users/${uid}/imageStates/${Date.now()}`);
+    await setDoc(imageStateRef, { imageState: imageStateStr });
+  }
 }
