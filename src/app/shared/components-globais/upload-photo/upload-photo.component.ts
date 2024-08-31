@@ -11,67 +11,66 @@ import imageCompression from 'browser-image-compression';
 export class UploadPhotoComponent {
   @Output() photoSelected = new EventEmitter<File>();
   selectedImageFile!: File;
+  isLoading = false; // Flag para indicar o processamento
+  errorMessage: string = ''; // Mensagem de erro para feedback ao usuário
 
   // Lista de tipos de arquivos permitidos
   allowedFileTypes: string[] = [
-    'image/jpeg',  // JPEG
-    'image/png',   // PNG
-    'image/gif',   // GIF
-    'image/webp',  // WebP
-    'image/bmp',   // BMP (Bitmap)
-    'image/tiff',  // TIFF (Tagged Image File Format)
-    'image/svg+xml',  // SVG (Scalable Vector Graphics)
-    'image/x-icon',   // ICO (Icon files)
-    'image/heic',  // HEIC (High Efficiency Image Format, usado por iPhones)
-    'image/heif',  // HEIF (High Efficiency Image Format)
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/bmp',
+    'image/tiff',
+    'image/svg+xml',
+    'image/x-icon',
+    'image/heic',
+    'image/heif',
   ];
 
   constructor(public activeModal: NgbActiveModal) { }
 
-  onFileSelected(event: any): void {
+  async onFileSelected(event: any): Promise<void> {
     const file: File = event.target.files[0];
 
     if (!this.allowedFileTypes.includes(file.type)) {
-      alert('Tipo de arquivo não suportado. Por favor, selecione uma imagem.');
+      this.errorMessage = 'Tipo de arquivo não suportado. Por favor, selecione uma imagem.';
       return;
     }
 
-    const maxSizeInMB = 5; // Tamanho máximo permitido em MB
+    const maxSizeInMB = 5;
+    const minSizeInKB = 100; // Tamanho mínimo desejado
 
-    const options = {
-      maxSizeMB: maxSizeInMB,
-      maxWidthOrHeight: 1920, // Defina o valor que desejar para redimensionamento
-      useWebWorker: true,
-    };
+    if (file.size / 1024 < minSizeInKB) {
+      this.errorMessage = `A imagem é muito pequena. O tamanho mínimo é de ${minSizeInKB} KB.`;
+      return;
+    }
 
-    imageCompression(file, options)
-      .then((compressedBlob) => {
+    this.isLoading = true; // Ativa o spinner de carregamento
+    this.errorMessage = ''; // Limpa qualquer mensagem de erro anterior
+
+    try {
+      let selectedFile = file;
+
+      if (file.size / 1024 / 1024 > maxSizeInMB) {
+        const options = {
+          maxSizeMB: maxSizeInMB,
+          maxWidthOrHeight: 1920,
+          useWebWorker: true,
+        };
+        const compressedBlob = await imageCompression(file, options);
         console.log(`Imagem foi reduzida para: ${compressedBlob.size / 1024 / 1024} MB`);
+        selectedFile = new File([compressedBlob], file.name, { type: file.type, lastModified: Date.now() });
+      }
 
-        // Converte o Blob comprimido de volta para File
-        const compressedFile = new File([compressedBlob], file.name, {
-          type: file.type,
-          lastModified: Date.now(),
-        });
-
-        // Atualiza a imagem selecionada
-        this.selectedImageFile = compressedFile;
-
-        // Emite o arquivo comprimido para o componente pai
-        this.photoSelected.emit(this.selectedImageFile);
-
-        // Fecha o modal após a seleção e compressão da imagem
-        this.activeModal.close();
-      })
-      .catch((error) => {
-        console.error('Erro ao comprimir a imagem:', error);
-      });
-  }
-
-  uploadFile(file: File): void {
-    // Sua lógica de upload aqui
-    // exibe a mensagem de sucesso
-    console.log('Foto salva com sucesso!');
+      this.photoSelected.emit(selectedFile);
+      this.activeModal.close();
+    } catch (error) {
+      console.error('Erro ao processar a imagem:', error);
+      this.errorMessage = 'Ocorreu um erro ao processar a imagem. Tente novamente.';
+    } finally {
+      this.isLoading = false; // Desativa o spinner
+    }
   }
 
   onFileSelect(): void {

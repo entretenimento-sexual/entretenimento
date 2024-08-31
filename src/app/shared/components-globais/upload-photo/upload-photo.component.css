@@ -4,40 +4,58 @@
   flex-direction: column;
   align-items: center;
   padding: 5%;
-  background-color: #f9f9f9;  /* Cor de fundo suave */
+  background-color: #f9f9f9;
   border-radius: 10px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
- }
+}
 
 .file-input {
   width: 100%;
-  padding: 5%;
-  margin-bottom: 5%;
+  padding: 10px;
+  margin-bottom: 20px;
   border-radius: 10px;
-  border: 3px solid #b6b6b6;
+  border: 2px solid #b6b6b6;
   font-size: 16px;
 }
 
-.btn-primary {
-  padding: 10px 20px;
-  font-size: 16px;
-  background-color: #007bff;
-  border: none;
-  border-radius: 4px;
-  color: #fff;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
+#selectFotoComponent {
+  padding-top: 20px;
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 20px;
+  color: #575757;
+  text-align: center;
 }
 
-.btn-primary:hover {
-  background-color: #0056b3;
+.loading-spinner {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.8);
+  padding: 20px;
+  border-radius: 10px;
 }
 
-#selectFotoComponent{
-    padding-top: 5%;
-    font-size: 18px;
-    font-weight: bold;
-    margin-bottom: 5%px;
-    color: #575757;
-    text-align: center;
+.spinner {
+  border: 8px solid #f3f3f3;
+  border-top: 8px solid #3498db;
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }

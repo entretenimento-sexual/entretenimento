@@ -20,6 +20,8 @@ export class PhotoEditorComponent implements OnInit {
   src!: string;
   options!: PinturaEditorOptions;
   result?: SafeUrl;
+  isLoading = false; // Flag para indicar o processamento
+  errorMessage: string = ''; // Mensagem de erro para feedback ao usuário
 
   constructor(
     private sanitizer: DomSanitizer,
@@ -39,7 +41,10 @@ export class PhotoEditorComponent implements OnInit {
       this.options = {
         ...getEditorDefaults(),
         imageReader: createDefaultImageReader({ orientImage: true }), // Corrige a orientação da imagem
-        imageWriter: createDefaultImageWriter({ quality: 0.8 }), // Configura a qualidade da imagem
+        imageWriter: createDefaultImageWriter({
+          copyImageHead: false, // Remove os metadados da imagem exportada
+          quality: 0.8
+        }), // Configura a qualidade da imagem
         locale: locale_pt_br,
         enableToolbar: true,
         enableButtonExport: true,
@@ -63,6 +68,9 @@ export class PhotoEditorComponent implements OnInit {
 
   async handleProcess(event: any): Promise<void> {
     try {
+      this.isLoading = true;
+      this.errorMessage = '';
+
       const objectURL = URL.createObjectURL(event.dest);
       this.result = this.sanitizer.bypassSecurityTrustResourceUrl(objectURL) as SafeUrl;
 
@@ -75,6 +83,9 @@ export class PhotoEditorComponent implements OnInit {
 
     } catch (error) {
       console.error('Erro ao processar a imagem:', error);
+      this.errorMessage = 'Ocorreu um erro ao processar a imagem. Tente novamente.';
+    } finally {
+      this.isLoading = false;
     }
   }
 
@@ -90,6 +101,7 @@ export class PhotoEditorComponent implements OnInit {
       this.activeModal.close('uploadSuccess');
     } catch (error) {
       console.error('Erro ao fazer upload da imagem editada:', error);
+      this.errorMessage = 'Erro ao enviar a imagem para o servidor. Tente novamente.';
     }
   }
 

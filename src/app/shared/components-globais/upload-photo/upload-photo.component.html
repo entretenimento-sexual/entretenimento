@@ -1,5 +1,16 @@
 <!-- src/app/shared/components-globais/upload-photo/upload-photo.component.html -->
- <p id="selectFotoComponent">SELECIONE UMA FOTO</p>
+<p id="selectFotoComponent">SELECIONE UMA FOTO</p>
 <div class="upload-modal-content">
   <input type="file" (change)="onFileSelected($event)" class="file-input">
+</div>
+
+<!-- Spinner de carregamento -->
+<div *ngIf="isLoading" class="loading-spinner">
+  <div class="spinner"></div>
+  <p>Carregando...</p>
+</div>
+
+<!-- Mensagem de erro -->
+<div *ngIf="errorMessage" class="alert alert-danger mt-2" role="alert">
+  {{ errorMessage }}
 </div>
