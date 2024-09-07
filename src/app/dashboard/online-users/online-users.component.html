@@ -1,7 +1,8 @@
+<!-- src\app\dashboard\online-users\online-users.component.html -->
 <div class="container mt-3">
   <h2 class="online-users-title mb-4">Perfis Online na Sua Região</h2>
 
-  <div *ngIf="(onlineUsersByRegion$ | async) as onlineUsers; else noProfilesFound">
+  <div *ngIf="onlineUsers$ | async as onlineUsers; else noProfilesFound">
     <div *ngIf="onlineUsers.length > 0; else noProfilesFound">
       <div class="row row-cols-1 row-cols-md-3 g-4">
         <div class="col" *ngFor="let user of onlineUsers">
@@ -11,7 +12,6 @@
               <h5 class="card-title">{{ user.nickname }}</h5>
               <p class="card-text">{{ user.gender | titlecase }}</p>
               <p class="card-text">{{ user.municipio }}, {{ user.estado }}</p>
-              <!-- Botão para abrir modal ou detalhes do perfil -->
               <button type="button" class="btn btn-primary">Ver Perfil</button>
             </div>
           </div>
@@ -21,6 +21,6 @@
   </div>
 
   <ng-template #noProfilesFound>
-    <p>Nenhum perfil online foi encontrado na sua região.</p>
+    <p>Nenhum perfil online foi encontrado.</p>
   </ng-template>
 </div>
