@@ -1,1 +1,14 @@
 /* src\app\app.component.css */
+/* Fixar a navbar no topo da página */
+app-navbar {
+  position: fixed;
+  top: 0;
+  width: 100%;
+  z-index: 100;  /* Define a camada para garantir que a navbar esteja acima de outros elementos */
+  background-color: #fff;  /* Opcional: Definir uma cor de fundo para a navbar */
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);  /* Adiciona sombra para destacar */
+}
+.router-outlet-container {
+  margin-top: 60px;
+  /* Ajuste conforme a altura da navbar */
+}

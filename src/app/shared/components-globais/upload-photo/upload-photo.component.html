@@ -1,6 +1,7 @@
 <!-- src/app/shared/components-globais/upload-photo/upload-photo.component.html -->
-<p id="selectFotoComponent">SELECIONE UMA FOTO</p>
 <div class="upload-modal-content">
+  <button class="btn-close" (click)="closeModal('cancel')">&times;</button>
+  <p id="selectFotoComponent">SELECIONE UMA FOTO</p>
   <input type="file" (change)="onFileSelected($event)" class="file-input">
 </div>
 

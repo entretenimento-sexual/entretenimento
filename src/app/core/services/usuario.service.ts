@@ -100,7 +100,20 @@ export class UsuarioService {
   }
 
   getAllOnlineUsers(): Observable<IUserDados[]> {
-    return this.firestoreService.getAllOnlineUsers(); // Usa o FirestoreService para obter os usuários online
+    const usersCollection = collection(this.firestoreService.db, 'users');
+    const onlineUsersQuery = query(usersCollection, where('isOnline', '==', true));
+
+    return new Observable<IUserDados[]>(observer => {
+      const unsubscribe = onSnapshot(onlineUsersQuery, (snapshot) => {
+        const users = snapshot.docs.map(doc => doc.data() as IUserDados);
+        observer.next(users);
+      }, (error) => {
+        observer.error(error);
+      });
+
+      // Certifique-se de parar de escutar quando o observable for descartado
+      return () => unsubscribe();
+    });
   }
 }
 
