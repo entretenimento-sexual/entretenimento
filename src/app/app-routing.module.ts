@@ -18,6 +18,11 @@ const routes: Routes = [
   },
   { path: 'dashboard', loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule) },
   {
+    path: 'profile/:id',
+    loadComponent: () => import('./layout/other-user-profile-view/other-user-profile-view.component').then(c => c.OtherUserProfileViewComponent),
+    canActivate: [AuthGuard]
+  },
+  {
     path: 'perfil',
     loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule),
     canActivate: [AuthGuard]

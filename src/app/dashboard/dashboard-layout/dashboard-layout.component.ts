@@ -1,0 +1,9 @@
+//src\app\dashboard\dashboard-layout\dashboard-layout.component.ts
+import { Component } from '@angular/core';
+
+@Component({
+  selector: 'app-dashboard-layout',
+  templateUrl: './dashboard-layout.component.html',
+  styleUrls: ['./dashboard-layout.component.css']
+})
+export class DashboardLayoutComponent { }

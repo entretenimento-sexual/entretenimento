@@ -16,6 +16,8 @@ import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dia
 import { UploadPhotoComponent } from './components-globais/upload-photo/upload-photo.component';
 import { PhotoEditorComponent } from '../photo-editor/photo-editor/photo-editor.component';
 import { AngularPinturaModule } from '@pqina/angular-pintura';
+import { UserCardComponent } from './user-card/user-card.component';
+import { RouterModule } from '@angular/router';
 
 @NgModule({
   declarations: [
@@ -25,7 +27,8 @@ import { AngularPinturaModule } from '@pqina/angular-pintura';
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
     UploadPhotoComponent,
-    PhotoEditorComponent
+    PhotoEditorComponent,
+    UserCardComponent
   ],
   imports: [
     CommonModule,
@@ -34,7 +37,8 @@ import { AngularPinturaModule } from '@pqina/angular-pintura';
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
-    AngularPinturaModule
+    AngularPinturaModule,
+    RouterModule
   ],
   exports: [
     DateFormatPipe,
@@ -43,7 +47,8 @@ import { AngularPinturaModule } from '@pqina/angular-pintura';
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
     UploadPhotoComponent,
-    PhotoEditorComponent
+    PhotoEditorComponent,
+    UserCardComponent
   ]
 })
 export class SharedModule { }

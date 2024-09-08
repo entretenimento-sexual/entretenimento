@@ -6,15 +6,7 @@
     <div *ngIf="onlineUsers.length > 0; else noProfilesFound">
       <div class="row row-cols-1 row-cols-md-3 g-4">
         <div class="col" *ngFor="let user of onlineUsers">
-          <div class="card h-100">
-            <img [src]="user.photoURL || 'assets/default-profile.jpg'" class="profile-photo" alt="{{ user.nickname }}">
-            <div class="card-body">
-              <h5 class="card-title">{{ user.nickname }}</h5>
-              <p class="card-text">{{ user.gender | titlecase }}</p>
-              <p class="card-text">{{ user.municipio }}, {{ user.estado }}</p>
-              <button type="button" class="btn btn-primary">Ver Perfil</button>
-            </div>
-          </div>
+          <app-user-card [user]="user"></app-user-card> <!-- Usando o componente padronizado -->
         </div>
       </div>
     </div>

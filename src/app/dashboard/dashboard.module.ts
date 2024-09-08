@@ -7,10 +7,13 @@ import { OnlineUsersComponent } from './online-users/online-users.component';
 import { FeaturedProfilesComponent } from './featured-profiles/featured-profiles.component';
 import { PrincipalComponent } from './principal/principal.component';
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
+import { SharedModule } from '../shared/shared.module';
+import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
 
 @NgModule({
   declarations: [
     OnlineUsersComponent,
+    DashboardLayoutComponent,
     FeaturedProfilesComponent,
     PrincipalComponent,
   ],
@@ -18,7 +21,8 @@ import { NgbModule } from '@ng-bootstrap/ng-bootstrap';
     CommonModule,
     DashboardRoutingModule,
     RouterModule,
-    NgbModule
+    NgbModule,
+    SharedModule
   ]
 })
 export class DashboardModule { }
