@@ -1,29 +1,37 @@
 /* src\app\shared\user-card\user-card.component.css */
 /* Estilo geral do card */
 .user-card {
-  border-radius: 15px;
+  border-radius: 10px;
+  /* Reduzindo as bordas arredondadas */
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
-  max-width: 260px;
-  margin: 0 auto;
-  padding: 20px;
+  max-width: 220px;
+  /* Aumentando ligeiramente o tamanho do card */
+  margin: 5px auto;
+  /* Reduzindo a margem entre os cards */
+  padding: 5px;
+  /* Reduzindo o padding interno */
   background-color: #fff;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  /* Menor sombra */
 }
 
 .user-card:hover {
   transform: scale(1.05);
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+  /* Sombra mais sutil ao passar o mouse */
 }
 
 /* Imagem de perfil */
 .profile-photo {
-  width: 100px;
-  height: 100px;
+  width: 100%;
+  /* A imagem ocupa toda a largura disponível */
+  height: 180px;
+  /* Definindo uma altura fixa */
   object-fit: cover;
-  border-radius: 50%;
-  border: 3px solid #fff;
-  margin-bottom: 15px;
+  /* A imagem cobre o espaço disponível sem distorcer */
+  border-radius: 0;
+  /* Remover bordas arredondadas da imagem */
   display: block;
   margin-left: auto;
   margin-right: auto;
@@ -32,37 +40,36 @@
 /* Texto no card */
 .card-title {
   font-weight: 600;
-  font-size: 1.4rem;
+  font-size: 1rem;
+  /* Ajustando o tamanho do texto */
+  margin-bottom: 5px;
   text-align: center;
-  margin-bottom: 10px;
-  letter-spacing: 0.5px;
 }
 
 .card-text {
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   color: #6c757d;
   text-align: center;
-  letter-spacing: 0.4px;
   margin-bottom: 5px;
 }
 
 /* Responsividade */
 @media (max-width: 576px) {
   .user-card {
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     max-width: 90%;
   }
 
   .profile-photo {
-    width: 80px;
-    height: 80px;
+    height: 150px;
+    /* Ajuste da altura da imagem em dispositivos menores */
   }
 
   .card-title {
-    font-size: 1.2rem;
+    font-size: 0.9rem;
   }
 
   .card-text {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
   }
 }

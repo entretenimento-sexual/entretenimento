@@ -1,11 +1,11 @@
 <!-- src\app\dashboard\online-users\online-users.component.html -->
 <div class="container mt-3">
-  <h2 class="online-users-title mb-4">Perfis Online na Sua Região</h2>
+  <h2 class="online-users-title">Perfis Online</h2>
 
   <div *ngIf="onlineUsers$ | async as onlineUsers; else noProfilesFound">
     <div *ngIf="onlineUsers.length > 0; else noProfilesFound">
-      <div class="row row-cols-1 row-cols-md-3 g-4">
-        <div class="col" *ngFor="let user of onlineUsers">
+      <div class="profiles-row">
+        <div class="profile-card" *ngFor="let user of onlineUsers">
           <app-user-card [user]="user"></app-user-card> <!-- Usando o componente padronizado -->
         </div>
       </div>

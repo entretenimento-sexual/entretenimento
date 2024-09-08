@@ -1,0 +1,13 @@
+<!-- src\app\header\links-interaction\links-interaction.component.html -->
+<div class="links-container">
+  <a [routerLink]="['/chat', userId]" class="chat-rooms-link">
+    <i class="fas fa-comments"></i> Salas de Bate-Papo
+  </a>
+
+  <!-- Separador entre os links -->
+  <span class="separator">|</span>
+
+  <a routerLink="upload-photo" (click)="onUploadPhotoClick()" class="chat-rooms-link">
+    <i class="fas fa-upload"></i> Enviar Foto
+  </a>
+</div>
