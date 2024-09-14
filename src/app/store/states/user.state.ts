@@ -10,7 +10,7 @@ export interface UserState {
    * Esse array pode conter todos os usuários carregados do Firestore.
    */
   users: IUserDados[];
-
+  onlineUsers: IUserDados[];  // Lista de usuários online separada
   /**
    * Lista filtrada de usuários.
    * Pode ser usada para armazenar usuários que atendem a determinados critérios,
@@ -40,6 +40,11 @@ export const initialUserState: UserState = {
    * Inicialmente, a lista de usuários está vazia.
    */
   users: [],
+
+  /**
+  * Inicialmente, a lista de usuários online também está vazia.
+  */
+  onlineUsers: [],
 
   /**
    * Inicialmente, a lista de usuários filtrados também está vazia.

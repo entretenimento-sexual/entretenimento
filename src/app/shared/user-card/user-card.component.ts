@@ -8,5 +8,11 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
   styleUrls: ['./user-card.component.css']
 })
 export class UserCardComponent {
-  @Input() user: IUserDados | undefined;
+  @Input() user!: IUserDados | null;
+  @Input() distanciaKm: number | null = null;
+
+  ngOnChanges() {
+    console.log('User:', this.user);
+    console.log('Distância recebida:', this.distanciaKm);
+  }
 }

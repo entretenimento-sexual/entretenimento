@@ -1,37 +1,27 @@
 /* src\app\shared\user-card\user-card.component.css */
 /* Estilo geral do card */
 .user-card {
-  border-radius: 10px;
-  /* Reduzindo as bordas arredondadas */
+  border-radius: 10px;  /* Reduzindo as bordas arredondadas */
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
-  max-width: 220px;
-  /* Aumentando ligeiramente o tamanho do card */
-  margin: 5px auto;
-  /* Reduzindo a margem entre os cards */
-  padding: 5px;
-  /* Reduzindo o padding interno */
+  max-width: 220px;  /* Aumentando ligeiramente o tamanho do card */
+  margin: 5px auto;  /* Reduzindo a margem entre os cards */
+  padding: 5px;  /* Reduzindo o padding interno */
   background-color: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  /* Menor sombra */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);  /* Menor sombra */
 }
 
 .user-card:hover {
   transform: scale(1.05);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
-  /* Sombra mais sutil ao passar o mouse */
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);  /* Sombra mais sutil ao passar o mouse */
 }
 
 /* Imagem de perfil */
 .profile-photo {
-  width: 100%;
-  /* A imagem ocupa toda a largura disponível */
-  height: 180px;
-  /* Definindo uma altura fixa */
-  object-fit: cover;
-  /* A imagem cobre o espaço disponível sem distorcer */
-  border-radius: 0;
-  /* Remover bordas arredondadas da imagem */
+  width: 100%;  /* A imagem ocupa toda a largura disponível */
+  height: 180px;  /* Definindo uma altura fixa */
+  object-fit: cover;  /* A imagem cobre o espaço disponível sem distorcer */
+  border-radius: 0;  /* Remover bordas arredondadas da imagem */
   display: block;
   margin-left: auto;
   margin-right: auto;
@@ -40,8 +30,7 @@
 /* Texto no card */
 .card-title {
   font-weight: 600;
-  font-size: 1rem;
-  /* Ajustando o tamanho do texto */
+  font-size: 1rem;  /* Ajustando o tamanho do texto */
   margin-bottom: 5px;
   text-align: center;
 }
@@ -61,8 +50,7 @@
   }
 
   .profile-photo {
-    height: 150px;
-    /* Ajuste da altura da imagem em dispositivos menores */
+    height: 150px;    /* Ajuste da altura da imagem em dispositivos menores */
   }
 
   .card-title {

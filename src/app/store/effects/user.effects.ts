@@ -14,7 +14,7 @@ import {
   loadOnlineUsersFailure,
   setFilteredOnlineUsers
 } from '../actions/user.actions';
-import { catchError, map, mergeMap, withLatestFrom } from 'rxjs/operators';
+import { catchError, map, mergeMap, throttleTime, withLatestFrom } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 
@@ -39,13 +39,15 @@ export class UserEffects {
 
 
   // Efeito para atualizar o status online de um usuário específico
+  // Exemplo: usar throttle para evitar sobrecarga
   updateUserOnlineStatus$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(updateUserOnlineStatus), // Ação que dispara a atualização do status online de um usuário
+      ofType(updateUserOnlineStatus),
+      throttleTime(1000),  // Garante que a ação não seja disparada mais de uma vez por segundo
       mergeMap(({ uid, isOnline }) =>
-        this.usuarioService.updateUserOnlineStatus(uid, isOnline).pipe( // Atualiza o status online do usuário no serviço
-          map(() => updateUserOnlineStatusSuccess({ uid, isOnline })), // Em caso de sucesso, dispara a ação de sucesso
-          catchError(error => of(updateUserOnlineStatusFailure({ error }))) // Em caso de erro, dispara a ação de falha
+        this.usuarioService.updateUserOnlineStatus(uid, isOnline).pipe(
+          map(() => updateUserOnlineStatusSuccess({ uid, isOnline })),
+          catchError(error => of(updateUserOnlineStatusFailure({ error })))
         )
       )
     )

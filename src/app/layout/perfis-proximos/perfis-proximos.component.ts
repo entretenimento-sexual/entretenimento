@@ -1,16 +1,16 @@
 // src\app\layout\perfis-proximos\perfis-proximos.component.ts
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, Input, OnInit, ViewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import { distanceBetween, geohashForLocation } from 'geofire-common';
 import { GeoCoordinates } from 'src/app/core/interfaces/geolocation.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
 import { GeolocationService } from 'src/app/core/services/geolocation/geolocation.service';
 import { NearbyProfilesService } from 'src/app/core/services/geolocation/near-profile.service';
 import { MatDialog } from '@angular/material/dialog';
 import { ModalMensagemComponent } from 'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component';
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
+import { take } from 'rxjs/operators';
 
 @Component({
   selector: 'app-perfis-proximos',
@@ -24,9 +24,11 @@ export class PerfisProximosComponent implements OnInit {
   userLocation: GeoCoordinates | null = null;
   profiles: IUserDados[] = [];
 
+  @Input() user!: IUserDados | null;
+  @Input() distanciaKm!: number | null;
+
   constructor(
     private geolocationService: GeolocationService,
-    private firestoreService: FirestoreService,
     private authService: AuthService,
     private nearbyProfilesService: NearbyProfilesService,
     private router: Router,
@@ -36,36 +38,24 @@ export class PerfisProximosComponent implements OnInit {
   ) { }
 
   async ngOnInit(): Promise<void> {
-
     try {
-      // Etapa 1: Obter a localização do usuário.
+      const user = await this.authService.user$.pipe(take(1)).toPromise();
+
+      if (!user || !user.uid) {
+        console.error('UID do usuário não está disponível.');
+        return;
+      }
+
       this.userLocation = await this.geolocationService.getCurrentLocation();
-      console.log('User Location:', this.userLocation);
 
-      // Verifique se as coordenadas são válidas antes de prosseguir.
       if (this.isValidCoordinates(this.userLocation?.latitude, this.userLocation?.longitude)) {
-        console.log('Localização do usuário obtida com sucesso:', this.userLocation);
-        console.log('Latitude:', this.userLocation?.latitude);
-        console.log('Longitude:', this.userLocation?.longitude);
-
-        // Etapa 2: Carregar perfis próximos.
-        const user = this.authService.currentUser; // Obtenha o usuário atual
-        if (user && user.uid) {
-          console.log('usuario possui um id:', user.uid)
-          const geohash = geohashForLocation([this.userLocation.latitude, this.userLocation.longitude]);
-          await this.loadProfilesNearUserLocation(user.uid);
-          // Etapa 3 (opcional): Salvar a localização atualizada no Firestore.
-          await this.userProfileService.updateUserLocation(user.uid, this.userLocation, geohash);
-        } else {
-          console.error('UID do usuário não está disponível.');
-          // Lide com as coordenadas inválidas aqui, por exemplo, exibindo uma mensagem para o usuário.
-        }
+        const geohash = geohashForLocation([this.userLocation.latitude, this.userLocation.longitude]);
+        await this.loadProfilesNearUserLocation(user.uid);
+        await this.userProfileService.updateUserLocation(user.uid, this.userLocation, geohash);
       } else {
         console.error('Coordenadas de localização inválidas.');
-        // Lide com as coordenadas inválidas aqui, por exemplo, exibindo uma mensagem para o usuário.
       }
     } catch (error) {
-      // Pedir IA para gerar uma mensagem de erro ao usuário
       console.error('Erro ao obter localização do usuário:', error);
     }
   }
@@ -92,24 +82,15 @@ export class PerfisProximosComponent implements OnInit {
       }
 
       const { latitude, longitude } = this.userLocation;
-      const maxDistanceKm = 20; // Defina a distância máxima desejada em quilômetros.
+      const maxDistanceKm = 20;
 
-      // Chame o serviço para obter perfis próximos com base nas coordenadas.
       this.profiles = await this.nearbyProfilesService.getProfilesNearLocation(
         latitude,
         longitude,
         maxDistanceKm,
+        uid  // Passando o UID do usuário logado para o filtro
       );
-      // Calcule a distância para cada perfil
-  this.profiles.forEach(profile => {
-    if (profile.latitude && profile.longitude) {
-      const distance = distanceBetween([profile.latitude, profile.longitude], [latitude, longitude]);
-      console.log(this.profiles)
-      profile.distanciaKm = distance / 1000; // Converta para quilômetros
-
-    }
-  });
-
+      console.log('Perfis carregados com distância:', this.profiles);
     } catch (error) {
       console.error('Erro ao carregar perfis próximos:', error);
     }

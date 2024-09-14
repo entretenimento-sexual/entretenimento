@@ -1,1 +1,95 @@
 /* src\app\layout\perfis-proximos\perfis-proximos.component.css */
+
+/* Container para os perfis */
+.profiles-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 15px;  /* Espaço entre os cards */
+  padding: 10px;
+}
+
+.profile-card {
+  flex: 1 1 220px;  /* Faz o card se ajustar ao tamanho disponível */
+  margin: 10px;
+  max-width: 220px;  /* Limita a largura dos cards */
+}
+
+.profiles-title {
+  margin-bottom: auto;
+}
+
+.profiles-row {
+  display: flex;
+  flex-wrap: wrap;
+  /* Quebra os cards automaticamente quando necessário */
+  gap: 15px;
+  /* Espaçamento entre os cards, igual ao dos usuários online */
+  justify-content: flex-start;
+  /* Alinhamento à esquerda */
+}
+
+.profile-card {
+  flex: 0 1 200px;
+  /* Largura fixa de 200px como nos usuários online */
+  width: 100%;
+}
+
+.container {
+  margin-bottom: 3%;  /* Espaçamento entre o container e o conteúdo abaixo */
+}
+
+/* Card de perfil próximo */
+.user-card {
+  border-radius: 10px;
+  max-width: 220px;
+  margin: 10px;
+  padding: 0;
+  background-color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.user-card:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+.user-card img {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+}
+
+.user-card h5 {
+  font-weight: 600;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.user-card p {
+  font-size: 0.8rem;
+  color: #6c757d;
+  text-align: center;
+  margin-bottom: 5px;
+}
+
+/* Responsividade */
+@media (max-width: 576px) {
+  .user-card {
+    margin-bottom: 10px;
+    max-width: 90%;
+  }
+
+  .user-card img {
+    height: 150px;
+  }
+
+  .user-card h5 {
+    font-size: 0.9rem;
+  }
+
+  .user-card p {
+    font-size: 0.7rem;
+  }
+}

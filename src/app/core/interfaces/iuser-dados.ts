@@ -5,6 +5,7 @@ export interface IUserDados {
   uid: string; // ID do usuário
   latitude?: number; // Adicione latitude e longitude aqui
   longitude?: number;
+  distanciaKm?: number;
   email: string | null; // Email do usuário
   displayName: string | null | undefined;
   photoURL: string | null | undefined;
@@ -27,8 +28,7 @@ export interface IUserDados {
   facebook?: string; // Perfil do Facebook
   instagram?: string; // Perfil do Instagram
   buupe: string;
-  distanciaKm?: number;
-
+ 
   //relativo ao estado geral de usuário
   isOnline?: boolean;
   isSubscriber: boolean;

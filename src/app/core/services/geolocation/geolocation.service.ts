@@ -28,7 +28,19 @@ export class GeolocationService {
             });
           },
           (error) => {
-            reject(error);
+            switch (error.code) {
+              case error.PERMISSION_DENIED:
+                reject(new Error('Permissão de localização negada.'));
+                break;
+              case error.POSITION_UNAVAILABLE:
+                reject(new Error('Posição não disponível.'));
+                break;
+              case error.TIMEOUT:
+                reject(new Error('O tempo de solicitação de localização expirou.'));
+                break;
+              default:
+                reject(new Error('Erro desconhecido ao tentar obter localização.'));
+            }
           }
         );
       } else {

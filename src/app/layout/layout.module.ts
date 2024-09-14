@@ -17,6 +17,7 @@ import { SharedModule } from '../shared/shared.module';
   imports: [
     CommonModule,
     LayoutRoutingModule,
+    SharedModule
   ],
   exports: [
     ProfileListComponent,
