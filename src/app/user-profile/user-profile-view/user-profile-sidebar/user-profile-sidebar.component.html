@@ -1,7 +1,7 @@
 <!-- src\app\user-profile\user-profile-view\user-profile-sidebar\user-profile-sidebar.component.html -->
 <aside class="sidebar" [ngClass]="{'visible': isSidebarVisible}">
   <header class="profile-header">
-    <img [src]="(usuario$ | async)?.photoURL" alt="Foto de Perfil" class="profile-picture">
+    <img [src]="(usuario$ | async)?.photoURL || 'assets/imagem-padrao.webp'" alt="Foto de Perfil" class="profile-picture">
   </header><!-- profile-header -->
   <p class="user-nickname"><strong>{{ (usuario$ | async)?.nickname }}</strong></p>
 
@@ -17,7 +17,7 @@
     <a href="#"><i class="fas fa-users"></i>Meus amigos</a>
     <a href="#"><i class="fas fa-star"></i>Meus favoritos</a>
     <a [routerLink]="['/chat', uid]"><i class="fas fa-comments"></i>Bate-papo</a>
-    
+
     <a (click)="createRoomIfSubscriber()" style="cursor: pointer;">
       <i class="fas fa-comments"></i>Criar sala
     </a>

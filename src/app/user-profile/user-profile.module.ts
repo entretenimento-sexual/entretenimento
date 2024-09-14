@@ -14,6 +14,7 @@ import { UserProfileSidebarComponent } from "./user-profile-view/user-profile-si
 import { UserProfilePreferencesComponent } from "./user-profile-view/user-profile-preferences/user-profile-preferences.component";
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { UserPhotoManagerComponent } from './user-photo-manager/user-photo-manager.component';
 
 @NgModule({
     declarations: [
@@ -23,7 +24,8 @@ import { MatCardModule } from '@angular/material/card';
       EditProfileSocialLinksComponent,
       EditUserProfileComponent,
       UserProfileSidebarComponent,
-      UserProfilePreferencesComponent
+      UserProfilePreferencesComponent,
+      UserPhotoManagerComponent
       ],
 
     imports: [

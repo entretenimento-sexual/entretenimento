@@ -4,8 +4,9 @@ import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import { PinturaEditorOptions, getEditorDefaults, createDefaultImageReader, createDefaultImageWriter, PinturaImageState } from '@pqina/pintura';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
-import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
 import locale_pt_br from '@pqina/pintura/locale/pt_PT';
+import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
+import { AuthService } from 'src/app/core/services/autentication/auth.service';
 
 @Component({
   selector: 'app-photo-editor',
@@ -22,12 +23,14 @@ export class PhotoEditorComponent implements OnInit {
   result?: SafeUrl;
   isLoading = false; // Flag para indicar o processamento
   errorMessage: string = ''; // Mensagem de erro para feedback ao usuário
+  userId!: string;
 
   constructor(
     private sanitizer: DomSanitizer,
     private storageService: StorageService,
-    private firestoreService: FirestoreService,
-    public activeModal: NgbActiveModal
+    private photoFirestoreService: PhotoFirestoreService,
+    public activeModal: NgbActiveModal,
+    private authService: AuthService
   ) { }
 
   ngOnInit(): void {
@@ -36,33 +39,41 @@ export class PhotoEditorComponent implements OnInit {
         throw new Error('imageFile não é um objeto File válido.');
       }
 
-      this.src = URL.createObjectURL(this.imageFile);
+      this.authService.getUserAuthenticated().subscribe(user => {
+        if (user && user.uid) {
+          this.userId = user.uid; // Armazene o UID do usuário
+          this.src = URL.createObjectURL(this.imageFile);
 
-      this.options = {
-        ...getEditorDefaults(),
-        imageReader: createDefaultImageReader({ orientImage: true }), // Corrige a orientação da imagem
-        imageWriter: createDefaultImageWriter({
-          copyImageHead: false, // Remove os metadados da imagem exportada
-          quality: 0.8
-        }), // Configura a qualidade da imagem
-        locale: locale_pt_br,
-        enableToolbar: true,
-        enableButtonExport: true,
-        enableButtonRevert: true,
-        enableDropImage: true,
-        enableBrowseImage: false,
-        enablePan: true,
-        enableZoom: true,
-        zoomLevel: 1,
-        previewUpscale: true,
-        enableTransparencyGrid: true,
-        imageCropAspectRatio: undefined,
-        imageCrop: undefined,
-        imageBackgroundColor: [255, 255, 255, 0],
-        imageState: this.storedImageState ? JSON.parse(this.storedImageState) : undefined,  // Carrega o estado anterior, se disponível
-      };
+          this.options = {
+            ...getEditorDefaults(),
+            imageReader: createDefaultImageReader({ orientImage: true }), // Corrige a orientação da imagem
+            imageWriter: createDefaultImageWriter({
+              copyImageHead: false, // Remove os metadados da imagem exportada
+              quality: 0.8
+            }), // Configura a qualidade da imagem
+            locale: locale_pt_br,
+            enableToolbar: true,
+            enableButtonExport: true,
+            enableButtonRevert: true,
+            enableDropImage: true,
+            enableBrowseImage: false,
+            enablePan: true,
+            enableZoom: true,
+            zoomLevel: 1,
+            previewUpscale: true,
+            enableTransparencyGrid: true,
+            imageCropAspectRatio: undefined,
+            imageCrop: undefined,
+            imageBackgroundColor: [255, 255, 255, 0],
+            imageState: this.storedImageState ? JSON.parse(this.storedImageState) : undefined,  // Carrega o estado anterior, se disponível
+          };
+        } else {
+          throw new Error('Usuário não autenticado.');
+        }
+      });
     } catch (error) {
       console.error('Erro ao inicializar o PhotoEditorComponent:', error);
+      this.errorMessage = 'Erro ao carregar o editor de imagens. Tente novamente.';
     }
   }
 
@@ -91,11 +102,19 @@ export class PhotoEditorComponent implements OnInit {
 
   async uploadProcessedFile(processedFile: Blob): Promise<void> {
     try {
-      const uid = 'user_uid_aqui';  // Substitua isso pelo UID real do usuário
-      const fileName = `${Date.now()}_${this.imageFile.name}`;
-      const path = `user_profiles/${uid}/${fileName}`;
+      if (!this.userId) {
+        throw new Error('Usuário não autenticado.');
+      }
 
-      const downloadUrl = await this.storageService.uploadFile(new File([processedFile], fileName, { type: this.imageFile.type }), path);
+      const fileName = `${Date.now()}_${this.imageFile.name}`;
+      const path = `user_profiles/${this.userId}/${fileName}`;
+
+      // Passar o uid correto como argumento
+      const downloadUrl = await this.storageService.uploadFile(
+        new File([processedFile], fileName, { type: this.imageFile.type }),
+        path,
+        this.userId // Certifique-se de passar o uid correto
+      );
       console.log('Imagem enviada com sucesso:', downloadUrl);
 
       this.activeModal.close('uploadSuccess');
@@ -106,7 +125,10 @@ export class PhotoEditorComponent implements OnInit {
   }
 
   saveImageState(imageStateStr: string): void {
-    this.firestoreService.saveImageState('user_uid_aqui', imageStateStr);
+    if (!this.userId) {
+      throw new Error('Usuário não autenticado.');
+    }
+    this.photoFirestoreService.saveImageState(this.userId, imageStateStr);
   }
 
   stringifyImageState(imageState: PinturaImageState): string {

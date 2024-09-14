@@ -1,0 +1,16 @@
+<!-- src\app\user-profile\user-photo-manager\user-photo-manager.component.html -->
+<div class="photo-manager">
+  <h3>Gerenciamento de Fotos</h3>
+  <div *ngIf="(userPhotos$ | async)?.length; else noPhotos">
+    <div class="photo-grid">
+      <div *ngFor="let photo of userPhotos$ | async" class="photo-item">
+        <img [src]="photo.url" alt="Foto do usuário">
+        <button class="delete-button" (click)="deletePhoto(photo.id, photo.path)">Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <ng-template #noPhotos>
+    <p>Nenhuma foto disponível.</p>
+  </ng-template>
+</div>

@@ -25,9 +25,9 @@ export class UserProfileSidebarComponent implements OnInit {
   public uid!: string | null;
 
   constructor(private authService: AuthService,
-              private usuarioService: UsuarioService,
-              private roomService: RoomService,
-              private dialog: MatDialog) { }
+    private usuarioService: UsuarioService,
+    private roomService: RoomService,
+    private dialog: MatDialog) { }
 
   ngOnInit(): void {
     const userId = this.authService.currentUser?.uid || ''; // Garante que userId seja uma string
@@ -54,8 +54,10 @@ export class UserProfileSidebarComponent implements OnInit {
 
   openDialog(): void {
     this.dialog.open(ConfirmacaoDialogComponent, {
-      data: { title: "Assinatura Necessária",
-      message: "Você deseja se tornar um assinante para criar salas?" }
+      data: {
+        title: "Assinatura Necessária",
+        message: "Você deseja se tornar um assinante para criar salas?"
+      }
     });
   }
 }
