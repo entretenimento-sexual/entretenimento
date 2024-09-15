@@ -10,7 +10,6 @@ import { Timestamp } from 'firebase/firestore';
 
 import { FirestoreService } from './firestore.service';
 import { EmailVerificationService } from './email-verification.service';
-import { PreRegisterServiceService } from './pre-register.service';
 import { UsuarioService } from '../usuario.service';
 import { UserProfileService } from '../user-profile/user-profile.service';
 import { IUserRegistrationData } from 'src/app/post-verification/iuser-registration-data';
@@ -34,7 +33,6 @@ export class AuthService {
     private firestoreService: FirestoreService,
     private emailVerificationService: EmailVerificationService,
     private usuarioService: UsuarioService,
-    private preRegisterService: PreRegisterServiceService,
     private userProfileService: UserProfileService
   ) {
     this.initAuthStateListener();
@@ -68,6 +66,10 @@ export class AuthService {
 
   getUserAuthenticated(): Observable<IUserDados | null> {
     return this.user$.pipe(first()); // Pega apenas o primeiro valor emitido
+  }
+
+  getLoggedUserUID(): string | null {
+    return this.currentUserValue ? this.currentUserValue.uid : null;
   }
 
   async register(email: string, password: string, userRegistrationData: IUserRegistrationData, userPreferences: any): Promise<void> {

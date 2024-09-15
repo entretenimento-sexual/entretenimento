@@ -1,15 +1,19 @@
-// src\app\core\services\near-profile.service.ts
+// src/app/core/services/near-profile.service.ts
 import { Injectable } from '@angular/core';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { collection, query, where, getDocs, startAt, limit } from '@firebase/firestore';
 import { FirestoreService } from '../autentication/firestore.service';
-import { geohashQueryBounds, distanceBetween } from 'geofire-common';
+import { geohashQueryBounds } from 'geofire-common';
+import { DistanceCalculationService } from './distance-calculation.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class NearbyProfilesService {
-  constructor(private firestoreService: FirestoreService) { }
+  constructor(
+    private firestoreService: FirestoreService,
+    private distanceCalculationService: DistanceCalculationService // Injetar o serviço de cálculo de distância
+  ) { }
 
   async getProfilesNearLocation(latitude: number, longitude: number, maxDistanceKm: number, userUid: string, startAfterDoc?: any): Promise<IUserDados[]> {
     try {
@@ -37,14 +41,18 @@ export class NearbyProfilesService {
           const profile = doc.data() as IUserDados;
           if (profile.uid !== userUid) {  // Filtra o perfil do usuário logado
             if (typeof profile.latitude === 'number' && typeof profile.longitude === 'number') {
-              const distance = distanceBetween([profile.latitude, profile.longitude], [latitude, longitude]);
-              console.log(`Distância calculada entre o usuário e ${profile.uid}: ${distance} metros`);
+              // Delegar o cálculo de distância ao serviço de cálculo
+              const distanceInKm = this.distanceCalculationService.calculateDistanceInKm(
+                profile.latitude,
+                profile.longitude,
+                latitude,
+                longitude,
+                maxDistanceKm
+              );
 
-              if (distance <= maxDistanceKm) {
-                profile.distanciaKm = Math.round((distance / 1000) * 100) / 100; // Arredonda para 2 casas decimais
-                console.log(`Perfil ${profile.uid} com distância:`, profile);
+              if (distanceInKm !== null) {  // Apenas adiciona se a distância for válida
+                profile.distanciaKm = distanceInKm;
                 profiles.push(profile);
-                console.log(`Distância em km adicionada ao perfil ${profile.uid}: ${profile.distanciaKm} km`);
               }
             }
           }

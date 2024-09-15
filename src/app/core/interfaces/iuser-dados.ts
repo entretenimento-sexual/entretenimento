@@ -28,7 +28,7 @@ export interface IUserDados {
   facebook?: string; // Perfil do Facebook
   instagram?: string; // Perfil do Instagram
   buupe: string;
- 
+
   //relativo ao estado geral de usuário
   isOnline?: boolean;
   isSubscriber: boolean;

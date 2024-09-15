@@ -23,7 +23,6 @@ export const selectAllOnlineUsers = createSelector(
   }
 );
 
-
 // Seletor para filtrar os usuários online por região específica
 export const selectOnlineUsersByRegion = (region: string) => createSelector(
   selectAllOnlineUsers,  // Usa o seletor de todos os usuários online
