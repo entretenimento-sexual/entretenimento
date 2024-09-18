@@ -112,33 +112,12 @@ export class AuthService {
     this.router.navigate(['/email-verified']);
   }
 
+  async resendVerificationEmail(): Promise<void> {
+    await this.emailVerificationService.resendVerificationEmail();
+  }
 
   private async saveInitialUserData(uid: string, userData: IUserRegistrationData): Promise<void> {
     await this.firestoreService.saveInitialUserData(uid, userData);
-  }
-
-  async resendVerificationEmail(): Promise<void> {
-    const currentUser = getAuth().currentUser;
-    if (currentUser) {
-      await this.emailVerificationService.sendEmailVerification(currentUser);
-    } else {
-      throw new Error('Nenhum usuário autenticado encontrado');
-    }
-  }
-
-  async saveUserToFirestore(userRegistrationData: IUserRegistrationData): Promise<void> {
-    if (!userRegistrationData.uid) {
-      console.error('UID do usuário não está definido');
-      return;
-    }
-
-    try {
-      // Assumindo que userRegistrationData já inclui o uid e outros campos necessários
-      await this.firestoreService.saveInitialUserData(userRegistrationData.uid, userRegistrationData);
-    } catch (error) {
-      console.error('Erro ao salvar usuário no Firestore:', error);
-      throw error;
-    }
   }
 
   // Checa se o nickname existe

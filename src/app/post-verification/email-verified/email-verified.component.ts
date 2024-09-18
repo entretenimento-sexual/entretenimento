@@ -5,11 +5,11 @@ import { EmailVerificationService } from 'src/app/core/services/autentication/em
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Timestamp } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytesResumable } from 'firebase/storage';
 import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
 import { IUserRegistrationData } from '../iuser-registration-data';
+import { OobCodeService } from 'src/app/core/services/autentication/oobCode.service';
 
 
 @Component({
@@ -55,7 +55,8 @@ constructor(
     private emailVerificationService: EmailVerificationService,
     private firestoreService: FirestoreService,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private oobCodeService: OobCodeService
   ) { }
 
   ngOnInit(): void {
@@ -63,7 +64,7 @@ constructor(
       this.oobCode = params['oobCode'];
 
       if (this.oobCode) {
-        this.emailVerificationService.setCode(this.oobCode);
+        this.oobCodeService.setCode(this.oobCode);
         console.log('oobCode recuperado:', this.oobCode);
         await this.handleEmailVerification(this.oobCode);
       } else {
@@ -101,7 +102,7 @@ constructor(
   async handleEmailVerification(oobCode: string): Promise<void> {
     this.isLoading = true;
     try {  // Verifica o código de ação do email
-      const verificationSuccess = await this.emailVerificationService.handleEmailVerification(oobCode);
+      const verificationSuccess = await this.emailVerificationService.handleEmailVerification();
 
       if (verificationSuccess) {
         console.log('A verificação do e-mail foi bem-sucedida.');
@@ -164,7 +165,8 @@ constructor(
       emailVerified: true,
       isSubscriber: false,
     };
-   console.log('Criando dadosDoUsuario:', initialUserData);
+
+    console.log('Criando dadosDoUsuario:', initialUserData);
 
     // Recuperando o nickname do localStorage e atribuindo a dadosDoUsuario
     const storedNickname = localStorage.getItem('tempNickname');
@@ -175,13 +177,15 @@ constructor(
       localStorage.removeItem('tempNickname');
     }
 
-    this.authService.saveUserToFirestore(initialUserData).then(() => {
+    // Aqui está a correção: passamos tanto o uid quanto o initialUserData
+    this.firestoreService.saveInitialUserData(initialUserData.uid, initialUserData).then(() => {
       console.log('Dados do usuário salvos com sucesso');
       this.router.navigate([`/perfil/`, this.userData.uid]);
     }).catch(erro => {
       console.error('Erro ao salvar dados do usuário:', erro);
     });
   }
+
 
   isFieldInvalid(field: string): boolean {
     return this.formErrors[field] ? true : false;
