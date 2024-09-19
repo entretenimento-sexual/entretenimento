@@ -10,11 +10,11 @@ import { RegisterComponent } from './register-component/register.component';
 import { EspiarComponent } from './espiar/espiar.component';
 import { ProgressiveSignupComponent } from './progressive-signup/progressive-signup.component';
 import { AuthenticationRoutingModule } from './authentication-routing.module';
-import { FirestoreService } from '../core/services/autentication/firestore.service';
 import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
 import { MatCardModule } from '@angular/material/card';
 import { SuggestionService } from '../core/services/data-handling/suggestion.service';
 import { AuthService } from '../core/services/autentication/auth.service';
+import { ResetPasswordComponent } from './reset-password/reset-password.component';
 
 
 @NgModule({
@@ -23,6 +23,7 @@ import { AuthService } from '../core/services/autentication/auth.service';
     RegisterComponent,
     EspiarComponent,
     ProgressiveSignupComponent,
+    ResetPasswordComponent,
     SuggestedProfilesComponent
   ],
 

@@ -9,7 +9,6 @@ import { geohashForLocation } from 'geofire-common';
 
 export class GeolocationService {
 
-
   getCurrentLocation(): Promise<GeoCoordinates> {
     return new Promise((resolve, reject) => {
       if ('geolocation' in navigator) {

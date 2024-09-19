@@ -1,30 +1,215 @@
 /* src\app\authentication\login-component\login-component.component.css */
-/* src\app\authentication\login-component\login-component.component.css */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
 .login-component {
   display: flex;
   justify-content: center;
   align-items: center;
-
   flex-direction: column;
+  min-height: 100vh;
+  background-color: #f9f9f9;
+  font-family: 'Roboto', sans-serif;
 }
 
-.login-component .authentication-content-left {
-  display: none;
-}
-
-.login-component .authentication-content-right {
+.authentication-content-right {
   width: 100%;
+  max-width: 400px;
+  padding: 20px;
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s ease-in-out;
+}
+
+.authentication-content-right:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+.authentication-header {
+  font-size: 1.8rem;
+  font-weight: 500;
+  margin-bottom: 20px;
+  color: #333333;
+  text-align: center;
+}
+
+.authentication-form input[type="email"],
+.authentication-form input[type="password"] {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  border: 1px solid #cccccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease-in-out;
+}
+
+.authentication-form input[type="email"]:focus,
+.authentication-form input[type="password"]:focus {
+  border-color: #007bff;
+}
+
+.authentication-form button {
+  width: 100%;
+  padding: 12px;
+  background-color: #007bff;
+  color: white;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.authentication-form button:hover {
+  background-color: #0056b3;
+}
+
+.forgot-password {
+  display: block;
+  text-align: center;
+  margin-top: 15px;
+  font-size: 0.9rem;
+  color: #007bff;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.forgot-password:hover {
+  color: #0056b3;
+}
+
+.spinner {
+  margin-top: 10px;
+  text-align: center;
+}
+
+.register-link {
+  margin-top: 20px;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.register-link a {
+  color: #007bff;
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.register-link a:hover {
+  color: #0056b3;
+}
+
+.alert-danger {
+  color: #721c24;
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+  padding: 15px;
+  margin-top: 15px;
+  border-radius: 8px;
+  width: 90%;
+  max-width: 450px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  margin-left: auto;
+  margin-right: auto;
+  position: relative;
+  top: 20px;
+}
+
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+  width: 90%;
   max-width: 400px;
 }
 
-@media (max-width: 768px) {
-  .login-component {
-    padding: 20px 0;
-    height: auto;
-  }
+.modal-content h3 {
+  font-size: 1.5rem;
+  margin-bottom: 10px;
+}
 
-  .login-component .authentication-content-right {
-    padding: 15px;
-    max-width: 100%;
-  }
+.modal-content p {
+  font-size: 1rem;
+  margin-bottom: 15px;
+}
+
+.modal-content input {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 5px;
+  border: 1px solid #cccccc;
+}
+
+.modal-content button {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 5px;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.modal-content button:hover {
+  background-color: #0056b3;
+}
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  /* fundo escuro */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  /* assegura que o modal fique acima de outros elementos */
+}
+
+.modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 400px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 15px;
+}
+
+.modal-actions button {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.modal-actions button:hover {
+  background-color: #f0f0f0;
+}
+
+.cancel-btn {
+  background-color: #ff4d4d;
+  color: white;
+}
+
+.cancel-btn:hover {
+  background-color: #ff3333;
 }

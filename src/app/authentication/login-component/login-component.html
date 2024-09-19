@@ -1,17 +1,47 @@
 <!-- src\app\authentication\login-component\login-component.component.html -->
 <div class="authentication-container login-component">
-   <div class="authentication-content-left">
-     <!-- O conteúdo de autenticação que estava aqui anteriormente fica neste div -->
-     </div>
-   <div class="authentication-content-right">
-     <h2 class="authentication-header">Se já tem cadastro<br>Insira seus dados para entrar</h2>
-     <form class="authentication-form" (submit)="login()">
-       <input type="email" [(ngModel)]="email" placeholder="Email" name="email" required>
-       <input type="password" [(ngModel)]="password" placeholder="Password" name="password" required>
-       <button type="submit">Login</button>
-        <p *ngIf="errorMessage" class="alert alert-danger">{{ errorMessage }}</p>
-       <!-- Adicionar um link para resetar a senha se desejado -->
-             <a href="#">Esqueci minha senha</a>
-      </form>
-     </div>
+  <div class="authentication-content-right">
+    <h2 class="authentication-header">Se já tem cadastro<br>Insira seus dados para entrar</h2>
+
+    <!-- Formulário de login -->
+    <form class="authentication-form" (submit)="login()">
+      <!-- Campo de email -->
+      <input type="email" [(ngModel)]="email" (ngModelChange)="clearError()" placeholder="Email" name="email" required>
+
+      <!-- Campo de senha -->
+      <input type="password" [(ngModel)]="password" (ngModelChange)="clearError()" placeholder="Senha" name="password"
+        required>
+
+      <!-- Botão de login -->
+      <button type="submit" [disabled]="isLoading">Login</button>
+
+      <!-- Spinner de carregamento -->
+      <div *ngIf="isLoading" class="spinner">Carregando...</div>
+
+      <!-- Mensagem de erro -->
+      <p *ngIf="errorMessage" class="alert alert-danger">{{ errorMessage }}</p>
+
+      <!-- Link para resetar senha -->
+      <a class="forgot-password" (click)="onForgotPassword()">Esqueci minha senha</a>
+
+      <!-- Link para registro -->
+      <p class="register-link">
+        Não tem uma conta? <a [routerLink]="['/register']">Cadastre-se</a>
+      </p>
+    </form>
+  </div>
+
+  <!-- Modal de recuperação de senha -->
+  <div *ngIf="showPasswordRecovery" class="modal-overlay">
+    <div class="modal-content">
+      <h3>Recuperar Senha</h3>
+      <p>Insira seu e-mail para receber instruções de redefinição de senha.</p>
+      <input type="email" [(ngModel)]="recoveryEmail" placeholder="Email" required>
+      <div class="modal-actions">
+        <button (click)="sendPasswordRecoveryEmail()">Enviar</button>
+        <button class="cancel-btn" (click)="closePasswordRecovery()">Cancelar</button>
+      </div>
+    </div>
+  </div>
 </div>
+

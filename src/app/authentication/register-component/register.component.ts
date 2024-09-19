@@ -1,7 +1,7 @@
 // src\app\authentication\register-component\register.component.ts
 import { Component } from '@angular/core';
 import { AuthService } from 'src/app/core/services/autentication/auth.service'; // Importe o serviço de autenticação que você criou
-import { IUserRegistrationData } from 'src/app/post-verification/iuser-registration-data';
+import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 
 @Component({
   selector: 'app-register-component',
@@ -49,11 +49,12 @@ export class RegisterComponent {
       isSubscriber: false,
       estado: this.selectedEstado,  // Assumindo que você tem essas variáveis
       municipio: this.selectedMunicipio,  // no componente
+      firstLogin: new Date()
       // Adicione gender e orientation se estiver coletando esses dados aqui
     };
 
     try {
-      await this.authService.register(this.email, this.password, userRegistrationData, this.userPreferences);
+      await this.authService.register(userRegistrationData, this.password);
       localStorage.setItem('tempNickname', this.nickname);
 
       this.successMessage = 'Registro realizado com sucesso! Por favor, verifique seu e-mail para confirmar.';

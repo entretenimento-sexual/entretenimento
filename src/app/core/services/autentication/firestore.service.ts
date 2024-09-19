@@ -3,7 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs, doc, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { IUserRegistrationData } from 'src/app/post-verification/iuser-registration-data';
+import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 import { catchError, from, map, Observable, of } from 'rxjs';
 
 const app = initializeApp(environment.firebase);

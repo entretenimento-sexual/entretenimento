@@ -4,6 +4,7 @@ import { Router } from '@angular/router';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Component({
   selector: 'app-login-component',
@@ -14,36 +15,79 @@ export class LoginComponent {
   email: string = '';
   password: string = '';
   errorMessage: string = '';
-  uid: string | null = null;
+  isLoading: boolean = false;
+  showPasswordRecovery: boolean = false;
+  recoveryEmail: string = '';
 
-  constructor(private authService: AuthService, private router: Router,
-              private userProfileService: UserProfileService  ) { }
+  constructor(
+    private authService: AuthService,
+    private router: Router,
+    private userProfileService: UserProfileService,
+    private errorNotificationService: ErrorNotificationService
+  ) { }
+
+  clearError(): void {
+    this.errorMessage = '';
+  }
 
   async login(): Promise<void> {
+    this.isLoading = true;
+    this.clearError();
+
     try {
-      // Tenta autenticar o usuário com o AuthService
       const user: IUserDados | null | undefined = await this.authService.login(this.email, this.password);
 
-      // Se a autenticação for bem-sucedida e o UID do usuário estiver presente
       if (user?.uid) {
-        // Atualiza o estado online do usuário como verdadeiro
         await this.userProfileService.atualizarEstadoOnlineUsuario(user.uid, true);
-
-        // Redireciona para a página de perfil do usuário
         this.router.navigate([`/perfil/${user.uid}`]);
       } else {
-        // Se o UID do usuário não for encontrado, redireciona para um perfil padrão
-        console.warn('UID do usuário não encontrado, redirecionando para o perfil padrão');
         this.router.navigate(['/perfil/meu-perfil']);
       }
     } catch (error) {
-      // Se houver um erro durante o processo de login, mostra uma mensagem de erro
-      if (typeof error === 'object' && error !== null && 'message' in error) {
-        this.errorMessage = "Erro ao fazer login: " + error.message;
-      } else {
-        this.errorMessage = "Erro ao fazer login.";
-      }
-      console.error('Erro ao fazer login:', error);
+      this.handleError(error);
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  private handleError(error: any): void {
+    if (error.code === 'auth/wrong-password') {
+      this.errorMessage = 'Senha incorreta. Tente novamente.';
+    } else if (error.code === 'auth/user-not-found') {
+      this.errorMessage = 'Usuário não encontrado. Verifique o email ou cadastre-se.';
+    } else if (error.code === 'auth/invalid-email') {
+      this.errorMessage = 'O formato do e-mail é inválido.';
+    } else {
+      this.errorMessage = 'Erro ao fazer login. Tente novamente.';
+    }
+
+    this.errorNotificationService.showError(this.errorMessage);
+    console.error('Erro ao fazer login:', error);
+  }
+
+  // Função de recuperação de senha
+  onForgotPassword(): void {
+    this.showPasswordRecovery = true;
+  }
+
+  closePasswordRecovery(): void {
+    this.showPasswordRecovery = false;
+  }
+
+  // Função para enviar o e-mail de recuperação de senha
+  async sendPasswordRecoveryEmail(): Promise<void> {
+    if (!this.recoveryEmail) {
+      this.errorMessage = 'Por favor, insira um e-mail válido.';
+      return;
+    }
+
+    try {
+      await this.authService.sendPasswordResetEmail(this.recoveryEmail);  // Chama a função correta do AuthService
+      this.errorNotificationService.showSuccess('Instruções de recuperação de senha enviadas para seu e-mail.');
+      this.closePasswordRecovery();
+    } catch (error) {
+      this.errorMessage = 'Erro ao enviar e-mail de recuperação. Tente novamente.';
+      console.error(error);
     }
   }
 }
