@@ -1,51 +1,59 @@
 <!-- src\app\authentication\register-component\register.component.html -->
 <div class="authentication-container">
   <div class="authentication-content-left">
-  <h2>Descubra um Mundo de Possibilidades</h2>
-  <p class="intro-text">
-    Cada pessoa tem um desejo, uma fantasia ou um tesão escondido. Em nosso universo, criamos o espaço perfeito para que
-    você possa se libertar e explorar seus desejos mais íntimos, sem julgamentos e encontrando pessoas que estão te procurando e vice versa.
-    Seja você solteiro, comprometido ou apenas curioso, nossa comunidade acolhe todos com a promessa de novas experiências e descobertas.
-  </p>
-  <p class="stats-text">
-    Com uma base de mais de <span class="highlight">muitos</span> de usuários reais, somos uma plataforma
-    dedicada a unir pessoas em busca de momentos inesquecíveis. Aqui, a privacidade é garantida, e as oportunidades são
-    infinitas.
-  </p>
-  <p class="intro-text">
-    Por que guardar seus desejos só para você? Conecte-se, compartilhe, e viva intensamente cada momento. O primeiro passo
-    para essa jornada transformadora começa aqui.
-  </p>
-  <a href="#" class="explore-link">Cadastre-se agora e mergulhe nessa aventura. É totalmente grátis!</a>
+    <h2>Descubra um Mundo de Possibilidades</h2>
+    <p class="intro-text">
+      Cada pessoa tem um desejo, uma fantasia ou um tesão escondido. Em nosso universo, criamos o espaço perfeito para
+      que você possa se libertar e explorar seus desejos mais íntimos, sem julgamentos.
+    </p>
+    <p class="stats-text">
+      Com uma base de <span class="highlight">milhões</span> de usuários reais, somos uma plataforma dedicada a unir
+      pessoas em busca de momentos inesquecíveis.
+    </p>
+    <p class="intro-text">
+      Por que guardar seus desejos só para você? Conecte-se, compartilhe, e viva intensamente cada momento. O primeiro
+      passo para essa jornada transformadora começa aqui.
+    </p>
+    <a href="#" class="explore-link">Cadastre-se agora e mergulhe nessa aventura. É totalmente grátis!</a>
   </div>
 
-  <div class="authentication-content-right" >
+  <div class="authentication-content-right">
     <h2>Cadastre-se</h2>
-    <!-- Mostra alerta de erro -->
-    <div *ngIf="errorMessage" class="alert alert-danger">
-      {{errorMessage}}
-    </div>
-    <!-- Mostra alerta de sucesso -->
-    <div *ngIf="successMessage" class="alert alert-success">
-      {{successMessage}}
-    </div>
+
+    <!-- Exibir mensagens de erro -->
+    <div *ngIf="errorMessage" class="alert alert-danger">{{ errorMessage }}</div>
+
+    <!-- Exibir mensagens de sucesso -->
+    <div *ngIf="successMessage" class="alert alert-success">{{ successMessage }}</div>
+
     <div *ngIf="!formSubmitted">
-    <form (submit)="onRegister()">
-      <input type="text" [(ngModel)]="nickname" (input)="checkNickname()" placeholder="Apelido de até 25 digitos" name="nickname"
-        required>
-      <div *ngIf="nicknameStatus"
-        [ngClass]="{'text-success': nicknameStatus === 'Apelido disponível', 'text-danger': nicknameStatus !== 'Apelido disponível'}">
-        {{nicknameStatus}}
-      </div>
-      <input type="email" placeholder="E-mail (não é exibido)" [(ngModel)]="email" name="email" required />
-      <input type="password" placeholder="Senha (minimo de 6 caracteres)" [(ngModel)]="password" name="password" required />
-      <button type="submit">Cadastre-se</button>
-    </form>
-    </div><!-- fechamento do *ngIf="!formSubmitted"-->
+      <form (submit)="onRegister()">
+        <input type="text" [(ngModel)]="nickname" (input)="checkNickname()" placeholder="Apelido de até 25 dígitos"
+          [ngClass]="{'input-error': nicknameStatus.includes('em uso')}" name="nickname" required />
+        <div *ngIf="nicknameStatus"
+          [ngClass]="{'text-success': nicknameStatus === 'Apelido disponível', 'text-danger': nicknameStatus !== 'Apelido disponível'}">
+          {{nicknameStatus}}
+        </div>
+
+        <input type="email" [(ngModel)]="email" (input)="clearError()" placeholder="Digite um e-mail válido"
+          name="email" required />
+        <input type="password" [(ngModel)]="password" (input)="checkPasswordStrength()"
+          placeholder="Senha (mínimo de 6 caracteres)" name="password" required />
+        <div *ngIf="passwordStrengthMessage" class="password-strength">{{ passwordStrengthMessage }}</div>
+
+        <button type="submit" [disabled]="isLoading">
+          <span *ngIf="isLoading">Carregando...</span>
+          <span *ngIf="!isLoading">Cadastre-se</span>
+        </button>
+      </form>
+    </div>
+
     <div *ngIf="formSubmitted">
       <h3>Verifique seu E-mail</h3>
-      <p>Enviamos um e-mail de verificação para <strong>{{ email }}</strong>. Por favor, verifique sua caixa de entrada.</p>
+      <p>Enviamos um e-mail de verificação para <strong>{{ email }}</strong>. Verifique sua caixa de entrada.</p>
       <button (click)="resendVerificationEmail()">Reenviar E-mail de Verificação</button>
     </div>
+
+    <p class="login-link">Já tem uma conta? <a [routerLink]="['/login']">Faça login</a></p>
   </div>
 </div>

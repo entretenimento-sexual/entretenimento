@@ -9,7 +9,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 @Component({
   selector: 'app-login-component',
   templateUrl: './login-component.html',
-  styleUrls: ['./login-component.css', '../authentication.css']
+  styleUrls: ['./login-component.css']
 })
 export class LoginComponent {
   email: string = '';
