@@ -41,9 +41,10 @@
           placeholder="Senha (mínimo de 6 caracteres)" name="password" required />
         <div *ngIf="passwordStrengthMessage" class="password-strength">{{ passwordStrengthMessage }}</div>
 
-        <button type="submit" [disabled]="isLoading">
+        <button type="submit" [disabled]="isLoading || isLockedOut">
           <span *ngIf="isLoading">Carregando...</span>
-          <span *ngIf="!isLoading">Cadastre-se</span>
+          <span *ngIf="!isLoading && !isLockedOut">Cadastre-se</span>
+          <span *ngIf="isLockedOut">Bloqueado</span>
         </button>
       </form>
     </div>

@@ -14,6 +14,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 export class LoginComponent {
   email: string = '';
   password: string = '';
+  honeypot: string = ''; // Campo honeypot
   errorMessage: string = '';
   isLoading: boolean = false;
   showPasswordRecovery: boolean = false;
@@ -26,13 +27,40 @@ export class LoginComponent {
     private errorNotificationService: ErrorNotificationService
   ) { }
 
+  // Limpar mensagens de erro
   clearError(): void {
     this.errorMessage = '';
   }
 
+  // Validação de formato de e-mail com regex
+  validateEmailFormat(email: string): boolean {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      this.errorMessage = 'Formato de e-mail inválido';
+      return false;
+    }
+    return true;
+  }
+
+  // Verifica se o campo honeypot foi preenchido
+  honeypotFilled(): boolean {
+    return this.honeypot.length > 0;
+  }
+
+  // Função de login
   async login(): Promise<void> {
-    this.isLoading = true;
     this.clearError();
+
+    if (!this.validateEmailFormat(this.email)) {
+      return;
+    }
+
+    if (this.honeypotFilled()) {
+      this.errorMessage = 'Detectado comportamento suspeito. Tente novamente.';
+      return;
+    }
+
+    this.isLoading = true;
 
     try {
       const user: IUserDados | null | undefined = await this.authService.login(this.email, this.password);
@@ -50,39 +78,36 @@ export class LoginComponent {
     }
   }
 
+  // Tratamento de erros genérico
   private handleError(error: any): void {
-    if (error.code === 'auth/wrong-password') {
-      this.errorMessage = 'Senha incorreta. Tente novamente.';
-    } else if (error.code === 'auth/user-not-found') {
-      this.errorMessage = 'Usuário não encontrado. Verifique o email ou cadastre-se.';
-    } else if (error.code === 'auth/invalid-email') {
-      this.errorMessage = 'O formato do e-mail é inválido.';
-    } else {
-      this.errorMessage = 'Erro ao fazer login. Tente novamente.';
-    }
-
-    this.errorNotificationService.showError(this.errorMessage);
+    this.errorMessage = 'Credenciais inválidas. Tente novamente.';
     console.error('Erro ao fazer login:', error);
+    this.errorNotificationService.showError(this.errorMessage);
   }
 
-  // Função de recuperação de senha
+  // Função para exibir modal de recuperação de senha
   onForgotPassword(): void {
     this.showPasswordRecovery = true;
+    this.clearError(); // Limpar mensagem de erro ao abrir o modal
   }
 
+  // Função para fechar o modal de recuperação de senha
   closePasswordRecovery(): void {
     this.showPasswordRecovery = false;
+    this.recoveryEmail = ''; // Limpar campo de e-mail ao fechar o modal
+    this.clearError(); // Limpar erros ao fechar o modal
   }
 
-  // Função para enviar o e-mail de recuperação de senha
+  // Envia e-mail de recuperação de senha
   async sendPasswordRecoveryEmail(): Promise<void> {
-    if (!this.recoveryEmail) {
-      this.errorMessage = 'Por favor, insira um e-mail válido.';
+    this.clearError();
+
+    if (!this.validateEmailFormat(this.recoveryEmail)) {
       return;
     }
 
     try {
-      await this.authService.sendPasswordResetEmail(this.recoveryEmail);  // Chama a função correta do AuthService
+      await this.authService.sendPasswordResetEmail(this.recoveryEmail);
       this.errorNotificationService.showSuccess('Instruções de recuperação de senha enviadas para seu e-mail.');
       this.closePasswordRecovery();
     } catch (error) {

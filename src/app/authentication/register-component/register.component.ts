@@ -21,10 +21,22 @@ export class RegisterComponent {
   public formSubmitted: boolean = false;
   public isLoading: boolean = false;
 
+  // Variáveis de controle para limitar as tentativas de registro
+  private failedAttempts: number = 0;
+  private maxAttempts: number = 5;
+  private lockoutTime: number = 30000; // Tempo de bloqueio em milissegundos (30 segundos)
+  public isLockedOut: boolean = false;
+
   constructor(private authService: AuthService) { }
 
   async onRegister() {
     this.clearErrorMessages();
+
+    // Se o usuário estiver bloqueado, impede novos envios
+    if (this.isLockedOut) {
+      this.errorMessage = 'Você atingiu o limite de tentativas. Tente novamente mais tarde.';
+      return;
+    }
 
     if (!this.isFormValid()) {
       return;
@@ -49,6 +61,7 @@ export class RegisterComponent {
       localStorage.setItem('tempNickname', this.nickname);
       this.successMessage = 'Registro realizado com sucesso! Por favor, verifique seu e-mail para confirmar.';
       this.formSubmitted = true;
+      this.failedAttempts = 0; // Resetar as tentativas falhas após um registro bem-sucedido
     } catch (error: any) {
       this.handleRegistrationError(error);
     } finally {
@@ -61,7 +74,6 @@ export class RegisterComponent {
     this.successMessage = '';
   }
 
-  // Função clearError para limpar a mensagem de erro quando o input é alterado
   clearError(): void {
     this.errorMessage = '';
   }
@@ -104,6 +116,13 @@ export class RegisterComponent {
   }
 
   handleRegistrationError(error: any): void {
+    this.failedAttempts++;
+
+    // Se o limite de tentativas for atingido, ativa o bloqueio temporário
+    if (this.failedAttempts >= this.maxAttempts) {
+      this.lockForm();
+    }
+
     console.error('Erro completo:', JSON.stringify(error, null, 2));
     if ('code' in error) {
       switch (error.code) {
@@ -122,5 +141,17 @@ export class RegisterComponent {
     } else {
       this.errorMessage = 'Ocorreu um erro desconhecido.';
     }
+  }
+
+  // Função para bloquear o formulário por um tempo determinado
+  lockForm(): void {
+    this.isLockedOut = true;
+    this.errorMessage = `Você tentou se registrar muitas vezes. Tente novamente em 30 segundos.`;
+
+    // Desbloquear após o tempo definido
+    setTimeout(() => {
+      this.isLockedOut = false;
+      this.failedAttempts = 0; // Resetar as tentativas falhas após o desbloqueio
+    }, this.lockoutTime);
   }
 }

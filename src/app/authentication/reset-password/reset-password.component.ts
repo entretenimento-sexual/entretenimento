@@ -12,8 +12,10 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 export class ResetPasswordComponent {
   newPassword: string = '';
   confirmPassword: string = '';
-  actionCode: string | null = null; // OobCode capturado da URL
+  actionCode: string | null = null;
   errorMessage: string = '';
+  passwordStrengthMessage: string = '';
+  showSuccessMessage: boolean = false; // Controle para exibir o modal de sucesso
 
   constructor(
     private route: ActivatedRoute,
@@ -23,7 +25,7 @@ export class ResetPasswordComponent {
   ) { }
 
   ngOnInit(): void {
-    // Captura o oobCode da URL
+    // Captura o oobCode da URL (Código para redefinição)
     this.route.queryParams.subscribe(params => {
       this.actionCode = params['oobCode'];
       if (!this.actionCode) {
@@ -32,25 +34,39 @@ export class ResetPasswordComponent {
     });
   }
 
+  // Função para verificar a força da senha
+  checkPasswordStrength(): void {
+    this.passwordStrengthMessage = this.newPassword.length >= 8 ? 'Senha forte' : 'Senha fraca';
+  }
+
   // Função para redefinir a senha
   async resetPassword(): Promise<void> {
+    if (!this.actionCode) {
+      this.errorMessage = 'Código de redefinição de senha inválido.';
+      return;
+    }
+
     if (this.newPassword !== this.confirmPassword) {
       this.errorMessage = 'As senhas não coincidem.';
       return;
     }
 
-    if (this.actionCode) {
-      try {
-        // Chama o serviço para redefinir a senha usando o oobCode
-        await this.authService.confirmPasswordReset(this.actionCode, this.newPassword);
-        this.errorNotificationService.showSuccess('Senha redefinida com sucesso!');
-        this.router.navigate(['/login']); // Redireciona para a página de login após a redefinição
-      } catch (error) {
-        this.errorMessage = 'Erro ao redefinir a senha. Por favor, tente novamente.';
-        console.error(error);
-      }
-    } else {
-      this.errorMessage = 'Código de redefinição de senha inválido.';
+    if (this.newPassword.length < 6) {
+      this.errorMessage = 'A senha deve ter pelo menos 6 caracteres.';
+      return;
+    }
+
+    try {
+      // Chama o serviço para confirmar a redefinição da senha com o oobCode
+      await this.authService.confirmPasswordReset(this.actionCode, this.newPassword);
+      this.showSuccessMessage = true; // Exibe o modal de sucesso
+
+      setTimeout(() => {
+        this.router.navigate(['/login']);
+      }, 4000); // Aguarda 3 segundos antes de redirecionar para a página de login
+    } catch (error) {
+      this.errorMessage = 'Erro ao redefinir a senha. Por favor, tente novamente.';
+      console.error('Erro ao redefinir a senha:', error);
     }
   }
 }

@@ -1,4 +1,5 @@
 <!-- src\app\authentication\login-component\login-component.component.html -->
+<!-- src\app\authentication\login-component\login-component.component.html -->
 <div class="authentication-container login-component">
   <div class="authentication-content-right">
     <h2 class="authentication-header">Se já tem cadastro<br>Insira seus dados para entrar</h2>
@@ -12,8 +13,11 @@
       <input type="password" [(ngModel)]="password" (ngModelChange)="clearError()" placeholder="Senha" name="password"
         required>
 
+      <!-- Honeypot (campo invisível para proteção contra bots) -->
+      <input type="text" name="honeypot" [(ngModel)]="honeypot" style="display: none;" />
+
       <!-- Botão de login -->
-      <button type="submit" [disabled]="isLoading">Login</button>
+      <button type="submit" [disabled]="isLoading || honeypotFilled()">Login</button>
 
       <!-- Spinner de carregamento -->
       <div *ngIf="isLoading" class="spinner">Carregando...</div>
@@ -35,13 +39,14 @@
   <div *ngIf="showPasswordRecovery" class="modal-overlay">
     <div class="modal-content">
       <h3>Recuperar Senha</h3>
-      <p>Insira seu e-mail para receber instruções de redefinição de senha.</p>
-      <input type="email" [(ngModel)]="recoveryEmail" placeholder="Email" required>
-      <div class="modal-actions">
-        <button (click)="sendPasswordRecoveryEmail()">Enviar</button>
-        <button class="cancel-btn" (click)="closePasswordRecovery()">Cancelar</button>
-      </div>
+      <form (ngSubmit)="sendPasswordRecoveryEmail()">
+        <p>Insira seu e-mail para receber instruções de redefinição de senha.</p>
+        <input type="email" [(ngModel)]="recoveryEmail" placeholder="Email" name="recoveryEmail">
+        <div class="modal-actions">
+          <button type="submit">Enviar</button>
+          <button type="button" class="cancel-btn" (click)="closePasswordRecovery()">Cancelar</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
-
