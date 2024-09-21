@@ -1,7 +1,5 @@
 // src\app\user-profile\user-profile-view\user-profile-sidebar\user-profile-sidebar.component.ts
 import { Component, OnInit } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
 import { Observable, Subscription } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
@@ -30,13 +28,26 @@ export class UserProfileSidebarComponent implements OnInit {
     private dialog: MatDialog) { }
 
   ngOnInit(): void {
-    const userId = this.authService.currentUser?.uid || ''; // Garante que userId seja uma string
-    this.usuario$ = this.usuarioService.getUsuario(userId);
-    this.uid = this.authService.currentUser?.uid || null; // Garante que uid seja string ou null
+    this.authService.getUserAuthenticated().subscribe((currentUser) => {
+      if (currentUser) {
+        const userId = currentUser.uid; // Usando o userId do usuário autenticado
+        this.usuario$ = this.usuarioService.getUsuario(userId);
+        this.uid = userId; // Atribui o userId ao uid
+      } else {
+        this.uid = null; // Caso o usuário não esteja autenticado
+      }
+    });
   }
 
   isOnOwnProfile(): boolean {
-    return this.uid === this.authService.currentUser?.uid;
+    // Ajusta a lógica para garantir que o valor do UID seja comparado corretamente
+    let isOwnProfile = false;
+    this.authService.getUserAuthenticated().subscribe((user) => {
+      if (user && this.uid === user.uid) {
+        isOwnProfile = true;
+      }
+    });
+    return isOwnProfile;
   }
 
   createRoomIfSubscriber() {

@@ -17,19 +17,22 @@ export class ChatMessageComponent implements OnInit {
   constructor (private usuarioService: UsuarioService,
                 private authService: AuthService){}
 
-  ngOnInit(): void {
-    this.currentUserUid = this.authService.currentUser?.uid;
 
-      if (this.message.senderId){
-        this.usuarioService.getUsuario(this.message.senderId).subscribe(
-          userData => {
-            this.senderName = userData?.nickname ?? 'Usuário desconhecido';
-          },
-          error => console.error("Erro ao buscar nome do usuário", error)
-        );
+    ngOnInit(): void {
+      this.authService.getUserAuthenticated().subscribe(currentUser => {
+        this.currentUserUid = currentUser?.uid;
 
-      }
-  }
+        if (this.message.senderId) {
+          this.usuarioService.getUsuario(this.message.senderId).subscribe(
+            userData => {
+              this.senderName = userData?.nickname ?? 'Usuário desconhecido';
+            },
+            error => console.error("Erro ao buscar nome do usuário", error)
+          );
+        }
+      });
+    }
+    
   isMessageSent(): boolean {
     return this.message.senderId === this.currentUserUid;
   }

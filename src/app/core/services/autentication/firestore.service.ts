@@ -1,3 +1,4 @@
+//src\app\core\services\autentication\firestore.service.ts
 import { Injectable } from '@angular/core';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs, doc, setDoc, Timestamp, updateDoc } from 'firebase/firestore';

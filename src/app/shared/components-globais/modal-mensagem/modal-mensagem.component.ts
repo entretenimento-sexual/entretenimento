@@ -18,7 +18,6 @@ export class ModalMensagemComponent {
 
   @Output() mensagemEnviada = new EventEmitter<string>();
   mensagem: string = '';
-    // arquivoAnexado: File;
 
   constructor(
     public dialogRef: MatDialogRef<ModalMensagemComponent>,
@@ -27,46 +26,54 @@ export class ModalMensagemComponent {
     private authService: AuthService
   ) {
     console.log('Data recebida:', data);
-   }
+  }
 
   async enviarMensagem(): Promise<void> {
     if (this.mensagem.trim().length > 0) {
       const mensagem: Message = {
         content: this.mensagem,
-        senderId: this.authService.currentUser?.uid || '',
+        senderId: '', // Inicialmente vazio, será preenchido com o UID do usuário autenticado
         timestamp: Timestamp.now()
       };
 
-      const currentUserUid = this.authService.currentUser?.uid;
-      const profileUid = this.data.profile.uid;
+      this.authService.getUserAuthenticated().subscribe(async (currentUser) => {
+        if (currentUser) {
+          mensagem.senderId = currentUser.uid;
 
-      if (currentUserUid && profileUid) {
-        const participantes = [currentUserUid, profileUid];
+          const currentUserUid = currentUser.uid;
+          const profileUid = this.data.profile.uid;
 
-        try {
-          const chatId = await this.chatService.getOrCreateChatId(participantes);
+          if (currentUserUid && profileUid) {
+            const participantes = [currentUserUid, profileUid];
 
-          if (chatId !== null) { // Verifica se chatId não é nulo
-            await this.chatService.sendMessage(chatId, mensagem);
+            try {
+              const chatId = await this.chatService.getOrCreateChatId(participantes);
 
-            // Atualize a propriedade 'lastMessage' do chat com a mensagem enviada
-            const chatUpdate: Partial<Chat> = {
-              lastMessage: mensagem
-            };
-            await this.chatService.updateChat(chatId, chatUpdate);
+              if (chatId !== null) {
+                await this.chatService.sendMessage(chatId, mensagem);
 
-            console.log('Mensagem enviada com sucesso!');
-            this.mensagemEnviada.emit(profileUid);
-            this.dialogRef.close();
+                // Atualize a propriedade 'lastMessage' do chat com a mensagem enviada
+                const chatUpdate: Partial<Chat> = {
+                  lastMessage: mensagem
+                };
+                await this.chatService.updateChat(chatId, chatUpdate);
+
+                console.log('Mensagem enviada com sucesso!');
+                this.mensagemEnviada.emit(profileUid);
+                this.dialogRef.close();
+              } else {
+                console.error('Erro ao criar o chat.');
+              }
+            } catch (error) {
+              console.error('Erro ao enviar mensagem:', error);
+            }
           } else {
-            console.error('Erro ao criar o chat.');
+            console.error('currentUserUid ou profileUid não definidos.');
           }
-        } catch (error) {
-          console.error('Erro ao enviar mensagem:', error);
+        } else {
+          console.error('Usuário não autenticado.');
         }
-      } else {
-        console.error('currentUserUid ou profileUid não definidos.');
-      }
+      });
     }
   }
 }

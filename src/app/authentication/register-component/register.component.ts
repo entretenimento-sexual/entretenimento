@@ -2,12 +2,14 @@
 import { Component } from '@angular/core';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
+import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
 
 @Component({
   selector: 'app-register-component',
   templateUrl: './register.component.html',
   styleUrls: ['./register.component.css']
 })
+
 export class RegisterComponent {
   public nickname: string = '';
   public email: string = '';
@@ -27,7 +29,8 @@ export class RegisterComponent {
   private lockoutTime: number = 30000; // Tempo de bloqueio em milissegundos (30 segundos)
   public isLockedOut: boolean = false;
 
-  constructor(private authService: AuthService) { }
+  constructor(private authService: AuthService,
+              private emailVerificationService: EmailVerificationService) { }
 
   async onRegister() {
     this.clearErrorMessages();
@@ -93,7 +96,7 @@ export class RegisterComponent {
   }
 
   checkNickname(): void {
-    if (this.nickname.length >= 3 && this.nickname.length <= 25) {
+    if (this.nickname.length >= 4 && this.nickname.length <= 25) {
       this.authService.checkIfNicknameExists(this.nickname).then(exists => {
         this.nicknameStatus = exists ? 'Apelido já está em uso' : 'Apelido disponível';
       });
@@ -108,7 +111,7 @@ export class RegisterComponent {
 
   async resendVerificationEmail(): Promise<void> {
     try {
-      await this.authService.resendVerificationEmail();
+      await this.emailVerificationService.resendVerificationEmail();
       this.successMessage = `E-mail de verificação reenviado para ${this.email}. Verifique sua caixa de entrada.`;
     } catch (error) {
       this.errorMessage = "Erro ao reenviar o e-mail de verificação.";

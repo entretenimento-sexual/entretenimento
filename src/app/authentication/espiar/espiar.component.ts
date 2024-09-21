@@ -8,7 +8,7 @@ import { SocialAuthService } from 'src/app/core/services/autentication/social-au
 @Component({
   selector: 'app-espiar',
   templateUrl: './espiar.component.html',
-  styleUrls: ['./espiar.component.css', '../authentication.css']
+  styleUrls: ['./espiar.component.css']
 })
 
 export class EspiarComponent implements OnInit, OnDestroy {

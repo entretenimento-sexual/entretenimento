@@ -1,4 +1,4 @@
-// src\app\user-profile\user-profile-view\user-profile-view.component.ts
+//src\app\user-profile\user-profile-view\user-profile-view.component.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription, Observable } from 'rxjs';
@@ -9,14 +9,13 @@ import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Timestamp } from 'firebase/firestore';
 
-
 enum SidebarState { CLOSED, OPEN }
 
 @Component({
   selector: 'app-user-profile-view',
   templateUrl: './user-profile-view.component.html',
   styleUrls: ['./user-profile-view.component.css', '../user-profile.css',
-               './css-teste-user-profile-view.css']
+    './css-teste-user-profile-view.css']
 })
 
 export class UserProfileViewComponent implements OnInit, OnDestroy {
@@ -26,7 +25,6 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   public usuario$: Observable<IUserDados | null>;
   public uid!: string | null;
   public preferences: any;
-
 
   objectKeys(obj: any): string[] {
     return Object.keys(obj).filter(key => obj[key] && obj[key].value);
@@ -49,39 +47,41 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    const userId = this.route.snapshot.paramMap.get('id') || this.authService.currentUser?.uid;
+    this.authService.getUserAuthenticated().subscribe((currentUser) => {
+      const userId = this.route.snapshot.paramMap.get('id') || currentUser?.uid;
 
-    if (!userId) {
-      console.error('UserID é undefined');
-      return;
-    }
+      if (!userId) {
+        console.error('UserID é undefined');
+        return;
+      }
 
-    this.uid = userId;
+      this.uid = userId;
 
-    // Iniciar a assinatura para o Observable do usuário.
-    this.usuario$ = this.usuarioService.getUsuario(userId).pipe(
-      tap(user => console.log('Usuário recuperado do serviço:', user)), // Debugging antes da transformação.
-      map(user => {
-        // Verificar se user.firstLogin é uma instância de Timestamp e converter para Date.
-        if (user && user.firstLogin instanceof Timestamp) {
-          console.log('Convertendo firstLogin de Timestamp para Date');
-          user.firstLogin = user.firstLogin.toDate();
-        }
-        return user;
-      }),
-      tap(user => {
-        // Debugging após a transformação.
-        console.log('Usuário após processamento:', user);
-        if (user) {
-          this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
-          console.log('Estado da Sidebar definido para:', this.isSidebarVisible);
-        }
-      }),
-      tap({
-        error: error => console.error('Erro ao recuperar usuário:', error), // Capturar e logar possíveis erros.
-        complete: () => console.log('Observable de usuário completado') // Opcional: Logar a conclusão do Observable.
-      })
-    );
+      // Iniciar a assinatura para o Observable do usuário.
+      this.usuario$ = this.usuarioService.getUsuario(userId).pipe(
+        tap(user => console.log('Usuário recuperado do serviço:', user)),
+        map(user => {
+          // Verificar se user.firstLogin é uma instância de Timestamp e converter para Date.
+          if (user && user.firstLogin instanceof Timestamp) {
+            console.log('Convertendo firstLogin de Timestamp para Date');
+            user.firstLogin = user.firstLogin.toDate();
+          }
+          return user;
+        }),
+        tap(user => {
+          // Debugging após a transformação.
+          console.log('Usuário após processamento:', user);
+          if (user) {
+            this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
+            console.log('Estado da Sidebar definido para:', this.isSidebarVisible);
+          }
+        }),
+        tap({
+          error: error => console.error('Erro ao recuperar usuário:', error),
+          complete: () => console.log('Observable de usuário completado')
+        })
+      );
+    });
 
     // Iniciar a assinatura para a visibilidade da sidebar.
     this.sidebarSubscription = this.sidebarService.isSidebarVisible$.subscribe(
@@ -91,6 +91,7 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
       }
     );
   }
+
   getCoupleDescription(gender: string | undefined, partner1Orientation: string | undefined, partner2Orientation: string | undefined): string {
     if (gender === 'casal-ele-ele') {
       return `Ele ${this.getOrientationDescription(partner1Orientation)} / Ele ${this.getOrientationDescription(partner2Orientation)}`;
@@ -123,11 +124,12 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   }
 
   isOnOwnProfile(): boolean {
-    return this.uid === this.authService.currentUser?.uid;
+    let isOwnProfile = false;
+    this.authService.getUserAuthenticated().subscribe((currentUser) => {
+      if (currentUser) {
+        isOwnProfile = this.uid === currentUser.uid;
+      }
+    });
+    return isOwnProfile;
   }
-
 }
-
-
-
-

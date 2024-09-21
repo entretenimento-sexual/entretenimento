@@ -59,11 +59,13 @@ export class ChatModuleLayoutComponent implements OnInit {
       return;
     }
 
-    const senderId = this.authService.currentUser?.uid;
-    if (!senderId) {
-      console.error('Erro: Usuário não autenticado.');
-      return;
-    }
+    // Acessar o usuário autenticado via observable
+    this.authService.getUserAuthenticated().subscribe(currentUser => {
+      const senderId = currentUser?.uid;
+      if (!senderId) {
+        console.error('Erro: Usuário não autenticado.');
+        return;
+      }
 
     const message: Message = {
       content: this.messageContent.trim(),
@@ -85,6 +87,6 @@ export class ChatModuleLayoutComponent implements OnInit {
         this.messageContent = ''; // Limpa o campo de texto após o envio
       }).catch(error => console.error("Erro ao enviar mensagem à sala:", error));
     }
-  }
+  });
 }
-
+}

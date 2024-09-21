@@ -7,7 +7,7 @@ import { SuggestionService } from 'src/app/core/services/data-handling/suggestio
 @Component({
   selector: 'app-suggested-profiles',
   templateUrl: './suggested-profiles.component.html',
-  styleUrls: ['./suggested-profiles.component.css', '../authentication.css']
+  styleUrls: ['./suggested-profiles.component.css']
 })
 export class SuggestedProfilesComponent implements OnInit {
 
@@ -22,7 +22,7 @@ export class SuggestedProfilesComponent implements OnInit {
 
   async ngOnInit() {
     try {
-      const currentUser = this.authService.currentUser; // Obtém o usuário atual
+      const currentUser = await this.authService.getUserAuthenticated().toPromise();
       if (currentUser) {
         this.suggestedProfiles = await this.suggestionService.getSuggestedProfilesForUser(currentUser);
         this.matchingProfilesCount = this.suggestedProfiles.length;

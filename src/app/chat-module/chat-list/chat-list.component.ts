@@ -28,31 +28,29 @@ export class ChatListComponent implements OnInit {
               private router: Router) { }
 
   ngOnInit() {
-    if (!this.authService.isUserAuthenticated()) {
-      this.router.navigate(['/login']);
-      return;
-    }
-    const currentUser = this.authService.currentUser;
-    if (!currentUser?.uid) return;
+    this.authService.getUserAuthenticated().subscribe(currentUser => {
+      if (!currentUser) {
+        this.router.navigate(['/login']);
+        return;
+      }
 
-    this.rooms$ = this.roomService.getUserRooms(currentUser.uid);
+      this.rooms$ = this.roomService.getUserRooms(currentUser.uid);
 
-    // Carrega apenas chats regulares
-    this.chatService.getChats(currentUser.uid).subscribe(chats => {
-      this.regularChats = chats.filter(chat => !chat.isRoom);
-    });
+      // Carrega apenas chats regulares
+      this.chatService.getChats(currentUser.uid).subscribe(chats => {
+        this.regularChats = chats.filter(chat => !chat.isRoom);
+      });
 
-    // Carrega salas de bate-papo
-    this.roomService.getUserRooms(currentUser.uid).subscribe({
-      next: (rooms) => {
-        console.log("Salas atualizadas:", rooms);
-        console.log(rooms);
-        this.rooms = rooms;
-      },
-      error: (error) => console.error("Erro ao obter salas:", error)
+      // Carrega salas de bate-papo
+      this.roomService.getUserRooms(currentUser.uid).subscribe({
+        next: (rooms) => {
+          console.log("Salas atualizadas:", rooms);
+          this.rooms = rooms;
+        },
+        error: (error) => console.error("Erro ao obter salas:", error)
+      });
     });
   }
-
   isRoom(item: any): boolean {
     return item.isRoom === true;
   }
@@ -75,7 +73,13 @@ export class ChatListComponent implements OnInit {
 
   // Verifica se o usuário atual é o dono da sala
   isOwner(room: any): boolean {
-    return room.createdBy === this.authService.currentUser?.uid;
+    let isOwner = false;
+    this.authService.getUserAuthenticated().subscribe(currentUser => {
+      if (currentUser) {
+        isOwner = room.createdBy === currentUser.uid;
+      }
+    });
+    return isOwner;
   }
 
   deleteRoom(roomId: string | undefined, event: MouseEvent) {

@@ -119,21 +119,22 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
           this.isEmailVerified = true;
 
           // Recupera o usuário autenticado atual
-          const currentUser = this.authService.currentUser;
-          if (currentUser) {
-            // Atualizando os dados de registro com as informações do usuário atual.
-            this.userData = {
-              uid: currentUser.uid,
-              email: currentUser.email || '',
-              nickname: currentUser.nickname || '',
-              photoURL: currentUser.photoURL || '',
-              emailVerified: true,
-              isSubscriber: false,
-              firstLogin: currentUser.firstLogin || new Date(), // Adiciona firstLogin aqui
-              estado: this.selectedEstado,
-              municipio: this.selectedMunicipio
-            };
-          }
+          this.authService.getUserAuthenticated().subscribe(currentUser => {
+            if (currentUser) {
+              // Atualizando os dados de registro com as informações do usuário atual.
+              this.userData = {
+                uid: currentUser.uid,
+                email: currentUser.email || '',
+                nickname: currentUser.nickname || '',
+                photoURL: currentUser.photoURL || '',
+                emailVerified: true,
+                isSubscriber: false,
+                firstLogin: currentUser.firstLogin || new Date(), // Adiciona firstLogin aqui
+                estado: this.selectedEstado,
+                municipio: this.selectedMunicipio
+              };
+            }
+          });
         }
       }
     } catch (error) {
@@ -142,7 +143,6 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
       this.isLoading = false;
     }
   }
-
   async onSubmit(): Promise<void> {
     console.log('Formulário enviado');
 
