@@ -1,7 +1,7 @@
 <!-- src\app\layout\other-user-profile-view\other-user-profile-view.component.html -->
 <div class="user-profile-container">
   <div class="user-info">
-    <img src="{{ userProfile?.photoURL || 'caminho/para/imagem/padrão.jpg' }}" alt="{{ userProfile?.nickname }}"
+    <img [src]="userProfile?.photoURL || 'assets/imagem-padrao.webp'" alt="{{ userProfile?.nickname }}"
       class="profile-photo">
     <h2>{{ userProfile?.nickname }}</h2>
     <p><strong>Email:</strong> {{ userProfile?.email }}</p>
@@ -10,8 +10,8 @@
     <p><strong>Orientação:</strong> {{ userProfile?.orientation }}</p>
     <p><strong>Sobre mim:</strong> {{ userProfile?.descricao }}</p>
     <p><strong>Facebook:</strong> <a href="{{ userProfile?.facebook }}">{{ userProfile?.facebook }}</a></p>
-    <p><strong>Interesses:</strong> {{ categoriasDePreferencias?.genero?.join(', ') }}</p>
-    <p><strong>Práticas Sexuais:</strong> {{ categoriasDePreferencias?.praticaSexual?.join(', ') }}</p>
+    <p><strong>Interesses:</strong> {{ categoriasDePreferencias.genero.join(', ') }}</p>
+    <p><strong>Práticas Sexuais:</strong> {{ categoriasDePreferencias.praticaSexual.join(', ') }}</p>
   </div>
 
   <div class="user-preferences">
@@ -28,7 +28,6 @@
         <li *ngFor="let pref of categoriasDePreferencias.praticaSexual">{{ pref | capitalize }}</li>
       </ul>
     </div>
-    <!-- Adicione mais seções de preferências conforme necessário -->
   </div>
 </div>
 

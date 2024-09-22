@@ -1,5 +1,5 @@
 //app.module.ts
-import { NgModule, ErrorHandler } from '@angular/core';
+import { NgModule, ErrorHandler, isDevMode } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
@@ -25,7 +25,9 @@ import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 import { AuthService } from './core/services/autentication/auth.service';
 import { EmailVerificationService } from './core/services/autentication/email-verification.service';
 
-
+import { AngularPinturaModule } from '@pqina/angular-pintura';
+import { userReducer } from './store/reducers/user.reducer';
+import { UserEffects } from './store/effects/user.effects';
 
 @NgModule({
   declarations: [AppComponent],
@@ -47,7 +49,12 @@ import { EmailVerificationService } from './core/services/autentication/email-ve
     PhotoEditorModule,
     AngularFireModule.initializeApp(environment.firebase), // Inicializa o Firebase com as configurações do seu ambiente
     AngularFireStorageModule, // Importa o módulo de armazenamento do Firebase
-    
+    AngularFireModule,
+    AngularFireModule,
+    AngularPinturaModule, StoreDevtoolsModule.instrument({ maxAge: 25, logOnly: !isDevMode() }),
+    StoreModule.forRoot({ user: userReducer }),
+    EffectsModule.forRoot([UserEffects]),
+
   ],
   providers: [
     AuthService,

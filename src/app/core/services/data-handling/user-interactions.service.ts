@@ -1,10 +1,10 @@
 // src\app\core\services\user-interactions.service.ts
 import { Injectable } from '@angular/core';
-import { IUserDados } from '../interfaces/iuser-dados';
-import { FirestoreService } from './autentication/firestore.service';
-import { AuthService } from './autentication/auth.service';
+import { IUserDados } from '../../interfaces/iuser-dados';
+import { FirestoreService } from '../autentication/firestore.service';
+import { AuthService } from '../autentication/auth.service';
 import { doc, setDoc, collection, query, where, getDocs } from '@firebase/firestore';
-import { UserProfileService } from './user-profile/user-profile.service';
+import { UserProfileService } from '../user-profile/user-profile.service';
 
 @Injectable({
   providedIn: 'root'

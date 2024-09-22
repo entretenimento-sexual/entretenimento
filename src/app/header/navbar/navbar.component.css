@@ -19,7 +19,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;  /* Isso garante que o espaço entre os elementos seja máximo */
-  width: 100%; 
+  width: 100%;
 }
 
 .navbar-brand {

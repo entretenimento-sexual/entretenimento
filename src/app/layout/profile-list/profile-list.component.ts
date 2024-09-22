@@ -17,13 +17,17 @@ export class ProfileListComponent implements OnInit {
               private firestoreService: FirestoreService) { }
 
   ngOnInit(): void {
-    this.user = this.authService.currentUser;
-    this.firestoreService.getSuggestedProfiles()
-      .then(profiles => {
-        this.profiles = profiles;
-      })
-      .catch(error => {
-        console.error("Erro ao buscar perfis sugeridos:", error);
-      });
+    this.authService.getUserAuthenticated().subscribe(currentUser => {
+      this.user = currentUser;
+
+      // Carrega os perfis sugeridos após garantir que o usuário está autenticado
+      this.firestoreService.getSuggestedProfiles()
+        .then(profiles => {
+          this.profiles = profiles;
+        })
+        .catch(error => {
+          console.error("Erro ao buscar perfis sugeridos:", error);
+        });
+    });
   }
 }

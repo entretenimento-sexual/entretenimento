@@ -1,0 +1,43 @@
+/* src\app\header\links-interaction\links-interaction.component.css */
+.links-container {
+  display: flex;
+  justify-content: center;  /* Links começam alinhados à esquerda */
+  gap: 10px;  /* Ajusta o espaçamento entre os links */
+  padding: 10px;
+  align-items: center;
+}
+
+.chat-rooms-link {
+  text-decoration: none;
+  color: #007bff;
+  font-size: 16px;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.3s;
+}
+
+.chat-rooms-link:hover {
+  background-color: #e9ecef;
+}
+
+.separator {
+  color: #999;
+  padding: 0 10px;  /* Espaçamento horizontal para o separador */
+  font-size: 22px;
+}
+
+@media (min-width: 1024px) {
+  .links-container {
+    justify-content: flex-start;
+    padding: 0px;
+  }
+
+  .chat-rooms-link {
+    font-size: 18px;
+    padding: 10px 30px;
+  }
+
+  .separator {
+    font-size: 25px;
+  }
+}

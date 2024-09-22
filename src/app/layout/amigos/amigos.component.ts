@@ -1,7 +1,7 @@
 // src\app\layout\amigos\amigos.component.ts
 import { Component, OnInit } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { UserInteractionsService } from 'src/app/core/services/user-interactions.service';
+import { UserInteractionsService } from 'src/app/core/services/data-handling/user-interactions.service';
 
 @Component({
   selector: 'app-amigos',

@@ -1,55 +1,58 @@
 <!-- src\app\user-profile\user-profile-view\user-profile-view.component.html -->
 <div class="profile-container container-fluid">
-    <app-user-profile-sidebar></app-user-profile-sidebar> <!--quero usar mais oumenos desse jeito-->
-<!-- Dados pessoais -->
-<main class="">
-  <div class="">
-    <div *ngIf="usuario$ | async as usuario; else loading"><!--Meus dados no perfil-->
-      <div class="user-details">
-        <h3 class="category-title">Meus dados de perfil</h3>
-          <ng-container *ngIf="usuario && isCouple(usuario.gender); else notCouple"> Somos o casal {{ usuario.nickname }}
-          <p>{{ getCoupleDescription(usuario.gender, usuario.partner1Orientation, usuario.partner2Orientation) }}</p>
+  <app-user-profile-sidebar></app-user-profile-sidebar> <!-- Sidebar para navegação -->
+
+  <!-- Dados pessoais -->
+  <main class="">
+    <div class="">
+      <div *ngIf="usuario$ | async as usuario; else loading">
+        <!-- Informações do próprio usuário -->
+        <div class="user-details">
+          <h3 class="category-title">Meus dados de perfil</h3>
+          <ng-container *ngIf="usuario && isCouple(usuario.gender); else notCouple">
+            Somos o casal {{ usuario.nickname }}
+            <p>{{ getCoupleDescription(usuario.gender, usuario.partner1Orientation, usuario.partner2Orientation) }}</p>
           </ng-container>
           <ng-template #notCouple>
             <p *ngIf="usuario?.nickname">Sou {{ usuario.nickname }}</p>
             <p>{{ usuario.gender | capitalize }} {{ usuario.orientation }}</p>
           </ng-template>
           <p>{{ usuario.municipio }}, {{ usuario.estado }}</p>
-          <!-- <p>Email: {{ usuario.email }}</p> -->
           <p class="ajuste">Perfil criado em {{ usuario.firstLogin | dateFormat }}</p>
 
+          <!-- Seção de Sobre Mim e Redes Sociais -->
           <div class="category-container">
             <h3 class="category-title">Sobre Mim</h3>
             <p>{{ usuario.descricao }}</p>
-          </div><!--category-container-->
-
-
+          </div>
           <div class="category-container">
             <h3 class="category-title">Redes Sociais</h3>
             <p *ngIf="usuario?.instagram">Instagram: {{ usuario.instagram }}</p>
             <p *ngIf="usuario?.facebook">Facebook: {{ usuario.facebook }}</p>
             <p *ngIf="usuario?.buupe">buupe: {{ usuario.buupe }}</p>
-            <!-- Exibir outras redes sociais se necessário -->
-          </div><!--category-container-->
-<div class="button-group">
-  <a [routerLink]="['/perfil', uid, 'editar-dados-pessoais']" class="btn btn-secondary btn-voltar">
-    Editar Dados Pessoais</a>
-  <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']" class="btn btn-secondary btn-voltar">
-    Editar Preferências</a>
-</div><!--button-group-->
-      </div> <!-- user-profile-summary -->
-        <!-- Adicione outros campos conforme necessário -->
-    </div><!--Fim dos meus dados no perfil-->
+          </div>
+          <!-- Botões de Edição -->
+          <div class="button-group">
+            <a [routerLink]="['/perfil', uid, 'editar-dados-pessoais']" class="btn btn-secondary btn-voltar">Editar
+              Dados Pessoais</a>
+            <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']" class="btn btn-secondary btn-voltar">Editar
+              Preferências</a>
+          </div>
+        </div>
 
-    <ng-template #loading>
-      <p>Carregando...</p>
-    </ng-template>
+        <!-- Novo componente para gerenciamento de fotos -->
+        <app-user-photo-manager></app-user-photo-manager>
 
-    <app-user-profile-preferences [uid]="uid"></app-user-profile-preferences>
-  </div><!--profile-content row-->
+      </div>
+      <ng-template #loading>
+        <p>Carregando...</p>
+      </ng-template>
 
-</main><!--content col-md-9-->
-</div> <!--profile-container container-->
+      <app-user-profile-preferences [uid]="uid"></app-user-profile-preferences>
+    </div>
+  </main>
+</div>
+
 
 
 

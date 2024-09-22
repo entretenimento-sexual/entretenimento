@@ -19,11 +19,14 @@ export class ChatWindowComponent {
   // Adicione esse método que será chamado quando o botão "Enviar" for pressionado:
   sendMessage() {
     if (this.messageContent.trim()) {
-      const userId = this.authService.currentUser?.uid;
-      if(!userId) {
-        console.error("usuário não autenticado");
-        return
-      }
+      // Substituindo currentUser pelo observable correto
+      this.authService.getUserAuthenticated().subscribe(currentUser => {
+        const userId = currentUser?.uid;
+        if (!userId) {
+          console.error("Usuário não autenticado");
+          return;
+        }
+
       const newMessage = {
         content: this.messageContent.trim(),
         senderId: userId, // Substitua 'userId' pelo ID real do usuário
@@ -32,6 +35,7 @@ export class ChatWindowComponent {
       this.messages.push(newMessage);
       this.messageContent = '';
       this.chatService.sendMessage('chatId', newMessage);
+    });
     }
   }
 }

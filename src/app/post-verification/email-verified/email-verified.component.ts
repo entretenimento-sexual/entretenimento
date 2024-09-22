@@ -1,35 +1,41 @@
-// src\app\post-verification\email-verified\email-verified.component.ts
+// src/app/post-verification/email-verified/email-verified.component.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { Timestamp } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytesResumable } from 'firebase/storage';
 import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
-import { IUserRegistrationData } from '../iuser-registration-data';
-
+import { IUserRegistrationData } from '../../core/interfaces/iuser-registration-data';
+import { OobCodeService } from 'src/app/core/services/autentication/oobCode.service';
 
 @Component({
   selector: 'app-email-verified',
   templateUrl: './email-verified.component.html',
   styleUrls: ['./email-verified.component.css']
 })
+
 export class EmailVerifiedComponent implements OnInit, OnDestroy {
   public isLoading = true;
   public isEmailVerified = false;
+  public errorMessage: string = '';
+  
   oobCode: any;
+
   // Usando a interface IUserRegistrationData para gerenciar os dados do usuário.
-  userData: IUserRegistrationData =
-  { uid: '',
-  email: '',
-  nickname: '',
-  photoURL: '',
-  emailVerified: false,
-  isSubscriber: false,
-};
+  userData: IUserRegistrationData = {
+    uid: '',
+    email: '',
+    nickname: '',
+    photoURL: '',
+    emailVerified: false,
+    isSubscriber: false,
+    estado: '',
+    municipio: '',
+    firstLogin: new Date(), // Adiciona o campo firstLogin aqui
+  };
+
   selectedFile: File | null = null;
   isUploading: boolean = false;
   public uploadMessage: string = '';
@@ -41,21 +47,23 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
   public orientation: string = '';
   public progressValue: number = 0;
 
-
   private ngUnsubscribe = new Subject<void>();
 
   formErrors: { [key: string]: string } = {
     gender: '',
     orientation: '',
-    selectedFile: ''
+    selectedFile: '',
+    estado: '',
+    municipio: '',
   };
 
-constructor(
+  constructor(
     private authService: AuthService,
     private emailVerificationService: EmailVerificationService,
     private firestoreService: FirestoreService,
     private route: ActivatedRoute,
-    private router: Router
+    private router: Router,
+    private oobCodeService: OobCodeService
   ) { }
 
   ngOnInit(): void {
@@ -63,9 +71,9 @@ constructor(
       this.oobCode = params['oobCode'];
 
       if (this.oobCode) {
-        this.emailVerificationService.setCode(this.oobCode);
+        this.oobCodeService.setCode(this.oobCode);
         console.log('oobCode recuperado:', this.oobCode);
-        await this.handleEmailVerification(this.oobCode);
+        await this.handleEmailVerification();
       } else {
         console.error('oobCode não encontrado');
       }
@@ -98,11 +106,10 @@ constructor(
     this.ngUnsubscribe.complete();
   }
 
-  async handleEmailVerification(oobCode: string): Promise<void> {
+  async handleEmailVerification(): Promise<void> {
     this.isLoading = true;
-    try {  // Verifica o código de ação do email
-      const verificationSuccess = await this.emailVerificationService.handleEmailVerification(oobCode);
-
+    try {
+      const verificationSuccess = await this.emailVerificationService.handleEmailVerification();
       if (verificationSuccess) {
         console.log('A verificação do e-mail foi bem-sucedida.');
 
@@ -113,29 +120,49 @@ constructor(
           this.isEmailVerified = true;
 
           // Recupera o usuário autenticado atual
-          const currentUser = this.authService.currentUser;
-          if (currentUser) {
-            // Atualizando os dados de registro com as informações do usuário atual.
-            this.userData = {
-              uid: currentUser.uid,
-              email: currentUser.email || '',
-              nickname: currentUser.nickname || '',
-              photoURL: currentUser.photoURL || '',
-              emailVerified: true,
-              isSubscriber: false,
-            };
-          }
+          this.authService.getUserAuthenticated().subscribe(currentUser => {
+            if (currentUser) {
+              // Atualizando os dados de registro com as informações do usuário atual.
+              this.userData = {
+                uid: currentUser.uid,
+                email: currentUser.email || '',
+                nickname: currentUser.nickname || '',
+                photoURL: currentUser.photoURL || '',
+                emailVerified: true,
+                isSubscriber: false,
+                firstLogin: currentUser.firstLogin || new Date(), // Adiciona firstLogin aqui
+                estado: this.selectedEstado,
+                municipio: this.selectedMunicipio
+              };
+            }
+          });
         }
+      } else {
+        this.isEmailVerified = false;
       }
-      } catch (error) {
-        console.error('Falha ao manusear a verificação de e-mail', error);
-      } finally {
-        this.isLoading = false;
-      }
-    } // até aqui está certo, corrija daqui pra baixo pra mim
+    } catch (error: any) {
+      this.isLoading = false;
+      this.isEmailVerified = false;
+      this.errorMessage = error.message; // Armazenando a mensagem de erro
+    }
+  }
 
   async onSubmit(): Promise<void> {
     console.log('Formulário enviado');
+
+    // Validação dos campos obrigatórios
+    this.checkFieldValidity('gender', this.gender);
+    this.checkFieldValidity('orientation', this.orientation);
+    this.checkFieldValidity('selectedFile', this.selectedFile);
+    this.checkFieldValidity('estado', this.selectedEstado);
+    this.checkFieldValidity('municipio', this.selectedMunicipio);
+
+    const hasErrors = Object.values(this.formErrors).some(error => error !== '');
+    if (hasErrors) {
+      console.error('Formulário inválido:', this.formErrors);
+      // Opcional: exibir mensagens de erro ao usuário
+      return;
+    }
 
     if (this.selectedFile) {
       console.log('Arquivo selecionado:', this.selectedFile);
@@ -149,24 +176,23 @@ constructor(
       }
     }
 
-    const agoraTimestamp = Timestamp.fromDate(new Date());
-
     const initialUserData: IUserRegistrationData = {
       uid: this.userData.uid,
       email: this.userData.email,
       nickname: this.userData.nickname,
       photoURL: this.userData.photoURL || '',
-      // gender e orientation podem ser adicionados aqui se coletados durante o registro
       gender: this.gender,
       orientation: this.orientation,
       estado: this.selectedEstado,
       municipio: this.selectedMunicipio,
       emailVerified: true,
       isSubscriber: false,
+      firstLogin: this.userData.firstLogin || new Date(), // Adiciona o campo firstLogin
     };
-   console.log('Criando dadosDoUsuario:', initialUserData);
 
-    // Recuperando o nickname do localStorage e atribuindo a dadosDoUsuario
+    console.log('Criando initialUserData:', initialUserData);
+
+    // Recuperando o nickname do localStorage e atribuindo a initialUserData
     const storedNickname = localStorage.getItem('tempNickname');
     if (storedNickname) {
       initialUserData.nickname = storedNickname;
@@ -175,16 +201,19 @@ constructor(
       localStorage.removeItem('tempNickname');
     }
 
-    this.authService.saveUserToFirestore(initialUserData).then(() => {
+    // Salvando os dados iniciais do usuário no Firestore
+    try {
+      await this.firestoreService.saveInitialUserData(initialUserData.uid, initialUserData);
       console.log('Dados do usuário salvos com sucesso');
-      this.router.navigate([`/perfil/`, this.userData.uid]);
-    }).catch(erro => {
+      this.router.navigate([`/perfil/${this.userData.uid}`]);
+    } catch (erro) {
       console.error('Erro ao salvar dados do usuário:', erro);
-    });
+      // Opcional: exibir mensagem de erro ao usuário
+    }
   }
 
   isFieldInvalid(field: string): boolean {
-    return this.formErrors[field] ? true : false;
+    return !!this.formErrors[field];
   }
 
   checkFieldValidity(field: string, value: any): void {
@@ -198,7 +227,7 @@ constructor(
   uploadFile(event: any): void {
     this.selectedFile = event.target.files[0];
     this.checkFieldValidity('selectedFile', this.selectedFile);
-    console.log(this.selectedFile);
+    console.log('Arquivo selecionado:', this.selectedFile);
   }
 
   async uploadToStorage(file: File): Promise<string> {
@@ -236,14 +265,18 @@ constructor(
           reject(error);
         },
         async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          console.log('Arquivo disponível em', downloadURL);
-          this.isUploading = false; // Finaliza o upload com sucesso
-          resolve(downloadURL);
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            console.log('Arquivo disponível em', downloadURL);
+            this.isUploading = false; // Finaliza o upload com sucesso
+            resolve(downloadURL);
+          } catch (error) {
+            console.error('Erro ao obter o downloadURL:', error);
+            this.isUploading = false;
+            reject(error);
+          }
         }
       );
     });
   }
 }
-
-

@@ -1,28 +1,24 @@
-//src\app\core\services\autentication\auth.service.ts
+// src\app\core\services\autentication\auth.service.ts
 import { Injectable } from '@angular/core';
 import { from, Observable, of, ReplaySubject } from 'rxjs';
-import { catchError, tap, switchMap, first } from 'rxjs/operators';
+import { catchError, tap, first } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { Router } from '@angular/router';
-
-import { getAuth, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
+import { getAuth, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, UserCredential, sendPasswordResetEmail, confirmPasswordReset } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
 
 import { FirestoreService } from './firestore.service';
-import { EmailVerificationService } from './email-verification.service';
-import { PreRegisterServiceService } from './pre-register.service';
 import { UsuarioService } from '../usuario.service';
 import { UserProfileService } from '../user-profile/user-profile.service';
-import { IUserRegistrationData } from 'src/app/post-verification/iuser-registration-data';
+import { GeolocationService } from '../geolocation/geolocation.service';
+import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 
 const auth = getAuth();
 
 @Injectable({
   providedIn: 'root'
 })
-
 export class AuthService {
-
   private userSubject = new ReplaySubject<IUserDados | null>(1);
   private currentUserValue: IUserDados | null = null;
 
@@ -32,10 +28,9 @@ export class AuthService {
   constructor(
     private router: Router,
     private firestoreService: FirestoreService,
-    private emailVerificationService: EmailVerificationService,
     private usuarioService: UsuarioService,
-    private preRegisterService: PreRegisterServiceService,
-    private userProfileService: UserProfileService
+    private userProfileService: UserProfileService,
+    private geolocationService: GeolocationService
   ) {
     this.initAuthStateListener();
   }
@@ -43,110 +38,94 @@ export class AuthService {
   // Inicia o ouvinte de mudança de autenticação
   private initAuthStateListener(): void {
     auth.onAuthStateChanged(user => {
-      console.log('Estado de autenticação mudou:', user);
       if (user) {
-        // Se um usuário estiver autenticado, obtemos os dados completos do usuário
         this.usuarioService.getUsuario(user.uid).subscribe(userData => {
-          console.log('Dados do usuário atualizados:', userData);
-          // Atualiza o valor atual e emite os dados através do userSubject
           this.currentUserValue = userData;
           this.userSubject.next(userData);
         }, error => {
-          // Em caso de erro, registra o erro e define os valores como null
           console.error('Erro ao buscar dados do usuário:', error);
           this.currentUserValue = null;
           this.userSubject.next(null);
         });
       } else {
-        // Se não houver usuário autenticado, define os valores como null
-        console.log('Nenhum usuário autenticado.');
         this.currentUserValue = null;
         this.userSubject.next(null);
       }
     });
   }
 
+  // Obtém o usuário autenticado
   getUserAuthenticated(): Observable<IUserDados | null> {
-    return this.user$.pipe(first()); // Pega apenas o primeiro valor emitido
+    return this.user$.pipe(first());
   }
 
-  async register(email: string, password: string, userRegistrationData: IUserRegistrationData, userPreferences: any): Promise<void> {
-    console.log('Iniciando registro para o email:', email);
-    const userCredential = await createUserWithEmailAndPassword(getAuth(), email, password);
-    const user = userCredential.user;
-    if (!user) throw new Error('Falha ao criar usuário.');
-
-    if (!user.uid) {
-      throw new Error('UID do usuário não está disponível após a criação da conta.');
-    }
-
-    // Salvar dados adicionais do usuário no Firestore
-    if (user.uid) {
-      userRegistrationData.uid = user.uid;
-      userRegistrationData.firstLogin = Timestamp.fromDate(new Date());
-      await this.emailVerificationService.sendEmailVerification(user);
-
-      const userData: IUserRegistrationData = {
-        ...userRegistrationData,
-        uid: user.uid,
-        emailVerified: false,
-        isSubscriber: false,
-        estado: userRegistrationData.estado,
-        municipio: userRegistrationData.municipio,
-        // outros campos conforme necessário
-      };
-
-      await this.firestoreService.saveInitialUserData(user.uid, userRegistrationData);
-    } else {
-      console.error('UID é undefined');
-      // Lide com o caso de uid não definido conforme necessário
-    }
+  // Obtém o UID do usuário logado
+  getLoggedUserUID(): string | null {
+    return this.currentUserValue ? this.currentUserValue.uid : null;
   }
 
-  async verifyEmail(actionCode: string): Promise<void> {
-    await this.emailVerificationService.verifyEmail(actionCode);
-    // Aqui, você pode atualizar o status de verificação de e-mail no Firestore se necessário
-    // E redirecionar o usuário para a página de destino
-    this.router.navigate(['/email-verified']);
-  }
-
-
-  private async saveInitialUserData(uid: string, userData: IUserRegistrationData): Promise<void> {
-    await this.firestoreService.saveInitialUserData(uid, userData);
-  }
-
-  async resendVerificationEmail(): Promise<void> {
-    const currentUser = getAuth().currentUser;
-    if (currentUser) {
-      await this.emailVerificationService.sendEmailVerification(currentUser);
-    } else {
-      throw new Error('Nenhum usuário autenticado encontrado');
-    }
-  }
-
-  async saveUserToFirestore(userRegistrationData: IUserRegistrationData): Promise<void> {
-    if (!userRegistrationData.uid) {
-      console.error('UID do usuário não está definido');
-      return;
-    }
-
-    try {
-      // Assumindo que userRegistrationData já inclui o uid e outros campos necessários
-      await this.firestoreService.saveInitialUserData(userRegistrationData.uid, userRegistrationData);
-    } catch (error) {
-      console.error('Erro ao salvar usuário no Firestore:', error);
-      throw error;
-    }
-  }
-
-  // Checa se o nickname existe
   async checkIfNicknameExists(nickname: string): Promise<boolean> {
     return this.firestoreService.checkIfNicknameExists(nickname);
   }
 
+  // Registro de usuário
+  async register(userRegistrationData: IUserRegistrationData, password: string): Promise<void> {
+    let userCredential: UserCredential | null = null;
+
+    const nicknameExists = await this.checkIfNicknameExists(userRegistrationData.nickname);
+    if (nicknameExists) {
+      throw new Error('O apelido já está em uso.');
+    }
+
+    try {
+      userCredential = await createUserWithEmailAndPassword(getAuth(), userRegistrationData.email, password);
+      const user = userCredential.user;
+      if (!user) throw new Error('Falha ao criar usuário.');
+
+      userRegistrationData.uid = user.uid;
+      userRegistrationData.emailVerified = false;
+      userRegistrationData.isSubscriber = false;
+      userRegistrationData.firstLogin = Timestamp.fromDate(new Date());
+
+      // Adicionar localização geográfica ao registro (opcional)
+      try {
+        const location = await this.geolocationService.getCurrentLocation();
+        userRegistrationData.latitude = location.latitude;
+        userRegistrationData.longitude = location.longitude;
+      } catch (error) {
+        console.warn('Erro ao obter localização: ', error);
+      }
+
+      await this.firestoreService.saveInitialUserData(user.uid, userRegistrationData);
+
+    } catch (error) {
+      console.error('Erro durante o registro:', error);
+      if (userCredential && userCredential.user) {
+        await userCredential.user.delete();
+        console.log('Conta excluída devido a erro no registro.');
+      }
+      throw error;
+    }
+  }
+
+  // Login de usuário
+  async login(email: string, password: string): Promise<IUserDados | null | undefined> {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      if (user) {
+        return this.usuarioService.getUsuario(user.uid).pipe(first()).toPromise();
+      }
+      return null;
+    } catch (error) {
+      console.error('Erro ao fazer login:', error);
+      throw error;
+    }
+  }
+
   // Desloga o usuário
   logout(): Observable<void> {
-    console.log('Iniciando processo de logout');
     return from(signOut(auth)).pipe(
       tap(() => {
         this.userSubject.next(null);
@@ -159,41 +138,23 @@ export class AuthService {
     );
   }
 
-  // Verifica se o usuário está autenticado
-  isUserAuthenticated(): boolean {
-    return !!this.currentUserValue;
-  }
-
-  // Retorna o usuário atual
-  get currentUser(): IUserDados | null {
-    return this.currentUserValue;
-  }
-
-  // Busca usuário pelo ID
-  async getUserById(uid: string): Promise<IUserDados | null> {
-    console.log("Chamando getUserById no AuthService com UID:", uid);
-    const userData = await this.userProfileService.getUserById(uid);
-    console.log('Dados recuperados do Firestore:', userData);
-    return userData;
-  }
-
-  async login(email: string, password: string): Promise<IUserDados | null | undefined> {
-    console.log('Tentativa de login para o email:', email);
+  // Função para confirmar a redefinição de senha
+  async confirmPasswordReset(oobCode: string, newPassword: string): Promise<void> {
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      if (user) {
-        console.log('Usuário logado com sucesso:', user);
-        return this.usuarioService.getUsuario(user.uid).pipe(
-          first()
-        ).toPromise();
-      } else {
-        console.warn('Dados do usuário não encontrados após o login.');
-        return null;
-      }
+      await confirmPasswordReset(auth, oobCode, newPassword);
+      console.log('Senha redefinida com sucesso.');
     } catch (error) {
-      console.error('Erro ao fazer login:', error);
+      console.error('Erro ao redefinir a senha:', error);
+      throw error;
+    }
+  }
+
+  // Função para enviar o e-mail de recuperação de senha
+  async sendPasswordResetEmail(email: string): Promise<void> {
+    try {
+      await sendPasswordResetEmail(auth, email);
+    } catch (error) {
+      console.error('Erro ao enviar e-mail de recuperação:', error);
       throw error;
     }
   }

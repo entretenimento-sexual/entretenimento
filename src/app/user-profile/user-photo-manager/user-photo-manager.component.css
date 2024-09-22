@@ -1,0 +1,35 @@
+/* src\app\user-profile\user-photo-manager\user-photo-manager.component.css */
+.photo-manager {
+  text-align: center;
+}
+
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.photo-item {
+  position: relative;
+}
+
+.photo-item img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.delete-button {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background-color: red;
+  color: white;
+  border: none;
+  padding: 5px;
+  cursor: pointer;
+}
+
+.delete-button:hover {
+  background-color: darkred;
+}

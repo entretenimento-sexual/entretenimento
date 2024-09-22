@@ -6,7 +6,7 @@ import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ValidatorService } from 'src/app/core/services/validator.service';
+import { ValidatorService } from 'src/app/core/services/data-handling/validator.service';
 
 @Component({
   selector: 'app-edit-user-profile',

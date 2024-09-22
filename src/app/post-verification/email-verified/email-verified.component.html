@@ -71,5 +71,5 @@
 
 <!-- Mensagem de erro -->
 <div *ngIf="!isLoading && !isEmailVerified">
-  <p>A verificação do e-mail falhou ou está pendente.</p>
+  <p *ngIf="errorMessage">{{ errorMessage }}</p>
 </div>

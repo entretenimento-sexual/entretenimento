@@ -1,11 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { CanActivateFn } from '@angular/router';
 
-import { premiumGuard } from './premium.guard';
+import { authRedirectGuard } from './auth-redirect.guard';
 
-describe('premiumGuard', () => {
-  const executeGuard: CanActivateFn = (...guardParameters) =>
-      TestBed.runInInjectionContext(() => premiumGuard(...guardParameters));
+describe('authRedirectGuard', () => {
+  const executeGuard: CanActivateFn = (...guardParameters) => 
+      TestBed.runInInjectionContext(() => authRedirectGuard(...guardParameters));
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
