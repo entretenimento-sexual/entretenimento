@@ -15,7 +15,8 @@ export class ResetPasswordComponent {
   actionCode: string | null = null;
   errorMessage: string = '';
   passwordStrengthMessage: string = '';
-  showSuccessMessage: boolean = false; // Controle para exibir o modal de sucesso
+  showSuccessMessage: boolean = false;
+  showBackToLoginButton: boolean = false; // Controle para exibir o botão Voltar
 
   constructor(
     private route: ActivatedRoute,
@@ -30,6 +31,7 @@ export class ResetPasswordComponent {
       this.actionCode = params['oobCode'];
       if (!this.actionCode) {
         this.errorMessage = 'Código inválido ou ausente.';
+        this.showBackToLoginButton = true; // Exibe o botão Voltar para erros de código inválido ou ausente
       }
     });
   }
@@ -43,30 +45,42 @@ export class ResetPasswordComponent {
   async resetPassword(): Promise<void> {
     if (!this.actionCode) {
       this.errorMessage = 'Código de redefinição de senha inválido.';
+      this.showBackToLoginButton = true; // Exibe o botão Voltar
       return;
     }
 
     if (this.newPassword !== this.confirmPassword) {
       this.errorMessage = 'As senhas não coincidem.';
-      return;
+      return; // Não exibe o botão Voltar
     }
 
     if (this.newPassword.length < 6) {
       this.errorMessage = 'A senha deve ter pelo menos 6 caracteres.';
-      return;
+      return; // Não exibe o botão Voltar
     }
 
     try {
-      // Chama o serviço para confirmar a redefinição da senha com o oobCode
       await this.authService.confirmPasswordReset(this.actionCode, this.newPassword);
-      this.showSuccessMessage = true; // Exibe o modal de sucesso
+      this.showSuccessMessage = true;
 
       setTimeout(() => {
         this.router.navigate(['/login']);
-      }, 4000); // Aguarda 3 segundos antes de redirecionar para a página de login
-    } catch (error) {
-      this.errorMessage = 'Erro ao redefinir a senha. Por favor, tente novamente.';
+      }, 4000);
+    } catch (error: any) {
+      if (error.code === 'auth/expired-action-code') {
+        this.errorMessage = 'O link de redefinição expirou. Por favor, solicite um novo.';
+        this.showBackToLoginButton = true; // Exibe o botão Voltar
+      } else if (error.code === 'auth/invalid-action-code') {
+        this.errorMessage = 'O código de redefinição é inválido. Verifique o link ou solicite uma nova redefinição de senha.';
+        this.showBackToLoginButton = true; // Exibe o botão Voltar
+      } else {
+        this.errorMessage = 'Erro ao redefinir a senha. Por favor, tente novamente.';
+        this.showBackToLoginButton = false; // Não exibe o botão Voltar para erros genéricos
+      }
       console.error('Erro ao redefinir a senha:', error);
     }
+  }
+  navigateToLogin(): void {
+    this.router.navigate(['/login']);
   }
 }

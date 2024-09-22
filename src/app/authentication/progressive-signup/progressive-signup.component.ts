@@ -7,7 +7,7 @@ import { PreRegisterServiceService } from 'src/app/core/services/autentication/p
 @Component({
   selector: 'app-progressive-signup',
   templateUrl: './progressive-signup.component.html',
-  styleUrls: ['./progressive-signup.component.css', '../authentication.css']
+  styleUrls: ['./progressive-signup.component.css']
 })
 
 export class ProgressiveSignupComponent {

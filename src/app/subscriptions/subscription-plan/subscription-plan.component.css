@@ -2,21 +2,57 @@
 .subscription-plan-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  justify-content: center;  /* Centraliza o conteúdo verticalmente */
+  align-items: center;  /* Centraliza o conteúdo horizontalmente */
+  text-align: center;
   padding: 20px;
+  min-height: 60vh;  /* Mantém a altura mínima */
+}
+
+.plans-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 20px;
+  width: 100%;
 }
 
 .plan {
   border: 1px solid #ccc;
-  border-radius: 5px;
-  margin: 10px 0;
+  border-radius: 8px;
   padding: 20px;
-  width: 80%;
-  max-width: 500px;
+  width: 100%;
+  max-width: 350px;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.plan:hover {
+  transform: scale(1.05);
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.featured-plan {
+  border: 2px solid #007bff;
+}
+
+.price {
+  font-size: 1.5rem;
+  color: #333;
+  margin: 10px 0;
 }
 
 .plan h3 {
   margin-top: 0;
+}
+
+.plan ul {
+  list-style: none;
+  padding: 0;
+}
+
+.plan li {
+  padding: 5px 0;
+  border-bottom: 1px solid #ddd;
 }
 
 .plan button {
@@ -26,7 +62,9 @@
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  margin-top: 10px;
+  margin-top: 20px;
+  width: 100%;
+  transition: background-color 0.3s;
 }
 
 .plan button:hover {

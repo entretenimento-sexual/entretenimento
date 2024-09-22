@@ -15,9 +15,12 @@ import { OobCodeService } from 'src/app/core/services/autentication/oobCode.serv
   templateUrl: './email-verified.component.html',
   styleUrls: ['./email-verified.component.css']
 })
+
 export class EmailVerifiedComponent implements OnInit, OnDestroy {
   public isLoading = true;
   public isEmailVerified = false;
+  public errorMessage: string = '';
+  
   oobCode: any;
 
   // Usando a interface IUserRegistrationData para gerenciar os dados do usuário.
@@ -106,9 +109,7 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
   async handleEmailVerification(): Promise<void> {
     this.isLoading = true;
     try {
-      // Verifica o código de ação do email
       const verificationSuccess = await this.emailVerificationService.handleEmailVerification();
-
       if (verificationSuccess) {
         console.log('A verificação do e-mail foi bem-sucedida.');
 
@@ -136,13 +137,16 @@ export class EmailVerifiedComponent implements OnInit, OnDestroy {
             }
           });
         }
+      } else {
+        this.isEmailVerified = false;
       }
-    } catch (error) {
-      console.error('Falha ao manusear a verificação de e-mail', error);
-    } finally {
+    } catch (error: any) {
       this.isLoading = false;
+      this.isEmailVerified = false;
+      this.errorMessage = error.message; // Armazenando a mensagem de erro
     }
   }
+
   async onSubmit(): Promise<void> {
     console.log('Formulário enviado');
 

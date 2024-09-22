@@ -15,6 +15,7 @@
 }
 
 .container {
+  padding: 30px;
   margin-bottom: 3%;
   /* Espaçamento entre o container e o conteúdo abaixo */
 }

@@ -49,7 +49,10 @@ export class EmailVerificationService {
     if (!actionCode) return false;
 
     try {
+      // Aplicar o código de ação para verificar o e-mail
       await applyActionCode(getAuth(), actionCode);
+
+      // Verificar se o e-mail foi verificado
       const isEmailVerified = await this.reloadCurrentUser();
 
       if (isEmailVerified) {
@@ -58,11 +61,21 @@ export class EmailVerificationService {
           await this.updateEmailVerificationStatus(currentUserUid, true);
         }
       }
+
       return isEmailVerified;
 
-    } catch (error) {
-      console.error('Erro ao aplicar o código de ação:', error);
-      return false;
+    } catch (error: any) {
+      // Captura os códigos de erro específicos e loga o erro
+      if (error.code === 'auth/expired-action-code') {
+        console.error('O código de verificação expirou.');
+        throw new Error('O link de verificação expirou. Solicite um novo link de verificação.');
+      } else if (error.code === 'auth/invalid-action-code') {
+        console.error('O código de verificação é inválido.');
+        throw new Error('O link de verificação é inválido. Verifique o link ou solicite um novo e-mail de verificação.');
+      } else {
+        console.error('Erro ao aplicar o código de verificação:', error);
+        throw new Error('Ocorreu um erro inesperado ao verificar o e-mail. Tente novamente mais tarde.');
+      }
     }
   }
 
