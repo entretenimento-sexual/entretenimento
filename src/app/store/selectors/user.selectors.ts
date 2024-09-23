@@ -9,6 +9,22 @@ export const selectUserState = (state: AppState): UserState => {
   return state.user || { users: [], filteredUsers: [], loading: false, error: null };
 };
 
+export const selectHasBasicAccess = createSelector(
+  selectUserState,
+  (state: UserState) => state.users.some(user => ['basico', 'premium', 'vip'].includes(user.role))
+);
+
+export const selectHasPremiumAccess = createSelector(
+  selectUserState,
+  (state: UserState) => state.users.some(user => ['premium', 'vip'].includes(user.role))
+);
+
+export const selectHasVipAccess = createSelector(
+  selectUserState,
+  (state: UserState) => state.users.some(user => user.role === 'vip')
+);
+
+
 // Seletor para obter todos os usuários
 export const selectAllUsers = createSelector(
   selectUserState,

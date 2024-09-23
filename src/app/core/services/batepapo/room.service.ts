@@ -1,12 +1,15 @@
 // src\app\core\services\batepapo\room.service.ts
 import { Injectable } from '@angular/core';
 import { SubscriptionService } from '../subscriptions/subscription.service';
-import { Observable, switchMap, throwError } from 'rxjs';
+import { Store } from '@ngrx/store';
+import { AppState } from 'src/app/store/states/app.state';
+import { Observable, throwError, from } from 'rxjs';
+import { switchMap, take } from 'rxjs/operators';
 import {
-  addDoc, collection, Timestamp, getFirestore, query, where, getDocs, serverTimestamp, updateDoc, doc, deleteDoc, onSnapshot, orderBy, limitToLast
+  addDoc, collection, Timestamp, getFirestore, query, where, getDocs, serverTimestamp, updateDoc, doc, deleteDoc, onSnapshot, orderBy
 } from 'firebase/firestore';
-import { UsuarioStateService } from '../autentication/usuario-state.service';
 import { Message } from '../../interfaces/interfaces-chat/message.interface';
+import { selectUserState } from 'src/app/store/selectors/user.selectors'; // Importa o seletor
 
 @Injectable({
   providedIn: 'root'
@@ -16,7 +19,7 @@ export class RoomService {
 
   constructor(
     private subscriptionService: SubscriptionService,
-    private usuarioStateService: UsuarioStateService
+    private store: Store<AppState> // Injetando o Store para obter o estado do usuário
   ) { }
 
   public async countUserRooms(userId: string): Promise<number> {
@@ -27,8 +30,10 @@ export class RoomService {
   }
 
   createRoom(roomDetails: any): Observable<any> {
-    return this.usuarioStateService.user$.pipe(
-      switchMap(async (user) => {
+    return this.store.select(selectUserState).pipe(
+      take(1), // Pega o estado do usuário uma vez
+      switchMap(async (state) => {
+        const user = state.users[0]; // Supondo que o estado contenha o array de usuários e o primeiro seja o usuário logado
         if (!user) {
           return throwError(() => new Error('Usuário não autenticado.'));
         }
@@ -59,7 +64,7 @@ export class RoomService {
 
         try {
           const docRef = await addDoc(collection(this.db, 'rooms'), roomData);
-          return { roomId: docRef.id, ...roomData, roomCount: await this.countUserRooms(user.uid)};
+          return { roomId: docRef.id, ...roomData, roomCount: await this.countUserRooms(user.uid) };
         } catch (error) {
           return throwError(() => error);
         }
@@ -80,8 +85,8 @@ export class RoomService {
         console.log("Snapshot recebido", querySnapshot);
         const rooms: any[] = [];
         querySnapshot.forEach((doc) => {
-            console.log('Recuperando sala com ID:', doc.id);
-            rooms.push({ roomId: doc.id, ...doc.data() });
+          console.log('Recuperando sala com ID:', doc.id);
+          rooms.push({ roomId: doc.id, ...doc.data() });
         });
 
         // Verifica se algum documento foi removido
@@ -146,7 +151,7 @@ export class RoomService {
       return new Observable(observer => {
         const unsubscribe = onSnapshot(messagesQuery, snapshot => {
           const messages = snapshot.docs.map(doc => doc.data() as Message); // Mantém timestamp como Timestamp
-          observer.next(messages); 
+          observer.next(messages);
         }, error => observer.error(error));
 
         return { unsubscribe };
@@ -156,5 +161,4 @@ export class RoomService {
       return throwError(() => new Error('Modo não-realtime não suportado.'));
     }
   }
-  }
-
+}

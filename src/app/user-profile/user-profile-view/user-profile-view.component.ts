@@ -2,7 +2,7 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription, Observable } from 'rxjs';
-import { tap, map } from 'rxjs/operators';
+import { tap, map, switchMap } from 'rxjs/operators';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { SidebarService } from 'src/app/core/services/sidebar.service';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
@@ -17,14 +17,15 @@ enum SidebarState { CLOSED, OPEN }
   styleUrls: ['./user-profile-view.component.css', '../user-profile.css',
     './css-teste-user-profile-view.css']
 })
-
 export class UserProfileViewComponent implements OnInit, OnDestroy {
 
   private sidebarSubscription?: Subscription;
+  private userSubscription?: Subscription;
   public isSidebarVisible = SidebarState.CLOSED;
-  public usuario$: Observable<IUserDados | null>;
+  public usuario$: Observable<IUserDados | null> = new Observable<IUserDados | null>();
   public uid!: string | null;
   public preferences: any;
+  public currentUser: IUserDados | null = null; // Armazena o usuário autenticado
 
   objectKeys(obj: any): string[] {
     return Object.keys(obj).filter(key => obj[key] && obj[key].value);
@@ -42,50 +43,48 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private sidebarService: SidebarService,
     private usuarioService: UsuarioService
-  ) {
-    this.usuario$ = new Observable<IUserDados | null>();
-  }
+  ) { }
 
   ngOnInit(): void {
-    this.authService.getUserAuthenticated().subscribe((currentUser) => {
-      const userId = this.route.snapshot.paramMap.get('id') || currentUser?.uid;
+    // Centralizar a assinatura do usuário autenticado
+    this.userSubscription = this.authService.user$.pipe(
+      tap(user => this.currentUser = user),
+      switchMap(currentUser => {
+        const userId = this.route.snapshot.paramMap.get('id') || currentUser?.uid;
 
-      if (!userId) {
-        console.error('UserID é undefined');
-        return;
-      }
+        if (!userId) {
+          console.error('UserID é undefined');
+          return [];
+        }
 
-      this.uid = userId;
+        this.uid = userId;
 
-      // Iniciar a assinatura para o Observable do usuário.
-      this.usuario$ = this.usuarioService.getUsuario(userId).pipe(
-        tap(user => console.log('Usuário recuperado do serviço:', user)),
-        map(user => {
-          // Verificar se user.firstLogin é uma instância de Timestamp e converter para Date.
-          if (user && user.firstLogin instanceof Timestamp) {
-            console.log('Convertendo firstLogin de Timestamp para Date');
-            user.firstLogin = user.firstLogin.toDate();
-          }
-          return user;
-        }),
-        tap(user => {
-          // Debugging após a transformação.
-          console.log('Usuário após processamento:', user);
-          if (user) {
-            this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
-            console.log('Estado da Sidebar definido para:', this.isSidebarVisible);
-          }
-        }),
-        tap({
-          error: error => console.error('Erro ao recuperar usuário:', error),
-          complete: () => console.log('Observable de usuário completado')
-        })
-      );
+        // Carregar o perfil do usuário
+        return this.usuarioService.getUsuario(userId).pipe(
+          tap(user => console.log('Usuário recuperado do serviço:', user)),
+          map(user => {
+            if (user && user.firstLogin instanceof Timestamp) {
+              console.log('Convertendo firstLogin de Timestamp para Date');
+              user.firstLogin = user.firstLogin.toDate();
+            }
+            return user;
+          }),
+          tap(user => {
+            console.log('Usuário após processamento:', user);
+            if (user) {
+              this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
+              console.log('Estado da Sidebar definido para:', this.isSidebarVisible);
+            }
+          })
+        );
+      })
+    ).subscribe(usuario => {
+      this.usuario$ = new Observable<IUserDados | null>(observer => observer.next(usuario));
     });
 
-    // Iniciar a assinatura para a visibilidade da sidebar.
+    // Iniciar a assinatura para a visibilidade da sidebar
     this.sidebarSubscription = this.sidebarService.isSidebarVisible$.subscribe(
-      (isVisible) => {
+      isVisible => {
         this.isSidebarVisible = isVisible ? SidebarState.OPEN : SidebarState.CLOSED;
         console.log('Visibilidade da Sidebar atualizada para:', isVisible ? 'Aberta' : 'Fechada');
       }
@@ -121,15 +120,10 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.sidebarSubscription?.unsubscribe();
+    this.userSubscription?.unsubscribe(); // Desinscrever-se corretamente
   }
 
   isOnOwnProfile(): boolean {
-    let isOwnProfile = false;
-    this.authService.getUserAuthenticated().subscribe((currentUser) => {
-      if (currentUser) {
-        isOwnProfile = this.uid === currentUser.uid;
-      }
-    });
-    return isOwnProfile;
+    return this.currentUser?.uid === this.uid; // Evita a necessidade de múltiplas assinaturas
   }
 }

@@ -1,25 +1,46 @@
 // src/app/store/effects/user.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
+import { observeUserChanges, loadUsers, loadUsersSuccess, loadUsersFailure, updateUserRole, updateUserOnlineStatus, updateUserOnlineStatusSuccess, updateUserOnlineStatusFailure, loadOnlineUsers, loadOnlineUsersSuccess, loadOnlineUsersFailure, setFilteredOnlineUsers } from '../actions/user.actions';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
-import {
-  loadUsers,
-  loadUsersSuccess,
-  loadUsersFailure,
-  updateUserOnlineStatus,
-  updateUserOnlineStatusSuccess,
-  updateUserOnlineStatusFailure,
-  loadOnlineUsers,
-  loadOnlineUsersSuccess,
-  loadOnlineUsersFailure,
-  setFilteredOnlineUsers
-} from '../actions/user.actions';
 import { catchError, map, mergeMap, throttleTime, withLatestFrom } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 
 @Injectable()
 export class UserEffects {
+
+  // Efeito para observar mudanças no usuário
+  observeUserChanges$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(observeUserChanges),
+      mergeMap(({ uid }) =>
+        this.usuarioService.getUserById(uid).pipe(
+          map(user => {
+            if (user) {
+              return loadUsersSuccess({ users: [user] });
+            } else {
+              return loadUsersFailure({ error: 'Usuário não encontrado' });
+            }
+          }),
+          catchError(error => of(loadUsersFailure({ error })))
+        )
+      )
+    )
+  );
+
+  // Efeito para atualizar o papel (role) de um usuário
+  updateUserRole$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(updateUserRole),
+      mergeMap(({ uid, newRole }) =>
+        this.usuarioService.updateUserRole(uid, newRole).pipe(
+          map(() => ({ type: '[User] Update User Role Success', uid, newRole })),
+          catchError(error => of(updateUserOnlineStatusFailure({ error })))
+        )
+      )
+    )
+  );
 
   // Efeito que carrega usuários online
   loadOnlineUsers$ = createEffect(() =>
@@ -37,9 +58,7 @@ export class UserEffects {
     )
   );
 
-
   // Efeito para atualizar o status online de um usuário específico
-  // Exemplo: usar throttle para evitar sobrecarga
   updateUserOnlineStatus$ = createEffect(() =>
     this.actions$.pipe(
       ofType(updateUserOnlineStatus),
@@ -52,7 +71,6 @@ export class UserEffects {
       )
     )
   );
-
 
   // Efeito para filtrar os usuários online pelo município do usuário logado
   filterOnlineUsersByMunicipio$ = createEffect(() =>

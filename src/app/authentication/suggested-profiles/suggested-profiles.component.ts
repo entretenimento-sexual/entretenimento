@@ -20,19 +20,26 @@ export class SuggestedProfilesComponent implements OnInit {
     private suggestionService: SuggestionService
   ) { }
 
-  async ngOnInit() {
-    try {
-      const currentUser = await this.authService.getUserAuthenticated().toPromise();
-      if (currentUser) {
-        this.suggestedProfiles = await this.suggestionService.getSuggestedProfilesForUser(currentUser);
-        this.matchingProfilesCount = this.suggestedProfiles.length;
+  ngOnInit() {
+    this.authService.user$.subscribe({
+      next: async (currentUser) => {
+        if (currentUser) {
+          try {
+            this.suggestedProfiles = await this.suggestionService.getSuggestedProfilesForUser(currentUser);
+            this.matchingProfilesCount = this.suggestedProfiles.length;
 
-        if (this.matchingProfilesCount === 0) {
-          this.noProfilesMessage = "Atualmente, não temos perfis sugeridos para você. Por favor, volte mais tarde ou verifique novamente após um tempo.";
+            if (this.matchingProfilesCount === 0) {
+              this.noProfilesMessage = "Atualmente, não temos perfis sugeridos para você. Por favor, volte mais tarde ou verifique novamente após um tempo.";
+            }
+          } catch (error) {
+            console.error('Erro ao buscar perfis sugeridos:', error);
+          }
         }
+      },
+      error: (error) => {
+        console.error('Erro ao obter o usuário autenticado:', error);
       }
-    } catch (error) {
-      console.error('Erro ao buscar perfis sugeridos:', error);
-    }
+    });
   }
 }
+

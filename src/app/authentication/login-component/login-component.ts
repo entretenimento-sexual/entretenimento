@@ -1,7 +1,6 @@
 // src\app\authentication\login-component\login-component.ts
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -47,36 +46,41 @@ export class LoginComponent {
     return this.honeypot.length > 0;
   }
 
-  // Função de login
+  // src/app/authentication/login-component/login-component.ts
+
   async login(): Promise<void> {
     this.clearError();
 
     if (!this.validateEmailFormat(this.email)) {
-      return;
+      return;  // Se o formato do e-mail for inválido, interrompe aqui
     }
 
     if (this.honeypotFilled()) {
       this.errorMessage = 'Detectado comportamento suspeito. Tente novamente.';
-      return;
+      return;  // Interrompe aqui se o honeypot for preenchido
     }
 
     this.isLoading = true;
 
     try {
-      const user: IUserDados | null | undefined = await this.authService.login(this.email, this.password);
+      // Captura o retorno do login (boolean indicando sucesso ou falha)
+      const loginSuccess = await this.authService.login(this.email, this.password);
 
-      if (user?.uid) {
-        await this.userProfileService.atualizarEstadoOnlineUsuario(user.uid, true);
-        this.router.navigate([`/perfil/${user.uid}`]);
+      if (loginSuccess) {
+        // O login foi bem-sucedido, não precisa fazer nada além, pois o AuthService já trata a navegação
       } else {
-        this.router.navigate(['/perfil/meu-perfil']);
+        // O login falhou, exibe a mensagem de erro e para o fluxo
+        this.errorMessage = 'O e-mail não foi verificado. Verifique seu e-mail para ativar sua conta.';
+        this.errorNotificationService.showError(this.errorMessage);
       }
     } catch (error) {
-      this.handleError(error);
+      this.handleError(error);  // Lida com outros tipos de erros
     } finally {
-      this.isLoading = false;
+      this.isLoading = false;  // Finaliza o carregamento
     }
   }
+
+
 
   // Tratamento de erros genérico
   private handleError(error: any): void {

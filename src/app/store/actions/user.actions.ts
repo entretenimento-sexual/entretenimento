@@ -2,6 +2,16 @@
 import { createAction, props } from '@ngrx/store';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
+export const observeUserChanges = createAction(
+  '[User] Observe User Changes',
+  props<{ uid: string }>()
+);
+
+export const updateUserRole = createAction(
+  '[User] Update User Role',
+  props<{ uid: string, newRole: string }>()
+);
+
 /**
  * Ação para iniciar o carregamento de todos os usuários.
  * Útil para iniciar o processo de busca de usuários na base de dados.

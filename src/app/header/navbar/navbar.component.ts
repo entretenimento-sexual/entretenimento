@@ -27,17 +27,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
               ) { }
 
   ngOnInit(): void {
-    // Quando o componente é inicializado, nós nos inscrevemos para ouvir as mudanças nos dados do usuário.
-    this.userSubscription = this.authService.user$.subscribe(user => {
-      // Define isAuthenticated como verdadeiro se o usuário existir.
-      this.isAuthenticated = !!user;
-
-      if (user) {
-        this.userName = user.displayName || 'Usuário';// Se o usuário existir, extraia o nome para exibição.
-        this.userId = user.uid || '';// Assumindo que seu objeto 'user' tenha uma propriedade 'id'.
-        this.isFree = user.role === 'free';// Define isFree como verdadeiro se o role do usuário for 'free'.
-      }
-    });
+    if (!this.userSubscription) {
+      this.userSubscription = this.authService.user$.subscribe(user => {
+        this.isAuthenticated = !!user;
+        if (this.isAuthenticated) {
+          this.userName = user?.displayName || 'Usuário';
+          this.userId = user?.uid || '';
+        } else {
+          this.router.navigate(['/login']);
+        }
+      });
+    }
   }
 
   ngOnDestroy(): void {

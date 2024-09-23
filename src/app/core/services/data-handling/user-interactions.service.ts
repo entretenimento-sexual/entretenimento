@@ -32,14 +32,13 @@ export class UserInteractionsService {
     return friends;
   }
 
-
   async addFriend(userId: string, friendId: string): Promise<void> {
     const friendDoc = doc(this.firestoreService.db, `amigos/${userId}_${friendId}`);
     await setDoc(friendDoc, { userId1: userId, userId2: friendId });
   }
 
   async loadFriends(): Promise<void> {
-    const currentUser = this.authService.currentUser;
+    const currentUser = await this.authService.getUserAuthenticated().toPromise();
     if (currentUser && currentUser.uid) {
       this.listFriends(currentUser.uid)
         .then(amigos => this.amigos = amigos)

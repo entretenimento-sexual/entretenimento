@@ -1,5 +1,5 @@
 // src\app\user-profile\user-profile-view\user-profile-sidebar\user-profile-sidebar.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Observable, Subscription } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
@@ -7,6 +7,7 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { RoomService } from 'src/app/core/services/batepapo/room.service';
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
+import { tap } from 'rxjs/operators';
 
 enum SidebarState { CLOSED, OPEN }
 
@@ -16,40 +17,42 @@ enum SidebarState { CLOSED, OPEN }
   styleUrls: ['./user-profile-sidebar.component.css']
 })
 
-export class UserProfileSidebarComponent implements OnInit {
+export class UserProfileSidebarComponent implements OnInit, OnDestroy {
   private sidebarSubscription?: Subscription;
   public isSidebarVisible = SidebarState.CLOSED;
   public usuario$!: Observable<IUserDados | null>;
-  public uid!: string | null;
+  public uid: string | null = null;
+  private userSubscription?: Subscription;
 
-  constructor(private authService: AuthService,
+  constructor(
+    private authService: AuthService,
     private usuarioService: UsuarioService,
     private roomService: RoomService,
-    private dialog: MatDialog) { }
+    private dialog: MatDialog
+  ) { }
 
   ngOnInit(): void {
-    this.authService.getUserAuthenticated().subscribe((currentUser) => {
-      if (currentUser) {
-        const userId = currentUser.uid; // Usando o userId do usuário autenticado
-        this.usuario$ = this.usuarioService.getUsuario(userId);
-        this.uid = userId; // Atribui o userId ao uid
-      } else {
-        this.uid = null; // Caso o usuário não esteja autenticado
-      }
-    });
+    // Assina o observable user$ e armazena o uid do usuário autenticado
+    this.userSubscription = this.authService.user$.pipe(
+      tap((currentUser) => {
+        if (currentUser) {
+          this.uid = currentUser.uid;
+          // Obter os dados do usuário
+          this.usuario$ = this.usuarioService.getUsuario(currentUser.uid);
+        } else {
+          this.uid = null;
+        }
+      })
+    ).subscribe();
   }
 
+  // Método para verificar se o usuário está em seu próprio perfil
   isOnOwnProfile(): boolean {
-    // Ajusta a lógica para garantir que o valor do UID seja comparado corretamente
-    let isOwnProfile = false;
-    this.authService.getUserAuthenticated().subscribe((user) => {
-      if (user && this.uid === user.uid) {
-        isOwnProfile = true;
-      }
-    });
-    return isOwnProfile;
+    // Verifica se o usuário autenticado e o perfil atual são iguais
+    return this.uid !== null;
   }
 
+  // Criar sala se o usuário for assinante
   createRoomIfSubscriber() {
     this.roomService.createRoom({ /* detalhes da sala */ }).subscribe({
       next: (result) => {
@@ -58,11 +61,11 @@ export class UserProfileSidebarComponent implements OnInit {
       },
       error: (error) => {
         console.error(error.message);
-        // Já tratado pelo prompt de assinatura no RoomService
       }
     });
   }
 
+  // Abrir um diálogo para informar a necessidade de assinatura
   openDialog(): void {
     this.dialog.open(ConfirmacaoDialogComponent, {
       data: {
@@ -70,5 +73,11 @@ export class UserProfileSidebarComponent implements OnInit {
         message: "Você deseja se tornar um assinante para criar salas?"
       }
     });
+  }
+
+  ngOnDestroy(): void {
+    // Cancela a assinatura quando o componente for destruído
+    this.userSubscription?.unsubscribe();
+    this.sidebarSubscription?.unsubscribe();
   }
 }

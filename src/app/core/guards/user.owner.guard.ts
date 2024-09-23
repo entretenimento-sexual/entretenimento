@@ -10,7 +10,7 @@ import { AuthService } from '../services/autentication/auth.service';
 })
 export class UserOwnerGuard implements CanActivate {
   constructor(private authService: AuthService,
-              private router: Router) { }
+    private router: Router) { }
 
   canActivate(
     next: ActivatedRouteSnapshot,
@@ -21,8 +21,10 @@ export class UserOwnerGuard implements CanActivate {
       take(1),
       map(user => {
         const isOwner = user?.uid === userId; // Compara o ID do usuário autenticado com o ID da URL
-        if (!isOwner) {
-          this.router.navigate(['/']); // Redireciona para a página inicial ou qualquer outra página se não for o dono
+        const isEmailVerified = user?.emailVerified; // Verifica se o e-mail está verificado
+
+        if (!isOwner || !isEmailVerified) {
+          this.router.navigate(['/verify-email']); // Redireciona para a página de verificação se o e-mail não for verificado
           return false;
         }
         return true;
