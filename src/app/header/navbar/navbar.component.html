@@ -21,7 +21,7 @@
       <li class="navbar-item" *ngIf="isAuthenticated"><a routerLink="/contato" class="navbar-link">Contato</a></li>
 
       <!-- Link para Planos de Assinatura -->
-      <li class="navbar-item" *ngIf="isAuthenticated"><a routerLink="/subscription-plan" class="navbar-link">Planos de
+      <li class="navbar-item"><a routerLink="/subscription-plan" class="navbar-link">Planos de
           Assinatura</a></li>
 
       <li class="navbar-item" *ngIf="isAuthenticated">
@@ -34,12 +34,12 @@
       <li class="navbar-item" *ngIf="!isAuthenticated">
         <a routerLink="/espiar" class="navbar-link" title="Acesso limitado ao site">Espiar</a>
       </li>
-      <li class="navbar-item" *ngIf="!isAuthenticated">
+      <li class="navbar-item" *ngIf="!isAuthenticated && !isLoginPage">
         <a routerLink="/login" class="navbar-link" title="Se já tem conta, clique aqui para acessar">Logar</a>
       </li>
       <li class="navbar-item" *ngIf="!isAuthenticated">
         <a routerLink="/register-component" class="navbar-link"
-          title="Se deseja ter uma conta ou perfil conosco, clique aqui">Registrar</a>
+          title="Se deseja ter uma conta ou perfil conosco, clique aqui">Cadastre-se</a>
       </li>
     </ul>
   </div><!--navbar-container-->

@@ -1,23 +1,21 @@
 <!-- src\app\authentication\login-component\login-component.component.html -->
-<!-- src\app\authentication\login-component\login-component.component.html -->
 <div class="authentication-container login-component">
   <div class="authentication-content-right">
     <h2 class="authentication-header">Se já tem cadastro<br>Insira seus dados para entrar</h2>
 
     <!-- Formulário de login -->
-    <form class="authentication-form" (submit)="login()">
+    <form class="authentication-form" (ngSubmit)="login()">
       <!-- Campo de email -->
-      <input type="email" [(ngModel)]="email" (ngModelChange)="clearError()" placeholder="Email" name="email" required>
+      <input type="email" [(ngModel)]="email" placeholder="Email" name="email" required (focus)="clearError()">
 
       <!-- Campo de senha -->
-      <input type="password" [(ngModel)]="password" (ngModelChange)="clearError()" placeholder="Senha" name="password"
-        required>
+      <input type="password" [(ngModel)]="password" placeholder="Senha" name="password" required (focus)="clearError()">
 
       <!-- Honeypot (campo invisível para proteção contra bots) -->
       <input type="text" name="honeypot" [(ngModel)]="honeypot" style="display: none;" />
 
       <!-- Botão de login -->
-      <button type="submit" [disabled]="isLoading || honeypotFilled()">Login</button>
+      <button type="submit" [disabled]="isLoading || isHoneypotFilled">Login</button>
 
       <!-- Spinner de carregamento -->
       <div *ngIf="isLoading" class="spinner">Carregando...</div>
@@ -41,7 +39,7 @@
       <h3>Recuperar Senha</h3>
       <form (ngSubmit)="sendPasswordRecoveryEmail()">
         <p>Insira seu e-mail para receber instruções de redefinição de senha.</p>
-        <input type="email" [(ngModel)]="recoveryEmail" placeholder="Email" name="recoveryEmail">
+        <input type="email" [(ngModel)]="recoveryEmail" placeholder="Email" name="recoveryEmail" required>
         <div class="modal-actions">
           <button type="submit">Enviar</button>
           <button type="button" class="cancel-btn" (click)="closePasswordRecovery()">Cancelar</button>

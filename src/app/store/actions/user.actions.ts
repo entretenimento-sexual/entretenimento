@@ -2,14 +2,53 @@
 import { createAction, props } from '@ngrx/store';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
+/**
+ * Ação para observar mudanças no usuário atual (currentUser).
+ * É usada para observar e atualizar os dados do usuário conforme necessário.
+ */
 export const observeUserChanges = createAction(
   '[User] Observe User Changes',
   props<{ uid: string }>()
 );
 
+/**
+ * Ação para definir o usuário atual no estado.
+ * Usada para armazenar os dados do usuário logado.
+ */
+export const setCurrentUser = createAction(
+  '[User] Set Current User',
+  props<{ user: IUserDados }>()
+);
+
+/**
+ * Ação para limpar o usuário atual.
+ * Útil quando o usuário se desloga ou os dados precisam ser redefinidos.
+ */
+export const clearCurrentUser = createAction('[User] Clear Current User');
+
+/**
+ * Ação para iniciar o processo de atualização do role do usuário.
+ * Pode ser usada para mudar o role (papel) do usuário, como 'vip', 'premium', etc.
+ */
 export const updateUserRole = createAction(
   '[User] Update User Role',
   props<{ uid: string, newRole: string }>()
+);
+
+/**
+ * Ação disparada quando o papel do usuário é atualizado com sucesso.
+ */
+export const updateUserRoleSuccess = createAction(
+  '[User] Update User Role Success',
+  props<{ uid: string, newRole: string }>()
+);
+
+/**
+ * Ação disparada quando ocorre um erro ao atualizar o papel do usuário.
+ */
+export const updateUserRoleFailure = createAction(
+  '[User] Update User Role Failure',
+  props<{ error: any }>()
 );
 
 /**
@@ -95,4 +134,3 @@ export const setFilteredOnlineUsers = createAction(
   '[User] Set Filtered Online Users',
   props<{ filteredUsers: IUserDados[] }>()
 );
-

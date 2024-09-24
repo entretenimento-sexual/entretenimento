@@ -3,12 +3,12 @@ import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
 import { RegisterComponent } from './authentication/register-component/register.component';
-import { LoginComponent } from './authentication/login-component/login-component';
 import { EspiarComponent } from './authentication/espiar/espiar.component';
 import { ProfileListComponent } from './layout/profile-list/profile-list.component';
 import { AuthGuard } from './core/guards/auth.guard';
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { authRedirectGuard } from './core/guards/auth-redirect.guard';
+import { LoginComponent } from './authentication/login-component/login-component';
 
 const routes: Routes = [
   {

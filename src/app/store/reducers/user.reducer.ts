@@ -6,7 +6,9 @@ import {
   loadUsersFailure,
   updateUserOnlineStatus,
   loadOnlineUsersSuccess,
-  setFilteredOnlineUsers
+  setFilteredOnlineUsers,
+  setCurrentUser,
+  clearCurrentUser
 } from '../actions/user.actions';
 import { UserState, initialUserState } from '../states/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -79,27 +81,60 @@ export const userReducer = createReducer(
    * Ação disparada para definir os usuários online filtrados por algum critério,
    * como município ou outra condição.
    */
-  on(setFilteredOnlineUsers, (state, { filteredUsers }) => ({
-    ...state,
-    filteredUsers,  // Atualiza a lista de usuários filtrados no estado
-  }))
+  on(setFilteredOnlineUsers, (state, { filteredUsers }) => {
+    console.log('Usuários filtrados por município ou outro critério:', filteredUsers);
+    return {
+      ...state,
+      filteredUsers,  // Atualiza a lista de usuários filtrados no estado
+    };
+  }),
+
+  /**
+   * Ação disparada para definir o usuário atual no estado.
+   * Atualiza o estado com o usuário logado.
+   */
+  on(setCurrentUser, (state, { user }) => {
+    console.log('Ação setCurrentUser disparada. Usuário atual:', user);
+    return {
+      ...state,
+      currentUser: user,  // Armazena o usuário atual no estado
+    };
+  }),
+
+  /**
+   * Ação disparada para limpar o usuário atual.
+   * Usada quando o usuário se desloga ou os dados precisam ser redefinidos.
+   */
+  on(clearCurrentUser, (state) => {
+    console.log('Ação clearCurrentUser disparada. Limpando usuário atual.');
+    return {
+      ...state,
+      currentUser: null,  // Remove o usuário atual do estado
+    };
+  })
 );
 
 /**
  * Explicação das partes:
  *
  * - `loadUsers`, `loadUsersSuccess`, `loadUsersFailure`: Usados para o fluxo de carregamento de todos os usuários.
- *   Manter se você precisar carregar todos os usuários em algum momento.
+ *   Mantido para carregar todos os usuários em algum momento do aplicativo.
  *
- * - `updateUserOnlineStatus`: Útil para gerenciar o status online dos usuários no estado global.
- *   Manter se for necessário atualizar o status dos usuários no estado da aplicação.
+ * - `updateUserOnlineStatus`: Gerencia o status online dos usuários no estado global.
+ *   Mantido para atualizar o status dos usuários no estado da aplicação.
  *
- * - `loadOnlineUsersSuccess`: Focado no carregamento apenas de usuários online.
- *   Manter se o foco da aplicação for exibir apenas os usuários que estão online.
+ * - `loadOnlineUsersSuccess`: Carregamento focado apenas nos usuários online.
+ *   Mantido para exibir apenas os usuários online.
  *
- * - `setFilteredOnlineUsers`: Permite armazenar uma lista filtrada de usuários no estado, útil para filtrar por município ou outro critério.
- *   Manter se for necessário aplicar filtros específicos aos usuários online.
+ * - `setFilteredOnlineUsers`: Armazena uma lista filtrada de usuários no estado, útil para filtrar por município ou outros critérios.
+ *   Mantido para aplicar filtros específicos aos usuários online.
  *
- * Após revisar, você pode decidir o que manter ou remover com base no fluxo da sua aplicação.
+ * - `setCurrentUser`: Armazena o usuário atualmente logado no estado, essencial para rastrear o usuário autenticado.
+ *   Mantido para definir o estado do usuário autenticado.
+ *
+ * - `clearCurrentUser`: Limpa os dados do usuário atual do estado, útil quando o usuário se desloga.
+ *   Mantido para redefinir o estado quando necessário.
+ *
+ * Após revisar, você pode decidir o que manter ou ajustar com base no fluxo da sua aplicação.
  */
 

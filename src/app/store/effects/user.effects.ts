@@ -1,7 +1,20 @@
 // src/app/store/effects/user.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { observeUserChanges, loadUsers, loadUsersSuccess, loadUsersFailure, updateUserRole, updateUserOnlineStatus, updateUserOnlineStatusSuccess, updateUserOnlineStatusFailure, loadOnlineUsers, loadOnlineUsersSuccess, loadOnlineUsersFailure, setFilteredOnlineUsers } from '../actions/user.actions';
+import {
+  observeUserChanges,
+  loadUsers,
+  loadUsersSuccess,
+  loadUsersFailure,
+  updateUserRole,
+  updateUserOnlineStatus,
+  updateUserOnlineStatusSuccess,
+  updateUserOnlineStatusFailure,
+  loadOnlineUsers,
+  loadOnlineUsersSuccess,
+  loadOnlineUsersFailure,
+  setFilteredOnlineUsers
+} from '../actions/user.actions';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { catchError, map, mergeMap, throttleTime, withLatestFrom } from 'rxjs/operators';
 import { of } from 'rxjs';
@@ -23,6 +36,19 @@ export class UserEffects {
               return loadUsersFailure({ error: 'Usuário não encontrado' });
             }
           }),
+          catchError(error => of(loadUsersFailure({ error })))
+        )
+      )
+    )
+  );
+
+  // Efeito para carregar todos os usuários
+  loadUsers$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(loadUsers),
+      mergeMap(() =>
+        this.usuarioService.getAllUsers().pipe(
+          map(users => loadUsersSuccess({ users })),
           catchError(error => of(loadUsersFailure({ error })))
         )
       )
