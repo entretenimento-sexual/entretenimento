@@ -1,0 +1,298 @@
+/* src\app\authentication\auth-verification-handler\auth-verification-handler.component.css */
+/* Estilo base para o componente */
+.auth-verification-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: linear-gradient(to right, #3a1c71, #d76d77, #ffaf7b);
+  font-family: 'Roboto', sans-serif;
+}
+
+.auth-verification-container {
+  background-color: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+  max-width: 500px;
+  width: 100%;
+  padding: 20px;
+  text-align: center;
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+.auth-verification-container h1,
+.auth-verification-container h2 {
+  color: #333;
+  margin-bottom: 16px;
+}
+
+.auth-verification-container p {
+  color: #555;
+  margin-bottom: 24px;
+  font-size: 16px;
+  line-height: 1.5;
+  font-family: 'Lato', sans-serif;
+}
+
+.auth-verification-container form {
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-verification-container label {
+  font-size: 14px;
+  margin-bottom: 8px;
+  color: #333;
+  font-family: 'Lato', sans-serif;
+}
+
+.auth-verification-container select,
+.auth-verification-container input[type="password"],
+.auth-verification-container input[type="file"] {
+  padding: 15px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  margin-bottom: 1px;
+  transition: border 0.3s ease;
+}
+
+.auth-verification-container select:focus,
+.auth-verification-container input[type="password"]:focus,
+.auth-verification-container input[type="file"]:focus {
+  border-color: #d76d77;
+  outline: none;
+}
+
+.auth-verification-container .btn-submit,
+.auth-verification-container button {
+  background-color: #d76d77;
+  color: #fff;
+  padding: 10px;
+  font-size: 16px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.auth-verification-container .btn-submit:hover,
+.auth-verification-container button:hover {
+  background-color: #b45f65;
+}
+
+.auth-verification-container .error-message {
+  color: #e74c3c;
+  font-size: 18px;
+  margin: 16px;
+}
+
+.auth-verification-container .success-message {
+  color: #27ae60;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.auth-verification-container .password-strength {
+  font-size: 12px;
+  margin-bottom: 16px;
+  color: #333;
+}
+
+/* Progress bar */
+.progress-custom {
+  background-color: #f0f0f0;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.progress-bar-custom {
+  background-color: #d76d77;
+  height: 12px;
+  border-radius: 8px;
+  transition: width 0.4s ease;
+  color: #fff;
+  font-size: 12px;
+  text-align: center;
+}
+
+.password-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.input-field {
+  width: 100%;
+  padding-right: 40px;  /* Espaço suficiente para o ícone */
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 10px;
+  box-sizing: border-box;  /* Garante que o padding interno funcione corretamente */
+}
+
+.toggle-password {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 10px;
+  padding: 0;
+  line-height: 1;
+}
+
+.toggle-password i {
+  font-size: 12px;    /* Tamanho específico do ícone */
+  pointer-events: none;  /* Impede o clique no ícone */
+}
+
+.toggle-password:hover {
+  color: #d76d77;  /* Cor ao passar o mouse */
+}
+
+.toggle-password:focus {
+  outline: none;  /* Remove o outline padrão do botão */
+}
+
+.input-field:focus {
+  border-color: #d76d77;  /* Cor de foco para o campo de entrada */
+}
+
+.password-wrapper+.error-message {
+  margin-top: 10px;  /* Adiciona um pequeno espaçamento para as mensagens de erro */
+}
+
+.error-message {
+  color: red;
+  font-weight: bold;
+}
+
+.success-message {
+  color: green;
+  font-weight: bold;
+}
+
+/* Estilo básico para o modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  /* Fundo levemente escurecido */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  animation: fadeIn 0.5s ease-in-out;
+  z-index: 1000;
+  /* Garantir que o modal fique acima do conteúdo */
+}
+
+.modal-content {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 20px 30px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  /* Sombra suave */
+  text-align: center;
+  animation: slideDown 0.5s ease-in-out;
+  font-family: 'Lato', sans-serif;
+}
+
+.modal-content h2 {
+  color: #3a1c71;
+  font-size: 24px;
+  margin-bottom: 16px;
+  font-family: 'Roboto', sans-serif;
+}
+
+.modal-content p {
+  color: #555;
+  margin-bottom: 24px;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.modal-actions button {
+  background-color: #d76d77;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  margin: 10px;
+  transition: background-color 0.3s ease;
+}
+
+.modal-actions button:hover {
+  background-color: #b45f65;
+}
+
+.modal-actions button:focus {
+  outline: none;
+  box-shadow: 0 0 10px rgba(215, 109, 119, 0.5);
+  /* Efeito de foco */
+}
+
+.modal-actions button.secondary {
+  background-color: #ffaf7b;
+}
+
+.modal-actions button.secondary:hover {
+  background-color: #e2966a;
+}
+
+/* Animação de entrada do modal */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-50px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Animação para o fundo do modal */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .auth-verification-container {
+    max-width: 60%;
+  }
+}
+
+/* Animação */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

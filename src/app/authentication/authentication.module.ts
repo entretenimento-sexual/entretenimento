@@ -15,6 +15,7 @@ import { MatCardModule } from '@angular/material/card';
 import { SuggestionService } from '../core/services/data-handling/suggestion.service';
 import { AuthService } from '../core/services/autentication/auth.service';
 import { ResetPasswordComponent } from './reset-password/reset-password.component';
+import { AuthVerificationHandlerComponent } from './auth-verification-handler/auth-verification-handler.component';
 
 
 @NgModule({
@@ -24,7 +25,8 @@ import { ResetPasswordComponent } from './reset-password/reset-password.componen
     EspiarComponent,
     ProgressiveSignupComponent,
     ResetPasswordComponent,
-    SuggestedProfilesComponent
+    SuggestedProfilesComponent,
+    AuthVerificationHandlerComponent
   ],
 
   imports: [

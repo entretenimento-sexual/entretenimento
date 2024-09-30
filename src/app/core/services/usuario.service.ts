@@ -6,6 +6,7 @@ import { FirestoreService } from './autentication/firestore.service';
 import { collection, onSnapshot, query, Timestamp, where } from '@firebase/firestore';
 import { User } from 'firebase/auth';
 import { UserProfileService } from './user-profile/user-profile.service';
+import { EmailVerificationService } from './autentication/email-verification.service';
 
 @Injectable({
   providedIn: 'root'
@@ -14,6 +15,7 @@ export class UsuarioService {
   constructor(
     private firestoreService: FirestoreService,
     private userProfileService: UserProfileService,
+    private emailVerificationService: EmailVerificationService,
   ) { }
 
   // Método para mapear um usuário do Firebase (User) para o formato da interface IUserDados
@@ -121,7 +123,7 @@ export class UsuarioService {
     const isSubscriber = dados.role && dados.role !== 'free';
     const dadosAtualizados = { ...dados, isSubscriber };
     return from(
-      this.firestoreService.saveUserDataAfterEmailVerification({ uid, ...dadosAtualizados } as IUserDados)
+      this.emailVerificationService.saveUserDataAfterEmailVerification({ uid, ...dadosAtualizados } as IUserDados)
     ).pipe(
       catchError((error) => {
         console.error('Erro ao atualizar usuário:', error);

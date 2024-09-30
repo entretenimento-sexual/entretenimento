@@ -35,5 +35,10 @@ export class ValidatorService {
       return { 'invalidBuupe': { value: control.value } };
     };
   }
+
+  public static isValidPassword(password: string): boolean {
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/; // Exemplo de verificação
+    return passwordRegex.test(password);
+  }
   // Você pode adicionar mais validadores aqui conforme necessário
 }

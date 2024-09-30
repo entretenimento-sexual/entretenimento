@@ -1,7 +1,9 @@
 // src\app\authentication\login-component\login-component.ts
 import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
+import { first } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Component({
@@ -15,14 +17,17 @@ export class LoginComponent implements OnInit {
   password: string = '';
   honeypot: string = ''; // Campo honeypot
   errorMessage: string = '';
+  successMessage: string = '';
   isLoading: boolean = false;
   showPasswordRecovery: boolean = false;
   recoveryEmail: string = '';
+  showEmailVerificationModal: boolean = false;
 
   constructor(
     private authService: AuthService,
     private router: Router,
-    private errorNotificationService: ErrorNotificationService
+    private errorNotificationService: ErrorNotificationService,
+    private emailVerificationService: EmailVerificationService
   ) { }
 
   ngOnInit(): void {
@@ -75,12 +80,17 @@ export class LoginComponent implements OnInit {
       const loginSuccess = await this.authService.login(this.email, this.password);
 
       if (loginSuccess) {
-        console.log('Login bem-sucedido. Redirecionando...');
-        this.router.navigate([`/perfil/${this.authService.getLoggedUserUID()}`]); // Use caminho absoluto
+        const userId = this.authService.getLoggedUserUID();
+        const user = await this.authService.getUserAuthenticated().pipe(first()).toPromise();
+        if (user && !user.emailVerified) {
+          console.log('E-mail não verificado, abrindo modal...');
+          this.showEmailVerificationModal = true;
+        } else if (user)  {
+          console.log('Login bem-sucedido. Redirecionando...');
+          this.router.navigate([`/perfil/${user.uid}`]);
+        }
       } else {
-        this.errorMessage = 'O e-mail não foi verificado. Verifique seu e-mail para ativar sua conta.';
-        console.log('Login falhou: e-mail não verificado.');
-        this.errorNotificationService.showError(this.errorMessage);
+        this.errorMessage = 'Credenciais inválidas.';
       }
     } catch (error) {
       this.handleError(error);
@@ -89,6 +99,7 @@ export class LoginComponent implements OnInit {
       console.log('Processo de login finalizado.');
     }
   }
+
 
   // Tratamento de erros
   private handleError(error: any): void {
@@ -131,5 +142,21 @@ export class LoginComponent implements OnInit {
       this.errorMessage = 'Erro ao enviar e-mail de recuperação. Tente novamente.';
       console.error('Erro ao enviar e-mail de recuperação:', error);
     }
+  }
+
+  async resendVerificationEmail(): Promise<void> {
+    try {
+      await this.emailVerificationService.resendVerificationEmail();
+      this.successMessage = `E-mail de verificação reenviado para ${this.email}. Verifique sua caixa de entrada.`;
+    } catch (error) {
+      this.errorMessage = "Erro ao reenviar o e-mail de verificação.";
+    }
+  }
+
+  logout(): void {
+    this.authService.logout().subscribe(() => {
+      console.log('Usuário deslogado.');
+      this.router.navigate(['/login']);
+    });
   }
 }

@@ -6,7 +6,6 @@ import { Injectable } from '@angular/core';
 })
 export class OobCodeService {
   private code: string | null = null; // Armazena o código de verificação (oobCode)
-
   /**
    * Define o código de verificação de e-mail (oobCode)
    * @param {string} code - Código de verificação
@@ -15,7 +14,6 @@ export class OobCodeService {
     console.log('Definindo oobCode:', code); // Log quando o código é definido
     this.code = code; // Armazena o código
   }
-
   /**
    * Recupera o código de verificação de e-mail (oobCode)
    * @returns {string | null} - Código de verificação ou null se não estiver definido

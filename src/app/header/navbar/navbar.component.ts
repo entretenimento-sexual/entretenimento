@@ -14,7 +14,8 @@ import { UserProfileService } from 'src/app/core/services/user-profile/user-prof
 
 export class NavbarComponent implements OnInit, OnDestroy {
   public isAuthenticated: boolean = false;
-  public userName: string = '';
+  public nickname: string = '';
+  public photoURL: string = '';
   private userSubscription?: Subscription;
   public isFree: boolean = false;
   public userId: string = '';
@@ -22,68 +23,43 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
   constructor(
     private authService: AuthService,
-    private userProfileService: UserProfileService,
     private router: Router,
     private sidebarService: SidebarService
   ) { }
 
   ngOnInit(): void {
-    console.log("NavbarComponent ngOnInit chamado");
+    // Assina as mudanças no estado de autenticação
+    this.userSubscription = this.authService.user$.subscribe(user => {
+      this.isAuthenticated = !!user;
+      if (user) {
+        this.nickname = user.nickname || 'Usuário';
+        this.photoURL = user.photoURL || ''; // Foto do usuário
+        this.userId = user.uid;
+      } else {
+        this.nickname = '';
+        this.photoURL = '';
+        this.userId = '';
+      }
+    });
 
-    if (!this.userSubscription) {
-      this.userSubscription = this.authService.user$.subscribe(user => {
-        console.log("NavbarComponent: Subscription acionada", user);
-
-        if (user === null) {
-          this.isAuthenticated = false;
-          console.log("NavbarComponent: Usuário não autenticado, redirecionando para login");
-          if (this.router.url !== '/login') {
-            this.router.navigate(['/login']);
-          }
-        } else {
-          this.isAuthenticated = true;
-          console.log("NavbarComponent: Usuário autenticado", user);
-          this.userName = user?.displayName || 'Usuário';
-          this.userId = user?.uid || '';
-        }
-      });
-    }
-
-    // Verificar se estamos na página de login
+    // Verifica se estamos na página de login
     this.router.events.subscribe(() => {
       this.isLoginPage = this.router.url === '/login';
     });
   }
 
   ngOnDestroy(): void {
-    console.log("NavbarComponent ngOnDestroy chamado");
-    // Quando o componente é destruído, encerramos a assinatura para evitar vazamentos de memória.
+    // Desinscreve a assinatura para evitar vazamentos de memória
     this.userSubscription?.unsubscribe();
   }
 
   logout(): void {
-    console.log("NavbarComponent: Logout chamado");
-    this.authService.logout().subscribe({
-      next: () => {
-        if (this.userId) {
-          // Atualiza o estado online do usuário para falso
-          this.userProfileService.atualizarEstadoOnlineUsuario(this.userId, false)
-            .then(() => {
-              console.log("Estado online atualizado para offline");
-              this.router.navigate(['/login']);  // Mova o redirecionamento para dentro do then
-            })
-            .catch((error) => console.error("Erro ao atualizar o estado online", error));
-        } else {
-          console.log("Nenhum usuário logado, redirecionando para login");
-          this.router.navigate(['/login']);  // Redirecione para a página de login aqui também
-        }
-      },
-      error: (error) => console.error('Erro ao fazer logout:', error)
+    this.authService.logout().subscribe(() => {
+      this.router.navigate(['/login']);
     });
   }
 
   onToggleSidebar(): void {
-    console.log("onToggleSidebar chamado!");
     this.sidebarService.toggleSidebar();
   }
 }

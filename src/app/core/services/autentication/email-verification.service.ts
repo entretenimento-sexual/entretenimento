@@ -1,9 +1,10 @@
 // src\app\core\services\autentication\email-verification.service.ts
 import { Injectable } from '@angular/core';
-import { doc, updateDoc } from '@firebase/firestore';
+import { doc, setDoc, updateDoc, Timestamp } from '@firebase/firestore';
 import { getAuth, User, sendEmailVerification, applyActionCode } from 'firebase/auth';
 import { FirestoreService } from './firestore.service';
 import { OobCodeService } from './oobCode.service';
+import { IUserDados } from '../../interfaces/iuser-dados';
 
 @Injectable({
   providedIn: 'root'
@@ -27,7 +28,7 @@ export class EmailVerificationService {
   // Atualiza o status de verificação de e-mail no Firestore
   async updateEmailVerificationStatus(uid: string, isVerified: boolean): Promise<void> {
     const userRef = doc(this.firestoreService.db, "users", uid);
-    await updateDoc(userRef, { emailVerified: isVerified });
+    await updateDoc(userRef, { emailVerified: isVerified, ...(isVerified ? { role: 'free' } : {}) });
     console.log("Status de verificação de e-mail atualizado no Firestore.");
   }
 
@@ -46,6 +47,7 @@ export class EmailVerificationService {
   // Manipula a verificação de e-mail aplicando o código de ação
   async handleEmailVerification(): Promise<boolean> {
     const actionCode = this.oobCodeService.getCode();
+    console.error('Nenhum oobCode encontrado.');
     if (!actionCode) return false;
 
     try {
@@ -79,6 +81,20 @@ export class EmailVerificationService {
     }
   }
 
+  // Salva os dados do usuário após a verificação de e-mail
+  async saveUserDataAfterEmailVerification(user: IUserDados): Promise<void> {
+    try {
+      if (!user.uid) throw new Error("UID do usuário não definido!");
+      const userData = { ...user, role: user.role || 'basico', createdAt: Timestamp.fromDate(new Date()) };
+      const userRef = doc(this.firestoreService.db, "users", user.uid);
+      await setDoc(userRef, userData, { merge: true });
+      console.log("Dados do usuário salvos após verificação de e-mail.");
+    } catch (error) {
+      console.error("Erro ao salvar os dados do usuário após verificação de e-mail:", error);
+      throw error;
+    }
+  }
+
   // Reenvia o e-mail de verificação para o usuário atual
   async resendVerificationEmail(): Promise<void> {
     const currentUser = getAuth().currentUser;
@@ -87,5 +103,11 @@ export class EmailVerificationService {
     } else {
       throw new Error('Nenhum usuário autenticado encontrado');
     }
+  }
+
+  // Método para obter o UID do usuário atual
+  getCurrentUserUid(): string | null {
+    const auth = getAuth();
+    return auth.currentUser ? auth.currentUser.uid : null;
   }
 }

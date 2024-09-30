@@ -1,8 +1,8 @@
 // src\app\authentication\register-component\register.component.ts
 import { Component } from '@angular/core';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
+import { RegisterService } from 'src/app/core/services/autentication/register.service';
 
 @Component({
   selector: 'app-register-component',
@@ -29,7 +29,7 @@ export class RegisterComponent {
   private lockoutTime: number = 30000; // Tempo de bloqueio em milissegundos (30 segundos)
   public isLockedOut: boolean = false;
 
-  constructor(private authService: AuthService,
+  constructor(private registerService: RegisterService,
               private emailVerificationService: EmailVerificationService) { }
 
   async onRegister() {
@@ -60,7 +60,7 @@ export class RegisterComponent {
     this.isLoading = true;
 
     try {
-      await this.authService.register(userRegistrationData, this.password);
+      await this.registerService.registerUser(userRegistrationData, this.password);
       localStorage.setItem('tempNickname', this.nickname);
       this.successMessage = 'Registro realizado com sucesso! Por favor, verifique seu e-mail para confirmar.';
       this.formSubmitted = true;
@@ -97,7 +97,7 @@ export class RegisterComponent {
 
   checkNickname(): void {
     if (this.nickname.length >= 4 && this.nickname.length <= 25) {
-      this.authService.checkIfNicknameExists(this.nickname).then(exists => {
+      this.registerService.checkIfNicknameExists(this.nickname).then(exists => {
         this.nicknameStatus = exists ? 'Apelido já está em uso' : 'Apelido disponível';
       });
     } else {

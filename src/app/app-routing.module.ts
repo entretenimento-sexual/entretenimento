@@ -34,6 +34,7 @@ const routes: Routes = [
   { path: 'login', component: LoginComponent, canActivate: [authRedirectGuard] },
   { path: 'espiar', component: EspiarComponent },
   { path: 'subscription-plan', component: SubscriptionPlanComponent },
+
   // { path: '**', component: SeuComponente404 }
 ];
 

@@ -1,7 +1,7 @@
 //src\app\core\services\autentication\firestore.service.ts
 import { Injectable } from '@angular/core';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, query, where, getDocs, doc, setDoc, Timestamp, updateDoc } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, doc, setDoc, Timestamp, updateDoc, deleteDoc, increment } from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
@@ -30,29 +30,44 @@ export class FirestoreService {
     }
   }
 
+  // Verifica se um e-mail já existe na coleção 'users'
+  async checkIfEmailExists(email: string): Promise<boolean> {
+    try {
+      const userCollection = collection(this.db, 'users');
+      const q = query(userCollection, where('email', '==', email));
+      const querySnapshot = await getDocs(q);
+      return querySnapshot.size > 0;
+    } catch (error) {
+      console.error('Erro ao verificar a existência do e-mail:', error);
+      throw error;
+    }
+  }
+
   // Salva os dados iniciais do usuário após o registro no Firestore
   async saveInitialUserData(uid: string, userData: IUserRegistrationData): Promise<void> {
     const userRef = doc(this.db, "users", uid);
     await setDoc(userRef, userData, { merge: true });
   }
 
-  // Atualiza os dados do usuário após a verificação de e-mail
-  async saveUserDataAfterEmailVerification(user: IUserDados): Promise<void> {
-    try {
-      if (!user.uid) throw new Error("UID do usuário não definido!");
-      const userData = { ...user, role: user.role || 'basico', createdAt: Timestamp.fromDate(new Date()) };
-      const userRef = doc(this.db, "users", user.uid);
-      await setDoc(userRef, userData, { merge: true });
-    } catch (error) {
-      console.error("Erro ao salvar os dados do usuário após verificação de e-mail:", error);
-      throw error;
-    }
+  // Incrementa um campo no documento do Firestore
+  incrementField(collectionName: string, docId: string, fieldName: string, incrementBy: number): Observable<void> {
+    const docRef = doc(this.db, collectionName, docId);
+    // Usando 'from' para converter o Promise em Observable
+    return from(updateDoc(docRef, { [fieldName]: increment(incrementBy) }).then(() => {
+      console.log(`${fieldName} incrementado por ${incrementBy} no documento ${docId}`);
+    }));
   }
 
-  // Atualiza o status de verificação de e-mail do usuário
-  async updateEmailVerificationStatus(uid: string, isVerified: boolean): Promise<void> {
-    const userRef = doc(this.db, "users", uid);
-    await updateDoc(userRef, { emailVerified: isVerified, ...(isVerified ? { role: 'free' } : {}) });
+  // Deleta um documento do Firestore
+  async deleteDocument(collectionName: string, docId: string): Promise<void> {
+    try {
+      const docRef = doc(this.db, collectionName, docId);
+      await deleteDoc(docRef);
+      console.log(`Documento ${docId} deletado com sucesso da coleção ${collectionName}.`);
+    } catch (error) {
+      console.error(`Erro ao deletar o documento ${docId}:`, error);
+      throw error;
+    }
   }
 
   // Busca perfis sugeridos para o usuário com base nas preferências

@@ -11,7 +11,6 @@ import { AppComponent } from './app.component';
 import { AppRoutingModule } from './app-routing.module';
 import { AuthenticationModule } from './authentication/authentication.module';
 import { HeaderModule } from './header/header.module';
-import { PostVerificationModule } from './post-verification/post-verification.module';
 import { FooterModule } from './footer/footer.module';
 import { UserProfileModule } from './user-profile/user-profile.module';
 import { MatDialogModule } from '@angular/material/dialog';
@@ -37,7 +36,6 @@ import { UserEffects } from './store/effects/user.effects';
     FormsModule,
     HttpClientModule,
     ReactiveFormsModule,
-    PostVerificationModule,
     HeaderModule,
     FooterModule,
     AuthenticationModule,

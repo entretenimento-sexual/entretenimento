@@ -11,21 +11,16 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  width: 90%;
-  margin: 0 auto;
+  width: 100%;
+  padding: 0 5%;
+  box-sizing: border-box;
+  /* Garante que o padding não afete a largura total */
 }
 
 .navbar-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;  /* Isso garante que o espaço entre os elementos seja máximo */
-  width: 100%;
-}
-
-.navbar-brand {
-  text-decoration: none;
-  display: flex;
-  align-items: center;
+  justify-content: flex-start;
 }
 
 .navbar-menu {
@@ -33,36 +28,78 @@
   padding: 0;
   margin: 0;
   display: flex;
-  gap: 30px;
+  gap: 20px;
+  /* Ajusta o espaçamento entre os links */
   align-items: center;
-  /* Isso vai centralizar os <li> dentro da <ul> */
+  flex-grow: 1;
+  /* Permite que a navbar se ajuste melhor */
+  justify-content: flex-end;
+  /* Garante que os links fiquem à direita */
 }
 
 .navbar-item {
-    flex-grow: 0;
-    flex-shrink: 0;
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+
+.user-photo {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  margin-right: 10px;
+  object-fit: cover;
+  /* Mantém a proporção da imagem */
 }
 
 .navbar-item a {
   padding: 5px 10px;
   border-radius: 4px;
   font-size: 16px;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s, transform 0.2s;
   color: white;
   text-decoration: none;
   display: block;
-  /* Faz com que o link preencha o espaço disponível do <li> */
 }
 
 .navbar-item a:hover {
   background-color: #555;
+  transform: scale(1.05);
 }
+
 .navbar-logo {
   max-height: 100%;
   width: auto;
   object-fit: contain;
 }
 
+.hamburger-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: white;
+  display: none;
+  cursor: pointer;
+}
+
+/* Ajuste para mobile */
+@media only screen and (max-width: 600px) {
+  .hamburger-btn {
+    display: inline-block;
+    margin-left: auto;
+  }
+
+  .navbar-menu {
+    display: none;
+  }
+
+  /* Afasta o nome e a foto da borda no mobile */
+  .navbar-container {
+    padding: 0 20px;
+    /* Ajusta o padding em telas menores */
+  }
+}
+
+/* Refatoração e otimização de estilos */
 .navbar-brand {
   display: flex;
   align-items: center;
@@ -73,31 +110,15 @@
   border: none;
   color: white;
   font-size: 24px;
-  margin-left: auto; /* para empurrar para o lado direito do container */
+  margin-left: auto;
 }
 
-.hamburger-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: white;
-  display: none;  /* Escondido por padrão */
-  cursor: pointer;
-
+.user-info {
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Espaçamento entre a foto e o nome */
+  white-space: nowrap;
+  /* Evita quebra de linha no nickname */
 }
-
-@media only screen and (max-width: 600px) {
-  .hamburger-btn {
-    display: inline-block;
-  }
-
-  .navbar-menu {
-    display: none;/* oculte os itens do menu em dispositivos até 600px */
-  }
-
-    .hamburger-btn {
-      display: inline-block;
-      margin-left: auto;
-    }
-  }
-

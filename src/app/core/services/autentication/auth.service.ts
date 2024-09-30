@@ -4,19 +4,13 @@ import { from, Observable, of, BehaviorSubject } from 'rxjs';
 import { catchError, tap, first, take } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { Router } from '@angular/router';
-import {
-  getAuth, signOut, createUserWithEmailAndPassword,
-  signInWithEmailAndPassword, UserCredential, sendPasswordResetEmail,
-  confirmPasswordReset, sendEmailVerification, User,
-  setPersistence,
-  browserLocalPersistence
-} from 'firebase/auth';
-import { Timestamp } from 'firebase/firestore';
-
+import { getAuth, signOut, signInWithEmailAndPassword, sendPasswordResetEmail,
+        confirmPasswordReset, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { FirestoreService } from './firestore.service';
 import { UsuarioService } from '../usuario.service';
 import { GeolocationService } from '../geolocation/geolocation.service';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
+import { EmailVerificationService } from './email-verification.service';
 
 const auth = getAuth();
 
@@ -33,6 +27,7 @@ export class AuthService {
     private router: Router,
     private firestoreService: FirestoreService,
     private usuarioService: UsuarioService,
+    private emailVerificationService: EmailVerificationService,
     private geolocationService: GeolocationService
   ) { this.initAuthStateListener(); }
 
@@ -93,70 +88,7 @@ export class AuthService {
 
   // Verifica se o nickname já existe
   async checkIfNicknameExists(nickname: string): Promise<boolean> {
-    console.log(`checkIfNicknameExists chamado para o apelido: ${nickname}`);
-    const exists = await this.firestoreService.checkIfNicknameExists(nickname);
-    console.log(`Nickname existe: ${exists}`);
-    return exists;
-  }
-
-  // Registro de usuário
-  async register(userRegistrationData: IUserRegistrationData, password: string): Promise<void> {
-    console.log('Registro iniciado para o usuário:', userRegistrationData);
-
-    let userCredential: UserCredential | null = null;
-
-    const nicknameExists = await this.checkIfNicknameExists(userRegistrationData.nickname);
-    if (nicknameExists) {
-      console.error('O apelido já está em uso:', userRegistrationData.nickname);
-      throw new Error('O apelido já está em uso.');
-    }
-
-    try {
-      userCredential = await createUserWithEmailAndPassword(getAuth(), userRegistrationData.email, password);
-      const user = userCredential.user;
-      if (!user) throw new Error('Falha ao criar usuário.');
-
-      console.log('Usuário criado com sucesso:', user);
-      await this.sendEmailVerification(user);
-
-      userRegistrationData.uid = user.uid;
-      userRegistrationData.emailVerified = false;
-      userRegistrationData.isSubscriber = false;
-      userRegistrationData.firstLogin = Timestamp.fromDate(new Date());
-
-      try {
-        const location = await this.geolocationService.getCurrentLocation();
-        userRegistrationData.latitude = location.latitude;
-        userRegistrationData.longitude = location.longitude;
-        console.log('Localização adicionada ao registro:', location);
-      } catch (error) {
-        console.warn('Erro ao obter localização:', error);
-      }
-
-      await this.firestoreService.saveInitialUserData(user.uid, userRegistrationData);
-      console.log('Dados iniciais do usuário salvos no Firestore');
-
-    } catch (error) {
-      console.error('Erro durante o registro:', error);
-      if (userCredential && userCredential.user) {
-        console.log('Tentando excluir a conta devido a erro no registro.');
-        await userCredential.user.delete();
-        console.log('Conta excluída com sucesso.');
-      }
-      throw error;
-    }
-  }
-
-  // Envia o e-mail de verificação
-  async sendEmailVerification(user: User): Promise<void> {
-    console.log('Enviando e-mail de verificação para o usuário:', user.uid);
-    try {
-      await sendEmailVerification(user);
-      console.log('E-mail de verificação enviado.');
-    } catch (error) {
-      console.error('Erro ao enviar e-mail de verificação:', error);
-      throw error;
-    }
+    return this.firestoreService.checkIfNicknameExists(nickname);
   }
 
   // Login de usuário

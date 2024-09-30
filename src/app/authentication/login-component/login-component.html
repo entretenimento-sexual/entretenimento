@@ -46,5 +46,16 @@
         </div>
       </form>
     </div>
+  </div><!--Modal de recuperação de senha-->
+
+  <!-- Modal de verificação de e-mail -->
+  <div *ngIf="showEmailVerificationModal" class="modal-overlay">
+    <div class="modal-content">
+      <h2>Verificação de E-mail</h2>
+      <p>Seu e-mail ainda não foi verificado. Por favor, verifique seu e-mail ou reenvie o link de verificação.</p>
+      <button (click)="resendVerificationEmail()">Reenviar E-mail de Verificação</button>
+      <button (click)="logout()">Sair</button>
+    </div>
   </div>
+
 </div>

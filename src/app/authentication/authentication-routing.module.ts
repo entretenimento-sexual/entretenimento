@@ -5,13 +5,21 @@ import { ProgressiveSignupComponent } from './progressive-signup/progressive-sig
 import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
 import { RegisterComponent } from './register-component/register.component';
 import { ResetPasswordComponent } from './reset-password/reset-password.component';
+import { AuthVerificationHandlerComponent } from './auth-verification-handler/auth-verification-handler.component';
+
 
 // Definindo as rotas para o módulo de autenticação.
 const authRoutes: Routes = [
   { path: 'progressive-signup', component: ProgressiveSignupComponent },
   { path: 'suggested-profiles', component: SuggestedProfilesComponent },
   { path: 'register', component: RegisterComponent },
-  { path: 'reset-password', component: ResetPasswordComponent },
+  {
+    path: 'post-verification/action',
+    component: AuthVerificationHandlerComponent
+  },
+
+  // Adicione um redirecionamento para a página inicial ou uma página 404, caso não haja correspondência
+  { path: '**', redirectTo: '/' }
 ];
 
 @NgModule({
