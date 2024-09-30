@@ -4,9 +4,9 @@ import { FirestoreService } from './firestore.service';
 import { EmailVerificationService } from './email-verification.service';
 import { GeolocationService } from '../geolocation/geolocation.service';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
-import { UserCredential, createUserWithEmailAndPassword, getAuth } from 'firebase/auth';
+import { UserCredential, createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail } from 'firebase/auth'; // Aqui está a importação correta
 import { Timestamp } from 'firebase/firestore';
-import { catchError, from, Observable, of, tap } from 'rxjs';
+import { from, Observable, of, tap } from 'rxjs';
 import { ValidatorService } from '../data-handling/validator.service';
 
 @Injectable({
@@ -26,15 +26,19 @@ export class RegisterService {
   }
 
   // 2. Verifica se o e-mail já está registrado no Firestore
-  checkIfEmailExists(email: string): Observable<boolean> {
-    // Converter o Promise para Observable
-    return from(this.firestoreService.checkIfEmailExists(email));
+  async checkIfEmailExists(email: string): Promise<void> {
+    const emailExists = await this.firestoreService.checkIfEmailExists(email);
+
+    if (emailExists) {
+      // Agora, usando a função correta para enviar o e-mail de recuperação
+      const auth = getAuth();
+      await sendPasswordResetEmail(auth, email);
+    }
   }
 
-  // 3. Valida se o formato do e-mail é válido (ex: regex validation)
+  // 3. Valida se o formato do e-mail é válido (usando o ValidatorService)
   isValidEmailFormat(email: string): boolean {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email);
+    return ValidatorService.isValidEmail(email);
   }
 
   // 4. Registro de novo usuário
@@ -46,10 +50,7 @@ export class RegisterService {
     }
 
     // 4.2. Verifica se o e-mail já está registrado
-    const emailExists = await this.checkIfEmailExists(userRegistrationData.email).toPromise();
-    if (emailExists) {
-      throw new Error('E-mail já existe em nossos registros.');
-    }
+    await this.checkIfEmailExists(userRegistrationData.email);  // Removendo o uso de `toPromise()`
 
     // 4.3. Criação do usuário com o Firebase Auth
     const auth = getAuth();
@@ -84,82 +85,15 @@ export class RegisterService {
 
     // Verificar se o usuário existe e se o UID corresponde
     if (user && user.uid === uid) {
-      // Retorna um Observable baseado na exclusão do usuário
       return from(user.delete().then(() => {
         console.log(`Usuário ${uid} deletado com sucesso.`);
       }));
     }
-
-    // Retorna um Observable vazio, já que não há necessidade de excluir
-    return of(void 0); // `void 0` é equivalente a `undefined`
+    return of(void 0);
   }
 
-  // 6. Verifica se a senha é forte o suficiente
+  // 6. Verifica se a senha é forte o suficiente (usando o ValidatorService)
   isValidPassword(password: string): boolean {
     return ValidatorService.isValidPassword(password);
-  }
-
-  // 7. Reseta o status de tentativas de login em caso de erro
-  resetLoginAttempts(uid: string): Observable<void> {
-    return this.firestoreService.updateDocument('users', uid, { loginAttempts: 0 });
-  }
-
-  // 8. Incrementa tentativas de login falhas
-  incrementLoginAttempts(uid: string): Observable<void> {
-    return this.firestoreService.incrementField('users', uid, 'loginAttempts', 1);
-  }
-
-  // 9. Bloqueia a conta temporariamente após muitas tentativas falhas
-  lockAccount(uid: string): Observable<void> {
-    return this.firestoreService.updateDocument('users', uid, { accountLocked: true });
-  }
-
-  // 10. Desbloqueia uma conta manualmente após revisão
-  unlockAccount(uid: string): Observable<void> {
-    return this.firestoreService.updateDocument('users', uid, { accountLocked: false });
-  }
-
-  // 11. Suspende um usuário (ex: por comportamento inadequado)
-  suspendUser(uid: string, reason: string): Observable<void> {
-    return this.firestoreService.updateDocument('users', uid, {
-      suspended: true,
-      suspensionReason: reason,
-      suspendedAt: Timestamp.fromDate(new Date())
-    });
-  }
-
-  // 12. Remove a suspensão de um usuário
-  unsuspendUser(uid: string): Observable<void> {
-    return this.firestoreService.updateDocument('users', uid, {
-      suspended: false,
-      suspensionReason: null,
-      suspendedAt: null
-    });
-  }
-
-  // 13. Exclui uma conta de usuário permanentemente
-  deleteUserAccount(uid: string): Observable<void> {
-    // Remove os dados do Firestore
-    return from(this.firestoreService.deleteDocument('users', uid)).pipe(
-      // Remove o usuário do Firebase Authentication
-      tap(() => {
-        const auth = getAuth();
-        const user = auth.currentUser;
-        if (user && user.uid === uid) {
-          user.delete();
-        }
-      })
-    );
-  }
-
-  // 14. Confirmação de Termos de Uso e Política de Privacidade
-  confirmTermsOfService(uid: string): Observable<void> {
-    return this.firestoreService.updateDocument('users', uid, { termsAccepted: true });
-  }
-
-  // 15. Notifica sobre tentativas suspeitas de registro
-  notifySuspiciousRegistrationAttempt(email: string, ip: string): void {
-    console.warn(`Tentativa de registro suspeita detectada para o e-mail: ${email}, IP: ${ip}`);
-    // Enviar notificação ao administrador, se necessário
   }
 }

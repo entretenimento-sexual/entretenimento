@@ -26,10 +26,15 @@ export class EmailVerificationService {
   }
 
   // Atualiza o status de verificação de e-mail no Firestore
-  async updateEmailVerificationStatus(uid: string, isVerified: boolean): Promise<void> {
+  async updateEmailVerificationStatus(uid: string, status: 'true' | 'partial' | 'false'): Promise<void> {
     const userRef = doc(this.firestoreService.db, "users", uid);
-    await updateDoc(userRef, { emailVerified: isVerified, ...(isVerified ? { role: 'free' } : {}) });
-    console.log("Status de verificação de e-mail atualizado no Firestore.");
+    await updateDoc(userRef, { emailVerified: status });
+    console.log(`Status de verificação de e-mail atualizado para: ${status}`);
+  }
+
+  // Método para atualizar para 'partial' quando o usuário clica no link de e-mail
+  async markEmailVerificationAsPartial(uid: string): Promise<void> {
+    await this.updateEmailVerificationStatus(uid, 'partial');
   }
 
   // Envia um e-mail de verificação para o usuário
@@ -60,7 +65,7 @@ export class EmailVerificationService {
       if (isEmailVerified) {
         const currentUserUid = getAuth().currentUser?.uid;
         if (currentUserUid) {
-          await this.updateEmailVerificationStatus(currentUserUid, true);
+          await this.updateEmailVerificationStatus(currentUserUid, 'true');
         }
       }
 

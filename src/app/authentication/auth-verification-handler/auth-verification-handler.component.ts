@@ -108,7 +108,6 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.ngUnsubscribe.complete();
   }
 
-  // Verificação de email
   async handleEmailVerification(): Promise<void> {
     this.isLoading = true;
     try {
@@ -117,19 +116,21 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
       if (isVerified) {
         const currentUserUid = this.emailVerificationService.getCurrentUserUid();
-        await this.emailVerificationService.updateEmailVerificationStatus(currentUserUid!, true);
+        await this.emailVerificationService.updateEmailVerificationStatus(currentUserUid!, 'partial');
         this.message = 'E-mail verificado com sucesso!';
-        this.showSubscriptionOptions = true;
+        this.goToFinalizarCadastro();  // Redireciona para finalizar cadastro
       } else {
         this.message = 'Falha na verificação do e-mail.';
-        this.showVerificationErrorModal = true;
       }
     } catch (error) {
       this.message = 'Erro ao verificar o e-mail.';
-      this.showVerificationErrorModal = true;
     } finally {
       this.isLoading = false;
     }
+  }
+
+  goToFinalizarCadastro(): void {
+    this.router.navigate(['/finalizar-cadastro']);
   }
 
   resendVerificationEmail(): void {

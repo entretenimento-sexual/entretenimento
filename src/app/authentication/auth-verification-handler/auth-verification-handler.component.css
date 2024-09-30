@@ -1,5 +1,10 @@
 /* src\app\authentication\auth-verification-handler\auth-verification-handler.component.css */
 /* Estilo base para o componente */
+form[disabled] {
+  pointer-events: none;  /* Impede interação com os elementos do formulário */
+  opacity: 0.6;  /* Visualmente indica que o formulário está desativado */
+}
+
 .auth-verification-page {
   display: flex;
   justify-content: center;

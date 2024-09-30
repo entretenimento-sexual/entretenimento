@@ -1,0 +1,88 @@
+<!-- src\app\authentication\finalizar-cadastro\finalizar-cadastro.component.html -->
+<div class="finalizar-cadastro-page">
+  <div class="finalizar-cadastro-container">
+    <h1>Finalização do Cadastro</h1>
+    <p>Preencha os dados abaixo para concluir seu cadastro.</p>
+
+    <div class="auth-verification-page">
+      <div class="auth-verification-container">
+        <!-- Bloco de carregamento -->
+        <div *ngIf="isLoading">
+          <p>Aguarde, estamos processando sua solicitação...</p>
+        </div>
+
+        <!-- Exibição de mensagens -->
+        <div *ngIf="!isLoading && message">
+          <p class="alert"
+            [ngClass]="{'error-message': message.includes('Erro') || message.includes('Falha') || message.includes('não coincidem'), 'success-message': message.includes('sucesso')}">
+            {{ message }}
+          </p>
+        </div>
+
+        <!-- Exibe as opções de assinatura após o sucesso da verificação de e-mail -->
+        <div *ngIf="showSubscriptionOptions">
+          <h3>Deseja se tornar um assinante?</h3>
+          <button (click)="goToSubscription()">Sim, quero me tornar assinante</button>
+          <button (click)="continueWithoutSubscription()">Continuar sem assinar</button>
+        </div>
+
+        <!-- Formulário de finalização de cadastro -->
+        <h1>Bem-vindo à rede social do sexo!</h1>
+        <p>Obrigado por verificar o seu e-mail.</p>
+        <p>Continue seu cadastro para aproveitar todos os recursos!</p>
+
+        <form (ngSubmit)="onSubmit()" #form="ngForm">
+          <!-- Identidade de Gênero -->
+          <label>Quero me cadastrar como:</label>
+          <select [(ngModel)]="gender" name="gender" required (change)="checkFieldValidity('gender', gender)">
+            <option value="homem">Homem</option>
+            <option value="mulher">Mulher</option>
+            <option value="casal-ele-ele">Casal (Ele/Ele)</option>
+            <option value="casal-ele-ela">Casal (Ele/Ela)</option>
+            <option value="casal-ela-ela">Casal (Ela/Ela)</option>
+            <option value="travesti">Travesti</option>
+            <option value="transexual">Transexual</option>
+            <option value="crossdressers">Crossdressers</option>
+          </select>
+          <div *ngIf="isFieldInvalid('gender')" class="error-message">{{ formErrors['gender'] }}</div>
+
+          <!-- Orientação Sexual -->
+          <label>Eu sou:</label>
+          <select [(ngModel)]="orientation" name="orientation">
+            <option value="bissexual">Bissexual</option>
+            <option value="homossexual">Homossexual</option>
+            <option value="heterossexual">Heterossexual</option>
+            <option value="pansexual">Pansexual</option>
+          </select>
+
+          <!-- Estado -->
+          <label>Estado:</label>
+          <select [(ngModel)]="selectedEstado" name="estado" (change)="onEstadoChange()">
+            <option *ngFor="let estado of estados" [value]="estado.sigla">{{ estado.nome }}</option>
+          </select>
+
+          <!-- Município -->
+          <label>Município:</label>
+          <select [(ngModel)]="selectedMunicipio" name="municipio">
+            <option *ngFor="let municipio of municipios" [value]="municipio.nome">{{ municipio.nome }}</option>
+          </select>
+
+          <!-- Upload de Fotos -->
+          <label>Foto principal:</label>
+          <input type="file" (change)="uploadFile($event)" multiple>
+          <div *ngIf="isFieldInvalid('selectedFile')" class="error-message">{{ formErrors['selectedFile'] }}</div>
+
+          <div *ngIf="isUploading" class="progress-custom">
+            <div class="progress-bar-custom" role="progressbar" [attr.aria-valuenow]="progressValue" aria-valuemin="0"
+              aria-valuemax="100" [style.width]="progressValue + '%'">{{progressValue | number:'1.0-0'}}%</div>
+          </div>
+
+          <button type="submit" [disabled]="!form.valid || isLoading"
+            class="btn-submit">Concluir Cadastro</button>
+        </form>
+
+        <div *ngIf="uploadMessage" class="alert alert-warning">{{ uploadMessage }}</div>
+      </div>
+
+  </div>
+</div>

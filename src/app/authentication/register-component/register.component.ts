@@ -9,7 +9,6 @@ import { RegisterService } from 'src/app/core/services/autentication/register.se
   templateUrl: './register.component.html',
   styleUrls: ['./register.component.css']
 })
-
 export class RegisterComponent {
   public nickname: string = '';
   public email: string = '';
@@ -23,14 +22,13 @@ export class RegisterComponent {
   public formSubmitted: boolean = false;
   public isLoading: boolean = false;
 
-  // Variáveis de controle para limitar as tentativas de registro
   private failedAttempts: number = 0;
   private maxAttempts: number = 5;
   private lockoutTime: number = 30000; // Tempo de bloqueio em milissegundos (30 segundos)
   public isLockedOut: boolean = false;
 
   constructor(private registerService: RegisterService,
-              private emailVerificationService: EmailVerificationService) { }
+    private emailVerificationService: EmailVerificationService) { }
 
   async onRegister() {
     this.clearErrorMessages();
@@ -64,7 +62,7 @@ export class RegisterComponent {
       localStorage.setItem('tempNickname', this.nickname);
       this.successMessage = 'Registro realizado com sucesso! Por favor, verifique seu e-mail para confirmar.';
       this.formSubmitted = true;
-      this.failedAttempts = 0; // Resetar as tentativas falhas após um registro bem-sucedido
+      this.failedAttempts = 0;
     } catch (error: any) {
       this.handleRegistrationError(error);
     } finally {
@@ -87,8 +85,13 @@ export class RegisterComponent {
       return false;
     }
 
-    if (this.password.length < 6) {
-      this.errorMessage = 'A senha deve ter pelo menos 6 caracteres.';
+    if (!this.registerService.isValidEmailFormat(this.email)) {
+      this.errorMessage = 'Endereço de e-mail inválido.';
+      return false;
+    }
+
+    if (!this.registerService.isValidPassword(this.password)) {
+      this.errorMessage = 'A senha deve conter pelo menos 8 caracteres, incluindo uma letra maiúscula, uma letra minúscula e um número.';
       return false;
     }
 
@@ -106,7 +109,11 @@ export class RegisterComponent {
   }
 
   checkPasswordStrength(): void {
-    this.passwordStrengthMessage = this.password.length >= 8 ? 'Senha forte' : 'Senha fraca';
+    if (this.registerService.isValidPassword(this.password)) {
+      this.passwordStrengthMessage = 'Senha forte';
+    } else {
+      this.passwordStrengthMessage = 'Senha fraca';
+    }
   }
 
   async resendVerificationEmail(): Promise<void> {
@@ -121,7 +128,6 @@ export class RegisterComponent {
   handleRegistrationError(error: any): void {
     this.failedAttempts++;
 
-    // Se o limite de tentativas for atingido, ativa o bloqueio temporário
     if (this.failedAttempts >= this.maxAttempts) {
       this.lockForm();
     }
@@ -130,7 +136,7 @@ export class RegisterComponent {
     if ('code' in error) {
       switch (error.code) {
         case 'auth/weak-password':
-          this.errorMessage = 'A senha deve ter pelo menos 6 caracteres.';
+          this.errorMessage = 'A senha deve conter pelo menos 6 caracteres.';
           break;
         case 'auth/email-already-in-use':
           this.errorMessage = 'Esse e-mail já está em uso.';
@@ -146,15 +152,13 @@ export class RegisterComponent {
     }
   }
 
-  // Função para bloquear o formulário por um tempo determinado
   lockForm(): void {
     this.isLockedOut = true;
     this.errorMessage = `Você tentou se registrar muitas vezes. Tente novamente em 30 segundos.`;
 
-    // Desbloquear após o tempo definido
     setTimeout(() => {
       this.isLockedOut = false;
-      this.failedAttempts = 0; // Resetar as tentativas falhas após o desbloqueio
+      this.failedAttempts = 0;
     }, this.lockoutTime);
   }
 }

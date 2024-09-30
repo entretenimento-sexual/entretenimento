@@ -16,6 +16,7 @@ import { SuggestionService } from '../core/services/data-handling/suggestion.ser
 import { AuthService } from '../core/services/autentication/auth.service';
 import { ResetPasswordComponent } from './reset-password/reset-password.component';
 import { AuthVerificationHandlerComponent } from './auth-verification-handler/auth-verification-handler.component';
+import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
 
 
 @NgModule({
@@ -26,7 +27,8 @@ import { AuthVerificationHandlerComponent } from './auth-verification-handler/au
     ProgressiveSignupComponent,
     ResetPasswordComponent,
     SuggestedProfilesComponent,
-    AuthVerificationHandlerComponent
+    AuthVerificationHandlerComponent,
+    FinalizarCadastroComponent
   ],
 
   imports: [
