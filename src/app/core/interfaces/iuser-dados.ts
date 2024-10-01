@@ -15,7 +15,7 @@ export interface IUserDados {
   role: 'visitante' |'free' | 'basico' | 'premium' | 'vip';
   lastLoginDate: Timestamp; // Data do último login
   firstLogin?: Timestamp | Date;
-  emailVerified?: boolean;
+  emailVerified?: string;
   gender?: string;
   orientation?: string; // Orientação sexual
   partner1Orientation?: string;

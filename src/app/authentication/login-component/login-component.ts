@@ -77,17 +77,13 @@ export class LoginComponent implements OnInit {
     console.log('Login em progresso...');
 
     try {
-      const loginSuccess = await this.authService.login(this.email, this.password);
+      const { success, emailVerified } = await this.authService.login(this.email, this.password);
 
-      if (loginSuccess) {
-        const userId = this.authService.getLoggedUserUID();
-        const user = await this.authService.getUserAuthenticated().pipe(first()).toPromise();
-        if (user && !user.emailVerified) {
+      if (success) {
+        if (emailVerified === false) {
+          // Exibe o modal de verificação de e-mail
           console.log('E-mail não verificado, abrindo modal...');
           this.showEmailVerificationModal = true;
-        } else if (user)  {
-          console.log('Login bem-sucedido. Redirecionando...');
-          this.router.navigate([`/perfil/${user.uid}`]);
         }
       } else {
         this.errorMessage = 'Credenciais inválidas.';
@@ -99,7 +95,6 @@ export class LoginComponent implements OnInit {
       console.log('Processo de login finalizado.');
     }
   }
-
 
   // Tratamento de erros
   private handleError(error: any): void {

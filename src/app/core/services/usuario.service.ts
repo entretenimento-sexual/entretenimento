@@ -80,17 +80,6 @@ export class UsuarioService {
     );
   }
 
-  // Adiciona o método `getUserById`
-  getUserById(uid: string): Observable<IUserDados | null> {
-    return from(this.userProfileService.getUserById(uid)).pipe(
-      map(user => user as IUserDados | null),
-      catchError((error) => {
-        console.error('Erro ao buscar usuário por ID:', error);
-        return of(null);
-      })
-    );
-  }
-
   // Atualiza o papel (role) de um usuário no Firestore
   updateUserRole(uid: string, newRole: string): Observable<void> {
     return from(this.userProfileService.updateUserRole(uid, newRole)).pipe(

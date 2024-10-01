@@ -28,7 +28,7 @@ export class UserEffects {
     this.actions$.pipe(
       ofType(observeUserChanges),
       mergeMap(({ uid }) =>
-        this.usuarioService.getUserById(uid).pipe(
+        this.usuarioService.getUsuario(uid).pipe(
           map(user => {
             if (user) {
               return loadUsersSuccess({ users: [user] });

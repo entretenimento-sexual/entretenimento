@@ -4,11 +4,12 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
 import { OobCodeService } from 'src/app/core/services/autentication/oobCode.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { Subject } from 'rxjs';
+import { first, Subject } from 'rxjs';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { UsuarioService } from 'src/app/core/services/usuario.service';
 
 @Component({
   selector: 'app-auth-verification-handler',
@@ -55,6 +56,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     private userProfileService: UserProfileService,
     private oobCodeService: OobCodeService,
     private firestoreService: FirestoreService,
+    private usuarioService: UsuarioService,
     private authService: AuthService,
     private router: Router,
     private ngZone: NgZone
@@ -79,28 +81,6 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         this.isLoading = false;
       }
     });
-
-    this.loadEstados(); // Carrega os estados ao iniciar
-  }
-
-  async loadEstados() {
-    try {
-      const response = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados');
-      this.estados = await response.json();
-      this.estados.sort((a, b) => a.nome.localeCompare(b.nome)); // Ordena os estados
-    } catch (error) {
-      console.error('Erro ao carregar os estados:', error);
-    }
-  }
-
-  async onEstadoChange() {
-    try {
-      const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${this.selectedEstado}/municipios`);
-      this.municipios = await response.json();
-      this.municipios.sort((a, b) => a.nome.localeCompare(b.nome)); // Ordena os municípios
-    } catch (error) {
-      console.error('Erro ao carregar os municípios:', error);
-    }
   }
 
   ngOnDestroy(): void {
@@ -111,23 +91,36 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   async handleEmailVerification(): Promise<void> {
     this.isLoading = true;
     try {
-      await this.emailVerificationService.verifyEmail(this.oobCode);
       const isVerified = await this.emailVerificationService.reloadCurrentUser();
 
+      // Verifica se o status do email é "partial" ou "true"
+      const currentUserUid = this.authService.getLoggedUserUID();
+      const userData = await this.usuarioService.getUsuario(currentUserUid!).pipe(first()).toPromise();
+
+      if (userData?.emailVerified === 'partial') {
+        this.message = 'Seu e-mail já foi verificado anteriormente. Faça login para continuar.';
+        this.router.navigate(['/login']); // Redireciona para a tela de login
+        return;
+      }
+
+      // Caso o email ainda não tenha sido verificado
+      await this.emailVerificationService.verifyEmail(this.oobCode);
+
       if (isVerified) {
-        const currentUserUid = this.emailVerificationService.getCurrentUserUid();
         await this.emailVerificationService.updateEmailVerificationStatus(currentUserUid!, 'partial');
-        this.message = 'E-mail verificado com sucesso!';
-        this.goToFinalizarCadastro();  // Redireciona para finalizar cadastro
+        this.message = 'E-mail verificado com sucesso! Faça login para continuar.';
+        this.router.navigate(['/login']);  // Redireciona para login após verificação
       } else {
         this.message = 'Falha na verificação do e-mail.';
       }
     } catch (error) {
       this.message = 'Erro ao verificar o e-mail.';
+      console.error('Erro ao verificar o e-mail:', error);
     } finally {
       this.isLoading = false;
     }
   }
+
 
   goToFinalizarCadastro(): void {
     this.router.navigate(['/finalizar-cadastro']);

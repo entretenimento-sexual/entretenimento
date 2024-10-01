@@ -5,6 +5,8 @@ import { FirestoreService } from 'src/app/core/services/autentication/firestore.
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Router } from '@angular/router';
+import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { first } from 'rxjs';
 
 @Component({
   selector: 'app-finalizar-cadastro',
@@ -33,6 +35,7 @@ export class FinalizarCadastroComponent implements OnInit {
     private emailVerificationService: EmailVerificationService,
     private firestoreService: FirestoreService,
     private authService: AuthService,
+    private usuarioService: UsuarioService,
     private router: Router
   ) { }
 
@@ -80,38 +83,46 @@ export class FinalizarCadastroComponent implements OnInit {
       console.error('Erro ao carregar os municípios:', error);
     }
   }
-
-  // Submissão do formulário de cadastro
   async onSubmit(): Promise<void> {
     const uid = this.authService.getLoggedUserUID();
-    if (uid) {
-      const userData: IUserRegistrationData = {
-        uid,
-        emailVerified: true,
-        email: this.email || '',  // Valida o email
-        nickname: this.nickname || '',
-        isSubscriber: false,
-        firstLogin: new Date(),
-        gender: this.gender || '',
-        orientation: this.orientation || '',
-        estado: this.selectedEstado || '',
-        municipio: this.selectedMunicipio || '',
-      };
 
-      try {
-        await this.firestoreService.saveInitialUserData(uid, userData);
-        this.message = 'Cadastro finalizado com sucesso!';
-        await this.emailVerificationService.updateEmailVerificationStatus(uid, 'true');  // Atualiza para 'true'
-        this.router.navigate(['/dashboard/principal']);
-      } catch (error) {
-        this.message = 'Erro ao finalizar o cadastro.';
-        console.error('Erro ao salvar os dados:', error);
-      }
-    } else {
+    if (!uid) {
       this.message = 'Erro: UID do usuário não encontrado.';
       console.error('UID do usuário não encontrado.');
+      return;
+    }
+
+    try {
+      const existingUserData = await this.usuarioService.getUsuario(uid).pipe(first()).toPromise();
+
+      if (existingUserData) {
+        const updatedUserData: IUserRegistrationData = {
+          uid: existingUserData.uid,
+          emailVerified: true,
+          email: existingUserData.email || '',
+          nickname: existingUserData.nickname || '',
+          isSubscriber: existingUserData.isSubscriber || false,
+          firstLogin: existingUserData.firstLogin || new Date(),
+          gender: this.gender || existingUserData.gender || '',
+          orientation: this.orientation || existingUserData.orientation || '',
+          estado: this.selectedEstado || existingUserData.estado || '',
+          municipio: this.selectedMunicipio || existingUserData.municipio || '',
+        };
+
+        await this.firestoreService.saveInitialUserData(existingUserData.uid, updatedUserData);
+        this.message = 'Cadastro finalizado com sucesso!';
+        await this.emailVerificationService.updateEmailVerificationStatus(existingUserData.uid, 'true');
+        this.router.navigate(['/dashboard/principal']);
+      } else {
+        this.message = 'Erro: Dados do usuário não encontrados.';
+        console.error('Dados do usuário não encontrados.');
+      }
+    } catch (error) {
+      console.error('Erro ao finalizar o cadastro:', error);
+      this.message = 'Ocorreu um erro ao finalizar o cadastro. Tente novamente mais tarde.';
     }
   }
+
 
   // Função para validar os campos do formulário
   checkFieldValidity(field: string, value: any): void {
@@ -130,21 +141,35 @@ export class FinalizarCadastroComponent implements OnInit {
   // Função para lidar com o upload de arquivos
   uploadFile(event: any): void {
     const file = event.target.files[0];
-    if (file) {
-      this.isUploading = true;
-      this.progressValue = 0;
-      // Simulação do progresso de upload
-      const interval = setInterval(() => {
-        if (this.progressValue >= 100) {
-          clearInterval(interval);
-          this.isUploading = false;
-          this.uploadMessage = 'Upload concluído com sucesso!';
-        } else {
-          this.progressValue += 10;
-        }
-      }, 300);
+
+    if (!file) {
+      this.uploadMessage = 'Nenhum arquivo selecionado.';
+      return;
     }
+
+    this.isUploading = true;
+    this.progressValue = 0;
+
+    const interval = setInterval(() => {
+      if (this.progressValue >= 100) {
+        clearInterval(interval);
+        this.isUploading = false;
+        this.uploadMessage = 'Upload concluído com sucesso!';
+      } else {
+        this.progressValue += 10;
+      }
+    }, 300);
+
+    // Tratamento de erro no upload (exemplo)
+    setTimeout(() => {
+      if (this.progressValue < 100) {
+        clearInterval(interval);
+        this.isUploading = false;
+        this.uploadMessage = 'Erro ao realizar o upload. Tente novamente.';
+      }
+    }, 5000); // Timeout para simular erro
   }
+
 
   goToSubscription(): void {
     this.router.navigate(['/subscription-plan']);

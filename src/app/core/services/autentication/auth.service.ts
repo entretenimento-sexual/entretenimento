@@ -73,7 +73,7 @@ export class AuthService {
     return this.user$;
   }
 
-  // Obtém o UID do usuário logado
+//Obtém UID do usuário logado sendo substituído por método já existente no usuario.service
   getLoggedUserUID(): string | null {
     console.log('getLoggedUserUID chamado');
     const uid = this.currentUserValue ? this.currentUserValue.uid : null;
@@ -92,10 +92,10 @@ export class AuthService {
   }
 
   // Login de usuário
-  async login(email: string, password: string): Promise<boolean> {
+  // Login de usuário no AuthService
+  async login(email: string, password: string): Promise<{ success: boolean, emailVerified?: boolean }> {
     console.log(`Tentativa de login para o email: ${email}`);
     try {
-      // Definir a persistência como local (mantém o usuário autenticado mesmo após fechar o navegador)
       await setPersistence(auth, browserLocalPersistence);
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -108,27 +108,37 @@ export class AuthService {
           this.currentUserValue = userData;
           this.userSubject.next(userData);
           console.log('Dados do usuário carregados após login:', userData);
+
+          // Verifica se o cadastro está completo
+          if (!userData.nickname || !userData.gender) {
+            this.router.navigate(['/finalizar-cadastro']);
+          } else if (!userData.emailVerified) {
+            // Caso o e-mail ainda não tenha sido verificado
+            return { success: true, emailVerified: false };  // Retorna status para o componente exibir modal
+          } else {
+            // Redireciona para o perfil
+            this.router.navigate([`/perfil/${user.uid}`]);
+          }
         } else {
           console.log('Dados do usuário não encontrados no Firestore após login.');
           this.currentUserValue = null;
           this.userSubject.next(null);
         }
-
-        this.router.navigate([`/perfil/${user.uid}`]);
-        return true;
+        return { success: true }; // Login bem-sucedido
       } else {
         console.error('Falha no login: usuário não retornado.');
         this.currentUserValue = null;
         this.userSubject.next(null);
-        return false;
+        return { success: false };
       }
     } catch (error) {
       console.error('Erro ao fazer login:', error);
       this.currentUserValue = null;
       this.userSubject.next(null);
-      return false;
+      return { success: false };
     }
   }
+
 
   // Desloga o usuário e limpa os dados do localStorage
   logout(): Observable<void> {
