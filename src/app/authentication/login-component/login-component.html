@@ -24,7 +24,7 @@
       <p *ngIf="errorMessage" class="alert alert-danger">{{ errorMessage }}</p>
 
       <!-- Link para resetar senha -->
-      <a class="forgot-password" (click)="onForgotPassword()">Esqueci minha senha</a>
+      <a class="forgot-password" (click)="emailInputModalService.openModal()">Esqueci minha senha</a>
 
       <!-- Link para registro -->
       <p class="register-link">
@@ -33,22 +33,7 @@
     </form>
   </div>
 
-  <!-- Modal de recuperação de senha -->
-  <div *ngIf="showPasswordRecovery" class="modal-overlay">
-    <div class="modal-content">
-      <h3>Recuperar Senha</h3>
-      <form (ngSubmit)="sendPasswordRecoveryEmail()">
-        <p>Insira seu e-mail para receber instruções de redefinição de senha.</p>
-        <input type="email" [(ngModel)]="recoveryEmail" placeholder="Email" name="recoveryEmail" required>
-        <div class="modal-actions">
-          <button type="submit">Enviar</button>
-          <button type="button" class="cancel-btn" (click)="closePasswordRecovery()">Cancelar</button>
-        </div>
-      </form>
-    </div>
-  </div><!--Modal de recuperação de senha-->
-
-  <!-- Modal de verificação de e-mail -->
+   <!-- Modal de verificação de e-mail -->
   <div *ngIf="showEmailVerificationModal" class="modal-overlay">
     <div class="modal-content">
       <h2>Verificação de E-mail</h2>
@@ -57,5 +42,5 @@
       <button (click)="logout()">Sair</button>
     </div>
   </div>
-
+<app-email-input-modal></app-email-input-modal>
 </div>

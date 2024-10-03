@@ -91,8 +91,7 @@ export class AuthService {
     return this.firestoreService.checkIfNicknameExists(nickname);
   }
 
-  // Login de usuário
-  // Login de usuário no AuthService
+ // Login de usuário no AuthService
   async login(email: string, password: string): Promise<{ success: boolean, emailVerified?: boolean }> {
     console.log(`Tentativa de login para o email: ${email}`);
     try {
@@ -169,7 +168,7 @@ export class AuthService {
     }
   }
 
-  // Função para enviar o e-mail de recuperação de senha
+  // Função para enviar o e-mail de recuperação de senha (auth.service)
   async sendPasswordResetEmail(email: string): Promise<void> {
     console.log('Enviando e-mail de recuperação de senha para:', email);
     try {

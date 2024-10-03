@@ -139,7 +139,7 @@ export class RegisterComponent {
           this.errorMessage = 'A senha deve conter pelo menos 6 caracteres.';
           break;
         case 'auth/email-already-in-use':
-          this.errorMessage = 'Esse e-mail já está em uso.';
+          this.errorMessage = 'Verifique sua caixa de e-mail.';
           break;
         case 'auth/invalid-email':
           this.errorMessage = 'Endereço de email inválido.';

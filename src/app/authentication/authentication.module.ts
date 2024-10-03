@@ -14,10 +14,9 @@ import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profi
 import { MatCardModule } from '@angular/material/card';
 import { SuggestionService } from '../core/services/data-handling/suggestion.service';
 import { AuthService } from '../core/services/autentication/auth.service';
-import { ResetPasswordComponent } from './reset-password/reset-password.component';
 import { AuthVerificationHandlerComponent } from './auth-verification-handler/auth-verification-handler.component';
 import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
-
+import { EmailInputModalComponent } from './email-input-modal/email-input-modal.component';
 
 @NgModule({
   declarations: [
@@ -25,15 +24,15 @@ import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadas
     RegisterComponent,
     EspiarComponent,
     ProgressiveSignupComponent,
-    ResetPasswordComponent,
     SuggestedProfilesComponent,
     AuthVerificationHandlerComponent,
-    FinalizarCadastroComponent
+    FinalizarCadastroComponent,
+    EmailInputModalComponent
   ],
 
   imports: [
     CommonModule,
-    FormsModule, // Se você estiver usando formulários
+    FormsModule,
     RouterModule, AuthenticationRoutingModule, // Se este módulo tiver rotas
     MatCardModule
   ],

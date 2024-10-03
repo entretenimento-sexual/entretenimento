@@ -1,10 +1,5 @@
 /* src\app\authentication\auth-verification-handler\auth-verification-handler.component.css */
 /* Estilo base para o componente */
-form[disabled] {
-  pointer-events: none;  /* Impede interação com os elementos do formulário */
-  opacity: 0.6;  /* Visualmente indica que o formulário está desativado */
-}
-
 .auth-verification-page {
   display: flex;
   justify-content: center;
@@ -51,9 +46,7 @@ form[disabled] {
   font-family: 'Lato', sans-serif;
 }
 
-.auth-verification-container select,
-.auth-verification-container input[type="password"],
-.auth-verification-container input[type="file"] {
+.auth-verification-container input[type="password"] {
   padding: 15px;
   font-size: 14px;
   border: 1px solid #ccc;
@@ -62,9 +55,7 @@ form[disabled] {
   transition: border 0.3s ease;
 }
 
-.auth-verification-container select:focus,
-.auth-verification-container input[type="password"]:focus,
-.auth-verification-container input[type="file"]:focus {
+.auth-verification-container input[type="password"]:focus {
   border-color: #d76d77;
   outline: none;
 }
@@ -285,19 +276,8 @@ form[disabled] {
 /* Responsividade */
 @media (max-width: 768px) {
   .auth-verification-container {
-    max-width: 60%;
+    max-width: 70%;
   }
 }
 
-/* Animação */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
 
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}

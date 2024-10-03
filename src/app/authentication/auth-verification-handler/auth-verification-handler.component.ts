@@ -10,6 +10,7 @@ import { FirestoreService } from 'src/app/core/services/autentication/firestore.
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 
 @Component({
   selector: 'app-auth-verification-handler',
@@ -56,6 +57,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     private userProfileService: UserProfileService,
     private oobCodeService: OobCodeService,
     private firestoreService: FirestoreService,
+    private emailInputModalService: EmailInputModalService,
     private usuarioService: UsuarioService,
     private authService: AuthService,
     private router: Router,
@@ -66,6 +68,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.route.queryParams.subscribe(params => {
       this.mode = params['mode'];
       this.oobCode = params['oobCode'];
+      console.log('Modo atual:', this.mode);
 
       if (this.oobCode) {
         this.oobCodeService.setCode(this.oobCode);
@@ -138,7 +141,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     });
   }
 
-  redirectToFAQ(): void {
+   redirectToFAQ(): void {
     this.router.navigate(['/faq']); // Redireciona para a página de FAQ
   }
 
@@ -156,6 +159,11 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     } else if (this.mode === 'verifyEmail') {
       this.finishRegistration();
     }
+  }
+
+  // Abrir o modal de recuperação de senha
+  openPasswordRecoveryModal(): void {
+    this.emailInputModalService.openModal();
   }
 
   // Reset de senha
@@ -189,7 +197,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       });
     } catch (error: any) {
       if (error.code === 'auth/expired-action-code') {
-        this.message = 'O link de redefinição expirou.';
+        this.message = 'O link de redefinição de senha expirou.';
       } else if (error.code === 'auth/invalid-action-code') {
         this.message = 'O código de redefinição é inválido ou já foi usado.';
       } else {

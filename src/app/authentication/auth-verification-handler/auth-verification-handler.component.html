@@ -5,6 +5,7 @@
       <p>Aguarde, estamos verificando seu e-mail...</p>
     </div>
 
+    <!-- Exibe mensagens de erro ou sucesso -->
     <div *ngIf="!isLoading && message">
       <p class="alert"
         [ngClass]="{'success-message': message.includes('sucesso'), 'error-message': !message.includes('sucesso')}">
@@ -12,19 +13,25 @@
       </p>
     </div>
 
-    <!-- Exibe uma mensagem linda de boas-vindas após verificação -->
+    <!--Abre modal para email de recuperação -->
+    <div *ngIf="message === 'O código de redefinição é inválido ou já foi usado.'">
+      <button (click)="openPasswordRecoveryModal()" class="link-button">Reenviar e-mail para recuperação de senha</button>
+    </div>
+
+    <div *ngIf="message === 'O link de redefinição de senha expirou.'">
+      <button (click)="openPasswordRecoveryModal()" class="link-button">Reenviar e-mail para recuperação de senha</button>
+    </div>
+    <!-- Modal de recuperação de senha -->
+    <app-email-input-modal></app-email-input-modal>
+
+    <!-- Bloco para exibir após a verificação de e-mail -->
     <div *ngIf="!isLoading && message.includes('sucesso')">
       <h1>Bem-vindo à nossa plataforma!</h1>
       <p>Seu e-mail foi verificado com sucesso. Agora, você será redirecionado para finalizar seu cadastro e aproveitar
         todos os recursos da plataforma!</p>
       <button (click)="goToFinalizarCadastro()">Continuar</button>
     </div>
-  </div>
-</div>
 
-
-    <!-- Bloco para redefinição de senha -->
-    <!-- Bloco para redefinição de senha -->
     <!-- Bloco para redefinição de senha -->
     <div *ngIf="!isLoading && mode === 'resetPassword'">
       <div class="reset-password-page">
@@ -43,29 +50,27 @@
 
             <label for="confirmPassword">Confirmar Nova Senha</label>
             <div class="password-wrapper">
-              <input [type]="showConfirmPassword ? 'text' : 'password'" [(ngModel)]="confirmPassword" name="confirmPassword"
-                required class="input-field" />
+              <input [type]="showConfirmPassword ? 'text' : 'password'" [(ngModel)]="confirmPassword"
+                name="confirmPassword" required class="input-field" />
               <button type="button" class="toggle-password" (click)="toggleConfirmPasswordVisibility()">
                 <i [ngClass]="showConfirmPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
               </button>
             </div>
 
             <button type="submit" class="btn-submit">Redefinir Senha</button>
-
           </form>
+        </div>
       </div>
     </div>
   </div>
+</div>
 
 <!-- Modal de erro ao verificar e-mail -->
 <div *ngIf="showVerificationErrorModal" class="modal">
   <div class="modal-content">
     <h2>Erro ao verificar o e-mail</h2>
-    <!-- <p>{{ message }}</p> -->
     <p>Não foi possível verificar seu e-mail. Você pode tentar reenviar o e-mail de confirmação ou consultar nossas
       perguntas frequentes.</p>
-
-    <!-- Botões de ação -->
     <div class="modal-actions">
       <button (click)="resendVerificationEmail()">Reenviar e-mail de confirmação</button>
       <button (click)="redirectToFAQ()">Ver perguntas frequentes</button>
