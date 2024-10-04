@@ -1,46 +1,62 @@
 <!-- src\app\authentication\login-component\login-component.component.html -->
-<div class="authentication-container login-component">
-  <div class="authentication-content-right">
-    <h2 class="authentication-header">Se já tem cadastro<br>Insira seus dados para entrar</h2>
+<div class="auth-container">
+  <div class="form-container">
+    <h2 class="form-header">Já tem conta?<br>Faça login</h2>
 
-    <!-- Formulário de login -->
-    <form class="authentication-form" (ngSubmit)="login()">
+    <!-- Formulário de login usando Reactive Forms -->
+    <form [formGroup]="loginForm" (ngSubmit)="login()" class="form">
       <!-- Campo de email -->
-      <input type="email" [(ngModel)]="email" placeholder="Email" name="email" required (focus)="clearError()">
+      <input formControlName="email" class="input-field" type="email" placeholder="Email" name="email" required
+        (focus)="clearError()">
+      <!-- Mensagem de erro para e-mail -->
+      <div *ngIf="loginForm.controls['email'].invalid && loginForm.controls['email'].touched" class="alert alert-error">
+        {{ loginForm.controls['email'].hasError('invalidEmail') ? 'Formato de e-mail inválido' : 'E-mail é obrigatório'
+        }}
+      </div>
 
       <!-- Campo de senha -->
-      <input type="password" [(ngModel)]="password" placeholder="Senha" name="password" required (focus)="clearError()">
+      <input formControlName="password" class="input-field" type="password" placeholder="Senha" name="password" required
+        (focus)="clearError()">
+      <!-- Mensagem de erro para senha -->
+      <div *ngIf="loginForm.controls['password'].invalid && loginForm.controls['password'].touched"
+        class="alert alert-error">
+        {{ loginForm.controls['password'].hasError('invalidPassword') ? 'Senha inválida. Deve conter ao menos 8 caracteres, incluindo letras maiúsculas, minúsculas e números.' : 'Senha é obrigatória' }}
+      </div>
 
-      <!-- Honeypot (campo invisível para proteção contra bots) -->
-      <input type="text" name="honeypot" [(ngModel)]="honeypot" style="display: none;" />
+      <!-- Honeypot invisível -->
+      <input formControlName="honeypot" class="honeypot-hidden" type="text" name="honeypot" />
 
       <!-- Botão de login -->
-      <button type="submit" [disabled]="isLoading || isHoneypotFilled">Login</button>
+      <div class="button-container">
+        <button class="btn btn-primary" type="submit" [disabled]="isLoading || loginForm.invalid">
+          {{ isLoading ? 'Aguarde...' : 'Login' }}
+        </button>
+      </div>
 
       <!-- Spinner de carregamento -->
       <div *ngIf="isLoading" class="spinner">Carregando...</div>
 
-      <!-- Mensagem de erro -->
-      <p *ngIf="errorMessage" class="alert alert-danger">{{ errorMessage }}</p>
+      <!-- Mensagem de erro geral -->
+      <p *ngIf="errorMessage" class="alert alert-error" aria-live="assertive">{{ errorMessage }}</p>
 
       <!-- Link para resetar senha -->
-      <a class="forgot-password" (click)="emailInputModalService.openModal()">Esqueci minha senha</a>
+      <a class="forgot-password" (click)="openPasswordRecoveryModal()">Esqueci minha senha</a>
 
       <!-- Link para registro -->
-      <p class="register-link">
-        Não tem uma conta? <a [routerLink]="['/register']">Cadastre-se</a>
-      </p>
+      <p class="register-link">Não tem uma conta? <a [routerLink]="['/register']">Cadastre-se</a></p>
     </form>
   </div>
 
-   <!-- Modal de verificação de e-mail -->
+  <!-- Modal de verificação de e-mail -->
   <div *ngIf="showEmailVerificationModal" class="modal-overlay">
     <div class="modal-content">
       <h2>Verificação de E-mail</h2>
       <p>Seu e-mail ainda não foi verificado. Por favor, verifique seu e-mail ou reenvie o link de verificação.</p>
-      <button (click)="resendVerificationEmail()">Reenviar E-mail de Verificação</button>
-      <button (click)="logout()">Sair</button>
+      <button class="btn btn-primary" (click)="resendVerificationEmail()">Reenviar E-mail de Verificação</button>
+      <button class="btn btn-danger" (click)="logout()">Sair</button>
     </div>
   </div>
-<app-email-input-modal></app-email-input-modal>
+
+  <!-- Modal de recuperação de senha -->
+  <app-email-input-modal></app-email-input-modal>
 </div>

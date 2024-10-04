@@ -1,80 +1,64 @@
 <!-- src\app\authentication\auth-verification-handler\auth-verification-handler.component.html -->
-<div class="auth-verification-page">
-  <div class="auth-verification-container">
-    <div *ngIf="isLoading">
-      <p>Aguarde, estamos verificando seu e-mail...</p>
-    </div>
+<div class="auth-container">
+  <!-- Feedback de carregamento -->
+  <div *ngIf="isLoading" class="loading-message">
+    <p>Aguarde, estamos verificando seu e-mail...</p>
+  </div>
 
-    <!-- Exibe mensagens de erro ou sucesso -->
-    <div *ngIf="!isLoading && message">
-      <p class="alert"
-        [ngClass]="{'success-message': message.includes('sucesso'), 'error-message': !message.includes('sucesso')}">
-        {{ message }}
-      </p>
-    </div>
+  <!-- Mensagens de erro ou sucesso -->
+  <div *ngIf="!isLoading && message" class="alert-container">
+    <p class="alert"
+      [ngClass]="{'alert-success': message.includes('sucesso'), 'alert-error': !message.includes('sucesso')}">
+      {{ message }}
+    </p>
+  </div>
 
-    <!--Abre modal para email de recuperação -->
-    <div *ngIf="message === 'O código de redefinição é inválido ou já foi usado.'">
-      <button (click)="openPasswordRecoveryModal()" class="link-button">Reenviar e-mail para recuperação de senha</button>
-    </div>
+  <!-- Verificação de e-mail -->
+  <div *ngIf="!isLoading && mode === 'verifyEmail'" class="action-container">
+    <h1>Bem-vindo à nossa plataforma!</h1>
+    <p>Seu e-mail foi verificado com sucesso. Agora, você será redirecionado para finalizar seu cadastro e aproveitar
+      todos os recursos da plataforma!</p>
+    <button class="btn btn-primary" (click)="goToFinalizarCadastro()">Continuar</button>
+  </div>
 
-    <div *ngIf="message === 'O link de redefinição de senha expirou.'">
-      <button (click)="openPasswordRecoveryModal()" class="link-button">Reenviar e-mail para recuperação de senha</button>
-    </div>
-    <!-- Modal de recuperação de senha -->
-    <app-email-input-modal></app-email-input-modal>
+  <!-- Redefinição de senha -->
+  <div *ngIf="!isLoading && mode === 'resetPassword'" class="form-container">
+    <h2 class="form-header">Redefinir Senha</h2>
 
-    <!-- Bloco para exibir após a verificação de e-mail -->
-    <div *ngIf="!isLoading && message.includes('sucesso')">
-      <h1>Bem-vindo à nossa plataforma!</h1>
-      <p>Seu e-mail foi verificado com sucesso. Agora, você será redirecionado para finalizar seu cadastro e aproveitar
-        todos os recursos da plataforma!</p>
-      <button (click)="goToFinalizarCadastro()">Continuar</button>
-    </div>
-
-    <!-- Bloco para redefinição de senha -->
-    <div *ngIf="!isLoading && mode === 'resetPassword'">
-      <div class="reset-password-page">
-        <div class="reset-password-container">
-          <h2>Redefinir Senha</h2>
-
-          <form (ngSubmit)="onSubmit()">
-            <label for="newPassword">Nova Senha</label>
-            <div class="password-wrapper">
-              <input [type]="showPassword ? 'text' : 'password'" [(ngModel)]="newPassword" name="newPassword" required
-                class="input-field" />
-              <button type="button" class="toggle-password" (click)="togglePasswordVisibility()">
-                <i [ngClass]="showPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
-              </button>
-            </div>
-
-            <label for="confirmPassword">Confirmar Nova Senha</label>
-            <div class="password-wrapper">
-              <input [type]="showConfirmPassword ? 'text' : 'password'" [(ngModel)]="confirmPassword"
-                name="confirmPassword" required class="input-field" />
-              <button type="button" class="toggle-password" (click)="toggleConfirmPasswordVisibility()">
-                <i [ngClass]="showConfirmPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
-              </button>
-            </div>
-
-            <button type="submit" class="btn-submit">Redefinir Senha</button>
-          </form>
-        </div>
+    <form (ngSubmit)="onSubmit()" class="form">
+      <label for="newPassword" class="form-label">Nova Senha</label>
+      <div class="input-wrapper">
+        <input [type]="showPassword ? 'text' : 'password'" [(ngModel)]="newPassword" name="newPassword" required
+          class="input-field" />
+        <button type="button" class="toggle-input" (click)="togglePasswordVisibility()">
+          <i [ngClass]="showPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
+        </button>
       </div>
-    </div>
+
+      <label for="confirmPassword" class="form-label">Confirmar Nova Senha</label>
+      <div class="input-wrapper">
+        <input [type]="showConfirmPassword ? 'text' : 'password'" [(ngModel)]="confirmPassword" name="confirmPassword"
+          required class="input-field" />
+        <button type="button" class="toggle-input" (click)="toggleConfirmPasswordVisibility()">
+          <i [ngClass]="showConfirmPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
+        </button>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Redefinir Senha</button>
+    </form>
   </div>
 </div>
 
 <!-- Modal de erro ao verificar e-mail -->
-<div *ngIf="showVerificationErrorModal" class="modal">
+<div *ngIf="showVerificationErrorModal" class="modal-overlay">
   <div class="modal-content">
     <h2>Erro ao verificar o e-mail</h2>
     <p>Não foi possível verificar seu e-mail. Você pode tentar reenviar o e-mail de confirmação ou consultar nossas
       perguntas frequentes.</p>
     <div class="modal-actions">
-      <button (click)="resendVerificationEmail()">Reenviar e-mail de confirmação</button>
-      <button (click)="redirectToFAQ()">Ver perguntas frequentes</button>
-      <button (click)="closeModal()">Fechar</button>
+      <button class="btn btn-primary" (click)="resendVerificationEmail()">Reenviar e-mail de confirmação</button>
+      <button class="btn btn-secondary" (click)="redirectToFAQ()">Ver perguntas frequentes</button>
+      <button class="btn btn-danger" (click)="closeModal()">Fechar</button>
     </div>
   </div>
 </div>

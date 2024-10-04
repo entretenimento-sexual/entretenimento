@@ -1,31 +1,206 @@
-/* src\styles.css */
 :root {
-  --primary-color: #ff6565;
-  --secondary-color: #333;
+  --primary-color: #ff4f4f;  /* Um vermelho mais escuro e intenso */
+  --primary-hover: #ff3333;  /* Hover mais forte para interações */
+  --secondary-color: #444;  /* Cinza escuro sofisticado */
+  --background-color: #fafafa;  /* Fundo mais claro e limpo */
+  --text-color: #333333;
+  --danger-color: #dc3545;
+  --danger-hover: #c82333;
+  --success-color: #28a745;
+  --success-hover: #218838;
   --font-family-primary: 'Roboto', sans-serif;
   --font-family-secondary: 'Open Sans', sans-serif;
+  --box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);  /* Sombra suave */
+  --input-background: #f3f3f3;  /* Fundo suave para campos de entrada */
 }
+
 /* Reset CSS */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
-html, body {
+
+/* Estilos Gerais de Texto e Layout */
+html,
+body {
   height: 100%;
   font-family: var(--font-family-primary);
+  background-color: var(--background-color);
+  color: var(--text-color);
 }
+
 body {
-  margin: 0;
-  font-family: Roboto, "Helvetica Neue", sans-serif;
+  justify-content: center;
+  align-items: center;
 }
-.router-outlet-container {
-  height: 60vh;
-  width: 100vw;
-  aspect-ratio: 16/9;
-}
+
 ul {
   list-style-type: none;
 }
 
+a {
+  text-decoration: none;
+  color: var(--primary-color);
+  transition: color 0.3s ease;
+}
 
+a:hover {
+  color: var(--primary-hover);
+}
+
+/* Botões Modernos e Elegantes */
+.btn {
+  display: inline-block;
+  padding: 12px 20px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  color: #fff;
+}
+
+.btn-primary {
+  background-color: var(--primary-color);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-hover);
+  transform: scale(1.05);
+}
+
+.btn-danger {
+  background-color: var(--danger-color);
+}
+
+.btn-danger:hover {
+  background-color: var(--danger-hover);
+}
+
+.btn-success {
+  background-color: var(--success-color);
+}
+
+.btn-success:hover {
+  background-color: var(--success-hover);
+}
+
+.btn-secondary {
+  background-color: var(--secondary-color);
+}
+
+.btn-secondary:hover {
+  background-color: lighten(var(--secondary-color), 10%);
+}
+
+/* Formulários Modernos e Suaves */
+.input-field {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 15px;
+  border: 1px solid #cccccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  background-color: var(--input-background);
+  transition: border-color 0.3s ease, box-shadow 0.2s ease;
+}
+
+.input-field:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  outline: none;
+}
+
+.form-label {
+  font-size: 1rem;
+  color: var(--text-color);
+  margin-bottom: 8px;
+  display: block;
+}
+
+/* Alertas e Mensagens */
+.alert {
+  padding: 15px;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  font-size: 1rem;
+  color: white;
+  font-weight: bold;
+}
+
+.alert-success {
+  background-color: var(--success-color);
+}
+
+.alert-error {
+  background-color: var(--danger-color);
+}
+
+.alert-info {
+  background-color: var(--primary-color);
+}
+
+/* Modal Refinado */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: #ffffff;
+  padding: 25px;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 450px;
+  box-shadow: var(--box-shadow);
+  text-align: center;
+}
+
+/* Animação para o modal */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Inputs com botão de alternância */
+.input-wrapper {
+  position: relative;
+}
+
+.toggle-input {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+}
+
+.input-field.ng-invalid.ng-touched {
+  border-color: var(--danger-color);
+}
+
+/* Spinner */
+.spinner {
+  color: var(--primary-color);
+  font-size: 1.2rem;
+  font-weight: bold;
+  margin-top: 10px;
+}

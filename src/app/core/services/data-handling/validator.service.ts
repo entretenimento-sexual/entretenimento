@@ -8,6 +8,7 @@ const FACEBOOK_REGEX = /^https?:\/\/www\.facebook\.com\/.+$/;
 const INSTAGRAM_REGEX = /^https:\/\/www\.instagram\.com\/.+$/;
 const BUUPE_REGEX = /^https:\/\/www\.buupe\.com\/.+$/;
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/;
+const PASSWORD_BLACKLIST = ['password', '123456', 'qwerty', '111111'];
 
 @Injectable({
   providedIn: 'root'
@@ -26,6 +27,17 @@ export class ValidatorService {
     return (control: AbstractControl): { [key: string]: any } | null => {
       const email = control.value;
       return email && !EMAIL_REGEX.test(email) ? { 'invalidEmail': { value: email } } : null;
+    };
+  }
+
+  // Validação de Senha como ValidatorFn para Reactive Forms
+    public static passwordValidator(minLength: number = 8): ValidatorFn {
+    return (control: AbstractControl): { [key: string]: any } | null => {
+      const password = control.value;
+      const passwordRegex = new RegExp(`^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d]{${minLength},}$`);
+      return password && !passwordRegex.test(password) || PASSWORD_BLACKLIST.includes(password)
+        ? { 'invalidPassword': { value: password } }
+        : null;
     };
   }
 
@@ -57,15 +69,6 @@ export class ValidatorService {
   public static isValidPassword(password: string, minLength: number = 8): boolean {
     const passwordRegex = new RegExp(`^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d]{${minLength},}$`);
     return passwordRegex.test(password);
-  }
-
-  // Validação de Senha como ValidatorFn para Reactive Forms
-  public static passwordValidator(minLength: number = 8): ValidatorFn {
-    return (control: AbstractControl): { [key: string]: any } | null => {
-      const password = control.value;
-      const passwordRegex = new RegExp(`^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d]{${minLength},}$`);
-      return password && !passwordRegex.test(password) ? { 'invalidPassword': { value: password } } : null;
-    };
   }
 
   // Validação de CPF (Simples, sem validação de dígito verificador)
