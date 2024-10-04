@@ -13,6 +13,12 @@
     </p>
   </div>
 
+  <!--Abre modal para email de recuperação de recuperação de senha -->
+  <!-- Exibe link para reenviar e-mail de recuperação de senha se houver erro relacionado -->
+  <div *ngIf="shouldShowRecoveryLink">
+    <button (click)="openPasswordRecoveryModal()" class="link-button">Reenviar e-mail para recuperação de senha</button>
+  </div>
+
   <!-- Verificação de e-mail -->
   <div *ngIf="!isLoading && mode === 'verifyEmail'" class="action-container">
     <h1>Bem-vindo à nossa plataforma!</h1>
@@ -62,3 +68,5 @@
     </div>
   </div>
 </div>
+<!-- Modal de recuperação de senha -->
+<app-email-input-modal></app-email-input-modal>

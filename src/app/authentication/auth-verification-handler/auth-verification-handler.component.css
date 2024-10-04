@@ -33,10 +33,6 @@
   color: var(--primary-color);
 }
 
-.alert-container {
-  margin-top: 20px;
-}
-
 .action-container {
   text-align: center;
   margin-top: 20px;
@@ -47,6 +43,25 @@
   justify-content: center;
   margin-top: 10px;
 }
+
+.link-button {
+  margin-top: 5px;  /* Adiciona espaçamento entre a mensagem e o botão */
+  margin-bottom: 10px;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--primary-hover);
+}
+
+
 @media (max-width: 768px) {
   .reset-password-page {
     max-width: 70%;

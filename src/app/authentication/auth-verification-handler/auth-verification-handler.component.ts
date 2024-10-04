@@ -1,5 +1,5 @@
 // src\app\authentication\auth-verification-handler\auth-verification-handler.component.ts
-import { Component, OnInit, OnDestroy, NgZone } from '@angular/core';
+import { Component, OnInit, OnDestroy, NgZone, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
 import { OobCodeService } from 'src/app/core/services/autentication/oobCode.service';
@@ -15,7 +15,8 @@ import { EmailInputModalService } from 'src/app/core/services/autentication/emai
 @Component({
   selector: 'app-auth-verification-handler',
   templateUrl: './auth-verification-handler.component.html',
-  styleUrls: ['./auth-verification-handler.component.css']
+  styleUrls: ['./auth-verification-handler.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   public isLoading = true;
@@ -27,6 +28,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   public showPassword: boolean = false;
   public showConfirmPassword: boolean = false;
   public showVerificationErrorModal: boolean = false;
+  public shouldShowRecoveryLink: boolean = false;
 
   // Variável única para mensagens de sucesso e erro
   public message: string = '';
@@ -170,6 +172,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   async resetPassword(): Promise<void> {
     console.log('Tentando redefinir a senha...');  // Debug log
     this.isLoading = true;
+    this.shouldShowRecoveryLink = false;
 
     if (this.newPassword !== this.confirmPassword) {
       this.message = 'As senhas não coincidem.';
@@ -178,7 +181,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       return;
     }
     if (this.newPassword.length < 6) {
-      this.message = 'A senha deve ter pelo menos 6 caracteres.';
+      this.message = 'A senha deve ter pelo menos 8 caracteres.';
       this.isLoading = false;
       return;
     }
@@ -193,18 +196,30 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
       // Redireciona após 4 segundos
       this.ngZone.run(() => {
-        setTimeout(() => this.router.navigate(['/login']), 4000);
+        setTimeout(() => this.router.navigate(['/login']), 3000);
       });
     } catch (error: any) {
-      if (error.code === 'auth/expired-action-code') {
-        this.message = 'O link de redefinição de senha expirou.';
-      } else if (error.code === 'auth/invalid-action-code') {
-        this.message = 'O código de redefinição é inválido ou já foi usado.';
-      } else {
-        this.message = 'Erro ao redefinir a senha.';
-      }
+      this.handlePasswordResetError(error);
+
     } finally {
       this.isLoading = false;
+    }
+  }
+
+  // Função que verifica o erro e configura a exibição do link
+  // Função que verifica o erro e configura a exibição do link
+  private handlePasswordResetError(error: any): void {
+    const resetErrors = ['auth/expired-action-code', 'auth/invalid-action-code'];
+
+    // Verifica se o código de erro é um dos erros de redefinição
+    if (resetErrors.includes(error.code)) {
+      this.shouldShowRecoveryLink = true;
+      this.message = error.code === 'auth/expired-action-code' ?
+        'O link de redefinição de senha expirou.' :
+        'O código de redefinição é inválido ou já foi usado.';
+    } else {
+      this.shouldShowRecoveryLink = true;
+      this.message = 'Erro ao redefinir a senha.';
     }
   }
 

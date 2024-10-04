@@ -1,5 +1,5 @@
 // src\app\authentication\login-component\login-component.ts
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
@@ -10,7 +10,8 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 @Component({
   selector: 'app-login-component',
   templateUrl: './login-component.html',
-  styleUrls: ['./login-component.css']
+  styleUrls: ['./login-component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class LoginComponent implements OnInit {
   loginForm!: FormGroup;
@@ -104,8 +105,14 @@ export class LoginComponent implements OnInit {
       case 'auth/wrong-password':
         this.errorMessage = 'Senha incorreta. Tente novamente.';
         break;
+      case 'auth/user-disabled':
+        this.errorMessage = 'Este usuário foi desativado.';
+        break;
+      case 'auth/too-many-requests':
+        this.errorMessage = 'Muitas tentativas falhas. Por favor, tente mais tarde.';
+        break;
       default:
-        this.errorMessage = 'Erro ao processar a solicitação. Tente mais tarde.';
+        this.errorMessage = 'Erro inesperado. Tente novamente mais tarde.';
     }
     this.errorNotificationService.showError(this.errorMessage);
   }

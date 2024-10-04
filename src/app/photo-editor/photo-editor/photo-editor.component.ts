@@ -4,7 +4,7 @@ import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import { PinturaEditorOptions, getEditorDefaults, createDefaultImageReader, createDefaultImageWriter, PinturaImageState } from '@pqina/pintura';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
-import locale_pt_br from '@pqina/pintura/locale/pt_PT';
+import * as locale_pt_br from '@pqina/pintura/locale/pt_PT';
 import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 

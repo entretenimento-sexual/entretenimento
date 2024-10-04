@@ -34,7 +34,9 @@
       </div>
 
       <!-- Spinner de carregamento -->
-      <div *ngIf="isLoading" class="spinner">Carregando...</div>
+      <div class="loading-overlay" *ngIf="isLoading">
+        <div class="spinner"></div>
+      </div>
 
       <!-- Mensagem de erro geral -->
       <p *ngIf="errorMessage" class="alert alert-error" aria-live="assertive">{{ errorMessage }}</p>
