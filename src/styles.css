@@ -94,6 +94,11 @@ a:hover {
   background-color: lighten(var(--secondary-color), 10%);
 }
 
+.error-snackbar {
+  background-color: #d32f2f;
+  color: white;
+}
+
 /* Formulários Modernos e Suaves */
 .input-field {
   width: 100%;

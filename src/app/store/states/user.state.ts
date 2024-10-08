@@ -1,7 +1,8 @@
 // src/app/store/states/user.state.ts
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 /** Interface que define a estrutura do estado relacionado aos usuários no aplicativo. */
-export interface UserState {  /**   * Lista completa de usuários armazenados no estado.   */
+
+export interface IUserState {  /**   * Lista completa de usuários armazenados no estado.   */
   users: IUserDados[];
   currentUser: IUserDados | null;
   onlineUsers: IUserDados[];  // Lista de usuários online separada
@@ -16,7 +17,7 @@ export interface UserState {  /**   * Lista completa de usuários armazenados no
 /**
  * Estado inicial para o gerenciador de estado dos usuários.
  */
-export const initialUserState: UserState = {  /**Inicialmente, a lista de usuários está vazia.*/
+export const initialUserState: IUserState = {  /**Inicialmente, a lista de usuários está vazia.*/
   users: [], /**Inicialmente, a lista de usuários online também está vazia.*/
   currentUser: null,
   onlineUsers: [], /**Inicialmente, a lista de usuários filtrados também está vazia.*/

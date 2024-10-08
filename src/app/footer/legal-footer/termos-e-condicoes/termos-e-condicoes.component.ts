@@ -8,7 +8,7 @@ import { MatDialogRef } from '@angular/material/dialog';
   standalone: true,
   imports: [CommonModule],
   templateUrl: './termos-e-condicoes.component.html',
-  styleUrl: './termos-e-condicoes.component.css'
+  styleUrls: ['./termos-e-condicoes.component.css']
 })
 export class TermosECondicoesComponent {
   constructor(private dialogRef: MatDialogRef<TermosECondicoesComponent>) { }

@@ -1,6 +1,8 @@
 // src/app/store/states/app.state.ts
-import { UserState } from './user.state';
+import { IUserState } from './user.state';
+import { ITermsState } from './terms.state';
 
 export interface AppState {
-  user: UserState;  // define o estado global da aplicação
+  user: IUserState;
+  terms: ITermsState;
 }

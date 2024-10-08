@@ -1,17 +1,19 @@
 // src/app/store/reducers/user.reducer.ts
-import { createReducer, on } from '@ngrx/store';
+import { Action, createReducer, on } from '@ngrx/store';
 import {
   loadUsers,
   loadUsersSuccess,
   loadUsersFailure,
-  updateUserOnlineStatus,
-  loadOnlineUsersSuccess,
-  setFilteredOnlineUsers,
   setCurrentUser,
-  clearCurrentUser
+  clearCurrentUser,
+  loadOnlineUsersSuccess,
+  setFilteredOnlineUsers
 } from '../actions/user.actions';
-import { UserState, initialUserState } from '../states/user.state';
+
+import { updateUserOnlineStatus } from '../actions/user-status.actions';
+import { IUserState, initialUserState } from '../states/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+
 
 export const userReducer = createReducer(
   // Estado inicial do reducer

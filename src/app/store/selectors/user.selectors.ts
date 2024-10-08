@@ -1,16 +1,17 @@
 // src/app/store/selectors/user.selectors.ts
 import { createSelector } from '@ngrx/store';
 import { AppState } from '../states/app.state';
-import { UserState } from '../states/user.state';
+import { IUserState } from '../states/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
+
 // Seletor para obter o estado do usuário
-export const selectUserState = (state: AppState): UserState => state.user;
+export const selectUserState = (state: AppState): IUserState => state.user;
 
 // Seletor para obter todos os usuários
 export const selectAllUsers = createSelector(
   selectUserState,
-  (state: UserState): IUserDados[] => state?.users || []
+  (state: IUserState): IUserDados[] => state?.users || []
 );
 
 // Seletor para obter o usuário pelo UID
@@ -57,11 +58,13 @@ export const selectOnlineUsersByRegion = (region: string) =>
 // Seletor para obter o estado de carregamento (loading)
 export const selectUserLoading = createSelector(
   selectUserState,
-  (state: UserState) => state.loading
+  (state: IUserState) => state.loading
 );
 
 // Seletor para obter erros relacionados ao estado do usuário
 export const selectUserError = createSelector(
   selectUserState,
-  (state: UserState) => state.error
+  (state: IUserState) => state.error
 );
+
+

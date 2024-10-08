@@ -1,136 +1,105 @@
 // src/app/store/actions/user.actions.ts
 import { createAction, props } from '@ngrx/store';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { IError } from 'src/app/core/interfaces/ierror';
 
 /**
- * Ação para observar mudanças no usuário atual (currentUser).
- * É usada para observar e atualizar os dados do usuário conforme necessário.
+ * User Action Types
+ */
+export const USER_ACTION_TYPES = {
+  OBSERVE_USER_CHANGES: '[User] Observe User Changes',
+  SET_CURRENT_USER: '[User] Set Current User',
+  CLEAR_CURRENT_USER: '[User] Clear Current User',
+  LOAD_USERS: '[User] Load Users',
+  LOAD_USERS_SUCCESS: '[User] Load Users Success',
+  LOAD_USERS_FAILURE: '[User] Load Users Failure',
+  LOAD_ONLINE_USERS: '[User] Load Online Users',
+  LOAD_ONLINE_USERS_SUCCESS: '[User] Load Online Users Success',
+  LOAD_ONLINE_USERS_FAILURE: '[User] Load Online Users Failure',
+  SET_FILTERED_ONLINE_USERS: '[User] Set Filtered Online Users',
+};
+
+/**
+ * Action to observe changes in the current user.
+ * Used to watch and update user data as necessary.
  */
 export const observeUserChanges = createAction(
-  '[User] Observe User Changes',
+  USER_ACTION_TYPES.OBSERVE_USER_CHANGES,
   props<{ uid: string }>()
 );
 
 /**
- * Ação para definir o usuário atual no estado.
- * Usada para armazenar os dados do usuário logado.
+ * Action to set the current user in the state.
+ * Used to store the logged-in user's data.
  */
 export const setCurrentUser = createAction(
-  '[User] Set Current User',
+  USER_ACTION_TYPES.SET_CURRENT_USER,
   props<{ user: IUserDados }>()
 );
 
 /**
- * Ação para limpar o usuário atual.
- * Útil quando o usuário se desloga ou os dados precisam ser redefinidos.
+ * Action to clear the current user.
+ * Useful when the user logs out or data needs to be reset.
  */
-export const clearCurrentUser = createAction('[User] Clear Current User');
-
-/**
- * Ação para iniciar o processo de atualização do role do usuário.
- * Pode ser usada para mudar o role (papel) do usuário, como 'vip', 'premium', etc.
- */
-export const updateUserRole = createAction(
-  '[User] Update User Role',
-  props<{ uid: string, newRole: string }>()
+export const clearCurrentUser = createAction(
+  USER_ACTION_TYPES.CLEAR_CURRENT_USER
 );
 
 /**
- * Ação disparada quando o papel do usuário é atualizado com sucesso.
+ * Action to initiate loading all users.
+ * Useful to start fetching users from the database.
  */
-export const updateUserRoleSuccess = createAction(
-  '[User] Update User Role Success',
-  props<{ uid: string, newRole: string }>()
-);
+export const loadUsers = createAction(USER_ACTION_TYPES.LOAD_USERS);
 
 /**
- * Ação disparada quando ocorre um erro ao atualizar o papel do usuário.
- */
-export const updateUserRoleFailure = createAction(
-  '[User] Update User Role Failure',
-  props<{ error: any }>()
-);
-
-/**
- * Ação para iniciar o carregamento de todos os usuários.
- * Útil para iniciar o processo de busca de usuários na base de dados.
- */
-export const loadUsers = createAction('[User] Load Users');
-
-/**
- * Ação disparada quando os usuários são carregados com sucesso.
- * Contém a lista de usuários carregados.
+ * Action dispatched when users are successfully loaded.
+ * Contains the list of loaded users.
  */
 export const loadUsersSuccess = createAction(
-  '[User] Load Users Success',
+  USER_ACTION_TYPES.LOAD_USERS_SUCCESS,
   props<{ users: IUserDados[] }>()
 );
 
 /**
- * Ação disparada quando ocorre um erro ao carregar os usuários.
- * Contém o erro ocorrido.
+ * Action dispatched when an error occurs while loading users.
+ * Contains the occurred error.
  */
 export const loadUsersFailure = createAction(
-  '[User] Load Users Failure',
-  props<{ error: any }>()
+  USER_ACTION_TYPES.LOAD_USERS_FAILURE,
+  props<{ error: IError }>()
 );
 
 /**
- * Ação para iniciar o processo de atualização do status online de um usuário.
- * Pode ser usada para definir um usuário como online ou offline.
+ * Action to initiate loading all online users.
+ * Focused on obtaining only users who are online.
  */
-export const updateUserOnlineStatus = createAction(
-  '[User] Update Online Status',
-  props<{ uid: string, isOnline: boolean }>()
+export const loadOnlineUsers = createAction(
+  USER_ACTION_TYPES.LOAD_ONLINE_USERS
 );
 
 /**
- * Ação disparada quando o status online de um usuário é atualizado com sucesso.
- * Confirma a atualização do status online do usuário.
- */
-export const updateUserOnlineStatusSuccess = createAction(
-  '[User] Update Online Status Success',
-  props<{ uid: string, isOnline: boolean }>()
-);
-
-/**
- * Ação disparada quando ocorre um erro ao atualizar o status online de um usuário.
- * Contém o erro ocorrido.
- */
-export const updateUserOnlineStatusFailure = createAction(
-  '[User] Update Online Status Failure',
-  props<{ error: any }>()
-);
-
-/**
- * Ação para iniciar o carregamento de todos os usuários online.
- * Focada na obtenção apenas dos usuários que estão online.
- */
-export const loadOnlineUsers = createAction('[User] Load Online Users');
-
-/**
- * Ação disparada quando os usuários online são carregados com sucesso.
- * Contém a lista de usuários que estão online.
+ * Action dispatched when online users are successfully loaded.
+ * Contains the list of users who are online.
  */
 export const loadOnlineUsersSuccess = createAction(
-  '[User] Load Online Users Success',
+  USER_ACTION_TYPES.LOAD_ONLINE_USERS_SUCCESS,
   props<{ users: IUserDados[] }>()
 );
 
 /**
- * Ação disparada quando ocorre um erro ao carregar os usuários online.
- * Contém o erro ocorrido.
+ * Action dispatched when an error occurs while loading online users.
+ * Contains the occurred error.
  */
 export const loadOnlineUsersFailure = createAction(
-  '[User] Load Online Users Failure',
-  props<{ error: any }>()
+  USER_ACTION_TYPES.LOAD_ONLINE_USERS_FAILURE,
+  props<{ error: IError }>()
 );
 
 /**
- * Ação para definir a lista de usuários online filtrados com base em critérios específicos,
- * como município ou outras condições. Útil para exibir apenas os usuários relevantes ao usuário logado.
+ * Action to set the list of filtered online users based on specific criteria,
+ * such as municipality or other conditions. Useful to display only users relevant to the logged-in user.
  */
 export const setFilteredOnlineUsers = createAction(
-  '[User] Set Filtered Online Users',
+  USER_ACTION_TYPES.SET_FILTERED_ONLINE_USERS,
   props<{ filteredUsers: IUserDados[] }>()
 );
