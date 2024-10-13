@@ -50,7 +50,7 @@ export class RegisterService {
     }
 
     // 4.2. Verifica se o e-mail já está registrado
-    await this.checkIfEmailExists(userRegistrationData.email);  // Removendo o uso de `toPromise()`
+    await this.checkIfEmailExists(userRegistrationData.email);
 
     // 4.3. Criação do usuário com o Firebase Auth
     const auth = getAuth();
@@ -69,14 +69,21 @@ export class RegisterService {
     // 4.5. Salva os dados do usuário no Firestore
     userRegistrationData.uid = user.uid;
     userRegistrationData.firstLogin = Timestamp.fromDate(new Date());
-    userRegistrationData.emailVerified = false; // Padrão até que o e-mail seja verificado
+    userRegistrationData.emailVerified = false;
     await this.firestoreService.saveInitialUserData(user.uid, userRegistrationData);
 
     // 4.6. Envia e-mail de verificação
     await this.emailVerificationService.sendEmailVerification(user);
 
     return userCredential;
+  } catch(error: any) {
+    // Aqui verificamos especificamente se o erro é de e-mail já em uso
+    if (error.code === 'auth/email-already-in-use') {
+      throw new Error('auth/email-already-in-use');
+    }
+    throw error; // Repassa outros erros inesperados
   }
+
 
   // 5. Exclui um usuário antes da verificação se o registro falhar
   deleteUserOnFailure(uid: string): Observable<void> {

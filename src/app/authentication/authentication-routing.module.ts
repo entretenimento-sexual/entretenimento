@@ -14,10 +14,7 @@ const authRoutes: Routes = [
   { path: 'suggested-profiles', component: SuggestedProfilesComponent },
   { path: 'register', component: RegisterComponent },
   { path: 'finalizar-cadastro', component: FinalizarCadastroComponent },
-  {
-    path: 'post-verification/action',
-    component: AuthVerificationHandlerComponent
-  },
+  { path: 'post-verification/action', component: AuthVerificationHandlerComponent},
 
   // Adicione um redirecionamento para a página inicial ou uma página 404, caso não haja correspondência
   { path: '**', redirectTo: '/' }

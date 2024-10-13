@@ -12,7 +12,7 @@ export const authRedirectGuard: CanActivateFn = (route, state) => {
     map(user => {
       if (user) {
         // Se o usuário estiver autenticado, redireciona para a página principal
-        router.navigate(['/dashboard/principal']);
+        //router.navigate(['/dashboard/principal']);
         return false; // Bloqueia o acesso à página de login
       }
       return true; // Permite o acesso se não estiver autenticado

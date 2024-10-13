@@ -1,5 +1,12 @@
-/* src\app\authentication\login-component\login-component.component.css */
+/* src\app\authentication\login-component\login-component.css */
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+
+.alert-error {
+  padding: 0px;
+  margin: 0px;
+  color: red
+}
+
 .auth-container {
   display: flex;
   justify-content: center;

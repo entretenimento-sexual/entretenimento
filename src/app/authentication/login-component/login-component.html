@@ -5,27 +5,32 @@
 
     <!-- Formulário de login usando Reactive Forms -->
     <form [formGroup]="loginForm" (ngSubmit)="login()" class="form">
-      <!-- Campo de email -->
-      <input formControlName="email" class="input-field" type="email" placeholder="Email" name="email" required
-        (focus)="clearError()">
+
       <!-- Mensagem de erro para e-mail -->
       <div *ngIf="loginForm.controls['email'].invalid && loginForm.controls['email'].touched" class="alert alert-error">
         {{ loginForm.controls['email'].hasError('invalidEmail') ? 'Formato de e-mail inválido' : 'E-mail é obrigatório'
         }}
       </div>
 
+      <!-- Campo de email -->
+      <input formControlName="email" class="input-field" type="email" placeholder="Email" name="email" required
+        (focus)="clearError()">
+
+      <!-- Mensagem de erro para senha -->
+      <div *ngIf="loginForm.controls['password'].invalid && loginForm.controls['password'].touched" class="alert alert-error">
+        {{ loginForm.controls['password'].hasError('invalidPassword') ? 'Senha inválida. Deve conter ao menos 8 caracteres, incluindo letras maiúsculas, minúsculas e números.' : 'Senha é obrigatória' }}
+      </div>
       <!-- Campo de senha -->
       <input formControlName="password" class="input-field" type="password" placeholder="Senha" name="password" required
         (focus)="clearError()">
-      <!-- Mensagem de erro para senha -->
-      <div *ngIf="loginForm.controls['password'].invalid && loginForm.controls['password'].touched"
-        class="alert alert-error">
-        {{ loginForm.controls['password'].hasError('invalidPassword') ? 'Senha inválida. Deve conter ao menos 8 caracteres, incluindo letras maiúsculas, minúsculas e números.' : 'Senha é obrigatória' }}
-      </div>
 
       <!-- Honeypot invisível -->
       <input formControlName="honeypot" class="honeypot-hidden" type="text" name="honeypot" />
 
+      <div>
+        <input type="checkbox" formControlName="rememberMe"> Lembrar de mim
+      </div>
+      
       <!-- Botão de login -->
       <div class="button-container">
         <button class="btn btn-primary" type="submit" [disabled]="isLoading || loginForm.invalid">

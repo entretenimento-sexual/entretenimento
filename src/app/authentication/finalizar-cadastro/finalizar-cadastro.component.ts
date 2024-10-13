@@ -1,18 +1,21 @@
-//src\app\authentication\finalizar-cadastro\finalizar-cadastro.component.ts
+// src/app/authentication/finalizar-cadastro/finalizar-cadastro.component.ts
 import { Component, OnInit } from '@angular/core';
 import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
 import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
-import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Router } from '@angular/router';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { first } from 'rxjs';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados'; // Importando o tipo correto
+import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
+import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 
 @Component({
   selector: 'app-finalizar-cadastro',
   templateUrl: './finalizar-cadastro.component.html',
   styleUrls: ['./finalizar-cadastro.component.css']
 })
+
 export class FinalizarCadastroComponent implements OnInit {
   public email = '';
   public nickname = '';
@@ -27,33 +30,49 @@ export class FinalizarCadastroComponent implements OnInit {
   public isUploading = false;
   public progressValue = 0;
   public uploadMessage = '';
+  public avatarFile: File | null = null;
   public showSubscriptionOptions: boolean = false;
   public formErrors: { [key: string]: string } = {};
-
 
   constructor(
     private emailVerificationService: EmailVerificationService,
     private firestoreService: FirestoreService,
     private authService: AuthService,
     private usuarioService: UsuarioService,
+    private storageService: StorageService,
     private router: Router
   ) { }
 
   ngOnInit(): void {
-    this.verifyEmailAndLoadUser();
+    this.authService.getUserAuthenticated().subscribe((userData: IUserDados | null) => {
+      if (userData) {
+        this.verifyEmailAndLoadUser(userData);
+      } else {
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+          const parsedUser: IUserDados = JSON.parse(storedUser);
+          this.authService.setCurrentUser(parsedUser); // Restaura o estado do usuário
+          this.verifyEmailAndLoadUser(parsedUser);
+        } else {
+          this.router.navigate(['/login']); // Redireciona para o login se não houver autenticação nem no localStorage
+        }
+      }
+    });
     this.loadEstados();
   }
 
-  // Verifica se o e-mail do usuário foi verificado
-  async verifyEmailAndLoadUser(): Promise<void> {
+
+  // Alterado para aceitar IUserDados em vez de User
+  async verifyEmailAndLoadUser(userData: IUserDados): Promise<void> {
     try {
-      const isVerified = await this.emailVerificationService.reloadCurrentUser();
-      if (!isVerified) {
-        this.message = 'Erro: Verificação de e-mail necessária.';
-        this.router.navigate(['/']);  // Redireciona se o e-mail não estiver verificado
+      console.log('Verificando os dados do usuário:', userData);
+      // Apenas exibe mensagem se os dados estiverem incompletos
+      if (!userData.gender || !userData.municipio) {
+        this.message = 'Por favor, preencha os campos obrigatórios para finalizar seu cadastro.';
       }
     } catch (error) {
-      this.message = 'Erro ao verificar o e-mail.';
+      this.message = 'Erro ao verificar o status de cadastro.';
+      console.error(error);
       this.router.navigate(['/']);
     } finally {
       this.isLoading = false;
@@ -83,6 +102,7 @@ export class FinalizarCadastroComponent implements OnInit {
       console.error('Erro ao carregar os municípios:', error);
     }
   }
+
   async onSubmit(): Promise<void> {
     const uid = this.authService.getLoggedUserUID();
 
@@ -92,9 +112,15 @@ export class FinalizarCadastroComponent implements OnInit {
       return;
     }
 
+    // Verificação de campos obrigatórios
+    if (!this.gender || !this.selectedEstado || !this.selectedMunicipio) {
+      this.message = 'Por favor, preencha todos os campos obrigatórios.';
+      return;  // Interrompe o envio até que os campos sejam preenchidos
+    }
+
     try {
       const existingUserData = await this.usuarioService.getUsuario(uid).pipe(first()).toPromise();
-
+      console.log('Dados do usuário do Firestore:', existingUserData);
       if (existingUserData) {
         const updatedUserData: IUserRegistrationData = {
           uid: existingUserData.uid,
@@ -107,11 +133,21 @@ export class FinalizarCadastroComponent implements OnInit {
           orientation: this.orientation || existingUserData.orientation || '',
           estado: this.selectedEstado || existingUserData.estado || '',
           municipio: this.selectedMunicipio || existingUserData.municipio || '',
+          acceptedTerms: {
+            accepted: true,
+            date: new Date()
+          }
         };
 
         await this.firestoreService.saveInitialUserData(existingUserData.uid, updatedUserData);
+
+        // Verifica se um avatar foi carregado
+        if (this.avatarFile) {
+          await this.storageService.uploadAvatar(this.avatarFile, existingUserData.uid);  // Chama o método de upload do avatar
+        }
+
         this.message = 'Cadastro finalizado com sucesso!';
-        await this.emailVerificationService.updateEmailVerificationStatus(existingUserData.uid, 'true');
+        await this.emailVerificationService.updateEmailVerificationStatus(existingUserData.uid, true);
         this.router.navigate(['/dashboard/principal']);
       } else {
         this.message = 'Erro: Dados do usuário não encontrados.';
@@ -138,15 +174,15 @@ export class FinalizarCadastroComponent implements OnInit {
     return !!this.formErrors[field];
   }
 
-  // Função para lidar com o upload de arquivos
+  // Função para lidar com o upload de arquivos (avatar)
   uploadFile(event: any): void {
     const file = event.target.files[0];
-
     if (!file) {
       this.uploadMessage = 'Nenhum arquivo selecionado.';
       return;
     }
 
+    this.avatarFile = file;  // Armazena o arquivo selecionado
     this.isUploading = true;
     this.progressValue = 0;
 
@@ -169,7 +205,6 @@ export class FinalizarCadastroComponent implements OnInit {
       }
     }, 5000); // Timeout para simular erro
   }
-
 
   goToSubscription(): void {
     this.router.navigate(['/subscription-plan']);

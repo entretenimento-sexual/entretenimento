@@ -7,22 +7,28 @@ import { StorageService } from 'src/app/core/services/image-handling/storage.ser
 import * as locale_pt_br from '@pqina/pintura/locale/pt_PT';
 import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { GlobalErrorHandler } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { HttpErrorResponse } from '@angular/common/http';
 
 @Component({
   selector: 'app-photo-editor',
   templateUrl: './photo-editor.component.html',
   styleUrls: ['./photo-editor.component.css']
 })
+
 export class PhotoEditorComponent implements OnInit {
-  @Input() imageFile!: File;
-  @Input() storedImageState?: string;
+  @Input() imageFile!: File;                // Arquivo local da imagem a ser editada
+  @Input() storedImageUrl?: string;         // URL da imagem armazenada para edição
+  @Input() storedImageState?: string;       // Estado anterior da imagem (se houver)
+  @Input() photoId?: string;                // ID da foto para atualizar metadados
+  @Input() isEditMode: boolean = false;     // Flag para determinar se é uma edição de foto armazenada
   @ViewChild('editor') editor: any;
 
   src!: string;
   options!: PinturaEditorOptions;
   result?: SafeUrl;
-  isLoading = false; // Flag para indicar o processamento
-  errorMessage: string = ''; // Mensagem de erro para feedback ao usuário
+  isLoading = false;
+  errorMessage: string = '';
   userId!: string;
 
   constructor(
@@ -30,27 +36,31 @@ export class PhotoEditorComponent implements OnInit {
     private storageService: StorageService,
     private photoFirestoreService: PhotoFirestoreService,
     public activeModal: NgbActiveModal,
-    private authService: AuthService
+    private authService: AuthService,
+    private errorHandler: GlobalErrorHandler
   ) { }
 
   ngOnInit(): void {
     try {
-      if (!this.imageFile || !(this.imageFile instanceof File)) {
-        throw new Error('imageFile não é um objeto File válido.');
-      }
-
       this.authService.getUserAuthenticated().subscribe(user => {
         if (user && user.uid) {
-          this.userId = user.uid; // Armazene o UID do usuário
-          this.src = URL.createObjectURL(this.imageFile);
+          this.userId = user.uid;
+
+          if (this.storedImageUrl) {
+            // Se a URL da imagem armazenada estiver disponível, carregue-a no editor
+            this.src = this.storedImageUrl;
+          } else if (this.imageFile) {
+            // Caso contrário, carregue o arquivo local
+            this.src = URL.createObjectURL(this.imageFile);
+          }
 
           this.options = {
             ...getEditorDefaults(),
-            imageReader: createDefaultImageReader({ orientImage: true }), // Corrige a orientação da imagem
+            imageReader: createDefaultImageReader({ orientImage: true }),
             imageWriter: createDefaultImageWriter({
               copyImageHead: false, // Remove os metadados da imagem exportada
               quality: 0.8
-            }), // Configura a qualidade da imagem
+            }),
             locale: locale_pt_br,
             enableToolbar: true,
             enableButtonExport: true,
@@ -90,16 +100,25 @@ export class PhotoEditorComponent implements OnInit {
       this.saveImageState(imageStateStr);
 
       // Fazer o upload do arquivo processado
-      await this.uploadProcessedFile(event.dest);
+      if (this.isEditMode && this.storedImageUrl && this.photoId) {
+        await this.updateStoredFile(event.dest); // Substitui a imagem existente
+      } else {
+        await this.uploadProcessedFile(event.dest); // Carrega uma nova imagem
+      }
+    } catch (error: unknown) {
+      // Converte qualquer tipo de erro para Error, garantindo que o GlobalErrorHandler aceite
+      const castedError = error instanceof Error ? error : new Error('Erro desconhecido');
 
-    } catch (error) {
-      console.error('Erro ao processar a imagem:', error);
+      // Passa o erro convertido para o GlobalErrorHandler
+      this.errorHandler.handleError(castedError);
+
       this.errorMessage = 'Ocorreu um erro ao processar a imagem. Tente novamente.';
     } finally {
       this.isLoading = false;
     }
   }
 
+  // Upload de uma nova imagem processada
   async uploadProcessedFile(processedFile: Blob): Promise<void> {
     try {
       if (!this.userId) {
@@ -109,26 +128,49 @@ export class PhotoEditorComponent implements OnInit {
       const fileName = `${Date.now()}_${this.imageFile.name}`;
       const path = `user_profiles/${this.userId}/${fileName}`;
 
-      // Passar o uid correto como argumento
       const downloadUrl = await this.storageService.uploadFile(
         new File([processedFile], fileName, { type: this.imageFile.type }),
         path,
-        this.userId // Certifique-se de passar o uid correto
-      );
+        this.userId
+      ).toPromise(); // Use toPromise para converter o Observable em Promise
       console.log('Imagem enviada com sucesso:', downloadUrl);
-
       this.activeModal.close('uploadSuccess');
     } catch (error) {
-      console.error('Erro ao fazer upload da imagem editada:', error);
-      this.errorMessage = 'Erro ao enviar a imagem para o servidor. Tente novamente.';
+      this.errorHandler.handleError(error as Error); // Convertendo para o tipo esperado
+      this.errorMessage = 'Erro ao atualizar a imagem armazenada. Tente novamente.';
     }
   }
 
+  // Substitui uma imagem existente no storage
+  async updateStoredFile(processedFile: Blob): Promise<void> {
+    try {
+      if (!this.userId || !this.storedImageUrl || !this.photoId) {
+        throw new Error('Informações incompletas para a substituição da foto.');
+      }
+
+      const filePath = this.storedImageUrl;
+      const downloadUrl = await this.storageService.replaceFile(
+        new File([processedFile], `edited_${this.imageFile.name}`, { type: this.imageFile.type }),
+        filePath
+      ).toPromise(); // Converte o Observable em Promise
+
+      await this.photoFirestoreService.updatePhotoMetadata(this.userId, this.photoId, { url: downloadUrl });
+      this.activeModal.close('updateSuccess');
+    } catch (error) {
+      this.errorHandler.handleError(error); // Tratamento de erro
+      this.errorMessage = 'Erro ao atualizar a imagem armazenada. Tente novamente.';
+    }
+  }
+
+  // Salva o estado da imagem
   saveImageState(imageStateStr: string): void {
     if (!this.userId) {
-      throw new Error('Usuário não autenticado.');
+      this.errorHandler.handleError(new Error('Usuário não autenticado.'));
+      return;
     }
-    this.photoFirestoreService.saveImageState(this.userId, imageStateStr);
+    this.photoFirestoreService.saveImageState(this.userId, imageStateStr).catch(error => {
+      this.errorHandler.handleError(error); // Tratamento de erro ao salvar o estado da imagem
+    });
   }
 
   stringifyImageState(imageState: PinturaImageState): string {

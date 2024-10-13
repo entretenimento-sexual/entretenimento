@@ -11,6 +11,8 @@ import { UserProfileService } from 'src/app/core/services/user-profile/user-prof
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
+import { getAuth } from 'firebase/auth';
+import { LoginService } from 'src/app/core/services/autentication/login.service';
 
 @Component({
   selector: 'app-auth-verification-handler',
@@ -56,9 +58,10 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private emailVerificationService: EmailVerificationService,
+    private loginService: LoginService,
     private userProfileService: UserProfileService,
-    private oobCodeService: OobCodeService,
     private firestoreService: FirestoreService,
+    private oobCodeService: OobCodeService,
     private emailInputModalService: EmailInputModalService,
     private usuarioService: UsuarioService,
     private authService: AuthService,
@@ -67,7 +70,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit(): void {
-    this.route.queryParams.subscribe(params => {
+    this.route.queryParams.subscribe(async params => {
       this.mode = params['mode'];
       this.oobCode = params['oobCode'];
       console.log('Modo atual:', this.mode);
@@ -80,11 +83,19 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         return;
       }
 
-      if (this.mode === 'verifyEmail') {
-        this.handleEmailVerification();
-      } else if (this.mode === 'resetPassword') {
-        this.isLoading = false;
-      }
+      // Aguardar autenticação para garantir que o UID esteja disponível
+      this.authService.getUserAuthenticated().pipe(first()).subscribe(userData => {
+        if (userData) {
+          if (this.mode === 'verifyEmail') {
+            this.handleEmailVerification();
+          } else if (this.mode === 'resetPassword') {
+            this.isLoading = false;
+          }
+        } else {
+          this.message = 'Erro: Nenhum usuário autenticado.';
+          this.isLoading = false;
+        }
+      });
     });
   }
 
@@ -95,29 +106,32 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
   async handleEmailVerification(): Promise<void> {
     this.isLoading = true;
+
     try {
-      const isVerified = await this.emailVerificationService.reloadCurrentUser();
+      // Obtendo diretamente o usuário autenticado do Firebase usando ferramentas nativas
+      const auth = getAuth(); // Obtém a instância do Firebase Auth
+      const currentUser = auth.currentUser; // Obtém o usuário atual
 
-      // Verifica se o status do email é "partial" ou "true"
-      const currentUserUid = this.authService.getLoggedUserUID();
-      const userData = await this.usuarioService.getUsuario(currentUserUid!).pipe(first()).toPromise();
+      if (!currentUser || !currentUser.uid) {
+        this.message = 'Erro: UID do usuário não encontrado.';
+        this.isLoading = false;
+        return;
+      }
 
-      if (userData?.emailVerified === 'partial') {
+      // Verifica se o e-mail já foi verificado anteriormente
+      const userData = await this.usuarioService.getUsuario(currentUser.uid).pipe(first()).toPromise();
+
+      if (userData?.emailVerified) {
         this.message = 'Seu e-mail já foi verificado anteriormente. Faça login para continuar.';
         this.router.navigate(['/login']); // Redireciona para a tela de login
         return;
       }
 
-      // Caso o email ainda não tenha sido verificado
+      // Verificar o email com o código oobCode
       await this.emailVerificationService.verifyEmail(this.oobCode);
 
-      if (isVerified) {
-        await this.emailVerificationService.updateEmailVerificationStatus(currentUserUid!, 'partial');
-        this.message = 'E-mail verificado com sucesso! Faça login para continuar.';
-        this.router.navigate(['/login']);  // Redireciona para login após verificação
-      } else {
-        this.message = 'Falha na verificação do e-mail.';
-      }
+      this.message = 'E-mail verificado com sucesso! Faça login para continuar.';
+      this.router.navigate(['/login']);  // Redireciona para login após verificação
     } catch (error) {
       this.message = 'Erro ao verificar o e-mail.';
       console.error('Erro ao verificar o e-mail:', error);
@@ -126,7 +140,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     }
   }
 
-
+  // Outros métodos permanecem inalterados...
   goToFinalizarCadastro(): void {
     this.router.navigate(['/finalizar-cadastro']);
   }
@@ -143,7 +157,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     });
   }
 
-   redirectToFAQ(): void {
+  redirectToFAQ(): void {
     this.router.navigate(['/faq']); // Redireciona para a página de FAQ
   }
 
@@ -151,7 +165,6 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.showVerificationErrorModal = false;
   }
 
-  // Centraliza a lógica de submissão
   async onSubmit(): Promise<void> {
     this.message = '';  // Limpa mensagens anteriores
     console.log('Submissão iniciada com modo:', this.mode);  // Debug log
@@ -163,12 +176,10 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     }
   }
 
-  // Abrir o modal de recuperação de senha
   openPasswordRecoveryModal(): void {
     this.emailInputModalService.openModal();
   }
 
-  // Reset de senha
   async resetPassword(): Promise<void> {
     console.log('Tentando redefinir a senha...');  // Debug log
     this.isLoading = true;
@@ -180,21 +191,19 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       this.isLoading = false;
       return;
     }
-    if (this.newPassword.length < 6) {
+    if (this.newPassword.length < 8) {
       this.message = 'A senha deve ter pelo menos 8 caracteres.';
       this.isLoading = false;
       return;
     }
 
     try {
-      await this.authService.confirmPasswordReset(this.oobCode, this.newPassword);
+      await this.loginService.confirmPasswordReset(this.oobCode, this.newPassword);
       this.message = 'Senha redefinida com sucesso! Você será redirecionado para a página de login em breve.';
 
-      // Limpa os campos de senha
       this.newPassword = '';
       this.confirmPassword = '';
 
-      // Redireciona após 4 segundos
       this.ngZone.run(() => {
         setTimeout(() => this.router.navigate(['/login']), 3000);
       });
@@ -206,12 +215,9 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     }
   }
 
-  // Função que verifica o erro e configura a exibição do link
-  // Função que verifica o erro e configura a exibição do link
   private handlePasswordResetError(error: any): void {
     const resetErrors = ['auth/expired-action-code', 'auth/invalid-action-code'];
 
-    // Verifica se o código de erro é um dos erros de redefinição
     if (resetErrors.includes(error.code)) {
       this.shouldShowRecoveryLink = true;
       this.message = error.code === 'auth/expired-action-code' ?
@@ -279,7 +285,11 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
             gender: this.gender,
             orientation: this.orientation,
             estado: this.selectedEstado,
-            municipio: this.selectedMunicipio
+            municipio: this.selectedMunicipio,
+            acceptedTerms: {
+              accepted: true,
+              date: new Date()
+            }
           };
 
           // Atualizamos os dados do usuário no Firestore

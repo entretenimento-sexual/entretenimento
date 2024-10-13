@@ -1,7 +1,7 @@
 // src\app\core\services\autentication\email-input-modal.service.ts
 import { Injectable } from '@angular/core';
 import { Subject } from 'rxjs';
-import { AuthService } from './auth.service';
+import { LoginService } from '../autentication/login.service';
 
 @Injectable({
   providedIn: 'root'
@@ -10,7 +10,8 @@ export class EmailInputModalService {
   public isModalOpen: Subject<boolean> = new Subject<boolean>();
   public emailSentMessage: Subject<string> = new Subject<string>();
 
-  constructor(private authService: AuthService) { }
+
+  constructor(private loginService: LoginService) { }
 
   // Abre o modal
   openModal(): void {
@@ -29,7 +30,7 @@ export class EmailInputModalService {
       return;
     }
 
-    this.authService.sendPasswordResetEmail(email)
+    this.loginService.sendPasswordResetEmail(email)
       .then(() => {
         this.emailSentMessage.next('E-mail de recuperação de senha enviado com sucesso!');
         this.closeModal();

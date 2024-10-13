@@ -53,6 +53,7 @@ a:hover {
 .btn {
   display: inline-block;
   padding: 12px 20px;
+  background-color: var(--primary-color);
   font-size: 1rem;
   border: none;
   border-radius: 8px;
@@ -94,15 +95,34 @@ a:hover {
   background-color: lighten(var(--secondary-color), 10%);
 }
 
+.success-snackbar {
+  background-color: #4caf50;
+  /* Verde para sucesso */
+  color: white;
+}
+
 .error-snackbar {
-  background-color: #d32f2f;
+  background-color: #f44336;
+  /* Vermelho para erros */
+  color: white;
+}
+
+.info-snackbar {
+  background-color: #2196f3;
+  /* Azul para informações */
+  color: white;
+}
+
+.warning-snackbar {
+  background-color: #ff9800;
+  /* Laranja para avisos */
   color: white;
 }
 
 /* Formulários Modernos e Suaves */
 .input-field {
   width: 100%;
-  padding: 12px;
+  padding: 7px;
   margin-bottom: 15px;
   border: 1px solid #cccccc;
   border-radius: 8px;
@@ -126,8 +146,8 @@ a:hover {
 
 /* Alertas e Mensagens */
 .alert {
-  padding: 10px;
-  margin-bottom: 10px;
+  padding: 5px;
+  margin-bottom: 5px;
   border-radius: 8px;
   font-size: 1rem;
   color: white;

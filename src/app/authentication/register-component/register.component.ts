@@ -6,6 +6,8 @@ import { RegisterService } from 'src/app/core/services/autentication/register.se
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ValidatorService } from 'src/app/core/services/data-handling/validator.service';
+import { MatDialog } from '@angular/material/dialog';
+import { TermosECondicoesComponent } from 'src/app/footer/legal-footer/termos-e-condicoes/termos-e-condicoes.component';
 
 @Component({
   selector: 'app-register-component',
@@ -13,6 +15,7 @@ import { ValidatorService } from 'src/app/core/services/data-handling/validator.
   styleUrls: ['./register.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
+
 export class RegisterComponent implements OnInit {
   registerForm!: FormGroup; // O FormGroup é inicializado corretamente no ngOnInit
   public formSubmitted: boolean = false;
@@ -26,11 +29,22 @@ export class RegisterComponent implements OnInit {
     private formBuilder: FormBuilder,
     private registerService: RegisterService,
     private emailVerificationService: EmailVerificationService,
-    private errorNotification: ErrorNotificationService
+    private errorNotification: ErrorNotificationService,
+    private dialog: MatDialog
   ) { }
 
   ngOnInit(): void {
     this.initForm();
+    this.registerForm.statusChanges.subscribe(status => {
+      console.log('Form status:', status); // Isso deve imprimir 'VALID' ou 'INVALID'
+      // Verifique o estado individual de cada campo
+      console.log('Nickname status:', this.registerForm.get('nickname')?.status);
+      console.log('Email status:', this.registerForm.get('email')?.status);
+      console.log('Password status:', this.registerForm.get('password')?.status);
+      console.log('Estado status:', this.registerForm.get('estado')?.status);
+      console.log('Municipio status:', this.registerForm.get('municipio')?.status);
+      console.log('Aceitar Termos status:', this.registerForm.get('aceitarTermos')?.status);
+    });
   }
 
   // Inicializa o formulário no ngOnInit
@@ -39,8 +53,7 @@ export class RegisterComponent implements OnInit {
       nickname: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(25)]],
       email: ['', [Validators.required, ValidatorService.emailValidator()]],
       password: ['', [Validators.required, ValidatorService.passwordValidator()]], // Validador de senha personalizado
-      estado: ['', Validators.required],
-      municipio: ['', Validators.required]
+      aceitarTermos: [false, Validators.requiredTrue]
     });
   }
 
@@ -48,12 +61,12 @@ export class RegisterComponent implements OnInit {
   async onRegister() {
     // Limpa as mensagens de erro
     this.clearErrorMessages();
-
+    console.log('Form status:', this.registerForm.status);
     if (this.isLockedOut || this.registerForm.invalid) {
       return;
     }
 
-    const { nickname, email, password, estado, municipio } = this.registerForm.value;
+    const { nickname, email, password } = this.registerForm.value;
     const userRegistrationData: IUserRegistrationData = {
       uid: '',
       email,
@@ -61,11 +74,13 @@ export class RegisterComponent implements OnInit {
       photoURL: '',
       emailVerified: false,
       isSubscriber: false,
-      estado,
-      municipio,
-      firstLogin: new Date()
+      firstLogin: new Date(),
+      acceptedTerms: {
+        accepted: true,
+        date: new Date() // Data de aceitação dos termos
+      },
     };
-
+    //Ainda não implementada Política de Re-aceitação dos Termos
     this.isLoading = true;
 
     try {
@@ -83,9 +98,16 @@ export class RegisterComponent implements OnInit {
     }
   }
 
+  // Método para abrir o modal
+  openTermsDialog(): void {
+    this.dialog.open(TermosECondicoesComponent, {
+      width: '600px', // Customize o tamanho do modal se necessário
+    });
+  }
+
   // Limpa as mensagens de erro
   clearErrorMessages(): void {
-    this.errorNotification.showError('');
+    this.errorNotification.clearError();
   }
 
   // Verifica se o apelido já está em uso e atualiza o estado do apelido
@@ -93,7 +115,11 @@ export class RegisterComponent implements OnInit {
     const nicknameControl = this.registerForm.get('nickname');
     if (nicknameControl && nicknameControl.value.length >= 4 && nicknameControl.value.length <= 25) {
       this.registerService.checkIfNicknameExists(nicknameControl.value).then(exists => {
-        this.errorNotification.showError(exists ? 'Apelido já está em uso' : 'Apelido disponível');
+        if (exists) {
+          nicknameControl.setErrors({ nicknameInUse: true }); // Define o erro diretamente no controle
+        } else {
+          nicknameControl.setErrors(null); // Limpa o erro se o apelido não estiver em uso
+        }
       });
     }
   }
@@ -118,7 +144,7 @@ export class RegisterComponent implements OnInit {
 
     // Tratamento de erros baseado no código retornado
     if (error && error.code) {
-      switch (error.code) {
+      switch (error.message) {
         case 'auth/weak-password':
           this.errorNotification.showError('A senha deve conter pelo menos 8 caracteres.');
           break;
@@ -128,17 +154,24 @@ export class RegisterComponent implements OnInit {
         case 'auth/invalid-email':
           this.errorNotification.showError('Endereço de e-mail inválido.');
           break;
+        case 'Apelido já está em uso.':  // Trata o caso de apelido já estar em uso
+          this.registerForm.get('nickname')?.setErrors({ nicknameInUse: true });
+          break;
         case 'auth/network-request-failed':
           this.errorNotification.showError('Problema de conexão. Verifique sua rede.');
           break;
         default:
-          this.errorNotification.showError(`Erro desconhecido. Código: ${error.code}`);
+          // Exibe erro apenas se não for um erro já conhecido
+          if (!['Apelido já está em uso.', 'auth/email-already-in-use'].includes(error.message)) {
+            this.errorNotification.showError(`Erro desconhecido. Código: ${error.message}`);
+          }
           break;
       }
     } else {
       this.errorNotification.showError('Erro inesperado. Tente novamente mais tarde.');
     }
   }
+
 
   // Bloqueia o formulário temporariamente após muitas tentativas falhas
   lockForm(): void {

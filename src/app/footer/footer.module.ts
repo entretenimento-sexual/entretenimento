@@ -7,6 +7,8 @@ import { LegalFooterComponent } from './legal-footer/legal-footer.component';
 import { NavigationFooterComponent } from './navigation-footer/navigation-footer.component';
 import { SocialFooterComponent } from './social-footer/social-footer.component';
 import { FooterComponent } from './footer/footer.component';
+import { FooterRoutingModule } from './footer-routing.module';
+import { MatDialogModule } from '@angular/material/dialog';
 
 @NgModule({
   declarations: [
@@ -15,10 +17,12 @@ import { FooterComponent } from './footer/footer.component';
     LegalFooterComponent,
     NavigationFooterComponent,
     SocialFooterComponent,
-    FooterComponent
+    FooterComponent,
   ],
   imports: [
-    CommonModule
+    CommonModule,
+    FooterRoutingModule,
+    MatDialogModule
   ],
   exports: [
     ContactFooterComponent,

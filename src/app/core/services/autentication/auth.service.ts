@@ -1,16 +1,16 @@
-// src\app\core\services\autentication\auth.service.ts
+//src\app\core\services\autentication\auth.service.ts
 import { Injectable } from '@angular/core';
-import { from, Observable, of, BehaviorSubject } from 'rxjs';
-import { catchError, tap, first, take } from 'rxjs/operators';
+import { Observable, BehaviorSubject } from 'rxjs';
+import { catchError, take } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { Router } from '@angular/router';
-import { getAuth, signOut, signInWithEmailAndPassword, sendPasswordResetEmail,
-        confirmPasswordReset, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { FirestoreService } from './firestore.service';
+import { getAuth } from 'firebase/auth';
 import { UsuarioService } from '../usuario.service';
-import { GeolocationService } from '../geolocation/geolocation.service';
-import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
-import { EmailVerificationService } from './email-verification.service';
+import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import { GlobalErrorHandler } from '../error-handler/global-error-handler.service';
+import { Store } from '@ngrx/store';
+import { AppState } from '../../../store/states/app.state';
+import { loginSuccess, logoutSuccess } from '../../../store/actions/auth.actions';
+import { Router } from '@angular/router';
 
 const auth = getAuth();
 
@@ -25,32 +25,30 @@ export class AuthService {
 
   constructor(
     private router: Router,
-    private firestoreService: FirestoreService,
     private usuarioService: UsuarioService,
-    private emailVerificationService: EmailVerificationService,
-    private geolocationService: GeolocationService
-  ) { this.initAuthStateListener(); }
+    private globalErrorHandler: GlobalErrorHandler,
+    private errorNotificationService: ErrorNotificationService,
+    private store: Store<AppState>
+      ) { this.initAuthStateListener(); }
 
   // Inicia o ouvinte de mudança de autenticação manualmente
   private initAuthStateListener(): void {
-    console.log("initAuthStateListener chamado");
     auth.onAuthStateChanged(user => {
       if (user) {
-        console.log(`Usuário autenticado detectado: ${user.uid}`);
-        this.usuarioService.getUsuario(user.uid).pipe(take(1)).subscribe(
+        this.usuarioService.getUsuario(user.uid).pipe(catchError(error => {
+          this.handleError(error);
+          return [];
+        })).subscribe(
           userData => {
             if (userData) {
               this.currentUserValue = userData;
               this.userSubject.next(userData);
               localStorage.setItem('currentUser', JSON.stringify(userData));
+              this.store.dispatch(loginSuccess({ user: userData }));
             }
-          },
-          error => {
-            console.error('Erro ao buscar dados do usuário no Firestore:', error);
           }
         );
       } else {
-        // Se o Firebase não retornar o estado do usuário, tenta restaurar do localStorage
         const storedUser = localStorage.getItem('currentUser');
         if (storedUser) {
           const parsedUser = JSON.parse(storedUser);
@@ -60,25 +58,16 @@ export class AuthService {
     });
   }
 
-  // Retorna diretamente o estado de autenticação baseado em currentUserValue
   isAuthenticated(): boolean {
-    const isAuthenticated = !!this.currentUserValue;
-    console.log('Verificando se o usuário está autenticado:', isAuthenticated);
-    return isAuthenticated;
+    return !!this.currentUserValue;
   }
 
-  // Obtém o usuário autenticado
   getUserAuthenticated(): Observable<IUserDados | null> {
-    console.log('getUserAuthenticated chamado');
     return this.user$;
   }
 
-//Obtém UID do usuário logado sendo substituído por método já existente no usuario.service
   getLoggedUserUID(): string | null {
-    console.log('getLoggedUserUID chamado');
-    const uid = this.currentUserValue ? this.currentUserValue.uid : null;
-    console.log('UID do usuário logado:', uid);
-    return uid;
+    return this.currentUserValue ? this.currentUserValue.uid : null;
   }
 
   setCurrentUser(userData: IUserDados): void {
@@ -86,98 +75,33 @@ export class AuthService {
     this.userSubject.next(userData);
   }
 
-  // Verifica se o nickname já existe
-  async checkIfNicknameExists(nickname: string): Promise<boolean> {
-    return this.firestoreService.checkIfNicknameExists(nickname);
+  // Limpa o estado do usuário (novo método)
+  clearCurrentUser(): void {
+    this.currentUserValue = null; // Zera o estado do usuário localmente
+    this.userSubject.next(null); // Notifica todos os assinantes que o usuário foi resetado
+    localStorage.removeItem('currentUser'); // Remove os dados do usuário do localStorage
   }
 
- // Login de usuário no AuthService
-  async login(email: string, password: string): Promise<{ success: boolean, emailVerified?: boolean }> {
-    console.log(`Tentativa de login para o email: ${email}`);
-    try {
-      await setPersistence(auth, browserLocalPersistence);
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+  logout(): void {
+    auth.signOut().then(() => {
+      this.clearCurrentUser();  // Limpa o estado do usuário
+      this.store.dispatch(logoutSuccess());  // Dispara uma ação de logout
+      this.router.navigate(['/login']);  // Redireciona para a página de login
+    }).catch(error => this.handleError(error));
+  }
 
-      if (user) {
-        console.log('Login bem-sucedido:', user.uid);
-        const userData = await this.usuarioService.getUsuario(user.uid).pipe(first()).toPromise();
+  private handleError(error: any): void {
+    let errorMessage = 'Ocorreu um erro ao processar a solicitação.';
 
-        if (userData) {
-          this.currentUserValue = userData;
-          this.userSubject.next(userData);
-          console.log('Dados do usuário carregados após login:', userData);
-
-          // Verifica se o cadastro está completo
-          if (!userData.nickname || !userData.gender) {
-            this.router.navigate(['/finalizar-cadastro']);
-          } else if (!userData.emailVerified) {
-            // Caso o e-mail ainda não tenha sido verificado
-            return { success: true, emailVerified: false };  // Retorna status para o componente exibir modal
-          } else {
-            // Redireciona para o perfil
-            this.router.navigate([`/perfil/${user.uid}`]);
-          }
-        } else {
-          console.log('Dados do usuário não encontrados no Firestore após login.');
-          this.currentUserValue = null;
-          this.userSubject.next(null);
-        }
-        return { success: true }; // Login bem-sucedido
-      } else {
-        console.error('Falha no login: usuário não retornado.');
-        this.currentUserValue = null;
-        this.userSubject.next(null);
-        return { success: false };
-      }
-    } catch (error) {
-      console.error('Erro ao fazer login:', error);
-      this.currentUserValue = null;
-      this.userSubject.next(null);
-      return { success: false };
+    if (error.code === 'auth/user-not-found') {
+      errorMessage = 'Usuário não encontrado. Verifique seu email.';
+    } else if (error.code === 'auth/wrong-password') {
+      errorMessage = 'Senha incorreta. Tente novamente.';
+    } else if (error.code === 'auth/network-request-failed') {
+      errorMessage = 'Erro de rede. Verifique sua conexão.';
     }
-  }
 
-
-  // Desloga o usuário e limpa os dados do localStorage
-  logout(): Observable<void> {
-    console.log('Iniciando logout...');
-    return from(signOut(auth)).pipe(
-      tap(() => {
-        console.log('Usuário deslogado com sucesso.');
-        this.currentUserValue = null;  // Certifique-se de limpar o estado do usuário
-        this.userSubject.next(null);   // Notifique os assinantes de que o usuário foi deslogado
-        localStorage.removeItem('currentUser'); // Limpar o localStorage
-      }),
-      catchError(error => {
-        console.error('Erro ao deslogar:', error);
-        return of(undefined);
-      })
-    );
-  }
-
-  // Função para confirmar a redefinição de senha
-  async confirmPasswordReset(oobCode: string, newPassword: string): Promise<void> {
-    console.log('confirmPasswordReset chamado com oobCode:', oobCode);
-    try {
-      await confirmPasswordReset(auth, oobCode, newPassword);
-      console.log('Senha redefinida com sucesso.');
-    } catch (error) {
-      console.error('Erro ao redefinir a senha:', error);
-      throw error;
-    }
-  }
-
-  // Função para enviar o e-mail de recuperação de senha (auth.service)
-  async sendPasswordResetEmail(email: string): Promise<void> {
-    console.log('Enviando e-mail de recuperação de senha para:', email);
-    try {
-      await sendPasswordResetEmail(auth, email);
-      console.log('E-mail de recuperação enviado.');
-    } catch (error) {
-      console.error('Erro ao enviar e-mail de recuperação:', error);
-      throw error;
-    }
+    this.globalErrorHandler.handleError(error);
+    this.errorNotificationService.showError(errorMessage);
   }
 }
-

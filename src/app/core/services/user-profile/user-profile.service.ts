@@ -1,6 +1,6 @@
 //src\app\core\services\user-profile\user-profile.service.ts
 import { Injectable } from '@angular/core';
-import { collection, doc, getDoc, updateDoc } from '@firebase/firestore';
+import { doc, getDoc, updateDoc } from '@firebase/firestore';
 import { FirestoreService } from '../autentication/firestore.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { GeoCoordinates } from '../../interfaces/geolocation.interface';

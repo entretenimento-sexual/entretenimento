@@ -9,18 +9,23 @@
     </div>
 
     <form [formGroup]="registerForm" (ngSubmit)="onRegister()" class="form">
-      <!-- Campo de Apelido -->
-      <input type="text" formControlName="nickname" class="input-field" placeholder="Apelido de até 25 dígitos" />
-      <div *ngIf="registerForm.get('nickname')?.invalid && registerForm.get('nickname')?.touched"
-        class="alert alert-error">
-        <small>Apelido inválido</small>
+
+      <div *ngIf="registerForm.get('nickname')?.invalid && registerForm.get('nickname')?.touched" class="alert alert-error">
+        <small *ngIf="registerForm.get('nickname')?.hasError('required')">Apelido é obrigatório</small>
+        <small *ngIf="registerForm.get('nickname')?.hasError('minlength')">Apelido muito curto</small>
+        <small *ngIf="registerForm.get('nickname')?.hasError('maxlength')">Apelido muito longo</small>
+        <small *ngIf="registerForm.get('nickname')?.hasError('nicknameInUse')">Apelido já está em uso</small>
       </div>
+      <input type="text" formControlName="nickname" class="input-field"
+      placeholder="Apelido de até 25 dígitos" (blur)="checkNickname()"/>
 
       <!-- Campo de Email -->
-      <input type="email" formControlName="email" class="input-field" placeholder="Digite um e-mail válido" />
       <div *ngIf="registerForm.get('email')?.invalid && registerForm.get('email')?.touched" class="alert alert-error">
         <small>Email inválido</small>
       </div>
+
+      <input type="email" formControlName="email" class="input-field" placeholder="Digite um e-mail válido" />
+
 
       <!-- Campo de Senha -->
       <input type="password" formControlName="password" class="input-field"
@@ -30,13 +35,20 @@
         <small>Senha fraca. Deve conter ao menos 8 caracteres, incluindo maiúsculas, minúsculas e números.</small>
       </div>
 
+      <div class="form-confirmation">
+        <input type="checkbox" formControlName="aceitarTermos" required />
+        <label>Eu li e aceito os <a (click)="openTermsDialog()">Termos de Uso</a> e a <a
+            href="/politica-de-privacidade" target="_blank">Política de Privacidade</a>.</label>
+      </div>
+
       <div class="button-container">
-        <button class="btn btn-primary" type="submit" [disabled]="isLoading || isLockedOut || registerForm.invalid">
+        <button class="btn btn-primary" type="submit" [disabled]="registerForm.invalid || isLoading || isLockedOut">
           <span *ngIf="isLoading">Carregando...</span>
           <span *ngIf="!isLoading && !isLockedOut">Cadastre-se</span>
           <span *ngIf="isLockedOut">Bloqueado</span>
         </button>
       </div>
+
     </form>
 
     <!-- Exibir mensagem de sucesso ao submeter o formulário -->

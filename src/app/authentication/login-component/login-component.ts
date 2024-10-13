@@ -1,11 +1,13 @@
 // src\app\authentication\login-component\login-component.ts
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { LoginService } from 'src/app/core/services/autentication/login.service';
+import { browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
+import { AuthService } from 'src/app/core/services/autentication/auth.service';
 
 @Component({
   selector: 'app-login-component',
@@ -13,6 +15,7 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
   styleUrls: ['./login-component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
+
 export class LoginComponent implements OnInit {
   loginForm!: FormGroup;
   honeypot: string = '';
@@ -22,11 +25,12 @@ export class LoginComponent implements OnInit {
   showEmailVerificationModal: boolean = false;
 
   constructor(
-    private authService: AuthService,
     private router: Router,
     private errorNotificationService: ErrorNotificationService,
     public emailInputModalService: EmailInputModalService,
     public emailVerificationService: EmailVerificationService,
+    private loginservice: LoginService,
+    private authService: AuthService,
     private formBuilder: FormBuilder
   ) { }
 
@@ -40,7 +44,8 @@ export class LoginComponent implements OnInit {
     this.loginForm = this.formBuilder.group({
       email: ['', [Validators.required, Validators.email]],
       password: ['', Validators.required],
-      honeypot: ['']
+      honeypot: [''],
+      rememberMe: [false]
     });
   }
 
@@ -61,6 +66,9 @@ export class LoginComponent implements OnInit {
   async login(): Promise<void> {
     this.clearError();
 
+    const rememberMe = this.loginForm.controls['rememberMe']?.value;
+    await this.loginservice.setSessionPersistence(rememberMe ? browserLocalPersistence : browserSessionPersistence);
+
     if (this.isHoneypotFilled) {
       this.errorMessage = 'Detectado comportamento suspeito. Tente novamente.';
       return;
@@ -68,6 +76,7 @@ export class LoginComponent implements OnInit {
 
     if (this.loginForm.invalid) {
       this.errorMessage = 'Por favor, preencha o formulário corretamente.';
+      this.errorNotificationService.showError(this.errorMessage);
       return;
     }
 
@@ -77,17 +86,19 @@ export class LoginComponent implements OnInit {
       const email = this.email?.value;
       const password = this.password?.value;
 
-      const { success, emailVerified } = await this.authService.login(email, password);
+      const { success, emailVerified } = await this.loginservice.login(email, password);
 
       if (success) {
         if (!emailVerified) {
           this.showEmailVerificationModal = true;
         } else {
           this.successMessage = 'Login realizado com sucesso!';
+          this.errorNotificationService.showSuccess(this.successMessage);  // Mostra uma mensagem de sucesso
           this.router.navigate(['/dashboard']);
         }
       } else {
         this.errorMessage = 'Credenciais inválidas.';
+        this.errorNotificationService.showError(this.errorMessage);
       }
     } catch (error) {
       this.handleError(error);
@@ -138,9 +149,7 @@ export class LoginComponent implements OnInit {
   }
 
   // Efetua logout
-  logout(): void {
-    this.authService.logout().subscribe(() => {
-      this.router.navigate(['/login']);
-    });
-  }
+logout(): void {
+  this.authService.logout()
+}
 }

@@ -2,9 +2,8 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { AuthService } from 'src/app/core/services/autentication/auth.service';import { LoginService } from 'src/app/core/services/autentication/login.service';
 import { SidebarService } from 'src/app/core/services/sidebar.service';
-import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 
 @Component({
   selector: 'app-navbar',
@@ -54,9 +53,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   logout(): void {
-    this.authService.logout().subscribe(() => {
-      this.router.navigate(['/login']);
-    });
+    this.authService.logout()
   }
 
   onToggleSidebar(): void {

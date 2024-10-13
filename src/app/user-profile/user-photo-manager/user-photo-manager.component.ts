@@ -3,6 +3,8 @@ import { Component, OnInit } from '@angular/core';
 import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 import { Observable } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { StorageService } from 'src/app/core/services/image-handling/storage.service';
+import { GlobalErrorHandler } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 @Component({
   selector: 'app-user-photo-manager',
@@ -14,8 +16,9 @@ export class UserPhotoManagerComponent implements OnInit {
   userId: string = '';
 
   constructor(private photoService: PhotoFirestoreService,
-              private authService: AuthService
-  ) { }
+              private storageService: StorageService,
+              private authService: AuthService,
+              private errorHandler: GlobalErrorHandler) { }
 
   ngOnInit(): void {
     this.authService.getUserAuthenticated().subscribe(user => {
@@ -30,17 +33,13 @@ export class UserPhotoManagerComponent implements OnInit {
     this.userPhotos$ = this.photoService.getPhotosByUser(this.userId);
   }
 
-  deletePhoto(photoId: string, photoPath: string) {
+  // Função ajustada para deletar a foto corretamente
+  deleteFile(photoId: string, photoPath: string) {
     if (confirm('Tem certeza que deseja excluir esta foto?')) {
-      if (this.userId) {
-        this.photoService.deletePhoto(this.userId, photoId, photoPath).then(() => {
-          alert('Foto excluída com sucesso!');
-          this.loadUserPhotos(); // Reload photos after deletion
-        }).catch(error => {
-          console.error('Erro ao excluir a foto:', error);
-          alert('Erro ao excluir a foto.');
-        });
-      }
+      this.photoService.deletePhoto(this.userId, photoId, photoPath).catch(error => {
+        this.errorHandler.handleError(error);
+      });
     }
   }
-}
+  }
+

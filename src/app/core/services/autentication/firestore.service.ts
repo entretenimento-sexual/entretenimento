@@ -45,8 +45,9 @@ export class FirestoreService {
 
   // Salva os dados iniciais do usuário após o registro no Firestore
   async saveInitialUserData(uid: string, userData: IUserRegistrationData): Promise<void> {
-    const userRef = doc(this.db, "users", uid);
-    await setDoc(userRef, userData, { merge: true });
+    const userRef = doc(this.db, 'users', uid);
+    await setDoc(userRef, { ...userData, emailVerified: true }, { merge: true });
+    console.log(`Dados do usuário salvos no Firestore com email verificado.`);
   }
 
   // Incrementa um campo no documento do Firestore

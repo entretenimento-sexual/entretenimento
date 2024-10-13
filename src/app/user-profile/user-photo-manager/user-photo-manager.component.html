@@ -3,10 +3,12 @@
   <h3>Gerenciamento de Fotos</h3>
   <div *ngIf="(userPhotos$ | async)?.length; else noPhotos">
     <div class="photo-grid">
-      <div *ngFor="let photo of userPhotos$ | async" class="photo-item">
-        <img [src]="photo.url" alt="Foto do usuário">
-        <button class="delete-button" (click)="deletePhoto(photo.id, photo.path)">Excluir</button>
+
+      <div *ngFor="let photo of userPhotos$ | async">
+        <img [src]="photo.url" alt="Foto do usuário" class="user-photo">
+        <button class="delete-button" (click)="deleteFile(photo.id, photo.path)">Excluir</button>
       </div>
+      
     </div>
   </div>
 
