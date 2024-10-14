@@ -5,9 +5,17 @@ import { Observable } from 'rxjs';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 import { StorageService } from './storage.service';
 
+export interface Photo {
+  id: string;
+  url: string;
+  fileName: string;
+  createdAt: Date;
+}
+
 @Injectable({
   providedIn: 'root'
 })
+
 export class PhotoFirestoreService {
   private db = getFirestore();
 
@@ -50,6 +58,18 @@ export class PhotoFirestoreService {
       return snapshot.size;
     } catch (error) {
       this.errorNotifier.showError('Erro ao contar as fotos.');
+      throw error;
+    }
+  }
+
+  // Método para salvar metadados da foto
+  async savePhotoMetadata(userId: string, photo: Photo): Promise<void> {
+    try {
+      const photoRef = doc(this.db, `users/${userId}/photos/${photo.id}`);
+      await setDoc(photoRef, photo);
+      this.errorNotifier.showSuccess('Metadados da foto salvos com sucesso!');
+    } catch (error) {
+      this.errorNotifier.showError('Erro ao salvar os metadados da foto.');
       throw error;
     }
   }

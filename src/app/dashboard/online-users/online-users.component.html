@@ -2,17 +2,30 @@
 <div class="container mt-3">
   <h2 class="online-users-title">Perfis Online</h2>
 
-  <div *ngIf="onlineUsers$ | async as onlineUsers; else noProfilesFound">
-    <div *ngIf="onlineUsers.length > 0; else noProfilesFound">
-      <div class="profiles-row">
-        <div class="profile-card" *ngFor="let user of onlineUsers">
-          <app-user-card [user]="user" [distanciaKm]="user.distanciaKm ?? null"></app-user-card> <!-- Usando o componente padronizado -->
-        </div>
-      </div>
+  <!-- Spinner de carregamento enquanto os usuários estão sendo carregados -->
+  <div *ngIf="loading" class="d-flex justify-content-center">
+    <div class="spinner-border" role="status">
+      <span class="visually-hidden">Carregando...</span>
     </div>
   </div>
 
+  <!-- Se houver perfis online, eles são exibidos -->
+  <div *ngIf="onlineUsers$ | async as onlineUsers; else noProfilesFound">
+    <div class="row row-cols-1 row-cols-md-3 g-4" *ngIf="onlineUsers.length > 0">
+      <div class="col" *ngFor="let user of onlineUsers">
+        <!-- Componente de card de usuário, exibindo a distância calculada -->
+        <app-user-card [user]="user" [distanciaKm]="user.distanciaKm ?? null"></app-user-card>
+      </div>
+    </div>
+  </div>
+  <!-- Caso a lista de perfis online seja vazia -->
+  <div *ngIf="!loading && (onlineUsers$ | async)?.length === 0">
+    <p class="text-center">Nenhum usuário online no momento.</p>
+  </div>
+
+  <!-- Caso não haja perfis online -->
   <ng-template #noProfilesFound>
-    <p>Nenhum perfil online foi encontrado.</p>
+    <p class="text-center">Nenhum perfil online foi encontrado.</p>
   </ng-template>
+
 </div>

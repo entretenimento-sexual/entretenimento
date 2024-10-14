@@ -6,7 +6,7 @@ import { IUserDados } from '../../interfaces/iuser-dados';
 import { getAuth } from 'firebase/auth';
 import { UsuarioService } from '../usuario.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
-import { GlobalErrorHandler } from '../error-handler/global-error-handler.service';
+import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { Store } from '@ngrx/store';
 import { AppState } from '../../../store/states/app.state';
 import { loginSuccess, logoutSuccess } from '../../../store/actions/auth.actions';
@@ -26,7 +26,7 @@ export class AuthService {
   constructor(
     private router: Router,
     private usuarioService: UsuarioService,
-    private globalErrorHandler: GlobalErrorHandler,
+    private globalErrorHandlerService: GlobalErrorHandlerService,
     private errorNotificationService: ErrorNotificationService,
     private store: Store<AppState>
       ) { this.initAuthStateListener(); }
@@ -34,6 +34,7 @@ export class AuthService {
   // Inicia o ouvinte de mudança de autenticação manualmente
   private initAuthStateListener(): void {
     auth.onAuthStateChanged(user => {
+      console.log('onAuthStateChanged user: ', user);
       if (user) {
         this.usuarioService.getUsuario(user.uid).pipe(catchError(error => {
           this.handleError(error);
@@ -41,14 +42,17 @@ export class AuthService {
         })).subscribe(
           userData => {
             if (userData) {
+              console.log('Usuario recuperado: ', userData);
               this.currentUserValue = userData;
               this.userSubject.next(userData);
               localStorage.setItem('currentUser', JSON.stringify(userData));
+              console.log('Dispatching loginSuccess action with user data');
               this.store.dispatch(loginSuccess({ user: userData }));
             }
           }
         );
       } else {
+        console.log('Nenhum usuário autenticado. Limpa estado local.');
         const storedUser = localStorage.getItem('currentUser');
         if (storedUser) {
           const parsedUser = JSON.parse(storedUser);
@@ -80,6 +84,7 @@ export class AuthService {
     this.currentUserValue = null; // Zera o estado do usuário localmente
     this.userSubject.next(null); // Notifica todos os assinantes que o usuário foi resetado
     localStorage.removeItem('currentUser'); // Remove os dados do usuário do localStorage
+    console.log('Estado de usuário limpo e sessão encerrada.');
   }
 
   logout(): void {
@@ -101,7 +106,7 @@ export class AuthService {
       errorMessage = 'Erro de rede. Verifique sua conexão.';
     }
 
-    this.globalErrorHandler.handleError(error);
+    this.globalErrorHandlerService.handleError(error);
     this.errorNotificationService.showError(errorMessage);
   }
 }

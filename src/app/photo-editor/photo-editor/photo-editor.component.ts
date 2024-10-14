@@ -2,13 +2,29 @@
 import { Component, Input, OnInit, ViewChild } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
-import { PinturaEditorOptions, getEditorDefaults, createDefaultImageReader, createDefaultImageWriter, PinturaImageState } from '@pqina/pintura';
+import {
+  PinturaEditorOptions,
+  getEditorDefaults,
+  createDefaultImageReader,
+  createDefaultImageWriter,
+  PinturaImageState
+} from '@pqina/pintura';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import * as locale_pt_br from '@pqina/pintura/locale/pt_PT';
 import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { GlobalErrorHandler } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { HttpErrorResponse } from '@angular/common/http';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { Observable, firstValueFrom, lastValueFrom } from 'rxjs';
+import { Store } from '@ngrx/store';
+import { AppState } from 'src/app/store/states/app.state';
+import {
+  selectFileDownloadUrl,
+  selectFileError,
+  selectFileSuccess,
+  selectFileUploading
+} from 'src/app/store/selectors/file.selectors';
+import { uploadStart } from 'src/app/store/actions/file.actions';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Component({
   selector: 'app-photo-editor',
@@ -22,38 +38,48 @@ export class PhotoEditorComponent implements OnInit {
   @Input() storedImageState?: string;       // Estado anterior da imagem (se houver)
   @Input() photoId?: string;                // ID da foto para atualizar metadados
   @Input() isEditMode: boolean = false;     // Flag para determinar se é uma edição de foto armazenada
+
+  // Referência ao componente do editor de imagem
   @ViewChild('editor') editor: any;
 
-  src!: string;
-  options!: PinturaEditorOptions;
-  result?: SafeUrl;
-  isLoading = false;
-  errorMessage: string = '';
-  userId!: string;
+  src!: string;                             // Fonte da imagem para o editor
+  options!: PinturaEditorOptions;           // Opções de configuração do editor
+  result?: SafeUrl;                         // Resultado da imagem processada
+  userId!: string;                          // ID do usuário autenticado
+
+  // Observables para gerenciamento de estado com NgRx
+  isLoading$!: Observable<boolean>;
+  errorMessage$!: Observable<string | null>;
+  success$!: Observable<boolean>;
 
   constructor(
-    private sanitizer: DomSanitizer,
-    private storageService: StorageService,
-    private photoFirestoreService: PhotoFirestoreService,
-    public activeModal: NgbActiveModal,
-    private authService: AuthService,
-    private errorHandler: GlobalErrorHandler
+    private sanitizer: DomSanitizer,                           // Para sanitizar URLs
+    private storageService: StorageService,                    // Serviço para interagir com o Firebase Storage
+    private photoFirestoreService: PhotoFirestoreService,      // Serviço para interagir com o Firestore
+    public activeModal: NgbActiveModal,                        // Modal ativo (do NgbModal)
+    private authService: AuthService,                          // Serviço de autenticação
+    private store: Store<AppState>,                            // Store do NgRx
+    private errorHandler: GlobalErrorHandlerService,                  // Handler global de erros
+    private errorNotifier: ErrorNotificationService            // Serviço para notificar erros
   ) { }
 
   ngOnInit(): void {
-    try {
-      this.authService.getUserAuthenticated().subscribe(user => {
+    // Obtém o usuário autenticado
+    this.authService.getUserAuthenticated().subscribe(
+      user => {
         if (user && user.uid) {
           this.userId = user.uid;
 
+          // Configura a fonte da imagem
           if (this.storedImageUrl) {
-            // Se a URL da imagem armazenada estiver disponível, carregue-a no editor
+            // Carrega a imagem armazenada
             this.src = this.storedImageUrl;
           } else if (this.imageFile) {
-            // Caso contrário, carregue o arquivo local
+            // Carrega o arquivo local
             this.src = URL.createObjectURL(this.imageFile);
           }
 
+          // Configura as opções do editor de imagem
           this.options = {
             ...getEditorDefaults(),
             imageReader: createDefaultImageReader({ orientImage: true }),
@@ -77,106 +103,122 @@ export class PhotoEditorComponent implements OnInit {
             imageBackgroundColor: [255, 255, 255, 0],
             imageState: this.storedImageState ? JSON.parse(this.storedImageState) : undefined,  // Carrega o estado anterior, se disponível
           };
+
+          // Subscrições ao estado do NgRx
+          this.isLoading$ = this.store.select(selectFileUploading);
+          this.errorMessage$ = this.store.select(selectFileError);
+          this.success$ = this.store.select(selectFileSuccess);
         } else {
-          throw new Error('Usuário não autenticado.');
+          // Trata caso o usuário não esteja autenticado
+          this.errorHandler.handleError(new Error('Usuário não autenticado.'));
         }
-      });
-    } catch (error) {
-      console.error('Erro ao inicializar o PhotoEditorComponent:', error);
-      this.errorMessage = 'Erro ao carregar o editor de imagens. Tente novamente.';
-    }
+      },
+      error => {
+        // Trata erros na obtenção do usuário autenticado
+        this.errorHandler.handleError(error);
+      }
+    );
   }
 
+  // Método chamado quando o usuário processa a imagem no editor
   async handleProcess(event: any): Promise<void> {
-    try {
-      this.isLoading = true;
-      this.errorMessage = '';
+    // Cria uma URL segura para a imagem processada
+    const objectURL = URL.createObjectURL(event.dest);
+    this.result = this.sanitizer.bypassSecurityTrustResourceUrl(objectURL) as SafeUrl;
 
-      const objectURL = URL.createObjectURL(event.dest);
-      this.result = this.sanitizer.bypassSecurityTrustResourceUrl(objectURL) as SafeUrl;
+    // Salva o estado atual da imagem
+    const imageStateStr = this.stringifyImageState(event.imageState);
+    await this.saveImageState(imageStateStr).catch(error => this.errorHandler.handleError(error));
 
-      // Salvar o estado da imagem
-      const imageStateStr = this.stringifyImageState(event.imageState);
-      this.saveImageState(imageStateStr);
-
-      // Fazer o upload do arquivo processado
-      if (this.isEditMode && this.storedImageUrl && this.photoId) {
-        await this.updateStoredFile(event.dest); // Substitui a imagem existente
-      } else {
-        await this.uploadProcessedFile(event.dest); // Carrega uma nova imagem
-      }
-    } catch (error: unknown) {
-      // Converte qualquer tipo de erro para Error, garantindo que o GlobalErrorHandler aceite
-      const castedError = error instanceof Error ? error : new Error('Erro desconhecido');
-
-      // Passa o erro convertido para o GlobalErrorHandler
-      this.errorHandler.handleError(castedError);
-
-      this.errorMessage = 'Ocorreu um erro ao processar a imagem. Tente novamente.';
-    } finally {
-      this.isLoading = false;
+    // Decide se deve atualizar uma imagem existente ou fazer upload de uma nova
+    if (this.isEditMode && this.storedImageUrl && this.photoId) {
+      await this.updateStoredFile(event.dest).catch(error => this.errorHandler.handleError(error));
+    } else {
+      await this.uploadProcessedFile(event.dest).catch(error => this.errorHandler.handleError(error));
     }
   }
 
   // Upload de uma nova imagem processada
   async uploadProcessedFile(processedFile: Blob): Promise<void> {
-    try {
-      if (!this.userId) {
-        throw new Error('Usuário não autenticado.');
-      }
-
-      const fileName = `${Date.now()}_${this.imageFile.name}`;
-      const path = `user_profiles/${this.userId}/${fileName}`;
-
-      const downloadUrl = await this.storageService.uploadFile(
-        new File([processedFile], fileName, { type: this.imageFile.type }),
-        path,
-        this.userId
-      ).toPromise(); // Use toPromise para converter o Observable em Promise
-      console.log('Imagem enviada com sucesso:', downloadUrl);
-      this.activeModal.close('uploadSuccess');
-    } catch (error) {
-      this.errorHandler.handleError(error as Error); // Convertendo para o tipo esperado
-      this.errorMessage = 'Erro ao atualizar a imagem armazenada. Tente novamente.';
-    }
-  }
-
-  // Substitui uma imagem existente no storage
-  async updateStoredFile(processedFile: Blob): Promise<void> {
-    try {
-      if (!this.userId || !this.storedImageUrl || !this.photoId) {
-        throw new Error('Informações incompletas para a substituição da foto.');
-      }
-
-      const filePath = this.storedImageUrl;
-      const downloadUrl = await this.storageService.replaceFile(
-        new File([processedFile], `edited_${this.imageFile.name}`, { type: this.imageFile.type }),
-        filePath
-      ).toPromise(); // Converte o Observable em Promise
-
-      await this.photoFirestoreService.updatePhotoMetadata(this.userId, this.photoId, { url: downloadUrl });
-      this.activeModal.close('updateSuccess');
-    } catch (error) {
-      this.errorHandler.handleError(error); // Tratamento de erro
-      this.errorMessage = 'Erro ao atualizar a imagem armazenada. Tente novamente.';
-    }
-  }
-
-  // Salva o estado da imagem
-  saveImageState(imageStateStr: string): void {
     if (!this.userId) {
       this.errorHandler.handleError(new Error('Usuário não autenticado.'));
       return;
     }
-    this.photoFirestoreService.saveImageState(this.userId, imageStateStr).catch(error => {
-      this.errorHandler.handleError(error); // Tratamento de erro ao salvar o estado da imagem
-    });
+
+    const fileName = `${Date.now()}_${this.imageFile.name}`;
+    const path = `user_profiles/${this.userId}/${fileName}`;
+    const file = new File([processedFile], fileName, { type: this.imageFile.type });
+
+    // Despacha a ação para iniciar o upload
+    this.store.dispatch(uploadStart({ file, path, userId: this.userId, fileName }));
+
+    // Aguarda o sucesso do upload
+    const success = await firstValueFrom(this.success$);
+    if (success) {
+      // Obtém a URL de download
+      const downloadUrl = await firstValueFrom(this.store.select(selectFileDownloadUrl));
+
+      // Gera um ID para a foto
+      const photoId = Date.now().toString();
+
+      // Salva os metadados da foto no Firestore
+      await this.photoFirestoreService.savePhotoMetadata(this.userId, {
+        id: photoId,
+        url: downloadUrl!,
+        fileName: fileName,
+        createdAt: new Date()
+      });
+
+      // Fecha o modal e notifica o usuário
+      this.activeModal.close('uploadSuccess');
+      this.errorNotifier.showSuccess('Imagem enviada com sucesso!');
+    }
   }
 
+  // Atualiza uma imagem existente no storage
+  async updateStoredFile(processedFile: Blob): Promise<void> {
+    if (!this.userId || !this.storedImageUrl || !this.photoId) {
+      this.errorHandler.handleError(new Error('Informações incompletas para a substituição da foto.'));
+      return;
+    }
+
+    const filePath = this.storedImageUrl;
+    const file = new File([processedFile], `edited_${this.imageFile.name}`, { type: this.imageFile.type });
+
+    try {
+      // Substitui o arquivo existente no storage
+      const downloadUrl = await lastValueFrom(this.storageService.replaceFile(file, filePath));
+
+      // Atualiza os metadados da foto no Firestore
+      await this.photoFirestoreService.updatePhotoMetadata(this.userId, this.photoId, { url: downloadUrl });
+
+      // Fecha o modal e notifica o usuário
+      this.activeModal.close('updateSuccess');
+      this.errorNotifier.showSuccess('Imagem atualizada com sucesso!');
+    } catch (error: any) {
+      this.errorHandler.handleError(error);
+    }
+  }
+
+  // Salva o estado da imagem
+  async saveImageState(imageStateStr: string): Promise<void> {
+    if (!this.userId) {
+      this.errorHandler.handleError(new Error('Usuário não autenticado.'));
+      return;
+    }
+    try {
+      await this.photoFirestoreService.saveImageState(this.userId, imageStateStr);
+    } catch (error: any) {
+      this.errorHandler.handleError(error);
+    }
+  }
+
+  // Converte o estado da imagem para uma string JSON
   stringifyImageState(imageState: PinturaImageState): string {
     return JSON.stringify(imageState, (k, v) => (v === undefined ? null : v));
   }
 
+  // Converte uma string JSON para o estado da imagem
   parseImageState(str: string): PinturaImageState {
     return JSON.parse(str);
   }

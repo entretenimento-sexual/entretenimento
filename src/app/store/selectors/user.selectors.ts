@@ -3,7 +3,7 @@ import { createSelector } from '@ngrx/store';
 import { AppState } from '../states/app.state';
 import { IUserState } from '../states/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-
+import { selectAuthenticatedUser, selectIsAuthenticated, selectHasRequiredFields } from './auth.selectors'; // Importe os seletores
 
 // Seletor para obter o estado do usuário
 export const selectUserState = (state: AppState): IUserState => state.user;
@@ -66,5 +66,3 @@ export const selectUserError = createSelector(
   selectUserState,
   (state: IUserState) => state.error
 );
-
-

@@ -1,5 +1,5 @@
 // src/app/store/reducers/user.reducer.ts
-import { Action, createReducer, on } from '@ngrx/store';
+import { createReducer, on } from '@ngrx/store';
 import {
   loadUsers,
   loadUsersSuccess,
@@ -9,9 +9,9 @@ import {
   loadOnlineUsersSuccess,
   setFilteredOnlineUsers
 } from '../actions/user.actions';
-
+import { loginSuccess } from '../actions/auth.actions';
 import { updateUserOnlineStatus } from '../actions/user-status.actions';
-import { IUserState, initialUserState } from '../states/user.state';
+import { initialUserState } from '../states/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 

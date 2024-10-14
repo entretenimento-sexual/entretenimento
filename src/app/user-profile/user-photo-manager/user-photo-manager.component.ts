@@ -4,7 +4,7 @@ import { PhotoFirestoreService } from 'src/app/core/services/image-handling/phot
 import { Observable } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
-import { GlobalErrorHandler } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 @Component({
   selector: 'app-user-photo-manager',
@@ -18,7 +18,7 @@ export class UserPhotoManagerComponent implements OnInit {
   constructor(private photoService: PhotoFirestoreService,
               private storageService: StorageService,
               private authService: AuthService,
-              private errorHandler: GlobalErrorHandler) { }
+              private errorHandler: GlobalErrorHandlerService) { }
 
   ngOnInit(): void {
     this.authService.getUserAuthenticated().subscribe(user => {

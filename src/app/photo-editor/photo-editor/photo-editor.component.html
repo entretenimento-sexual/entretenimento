@@ -1,5 +1,15 @@
 <!-- src/app/photo-editor/photo-editor/photo-editor.component.html -->
-<pintura-editor [src]="src" [options]="options" [imageCropAspectRatio]="1" (process)="handleProcess($event)">
-</pintura-editor>
+<div class="editor-container">
+  <ng-container *ngIf="!(isLoading$ | async); else loading">
+    <pintura-editor [src]="src" [options]="options" (process)="handleProcess($event)">
+    </pintura-editor>
+  </ng-container>
+  <ng-template #loading>
+    <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+    <p>Carregando...</p>
+  </ng-template>
 
-
+  <div *ngIf="(errorMessage$ | async) as errorMessage" class="alert alert-danger">
+    {{ errorMessage }}
+  </div>
+</div>

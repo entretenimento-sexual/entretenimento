@@ -9,6 +9,7 @@ import { of } from 'rxjs';
 
 @Injectable()
 export class OnlineUsersEffects {
+  
   // Efeito que carrega usuários online
   loadOnlineUsers$ = createEffect(() =>
     this.actions$.pipe(

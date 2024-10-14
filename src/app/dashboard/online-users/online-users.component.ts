@@ -1,7 +1,7 @@
 // src/app/dashboard/online-users/online-users.component.ts
 import { Component, OnInit } from '@angular/core';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Store, select } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
@@ -10,30 +10,48 @@ import { selectAllOnlineUsers } from 'src/app/store/selectors/user.selectors';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { GeolocationService } from 'src/app/core/services/geolocation/geolocation.service';
 import { DistanceCalculationService } from 'src/app/core/services/geolocation/distance-calculation.service';
+import { selectLoadingOnlineUsers } from 'src/app/store/selectors/online-users.selectors';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 @Component({
   selector: 'app-online-users',
   templateUrl: './online-users.component.html',
   styleUrls: ['./online-users.component.css']
 })
+
 export class OnlineUsersComponent implements OnInit {
   onlineUsers$: Observable<IUserDados[]> | undefined;
+  loading$: Observable<boolean> | undefined;
   userLocation: { latitude: number, longitude: number } | null = null;
+  loading: boolean = false;
 
   constructor(private store: Store<AppState>,
-    private authService: AuthService,
-    private geolocationService: GeolocationService,
-    private distanceService: DistanceCalculationService) { }
+              private authService: AuthService,
+              private geolocationService: GeolocationService,
+              private distanceService: DistanceCalculationService,
+              private errorNotificationService: ErrorNotificationService,
+              private globalErrorHandlerService: GlobalErrorHandlerService)  { }
 
   async ngOnInit(): Promise<void> {
-    // Obter a localização do usuário logado
+    this.store.dispatch(loadOnlineUsers());  // Dispara a ação para carregar usuários online
+    this.onlineUsers$ = this.store.pipe(select(selectAllOnlineUsers));  // Obtém a lista de usuários online
+    this.loading$ = this.store.pipe(select(selectLoadingOnlineUsers));  // Obtém o estado de carregamento
+
+    this.loading = true;
     this.userLocation = await this.geolocationService.getCurrentLocation();
-    // Dispara a ação para carregar os usuários online
     this.store.dispatch(loadOnlineUsers());
     console.log('Buscando todos os usuários online...');
 
     // Obter o UID do usuário logado como um Observable
-    this.authService.getUserAuthenticated().subscribe(loggedUser => {
+    this.authService.getUserAuthenticated().pipe(
+      catchError(error => {
+        this.errorNotificationService.showError('Erro ao obter usuário autenticado.'); // Notifica o erro ao usuário
+        this.globalErrorHandlerService.handleError(error);  // Envia o erro para o handler global
+        this.loading = false;
+        return of(null); // Previne a quebra do fluxo
+      })
+    ).subscribe(loggedUser => {
       const loggedUserUID = loggedUser?.uid;
 
       // Seleciona os usuários online diretamente e aplica a lógica de ordenação
@@ -86,9 +104,20 @@ export class OnlineUsersComponent implements OnInit {
       );
 
       // Observa os usuários online e imprime no console
-      this.onlineUsers$.subscribe(onlineUsers => {
-        console.log('Usuários online encontrados no componente:', onlineUsers);
+      this.onlineUsers$.subscribe({
+        next: (onlineUsers) => {
+          if (onlineUsers.length > 0) {
+            this.errorNotificationService.showSuccess('Usuários carregados com sucesso.');
+          } else {
+            this.errorNotificationService.showInfo('Nenhum usuário online no momento.');
+          }
+        },
+        error: (err) => {
+          this.errorNotificationService.showError('Erro ao carregar usuários online.');
+          this.globalErrorHandlerService.handleError(err);
+        }
       });
     });
+    }
   }
-}
+

@@ -14,7 +14,6 @@ import { ModalMensagemComponent } from './components-globais/modal-mensagem/moda
 import { TextoDialogComponent } from './components-globais/texto-dialog/texto-dialog.component';
 import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { UploadPhotoComponent } from './components-globais/upload-photo/upload-photo.component';
-import { PhotoEditorComponent } from '../photo-editor/photo-editor/photo-editor.component';
 import { AngularPinturaModule } from '@pqina/angular-pintura';
 import { UserCardComponent } from './user-card/user-card.component';
 import { RouterModule } from '@angular/router';
@@ -27,9 +26,9 @@ import { RouterModule } from '@angular/router';
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
     UploadPhotoComponent,
-    PhotoEditorComponent,
     UserCardComponent
   ],
+
   imports: [
     CommonModule,
     FormsModule,
@@ -47,7 +46,6 @@ import { RouterModule } from '@angular/router';
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
     UploadPhotoComponent,
-    PhotoEditorComponent,
     UserCardComponent
   ]
 })

@@ -17,6 +17,7 @@ export const USER_ACTION_TYPES = {
   LOAD_ONLINE_USERS_SUCCESS: '[User] Load Online Users Success',
   LOAD_ONLINE_USERS_FAILURE: '[User] Load Online Users Failure',
   SET_FILTERED_ONLINE_USERS: '[User] Set Filtered Online Users',
+  UPDATE_USER_ONLINE_STATUS: '[User] Update User Online Status',
 };
 
 /**
@@ -102,4 +103,9 @@ export const loadOnlineUsersFailure = createAction(
 export const setFilteredOnlineUsers = createAction(
   USER_ACTION_TYPES.SET_FILTERED_ONLINE_USERS,
   props<{ filteredUsers: IUserDados[] }>()
+);
+
+export const updateUserOnlineStatus = createAction(
+  USER_ACTION_TYPES.UPDATE_USER_ONLINE_STATUS,
+  props<{ uid: string, isOnline: boolean }>()
 );

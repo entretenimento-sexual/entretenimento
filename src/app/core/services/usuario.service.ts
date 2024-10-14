@@ -71,6 +71,7 @@ export class UsuarioService {
 
   // Obtém um usuário específico pelo UID
   getUsuario(uid: string): Observable<IUserDados | null> {
+    console.log('Buscando usuário no Firestore com UID:', uid);
     return from(this.userProfileService.getUserById(uid)).pipe(
       map(user => user as IUserDados | null),
       catchError((error) => {

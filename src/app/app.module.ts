@@ -14,7 +14,7 @@ import { HeaderModule } from './header/header.module';
 import { FooterModule } from './footer/footer.module';
 import { UserProfileModule } from './user-profile/user-profile.module';
 import { MatDialogModule } from '@angular/material/dialog';
-import { GlobalErrorHandler } from './core/services/error-handler/global-error-handler.service';
+import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';
 import { PhotoEditorModule } from './photo-editor/photo-editor.module';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
@@ -27,6 +27,7 @@ import { EmailVerificationService } from './core/services/autentication/email-ve
 import { AngularPinturaModule } from '@pqina/angular-pintura';
 import { userReducer } from './store/reducers/user.reducer';
 import { UserEffects } from './store/effects/user.effects';
+import { AppStoreModule } from './store/store.module';
 
 @NgModule({
   declarations: [AppComponent],
@@ -52,12 +53,13 @@ import { UserEffects } from './store/effects/user.effects';
     AngularPinturaModule, StoreDevtoolsModule.instrument({ maxAge: 25, logOnly: !isDevMode() }),
     StoreModule.forRoot({ user: userReducer }),
     EffectsModule.forRoot([UserEffects]),
+    AppStoreModule,
 
   ],
   providers: [
     AuthService,
     EmailVerificationService,
-    { provide: ErrorHandler, useClass: GlobalErrorHandler },
+    { provide: ErrorHandler, useClass: GlobalErrorHandlerService },
     ErrorNotificationService
   ],
   bootstrap: [AppComponent]

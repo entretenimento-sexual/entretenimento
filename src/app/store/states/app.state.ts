@@ -7,4 +7,6 @@ export interface AppState {
   user: IUserState;
   terms: ITermsState;
   file: FileState;
+  auth: IUserState;
+  onlineUsers: IUserState;
 }

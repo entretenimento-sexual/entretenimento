@@ -6,8 +6,10 @@ import { EmailVerificationService } from 'src/app/core/services/autentication/em
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
-import { browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
+import { browserLocalPersistence, browserSessionPersistence, getAuth, User } from 'firebase/auth';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { Observable } from 'rxjs';
+import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
 
 @Component({
   selector: 'app-login-component',
@@ -24,11 +26,16 @@ export class LoginComponent implements OnInit {
   isLoading: boolean = false;
   showEmailVerificationModal: boolean = false;
 
+  // Observables para os estados do usuário
+  isAuthenticated$!: Observable<boolean>;
+  hasRequiredFields$!: Observable<boolean>;
+
   constructor(
     private router: Router,
     private errorNotificationService: ErrorNotificationService,
     public emailInputModalService: EmailInputModalService,
     public emailVerificationService: EmailVerificationService,
+    private firestoreService: FirestoreService,
     private loginservice: LoginService,
     private authService: AuthService,
     private formBuilder: FormBuilder
@@ -62,7 +69,7 @@ export class LoginComponent implements OnInit {
     return this.honeypot.length > 0;
   }
 
-  // Método de login
+ // Método de login
   async login(): Promise<void> {
     this.clearError();
 
@@ -148,8 +155,7 @@ export class LoginComponent implements OnInit {
     }
   }
 
-  // Efetua logout
-logout(): void {
-  this.authService.logout()
-}
+    logout(): void {
+      this.authService.logout()
+  }
 }

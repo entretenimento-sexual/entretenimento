@@ -6,7 +6,7 @@ import { ErrorNotificationService } from './error-notification.service';
 @Injectable({
   providedIn: 'root'
 })
-export class GlobalErrorHandler implements ErrorHandler {
+export class GlobalErrorHandlerService implements ErrorHandler {
   constructor(private injector: Injector) { }
 
   handleError(error: Error | HttpErrorResponse): void {
