@@ -28,6 +28,20 @@
   text-align: center;
 }
 
+.nickname-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;  /* Espaço entre os campos */
+}
+
+.nickname-field {
+  flex: 1;  /* Faz com que os campos ocupem o mesmo espaço */
+}
+
+.input-field {
+  width: 100%;  /* Faz o campo ocupar todo o espaço disponível dentro de .nickname-field */
+}
+
 /* Estilização para os links */
 .form-confirmation a {
   color: var(--primary-color);

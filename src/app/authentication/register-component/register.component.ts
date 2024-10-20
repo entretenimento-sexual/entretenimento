@@ -1,10 +1,10 @@
 // src\app\authentication\register-component\register.component.ts
-import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
 import { RegisterService } from 'src/app/core/services/autentication/register.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { AbstractControl, FormBuilder, FormGroup, ValidatorFn, Validators } from '@angular/forms';
 import { ValidatorService } from 'src/app/core/services/data-handling/validator.service';
 import { MatDialog } from '@angular/material/dialog';
 import { TermosECondicoesComponent } from 'src/app/footer/legal-footer/termos-e-condicoes/termos-e-condicoes.component';
@@ -17,12 +17,13 @@ import { TermosECondicoesComponent } from 'src/app/footer/legal-footer/termos-e-
 })
 
 export class RegisterComponent implements OnInit {
-  registerForm!: FormGroup; // O FormGroup é inicializado corretamente no ngOnInit
-  public formSubmitted: boolean = false;
-  public isLoading: boolean = false;
-  public isLockedOut: boolean = false;
-  private failedAttempts: number = 0;
-  private maxAttempts: number = 5;
+  // Inicializando propriedades com valores padrão
+  registerForm!: FormGroup; // Formulário de registro
+  public formSubmitted: boolean = false; // Verifica se o formulário foi enviado com sucesso
+  public isLoading: boolean = false; // Indica se o registro está em andamento
+  public isLockedOut: boolean = false; // Indica se o formulário está bloqueado por falhas
+  private failedAttempts: number = 0; // Contador de tentativas de registro com falhas
+  private maxAttempts: number = 5; // Número máximo de tentativas antes de bloquear
   private lockoutTime: number = 30000; // Tempo de bloqueio em milissegundos (30 segundos)
 
   constructor(
@@ -30,31 +31,94 @@ export class RegisterComponent implements OnInit {
     private registerService: RegisterService,
     private emailVerificationService: EmailVerificationService,
     private errorNotification: ErrorNotificationService,
-    private dialog: MatDialog
+    private dialog: MatDialog,
+    private cdr: ChangeDetectorRef
   ) { }
 
+  // Inicializa o formulário e monitora mudanças no valor dos campos
   ngOnInit(): void {
-    this.initForm();
-    this.registerForm.statusChanges.subscribe(status => {
-      console.log('Form status:', status); // Isso deve imprimir 'VALID' ou 'INVALID'
-      // Verifique o estado individual de cada campo
-      console.log('Nickname status:', this.registerForm.get('nickname')?.status);
-      console.log('Email status:', this.registerForm.get('email')?.status);
-      console.log('Password status:', this.registerForm.get('password')?.status);
-      console.log('Estado status:', this.registerForm.get('estado')?.status);
-      console.log('Municipio status:', this.registerForm.get('municipio')?.status);
-      console.log('Aceitar Termos status:', this.registerForm.get('aceitarTermos')?.status);
+    this.initForm(); // Inicializa o formulário
+    this.monitorFormChanges(); // Monitora as mudanças no formulário
+  }
+
+  private initForm(): void {
+    this.registerForm = this.formBuilder.group({
+      apelidoPrincipal: [
+        '',
+        [Validators.required, Validators.minLength(3), Validators.maxLength(12), this.nicknameValidator()]
+      ],
+      complementoApelido: ['', [Validators.maxLength(12), this.complementNicknameValidator()]],
+      email: ['', [Validators.required, ValidatorService.emailValidator()]],
+      password: ['', [Validators.required, ValidatorService.passwordValidator()]],
+      aceitarTermos: [false, Validators.requiredTrue]
     });
   }
 
-  // Inicializa o formulário no ngOnInit
-  private initForm(): void {
-    this.registerForm = this.formBuilder.group({
-      nickname: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(25)]],
-      email: ['', [Validators.required, ValidatorService.emailValidator()]],
-      password: ['', [Validators.required, ValidatorService.passwordValidator()]], // Validador de senha personalizado
-      aceitarTermos: [false, Validators.requiredTrue]
-    });
+  // Validador personalizado para o apelido
+  private nicknameValidator(): ValidatorFn {
+    return (control: AbstractControl): { [key: string]: any } | null => {
+      const nickname = control.value;
+      const nicknameRegex = /^[a-zA-Z0-9!@#$%^&*()_+\-=]{3,12}$/;
+      return nickname && !nicknameRegex.test(nickname) ? { 'invalidNickname': { value: nickname } } : null;
+    };
+  }
+
+  private complementNicknameValidator(): ValidatorFn {
+    return (control: AbstractControl): { [key: string]: any } | null => {
+      const complemento = control.value;
+      // Permitir letras, números e caracteres especiais, sem exigir tamanho mínimo
+      const nicknameRegex = /^[a-zA-Z0-9!@#$%^&*()_+\-=]{0,12}$/; // 0 a 12 caracteres válidos
+      return complemento && !nicknameRegex.test(complemento) ? { 'invalidNickname': { value: complemento } } : null;
+    };
+  }
+
+  // Monitora mudanças no apelido principal e verifica se já existe a partir do 4º caractere
+  private monitorFormChanges(): void {
+    const apelidoControl = this.registerForm.get('apelidoPrincipal');
+    const complementoApelidoControl = this.registerForm.get('complementoApelido');
+
+    // Monitorar alterações tanto no apelido principal quanto no complemento
+    const monitorApelidoChanges = () => {
+      const apelidoPrincipal = apelidoControl?.value || '';
+      const complementoApelido = complementoApelidoControl?.value || '';
+
+      // Verifica se o apelido principal tem pelo menos 4 caracteres
+      if (apelidoPrincipal.length >= 4) {
+        const nickname = `${apelidoPrincipal} ${complementoApelido}`.trim(); // Concatena apelido principal e complemento
+        console.log(`Verificando se o apelido completo "${nickname}" já existe...`);
+
+        this.registerService.checkIfNicknameExists(nickname).then(exists => {
+          if (exists) {
+            if (apelidoControl) {
+            apelidoControl.setErrors({ nicknameExists: true });
+            apelidoControl.markAsTouched();
+          }
+            console.log(`Apelido "${nickname}" já existe.`);
+          } else {
+            if (apelidoControl) {
+              apelidoControl.setErrors(null);
+            }
+
+            console.log(`Apelido "${nickname}" disponível.`);
+          }
+
+          this.cdr.markForCheck(); // Força a detecção de mudanças
+
+        }).catch(error => {
+          console.error('Erro ao verificar apelido:', error);
+          this.errorNotification.showError('Erro ao verificar apelido. Tente novamente mais tarde.');
+        });
+      } else {
+        if (apelidoControl) {
+          apelidoControl.setErrors(null); 
+        } // Limpa erros enquanto digita antes de atingir o limite de 4 caracteres
+        console.log('Apelido principal com menos de 4 caracteres. Limpa erros.');
+        this.cdr.markForCheck(); // Força a detecção de mudanças
+      }
+    };
+
+    apelidoControl?.valueChanges.subscribe(() => monitorApelidoChanges());
+    complementoApelidoControl?.valueChanges.subscribe(() => monitorApelidoChanges());
   }
 
   // Método chamado ao submeter o formulário
@@ -66,7 +130,9 @@ export class RegisterComponent implements OnInit {
       return;
     }
 
-    const { nickname, email, password } = this.registerForm.value;
+    const { apelidoPrincipal, complementoApelido, email, password } = this.registerForm.value;
+    const nickname = `${apelidoPrincipal} ${complementoApelido}`.trim(); // Junta o apelido principal e o complemento
+
     const userRegistrationData: IUserRegistrationData = {
       uid: '',
       email,
@@ -110,20 +176,6 @@ export class RegisterComponent implements OnInit {
     this.errorNotification.clearError();
   }
 
-  // Verifica se o apelido já está em uso e atualiza o estado do apelido
-  checkNickname(): void {
-    const nicknameControl = this.registerForm.get('nickname');
-    if (nicknameControl && nicknameControl.value.length >= 4 && nicknameControl.value.length <= 25) {
-      this.registerService.checkIfNicknameExists(nicknameControl.value).then(exists => {
-        if (exists) {
-          nicknameControl.setErrors({ nicknameInUse: true }); // Define o erro diretamente no controle
-        } else {
-          nicknameControl.setErrors(null); // Limpa o erro se o apelido não estiver em uso
-        }
-      });
-    }
-  }
-
   // Método para reenviar o e-mail de verificação
   async resendVerificationEmail(): Promise<void> {
     try {
@@ -161,17 +213,13 @@ export class RegisterComponent implements OnInit {
           this.errorNotification.showError('Problema de conexão. Verifique sua rede.');
           break;
         default:
-          // Exibe erro apenas se não for um erro já conhecido
-          if (!['Apelido já está em uso.', 'auth/email-already-in-use'].includes(error.message)) {
-            this.errorNotification.showError(`Erro desconhecido. Código: ${error.message}`);
-          }
+          this.errorNotification.showError(`Erro desconhecido. Código: ${error.message}`);
           break;
       }
     } else {
       this.errorNotification.showError('Erro inesperado. Tente novamente mais tarde.');
     }
   }
-
 
   // Bloqueia o formulário temporariamente após muitas tentativas falhas
   lockForm(): void {

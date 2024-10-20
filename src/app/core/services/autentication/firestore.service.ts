@@ -19,16 +19,20 @@ export class FirestoreService {
 
   // Verifica se um apelido já existe na coleção 'users'
   async checkIfNicknameExists(nickname: string): Promise<boolean> {
+    console.log(`Iniciando consulta ao Firestore para verificar o apelido: "${nickname}"`);
     try {
       const userCollection = collection(this.db, 'users');
-      const q = query(userCollection, where('nickname', '==', nickname));
+      const q = query(userCollection, where('nickname', '==', nickname)); // Comparação exata
       const querySnapshot = await getDocs(q);
-      return querySnapshot.size > 0;
+      const exists = querySnapshot.size > 0;
+      console.log(`Consulta completa: o apelido "${nickname}" ${exists ? 'já existe' : 'não existe'}.`);
+      return exists;
     } catch (error) {
-      console.error('Erro ao verificar a existência do apelido:', error);
+      console.error('Erro ao verificar a existência do apelido no Firestore:', error);
       throw error;
     }
   }
+
 
   // Verifica se um e-mail já existe na coleção 'users'
   async checkIfEmailExists(email: string): Promise<boolean> {

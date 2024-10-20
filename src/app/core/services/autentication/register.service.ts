@@ -21,8 +21,11 @@ export class RegisterService {
   ) { }
 
   // 1. Verifica se o apelido já existe no Firestore
-  checkIfNicknameExists(nickname: string): Promise<boolean> {
-    return this.firestoreService.checkIfNicknameExists(nickname);
+  async checkIfNicknameExists(nickname: string): Promise<boolean> {
+    console.log(`Consultando Firestore para verificar se o apelido "${nickname}" já existe...`);
+    const result = await this.firestoreService.checkIfNicknameExists(nickname);
+    console.log(`Resultado da verificação de apelido: ${result ? 'existe' : 'não existe'}`);
+    return result;
   }
 
   // 2. Verifica se o e-mail já está registrado no Firestore
@@ -43,8 +46,14 @@ export class RegisterService {
 
   // 4. Registro de novo usuário
   async registerUser(userRegistrationData: IUserRegistrationData, password: string): Promise<UserCredential> {
-    // 4.1. Verifica se o apelido já está em uso
-    const nicknameExists = await this.checkIfNicknameExists(userRegistrationData.nickname);
+    // Concatena o apelido principal e o complemento
+    const apelidoPrincipal = userRegistrationData.nickname.split(' ')[0];
+    const complementoApelido = userRegistrationData.nickname.split(' ').slice(1).join(' ') || '';
+
+    const nickname = `${apelidoPrincipal} ${complementoApelido}`.trim();
+
+    // Verifica se o apelido completo já está em uso
+    const nicknameExists = await this.checkIfNicknameExists(nickname);
     if (nicknameExists) {
       throw new Error('Apelido já está em uso.');
     }

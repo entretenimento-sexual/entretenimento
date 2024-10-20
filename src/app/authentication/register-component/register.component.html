@@ -3,29 +3,53 @@
   <div class="form-container">
     <h2 class="form-header">Cadastre-se</h2>
 
-    <!-- Exibir mensagens de erro -->
+    <!-- Exibir mensagens de erro gerais -->
     <div *ngIf="registerForm.errors && registerForm.errors['serverError']" class="alert alert-error">
       {{ registerForm.errors['serverError'] }}
     </div>
 
     <form [formGroup]="registerForm" (ngSubmit)="onRegister()" class="form">
+      <!-- Container dos apelidos com flexbox para ficar lado a lado -->
+      <div class="nickname-container">
+        <!-- Campo Apelido Principal -->
+        <div class="nickname-field">
+          <input type="text" formControlName="apelidoPrincipal" class="input-field"
+            placeholder="Apelido (3-12 caracteres)" />
+          <div *ngIf="registerForm.get('apelidoPrincipal')?.invalid && registerForm.get('apelidoPrincipal')?.touched"
+            class="alert alert-error">
+            <small *ngIf="registerForm.get('apelidoPrincipal')?.hasError('required')">Apelido principal é
+              obrigatório</small>
+            <small *ngIf="registerForm.get('apelidoPrincipal')?.hasError('minlength')">Apelido muito curto (mínimo de 3
+              caracteres)</small>
+            <small *ngIf="registerForm.get('apelidoPrincipal')?.hasError('maxlength')">Apelido muito longo (máximo de 12
+              caracteres)</small>
+            <small *ngIf="registerForm.get('apelidoPrincipal')?.hasError('invalidNickname')">Apelido contém caracteres
+              inválidos</small>
+            <small *ngIf="registerForm.get('apelidoPrincipal')?.hasError('nicknameExists')">Apelido já está em
+              uso</small>
+          </div>
+        </div>
 
-      <div *ngIf="registerForm.get('nickname')?.invalid && registerForm.get('nickname')?.touched" class="alert alert-error">
-        <small *ngIf="registerForm.get('nickname')?.hasError('required')">Apelido é obrigatório</small>
-        <small *ngIf="registerForm.get('nickname')?.hasError('minlength')">Apelido muito curto</small>
-        <small *ngIf="registerForm.get('nickname')?.hasError('maxlength')">Apelido muito longo</small>
-        <small *ngIf="registerForm.get('nickname')?.hasError('nicknameInUse')">Apelido já está em uso</small>
+        <!-- Campo Complemento do Apelido (opcional) -->
+        <div class="nickname-field">
+          <input type="text" formControlName="complementoApelido" class="input-field"
+            placeholder="Complemento (opcional)" />
+          <div
+            *ngIf="registerForm.get('complementoApelido')?.invalid && registerForm.get('complementoApelido')?.touched"
+            class="alert alert-error">
+            <small *ngIf="registerForm.get('complementoApelido')?.hasError('maxlength')">Complemento muito longo (máximo
+              de 12 caracteres)</small>
+            <small *ngIf="registerForm.get('complementoApelido')?.hasError('invalidNickname')">Complemento contém
+              caracteres inválidos</small>
+          </div>
+        </div>
       </div>
-      <input type="text" formControlName="nickname" class="input-field"
-      placeholder="Apelido de até 25 dígitos" (blur)="checkNickname()"/>
 
       <!-- Campo de Email -->
       <div *ngIf="registerForm.get('email')?.invalid && registerForm.get('email')?.touched" class="alert alert-error">
         <small>Email inválido</small>
       </div>
-
       <input type="email" formControlName="email" class="input-field" placeholder="Digite um e-mail válido" />
-
 
       <!-- Campo de Senha -->
       <input type="password" formControlName="password" class="input-field"
@@ -37,8 +61,8 @@
 
       <div class="form-confirmation">
         <input type="checkbox" formControlName="aceitarTermos" required />
-        <label>Eu li e aceito os <a (click)="openTermsDialog()">Termos de Uso</a> e a <a
-            href="/politica-de-privacidade" target="_blank">Política de Privacidade</a>.</label>
+        <label>Eu li e aceito os <a (click)="openTermsDialog()">Termos de Uso</a> e a <a href="/politica-de-privacidade"
+            target="_blank">Política de Privacidade</a>.</label>
       </div>
 
       <div class="button-container">
@@ -48,7 +72,6 @@
           <span *ngIf="isLockedOut">Bloqueado</span>
         </button>
       </div>
-
     </form>
 
     <!-- Exibir mensagem de sucesso ao submeter o formulário -->
