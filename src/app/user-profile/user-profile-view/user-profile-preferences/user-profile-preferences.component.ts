@@ -14,6 +14,7 @@ import { UserPreferencesService } from 'src/app/core/services/preferences/user-p
     styleUrls: ['./user-profile-preferences.component.css',]
 
   })
+  
 export class UserProfilePreferencesComponent {
   @Input() uid: string | null = null;
   public categoriasDePreferencias: any = {

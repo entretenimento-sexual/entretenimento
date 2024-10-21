@@ -1,3 +1,4 @@
+//src\app\user-profile\user-profile-view\user-profile-view.component.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { Subscription, Observable } from 'rxjs';
@@ -18,70 +19,72 @@ enum SidebarState { CLOSED, OPEN }
   templateUrl: './user-profile-view.component.html',
   styleUrls: ['./user-profile-view.component.css']
 })
-
 export class UserProfileViewComponent implements OnInit, OnDestroy {
 
-  private sidebarSubscription?: Subscription;
-  public isSidebarVisible = SidebarState.CLOSED;
-  public uid!: string | null;
-  public preferences: any;
-  public currentUser: IUserDados | null = null; // Armazena o usuário autenticado
+  private sidebarSubscription?: Subscription;  // Subscription para acompanhar o estado da sidebar
+  public isSidebarVisible = SidebarState.CLOSED;  // Estado atual da sidebar (aberta ou fechada)
+  public uid!: string | null;  // UID do usuário a ser carregado
+  public currentUser: IUserDados | null = null;  // Armazena o usuário autenticado
+  public preferences: any;  // Variável potencialmente usada para armazenar preferências (pode ser necessária)
 
   // Observable para armazenar o usuário carregado do Store
   public usuario$: Observable<IUserDados | null> = new Observable<IUserDados | null>();
 
   constructor(
-    private route: ActivatedRoute,
-    private authService: AuthService,
-    private sidebarService: SidebarService,
-    private store: Store<AppState> // Injeta o Store para acessar o estado global
+    private route: ActivatedRoute,  // Injeta para acessar parâmetros da rota
+    private authService: AuthService,  // Serviço de autenticação
+    private sidebarService: SidebarService,  // Serviço que gerencia o estado da sidebar
+    private store: Store<AppState>  // Store do NgRx para acessar o estado global
   ) { }
 
   ngOnInit(): void {
-    // Centralizar a assinatura do usuário autenticado
+    // Assina o observable do usuário autenticado
     this.authService.user$.pipe(
-      tap(user => this.currentUser = user) // Armazena o usuário autenticado
+      tap(user => {
+        this.currentUser = user;  // Armazena o usuário autenticado
+        console.log('Usuário autenticado:', this.currentUser);
+      })
     ).subscribe();
 
-    // Recupera o ID do usuário atual ou o ID da rota
+    // Recupera o UID da rota ou do usuário autenticado
     const routeUid = this.route.snapshot.paramMap.get('id');
-    this.uid = routeUid || this.currentUser?.uid || null; // Garante que 'this.uid' seja string | null
+    this.uid = routeUid || this.authService.getLoggedUserUID();  // Fallback para o UID do usuário autenticado
+    console.log('UID encontrado:', this.uid);
 
     if (this.uid) {
       // Dispara a ação para observar mudanças no usuário
+      console.log('Disparando ação observeUserChanges para UID:', this.uid);
       this.store.dispatch(observeUserChanges({ uid: this.uid }));
 
-      // Usa o Store para selecionar o usuário com base no UID
-      this.usuario$ = this.store.select(selectUserById(this.uid)).pipe(
+      // Atribui o observable de usuário ao this.usuario$
+      this.usuario$ = this.store.select(selectUserById(this.uid));
+
+      // Assina o observable para capturar o usuário
+      this.usuario$.pipe(
         tap(user => {
-          console.log('Usuário recuperado do Store:', user);
           if (user) {
+            console.log('Usuário recuperado do Store:', user);
+
             // Cria uma cópia do objeto e converte firstLogin se necessário
             let userCopy = { ...user };
-            if (userCopy.firstLogin) {
-              if (userCopy.firstLogin instanceof Timestamp) {
-                console.log('Convertendo firstLogin de Timestamp para Date');
-                userCopy.firstLogin = userCopy.firstLogin.toDate();
-              } else if (typeof userCopy.firstLogin === 'string' || userCopy.firstLogin instanceof Date) {
-                console.log('firstLogin já é uma Date ou string válida');
-              } else {
-                console.error('Formato inválido para firstLogin:', userCopy.firstLogin);
-              }
-            } else {
-              console.log('firstLogin não está definido');
+            if (user.firstLogin && user.firstLogin instanceof Timestamp) {
+              console.log('Convertendo firstLogin de Timestamp para Date');
+              user.firstLogin = user.firstLogin.toDate();
             }
 
             // Define o estado da Sidebar com base no estado armazenado
             this.isSidebarVisible = userCopy.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
             console.log('Estado da Sidebar definido para:', this.isSidebarVisible);
+          } else {
+            console.log('Usuário não encontrado no Store para UID:', this.uid);
           }
         })
-      );
+      ).subscribe(); // Assinatura para consumir o Observable
     } else {
-      console.error('UserID é undefined');
+      console.error('Nenhum UID encontrado, não foi possível carregar o perfil do usuário.');
     }
 
-    // Iniciar a assinatura para a visibilidade da sidebar
+    // Assina o estado da sidebar para alterar sua visibilidade conforme necessário
     this.sidebarSubscription = this.sidebarService.isSidebarVisible$.subscribe(
       isVisible => {
         this.isSidebarVisible = isVisible ? SidebarState.OPEN : SidebarState.CLOSED;
@@ -90,10 +93,12 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     );
   }
 
+  // Obtém as chaves de um objeto (potencialmente para preferências, se necessário)
   objectKeys(obj: any): string[] {
     return Object.keys(obj).filter(key => obj[key] && obj[key].value);
   }
 
+  // Verifica se o gênero do usuário indica um casal
   isCouple(gender: string | undefined): boolean {
     if (!gender) {
       return false;
@@ -101,6 +106,7 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     return ['casal-ele-ele', 'casal-ele-ela', 'casal-ela-ela'].includes(gender);
   }
 
+  // Retorna a descrição do casal com base no gênero e orientações dos parceiros
   getCoupleDescription(gender: string | undefined, partner1Orientation: string | undefined, partner2Orientation: string | undefined): string {
     if (gender === 'casal-ele-ele') {
       return `Ele ${this.getOrientationDescription(partner1Orientation)} / Ele ${this.getOrientationDescription(partner2Orientation)}`;
@@ -113,6 +119,7 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Retorna a descrição da orientação do usuário (ex.: bissexual, homossexual)
   getOrientationDescription(orientation: string | undefined): string {
     switch (orientation) {
       case 'bissexual':
@@ -128,11 +135,13 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     }
   }
 
+    // Verifica se o perfil exibido pertence ao próprio usuário
   isOnOwnProfile(): boolean {
-    return this.currentUser?.uid === this.uid; // Evita a necessidade de múltiplas assinaturas
+    return this.currentUser?.uid === this.uid;  // Evita múltiplas assinaturas desnecessárias
   }
 
+  // Executa a lógica de destruição do componente, desinscrevendo-se de observables
   ngOnDestroy(): void {
-    this.sidebarSubscription?.unsubscribe(); // Desinscrever-se corretamente
+    this.sidebarSubscription?.unsubscribe();  // Desinscrever-se corretamente
   }
 }

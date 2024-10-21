@@ -34,6 +34,10 @@ export const userReducer = createReducer(
    */
   on(loadUsersSuccess, (state, { users }) => {
     console.log('Usuários carregados com sucesso e armazenados no estado:', users);
+
+    // Atualiza a lista de usuários, mantendo os usuários já existentes no estado e combinando com os novos
+    const updatedUsers = [...state.users, ...users.filter(user => !state.users.some(existingUser => existingUser.uid === user.uid))];
+
     return {
       ...state,
       users,  // Atualiza a lista de usuários no estado

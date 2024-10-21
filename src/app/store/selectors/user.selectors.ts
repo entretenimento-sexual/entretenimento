@@ -3,7 +3,6 @@ import { createSelector } from '@ngrx/store';
 import { AppState } from '../states/app.state';
 import { IUserState } from '../states/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { selectAuthenticatedUser, selectIsAuthenticated, selectHasRequiredFields } from './auth.selectors'; // Importe os seletores
 
 // Seletor para obter o estado do usuário
 export const selectUserState = (state: AppState): IUserState => state.user;
@@ -14,28 +13,17 @@ export const selectAllUsers = createSelector(
   (state: IUserState): IUserDados[] => state?.users || []
 );
 
-// Seletor para obter o usuário pelo UID
+// Seletor para obter um usuário pelo UID (memoizado para evitar recomputação desnecessária)
 export const selectUserById = (uid: string) =>
-  createSelector(selectAllUsers, (users: IUserDados[]) => users.find(user => user.uid === uid) || null);
-
-// Seletor para verificar se o usuário tem acesso básico
-export const selectHasBasicAccess = createSelector(
-  selectAllUsers,
-  (users: IUserDados[]) => users.some(user => ['basico', 'premium', 'vip'].includes(user.role))
-);
-
-// Seletor para verificar se o usuário tem acesso premium
-export const selectHasPremiumAccess = createSelector(
-  selectAllUsers,
-  (users: IUserDados[]) => users.some(user => ['premium', 'vip'].includes(user.role))
-);
-
-// Seletor para verificar se o usuário tem acesso VIP
-export const selectHasVipAccess = createSelector(
-  selectAllUsers,
-  (users: IUserDados[]) => users.some(user => user.role === 'vip')
-);
-
+  createSelector(
+    selectAllUsers,
+    (users: IUserDados[]) => {
+      const foundUser = users.find(user => user.uid === uid) || null;
+      console.log(`Buscando usuário no seletor pelo UID ${uid}:`, foundUser);
+      return foundUser;
+    }
+  );
+  
 // Seletor para obter todos os usuários online
 export const selectAllOnlineUsers = createSelector(
   selectAllUsers,

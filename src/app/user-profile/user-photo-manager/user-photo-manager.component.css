@@ -1,35 +1,65 @@
 /* src\app\user-profile\user-photo-manager\user-photo-manager.component.css */
 .photo-manager {
   text-align: center;
+  margin-top: 20px;
 }
 
 .photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+  padding: 20px;
 }
 
 .photo-item {
   position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease;
 }
 
-.photo-item img {
+.photo-item:hover {
+  transform: scale(1.05);
+}
+
+.photo-wrapper {
+  position: relative;
+  overflow: hidden;
+}
+
+.user-photo {
   width: 100%;
   height: auto;
   display: block;
+  transition: transform 0.3s ease;
+}
+
+.photo-item:hover .user-photo {
+  transform: scale(1.1);
 }
 
 .delete-button {
   position: absolute;
-  top: 5px;
-  right: 5px;
-  background-color: red;
+  top: 10px;
+  right: 10px;
+  background-color: rgba(255, 0, 0, 0.7);
   color: white;
   border: none;
-  padding: 5px;
+  padding: 8px;
+  border-radius: 50%;
   cursor: pointer;
+  transition: background-color 0.3s ease, transform 0.2s ease;
 }
 
 .delete-button:hover {
-  background-color: darkred;
+  background-color: rgba(255, 0, 0, 1);
+  transform: scale(1.2);
+}
+
+@media (max-width: 600px) {
+  .photo-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 15px;
+  }
 }
