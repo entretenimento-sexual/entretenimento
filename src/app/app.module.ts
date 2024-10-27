@@ -28,6 +28,7 @@ import { AngularPinturaModule } from '@pqina/angular-pintura';
 import { userReducer } from './store/reducers/user.reducer';
 import { UserEffects } from './store/effects/user.effects';
 import { AppStoreModule } from './store/store.module';
+import { AuthEffects } from './store/effects/auth.effects';
 
 @NgModule({
   declarations: [AppComponent],
@@ -52,6 +53,7 @@ import { AppStoreModule } from './store/store.module';
     AngularFireModule,
     AngularPinturaModule, StoreDevtoolsModule.instrument({ maxAge: 25, logOnly: !isDevMode() }),
     StoreModule.forRoot({ user: userReducer }),
+    EffectsModule.forRoot([AuthEffects]),
     EffectsModule.forRoot([UserEffects]),
     AppStoreModule,
 

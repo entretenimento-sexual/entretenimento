@@ -18,7 +18,12 @@
             <p>{{ usuario.gender | capitalize }} {{ usuario.orientation }}</p>
           </ng-template>
           <p>{{ usuario.municipio }}, {{ usuario.estado }}</p>
-          <p class="ajuste">Perfil criado em {{ usuario.firstLogin | dateFormat }}</p>
+
+
+        <p>Perfil criado em: {{ formatFirstLoginDate() }}</p>
+
+
+
 
           <!-- Seção de Sobre Mim e Redes Sociais -->
           <div class="category-container">

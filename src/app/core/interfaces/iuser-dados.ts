@@ -14,7 +14,7 @@ export interface IUserDados {
   idade?: number; // Idade do usuário
   role: 'visitante' |'free' | 'basico' | 'premium' | 'vip';
   lastLoginDate: Timestamp; // Data do último login
-  firstLogin?: Timestamp | Date;
+  firstLogin: Timestamp | Date | null;
   emailVerified?: string;
   gender?: string;
   orientation?: string; // Orientação sexual

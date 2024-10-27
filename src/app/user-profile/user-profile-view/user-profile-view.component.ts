@@ -11,6 +11,7 @@ import { selectUserById } from 'src/app/store/selectors/user.selectors';
 import { observeUserChanges } from 'src/app/store/actions/user.actions';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Timestamp } from 'firebase/firestore';
+import { formatDate } from '@angular/common';
 
 enum SidebarState { CLOSED, OPEN }
 
@@ -38,59 +39,49 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit(): void {
-    // Assina o observable do usuário autenticado
     this.authService.user$.pipe(
       tap(user => {
-        this.currentUser = user;  // Armazena o usuário autenticado
-        console.log('Usuário autenticado:', this.currentUser);
+        this.currentUser = user;
       })
     ).subscribe();
 
-    // Recupera o UID da rota ou do usuário autenticado
     const routeUid = this.route.snapshot.paramMap.get('id');
-    this.uid = routeUid || this.authService.getLoggedUserUID();  // Fallback para o UID do usuário autenticado
-    console.log('UID encontrado:', this.uid);
+    this.uid = routeUid || this.authService.getLoggedUserUID();
 
     if (this.uid) {
-      // Dispara a ação para observar mudanças no usuário
-      console.log('Disparando ação observeUserChanges para UID:', this.uid);
       this.store.dispatch(observeUserChanges({ uid: this.uid }));
-
-      // Atribui o observable de usuário ao this.usuario$
       this.usuario$ = this.store.select(selectUserById(this.uid));
 
-      // Assina o observable para capturar o usuário
       this.usuario$.pipe(
         tap(user => {
           if (user) {
-            console.log('Usuário recuperado do Store:', user);
-
-            // Cria uma cópia do objeto e converte firstLogin se necessário
-            let userCopy = { ...user };
-            if (user.firstLogin && user.firstLogin instanceof Timestamp) {
-              console.log('Convertendo firstLogin de Timestamp para Date');
-              user.firstLogin = user.firstLogin.toDate();
-            }
-
-            // Define o estado da Sidebar com base no estado armazenado
-            this.isSidebarVisible = userCopy.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
-            console.log('Estado da Sidebar definido para:', this.isSidebarVisible);
-          } else {
-            console.log('Usuário não encontrado no Store para UID:', this.uid);
+            this.currentUser = user;
+            this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
           }
         })
-      ).subscribe(); // Assinatura para consumir o Observable
-    } else {
-      console.error('Nenhum UID encontrado, não foi possível carregar o perfil do usuário.');
+      ).subscribe();
     }
 
-    // Assina o estado da sidebar para alterar sua visibilidade conforme necessário
     this.sidebarSubscription = this.sidebarService.isSidebarVisible$.subscribe(
       isVisible => {
         this.isSidebarVisible = isVisible ? SidebarState.OPEN : SidebarState.CLOSED;
-        console.log('Visibilidade da Sidebar atualizada para:', isVisible ? 'Aberta' : 'Fechada');
       }
     );
+  }
+
+  // Formata a data usando a função formatDate do Angular
+  public formatFirstLoginDate(): string {
+    if (!this.currentUser?.firstLogin) {
+      return 'Data inválida';
+    }
+
+    // Verifique se é um Timestamp e converta para Date
+    const date = this.currentUser.firstLogin instanceof Timestamp
+      ? this.currentUser.firstLogin.toDate()
+      : this.currentUser.firstLogin;
+
+    // Agora utilize o formatDate do Angular
+    return formatDate(date, 'dd/MM/yyyy HH:mm', 'pt-BR');
   }
 
   // Obtém as chaves de um objeto (potencialmente para preferências, se necessário)

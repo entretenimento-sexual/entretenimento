@@ -1,7 +1,6 @@
-// src\app\core\services\autentication\login.service.ts
+// src/app/core/services/autentication/login.service.ts
 import { Injectable } from '@angular/core';
-import { from, Observable, of, first } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { first } from 'rxjs';
 import {
   getAuth, signInWithEmailAndPassword, sendPasswordResetEmail,
   confirmPasswordReset, setPersistence, browserLocalPersistence,
@@ -10,8 +9,11 @@ import {
 import { Router } from '@angular/router';
 import { UsuarioService } from '../usuario.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { AuthService } from './auth.service';  // Importa o AuthService para manipular estado global
+import { AuthService } from './auth.service';
+import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { ErrorNotificationService } from '../error-handler/error-notification.service';
 
+// Inicializa o objeto de autenticação do Firebase
 const auth = getAuth();
 
 @Injectable({
@@ -22,11 +24,12 @@ export class LoginService {
   constructor(
     private router: Router,
     private usuarioService: UsuarioService,
-    private authService: AuthService  // Usa o AuthService para atualizar o estado do usuário
+    private authService: AuthService,
+    private globalErrorHandler: GlobalErrorHandlerService,  // Tratamento de erros globais
+    private errorNotification: ErrorNotificationService     // Serviço de notificação de erro
   ) { }
 
-  // Login de usuário
-  async login(email: string, password: string): Promise<{ success: boolean, emailVerified?: boolean }> {
+  async login(email: string, password: string): Promise<{ success: boolean, emailVerified?: boolean, user?: IUserDados }> {
     console.log(`Tentativa de login para o email: ${email}`);
     try {
       await setPersistence(auth, browserLocalPersistence);
@@ -36,36 +39,40 @@ export class LoginService {
       if (user) {
         console.log('Login bem-sucedido:', user.uid);
         const userData = await this.usuarioService.getUsuario(user.uid).pipe(first()).toPromise();
+
         if (userData) {
-          this.authService.setCurrentUser(userData);  // Atualiza o estado do usuário
+          this.authService.setCurrentUser(userData);
           console.log('Dados do usuário carregados após login:', userData);
 
-          // Verifica se o cadastro está completo
           if (!userData.nickname || !userData.gender) {
             this.router.navigate(['/finalizar-cadastro']);
-          } else if (!userData.emailVerified) {
-            return { success: true, emailVerified: false };  // Exibe modal de verificação
+          } else if (!user.emailVerified) {
+            return { success: true, emailVerified: false, user: userData };
           } else {
             this.router.navigate([`/perfil/${user.uid}`]);
           }
+          return { success: true, emailVerified: user.emailVerified, user: userData };
         } else {
           console.log('Dados do usuário não encontrados no Firestore após login.');
-          this.authService.clearCurrentUser();  // Limpa o estado se os dados do usuário não forem encontrados
+          this.authService.clearCurrentUser();
+          this.errorNotification.showError('Usuário não encontrado no sistema.');
         }
-        return { success: true };  // Login bem-sucedido
+        return { success: true };
       } else {
         console.error('Falha no login: usuário não retornado.');
-        this.authService.clearCurrentUser();  // Limpa o estado em caso de falha
+        this.authService.clearCurrentUser();
+        this.errorNotification.showError('Credenciais inválidas.');
         return { success: false };
       }
     } catch (error) {
       console.error('Erro ao fazer login:', error);
-      this.authService.clearCurrentUser();  // Limpa o estado em caso de erro
+      this.globalErrorHandler.handleError(error as Error);  // Converte para tipo Error
+      this.errorNotification.showError('Erro ao realizar login. Tente novamente.');
+      this.authService.clearCurrentUser();
       return { success: false };
     }
   }
 
-  // Envia o e-mail de recuperação de senha
   async sendPasswordResetEmail(email: string): Promise<void> {
     console.log('Enviando e-mail de recuperação de senha para:', email);
     try {
@@ -73,11 +80,12 @@ export class LoginService {
       console.log('E-mail de recuperação enviado.');
     } catch (error) {
       console.error('Erro ao enviar e-mail de recuperação:', error);
+      this.globalErrorHandler.handleError(error as Error);
+      this.errorNotification.showError('Erro ao enviar o e-mail de recuperação. Tente novamente.');
       throw error;
     }
   }
 
-  // Confirma a redefinição de senha
   async confirmPasswordReset(oobCode: string, newPassword: string): Promise<void> {
     console.log('Confirmando redefinição de senha com oobCode:', oobCode);
     try {
@@ -85,22 +93,24 @@ export class LoginService {
       console.log('Senha redefinida com sucesso.');
     } catch (error) {
       console.error('Erro ao redefinir a senha:', error);
+      this.globalErrorHandler.handleError(error as Error);
+      this.errorNotification.showError('Erro ao redefinir a senha. Tente novamente.');
       throw error;
     }
   }
 
-  // Define a persistência da sessão
   async setSessionPersistence(persistence: Persistence): Promise<void> {
     try {
       await setPersistence(auth, persistence);
       console.log('Persistência de sessão definida.');
     } catch (error) {
       console.error('Erro ao definir persistência de sessão:', error);
+      this.globalErrorHandler.handleError(error as Error);
+      this.errorNotification.showError('Erro ao definir a persistência de sessão.');
       throw error;
     }
   }
 
-  // Reautenticação do usuário
   async reauthenticateUser(password: string): Promise<void> {
     const user = auth.currentUser;
     if (user && user.email) {
@@ -110,6 +120,8 @@ export class LoginService {
         console.log('Reautenticação bem-sucedida.');
       } catch (error) {
         console.error('Erro ao reautenticar usuário:', error);
+        this.globalErrorHandler.handleError(error as Error);
+        this.errorNotification.showError('Erro ao reautenticar o usuário. Verifique a senha e tente novamente.');
         throw error;
       }
     } else {

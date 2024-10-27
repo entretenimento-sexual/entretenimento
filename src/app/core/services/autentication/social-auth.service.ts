@@ -30,6 +30,7 @@ export class SocialAuthService {
           photoURL: user.photoURL,
           role: dadosFirestore?.role || 'free',
           lastLoginDate: Timestamp.fromDate(new Date()),
+          firstLogin: dadosFirestore?.firstLogin || Timestamp.fromDate(new Date()),
           descricao: '',   // Valor padrão ou nulo
           facebook: '',    // Valor padrão ou nulo
           instagram: '',   // Valor padrão ou nulo
@@ -82,7 +83,7 @@ export class SocialAuthService {
         userData.firstLogin = Timestamp.fromDate(new Date());
       } else {
         if (docSnap.data() && 'firstLogin' in docSnap.data()) {
-          delete userData.firstLogin;
+
         }
       }
 
