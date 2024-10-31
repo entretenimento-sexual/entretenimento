@@ -1,10 +1,10 @@
 // effects/user/user-role.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { updateUserRole, updateUserRoleSuccess, updateUserRoleFailure } from '../actions/user-role.actions';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { catchError, map, mergeMap } from 'rxjs/operators';
 import { of } from 'rxjs';
+import { updateUserRole, updateUserRoleSuccess, updateUserRoleFailure } from '../../actions/actions.user/user-role.actions';
 
 @Injectable()
 export class UserRoleEffects {

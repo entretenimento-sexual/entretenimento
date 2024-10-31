@@ -17,14 +17,9 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { Observable, firstValueFrom, lastValueFrom } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
-import {
-  selectFileDownloadUrl,
-  selectFileError,
-  selectFileSuccess,
-  selectFileUploading
-} from 'src/app/store/selectors/file.selectors';
-import { uploadStart } from 'src/app/store/actions/file.actions';
+import { uploadStart } from 'src/app/store/actions/actions.user/file.actions';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { selectFileDownloadUrl, selectFileError, selectFileSuccess, selectFileUploading } from 'src/app/store/selectors/selectors.user/file.selectors';
 
 @Component({
   selector: 'app-photo-editor',

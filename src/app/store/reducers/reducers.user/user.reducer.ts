@@ -1,18 +1,8 @@
 // src/app/store/reducers/user.reducer.ts
 import { createReducer, on } from '@ngrx/store';
-import {
-  loadUsers,
-  loadUsersSuccess,
-  loadUsersFailure,
-  setCurrentUser,
-  clearCurrentUser,
-  loadOnlineUsersSuccess,
-  setFilteredOnlineUsers
-} from '../actions/user.actions';
-import { loginSuccess } from '../actions/auth.actions';
-import { updateUserOnlineStatus } from '../actions/user-status.actions';
-import { initialUserState } from '../states/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { loadUsers, loadUsersSuccess, loadUsersFailure, updateUserOnlineStatus, loadOnlineUsersSuccess, setFilteredOnlineUsers, setCurrentUser, clearCurrentUser } from '../../actions/actions.user/user.actions';
+import { initialUserState } from '../../states/states.user/user.state';
 
 
 export const userReducer = createReducer(

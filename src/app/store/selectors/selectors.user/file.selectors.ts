@@ -1,7 +1,9 @@
 //src\app\store\selectors\file.selectors.ts
 import { createSelector } from '@ngrx/store';
-import { AppState } from '../states/app.state';
-import { FileState } from '../reducers/file.reducer';
+import { AppState } from '../../states/app.state';
+import { FileState } from '../../states/states.user/file.state';
+
+
 
 // Seleciona a parte de 'file' do AppState corretamente
 export const selectFileState = (state: AppState): FileState => state.file;

@@ -1,15 +1,15 @@
 // effects/online-users/online-users.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { loadOnlineUsers, loadOnlineUsersSuccess, loadOnlineUsersFailure, setFilteredOnlineUsers } from '../actions/user.actions';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { catchError, map, mergeMap, withLatestFrom } from 'rxjs/operators';
 import { of } from 'rxjs';
+import { loadOnlineUsers, loadOnlineUsersSuccess, loadOnlineUsersFailure, setFilteredOnlineUsers } from '../../actions/actions.user/user.actions';
 
 @Injectable()
 export class OnlineUsersEffects {
-  
+
   // Efeito que carrega usuários online
   loadOnlineUsers$ = createEffect(() =>
     this.actions$.pipe(

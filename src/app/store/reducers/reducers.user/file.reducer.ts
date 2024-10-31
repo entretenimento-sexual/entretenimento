@@ -1,6 +1,7 @@
 //src\app\store\reducers\file.reducer.ts
 import { createReducer, on } from '@ngrx/store';
-import { uploadStart, uploadSuccess, uploadError, uploadProgress } from '../actions/file.actions';
+import { uploadError, uploadProgress, uploadStart, uploadSuccess } from '../../actions/actions.user/file.actions';
+
 
 export interface FileState {
   uploading: boolean;

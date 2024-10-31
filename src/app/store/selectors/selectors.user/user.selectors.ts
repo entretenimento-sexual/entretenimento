@@ -1,7 +1,7 @@
 // src/app/store/selectors/user.selectors.ts
 import { createSelector } from '@ngrx/store';
-import { AppState } from '../states/app.state';
-import { IUserState } from '../states/user.state';
+import { AppState } from '../../states/app.state';
+import { IUserState } from '../../states/states.user/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 // Seletor para obter o estado do usuário
@@ -23,7 +23,7 @@ export const selectUserById = (uid: string) =>
       return foundUser;
     }
   );
-  
+
 // Seletor para obter todos os usuários online
 export const selectAllOnlineUsers = createSelector(
   selectAllUsers,

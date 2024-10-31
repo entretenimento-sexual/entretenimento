@@ -9,7 +9,7 @@ import { ErrorNotificationService } from '../error-handler/error-notification.se
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { Store } from '@ngrx/store';
 import { AppState } from '../../../store/states/app.state';
-import { loginSuccess, logoutSuccess } from '../../../store/actions/auth.actions';
+import { loginSuccess, logoutSuccess } from '../../../store/actions/actions.user/auth.actions';
 import { Router } from '@angular/router';
 
 const auth = getAuth();

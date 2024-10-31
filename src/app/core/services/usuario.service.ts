@@ -1,12 +1,15 @@
 // src\app\core\services\usuario.service.ts
 import { Injectable } from '@angular/core';
-import { Observable, catchError, from, map, of, throwError } from 'rxjs';
+import { Observable, catchError, from, map, of, switchMap, throwError } from 'rxjs';
 import { IUserDados } from '../interfaces/iuser-dados';
 import { FirestoreService } from './autentication/firestore.service';
 import { collection, onSnapshot, query, Timestamp, where } from '@firebase/firestore';
 import { User } from 'firebase/auth';
 import { UserProfileService } from './user-profile/user-profile.service';
 import { EmailVerificationService } from './autentication/email-verification.service';
+import { Store } from '@ngrx/store';
+import { AppState } from 'src/app/store/states/app.state';
+import { selectUserById } from 'src/app/store/selectors/selectors.user/user.selectors';
 
 @Injectable({
   providedIn: 'root'
@@ -16,6 +19,7 @@ export class UsuarioService {
     private firestoreService: FirestoreService,
     private userProfileService: UserProfileService,
     private emailVerificationService: EmailVerificationService,
+    private store: Store<AppState>
   ) { }
 
   // Método para mapear um usuário do Firebase (User) para o formato da interface IUserDados
@@ -71,15 +75,29 @@ export class UsuarioService {
 
   // Obtém um usuário específico pelo UID
   getUsuario(uid: string): Observable<IUserDados | null> {
-    console.log('Buscando usuário no Firestore com UID:', uid);
-    return from(this.userProfileService.getUserById(uid)).pipe(
-      map(user => user as IUserDados | null),
-      catchError((error) => {
-        console.error('Erro ao buscar usuário:', error);
-        return of(null);
+    console.log('Iniciando busca do usuário com UID:', uid);
+    return this.store.select(selectUserById(uid)).pipe(
+      switchMap(existingUser => {
+        if (existingUser) {
+          console.log('Usuário encontrado no estado:', existingUser);
+          return of(existingUser);
+        } else {
+          console.log('Usuário não encontrado no estado, buscando no userProfileService...');
+          return from(this.userProfileService.getUserById(uid)).pipe(
+            map(user => {
+              console.log('Usuário recuperado do userProfileService:', user);
+              return user;
+            }),
+            catchError(error => {
+              console.error('Erro ao buscar usuário no userProfileService:', error);
+              return of(null);
+            })
+          );
+        }
       })
     );
   }
+
 
   // Atualiza o papel (role) de um usuário no Firestore
   updateUserRole(uid: string, newRole: string): Observable<void> {

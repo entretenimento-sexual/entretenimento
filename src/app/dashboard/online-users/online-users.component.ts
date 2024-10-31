@@ -5,12 +5,12 @@ import { catchError, map } from 'rxjs/operators';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Store, select } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
-import { loadOnlineUsers } from 'src/app/store/actions/user.actions';
-import { selectAllOnlineUsers } from 'src/app/store/selectors/user.selectors';
+import { loadOnlineUsers } from 'src/app/store/actions/actions.user/user.actions';
+import { selectAllOnlineUsers } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { GeolocationService } from 'src/app/core/services/geolocation/geolocation.service';
 import { DistanceCalculationService } from 'src/app/core/services/geolocation/distance-calculation.service';
-import { selectLoadingOnlineUsers } from 'src/app/store/selectors/online-users.selectors';
+import { selectLoadingOnlineUsers } from 'src/app/store/selectors/selectors.user/online-users.selectors';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 

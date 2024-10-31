@@ -1,10 +1,11 @@
 // effects/user-status/user-status.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { updateUserOnlineStatus, updateUserOnlineStatusSuccess, updateUserOnlineStatusFailure } from '../actions/user-status.actions';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { catchError, map, mergeMap, throttleTime } from 'rxjs/operators';
 import { of } from 'rxjs';
+import { updateUserOnlineStatusSuccess, updateUserOnlineStatusFailure } from '../../actions/actions.user/user-status.actions';
+import { updateUserOnlineStatus } from '../../actions/actions.user/user.actions';
 
 @Injectable()
 export class UserStatusEffects {

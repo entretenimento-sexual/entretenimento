@@ -1,7 +1,7 @@
 // src/app/store/reducers/auth.reducer.ts
 import { createReducer, on } from '@ngrx/store';
-import { loginSuccess, logoutSuccess } from '../actions/auth.actions';
-import { IUserState } from '../states/user.state';
+import { IUserState } from '../../states/states.user/user.state';
+import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.actions';
 
 export const initialAuthState: IUserState = {
   users: [],

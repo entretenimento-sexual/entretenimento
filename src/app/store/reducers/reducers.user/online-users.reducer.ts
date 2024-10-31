@@ -1,7 +1,7 @@
 // src/app/store/reducers/online-users.reducer.ts
 import { createReducer, on } from '@ngrx/store';
-import { loadOnlineUsersSuccess, updateUserOnlineStatus, setFilteredOnlineUsers } from '../actions/user.actions';
-import { IUserState } from '../states/user.state';
+import { IUserState } from '../../states/states.user/user.state';
+import { loadOnlineUsersSuccess, updateUserOnlineStatus, setFilteredOnlineUsers } from '../../actions/actions.user/user.actions';
 
 const initialOnlineUsersState: IUserState = {
   users: [],

@@ -2,8 +2,8 @@
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
-import { login, loginSuccess, loginFailure } from '../actions/auth.actions';
-import { catchError, map, of, switchMap } from 'rxjs';
+import { switchMap } from 'rxjs';
+import { login, loginFailure, loginSuccess } from '../../actions/actions.user/auth.actions';
 
 @Injectable()
 export class AuthEffects {

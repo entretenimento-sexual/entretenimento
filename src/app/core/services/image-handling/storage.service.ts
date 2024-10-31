@@ -7,7 +7,7 @@ import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 import { Store } from '@ngrx/store';
-import { uploadStart, uploadSuccess, uploadError, uploadProgress } from '../../../store/actions/file.actions';
+import { uploadStart, uploadSuccess, uploadError, uploadProgress } from '../../../store/actions/actions.user/file.actions';
 import { AppState } from 'src/app/store/states/app.state';
 
 @Injectable({

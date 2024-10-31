@@ -1,8 +1,7 @@
-//src\app\chat-module\invite-list\invite-list.component.ts
+// src\app\chat-module\invite-list\invite-list.component.ts
 import { Component, OnInit } from '@angular/core';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 import { InviteService } from 'src/app/core/services/batepapo/invite.service';
-
 
 @Component({
   selector: 'app-invite-list',
@@ -19,10 +18,10 @@ export class InviteListComponent implements OnInit {
   }
 
   loadInvites() {
-    // Supondo que você tenha uma maneira de obter o ID do usuário atual
     const userId = 'ID_DO_USUÁRIO_ATUAL';
-    this.inviteService.getInvitesByUser(userId).subscribe(invites => {
+    this.inviteService.getInvites(userId).subscribe((invites: Invite[]) => {
       this.invites = invites;
+      console.log('Convites carregados:', invites);
     });
   }
 
@@ -33,7 +32,6 @@ export class InviteListComponent implements OnInit {
     }
     this.inviteService.updateInviteStatus(inviteId, 'accepted').then(() => {
       console.log('Convite aceito com sucesso.');
-      // Aqui você pode adicionar o usuário à lista de participantes da sala no Firestore
     }).catch(error => {
       console.error('Erro ao aceitar o convite:', error);
     });
@@ -41,7 +39,7 @@ export class InviteListComponent implements OnInit {
 
   declineInvite(inviteId: string | undefined) {
     if (!inviteId) {
-      console.error('Erro: inviteId é undefined.')
+      console.error('Erro: inviteId é undefined.');
       return;
     }
     this.inviteService.updateInviteStatus(inviteId, 'declined').then(() => {

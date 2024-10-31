@@ -1,7 +1,7 @@
 //src\app\store\selectors\online-users.selectors.ts
 import { createSelector } from '@ngrx/store';
-import { AppState } from '../states/app.state';
-import { IUserState } from '../states/user.state';
+import { AppState } from '../../states/app.state';
+import { IUserState } from '../../states/states.user/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 export const selectUserState = (state: AppState): IUserState => state.user;
