@@ -21,7 +21,7 @@ export class UserPhotoManagerComponent implements OnInit {
               private errorHandler: GlobalErrorHandlerService) { }
 
   ngOnInit(): void {
-    this.authService.getUserAuthenticated().subscribe(user => {
+    this.authService.user$.subscribe(user => {
       if (user && user.uid) {
         this.userId = user.uid;
         this.loadUserPhotos();

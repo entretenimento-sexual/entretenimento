@@ -60,7 +60,7 @@ export class ChatModuleLayoutComponent implements OnInit {
     }
 
     // Acessar o usuário autenticado via observable
-    this.authService.getUserAuthenticated().subscribe(currentUser => {
+    this.authService.user$.subscribe(currentUser => {
       const senderId = currentUser?.uid;
       if (!senderId) {
         console.error('Erro: Usuário não autenticado.');

@@ -20,6 +20,7 @@ import { AppState } from 'src/app/store/states/app.state';
 import { uploadStart } from 'src/app/store/actions/actions.user/file.actions';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { selectFileDownloadUrl, selectFileError, selectFileSuccess, selectFileUploading } from 'src/app/store/selectors/selectors.user/file.selectors';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 @Component({
   selector: 'app-photo-editor',
@@ -60,8 +61,8 @@ export class PhotoEditorComponent implements OnInit {
 
   ngOnInit(): void {
     // Obtém o usuário autenticado
-    this.authService.getUserAuthenticated().subscribe(
-      user => {
+    this.authService.user$.subscribe(
+      (user: IUserDados | null) => {
         if (user && user.uid) {
           this.userId = user.uid;
 

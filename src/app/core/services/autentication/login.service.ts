@@ -12,6 +12,9 @@ import { IUserDados } from '../../interfaces/iuser-dados';
 import { AuthService } from './auth.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import { observeUserChanges } from 'src/app/store/actions/actions.user/user.actions';
+import { Store } from '@ngrx/store';
+import { AppState } from 'src/app/store/states/app.state';
 
 // Inicializa o objeto de autenticação do Firebase
 const auth = getAuth();
@@ -25,6 +28,7 @@ export class LoginService {
     private router: Router,
     private usuarioService: UsuarioService,
     private authService: AuthService,
+    private store: Store<AppState>,
     private globalErrorHandler: GlobalErrorHandlerService,  // Tratamento de erros globais
     private errorNotification: ErrorNotificationService     // Serviço de notificação de erro
   ) { }
@@ -38,6 +42,8 @@ export class LoginService {
 
       if (user) {
         console.log('Login bem-sucedido:', user.uid);
+        // Disparar a action com o UID do usuário
+        this.store.dispatch(observeUserChanges({ uid: user.uid }));
         const userData = await this.usuarioService.getUsuario(user.uid).pipe(first()).toPromise();
 
         if (userData) {
@@ -54,13 +60,13 @@ export class LoginService {
           return { success: true, emailVerified: user.emailVerified, user: userData };
         } else {
           console.log('Dados do usuário não encontrados no Firestore após login.');
-          this.authService.clearCurrentUser();
+          this.authService.logoutAndClearUser();
           this.errorNotification.showError('Usuário não encontrado no sistema.');
         }
         return { success: true };
       } else {
         console.error('Falha no login: usuário não retornado.');
-        this.authService.clearCurrentUser();
+        this.authService.logoutAndClearUser();
         this.errorNotification.showError('Credenciais inválidas.');
         return { success: false };
       }
@@ -68,7 +74,7 @@ export class LoginService {
       console.error('Erro ao fazer login:', error);
       this.globalErrorHandler.handleError(error as Error);  // Converte para tipo Error
       this.errorNotification.showError('Erro ao realizar login. Tente novamente.');
-      this.authService.clearCurrentUser();
+      this.authService.logoutAndClearUser();
       return { success: false };
     }
   }

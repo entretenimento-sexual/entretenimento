@@ -19,11 +19,7 @@
           </ng-template>
           <p>{{ usuario.municipio }}, {{ usuario.estado }}</p>
 
-
-        <p>Perfil criado em: {{ formatFirstLoginDate() }}</p>
-
-
-
+        <p>Perfil criado em: {{ usuario?.firstLogin | dateFormat: 'date' }}</p>
 
           <!-- Seção de Sobre Mim e Redes Sociais -->
           <div class="category-container">

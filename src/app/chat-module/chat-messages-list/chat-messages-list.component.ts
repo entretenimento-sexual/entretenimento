@@ -42,13 +42,13 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
 
     if (this.type === 'chat') {
       // Caso seja um chat, utiliza o ChatService para obter as mensagens
-      this.messagesSubscription = this.chatService.getMessages(this.chatId, undefined, true)
-        .subscribe(messages => {
-          // Aqui não é necessário converter o timestamp, mantém como está
-          this.messages = messages;
+      this.messagesSubscription = this.chatService.monitorChat(this.chatId)
+        .subscribe(message => {
+          this.messages.push(message); // Adiciona a nova mensagem em tempo real
+          this.cdRef.detectChanges(); // Atualiza a interface com as novas mensagens
         }, error => {
-          console.error(`Erro ao carregar mensagens do chat ${this.chatId}:`, error);
-    });
+          console.error(`Erro ao carregar mensagens em tempo real do chat ${this.chatId}:`, error);
+        });
     } else {
       // Caso seja uma sala, utiliza o RoomService para obter as mensagens
       this.messagesSubscription = this.roomService.getRoomMessages(this.chatId, true) // true para realtime, se aplicável

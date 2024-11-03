@@ -18,7 +18,7 @@ export class LinksInteractionComponent implements OnInit {
 
   ngOnInit(): void {
     // Obtenha o userId do usuário autenticado
-    this.authService.getUserAuthenticated().subscribe(user => {
+    this.authService.user$.subscribe(user => {
       if (user) {
         this.userId = user.uid; // Capture o userId do usuário
       }

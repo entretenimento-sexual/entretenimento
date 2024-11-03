@@ -30,7 +30,7 @@ export class OnlineUsersEffects {
   filterOnlineUsersByMunicipio$ = createEffect(() =>
     this.actions$.pipe(
       ofType(loadOnlineUsersSuccess),
-      withLatestFrom(this.authService.getUserAuthenticated()),
+      withLatestFrom(this.authService.user$),
       map(([{ users }, user]) => {
         if (user && user.municipio) {
           const filteredUsers = users.filter(u => u.municipio === user.municipio);

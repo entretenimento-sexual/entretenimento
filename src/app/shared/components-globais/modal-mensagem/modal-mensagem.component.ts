@@ -36,7 +36,7 @@ export class ModalMensagemComponent {
         timestamp: Timestamp.now()
       };
 
-      this.authService.getUserAuthenticated().subscribe(async (currentUser) => {
+      this.authService.user$.subscribe(async (currentUser) => {
         if (currentUser) {
           mensagem.senderId = currentUser.uid;
 

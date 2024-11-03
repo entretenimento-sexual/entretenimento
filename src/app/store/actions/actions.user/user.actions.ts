@@ -20,6 +20,13 @@ export const USER_ACTION_TYPES = {
   UPDATE_USER_ONLINE_STATUS: '[User] Update User Online Status',
 };
 
+
+// Ação para adicionar o usuário ao estado
+export const addUserToState = createAction(
+  '[User] Add User to State',
+  props<{ user: IUserDados }>()
+);
+
 /**
  * Action to observe changes in the current user.
  * Used to watch and update user data as necessary.

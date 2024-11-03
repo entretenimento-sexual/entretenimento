@@ -84,7 +84,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       }
 
       // Aguardar autenticação para garantir que o UID esteja disponível
-      this.authService.getUserAuthenticated().pipe(first()).subscribe(userData => {
+      this.authService.user$.pipe(first()).subscribe((userData: IUserDados | null) => {
         if (userData) {
           if (this.mode === 'verifyEmail') {
             this.handleEmailVerification();

@@ -2,88 +2,144 @@
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { ChatService } from 'src/app/core/services/batepapo/chat.service';
+import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import * as ChatActions from '../../actions/actions.chat/chat.actions';
-import { map, mergeMap, catchError } from 'rxjs/operators';
+import { map, switchMap, mergeMap, catchError, withLatestFrom } from 'rxjs/operators';
 import { of, from } from 'rxjs';
+import { Store } from '@ngrx/store';
+import { AppState } from 'src/app/store/states/app.state';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 @Injectable()
 export class ChatEffects {
   constructor(
     private actions$: Actions,
-    private chatService: ChatService
+    private chatService: ChatService,
+    private authService: AuthService,
+    private errorNotificationService: ErrorNotificationService,
+    private store: Store<AppState>
   ) { }
 
+  /**
+   * Efeito para carregar os chats do usuário atual
+   */
   loadChats$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(ChatActions.LoadChats),
-      mergeMap(() => {
-        console.log('Ação LoadChats detectada.');
-        const userId = 'USER_ID_ATUAL'; // Substitua com o método para obter o ID do usuário atual
-        return this.chatService.getChats(userId).pipe(
-          map(chats => {
-            console.log('Chats carregados com sucesso:', chats);
-            return ChatActions.LoadChatsSuccess({ chats });
-          }),
+      ofType(ChatActions.loadChats),
+      withLatestFrom(this.authService.user$), // Substituímos `getUserAuthenticated()` por `user$`
+      switchMap(([action, user]: [any, IUserDados | null]) => { // Explicitamente tipado `user` como `IUserDados | null`
+        if (!user) {
+          console.warn('Nenhum usuário autenticado encontrado');
+          return of(ChatActions.loadChatsFailure({ error: 'Usuário não autenticado' }));
+        }
+        console.log('Carregando chats para o usuário:', user.uid);
+        return this.chatService.getUserChats(user.uid).pipe(
+          map(chats => ChatActions.loadChatsSuccess({ chats })),
           catchError(error => {
+            this.errorNotificationService.showError('Erro ao carregar chats');
             console.error('Erro ao carregar chats:', error);
-            return of(ChatActions.LoadChatsFailure({ error: error.message || 'Erro desconhecido' }));
+            return of(ChatActions.loadChatsFailure({ error: error.message || 'Erro desconhecido' }));
           })
         );
       })
     )
   );
 
+  /**
+   * Efeito para criar um novo chat
+   */
   createChat$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(ChatActions.CreateChat),
+      ofType(ChatActions.createChat),
       mergeMap(action => {
-        console.log('Ação CreateChat detectada com participantes:', action.chat.participants);
+        console.log('Iniciando criação do chat com participantes:', action.chat.participants);
         return from(this.chatService.createChat(action.chat.participants)).pipe(
-          map(chatId => {
-            console.log('Chat criado com sucesso com ID:', chatId);
-            return ChatActions.CreateChatSuccess({ chat: { ...action.chat, id: chatId } });
-          }),
+          map(chatId => ChatActions.createChatSuccess({ chat: { ...action.chat, id: chatId } })),
           catchError(error => {
+            this.errorNotificationService.showError('Erro ao criar chat');
             console.error('Erro ao criar chat:', error);
-            return of(ChatActions.CreateChatFailure({ error: error.message || 'Erro ao criar chat' }));
+            return of(ChatActions.createChatFailure({ error: error.message || 'Erro ao criar chat' }));
           })
         );
       })
     )
   );
 
+  /**
+   * Efeito para enviar uma mensagem em um chat
+   */
   sendMessage$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(ChatActions.SendMessage),
+      ofType(ChatActions.sendMessage),
       mergeMap(action => {
-        console.log('Ação SendMessage detectada para chatId:', action.chatId);
+        console.log(`Enviando mensagem para o chat ${action.chatId}`);
         return from(this.chatService.sendMessage(action.chatId, action.message)).pipe(
-          map(() => {
-            console.log('Mensagem enviada com sucesso:', action.message);
-            return ChatActions.SendMessageSuccess({ message: action.message });
-          }),
+          map(() => ChatActions.sendMessageSuccess({ chatId: action.chatId, message: action.message })),
           catchError(error => {
+            this.errorNotificationService.showError('Erro ao enviar mensagem');
             console.error('Erro ao enviar mensagem:', error);
-            return of(ChatActions.SendMessageFailure({ error: error.message || 'Erro ao enviar mensagem' }));
+            return of(ChatActions.sendMessageFailure({ error: error.message || 'Erro ao enviar mensagem' }));
           })
         );
       })
     )
   );
 
+  /**
+   * Efeito para deletar um chat
+   */
   deleteChat$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(ChatActions.DeleteChat),
+      ofType(ChatActions.deleteChat),
       mergeMap(action => {
-        console.log('Ação DeleteChat detectada para chatId:', action.chatId);
+        console.log(`Deletando o chat ${action.chatId}`);
         return from(this.chatService.deleteChat(action.chatId)).pipe(
-          map(() => {
-            console.log('Chat deletado com sucesso para chatId:', action.chatId);
-            return ChatActions.DeleteChatSuccess({ chatId: action.chatId });
-          }),
+          map(() => ChatActions.deleteChatSuccess({ chatId: action.chatId })),
           catchError(error => {
+            this.errorNotificationService.showError('Erro ao deletar chat');
             console.error('Erro ao deletar chat:', error);
-            return of(ChatActions.DeleteChatFailure({ error: error.message || 'Erro ao deletar chat' }));
+            return of(ChatActions.deleteChatFailure({ error: error.message || 'Erro ao deletar chat' }));
+          })
+        );
+      })
+    )
+  );
+
+  /**
+   * Efeito para deletar uma mensagem em um chat
+   */
+  deleteMessage$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(ChatActions.deleteMessage),
+      mergeMap(action => {
+        console.log(`Deletando mensagem ${action.messageId} no chat ${action.chatId}`);
+        return from(this.chatService.deleteMessage(action.chatId, action.messageId)).pipe(
+          map(() => ChatActions.deleteMessageSuccess({ chatId: action.chatId, messageId: action.messageId })),
+          catchError(error => {
+            this.errorNotificationService.showError('Erro ao deletar mensagem');
+            console.error('Erro ao deletar mensagem:', error);
+            return of(ChatActions.deleteMessageFailure({ error: error.message || 'Erro ao deletar mensagem' }));
+          })
+        );
+      })
+    )
+  );
+
+  /**
+   * Efeito para monitorar mudanças em tempo real em um chat específico
+   */
+  monitorChat$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(ChatActions.monitorChat),
+      mergeMap(action => {
+        console.log(`Monitorando mudanças em tempo real para o chat ${action.chatId}`);
+        return this.chatService.monitorChat(action.chatId).pipe(
+          map(message => ChatActions.newMessageReceived({ chatId: action.chatId, message })),
+          catchError(error => {
+            this.errorNotificationService.showError('Erro ao monitorar chat');
+            console.error('Erro ao monitorar chat:', error);
+            return of(ChatActions.monitorChatFailure({ error: error.message || 'Erro ao monitorar chat' }));
           })
         );
       })

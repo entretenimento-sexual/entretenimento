@@ -1,6 +1,7 @@
 // src\app\chat-module\chat-window\chat-window.component.ts
 import { Component } from '@angular/core';
 import { Timestamp } from '@firebase/firestore';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { ChatService } from 'src/app/core/services/batepapo/chat.service';
 
@@ -20,7 +21,7 @@ export class ChatWindowComponent {
   sendMessage() {
     if (this.messageContent.trim()) {
       // Substituindo currentUser pelo observable correto
-      this.authService.getUserAuthenticated().subscribe(currentUser => {
+      this.authService.user$.subscribe((currentUser: IUserDados | null) => {
         const userId = currentUser?.uid;
         if (!userId) {
           console.error("Usuário não autenticado");
@@ -34,6 +35,7 @@ export class ChatWindowComponent {
       };
       this.messages.push(newMessage);
       this.messageContent = '';
+      console.log("Mensagem enviada pelo usuário:", newMessage);
       this.chatService.sendMessage('chatId', newMessage);
     });
     }

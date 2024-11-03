@@ -1,6 +1,6 @@
 // src\app\core\services\usuario.service.ts
 import { Injectable } from '@angular/core';
-import { Observable, catchError, from, map, of, switchMap, throwError } from 'rxjs';
+import { Observable, catchError, from, map, of, switchMap, take, throwError } from 'rxjs';
 import { IUserDados } from '../interfaces/iuser-dados';
 import { FirestoreService } from './autentication/firestore.service';
 import { collection, onSnapshot, query, Timestamp, where } from '@firebase/firestore';
@@ -10,6 +10,7 @@ import { EmailVerificationService } from './autentication/email-verification.ser
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { selectUserById } from 'src/app/store/selectors/selectors.user/user.selectors';
+import { addUserToState } from 'src/app/store/actions/actions.user/user.actions';
 
 @Injectable({
   providedIn: 'root'
@@ -75,21 +76,29 @@ export class UsuarioService {
 
   // Obtém um usuário específico pelo UID
   getUsuario(uid: string): Observable<IUserDados | null> {
-    console.log('Iniciando busca do usuário com UID:', uid);
+    if (!uid) {
+      console.warn(`UID inválido fornecido: ${uid}`);
+      return of(null);
+    }
     return this.store.select(selectUserById(uid)).pipe(
+      take(1),
       switchMap(existingUser => {
         if (existingUser) {
           console.log('Usuário encontrado no estado:', existingUser);
           return of(existingUser);
         } else {
-          console.log('Usuário não encontrado no estado, buscando no userProfileService...');
+          console.log('Usuário não encontrado no estado, buscando no Firestore...');
           return from(this.userProfileService.getUserById(uid)).pipe(
             map(user => {
-              console.log('Usuário recuperado do userProfileService:', user);
+              if (user) {
+                // Adiciona o usuário ao estado se ainda não existir
+                this.store.dispatch(addUserToState({ user }));
+                console.log('Usuário recuperado e adicionado ao estado:', user);
+              }
               return user;
             }),
             catchError(error => {
-              console.error('Erro ao buscar usuário no userProfileService:', error);
+              console.error('Erro ao buscar usuário no Firestore:', error);
               return of(null);
             })
           );

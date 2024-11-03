@@ -3,7 +3,6 @@ import { Component, Inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { RoomService } from 'src/app/core/services/batepapo/room.service';
-import { GenericModalComponent } from 'src/app/shared/components-globais/generic-modal/generic-modal.component';
 import { RoomCreationConfirmationModalComponent } from '../room-creation-confirmation-modal/room-creation-confirmation-modal.component';
 
 @Component({

@@ -44,7 +44,7 @@ export class FinalizarCadastroComponent implements OnInit {
   ) { }
 
   ngOnInit(): void {
-    this.authService.getUserAuthenticated().subscribe((userData: IUserDados | null) => {
+    this.authService.user$.pipe(first()).subscribe((userData: IUserDados | null) => {
       if (userData) {
         this.verifyEmailAndLoadUser(userData);
       } else {

@@ -24,7 +24,7 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     // Subscrição no estado do usuário autenticado
-    this.authService.getUserAuthenticated()
+    this.authService.user$
       .pipe(
         takeUntil(this.destroy$), // Limpar subscrições quando o componente for destruído
         switchMap(currentUser => {

@@ -1,164 +1,171 @@
 // src\app\core\services\chat.service.ts
 import { Injectable } from '@angular/core';
 import {
-  getFirestore, collection, addDoc, doc, Timestamp, setDoc,
-  CollectionReference, query, where, getDocs, deleteDoc, orderBy,
-  startAfter, onSnapshot, Query, QuerySnapshot, DocumentData, getDoc
+  getFirestore, collection, addDoc, doc, Timestamp, setDoc, deleteDoc,
+  orderBy, startAfter, onSnapshot, getDocs, where, query
 } from 'firebase/firestore';
+import { Observable, from } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+import { Store } from '@ngrx/store';
 import { Chat } from '../../interfaces/interfaces-chat/chat.interface';
 import { Message } from '../../interfaces/interfaces-chat/message.interface';
-import { map } from 'rxjs/operators';
-import { Observable, from } from 'rxjs';
 import { UsuarioService } from '../usuario.service';
+import {
+  addMessage,
+  createChat,
+  deleteChat as deleteChat,
+  deleteMessage as deleteMessage,
+  updateChat,
+} from 'src/app/store/actions/actions.chat/chat.actions';
+import { AppState } from 'src/app/store/states/app.state';
 
 @Injectable({
   providedIn: 'root'
 })
-
 export class ChatService {
   private db = getFirestore();
 
-  constructor(private usuarioService: UsuarioService) { }
+  constructor(
+    private usuarioService: UsuarioService,
+    private store: Store<AppState>
+  ) { }
 
+  /** Método para obter ou criar ID do chat */
   async getOrCreateChatId(participants: string[]): Promise<string> {
-    const participantsKey = participants.sort().join('_'); // Cria uma chave única
+    const participantsKey = participants.sort().join('_');
     const chatsRef = collection(this.db, 'chats');
-    const q = query(chatsRef, where('participantsKey', '==', participantsKey));
+    const chatQuery = query(chatsRef, where('participantsKey', '==', participantsKey));
+    const querySnapshot = await getDocs(chatQuery);
 
-    const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-        return querySnapshot.docs[0].id;
+      return querySnapshot.docs[0].id;
     } else {
-        return this.createChat(participants);
+      return this.createChat(participants);
     }
   }
 
+  /** Criação de novo chat */
   async createChat(participants: string[]): Promise<string> {
-    const chat: Chat = {
-      participants,
-      participantsKey: participants.sort().join('_'), // Adiciona a chave aqui
-      timestamp: Timestamp.now()
-    };
-
+    const chatData: Chat = { participants, participantsKey: participants.sort().join('_'), timestamp: Timestamp.now() };
     try {
-      const chatDocRef = await addDoc(collection(this.db, 'chats'), chat);
-      return chatDocRef.id; // Retorna o ID do chat criado
+      const chatDocRef = await addDoc(collection(this.db, 'chats'), chatData);
+      this.store.dispatch(createChat({ chat: chatData }));
+      return chatDocRef.id;
     } catch (error) {
       console.error("Erro ao criar chat:", error);
       throw error;
     }
   }
 
-    // Para enviar uma mensagem em uma conversa
+  /** Envio de mensagens no chat */
   async sendMessage(chatId: string, message: Message): Promise<string> {
     try {
-      const chatDoc = doc(this.db, 'chats', chatId);
-      const messageCollection = collection(chatDoc, 'messages') as CollectionReference<Message>;
-      const messageRef = await addDoc(messageCollection, message);
+      const messageRef = await addDoc(collection(this.db, `chats/${chatId}/messages`), message);
+      this.store.dispatch(addMessage({ chatId, message }));
       return messageRef.id;
     } catch (error) {
-      console.error("Erro ao enviar mensagem:", error);
+      console.error(`Erro ao enviar mensagem para o chatId ${chatId}:`, message, error);
       throw error;
     }
   }
 
-  getChats(userId: string): Observable<any[]> {
+  /** Carrega chats do usuário autenticado */
+  getUserChats(userId: string): Observable<any[]> {
     const chatsRef = collection(this.db, 'chats');
     const userChatsQuery = query(chatsRef, where('participants', 'array-contains', userId));
 
     return new Observable(observer => {
-      const unsubscribe = onSnapshot(userChatsQuery, async (snapshot) => {
-        const chats = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data() as Chat,
-        }));
-
-        const chatsWithDetails = await Promise.all(chats.map(async (chat) => {
+      const unsubscribe = onSnapshot(userChatsQuery, async snapshot => {
+        const chats = await Promise.all(snapshot.docs.map(async doc => {
+          const chat = doc.data() as Chat;
           const otherUserId = chat.participants.find(uid => uid !== userId);
+          console.log('Chat encontrado:', doc.id, chat);
+          if (!otherUserId) return { ...chat, otherParticipantDetails: null };
 
-          if (otherUserId) {
-            try {
-              const userDetails = await this.usuarioService.getUsuario(otherUserId).toPromise();
-              return { ...chat, otherParticipantDetails: userDetails || null };
-            } catch (error) {
-              console.error('Erro ao buscar detalhes do usuário:', error);
-              return { ...chat, otherParticipantDetails: null }; // Em caso de falha, retorna os detalhes do chat sem os detalhes do usuário
-            }
-          } else {
-            return { ...chat, otherParticipantDetails: null }; // Caso não exista outro usuário, retorna o chat sem detalhes adicionais
-          }
+          const userDetails = await this.usuarioService.getUsuario(otherUserId).toPromise();
+          return { ...chat, otherParticipantDetails: userDetails || null };
         }));
-
-        observer.next(chatsWithDetails);
+        observer.next(chats);
       }, error => observer.error(error));
 
-      return () => unsubscribe();
+      return unsubscribe;
     });
   }
 
-
+  /** Atualização de um chat específico */
   async updateChat(chatId: string, updateData: Partial<Chat>): Promise<string> {
     try {
       const chatDocRef = doc(this.db, 'chats', chatId);
       await setDoc(chatDocRef, updateData, { merge: true });
+      this.store.dispatch(updateChat({ chatId, updateData }));
       return chatId;
     } catch (error) {
       console.error("Erro ao atualizar chat:", error);
       throw error;
     }
   }
-    async deleteChat(chatId: string): Promise < void> {
-      try {
-        const chatDocRef = doc(this.db, 'chats', chatId);
-        await deleteDoc(chatDocRef);
-      } catch(error) {
-        console.error("Erro ao deletar chat:", error);
-        throw error;
-      }
-    }
 
+  /** Deletar chat */
+  async deleteChat(chatId: string): Promise<void> {
+    try {
+      await deleteDoc(doc(this.db, 'chats', chatId));
+      this.store.dispatch(deleteChat({ chatId }));
+    } catch (error) {
+      console.error("Erro ao deletar chat:", error);
+      throw error;
+    }
+  }
+
+  /** Deletar mensagem específica */
   async deleteMessage(chatId: string, messageId: string): Promise<void> {
     try {
-      const messageDocRef = doc(this.db, `chats/${chatId}/messages`, messageId);
-      await deleteDoc(messageDocRef);
+      await deleteDoc(doc(this.db, `chats/${chatId}/messages`, messageId));
+      this.store.dispatch(deleteMessage({ chatId, messageId }));
     } catch (error) {
       console.error("Erro ao deletar mensagem:", error);
       throw error;
     }
   }
 
-  getMessages(chatId: string, lastMessageTimestamp?: Timestamp, realtime: boolean = false): Observable<Message[]> {
+  /** Busca de mensagens com carregamento incremental */
+  getMessages(chatId: string, lastMessageTimestamp?: Timestamp): Observable<Message[]> {
     const messagesRef = collection(this.db, `chats/${chatId}/messages`);
-    let messageQuery: Query<DocumentData>;
+    const messageQuery = lastMessageTimestamp
+      ? query(messagesRef, orderBy('timestamp'), startAfter(lastMessageTimestamp))
+      : query(messagesRef, orderBy('timestamp'));
 
-    if (lastMessageTimestamp) {
-      messageQuery = query(messagesRef, orderBy('timestamp', 'asc'), startAfter(lastMessageTimestamp));
-    } else {
-      messageQuery = query(messagesRef, orderBy('timestamp', 'asc'));
-    }
-
-    if (realtime) {
-      return new Observable(observer => {
-        const unsubscribe = onSnapshot(messageQuery, (snapshot: QuerySnapshot<DocumentData>) => {
-          const messages = snapshot.docs.map(doc => doc.data() as Message);
-          observer.next(messages);
-        }, observer.error);
-
-        return { unsubscribe };
-      });
-    } else {
-      return from(getDocs(messageQuery)).pipe(
-        map(querySnapshot => {
-          return querySnapshot.docs.map(doc => doc.data() as Message);
-        })
-      );
-    }
+    return from(getDocs(messageQuery)).pipe(
+      map(snapshot => snapshot.docs.map(doc => doc.data() as Message)),
+      catchError(error => {
+        console.error("Erro ao buscar mensagens:", error);
+        throw error;
+      })
+    );
   }
 
-  getChatDetails(chatId: string): Observable<Chat | undefined> {
-    const chatDocRef = doc(this.db, 'chats', chatId);
-    return from(getDoc(chatDocRef)).pipe(
-      map(docSnapshot => docSnapshot.exists() ? docSnapshot.data() as Chat : undefined)
-    );
+  // Adiciona o método monitorChat
+  monitorChat(chatId: string): Observable<Message> {
+    const messagesRef = collection(this.db, `chats/${chatId}/messages`);
+    return new Observable(observer => {
+      const unsubscribe = onSnapshot(messagesRef, snapshot => {
+        snapshot.docChanges().forEach(change => {
+          if (change.type === 'added') {
+            const newMessage = change.doc.data() as Message;
+            observer.next(newMessage);
+          }
+        });
+      }, error => observer.error(error));
+
+      // Cleanup quando o Observable é concluído
+      return unsubscribe;
+    });
+  }
+
+  /** Feedback visual */
+  private handleFeedback(action: string, success: boolean) {
+    const feedbackMessage = success
+      ? `${action} realizado com sucesso`
+      : `Erro ao realizar ${action}`;
+    console.log(feedbackMessage);
   }
 }

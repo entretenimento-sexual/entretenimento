@@ -13,13 +13,13 @@ export const selectAllUsers = createSelector(
   (state: IUserState): IUserDados[] => state?.users || []
 );
 
-// Seletor para obter um usuário pelo UID (memoizado para evitar recomputação desnecessária)
+// Seletor memoizado para obter um usuário específico pelo UID
 export const selectUserById = (uid: string) =>
   createSelector(
     selectAllUsers,
     (users: IUserDados[]) => {
       const foundUser = users.find(user => user.uid === uid) || null;
-      console.log(`Buscando usuário no seletor pelo UID ${uid}:`, foundUser);
+      console.log(`Selecionando usuário pelo UID ${uid}:`, foundUser); // Log para verificar a busca
       return foundUser;
     }
   );

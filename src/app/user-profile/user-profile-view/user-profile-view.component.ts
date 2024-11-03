@@ -49,11 +49,13 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     this.uid = routeUid || this.authService.getLoggedUserUID();
 
     if (this.uid) {
+      console.log("Dispatching observeUserChanges para UID:", this.uid);
       this.store.dispatch(observeUserChanges({ uid: this.uid }));
       this.usuario$ = this.store.select(selectUserById(this.uid));
 
       this.usuario$.pipe(
         tap(user => {
+          console.log("Dados do usuário carregados:", user);
           if (user) {
             this.currentUser = user;
             this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
@@ -69,22 +71,7 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     );
   }
 
-  // Formata a data usando a função formatDate do Angular
-  public formatFirstLoginDate(): string {
-    if (!this.currentUser?.firstLogin) {
-      return 'Data inválida';
-    }
-
-    // Verifique se é um Timestamp e converta para Date
-    const date = this.currentUser.firstLogin instanceof Timestamp
-      ? this.currentUser.firstLogin.toDate()
-      : this.currentUser.firstLogin;
-
-    // Agora utilize o formatDate do Angular
-    return formatDate(date, 'dd/MM/yyyy HH:mm', 'pt-BR');
-  }
-
-  // Obtém as chaves de um objeto (potencialmente para preferências, se necessário)
+   // Obtém as chaves de um objeto (potencialmente para preferências, se necessário)
   objectKeys(obj: any): string[] {
     return Object.keys(obj).filter(key => obj[key] && obj[key].value);
   }

@@ -1,4 +1,4 @@
-//src\app\chat-module\chat-list\chat-list.component.ts
+// src/app/chat-module/chat-list/chat-list.component.ts
 import { Component, EventEmitter, OnDestroy, OnInit, Output } from '@angular/core';
 import { Router } from '@angular/router';
 import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
@@ -10,6 +10,9 @@ import { MatDialog } from '@angular/material/dialog';
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { Observable, Subscription } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
+import { Store } from '@ngrx/store';
+import { AppState } from 'src/app/store/states/app.state';
+import { selectAllChats } from 'src/app/store/selectors/selectors.chat/chat.selectors'; // Importando o seletor dos chats
 
 @Component({
   selector: 'app-chat-list',
@@ -21,29 +24,44 @@ export class ChatListComponent implements OnInit, OnDestroy {
   rooms$: Observable<any[]> | undefined;
   regularChats: Chat[] = [];
   userSubscription: Subscription | undefined;
+  chatSubscription: Subscription | undefined; // Para armazenar a assinatura dos chats
   @Output() chatSelected = new EventEmitter<{ id: string, type: 'room' | 'chat' }>();
 
   constructor(private authService: AuthService,
     private chatService: ChatService,
     private roomService: RoomService,
     public dialog: MatDialog,
-    private router: Router) { }
+    private router: Router,
+    private store: Store<AppState>) { } // Injetando o Store no construtor
 
   ngOnInit() {
-    // Assinatura única para autenticação do usuário
+    console.log('Iniciando ChatListComponent, carregando conversas do usuário.');
     this.userSubscription = this.authService.user$.pipe(
       switchMap(currentUser => {
+        console.log('Usuário autenticado:', currentUser?.uid);
         if (!currentUser) {
           this.router.navigate(['/login']);
           return []; // Retorna uma lista vazia se não houver usuário
         }
-
-        // Atualiza salas de bate-papo e chats do usuário
+        console.log('Carregando salas e chats para o usuário:', currentUser.uid);
         this.rooms$ = this.roomService.getUserRooms(currentUser.uid);
-        return this.chatService.getChats(currentUser.uid);
+        return this.chatService.getUserChats(currentUser.uid);
       })
     ).subscribe(chats => {
       this.regularChats = chats.filter(chat => !chat.isRoom);
+      console.log('Conversas carregadas e filtradas (regularChats):', this.regularChats);
+      this.regularChats.forEach(chat => {
+        console.log('Chat ID:', chat.id, 'Detalhes do outro participante:', chat.otherParticipantDetails);
+        if (!chat.id) {
+          console.warn('Atenção: Um dos chats está sem ID.', chat);
+        }
+      });
+    });
+
+    // Adiciona monitoramento do Store para atualizar a interface quando o estado dos chats mudar
+    this.chatSubscription = this.store.select(selectAllChats).subscribe(chats => {
+      console.log('Chats atualizados na interface:', chats);
+      this.regularChats = chats; // Atualizando o estado local com os chats do Store
     });
   }
 
@@ -56,6 +74,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
       console.error('Erro: ID do chat é undefined.');
       return;
     }
+    console.log(`Selecionando chat com ID: ${chatId}`);
     this.chatSelected.emit({ id: chatId, type: 'chat' });
   }
 
@@ -135,7 +154,8 @@ export class ChatListComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    // Desinscrever-se da assinatura ao destruir o componente
+    // Desinscrever-se das assinaturas ao destruir o componente
     this.userSubscription?.unsubscribe();
+    this.chatSubscription?.unsubscribe(); // Desinscrição da assinatura do Store
   }
 }

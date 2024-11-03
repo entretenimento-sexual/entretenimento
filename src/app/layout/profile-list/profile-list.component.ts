@@ -17,7 +17,7 @@ export class ProfileListComponent implements OnInit {
               private firestoreService: FirestoreService) { }
 
   ngOnInit(): void {
-    this.authService.getUserAuthenticated().subscribe(currentUser => {
+    this.authService.user$.subscribe(currentUser => {
       this.user = currentUser;
 
       // Carrega os perfis sugeridos após garantir que o usuário está autenticado
