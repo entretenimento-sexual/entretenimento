@@ -11,6 +11,7 @@ import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { selectUserById } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { addUserToState } from 'src/app/store/actions/actions.user/user.actions';
+import { FirestoreQueryService } from './autentication/firestore-query.service';
 
 @Injectable({
   providedIn: 'root'
@@ -18,6 +19,7 @@ import { addUserToState } from 'src/app/store/actions/actions.user/user.actions'
 export class UsuarioService {
   constructor(
     private firestoreService: FirestoreService,
+    private firestoreQuery: FirestoreQueryService,
     private userProfileService: UserProfileService,
     private emailVerificationService: EmailVerificationService,
     private store: Store<AppState>
@@ -57,12 +59,12 @@ export class UsuarioService {
 
   // Obtém usuários online por região específica (município)
   public getOnlineUsersByRegion(municipio: string): Observable<IUserDados[]> {
-    return this.firestoreService.getOnlineUsersByRegion(municipio);
+    return this.firestoreQuery.getOnlineUsersByRegion(municipio);
   }
 
   // Obtém todos os usuários do Firestore
   getAllUsers(): Observable<IUserDados[]> {
-    return from(this.firestoreService.getAllUsers()).pipe(
+    return from(this.firestoreQuery.getAllUsers()).pipe(
       map(users => {
         console.log('Usuários carregados do Firestore:', users);
         return users;

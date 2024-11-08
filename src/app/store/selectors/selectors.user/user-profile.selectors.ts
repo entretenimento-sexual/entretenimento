@@ -1,5 +1,4 @@
 // src/app/store/selectors/user/user-profile.selectors.ts
-
 import { createSelector } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { IUserState } from '../../states/states.user/user.state';

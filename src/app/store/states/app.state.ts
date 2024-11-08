@@ -5,6 +5,7 @@ import { FileState } from './states.user/file.state';
 import { ChatState } from './states.chat/chat.state';
 import { InviteState } from './states.chat/invite.state';
 import { RoomState } from './states.chat/room.state';
+import { LocationState } from './states.location/location.state';
 
 export interface AppState {
   auth: IUserState;
@@ -14,4 +15,5 @@ export interface AppState {
   chat: ChatState;
   invite: InviteState;
   room: RoomState;
+  location: LocationState;
 }

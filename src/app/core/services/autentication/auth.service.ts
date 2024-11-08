@@ -1,6 +1,6 @@
 // src\app\core\services\autentication\auth.service.ts
 import { Injectable } from '@angular/core';
-import { Observable, BehaviorSubject } from 'rxjs';
+import { Observable, BehaviorSubject, firstValueFrom } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
@@ -114,14 +114,17 @@ export class AuthService {
     console.log('Estado de usuário limpo e sessão encerrada.');
   }
 
-  /**
-   * Realiza o logout do usuário e navega para a página de login.
-   */
-  logout(): void {
-    signOut(auth).then(() => {
-      this.clearCurrentUser();
-      this.store.dispatch(logoutSuccess());
-      this.router.navigate(['/login']);
+// Atualização do status online no Firestore antes do logout
+logout(): void {
+  const userUID = this.getLoggedUserUID();
+  if(userUID) {
+    firstValueFrom(this.usuarioService.updateUserOnlineStatus(userUID, false)).then(() => {
+      signOut(auth).then(() => {
+        this.clearCurrentUser();
+        this.store.dispatch(logoutSuccess());
+        this.router.navigate(['/login']);
+      }).catch(error => this.globalErrorHandlerService.handleError(error));
     }).catch(error => this.globalErrorHandlerService.handleError(error));
   }
+}
 }

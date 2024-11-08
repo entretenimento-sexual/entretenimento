@@ -42,9 +42,12 @@ export class LoginService {
 
       if (user) {
         console.log('Login bem-sucedido:', user.uid);
-        // Disparar a action com o UID do usuário
+       
+        await this.usuarioService.updateUserOnlineStatus(user.uid, true);
         this.store.dispatch(observeUserChanges({ uid: user.uid }));
+
         const userData = await this.usuarioService.getUsuario(user.uid).pipe(first()).toPromise();
+
 
         if (userData) {
           this.authService.setCurrentUser(userData);

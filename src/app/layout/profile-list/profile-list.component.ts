@@ -1,7 +1,8 @@
 // src/app/layout/profile-list/profile-list.component.ts
 import { Component, OnInit } from '@angular/core';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
+import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
+
 
 
 @Component({
@@ -14,14 +15,14 @@ export class ProfileListComponent implements OnInit {
   profiles: any[] = [];
 
   constructor(private authService: AuthService,
-              private firestoreService: FirestoreService) { }
+    private firestoreQuery: FirestoreQueryService) { }
 
   ngOnInit(): void {
     this.authService.user$.subscribe(currentUser => {
       this.user = currentUser;
 
       // Carrega os perfis sugeridos após garantir que o usuário está autenticado
-      this.firestoreService.getSuggestedProfiles()
+      this.firestoreQuery.getSuggestedProfiles()
         .then(profiles => {
           this.profiles = profiles;
         })

@@ -55,6 +55,7 @@ export const userReducer = createReducer(
   }),
 
   on(loadOnlineUsersSuccess, (state, { users }) => {
+    
     const uniqueOnlineUsers = addUniqueUsers(state.onlineUsers, users);
     console.log('Usuários online carregados (sem duplicação):', uniqueOnlineUsers.length);
     return { ...state, onlineUsers: uniqueOnlineUsers };

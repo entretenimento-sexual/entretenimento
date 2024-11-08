@@ -1,31 +1,29 @@
 // src/app/dashboard/online-users/online-users.component.ts
 import { Component, OnInit } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { catchError, map, switchMap, tap } from 'rxjs/operators';
+import { Observable, of, from } from 'rxjs';
+import { catchError, map, switchMap, tap, first } from 'rxjs/operators';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Store, select } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
-import { loadOnlineUsers } from 'src/app/store/actions/actions.user/user.actions';
-import { selectAllOnlineUsers } from 'src/app/store/selectors/selectors.user/user.selectors';
+import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { GeolocationService } from 'src/app/core/services/geolocation/geolocation.service';
 import { DistanceCalculationService } from 'src/app/core/services/geolocation/distance-calculation.service';
-import { selectLoadingOnlineUsers } from 'src/app/store/selectors/selectors.user/online-users.selectors';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { Timestamp } from '@firebase/firestore';
+import { Timestamp } from 'firebase/firestore';
 
 @Component({
   selector: 'app-online-users',
   templateUrl: './online-users.component.html',
   styleUrls: ['./online-users.component.css']
 })
-
 export class OnlineUsersComponent implements OnInit {
   onlineUsers$: Observable<IUserDados[]> | undefined;
   loading$: Observable<boolean> | undefined;
   userLocation: { latitude: number, longitude: number } | null = null;
   loading: boolean = false;
+  maxDistanceKm = 50; // Defina a distância máxima desejada em km
 
   constructor(
     private store: Store<AppState>,
@@ -33,38 +31,32 @@ export class OnlineUsersComponent implements OnInit {
     private geolocationService: GeolocationService,
     private distanceService: DistanceCalculationService,
     private errorNotificationService: ErrorNotificationService,
-    private globalErrorHandlerService: GlobalErrorHandlerService
+    private globalErrorHandlerService: GlobalErrorHandlerService,
+    private firestoreQueryService: FirestoreQueryService
   ) { }
 
   async ngOnInit(): Promise<void> {
     this.loading = true;
 
-    // Carrega a localização do usuário
-    this.userLocation = await this.geolocationService.getCurrentLocation();
+    // Obtém o UID do usuário logado
+    let loggedUserUID: string | undefined;
+    this.authService.user$.pipe(first()).subscribe(user => {
+      loggedUserUID = user?.uid;
+    });
 
-    // Dispara a ação para carregar usuários online
-    this.store.dispatch(loadOnlineUsers());
+    // Obtém a localização do usuário
+    try {
+      this.userLocation = await this.geolocationService.getCurrentLocation();
+      console.log('Localização do usuário:', this.userLocation);
+    } catch (error) {
+      console.error('Erro ao obter localização:', error);
+      this.errorNotificationService.showError('Não foi possível acessar sua localização.');
+      this.userLocation = null;
+    }
 
-    // Estado de carregamento
-    this.loading$ = this.store.pipe(select(selectLoadingOnlineUsers));
-
-    // Assinatura para carregar usuários online com filtro e cálculo de distância
-    this.onlineUsers$ = this.authService.user$.pipe(
-      switchMap(loggedUser => {
-        const loggedUserUID = loggedUser?.uid;
-
-        return this.store.pipe(
-          select(selectAllOnlineUsers),
-          map(users => this.processOnlineUsers(users, loggedUserUID))
-        );
-      }),
-      tap(onlineUsers => {
-        if (onlineUsers.length > 0) {
-          this.errorNotificationService.showSuccess('Usuários carregados com sucesso.');
-        } else {
-          this.errorNotificationService.showInfo('Nenhum usuário online no momento.');
-        }
-      }),
+    // Busca e exibe usuários online
+    this.onlineUsers$ = from(this.firestoreQueryService.getOnlineUsers()).pipe(
+      map(users => this.processOnlineUsers(users, loggedUserUID)),
       catchError(error => {
         this.errorNotificationService.showError('Erro ao carregar usuários online.');
         this.globalErrorHandlerService.handleError(error);
@@ -73,7 +65,7 @@ export class OnlineUsersComponent implements OnInit {
       })
     );
 
-    this.onlineUsers$.subscribe({
+    this.onlineUsers$?.subscribe({
       next: onlineUsers => {
         onlineUsers.length > 0
           ? this.errorNotificationService.showSuccess('Usuários carregados com sucesso.')
@@ -89,32 +81,35 @@ export class OnlineUsersComponent implements OnInit {
     });
   }
 
-  // Método para processar os usuários online: filtro, cálculo de distância e ordenação
   private processOnlineUsers(users: IUserDados[], loggedUserUID?: string): IUserDados[] {
     if (!this.userLocation) {
       console.log('Localização do usuário não disponível.');
       return [];
     }
 
-    return users
-      .filter(user => user.uid !== loggedUserUID)
+    const processedUsers = users
+      .filter(user => user.latitude != null && user.longitude != null && user.uid !== loggedUserUID) // Exclui o próprio usuário
       .map(user => {
-        if (user.distanciaKm === undefined && user.latitude && user.longitude && this.userLocation) {
-        const userCopy = { ...user };
-            userCopy.distanciaKm = this.distanceService.calculateDistanceInKm(
-            this.userLocation.latitude,
-            this.userLocation.longitude,
-            user.latitude,
-            user.longitude
-          ) ?? undefined;
-          return userCopy;
+        if (this.userLocation) {
+          const distanceInKm = this.distanceService.calculateDistanceInKm(
+            this.userLocation.latitude!,
+            this.userLocation.longitude!,
+            user.latitude!,
+            user.longitude!
+          );
+
+          if (distanceInKm !== null && distanceInKm <= this.maxDistanceKm) {
+            return { ...user, distanciaKm: distanceInKm };
+          }
         }
-        return user;
+        return null;
       })
-      .sort((a, b) => this.compareUsers(a, b));
+      .filter(user => user !== null)
+      .sort((a, b) => this.compareUsers(a!, b!));
+
+    return processedUsers as IUserDados[];
   }
 
-  // Método para comparar e ordenar usuários
   private compareUsers(a: IUserDados, b: IUserDados): number {
     const rolePriority: { [key: string]: number } = { 'vip': 1, 'premium': 2, 'basico': 3, 'free': 4 };
     const roleDifference = rolePriority[a.role] - rolePriority[b.role];
@@ -126,7 +121,6 @@ export class OnlineUsersComponent implements OnInit {
     const municipioDifference = (a.municipio?.toLowerCase() || '').localeCompare(b.municipio?.toLowerCase() || '');
     if (municipioDifference !== 0) return municipioDifference;
 
-    // Verifica se `lastLoginDate` é um Timestamp e converte para milissegundos
     const aLastLoginMillis = a.lastLoginDate instanceof Timestamp ? a.lastLoginDate.toMillis() : 0;
     const bLastLoginMillis = b.lastLoginDate instanceof Timestamp ? b.lastLoginDate.toMillis() : 0;
 
