@@ -3,7 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { Observable, of, from } from 'rxjs';
 import { catchError, map, switchMap, tap, first } from 'rxjs/operators';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { Store, select } from '@ngrx/store';
+import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';

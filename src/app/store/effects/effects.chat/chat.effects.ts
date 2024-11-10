@@ -34,7 +34,7 @@ export class ChatEffects {
           return of(ChatActions.loadChatsFailure({ error: 'Usuário não autenticado' }));
         }
         console.log('Carregando chats para o usuário:', user.uid);
-        return this.chatService.getUserChats(user.uid).pipe(
+        return this.chatService.getChats(user.uid).pipe(
           map(chats => ChatActions.loadChatsSuccess({ chats })),
           catchError(error => {
             this.errorNotificationService.showError('Erro ao carregar chats');

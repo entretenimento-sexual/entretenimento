@@ -8,5 +8,6 @@ export const loginFailure = createAction('[Auth] Login Failure', props<{ error: 
 
 export const logout = createAction('[Auth] Logout');
 export const logoutSuccess = createAction('[Auth] Logout Success');
+export const userOffline = createAction(  '[Auth] User Offline',  props<{ uid: string }>());
 
 export const authFailure = createAction('[Auth] Failure', props<{ error: any }>());

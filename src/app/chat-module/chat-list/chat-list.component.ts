@@ -32,7 +32,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
     private roomService: RoomService,
     public dialog: MatDialog,
     private router: Router,
-    private store: Store<AppState>) { } // Injetando o Store no construtor
+    private store: Store<AppState>) { }
 
   ngOnInit() {
     console.log('Iniciando ChatListComponent, carregando conversas do usuário.');
@@ -45,7 +45,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
         }
         console.log('Carregando salas e chats para o usuário:', currentUser.uid);
         this.rooms$ = this.roomService.getUserRooms(currentUser.uid);
-        return this.chatService.getUserChats(currentUser.uid);
+        return this.chatService.getChats(currentUser.uid);
       })
     ).subscribe(chats => {
       this.regularChats = chats.filter(chat => !chat.isRoom);

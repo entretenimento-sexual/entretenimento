@@ -33,13 +33,16 @@ export class ChatService {
   /** Método para obter ou criar ID do chat */
   async getOrCreateChatId(participants: string[]): Promise<string> {
     const participantsKey = participants.sort().join('_');
+    console.log('Chave de participantes gerada:', participantsKey);
     const chatsRef = collection(this.db, 'chats');
     const chatQuery = query(chatsRef, where('participantsKey', '==', participantsKey));
     const querySnapshot = await getDocs(chatQuery);
 
     if (!querySnapshot.empty) {
+      console.log('Chat existente encontrado com ID:', querySnapshot.docs[0].id);
       return querySnapshot.docs[0].id;
     } else {
+      console.log('Nenhum chat encontrado. Criando um novo chat...');
       return this.createChat(participants);
     }
   }
@@ -47,8 +50,10 @@ export class ChatService {
   /** Criação de novo chat */
   async createChat(participants: string[]): Promise<string> {
     const chatData: Chat = { participants, participantsKey: participants.sort().join('_'), timestamp: Timestamp.now() };
+    console.log('Dados do chat a serem criados:', chatData);
     try {
       const chatDocRef = await addDoc(collection(this.db, 'chats'), chatData);
+      console.log('Novo chat criado com ID:', chatDocRef.id);
       this.store.dispatch(createChat({ chat: chatData }));
       return chatDocRef.id;
     } catch (error) {
@@ -59,8 +64,10 @@ export class ChatService {
 
   /** Envio de mensagens no chat */
   async sendMessage(chatId: string, message: Message): Promise<string> {
+    console.log(`Enviando mensagem para o chat com ID: ${chatId}`, message);
     try {
       const messageRef = await addDoc(collection(this.db, `chats/${chatId}/messages`), message);
+      console.log('Mensagem enviada com ID:', messageRef.id);
       this.store.dispatch(addMessage({ chatId, message }));
       return messageRef.id;
     } catch (error) {
@@ -70,25 +77,37 @@ export class ChatService {
   }
 
   /** Carrega chats do usuário autenticado */
-  getUserChats(userId: string): Observable<any[]> {
+  getChats(userId: string): Observable<any[]> {
     const chatsRef = collection(this.db, 'chats');
     const userChatsQuery = query(chatsRef, where('participants', 'array-contains', userId));
 
     return new Observable(observer => {
-      const unsubscribe = onSnapshot(userChatsQuery, async snapshot => {
-        const chats = await Promise.all(snapshot.docs.map(async doc => {
-          const chat = doc.data() as Chat;
-          const otherUserId = chat.participants.find(uid => uid !== userId);
-          console.log('Chat encontrado:', doc.id, chat);
-          if (!otherUserId) return { ...chat, otherParticipantDetails: null };
-
-          const userDetails = await this.usuarioService.getUsuario(otherUserId).toPromise();
-          return { ...chat, otherParticipantDetails: userDetails || null };
+      const unsubscribe = onSnapshot(userChatsQuery, async (snapshot) => {
+        const chats = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data() as Chat,
         }));
-        observer.next(chats);
+
+        const chatsWithDetails = await Promise.all(chats.map(async (chat) => {
+          const otherUserId = chat.participants.find(uid => uid !== userId);
+
+          if (otherUserId) {
+            try {
+              const userDetails = await this.usuarioService.getUsuario(otherUserId).toPromise();
+              return { ...chat, otherParticipantDetails: userDetails || null };
+            } catch (error) {
+              console.error('Erro ao buscar detalhes do usuário:', error);
+              return { ...chat, otherParticipantDetails: null }; // Em caso de falha, retorna os detalhes do chat sem os detalhes do usuário
+            }
+          } else {
+            return { ...chat, otherParticipantDetails: null }; // Caso não exista outro usuário, retorna o chat sem detalhes adicionais
+          }
+        }));
+
+        observer.next(chatsWithDetails);
       }, error => observer.error(error));
 
-      return unsubscribe;
+      return () => unsubscribe();
     });
   }
 

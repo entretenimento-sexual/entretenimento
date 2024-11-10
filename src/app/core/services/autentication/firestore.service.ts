@@ -32,7 +32,6 @@ export class FirestoreService {
     }
   }
 
-
   // Verifica se um e-mail já existe na coleção 'users'
   async checkIfEmailExists(email: string): Promise<boolean> {
     try {

@@ -3,36 +3,32 @@ import { createAction, props } from '@ngrx/store';
 import { IError } from 'src/app/core/interfaces/ierror';
 
 /**
- * User Status Action Types
+ * Ações de Status de Usuário
+ * Focado em gerenciar o estado de status dos usuários, como atualização do status online ou offline.
  */
 export const USER_STATUS_ACTION_TYPES = {
-  UPDATE_USER_ONLINE_STATUS: '[User Status] Update Online Status',
-  UPDATE_USER_ONLINE_STATUS_SUCCESS: '[User Status] Update Online Status Success',
-  UPDATE_USER_ONLINE_STATUS_FAILURE: '[User Status] Update Online Status Failure',
+  UPDATE_USER_ONLINE_STATUS: '[User Status] Atualizar Status Online',
+  UPDATE_USER_ONLINE_STATUS_SUCCESS: '[User Status] Atualizar Status Online com Sucesso',
+  UPDATE_USER_ONLINE_STATUS_FAILURE: '[User Status] Falha ao Atualizar Status Online',
 };
 
 /**
- * Action to initiate the process of updating a user's online status.
- * Can be used to set a user as online or offline.
+ * Ações para gerenciar o status de usuários
  */
+
+// Ação para iniciar a atualização do status online
 export const updateUserOnlineStatus = createAction(
   USER_STATUS_ACTION_TYPES.UPDATE_USER_ONLINE_STATUS,
   props<{ uid: string; isOnline: boolean }>()
 );
 
-/**
- * Action dispatched when a user's online status is successfully updated.
- * Confirms the update of the user's online status.
- */
+// Ação para sucesso na atualização do status online
 export const updateUserOnlineStatusSuccess = createAction(
   USER_STATUS_ACTION_TYPES.UPDATE_USER_ONLINE_STATUS_SUCCESS,
   props<{ uid: string; isOnline: boolean }>()
 );
 
-/**
- * Action dispatched when an error occurs while updating a user's online status.
- * Contains the occurred error.
- */
+// Ação para falha na atualização do status online
 export const updateUserOnlineStatusFailure = createAction(
   USER_STATUS_ACTION_TYPES.UPDATE_USER_ONLINE_STATUS_FAILURE,
   props<{ error: IError }>()
