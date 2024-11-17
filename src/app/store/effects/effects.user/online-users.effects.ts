@@ -1,4 +1,4 @@
-// effects/online-users/online-users.effects.ts
+// src/app/store/effects/online-users/online-users.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
@@ -7,10 +7,10 @@ import { catchError, map, mergeMap, withLatestFrom } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { loadOnlineUsers, loadOnlineUsersSuccess, loadOnlineUsersFailure, setFilteredOnlineUsers } from '../../actions/actions.user/user.actions';
 
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+
 @Injectable()
 export class OnlineUsersEffects {
-
-  // Efeito que carrega usuários online
   loadOnlineUsers$ = createEffect(() =>
     this.actions$.pipe(
       ofType(loadOnlineUsers),
@@ -26,14 +26,13 @@ export class OnlineUsersEffects {
     )
   );
 
-  // Efeito para filtrar os usuários online pelo município do usuário logado
   filterOnlineUsersByMunicipio$ = createEffect(() =>
     this.actions$.pipe(
       ofType(loadOnlineUsersSuccess),
       withLatestFrom(this.authService.user$),
       map(([{ users }, user]) => {
         if (user && user.municipio) {
-          const filteredUsers = users.filter(u => u.municipio === user.municipio);
+          const filteredUsers = users.filter((u: IUserDados) => u.municipio === user.municipio);
           return setFilteredOnlineUsers({ filteredUsers });
         }
         return setFilteredOnlineUsers({ filteredUsers: [] });

@@ -1,24 +1,22 @@
-// effects/user/user.effects.ts
+// src/app/store/effects/user/user.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { observeUserChanges, loadUsersFailure, loadUsersSuccess } from '../../actions/actions.user/user.actions';
+import { observeUserChanges, loadUsersFailure, loadUsersSuccess, loadUsers } from '../../actions/actions.user/user.actions'; 
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { catchError, map, switchMap, withLatestFrom } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
-import { selectUserById } from '../../selectors/selectors.user/user.selectors';
+import { selectUserById } from '../../selectors/selectors.user/user.selectors'; // Ajustar caminho do seletor
 
 @Injectable()
 export class UserEffects {
-
   constructor(
     private actions$: Actions,
     private usuarioService: UsuarioService,
     private store: Store<AppState>
   ) { }
 
-  // Efeito para observar mudanças no usuário
   observeUserChanges$ = createEffect(() =>
     this.actions$.pipe(
       ofType(observeUserChanges),
@@ -55,11 +53,9 @@ export class UserEffects {
     )
   );
 
-
-  // Efeito para carregar todos os usuários
   loadUsers$ = createEffect(() =>
     this.actions$.pipe(
-      ofType('[User] Load Users'), // Corrige o nome da ação
+      ofType(loadUsers),
       switchMap(() =>
         this.usuarioService.getAllUsers().pipe(
           map(users => {

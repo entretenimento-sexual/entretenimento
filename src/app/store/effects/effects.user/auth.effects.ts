@@ -2,8 +2,8 @@
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
-import { switchMap } from 'rxjs';
-import { login, loginFailure, loginSuccess } from '../../actions/actions.user/auth.actions';
+import { catchError, from, map, of, switchMap } from 'rxjs';
+import { login, loginFailure, loginSuccess } from '../../actions/actions.user/auth.actions'; // Corrigido para importar do arquivo correto
 
 @Injectable()
 export class AuthEffects {
@@ -15,26 +15,28 @@ export class AuthEffects {
   login$ = createEffect(() =>
     this.actions$.pipe(
       ofType(login),
-      switchMap(({ email, password }) => {
-        console.log('Iniciando o processo de login no AuthEffects...');
-        return this.loginService.login(email, password).then(response => {
-          if (response.success && response.user) {
-            if (response.emailVerified) {
-              console.log('Login bem-sucedido e e-mail verificado. Disparando loginSuccess.');
-              return loginSuccess({ user: response.user });
+      switchMap(({ email, password }) =>
+        from(this.loginService.login(email, password)).pipe(
+          map(response => {
+            if (response.success && response.user) {
+              if (response.emailVerified) {
+                console.log('Login bem-sucedido e e-mail verificado. Disparando loginSuccess.');
+                return loginSuccess({ user: response.user });
+              } else {
+                console.warn('Login bem-sucedido, mas e-mail não verificado.');
+                return loginFailure({ error: 'Email não verificado.' });
+              }
             } else {
-              console.warn('Login bem-sucedido, mas e-mail não verificado.');
-              return loginFailure({ error: 'Email não verificado.' });
+              console.error('Falha no login: Credenciais inválidas ou usuário não encontrado.');
+              return loginFailure({ error: 'Credenciais inválidas ou usuário não encontrado.' });
             }
-          } else {
-            console.error('Falha no login: Credenciais inválidas ou usuário não encontrado.');
-            return loginFailure({ error: 'Credenciais inválidas ou usuário não encontrado.' });
-          }
-        }).catch(error => {
-          console.error('Erro ao processar login:', error);
-          return loginFailure({ error });
-        });
-      })
+          }),
+          catchError(error => {
+            console.error('Erro ao processar login:', error);
+            return of(loginFailure({ error }));
+          })
+        )
+      )
     )
   );
 }

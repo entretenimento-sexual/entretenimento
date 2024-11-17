@@ -27,7 +27,11 @@ export const selectUserById = (uid: string) =>
 // Seletor para obter todos os usuários online
 export const selectAllOnlineUsers = createSelector(
   selectAllUsers,
-  (users: IUserDados[]): IUserDados[] => users.filter(user => user.isOnline)
+  (users: IUserDados[]): IUserDados[] => {
+    const onlineUsers = users.filter(user => user.isOnline);
+    console.log('Selecionando todos os usuários online:', onlineUsers); // Log para verificar usuários online
+    return onlineUsers;
+  }
 );
 
 // Seletor para filtrar os usuários online por região específica
@@ -36,21 +40,29 @@ export const selectOnlineUsersByRegion = (region: string) =>
     selectAllOnlineUsers,
     (onlineUsers: IUserDados[]): IUserDados[] => {
       const normalizedRegion = region.trim().toLowerCase();
-      return onlineUsers.filter(user => {
+      const filteredUsers = onlineUsers.filter(user => {
         const userMunicipio = user.municipio?.trim().toLowerCase() || '';
         return userMunicipio === normalizedRegion;
       });
+      console.log(`Usuários online filtrados pela região (${region}):`, filteredUsers); // Log para verificar filtro por região
+      return filteredUsers;
     }
   );
 
 // Seletor para obter o estado de carregamento (loading)
 export const selectUserLoading = createSelector(
   selectUserState,
-  (state: IUserState) => state.loading
+  (state: IUserState) => {
+    console.log('Estado de carregamento do usuário:', state.loading); // Log para verificar estado de carregamento
+    return state.loading;
+  }
 );
 
 // Seletor para obter erros relacionados ao estado do usuário
 export const selectUserError = createSelector(
   selectUserState,
-  (state: IUserState) => state.error
+  (state: IUserState) => {
+    console.log('Erro relacionado ao estado do usuário:', state.error); // Log para verificar erro
+    return state.error;
+  }
 );

@@ -1,7 +1,7 @@
 // src/app/store/reducers/auth.reducer.ts
 import { createReducer, on } from '@ngrx/store';
 import { IUserState } from '../../states/states.user/user.state';
-import { loginSuccess, logoutSuccess, userOffline } from '../../actions/actions.user/auth.actions';
+import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.actions'; // Importando apenas as ações de autenticação
 
 export const initialAuthState: IUserState = {
   users: [],
@@ -23,18 +23,5 @@ export const authReducer = createReducer(
   on(logoutSuccess, (state) => ({
     ...state,
     currentUser: null,
-  })),
-
-  on(userOffline, (state, { uid }) => {
-    if (state.currentUser && state.currentUser.uid === uid) {
-      return {
-        ...state,
-        currentUser: {
-          ...state.currentUser,
-          isOnline: false,
-        },
-      };
-    }
-    return state;
-  })
+  }))
 );

@@ -1,4 +1,4 @@
-// src\app\core\services\autentication\auth.service.ts
+// src/app/core/services/autentication/auth.service.ts
 import { Injectable } from '@angular/core';
 import { Observable, BehaviorSubject, firstValueFrom } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -8,9 +8,9 @@ import { UsuarioService } from '../usuario.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { Store } from '@ngrx/store';
 import { AppState } from '../../../store/states/app.state';
-import { loginSuccess, logoutSuccess, userOffline } from '../../../store/actions/actions.user/auth.actions';
+import { loginSuccess, logoutSuccess } from '../../../store/actions/actions.user/auth.actions';
 import { Router } from '@angular/router';
-import { onDisconnect, getDatabase, ref, set } from 'firebase/database';
+import { getDatabase, ref, set } from 'firebase/database';
 
 const auth = getAuth();
 const db = getDatabase();
@@ -31,21 +31,14 @@ export class AuthService {
     this.initAuthStateListener();
   }
 
-
-   //Inicializa o listener de autenticação e recupera o estado do usuário,
-   //tentando obter dados do localStorage caso o usuário esteja desconectado.
-  private initAuthStateListener(): void {
+  // Inicializa o listener de autenticação e recupera o estado do usuário.
+  private async initAuthStateListener(): Promise<void> {
     onAuthStateChanged(auth, async (user) => {
       console.log('onAuthStateChanged user: ', user);
 
       if (user) {
         try {
-          const userData = await this.usuarioService.getUsuario(user.uid).pipe(
-            catchError((error) => {
-              this.globalErrorHandlerService.handleError(error);
-              return [];
-            })
-          ).toPromise();
+          const userData = await firstValueFrom(this.usuarioService.getUsuario(user.uid));
 
           if (userData) {
             console.log('Usuario recuperado: ', userData);
@@ -53,36 +46,28 @@ export class AuthService {
             localStorage.setItem('currentUser', JSON.stringify(userData));
             this.store.dispatch(loginSuccess({ user: userData }));
 
-            // Configura o Realtime Database para gerenciar a desconexão inesperada
+            // Configura o Realtime Database para indicar que o usuário está online
             const userStatusRef = ref(db, `status/${user.uid}`);
-            await set(userStatusRef, { online: true, lastChanged: new Date().toISOString() });
+            try {
+              await set(userStatusRef, { online: true, lastChanged: new Date().toISOString() });
 
-            // Se ocorrer desconexão inesperada, define o status como offline
-            onDisconnect(userStatusRef).set({ online: false, lastChanged: new Date().toISOString() }).then(() => {
-              // Após marcar como offline no Realtime Database, também atualiza no Firestore
-              this.usuarioService.updateUserOnlineStatus(user.uid, false).subscribe({
-                next: () => {
-                  console.log('Status isOnline atualizado no Firestore após desconexão inesperada.');
-                  this.store.dispatch(userOffline({ uid: user.uid }));
-                },
-
-                error: (error) => this.globalErrorHandlerService.handleError(error)
-              });
-            }).catch((error) => {
-              this.globalErrorHandlerService.handleError(error as Error);
-            });
+              // Atualiza o status online do Firestore
+              await this.usuarioService.updateUserOnlineStatus(user.uid, true);
+              console.log('Status isOnline atualizado no Firestore para online.');
+            } catch (error) {
+              console.error('Erro ao definir o status online:', error);
+            }
           }
         } catch (error) {
           this.globalErrorHandlerService.handleError(error as Error);
         }
       } else {
         console.log('Nenhum usuário autenticado. Limpa estado local.');
-        this.loadUserFromLocalStorage();
+        this.clearCurrentUser();
       }
     });
   }
 
-  // Tenta carregar o usuário autenticado do localStorage.
   private loadUserFromLocalStorage(): void {
     try {
       const storedUser = localStorage.getItem('currentUser');
@@ -97,23 +82,14 @@ export class AuthService {
     }
   }
 
-  //Verifica se o usuário está autenticado com base no estado atual do BehaviorSubject.
   isAuthenticated(): boolean {
     return this.userSubject.value !== null;
   }
 
-  //Retorna o ID do usuário logado, caso exista.
   getLoggedUserUID(): string | null {
     return this.userSubject.value?.uid || null;
   }
 
-  //Atualiza o usuário atual e o armazena no localStorage.
-  setCurrentUser(userData: IUserDados): void {
-    this.userSubject.next(userData);
-    localStorage.setItem('currentUser', JSON.stringify(userData));
-  }
-
-  //Método público para limpar o estado do usuário e realizar logout
   public logoutAndClearUser(): void {
     this.clearCurrentUser();
   }
@@ -124,19 +100,36 @@ export class AuthService {
     console.log('Estado de usuário limpo e sessão encerrada.');
   }
 
-// Atualização do status online no Firestore antes do logout
+  setCurrentUser(userData: IUserDados): void {
+    this.userSubject.next(userData);
+    localStorage.setItem('currentUser', JSON.stringify(userData));
+    console.log('Usuário definido e salvo no localStorage:', userData);
+  }
+
   async logout(): Promise<void> {
     const userUID = this.getLoggedUserUID();
     if (userUID) {
       try {
+        // Atualiza o status do usuário para offline antes de efetuar o logout
+        await this.usuarioService.updateUserOnlineStatus(userUID, false);
+        console.log('Status isOnline atualizado no Firestore para offline.');
+
+        // Efetuar logout no Firebase
         await signOut(auth);
-        await firstValueFrom(this.usuarioService.updateUserOnlineStatus(userUID, false));
+        console.log('Logout do Firebase realizado com sucesso.');
+
+        // Limpa o estado do usuário e navega para a página de login
         this.clearCurrentUser();
         this.store.dispatch(logoutSuccess());
+        console.log('Logout realizado com sucesso e estado do usuário atualizado.');
+
         await this.router.navigate(['/login']);
       } catch (error) {
+        console.error('Erro ao fazer logout:', error);
         this.globalErrorHandlerService.handleError(error as Error);
       }
+    } else {
+      console.warn('UID do usuário não encontrado. Não é possível efetuar logout.');
     }
   }
 }

@@ -5,7 +5,7 @@ import {
   loadUsers, loadUsersSuccess, loadUsersFailure, updateUserOnlineStatus,
   loadOnlineUsersSuccess, setFilteredOnlineUsers, setCurrentUser,
   clearCurrentUser, addUserToState
-} from '../../actions/actions.user/user.actions';
+} from '../../actions/actions.user/user.actions'; // Atualizado para referenciar user.actions.ts
 import { initialUserState } from '../../states/states.user/user.state';
 
 function addUniqueUsers(existingUsers: IUserDados[], newUsers: IUserDados[]): IUserDados[] {
@@ -51,14 +51,8 @@ export const userReducer = createReducer(
     const updatedUsers: IUserDados[] = state.users.map(user =>
       user.uid === uid ? { ...user, isOnline } : user
     );
+    console.log(`Atualizando status online do usuário ${uid}: ${isOnline}`);
     return { ...state, users: updatedUsers };
-  }),
-
-  on(loadOnlineUsersSuccess, (state, { users }) => {
-    
-    const uniqueOnlineUsers = addUniqueUsers(state.onlineUsers, users);
-    console.log('Usuários online carregados (sem duplicação):', uniqueOnlineUsers.length);
-    return { ...state, onlineUsers: uniqueOnlineUsers };
   }),
 
   on(setFilteredOnlineUsers, (state, { filteredUsers }) => ({
