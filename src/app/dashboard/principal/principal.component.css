@@ -1,5 +1,23 @@
 /* src/app/dashboard/principal/principal.component.css */
-app-online-users {
-  margin-top: 500px;
-  /* Ajusta o espaçamento entre o componente online-users e o header */
+/* src\app\dashboard\principal\principal.component.css */
+.principal-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.welcome-section {
+  grid-column: 1 / -1;
+  /* Ocupa toda a linha */
+  background-color: #e9ecef;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.online-users-section,
+.latest-photos-section {
+  background-color: #ffffff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }

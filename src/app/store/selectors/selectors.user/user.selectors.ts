@@ -1,5 +1,5 @@
 // src/app/store/selectors/user.selectors.ts
-import { createSelector } from '@ngrx/store';
+import { createSelector, MemoizedSelector } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { IUserState } from '../../states/states.user/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -7,9 +7,16 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 // Seleciona o estado de usuário do estado global da aplicação.
 export const selectUserState = (state: AppState): IUserState => state.user;
 
-/**
- * Seleciona todos os usuários armazenados no estado.
- */
+// Seleciona o usuário atual no estado.
+export const selectCurrentUser: MemoizedSelector<AppState, IUserDados | null> = createSelector(
+  selectUserState,
+  (state: IUserState): IUserDados | null => {
+    console.log('Selecionando o usuário atual:', state.currentUser);
+    return state.currentUser ? state.currentUser : null;
+  }
+);
+
+//Seleciona todos os usuários armazenados no estado.
 export const selectAllUsers = createSelector(
   selectUserState,
   (state: IUserState): IUserDados[] => {
@@ -32,9 +39,7 @@ export const selectUserById = (uid: string) =>
     }
   );
 
-/**
- * Seleciona todos os usuários online.
- */
+//Seleciona todos os usuários online.
 export const selectAllOnlineUsers = createSelector(
   selectAllUsers,
   (users: IUserDados[]): IUserDados[] => {
@@ -62,9 +67,8 @@ export const selectOnlineUsersByRegion = (region: string) =>
     }
   );
 
-/**
- * Seleciona o estado de carregamento (loading) do estado de usuários.
- */
+
+//Seleciona o estado de carregamento (loading) do estado de usuários.
 export const selectUserLoading = createSelector(
   selectUserState,
   (state: IUserState) => {
@@ -73,9 +77,7 @@ export const selectUserLoading = createSelector(
   }
 );
 
-/**
- * Seleciona os erros relacionados ao estado de usuários.
- */
+// Seleciona os erros relacionados ao estado de usuários.
 export const selectUserError = createSelector(
   selectUserState,
   (state: IUserState) => {
@@ -84,13 +86,3 @@ export const selectUserError = createSelector(
   }
 );
 
-/**
- * Seleciona o usuário atual no estado.
- */
-export const selectCurrentUser = createSelector(
-  selectUserState,
-  (state: IUserState): IUserDados | null => {
-    console.log('Selecionando o usuário atual:', state.currentUser);
-    return state.currentUser;
-  }
-);

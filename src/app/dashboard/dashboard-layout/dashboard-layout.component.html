@@ -1,4 +1,14 @@
 <!-- src\app\dashboard\dashboard-layout\dashboard-layout.component.html -->
 <div class="dashboard-container">
-    <router-outlet></router-outlet> <!-- Exibe as rotas filhas do dashboard -->
+  <nav class="dashboard-sidebar">
+    <ul>
+      <li><a routerLink="/dashboard/principal">Principal</a></li>
+      <li><a routerLink="/dashboard/online-users">Usuários Online</a></li>
+      <li><a routerLink="/dashboard/featured-profiles">Perfis em Destaque</a></li>
+      <li><a routerLink="/dashboard/chat-rooms">Salas de Chat</a></li>
+    </ul>
+  </nav>
+  <main class="dashboard-content">
+    <router-outlet></router-outlet>
+  </main>
 </div>

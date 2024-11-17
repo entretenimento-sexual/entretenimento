@@ -11,6 +11,7 @@ import { AppState } from '../../../store/states/app.state';
 import { loginSuccess, logoutSuccess } from '../../../store/actions/actions.user/auth.actions';
 import { Router } from '@angular/router';
 import { getDatabase, ref, set } from 'firebase/database';
+import { setCurrentUser } from 'src/app/store/actions/actions.user/user.actions';
 
 const auth = getAuth();
 const db = getDatabase();
@@ -45,6 +46,7 @@ export class AuthService {
             this.userSubject.next(userData);
             localStorage.setItem('currentUser', JSON.stringify(userData));
             this.store.dispatch(loginSuccess({ user: userData }));
+            this.store.dispatch(setCurrentUser({ user: userData }));
 
             // Configura o Realtime Database para indicar que o usuário está online
             const userStatusRef = ref(db, `status/${user.uid}`);
@@ -104,6 +106,7 @@ export class AuthService {
     this.userSubject.next(userData);
     localStorage.setItem('currentUser', JSON.stringify(userData));
     console.log('Usuário definido e salvo no localStorage:', userData);
+    console.log('Estado do usuário foi atualizado no BehaviorSubject:', this.userSubject.value);
   }
 
   async logout(): Promise<void> {

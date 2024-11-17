@@ -29,16 +29,11 @@ function addUniqueUsers(existingUsers: IUserDados[], newUsers: IUserDados[]): IU
   ];
 }
 
-/**
- * Redutor para o estado de usuários.
- */
+//Redutor para o estado de usuários.
 export const userReducer = createReducer(
-  // Estado inicial definido no arquivo de estado.
-  initialUserState,
-
-  /**
-   * Ação: Adiciona um usuário específico ao estado, se ele ainda não estiver presente.
-   */
+  initialUserState, // Estado inicial definido no arquivo de estado.
+  
+  //Ação: Adiciona um usuário específico ao estado, se ele ainda não estiver presente.
   on(addUserToState, (state, { user }) => {
     if (state.users.some((existingUser) => existingUser.uid === user.uid)) {
       console.log(`Usuário ${user.uid} já está no estado.`);
@@ -51,17 +46,13 @@ export const userReducer = createReducer(
     };
   }),
 
-  /**
-   * Ação: Indica que o processo de carregamento de todos os usuários começou.
-   */
+  //Ação: Indica que o processo de carregamento de todos os usuários começou.
   on(loadUsers, (state) => {
     console.log('Ação disparada: Carregar Usuários');
     return { ...state, loading: true };
   }),
 
-  /**
-   * Ação: Atualiza o estado com a lista de usuários carregados.
-   */
+  //Ação: Atualiza o estado com a lista de usuários carregados.
   on(loadUsersSuccess, (state, { users }) => {
     const updatedUsers = addUniqueUsers(state.users, users);
     console.log(
@@ -75,17 +66,13 @@ export const userReducer = createReducer(
     };
   }),
 
-  /**
-   * Ação: Define o erro no estado em caso de falha ao carregar usuários.
-   */
+  //Ação: Define o erro no estado em caso de falha ao carregar usuários.
   on(loadUsersFailure, (state, { error }) => {
     console.error('Erro ao carregar usuários:', error);
     return { ...state, loading: false, error };
   }),
 
-  /**
-   * Ação: Atualiza o estado de usuários online com os dados recebidos.
-   */
+  //Ação: Atualiza o estado de usuários online com os dados recebidos.
   on(loadOnlineUsersSuccess, (state, { users }) => {
     console.log(`Usuários online carregados com sucesso. Total: ${users.length}`);
     return {
@@ -95,17 +82,13 @@ export const userReducer = createReducer(
     };
   }),
 
-  /**
-   * Ação: Atualiza o estado de carregamento e o erro ao falhar no carregamento de usuários online.
-   */
+ // Ação: Atualiza o estado de carregamento e o erro ao falhar no carregamento de usuários online.
   on(loadUsersFailure, (state, { error }) => {
     console.error('Erro ao carregar usuários online:', error);
     return { ...state, loading: false, error };
   }),
 
-  /**
-   * Ação: Atualiza o status online de um usuário específico.
-   */
+  //Ação: Atualiza o status online de um usuário específico.
   on(updateUserOnlineStatus, (state, { uid, isOnline }) => {
     const updatedUsers = state.users.map((user) =>
       user.uid === uid ? { ...user, isOnline } : user
@@ -114,25 +97,19 @@ export const userReducer = createReducer(
     return { ...state, users: updatedUsers };
   }),
 
-  /**
-   * Ação: Atualiza a lista de usuários online filtrados no estado.
-   */
+  //Ação: Atualiza a lista de usuários online filtrados no estado.
   on(setFilteredOnlineUsers, (state, { filteredUsers }) => {
     console.log('Usuários online filtrados definidos:', filteredUsers.length);
     return { ...state, filteredUsers };
   }),
 
-  /**
-   * Ação: Define o usuário atual no estado.
-   */
+  //Ação: Define o usuário atual no estado.
   on(setCurrentUser, (state, { user }) => {
     console.log('Usuário atual definido:', user);
     return { ...state, currentUser: user };
   }),
 
-  /**
-   * Ação: Remove o usuário atual do estado.
-   */
+  //Ação: Remove o usuário atual do estado.
   on(clearCurrentUser, (state) => {
     console.log('Usuário atual removido do estado.');
     return { ...state, currentUser: null };

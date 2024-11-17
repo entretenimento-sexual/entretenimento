@@ -9,7 +9,7 @@ import { LocationState } from './states.location/location.state';
 
 export interface AppState {
   authState: IUserState;
-  user: UserState;
+  user: IUserState;
   file: FileState;
   terms: TermsState;
   chat: ChatState;

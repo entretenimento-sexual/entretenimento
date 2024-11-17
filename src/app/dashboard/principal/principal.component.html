@@ -1,2 +1,17 @@
 <!-- src\app\dashboard\principal\principal.component.html -->
-<app-online-users></app-online-users>
+<div class="principal-container">
+  <section class="welcome-section">
+    <h1>Bem-vindo de volta, {{ (currentUser$ | async)?.nickname }}!</h1>
+    <p>Aqui estão algumas informações importantes para você hoje.</p>
+  </section>
+
+  <section class="online-users-section">
+    <h2>Usuários Online</h2>
+    <app-online-users></app-online-users>
+  </section>
+
+  <section class="latest-photos-section">
+    <h2>Últimas Fotos</h2>
+    <!--<app-latest-photos></app-latest-photos>  Novo componente -->
+  </section>
+</div>

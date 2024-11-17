@@ -38,11 +38,17 @@ export class UserInteractionsService {
   }
 
   async loadFriends(): Promise<void> {
-    const currentUser = await this.authService.getUserAuthenticated().toPromise();
-    if (currentUser && currentUser.uid) {
-      this.listFriends(currentUser.uid)
-        .then(amigos => this.amigos = amigos)
-        .catch(error => console.error("Erro ao buscar amigos:", error));
+    const userUID = this.authService.getLoggedUserUID();
+    if (userUID) {
+      try {
+        const amigos = await this.listFriends(userUID);
+        this.amigos = amigos;
+        console.log("Amigos carregados com sucesso:", amigos);
+      } catch (error) {
+        console.error("Erro ao buscar amigos:", error);
+      }
+    } else {
+      console.warn("Nenhum usuário autenticado encontrado.");
     }
   }
 }
