@@ -1,27 +1,69 @@
 /* src\app\shared\user-card\user-card.component.css */
 /* Estilo geral do card */
 .user-card {
-  border-radius: 10px;  /* Reduzindo as bordas arredondadas */
+  border-radius: 10px;
   overflow: hidden;
   transition: transform 0.2s, box-shadow 0.2s;
-  max-width: 220px;  /* Aumentando ligeiramente o tamanho do card */
-  margin: 5px auto;  /* Reduzindo a margem entre os cards */
-  padding: 5px;  /* Reduzindo o padding interno */
+  max-width: 220px;
+  margin: 5px auto;
+  padding: 5px;
   background-color: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);  /* Menor sombra */
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  font-family: 'Roboto', sans-serif;
+  /* Fonte mais moderna */
 }
 
 .user-card:hover {
   transform: scale(1.05);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);  /* Sombra mais sutil ao passar o mouse */
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Nickname - estilização das diferentes classes */
+.nickname-online {
+  color: #fff;
+  /* Texto em branco para maior contraste */
+  background-color: #28a745;
+  /* Fundo verde para indicar online */
+  padding: 5px;
+  border-radius: 5px;
+  font-weight: bold;
+}
+
+.nickname-offline {
+  color: #fff;
+  /* Texto em branco para contraste */
+  background-color: #6c757d;
+  /* Fundo cinza */
+  padding: 5px;
+  border-radius: 5px;
+}
+
+.nickname-recent {
+  color: #fff;
+  /* Texto em branco */
+  background-color: #007bff;
+  /* Fundo azul */
+  padding: 5px;
+  border-radius: 5px;
+  font-weight: bold;
+}
+
+.nickname-inactive {
+  color: #fff;
+  /* Texto em branco */
+  background-color: #dc3545;
+  /* Fundo vermelho para indicar inatividade */
+  padding: 5px;
+  border-radius: 5px;
+  font-style: italic;
 }
 
 /* Imagem de perfil */
 .profile-photo {
-  width: 100%;  /* A imagem ocupa toda a largura disponível */
-  height: 180px;  /* Definindo uma altura fixa */
-  object-fit: cover;  /* A imagem cobre o espaço disponível sem distorcer */
-  border-radius: 0;  /* Remover bordas arredondadas da imagem */
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 0;
   display: block;
   margin-left: auto;
   margin-right: auto;
@@ -30,7 +72,7 @@
 /* Texto no card */
 .card-title {
   font-weight: 600;
-  font-size: 1rem;  /* Ajustando o tamanho do texto */
+  font-size: 1rem;
   margin-bottom: 5px;
   text-align: center;
 }
@@ -50,7 +92,7 @@
   }
 
   .profile-photo {
-    height: 150px;    /* Ajuste da altura da imagem em dispositivos menores */
+    height: 150px;
   }
 
   .card-title {

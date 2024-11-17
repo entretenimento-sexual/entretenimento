@@ -12,11 +12,11 @@ import { roomReducer } from '../reducers.chat/room.reducer';
 import { locationReducer } from '../reducers.location/location.reducer';
 
 export const reducers: ActionReducerMap<AppState> = {
+  authState: authReducer,
   user: userReducer,
   terms: termsReducer,
   file: fileReducer,
-  auth: authReducer,
-  location: locationReducer,
+    location: locationReducer,
   chat: chatReducer,
   invite: inviteReducer,
   room: roomReducer,

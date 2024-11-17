@@ -13,7 +13,7 @@ export interface IUserDados {
   nome?: string; // Nome completo do usuário
   idade?: number; // Idade do usuário
   role: 'visitante' |'free' | 'basico' | 'premium' | 'vip';
-  lastLoginDate: Timestamp; // Data do último login
+  lastLogin: Timestamp; // Data do último login
   firstLogin: Timestamp | Date | null;
   createdAt?: Timestamp | Date | null;
   emailVerified?: string;

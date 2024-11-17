@@ -1,8 +1,9 @@
 <!-- src\app\shared\user-card\user-card.component.html -->
 <a [routerLink]="['/profile', user?.uid]" class="card user-card h-100 shadow-lg text-decoration-none">
-  <div class="card-header text-center bg-primary text-white">
-    <h5 class="card-title m-0">{{ user?.nickname }}</h5>
-    <span class="badge bg-success" *ngIf="user?.isOnline">Online</span>
+  <div class="card-header text-center" [ngClass]="getUserNicknameClass(user)">
+    <h5 class="card-title m-0 d-flex align-items-center justify-content-center">
+      {{ user?.nickname }}
+    </h5>
   </div>
   <div class="card-img-top">
     <img [src]="user?.photoURL || 'assets/imagem-padrao.webp'" class="img-fluid profile-photo mx-auto d-block"

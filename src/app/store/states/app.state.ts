@@ -8,7 +8,7 @@ import { RoomState } from './states.chat/room.state';
 import { LocationState } from './states.location/location.state';
 
 export interface AppState {
-  auth: IUserState;
+  authState: IUserState;
   user: UserState;
   file: FileState;
   terms: TermsState;

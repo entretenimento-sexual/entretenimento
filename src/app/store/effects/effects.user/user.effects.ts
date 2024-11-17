@@ -1,73 +1,108 @@
 // src/app/store/effects/user/user.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { observeUserChanges, loadUsersFailure, loadUsersSuccess, loadUsers } from '../../actions/actions.user/user.actions'; 
-import { UsuarioService } from 'src/app/core/services/usuario.service';
+import {
+  observeUserChanges,
+  loadUsers,
+  loadUsersSuccess,
+  loadUsersFailure,
+  loadOnlineUsers,
+  loadOnlineUsersSuccess,
+  loadOnlineUsersFailure
+} from '../../actions/actions.user/user.actions';
+import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
 import { catchError, map, switchMap, withLatestFrom } from 'rxjs/operators';
 import { of } from 'rxjs';
-import { Store } from '@ngrx/store';
+import { Store, select } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
-import { selectUserById } from '../../selectors/selectors.user/user.selectors'; // Ajustar caminho do seletor
+import { selectAllUsers } from '../../selectors/selectors.user/user.selectors';
 
 @Injectable()
 export class UserEffects {
   constructor(
     private actions$: Actions,
-    private usuarioService: UsuarioService,
+    private firestoreQueryService: FirestoreQueryService,
     private store: Store<AppState>
   ) { }
 
+  /**
+   * Observa mudanças de estado de um usuário específico.
+   */
   observeUserChanges$ = createEffect(() =>
     this.actions$.pipe(
       ofType(observeUserChanges),
-      withLatestFrom(this.store.select(state => state.user)),
-      switchMap(([action, userState]) => {
+      withLatestFrom(this.store.pipe(select(selectAllUsers))),
+      switchMap(([action, users]) => {
         const uid = action.uid;
-        return this.store.select(selectUserById(uid)).pipe(
-          switchMap(existingUser => {
-            console.log(`Ação observada para o UID:`, uid);
+        console.log(`Ação observada para o UID: ${uid}`);
 
-            if (existingUser) {
-              console.log(`Usuário já está no estado: ${uid}`);
-              return of(loadUsersSuccess({ users: [existingUser] }));
-            } else {
-              console.log(`Usuário não encontrado no estado, buscando no Firestore: ${uid}`);
-              return this.usuarioService.getUsuario(uid).pipe(
-                map(user => {
-                  if (user) {
-                    console.log(`Usuário carregado com sucesso do Firestore: ${user?.uid}`);
-                    return loadUsersSuccess({ users: [user] });
-                  } else {
-                    throw new Error(`Usuário com UID ${uid} não encontrado no Firestore`);
-                  }
-                }),
-                catchError(error => {
-                  console.error(`Erro ao carregar o usuário do Firestore: ${error.message}`);
-                  return of(loadUsersFailure({ error: { message: error.message } }));
-                })
-              );
-            }
+        // Verifica se o usuário já está no estado
+        const existingUser = users.find(user => user.uid === uid);
+        if (existingUser) {
+          console.log(`Usuário já encontrado no estado: ${uid}`);
+          return of(loadUsersSuccess({ users: [existingUser] }));
+        }
+
+        // Caso o usuário não esteja no estado, busca no Firestore
+        console.log(`Usuário não encontrado no estado, buscando no Firestore: ${uid}`);
+        return this.firestoreQueryService.getUserData(uid).then(user => {
+          if (user) {
+            console.log(`Usuário carregado com sucesso do Firestore: ${uid}`);
+            return loadUsersSuccess({ users: [user] });
+          } else {
+            console.error(`Usuário com UID ${uid} não encontrado no Firestore.`);
+            return loadUsersFailure({ error: { message: `Usuário ${uid} não encontrado.` } });
+          }
+        });
+      }),
+      catchError(error => {
+        console.error(`Erro no efeito observeUserChanges: ${error.message}`);
+        return of(loadUsersFailure({ error: { message: error.message } }));
+      })
+    )
+  );
+
+  /**
+   * Carrega todos os usuários.
+   */
+  loadUsers$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(loadUsers),
+      switchMap(() => {
+        console.log('Carregando todos os usuários...');
+        return this.firestoreQueryService.getAllUsers().pipe(
+          map(users => {
+            console.log('Usuários carregados com sucesso do Firestore:', users);
+            return loadUsersSuccess({ users });
+          }),
+          catchError(error => {
+            console.error('Erro ao carregar todos os usuários:', error);
+            return of(loadUsersFailure({ error: { message: error.message } }));
           })
         );
       })
     )
   );
 
-  loadUsers$ = createEffect(() =>
+  /**
+   * Carrega todos os usuários online.
+   */
+  loadOnlineUsers$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(loadUsers),
-      switchMap(() =>
-        this.usuarioService.getAllUsers().pipe(
+      ofType(loadOnlineUsers),
+      switchMap(() => {
+        console.log('Carregando todos os usuários online...');
+        return this.firestoreQueryService.getOnlineUsers().pipe(
           map(users => {
-            console.log('Usuários carregados com sucesso:', users);
-            return loadUsersSuccess({ users });
+            console.log('Usuários online carregados com sucesso:', users);
+            return loadOnlineUsersSuccess({ users });
           }),
           catchError(error => {
-            console.error('Erro ao carregar todos os usuários:', error);
-            return of(loadUsersFailure({ error }));
+            console.error('Erro ao carregar usuários online:', error);
+            return of(loadOnlineUsersFailure({ error: { message: error.message } }));
           })
-        )
-      )
+        );
+      })
     )
   );
 }

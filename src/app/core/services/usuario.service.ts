@@ -1,6 +1,6 @@
 // src\app\core\services\usuario.service.ts
 import { Injectable } from '@angular/core';
-import { Observable, catchError, firstValueFrom, from, map, of, switchMap, take, throwError } from 'rxjs';
+import { Observable, catchError, from, map, of, switchMap, take, throwError } from 'rxjs';
 import { IUserDados } from '../interfaces/iuser-dados';
 import { FirestoreService } from './autentication/firestore.service';
 import { collection, doc, onSnapshot, query, Timestamp, updateDoc, where } from '@firebase/firestore';
@@ -37,7 +37,7 @@ export class UsuarioService {
       displayName: user.displayName || null,
       photoURL: user.photoURL || null,
       role: 'basico', // Padrão, ajustar conforme necessário
-      lastLoginDate: timestampNow,
+      lastLogin: timestampNow,
       firstLogin: timestampNow,
       descricao: '',
       facebook: '',
@@ -128,22 +128,10 @@ export class UsuarioService {
     );
   }
 
-  // Obtém todos os usuários online
   getAllOnlineUsers(): Observable<IUserDados[]> {
-    const usersCollection = collection(this.firestoreService.db, 'users');
-    const onlineUsersQuery = query(usersCollection, where('isOnline', '==', true));
-
-    return new Observable<IUserDados[]>(observer => {
-      const unsubscribe = onSnapshot(onlineUsersQuery, (snapshot) => {
-        const users = snapshot.docs.map(doc => doc.data() as IUserDados);
-        observer.next(users);
-      }, (error) => {
-        observer.error(error);
-      });
-
-      return () => unsubscribe(); // Certifique-se de parar de escutar quando o observable for descartado
-    });
+    return this.firestoreQuery.getOnlineUsers();
   }
+
 
   // Atualiza os dados de um usuário específico no Firestore
   atualizarUsuario(uid: string, dados: Partial<IUserDados>): Observable<void> {

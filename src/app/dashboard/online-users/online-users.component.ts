@@ -67,16 +67,20 @@ export class OnlineUsersComponent implements OnInit {
 
     this.onlineUsers$?.subscribe({
       next: onlineUsers => {
-        onlineUsers.length > 0
-          ? this.errorNotificationService.showSuccess('Usuários carregados com sucesso.')
-          : this.errorNotificationService.showInfo('Nenhum usuário online no momento.');
+        this.loading = false; // Finaliza o carregamento
+        if (onlineUsers.length > 0) {
+          this.errorNotificationService.showSuccess('Usuários carregados com sucesso.');
+        } else {
+          this.errorNotificationService.showInfo('Nenhum usuário online no momento.');
+        }
       },
       error: err => {
+        this.loading = false; // Finaliza o carregamento em caso de erro
         this.errorNotificationService.showError('Erro ao carregar usuários online.');
         this.globalErrorHandlerService.handleError(err);
       },
       complete: () => {
-        this.loading = false;
+        this.loading = false; // Garante que o carregamento finalize
       }
     });
   }
@@ -121,8 +125,8 @@ export class OnlineUsersComponent implements OnInit {
     const municipioDifference = (a.municipio?.toLowerCase() || '').localeCompare(b.municipio?.toLowerCase() || '');
     if (municipioDifference !== 0) return municipioDifference;
 
-    const aLastLoginMillis = a.lastLoginDate instanceof Timestamp ? a.lastLoginDate.toMillis() : 0;
-    const bLastLoginMillis = b.lastLoginDate instanceof Timestamp ? b.lastLoginDate.toMillis() : 0;
+    const aLastLoginMillis = a.lastLogin instanceof Timestamp ? a.lastLogin.toMillis() : 0;
+    const bLastLoginMillis = b.lastLogin instanceof Timestamp ? b.lastLogin.toMillis() : 0;
 
     return bLastLoginMillis - aLastLoginMillis;
   }

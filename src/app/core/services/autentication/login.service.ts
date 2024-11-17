@@ -15,6 +15,8 @@ import { observeUserChanges } from 'src/app/store/actions/actions.user/user.acti
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { loginSuccess } from 'src/app/store/actions/actions.user/auth.actions';
+import { doc, Timestamp, updateDoc } from '@firebase/firestore';
+import { FirestoreService } from './firestore.service';
 
 // Inicializa o objeto de autenticação do Firebase
 const auth = getAuth();
@@ -27,6 +29,7 @@ export class LoginService {
   constructor(
     private router: Router,
     private usuarioService: UsuarioService,
+    private firestoreService: FirestoreService,
     private authService: AuthService,
     private store: Store<AppState>,
     private globalErrorHandler: GlobalErrorHandlerService,  // Tratamento de erros globais
@@ -39,7 +42,6 @@ export class LoginService {
     try {
       // Obtém o valor do campo "lembrar-me" do formulário
       const rememberMe = this.getRememberMeValue();
-
       // Define a persistência da sessão com base na escolha do usuário
       await this.setSessionPersistence(rememberMe ? browserLocalPersistence : browserSessionPersistence);
       console.log('Persistência de sessão definida.');
@@ -59,6 +61,12 @@ export class LoginService {
           await this.authService.setCurrentUser(userData);
           this.store.dispatch(loginSuccess({ user: userData }));
           console.log('Dados do usuário carregados após login:', userData);
+
+          // Atualiza o campo `lastLogin` diretamente no Firestore
+          const timestampNow = Timestamp.fromDate(new Date());
+          const userDocRef = doc(this.firestoreService.db, 'users', user.uid);
+          await updateDoc(userDocRef, { lastLogin: timestampNow });
+          console.log(`Data do último login atualizada para o usuário ${user.uid}.`);
 
           // Atualiza o status do usuário para online e armazena no Firestore
           await this.usuarioService.updateUserOnlineStatus(user.uid, true);
