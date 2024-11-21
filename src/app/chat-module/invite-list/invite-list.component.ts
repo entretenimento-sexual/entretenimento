@@ -25,27 +25,17 @@ export class InviteListComponent implements OnInit {
     });
   }
 
-  acceptInvite(inviteId: string | undefined) {
+  respondToInvite(inviteId: string | undefined, status: 'accepted' | 'declined') {
     if (!inviteId) {
       console.error('Erro: inviteId é undefined.');
       return;
     }
-    this.inviteService.updateInviteStatus(inviteId, 'accepted').then(() => {
-      console.log('Convite aceito com sucesso.');
-    }).catch(error => {
-      console.error('Erro ao aceitar o convite:', error);
-    });
-  }
-
-  declineInvite(inviteId: string | undefined) {
-    if (!inviteId) {
-      console.error('Erro: inviteId é undefined.');
-      return;
-    }
-    this.inviteService.updateInviteStatus(inviteId, 'declined').then(() => {
-      console.log('Convite recusado com sucesso.');
-    }).catch(error => {
-      console.error('Erro ao recusar o convite:', error);
-    });
+    this.inviteService.updateInviteStatus(inviteId, status)
+      .then(() => {
+        console.log(`Convite ${status === 'accepted' ? 'aceito' : 'recusado'} com sucesso.`);
+      })
+      .catch(error => {
+        console.error(`Erro ao ${status === 'accepted' ? 'aceitar' : 'recusar'} o convite:`, error);
+      });
   }
 }

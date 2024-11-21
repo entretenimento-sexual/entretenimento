@@ -1,10 +1,10 @@
 <!-- src\app\chat-module\chat-list\chat-list.component.html -->
 <div>
   <!-- Exibição de Salas -->
-  <div *ngIf="rooms.length > 0" class="chat-list-container">
-    <ng-container *ngFor="let room of rooms$ | async">
+  <div *ngIf="rooms$ | async as rooms" class="chat-list-container">
+    <div *ngFor="let room of rooms" (click)="selectRoom(room.roomId)">
 
-      <div class="room-item" (click)="selectRoom(room.roomId)">
+      <div class="room-item">
         <span class="room-name">{{ room.roomName }}</span>
         <!-- Botões de gerenciamento para o dono da sala -->
           <div *ngIf="isOwner(room)" class="room-management-buttons">
@@ -14,18 +14,19 @@
           </div>
       </div>
       <hr> <!-- Linha de separação entre salas e para separar do próximo chat/room -->
-    </ng-container>
+    </div>
   </div>
 
   <!-- Exibição de Chats Regulares -->
   <div *ngIf="regularChats.length > 0" class="chat-list-container">
     <div *ngFor="let chat of regularChats" class="chat-item" (click)="selectChat(chat.id)">
-      <img [src]="chat.otherParticipantDetails?.photoURL" alt="Foto do Usuário" class="chat-user-photo">
+      <img [src]="chat.otherParticipantDetails?.photoURL  || 'assets/imagem-padrao.webp'" alt="Foto do Usuário" class="chat-user-photo">
       <p>{{ chat.otherParticipantDetails?.nickname }}</p>
     </div>
   </div>
-</div>
 
-<ng-template #noMessages>
-  <p>Você ainda não tem mensagens na sala para exibir</p>
-</ng-template>
+<!-- Mensagem caso não existam chats ou salas -->
+    <div *ngIf="rooms.length === 0 && regularChats.length === 0">
+      <p>Você ainda não possui chats ou salas.</p>
+    </div>
+</div>

@@ -77,7 +77,7 @@ export const monitorChat = createAction(
 );
 export const newMessageReceived = createAction(
   '[Chat] New Message Received',
-  props<{ chatId: string; message: Message }>()
+  props<{ chatId: string; messages: Message[] }>()
 );
 export const monitorChatFailure = createAction(
   '[Chat] Monitor Chat Failure',

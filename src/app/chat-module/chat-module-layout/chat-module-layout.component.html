@@ -1,43 +1,52 @@
 <!-- src\app\chat-module\chat-module-layout\chat-module-layout.component.html -->
 <div class="chat-module-container">
 
+  <!-- Painel de informações do usuário logado -->
   <div class="user-info-panel">
-
-    <!-- Seção de Informações do Usuário Logado -->
     <div class="user-details">
-      <img [src]="(usuario$ | async)?.photoURL" alt="Foto" class="foto_chat">
+      <img [src]="(usuario$ | async)?.photoURL || '/assets/imagem-padrao.webp'" alt="Foto" class="foto_chat">
       <p>{{ (usuario$ | async)?.nickname }}</p>
-      <!-- Outras informações do usuário -->
-      <p>Mensagem Aleatória</p>
-    </div><!--user-details-->
+    </div><!-- user-details -->
 
-    <!-- Seção da Lista de Últimos Usuários com quem Interagiu -->
+        <!-- Lista de últimos usuários com quem interagiu -->
     <div class="recent-interactions">
-      <p>Últimas Interações</p>
       <app-chat-list (chatSelected)="onChatSelected($event)"></app-chat-list>
-    </div><!--recent-interactions-->
-  </div><!--user-info-panel-->
+    </div><!-- recent-interactions -->
+  </div><!-- user-info-panel -->
 
-  <!-- Área Principal do Chat -->
+  <!-- Área principal do chat -->
   <div class="chat-window-main">
 
     <!-- Seção das Salas de Bate-Papo -->
     <div class="chat-rooms" style="border-bottom: 1px solid black; padding: 10px;">
-        <app-chat-rooms></app-chat-rooms>
+      <app-chat-rooms></app-chat-rooms>
     </div><!--chat-rooms-->
 
-    <!-- Área de Mensagens do Chat -->
+    <!-- Exibição e interação da sala ou do chat selecionado -->
     <div class="chat-area">
-      <p>exibir mensagens aqui</p>
-      <app-chat-messages-list [chatId]="selectedChatId" [type]="selectedType"></app-chat-messages-list>
-    </div>
+      <!-- Caso uma sala esteja selecionada -->
+      <ng-container *ngIf="selectedType === 'room'">
+         <app-room-interaction *ngIf="selectedType === 'room'" [roomId]="selectedChatId"></app-room-interaction>
+      </ng-container>
 
-    <!-- Área de Entrada de Mensagens -->
-    <div class="chat-input">
-      <textarea [(ngModel)]="messageContent"
-                (keydown.enter)="sendMessage(); $event.preventDefault()"
-                style="width: 100%;"></textarea>
-      <button (click)="sendMessage()" style="width: 10%;">Enviar</button>
-    </div>
-  </div><!--chat-window-main-->
-</div> <!--chat-module-container-->
+
+      <!-- Caso um chat esteja selecionado -->
+        <ng-container *ngIf="selectedType === 'chat'">
+          <app-chat-messages-list [chatId]="selectedChatId" [type]="selectedType"></app-chat-messages-list>
+        </ng-container>
+
+
+      <!-- Caso nenhum chat ou sala tenha sido selecionado -->
+      <p *ngIf="!selectedType">Selecione um chat ou uma sala.</p>
+    </div><!-- chat-area -->
+
+    <!-- Entrada de mensagens -->
+    <ng-container *ngIf="selectedType">
+      <div class="chat-input">
+        <textarea [(ngModel)]="messageContent" (keydown.enter)="sendMessage(); $event.preventDefault()"
+          placeholder="Digite sua mensagem..." style="width: 100%;"></textarea>
+        <button (click)="sendMessage()" style="width: 10%;">Enviar</button>
+      </div>
+    </ng-container>
+  </div><!-- chat-window-main -->
+</div> <!-- chat-module-container -->

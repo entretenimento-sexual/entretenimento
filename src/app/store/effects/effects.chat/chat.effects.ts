@@ -126,23 +126,20 @@ export class ChatEffects {
     )
   );
 
-  /**
-   * Efeito para monitorar mudanças em tempo real em um chat específico
-   */
+  //Efeito para monitorar mudanças em tempo real em um chat específico
   monitorChat$ = createEffect(() =>
     this.actions$.pipe(
       ofType(ChatActions.monitorChat),
-      mergeMap(action => {
-        console.log(`Monitorando mudanças em tempo real para o chat ${action.chatId}`);
-        return this.chatService.monitorChat(action.chatId).pipe(
-          map(message => ChatActions.newMessageReceived({ chatId: action.chatId, message })),
+      mergeMap(action =>
+        this.chatService.monitorChat(action.chatId).pipe(
+          map(messages => ChatActions.newMessageReceived({ chatId: action.chatId, messages })),
           catchError(error => {
             this.errorNotificationService.showError('Erro ao monitorar chat');
             console.error('Erro ao monitorar chat:', error);
             return of(ChatActions.monitorChatFailure({ error: error.message || 'Erro ao monitorar chat' }));
           })
-        );
-      })
+        )
+      )
     )
   );
 }

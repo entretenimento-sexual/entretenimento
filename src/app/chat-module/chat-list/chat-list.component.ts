@@ -36,6 +36,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     console.log('Iniciando ChatListComponent, carregando conversas do usuário.');
+
     this.userSubscription = this.authService.user$.pipe(
       switchMap(currentUser => {
         console.log('Usuário autenticado:', currentUser?.uid);
@@ -45,6 +46,13 @@ export class ChatListComponent implements OnInit, OnDestroy {
         }
         console.log('Carregando salas e chats para o usuário:', currentUser.uid);
         this.rooms$ = this.roomService.getUserRooms(currentUser.uid);
+
+        // Adiciona a assinatura ao Observable rooms$
+        this.rooms$.subscribe((rooms: any[]) => {
+          this.rooms = rooms;
+          console.log('Salas carregadas:', this.rooms);
+        });
+
         return this.chatService.getChats(currentUser.uid);
       })
     ).subscribe(chats => {
@@ -65,26 +73,29 @@ export class ChatListComponent implements OnInit, OnDestroy {
     });
   }
 
+
   isRoom(item: any): boolean {
     return item.isRoom === true;
   }
 
-  selectChat(chatId: string | undefined) {
+  selectChat(chatId: string | undefined): void {
     if (!chatId) {
       console.error('Erro: ID do chat é undefined.');
       return;
     }
-    console.log(`Selecionando chat com ID: ${chatId}`);
+    console.log(`Chat selecionado com ID: ${chatId}`);
     this.chatSelected.emit({ id: chatId, type: 'chat' });
   }
 
-  selectRoom(roomId: string | undefined) {
+  selectRoom(roomId: string | undefined): void {
     if (!roomId) {
       console.error('Erro: ID da sala é undefined.');
       return;
     }
+    console.log(`Sala selecionada com ID: ${roomId}`);
     this.chatSelected.emit({ id: roomId, type: 'room' });
   }
+
 
   // Verifica se o usuário atual é o dono da sala
   isOwner(room: any): boolean {

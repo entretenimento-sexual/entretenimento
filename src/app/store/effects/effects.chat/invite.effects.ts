@@ -3,8 +3,8 @@ import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { InviteService } from 'src/app/core/services/batepapo/invite.service';
 import * as InviteActions from '../../actions/actions.chat/invite.actions';
-import { map, mergeMap, catchError } from 'rxjs/operators';
-import { from, of } from 'rxjs';
+import { map, mergeMap, catchError, switchMap } from 'rxjs/operators';
+import { of } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { selectUserState } from '../../selectors/selectors.user/user.selectors';
@@ -17,23 +17,22 @@ export class InviteEffects {
     private store: Store<AppState>
   ) { }
 
+  // Efeito para carregar convites
   loadInvites$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(InviteActions.LoadInvites),
-      mergeMap(() =>
+      ofType(InviteActions.LoadInvites), // Ouve a ação LoadInvites
+      switchMap(() =>
         this.store.select(selectUserState).pipe(
-          mergeMap(userState => {
-            const userId = userState?.currentUser?.uid; // Alterado de `id` para `uid`
+          map(userState => userState?.currentUser?.uid), // Extrai o UID do usuário
+          switchMap(userId => {
             if (!userId) {
-              console.error('Erro: userId não encontrado.');
-              return of(InviteActions.LoadInvitesFailure({ error: 'Usuário não autenticado' }));
+              console.error('Erro: usuário não autenticado.');
+              return of(InviteActions.LoadInvitesFailure({ error: 'Usuário não autenticado.' }));
             }
-            console.log('Carregando convites para userId:', userId);
+
+            // Busca os convites do usuário
             return this.inviteService.getInvites(userId).pipe(
-              map(invites => {
-                console.log('Convites carregados com sucesso:', invites);
-                return InviteActions.LoadInvitesSuccess({ invites });
-              }),
+              map(invites => InviteActions.LoadInvitesSuccess({ invites })),
               catchError(error => {
                 console.error('Erro ao carregar convites:', error);
                 return of(InviteActions.LoadInvitesFailure({ error }));
@@ -45,41 +44,35 @@ export class InviteEffects {
     )
   );
 
+  // Efeito para aceitar convites
   acceptInvite$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(InviteActions.AcceptInvite),
-      mergeMap(action => {
-        console.log('Aceitando convite com ID:', action.inviteId);
-        return from(this.inviteService.acceptInvite(action.inviteId)).pipe(
-          map(() => {
-            console.log('Convite aceito com sucesso para ID:', action.inviteId);
-            return InviteActions.AcceptInviteSuccess({ inviteId: action.inviteId });
-          }),
-          catchError(error => {
-            console.error('Erro ao aceitar convite:', error);
-            return of(InviteActions.AcceptInviteFailure({ error }));
-          })
-        );
-      })
+      ofType(InviteActions.AcceptInvite), // Ouve a ação AcceptInvite
+      mergeMap(action =>
+        this.inviteService.updateInviteStatus(action.inviteId, 'accepted').then(() => {
+          console.log('Convite aceito com sucesso:', action.inviteId);
+          return InviteActions.AcceptInviteSuccess({ inviteId: action.inviteId });
+        }).catch(error => {
+          console.error('Erro ao aceitar convite:', error);
+          return InviteActions.AcceptInviteFailure({ error });
+        })
+      )
     )
   );
 
+  // Efeito para recusar convites
   declineInvite$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(InviteActions.DeclineInvite),
-      mergeMap(action => {
-        console.log('Recusando convite com ID:', action.inviteId);
-        return from(this.inviteService.declineInvite(action.inviteId)).pipe(
-          map(() => {
-            console.log('Convite recusado com sucesso para ID:', action.inviteId);
-            return InviteActions.DeclineInviteSuccess({ inviteId: action.inviteId });
-          }),
-          catchError(error => {
-            console.error('Erro ao recusar convite:', error);
-            return of(InviteActions.DeclineInviteFailure({ error }));
-          })
-        );
-      })
+      ofType(InviteActions.DeclineInvite), // Ouve a ação DeclineInvite
+      mergeMap(action =>
+        this.inviteService.updateInviteStatus(action.inviteId, 'declined').then(() => {
+          console.log('Convite recusado com sucesso:', action.inviteId);
+          return InviteActions.DeclineInviteSuccess({ inviteId: action.inviteId });
+        }).catch(error => {
+          console.error('Erro ao recusar convite:', error);
+          return InviteActions.DeclineInviteFailure({ error });
+        })
+      )
     )
   );
 }

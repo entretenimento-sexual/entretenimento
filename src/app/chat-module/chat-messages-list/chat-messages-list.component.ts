@@ -1,7 +1,7 @@
 // src\app\chat-module\chat-messages-list\chat-messages-list.component.ts
 import { ChangeDetectorRef, Component, Input, OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
 import { ChatService } from 'src/app/core/services/batepapo/chat.service';
-import { RoomService } from 'src/app/core/services/batepapo/room.service'; // Não esqueça de injetar RoomService
+import { RoomService } from 'src/app/core/services/batepapo/room.service';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { Subscription } from 'rxjs';
 
@@ -37,26 +37,34 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
       console.error('Erro: ID do chat ou da sala ou tipo é undefined.');
       return;
     }
-    // Garante que qualquer inscrição anterior seja cancelada
+
+    // Cancela qualquer assinatura anterior
     this.messagesSubscription?.unsubscribe();
 
     if (this.type === 'chat') {
-      // Caso seja um chat, utiliza o ChatService para obter as mensagens
+      // Redefine as mensagens ao carregar um novo chat
+      this.messages = [];
       this.messagesSubscription = this.chatService.monitorChat(this.chatId)
-        .subscribe(message => {
-          this.messages.push(message); // Adiciona a nova mensagem em tempo real
-          this.cdRef.detectChanges(); // Atualiza a interface com as novas mensagens
-        }, error => {
-          console.error(`Erro ao carregar mensagens em tempo real do chat ${this.chatId}:`, error);
+        .subscribe({
+          next: (messages: Message[]) => {
+            console.log('Mensagens recebidas para o chat:', messages);
+            this.messages = messages; // Substitui as mensagens pelo novo resultado
+            this.cdRef.detectChanges();
+          },
+          error: (error) => {
+            console.error(`Erro ao carregar mensagens do chat ${this.chatId}:`, error);
+          },
         });
-    } else {
-      // Caso seja uma sala, utiliza o RoomService para obter as mensagens
-      this.messagesSubscription = this.roomService.getRoomMessages(this.chatId, true) // true para realtime, se aplicável
-        .subscribe(messages => {
-          // Não é necessário converter o timestamp aqui, pois a conversão para Date será feita na exibição
-          this.messages = messages;
-        }, error => {
-          console.error(`Erro ao carregar mensagens da sala ${this.chatId}:`, error);
+    } else if (this.type === 'room') {
+      this.messagesSubscription = this.roomService.getRoomMessages(this.chatId, true)
+        .subscribe({
+          next: (messages: Message[]) => {
+            console.log('Mensagens recebidas para a sala:', messages);
+            this.messages = messages;
+          },
+          error: (error) => {
+            console.error(`Erro ao carregar mensagens da sala ${this.chatId}:`, error);
+          },
         });
     }
   }

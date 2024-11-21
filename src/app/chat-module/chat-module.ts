@@ -19,6 +19,7 @@ import { CreateRoomModalComponent } from './create-room-modal/create-room-modal.
 import { RoomCreationConfirmationModalComponent } from './room-creation-confirmation-modal/room-creation-confirmation-modal.component';
 import { InviteListComponent } from './invite-list/invite-list.component';
 import { chatReducer } from '../store/reducers/reducers.chat/chat.reducer';
+import { RoomInteractionComponent } from './room-interaction/room-interaction.component';
 
 @NgModule({
   declarations: [
@@ -30,7 +31,8 @@ import { chatReducer } from '../store/reducers/reducers.chat/chat.reducer';
     ChatMessagesListComponent,
     CreateRoomModalComponent,
     InviteListComponent,
-    RoomCreationConfirmationModalComponent
+    RoomCreationConfirmationModalComponent,
+    RoomInteractionComponent
   ],
 
   imports: [

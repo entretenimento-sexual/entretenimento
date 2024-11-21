@@ -92,24 +92,21 @@ export class RoomService {
       const roomsCreatedByUserQuery = query(roomsCollectionRef, where('createdBy', '==', userId));
 
       const unsubscribe = onSnapshot(roomsCreatedByUserQuery, (querySnapshot) => {
-        console.log("Snapshot de salas recebido para usuário:", userId);
+        console.log('Snapshot recebido:', querySnapshot.docs.length, 'salas.');
         const rooms: any[] = [];
         querySnapshot.forEach((doc) => {
-          console.log('Sala recuperada com ID:', doc.id);
           rooms.push({ roomId: doc.id, ...doc.data() });
         });
-
-        const deletedRoomIds = querySnapshot.docChanges().filter(change => change.type === 'removed').map(change => change.doc.id);
-        const updatedRooms = rooms.filter(room => !deletedRoomIds.includes(room.roomId));
-        observer.next(updatedRooms);
-
+        observer.next(rooms);
+        console.log('Rooms processadas:', rooms);
       }, error => {
-        console.error("Erro ao escutar as salas do usuário:", error);
+        console.error('Erro ao buscar salas do usuário:', error);
         observer.error(error);
       });
       return () => unsubscribe();
     });
   }
+
 
   async sendInvite(roomId: string): Promise<void> {
     console.log('Enviando convite para a sala com ID:', roomId);
@@ -164,10 +161,32 @@ export class RoomService {
     });
   }
 
+  getRoomParticipants(roomId: string): Observable<{ nickname: string; photoURL?: string }[]> {
+    console.log(`Obtendo participantes para a sala com ID: ${roomId}`);
+
+    return new Observable(observer => {
+      const participantsCollectionRef = collection(this.db, `rooms/${roomId}/participants`);
+      const unsubscribe = onSnapshot(participantsCollectionRef, (querySnapshot) => {
+        const participants: { nickname: string; photoURL?: string }[] = [];
+        querySnapshot.forEach(doc => {
+          participants.push(doc.data() as { nickname: string; photoURL?: string });
+        });
+        observer.next(participants);
+        console.log('Participantes processados:', participants);
+      }, error => {
+        console.error('Erro ao buscar participantes da sala:', error);
+        observer.error(error);
+      });
+
+      return () => unsubscribe();
+    });
+  }
+
+
   getRoomMessages(roomId: string, realtime: boolean = false): Observable<Message[]> {
     console.log('Obtendo mensagens para sala ID:', roomId, 'Modo Realtime:', realtime);
     const roomMessagesRef = collection(this.db, `rooms/${roomId}/messages`);
-    let messagesQuery = query(roomMessagesRef, orderBy('timestamp', 'asc'));
+    const messagesQuery = query(roomMessagesRef, orderBy('timestamp', 'asc'));
 
     if (realtime) {
       return new Observable(observer => {

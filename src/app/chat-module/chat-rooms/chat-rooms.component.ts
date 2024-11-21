@@ -1,5 +1,5 @@
 //src\app\chat-module\chat-rooms\chat-rooms.component.ts
-import { Component, OnInit } from '@angular/core';
+import { Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
@@ -16,6 +16,7 @@ import { RoomService } from 'src/app/core/services/batepapo/room.service';
 })
 
 export class ChatRoomsComponent implements OnInit {
+  @Output() roomSelected = new EventEmitter<string>();
   // Lista de salas de bate-papo
   chatRooms: any[] = [];
   currentUser: IUserDados | null = null;
@@ -30,13 +31,20 @@ constructor(private authService: AuthService,
       this.currentUser = user;
       if (user?.uid) {
         this.roomService.getUserRooms(user.uid).subscribe(rooms => {
-        this.chatRooms = rooms;
-      }, error => {
-        console.error("Erro ao obter salas:", error);
-      });
-    }
-      });
+          this.chatRooms = rooms;
+          console.log('Salas do usuário:', this.chatRooms);
+        }, error => {
+          console.error("Erro ao obter salas:", error);
+        });
+      }
+    });
   }
+
+  selectRoom(roomId: string): void {
+    console.log(`Sala selecionada com ID: ${roomId}`);
+    this.roomSelected.emit(roomId); // Emite o evento para o pai
+  }
+
 
   openCreateRoomModal(): void {
     if (!this.currentUser) {

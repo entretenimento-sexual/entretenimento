@@ -5,7 +5,7 @@
       <a href="javascript:void(0);" class="saiba-mais-link" (click)="openInfoCriaSalaBpModal($event)">saiba mais</a>
   </div>
     <ul>
-      <li *ngFor="let room of chatRooms">
+      <li *ngFor="let room of chatRooms" (click)="selectRoom(room.roomId)">
         <span>Sua sala "{{ room.roomName }}" está ativa</span>
         <!-- Botões adicionais aqui -->
       </li>

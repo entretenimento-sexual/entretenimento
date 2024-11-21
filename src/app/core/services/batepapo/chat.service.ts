@@ -4,8 +4,8 @@ import {
   getFirestore, collection, addDoc, doc, Timestamp, setDoc, deleteDoc,
   orderBy, startAfter, onSnapshot, getDocs, where, query
 } from 'firebase/firestore';
-import { Observable, from } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { Observable, Subject, from } from 'rxjs';
+import { catchError, map, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { Chat } from '../../interfaces/interfaces-chat/chat.interface';
 import { Message } from '../../interfaces/interfaces-chat/message.interface';
@@ -24,6 +24,7 @@ import { AppState } from 'src/app/store/states/app.state';
 })
 export class ChatService {
   private db = getFirestore();
+  private destroy$ = new Subject<void>();
 
   constructor(
     private usuarioService: UsuarioService,
@@ -163,21 +164,28 @@ export class ChatService {
   }
 
   // Adiciona o método monitorChat
-  monitorChat(chatId: string): Observable<Message> {
+  monitorChat(chatId: string): Observable<Message[]> {
     const messagesRef = collection(this.db, `chats/${chatId}/messages`);
-    return new Observable(observer => {
+
+    return new Observable<Message[]>(observer => {
+      const messages: Message[] = []; // Acumula mensagens
       const unsubscribe = onSnapshot(messagesRef, snapshot => {
         snapshot.docChanges().forEach(change => {
           if (change.type === 'added') {
             const newMessage = change.doc.data() as Message;
-            observer.next(newMessage);
+            messages.push(newMessage);// Adiciona a nova mensagem ao array acumulado
           }
         });
+        observer.next([...messages]); // Emite uma cópia do array acumulado
       }, error => observer.error(error));
 
-      // Cleanup quando o Observable é concluído
-      return unsubscribe;
-    });
+      return () => unsubscribe();
+    }).pipe(takeUntil(this.destroy$));
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   /** Feedback visual */

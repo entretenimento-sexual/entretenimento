@@ -38,18 +38,33 @@ export class ChatModuleLayoutComponent implements OnInit {
   }
 
   onChatSelected(event: { id: string; type: 'room' | 'chat' }): void {
+    console.log('Evento recebido:', event);
+    if (!event || !event.id || !event.type) {
+      console.error('Erro: Evento de seleção inválido.', event);
+      return;
+    }
+
     this.selectedChatId = event.id;
     this.selectedType = event.type;
-    this.currentChatId = event.id;
-    console.log(`Selecionado ${event.type} com ID:`, event.id);
+
+    console.log(`Selecionado ${event.type} com ID: ${event.id}`);
 
     if (event.type === 'chat') {
-      // Aqui, você pode adicionar a lógica para lidar com a seleção de um chat individual
-      console.log('Chat individual selecionado:', event.id);
+      console.log('Carregando mensagens do chat:', event.id);
+      // Adicionar lógica para carregar mensagens do chat (opcional, caso necessário)
     } else if (event.type === 'room') {
-      // E aqui, a lógica para lidar com a seleção de uma sala
-      console.log('Sala selecionada:', event.id);
+      console.log('Carregando interações da sala:', event.id);
+      this.selectedChatId = event.id;
+      this.selectedType = 'room';
+      // Adicionar lógica para carregar interações da sala (opcional)
     }
+  }
+
+
+  onRoomSelected(roomId: string): void {
+    console.log('Sala selecionada pelo usuário:', roomId);
+    this.selectedChatId = roomId;
+    this.selectedType = 'room';
   }
 
   sendMessage() {

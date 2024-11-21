@@ -1,6 +1,6 @@
 <!-- src\app\chat-module\invite-list\invite-list.component.html -->
 <div *ngFor="let invite of invites">
-  <p>{{invite.roomName}} convidado por {{invite.senderId}} - {{invite.sentAt.toDate() | dateFormat:'PPPp'}}</p>
-  <button (click)="acceptInvite(invite.id)">Aceitar</button>
-  <button (click)="declineInvite(invite.id)">Recusar</button>
+  <p>{{ invite.roomName }} convidado por {{ invite.senderId }} - {{ invite.sentAt.toDate() | dateFormat:'PPPp' }}</p>
+  <button (click)="respondToInvite(invite.id, 'accepted')">Aceitar</button>
+  <button (click)="respondToInvite(invite.id, 'declined')">Recusar</button>
 </div>

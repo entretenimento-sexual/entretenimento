@@ -1,0 +1,28 @@
+<!-- src\app\chat-module\room-interaction\room-interaction.component.html -->
+<div class="room-interaction-container">
+  <div class="participants">
+    <h3>Participantes</h3>
+    <ul>
+      <li *ngFor="let participant of participants">
+        <img [src]="participant.photoURL || 'assets/default-avatar.png'" alt="{{ participant.nickname }}" />
+        <span>{{ participant.nickname }}</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="messages-container">
+    <h3>Mensagens</h3>
+    <div class="messages">
+      <div *ngFor="let message of messages" class="message-item">
+        <p><strong>{{ message.senderId }}</strong>: {{ message.content }}</p>
+        <small>{{ message.timestamp.toDate() | date: 'short' }}</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="message-input">
+    <textarea [(ngModel)]="messageContent" placeholder="Digite sua mensagem"
+      (keydown.enter)="sendMessage(); $event.preventDefault()"></textarea>
+    <button (click)="sendMessage()">Enviar</button>
+  </div>
+</div>
