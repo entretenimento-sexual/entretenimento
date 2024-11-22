@@ -2,8 +2,9 @@
 import { Component } from '@angular/core';
 
 @Component({
-  selector: 'app-dashboard-layout',
-  templateUrl: './dashboard-layout.component.html',
-  styleUrls: ['./dashboard-layout.component.css']
+    selector: 'app-dashboard-layout',
+    templateUrl: './dashboard-layout.component.html',
+    styleUrls: ['./dashboard-layout.component.css'],
+    standalone: false
 })
 export class DashboardLayoutComponent { }

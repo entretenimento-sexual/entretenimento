@@ -4,9 +4,10 @@ import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import { PhotoService } from 'src/app/core/services/image-handling/photo.service';
 
 @Component({
-  selector: 'app-upload-photo',
-  templateUrl: './upload-photo.component.html',
-  styleUrls: ['./upload-photo.component.css']
+    selector: 'app-upload-photo',
+    templateUrl: './upload-photo.component.html',
+    styleUrls: ['./upload-photo.component.css'],
+    standalone: false
 })
 export class UploadPhotoComponent {
   @Output() photoSelected = new EventEmitter<File>();

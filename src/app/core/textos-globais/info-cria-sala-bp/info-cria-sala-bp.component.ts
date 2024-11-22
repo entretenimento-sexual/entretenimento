@@ -2,9 +2,10 @@
 import { Component } from '@angular/core';
 
 @Component({
-  selector: 'app-info-cria-sala-bp',
-  templateUrl: './info-cria-sala-bp.component.html',
-  styleUrls: ['./info-cria-sala-bp.component.css']
+    selector: 'app-info-cria-sala-bp',
+    templateUrl: './info-cria-sala-bp.component.html',
+    styleUrls: ['./info-cria-sala-bp.component.css'],
+    standalone: false
 })
 export class InfoCriaSalaBpComponent {
 

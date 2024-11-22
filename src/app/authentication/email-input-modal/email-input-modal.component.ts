@@ -3,9 +3,10 @@ import { Component, OnInit } from '@angular/core';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 
 @Component({
-  selector: 'app-email-input-modal',
-  templateUrl: './email-input-modal.component.html',
-  styleUrls: ['./email-input-modal.component.css']
+    selector: 'app-email-input-modal',
+    templateUrl: './email-input-modal.component.html',
+    styleUrls: ['./email-input-modal.component.css'],
+    standalone: false
 })
 export class EmailInputModalComponent implements OnInit {
   public email: string = '';

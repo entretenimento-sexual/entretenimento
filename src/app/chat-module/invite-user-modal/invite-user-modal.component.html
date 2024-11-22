@@ -1,0 +1,8 @@
+<!-- src\app\chat-module\invite-user-modal\invite-user-modal.component.html -->
+<h2>Convidar Usuários</h2>
+<input type="text" [(ngModel)]="searchTerm" (input)="onSearchTermChange()" placeholder="Buscar usuários..." />
+
+<div *ngFor="let user of availableUsers">
+  <input type="checkbox" [value]="user.id" [(ngModel)]="user.selected" /> {{ user.nickname }}
+</div>
+<button (click)="confirmSelection()">Enviar Convites</button>

@@ -13,9 +13,10 @@ import { UserProfileService } from 'src/app/core/services/user-profile/user-prof
 import { take } from 'rxjs/operators';
 
 @Component({
-  selector: 'app-perfis-proximos',
-  templateUrl: './perfis-proximos.component.html',
-  styleUrls: ['./perfis-proximos.component.css', '../layout-profile-exibe.css']
+    selector: 'app-perfis-proximos',
+    templateUrl: './perfis-proximos.component.html',
+    styleUrls: ['./perfis-proximos.component.css', '../layout-profile-exibe.css'],
+    standalone: false
 })
 export class PerfisProximosComponent implements OnInit {
   @ViewChild(ModalMensagemComponent)

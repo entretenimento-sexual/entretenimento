@@ -7,11 +7,10 @@ import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { SharedModule } from "../../shared/shared.module";
 
 @Component({
-  selector: 'app-other-user-profile-view',
-  standalone: true, // Mantém standalone para evitar que o componente dependa de um módulo específico
-  templateUrl: './other-user-profile-view.component.html',
-  styleUrls: ['./other-user-profile-view.component.css'], // Corrige o nome da propriedade para 'styleUrls'
-  imports: [CommonModule, SharedModule] // Importa módulos comuns e compartilhados
+    selector: 'app-other-user-profile-view', // Mantém standalone para evitar que o componente dependa de um módulo específico
+    templateUrl: './other-user-profile-view.component.html',
+    styleUrls: ['./other-user-profile-view.component.css'], // Corrige o nome da propriedade para 'styleUrls'
+    imports: [CommonModule, SharedModule] // Importa módulos comuns e compartilhados
 })
 export class OtherUserProfileViewComponent implements OnInit {
   userId: string | null | undefined; // Armazena o ID do usuário a ser exibido

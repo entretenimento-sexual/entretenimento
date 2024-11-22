@@ -23,9 +23,10 @@ import { selectFileDownloadUrl, selectFileError, selectFileSuccess, selectFileUp
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 @Component({
-  selector: 'app-photo-editor',
-  templateUrl: './photo-editor.component.html',
-  styleUrls: ['./photo-editor.component.css']
+    selector: 'app-photo-editor',
+    templateUrl: './photo-editor.component.html',
+    styleUrls: ['./photo-editor.component.css'],
+    standalone: false
 })
 
 export class PhotoEditorComponent implements OnInit {

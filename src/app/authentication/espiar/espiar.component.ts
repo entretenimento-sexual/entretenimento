@@ -6,9 +6,10 @@ import { Subscription } from 'rxjs';
 import { SocialAuthService } from 'src/app/core/services/autentication/social-auth.service';
 
 @Component({
-  selector: 'app-espiar',
-  templateUrl: './espiar.component.html',
-  styleUrls: ['./espiar.component.css']
+    selector: 'app-espiar',
+    templateUrl: './espiar.component.html',
+    styleUrls: ['./espiar.component.css'],
+    standalone: false
 })
 
 export class EspiarComponent implements OnInit, OnDestroy {

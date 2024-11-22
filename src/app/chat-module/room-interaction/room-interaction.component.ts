@@ -6,9 +6,10 @@ import { Subscription } from 'rxjs';
 import { Timestamp } from '@firebase/firestore';
 
 @Component({
-  selector: 'app-room-interaction',
-  templateUrl: './room-interaction.component.html',
-  styleUrls: ['./room-interaction.component.css']
+    selector: 'app-room-interaction',
+    templateUrl: './room-interaction.component.html',
+    styleUrls: ['./room-interaction.component.css'],
+    standalone: false
 })
 export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
   // Lista de participantes da sala

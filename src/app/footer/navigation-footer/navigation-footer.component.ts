@@ -4,9 +4,10 @@ import { MatDialog } from '@angular/material/dialog';
 import { TermosECondicoesComponent } from '../legal-footer/termos-e-condicoes/termos-e-condicoes.component';
 
 @Component({
-  selector: 'app-navigation-footer',
-  templateUrl: './navigation-footer.component.html',
-  styleUrls: ['./navigation-footer.component.css', '../footer-shared.css']
+    selector: 'app-navigation-footer',
+    templateUrl: './navigation-footer.component.html',
+    styleUrls: ['./navigation-footer.component.css', '../footer-shared.css'],
+    standalone: false
 })
 export class NavigationFooterComponent {
   constructor(public dialog: MatDialog) { }

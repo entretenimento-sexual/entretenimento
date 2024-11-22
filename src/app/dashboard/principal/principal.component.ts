@@ -8,9 +8,10 @@ import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.s
 import { filter, take } from 'rxjs/operators';
 
 @Component({
-  selector: 'app-principal',
-  templateUrl: './principal.component.html',
-  styleUrls: ['./principal.component.css']
+    selector: 'app-principal',
+    templateUrl: './principal.component.html',
+    styleUrls: ['./principal.component.css'],
+    standalone: false
 })
 export class PrincipalComponent implements OnInit {
   currentUser$: Observable<IUserDados | null>;

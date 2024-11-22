@@ -9,9 +9,10 @@ import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interfa
 import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 
 @Component({
-  selector: 'app-modal-mensagem',
-  templateUrl: './modal-mensagem.component.html',
-  styleUrls: ['./modal-mensagem.component.css']
+    selector: 'app-modal-mensagem',
+    templateUrl: './modal-mensagem.component.html',
+    styleUrls: ['./modal-mensagem.component.css'],
+    standalone: false
 })
 
 export class ModalMensagemComponent {

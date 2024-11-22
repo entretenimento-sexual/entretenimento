@@ -6,9 +6,10 @@ import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interfa
 import { Subscription } from 'rxjs';
 
 @Component({
-  selector: 'app-chat-messages-list',
-  templateUrl: './chat-messages-list.component.html',
-  styleUrls: ['./chat-messages-list.component.css']
+    selector: 'app-chat-messages-list',
+    templateUrl: './chat-messages-list.component.html',
+    styleUrls: ['./chat-messages-list.component.css'],
+    standalone: false
 })
 export class ChatMessagesListComponent implements OnChanges, OnDestroy {
   private messagesSubscription: Subscription | undefined;

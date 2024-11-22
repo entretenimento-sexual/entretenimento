@@ -10,9 +10,10 @@ import { RoomCreationConfirmationModalComponent } from '../room-creation-confirm
 import { RoomService } from 'src/app/core/services/batepapo/room.service';
 
 @Component({
-  selector: 'app-chat-rooms',
-  templateUrl: './chat-rooms.component.html',
-  styleUrls: ['./chat-rooms.component.css']
+    selector: 'app-chat-rooms',
+    templateUrl: './chat-rooms.component.html',
+    styleUrls: ['./chat-rooms.component.css'],
+    standalone: false
 })
 
 export class ChatRoomsComponent implements OnInit {

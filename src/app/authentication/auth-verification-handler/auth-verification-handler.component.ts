@@ -15,10 +15,11 @@ import { getAuth } from 'firebase/auth';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
 
 @Component({
-  selector: 'app-auth-verification-handler',
-  templateUrl: './auth-verification-handler.component.html',
-  styleUrls: ['./auth-verification-handler.component.css'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    selector: 'app-auth-verification-handler',
+    templateUrl: './auth-verification-handler.component.html',
+    styleUrls: ['./auth-verification-handler.component.css'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   public isLoading = true;

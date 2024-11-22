@@ -20,6 +20,7 @@ import { RoomCreationConfirmationModalComponent } from './room-creation-confirma
 import { InviteListComponent } from './invite-list/invite-list.component';
 import { chatReducer } from '../store/reducers/reducers.chat/chat.reducer';
 import { RoomInteractionComponent } from './room-interaction/room-interaction.component';
+import { InviteUserModalComponent } from './invite-user-modal/invite-user-modal.component';
 
 @NgModule({
   declarations: [
@@ -32,7 +33,8 @@ import { RoomInteractionComponent } from './room-interaction/room-interaction.co
     CreateRoomModalComponent,
     InviteListComponent,
     RoomCreationConfirmationModalComponent,
-    RoomInteractionComponent
+    RoomInteractionComponent,
+    InviteUserModalComponent
   ],
 
   imports: [

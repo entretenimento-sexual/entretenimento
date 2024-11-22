@@ -3,9 +3,10 @@ import { Component, Inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 
 @Component({
-  selector: 'app-texto-dialog',
-  templateUrl: './texto-dialog.component.html',
-  styleUrl: './texto-dialog.component.css'
+    selector: 'app-texto-dialog',
+    templateUrl: './texto-dialog.component.html',
+    styleUrl: './texto-dialog.component.css',
+    standalone: false
 })
 export class TextoDialogComponent {
   public descricao: string = '';

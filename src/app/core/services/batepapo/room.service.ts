@@ -5,9 +5,8 @@ import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { Observable, throwError, from } from 'rxjs';
 import { switchMap, take } from 'rxjs/operators';
-import {
-  addDoc, collection, Timestamp, getFirestore, query, where, getDocs, serverTimestamp, updateDoc, doc, deleteDoc, onSnapshot, orderBy
-} from 'firebase/firestore';
+import { addDoc, collection, Timestamp, getFirestore, query, where, getDocs, serverTimestamp,
+       updateDoc, doc, deleteDoc, onSnapshot, orderBy,  arrayUnion } from 'firebase/firestore';
 import { Message } from '../../interfaces/interfaces-chat/message.interface';
 import { selectUserState } from 'src/app/store/selectors/selectors.user/user.selectors';
 
@@ -132,6 +131,13 @@ export class RoomService {
     } catch (error) {
       console.error('Erro ao atualizar a sala:', error);
     }
+  }
+
+  async addUserToRoom(roomId: string, userId: string): Promise<void> {
+    const roomRef = doc(this.db, 'rooms', roomId);
+    return updateDoc(roomRef, {
+      members: arrayUnion(userId)
+    });
   }
 
   async deleteRoom(roomId: string): Promise<void> {

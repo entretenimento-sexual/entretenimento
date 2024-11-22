@@ -5,9 +5,10 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { SuggestionService } from 'src/app/core/services/data-handling/suggestion.service';
 
 @Component({
-  selector: 'app-suggested-profiles',
-  templateUrl: './suggested-profiles.component.html',
-  styleUrls: ['./suggested-profiles.component.css']
+    selector: 'app-suggested-profiles',
+    templateUrl: './suggested-profiles.component.html',
+    styleUrls: ['./suggested-profiles.component.css'],
+    standalone: false
 })
 export class SuggestedProfilesComponent implements OnInit {
 

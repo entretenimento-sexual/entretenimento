@@ -11,9 +11,10 @@ import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registratio
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 
 @Component({
-  selector: 'app-finalizar-cadastro',
-  templateUrl: './finalizar-cadastro.component.html',
-  styleUrls: ['./finalizar-cadastro.component.css']
+    selector: 'app-finalizar-cadastro',
+    templateUrl: './finalizar-cadastro.component.html',
+    styleUrls: ['./finalizar-cadastro.component.css'],
+    standalone: false
 })
 
 export class FinalizarCadastroComponent implements OnInit {

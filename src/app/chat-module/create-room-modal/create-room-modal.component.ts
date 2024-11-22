@@ -6,9 +6,10 @@ import { RoomService } from 'src/app/core/services/batepapo/room.service';
 import { RoomCreationConfirmationModalComponent } from '../room-creation-confirmation-modal/room-creation-confirmation-modal.component';
 
 @Component({
-  selector: 'app-create-room-modal',
-  templateUrl: './create-room-modal.component.html',
-  styleUrls: ['./create-room-modal.component.css']
+    selector: 'app-create-room-modal',
+    templateUrl: './create-room-modal.component.html',
+    styleUrls: ['./create-room-modal.component.css'],
+    standalone: false
 })
 export class CreateRoomModalComponent implements OnInit {
   roomForm!: FormGroup;

@@ -10,10 +10,11 @@ import { MatDialog } from '@angular/material/dialog';
 import { TermosECondicoesComponent } from 'src/app/footer/legal-footer/termos-e-condicoes/termos-e-condicoes.component';
 
 @Component({
-  selector: 'app-register-component',
-  templateUrl: './register.component.html',
-  styleUrls: ['./register.component.css'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    selector: 'app-register-component',
+    templateUrl: './register.component.html',
+    styleUrls: ['./register.component.css'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 
 export class RegisterComponent implements OnInit {

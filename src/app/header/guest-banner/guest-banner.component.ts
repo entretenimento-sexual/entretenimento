@@ -2,9 +2,10 @@
 import { Component } from '@angular/core';
 
 @Component({
-  selector: 'app-guest-banner',
-  templateUrl: './guest-banner.component.html',
-  styleUrls: ['./guest-banner.component.css']
+    selector: 'app-guest-banner',
+    templateUrl: './guest-banner.component.html',
+    styleUrls: ['./guest-banner.component.css'],
+    standalone: false
 })
 export class GuestBannerComponent {
 

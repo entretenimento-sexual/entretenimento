@@ -4,9 +4,10 @@ import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface
 import { InviteService } from 'src/app/core/services/batepapo/invite.service';
 
 @Component({
-  selector: 'app-invite-list',
-  templateUrl: './invite-list.component.html',
-  styleUrls: ['./invite-list.component.css']
+    selector: 'app-invite-list',
+    templateUrl: './invite-list.component.html',
+    styleUrls: ['./invite-list.component.css'],
+    standalone: false
 })
 export class InviteListComponent implements OnInit {
   invites: Invite[] = [];

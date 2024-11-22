@@ -13,11 +13,15 @@ import { switchMap } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { selectAllChats } from 'src/app/store/selectors/selectors.chat/chat.selectors'; // Importando o seletor dos chats
+import { InviteUserModalComponent } from '../invite-user-modal/invite-user-modal.component';
+import { InviteService } from 'src/app/core/services/batepapo/invite.service';
+import { Timestamp } from '@firebase/firestore';
 
 @Component({
-  selector: 'app-chat-list',
-  templateUrl: './chat-list.component.html',
-  styleUrls: ['./chat-list.component.css']
+    selector: 'app-chat-list',
+    templateUrl: './chat-list.component.html',
+    styleUrls: ['./chat-list.component.css'],
+    standalone: false
 })
 export class ChatListComponent implements OnInit, OnDestroy {
   rooms: any[] = [];
@@ -30,6 +34,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
   constructor(private authService: AuthService,
     private chatService: ChatService,
     private roomService: RoomService,
+    private inviteService: InviteService,
     public dialog: MatDialog,
     private router: Router,
     private store: Store<AppState>) { }
@@ -134,13 +139,53 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   inviteUsers(roomId: string | undefined, event: MouseEvent) {
     if (!roomId) {
-      console.error('ID da sala é undefined.');
+      console.error('Erro: roomId está undefined.');
       return;
     }
     event.stopPropagation();
-    console.log('Solicitado o envio de convites para a sala com ID:', roomId);
-    // Implemente a lógica de envio de convites aqui
+
+    const currentUserUID = this.authService.getLoggedUserUID();
+    if (!currentUserUID) {
+      console.error('Erro: UID do usuário não encontrado.');
+      return;
+    }
+
+    const dialogRef = this.dialog.open(InviteUserModalComponent, {
+      width: '30%',
+      data: { roomId } // Passa o roomId para o modal
+    });
+
+    dialogRef.afterClosed().subscribe((selectedUsers: string[] | null) => {
+      if (selectedUsers && selectedUsers.length > 0) {
+        console.log('Usuários selecionados para convite:', selectedUsers);
+
+        const currentTimestamp = new Date();
+
+        // Envia convites para os usuários selecionados
+        selectedUsers.forEach(userId => {
+          this.inviteService
+            .sendInvite(
+              {
+                roomId,
+                receiverId: userId,
+                senderId: currentUserUID,
+                status: 'pending',
+                sentAt: Timestamp.fromDate(currentTimestamp),
+                expiresAt: Timestamp.fromDate(new Date(currentTimestamp.getTime() + 7 * 24 * 60 * 60 * 1000)) // Expira em 7 dias
+              },
+              'Nome da Sala' // Substitua pelo nome real da sala
+            )
+            .then(() => {
+              console.log(`Convite enviado para o usuário com ID: ${userId}`);
+            })
+            .catch(error => {
+              console.error(`Erro ao enviar convite para o usuário com ID: ${userId}`, error);
+            });
+        });
+      }
+    });
   }
+
 
   editRoom(roomId: string, event: MouseEvent) {
     event.stopPropagation();

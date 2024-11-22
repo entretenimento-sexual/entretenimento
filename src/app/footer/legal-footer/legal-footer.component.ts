@@ -5,9 +5,10 @@ import { MatDialog } from '@angular/material/dialog';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Component({
-  selector: 'app-legal-footer',
-  templateUrl: './legal-footer.component.html',
-  styleUrls: ['./legal-footer.component.css', '../footer-shared.css']
+    selector: 'app-legal-footer',
+    templateUrl: './legal-footer.component.html',
+    styleUrls: ['./legal-footer.component.css', '../footer-shared.css'],
+    standalone: false
 })
 
 export class LegalFooterComponent {

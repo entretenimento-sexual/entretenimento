@@ -4,11 +4,10 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UserInteractionsService } from 'src/app/core/services/data-handling/user-interactions.service';
 
 @Component({
-  selector: 'app-amigos',
-  standalone: true,
-  imports: [],
-  templateUrl: './amigos.component.html',
-  styleUrls: ['./amigos.component.css', '../layout-profile-exibe.css']
+    selector: 'app-amigos',
+    imports: [],
+    templateUrl: './amigos.component.html',
+    styleUrls: ['./amigos.component.css', '../layout-profile-exibe.css']
 })
 
 export class AmigosComponent implements OnInit {

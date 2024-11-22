@@ -1,7 +1,20 @@
 // src/app/core/services/autentication/firestore-query.service.ts
 import { Injectable } from '@angular/core';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, query, where, getDocs, doc, getDoc, Query, onSnapshot } from 'firebase/firestore';
+import { getFirestore,
+  collection,
+  query,
+  where,
+  getDocs,
+  doc,
+  getDoc,
+  onSnapshot,
+  QueryConstraint,
+  QueryDocumentSnapshot,
+  DocumentData,
+  limit,
+  orderBy,
+  Query} from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { map, Observable, of } from 'rxjs';
@@ -27,10 +40,10 @@ export class FirestoreQueryService {
    */
 
   // Método genérico para obter documentos de uma consulta
-  private async getDocsFromQuery<T>(q: Query): Promise<T[]> {
+  private async getDocsFromQuery<T>(q: Query<DocumentData>): Promise<T[]> {
     try {
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.docs.map(doc => doc.data() as T);
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => doc.data() as T);
     } catch (error) {
       console.error('Erro ao buscar documentos:', error);
       throw error;
@@ -156,6 +169,15 @@ export class FirestoreQueryService {
       where('orientation', '==', orientation),
       where('municipio', '==', municipio)
     );
+    return this.getDocsFromQuery<IUserDados>(q);
+  }
+
+  async searchUsers(
+    constraints: QueryConstraint[],
+    limitResults: number = 10
+  ): Promise<IUserDados[]> {
+    const userCollection = collection(this.db, 'users');
+    const q = query(userCollection, ...constraints, limit(limitResults));
     return this.getDocsFromQuery<IUserDados>(q);
   }
 

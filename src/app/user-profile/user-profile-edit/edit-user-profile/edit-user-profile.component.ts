@@ -9,9 +9,10 @@ import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ValidatorService } from 'src/app/core/services/data-handling/validator.service';
 
 @Component({
-  selector: 'app-edit-user-profile',
-  templateUrl: './edit-user-profile.component.html',
-  styleUrls: ['./edit-user-profile.component.css', '../../user-profile.css']
+    selector: 'app-edit-user-profile',
+    templateUrl: './edit-user-profile.component.html',
+    styleUrls: ['./edit-user-profile.component.css', '../../user-profile.css'],
+    standalone: false
 })
 
 export class EditUserProfileComponent implements OnInit {

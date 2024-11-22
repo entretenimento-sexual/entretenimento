@@ -6,9 +6,10 @@ import { FirestoreQueryService } from 'src/app/core/services/autentication/fires
 
 
 @Component({
-  selector: 'app-profile-list',
-  templateUrl: './profile-list.component.html',
-  styleUrls: ['./profile-list.component.css', '../layout-profile-exibe.css']
+    selector: 'app-profile-list',
+    templateUrl: './profile-list.component.html',
+    styleUrls: ['./profile-list.component.css', '../layout-profile-exibe.css'],
+    standalone: false
 })
 export class ProfileListComponent implements OnInit {
   user: any;

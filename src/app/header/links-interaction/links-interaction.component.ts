@@ -6,9 +6,10 @@ import { UploadPhotoComponent } from 'src/app/shared/components-globais/upload-p
 import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
 
 @Component({
-  selector: 'app-links-interaction',
-  templateUrl: './links-interaction.component.html',
-  styleUrls: ['./links-interaction.component.css']
+    selector: 'app-links-interaction',
+    templateUrl: './links-interaction.component.html',
+    styleUrls: ['./links-interaction.component.css'],
+    standalone: false
 })
 export class LinksInteractionComponent implements OnInit {
   selectedImageFile!: File;

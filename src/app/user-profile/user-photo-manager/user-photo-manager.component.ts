@@ -7,9 +7,10 @@ import { StorageService } from 'src/app/core/services/image-handling/storage.ser
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 @Component({
-  selector: 'app-user-photo-manager',
-  templateUrl: './user-photo-manager.component.html',
-  styleUrls: ['./user-photo-manager.component.css']
+    selector: 'app-user-photo-manager',
+    templateUrl: './user-photo-manager.component.html',
+    styleUrls: ['./user-photo-manager.component.css'],
+    standalone: false
 })
 export class UserPhotoManagerComponent implements OnInit {
   userPhotos$: Observable<any[]> = new Observable();

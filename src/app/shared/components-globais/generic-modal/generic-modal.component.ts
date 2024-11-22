@@ -3,9 +3,10 @@ import { Component, Input, EventEmitter, Output, Inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 
 @Component({
-  selector: 'app-generic-modal',
-  templateUrl: './generic-modal.component.html',
-  styleUrls: ['./generic-modal.component.css']
+    selector: 'app-generic-modal',
+    templateUrl: './generic-modal.component.html',
+    styleUrls: ['./generic-modal.component.css'],
+    standalone: false
 })
 export class GenericModalComponent {
 

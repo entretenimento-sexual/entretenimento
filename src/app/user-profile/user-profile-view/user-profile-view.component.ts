@@ -16,9 +16,10 @@ import { formatDate } from '@angular/common';
 enum SidebarState { CLOSED, OPEN }
 
 @Component({
-  selector: 'app-user-profile-view',
-  templateUrl: './user-profile-view.component.html',
-  styleUrls: ['./user-profile-view.component.css']
+    selector: 'app-user-profile-view',
+    templateUrl: './user-profile-view.component.html',
+    styleUrls: ['./user-profile-view.component.css'],
+    standalone: false
 })
 export class UserProfileViewComponent implements OnInit, OnDestroy {
 

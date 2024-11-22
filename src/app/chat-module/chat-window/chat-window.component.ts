@@ -6,9 +6,10 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { ChatService } from 'src/app/core/services/batepapo/chat.service';
 
 @Component({
-  selector: 'app-chat-window',
-  templateUrl: './chat-window.component.html',
-  styleUrls: ['./chat-window.component.css']
+    selector: 'app-chat-window',
+    templateUrl: './chat-window.component.html',
+    styleUrls: ['./chat-window.component.css'],
+    standalone: false
 })
 export class ChatWindowComponent {
   messages: { content: string, senderId: string, timestamp: Timestamp }[] = [];

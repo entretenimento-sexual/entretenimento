@@ -12,9 +12,10 @@ import { tap } from 'rxjs/operators';
 enum SidebarState { CLOSED, OPEN }
 
 @Component({
-  selector: 'app-user-profile-sidebar',
-  templateUrl: './user-profile-sidebar.component.html',
-  styleUrls: ['./user-profile-sidebar.component.css']
+    selector: 'app-user-profile-sidebar',
+    templateUrl: './user-profile-sidebar.component.html',
+    styleUrls: ['./user-profile-sidebar.component.css'],
+    standalone: false
 })
 
 export class UserProfileSidebarComponent implements OnInit, OnDestroy {

@@ -2,9 +2,10 @@
 import { Component } from '@angular/core';
 
 @Component({
-  selector: 'app-featured-profiles',
-  templateUrl: './featured-profiles.component.html',
-  styleUrl: './featured-profiles.component.css'
+    selector: 'app-featured-profiles',
+    templateUrl: './featured-profiles.component.html',
+    styleUrl: './featured-profiles.component.css',
+    standalone: false
 })
 export class FeaturedProfilesComponent {
 

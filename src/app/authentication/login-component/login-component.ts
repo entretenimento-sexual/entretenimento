@@ -12,10 +12,11 @@ import { Observable } from 'rxjs';
 import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
 
 @Component({
-  selector: 'app-login-component',
-  templateUrl: './login-component.html',
-  styleUrls: ['./login-component.css'],
-  changeDetection: ChangeDetectionStrategy.OnPush
+    selector: 'app-login-component',
+    templateUrl: './login-component.html',
+    styleUrls: ['./login-component.css'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 
 export class LoginComponent implements OnInit {

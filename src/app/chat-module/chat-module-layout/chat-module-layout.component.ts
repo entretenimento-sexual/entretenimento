@@ -9,9 +9,10 @@ import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interfa
 import { RoomService } from 'src/app/core/services/batepapo/room.service';
 
 @Component({
-  selector: 'app-chat-module-layout',
-  templateUrl: './chat-module-layout.component.html',
-  styleUrls: ['./chat-module-layout.component.css']
+    selector: 'app-chat-module-layout',
+    templateUrl: './chat-module-layout.component.html',
+    styleUrls: ['./chat-module-layout.component.css'],
+    standalone: false
 })
 export class ChatModuleLayoutComponent implements OnInit {
   usuario$: Observable<IUserDados | null> | undefined;

@@ -4,9 +4,10 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { RoomCreationConfirmationData } from 'src/app/core/interfaces/interfaces-chat/room-creation-confirmation-data.interface';
 
 @Component({
-  selector: 'app-room-creation-confirmation-modal',
-  templateUrl: './room-creation-confirmation-modal.component.html',
-  styleUrls: ['./room-creation-confirmation-modal.component.css']
+    selector: 'app-room-creation-confirmation-modal',
+    templateUrl: './room-creation-confirmation-modal.component.html',
+    styleUrls: ['./room-creation-confirmation-modal.component.css'],
+    standalone: false
 })
 export class RoomCreationConfirmationModalComponent {
   constructor(@Inject(MAT_DIALOG_DATA) public data: RoomCreationConfirmationData,

@@ -14,9 +14,10 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { Timestamp } from 'firebase/firestore';
 
 @Component({
-  selector: 'app-online-users',
-  templateUrl: './online-users.component.html',
-  styleUrls: ['./online-users.component.css']
+    selector: 'app-online-users',
+    templateUrl: './online-users.component.html',
+    styleUrls: ['./online-users.component.css'],
+    standalone: false
 })
 export class OnlineUsersComponent implements OnInit {
   onlineUsers$: Observable<IUserDados[]> | undefined;

@@ -11,9 +11,9 @@ import { UserPreferencesService } from 'src/app/core/services/preferences/user-p
 @Component({
     selector: 'app-user-profile-preferences',
     templateUrl: './user-profile-preferences.component.html',
-    styleUrls: ['./user-profile-preferences.component.css',]
-
-  })
+    styleUrls: ['./user-profile-preferences.component.css',],
+    standalone: false
+})
   
 export class UserProfilePreferencesComponent {
   @Input() uid: string | null = null;

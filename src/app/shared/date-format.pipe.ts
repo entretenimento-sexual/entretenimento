@@ -5,7 +5,8 @@ import { ptBR } from 'date-fns/locale';
 import { Timestamp } from 'firebase/firestore';
 
 @Pipe({
-  name: 'dateFormat'
+    name: 'dateFormat',
+    standalone: false
 })
 export class DateFormatPipe implements PipeTransform {
   transform(value: any, formatType: string = 'datetime'): string {
