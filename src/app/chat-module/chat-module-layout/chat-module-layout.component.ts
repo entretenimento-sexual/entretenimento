@@ -6,7 +6,8 @@ import { Observable } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Timestamp } from '@firebase/firestore';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
-import { RoomService } from 'src/app/core/services/batepapo/room.service';
+import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
+import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
 
 @Component({
     selector: 'app-chat-module-layout',
@@ -24,6 +25,7 @@ export class ChatModuleLayoutComponent implements OnInit {
 
   constructor(private authService: AuthService,
               private chatService: ChatService,
+              private roomMessages: RoomMessagesService,
               private roomService: RoomService) {
     console.log('Construtor do ChatModuleLayoutComponent chamado:', Date.now());
                }
@@ -98,7 +100,7 @@ export class ChatModuleLayoutComponent implements OnInit {
 
     } else if (this.selectedType === 'room' && this.selectedChatId) {
 
-      this.roomService.sendMessageToRoom(this.selectedChatId, message).then(() => {
+      this.roomMessages.sendMessageToRoom(this.selectedChatId, message).then(() => {
         console.log("Mensagem enviada com sucesso à sala");
         this.messageContent = ''; // Limpa o campo de texto após o envio
       }).catch(error => console.error("Erro ao enviar mensagem à sala:", error));

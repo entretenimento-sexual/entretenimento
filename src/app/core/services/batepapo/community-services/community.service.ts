@@ -1,10 +1,9 @@
 //src\app\core\services\batepapo\community.service.ts
 import { Injectable } from '@angular/core';
 import { getFirestore, collection, addDoc, doc, setDoc, updateDoc, deleteDoc, serverTimestamp, query, where, getDocs, onSnapshot } from 'firebase/firestore';
-import { Observable, from } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
-import { Invite } from '../../interfaces/interfaces-chat/invite.interface';
-import { Community } from '../../interfaces/interfaces-chat/community.interface';
+import { Observable } from 'rxjs';
+import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
+import { Community } from 'src/app/core/interfaces/interfaces-chat/community.interface';
 
 @Injectable({
   providedIn: 'root'

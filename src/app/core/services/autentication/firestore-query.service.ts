@@ -14,7 +14,8 @@ import { getFirestore,
   DocumentData,
   limit,
   orderBy,
-  Query} from 'firebase/firestore';
+  Query,
+  Firestore} from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { map, Observable, of } from 'rxjs';
@@ -33,6 +34,10 @@ export class FirestoreQueryService {
   private onlineUsersCache: IUserDados[] | null = null;
 
   constructor() { }
+
+  getFirestoreInstance(): Firestore {
+    return this.db;
+  }
 
   /**
    * Obtém os dados de um usuário específico com cache.
@@ -176,9 +181,14 @@ export class FirestoreQueryService {
     constraints: QueryConstraint[],
     limitResults: number = 10
   ): Promise<IUserDados[]> {
-    const userCollection = collection(this.db, 'users');
-    const q = query(userCollection, ...constraints, limit(limitResults));
-    return this.getDocsFromQuery<IUserDados>(q);
+    try {
+      const q = query(collection(this.db, 'users'), ...constraints);
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map((doc) => doc.data() as IUserDados);
+    } catch (error) {
+      console.error('Erro ao buscar usuários:', error);
+      throw error;
+    }
   }
 
   //Limpa o cache de usuários(pode ser chamado após uma alteração).

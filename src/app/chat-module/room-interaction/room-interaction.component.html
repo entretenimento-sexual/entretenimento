@@ -5,7 +5,10 @@
     <ul>
       <li *ngFor="let participant of participants">
         <img [src]="participant.photoURL || 'assets/default-avatar.png'" alt="{{ participant.nickname }}" />
-        <span>{{ participant.nickname }}</span>
+        <span>
+          {{ participant.nickname }}
+          <small *ngIf="participant.isCreator">(Criador)</small>
+        </span>
       </li>
     </ul>
   </div>

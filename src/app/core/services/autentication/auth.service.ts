@@ -1,7 +1,6 @@
 // src/app/core/services/autentication/auth.service.ts
 import { Injectable } from '@angular/core';
 import { Observable, BehaviorSubject, firstValueFrom } from 'rxjs';
-import { catchError } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { UsuarioService } from '../usuario.service';

@@ -1,9 +1,11 @@
 // src\app\chat-module\chat-messages-list\chat-messages-list.component.ts
 import { ChangeDetectorRef, Component, Input, OnChanges, OnDestroy, SimpleChanges } from '@angular/core';
 import { ChatService } from 'src/app/core/services/batepapo/chat.service';
-import { RoomService } from 'src/app/core/services/batepapo/room.service';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { Subscription } from 'rxjs';
+import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+
 
 @Component({
     selector: 'app-chat-messages-list',
@@ -19,7 +21,8 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
   @Input() type: 'chat' | 'room' | undefined;
 
   constructor(private chatService: ChatService,
-              private roomService: RoomService,
+              private roomMessage: RoomMessagesService,
+              private errorNotifier: ErrorNotificationService,
               private cdRef: ChangeDetectorRef) { }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -57,16 +60,10 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
           },
         });
     } else if (this.type === 'room') {
-      this.messagesSubscription = this.roomService.getRoomMessages(this.chatId, true)
-        .subscribe({
-          next: (messages: Message[]) => {
-            console.log('Mensagens recebidas para a sala:', messages);
-            this.messages = messages;
-          },
-          error: (error) => {
-            console.error(`Erro ao carregar mensagens da sala ${this.chatId}:`, error);
-          },
-        });
+      this.messagesSubscription = this.roomMessage.getRoomMessages(this.chatId).subscribe({
+        next: (messages) => this.messages = messages,
+        error: (err) => this.errorNotifier.showError('Erro ao carregar mensagens.')
+      });
     }
   }
 }

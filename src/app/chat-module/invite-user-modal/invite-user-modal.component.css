@@ -1,0 +1,124 @@
+/* src\app\chat-module\invite-user-modal\invite-user-modal.component.css */
+/* Modal Container */
+.modal-container {
+  padding: 20px;
+  background-color: var(--background-color);
+  border-radius: 10px;
+  box-shadow: var(--box-shadow);
+  width: 100%;
+}
+
+/* Header */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--primary-color);
+  margin-bottom: 15px;
+}
+
+.modal-header h2 {
+  font-size: 1.5rem;
+  color: var(--primary-color);
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: var(--danger-color);
+}
+
+/* Search Input */
+.search-container {
+  margin-bottom: 15px;
+  position: relative;
+}
+
+.search-container input {
+  width: 100%;
+  padding: 10px 15px;
+  font-size: 1rem;
+  border: 1px solid var(--secondary-color);
+  border-radius: 8px;
+}
+
+.search-container .search-icon {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1.2rem;
+  color: var(--primary-color);
+}
+
+.search-input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 1rem;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+}
+
+.search-icon {
+  cursor: pointer;
+  margin-left: -25px;
+  position: relative;
+}
+
+.loading-spinner {
+  text-align: center;
+  font-size: 1.2rem;
+  color: var(--primary-color);
+  margin: 20px 0;
+}
+
+/* User List */
+.user-list {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 15px;
+}
+
+.user-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px;
+  border: 1px solid var(--secondary-color);
+  border-radius: 8px;
+  margin-bottom: 10px;
+  transition: background-color 0.2s ease;
+}
+
+.user-item:hover {
+  background-color: var(--primary-hover);
+}
+
+.user-item label {
+  font-size: 1rem;
+  color: var(--text-color);
+  cursor: pointer;
+}
+
+.user-item input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* Buttons */
+.action-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.action-buttons .btn {
+  padding: 10px 15px;
+}

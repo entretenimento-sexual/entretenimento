@@ -21,6 +21,8 @@ import { InviteListComponent } from './invite-list/invite-list.component';
 import { chatReducer } from '../store/reducers/reducers.chat/chat.reducer';
 import { RoomInteractionComponent } from './room-interaction/room-interaction.component';
 import { InviteUserModalComponent } from './invite-user-modal/invite-user-modal.component';
+import { RoomsModule } from './rooms/rooms.module';
+import { CommunitiesModule } from './communities/communities.module';
 
 @NgModule({
   declarations: [
@@ -46,7 +48,9 @@ import { InviteUserModalComponent } from './invite-user-modal/invite-user-modal.
     FormsModule,
     RouterModule,
     ReactiveFormsModule,
-    SharedModule
+    SharedModule,
+    RoomsModule,
+    CommunitiesModule
   ],
 
 })

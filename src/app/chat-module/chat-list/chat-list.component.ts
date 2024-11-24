@@ -4,7 +4,7 @@ import { Router } from '@angular/router';
 import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { ChatService } from 'src/app/core/services/batepapo/chat.service';
-import { RoomService } from 'src/app/core/services/batepapo/room.service';
+import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { CreateRoomModalComponent } from '../create-room-modal/create-room-modal.component';
 import { MatDialog } from '@angular/material/dialog';
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
@@ -16,6 +16,7 @@ import { selectAllChats } from 'src/app/store/selectors/selectors.chat/chat.sele
 import { InviteUserModalComponent } from '../invite-user-modal/invite-user-modal.component';
 import { InviteService } from 'src/app/core/services/batepapo/invite.service';
 import { Timestamp } from '@firebase/firestore';
+import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 
 @Component({
     selector: 'app-chat-list',
@@ -34,6 +35,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
   constructor(private authService: AuthService,
     private chatService: ChatService,
     private roomService: RoomService,
+    private roomManagement: RoomManagementService,
     private inviteService: InviteService,
     public dialog: MatDialog,
     private router: Router,
@@ -124,7 +126,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
     dialogRef.afterClosed().subscribe(result => {
       if (result) {
-        this.roomService.deleteRoom(roomId)
+        this.roomManagement.deleteRoom(roomId)
           .then(() => {
             console.log('Sala excluída com sucesso');
             // Atualizar a lista de salas, se necessário
@@ -151,8 +153,9 @@ export class ChatListComponent implements OnInit, OnDestroy {
     }
 
     const dialogRef = this.dialog.open(InviteUserModalComponent, {
-      width: '30%',
-      data: { roomId } // Passa o roomId para o modal
+      width: '60%',
+      maxWidth: '500px',
+      data: { roomId }
     });
 
     dialogRef.afterClosed().subscribe((selectedUsers: string[] | null) => {

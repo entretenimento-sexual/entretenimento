@@ -2,8 +2,9 @@
 import { Component, Inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { RoomService } from 'src/app/core/services/batepapo/room.service';
+import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { RoomCreationConfirmationModalComponent } from '../room-creation-confirmation-modal/room-creation-confirmation-modal.component';
+import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 
 @Component({
     selector: 'app-create-room-modal',
@@ -18,7 +19,7 @@ export class CreateRoomModalComponent implements OnInit {
 
   constructor(
     private formbuilder: FormBuilder,
-    private roomService: RoomService,
+    private RoomManagement: RoomManagementService,
     public dialogRef: MatDialogRef<CreateRoomModalComponent>,
     private dialog: MatDialog,
     @Inject(MAT_DIALOG_DATA) public data: any // Dados recebidos para edição
@@ -64,18 +65,14 @@ export class CreateRoomModalComponent implements OnInit {
   }
 
   createRoom(roomDetails: any) {
-    this.roomService.createRoom(roomDetails).subscribe({
-      next: (result) => {
-        this.handleSuccess('Sala criada com sucesso', roomDetails);
-      },
-      error: (error) => {
-        this.handleError(error);
-      }
+    this.RoomManagement.createRoom(roomDetails).subscribe({
+      next: (result) => this.handleSuccess('Sala criada com sucesso', result),
+      error: (error) => this.handleError(error)
     });
   }
 
   updateRoom(roomDetails: any) {
-    this.roomService.updateRoom(this.roomId, roomDetails).then(() => {
+    this.RoomManagement.updateRoom(this.roomId, roomDetails).then(() => {
       this.handleSuccess('Sala atualizada', roomDetails);
     }).catch((error) => {
       this.handleError(error);

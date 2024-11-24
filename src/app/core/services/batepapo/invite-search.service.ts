@@ -2,7 +2,7 @@
 import { Injectable } from '@angular/core';
 import { FirestoreQueryService } from '../autentication/firestore-query.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { QueryConstraint, where, orderBy } from 'firebase/firestore';
+import { QueryConstraint, where, orderBy, limit, getDocs, query, collection } from 'firebase/firestore';
 
 @Injectable({
   providedIn: 'root',
@@ -18,6 +18,7 @@ export class InviteSearchService {
    * @param orderByField Campo para ordenar os resultados.
    * @param limit Número máximo de resultados.
    */
+
   async searchEligibleUsers(
     roomId: string,
     filters: { field: string; operator: '==' | '>=' | '<=' | 'array-contains'; value: any }[] = [],
@@ -30,20 +31,37 @@ export class InviteSearchService {
     // Excluir usuários já participantes
     constraints.push(where('roomIds', 'array-contains', roomId));
 
-    // Aplicar filtros adicionais
+    // Adicionar filtros adicionais, se necessário (aqui, vazio)
     filters.forEach((filter) => {
       constraints.push(where(filter.field, filter.operator, filter.value));
     });
 
-    // Adicionar filtro por termo de busca
+    // Filtro por termo de busca
     if (searchTerm) {
-      constraints.push(where(orderByField, '>=', searchTerm));
-      constraints.push(where(orderByField, '<=', searchTerm + '\uf8ff'));
+      const normalizedTerm = searchTerm.trim().toLowerCase();
+      console.log('Termo de busca normalizado:', normalizedTerm);
+      constraints.push(where(orderByField, '>=', normalizedTerm));
+      constraints.push(where(orderByField, '<=', normalizedTerm + '\uf8ff'));
+      console.log('Constraints geradas para a consulta:', constraints);
     }
 
-    // Ordenar resultados
+    // Ordenar por campo
     constraints.push(orderBy(orderByField));
 
-    return this.firestoreQueryService.searchUsers(constraints, limitResults);
+    // Limitar resultados
+    constraints.push(limit(limitResults));
+
+    console.log('Consultando Firestore com os seguintes constraints:', constraints);
+
+    try {
+      const snapshot = await getDocs(query(collection(this.firestoreQueryService.getFirestoreInstance(), 'users'), ...constraints));
+      console.log('Documentos encontrados:', snapshot.docs.length);
+      const results = snapshot.docs.map((doc) => doc.data() as IUserDados);
+      console.log('Resultados da consulta:', results);
+      return results;
+    } catch (error) {
+      console.error('Erro ao buscar usuários no Firestore:', error);
+      throw error;
+    }
   }
 }

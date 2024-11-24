@@ -1,8 +1,30 @@
 <!-- src\app\chat-module\invite-user-modal\invite-user-modal.component.html -->
-<h2>Convidar Usuários</h2>
-<input type="text" [(ngModel)]="searchTerm" (input)="onSearchTermChange()" placeholder="Buscar usuários..." />
+<div class="modal-container">
+  <div class="modal-header">
+    <h2>Convidar Usuários</h2>
+    <button class="close-btn" (click)="dialogRef.close()">✖</button>
+  </div>
 
-<div *ngFor="let user of availableUsers">
-  <input type="checkbox" [value]="user.id" [(ngModel)]="user.selected" /> {{ user.nickname }}
+  <div class="search-container">
+    <input type="text" [(ngModel)]="searchTerm" (input)="onSearchTermChange()"
+      placeholder="Buscar usuários por apelido..." class="search-input" />
+    <span class="search-icon" (click)="onSearchTermChange()">🔍</span>
+  </div>
+
+  <div *ngIf="isLoading">Carregando...</div>
+  <div *ngIf="!isLoading && availableUsers.length === 0">Nenhum usuário encontrado.</div>
+
+  <div *ngIf="availableUsers.length > 0">
+    <div *ngFor="let user of availableUsers" class="user-item">
+      <label>
+        <input type="checkbox" [(ngModel)]="user.selected" />
+        {{ user.nickname }}
+      </label>
+    </div>
+  </div>
+
+  <div class="action-buttons">
+    <button class="btn btn-secondary" (click)="dialogRef.close()">Cancelar</button>
+    <button class="btn btn-primary" (click)="confirmSelection()">Enviar Convites</button>
+  </div>
 </div>
-<button (click)="confirmSelection()">Enviar Convites</button>

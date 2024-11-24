@@ -1,130 +1,147 @@
 //src\app\chat-module\room-interaction\room-interaction.component.ts
 import { Component, Input, OnInit, OnDestroy, SimpleChanges, OnChanges } from '@angular/core';
-import { RoomService } from 'src/app/core/services/batepapo/room.service';
+import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { Subscription } from 'rxjs';
 import { Timestamp } from '@firebase/firestore';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { RoomParticipantsService } from 'src/app/core/services/batepapo/room-services/room-participants.service';
+import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
 
 @Component({
-    selector: 'app-room-interaction',
-    templateUrl: './room-interaction.component.html',
-    styleUrls: ['./room-interaction.component.css'],
-    standalone: false
+  selector: 'app-room-interaction',
+  templateUrl: './room-interaction.component.html',
+  styleUrls: ['./room-interaction.component.css'],
+  standalone: false
 })
 export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
-  // Lista de participantes da sala
-  participants: { nickname: string; photoURL?: string }[] = [];
-
-  // ID da sala recebido como entrada do componente pai
   @Input() roomId!: string | undefined;
 
-  // Lista de mensagens da sala
+  participants: { nickname: string; photoURL?: string; isCreator?: boolean }[] = [];
+  creatorDetails: IUserDados | null = null;
   messages: Message[] = [];
-
-  // Conteúdo da mensagem atual a ser enviada
   messageContent: string = '';
-
-  // Subscrições para evitar vazamentos de memória
   private messageSubscription?: Subscription;
   private participantSubscription?: Subscription;
+  private creatorSubscription?: Subscription;
 
-  constructor(private roomService: RoomService) { }
+  constructor(
+    private roomService: RoomService,
+    private roomParticipants:RoomParticipantsService,
+    private roomMessages:RoomMessagesService,
+    private errorNotifier: ErrorNotificationService
+  ) { }
 
   ngOnInit(): void {
-    console.log('RoomInteractionComponent iniciado.');
-
-    // Verifica se há um `roomId` válido e carrega os dados da sala
     if (!this.roomId) {
-      console.error('Erro: RoomInteractionComponent precisa de um roomId válido.');
+      this.errorNotifier.showError('ID da sala não fornecido.');
       return;
     }
 
-    // Carrega as mensagens da sala
     this.loadMessages(this.roomId);
-
-    // Carrega os participantes da sala
     this.loadParticipants(this.roomId);
+    this.loadRoomCreator(this.roomId);
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    // Detecta alterações no `roomId` e recarrega mensagens e participantes
-    if (changes['roomId'] && changes['roomId'].currentValue) {
-      console.log('RoomInteractionComponent recebeu novo roomId:', changes['roomId'].currentValue);
+    if (changes['roomId']?.currentValue) {
       const newRoomId = changes['roomId'].currentValue;
       this.loadMessages(newRoomId);
       this.loadParticipants(newRoomId);
+      this.loadRoomCreator(newRoomId);
     }
   }
 
   private loadMessages(roomId: string): void {
-    console.log(`Carregando mensagens para o roomId: ${roomId}`);
-
-    // Cancela a assinatura anterior, se existir
     this.messageSubscription?.unsubscribe();
-
-    // Obtém as mensagens da sala em tempo real
-    this.messageSubscription = this.roomService.getRoomMessages(roomId, true).subscribe({
+    this.messageSubscription = this.roomMessages.getRoomMessages(roomId).subscribe({
       next: (messages) => {
         this.messages = messages;
-        console.log('Mensagens carregadas:', this.messages);
       },
-      error: (err) => {
-        console.error('Erro ao carregar mensagens:', err);
+      error: (err: any) => {
+        this.errorNotifier.showError('Erro ao carregar mensagens.');
+        console.error(err);
       }
     });
   }
 
   private loadParticipants(roomId: string): void {
-    console.log(`Carregando participantes para o roomId: ${roomId}`);
-
-    // Cancela a assinatura anterior, se existir
     this.participantSubscription?.unsubscribe();
-
-    // Obtém a lista de participantes em tempo real
-    this.participantSubscription = this.roomService.getRoomParticipants(roomId).subscribe({
-      next: (participants: { nickname: string; photoURL?: string }[]) => {
+    this.participantSubscription = this.roomParticipants.getParticipants(roomId).subscribe({
+      next: (participants) => {
         this.participants = participants;
-        console.log('Participantes carregados:', this.participants);
+        if (this.creatorDetails) {
+          this.addCreatorToParticipants();
+        }
       },
-      error: (err) => {
-        console.error('Erro ao carregar participantes:', err);
+      error: (err: any) => {
+        this.errorNotifier.showError('Erro ao carregar participantes.');
+        console.error(err);
       }
     });
   }
 
+  private loadRoomCreator(roomId: string): void {
+    this.creatorSubscription?.unsubscribe();
+    this.creatorSubscription = this.roomParticipants.getRoomCreator(roomId).subscribe({
+      next: (creator) => {
+        this.creatorDetails = creator;
+        this.addCreatorToParticipants();
+      },
+      error: (err) => {
+        this.errorNotifier.showError('Erro ao carregar informações do criador da sala.');
+        console.error(err);
+      }
+    });
+  }
+
+  private addCreatorToParticipants(): void {
+    if (!this.creatorDetails) return;
+
+    const creatorAlreadyAdded = this.participants.some(
+      (p) => p.nickname === this.creatorDetails?.nickname
+    );
+
+    if (!creatorAlreadyAdded) {
+      this.participants.unshift({
+        nickname: this.creatorDetails.nickname || 'Criador',
+        photoURL: this.creatorDetails.photoURL || 'assets/default-avatar.png',
+        isCreator: true,
+      });
+    }
+  }
+
   sendMessage(): void {
-    // Validações antes de enviar a mensagem
     if (!this.messageContent.trim()) {
-      console.log('Mensagem vazia. Não será enviada.');
+      this.errorNotifier.showWarning('Mensagem vazia. Não será enviada.');
       return;
     }
 
     if (!this.roomId) {
-      console.error('Erro: roomId está undefined.');
+      this.errorNotifier.showError('Erro: ID da sala não definido.');
       return;
     }
 
-    // Criação da mensagem com o conteúdo atual
     const newMessage: Message = {
       content: this.messageContent.trim(),
-      senderId: '', // O ID do usuário será adicionado pelo serviço
+      senderId: 'currentUserUID', // Substitua pelo ID do usuário autenticado
       timestamp: Timestamp.fromDate(new Date())
     };
 
-    // Envia a mensagem usando o serviço
-    this.roomService
-      .sendMessageToRoom(this.roomId, newMessage)
+    this.roomMessages.sendMessageToRoom(this.roomId, newMessage)
       .then(() => {
-        console.log('Mensagem enviada com sucesso.');
-        this.messageContent = ''; // Limpa o campo de entrada de mensagem
+        this.messageContent = '';
       })
-      .catch((err) => console.error('Erro ao enviar mensagem:', err));
+      .catch((err) => {
+        this.errorNotifier.showError('Erro ao enviar mensagem.');
+        console.error(err);
+      });
   }
 
   ngOnDestroy(): void {
-    // Cancela todas as assinaturas ao destruir o componente
     this.messageSubscription?.unsubscribe();
     this.participantSubscription?.unsubscribe();
-    console.log('RoomInteractionComponent destruído.');
+    this.creatorSubscription?.unsubscribe();
   }
 }

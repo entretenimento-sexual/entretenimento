@@ -4,10 +4,11 @@ import { Observable, Subscription } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { RoomService } from 'src/app/core/services/batepapo/room.service';
+import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
 import { tap } from 'rxjs/operators';
+import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 
 enum SidebarState { CLOSED, OPEN }
 
@@ -29,6 +30,7 @@ export class UserProfileSidebarComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     private usuarioService: UsuarioService,
     private roomService: RoomService,
+    private roomManagement:RoomManagementService,
     private dialog: MatDialog
   ) { }
 
@@ -55,7 +57,7 @@ export class UserProfileSidebarComponent implements OnInit, OnDestroy {
 
   // Criar sala se o usuário for assinante
   createRoomIfSubscriber() {
-    this.roomService.createRoom({ /* detalhes da sala */ }).subscribe({
+    this.roomManagement.createRoom({ /* detalhes da sala */ }).subscribe({
       next: (result) => {
         console.log('Sala criada com sucesso:', result);
         // Redirecionar para a sala ou mostrar confirmação
