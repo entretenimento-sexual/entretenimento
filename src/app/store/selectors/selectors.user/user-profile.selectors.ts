@@ -26,6 +26,20 @@ export const selectUserProfileData = createSelector(
   }
 );
 
+// Novo seletor para obter dados de um usuário pelo UID
+export const selectUserProfileDataByUid = (uid: string) => createSelector(
+  selectUserState,
+  (state: IUserState): IUserDados | null => {
+    if (state && state.users && state.users[uid]) {
+      console.log(`Usuário com UID ${uid} encontrado no estado.`);
+      return state.users[uid];
+    } else {
+      console.log(`Usuário com UID ${uid} não encontrado no estado.`);
+      return null;
+    }
+  }
+);
+
 // Seleciona o UID do usuário autenticado
 export const selectUserUID = createSelector(
   selectUserProfileData,

@@ -16,12 +16,13 @@ export const selectCurrentUser: MemoizedSelector<AppState, IUserDados | null> = 
   }
 );
 
-//Seleciona todos os usuários armazenados no estado.
+// Seleciona todos os usuários armazenados no estado.
 export const selectAllUsers = createSelector(
   selectUserState,
   (state: IUserState): IUserDados[] => {
-    console.log('Selecionando todos os usuários armazenados no estado:', state?.users?.length || 0);
-    return state?.users || [];
+    const usersArray = Object.values(state.users);
+    console.log('Selecionando todos os usuários armazenados no estado:', usersArray.length);
+    return usersArray;
   }
 );
 
@@ -39,7 +40,7 @@ export const selectUserById = (uid: string) =>
     }
   );
 
-//Seleciona todos os usuários online.
+// Seleciona todos os usuários online.
 export const selectAllOnlineUsers = createSelector(
   selectAllUsers,
   (users: IUserDados[]): IUserDados[] => {
@@ -67,8 +68,7 @@ export const selectOnlineUsersByRegion = (region: string) =>
     }
   );
 
-
-//Seleciona o estado de carregamento (loading) do estado de usuários.
+// Seleciona o estado de carregamento (loading) do estado de usuários.
 export const selectUserLoading = createSelector(
   selectUserState,
   (state: IUserState) => {
@@ -85,4 +85,3 @@ export const selectUserError = createSelector(
     return state.error;
   }
 );
-

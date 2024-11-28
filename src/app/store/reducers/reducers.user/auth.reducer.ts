@@ -4,7 +4,7 @@ import { IUserState } from '../../states/states.user/user.state';
 import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.actions'; // Importando apenas as ações de autenticação
 
 export const initialAuthState: IUserState = {
-  users: [],
+  users: {},
   currentUser: null,
   onlineUsers: [],
   filteredUsers: [],

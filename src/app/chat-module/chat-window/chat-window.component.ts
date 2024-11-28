@@ -4,6 +4,7 @@ import { Timestamp } from '@firebase/firestore';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { ChatService } from 'src/app/core/services/batepapo/chat.service';
+import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
 @Component({
     selector: 'app-chat-window',
@@ -12,7 +13,7 @@ import { ChatService } from 'src/app/core/services/batepapo/chat.service';
     standalone: false
 })
 export class ChatWindowComponent {
-  messages: { content: string, senderId: string, timestamp: Timestamp }[] = [];
+  messages: Message[] = [];
   messageContent = ''; // Adicione essa linha para representar o conteúdo da mensagem a ser enviada
 
     constructor(private chatService: ChatService,
@@ -24,21 +25,24 @@ export class ChatWindowComponent {
       // Substituindo currentUser pelo observable correto
       this.authService.user$.subscribe((currentUser: IUserDados | null) => {
         const userId = currentUser?.uid;
+        const nickname = currentUser?.nickname || 'Usuário'; // Adicionando o nickname
         if (!userId) {
           console.error("Usuário não autenticado");
           return;
         }
 
-      const newMessage = {
-        content: this.messageContent.trim(),
-        senderId: userId, // Substitua 'userId' pelo ID real do usuário
-        timestamp: Timestamp.fromDate(new Date()) // Substitua por um timestamp válido se estiver usando Firebase
-      };
-      this.messages.push(newMessage);
-      this.messageContent = '';
-      console.log("Mensagem enviada pelo usuário:", newMessage);
-      this.chatService.sendMessage('chatId', newMessage);
-    });
+        const newMessage = {
+          content: this.messageContent.trim(),
+          senderId: userId,
+          nickname: nickname, // Adicionando a propriedade 'nickname' ao objeto Message
+          timestamp: Timestamp.fromDate(new Date())
+        };
+
+        this.messages.push(newMessage);
+        this.messageContent = '';
+        console.log("Mensagem enviada pelo usuário:", newMessage);
+        this.chatService.sendMessage('chatId', newMessage);
+      });
     }
   }
 }

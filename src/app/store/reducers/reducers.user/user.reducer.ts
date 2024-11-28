@@ -14,49 +14,44 @@ import {
 } from '../../actions/actions.user/user.actions';
 import { initialUserState } from '../../states/states.user/user.state';
 
-/**
- * Função auxiliar para adicionar usuários sem duplicação ao estado.
- * @param existingUsers - Lista de usuários já presentes no estado.
- * @param newUsers - Lista de novos usuários a serem adicionados.
- * @returns Lista de usuários combinada sem duplicados.
- */
-function addUniqueUsers(existingUsers: IUserDados[], newUsers: IUserDados[]): IUserDados[] {
-  return [
-    ...existingUsers,
-    ...newUsers.filter(
-      (newUser) => !existingUsers.some((existingUser) => existingUser.uid === newUser.uid)
-    ),
-  ];
-}
-
-//Redutor para o estado de usuários.
+// Redutor para o estado de usuários.
 export const userReducer = createReducer(
-  initialUserState, // Estado inicial definido no arquivo de estado.
-  
-  //Ação: Adiciona um usuário específico ao estado, se ele ainda não estiver presente.
+  initialUserState,
+
+  // Ação: Adiciona um usuário específico ao estado, se ele ainda não estiver presente.
   on(addUserToState, (state, { user }) => {
-    if (state.users.some((existingUser) => existingUser.uid === user.uid)) {
-      console.log(`Usuário ${user.uid} já está no estado.`);
-      return state; // Retorna o estado sem alterações se o usuário já existir.
+    if (!user.uid) {
+      console.warn('Usuário sem UID foi fornecido à ação addUserToState.');
+      return state;
     }
-    console.log('Ação disparada: Adicionar Usuário ao Estado', user);
+
+    console.log('Ação addUserToState recebida para UID:', user.uid);
     return {
       ...state,
-      users: [...state.users, user],
+      users: {
+        ...state.users,
+        [user.uid]: user
+      }
     };
   }),
 
-  //Ação: Indica que o processo de carregamento de todos os usuários começou.
+  // Ação: Indica que o processo de carregamento de todos os usuários começou.
   on(loadUsers, (state) => {
     console.log('Ação disparada: Carregar Usuários');
     return { ...state, loading: true };
   }),
 
-  //Ação: Atualiza o estado com a lista de usuários carregados.
+  // Ação: Atualiza o estado com a lista de usuários carregados.
   on(loadUsersSuccess, (state, { users }) => {
-    const updatedUsers = addUniqueUsers(state.users, users);
+    const updatedUsers = {
+      ...state.users,
+      ...users.reduce((acc, user) => {
+        acc[user.uid] = user;
+        return acc;
+      }, {} as { [uid: string]: IUserDados }),
+    };
     console.log(
-      `Usuários carregados com sucesso. Total de usuários no estado: ${updatedUsers.length}`
+      `Usuários carregados com sucesso. Total de usuários no estado: ${Object.keys(updatedUsers).length}`
     );
     return {
       ...state,
@@ -66,50 +61,48 @@ export const userReducer = createReducer(
     };
   }),
 
-  //Ação: Define o erro no estado em caso de falha ao carregar usuários.
+  // Ação: Define o erro no estado em caso de falha ao carregar usuários.
   on(loadUsersFailure, (state, { error }) => {
     console.error('Erro ao carregar usuários:', error);
     return { ...state, loading: false, error };
   }),
 
-  //Ação: Atualiza o estado de usuários online com os dados recebidos.
+  // Ação: Atualiza o estado de usuários online com os dados recebidos.
   on(loadOnlineUsersSuccess, (state, { users }) => {
     console.log(`Usuários online carregados com sucesso. Total: ${users.length}`);
     return {
       ...state,
-      onlineUsers: users, // Atualiza a lista de usuários online no estado.
+      onlineUsers: users,
       error: null,
     };
   }),
 
- // Ação: Atualiza o estado de carregamento e o erro ao falhar no carregamento de usuários online.
-  on(loadUsersFailure, (state, { error }) => {
-    console.error('Erro ao carregar usuários online:', error);
-    return { ...state, loading: false, error };
-  }),
-
-  //Ação: Atualiza o status online de um usuário específico.
+  // Ação: Atualiza o status online de um usuário específico.
   on(updateUserOnlineStatus, (state, { uid, isOnline }) => {
-    const updatedUsers = state.users.map((user) =>
-      user.uid === uid ? { ...user, isOnline } : user
-    );
-    console.log(`Atualizando status online do usuário ${uid}: ${isOnline}`);
-    return { ...state, users: updatedUsers };
+    if (!(uid in state.users)) {
+      console.warn(`Usuário com UID ${uid} não encontrado no estado.`);
+      return state;
+    }
+    const updatedUser = { ...state.users[uid], isOnline };
+    return {
+      ...state,
+      users: { ...state.users, [uid]: updatedUser },
+    };
   }),
 
-  //Ação: Atualiza a lista de usuários online filtrados no estado.
+  // Ação: Atualiza a lista de usuários online filtrados no estado.
   on(setFilteredOnlineUsers, (state, { filteredUsers }) => {
     console.log('Usuários online filtrados definidos:', filteredUsers.length);
     return { ...state, filteredUsers };
   }),
 
-  //Ação: Define o usuário atual no estado.
+  // Ação: Define o usuário atual no estado.
   on(setCurrentUser, (state, { user }) => {
     console.log('Usuário atual definido:', user);
     return { ...state, currentUser: user };
   }),
 
-  //Ação: Remove o usuário atual do estado.
+  // Ação: Remove o usuário atual do estado.
   on(clearCurrentUser, (state) => {
     console.log('Usuário atual removido do estado.');
     return { ...state, currentUser: null };

@@ -2,7 +2,6 @@
 import { Injectable } from '@angular/core';
 import { getFirestore, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, collection } from 'firebase/firestore';
 import { Observable } from 'rxjs';
-import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Injectable({
@@ -18,11 +17,18 @@ export class RoomManagementService {
    * @param roomDetails Detalhes da sala.
    * @returns Promessa com os dados da sala criada.
    */
-  createRoom(roomDetails: any): Observable<Chat> {
+  createRoom(roomDetails: any, creatorId: string) {
+    const roomData = {
+      ...roomDetails,
+      creatorBy: creatorId,
+      participants: [creatorId, ...roomDetails.participants || []], // Inclui o criador na lista de participantes
+      creationTime: new Date()
+    };
+
     return new Observable((observer) => {
-      addDoc(collection(this.db, 'rooms'), roomDetails)
+      addDoc(collection(this.db, 'rooms'), roomData)
         .then((docRef) => {
-          observer.next({ roomId: docRef.id, ...roomDetails });
+          observer.next({ roomId: docRef.id, ...roomData });
           observer.complete();
         })
         .catch((error) => {

@@ -6,6 +6,7 @@ import * as RoomActions from '../../actions/actions.chat/room.actions';
 import { map, mergeMap, catchError } from 'rxjs/operators';
 import { from, of } from 'rxjs';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
+import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 
 @Injectable()
 export class RoomEffects {
@@ -15,17 +16,19 @@ export class RoomEffects {
     private roomManagement: RoomManagementService
   ) { }
 
+  // Effect para carregar as salas do usuário
   loadRooms$ = createEffect(() =>
     this.actions$.pipe(
       ofType(RoomActions.LoadRooms),
-      mergeMap(() => {
+      mergeMap((action) => {
+        const userId = action.userId;
         console.log('LoadRooms acionado');
-        return from(this.roomService.getRooms()).pipe(
-          map(rooms => {
+        return this.roomService.getRooms(userId).pipe(
+          map((rooms: Chat[]) => {
             console.log('LoadRoomsSuccess com salas:', rooms);
             return RoomActions.LoadRoomsSuccess({ rooms });
           }),
-          catchError(error => {
+          catchError((error) => {
             console.error('Erro ao carregar salas:', error);
             return of(RoomActions.LoadRoomsFailure({ error }));
           })
@@ -34,15 +37,17 @@ export class RoomEffects {
     )
   );
 
+  // Effect para criar uma sala
   createRoom$ = createEffect(() =>
     this.actions$.pipe(
       ofType(RoomActions.CreateRoom),
       mergeMap(action => {
         console.log('CreateRoom acionado com detalhes:', action.roomDetails);
-        return this.roomManagement.createRoom(action.roomDetails).pipe(
-          map(room => {
-            console.log('CreateRoomSuccess com sala:', room);
-            return RoomActions.CreateRoomSuccess({ room });
+        return this.roomManagement.createRoom(action.roomDetails, action.roomDetails.creatorId).pipe(
+          map((room: unknown) => {
+            const validRoom = room as Chat; // Convertendo para o tipo Chat
+            console.log('CreateRoomSuccess com sala:', validRoom);
+            return RoomActions.CreateRoomSuccess({ room: validRoom });
           }),
           catchError(error => {
             console.error('Erro ao criar sala:', error);
@@ -53,6 +58,7 @@ export class RoomEffects {
     )
   );
 
+  // Effect para deletar uma sala
   deleteRoom$ = createEffect(() =>
     this.actions$.pipe(
       ofType(RoomActions.DeleteRoom),

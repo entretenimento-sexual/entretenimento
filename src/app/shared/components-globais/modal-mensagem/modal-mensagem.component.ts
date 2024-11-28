@@ -32,6 +32,7 @@ export class ModalMensagemComponent {
   async enviarMensagem(): Promise<void> {
     if (this.mensagem.trim().length > 0) {
       const mensagem: Message = {
+        nickname: '',
         content: this.mensagem,
         senderId: '', // Inicialmente vazio, será preenchido com o UID do usuário autenticado
         timestamp: Timestamp.now()

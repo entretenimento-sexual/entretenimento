@@ -102,11 +102,15 @@ export class AuthService {
   }
 
   setCurrentUser(userData: IUserDados): void {
+    if (!userData || !userData.uid) {
+      console.error('Dados de usuário inválidos fornecidos para setCurrentUser:', userData);
+      return;
+    }
     this.userSubject.next(userData);
     localStorage.setItem('currentUser', JSON.stringify(userData));
     console.log('Usuário definido e salvo no localStorage:', userData);
-    console.log('Estado do usuário foi atualizado no BehaviorSubject:', this.userSubject.value);
   }
+
 
   async logout(): Promise<void> {
     const userUID = this.getLoggedUserUID();

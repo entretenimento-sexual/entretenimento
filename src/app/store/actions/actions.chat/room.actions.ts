@@ -4,7 +4,11 @@ import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
 // Ações para carregar salas
-export const LoadRooms = createAction('[Room] Load Rooms');
+export const LoadRooms = createAction(
+  '[Room] Load Rooms',
+  props<{ userId: string }>()
+);
+
 export const LoadRoomsSuccess = createAction(
   '[Room] Load Rooms Success',
   props<{ rooms: Chat[] }>()

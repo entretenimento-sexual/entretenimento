@@ -2,7 +2,6 @@
 import { Component, Inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { RoomCreationConfirmationModalComponent } from '../room-creation-confirmation-modal/room-creation-confirmation-modal.component';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 
@@ -65,10 +64,16 @@ export class CreateRoomModalComponent implements OnInit {
   }
 
   createRoom(roomDetails: any) {
-    this.RoomManagement.createRoom(roomDetails).subscribe({
-      next: (result) => this.handleSuccess('Sala criada com sucesso', result),
-      error: (error) => this.handleError(error)
-    });
+    if (this.isEditing) {
+      this.updateRoom(roomDetails);
+    } else {
+      // O creatorId deve ser passado, assumindo que ele está disponível no componente.
+      const creatorId = 'SEU_CREATOR_ID_AQUI'; // Substitua pelo ID correto, como `this.currentUser?.uid`
+      this.RoomManagement.createRoom(roomDetails, creatorId).subscribe({
+        next: (result) => this.handleSuccess('Sala criada com sucesso', result),
+        error: (error) => this.handleError(error)
+      });
+    }
   }
 
   updateRoom(roomDetails: any) {

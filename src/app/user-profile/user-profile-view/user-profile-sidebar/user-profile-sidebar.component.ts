@@ -9,6 +9,7 @@ import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/co
 import { MatDialog } from '@angular/material/dialog';
 import { tap } from 'rxjs/operators';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 enum SidebarState { CLOSED, OPEN }
 
@@ -29,7 +30,7 @@ export class UserProfileSidebarComponent implements OnInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private usuarioService: UsuarioService,
-    private roomService: RoomService,
+    private errorNotifier: ErrorNotificationService,
     private roomManagement:RoomManagementService,
     private dialog: MatDialog
   ) { }
@@ -57,15 +58,23 @@ export class UserProfileSidebarComponent implements OnInit, OnDestroy {
 
   // Criar sala se o usuário for assinante
   createRoomIfSubscriber() {
-    this.roomManagement.createRoom({ /* detalhes da sala */ }).subscribe({
-      next: (result) => {
-        console.log('Sala criada com sucesso:', result);
-        // Redirecionar para a sala ou mostrar confirmação
-      },
-      error: (error) => {
-        console.error(error.message);
-      }
-    });
+    const roomDetails = {
+      roomName: 'Nome da Sala', // Aqui você deve definir os detalhes necessários da sala
+      description: 'Descrição da Sala', // Ajuste conforme as informações necessárias
+      isPrivate: true // ou false, conforme o tipo de sala
+    };
+
+    if (this.uid) {
+      this.roomManagement.createRoom(roomDetails, this.uid).subscribe({
+        next: (result) => {
+          console.log('Sala criada com sucesso:', result);
+          // Redirecionar para a sala ou mostrar confirmação
+        },
+        error: (error) => {
+          this.errorNotifier.showError(error);
+        }
+      });
+    }
   }
 
   // Abrir um diálogo para informar a necessidade de assinatura

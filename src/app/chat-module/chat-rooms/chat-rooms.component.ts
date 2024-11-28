@@ -1,4 +1,4 @@
-//src\app\chat-module\chat-rooms\chat-rooms.component.ts
+// src\app\chat-module\chat-rooms\chat-rooms.component.ts
 import { Component, EventEmitter, OnInit, Output } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -9,14 +9,14 @@ import { SubscriptionService } from 'src/app/core/services/subscriptions/subscri
 import { RoomCreationConfirmationModalComponent } from '../room-creation-confirmation-modal/room-creation-confirmation-modal.component';
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 
 @Component({
   selector: 'app-chat-rooms',
   templateUrl: './chat-rooms.component.html',
   styleUrls: ['./chat-rooms.component.css'],
-  standalone:false
+  standalone: false
 })
-
 export class ChatRoomsComponent implements OnInit {
   @Output() roomSelected = new EventEmitter<string>();
   chatRooms: any[] = []; // Lista de salas de bate-papo
@@ -26,11 +26,13 @@ export class ChatRoomsComponent implements OnInit {
     private authService: AuthService,
     private subscriptionService: SubscriptionService,
     private roomService: RoomService,
+    private roomManagement: RoomManagementService,
     private errorNotifier: ErrorNotificationService,
     public dialog: MatDialog
   ) { }
 
   ngOnInit(): void {
+    // Assina o observable do usuário atual para obter o usuário autenticado
     this.authService.user$.subscribe(
       (user) => {
         this.currentUser = user;
@@ -70,14 +72,18 @@ export class ChatRoomsComponent implements OnInit {
     this.roomSelected.emit(roomId);
   }
 
-  // Abre o modal para criar uma sala.
+  /**
+   * Abre o modal para criar uma sala.
+   */
   openCreateRoomModal(): void {
     if (!this.currentUser) {
       this.errorNotifier.showWarning('Você precisa estar logado para criar uma sala.');
       return;
     }
 
-    this.roomService.countUserRooms(this.currentUser.uid).then((roomCount) => {
+    const creatorId = this.currentUser.uid;
+
+    this.roomService.countUserRooms(creatorId).then((roomCount) => {
       const MAX_ROOMS_ALLOWED = 1;
 
       if (roomCount >= MAX_ROOMS_ALLOWED) {
@@ -91,19 +97,28 @@ export class ChatRoomsComponent implements OnInit {
         });
 
         // Aguarda o fechamento do modal antes de abrir outro
-        dialogRef.afterClosed().subscribe((result) => {
-          if (result?.success) {
-            this.openRoomCreationConfirmationModal(
-              result.roomId,
-              false,
-              result.roomCount,
-              result.roomName,
-              result.action
-            );
+        dialogRef.afterClosed().subscribe((result: { success?: boolean; roomId?: string; roomName?: string; action?: 'created' | 'updated'; error?: string, roomDetails?: any }) => {
+          if (result?.success && result.roomDetails) {
+            this.roomManagement.createRoom(result.roomDetails, creatorId).subscribe({
+              next: (response: any) => {
+                // Garantindo que o tipo da resposta seja tratado como esperado
+                if (response && typeof response === 'object') {
+                  this.openRoomCreationConfirmationModal(
+                    response.roomId,
+                    false,
+                    1,
+                    response.roomName,
+                    response.action
+                  );
+                }
+              },
+              error: (error) => this.errorNotifier.showError(error),
+            });
           } else if (result?.error) {
             this.errorNotifier.showError(result.error);
           }
         });
+
       } else {
         this.subscriptionService.promptSubscription({
           title: 'Permissão necessária',

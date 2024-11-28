@@ -80,31 +80,30 @@ export class ChatModuleLayoutComponent implements OnInit {
     // Acessar o usuário autenticado via observable
     this.authService.user$.subscribe(currentUser => {
       const senderId = currentUser?.uid;
+      const nickname = currentUser?.nickname || 'Usuário'; // Adicionando o nickname
       if (!senderId) {
         console.error('Erro: Usuário não autenticado.');
         return;
       }
 
-    const message: Message = {
-      content: this.messageContent.trim(),
-      senderId: senderId,
-      timestamp: Timestamp.now(), // Ajuste de Timestamp.fromDate(new Date())
-    };
+      const message: Message = {
+        content: this.messageContent.trim(),
+        senderId: senderId,
+        nickname: nickname, // Adicionando a propriedade 'nickname'
+        timestamp: Timestamp.now()
+      };
 
-    if (this.selectedType === 'chat' && this.selectedChatId) {
-
-      this.chatService.sendMessage(this.selectedChatId, message).then(() => {
-        console.log("Mensagem enviada com sucesso ao chat");
-        this.messageContent = ''; // Limpa o campo de texto após o envio
-      }).catch(error => console.error("Erro ao enviar mensagem ao chat:", error));
-
-    } else if (this.selectedType === 'room' && this.selectedChatId) {
-
-      this.roomMessages.sendMessageToRoom(this.selectedChatId, message).then(() => {
-        console.log("Mensagem enviada com sucesso à sala");
-        this.messageContent = ''; // Limpa o campo de texto após o envio
-      }).catch(error => console.error("Erro ao enviar mensagem à sala:", error));
-    }
-  });
-}
+      if (this.selectedType === 'chat' && this.selectedChatId) {
+        this.chatService.sendMessage(this.selectedChatId, message).then(() => {
+          console.log("Mensagem enviada com sucesso ao chat");
+          this.messageContent = ''; // Limpa o campo de texto após o envio
+        }).catch(error => console.error("Erro ao enviar mensagem ao chat:", error));
+      } else if (this.selectedType === 'room' && this.selectedChatId) {
+        this.roomMessages.sendMessageToRoom(this.selectedChatId, message).then(() => {
+          console.log("Mensagem enviada com sucesso à sala");
+          this.messageContent = ''; // Limpa o campo de texto após o envio
+        }).catch(error => console.error("Erro ao enviar mensagem à sala:", error));
+      }
+    });
+  }
 }

@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { Observable, catchError, from, map, of, switchMap, take, throwError } from 'rxjs';
 import { IUserDados } from '../interfaces/iuser-dados';
 import { FirestoreService } from './autentication/firestore.service';
-import { collection, doc, onSnapshot, query, Timestamp, updateDoc, where } from '@firebase/firestore';
+import { doc, Timestamp, updateDoc } from '@firebase/firestore';
 import { User } from 'firebase/auth';
 import { UserProfileService } from './user-profile/user-profile.service';
 import { EmailVerificationService } from './autentication/email-verification.service';
@@ -36,7 +36,7 @@ export class UsuarioService {
       email: user.email,
       displayName: user.displayName || null,
       photoURL: user.photoURL || null,
-      role: 'basico', // Padrão, ajustar conforme necessário
+      role: 'basico',
       lastLogin: timestampNow,
       firstLogin: timestampNow,
       descricao: '',

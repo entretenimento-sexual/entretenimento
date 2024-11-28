@@ -2,7 +2,7 @@
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 export interface IUserState {  /**   * Lista completa de usuários armazenados no estado.   */
-  users: IUserDados[];
+  users: { [uid: string]: IUserDados }; // Transformado para objeto indexado por UID
   currentUser: IUserDados | null;
   onlineUsers: IUserDados[];  // Lista de usuários online separada
   filteredUsers: IUserDados[];  /**Indicador de carregamento.*/
@@ -13,7 +13,7 @@ export interface IUserState {  /**   * Lista completa de usuários armazenados n
 }
 
 export const initialUserState: IUserState = {  /**Inicialmente, a lista de usuários está vazia.*/
-  users: [], /**Inicialmente, a lista de usuários online também está vazia.*/
+  users: {}, // Inicialmente, objeto vazio
   currentUser: null,
   onlineUsers: [], /**Inicialmente, a lista de usuários filtrados também está vazia.*/
   filteredUsers: [],  /**   * O carregamento não está em progresso inicialmente.   */
