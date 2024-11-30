@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
 import { OobCodeService } from 'src/app/core/services/autentication/oobCode.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { first, Subject } from 'rxjs';
+import { first, firstValueFrom, Subject } from 'rxjs';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
@@ -13,6 +13,7 @@ import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 import { getAuth } from 'firebase/auth';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
+import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
 
 @Component({
     selector: 'app-auth-verification-handler',
@@ -60,7 +61,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private emailVerificationService: EmailVerificationService,
     private loginService: LoginService,
-    private userProfileService: UserProfileService,
+    private firestoreQuery: FirestoreQueryService,
     private firestoreService: FirestoreService,
     private oobCodeService: OobCodeService,
     private emailInputModalService: EmailInputModalService,
@@ -120,7 +121,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       }
 
       // Verifica se o e-mail já foi verificado anteriormente
-      const userData = await this.usuarioService.getUsuario(currentUser.uid).pipe(first()).toPromise();
+      const userData = await this.firestoreQuery.getUser(currentUser.uid).pipe(first()).toPromise();
 
       if (userData?.emailVerified) {
         this.message = 'Seu e-mail já foi verificado anteriormente. Faça login para continuar.';
@@ -273,7 +274,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     const uid = this.authService.getLoggedUserUID();
     if (uid) {
       // Primeiramente, buscamos os dados existentes do usuário no Firestore
-      this.userProfileService.getUserById(uid).then((existingUserData: IUserDados | null) => {
+      firstValueFrom(this.firestoreQuery.getUserById(uid)).then((existingUserData: IUserDados | null) => {
         if (existingUserData) {
           // Mantemos o email e nickname salvos anteriormente
           const userData: IUserRegistrationData = {

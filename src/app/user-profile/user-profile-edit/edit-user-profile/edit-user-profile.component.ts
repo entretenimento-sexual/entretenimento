@@ -7,6 +7,7 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ValidatorService } from 'src/app/core/services/data-handling/validator.service';
+import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
 
 @Component({
     selector: 'app-edit-user-profile',
@@ -37,7 +38,7 @@ export class EditUserProfileComponent implements OnInit {
   }
 
   constructor(
-    private authService: AuthService,
+    private firestoreQuery: FirestoreQueryService,
     private usuarioService: UsuarioService,
     private route: ActivatedRoute,
     private router: Router,
@@ -65,7 +66,7 @@ export class EditUserProfileComponent implements OnInit {
     this.uid = this.route.snapshot.paramMap.get('id') || '';
     this.loadEstados();
     if (this.uid) {
-      this.usuarioService.getUsuario(this.uid).subscribe(async (user) => {
+      this.firestoreQuery.getUser(this.uid).subscribe(async (user) => {
         if (user) {
           this.userData = user;
           if (this.userData.estado) {
@@ -79,7 +80,7 @@ export class EditUserProfileComponent implements OnInit {
       });
     }
 
-    this.usuarioService.getUsuario(this.uid).subscribe((userData) => {
+    this.firestoreQuery.getUser(this.uid).subscribe((userData) => {
       if (userData) {
         // Define os valores para o formulário
         this.editForm.patchValue({

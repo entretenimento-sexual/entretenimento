@@ -21,16 +21,21 @@ export const userReducer = createReducer(
   // Ação: Adiciona um usuário específico ao estado, se ele ainda não estiver presente.
   on(addUserToState, (state, { user }) => {
     if (!user.uid) {
-      console.warn('Usuário sem UID foi fornecido à ação addUserToState.');
+      console.log('Usuário sem UID foi fornecido à ação addUserToState.');
       return state;
     }
 
     console.log('Ação addUserToState recebida para UID:', user.uid);
+
+    // Adiciona ou atualiza o usuário no estado
     return {
       ...state,
       users: {
         ...state.users,
-        [user.uid]: user
+        [user.uid]: {
+          ...state.users[user.uid],  // Mantém qualquer informação anterior do usuário no estado
+          ...user                    // Sobrescreve com os novos dados recebidos
+        }
       }
     };
   }),

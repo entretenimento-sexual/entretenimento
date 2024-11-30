@@ -26,6 +26,9 @@ export const USER_ACTION_TYPES = {
   // Adiciona um usuário específico ao estado
   ADD_USER_TO_STATE: '[Usuário] Adicionar Usuário ao Estado',
 
+  // Atualiza um usuário específico no estado
+  UPDATE_USER_IN_STATE: '[Usuário] Atualizar Usuário no Estado',
+
   // Dispara quando os usuários online são carregados com sucesso
   LOAD_ONLINE_USERS_SUCCESS: '[Usuário] Carregar Usuários Online com Sucesso',
 
@@ -37,6 +40,17 @@ export const USER_ACTION_TYPES = {
 };
 
 // Ações para gerenciar o estado do usuário
+
+/**
+ * Atualiza um usuário específico no estado.
+ * @param uid - Identificador único do usuário.
+ * @param updatedData - Dados atualizados do usuário.
+ */
+export const updateUserInState = createAction(
+  USER_ACTION_TYPES.UPDATE_USER_IN_STATE,
+  props<{ uid: string; updatedData: IUserDados }>()
+);
+
 
 /**
  * Define o usuário atual no estado.

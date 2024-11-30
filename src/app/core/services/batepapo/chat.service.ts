@@ -18,6 +18,7 @@ import {
   updateChat,
 } from 'src/app/store/actions/actions.chat/chat.actions';
 import { AppState } from 'src/app/store/states/app.state';
+import { FirestoreQueryService } from '../autentication/firestore-query.service';
 
 @Injectable({
   providedIn: 'root'
@@ -28,6 +29,7 @@ export class ChatService {
 
   constructor(
     private usuarioService: UsuarioService,
+    private firestoreQuery: FirestoreQueryService,
     private store: Store<AppState>
   ) { }
 
@@ -94,7 +96,7 @@ export class ChatService {
 
           if (otherUserId) {
             try {
-              const userDetails = await this.usuarioService.getUsuario(otherUserId).toPromise();
+              const userDetails = await this.firestoreQuery.getUser(otherUserId).toPromise();
               return { ...chat, otherParticipantDetails: userDetails || null };
             } catch (error) {
               console.error('Erro ao buscar detalhes do usuário:', error);

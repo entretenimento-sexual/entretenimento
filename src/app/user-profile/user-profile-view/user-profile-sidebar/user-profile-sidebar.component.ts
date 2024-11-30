@@ -4,12 +4,12 @@ import { Observable, Subscription } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
 import { tap } from 'rxjs/operators';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
 
 enum SidebarState { CLOSED, OPEN }
 
@@ -30,6 +30,7 @@ export class UserProfileSidebarComponent implements OnInit, OnDestroy {
   constructor(
     private authService: AuthService,
     private usuarioService: UsuarioService,
+    private firestoreQuery: FirestoreQueryService,
     private errorNotifier: ErrorNotificationService,
     private roomManagement:RoomManagementService,
     private dialog: MatDialog
@@ -42,7 +43,7 @@ export class UserProfileSidebarComponent implements OnInit, OnDestroy {
         if (currentUser) {
           this.uid = currentUser.uid;
           // Obter os dados do usuário
-          this.usuario$ = this.usuarioService.getUsuario(currentUser.uid);
+          this.usuario$ = this.firestoreQuery.getUser(currentUser.uid);
         } else {
           this.uid = null;
         }

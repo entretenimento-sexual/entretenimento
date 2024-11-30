@@ -32,9 +32,9 @@ export const selectAllUsers = createSelector(
  */
 export const selectUserById = (uid: string) =>
   createSelector(
-    selectAllUsers,
-    (users: IUserDados[]) => {
-      const foundUser = users.find((user) => user.uid === uid) || null;
+    selectUserState,
+    (state: IUserState) => {
+      const foundUser = state.users[uid] || null;
       console.log(`Selecionando usuário pelo UID (${uid}):`, foundUser);
       return foundUser;
     }

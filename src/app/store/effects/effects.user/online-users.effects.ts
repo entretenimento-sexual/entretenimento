@@ -6,8 +6,8 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { catchError, map, mergeMap, withLatestFrom } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { loadOnlineUsers, loadOnlineUsersSuccess, loadOnlineUsersFailure, setFilteredOnlineUsers } from '../../actions/actions.user/user.actions';
-
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
 
 @Injectable()
 export class OnlineUsersEffects {
@@ -15,7 +15,7 @@ export class OnlineUsersEffects {
     this.actions$.pipe(
       ofType(loadOnlineUsers),
       mergeMap(() =>
-        this.usuarioService.getAllOnlineUsers().pipe(
+        this.firestoreQuery.getOnlineUsers().pipe(
           map(users => {
             console.log('Usuários online recebidos no efeito:', users);
             return loadOnlineUsersSuccess({ users });
@@ -42,7 +42,7 @@ export class OnlineUsersEffects {
 
   constructor(
     private actions$: Actions,
-    private usuarioService: UsuarioService,
+    private firestoreQuery: FirestoreQueryService,
     private authService: AuthService
   ) { }
 }

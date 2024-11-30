@@ -9,6 +9,7 @@ import { first } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados'; // Importando o tipo correto
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
+import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
 
 @Component({
     selector: 'app-finalizar-cadastro',
@@ -37,6 +38,7 @@ export class FinalizarCadastroComponent implements OnInit {
 
   constructor(
     private emailVerificationService: EmailVerificationService,
+    private firestoreQuery: FirestoreQueryService,
     private firestoreService: FirestoreService,
     private authService: AuthService,
     private usuarioService: UsuarioService,
@@ -120,7 +122,7 @@ export class FinalizarCadastroComponent implements OnInit {
     }
 
     try {
-      const existingUserData = await this.usuarioService.getUsuario(uid).pipe(first()).toPromise();
+      const existingUserData = await this.firestoreQuery.getUser(uid).pipe(first()).toPromise();
       console.log('Dados do usuário do Firestore:', existingUserData);
       if (existingUserData) {
         const updatedUserData: IUserRegistrationData = {

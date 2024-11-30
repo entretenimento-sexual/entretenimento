@@ -1,8 +1,8 @@
 // src/app/core/services/autentication/auth.service.ts
 import { Injectable } from '@angular/core';
-import { Observable, BehaviorSubject, firstValueFrom } from 'rxjs';
+import { Observable, BehaviorSubject, firstValueFrom, switchMap, tap, of, catchError } from 'rxjs';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { UsuarioService } from '../usuario.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { Store } from '@ngrx/store';
@@ -11,6 +11,7 @@ import { loginSuccess, logoutSuccess } from '../../../store/actions/actions.user
 import { Router } from '@angular/router';
 import { getDatabase, ref, set } from 'firebase/database';
 import { setCurrentUser } from 'src/app/store/actions/actions.user/user.actions';
+import { FirestoreQueryService } from './firestore-query.service';
 
 const auth = getAuth();
 const db = getDatabase();
@@ -25,6 +26,7 @@ export class AuthService {
   constructor(
     private router: Router,
     private usuarioService: UsuarioService,
+    private firestoreQuery: FirestoreQueryService,
     private globalErrorHandlerService: GlobalErrorHandlerService,
     private store: Store<AppState>
   ) {
@@ -32,41 +34,49 @@ export class AuthService {
   }
 
   // Inicializa o listener de autenticação e recupera o estado do usuário.
-  private async initAuthStateListener(): Promise<void> {
-    onAuthStateChanged(auth, async (user) => {
-      console.log('onAuthStateChanged user: ', user);
-
-      if (user) {
-        try {
-          const userData = await firstValueFrom(this.usuarioService.getUsuario(user.uid));
-
+  private initAuthStateListener(): void {
+    new Observable<User | null>((observer) => {
+      onAuthStateChanged(auth, (user) => {
+        observer.next(user);
+      });
+    })
+      .pipe(
+        switchMap(user => {
+          if (user) {
+            return this.firestoreQuery.getUser(user.uid);
+          } else {
+            this.clearCurrentUser();
+            return of(null);
+          }
+        }),
+        tap(userData => {
           if (userData) {
-            console.log('Usuario recuperado: ', userData);
             this.userSubject.next(userData);
             localStorage.setItem('currentUser', JSON.stringify(userData));
             this.store.dispatch(loginSuccess({ user: userData }));
             this.store.dispatch(setCurrentUser({ user: userData }));
 
             // Configura o Realtime Database para indicar que o usuário está online
-            const userStatusRef = ref(db, `status/${user.uid}`);
-            try {
-              await set(userStatusRef, { online: true, lastChanged: new Date().toISOString() });
-
-              // Atualiza o status online do Firestore
-              await this.usuarioService.updateUserOnlineStatus(user.uid, true);
-              console.log('Status isOnline atualizado no Firestore para online.');
-            } catch (error) {
-              console.error('Erro ao definir o status online:', error);
-            }
+            const userStatusRef = ref(db, `status/${userData.uid}`);
+            set(userStatusRef, { online: true, lastChanged: new Date().toISOString() })
+              .then(() => {
+                return this.usuarioService.updateUserOnlineStatus(userData.uid, true);
+              })
+              .then(() => {
+                console.log('Status isOnline atualizado no Firestore para online.');
+              })
+              .catch(error => {
+                console.error('Erro ao definir o status online:', error);
+              });
           }
-        } catch (error) {
+        }),
+        catchError(error => {
+          console.error('Erro ao recuperar estado de autenticação:', error);
           this.globalErrorHandlerService.handleError(error as Error);
-        }
-      } else {
-        console.log('Nenhum usuário autenticado. Limpa estado local.');
-        this.clearCurrentUser();
-      }
-    });
+          return of(null);
+        })
+      )
+      .subscribe();
   }
 
   private loadUserFromLocalStorage(): void {
@@ -98,6 +108,7 @@ export class AuthService {
   private clearCurrentUser(): void {
     this.userSubject.next(null);
     localStorage.removeItem('currentUser');
+    this.store.dispatch(logoutSuccess());
     console.log('Estado de usuário limpo e sessão encerrada.');
   }
 
@@ -110,8 +121,6 @@ export class AuthService {
     localStorage.setItem('currentUser', JSON.stringify(userData));
     console.log('Usuário definido e salvo no localStorage:', userData);
   }
-
-
   async logout(): Promise<void> {
     const userUID = this.getLoggedUserUID();
     if (userUID) {

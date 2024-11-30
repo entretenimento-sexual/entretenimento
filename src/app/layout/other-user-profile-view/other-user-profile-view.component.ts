@@ -5,6 +5,7 @@ import { ActivatedRoute } from '@angular/router';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UsuarioService } from 'src/app/core/services/usuario.service';
 import { SharedModule } from "../../shared/shared.module";
+import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
 
 @Component({
     selector: 'app-other-user-profile-view', // Mantém standalone para evitar que o componente dependa de um módulo específico
@@ -12,6 +13,7 @@ import { SharedModule } from "../../shared/shared.module";
     styleUrls: ['./other-user-profile-view.component.css'], // Corrige o nome da propriedade para 'styleUrls'
     imports: [CommonModule, SharedModule] // Importa módulos comuns e compartilhados
 })
+
 export class OtherUserProfileViewComponent implements OnInit {
   userId: string | null | undefined; // Armazena o ID do usuário a ser exibido
   userProfile: IUserDados | null | undefined = null; // Armazena os dados do perfil do usuário
@@ -21,6 +23,7 @@ export class OtherUserProfileViewComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute, // Rota para acessar o parâmetro ID do usuário
+    private firestoreQuery: FirestoreQueryService,
     private usuarioService: UsuarioService // Serviço responsável por buscar os dados do usuário
   ) { }
 
@@ -36,7 +39,7 @@ export class OtherUserProfileViewComponent implements OnInit {
   }
 
   loadUserProfile(userId: string) {
-    this.usuarioService.getUsuario(userId).subscribe(
+    this.firestoreQuery.getUser(userId).subscribe(
       (profile) => {
         if (profile) {
           this.userProfile = profile; // Armazena o perfil do usuário retornado

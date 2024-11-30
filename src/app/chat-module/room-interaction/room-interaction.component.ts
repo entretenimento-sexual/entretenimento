@@ -1,6 +1,6 @@
 // src/app/chat-module/room-interaction/room-interaction.component.ts
 import { Component, Input, OnInit, OnDestroy, SimpleChanges, OnChanges, ViewChild, ElementRef } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { Timestamp } from '@firebase/firestore';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -9,6 +9,7 @@ import { RoomMessagesService } from 'src/app/core/services/batepapo/room-service
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
+import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
 
 @Component({
   selector: 'app-room-interaction',
@@ -37,6 +38,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
     private roomParticipants: RoomParticipantsService,
     private roomMessages: RoomMessagesService,
     private roomService: RoomService,
+    private firestoreQuery: FirestoreQueryService,
     private errorNotifier: ErrorNotificationService
   ) { }
 
@@ -85,7 +87,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
 
             try {
               // Tente obter o usuário do estado
-              const userFromState = await this.userProfile.getUserFromState(msg.senderId).toPromise();
+              const userFromState = await firstValueFrom(this.firestoreQuery.getUserFromState(msg.senderId));
               user = userFromState ? userFromState : null; // Garante que user nunca seja undefined
             } catch (error) {
               console.warn(`Erro ao buscar usuário do estado com UID ${msg.senderId}`, error);
@@ -94,7 +96,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
             if (!user) {
               try {
                 // Se não encontrou no estado, tente obter do Firestore
-                user = await this.userProfile.getUserById(msg.senderId);
+                user = await firstValueFrom(this.firestoreQuery.getUser(msg.senderId));
               } catch (error) {
                 console.error(`Erro ao buscar usuário com UID ${msg.senderId} no Firestore:`, error);
                 this.errorNotifier.showError(`Erro ao buscar usuário com UID ${msg.senderId}`);
