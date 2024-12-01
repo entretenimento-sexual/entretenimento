@@ -9,7 +9,7 @@ import { RoomMessagesService } from 'src/app/core/services/batepapo/room-service
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
-import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
+import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 
 @Component({
   selector: 'app-room-interaction',

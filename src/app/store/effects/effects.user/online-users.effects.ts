@@ -1,13 +1,13 @@
 // src/app/store/effects/online-users/online-users.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { catchError, map, mergeMap, withLatestFrom } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { loadOnlineUsers, loadOnlineUsersSuccess, loadOnlineUsersFailure, setFilteredOnlineUsers } from '../../actions/actions.user/user.actions';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
+import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 
 @Injectable()
 export class OnlineUsersEffects {

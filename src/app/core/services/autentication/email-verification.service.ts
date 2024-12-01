@@ -2,7 +2,7 @@
 import { Injectable } from '@angular/core';
 import { doc, setDoc, updateDoc, Timestamp } from '@firebase/firestore';
 import { getAuth, User, sendEmailVerification, applyActionCode } from 'firebase/auth';
-import { FirestoreService } from './firestore.service';
+import { FirestoreService } from '../data-handling/firestore.service';
 import { OobCodeService } from './oobCode.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 

@@ -1,7 +1,7 @@
 // src\app\core\services\suggestion.service.ts
 import { Injectable } from '@angular/core';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { FirestoreQueryService } from '../autentication/firestore-query.service';
+import { FirestoreQueryService } from './firestore-query.service';
 
 @Injectable({
   providedIn: 'root'

@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { Observable, BehaviorSubject, firstValueFrom, switchMap, tap, of, catchError } from 'rxjs';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { getAuth, onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { UsuarioService } from '../usuario.service';
+import { UsuarioService } from '../user-profile/usuario.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { Store } from '@ngrx/store';
 import { AppState } from '../../../store/states/app.state';
@@ -11,7 +11,7 @@ import { loginSuccess, logoutSuccess } from '../../../store/actions/actions.user
 import { Router } from '@angular/router';
 import { getDatabase, ref, set } from 'firebase/database';
 import { setCurrentUser } from 'src/app/store/actions/actions.user/user.actions';
-import { FirestoreQueryService } from './firestore-query.service';
+import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 
 const auth = getAuth();
 const db = getDatabase();

@@ -2,12 +2,12 @@
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { ValidatorService } from 'src/app/core/services/data-handling/validator.service';
-import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
+import { ValidatorService } from 'src/app/core/services/general/validator.service';
+import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 
 @Component({
     selector: 'app-edit-user-profile',

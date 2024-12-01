@@ -85,7 +85,7 @@ export const userReducer = createReducer(
   // Ação: Atualiza o status online de um usuário específico.
   on(updateUserOnlineStatus, (state, { uid, isOnline }) => {
     if (!(uid in state.users)) {
-      console.warn(`Usuário com UID ${uid} não encontrado no estado.`);
+      console.log(`Usuário com UID ${uid} não encontrado no estado.`);
       return state;
     }
     const updatedUser = { ...state.users[uid], isOnline };

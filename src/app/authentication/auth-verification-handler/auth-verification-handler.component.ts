@@ -6,14 +6,15 @@ import { OobCodeService } from 'src/app/core/services/autentication/oobCode.serv
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { first, firstValueFrom, Subject } from 'rxjs';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
-import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
+import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 import { getAuth } from 'firebase/auth';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
-import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
+import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 
 @Component({
     selector: 'app-auth-verification-handler',
@@ -65,7 +66,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     private firestoreService: FirestoreService,
     private oobCodeService: OobCodeService,
     private emailInputModalService: EmailInputModalService,
-    private usuarioService: UsuarioService,
+    private firestoreUserQuery: FirestoreUserQueryService,
     private authService: AuthService,
     private router: Router,
     private ngZone: NgZone
@@ -274,7 +275,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     const uid = this.authService.getLoggedUserUID();
     if (uid) {
       // Primeiramente, buscamos os dados existentes do usuário no Firestore
-      firstValueFrom(this.firestoreQuery.getUserById(uid)).then((existingUserData: IUserDados | null) => {
+      firstValueFrom(this.firestoreUserQuery.getUserById(uid)).then((existingUserData: IUserDados | null) => {
         if (existingUserData) {
           // Mantemos o email e nickname salvos anteriormente
           const userData: IUserRegistrationData = {

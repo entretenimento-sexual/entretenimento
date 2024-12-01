@@ -5,7 +5,7 @@ import { catchError, map, switchMap, tap, first } from 'rxjs/operators';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
-import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
+import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { GeolocationService } from 'src/app/core/services/geolocation/geolocation.service';
 import { DistanceCalculationService } from 'src/app/core/services/geolocation/distance-calculation.service';

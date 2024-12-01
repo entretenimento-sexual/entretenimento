@@ -5,7 +5,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { mapeamentoCategorias } from 'src/app/core/interfaces/icategoria-mapeamento';
 import { IUserPreferences } from 'src/app/core/interfaces/iuser-preferences';
-import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { UserPreferencesService } from 'src/app/core/services/preferences/user-preferences.service';
 
 @Component({
@@ -14,7 +14,7 @@ import { UserPreferencesService } from 'src/app/core/services/preferences/user-p
     styleUrls: ['./user-profile-preferences.component.css',],
     standalone: false
 })
-  
+
 export class UserProfilePreferencesComponent {
   @Input() uid: string | null = null;
   public categoriasDePreferencias: any = {

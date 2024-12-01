@@ -4,7 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { map, switchMap, tap } from 'rxjs/operators';
 import { UserPreferencesService } from 'src/app/core/services/preferences/user-preferences.service';
-import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 
 @Component({
     selector: 'app-edit-profile-preferences',

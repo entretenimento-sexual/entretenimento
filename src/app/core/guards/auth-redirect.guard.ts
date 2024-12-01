@@ -2,7 +2,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '../services/autentication/auth.service';
-import { FirestoreService } from '../services/autentication/firestore.service';
+import { FirestoreService } from '../services/data-handling/firestore.service';
 import { map, switchMap, take } from 'rxjs/operators';
 import { doc, getDoc } from 'firebase/firestore';
 import { of } from 'rxjs';

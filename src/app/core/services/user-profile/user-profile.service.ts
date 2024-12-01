@@ -6,9 +6,10 @@ import { AppState } from 'src/app/store/states/app.state';
 import { updateUserRole } from '../../../store/actions/actions.user/user-role.actions';
 import { updateUserLocation } from '../../../store/actions/actions.location/location.actions';
 import { GeoCoordinates } from '../../interfaces/geolocation.interface';
-import { FirestoreQueryService } from '../autentication/firestore-query.service';
+import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 import { doc, updateDoc } from 'firebase/firestore';
 import { Observable, of } from 'rxjs';
+import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 
 @Injectable({
   providedIn: 'root'
@@ -18,6 +19,7 @@ export class UserProfileService {
 
   constructor(
     private firestoreQueryService: FirestoreQueryService,
+    private firestoreUserQuery: FirestoreUserQueryService,
     private store: Store<AppState>
   ) { }
 
@@ -35,7 +37,7 @@ export class UserProfileService {
       return of(null);
     }
 
-    return this.firestoreQueryService.getUserWithObservable(uid);
+    return this.firestoreUserQuery.getUserWithObservable(uid);
   }
 
   async updateUserRole(uid: string, newRole: string): Promise<void> {

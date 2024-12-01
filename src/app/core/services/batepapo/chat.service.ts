@@ -9,7 +9,7 @@ import { catchError, map, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { Chat } from '../../interfaces/interfaces-chat/chat.interface';
 import { Message } from '../../interfaces/interfaces-chat/message.interface';
-import { UsuarioService } from '../usuario.service';
+import { UsuarioService } from '../user-profile/usuario.service';
 import {
   addMessage,
   createChat,
@@ -18,7 +18,7 @@ import {
   updateChat,
 } from 'src/app/store/actions/actions.chat/chat.actions';
 import { AppState } from 'src/app/store/states/app.state';
-import { FirestoreQueryService } from '../autentication/firestore-query.service';
+import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 
 @Injectable({
   providedIn: 'root'

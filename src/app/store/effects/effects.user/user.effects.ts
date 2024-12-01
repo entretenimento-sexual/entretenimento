@@ -10,17 +10,19 @@ import {
   loadOnlineUsersSuccess,
   loadOnlineUsersFailure
 } from '../../actions/actions.user/user.actions';
-import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
+import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { catchError, map, switchMap, withLatestFrom, of, from } from 'rxjs';
 import { Store, select } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { selectUserById } from '../../selectors/selectors.user/user.selectors';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 
 @Injectable()
 export class UserEffects {
   constructor(
     private actions$: Actions,
     private firestoreQueryService: FirestoreQueryService,
+    private firestoreUserQuery: FirestoreUserQueryService,
     private store: Store<AppState>
   ) { }
 
@@ -45,7 +47,7 @@ export class UserEffects {
 
             // Caso o usuário não esteja no estado, busca no Firestore
             console.log(`Usuário não encontrado no estado, buscando no Firestore: ${uid}`);
-            return from(this.firestoreQueryService.getUserData(uid)).pipe(
+            return from(this.firestoreUserQuery.getUserData(uid)).pipe(
               map(user => {
                 if (user) {
                   console.log(`Usuário carregado com sucesso do Firestore: ${uid}`);

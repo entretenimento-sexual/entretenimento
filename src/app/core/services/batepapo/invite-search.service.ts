@@ -1,6 +1,6 @@
 // src/app/core/services/batepapo/invite-search.service.ts
 import { Injectable } from '@angular/core';
-import { FirestoreQueryService } from '../autentication/firestore-query.service';
+import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { QueryConstraint, where, orderBy, limit, getDocs, query, collection } from 'firebase/firestore';
 

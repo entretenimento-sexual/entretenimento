@@ -1,16 +1,16 @@
 // src\app\core\services\usuario.service.ts
 import { Injectable } from '@angular/core';
 import { Observable, catchError, from, throwError } from 'rxjs';
-import { IUserDados } from '../interfaces/iuser-dados';
-import { FirestoreService } from './autentication/firestore.service';
+import { IUserDados } from '../../interfaces/iuser-dados';
+import { FirestoreService } from '../data-handling/firestore.service';
 import { doc, Timestamp, updateDoc } from '@firebase/firestore';
 import { User } from 'firebase/auth';
-import { UserProfileService } from './user-profile/user-profile.service';
-import { EmailVerificationService } from './autentication/email-verification.service';
+import { UserProfileService } from './user-profile.service';
+import { EmailVerificationService } from '../autentication/email-verification.service';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { updateUserOnlineStatus } from 'src/app/store/actions/actions.user/user.actions';
-import { FirestoreQueryService } from './autentication/firestore-query.service';
+import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 
 @Injectable({
   providedIn: 'root'
@@ -56,7 +56,7 @@ export class UsuarioService {
     return this.firestoreQuery.getOnlineUsersByRegion(municipio);
   }
 
-   // Atualiza o status online de um usuário no Firestore e no Store
+  // Atualiza o status online de um usuário no Firestore e no Store
   async updateUserOnlineStatus(uid: string, isOnline: boolean): Promise<void> {
     try {
       const userDocRef = doc(this.firestoreService.db, 'users', uid);

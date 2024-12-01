@@ -2,7 +2,7 @@
 import { Injectable } from '@angular/core';
 import { collection, doc, getDocs, query, setDoc, where } from '@firebase/firestore';
 import { IUserPreferences } from '../../interfaces/iuser-preferences';
-import { FirestoreService } from '../autentication/firestore.service';
+import { FirestoreService } from '../data-handling/firestore.service';
 import { Observable, from } from 'rxjs';
 
 @Injectable({

@@ -1,7 +1,7 @@
 // src/app/layout/profile-list/profile-list.component.ts
 import { Component, OnInit } from '@angular/core';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
+import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 
 
 

@@ -1,7 +1,7 @@
 // src/app/store/effects/effects.user/auth-status-sync.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { catchError, map, mergeMap } from 'rxjs/operators';
 import { of, from } from 'rxjs';
 import {

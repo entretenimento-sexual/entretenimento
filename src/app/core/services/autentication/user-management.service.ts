@@ -1,6 +1,6 @@
 // src\app\core\services\autentication\user-management.service.ts
 import { Injectable } from '@angular/core';
-import { FirestoreService } from './firestore.service';
+import { FirestoreService } from '../data-handling/firestore.service';
 import { Timestamp } from 'firebase/firestore';
 import { from, Observable, of, tap } from 'rxjs';
 import { getAuth } from 'firebase/auth';

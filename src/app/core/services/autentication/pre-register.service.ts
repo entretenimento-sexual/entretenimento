@@ -1,7 +1,7 @@
 //src\app\core\services\autentication\pre-register-service.ts
 import { Injectable } from '@angular/core';
 import { doc, setDoc, addDoc, collection } from '@firebase/firestore';
-import { FirestoreService } from './firestore.service';
+import { FirestoreService } from '../data-handling/firestore.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 
 @Injectable({

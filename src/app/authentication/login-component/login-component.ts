@@ -9,7 +9,7 @@ import { LoginService } from 'src/app/core/services/autentication/login.service'
 import { browserLocalPersistence, browserSessionPersistence, getAuth, User } from 'firebase/auth';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Observable } from 'rxjs';
-import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
+import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
 
 @Component({
     selector: 'app-login-component',

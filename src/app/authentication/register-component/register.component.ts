@@ -5,7 +5,7 @@ import { EmailVerificationService } from 'src/app/core/services/autentication/em
 import { RegisterService } from 'src/app/core/services/autentication/register.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { AbstractControl, FormBuilder, FormGroup, ValidatorFn, Validators } from '@angular/forms';
-import { ValidatorService } from 'src/app/core/services/data-handling/validator.service';
+import { ValidatorService } from 'src/app/core/services/general/validator.service';
 import { MatDialog } from '@angular/material/dialog';
 import { TermosECondicoesComponent } from 'src/app/footer/legal-footer/termos-e-condicoes/termos-e-condicoes.component';
 
@@ -111,7 +111,7 @@ export class RegisterComponent implements OnInit {
         });
       } else {
         if (apelidoControl) {
-          apelidoControl.setErrors(null); 
+          apelidoControl.setErrors(null);
         } // Limpa erros enquanto digita antes de atingir o limite de 4 caracteres
         console.log('Apelido principal com menos de 4 caracteres. Limpa erros.');
         this.cdr.markForCheck(); // Força a detecção de mudanças

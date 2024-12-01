@@ -6,7 +6,7 @@ import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail,
   browserSessionPersistence, EmailAuthProvider, Persistence, reauthenticateWithCredential
 } from 'firebase/auth';
 import { Router } from '@angular/router';
-import { UsuarioService } from '../usuario.service';
+import { UsuarioService } from '../user-profile/usuario.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { AuthService } from './auth.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
@@ -16,8 +16,8 @@ import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { loginSuccess } from 'src/app/store/actions/actions.user/auth.actions';
 import { doc, Timestamp, updateDoc } from '@firebase/firestore';
-import { FirestoreService } from './firestore.service';
-import { FirestoreQueryService } from './firestore-query.service';
+import { FirestoreService } from '../data-handling/firestore.service';
+import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 
 // Inicializa o objeto de autenticação do Firebase
 const auth = getAuth();

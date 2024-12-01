@@ -217,6 +217,13 @@ export class ChatListComponent implements OnInit, OnDestroy {
     });
   }
 
+  getOptimizedPhotoURL(originalURL: string | null | undefined): string {
+    if (!originalURL) {
+      return ''; // Retorna vazio se a URL original for undefined ou null
+    }
+    return `${originalURL}&w=10&h=10&fit=crop`;
+  }
+
   ngOnDestroy() {
     // Desinscrever-se das assinaturas ao destruir o componente
     this.userSubscription?.unsubscribe();

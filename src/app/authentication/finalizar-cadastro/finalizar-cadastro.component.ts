@@ -1,15 +1,15 @@
 // src/app/authentication/finalizar-cadastro/finalizar-cadastro.component.ts
 import { Component, OnInit } from '@angular/core';
 import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
-import { FirestoreService } from 'src/app/core/services/autentication/firestore.service';
+import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Router } from '@angular/router';
-import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { first } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados'; // Importando o tipo correto
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
-import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
+import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 
 @Component({
     selector: 'app-finalizar-cadastro',

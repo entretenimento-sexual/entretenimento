@@ -3,9 +3,9 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { SharedModule } from "../../shared/shared.module";
-import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
+import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 
 @Component({
     selector: 'app-other-user-profile-view', // Mantém standalone para evitar que o componente dependa de um módulo específico

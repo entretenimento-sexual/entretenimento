@@ -2,14 +2,14 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { Observable, Subscription } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { UsuarioService } from 'src/app/core/services/usuario.service';
+import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
 import { tap } from 'rxjs/operators';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { FirestoreQueryService } from 'src/app/core/services/autentication/firestore-query.service';
+import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 
 enum SidebarState { CLOSED, OPEN }
 

@@ -1,13 +1,13 @@
 // src\app\core\services\autentication\register.service.ts
 import { Injectable } from '@angular/core';
-import { FirestoreService } from './firestore.service';
+import { FirestoreService } from '../data-handling/firestore.service';
 import { EmailVerificationService } from './email-verification.service';
 import { GeolocationService } from '../geolocation/geolocation.service';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 import { UserCredential, createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail } from 'firebase/auth'; // Aqui está a importação correta
 import { Timestamp } from 'firebase/firestore';
 import { from, Observable, of, tap } from 'rxjs';
-import { ValidatorService } from '../data-handling/validator.service';
+import { ValidatorService } from '../general/validator.service';
 
 @Injectable({
   providedIn: 'root'
