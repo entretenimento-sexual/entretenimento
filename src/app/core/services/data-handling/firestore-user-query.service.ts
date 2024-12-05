@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { CacheService } from '../general/cache.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { doc, getDoc, getFirestore } from '@firebase/firestore';
-import { from, Observable, of, shareReplay, switchMap, take, tap, catchError } from 'rxjs';
+import { from, Observable, of, shareReplay, switchMap, take, tap, catchError, map } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { updateUserInState } from 'src/app/store/actions/actions.user/user.actions';
@@ -26,6 +26,32 @@ export class FirestoreUserQueryService {
     private store: Store<AppState>,
     private globalErrorHandler: GlobalErrorHandlerService // Para tratar erros globalmente
   ) { }
+
+  getUser(uid: string): Observable<IUserDados | null> {
+    const normalizedUid = uid.trim();
+
+    // Verifica no cache
+    const cachedUser = this.cacheService.get<IUserDados>(`user:${normalizedUid}`);
+    if (cachedUser) {
+      return of(cachedUser);
+    }
+
+    // Busca no Firestore
+    const docRef = doc(this.db, 'users', normalizedUid);
+    return from(getDoc(docRef)).pipe(
+      map((docSnap) => (docSnap.exists() ? (docSnap.data() as IUserDados) : null)),
+      tap((user) => {
+        if (user) {
+          this.cacheService.setUser(normalizedUid, user);
+        }
+      }),
+      catchError((error) => {
+        console.error(`Erro ao buscar usuário com UID ${normalizedUid}:`, error);
+        return of(null);
+      })
+    );
+  }
+
 
   /**
    * Obtém os dados do usuário diretamente do Firestore.

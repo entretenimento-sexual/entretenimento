@@ -1,13 +1,13 @@
 // src/app/store/effects/effects.chat/invite.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { InviteService } from 'src/app/core/services/batepapo/invite.service';
 import * as InviteActions from '../../actions/actions.chat/invite.actions';
 import { map, mergeMap, catchError, switchMap } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { selectUserState } from '../../selectors/selectors.user/user.selectors';
+import { InviteService } from 'src/app/core/services/batepapo/invite/invite.service';
 
 @Injectable()
 export class InviteEffects {
@@ -47,15 +47,17 @@ export class InviteEffects {
   // Efeito para aceitar convites
   acceptInvite$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(InviteActions.AcceptInvite), // Ouve a ação AcceptInvite
-      mergeMap(action =>
-        this.inviteService.updateInviteStatus(action.inviteId, 'accepted').then(() => {
-          console.log('Convite aceito com sucesso:', action.inviteId);
-          return InviteActions.AcceptInviteSuccess({ inviteId: action.inviteId });
-        }).catch(error => {
-          console.error('Erro ao aceitar convite:', error);
-          return InviteActions.AcceptInviteFailure({ error });
-        })
+      ofType(InviteActions.AcceptInvite),
+      mergeMap((action) =>
+        this.inviteService
+          .updateInviteStatus(action.roomId, action.inviteId, 'accepted')
+          .pipe(
+            map(() => InviteActions.AcceptInviteSuccess({ inviteId: action.inviteId })),
+            catchError((error) => {
+              console.error('Erro ao aceitar convite:', error);
+              return of(InviteActions.AcceptInviteFailure({ error }));
+            })
+          )
       )
     )
   );
@@ -63,15 +65,15 @@ export class InviteEffects {
   // Efeito para recusar convites
   declineInvite$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(InviteActions.DeclineInvite), // Ouve a ação DeclineInvite
+      ofType(InviteActions.DeclineInvite),
       mergeMap(action =>
-        this.inviteService.updateInviteStatus(action.inviteId, 'declined').then(() => {
-          console.log('Convite recusado com sucesso:', action.inviteId);
-          return InviteActions.DeclineInviteSuccess({ inviteId: action.inviteId });
-        }).catch(error => {
-          console.error('Erro ao recusar convite:', error);
-          return InviteActions.DeclineInviteFailure({ error });
-        })
+        this.inviteService.updateInviteStatus(action.roomId, action.inviteId, 'declined').pipe(
+          map(() => InviteActions.DeclineInviteSuccess({ inviteId: action.inviteId })),
+          catchError((error) => {
+            console.error('Erro ao recusar convite:', error);
+            return of(InviteActions.DeclineInviteFailure({ error }));
+          })
+        )
       )
     )
   );

@@ -6,7 +6,7 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { CreateRoomModalComponent } from '../create-room-modal/create-room-modal.component';
 import { InfoCriaSalaBpComponent } from 'src/app/core/textos-globais/info-cria-sala-bp/info-cria-sala-bp.component';
 import { SubscriptionService } from 'src/app/core/services/subscriptions/subscription.service';
-import { RoomCreationConfirmationModalComponent } from '../room-creation-confirmation-modal/room-creation-confirmation-modal.component';
+import { RoomCreationConfirmationModalComponent } from '../room-create-confirm-modal/room-creation-confirmation-modal.component';
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';

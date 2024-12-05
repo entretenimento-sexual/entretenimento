@@ -14,10 +14,11 @@ import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { selectAllChats } from 'src/app/store/selectors/selectors.chat/chat.selectors';
 import { InviteUserModalComponent } from '../invite-user-modal/invite-user-modal.component';
-import { InviteService } from 'src/app/core/services/batepapo/invite.service';
 import { Timestamp } from '@firebase/firestore';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { InviteService } from 'src/app/core/services/batepapo/invite/invite.service';
+import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 
 @Component({
   selector: 'app-chat-list',
@@ -81,7 +82,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
     });
   }
 
-  inviteUsers(roomId: string | undefined, event: MouseEvent) {
+  sendInvite(roomId: string | undefined, event: MouseEvent): void {
     if (!roomId) {
       console.error('Erro: roomId está undefined.');
       return;
@@ -103,7 +104,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
     const dialogRef = this.dialog.open(InviteUserModalComponent, {
       width: '60%',
       maxWidth: '500px',
-      data: { roomId }
+      data: { roomId },
     });
 
     dialogRef.afterClosed().subscribe((selectedUsers: string[] | null) => {
@@ -112,31 +113,28 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
         const currentTimestamp = new Date();
 
-        // Envia convites para os usuários selecionados
-        selectedUsers.forEach(userId => {
+        selectedUsers.forEach((userId) => {
+          const invite: Invite = {
+            roomId,
+            roomName: '',
+            receiverId: userId,
+            senderId: currentUserUID,
+            status: 'pending',
+            sentAt: Timestamp.fromDate(new Date()),
+            expiresAt: Timestamp.fromDate(new Date(currentTimestamp.getTime() + 7 * 24 * 60 * 60 * 1000)), // Expira em 7 dias
+          };
+
           this.inviteService
-            .sendInvite(
-              {
-                roomId,
-                receiverId: userId,
-                senderId: currentUserUID,
-                status: 'pending',
-                sentAt: Timestamp.fromDate(currentTimestamp),
-                expiresAt: Timestamp.fromDate(new Date(currentTimestamp.getTime() + 7 * 24 * 60 * 60 * 1000)) // Expira em 7 dias
-              },
-              'Nome da Sala', // Substitua pelo nome real da sala
-              currentUser.role as 'visitante' | 'free' | 'basico' | 'premium' | 'vip'
-            )
-            .then(() => {
-              console.log(`Convite enviado para o usuário com ID: ${userId}`);
-            })
-            .catch(error => {
-              console.error(`Erro ao enviar convite para o usuário com ID: ${userId}`, error);
+            .sendInviteToRoom(roomId, invite)
+            .subscribe({
+              next: () => console.log(`Convite enviado para o usuário com ID: ${userId}`),
+              error: (error) => console.error(`Erro ao enviar convite para o usuário com ID: ${userId}`, error),
             });
         });
       }
     });
   }
+
 
   isRoom(item: any): boolean {
     return item.isRoom === true;

@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { Observable, catchError, from, throwError } from 'rxjs';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { FirestoreService } from '../data-handling/firestore.service';
-import { doc, Timestamp, updateDoc } from '@firebase/firestore';
+import { doc, getDoc, Timestamp, updateDoc } from '@firebase/firestore';
 import { User } from 'firebase/auth';
 import { UserProfileService } from './user-profile.service';
 import { EmailVerificationService } from '../autentication/email-verification.service';
@@ -78,6 +78,29 @@ export class UsuarioService {
         return throwError(() => error);
       })
     );
+  }
+
+  async updateUserRoomIds(userId: string, roomId: string, action: 'add' | 'remove'): Promise<void> {
+    const userRef = doc(this.firestoreQuery.getFirestoreInstance(), 'users', userId);
+    const userDoc = await getDoc(userRef);
+
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      const roomIds = userData['roomIds'] || [];
+
+      if (action === 'add') {
+        if (!roomIds.includes(roomId)) {
+          roomIds.push(roomId);
+        }
+      } else if (action === 'remove') {
+        const index = roomIds.indexOf(roomId);
+        if (index > -1) {
+          roomIds.splice(index, 1);
+        }
+      }
+
+      await updateDoc(userRef, { roomIds });
+    }
   }
 
   // Atualiza os dados de um usuário específico no Firestore

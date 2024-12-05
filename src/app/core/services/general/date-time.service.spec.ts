@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 
-import { InviteSearchService } from './invite-search.service';
+import { DateTimeService } from './date-time.service';
 
-describe('InviteSearchService', () => {
-  let service: InviteSearchService;
+describe('DateTimeService', () => {
+  let service: DateTimeService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({});
-    service = TestBed.inject(InviteSearchService);
+    service = TestBed.inject(DateTimeService);
   });
 
   it('should be created', () => {

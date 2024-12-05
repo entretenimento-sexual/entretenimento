@@ -1,6 +1,6 @@
 // src/app/chat-module/room-interaction/room-interaction.component.ts
 import { Component, Input, OnInit, OnDestroy, SimpleChanges, OnChanges, ViewChild, ElementRef } from '@angular/core';
-import { firstValueFrom, Subscription } from 'rxjs';
+import { catchError, firstValueFrom, of, Subscription, switchMap, take, tap } from 'rxjs';
 import { Timestamp } from '@firebase/firestore';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -10,6 +10,7 @@ import { UserProfileService } from 'src/app/core/services/user-profile/user-prof
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
+import { AuthService } from 'src/app/core/services/autentication/auth.service';
 
 @Component({
   selector: 'app-room-interaction',
@@ -34,7 +35,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
   private roomSubscription?: Subscription;
 
   constructor(
-    private userProfile: UserProfileService,
+    private authService: AuthService,
     private roomParticipants: RoomParticipantsService,
     private roomMessages: RoomMessagesService,
     private roomService: RoomService,
@@ -196,30 +197,32 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
       return;
     }
 
-    if (!this.currentUser?.uid) {
-      this.errorNotifier.showError('Erro: Usuário não encontrado.');
-      return;
-    }
+    this.authService.user$.pipe(
+      take(1),
+      tap(user => {
+        if (!user) {
+          throw new Error('Usuário não autenticado encontrado.');
+        }
+      }),
+      switchMap(user => {
+        const newMessage: Message = {
+          content: this.messageContent.trim(),
+          senderId: user!.uid,
+          nickname: user!.nickname || 'Usuário não identificado',
+          timestamp: Timestamp.fromDate(new Date())
+        };
 
-    const user = this.currentUser; // Obtenha diretamente do estado.
-    const nickname = user.nickname || 'Usuário não identificado';
-
-    const newMessage: Message = {
-      content: this.messageContent.trim(),
-      senderId: user.uid,
-      nickname: nickname,
-      timestamp: Timestamp.fromDate(new Date())
-    };
-
-    this.roomMessages.sendMessageToRoom(this.roomId, newMessage)
-      .then(() => {
-        this.messageContent = '';
-        this.scrollToBottom();
-      })
-      .catch((err) => {
+        return this.roomMessages.sendMessageToRoom(this.roomId! as string, newMessage);
+      }),
+      catchError(error => {
+        console.error('Erro ao enviar mensagem:', error);
         this.errorNotifier.showError('Erro ao enviar mensagem.');
-        console.error(err);
-      });
+        return of(null);
+      })
+    ).subscribe(() => {
+      this.messageContent = '';
+      this.scrollToBottom();
+    });
   }
 
   ngOnDestroy(): void {

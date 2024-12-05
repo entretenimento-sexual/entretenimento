@@ -16,7 +16,7 @@ import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layo
 import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-list.component';
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
 import { CreateRoomModalComponent } from './create-room-modal/create-room-modal.component';
-import { RoomCreationConfirmationModalComponent } from './room-creation-confirmation-modal/room-creation-confirmation-modal.component';
+import { RoomCreationConfirmationModalComponent } from './room-create-confirm-modal/room-creation-confirmation-modal.component';
 import { InviteListComponent } from './invite-list/invite-list.component';
 import { chatReducer } from '../store/reducers/reducers.chat/chat.reducer';
 import { RoomInteractionComponent } from './room-interaction/room-interaction.component';
@@ -54,4 +54,4 @@ import { CommunitiesModule } from './communities/communities.module';
   ],
 
 })
-export class ChatModuleModule { }
+export class ChatModule { }

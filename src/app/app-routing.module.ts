@@ -28,7 +28,7 @@ const routes: Routes = [
     canActivate: [AuthGuard]
   },
   { path: 'layout', loadChildren: () => import('./layout/layout.module').then(m => m.LayoutModule) },
-  { path: 'chat', loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModuleModule) },
+  { path: 'chat', loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule) },
   { path: 'profile-list', component: ProfileListComponent },
   { path: 'register-component', component: RegisterComponent, canActivate: [authRedirectGuard] },
   { path: 'login', component: LoginComponent, canActivate: [authRedirectGuard] },

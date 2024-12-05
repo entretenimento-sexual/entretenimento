@@ -1,9 +1,13 @@
 // src/app/chat-module/invite-user-modal/invite-user-modal.component.ts
 import { Component, Inject, OnInit } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { Timestamp } from 'firebase/firestore';
 import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
-import { InviteSearchService } from 'src/app/core/services/batepapo/invite-search.service';
+import { debounceTime, distinctUntilChanged, take } from 'rxjs/operators';
+import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
+import { InviteSearchService } from 'src/app/core/services/batepapo/invite/invite-search.service';
+import { InviteService } from 'src/app/core/services/batepapo/invite/invite.service';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 
 @Component({
   selector: 'app-invite-user-modal',
@@ -18,14 +22,16 @@ export class InviteUserModalComponent implements OnInit {
   isLoading: boolean = false;
 
   constructor(
-    @Inject(MAT_DIALOG_DATA) public data: { roomId: string },
+    @Inject(MAT_DIALOG_DATA) public data: { roomId: string; roomName: string },
+    private inviteService: InviteService,
     private inviteSearchService: InviteSearchService,
+    private userQuery: FirestoreUserQueryService,
     public dialogRef: MatDialogRef<InviteUserModalComponent>
   ) { }
 
   ngOnInit(): void {
     this.setupSearchListener();
-    this.loadEligibleUsers(); // Carregar inicialmente
+    this.loadEligibleUsers();
   }
 
   setupSearchListener(): void {
@@ -72,6 +78,34 @@ export class InviteUserModalComponent implements OnInit {
       .filter((user) => user.selected)
       .map((user) => user.id);
 
-    this.dialogRef.close(selectedUsers);
+    this.userQuery.getUser('currentUserUID').pipe( // Substituído para usar o serviço
+      take(1)
+    ).subscribe((currentUser) => {
+      if (!currentUser) {
+        console.error('Erro: Usuário não autenticado.');
+        return;
+      }
+
+      selectedUsers.forEach((userId) => {
+        const inviteData: Invite = {
+          receiverId: userId,
+          senderId: currentUser.uid, // Usando o UID do usuário autenticado
+          status: 'pending',
+          roomId: this.data.roomId,
+          roomName: this.data.roomName, // Corrigido // Nome da sala vindo dinamicamente do @Inject
+          sentAt: Timestamp.fromDate(new Date()),
+          expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // Expira em 7 dias
+        };
+
+        this.inviteService
+          .sendInviteToRoom(this.data.roomId, inviteData)
+          .subscribe({
+            next: () => console.log(`Convite enviado para o usuário: ${userId}`),
+            error: (error) => console.error(`Erro ao enviar convite:`, error),
+          });
+      });
+
+      this.dialogRef.close(selectedUsers);
+    });
   }
 }

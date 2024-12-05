@@ -51,6 +51,7 @@ export class AuthService {
         }),
         tap(userData => {
           if (userData) {
+            console.log('Usuário carregado no AuthService:', userData);
             this.userSubject.next(userData);
             localStorage.setItem('currentUser', JSON.stringify(userData));
             this.store.dispatch(loginSuccess({ user: userData }));

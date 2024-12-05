@@ -9,7 +9,7 @@
         <!-- Botões de gerenciamento para o dono da sala -->
           <div *ngIf="isOwner(room)" class="room-management-buttons">
             <button class="button" (click)="deleteRoom(room.roomId, $event); $event.stopPropagation()">Excluir Sala</button>
-            <button class="button" (click)="inviteUsers(room.roomId, $event); $event.stopPropagation()">Enviar Convite</button>
+            <button class="button" (click)="sendInvite(room.roomId, $event); $event.stopPropagation()">Enviar Convite</button>
             <button class="button" (click)="editRoom(room.roomId, $event); $event.stopPropagation()">Editar Sala</button>
           </div>
       </div>
