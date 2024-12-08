@@ -118,17 +118,13 @@ export const loadOnlineUsers = createAction('[Usuário] Carregar Usuários Onlin
  * @param users - Lista de usuários online.
  */
 export const loadOnlineUsersSuccess = createAction(
-  USER_ACTION_TYPES.LOAD_ONLINE_USERS_SUCCESS,
+  '[Usuário] Carregar Usuários Online com Sucesso',
   props<{ users: IUserDados[] }>()
 );
 
-/**
- * Dispara quando ocorre uma falha ao carregar usuários online.
- * @param error - Detalhes do erro ocorrido.
- */
 export const loadOnlineUsersFailure = createAction(
   '[Usuário] Falha ao Carregar Usuários Online',
-  props<{ error: IError }>()
+  props<{ error: any }>()
 );
 
 /**

@@ -7,8 +7,7 @@ import { DateFormatPipe } from 'src/app/shared/date-format.pipe';
     selector: 'app-user-card',
     templateUrl: './user-card.component.html',
     styleUrls: ['./user-card.component.css'],
-    providers: [DateFormatPipe] // Adiciona o pipe como provedor do componente
-    ,
+    providers: [DateFormatPipe], // Adiciona o pipe como provedor do componente
     standalone: false
 })
 export class UserCardComponent {

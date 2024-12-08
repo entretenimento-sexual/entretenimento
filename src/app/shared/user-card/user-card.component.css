@@ -9,8 +9,7 @@
   padding: 5px;
   background-color: #fff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  font-family: 'Roboto', sans-serif;
-  /* Fonte mais moderna */
+  font-family: 'Roboto', sans-serif;  /* Fonte mais moderna */
 }
 
 .user-card:hover {
@@ -20,39 +19,31 @@
 
 /* Nickname - estilização das diferentes classes */
 .nickname-online {
-  color: #fff;
-  /* Texto em branco para maior contraste */
-  background-color: #28a745;
-  /* Fundo verde para indicar online */
+  color: #fff;  /* Texto em branco para maior contraste */
+  background-color: #28a745;  /* Fundo verde para indicar online */
   padding: 5px;
   border-radius: 5px;
   font-weight: bold;
 }
 
 .nickname-offline {
-  color: #fff;
-  /* Texto em branco para contraste */
-  background-color: #6c757d;
-  /* Fundo cinza */
+  color: #fff;  /* Texto em branco para contraste */
+  background-color: #6c757d;  /* Fundo cinza */
   padding: 5px;
   border-radius: 5px;
 }
 
 .nickname-recent {
-  color: #fff;
-  /* Texto em branco */
-  background-color: #007bff;
-  /* Fundo azul */
+  color: #fff;  /* Texto em branco */
+  background-color: #007bff;  /* Fundo azul */
   padding: 5px;
   border-radius: 5px;
   font-weight: bold;
 }
 
 .nickname-inactive {
-  color: #fff;
-  /* Texto em branco */
-  background-color: #dc3545;
-  /* Fundo vermelho para indicar inatividade */
+  color: #fff;  /* Texto em branco */
+  background-color: #dc3545;  /* Fundo vermelho para indicar inatividade */
   padding: 5px;
   border-radius: 5px;
   font-style: italic;

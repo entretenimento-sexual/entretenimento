@@ -17,7 +17,6 @@ import { AppState } from '../../states/app.state';
 import { selectUserById } from '../../selectors/selectors.user/user.selectors';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { where } from '@firebase/firestore';
 
 @Injectable()
 export class UserEffects {
@@ -95,19 +94,14 @@ export class UserEffects {
     )
   );
 
-  /**
-   * Carrega todos os usuários online.
-   */
+  //Carrega todos os usuários online.
   loadOnlineUsers$ = createEffect(() =>
     this.actions$.pipe(
       ofType(loadOnlineUsers),
       switchMap(() =>
-        from(this.firestoreQuery.searchUsers([where('isOnline', '==', true)])).pipe(
-          map((users) => {
-            console.log('Usuários online carregados com sucesso:', users);
-            return loadOnlineUsersSuccess({ users });
-          }),
-          catchError((error) => {
+        this.firestoreQuery.getOnlineUsers().pipe(
+          map((users: IUserDados[]) => loadOnlineUsersSuccess({ users })),
+          catchError((error: any) => {
             console.error('Erro ao carregar usuários online:', error);
             return of(loadOnlineUsersFailure({ error: { message: error.message } }));
           })
@@ -115,5 +109,4 @@ export class UserEffects {
       )
     )
   );
-
 }

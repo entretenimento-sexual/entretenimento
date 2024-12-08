@@ -39,7 +39,7 @@ export class ChatModuleLayoutComponent implements OnInit {
     this.usuario$.subscribe(data => {
       console.log('Dados do usuário:', data);
     });
-  
+
   // Atribuindo o UID do usuário à propriedade userId
     this.usuario$.subscribe(user => {
       if (user) {
@@ -103,10 +103,15 @@ export class ChatModuleLayoutComponent implements OnInit {
       };
 
       if (this.selectedType === 'chat' && this.selectedChatId) {
-        this.chatService.sendMessage(this.selectedChatId, message).then(() => {
-          console.log("Mensagem enviada com sucesso ao chat");
-          this.messageContent = ''; // Limpa o campo de texto após o envio
-        }).catch(error => console.error("Erro ao enviar mensagem ao chat:", error));
+        this.chatService.sendMessage(this.selectedChatId, message).subscribe({
+          next: () => {
+            console.log("Mensagem enviada com sucesso ao chat");
+            this.messageContent = ''; // Limpa o campo de texto após o envio
+          },
+          error: (error) => {
+            console.error("Erro ao enviar mensagem ao chat:", error);
+          }
+        });
       } else if (this.selectedType === 'room' && this.selectedChatId) {
         this.roomMessages.sendMessageToRoom(this.selectedChatId, message).then(() => {
           console.log("Mensagem enviada com sucesso à sala");

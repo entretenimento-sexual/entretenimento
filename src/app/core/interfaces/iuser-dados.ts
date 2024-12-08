@@ -7,7 +7,7 @@ export interface IUserDados {
   roomIds?: string[];
   latitude?: number; // Adicione latitude e longitude aqui
   longitude?: number;
-  distanciaKm?: number;
+  distanciaKm?: number | undefined;
   email: string | null; // Email do usuário
   displayName: string | null | undefined;
   photoURL: string | null | undefined;

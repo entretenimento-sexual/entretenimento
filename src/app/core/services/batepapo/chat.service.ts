@@ -4,8 +4,8 @@ import {
   getFirestore, collection, addDoc, doc, Timestamp, setDoc, deleteDoc,
   orderBy, startAfter, onSnapshot, getDocs, where, query
 } from 'firebase/firestore';
-import { Observable, Subject, from } from 'rxjs';
-import { catchError, map, takeUntil } from 'rxjs/operators';
+import { Observable, Subject, from, throwError } from 'rxjs';
+import { catchError, map, switchMap, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { Chat } from '../../interfaces/interfaces-chat/chat.interface';
 import { Message } from '../../interfaces/interfaces-chat/message.interface';
@@ -19,6 +19,7 @@ import {
 } from 'src/app/store/actions/actions.chat/chat.actions';
 import { AppState } from 'src/app/store/states/app.state';
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
+import { ErrorNotificationService } from '../error-handler/error-notification.service';
 
 @Injectable({
   providedIn: 'root'
@@ -30,54 +31,80 @@ export class ChatService {
   constructor(
     private usuarioService: UsuarioService,
     private firestoreQuery: FirestoreQueryService,
+    private errorNotifier: ErrorNotificationService,
     private store: Store<AppState>
   ) { }
 
   /** Método para obter ou criar ID do chat */
-  async getOrCreateChatId(participants: string[]): Promise<string> {
+  getOrCreateChatId(participants: string[]): Observable<string> {
     const participantsKey = participants.sort().join('_');
     console.log('Chave de participantes gerada:', participantsKey);
+
     const chatsRef = collection(this.db, 'chats');
     const chatQuery = query(chatsRef, where('participantsKey', '==', participantsKey));
-    const querySnapshot = await getDocs(chatQuery);
 
-    if (!querySnapshot.empty) {
-      console.log('Chat existente encontrado com ID:', querySnapshot.docs[0].id);
-      return querySnapshot.docs[0].id;
-    } else {
-      console.log('Nenhum chat encontrado. Criando um novo chat...');
-      return this.createChat(participants);
-    }
+    return from(getDocs(chatQuery)).pipe(
+      map((querySnapshot) => {
+        if (!querySnapshot.empty) {
+          const existingChatId = querySnapshot.docs[0].id;
+          console.log('Chat existente encontrado com ID:', existingChatId);
+          return existingChatId;
+        } else {
+          console.log('Nenhum chat encontrado. Criando um novo chat...');
+          return null; // Indica que o chat não existe e precisa ser criado
+        }
+      }),
+      switchMap((chatId) => {
+        if (chatId) {
+          // Se o chat já existir, retorna o ID existente
+          return from(Promise.resolve(chatId));
+        } else {
+          // Se o chat não existir, cria um novo chat e retorna o Observable
+          return this.createChat(participants);
+        }
+      }),
+      catchError((error) => {
+        this.errorNotifier.showError('Erro ao buscar ou criar chat.');
+        return throwError(() => error);
+      })
+    );
   }
 
+
   /** Criação de novo chat */
-  async createChat(participants: string[]): Promise<string> {
+  createChat(participants: string[]): Observable<string> {
     const chatData: Chat = { participants, participantsKey: participants.sort().join('_'), timestamp: Timestamp.now() };
-    console.log('Dados do chat a serem criados:', chatData);
-    try {
-      const chatDocRef = await addDoc(collection(this.db, 'chats'), chatData);
-      console.log('Novo chat criado com ID:', chatDocRef.id);
-      this.store.dispatch(createChat({ chat: chatData }));
-      return chatDocRef.id;
-    } catch (error) {
-      console.error("Erro ao criar chat:", error);
-      throw error;
-    }
+    return from(addDoc(collection(this.db, 'chats'), chatData)).pipe(
+      map(chatDocRef => {
+        this.store.dispatch(createChat({ chat: chatData }));
+        return chatDocRef.id;
+      }),
+      catchError(error => {
+        this.errorNotifier.showError('Erro ao criar chat.');
+        return throwError(() => error);
+      })
+    );
   }
 
   /** Envio de mensagens no chat */
-  async sendMessage(chatId: string, message: Message): Promise<string> {
-    console.log(`Enviando mensagem para o chat com ID: ${chatId}`, message);
-    try {
-      const messageRef = await addDoc(collection(this.db, `chats/${chatId}/messages`), message);
-      console.log('Mensagem enviada com ID:', messageRef.id);
-      this.store.dispatch(addMessage({ chatId, message }));
-      return messageRef.id;
-    } catch (error) {
-      console.error(`Erro ao enviar mensagem para o chatId ${chatId}:`, message, error);
-      throw error;
+  sendMessage(chatId: string, message: Message): Observable<string> {
+    if (!message.content || !message.senderId) {
+      this.errorNotifier.showError('Mensagem inválida.');
+      return throwError(() => new Error('Mensagem inválida.'));
     }
+
+    return from(addDoc(collection(this.db, `chats/${chatId}/messages`), message)).pipe(
+      map(messageRef => {
+        this.store.dispatch(addMessage({ chatId, message }));
+        return messageRef.id;
+      }),
+      catchError(error => {
+        this.errorNotifier.showError('Erro ao enviar mensagem.');
+        return throwError(() => error);
+      })
+    );
   }
+
 
   /** Carrega chats do usuário autenticado */
   getChats(userId: string): Observable<any[]> {
