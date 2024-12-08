@@ -55,10 +55,14 @@ textarea {
   background-color: #f8f9fa;  /* Fundo diferenciado para a área de entrada */
 }
 
-.foto_chat{
-  width: 30px;
-  border-radius: 10px;
+.foto_chat {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;  /* Faz com que a imagem cubra o contêiner sem distorcer */
+  aspect-ratio: 1 / 1;  /* Mantém a proporção 1:1 */
 }
+
 .user-details{
   padding: 10px;
   border-bottom: 1px solid #dee2e6;

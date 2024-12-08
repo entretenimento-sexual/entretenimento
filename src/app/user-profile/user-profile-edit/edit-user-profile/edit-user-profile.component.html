@@ -10,6 +10,10 @@
     <label for="photo">Trocar Foto de Perfil:</label>
     <input type="file" id="photo" (change)="onFileSelected($event)">
   </div>
+  <div *ngIf="progressValue > 0 && progressValue < 100">
+    <progress [value]="progressValue" max="100"></progress>
+    <span>{{ progressValue.toFixed(0) }}%</span>
+  </div>
 
   <div>
     <label for="nickname">Meu nickname</label>

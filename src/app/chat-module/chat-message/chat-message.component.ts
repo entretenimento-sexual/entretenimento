@@ -2,7 +2,6 @@
 import { Component, Input, OnInit, OnDestroy } from '@angular/core';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { Subject } from 'rxjs';
 import { takeUntil, switchMap, catchError } from 'rxjs/operators';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
@@ -20,7 +19,6 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>(); // Para controle de subscrições
 
   constructor(
-    private usuarioService: UsuarioService,
     private firestoreQuery: FirestoreQueryService,
     private authService: AuthService
   ) { }

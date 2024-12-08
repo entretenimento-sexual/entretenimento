@@ -122,6 +122,7 @@ export class AuthService {
     localStorage.setItem('currentUser', JSON.stringify(userData));
     console.log('Usuário definido e salvo no localStorage:', userData);
   }
+  
   async logout(): Promise<void> {
     const userUID = this.getLoggedUserUID();
     if (userUID) {

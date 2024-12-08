@@ -22,6 +22,7 @@ export class ChatModuleLayoutComponent implements OnInit {
   selectedChatId: string | undefined;
   selectedReceiverId: string | undefined;
   selectedType: 'room' | 'chat' | undefined;
+  userId: string | undefined;
 
   constructor(private authService: AuthService,
               private chatService: ChatService,
@@ -38,7 +39,15 @@ export class ChatModuleLayoutComponent implements OnInit {
     this.usuario$.subscribe(data => {
       console.log('Dados do usuário:', data);
     });
+  
+  // Atribuindo o UID do usuário à propriedade userId
+    this.usuario$.subscribe(user => {
+      if (user) {
+        this.userId = user.uid;
+      }
+    });
   }
+
 
   onChatSelected(event: { id: string; type: 'room' | 'chat' }): void {
     console.log('Evento recebido:', event);

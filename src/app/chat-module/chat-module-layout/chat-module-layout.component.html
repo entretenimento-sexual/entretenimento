@@ -4,7 +4,8 @@
   <!-- Painel de informações do usuário logado -->
   <div class="user-info-panel">
     <div class="user-details">
-      <img [src]="(usuario$ | async)?.photoURL || '/assets/imagem-padrao.webp'" alt="Foto" class="foto_chat">
+<img ngSrc="{{ (usuario$ | async)?.photoURL || '/assets/imagem-padrao.webp' }}" width="80" height="80" alt="Foto"
+  class="foto_chat" priority>
       <p>{{ (usuario$ | async)?.nickname }}</p>
     </div><!-- user-details -->
 

@@ -8,6 +8,7 @@ import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ValidatorService } from 'src/app/core/services/general/validator.service';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
+import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 
 @Component({
     selector: 'app-edit-user-profile',
@@ -17,6 +18,7 @@ import { FirestoreQueryService } from 'src/app/core/services/data-handling/fires
 })
 
 export class EditUserProfileComponent implements OnInit {
+  public progressValue = 0;
   userData: IUserDados;
   editForm: FormGroup;
   uid!: string;
@@ -43,6 +45,7 @@ export class EditUserProfileComponent implements OnInit {
     private route: ActivatedRoute,
     private router: Router,
     private formBuilder: FormBuilder,
+    private storageService: StorageService
 
   ) {
     this.userData = {} as IUserDados; // Inicializa userData
@@ -58,6 +61,7 @@ export class EditUserProfileComponent implements OnInit {
       facebook: ['', [ValidatorService.facebookValidator()]],
       instagram: ['', [ValidatorService.instagramValidator()]],
       buupe: ['', [ValidatorService.buupeValidator()]],
+      
     });
   }
 
@@ -111,46 +115,22 @@ export class EditUserProfileComponent implements OnInit {
   }
 
   async uploadFile(file: File): Promise<void> {
-    try {
-      const imageUrl = await this.uploadToStorage(file);
-      this.userData.photoURL = imageUrl; // Atualiza a URL da foto no objeto userData
-    } catch (error) {
-      console.error('Erro durante o upload da imagem:', error);
-      // Tratar o erro conforme necessário
-    }
+    this.progressValue = 0; // Reinicia o progresso
+
+    this.storageService.uploadProfileAvatar(file, this.uid, (progress: number) => {
+      this.progressValue = progress;
+      console.log(`Upload progress: ${this.progressValue}%`);
+    }).subscribe({
+      next: (imageUrl: string) => {
+        this.userData = { ...this.userData, photoURL: imageUrl };
+      },
+      error: (error: any) => {
+        console.error('Erro durante o upload da imagem:', error);
+      }
+    });
   }
 
-  async uploadToStorage(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-      if (!this.uid) {
-        reject(new Error('UID do usuário não está disponível'));
-        return;
-      }
-
-      const storage = getStorage();
-      const storageRef = ref(storage, `avatares/${this.uid}.jpg`);
-
-      const uploadTask = uploadBytesResumable(storageRef, file);
-
-      uploadTask.on('state_changed',
-        (snapshot) => {// Opcional: Atualizar o progresso do upload
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          console.log('Upload is ' + progress + '% done');
-        },
-        (error) => {
-          reject(error);
-        },
-        async () => {
-          // Upload concluído com sucesso
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve(downloadURL);
-        }
-      );
-    });
-  } // fim do método uploadToStorage
-
-
-  async loadEstados() {
+   async loadEstados() {
     try {
       const response = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados');
       this.estados = await response.json();

@@ -105,7 +105,7 @@ export class UsuarioService {
 
   // Atualiza os dados de um usuário específico no Firestore
   atualizarUsuario(uid: string, dados: Partial<IUserDados>): Observable<void> {
-    const isSubscriber = dados.role && dados.role !== 'free';
+    const isSubscriber = dados.role && dados.role !== 'free' ? true : false;
     const dadosAtualizados = { ...dados, isSubscriber };
     return from(
       this.emailVerificationService.saveUserDataAfterEmailVerification({ uid, ...dadosAtualizados } as IUserDados)

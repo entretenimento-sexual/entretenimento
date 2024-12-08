@@ -5,7 +5,7 @@ import { FirestoreService } from 'src/app/core/services/data-handling/firestore.
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Router } from '@angular/router';
 import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
-import { first } from 'rxjs';
+import { first, from, of, switchMap } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados'; // Importando o tipo correto
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
@@ -106,7 +106,7 @@ export class FinalizarCadastroComponent implements OnInit {
     }
   }
 
-  async onSubmit(): Promise<void> {
+  onSubmit(): void {
     const uid = this.authService.getLoggedUserUID();
 
     if (!uid) {
@@ -115,16 +115,18 @@ export class FinalizarCadastroComponent implements OnInit {
       return;
     }
 
-    // Verificação de campos obrigatórios
     if (!this.gender || !this.selectedEstado || !this.selectedMunicipio) {
       this.message = 'Por favor, preencha todos os campos obrigatórios.';
-      return;  // Interrompe o envio até que os campos sejam preenchidos
+      return;
     }
 
-    try {
-      const existingUserData = await this.firestoreQuery.getUser(uid).pipe(first()).toPromise();
-      console.log('Dados do usuário do Firestore:', existingUserData);
-      if (existingUserData) {
+    this.firestoreQuery.getUser(uid).pipe(
+      first(),
+      switchMap((existingUserData: IUserDados | null) => {
+        if (!existingUserData) {
+          throw new Error('Dados do usuário não encontrados.');
+        }
+
         const updatedUserData: IUserRegistrationData = {
           uid: existingUserData.uid,
           emailVerified: true,
@@ -142,24 +144,27 @@ export class FinalizarCadastroComponent implements OnInit {
           }
         };
 
-        await this.firestoreService.saveInitialUserData(existingUserData.uid, updatedUserData);
-
-        // Verifica se um avatar foi carregado
-        if (this.avatarFile) {
-          await this.storageService.uploadAvatar(this.avatarFile, existingUserData.uid);  // Chama o método de upload do avatar
-        }
-
+        return from(this.firestoreService.saveInitialUserData(existingUserData.uid, updatedUserData)).pipe(
+          switchMap(() => {
+            if (this.avatarFile) {
+              return this.storageService.uploadProfileAvatar(this.avatarFile, existingUserData.uid);
+            } else {
+              return of(null);
+            }
+          })
+        );
+      }),
+      switchMap(() => from(this.emailVerificationService.updateEmailVerificationStatus(uid, true)))
+    ).subscribe({
+      next: () => {
         this.message = 'Cadastro finalizado com sucesso!';
-        await this.emailVerificationService.updateEmailVerificationStatus(existingUserData.uid, true);
         this.router.navigate(['/dashboard/principal']);
-      } else {
-        this.message = 'Erro: Dados do usuário não encontrados.';
-        console.error('Dados do usuário não encontrados.');
+      },
+      error: (error) => {
+        console.error('Erro ao finalizar o cadastro:', error);
+        this.message = 'Ocorreu um erro ao finalizar o cadastro. Tente novamente mais tarde.';
       }
-    } catch (error) {
-      console.error('Erro ao finalizar o cadastro:', error);
-      this.message = 'Ocorreu um erro ao finalizar o cadastro. Tente novamente mais tarde.';
-    }
+    });
   }
 
 

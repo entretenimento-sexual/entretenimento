@@ -1,6 +1,6 @@
 // src\app\user-profile\user-profile.module.ts
 import { NgModule } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { UserProfileViewComponent } from './user-profile-view/user-profile-view.component';
 import { SharedModule } from '../shared/shared.module';
@@ -33,6 +33,7 @@ import { UserPhotoManagerComponent } from './user-photo-manager/user-photo-manag
         FormsModule,
         SharedModule,
         ReactiveFormsModule,
+        NgOptimizedImage,
         UserProfileRoutingModule,
         LayoutModule,
         MatCardModule,

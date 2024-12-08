@@ -1,6 +1,6 @@
 //src\app\chat-module\chat-module.ts
 import { NgModule } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { StoreModule } from '@ngrx/store';
 import { ChatModuleRoutingModule } from './chat-module-routing.module';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
@@ -50,7 +50,8 @@ import { CommunitiesModule } from './communities/communities.module';
     ReactiveFormsModule,
     SharedModule,
     RoomsModule,
-    CommunitiesModule
+    CommunitiesModule,
+    NgOptimizedImage
   ],
 
 })
