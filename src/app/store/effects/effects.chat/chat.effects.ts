@@ -74,7 +74,7 @@ export class ChatEffects {
       ofType(ChatActions.sendMessage),
       mergeMap(action => {
         console.log(`Enviando mensagem para o chat ${action.chatId}`);
-        return from(this.chatService.sendMessage(action.chatId, action.message)).pipe(
+        return from(this.chatService.sendMessage(action.chatId, action.message, action.message.senderId)).pipe(
           map(() => ChatActions.sendMessageSuccess({ chatId: action.chatId, message: action.message })),
           catchError(error => {
             this.errorNotificationService.showError('Erro ao enviar mensagem');

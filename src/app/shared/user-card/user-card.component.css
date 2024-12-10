@@ -9,12 +9,21 @@
   padding: 5px;
   background-color: #fff;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  font-family: 'Roboto', sans-serif;  /* Fonte mais moderna */
+  font-family: 'Roboto', sans-serif;
 }
-
 .user-card:hover {
   transform: scale(1.05);
   box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+.card-body a.text-muted {
+  text-decoration: none;
+  font-size: 0.8rem;
+}
+
+.card-body a.text-muted:hover {
+  text-decoration: underline;
+  color: #007bff;
 }
 
 /* Nickname - estilização das diferentes classes */
@@ -55,9 +64,6 @@
   height: 180px;
   object-fit: cover;
   border-radius: 0;
-  display: block;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 /* Texto no card */
@@ -75,11 +81,67 @@
   margin-bottom: 5px;
 }
 
+/* Estilização para o botão de enviar mensagem */
+.btn-outline-primary {
+  font-size: 0.9rem;
+  padding: 8px 12px;
+  color: var(--primary-color);
+  border: 1px solid var(--primary-color);
+  background-color: transparent;
+  transition: background-color 0.3s, color 0.3s, transform 0.2s;
+}
+
+.btn-outline-primary i {
+  font-size: 1rem;
+}
+
+/* Foto de perfil no modal */
+.profile-photo-modal {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border: 2px solid #007bff;
+}
+
+/* Nome do destinatário */
+.modal-recipient-name {
+  font-weight: bold;
+  font-size: 1.2rem;
+  margin-bottom: 1rem;
+}
+
+/* Textarea para mensagem */
+.message-textarea {
+  min-height: 150px;
+  resize: vertical;
+}
+
+/* Botões no modal */
+.modal-footer .btn {
+  margin: 0 0.5rem;
+}
+
+/* Estilização do modal */
+.modal-content {
+  background-color: #f8f9fa;
+  border-radius: 10px;
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-outline-primary:hover {
+  background-color: var(--primary-color);
+  color: #fff;
+  transform: scale(1.05);
+}
+.btn-outline-primary span {
+  margin-left: 5px;
+}
+
 /* Responsividade */
 @media (max-width: 576px) {
   .user-card {
-    margin-bottom: 10px;
-    max-width: 90%;
+    max-width: 100%;
+    padding: 10px;
   }
 
   .profile-photo {
@@ -91,6 +153,15 @@
   }
 
   .card-text {
-    font-size: 0.7rem;
+    font-size: 0.8rem;
+  }
+
+  .btn-outline-primary {
+    font-size: 0.8rem;
+    padding: 6px 10px;
+  }
+
+  .btn-outline-primary i {
+    font-size: 0.9rem;
   }
 }

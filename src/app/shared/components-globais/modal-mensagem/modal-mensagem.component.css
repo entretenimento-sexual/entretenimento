@@ -1,52 +1,44 @@
 /* src\app\shared\components-globais\modal-mensagem\modal-mensagem.component.css */
-.modal-title {
-  font-size: 1.25rem;
-  color: #007bff;   /* Ou outra cor conforme sua preferência */
+/* Imagem de perfil no modal */
+.profile-photo-modal {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border: 2px solid var(--primary-color);
 }
 
-.modal-recipient-name {
-  font-weight: bold;
-  margin-bottom: 1rem;
-}
-
+/* Textarea para mensagem */
 .message-textarea {
-  margin-bottom:1rem;
-  min-height: 150px;
-  resize: vertical;    /* Permite ao usuário ajustar o tamanho verticalmente */
+  min-height: 120px;
+  resize: vertical;
 }
 
+/* Botões no modal */
 .modal-footer .btn {
-margin: 0 0.5rem; /* Espaçamento entre botões */
+  margin: 0 5px;
 }
 
-.modal-content {
-background-color: #f8f9fa;  /* Cor de fundo suave */
-border-radius: 5px; /* Bordas arredondadas */
-box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); /* Sombra sutil */
-}
+/* Responsividade para telas pequenas */
+@media (max-width: 576px) {
+  .modal-content {
+    padding: 15px;
+  }
 
-.modal-header {
-border-bottom: 1px solid #dee2e6; /* Linha separadora */
-padding: 1rem; /* Espaçamento interno */
-}
+  .modal-title {
+    font-size: 1rem;
+  }
 
-.modal-body {
-padding: 1rem; /* Espaçamento interno */
-}
+  .profile-photo-modal {
+    width: 60px;
+    height: 60px;
+  }
 
-.modal-footer {
-border-top: 1px solid #dee2e6; /* Linha separadora */
-padding: 1rem; /* Espaçamento interno */
-text-align: right; /* Alinhamento dos botões à direita */
-}
+  .modal-footer {
+    flex-direction: column;
+  }
 
-/* Estilização do botão de fechar */
-.close {
-color: #6c757d; /* Cor do ícone de fechar */
-opacity: 0.7; /* Opacidade */
-}
-
-.close:hover {
-color: #5a6268; /* Cor ao passar o mouse */
-opacity: 1; /* Opacidade */
+  .modal-footer .btn {
+    width: 100%;
+    margin-bottom: 10px;
+  }
 }

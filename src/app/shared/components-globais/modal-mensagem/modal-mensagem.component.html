@@ -1,18 +1,23 @@
 <!-- src\app\shared\components-globais\modal-mensagem\modal-mensagem.component.html -->
-<div class="modal-dialog" role="document">
+<div class="modal-dialog modal-dialog-centered" role="document">
   <div class="modal-content">
     <div class="modal-header">
-      <h5 class="modal-title" id="modalLabel">Enviar Mensagem para {{ data.profile.nickname }}</h5>
-      <button type="button" class="close" data-dismiss="modal" aria-label="Fechar">
+      <h5 class="modal-title" id="modalLabel">
+        Enviar Mensagem para {{ data.profile.nickname }}
+      </h5>
+      <button type="button" class="close" (click)="fecharModal()" aria-label="Fechar">
         <span aria-hidden="true">&times;</span>
       </button>
     </div>
-    <div class="modal-body">
-      <p></p>
-      <textarea [(ngModel)]="mensagem" class="form-control" rows="3"></textarea>
+    <div class="modal-body text-center">
+      <img [src]="data.profile.photoURL || 'assets/imagem-padrao.webp'"
+        class="img-fluid rounded-circle mb-3 profile-photo-modal" alt="{{ data.profile.nickname }}">
+      <p class="modal-recipient-name">{{ data.profile.nickname }}</p>
+      <textarea [(ngModel)]="mensagem" class="form-control message-textarea"
+        placeholder="Digite sua mensagem..."></textarea>
     </div>
-    <div class="modal-footer">
-      <button type="button" class="btn btn-secondary" data-dismiss="modal">Fechar</button>
+    <div class="modal-footer d-flex justify-content-between">
+      <button type="button" class="btn btn-secondary" (click)="fecharModal()">Fechar</button>
       <button type="button" class="btn btn-primary" (click)="enviarMensagem()">Enviar</button>
     </div>
   </div>

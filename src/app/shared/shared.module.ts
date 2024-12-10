@@ -26,7 +26,7 @@ import { RouterModule } from '@angular/router';
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
     UploadPhotoComponent,
-    UserCardComponent
+    UserCardComponent,
   ],
 
   imports: [

@@ -52,7 +52,7 @@ export class ModalMensagemComponent {
               return this.chatService.getOrCreateChatId(participantes).pipe(
                 switchMap(chatId => {
                   if (chatId !== null) {
-                    return this.chatService.sendMessage(chatId, mensagem).pipe(
+                    return this.chatService.sendMessage(chatId, mensagem, currentUserUid).pipe(
                       switchMap(() => {
                         const chatUpdate: Partial<Chat> = {
                           lastMessage: mensagem
@@ -82,5 +82,7 @@ export class ModalMensagemComponent {
       });
     }
   }
-
+  fecharModal(): void {
+    this.dialogRef.close();
+  }
 }

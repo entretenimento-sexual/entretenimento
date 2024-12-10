@@ -41,7 +41,7 @@ export class ChatWindowComponent {
         this.messages.push(newMessage);
         this.messageContent = '';
         console.log("Mensagem enviada pelo usuário:", newMessage);
-        this.chatService.sendMessage('chatId', newMessage);
+        this.chatService.sendMessage('chatId', newMessage, userId);
       });
     }
   }

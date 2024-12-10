@@ -10,11 +10,17 @@
       alt="{{ user?.nickname }}">
   </div>
   <div class="card-body text-center">
-    <p class="card-text">{{ user?.gender | titlecase }} | {{ user?.idade }} anos</p>
-    <p class="card-text">{{ user?.municipio }}, {{ user?.estado }}</p>
-    <p class="card-text">{{ user?.descricao?.slice(0, 80) }}...</p>
-    <p class="card-text">
+    <p class="card-text mb-1">{{ user?.gender | titlecase }} | {{ user?.idade }} anos</p>
+    <p class="card-text mb-1">{{ user?.municipio }}, {{ user?.estado }}</p>
+    <p class="card-text mb-2">{{ user?.descricao?.slice(0, 80) }}...</p>
+    <p class="card-text mb-2">
       Distância: {{ distanciaKm === 0 ? '> 1 km' : distanciaKm + ' km' }}
     </p>
+
+    <!-- Botão para abrir o modal com ícone e texto responsivo -->
+    <button class="btn btn-outline-primary btn-sm mt-2 d-inline-flex align-items-center" (click)="abrirModal($event)">
+      <i class="fas fa-paper-plane"></i>
+      <span class="d-none d-md-inline ms-2">Enviar Mensagem</span>
+    </button>
   </div>
 </a>

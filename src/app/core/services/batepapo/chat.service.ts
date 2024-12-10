@@ -87,18 +87,58 @@ export class ChatService {
   }
 
   /** Envio de mensagens no chat */
-  sendMessage(chatId: string, message: Message): Observable<string> {
-    if (!message.content || !message.senderId) {
-      this.errorNotifier.showError('Mensagem inválida.');
-      return throwError(() => new Error('Mensagem inválida.'));
+  sendMessage(chatId: string, message: Message, senderId: string): Observable<string> {
+    // Verifica se o conteúdo da mensagem é válido
+    if (!message.content || !message.content.trim()) {
+      this.errorNotifier.showError('O conteúdo da mensagem não pode ser vazio.');
+      return throwError(() => new Error('O conteúdo da mensagem não pode ser vazio.'));
     }
 
-    return from(addDoc(collection(this.db, `chats/${chatId}/messages`), message)).pipe(
-      map(messageRef => {
-        this.store.dispatch(addMessage({ chatId, message }));
-        return messageRef.id;
+    // Verifica se o senderId é válido
+    if (!senderId) {
+      this.errorNotifier.showError('ID do remetente inválido.');
+      return throwError(() => new Error('ID do remetente inválido.'));
+    }
+
+    // Busca os dados do usuário para adicionar o nickname e validações
+    return this.firestoreQuery.getUser(senderId).pipe(
+      switchMap(user => {
+        if (!user) {
+          this.errorNotifier.showError('Usuário não encontrado.');
+          return throwError(() => new Error('Usuário não encontrado.'));
+        }
+
+        // Atribui o nickname ao campo da mensagem
+        message.nickname = user.nickname || 'Anônimo';
+        message.senderId = senderId;
+        message.timestamp = Timestamp.now();
+
+        // Referência para a coleção de mensagens dentro do chat
+        const messagesRef = collection(this.db, `chats/${chatId}/messages`);
+
+        // Adiciona a mensagem ao Firestore
+        return from(addDoc(messagesRef, message)).pipe(
+          switchMap(messageRef => {
+            // Atualiza o campo lastMessage no chat com a nova mensagem
+            const chatUpdate: Partial<Chat> = {
+              lastMessage: {
+                content: message.content,
+                nickname: message.nickname,
+                senderId: message.senderId,
+                timestamp: message.timestamp
+              }
+            };
+            return from(this.updateChat(chatId, chatUpdate)).pipe(
+              map(() => {
+                this.store.dispatch(addMessage({ chatId, message }));
+                return messageRef.id;
+              })
+            );
+          })
+        );
       }),
       catchError(error => {
+        console.error('Erro ao enviar mensagem:', error);
         this.errorNotifier.showError('Erro ao enviar mensagem.');
         return throwError(() => error);
       })

@@ -103,7 +103,7 @@ export class ChatModuleLayoutComponent implements OnInit {
       };
 
       if (this.selectedType === 'chat' && this.selectedChatId) {
-        this.chatService.sendMessage(this.selectedChatId, message).subscribe({
+        this.chatService.sendMessage(this.selectedChatId, message, senderId).subscribe({
           next: () => {
             console.log("Mensagem enviada com sucesso ao chat");
             this.messageContent = ''; // Limpa o campo de texto após o envio
