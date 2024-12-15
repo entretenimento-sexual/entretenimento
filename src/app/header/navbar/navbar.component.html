@@ -1,15 +1,21 @@
 <!-- src\app\header\navbar\navbar.component.html -->
+<div class="navbar-with-links">
 <nav class="navbar">
+  <!-- Container principal do navbar -->
   <div class="navbar-container">
+
+    <!-- Seção da marca (logo) e toggle, ficará à esquerda -->
     <div class="navbar-header">
       <a routerLink="/" class="navbar-brand">
         <app-logo class="navbar-logo"></app-logo>
       </a>
       <button class="hamburger-btn" (click)="onToggleSidebar()">
-        &#9776; <!-- Este é um caractere Unicode para o ícone de hambúrguer -->
+        &#9776; <!-- Ícone de hambúrguer -->
       </button>
-    </div><!-- navbar-header -->
+    </div>
+    <!-- /.navbar-header -->
 
+    <!-- Menu principal de links, ficará à direita -->
     <ul class="navbar-menu">
       <!-- Links para usuários autenticados -->
       <li class="navbar-item" *ngIf="isAuthenticated">
@@ -25,12 +31,12 @@
         <a href="javascript:void(0);" (click)="logout()" class="navbar-link">Sair</a>
       </li>
 
-      <!-- Link para planos de assinatura, disponível para todos -->
+      <!-- Link para planos de assinatura (todos) -->
       <li class="navbar-item">
         <a routerLink="/subscription-plan" class="navbar-link">Planos de Assinatura</a>
       </li>
 
-      <!-- Links para usuários não autenticados -->
+      <!-- Links para usuários NÃO autenticados -->
       <li class="navbar-item" *ngIf="!isAuthenticated">
         <a routerLink="/espiar" class="navbar-link" title="Acesso limitado ao site">Espiar</a>
       </li>
@@ -41,15 +47,22 @@
         <a routerLink="/register-component" class="navbar-link" title="Clique aqui para criar uma conta">Cadastre-se</a>
       </li>
 
-      <!-- Exibe o nickname e foto do usuário autenticado -->
+      <!-- Exibe nickname/foto do usuário autenticado -->
       <li class="navbar-item user-info" *ngIf="isAuthenticated">
         <img *ngIf="photoURL" [src]="photoURL" alt="Foto do usuário" class="user-photo" />
         {{ nickname }}
       </li>
     </ul>
-  </div><!-- navbar-container -->
+    <!-- /.navbar-menu -->
+
+  </div>  <!-- /.navbar-container -->
+
+
 </nav>
 
 
-<app-links-interaction></app-links-interaction>
+  <app-links-interaction></app-links-interaction>
+</div>
+
+<!-- Banner exibido para usuários free (visitantes) -->
 <app-guest-banner *ngIf="isFree"></app-guest-banner>

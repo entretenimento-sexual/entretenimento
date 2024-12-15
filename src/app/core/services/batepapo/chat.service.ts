@@ -4,12 +4,11 @@ import {
   getFirestore, collection, addDoc, doc, Timestamp, setDoc, deleteDoc,
   orderBy, startAfter, onSnapshot, getDocs, where, query
 } from 'firebase/firestore';
-import { Observable, Subject, from, throwError } from 'rxjs';
+import { Observable, Subject, firstValueFrom, from, throwError } from 'rxjs';
 import { catchError, map, switchMap, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { Chat } from '../../interfaces/interfaces-chat/chat.interface';
 import { Message } from '../../interfaces/interfaces-chat/message.interface';
-import { UsuarioService } from '../user-profile/usuario.service';
 import {
   addMessage,
   createChat,
@@ -20,6 +19,7 @@ import {
 import { AppState } from 'src/app/store/states/app.state';
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import { AuthService } from '../autentication/auth.service';
 
 @Injectable({
   providedIn: 'root'
@@ -28,12 +28,11 @@ export class ChatService {
   private db = getFirestore();
   private destroy$ = new Subject<void>();
 
-  constructor(
-    private usuarioService: UsuarioService,
-    private firestoreQuery: FirestoreQueryService,
-    private errorNotifier: ErrorNotificationService,
-    private store: Store<AppState>
-  ) { }
+  constructor(private authService: AuthService,
+              private firestoreQuery: FirestoreQueryService,
+              private errorNotifier: ErrorNotificationService,
+              private store: Store<AppState>
+            ) { }
 
   /** Método para obter ou criar ID do chat */
   getOrCreateChatId(participants: string[]): Observable<string> {
@@ -112,6 +111,7 @@ export class ChatService {
         message.nickname = user.nickname || 'Anônimo';
         message.senderId = senderId;
         message.timestamp = Timestamp.now();
+        message.status = 'sent'; // Define o status inicial como 'sent'
 
         // Referência para a coleção de mensagens dentro do chat
         const messagesRef = collection(this.db, `chats/${chatId}/messages`);
@@ -128,9 +128,12 @@ export class ChatService {
                 timestamp: message.timestamp
               }
             };
+
             return from(this.updateChat(chatId, chatUpdate)).pipe(
               map(() => {
                 this.store.dispatch(addMessage({ chatId, message }));
+
+                // Atualiza o status da mensagem para 'delivered' após envio bem-sucedido
                 return messageRef.id;
               })
             );
@@ -144,6 +147,7 @@ export class ChatService {
       })
     );
   }
+
 
 
   /** Carrega chats do usuário autenticado */
@@ -237,25 +241,52 @@ export class ChatService {
     const messagesRef = collection(this.db, `chats/${chatId}/messages`);
 
     return new Observable<Message[]>(observer => {
-      const messages: Message[] = []; // Acumula mensagens
+      const messages: Message[] = []; // Array para armazenar as mensagens acumuladas
+
       const unsubscribe = onSnapshot(messagesRef, snapshot => {
-        snapshot.docChanges().forEach(change => {
+        snapshot.docChanges().forEach(async change => {
           if (change.type === 'added') {
-            const newMessage = change.doc.data() as Message;
-            messages.push(newMessage);// Adiciona a nova mensagem ao array acumulado
+            const newMessage = { id: change.doc.id, ...change.doc.data() } as Message;
+
+            // Verificar se a mensagem já existe no array para evitar duplicação
+            if (!messages.some(msg => msg.id === newMessage.id)) {
+              messages.push(newMessage);
+
+              // Atualiza o status para 'delivered' se a mensagem não for enviada pelo usuário atual
+              const currentUserUid = this.authService.currentUser?.uid;
+              if (newMessage.status === 'sent' && newMessage.senderId !== currentUserUid) {
+                await this.updateMessageStatus(chatId, newMessage.id!, 'delivered');
+              }
+            }
           }
         });
-        observer.next([...messages]); // Emite uma cópia do array acumulado
-      }, error => observer.error(error));
 
+        // Ordenar mensagens pelo timestamp para garantir a ordem cronológica
+        messages.sort((a, b) => a.timestamp.toDate().getTime() - b.timestamp.toDate().getTime());
+
+        // Emitir o array de mensagens ordenado
+        observer.next([...messages]);
+      }, error => {
+        console.error('Erro ao monitorar mensagens do chat:', error);
+        observer.error(error);
+      });
+
+      // Limpar a subscrição ao destruir o componente
       return () => unsubscribe();
     }).pipe(takeUntil(this.destroy$));
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+
+  async updateMessageStatus(chatId: string, messageId: string, status: 'sent' | 'delivered' | 'read'): Promise<void> {
+    try {
+      const messageDocRef = doc(this.db, `chats/${chatId}/messages`, messageId);
+      await setDoc(messageDocRef, { status }, { merge: true });
+    } catch (error) {
+      console.error('Erro ao atualizar status da mensagem:', error);
+      this.errorNotifier.showError('Erro ao atualizar status da mensagem.');
+    }
   }
+
 
   /** Feedback visual */
   private handleFeedback(action: string, success: boolean) {

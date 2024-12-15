@@ -1,5 +1,8 @@
 /* src\app\chat-module\chat-rooms\chat-rooms.component.css */
+.chat-rooms{
+  padding-top: 5px;
 
+}
 .button_e_saibamais {
   display: flex;     /* Habilita flexbox */
   float: left;
@@ -25,6 +28,7 @@
   font-size: 16px;
   border-radius: 5px;
   cursor: pointer;
+  margin-right: 20px;
 }
 
 .button_create_room:hover {

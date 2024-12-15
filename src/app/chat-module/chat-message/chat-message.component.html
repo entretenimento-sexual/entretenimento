@@ -3,4 +3,5 @@
   <p class="message-sender">{{ senderName }}</p>
   <p class="message-content">{{ message.content }}</p>
   <p class="message-time">{{ message.timestamp.toDate() | date: 'short' }}</p>
+  <p class="message-status">{{ getStatusText() }}</p> <!-- Exibição do status -->
 </div>

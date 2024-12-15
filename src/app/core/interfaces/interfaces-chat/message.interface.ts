@@ -6,4 +6,5 @@ export interface Message {
   senderId: string; // ID do usuário remetente
   nickname: string; // Nickname do remetente
   timestamp: Timestamp;
+  status?: 'sent' | 'delivered' | 'read';
 }

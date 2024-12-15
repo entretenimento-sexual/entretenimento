@@ -13,6 +13,7 @@
   --font-family-secondary: 'Open Sans', sans-serif;
   --box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);  /* Sombra suave */
   --input-background: #f3f3f3;  /* Fundo suave para campos de entrada */
+  --header-height: 100px;
 }
 
 /* Reset CSS */

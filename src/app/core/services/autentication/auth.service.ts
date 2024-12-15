@@ -80,6 +80,10 @@ export class AuthService {
       .subscribe();
   }
 
+  get currentUser(): IUserDados | null {
+    return this.userSubject.value;
+  }
+
   private loadUserFromLocalStorage(): void {
     try {
       const storedUser = localStorage.getItem('currentUser');
@@ -122,7 +126,7 @@ export class AuthService {
     localStorage.setItem('currentUser', JSON.stringify(userData));
     console.log('Usuário definido e salvo no localStorage:', userData);
   }
-  
+
   async logout(): Promise<void> {
     const userUID = this.getLoggedUserUID();
     if (userUID) {

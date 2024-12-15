@@ -3,7 +3,7 @@
   margin: 5px 0;
   padding: 10px;
   border-radius: 10px;
-  max-width: 80%;
+  max-width: 100%;
 }
 
 .message-sent {
@@ -20,4 +20,27 @@
 .message-time {
   font-size: 8px;
   color: #666;
+}
+
+.message-status {
+  font-size: 10px;
+  color: #888;
+  margin-top: 5px;
+  text-align: right;
+}
+
+/* Estilos diferentes para cada status */
+.message-status.sent::before {
+  content: '✓';
+  color: #888;
+}
+
+.message-status.delivered::before {
+  content: '✓✓';
+  color: #888;
+}
+
+.message-status.read::before {
+  content: '✓✓';
+  color: #007bff;
 }

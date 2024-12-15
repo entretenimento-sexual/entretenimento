@@ -1,56 +1,63 @@
 /* src\app\header\navbar\navbar.component.css */
-.navbar {
+.navbar-with-links {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 60px;
-  background-color: #333;
+  flex-direction: column;  /* empilha verticalmente nav e links-interaction */
+  width: 100%;
+  height: var(--header-height);
 }
 
+/* Barra de navegação */
+.navbar {
+  background-color: #333;
+  display: flex;
+  align-items: center;  /* justify-content: center; // se quiser centralizar algo no nav */
+}
+
+/* Container principal do nav (logo + menu) */
 .navbar-container {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
   width: 100%;
   padding: 0 5%;
   box-sizing: border-box;
-  /* Garante que o padding não afete a largura total */
 }
 
+/* Logo e botão de hambúrguer */
 .navbar-header {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
 }
 
+/* Menu principal */
 .navbar-menu {
   list-style-type: none;
-  padding: 0;
   margin: 0;
+  padding: 0;
   display: flex;
   gap: 20px;
-  /* Ajusta o espaçamento entre os links */
   align-items: center;
-  flex-grow: 1;
-  /* Permite que a navbar se ajuste melhor */
-  justify-content: flex-end;
-  /* Garante que os links fiquem à direita */
+  flex-grow: 0;  /* não expande */
+  justify-content: flex-end;  /* à direita */
 }
 
+/* Itens do menu */
 .navbar-item {
   flex-grow: 0;
   flex-shrink: 0;
 }
 
+/* Foto do usuário */
 .user-photo {
   width: 35px;
   height: 35px;
   border-radius: 50%;
   margin-right: 10px;
   object-fit: cover;
-  /* Mantém a proporção da imagem */
 }
 
+/* Links do menu */
 .navbar-item a {
   padding: 5px 10px;
   border-radius: 4px;
@@ -66,12 +73,14 @@
   transform: scale(1.05);
 }
 
+/* Logo */
 .navbar-logo {
   max-height: 100%;
   width: auto;
   object-fit: contain;
 }
 
+/* Botão hamburguer (mobile) */
 .hamburger-btn {
   background: none;
   border: none;
@@ -92,25 +101,15 @@
     display: none;
   }
 
-  /* Afasta o nome e a foto da borda no mobile */
   .navbar-container {
     padding: 0 20px;
-    /* Ajusta o padding em telas menores */
   }
 }
 
-/* Refatoração e otimização de estilos */
+/* Ajustes extras */
 .navbar-brand {
   display: flex;
   align-items: center;
-}
-
-.toggle-sidebar-btn {
-  background-color: transparent;
-  border: none;
-  color: white;
-  font-size: 24px;
-  margin-left: auto;
 }
 
 .user-info {
@@ -118,7 +117,5 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  /* Espaçamento entre a foto e o nome */
   white-space: nowrap;
-  /* Evita quebra de linha no nickname */
 }

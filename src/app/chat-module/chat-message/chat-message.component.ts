@@ -59,4 +59,18 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
     this.destroy$.next();
     this.destroy$.complete();
   }
+
+  getStatusText(): string {
+    switch (this.message.status) {
+      case 'sent':
+        return 'Enviada';
+      case 'delivered':
+        return 'Entregue';
+      case 'read':
+        return 'Lida';
+      default:
+        return '';
+    }
+  }
+
 }

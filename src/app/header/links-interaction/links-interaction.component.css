@@ -3,8 +3,9 @@
   display: flex;
   justify-content: center;  /* Links começam alinhados à esquerda */
   gap: 10px;  /* Ajusta o espaçamento entre os links */
-  padding: 10px;
   align-items: center;
+  height: 40px;
+  background-color:#dee2e6;
 }
 
 .chat-rooms-link {
