@@ -20,7 +20,7 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
   private messagesSubscription: Subscription | undefined;
   messages: Message[] = [];
 
-  @Input() chatId: string | undefined;
+  @Input() chatId?: string;
   @Input() type: 'chat' | 'room' | undefined;
 
   constructor(private authService: AuthService,

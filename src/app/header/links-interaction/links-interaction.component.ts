@@ -15,7 +15,8 @@ export class LinksInteractionComponent implements OnInit {
   selectedImageFile!: File;
   userId: string | null = null;
 
-  constructor(private modalService: NgbModal, private authService: AuthService) { }
+  constructor(private modalService: NgbModal,
+              private authService: AuthService) { }
 
   ngOnInit(): void {
     // Obtenha o userId do usuário autenticado

@@ -5,6 +5,7 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Subject } from 'rxjs';
 import { takeUntil, switchMap, catchError } from 'rxjs/operators';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat.service';
 
 @Component({
     selector: 'app-chat-message',
@@ -14,14 +15,15 @@ import { FirestoreQueryService } from 'src/app/core/services/data-handling/fires
 })
 export class ChatMessageComponent implements OnInit, OnDestroy {
   @Input() message!: Message;
+  @Input() chatId?: string;
   senderName: string = 'Usuário desconhecido'; // Default para nome desconhecido
   currentUserUid: string | undefined;
   private destroy$ = new Subject<void>(); // Para controle de subscrições
 
   constructor(
-    private firestoreQuery: FirestoreQueryService,
-    private authService: AuthService
-  ) { }
+              private firestoreQuery: FirestoreQueryService,
+              private authService: AuthService,
+              private chatService: ChatService,) { }
 
   ngOnInit(): void {
     // Subscrição no estado do usuário autenticado
@@ -54,6 +56,17 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
     return this.message.senderId === this.currentUserUid;
   }
 
+  // Método chamado ao clicar no ícone de lixeira
+  async deleteThisMessage(): Promise<void> {
+    if (!this.chatId || !this.message.id) return;
+    try {
+      await this.chatService.deleteMessage(this.chatId, this.message.id);
+      console.log('Mensagem excluída com sucesso!');
+    } catch (error) {
+      console.error('Erro ao excluir mensagem:', error);
+    }
+  }
+
   // Método de ciclo de vida para limpar subscrições
   ngOnDestroy(): void {
     this.destroy$.next();
@@ -72,5 +85,4 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
         return '';
     }
   }
-
 }

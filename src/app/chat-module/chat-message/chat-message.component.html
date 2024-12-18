@@ -1,7 +1,26 @@
 <!-- src\app\chat-module\chat-message\chat-message.component.html -->
-<div class="chat-message" [ngClass]="{'message-sent': isMessageSent(), 'message-received': !isMessageSent()}">
-  <p class="message-sender">{{ senderName }}</p>
+<div class="chat-message"
+    [ngClass]="{'message-sent': isMessageSent(),
+                'message-received': !isMessageSent()}">
+
+  <div class="message-header">
+    <p class="message-sender">{{ senderName }}</p>
+
+    <!-- Ícone de deletar: só exibe se a mensagem é do usuário atual, por exemplo -->
+    <button *ngIf="isMessageSent()" class="message-delete-btn"
+    (click)="deleteThisMessage()" title="Excluir esta mensagem">
+      <i class="fas fa-trash"></i> <!-- Font Awesome -->
+    </button>
+    </div>
+
   <p class="message-content">{{ message.content }}</p>
-  <p class="message-time">{{ message.timestamp.toDate() | date: 'short' }}</p>
-  <p class="message-status">{{ getStatusText() }}</p> <!-- Exibição do status -->
-</div>
+
+  <div class="message-footer">
+    <p class="message-time">
+      {{ isMessageSent() ? 'Enviado em' : 'Recebido em' }}
+      {{ message.timestamp.toDate() | date:'short' }}
+    </p>
+    <!-- Status com pseudo-elemento '::before' -->
+    <p class="message-status" [ngClass]="message.status"></p>
+  </div>
+  </div>

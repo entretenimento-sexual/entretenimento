@@ -1,46 +1,104 @@
 /* src\app\chat-module\chat-message\chat-message.component.css */
 .chat-message {
-  margin: 5px 0;
-  padding: 10px;
-  border-radius: 10px;
-  max-width: 100%;
+  margin: 8px 0;
+    padding: 5px 20px;
+    border-radius: 10px;
+    width: 100%;   
+    position: relative;
+    display: flex;
+    flex-direction: column;
 }
-
 .message-sent {
-  background-color: #e0f7fa;
+  background-color: #fee4ec;
   align-self: flex-end;
   text-align: right;
+  padding: 10px;
+  margin-left: auto;
+  border-radius: 10px;
 }
 
 .message-received {
   background-color: #f0f0f0;
   align-self: flex-start;
+  text-align: left;
+  padding: 10px;
+  margin-right: auto;  /* Força a mensagem para a esquerda */
+  border-radius: 10px;
+}
+
+/* Header que contém nome do sender + botão excluir */
+.message-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Conteúdo principal da mensagem */
+.message-content {
+  margin: 5px 0;
+  line-height: 1.3;
+}
+
+/* Rodapé (hora e status) */
+.message-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .message-time {
-  font-size: 8px;
+  font-size: 10px;
   color: #666;
 }
 
 .message-status {
   font-size: 10px;
   color: #888;
-  margin-top: 5px;
   text-align: right;
+  min-width: 36px;  /* Para dar espaço ao pseudo-elemento */
 }
 
-/* Estilos diferentes para cada status */
+/* Pseudo-elementos para status. Mais visíveis com cor e font-size maior */
 .message-status.sent::before {
   content: '✓';
   color: #888;
+  font-size: 1.2em;
+  font-weight: 600;
+  margin-right: 2px;
 }
 
 .message-status.delivered::before {
   content: '✓✓';
   color: #888;
+  font-size: 1.2em;
+  font-weight: 600;
+  margin-right: 2px;
 }
 
 .message-status.read::before {
   content: '✓✓';
-  color: #007bff;
+  color: #d1005c;  /* tom mais vibrante p/ “Lida” (tema adulto) */
+  font-size: 1.2em;
+  font-weight: 600;
+  margin-right: 2px;
+}
+
+/* Botão de excluir */
+.message-delete-btn {
+  background: none;
+  border: none;
+  color: #d1005c;  /* cor forte, combinando com “tema adulto” */
+  cursor: pointer;
+  font-size: 1.1em;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.message-delete-btn:hover {
+  opacity: 1;
+}
+
+/* Opcional: se quiser alinhar a lixeira à direita da bolha */
+.message-delete-btn {
+  margin-left: 8px;
 }

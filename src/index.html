@@ -1,4 +1,4 @@
-<!-- src\index.html -->
+<!-- src/index.html -->
 <!doctype html>
 <html lang="pt-br">
 
@@ -43,15 +43,38 @@
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
   <base href="/">
+
+  <style>
+    /* Ocultar o footer por padrão */
+    app-footer {
+      display: none;
+    }
+
+    /* Exibir o footer quando a classe 'show-footer' estiver presente no body */
+    body.show-footer app-footer {
+      display: block;
+    }
+  </style>
+
+  <script>
+    // Script para adicionar a classe 'show-footer' ao body se a URL NÃO contiver '/chat/'
+    (function () {
+      var currentUrl = window.location.pathname;
+      if (!/\/chat\//.test(currentUrl)) {
+        document.body.classList.add('show-footer');
+      }
+    })();
+  </script>
 </head>
 
-    <body class="mat-typography">
-      <app-root></app-root>
+<body class="mat-typography">
+  <app-root></app-root>
 
-            <!-- Bibliotecas JS Externas -->
-            <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-            <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
-            <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+  <!-- Bibliotecas JS Externas -->
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 
-    </body>
+</body>
+
 </html>
