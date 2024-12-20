@@ -1,7 +1,7 @@
 // src/app/store/effects/effects.chat/chat.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { ChatService } from 'src/app/core/services/batepapo/chat.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import * as ChatActions from '../../actions/actions.chat/chat.actions';
 import { map, switchMap, mergeMap, catchError, withLatestFrom } from 'rxjs/operators';

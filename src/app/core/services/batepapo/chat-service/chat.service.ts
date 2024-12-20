@@ -1,25 +1,18 @@
 // src\app\core\services\chat.service.ts
 import { Injectable } from '@angular/core';
-import {
-  getFirestore, collection, addDoc, doc, Timestamp, setDoc, deleteDoc,
-  orderBy, startAfter, onSnapshot, getDocs, where, query
-} from 'firebase/firestore';
-import { Observable, Subject, firstValueFrom, from, throwError } from 'rxjs';
+import { getFirestore, collection, addDoc, doc, Timestamp, setDoc, deleteDoc, orderBy, startAfter,
+         onSnapshot, getDocs, where, query } from 'firebase/firestore';
+import { Observable, Subject, from, throwError, BehaviorSubject } from 'rxjs';
 import { catchError, map, switchMap, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
-import { Chat } from '../../interfaces/interfaces-chat/chat.interface';
-import { Message } from '../../interfaces/interfaces-chat/message.interface';
-import {
-  addMessage,
-  createChat,
-  deleteChat as deleteChat,
-  deleteMessage as deleteMessage,
-  updateChat,
-} from 'src/app/store/actions/actions.chat/chat.actions';
+import { Chat } from '../../../interfaces/interfaces-chat/chat.interface';
+import { Message } from '../../../interfaces/interfaces-chat/message.interface';
+import { addMessage,  createChat,  deleteChat as deleteChat, deleteMessage as deleteMessage,
+         updateChat } from 'src/app/store/actions/actions.chat/chat.actions';
 import { AppState } from 'src/app/store/states/app.state';
-import { FirestoreQueryService } from '../data-handling/firestore-query.service';
-import { ErrorNotificationService } from '../error-handler/error-notification.service';
-import { AuthService } from '../autentication/auth.service';
+import { FirestoreQueryService } from '../../data-handling/firestore-query.service';
+import { ErrorNotificationService } from '../../error-handler/error-notification.service';
+import { AuthService } from '../../autentication/auth.service';
 
 @Injectable({
   providedIn: 'root'
@@ -27,6 +20,8 @@ import { AuthService } from '../autentication/auth.service';
 export class ChatService {
   private db = getFirestore();
   private destroy$ = new Subject<void>();
+  private unreadMessagesCount = new BehaviorSubject<number>(0);
+  unreadMessagesCount$ = this.unreadMessagesCount.asObservable();
 
   constructor(private authService: AuthService,
               private firestoreQuery: FirestoreQueryService,
@@ -287,6 +282,29 @@ export class ChatService {
     }
   }
 
+  monitorUnreadMessages(userId: string): void {
+    const chatsRef = collection(this.db, 'chats');
+    const userChatsQuery = query(chatsRef, where('participants', 'array-contains', userId));
+
+    onSnapshot(userChatsQuery, (snapshot) => {
+      let unreadCount = 0;
+
+      snapshot.forEach((docSnapshot) => {
+        const chatId = docSnapshot.id;
+        const messagesRef = collection(this.db, `chats/${chatId}/messages`);
+        const unreadMessagesQuery = query(
+          messagesRef,
+          where('status', '==', 'sent'),
+          where('senderId', '!=', userId)
+        );
+
+        getDocs(unreadMessagesQuery).then((messagesSnapshot) => {
+          unreadCount += messagesSnapshot.size;
+          this.unreadMessagesCount.next(unreadCount);
+        });
+      });
+    });
+  }
 
   /** Feedback visual */
   private handleFeedback(action: string, success: boolean) {

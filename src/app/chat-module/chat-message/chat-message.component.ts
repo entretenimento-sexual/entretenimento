@@ -5,7 +5,7 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Subject } from 'rxjs';
 import { takeUntil, switchMap, catchError } from 'rxjs/operators';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
-import { ChatService } from 'src/app/core/services/batepapo/chat.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 
 @Component({
     selector: 'app-chat-message',

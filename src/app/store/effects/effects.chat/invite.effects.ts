@@ -7,7 +7,7 @@ import { of } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { selectUserState } from '../../selectors/selectors.user/user.selectors';
-import { InviteService } from 'src/app/core/services/batepapo/invite/invite.service';
+import { InviteService } from 'src/app/core/services/batepapo/invite-service/invite.service';
 
 @Injectable()
 export class InviteEffects {

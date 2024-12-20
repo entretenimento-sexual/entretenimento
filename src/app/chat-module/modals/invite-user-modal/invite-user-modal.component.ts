@@ -5,8 +5,8 @@ import { Timestamp } from 'firebase/firestore';
 import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged, take } from 'rxjs/operators';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
-import { InviteSearchService } from 'src/app/core/services/batepapo/invite/invite-search.service';
-import { InviteService } from 'src/app/core/services/batepapo/invite/invite.service';
+import { InviteSearchService } from 'src/app/core/services/batepapo/invite-service/invite-search.service';
+import { InviteService } from 'src/app/core/services/batepapo/invite-service/invite.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 
 @Component({

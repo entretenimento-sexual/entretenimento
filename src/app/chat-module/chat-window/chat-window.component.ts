@@ -3,7 +3,7 @@ import { Component } from '@angular/core';
 import { Timestamp } from '@firebase/firestore';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { ChatService } from 'src/app/core/services/batepapo/chat.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
 @Component({

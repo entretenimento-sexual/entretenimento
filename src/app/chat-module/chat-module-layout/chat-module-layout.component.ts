@@ -1,7 +1,7 @@
 // src\app\chat-module\chat-module-layout\chat-module-layout.component.ts
 import { Component, OnInit } from '@angular/core';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { ChatService } from 'src/app/core/services/batepapo/chat.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { Observable } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Timestamp } from '@firebase/firestore';

@@ -4,6 +4,7 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { UploadPhotoComponent } from 'src/app/shared/components-globais/upload-photo/upload-photo.component';
 import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
+import { NotificationService } from 'src/app/core/services/batepapo/notification.service';
 
 @Component({
     selector: 'app-links-interaction',
@@ -14,8 +15,11 @@ import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-ed
 export class LinksInteractionComponent implements OnInit {
   selectedImageFile!: File;
   userId: string | null = null;
+  unreadMessagesCount: number = 0;
+  pendingInvitesCount: number = 0;
 
   constructor(private modalService: NgbModal,
+              private notificationService: NotificationService,
               private authService: AuthService) { }
 
   ngOnInit(): void {
@@ -25,6 +29,17 @@ export class LinksInteractionComponent implements OnInit {
         this.userId = user.uid; // Capture o userId do usuário
       }
     });
+  
+
+    // Inscrever-se nas notificações de mensagens não lidas
+    this.notificationService.unreadMessagesCount$.subscribe(count => {
+      this.unreadMessagesCount = count;
+    });
+
+// Inscrever-se nas notificações de convites pendentes
+this.notificationService.pendingInvitesCount$.subscribe(count => {
+  this.pendingInvitesCount = count;
+});
   }
 
   onUploadPhotoClick(): void {

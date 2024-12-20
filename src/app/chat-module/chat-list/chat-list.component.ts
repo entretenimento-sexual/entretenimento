@@ -3,9 +3,8 @@ import { Component, EventEmitter, OnDestroy, OnInit, Output } from '@angular/cor
 import { Router } from '@angular/router';
 import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { ChatService } from 'src/app/core/services/batepapo/chat.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
-import { CreateRoomModalComponent } from '../create-room-modal/create-room-modal.component';
 import { MatDialog } from '@angular/material/dialog';
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { Observable, Subscription } from 'rxjs';
@@ -13,12 +12,12 @@ import { switchMap } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { selectAllChats } from 'src/app/store/selectors/selectors.chat/chat.selectors';
-import { InviteUserModalComponent } from '../invite-user-modal/invite-user-modal.component';
+import { InviteUserModalComponent } from '../modals/invite-user-modal/invite-user-modal.component';
 import { Timestamp } from '@firebase/firestore';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { InviteService } from 'src/app/core/services/batepapo/invite/invite.service';
+import { InviteService } from 'src/app/core/services/batepapo/invite-service/invite.service';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
+import { CreateRoomModalComponent } from '../modals/create-room-modal/create-room-modal.component';
 
 @Component({
   selector: 'app-chat-list',

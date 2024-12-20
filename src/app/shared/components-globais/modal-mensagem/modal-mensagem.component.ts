@@ -2,7 +2,7 @@
 import { Component, Output, EventEmitter, Inject } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { ChatService } from 'src/app/core/services/batepapo/chat.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { Timestamp } from '@firebase/firestore';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';

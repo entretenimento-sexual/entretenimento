@@ -15,14 +15,14 @@ import { ChatMessageComponent } from './chat-message/chat-message.component';
 import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layout.component';
 import { ChatMessagesListComponent } from './chat-messages-list/chat-messages-list.component';
 import { ChatRoomsComponent } from './chat-rooms/chat-rooms.component';
-import { CreateRoomModalComponent } from './create-room-modal/create-room-modal.component';
-import { RoomCreationConfirmationModalComponent } from './room-create-confirm-modal/room-creation-confirmation-modal.component';
+import { RoomCreationConfirmationModalComponent } from './modals/room-create-confirm-modal/room-creation-confirmation-modal.component';
 import { InviteListComponent } from './invite-list/invite-list.component';
 import { chatReducer } from '../store/reducers/reducers.chat/chat.reducer';
-import { RoomInteractionComponent } from './room-interaction/room-interaction.component';
-import { InviteUserModalComponent } from './invite-user-modal/invite-user-modal.component';
+import { RoomInteractionComponent } from './rooms/room-interaction/room-interaction.component';
+import { InviteUserModalComponent } from './modals/invite-user-modal/invite-user-modal.component';
 import { RoomsModule } from './rooms/rooms.module';
 import { CommunitiesModule } from './communities/communities.module';
+import { CreateRoomModalComponent } from './modals/create-room-modal/create-room-modal.component';
 
 @NgModule({
   declarations: [
