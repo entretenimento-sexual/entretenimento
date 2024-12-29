@@ -1,8 +1,9 @@
 // src/app/core/services/batepapo/rooms/room-messages.service.ts
 import { Injectable } from '@angular/core';
-import { getFirestore, collection, addDoc, onSnapshot, orderBy, query } from 'firebase/firestore';
-import { Observable } from 'rxjs';
+import { getFirestore, collection, addDoc, onSnapshot, orderBy, query, doc, setDoc } from 'firebase/firestore';
+import { catchError, from, map, Observable } from 'rxjs';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { FirestoreService } from '../../data-handling/firestore.service';
 
 @Injectable({
   providedIn: 'root',
@@ -10,7 +11,9 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 export class RoomMessagesService {
   private db = getFirestore();
 
-  constructor(private errorNotifier: ErrorNotificationService) { }
+  constructor(private errorNotifier: ErrorNotificationService,
+              private firestoreService: FirestoreService,
+            ) { }
 
   /**
    * Obtém mensagens de uma sala.
@@ -50,4 +53,27 @@ export class RoomMessagesService {
       throw error;
     }
   }
+
+  /**
+ * Atualiza o status de uma mensagem em uma sala.
+ * @param roomId ID da sala.
+ * @param messageId ID da mensagem.
+ * @param status Novo status ('sent', 'delivered', 'read').
+ * @returns Uma Promise indicando o sucesso ou falha da operação.
+ */
+  updateMessageStatus(roomId: string, messageId: string, status: 'sent' | 'delivered' | 'read'): Observable<void> {
+    const db = this.firestoreService.getFirestoreInstance();
+    const messageDocRef = doc(db, `rooms/${roomId}/messages/${messageId}`);
+
+    return from(setDoc(messageDocRef, { status }, { merge: true })).pipe(
+      map(() => {
+        console.log(`Status da mensagem ${messageId} atualizado para: ${status}`);
+      }),
+      catchError(error => {
+        this.errorNotifier.showError('Erro ao atualizar status da mensagem na sala.');
+        throw error;
+      })
+    );
+  }
+
 }

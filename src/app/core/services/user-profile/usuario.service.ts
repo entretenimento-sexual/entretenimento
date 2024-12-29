@@ -58,8 +58,9 @@ export class UsuarioService {
 
   // Atualiza o status online de um usuário no Firestore e no Store
   async updateUserOnlineStatus(uid: string, isOnline: boolean): Promise<void> {
+    const db = this.firestoreService.getFirestoreInstance();
     try {
-      const userDocRef = doc(this.firestoreService.db, 'users', uid);
+      const userDocRef = doc(db, 'users', uid);
       await updateDoc(userDocRef, { isOnline: isOnline });
       console.log(`Status isOnline atualizado no Firestore para ${isOnline ? 'online' : 'offline'}.`);
       this.store.dispatch(updateUserOnlineStatus({ uid, isOnline }));

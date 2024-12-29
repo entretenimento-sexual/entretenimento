@@ -27,7 +27,8 @@ export class EmailVerificationService {
 
   // Atualiza o status de verificação de e-mail no Firestore (mantendo booleano)
   async updateEmailVerificationStatus(uid: string, status: boolean): Promise<void> {
-    const userRef = doc(this.firestoreService.db, "users", uid);
+    const db = this.firestoreService.getFirestoreInstance();
+    const userRef = doc(db, "users", uid);
     await updateDoc(userRef, { emailVerified: status });
     console.log(`Status de verificação de e-mail atualizado para: ${status}`);
   }
@@ -83,10 +84,11 @@ export class EmailVerificationService {
 
   // Salva os dados do usuário após a verificação de e-mail
   async saveUserDataAfterEmailVerification(user: IUserDados): Promise<void> {
+    const db = this.firestoreService.getFirestoreInstance();
     try {
       if (!user.uid) throw new Error("UID do usuário não definido!");
       const userData = { ...user, role: user.role || 'basico', createdAt: Timestamp.fromDate(new Date()) };
-      const userRef = doc(this.firestoreService.db, "users", user.uid);
+      const userRef = doc(db, "users", user.uid);
       await setDoc(userRef, userData, { merge: true });
       console.log("Dados do usuário salvos após verificação de e-mail.");
     } catch (error) {

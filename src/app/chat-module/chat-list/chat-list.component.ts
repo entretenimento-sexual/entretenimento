@@ -8,7 +8,7 @@ import { RoomService } from 'src/app/core/services/batepapo/room-services/room.s
 import { MatDialog } from '@angular/material/dialog';
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { Observable, Subscription } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
+import { map, switchMap } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { selectAllChats } from 'src/app/store/selectors/selectors.chat/chat.selectors';
@@ -18,6 +18,8 @@ import { RoomManagementService } from 'src/app/core/services/batepapo/room-servi
 import { InviteService } from 'src/app/core/services/batepapo/invite-service/invite.service';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 import { CreateRoomModalComponent } from '../modals/create-room-modal/create-room-modal.component';
+import { NotificationService } from 'src/app/core/services/batepapo/notification.service';
+import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
 
 @Component({
   selector: 'app-chat-list',
@@ -25,6 +27,7 @@ import { CreateRoomModalComponent } from '../modals/create-room-modal/create-roo
   styleUrls: ['./chat-list.component.css'],
   standalone: false
 })
+
 export class ChatListComponent implements OnInit, OnDestroy {
   rooms: any[] = [];
   rooms$: Observable<any[]> | undefined;
@@ -32,15 +35,18 @@ export class ChatListComponent implements OnInit, OnDestroy {
   userSubscription: Subscription | undefined;
   chatSubscription: Subscription | undefined;
   @Output() chatSelected = new EventEmitter<{ id: string, type: 'room' | 'chat' }>();
+  selectedChatId: string | undefined;
 
   constructor(private authService: AuthService,
-    private chatService: ChatService,
-    private roomService: RoomService,
-    private roomManagement: RoomManagementService,
-    private inviteService: InviteService,
-    public dialog: MatDialog,
-    private router: Router,
-    private store: Store<AppState>) { }
+              private chatService: ChatService,
+              private roomService: RoomService,
+              private roomMessages: RoomMessagesService,
+              private notificationService: NotificationService,
+              private roomManagement: RoomManagementService,
+              private inviteService: InviteService,
+              public dialog: MatDialog,
+              private router: Router,
+              private store: Store<AppState>) { }
 
   ngOnInit() {
     console.log('Iniciando ChatListComponent, carregando conversas do usuário.');
@@ -53,7 +59,13 @@ export class ChatListComponent implements OnInit, OnDestroy {
           return []; // Retorna uma lista vazia se não houver usuário
         }
         console.log('Carregando salas e chats para o usuário:', currentUser.uid);
-        this.rooms$ = this.roomService.getUserRooms(currentUser.uid);
+        this.rooms$ = this.roomService.getUserRooms(currentUser.uid).pipe(
+          map(rooms => rooms.sort((a, b) => {
+            const timeA = a.lastMessage?.timestamp?.toDate().getTime() || 0;
+            const timeB = b.lastMessage?.timestamp?.toDate().getTime() || 0;
+            return timeB - timeA;
+          }))
+        );
 
         // Adiciona a assinatura ao Observable rooms$
         this.rooms$.subscribe((rooms: any[]) => {
@@ -61,7 +73,9 @@ export class ChatListComponent implements OnInit, OnDestroy {
           console.log('Salas carregadas:', this.rooms);
         });
 
-        return this.chatService.getChats(currentUser.uid);
+        return this.chatService.getChats(currentUser.uid).pipe(
+          map(chats => chats.sort((a, b) => b.lastMessage?.timestamp?.toDate().getTime() - a.lastMessage?.timestamp?.toDate().getTime()))
+        );
       })
     ).subscribe(chats => {
       this.regularChats = chats.filter(chat => !chat.isRoom);
@@ -144,8 +158,35 @@ export class ChatListComponent implements OnInit, OnDestroy {
       console.error('Erro: ID do chat é undefined.');
       return;
     }
-    console.log(`Chat selecionado com ID: ${chatId}`);
+    this.selectedChatId = chatId;
     this.chatSelected.emit({ id: chatId, type: 'chat' });
+
+    // Monitora as mensagens do chat
+    const chatSubscription = this.chatService.monitorChat(chatId).subscribe({
+      next: (messages) => {
+        messages
+          .filter(
+            (msg) =>
+              msg.status === 'delivered' &&
+              msg.senderId !== this.authService.currentUser?.uid
+          )
+          .forEach((msg) => {
+            this.chatService
+              .updateMessageStatus(chatId, msg.id!, 'read')
+              .subscribe({
+                next: () => this.notificationService.decrementUnreadMessages(),
+                error: (error) =>
+                  console.error('Erro ao atualizar status da mensagem:', error),
+              });
+          });
+      },
+      error: (error) =>
+        console.error(`Erro ao monitorar mensagens do chat ${chatId}:`, error),
+    });
+
+    // Cancela assinaturas anteriores se houver
+    this.chatSubscription?.unsubscribe();
+    this.chatSubscription = chatSubscription;
   }
 
   selectRoom(roomId: string | undefined): void {
@@ -153,8 +194,36 @@ export class ChatListComponent implements OnInit, OnDestroy {
       console.error('Erro: ID da sala é undefined.');
       return;
     }
-    console.log(`Sala selecionada com ID: ${roomId}`);
+
+    this.selectedChatId = roomId;
     this.chatSelected.emit({ id: roomId, type: 'room' });
+
+    // Monitora as mensagens da sala
+    const roomSubscription = this.roomMessages.getRoomMessages(roomId).subscribe({
+      next: (messages) => {
+        messages
+          .filter(
+            (msg) =>
+              msg.status === 'delivered' &&
+              msg.senderId !== this.authService.currentUser?.uid
+          )
+          .forEach((msg) => {
+            this.roomMessages
+              .updateMessageStatus(roomId, msg.id!, 'read')
+              .subscribe({
+              next: () => this.notificationService.decrementUnreadMessages(),
+              error: (error: unknown) =>
+              console.error('Erro ao atualizar status da mensagem:', error),
+            });
+          });
+        },
+      error: (error: unknown) =>
+      console.error(`Erro ao monitorar mensagens da sala ${roomId}:`, error),
+    });
+
+    // Cancela assinaturas anteriores se houver
+    this.chatSubscription?.unsubscribe();
+    this.chatSubscription = roomSubscription;
   }
 
   // Verifica se o usuário atual é o dono da sala

@@ -4,6 +4,7 @@ import { getFirestore, collection, query, where, onSnapshot, getDocs, doc } from
 import { Observable } from 'rxjs';
 import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { FirestoreService } from '../../data-handling/firestore.service';
 
 @Injectable({
   providedIn: 'root',
@@ -11,7 +12,9 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 export class RoomService {
   private db = getFirestore();
 
-  constructor(private errorNotifier: ErrorNotificationService) { }
+  constructor(private errorNotifier: ErrorNotificationService,
+              private firestoreService: FirestoreService,
+            ) { }
 
   /**
    * Conta o número de salas criadas por um usuário.
@@ -92,7 +95,7 @@ export class RoomService {
     });
   }
 
-  /**
+   /**
    * Obtém uma sala pelo ID.
    * @param roomId ID da sala.
    * @returns Observable contendo os detalhes da sala.

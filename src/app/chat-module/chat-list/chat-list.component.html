@@ -2,7 +2,9 @@
 <div>
   <!-- Exibição de Salas -->
   <div *ngIf="rooms$ | async as rooms" class="chat-list-container">
-    <div *ngFor="let room of rooms" (click)="selectRoom(room.roomId)">
+    <div *ngFor="let room of rooms" class="room-item"
+         (click)="selectRoom(room.roomId)"
+         [ngClass]="{ 'selected': selectedChatId === room.roomId }">
 
       <div class="room-item">
         <span class="room-name">{{ room.roomName }}</span>
@@ -19,7 +21,10 @@
 
   <!-- Exibição de Chats Regulares -->
   <div *ngIf="regularChats.length > 0" class="chat-list-container">
-    <div *ngFor="let chat of regularChats" class="chat-item" (click)="selectChat(chat.id)">
+    <div *ngFor="let chat of regularChats" class="chat-item"
+          (click)="selectChat(chat.id)"
+          [ngClass]="{ 'selected': selectedChatId === chat.id }">
+
       <img [src]="getOptimizedPhotoURL(chat.otherParticipantDetails?.photoURL) || 'assets/imagem-padrao.webp'"
         alt="Foto do Usuário" loading="lazy" class="chat-user-photo">
       <p>{{ chat.otherParticipantDetails?.nickname }}</p>

@@ -1,7 +1,8 @@
 //src\app\core\services\autentication\firestore.service.ts
 import { Injectable } from '@angular/core';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, query, where, getDocs, doc, setDoc, Timestamp, updateDoc, deleteDoc, increment } from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc,
+        increment, Firestore } from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 import { from, Observable } from 'rxjs';
@@ -12,9 +13,13 @@ const app = initializeApp(environment.firebase);
   providedIn: 'root'
 })
 export class FirestoreService {
-  public db = getFirestore(app);
-
+  
   constructor() { }
+
+  private db = getFirestore();
+  getFirestoreInstance(): Firestore {
+    return this.db;
+  }
 
   // Verifica se um apelido já existe na coleção 'users'
   async checkIfNicknameExists(nickname: string): Promise<boolean> {

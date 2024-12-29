@@ -13,7 +13,8 @@ export class UserPreferencesService {
   constructor(private firestoreService: FirestoreService) { }
 
   async saveUserPreferences(uid: string, preferences: any): Promise<void> {
-    const userRef = doc(this.firestoreService.db, `users/${uid}`);
+    const db = this.firestoreService.getFirestoreInstance();
+    const userRef = doc(db, `users/${uid}`);
     const preferencesCollection = collection(userRef, 'preferences');
 
     for (const [category, preferenceData] of Object.entries(preferences)) {
@@ -23,7 +24,8 @@ export class UserPreferencesService {
   }
 
   async getUserPreferences(uid: string): Promise<IUserPreferences> {
-    const preferencesCollectionRef = collection(this.firestoreService.db, `users/${uid}/preferences`);
+    const db = this.firestoreService.getFirestoreInstance();
+    const preferencesCollectionRef = collection(db, `users/${uid}/preferences`);
     const querySnapshot = await getDocs(preferencesCollectionRef);
 
     const preferences: IUserPreferences = {
@@ -42,9 +44,10 @@ export class UserPreferencesService {
   }
 
   async getUserPreferencesByToken(token: string): Promise<any | null> {
+    const db = this.firestoreService.getFirestoreInstance();
     console.log("Entrando em getUserPreferencesByToken com o token:", token);
 
-    const preRegisterCollection = collection(this.firestoreService.db, "preRegisterPreferences");
+    const preRegisterCollection = collection(db, "preRegisterPreferences");
     const preRegisterQuery = query(preRegisterCollection, where("token", "==", token));
     const userSnapshots = await getDocs(preRegisterQuery);
 

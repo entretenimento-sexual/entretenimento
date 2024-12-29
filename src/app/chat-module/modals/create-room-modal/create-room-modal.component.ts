@@ -2,8 +2,8 @@
 import { Component, Inject, OnInit } from '@angular/core';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { RoomCreationConfirmationModalComponent } from '../modals/room-create-confirm-modal/room-creation-confirmation-modal.component';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
+import { RoomCreationConfirmationModalComponent } from '../room-create-confirm-modal/room-creation-confirmation-modal.component';
 
 @Component({
     selector: 'app-create-room-modal',

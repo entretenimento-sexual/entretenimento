@@ -39,8 +39,8 @@ export class LoginService {
   ) { }
 
   async login(email: string, password: string): Promise<{ success: boolean, emailVerified?: boolean, user?: IUserDados }> {
+    const db = this.firestoreService.getFirestoreInstance();
     console.log(`Tentativa de login para o email: ${email}`);
-
     try {
       // Obtém o valor do campo "lembrar-me" do formulário
       const rememberMe = this.getRememberMeValue();
@@ -66,7 +66,7 @@ export class LoginService {
 
           // Atualiza o campo `lastLogin` diretamente no Firestore
           const timestampNow = Timestamp.fromDate(new Date());
-          const userDocRef = doc(this.firestoreService.db, 'users', user.uid);
+          const userDocRef = doc(db, 'users', user.uid);
           await updateDoc(userDocRef, { lastLogin: timestampNow });
           console.log(`Data do último login atualizada para o usuário ${user.uid}.`);
 

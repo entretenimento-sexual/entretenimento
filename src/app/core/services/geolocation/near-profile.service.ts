@@ -16,11 +16,12 @@ export class NearbyProfilesService {
   ) { }
 
   async getProfilesNearLocation(latitude: number, longitude: number, maxDistanceKm: number, userUid: string, startAfterDoc?: any): Promise<IUserDados[]> {
+    const db = this.firestoreService.getFirestoreInstance();
     try {
       const bounds = geohashQueryBounds([latitude, longitude], maxDistanceKm * 1000); // ajuste para converter km para metros
       const promises = bounds.map((b) => {
         let q = query(
-          collection(this.firestoreService.db, 'users'),
+          collection(db, 'users'),
           where('geohash', '>=', b[0]),
           where('geohash', '<=', b[1]),
           limit(50) // Limita a 50 perfis

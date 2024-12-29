@@ -1,10 +1,11 @@
 //src\app\header\links-interaction\links-interaction.component.ts
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { UploadPhotoComponent } from 'src/app/shared/components-globais/upload-photo/upload-photo.component';
 import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
 import { NotificationService } from 'src/app/core/services/batepapo/notification.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 
 @Component({
     selector: 'app-links-interaction',
@@ -20,25 +21,31 @@ export class LinksInteractionComponent implements OnInit {
 
   constructor(private modalService: NgbModal,
               private notificationService: NotificationService,
+              private chatService: ChatService,
+              private cdr: ChangeDetectorRef,
               private authService: AuthService) { }
 
   ngOnInit(): void {
     // Obtenha o userId do usuário autenticado
     this.authService.user$.subscribe(user => {
       if (user) {
-        this.userId = user.uid; // Capture o userId do usuário
+        this.userId = user.uid; // Captura o userId do usuário
+        this.notificationService.monitorUnreadMessages(user.uid); // Monitora mensagens para o usuário
       }
     });
-  
+
 
     // Inscrever-se nas notificações de mensagens não lidas
     this.notificationService.unreadMessagesCount$.subscribe(count => {
+      console.log('Contagem de mensagens não lidas recebida no componente:', count);
       this.unreadMessagesCount = count;
+      this.cdr.detectChanges();
     });
 
 // Inscrever-se nas notificações de convites pendentes
 this.notificationService.pendingInvitesCount$.subscribe(count => {
   this.pendingInvitesCount = count;
+  this.cdr.detectChanges();
 });
   }
 

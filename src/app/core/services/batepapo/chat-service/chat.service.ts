@@ -1,7 +1,8 @@
 // src\app\core\services\chat.service.ts
 import { Injectable } from '@angular/core';
 import { getFirestore, collection, addDoc, doc, Timestamp, setDoc, deleteDoc, orderBy, startAfter,
-         onSnapshot, getDocs, where, query } from 'firebase/firestore';
+         onSnapshot, getDocs, where, query,
+         Firestore} from 'firebase/firestore';
 import { Observable, Subject, from, throwError, BehaviorSubject } from 'rxjs';
 import { catchError, map, switchMap, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
@@ -13,28 +14,37 @@ import { AppState } from 'src/app/store/states/app.state';
 import { FirestoreQueryService } from '../../data-handling/firestore-query.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 import { AuthService } from '../../autentication/auth.service';
+import { NotificationService } from '../notification.service';
+import { FirestoreService } from '../../data-handling/firestore.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ChatService {
-  private db = getFirestore();
-  private destroy$ = new Subject<void>();
-  private unreadMessagesCount = new BehaviorSubject<number>(0);
-  unreadMessagesCount$ = this.unreadMessagesCount.asObservable();
+    private destroy$ = new Subject<void>();
+
 
   constructor(private authService: AuthService,
               private firestoreQuery: FirestoreQueryService,
               private errorNotifier: ErrorNotificationService,
+              private notificationService: NotificationService,
+              private firestoreService: FirestoreService,
               private store: Store<AppState>
             ) { }
+
+  private handleError(action: string, error: any): Observable<never> {
+    this.errorNotifier.showError(`Erro ao ${action}.`);
+    console.error(`Erro ao ${action}:`, error);
+    return throwError(() => error);
+  }
 
   /** Método para obter ou criar ID do chat */
   getOrCreateChatId(participants: string[]): Observable<string> {
     const participantsKey = participants.sort().join('_');
+    const db = this.firestoreService.getFirestoreInstance();
     console.log('Chave de participantes gerada:', participantsKey);
 
-    const chatsRef = collection(this.db, 'chats');
+    const chatsRef = collection(db, 'chats');
     const chatQuery = query(chatsRef, where('participantsKey', '==', participantsKey));
 
     return from(getDocs(chatQuery)).pipe(
@@ -57,10 +67,7 @@ export class ChatService {
           return this.createChat(participants);
         }
       }),
-      catchError((error) => {
-        this.errorNotifier.showError('Erro ao buscar ou criar chat.');
-        return throwError(() => error);
-      })
+      catchError(error => this.handleError('buscar ou criar chat', error))
     );
   }
 
@@ -68,15 +75,13 @@ export class ChatService {
   /** Criação de novo chat */
   createChat(participants: string[]): Observable<string> {
     const chatData: Chat = { participants, participantsKey: participants.sort().join('_'), timestamp: Timestamp.now() };
-    return from(addDoc(collection(this.db, 'chats'), chatData)).pipe(
+    const db = this.firestoreService.getFirestoreInstance();
+    return from(addDoc(collection(db, 'chats'), chatData)).pipe(
       map(chatDocRef => {
         this.store.dispatch(createChat({ chat: chatData }));
         return chatDocRef.id;
       }),
-      catchError(error => {
-        this.errorNotifier.showError('Erro ao criar chat.');
-        return throwError(() => error);
-      })
+      catchError(error => this.handleError('criar chat', error))
     );
   }
 
@@ -84,22 +89,20 @@ export class ChatService {
   sendMessage(chatId: string, message: Message, senderId: string): Observable<string> {
     // Verifica se o conteúdo da mensagem é válido
     if (!message.content || !message.content.trim()) {
-      this.errorNotifier.showError('O conteúdo da mensagem não pode ser vazio.');
-      return throwError(() => new Error('O conteúdo da mensagem não pode ser vazio.'));
+      return this.handleError('enviar mensagem',
+                  new Error('O conteúdo da mensagem não pode ser vazio.'));
     }
 
     // Verifica se o senderId é válido
     if (!senderId) {
-      this.errorNotifier.showError('ID do remetente inválido.');
-      return throwError(() => new Error('ID do remetente inválido.'));
+      return this.handleError('enviar mensagem', new Error('ID do remetente inválido.'));
     }
 
     // Busca os dados do usuário para adicionar o nickname e validações
     return this.firestoreQuery.getUser(senderId).pipe(
       switchMap(user => {
         if (!user) {
-          this.errorNotifier.showError('Usuário não encontrado.');
-          return throwError(() => new Error('Usuário não encontrado.'));
+          return this.handleError('enviar mensagem', new Error('Usuário não encontrado.'));
         }
 
         // Atribui o nickname ao campo da mensagem
@@ -109,7 +112,8 @@ export class ChatService {
         message.status = 'sent'; // Define o status inicial como 'sent'
 
         // Referência para a coleção de mensagens dentro do chat
-        const messagesRef = collection(this.db, `chats/${chatId}/messages`);
+        const db = this.firestoreService.getFirestoreInstance();
+        const messagesRef = collection(db, `chats/${chatId}/messages`);
 
         // Adiciona a mensagem ao Firestore
         return from(addDoc(messagesRef, message)).pipe(
@@ -135,19 +139,14 @@ export class ChatService {
           })
         );
       }),
-      catchError(error => {
-        console.error('Erro ao enviar mensagem:', error);
-        this.errorNotifier.showError('Erro ao enviar mensagem.');
-        return throwError(() => error);
-      })
+      catchError(error => this.handleError('enviar mensagem', error))
     );
   }
 
-
-
   /** Carrega chats do usuário autenticado */
   getChats(userId: string): Observable<any[]> {
-    const chatsRef = collection(this.db, 'chats');
+    const db = this.firestoreService.getFirestoreInstance();
+    const chatsRef = collection(db, 'chats');
     const userChatsQuery = query(chatsRef, where('participants', 'array-contains', userId));
 
     return new Observable(observer => {
@@ -181,136 +180,110 @@ export class ChatService {
   }
 
   /** Atualização de um chat específico */
-  async updateChat(chatId: string, updateData: Partial<Chat>): Promise<string> {
-    try {
-      const chatDocRef = doc(this.db, 'chats', chatId);
-      await setDoc(chatDocRef, updateData, { merge: true });
-      this.store.dispatch(updateChat({ chatId, updateData }));
-      return chatId;
-    } catch (error) {
-      console.error("Erro ao atualizar chat:", error);
-      throw error;
-    }
+  updateChat(chatId: string, updateData: Partial<Chat>): Observable<string> {
+    const db = this.firestoreService.getFirestoreInstance();
+    const chatDocRef = doc(db, 'chats', chatId);
+    return from(setDoc(chatDocRef, updateData, { merge: true })).pipe(
+      map(() => {
+        this.store.dispatch(updateChat({ chatId, updateData }));
+        return chatId;
+      }),
+      catchError(error => this.handleError('atualizar chat', error))
+    );
   }
 
+
   /** Deletar chat */
-  async deleteChat(chatId: string): Promise<void> {
-    try {
-      await deleteDoc(doc(this.db, 'chats', chatId));
-      this.store.dispatch(deleteChat({ chatId }));
-    } catch (error) {
-      console.error("Erro ao deletar chat:", error);
-      throw error;
-    }
+  deleteChat(chatId: string): Observable<void> {
+    const db = this.firestoreService.getFirestoreInstance();
+    return from(deleteDoc(doc(db, 'chats', chatId))).pipe(
+      map(() => {
+        this.store.dispatch(deleteChat({ chatId }));
+      }),
+      catchError(error => this.handleError('deletar chat', error))
+    );
   }
 
   /** Deletar mensagem específica */
-  async deleteMessage(chatId: string, messageId: string): Promise<void> {
-    try {
-      await deleteDoc(doc(this.db, `chats/${chatId}/messages`, messageId));
-      this.store.dispatch(deleteMessage({ chatId, messageId }));
-    } catch (error) {
-      console.error("Erro ao deletar mensagem:", error);
-      throw error;
-    }
+  deleteMessage(chatId: string, messageId: string): Observable<void> {
+    const db = this.firestoreService.getFirestoreInstance();
+    const messageDocRef = doc(db, `chats/${chatId}/messages`, messageId);
+    return from(deleteDoc(messageDocRef)).pipe(
+      map(() => {
+        this.store.dispatch(deleteMessage({ chatId, messageId }));
+      }),
+      catchError(error => this.handleError('deletar mensagem', error))
+    );
   }
 
   /** Busca de mensagens com carregamento incremental */
   getMessages(chatId: string, lastMessageTimestamp?: Timestamp): Observable<Message[]> {
-    const messagesRef = collection(this.db, `chats/${chatId}/messages`);
+    const db = this.firestoreService.getFirestoreInstance();
+    const messagesRef = collection(db, `chats/${chatId}/messages`);
     const messageQuery = lastMessageTimestamp
       ? query(messagesRef, orderBy('timestamp'), startAfter(lastMessageTimestamp))
       : query(messagesRef, orderBy('timestamp'));
 
     return from(getDocs(messageQuery)).pipe(
       map(snapshot => snapshot.docs.map(doc => doc.data() as Message)),
-      catchError(error => {
-        console.error("Erro ao buscar mensagens:", error);
-        throw error;
-      })
+      catchError(error => this.handleError('buscar mensagens', error))
     );
   }
 
   // Adiciona o método monitorChat
   monitorChat(chatId: string): Observable<Message[]> {
-    const messagesRef = collection(this.db, `chats/${chatId}/messages`);
+    const db = this.firestoreService.getFirestoreInstance();
+    const messagesRef = collection(db, `chats/${chatId}/messages`);
+    const orderedQuery = query(messagesRef, orderBy('timestamp', 'asc'));
 
     return new Observable<Message[]>(observer => {
-      const messages: Message[] = []; // Array para armazenar as mensagens acumuladas
+      const messages: Message[] = [];
 
-      const unsubscribe = onSnapshot(messagesRef, snapshot => {
+      const unsubscribe = onSnapshot(orderedQuery, snapshot => {
         snapshot.docChanges().forEach(async change => {
-          if (change.type === 'added') {
-            const newMessage = { id: change.doc.id, ...change.doc.data() } as Message;
+          const updatedMessage = { id: change.doc.id, ...change.doc.data() } as Message;
 
-            // Verificar se a mensagem já existe no array para evitar duplicação
-            if (!messages.some(msg => msg.id === newMessage.id)) {
-              messages.push(newMessage);
+          if (change.type === 'added' || change.type === 'modified') {
+            const index = messages.findIndex(msg => msg.id === updatedMessage.id);
 
-              // Atualiza o status para 'delivered' se a mensagem não for enviada pelo usuário atual
-              const currentUserUid = this.authService.currentUser?.uid;
-              if (newMessage.status === 'sent' && newMessage.senderId !== currentUserUid) {
-                await this.updateMessageStatus(chatId, newMessage.id!, 'delivered');
-              }
+            // Atualizar ou adicionar mensagem
+            if (index > -1) {
+              messages[index] = updatedMessage;
+            } else {
+              messages.push(updatedMessage);
+            }
+
+            // Atualizar status da mensagem
+            const currentUserUid = this.authService.currentUser?.uid;
+            if (
+              updatedMessage.status === 'sent' &&
+              updatedMessage.senderId !== currentUserUid
+            ) {
+              await this.updateMessageStatus(chatId, updatedMessage.id!, 'delivered');
             }
           }
         });
 
-        // Ordenar mensagens pelo timestamp para garantir a ordem cronológica
+        // Ordenar pelo timestamp (caso necessário)
         messages.sort((a, b) => a.timestamp.toDate().getTime() - b.timestamp.toDate().getTime());
 
-        // Emitir o array de mensagens ordenado
+        // Emitir mensagens ordenadas
         observer.next([...messages]);
-      }, error => {
-        console.error('Erro ao monitorar mensagens do chat:', error);
-        observer.error(error);
       });
 
-      // Limpar a subscrição ao destruir o componente
       return () => unsubscribe();
     }).pipe(takeUntil(this.destroy$));
   }
 
+  updateMessageStatus(chatId: string, messageId: string, status: 'sent' | 'delivered' | 'read'): Observable<void> {
+    const db = this.firestoreService.getFirestoreInstance();
+    const messageDocRef = doc(db, `chats/${chatId}/messages`, messageId);
 
-  async updateMessageStatus(chatId: string, messageId: string, status: 'sent' | 'delivered' | 'read'): Promise<void> {
-    try {
-      const messageDocRef = doc(this.db, `chats/${chatId}/messages`, messageId);
-      await setDoc(messageDocRef, { status }, { merge: true });
-    } catch (error) {
-      console.error('Erro ao atualizar status da mensagem:', error);
-      this.errorNotifier.showError('Erro ao atualizar status da mensagem.');
-    }
-  }
-
-  monitorUnreadMessages(userId: string): void {
-    const chatsRef = collection(this.db, 'chats');
-    const userChatsQuery = query(chatsRef, where('participants', 'array-contains', userId));
-
-    onSnapshot(userChatsQuery, (snapshot) => {
-      let unreadCount = 0;
-
-      snapshot.forEach((docSnapshot) => {
-        const chatId = docSnapshot.id;
-        const messagesRef = collection(this.db, `chats/${chatId}/messages`);
-        const unreadMessagesQuery = query(
-          messagesRef,
-          where('status', '==', 'sent'),
-          where('senderId', '!=', userId)
-        );
-
-        getDocs(unreadMessagesQuery).then((messagesSnapshot) => {
-          unreadCount += messagesSnapshot.size;
-          this.unreadMessagesCount.next(unreadCount);
-        });
-      });
-    });
-  }
-
-  /** Feedback visual */
-  private handleFeedback(action: string, success: boolean) {
-    const feedbackMessage = success
-      ? `${action} realizado com sucesso`
-      : `Erro ao realizar ${action}`;
-    console.log(feedbackMessage);
+    return from(setDoc(messageDocRef, { status }, { merge: true })).pipe(
+      map(() => {
+        console.log(`Mensagem ${messageId} atualizada para o status: ${status}`);
+      }),
+      catchError((error) => this.handleError('atualizar status da mensagem', error))
+    );
   }
 }

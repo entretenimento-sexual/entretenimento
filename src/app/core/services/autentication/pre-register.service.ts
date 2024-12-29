@@ -28,9 +28,10 @@ export class PreRegisterServiceService {
 
   // Método para coletar preferências do usuário antes do registro
   async saveUserPreferences(userPreferences: any): Promise<void> {
+    const db = this.firestoreService.getFirestoreInstance();
     try {
       const token = this.getToken();
-      const prefRef = collection(this.firestoreService.db, "preRegisterPreferences");
+      const prefRef = collection(db, "preRegisterPreferences");
       const combinedData = { ...userPreferences, token };  // Combine userPreferences with token
       await addDoc(prefRef, combinedData);
       console.log('Preferências do usuário salvas no Firestore.');

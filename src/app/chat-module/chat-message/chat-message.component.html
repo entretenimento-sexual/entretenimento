@@ -21,6 +21,6 @@
       {{ message.timestamp.toDate() | date:'short' }}
     </p>
     <!-- Status com pseudo-elemento '::before' -->
-    <p class="message-status" [ngClass]="message.status"></p>
+    <p class="message-status" [ngClass]="message.status">{{ getStatusText() }}</p>
   </div>
   </div>

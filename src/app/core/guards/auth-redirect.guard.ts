@@ -3,9 +3,7 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { AuthService } from '../services/autentication/auth.service';
 import { FirestoreService } from '../services/data-handling/firestore.service';
-import { map, switchMap, take } from 'rxjs/operators';
 import { doc, getDoc } from 'firebase/firestore';
-import { of } from 'rxjs';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 export const authRedirectGuard: CanActivateFn = (route, state) => {
@@ -15,13 +13,13 @@ export const authRedirectGuard: CanActivateFn = (route, state) => {
   const auth = getAuth(); // Obtém a instância de autenticação do Firebase
 
   return new Promise<boolean>((resolve) => {
-    onAuthStateChanged(auth, (user) => {
+      onAuthStateChanged(auth, (user) => {
       console.log('Verificando se o usuário está autenticado (onAuthStateChanged):', user);
       if (user) {
         console.log('Usuário autenticado, verificando campos obrigatórios... UID:', user.uid);
-
+        const db = firestoreService.getFirestoreInstance();
         // Busca o documento do usuário no Firestore
-        const userRef = doc(firestoreService.db, 'users', user.uid);
+        const userRef = doc(db, 'users', user.uid);
         getDoc(userRef).then((userSnapshot) => {
           if (userSnapshot.exists()) {
             const userData = userSnapshot.data();
