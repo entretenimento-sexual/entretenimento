@@ -1,1 +1,24 @@
 /* src\app\chat-module\room-creation-confirmation-modal\room-creation-confirmation-modal.component.css */
+.modal-content-body {
+  font-size: 1rem;
+  color: var(--text-color);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+
+.modal-content-body strong {
+  color: var(--primary-color);
+}
+
+.warning {
+  padding: 10px;
+  margin-top: 15px;
+  background-color: var(--danger-color);
+  color: #fff;
+  border-radius: 8px;
+}
+
+.warning p {
+  margin: 0;
+  font-weight: bold;
+}

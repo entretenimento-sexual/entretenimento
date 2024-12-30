@@ -1,13 +1,8 @@
 <!-- src\app\chat-module\invite-user-modal\invite-user-modal.component.html -->
-<div class="modal-container">
-  <div class="modal-header">
-    <h2>Convidar Usuários</h2>
-    <button class="close-btn" (click)="dialogRef.close()">✖</button>
-  </div>
-
+<app-base-modal title="Convidar Usuários" (closeModal)="dialogRef.close()">
   <div class="search-container">
     <input type="text" [(ngModel)]="searchTerm" (input)="onSearchTermChange()"
-      placeholder="Buscar usuários por apelido..." class="search-input" />
+      placeholder="Buscar usuários por apelido..." class="input-field" />
     <span class="search-icon" (click)="onSearchTermChange()">🔍</span>
   </div>
 
@@ -23,8 +18,8 @@
     </div>
   </div>
 
-  <div class="action-buttons">
+  <div footer-actions>
     <button class="btn btn-secondary" (click)="dialogRef.close()">Cancelar</button>
     <button class="btn btn-primary" (click)="confirmSelection()">Enviar Convites</button>
   </div>
-</div>
+</app-base-modal>

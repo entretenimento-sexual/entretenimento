@@ -23,6 +23,7 @@ import { InviteUserModalComponent } from './modals/invite-user-modal/invite-user
 import { RoomsModule } from './rooms/rooms.module';
 import { CommunitiesModule } from './communities/communities.module';
 import { CreateRoomModalComponent } from './modals/create-room-modal/create-room-modal.component';
+import { BaseModalComponent } from './modals/base-modal/base-modal.component';
 
 @NgModule({
   declarations: [
@@ -36,7 +37,8 @@ import { CreateRoomModalComponent } from './modals/create-room-modal/create-room
     InviteListComponent,
     RoomCreationConfirmationModalComponent,
     RoomInteractionComponent,
-    InviteUserModalComponent
+    InviteUserModalComponent,
+    BaseModalComponent
   ],
 
   imports: [

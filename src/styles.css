@@ -54,7 +54,6 @@ a:hover {
 /* Botões Modernos e Elegantes */
 .btn {
   display: inline-block;
-  padding: 12px 20px;
   background-color: var(--primary-color);
   font-size: 1rem;
   border: none;
@@ -98,8 +97,7 @@ a:hover {
 }
 
 .success-snackbar {
-  background-color: #4caf50;
-  /* Verde para sucesso */
+  background-color: #4caf50;  /* Verde para sucesso */
   color: white;
 }
 
@@ -110,14 +108,12 @@ a:hover {
 }
 
 .info-snackbar {
-  background-color: #2196f3;
-  /* Azul para informações */
+  background-color: #2196f3;  /* Azul para informações */
   color: white;
 }
 
 .warning-snackbar {
-  background-color: #ff9800;
-  /* Laranja para avisos */
+  background-color: #ff9800;  /* Laranja para avisos */
   color: white;
 }
 
