@@ -1,31 +1,39 @@
 // src/app/chat-module/invite-user-modal/invite-user-modal.component.ts
 import { Component, Inject, OnInit } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { Timestamp } from 'firebase/firestore';
 import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged, take } from 'rxjs/operators';
-import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
 import { InviteSearchService } from 'src/app/core/services/batepapo/invite-service/invite-search.service';
-import { InviteService } from 'src/app/core/services/batepapo/invite-service/invite.service';
-import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { FilterEngineService } from 'src/app/core/services/filtering/filter-engine.service';
+import { RegionFilterService } from 'src/app/core/services/filtering/filters/region-filter.service';
+import { GenderFilterService } from 'src/app/core/services/filtering/filters/gender-filter.service';
+import { CommonModule } from '@angular/common';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { BaseModalComponent } from '../base-modal/base-modal.component';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 @Component({
   selector: 'app-invite-user-modal',
   templateUrl: './invite-user-modal.component.html',
   styleUrls: ['./invite-user-modal.component.css'],
-  standalone: false
+  standalone: true,
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, BaseModalComponent],
 })
 export class InviteUserModalComponent implements OnInit {
   availableUsers: { id: string; nickname: string; selected: boolean }[] = [];
   searchTerm: string = '';
-  searchSubject: Subject<string> = new Subject<string>();
   isLoading: boolean = false;
+  selectedGender?: string;
+  selectedRegion: { uf?: string; city?: string } = {};
+
+  private searchSubject: Subject<void> = new Subject<void>();
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: { roomId: string; roomName: string },
-    private inviteService: InviteService,
     private inviteSearchService: InviteSearchService,
-    private userQuery: FirestoreUserQueryService,
+    private filterEngine: FilterEngineService,
+    private regionFilter: RegionFilterService,
+    private genderFilter: GenderFilterService,
     public dialogRef: MatDialogRef<InviteUserModalComponent>
   ) { }
 
@@ -36,40 +44,45 @@ export class InviteUserModalComponent implements OnInit {
 
   setupSearchListener(): void {
     this.searchSubject
-      .pipe(
-        debounceTime(300), // Aguarda 300ms após a digitação
-        distinctUntilChanged() // Evita buscas repetidas para o mesmo termo
-      )
-      .subscribe((term) => {
-        this.searchTerm = term;
+      .pipe(debounceTime(300), distinctUntilChanged())
+      .subscribe(() => {
         this.loadEligibleUsers();
       });
   }
 
-  onSearchTermChange(): void {
-    this.searchSubject.next(this.searchTerm);
+  onFilterChange(): void {
+    this.searchSubject.next();
   }
 
   loadEligibleUsers(): void {
     this.isLoading = true;
+    this.filterEngine.clearConstraints();
 
-    const filters: { field: string; operator: '==' | '>=' | '<=' | 'array-contains'; value: any }[] = [];
-    console.log('Iniciando busca de usuários com os seguintes filtros:', filters, 'Termo de busca:', this.searchTerm);
+    if (this.selectedGender) {
+      const genderConstraints = this.genderFilter.applyFilter(this.selectedGender);
+      genderConstraints.forEach((constraint) => this.filterEngine.addConstraint(constraint));
+    }
 
-    this.inviteSearchService.searchEligibleUsers(this.data.roomId, filters, this.searchTerm, 'nickname', 20)
-      .then((users) => {
-        console.log('Usuários encontrados:', users);
-        this.availableUsers = users.map((user) => ({
-          id: user.uid,
-          nickname: user.nickname || 'Sem apelido',
-          selected: false,
-        }));
-      })
-      .catch((error) => {
-        console.error('Erro ao buscar usuários elegíveis:', error);
-      })
-      .finally(() => {
-        this.isLoading = false;
+    if (this.selectedRegion) {
+      const { uf, city } = this.selectedRegion;
+      const regionConstraints = this.regionFilter.applyFilter(uf, city);
+      regionConstraints.forEach((constraint) => this.filterEngine.addConstraint(constraint));
+    }
+
+    this.inviteSearchService
+      .searchEligibleUsers(this.data.roomId, this.searchTerm, this.filterEngine.getConstraints())
+      .subscribe({
+        next: (users: IUserDados[]) => {
+          this.availableUsers = users.map((user) => ({
+            id: user.uid,
+            nickname: user.nickname || 'Sem apelido',
+            selected: false,
+          }));
+        },
+        error: (error: any) => console.error('Erro ao buscar usuários:', error),
+        complete: () => {
+          this.isLoading = false;
+        },
       });
   }
 
@@ -78,34 +91,7 @@ export class InviteUserModalComponent implements OnInit {
       .filter((user) => user.selected)
       .map((user) => user.id);
 
-    this.userQuery.getUser('currentUserUID').pipe( // Substituído para usar o serviço
-      take(1)
-    ).subscribe((currentUser) => {
-      if (!currentUser) {
-        console.error('Erro: Usuário não autenticado.');
-        return;
-      }
-
-      selectedUsers.forEach((userId) => {
-        const inviteData: Invite = {
-          receiverId: userId,
-          senderId: currentUser.uid, // Usando o UID do usuário autenticado
-          status: 'pending',
-          roomId: this.data.roomId,
-          roomName: this.data.roomName, // Corrigido // Nome da sala vindo dinamicamente do @Inject
-          sentAt: Timestamp.fromDate(new Date()),
-          expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)), // Expira em 7 dias
-        };
-
-        this.inviteService
-          .sendInviteToRoom(this.data.roomId, inviteData)
-          .subscribe({
-            next: () => console.log(`Convite enviado para o usuário: ${userId}`),
-            error: (error) => console.error(`Erro ao enviar convite:`, error),
-          });
-      });
-
-      this.dialogRef.close(selectedUsers);
-    });
+    console.log('Usuários selecionados:', selectedUsers);
+    this.dialogRef.close(selectedUsers);
   }
 }

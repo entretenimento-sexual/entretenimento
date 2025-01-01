@@ -1,19 +1,8 @@
 // src/app/core/services/batepapo/invite.service.ts
 import { Injectable } from '@angular/core';
-import {
-  getFirestore,
-  collection,
-  doc,
-  getDocs,
-  query,
-  where,
-  runTransaction,
-  updateDoc,
-  addDoc,
-  Timestamp,
-  setDoc,
-} from 'firebase/firestore';
-import { Observable, from, throwError, of, forkJoin } from 'rxjs';
+import { getFirestore, collection, doc, getDocs, query, where, runTransaction,
+         updateDoc, addDoc, Timestamp, setDoc,} from 'firebase/firestore';
+import { Observable, from, throwError, forkJoin } from 'rxjs';
 import { map, catchError, switchMap, tap } from 'rxjs/operators';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';

@@ -19,11 +19,12 @@ import { RoomCreationConfirmationModalComponent } from './modals/room-create-con
 import { InviteListComponent } from './invite-list/invite-list.component';
 import { chatReducer } from '../store/reducers/reducers.chat/chat.reducer';
 import { RoomInteractionComponent } from './rooms/room-interaction/room-interaction.component';
-import { InviteUserModalComponent } from './modals/invite-user-modal/invite-user-modal.component';
+
 import { RoomsModule } from './rooms/rooms.module';
 import { CommunitiesModule } from './communities/communities.module';
 import { CreateRoomModalComponent } from './modals/create-room-modal/create-room-modal.component';
 import { BaseModalComponent } from './modals/base-modal/base-modal.component';
+import { InviteUserModalComponent } from './modals/invite-user-modal/invite-user-modal.component';
 
 @NgModule({
   declarations: [
@@ -37,8 +38,6 @@ import { BaseModalComponent } from './modals/base-modal/base-modal.component';
     InviteListComponent,
     RoomCreationConfirmationModalComponent,
     RoomInteractionComponent,
-    InviteUserModalComponent,
-    BaseModalComponent
   ],
 
   imports: [
@@ -53,7 +52,9 @@ import { BaseModalComponent } from './modals/base-modal/base-modal.component';
     SharedModule,
     RoomsModule,
     CommunitiesModule,
-    NgOptimizedImage
+    InviteUserModalComponent,
+    NgOptimizedImage,
+    BaseModalComponent
   ],
 
 })

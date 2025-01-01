@@ -1,14 +1,33 @@
 <!-- src\app\chat-module\invite-user-modal\invite-user-modal.component.html -->
 <app-base-modal title="Convidar Usuários" (closeModal)="dialogRef.close()">
+  <!-- Barra de busca -->
   <div class="search-container">
-    <input type="text" [(ngModel)]="searchTerm" (input)="onSearchTermChange()"
-      placeholder="Buscar usuários por apelido..." class="input-field" />
-    <span class="search-icon" (click)="onSearchTermChange()">🔍</span>
+    <input type="text" [(ngModel)]="searchTerm" (input)="onFilterChange()" placeholder="Buscar usuários por apelido..."
+      class="input-field" />
+    <span class="search-icon" (click)="onFilterChange()">🔍</span>
   </div>
 
+  <!-- Filtros adicionais -->
+  <div class="filters-container">
+    <label>
+      Gênero:
+      <select [(ngModel)]="selectedGender" (change)="onFilterChange()">
+        <option value="">Todos</option>
+        <option value="male">Masculino</option>
+        <option value="female">Feminino</option>
+      </select>
+    </label>
+
+    <label>
+      Região:
+      <input type="text" placeholder="UF" [(ngModel)]="selectedRegion.uf" (input)="onFilterChange()" />
+      <input type="text" placeholder="Cidade" [(ngModel)]="selectedRegion.city" (input)="onFilterChange()" />
+    </label>
+  </div>
+
+  <!-- Resultados -->
   <div *ngIf="isLoading">Carregando...</div>
   <div *ngIf="!isLoading && availableUsers.length === 0">Nenhum usuário encontrado.</div>
-
   <div *ngIf="availableUsers.length > 0">
     <div *ngFor="let user of availableUsers" class="user-item">
       <label>
@@ -18,6 +37,7 @@
     </div>
   </div>
 
+  <!-- Ações -->
   <div footer-actions>
     <button class="btn btn-secondary" (click)="dialogRef.close()">Cancelar</button>
     <button class="btn btn-primary" (click)="confirmSelection()">Enviar Convites</button>
