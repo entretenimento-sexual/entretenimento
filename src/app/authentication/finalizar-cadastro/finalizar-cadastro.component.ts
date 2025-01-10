@@ -10,6 +10,7 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados'; // Importando 
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
+import { IBGELocationService } from 'src/app/core/services/general/api/ibge-location.service';
 
 @Component({
     selector: 'app-finalizar-cadastro',
@@ -38,6 +39,7 @@ export class FinalizarCadastroComponent implements OnInit {
 
   constructor(
     private emailVerificationService: EmailVerificationService,
+    private ibgeLocationService: IBGELocationService,
     private firestoreQuery: FirestoreQueryService,
     private firestoreService: FirestoreService,
     private authService: AuthService,
@@ -83,27 +85,34 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   // Carrega os estados usando a API do IBGE
-  async loadEstados(): Promise<void> {
-    try {
-      const response = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados');
-      this.estados = await response.json();
-      this.estados.sort((a, b) => a.nome.localeCompare(b.nome)); // Ordena alfabeticamente os estados
-    } catch (error) {
-      console.error('Erro ao carregar os estados:', error);
-    }
+  loadEstados(): void {
+    this.ibgeLocationService.getEstados().subscribe({
+      next: (estados) => {
+        this.estados = estados;
+      },
+      error: (err) => {
+        console.error('Erro ao carregar estados:', err);
+      },
+    });
   }
 
-  // Carrega os municípios do estado selecionado usando a API do IBGE
-  async onEstadoChange(): Promise<void> {
-    if (!this.selectedEstado) return;  // Caso nenhum estado esteja selecionado
-
-    try {
-      const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${this.selectedEstado}/municipios`);
-      this.municipios = await response.json();
-      this.municipios.sort((a, b) => a.nome.localeCompare(b.nome));  // Ordena os municípios
-    } catch (error) {
-      console.error('Erro ao carregar os municípios:', error);
+  /**
+   * Carrega os municípios ao selecionar um estado.
+   */
+  onEstadoChange(): void {
+    if (!this.selectedEstado) {
+      this.municipios = [];
+      return;
     }
+
+    this.ibgeLocationService.getMunicipios(this.selectedEstado).subscribe({
+      next: (municipios) => {
+        this.municipios = municipios;
+      },
+      error: (err) => {
+        console.error('Erro ao carregar municípios:', err);
+      },
+    });
   }
 
   onSubmit(): void {

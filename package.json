@@ -31,7 +31,7 @@
     "@ngrx/store-devtools": "^19.0.0",
     "@popperjs/core": "^2.11.8",
     "@pqina/angular-pintura": "^9.0.3",
-    "@pqina/pintura": "^8.91.0",
+    "@pqina/pintura": "^8.91.2",
     "@sentry/angular": "^8.46.0",
     "@sentry/tracing": "^7.114.0",
     "@tensorflow-models/blazeface": "^0.1.0",

@@ -1,7 +1,8 @@
 // src/app/core/services/batepapo/invite.service.ts
 import { Injectable } from '@angular/core';
 import { getFirestore, collection, doc, getDocs, query, where, runTransaction,
-         updateDoc, addDoc, Timestamp, setDoc,} from 'firebase/firestore';
+         updateDoc, addDoc, Timestamp, setDoc,
+         deleteDoc,} from 'firebase/firestore';
 import { Observable, from, throwError, forkJoin } from 'rxjs';
 import { map, catchError, switchMap, tap } from 'rxjs/operators';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
@@ -27,16 +28,19 @@ export class InviteService {
  * @param invite Dados do convite.
  * @returns Promise<void>
  */
-  sendInvite(invite: Invite): Promise<void> {
-    return addDoc(collection(this.db, 'invites'), invite)
-      .then(() => {
+  sendInvite(invite: Invite): Observable<void> {
+    const invitesCollection = collection(this.db, 'invites');
+    return from(addDoc(invitesCollection, invite)).pipe(
+      map(() => {
         console.log(`Convite enviado com sucesso para ${invite.receiverId}`);
-      })
-      .catch((error) => {
+        return void 0; // Retorno explícito de void
+      }),
+      catchError((error) => {
         console.error(`Erro ao enviar convite para ${invite.receiverId}:`, error);
         this.errorNotifier.showError('Erro ao enviar convite.');
-        throw error;
-      });
+        return throwError(() => error); // Emite o erro como Observable
+      })
+    );
   }
 
   sendInviteToRoom(roomId: string, inviteData: Invite): Observable<void> {
@@ -125,9 +129,19 @@ export class InviteService {
    * @param inviteData Dados do convite.
    */
   createInvite(inviteData: Invite): Observable<void> {
-    return from(addDoc(collection(this.db, 'invites'), inviteData)).pipe(
+    if (!inviteData.roomName || inviteData.roomName.trim() === '') {
+      console.error('O campo roomName está vazio:', inviteData);
+      this.errorNotifier.showError('O nome da sala é obrigatório.');
+      return throwError(() => new Error('Nome da sala é obrigatório.'));
+    }
+
+    const invitePayload = {
+      ...inviteData,
+    };
+
+    return from(addDoc(collection(this.db, 'invites'), invitePayload)).pipe(
       map(() => {
-        console.log('Convite criado com sucesso.');
+        console.log('Convite criado com sucesso.', invitePayload);
       }),
       catchError((error) => {
         this.errorNotifier.showError('Erro ao criar convite.');
@@ -135,6 +149,7 @@ export class InviteService {
       })
     );
   }
+
 
   /**
    * Atualiza o status de um convite.
@@ -218,6 +233,48 @@ export class InviteService {
       }),
       catchError((error) => {
         this.errorNotifier.showError('Erro ao enviar convite.');
+        return throwError(() => error);
+      })
+    );
+  }
+
+  updateExpiredInvites(): Observable<void> {
+    const currentTimestamp = Timestamp.fromDate(new Date());
+    const invitesCollection = collection(this.db, 'invites');
+    const expiredInvitesQuery = query(
+      invitesCollection,
+      where('status', '==', 'pending'),
+      where('expiresAt', '<=', currentTimestamp)
+    );
+
+    return from(getDocs(expiredInvitesQuery)).pipe(
+      switchMap((snapshot) => {
+        const updatePromises = snapshot.docs.map((doc) =>
+          updateDoc(doc.ref, { status: 'expired' })
+        );
+
+        return forkJoin(updatePromises);
+      }),
+      map(() => void 0), // Transformar o retorno em `void`
+      catchError((error) => {
+        console.error('Erro ao atualizar convites expirados:', error);
+        return throwError(() => error);
+      })
+    );
+  }
+
+  deleteExpiredInvites(): Observable<void> {
+    const invitesCollection = collection(this.db, 'invites');
+    const expiredInvitesQuery = query(invitesCollection, where('status', '==', 'expired'));
+
+    return from(getDocs(expiredInvitesQuery)).pipe(
+      switchMap((snapshot) => {
+        const deletePromises = snapshot.docs.map((doc) => deleteDoc(doc.ref));
+        return forkJoin(deletePromises);
+      }),
+      map(() => void 0), // Transformar o retorno em `void`
+      catchError((error) => {
+        console.error('Erro ao remover convites expirados:', error);
         return throwError(() => error);
       })
     );

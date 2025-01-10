@@ -76,8 +76,6 @@ export class FirestoreQueryService {
     console.log(`[FirestoreQueryService] Usuário ${uid} adicionado/atualizado no cache.`);
   }
 
-
-// Versão aprimorada para retornar Observable
   getUser(uid: string): Observable<IUserDados | null> {
     const normalizedUid = uid.trim();
 

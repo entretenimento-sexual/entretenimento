@@ -52,7 +52,6 @@ import { InviteUserModalComponent } from './modals/invite-user-modal/invite-user
     SharedModule,
     RoomsModule,
     CommunitiesModule,
-    InviteUserModalComponent,
     NgOptimizedImage,
     BaseModalComponent
   ],

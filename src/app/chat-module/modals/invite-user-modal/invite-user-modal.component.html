@@ -2,44 +2,66 @@
 <app-base-modal title="Convidar Usuários" (closeModal)="dialogRef.close()">
   <!-- Barra de busca -->
   <div class="search-container">
-    <input type="text" [(ngModel)]="searchTerm" (input)="onFilterChange()" placeholder="Buscar usuários por apelido..."
-      class="input-field" />
+    <input type="text" [(ngModel)]="searchTerm" (input)="onFilterChange()"
+      placeholder="Digite um nome para buscar usuários..." class="input-field" />
     <span class="search-icon" (click)="onFilterChange()">🔍</span>
   </div>
 
   <!-- Filtros adicionais -->
   <div class="filters-container">
-    <label>
-      Gênero:
-      <select [(ngModel)]="selectedGender" (change)="onFilterChange()">
-        <option value="">Todos</option>
-        <option value="male">Masculino</option>
-        <option value="female">Feminino</option>
+    <label class="region-container">
+      Região:
+      <select [(ngModel)]="selectedRegion.uf" (change)="onRegionChange()" class="input-field"
+        [disabled]="!isRegionFieldEditable()">
+        <option value="">Selecione o Estado</option>
+        <option *ngFor="let uf of availableStates" [value]="uf">{{ uf }}</option>
+      </select>
+      
+      <select [(ngModel)]="selectedRegion.city" (change)="onFilterChange()" class="input-field"
+        [disabled]="!isRegionFieldEditable() || !selectedRegion.uf">
+        <option value="">Selecione a Cidade</option>
+        <option *ngFor="let city of availableCities" [value]="city">{{ city }}</option>
       </select>
     </label>
 
     <label>
-      Região:
-      <input type="text" placeholder="UF" [(ngModel)]="selectedRegion.uf" (input)="onFilterChange()" />
-      <input type="text" placeholder="Cidade" [(ngModel)]="selectedRegion.city" (input)="onFilterChange()" />
+      Gênero:
+      <select [(ngModel)]="selectedGender" (change)="onFilterChange()" class="input-field">
+        <option value="">Todos</option>
+        <option *ngFor="let gender of availableGenders" [value]="gender">
+          {{ gender | titlecase }}
+        </option>
+      </select>
     </label>
   </div>
 
   <!-- Resultados -->
-  <div *ngIf="isLoading">Carregando...</div>
-  <div *ngIf="!isLoading && availableUsers.length === 0">Nenhum usuário encontrado.</div>
-  <div *ngIf="availableUsers.length > 0">
-    <div *ngFor="let user of availableUsers" class="user-item">
-      <label>
-        <input type="checkbox" [(ngModel)]="user.selected" />
-        {{ user.nickname }}
-      </label>
+  <div
+    *ngIf="!isLoading && availableUsers.length === 0 && !(searchTerm || selectedGender || selectedRegion.uf || selectedRegion.city)">
+    <p>Use os filtros acima para encontrar usuários.</p>
+  </div>
+  <div
+    *ngIf="!isLoading && availableUsers.length === 0 && (searchTerm || selectedGender || selectedRegion.uf || selectedRegion.city)">
+    <p>Nenhum usuário encontrado para os critérios aplicados.</p>
+  </div>
+
+  <div *ngIf="availableUsers.length > 0" class="user-results">
+    <div *ngFor="let user of availableUsers" class="user-card">
+      <img [src]="user.photoURL || defaultAvatar" alt="{{ user.nickname }}" class="avatar" />
+      <div class="user-details">
+        <span class="nickname">{{ user.nickname }}</span>
+        <button class="invite-btn" (click)="toggleUserSelection(user)" [class.selected]="user.selected">
+          {{ user.selected ? 'Selecionado' : 'Selecionar' }}
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- Ações -->
-  <div footer-actions>
+  <div class="footer-actions">
     <button class="btn btn-secondary" (click)="dialogRef.close()">Cancelar</button>
-    <button class="btn btn-primary" (click)="confirmSelection()">Enviar Convites</button>
+    <button class="btn btn-primary" [disabled]="!isAnyUserSelected()" (click)="confirmSelection()">
+      Enviar Convites
+    </button>
   </div>
 </app-base-modal>
