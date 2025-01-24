@@ -33,11 +33,13 @@ export class GlobalErrorHandlerService implements ErrorHandler {
       if (!navigator.onLine) {
         return 'Você está offline. Verifique sua conexão com a internet.';
       }
-      return `Erro de rede (${error.status}): ${error.message}`;
+      return `Erro de rede (${error.status}): ${error.error?.message || error.message}`;
     } else if (error instanceof TypeError) {
       return `Erro de tipo: ${error.message}`;
     } else if (error instanceof SyntaxError) {
       return `Erro de sintaxe: ${error.message}`;
+    } else if ((error as any).userFriendlyMessage) {
+      return (error as any).userFriendlyMessage; // Mensagem amigável definida no erro
     } else {
       return `Erro inesperado: ${error.message || 'Erro desconhecido'}`;
     }

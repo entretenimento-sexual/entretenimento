@@ -3,13 +3,12 @@ import { Timestamp } from 'firebase/firestore';
 export interface IUserDados {
 
   uid: string; // ID do usuário
-  nickname?: string;
+  nickname?: string | null;
   roomIds?: string[];
   latitude?: number; // Adicione latitude e longitude aqui
   longitude?: number;
   distanciaKm?: number | undefined;
   email: string | null; // Email do usuário
-  displayName: string | null | undefined;
   photoURL: string | null | undefined;
   nome?: string; // Nome completo do usuário
   idade?: number; // Idade do usuário

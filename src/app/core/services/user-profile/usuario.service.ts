@@ -33,7 +33,7 @@ export class UsuarioService {
     return {
       uid: user.uid,
       email: user.email,
-      displayName: user.displayName || null,
+      nickname: null,
       photoURL: user.photoURL || null,
       role: 'basico',
       lastLogin: timestampNow,

@@ -6,11 +6,11 @@ import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interfa
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { RoomParticipantsService } from 'src/app/core/services/batepapo/room-services/room-participants.service';
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
-import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 
 @Component({
   selector: 'app-room-interaction',
@@ -39,6 +39,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
     private roomParticipants: RoomParticipantsService,
     private roomMessages: RoomMessagesService,
     private roomService: RoomService,
+    private firestoreUserQuery: FirestoreUserQueryService,
     private firestoreQuery: FirestoreQueryService,
     private errorNotifier: ErrorNotificationService
   ) { }
@@ -97,7 +98,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
             if (!user) {
               try {
                 // Se não encontrou no estado, tente obter do Firestore
-                user = await firstValueFrom(this.firestoreQuery.getUser(msg.senderId));
+                user = await firstValueFrom(this.firestoreUserQuery.getUser(msg.senderId));
               } catch (error) {
                 console.error(`Erro ao buscar usuário com UID ${msg.senderId} no Firestore:`, error);
                 this.errorNotifier.showError(`Erro ao buscar usuário com UID ${msg.senderId}`);

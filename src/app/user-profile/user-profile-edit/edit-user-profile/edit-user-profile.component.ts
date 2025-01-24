@@ -1,14 +1,12 @@
 // src\app\user-profile\user-profile-edit\edit-user-profile\edit-user-profile.component.ts
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { getStorage, ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { ValidatorService } from 'src/app/core/services/general/validator.service';
-import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 
 @Component({
     selector: 'app-edit-user-profile',
@@ -40,7 +38,7 @@ export class EditUserProfileComponent implements OnInit {
   }
 
   constructor(
-    private firestoreQuery: FirestoreQueryService,
+    private firestoreUserQuery: FirestoreUserQueryService,
     private usuarioService: UsuarioService,
     private route: ActivatedRoute,
     private router: Router,
@@ -61,7 +59,7 @@ export class EditUserProfileComponent implements OnInit {
       facebook: ['', [ValidatorService.facebookValidator()]],
       instagram: ['', [ValidatorService.instagramValidator()]],
       buupe: ['', [ValidatorService.buupeValidator()]],
-      
+
     });
   }
 
@@ -70,7 +68,7 @@ export class EditUserProfileComponent implements OnInit {
     this.uid = this.route.snapshot.paramMap.get('id') || '';
     this.loadEstados();
     if (this.uid) {
-      this.firestoreQuery.getUser(this.uid).subscribe(async (user) => {
+      this.firestoreUserQuery.getUser(this.uid).subscribe(async (user) => {
         if (user) {
           this.userData = user;
           if (this.userData.estado) {
@@ -84,7 +82,7 @@ export class EditUserProfileComponent implements OnInit {
       });
     }
 
-    this.firestoreQuery.getUser(this.uid).subscribe((userData) => {
+    this.firestoreUserQuery.getUser(this.uid).subscribe((userData) => {
       if (userData) {
         // Define os valores para o formulário
         this.editForm.patchValue({

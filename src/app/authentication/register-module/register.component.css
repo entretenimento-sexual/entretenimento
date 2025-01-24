@@ -3,9 +3,9 @@
 /* Classes que tambem estão no styles.css */
 
 .alert-error {
-    padding: 0px;
-    margin: 0px;
-    color: red
+  padding: 0px;
+  margin: 0px;
+  color: red
 }
 
 .auth-container {
@@ -31,15 +31,18 @@
 .nickname-container {
   display: flex;
   justify-content: space-between;
-  gap: 10px;  /* Espaço entre os campos */
+  gap: 10px;
+  /* Espaço entre os campos */
 }
 
 .nickname-field {
-  flex: 1;  /* Faz com que os campos ocupem o mesmo espaço */
+  flex: 1;
+  /* Faz com que os campos ocupem o mesmo espaço */
 }
 
 .input-field {
-  width: 100%;  /* Faz o campo ocupar todo o espaço disponível dentro de .nickname-field */
+  width: 100%;
+  /* Faz o campo ocupar todo o espaço disponível dentro de .nickname-field */
 }
 
 /* Estilização para os links */

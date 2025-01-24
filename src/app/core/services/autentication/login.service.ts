@@ -17,7 +17,7 @@ import { AppState } from 'src/app/store/states/app.state';
 import { loginSuccess } from 'src/app/store/actions/actions.user/auth.actions';
 import { doc, Timestamp, updateDoc } from '@firebase/firestore';
 import { FirestoreService } from '../data-handling/firestore.service';
-import { FirestoreQueryService } from '../data-handling/firestore-query.service';
+import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 
 // Inicializa o objeto de autenticação do Firebase
 const auth = getAuth();
@@ -31,7 +31,7 @@ export class LoginService {
     private router: Router,
     private usuarioService: UsuarioService,
     private firestoreService: FirestoreService,
-    private firestoreQuery: FirestoreQueryService,
+    private firestoreUserQuery: FirestoreUserQueryService,
     private authService: AuthService,
     private store: Store<AppState>,
     private globalErrorHandler: GlobalErrorHandlerService,  // Tratamento de erros globais
@@ -56,7 +56,7 @@ export class LoginService {
         console.log('Login bem-sucedido:', user.uid);
 
         // Busca os dados do usuário
-        const userData = await this.firestoreQuery.getUser(user.uid).pipe(first()).toPromise();
+        const userData = await this.firestoreUserQuery.getUser(user.uid).pipe(first()).toPromise();
 
         if (userData) {
           // Define o estado do usuário através do AuthService

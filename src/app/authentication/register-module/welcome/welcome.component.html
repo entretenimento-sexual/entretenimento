@@ -1,0 +1,52 @@
+<!--src\app\authentication\register-module\welcome\welcome.component.html-->
+<div class="welcome-container">
+  <header class="welcome-header">
+    <h1>Bem-vindo(a) à nossa plataforma!</h1>
+    <p class="subtitle">Estamos felizes por tê-lo(a) aqui. Antes de começar, precisamos de algumas confirmações.</p>
+  </header>
+
+  <main class="welcome-content">
+    <section class="verification-section">
+      <h2>Verifique seu e-mail</h2>
+      <p>
+        Um e-mail foi enviado para sua caixa de entrada com um link de verificação.
+        Clique no link para ativar sua conta e começar a usar todos os recursos da plataforma.
+      </p>
+      <button class="btn btn-primary resend-btn" (click)="resendVerificationEmail()" [disabled]="isLoading"
+        [attr.aria-busy]="isLoading" aria-live="polite">
+        {{ isLoading ? 'Reenviando...' : 'Reenviar E-mail de Verificação' }}
+      </button>
+      <p *ngIf="message" class="alert alert-info">{{ message }}</p>
+    </section>
+
+    <section class="navigation-section">
+      <h2>Navegue na plataforma</h2>
+      <p>Explore as funcionalidades da plataforma:</p>
+      <ul class="navigation-list">
+        <li>
+          <a class="navigation-link" [routerLink]="'/dashboard/principal'" aria-label="Ir para o painel principal">
+            <i class="icon icon-dashboard"></i> Painel Principal
+          </a>
+        </li>
+        <li>
+          <a class="navigation-link" [routerLink]="'/profile'" aria-label="Acesse seu perfil pessoal">
+            <i class="icon icon-profile"></i> Seu Perfil
+          </a>
+        </li>
+        <li>
+          <a class="navigation-link" [routerLink]="'/subscription-plan'"
+            aria-label="Gerencie seus planos de assinatura">
+            <i class="icon icon-subscription"></i> Planos de Assinatura
+          </a>
+        </li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="welcome-footer">
+    <button class="btn btn-secondary continue-btn" (click)="proceedToDashboard()"
+      aria-label="Continuar sem verificar e-mail">
+      Continuar sem Verificar
+    </button>
+  </footer>
+</div>

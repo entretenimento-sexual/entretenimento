@@ -4,8 +4,9 @@ import { signInWithPopup, GoogleAuthProvider, getAuth, User as FirebaseUser, onA
 import { getFirestore, doc, setDoc, getDoc, Timestamp } from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { initializeApp } from 'firebase/app';
-import { Observable, BehaviorSubject } from 'rxjs';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados'; // Importe a interface aqui
+import { BehaviorSubject, Observable, from, of } from 'rxjs';
+import { switchMap, map, catchError } from 'rxjs/operators';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 // Inicialização do Firebase
 const app = initializeApp(environment.firebase);
@@ -20,98 +21,107 @@ export class SocialAuthService {
   user$: Observable<IUserDados | null> = this.userSubject.asObservable();
 
   constructor() {
-    onAuthStateChanged(auth, async (user: FirebaseUser | null) => {
-      if (user) {
-        const dadosFirestore = await this.buscarDadosDoFirestore(user.uid);
-        const userData: IUserDados = {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          role: dadosFirestore?.role || 'free',
-          lastLogin: Timestamp.fromDate(new Date()),
-          firstLogin: dadosFirestore?.firstLogin || Timestamp.fromDate(new Date()),
-          descricao: '',   // Valor padrão ou nulo
-          facebook: '',    // Valor padrão ou nulo
-          instagram: '',   // Valor padrão ou nulo
-          buupe: '',
-          isSubscriber:false,
-        };
+    this.monitorAuthState();
+  }
 
-        this.userSubject.next(userData);
+  /**
+   * Monitora mudanças no estado de autenticação
+   */
+  private monitorAuthState(): void {
+    onAuthStateChanged(auth, (user: FirebaseUser | null) => {
+      if (user) {
+        this.getUserDataFromFirestore(user.uid).subscribe({
+          next: (userData) => this.userSubject.next(userData),
+          error: (err) => console.error('Erro ao buscar dados do usuário:', err),
+        });
       } else {
         this.userSubject.next(null);
       }
     });
   }
 
-  async googleLogin(): Promise<void> {
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const user = result.user;
+  /**
+   * Login com Google e retorna um Observable
+   */
+  googleLogin(): Observable<IUserDados | null> {
+    const provider = new GoogleAuthProvider();
+    return from(signInWithPopup(auth, provider)).pipe(
+      switchMap((result) => {
+        const user = result.user;
+        if (user) {
+          return this.getUserDataFromFirestore(user.uid).pipe(
+            switchMap((userData) => {
+              const updatedUserData: IUserDados = {
+                uid: user.uid,
+                email: user.email,
+                nickname: userData?.nickname || null, // Recupera nickname do Firestore
+                photoURL: user.photoURL,
+                role: userData?.role || 'free',
+                lastLogin: Timestamp.fromDate(new Date()),
+                firstLogin: userData?.firstLogin || Timestamp.fromDate(new Date()),
+                descricao: userData?.descricao || '',
+                facebook: userData?.facebook || '',
+                instagram: userData?.instagram || '',
+                buupe: userData?.buupe || '',
+                isSubscriber: userData?.isSubscriber || false,
+              };
 
-      if (user) {
-        const userData: IUserDados = {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          role: 'free',
-          lastLogin: Timestamp.fromDate(new Date()),
-          firstLogin: Timestamp.fromDate(new Date()), // Este será substituído, se já existir
-          descricao: '',   // Valor padrão ou nulo
-          facebook: '',    // Valor padrão ou nulo
-          instagram: '',   // Valor padrão ou nulo
-          buupe: '',
-          isSubscriber: false,
-        };
-
-        await this.salvarDadosNoFirestore(userData);
-      }
-    } catch (error) {
-      console.error('Erro ao fazer login com o Google:', error);
-    }
-  }
-
-  private async salvarDadosNoFirestore(userData: IUserDados): Promise<void> {
-    try {
-      const userRef = doc(db, 'users', userData.uid);
-      const docSnap = await getDoc(userRef);
-
-      if (!docSnap.exists()) {
-        userData.firstLogin = Timestamp.fromDate(new Date());
-      } else {
-        if (docSnap.data() && 'firstLogin' in docSnap.data()) {
-
+              return this.saveUserDataToFirestore(updatedUserData).pipe(
+                map(() => {
+                  this.userSubject.next(updatedUserData);
+                  return updatedUserData;
+                })
+              );
+            })
+          );
+        } else {
+          return of(null);
         }
-      }
-
-      await setDoc(userRef, userData, { merge: true });
-    } catch (error) {
-      console.error('Erro ao salvar dados do usuário:', error);
-    }
+      }),
+      catchError((error) => {
+        console.error('Erro ao fazer login com o Google:', error);
+        return of(null);
+      })
+    );
   }
 
-  private async buscarDadosDoFirestore(uid: string): Promise<IUserDados | null> {
-    try {
-      const userRef = doc(db, 'users', uid);
-      const docSnap = await getDoc(userRef);
-      if (docSnap.exists()) {
-        return docSnap.data() as IUserDados;
-      }
-    } catch (error) {
-      console.error('Erro ao buscar dados do usuário:', error);
-    }
-    return null;
+  /**
+   * Busca os dados do Firestore
+   */
+  private getUserDataFromFirestore(uid: string): Observable<IUserDados | null> {
+    const userRef = doc(db, 'users', uid);
+    return from(getDoc(userRef)).pipe(
+      map((docSnap) => (docSnap.exists() ? (docSnap.data() as IUserDados) : null)),
+      catchError((error) => {
+        console.error('Erro ao buscar dados do Firestore:', error);
+        return of(null);
+      })
+    );
   }
 
-  async logout(): Promise<void> {
-    try {
-      await auth.signOut();
-      this.userSubject.next(null);
-    } catch (error) {
-      console.error('Erro ao fazer logout:', error);
-    }
+  /**
+   * Salva os dados do usuário no Firestore
+   */
+  private saveUserDataToFirestore(userData: IUserDados): Observable<void> {
+    const userRef = doc(db, 'users', userData.uid);
+    return from(setDoc(userRef, userData, { merge: true })).pipe(
+      catchError((error) => {
+        console.error('Erro ao salvar dados no Firestore:', error);
+        throw error;
+      })
+    );
+  }
+
+  /**
+   * Logout
+   */
+  logout(): Observable<void> {
+    return from(auth.signOut()).pipe(
+      map(() => this.userSubject.next(null)),
+      catchError((error) => {
+        console.error('Erro ao fazer logout:', error);
+        throw error;
+      })
+    );
   }
 }

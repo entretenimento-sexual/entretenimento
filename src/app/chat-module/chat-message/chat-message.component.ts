@@ -4,8 +4,8 @@ import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interfa
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Subject } from 'rxjs';
 import { takeUntil, switchMap, catchError } from 'rxjs/operators';
-import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 
 @Component({
     selector: 'app-chat-message',
@@ -21,7 +21,7 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>(); // Para controle de subscrições
 
   constructor(
-              private firestoreQuery: FirestoreQueryService,
+              private firestoreUserQuery: FirestoreUserQueryService,
               private authService: AuthService,
               private chatService: ChatService,) { }
 
@@ -34,7 +34,7 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
           this.currentUserUid = currentUser?.uid;
           if (this.message.senderId) {
             // Carrega os dados do usuário remetente da mensagem
-            return this.firestoreQuery.getUser(this.message.senderId);
+            return this.firestoreUserQuery.getUser(this.message.senderId);
           } else {
             // Retorna um valor vazio se não houver senderId
             return [];

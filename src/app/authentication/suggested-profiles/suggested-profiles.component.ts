@@ -10,31 +10,35 @@ import { SuggestionService } from 'src/app/core/services/data-handling/suggestio
     styleUrls: ['./suggested-profiles.component.css'],
     standalone: false
 })
-export class SuggestedProfilesComponent implements OnInit {
 
+export class SuggestedProfilesComponent implements OnInit {
   suggestedProfiles: IUserDados[] = [];
   noProfilesMessage: string = '';
   matchingProfilesCount: number = 0;
 
   constructor(
-    private authService: AuthService,
-    private suggestionService: SuggestionService
-  ) { }
+              private authService: AuthService,
+              private suggestionService: SuggestionService) { }
 
   ngOnInit() {
     this.authService.user$.subscribe({
-      next: async (currentUser) => {
+      next: (currentUser) => {
         if (currentUser) {
-          try {
-            this.suggestedProfiles = await this.suggestionService.getSuggestedProfilesForUser(currentUser);
-            this.matchingProfilesCount = this.suggestedProfiles.length;
+          // Correção: Assinatura do Observable
+          this.suggestionService.getSuggestedProfilesForUser(currentUser).subscribe({
+            next: (profiles) => {
+              this.suggestedProfiles = profiles;
+              this.matchingProfilesCount = profiles.length;
 
-            if (this.matchingProfilesCount === 0) {
-              this.noProfilesMessage = "Atualmente, não temos perfis sugeridos para você. Por favor, volte mais tarde ou verifique novamente após um tempo.";
+              if (this.matchingProfilesCount === 0) {
+                this.noProfilesMessage =
+                  "Atualmente, não temos perfis sugeridos para você. Por favor, volte mais tarde.";
+              }
+            },
+            error: (error) => {
+              console.error('Erro ao buscar perfis sugeridos:', error);
             }
-          } catch (error) {
-            console.error('Erro ao buscar perfis sugeridos:', error);
-          }
+          });
         }
       },
       error: (error) => {
@@ -43,4 +47,3 @@ export class SuggestedProfilesComponent implements OnInit {
     });
   }
 }
-

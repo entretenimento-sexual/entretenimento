@@ -4,19 +4,18 @@ import { EmailVerificationService } from 'src/app/core/services/autentication/em
 import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Router } from '@angular/router';
-import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { first, from, of, switchMap } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados'; // Importando o tipo correto
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
-import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { IBGELocationService } from 'src/app/core/services/general/api/ibge-location.service';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 
 @Component({
-    selector: 'app-finalizar-cadastro',
-    templateUrl: './finalizar-cadastro.component.html',
-    styleUrls: ['./finalizar-cadastro.component.css'],
-    standalone: false
+  selector: 'app-finalizar-cadastro',
+  templateUrl: './finalizar-cadastro.component.html',
+  styleUrls: ['./finalizar-cadastro.component.css'],
+  standalone: false
 })
 
 export class FinalizarCadastroComponent implements OnInit {
@@ -40,10 +39,9 @@ export class FinalizarCadastroComponent implements OnInit {
   constructor(
     private emailVerificationService: EmailVerificationService,
     private ibgeLocationService: IBGELocationService,
-    private firestoreQuery: FirestoreQueryService,
+    private firestoreUserQuery: FirestoreUserQueryService,
     private firestoreService: FirestoreService,
     private authService: AuthService,
-    private usuarioService: UsuarioService,
     private storageService: StorageService,
     private router: Router
   ) { }
@@ -129,7 +127,7 @@ export class FinalizarCadastroComponent implements OnInit {
       return;
     }
 
-    this.firestoreQuery.getUser(uid).pipe(
+    this.firestoreUserQuery.getUser(uid).pipe(
       first(),
       switchMap((existingUserData: IUserDados | null) => {
         if (!existingUserData) {

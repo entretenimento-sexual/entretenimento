@@ -3,7 +3,6 @@ import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router'; // Adicionado 'RouterModule'
 import { ProgressiveSignupComponent } from './progressive-signup/progressive-signup.component';
 import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
-import { RegisterComponent } from './register-component/register.component';
 import { AuthVerificationHandlerComponent } from './auth-verification-handler/auth-verification-handler.component';
 import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
 
@@ -12,9 +11,9 @@ import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadas
 const authRoutes: Routes = [
   { path: 'progressive-signup', component: ProgressiveSignupComponent },
   { path: 'suggested-profiles', component: SuggestedProfilesComponent },
-  { path: 'register', component: RegisterComponent },
   { path: 'finalizar-cadastro', component: FinalizarCadastroComponent },
   { path: 'post-verification/action', component: AuthVerificationHandlerComponent},
+  { path: 'register', loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule) },
 
   // Adicione um redirecionamento para a página inicial ou uma página 404, caso não haja correspondência
   { path: '**', redirectTo: '/' }

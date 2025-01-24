@@ -6,7 +6,7 @@ import { doc, getDoc, getFirestore } from '@firebase/firestore';
 import { from, Observable, of, shareReplay, switchMap, take, tap, catchError, map } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
-import { updateUserInState } from 'src/app/store/actions/actions.user/user.actions';
+import { addUserToState, updateUserInState } from 'src/app/store/actions/actions.user/user.actions';
 import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.user/user-profile.selectors';
 import { initializeApp } from 'firebase/app';
 import { environment } from 'src/environments/environment';
@@ -30,24 +30,45 @@ export class FirestoreUserQueryService {
   getUser(uid: string): Observable<IUserDados | null> {
     const normalizedUid = uid.trim();
 
-    // Verifica no cache
+    // 1. Verificar no cache
     const cachedUser = this.cacheService.get<IUserDados>(`user:${normalizedUid}`);
     if (cachedUser) {
+      console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} encontrado no cache.`);
       return of(cachedUser);
     }
 
-    // Busca no Firestore
-    const docRef = doc(this.db, 'users', normalizedUid);
-    return from(getDoc(docRef)).pipe(
-      map((docSnap) => (docSnap.exists() ? (docSnap.data() as IUserDados) : null)),
-      tap((user) => {
-        if (user) {
-          this.cacheService.setUser(normalizedUid, user);
+    // 2. Verificar no Store (Estado)
+    return this.store.select(selectUserProfileDataByUid(normalizedUid)).pipe(
+      take(1),
+      switchMap((userFromStore) => {
+        if (userFromStore) {
+          console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} encontrado no estado (Store).`);
+          // Atualizar o cache
+          this.cacheService.set(`user:${normalizedUid}`, userFromStore, 300000); // Cache com TTL de 5 minutos
+          return of(userFromStore);
         }
-      }),
-      catchError((error) => {
-        console.error(`Erro ao buscar usuário com UID ${normalizedUid}:`, error);
-        return of(null);
+
+        // 3. Buscar no Firestore caso não esteja no estado
+        console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} não encontrado no estado. Buscando no Firestore...`);
+        const docRef = doc(this.db, 'users', normalizedUid);
+        return from(getDoc(docRef)).pipe(
+          map((docSnap) => (docSnap.exists() ? (docSnap.data() as IUserDados) : null)),
+          tap((userFromFirestore) => {
+            if (userFromFirestore) {
+              console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} encontrado no Firestore.`);
+              // Atualizar Store e Cache
+              this.store.dispatch(addUserToState({ user: userFromFirestore }));
+              this.cacheService.set(`user:${normalizedUid}`, userFromFirestore, 300000); // Cache com TTL de 5 minutos
+            } else {
+              console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} não encontrado no Firestore.`);
+            }
+          }),
+          catchError((error) => {
+            console.error(`[FirestoreUserQueryService] Erro ao buscar usuário no Firestore:`, error);
+            this.globalErrorHandler.handleError(error);
+            return of(null);
+          })
+        );
       })
     );
   }

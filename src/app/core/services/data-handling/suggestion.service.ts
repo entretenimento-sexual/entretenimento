@@ -2,6 +2,7 @@
 import { Injectable } from '@angular/core';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { FirestoreQueryService } from './firestore-query.service';
+import { catchError, forkJoin, map, Observable, of } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -10,32 +11,45 @@ import { FirestoreQueryService } from './firestore-query.service';
 export class SuggestionService {
   constructor(private firestoreQuery: FirestoreQueryService) { }
 
-  async getSuggestedProfilesForUser(currentUser: IUserDados): Promise<IUserDados[]> {
+  getSuggestedProfilesForUser(currentUser: IUserDados): Observable<IUserDados[]> {
     // Verifica se as informações necessárias estão disponíveis
     if (!currentUser.municipio || !currentUser.gender || !currentUser.orientation) {
-      return [];
+      return of([]); // Retorna um Observable vazio se faltar algum dado
     }
 
-    let suggestedProfiles: IUserDados[] = [];
-
-    // Heterossexuais: sugerir perfis do sexo oposto no mesmo município
     if (currentUser.orientation === 'heterossexual') {
+      // Sugerir perfis do sexo oposto no mesmo município
       const oppositeGender = currentUser.gender === 'homem' ? 'mulher' : 'homem';
-      suggestedProfiles = await this.firestoreQuery.getProfilesByOrientationAndLocation(oppositeGender, 'heterossexual', currentUser.municipio);
+      return this.firestoreQuery
+        .getProfilesByOrientationAndLocation(oppositeGender, 'heterossexual', currentUser.municipio)
+        .pipe(catchError(() => of([]))); // Lida com erros retornando lista vazia
+    } else if (currentUser.orientation === 'homossexual') {
+      // Sugerir perfis do mesmo sexo no mesmo município
+      return this.firestoreQuery
+        .getProfilesByOrientationAndLocation(currentUser.gender, 'homossexual', currentUser.municipio)
+        .pipe(catchError(() => of([]))); // Lida com erros retornando lista vazia
+    } else if (currentUser.orientation === 'bissexual') {
+      // Sugerir perfis de ambos os sexos no mesmo município
+      const profilesMen$ = this.firestoreQuery.getProfilesByOrientationAndLocation(
+        'homem',
+        'bissexual',
+        currentUser.municipio
+      );
+      const profilesWomen$ = this.firestoreQuery.getProfilesByOrientationAndLocation(
+        'mulher',
+        'bissexual',
+        currentUser.municipio
+      );
+
+      // Combina os resultados de ambos os fluxos
+      return forkJoin([profilesMen$, profilesWomen$]).pipe(
+        map(([profilesMen, profilesWomen]) => [...profilesMen, ...profilesWomen]),
+        catchError(() => of([])) // Lida com erros retornando lista vazia
+      );
     }
 
-    // Homossexuais: sugerir perfis do mesmo sexo no mesmo município
-    else if (currentUser.orientation === 'homossexual') {
-      suggestedProfiles = await this.firestoreQuery.getProfilesByOrientationAndLocation(currentUser.gender, 'homossexual', currentUser.municipio);
-    }
-
-    // Bissexuais: sugerir perfis de ambos os sexos no mesmo município
-    else if (currentUser.orientation === 'bissexual') {
-      const profilesMen = await this.firestoreQuery.getProfilesByOrientationAndLocation('homem', 'bissexual', currentUser.municipio);
-      const profilesWomen = await this.firestoreQuery.getProfilesByOrientationAndLocation('mulher', 'bissexual', currentUser.municipio);
-      suggestedProfiles = [...profilesMen, ...profilesWomen];
-    }
-
-    return suggestedProfiles;
+    // Caso orientação não seja reconhecida, retorna vazio
+    return of([]);
   }
 }
+

@@ -1,0 +1,95 @@
+/* src\app\authentication\register-module\welcome\welcome.component.css */
+.welcome-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: var(--box-shadow);
+}
+
+.welcome-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.welcome-header h1 {
+  font-size: 2rem;
+  color: var(--primary-color);
+}
+
+.subtitle {
+  font-size: 1.2rem;
+  color: var(--text-color);
+}
+
+.welcome-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.verification-section,
+.navigation-section {
+  text-align: center;
+}
+
+.verification-section h2,
+.navigation-section h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+  color: var(--primary-color);
+}
+
+.resend-btn {
+  margin-top: 1rem;
+}
+
+.navigation-list {
+  list-style: none;
+  padding: 0;
+}
+
+.navigation-list li {
+  margin-bottom: 1rem;
+}
+
+.navigation-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  font-size: 1.2rem;
+  color: var(--primary-color);
+  transition: color 0.3s ease;
+}
+
+.navigation-link:hover {
+  color: var(--primary-hover);
+}
+
+.navigation-link .icon {
+  font-size: 1.5rem;
+  margin-right: 0.5rem;
+}
+
+.alert {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.alert-info {
+  background-color: var(--info-snackbar);
+  color: #fff;
+}
+
+.welcome-footer {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.continue-btn {
+  font-size: 1rem;
+  padding: 0.8rem 1.5rem;
+}

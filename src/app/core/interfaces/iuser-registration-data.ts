@@ -10,7 +10,9 @@ export interface IUserRegistrationData {
   isSubscriber: boolean;  // Indica se o usuário é assinante
   estado?: string;  // Estado onde o usuário reside
   municipio?: string;  // Município onde o usuário reside
+  municipioEstado?: string;
   firstLogin: Timestamp | Date;  // Data e hora do primeiro login/registro
+  registrationDate?: Timestamp | Date;
   latitude?: number;  // Latitude do local do usuário
   longitude?: number;  // Longitude do local do usuário
   gender?: string;  // Gênero do usuário

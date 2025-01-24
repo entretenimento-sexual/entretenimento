@@ -9,10 +9,10 @@
   <mat-card *ngFor="let profile of suggestedProfiles" class="profile-card">
     <mat-card-header>
       <div mat-card-avatar [style.background-image]="'url(' + profile.photoURL + ')'"></div>
-      <mat-card-title>{{ profile.displayName }}</mat-card-title>
+      <mat-card-title>{{ profile.nickname }}</mat-card-title>
       <mat-card-subtitle>Email: {{ profile.email }}</mat-card-subtitle>
     </mat-card-header>
-    <img mat-card-image [src]="profile.photoURL" alt="{{ profile.displayName }}">
+    <img mat-card-image [src]="profile.photoURL" alt="{{ profile.nickname }}">
     <!-- ... adicione outros campos conforme necessário ... -->
     <mat-card-actions>
       <!-- Exemplo de ação -->

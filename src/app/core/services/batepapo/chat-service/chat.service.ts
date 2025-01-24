@@ -1,9 +1,8 @@
 // src\app\core\services\chat.service.ts
 import { Injectable } from '@angular/core';
-import { getFirestore, collection, addDoc, doc, Timestamp, setDoc, deleteDoc, orderBy, startAfter,
-         onSnapshot, getDocs, where, query,
-         Firestore} from 'firebase/firestore';
-import { Observable, Subject, from, throwError, BehaviorSubject } from 'rxjs';
+import { collection, addDoc, doc, Timestamp, setDoc, deleteDoc, orderBy, startAfter,
+         onSnapshot, getDocs, where, query } from 'firebase/firestore';
+import { Observable, Subject, from, throwError } from 'rxjs';
 import { catchError, map, switchMap, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { Chat } from '../../../interfaces/interfaces-chat/chat.interface';
@@ -11,11 +10,11 @@ import { Message } from '../../../interfaces/interfaces-chat/message.interface';
 import { addMessage,  createChat,  deleteChat as deleteChat, deleteMessage as deleteMessage,
          updateChat } from 'src/app/store/actions/actions.chat/chat.actions';
 import { AppState } from 'src/app/store/states/app.state';
-import { FirestoreQueryService } from '../../data-handling/firestore-query.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 import { AuthService } from '../../autentication/auth.service';
 import { NotificationService } from '../notification.service';
 import { FirestoreService } from '../../data-handling/firestore.service';
+import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
 
 @Injectable({
   providedIn: 'root'
@@ -25,7 +24,7 @@ export class ChatService {
 
 
   constructor(private authService: AuthService,
-              private firestoreQuery: FirestoreQueryService,
+              private firestoreUserQuery: FirestoreUserQueryService,
               private errorNotifier: ErrorNotificationService,
               private notificationService: NotificationService,
               private firestoreService: FirestoreService,
@@ -99,7 +98,7 @@ export class ChatService {
     }
 
     // Busca os dados do usuário para adicionar o nickname e validações
-    return this.firestoreQuery.getUser(senderId).pipe(
+    return this.firestoreUserQuery.getUser(senderId).pipe(
       switchMap(user => {
         if (!user) {
           return this.handleError('enviar mensagem', new Error('Usuário não encontrado.'));
@@ -161,7 +160,7 @@ export class ChatService {
 
           if (otherUserId) {
             try {
-              const userDetails = await this.firestoreQuery.getUser(otherUserId).toPromise();
+              const userDetails = await this.firestoreUserQuery.getUser(otherUserId).toPromise();
               return { ...chat, otherParticipantDetails: userDetails || null };
             } catch (error) {
               console.error('Erro ao buscar detalhes do usuário:', error);

@@ -3,9 +3,10 @@ import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { SharedModule } from "../../shared/shared.module";
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
+import { catchError, of } from 'rxjs';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 
 @Component({
     selector: 'app-other-user-profile-view', // Mantém standalone para evitar que o componente dependa de um módulo específico
@@ -23,9 +24,8 @@ export class OtherUserProfileViewComponent implements OnInit {
 
   constructor(
     private route: ActivatedRoute, // Rota para acessar o parâmetro ID do usuário
-    private firestoreQuery: FirestoreQueryService,
-    private usuarioService: UsuarioService // Serviço responsável por buscar os dados do usuário
-  ) { }
+    private firestoreUserQuery: FirestoreUserQueryService,
+    private firestoreQuery: FirestoreQueryService) { }
 
   ngOnInit() {
     // Obtém o ID do usuário da rota
@@ -38,24 +38,26 @@ export class OtherUserProfileViewComponent implements OnInit {
     }
   }
 
-  loadUserProfile(userId: string) {
-    this.firestoreQuery.getUser(userId).subscribe(
-      (profile) => {
+  loadUserProfile(userId: string): void {
+    this.firestoreUserQuery.getUserById(userId)
+      .pipe(
+        catchError((error: any) => {
+          console.error('[OtherUserProfileViewComponent] Erro ao buscar usuário:', error);
+          this.isLoading = false;
+          return of(null); // Retorna um observable vazio em caso de erro
+        })
+      )
+      .subscribe((profile: IUserDados | null) => {
         if (profile) {
-          this.userProfile = profile; // Armazena o perfil do usuário retornado
-          this.isLoading = false; // Define que o carregamento terminou
-
-          // Verifica se 'preferences' existe e extrai 'genero' e 'praticaSexual' de lá
+          this.userProfile = profile;
           this.categoriasDePreferencias = {
-            genero: profile.preferences?.filter(pref => pref.includes('genero')) || [],
-            praticaSexual: profile.preferences?.filter(pref => pref.includes('praticaSexual')) || []
+            genero: profile.preferences?.filter((pref: string) => pref.includes('genero')) || [],
+            praticaSexual: profile.preferences?.filter((pref: string) => pref.includes('praticaSexual')) || [],
           };
+        } else {
+          console.warn('[OtherUserProfileViewComponent] Usuário não encontrado.');
         }
-      },
-      (error) => {
-        console.error('Erro ao carregar o perfil do usuário:', error);
-        this.isLoading = false; // Interrompe o estado de carregamento no caso de erro
-      }
-    );
+        this.isLoading = false;
+      });
   }
 }

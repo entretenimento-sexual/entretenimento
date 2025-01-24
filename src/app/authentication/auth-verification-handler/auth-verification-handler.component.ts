@@ -7,9 +7,7 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { first, firstValueFrom, Subject } from 'rxjs';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
-import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 import { getAuth } from 'firebase/auth';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
@@ -122,7 +120,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       }
 
       // Verifica se o e-mail já foi verificado anteriormente
-      const userData = await this.firestoreQuery.getUser(currentUser.uid).pipe(first()).toPromise();
+      const userData = await this.firestoreUserQuery.getUser(currentUser.uid).pipe(first()).toPromise();
 
       if (userData?.emailVerified) {
         this.message = 'Seu e-mail já foi verificado anteriormente. Faça login para continuar.';
@@ -296,23 +294,22 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
           };
 
           // Atualizamos os dados do usuário no Firestore
-          this.firestoreService.saveInitialUserData(uid, userData)
-            .then(() => {
+          this.firestoreService.saveInitialUserData(uid, userData).subscribe({
+            next: () => {
               this.message = 'Cadastro finalizado com sucesso!';
               console.log('Dados salvos no Firestore:', userData);
 
-              // Mostra as opções de assinatura após salvar os dados
               this.showSubscriptionOptions = true;
 
-              // Exibe uma mensagem de sucesso e redireciona após um tempo
               setTimeout(() => {
                 this.ngZone.run(() => this.router.navigate(['/dashboard/principal']));
-              }, 3000); // Redireciona após 5 segundos
-            })
-            .catch((error: any) => {
+              }, 3000);
+            },
+            error: (error: any) => {
               this.message = 'Erro ao salvar os dados.';
               console.error('Erro ao salvar dados no Firestore:', error);
-            });
+            }
+          });
         } else {
           this.message = 'Erro: Dados do usuário não encontrados.';
           console.error('Erro: Dados do usuário não encontrados.');

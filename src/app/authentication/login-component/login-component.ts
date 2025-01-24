@@ -36,7 +36,6 @@ export class LoginComponent implements OnInit {
     private errorNotificationService: ErrorNotificationService,
     public emailInputModalService: EmailInputModalService,
     public emailVerificationService: EmailVerificationService,
-    private firestoreService: FirestoreService,
     private loginservice: LoginService,
     private authService: AuthService,
     private formBuilder: FormBuilder

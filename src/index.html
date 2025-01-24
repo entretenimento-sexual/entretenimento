@@ -60,7 +60,9 @@
     // Script para adicionar a classe 'show-footer' ao body se a URL NÃO contiver '/chat/'
     (function () {
       var currentUrl = window.location.pathname;
-      if (!/\/chat\//.test(currentUrl)) {
+      if (/\/chat\//.test(currentUrl)) {
+        document.body.classList.remove('show-footer');
+      } else {
         document.body.classList.add('show-footer');
       }
     })();

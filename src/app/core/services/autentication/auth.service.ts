@@ -11,7 +11,7 @@ import { loginSuccess, logoutSuccess } from '../../../store/actions/actions.user
 import { Router } from '@angular/router';
 import { getDatabase, ref, set } from 'firebase/database';
 import { setCurrentUser } from 'src/app/store/actions/actions.user/user.actions';
-import { FirestoreQueryService } from '../data-handling/firestore-query.service';
+import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 
 const auth = getAuth();
 const db = getDatabase();
@@ -26,7 +26,7 @@ export class AuthService {
   constructor(
     private router: Router,
     private usuarioService: UsuarioService,
-    private firestoreQuery: FirestoreQueryService,
+    private firestoreUserQuery: FirestoreUserQueryService,
     private globalErrorHandlerService: GlobalErrorHandlerService,
     private store: Store<AppState>
   ) {
@@ -43,7 +43,7 @@ export class AuthService {
       .pipe(
         switchMap(user => {
           if (user) {
-            return this.firestoreQuery.getUser(user.uid);
+            return this.firestoreUserQuery.getUser(user.uid);
           } else {
             this.clearCurrentUser();
             return of(null);

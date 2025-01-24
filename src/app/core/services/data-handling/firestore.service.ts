@@ -1,15 +1,15 @@
 // src/app/core/services/autentication/firestore.service.ts
 import { Injectable } from '@angular/core';
 import { initializeApp } from 'firebase/app';
-import {
-  getFirestore, collection, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc,
-  increment, Firestore
-} from 'firebase/firestore';
+import { getFirestore, collection, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc,
+         increment, Firestore, getDoc,
+         QueryConstraint} from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
-import { from, Observable, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { from, Observable, of, throwError } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import { CacheService } from '../general/cache.service';
 
 @Injectable({
   providedIn: 'root'
@@ -17,33 +17,122 @@ import { ErrorNotificationService } from '../error-handler/error-notification.se
 export class FirestoreService {
   private db: Firestore;
 
-  constructor(private errorNotifier: ErrorNotificationService) {
-    // Inicializa o Firestore com as credenciais do ambiente
-    this.db = getFirestore(initializeApp(environment.firebase));
+  constructor(private errorNotifier: ErrorNotificationService,
+              private cacheService: CacheService) {
+
+    const app = initializeApp(environment.firebase);
+    this.db = getFirestore(app);
   }
 
-  /**
-   * Retorna a instância do Firestore.
-   */
+  //Retorna a instância do Firestore.
   getFirestoreInstance(): Firestore {
     return this.db;
   }
+
+  // Busca um único documento
+  getDocument<T>(
+    collectionName: string,
+    docId: string,
+    useCache: boolean = true,
+    cacheTTL: number = 300000 // TTL padrão de 5 minutos
+  ): Observable<T | null> {
+    const cacheKey = `${collectionName}:${docId}`;
+
+    // Verifica o cache
+    if (useCache) {
+      const cachedData = this.cacheService.get<T>(cacheKey);
+      if (cachedData) {
+        console.log(`[FirestoreService] Documento encontrado no cache: ${cacheKey}`);
+        return of(cachedData);
+      }
+    }
+
+    // Busca no Firestore
+    const docRef = doc(this.db, collectionName, docId);
+    return from(getDoc(docRef)).pipe(
+      map((docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data() as T;
+
+          // Atualiza o cache
+          if (useCache) {
+            this.cacheService.set(cacheKey, data, cacheTTL);
+            console.log(`[FirestoreService] Documento carregado do Firestore e armazenado no cache: ${cacheKey}`);
+          }
+
+          return data;
+        } else {
+          console.warn(`[FirestoreService] Documento não encontrado: ${collectionName}/${docId}`);
+          return null;
+        }
+      }),
+      catchError((error) => {
+        console.error(`[FirestoreService] Erro ao buscar documento ${collectionName}/${docId}:`, error);
+        this.errorNotifier.showError('Erro ao buscar documento. Tente novamente mais tarde.');
+        return of(null);
+      })
+    );
+  }
+
+  // Método para buscar vários documentos
+  getDocuments<T>(
+    collectionName: string,
+    constraints: QueryConstraint[],
+    useCache: boolean = true,
+    cacheTTL: number = 300000 // 5 minutos por padrão
+  ): Observable<T[]> {
+    const cacheKey = `${collectionName}:${JSON.stringify(constraints)}`;
+
+    // Verifica o cache
+    if (useCache) {
+      const cachedData = this.cacheService.get<T[]>(cacheKey);
+      if (cachedData) {
+        console.log(`[FirestoreService] Documentos encontrados no cache: ${cacheKey}`);
+        return of(cachedData);
+      }
+    }
+
+    // Busca no Firestore
+    const collectionRef = collection(this.db, collectionName);
+    const q = query(collectionRef, ...constraints);
+
+    return from(getDocs(q)).pipe(
+      map((querySnapshot) => {
+        const data = querySnapshot.docs.map((doc) => doc.data() as T);
+
+        // Atualiza o cache
+        if (useCache) {
+          this.cacheService.set(cacheKey, data, cacheTTL);
+          console.log(`[FirestoreService] Documentos carregados do Firestore e armazenados no cache: ${cacheKey}`);
+        }
+
+        return data;
+      }),
+      catchError((error) => {
+        console.error(`[FirestoreService] Erro ao buscar documentos na coleção ${collectionName}:`, error);
+        this.errorNotifier.showError('Erro ao buscar documentos. Tente novamente mais tarde.');
+        return of([]);
+      })
+    );
+  }
+
 
   /**
    * Verifica se um apelido já existe na coleção 'users'.
    * @param nickname O apelido a ser verificado.
    * @returns Um boolean indicando se o apelido já existe.
    */
-  async checkIfNicknameExists(nickname: string): Promise<boolean> {
-    try {
-      const userCollection = collection(this.db, 'users');
-      const q = query(userCollection, where('nickname', '==', nickname.trim()));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.size > 0;
-    } catch (error) {
-      this.handleError('Erro ao verificar a existência do apelido.', error);
-      throw error;
-    }
+  checkIfNicknameExists(nickname: string): Observable<boolean> {
+    const userCollection = collection(this.db, 'users');
+    const q = query(userCollection, where('nickname', '==', nickname.trim()));
+
+    return from(getDocs(q)).pipe(
+      map((querySnapshot) => querySnapshot.size > 0),
+      catchError((error) => {
+        this.handleError('Erro ao verificar a existência do apelido.', error);
+        return of(false);
+      })
+    );
   }
 
   /**
@@ -51,32 +140,41 @@ export class FirestoreService {
    * @param email O e-mail a ser verificado.
    * @returns Um boolean indicando se o e-mail já existe.
    */
-  async checkIfEmailExists(email: string): Promise<boolean> {
-    try {
-      const userCollection = collection(this.db, 'users');
-      const q = query(userCollection, where('email', '==', email.trim()));
-      const querySnapshot = await getDocs(q);
-      return querySnapshot.size > 0;
-    } catch (error) {
-      this.handleError('Erro ao verificar a existência do e-mail.', error);
-      throw error;
-    }
+  checkIfEmailExists(email: string): Observable<boolean> {
+    const userCollection = collection(this.db, 'users');
+    const q = query(userCollection, where('email', '==', email.trim()));
+
+    return from(getDocs(q)).pipe(
+      map((querySnapshot) => querySnapshot.size > 0),
+      catchError((error) => {
+        this.handleError('Erro ao verificar a existência do e-mail.', error);
+        return of(false);
+      })
+    );
   }
 
   /**
-   * Salva os dados iniciais do usuário após o registro no Firestore.
-   * @param uid O ID único do usuário.
-   * @param userData Os dados do usuário a serem salvos.
-   */
-  async saveInitialUserData(uid: string, userData: IUserRegistrationData): Promise<void> {
-    try {
-      const userRef = doc(this.db, 'users', uid);
-      await setDoc(userRef, { ...userData, emailVerified: true }, { merge: true });
-    } catch (error) {
-      this.handleError('Erro ao salvar os dados iniciais do usuário.', error);
-      throw error;
+ * Salva os dados iniciais do usuário após o registro no Firestore.
+ * @param uid O ID único do usuário.
+ * @param userData Os dados do usuário a serem salvos.
+ * @returns Observable<void>
+ */
+  saveInitialUserData(uid: string, userData: IUserRegistrationData): Observable<void> {
+    // Garante que o campo municipioEstado seja calculado e incluído
+    if (userData.municipio && userData.estado) {
+      userData.municipioEstado = `${userData.municipio} - ${userData.estado}`;
     }
+
+    const userRef = doc(this.db, 'users', uid);
+
+    return from(setDoc(userRef, { ...userData }, { merge: true })).pipe(
+      catchError((error) => {
+        this.handleError('Erro ao salvar os dados iniciais do usuário.', error);
+        return throwError(() => new Error('Erro ao salvar os dados iniciais do usuário.'));
+      })
+    );
   }
+
 
   /**
    * Incrementa um campo no documento do Firestore.
@@ -98,14 +196,14 @@ export class FirestoreService {
    * @param collectionName Nome da coleção.
    * @param docId ID do documento.
    */
-  async deleteDocument(collectionName: string, docId: string): Promise<void> {
-    try {
-      const docRef = doc(this.db, collectionName, docId);
-      await deleteDoc(docRef);
-    } catch (error) {
-      this.handleError('Erro ao deletar o documento.', error);
-      throw error;
-    }
+  deleteDocument(collectionName: string, docId: string): Observable<void> {
+    const docRef = doc(this.db, collectionName, docId);
+    return from(deleteDoc(docRef)).pipe(
+      catchError((error) => {
+        this.handleError('Erro ao deletar o documento.', error);
+        return throwError(() => new Error('Erro ao deletar o documento.'));
+      })
+    );
   }
 
   /**
