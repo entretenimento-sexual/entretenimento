@@ -1,21 +1,25 @@
-// src\app\shared\email-input-modal\email-input-modal.component.ts
+// src\app\authentication\email-input-modal\email-input-modal.component.ts
+import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 
 @Component({
     selector: 'app-email-input-modal',
     templateUrl: './email-input-modal.component.html',
     styleUrls: ['./email-input-modal.component.css'],
-    standalone: false
+    standalone: true, // Define como standalone
+    imports: [
+    FormsModule, // Importação de diretivas, como [(ngModel)]
+    CommonModule, // Diretivas comuns, como *ngIf e *ngFor
+  ],
 })
 export class EmailInputModalComponent implements OnInit {
   public email: string = '';
   public message: string = '';
   public isModalOpen: boolean = false;
 
-  constructor(
-    private emailInputModalService: EmailInputModalService)
-  { }
+  constructor(private emailInputModalService: EmailInputModalService){ }
 
   ngOnInit(): void {
     this.emailInputModalService.isModalOpen.subscribe(isOpen => {

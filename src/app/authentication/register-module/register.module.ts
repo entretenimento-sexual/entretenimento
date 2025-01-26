@@ -4,19 +4,23 @@ import { CommonModule } from '@angular/common';
 import { RegisterRoutingModule } from './register-routing.module';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 
-import { RegisterComponent } from './register.component';
-
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialogModule } from '@angular/material/dialog';
 import { RouterModule } from '@angular/router';
 import { WelcomeComponent } from './welcome/welcome.component';
+import { AuthVerificationHandlerComponent } from './auth-verification-handler/auth-verification-handler.component';
+import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
+import { EmailInputModalComponent } from '../email-input-modal/email-input-modal.component';
+import { RegisterComponent } from './register.component';
 
 @NgModule({
   declarations: [
     RegisterComponent,
-    WelcomeComponent
+    WelcomeComponent,
+    AuthVerificationHandlerComponent,
+    FinalizarCadastroComponent
   ],
 
   imports: [
@@ -29,6 +33,7 @@ import { WelcomeComponent } from './welcome/welcome.component';
     MatButtonModule,
     MatDialogModule,
     MatCheckboxModule,
+    EmailInputModalComponent,
   ],
   exports: [RegisterComponent],
 })

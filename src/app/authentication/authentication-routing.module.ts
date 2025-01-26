@@ -3,15 +3,13 @@ import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router'; // Adicionado 'RouterModule'
 import { ProgressiveSignupComponent } from './progressive-signup/progressive-signup.component';
 import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
-import { AuthVerificationHandlerComponent } from './auth-verification-handler/auth-verification-handler.component';
-import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
+import { AuthVerificationHandlerComponent } from './register-module/auth-verification-handler/auth-verification-handler.component';
 
 
 // Definindo as rotas para o módulo de autenticação.
 const authRoutes: Routes = [
   { path: 'progressive-signup', component: ProgressiveSignupComponent },
   { path: 'suggested-profiles', component: SuggestedProfilesComponent },
-  { path: 'finalizar-cadastro', component: FinalizarCadastroComponent },
   { path: 'post-verification/action', component: AuthVerificationHandlerComponent},
   { path: 'register', loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule) },
 

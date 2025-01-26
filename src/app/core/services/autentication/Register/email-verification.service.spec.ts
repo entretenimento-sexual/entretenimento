@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
-import { EmailVerificationService } from './email-verification.service';
+import { EmailVerificationService } from './Register/email-verification.service';
 
 describe('EmailVerificationService', () => {
   let service: EmailVerificationService;

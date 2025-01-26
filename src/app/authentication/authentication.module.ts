@@ -13,8 +13,6 @@ import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profi
 import { MatCardModule } from '@angular/material/card';
 import { SuggestionService } from '../core/services/data-handling/suggestion.service';
 import { AuthService } from '../core/services/autentication/auth.service';
-import { AuthVerificationHandlerComponent } from './auth-verification-handler/auth-verification-handler.component';
-import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
 import { EmailInputModalComponent } from './email-input-modal/email-input-modal.component';
 
 @NgModule({
@@ -23,17 +21,17 @@ import { EmailInputModalComponent } from './email-input-modal/email-input-modal.
     EspiarComponent,
     ProgressiveSignupComponent,
     SuggestedProfilesComponent,
-    AuthVerificationHandlerComponent,
-    FinalizarCadastroComponent,
-    EmailInputModalComponent
+
   ],
 
   imports: [
     CommonModule,
     FormsModule,
     ReactiveFormsModule,
-    RouterModule, AuthenticationRoutingModule, // Se este módulo tiver rotas
-    MatCardModule
+    RouterModule,
+    AuthenticationRoutingModule, // Se este módulo tiver rotas
+    MatCardModule,
+    EmailInputModalComponent
   ],
 
   exports: [

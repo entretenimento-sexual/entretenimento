@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 
-import { PreRegisterService } from './pre-register.service';
+import { PreRegisterService } from './Register/pre-register.service';
 
 describe('PreRegisterService', () => {
   let service: PreRegisterService;

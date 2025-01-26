@@ -1,7 +1,7 @@
 // src\app\authentication\auth-verification-handler\auth-verification-handler.component.ts
 import { Component, OnInit, OnDestroy, NgZone, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
+import { EmailVerificationService } from 'src/app/core/services/autentication/Register/email-verification.service';
 import { OobCodeService } from 'src/app/core/services/autentication/oobCode.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { first, firstValueFrom, Subject } from 'rxjs';
@@ -19,8 +19,9 @@ import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/f
     templateUrl: './auth-verification-handler.component.html',
     styleUrls: ['./auth-verification-handler.component.css'],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: false
-})
+    standalone: false,
+  })
+
 export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   public isLoading = true;
   public showSubscriptionOptions = false;
@@ -60,7 +61,6 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private emailVerificationService: EmailVerificationService,
     private loginService: LoginService,
-    private firestoreQuery: FirestoreQueryService,
     private firestoreService: FirestoreService,
     private oobCodeService: OobCodeService,
     private emailInputModalService: EmailInputModalService,
@@ -148,15 +148,20 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
   resendVerificationEmail(): void {
     this.isLoading = true;
-    this.emailVerificationService.resendVerificationEmail().then(() => {
-      this.message = 'E-mail de verificação reenviado com sucesso!';
-      this.isLoading = false;
-    }).catch((error) => {
-      this.message = 'Falha ao reenviar o e-mail de verificação.';
-      console.error('Erro ao reenviar o e-mail:', error);
-      this.isLoading = false;
+    this.emailVerificationService.resendVerificationEmail().subscribe({
+      next: (message) => {
+        this.message = message;
+      },
+      error: (error) => {
+        this.message = 'Falha ao reenviar o e-mail de verificação.';
+        console.error('Erro ao reenviar o e-mail:', error);
+      },
+      complete: () => {
+        this.isLoading = false;
+      }
     });
   }
+
 
   redirectToFAQ(): void {
     this.router.navigate(['/faq']); // Redireciona para a página de FAQ

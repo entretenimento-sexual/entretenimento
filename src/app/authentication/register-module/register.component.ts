@@ -1,8 +1,7 @@
 // src\app\authentication\register-module\register.component.ts
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
-import { EmailVerificationService } from 'src/app/core/services/autentication/email-verification.service';
-import { RegisterService } from 'src/app/core/services/autentication/register.service';
+import { EmailVerificationService } from 'src/app/core/services/autentication/Register/email-verification.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { AbstractControl, FormBuilder, FormGroup, ValidatorFn, Validators } from '@angular/forms';
 import { ValidatorService } from 'src/app/core/services/general/validator.service';
@@ -11,6 +10,7 @@ import { TermosECondicoesComponent } from 'src/app/footer/legal-footer/termos-e-
 import { Router } from '@angular/router';
 import { first } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { RegisterService } from 'src/app/core/services/autentication/Register/register.service';
 
 @Component({
   selector: 'app-register-component',

@@ -6,7 +6,7 @@ import { FirestoreService } from '../data-handling/firestore.service';
 import { doc, getDoc, Timestamp, updateDoc } from '@firebase/firestore';
 import { User } from 'firebase/auth';
 import { UserProfileService } from './user-profile.service';
-import { EmailVerificationService } from '../autentication/email-verification.service';
+import { EmailVerificationService } from '../autentication/Register/email-verification.service';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { updateUserOnlineStatus } from 'src/app/store/actions/actions.user/user.actions';

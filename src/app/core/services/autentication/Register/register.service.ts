@@ -1,16 +1,16 @@
 // src/app/core/services/autentication/register.service.ts
 import { Injectable } from '@angular/core';
-import { FirestoreService } from '../data-handling/firestore.service';
-import { EmailVerificationService } from './email-verification.service';
-import { GeolocationService } from '../geolocation/geolocation.service';
-import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 import { UserCredential, createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
 import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, switchMap, map, tap } from 'rxjs/operators';
-import { ValidatorService } from '../general/validator.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
-import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
+import { FirestoreService } from '../../data-handling/firestore.service';
+import { EmailVerificationService } from './email-verification.service';
+import { GeolocationService } from '../../geolocation/geolocation.service';
+import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
+import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
+import { ValidatorService } from '../../general/validator.service';
 
 @Injectable({
   providedIn: 'root',
