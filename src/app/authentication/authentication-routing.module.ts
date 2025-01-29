@@ -4,6 +4,7 @@ import { RouterModule, Routes } from '@angular/router'; // Adicionado 'RouterMod
 import { ProgressiveSignupComponent } from './progressive-signup/progressive-signup.component';
 import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
 import { AuthVerificationHandlerComponent } from './register-module/auth-verification-handler/auth-verification-handler.component';
+import { FinalizarCadastroComponent } from './register-module/finalizar-cadastro/finalizar-cadastro.component';
 
 
 // Definindo as rotas para o módulo de autenticação.
@@ -11,9 +12,8 @@ const authRoutes: Routes = [
   { path: 'progressive-signup', component: ProgressiveSignupComponent },
   { path: 'suggested-profiles', component: SuggestedProfilesComponent },
   { path: 'post-verification/action', component: AuthVerificationHandlerComponent},
+  { path: 'verify-email', component: FinalizarCadastroComponent },
   { path: 'register', loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule) },
-
-  // Adicione um redirecionamento para a página inicial ou uma página 404, caso não haja correspondência
   { path: '**', redirectTo: '/' }
 ];
 

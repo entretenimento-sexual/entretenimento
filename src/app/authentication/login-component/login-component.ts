@@ -2,7 +2,7 @@
 import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
-import { EmailVerificationService } from 'src/app/core/services/autentication/Register/email-verification.service';
+import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { LoginService } from 'src/app/core/services/autentication/login.service';

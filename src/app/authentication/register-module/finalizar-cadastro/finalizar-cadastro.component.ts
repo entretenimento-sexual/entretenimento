@@ -1,6 +1,6 @@
 // src/app/authentication/finalizar-cadastro/finalizar-cadastro.component.ts
 import { Component, OnInit } from '@angular/core';
-import { EmailVerificationService } from 'src/app/core/services/autentication/Register/email-verification.service';
+import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Router } from '@angular/router';
@@ -114,13 +114,14 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   onSubmit(): void {
-    const uid = this.authService.getLoggedUserUID();
-
-    if (!uid) {
-      this.message = 'Erro: UID do usuário não encontrado.';
-      console.error('UID do usuário não encontrado.');
-      return;
-    }
+    // Extraímos o UID do Observable usando pipe(first())
+    this.authService.getLoggedUserUID$().pipe(first()).subscribe({
+      next: (uid) => {
+        if (!uid) {
+          this.message = 'Erro: UID do usuário não encontrado.';
+          console.error('UID do usuário não encontrado.');
+          return; // Finaliza o fluxo caso o UID seja inválido
+        }
 
     if (!this.gender || !this.selectedEstado || !this.selectedMunicipio) {
       this.message = 'Por favor, preencha todos os campos obrigatórios.';
@@ -162,15 +163,21 @@ export class FinalizarCadastroComponent implements OnInit {
         );
       }),
       switchMap(() => from(this.emailVerificationService.updateEmailVerificationStatus(uid, true)))
-    ).subscribe({
-      next: () => {
-        this.message = 'Cadastro finalizado com sucesso!';
-        this.router.navigate(['/dashboard/principal']);
+        ).subscribe({
+          next: () => {
+            this.message = 'Cadastro finalizado com sucesso!';
+            this.router.navigate(['/dashboard/principal']); // Redireciona para o dashboard
+          },
+          error: (error) => {
+            console.error('Erro ao finalizar o cadastro:', error);
+            this.message = 'Ocorreu um erro ao finalizar o cadastro. Tente novamente mais tarde.';
+          },
+        });
       },
       error: (error) => {
-        console.error('Erro ao finalizar o cadastro:', error);
-        this.message = 'Ocorreu um erro ao finalizar o cadastro. Tente novamente mais tarde.';
-      }
+        console.error('Erro ao obter UID do usuário:', error);
+        this.message = 'Erro ao processar sua solicitação. Tente novamente.';
+      },
     });
   }
 

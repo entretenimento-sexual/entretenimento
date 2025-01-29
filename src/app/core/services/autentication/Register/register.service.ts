@@ -5,12 +5,12 @@ import { Timestamp } from 'firebase/firestore';
 import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, switchMap, map, tap } from 'rxjs/operators';
 import { FirestoreService } from '../../data-handling/firestore.service';
-import { EmailVerificationService } from './email-verification.service';
 import { GeolocationService } from '../../geolocation/geolocation.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { ValidatorService } from '../../general/validator.service';
+import { EmailVerificationService } from './email-verification.service';
 
 @Injectable({
   providedIn: 'root',

@@ -47,19 +47,27 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     ).subscribe();
 
     const routeUid = this.route.snapshot.paramMap.get('id');
-    this.uid = routeUid || this.authService.getLoggedUserUID();
+    if (routeUid) {
+      this.uid = routeUid;
+    } else {
+      // Usando firstValueFrom para obter o valor do Observable de forma síncrona
+      this.authService.getLoggedUserUID$().pipe(
+        tap(uid => {
+          this.uid = uid;
+          if (this.uid) {
+            console.log("Dispatching observeUserChanges para UID:", this.uid);
+            this.store.dispatch(observeUserChanges({ uid: this.uid }));
+            this.usuario$ = this.store.select(selectUserById(this.uid));
 
-    if (this.uid) {
-      console.log("Dispatching observeUserChanges para UID:", this.uid);
-      this.store.dispatch(observeUserChanges({ uid: this.uid }));
-      this.usuario$ = this.store.select(selectUserById(this.uid));
-
-      this.usuario$.pipe(
-        tap(user => {
-          console.log("Dados do usuário carregados:", user);
-          if (user) {
-            this.currentUser = user;
-            this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
+            this.usuario$.pipe(
+              tap(user => {
+                console.log("Dados do usuário carregados:", user);
+                if (user) {
+                  this.currentUser = user;
+                  this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
+                }
+              })
+            ).subscribe();
           }
         })
       ).subscribe();
@@ -71,6 +79,7 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
       }
     );
   }
+
 
    // Obtém as chaves de um objeto (potencialmente para preferências, se necessário)
   objectKeys(obj: any): string[] {

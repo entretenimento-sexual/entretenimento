@@ -1,7 +1,7 @@
 //src\app\authentication\register-module\welcome\welcome.component.ts
 import { Component } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
-import { EmailVerificationService } from 'src/app/core/services/autentication/Register/email-verification.service';
+import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 
 @Component({
   selector: 'app-welcome',

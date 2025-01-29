@@ -1,28 +1,29 @@
 // src\app\core\services\usuario.service.ts
-import { Injectable } from '@angular/core';
-import { Observable, catchError, from, throwError } from 'rxjs';
+import { Injectable, Injector } from '@angular/core';
+import { Observable, catchError, from, tap, throwError } from 'rxjs';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { FirestoreService } from '../data-handling/firestore.service';
 import { doc, getDoc, Timestamp, updateDoc } from '@firebase/firestore';
 import { User } from 'firebase/auth';
 import { UserProfileService } from './user-profile.service';
-import { EmailVerificationService } from '../autentication/Register/email-verification.service';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { updateUserOnlineStatus } from 'src/app/store/actions/actions.user/user.actions';
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
+import { EmailVerificationService } from '../autentication/register/email-verification.service';
 
 @Injectable({
   providedIn: 'root'
 })
+
 export class UsuarioService {
+
   constructor(
-    private firestoreService: FirestoreService,
-    private firestoreQuery: FirestoreQueryService,
-    private userProfile: UserProfileService,
-    private emailVerificationService: EmailVerificationService,
-    private store: Store<AppState>
-  ) { }
+              private firestoreService: FirestoreService,
+              private firestoreQuery: FirestoreQueryService,
+              private userProfile: UserProfileService,
+              private emailVerificationService: EmailVerificationService,
+              private store: Store<AppState>) { }
 
   // Método para mapear um usuário do Firebase (User) para o formato da interface IUserDados
   private mapUserToUserDados(user: User | null): IUserDados | null {
@@ -57,17 +58,20 @@ export class UsuarioService {
   }
 
   // Atualiza o status online de um usuário no Firestore e no Store
-  async updateUserOnlineStatus(uid: string, isOnline: boolean): Promise<void> {
+  updateUserOnlineStatus(uid: string, isOnline: boolean): Observable<void> {
     const db = this.firestoreService.getFirestoreInstance();
-    try {
-      const userDocRef = doc(db, 'users', uid);
-      await updateDoc(userDocRef, { isOnline: isOnline });
-      console.log(`Status isOnline atualizado no Firestore para ${isOnline ? 'online' : 'offline'}.`);
-      this.store.dispatch(updateUserOnlineStatus({ uid, isOnline }));
-    } catch (error) {
-      console.error(`Erro ao atualizar o status de usuário para ${isOnline ? 'online' : 'offline'}:`, error);
-      throw error; // Lança o erro para que seja capturado no método de logout
-    }
+    const userDocRef = doc(db, 'users', uid);
+
+    return from(updateDoc(userDocRef, { isOnline: isOnline })).pipe(
+      tap(() => {
+        console.log(`Status isOnline atualizado no Firestore para ${isOnline ? 'online' : 'offline'}.`);
+        this.store.dispatch(updateUserOnlineStatus({ uid, isOnline })); // Atualiza o estado no Store
+      }),
+      catchError((error) => {
+        console.error(`Erro ao atualizar o status de usuário para ${isOnline ? 'online' : 'offline'}:`, error);
+        throw error; // Repassa o erro para que possa ser tratado pelo chamador
+      })
+    );
   }
 
 

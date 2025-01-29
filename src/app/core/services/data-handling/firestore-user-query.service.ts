@@ -11,6 +11,7 @@ import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.us
 import { initializeApp } from 'firebase/app';
 import { environment } from 'src/environments/environment';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 
 const app = initializeApp(environment.firebase);
 
@@ -189,15 +190,20 @@ export class FirestoreUserQueryService {
    * @param uid UID do usuário.
    * @param updatedData Dados atualizados.
    */
-  updateUserInStateAndCache(uid: string, updatedData: IUserDados): void {
-    const cachedUser = this.cacheService.get<IUserDados>(`user:${uid}`);
+  updateUserInStateAndCache<T extends IUserRegistrationData | IUserDados>(uid: string, updatedData: T): void {
+    // Flexibilidade para lidar com diferentes tipos de dados
+    const cacheKey = `user:${uid}`;
+    const cachedUser = this.cacheService.get<T>(cacheKey);
+
     if (cachedUser && JSON.stringify(cachedUser) === JSON.stringify(updatedData)) {
-      console.log(`[FirestoreUserQueryService] Usuário ${uid} já está atualizado no cache e no estado.`);
+      console.log(`[FirestoreUserQueryService] Dados do usuário ${uid} já atualizados no cache e estado.`);
       return;
     }
 
-    this.cacheService.set(`user:${uid}`, updatedData, 300000); // Atualiza o cache
-    this.store.dispatch(updateUserInState({ uid, updatedData })); // Atualiza o estado
-    console.log(`[FirestoreUserQueryService] Usuário ${uid} atualizado no cache e no estado.`);
+    // Atualiza o cache e o estado, independentemente do tipo
+    this.cacheService.set(cacheKey, updatedData, 300000); // TTL de 5 minutos
+    this.store.dispatch(updateUserInState({ uid, updatedData } as any)); // `as any` para manter compatibilidade com NgRx
+    console.log(`[FirestoreUserQueryService] Dados do usuário ${uid} atualizados no cache e estado.`);
   }
+
 }

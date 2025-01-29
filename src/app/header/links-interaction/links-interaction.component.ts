@@ -5,7 +5,6 @@ import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { UploadPhotoComponent } from 'src/app/shared/components-globais/upload-photo/upload-photo.component';
 import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
 import { NotificationService } from 'src/app/core/services/batepapo/notification.service';
-import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 
 @Component({
     selector: 'app-links-interaction',
@@ -21,7 +20,6 @@ export class LinksInteractionComponent implements OnInit {
 
   constructor(private modalService: NgbModal,
               private notificationService: NotificationService,
-              private chatService: ChatService,
               private cdr: ChangeDetectorRef,
               private authService: AuthService) { }
 

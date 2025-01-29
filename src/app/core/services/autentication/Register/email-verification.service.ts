@@ -1,12 +1,15 @@
-// src\app\core\services\autentication\email-verification.service.ts
+//src\app\core\services\autentication\register\email-verification.service.ts
 import { Injectable } from '@angular/core';
 import { doc, setDoc, updateDoc, Timestamp } from '@firebase/firestore';
 import { getAuth, User, sendEmailVerification, applyActionCode } from 'firebase/auth';
 import { FirestoreService } from '../../data-handling/firestore.service';
-import { OobCodeService } from '../oobCode.service';
+import { ActivatedRoute } from '@angular/router';
 import { Observable, from, throwError, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import { IUserDados } from '../../../interfaces/iuser-dados';
+import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
+import { CacheService } from '../../general/cache.service';
+import { AuthService } from '../auth.service';
 
 @Injectable({
   providedIn: 'root'
@@ -14,11 +17,14 @@ import { IUserDados } from '../../../interfaces/iuser-dados';
 export class EmailVerificationService {
   constructor(
     private firestoreService: FirestoreService,
-    private oobCodeService: OobCodeService
+    private firestoreUserQuery: FirestoreUserQueryService,
+    private cacheService: CacheService,
+    private authService: AuthService,
+    private activatedRoute: ActivatedRoute // Adicionado para capturar o oobCode diretamente da URL
   ) { }
 
   /**
-   * Recarrega o estado do usuário e verifica se o e-mail foi confirmado.
+   * Recarrega o estado do usuário no Firebase Authentication e verifica se o e-mail está verificado.
    */
   reloadCurrentUser(): Observable<boolean> {
     const auth = getAuth();
@@ -26,7 +32,7 @@ export class EmailVerificationService {
       return from(auth.currentUser.reload()).pipe(
         map(() => auth.currentUser?.emailVerified || false),
         catchError((error) => {
-          console.error('Erro ao recarregar o usuário:', error);
+          console.error('Erro ao recarregar o estado do usuário:', error);
           return of(false);
         })
       );
@@ -36,16 +42,16 @@ export class EmailVerificationService {
 
   /**
    * Atualiza o status de verificação de e-mail no Firestore.
+   * @param uid - ID do usuário no Firestore.
+   * @param status - Status de verificação de e-mail (true/false).
    */
   updateEmailVerificationStatus(uid: string, status: boolean): Observable<void> {
     const db = this.firestoreService.getFirestoreInstance();
     const userRef = doc(db, 'users', uid);
     return from(updateDoc(userRef, { emailVerified: status })).pipe(
-      map(() => {
-        console.log(`Status de verificação atualizado para: ${status}`);
-      }),
+      map(() => console.log(`Status de verificação atualizado para: ${status}`)),
       catchError((error) => {
-        console.error('Erro ao atualizar status de verificação:', error);
+        console.error('Erro ao atualizar status de verificação no Firestore:', error);
         return throwError(() => new Error('Erro ao atualizar status de verificação.'));
       })
     );
@@ -53,13 +59,13 @@ export class EmailVerificationService {
 
   /**
    * Envia um e-mail de verificação para o usuário.
+   * @param user - Usuário do Firebase.
+   * @param redirectUrl - URL de redirecionamento após a verificação.
    */
   sendEmailVerification(user: User, redirectUrl: string = 'http://localhost:4200/email-verified'): Observable<void> {
     const actionCodeSettings = { url: redirectUrl };
     return from(sendEmailVerification(user, actionCodeSettings)).pipe(
-      map(() => {
-        console.log('E-mail de verificação enviado com sucesso.');
-      }),
+      map(() => console.log('E-mail de verificação enviado com sucesso.')),
       catchError((error) => {
         console.error('Erro ao enviar e-mail de verificação:', error);
         return throwError(() => new Error('Erro ao enviar e-mail de verificação.'));
@@ -68,14 +74,13 @@ export class EmailVerificationService {
   }
 
   /**
-   * Verifica o e-mail usando o código de ação (oobCode).
+   * Verifica o e-mail utilizando o código de ação (oobCode).
+   * @param actionCode - Código de ação para verificação.
    */
   verifyEmail(actionCode: string): Observable<void> {
     const auth = getAuth();
     return from(applyActionCode(auth, actionCode)).pipe(
-      map(() => {
-        console.log('E-mail verificado com sucesso.');
-      }),
+      map(() => console.log('E-mail verificado com sucesso.')),
       catchError((error) => {
         console.error('Erro ao verificar o e-mail:', error);
         return throwError(() => {
@@ -92,6 +97,7 @@ export class EmailVerificationService {
 
   /**
    * Reenvia o e-mail de verificação para o usuário atual.
+   * @param redirectUrl - URL de redirecionamento após a verificação.
    */
   resendVerificationEmail(redirectUrl: string = 'http://localhost:4200/email-verified'): Observable<string> {
     const auth = getAuth();
@@ -110,14 +116,14 @@ export class EmailVerificationService {
   }
 
   /**
-   * Manipula a verificação de e-mail aplicando o código de ação.
+   * Manipula a verificação de e-mail aplicando o código de ação da URL.
    */
   handleEmailVerification(): Observable<boolean> {
-    const actionCode = this.oobCodeService.getCode();
+    const actionCode = this.activatedRoute.snapshot.queryParamMap.get('oobCode');
 
     if (!actionCode) {
-      console.error('Nenhum oobCode encontrado.');
-      return of(false);
+      console.error('Nenhum oobCode encontrado na URL.');
+      return throwError(() => new Error('Código de verificação ausente na URL.'));
     }
 
     return this.verifyEmail(actionCode).pipe(
@@ -141,7 +147,8 @@ export class EmailVerificationService {
   }
 
   /**
-   * Salva os dados do usuário após a verificação de e-mail.
+   * Salva os dados do usuário no Firestore após a verificação de e-mail.
+   * @param user - Dados do usuário.
    */
   saveUserDataAfterEmailVerification(user: IUserDados): Observable<void> {
     const db = this.firestoreService.getFirestoreInstance();
@@ -159,9 +166,7 @@ export class EmailVerificationService {
     const userRef = doc(db, 'users', user.uid);
 
     return from(setDoc(userRef, userData, { merge: true })).pipe(
-      map(() => {
-        console.log('Dados do usuário salvos após verificação de e-mail.');
-      }),
+      map(() => console.log('Dados do usuário salvos após verificação de e-mail.')),
       catchError((error) => {
         console.error('Erro ao salvar os dados do usuário:', error);
         return throwError(() => new Error('Erro ao salvar os dados do usuário.'));
@@ -170,10 +175,15 @@ export class EmailVerificationService {
   }
 
   /**
-   * Obtém o UID do usuário atual.
-   */
-  getCurrentUserUid(): string | null {
-    const auth = getAuth();
-    return auth.currentUser ? auth.currentUser.uid : null;
+ * Obtém o UID do usuário atual.
+ */
+  getCurrentUserUid(): Observable<string | null> {
+    return this.authService.getLoggedUserUID$().pipe(
+      catchError((error) => {
+        console.error('Erro ao obter UID do usuário no EmailVerificationService:', error);
+        return of(null);
+      })
+    );
   }
+
 }

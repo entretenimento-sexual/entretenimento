@@ -2,7 +2,7 @@
 import { Component, OnInit, Inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { debounceTime, distinctUntilChanged, first } from 'rxjs/operators';
 import { Timestamp, where } from 'firebase/firestore';
 import { InviteSearchService } from 'src/app/core/services/batepapo/invite-service/invite-search.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
@@ -61,22 +61,29 @@ export class InviteUserModalComponent implements OnInit {
     });
 
     // Busca a região do usuário logado no Firestore
-    const uid = this.authService.getLoggedUserUID();
-    if (uid) {
-      this.regionFilter.getUserRegion(uid).subscribe({
-        next: (region) => {
-          if (region) {
-            this.selectedRegion = {
-              uf: region.uf,
-              city: region.city,
-            };
-            this.loadUsers();
-            this.onRegionChange();
-          }
-        },
-        error: (err) => console.error('Erro ao buscar região do usuário no Firestore:', err),
-      });
-    }
+    // Busca a região do usuário logado no Firestore
+    this.authService.getLoggedUserUID$().pipe(first()).subscribe({
+      next: (uid) => {
+        if (uid) {
+          this.regionFilter.getUserRegion(uid).subscribe({
+            next: (region) => {
+              if (region) {
+                this.selectedRegion = {
+                  uf: region.uf,
+                  city: region.city,
+                };
+                this.loadUsers(); // Carrega usuários após obter a região
+                this.onRegionChange(); // Atualiza cidades com base na UF selecionada
+              }
+            },
+            error: (err) => console.error('Erro ao buscar região do usuário no Firestore:', err),
+          });
+        } else {
+          console.warn('UID não encontrado. Não foi possível carregar a região.');
+        }
+      },
+      error: (err) => console.error('Erro ao obter UID do usuário:', err),
+    });
   }
 
   isRegionFieldEditable(): boolean {
@@ -110,7 +117,7 @@ export class InviteUserModalComponent implements OnInit {
     this.isLoading = true;
 
     const filters = [];
-    const currentUserId = this.authService.getLoggedUserUID();
+    const currentUserId = this.authService.getLoggedUserUID$();
 
     if (this.selectedGender) {
       filters.push(where('gender', '==', this.selectedGender));
@@ -154,31 +161,37 @@ export class InviteUserModalComponent implements OnInit {
   }
 
   confirmSelection(): void {
-    const senderId = this.authService.getLoggedUserUID();
-    if (!senderId) {
-      console.error('Erro: Usuário não autenticado.');
-      return; // Adiciona um retorno para evitar continuar com um valor inválido
-    }
+    this.authService.getLoggedUserUID$().pipe(first()).subscribe({
+      next: (senderId) => {
+        if (!senderId) {
+          console.error('Erro: Usuário não autenticado.');
+          return; // Finaliza o fluxo se o UID não estiver disponível
+        }
 
-    const selectedUserIds = this.availableUsers.filter((user) => user.selected).map((user) => user.id);
+        // Obtém os IDs dos usuários selecionados
+        const selectedUserIds = this.availableUsers
+          .filter((user) => user.selected)
+          .map((user) => user.id);
 
-    selectedUserIds.forEach((receiverId) => {
-      this.inviteService.createInvite({
-        roomId: this.data.roomId,
-        roomName: this.data.roomName,
-        receiverId,
-        senderId, // Garantido que senderId é sempre string
-        status: 'pending',
-        sentAt: Timestamp.fromDate(new Date()),
-        expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-      }).subscribe({
-        next: () => console.log('Convite enviado com sucesso.'),
-        error: (err) => console.error('Erro ao enviar convite:', err),
-      });
+        // Envia convites para cada usuário selecionado
+        selectedUserIds.forEach((receiverId) => {
+          this.inviteService.createInvite({
+            roomId: this.data.roomId,
+            roomName: this.data.roomName,
+            receiverId,
+            senderId, // Agora é uma string válida
+            status: 'pending',
+            sentAt: Timestamp.fromDate(new Date()),
+            expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+          }).subscribe({
+            next: () => console.log(`Convite enviado com sucesso para ${receiverId}.`),
+            error: (err) => console.error('Erro ao enviar convite:', err),
+          });
+        });
+
+        this.dialogRef.close(selectedUserIds); // Fecha o modal após envio
+      },
+      error: (err) => console.error('Erro ao obter UID do usuário:', err),
     });
-
-    this.dialogRef.close(selectedUserIds);
   }
-
-
 }

@@ -21,7 +21,7 @@ import { StoreModule } from '@ngrx/store';
 import { EffectsModule } from '@ngrx/effects';
 import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 import { AuthService } from './core/services/autentication/auth.service';
-import { EmailVerificationService } from './core/services/autentication/Register/email-verification.service';
+import { EmailVerificationService } from './core/services/autentication/register/email-verification.service';
 
 import { AngularPinturaModule } from '@pqina/angular-pintura';
 import { userReducer } from './store/reducers/reducers.user/user.reducer';

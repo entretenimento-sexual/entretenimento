@@ -1,18 +1,17 @@
 // src\app\authentication\auth-verification-handler\auth-verification-handler.component.ts
 import { Component, OnInit, OnDestroy, NgZone, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { EmailVerificationService } from 'src/app/core/services/autentication/Register/email-verification.service';
-import { OobCodeService } from 'src/app/core/services/autentication/oobCode.service';
+import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { first, firstValueFrom, Subject } from 'rxjs';
+import { first, Subject, switchMap, tap } from 'rxjs';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 import { getAuth } from 'firebase/auth';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
-import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 @Component({
     selector: 'app-auth-verification-handler',
@@ -62,9 +61,9 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     private emailVerificationService: EmailVerificationService,
     private loginService: LoginService,
     private firestoreService: FirestoreService,
-    private oobCodeService: OobCodeService,
     private emailInputModalService: EmailInputModalService,
     private firestoreUserQuery: FirestoreUserQueryService,
+    private globalErrorHandlerService: GlobalErrorHandlerService,
     private authService: AuthService,
     private router: Router,
     private ngZone: NgZone
@@ -77,7 +76,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       console.log('Modo atual:', this.mode);
 
       if (this.oobCode) {
-        this.oobCodeService.setCode(this.oobCode);
+        //this.oobCodeService.setCode(this.oobCode);
       } else {
         this.message = 'Código inválido.';
         this.isLoading = false;
@@ -272,60 +271,74 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
   // Finalização do cadastro
   finishRegistration(): void {
-    this.message = 'Cadastro finalizado com sucesso!';
-    console.log('Cadastro finalizado!');
+    this.message = 'Processando cadastro...'; // Feedback inicial
 
-    const uid = this.authService.getLoggedUserUID();
-    if (uid) {
-      // Primeiramente, buscamos os dados existentes do usuário no Firestore
-      firstValueFrom(this.firestoreUserQuery.getUserById(uid)).then((existingUserData: IUserDados | null) => {
-        if (existingUserData) {
-          // Mantemos o email e nickname salvos anteriormente
-          const userData: IUserRegistrationData = {
-            uid: uid,
-            emailVerified: true,
-            email: existingUserData.email || '',  // Mantém o email existente
-            nickname: existingUserData.nickname || '',  // Mantém o nickname existente
-            isSubscriber: existingUserData.isSubscriber || false,  // Mantém a informação de assinante
-            firstLogin: existingUserData.firstLogin || new Date(),  // Mantém a data do primeiro login
-            gender: this.gender,
-            orientation: this.orientation,
-            estado: this.selectedEstado,
-            municipio: this.selectedMunicipio,
-            acceptedTerms: {
-              accepted: true,
-              date: new Date()
-            }
-          };
-
-          // Atualizamos os dados do usuário no Firestore
-          this.firestoreService.saveInitialUserData(uid, userData).subscribe({
-            next: () => {
-              this.message = 'Cadastro finalizado com sucesso!';
-              console.log('Dados salvos no Firestore:', userData);
-
-              this.showSubscriptionOptions = true;
-
-              setTimeout(() => {
-                this.ngZone.run(() => this.router.navigate(['/dashboard/principal']));
-              }, 3000);
-            },
-            error: (error: any) => {
-              this.message = 'Erro ao salvar os dados.';
-              console.error('Erro ao salvar dados no Firestore:', error);
-            }
-          });
-        } else {
-          this.message = 'Erro: Dados do usuário não encontrados.';
-          console.error('Erro: Dados do usuário não encontrados.');
+    this.authService.getLoggedUserUID$().pipe(
+      switchMap((uid) => {
+        if (!uid) {
+          this.message = 'Erro ao identificar o usuário. Por favor, tente novamente.';
+          throw new Error('UID do usuário não encontrado.');
         }
-      }).catch((error: any) => {
-        this.message = 'Erro ao buscar dados do usuário.';
-        console.error('Erro ao buscar dados do usuário no Firestore:', error);
-      });
-    } else {
-      this.message = 'Erro: UID do usuário não encontrado.';
-      console.error('Erro: UID do usuário não encontrado.');
+
+        // Verifica se os dados estão no cache antes de buscar no Firestore
+        return this.firestoreUserQuery.getUser(uid).pipe(
+          switchMap((existingUserData: IUserDados | null) => {
+            if (!existingUserData) {
+              this.message = 'Erro ao buscar dados do usuário. Tente novamente.';
+              throw new Error('Dados do usuário não encontrados no Firestore.');
+            }
+
+            const userData: IUserRegistrationData = {
+              uid,
+              emailVerified: true,
+              email: existingUserData.email || '',
+              nickname: existingUserData.nickname || '',
+              isSubscriber: existingUserData.isSubscriber || false,
+              firstLogin: existingUserData.firstLogin || new Date(),
+              gender: this.gender,
+              orientation: this.orientation,
+              estado: this.selectedEstado,
+              municipio: this.selectedMunicipio,
+              acceptedTerms: {
+                accepted: true,
+                date: new Date()
+              }
+            };
+
+            // Salva os dados no Firestore
+            return this.firestoreService.saveInitialUserData(uid, userData).pipe(
+              tap(() => {
+                this.cacheUserData(userData); // Atualiza o cache local
+              })
+            );
+          })
+        );
+      })
+    ).subscribe({
+      next: () => {
+        this.message = 'Cadastro finalizado com sucesso!';
+        console.log('Dados do usuário salvos com sucesso.');
+
+        this.showSubscriptionOptions = true;
+
+        setTimeout(() => {
+          this.ngZone.run(() => this.router.navigate(['/dashboard/principal']));
+        }, 3000);
+      },
+      error: (error: any) => {
+        this.message = 'Erro ao processar o cadastro. Por favor, tente novamente.';
+        console.error('Erro no processo de cadastro:', error);
+        this.globalErrorHandlerService.handleError(error); // Centraliza o tratamento do erro
+      }
+    });
+  }
+  // Método para armazenar os dados do usuário no cache
+  private cacheUserData(userData: IUserRegistrationData): void {
+    if (!userData || !userData.uid) {
+      console.error('Dados inválidos fornecidos para cacheUserData:', userData);
+      return;
     }
+    this.firestoreUserQuery.updateUserInStateAndCache(userData.uid, userData); // Atualiza cache e estado
+    console.log(`[AuthVerificationHandlerComponent] Dados do usuário ${userData.uid} armazenados no cache.`);
   }
 }

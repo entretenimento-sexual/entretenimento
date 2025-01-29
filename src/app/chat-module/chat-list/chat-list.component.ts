@@ -8,7 +8,7 @@ import { RoomService } from 'src/app/core/services/batepapo/room-services/room.s
 import { MatDialog } from '@angular/material/dialog';
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { Observable, Subscription } from 'rxjs';
-import { map, switchMap } from 'rxjs/operators';
+import { map, switchMap, take } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { selectAllChats } from 'src/app/store/selectors/selectors.chat/chat.selectors';
@@ -102,48 +102,57 @@ export class ChatListComponent implements OnInit, OnDestroy {
     }
     event.stopPropagation();
 
-    const currentUserUID = this.authService.getLoggedUserUID();
-    if (!currentUserUID) {
-      console.error('Erro: UID do usuário não encontrado.');
-      return;
-    }
+    // Resolve o UID do usuário atual
+    this.authService.getLoggedUserUID$().pipe(
+      take(1) // Garante que assinamos apenas uma vez
+    ).subscribe({
+      next: (currentUserUID) => {
+        if (!currentUserUID) {
+          console.error('Erro: UID do usuário não encontrado.');
+          return;
+        }
 
-    const currentUser = this.authService['userSubject'].value;
-    if (!currentUser || !currentUser.role) {
-      console.error('Erro: Usuário não autenticado ou role não definido.');
-      return;
-    }
+        const currentUser = this.authService['userSubject'].value;
+        if (!currentUser || !currentUser.role) {
+          console.error('Erro: Usuário não autenticado ou role não definido.');
+          return;
+        }
 
-    const dialogRef = this.dialog.open(InviteUserModalComponent, {
-      width: '60%',
-      maxWidth: '500px',
-      data: { roomId },
-    });
-
-    dialogRef.afterClosed().subscribe((selectedUsers: string[] | null) => {
-      if (selectedUsers && selectedUsers.length > 0) {
-        console.log('Usuários selecionados para convite:', selectedUsers);
-
-        const currentTimestamp = new Date();
-
-        selectedUsers.forEach((userId) => {
-          const invite: Invite = {
-            roomId,
-            roomName: '',
-            receiverId: userId,
-            senderId: currentUserUID,
-            status: 'pending',
-            sentAt: Timestamp.fromDate(new Date()),
-            expiresAt: Timestamp.fromDate(new Date(currentTimestamp.getTime() + 7 * 24 * 60 * 60 * 1000)), // Expira em 7 dias
-          };
-
-          this.inviteService
-            .sendInviteToRoom(roomId, invite)
-            .subscribe({
-              next: () => console.log(`Convite enviado para o usuário com ID: ${userId}`),
-              error: (error) => console.error(`Erro ao enviar convite para o usuário com ID: ${userId}`, error),
-            });
+        const dialogRef = this.dialog.open(InviteUserModalComponent, {
+          width: '60%',
+          maxWidth: '500px',
+          data: { roomId },
         });
+
+        dialogRef.afterClosed().subscribe((selectedUsers: string[] | null) => {
+          if (selectedUsers && selectedUsers.length > 0) {
+            console.log('Usuários selecionados para convite:', selectedUsers);
+
+            const currentTimestamp = new Date();
+
+            selectedUsers.forEach((userId) => {
+              const invite: Invite = {
+                roomId,
+                roomName: '',
+                receiverId: userId,
+                senderId: currentUserUID,
+                status: 'pending',
+                sentAt: Timestamp.fromDate(new Date()),
+                expiresAt: Timestamp.fromDate(new Date(currentTimestamp.getTime() + 7 * 24 * 60 * 60 * 1000)), // Expira em 7 dias
+              };
+
+              this.inviteService
+                .sendInviteToRoom(roomId, invite)
+                .subscribe({
+                  next: () => console.log(`Convite enviado para o usuário com ID: ${userId}`),
+                  error: (error) => console.error(`Erro ao enviar convite para o usuário com ID: ${userId}`, error),
+                });
+            });
+          }
+        });
+      },
+      error: (error) => {
+        console.error('Erro ao resolver UID do usuário:', error);
       }
     });
   }
@@ -228,7 +237,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   // Verifica se o usuário atual é o dono da sala
   isOwner(room: any): boolean {
-    const currentUser = this.authService.getLoggedUserUID();
+    const currentUser = this.authService.getLoggedUserUID$();
     return room.createdBy === currentUser;
   }
 

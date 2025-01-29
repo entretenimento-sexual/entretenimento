@@ -211,10 +211,13 @@ export class EditUserProfileComponent implements OnInit {
 
     // Atualiza os dados do usuário no Firestore
     if (this.editForm.valid) {
-      this.usuarioService.atualizarUsuario(this.uid, updatedUserData).subscribe(() => {
-      this.router.navigate(['/perfil', this.uid]);
-      }, error => {
+      this.usuarioService.atualizarUsuario(this.uid, updatedUserData).subscribe({
+        next: () => {
+          this.router.navigate(['/perfil', this.uid]);
+        },
+        error: (error: unknown) => {
         console.error('Erro ao atualizar os dados do usuário:', error);
+        }
       });
     }
   } // fim do método onSubmit
