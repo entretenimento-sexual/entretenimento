@@ -52,6 +52,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
     console.log('Iniciando ChatListComponent, carregando conversas do usuário.');
 
     this.userSubscription = this.authService.user$.pipe(
+      take(1),
       switchMap(currentUser => {
         console.log('Usuário autenticado:', currentUser?.uid);
         if (!currentUser) {
@@ -74,7 +75,11 @@ export class ChatListComponent implements OnInit, OnDestroy {
         });
 
         return this.chatService.getChats(currentUser.uid).pipe(
-          map(chats => chats.sort((a, b) => b.lastMessage?.timestamp?.toDate().getTime() - a.lastMessage?.timestamp?.toDate().getTime()))
+          map(chats => chats.sort((a, b) => {
+            const timeA = a.lastMessage?.timestamp ? a.lastMessage.timestamp.toDate().getTime() : 0;
+            const timeB = b.lastMessage?.timestamp ? b.lastMessage.timestamp.toDate().getTime() : 0;
+            return timeB - timeA;
+          }))
         );
       })
     ).subscribe(chats => {
@@ -111,7 +116,6 @@ export class ChatListComponent implements OnInit, OnDestroy {
           console.error('Erro: UID do usuário não encontrado.');
           return;
         }
-
         const currentUser = this.authService['userSubject'].value;
         if (!currentUser || !currentUser.role) {
           console.error('Erro: Usuário não autenticado ou role não definido.');

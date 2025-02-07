@@ -1,8 +1,9 @@
 // src\app\core\services\chat.service.ts
 import { Injectable } from '@angular/core';
 import { collection, addDoc, doc, Timestamp, setDoc, deleteDoc, orderBy, startAfter,
-         onSnapshot, getDocs, where, query } from 'firebase/firestore';
-import { Observable, Subject, from, throwError } from 'rxjs';
+         onSnapshot, getDocs, where, query,
+         limit} from 'firebase/firestore';
+import { Observable, Subject, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { Chat } from '../../../interfaces/interfaces-chat/chat.interface';
@@ -12,9 +13,9 @@ import { addMessage,  createChat,  deleteChat as deleteChat, deleteMessage as de
 import { AppState } from 'src/app/store/states/app.state';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 import { AuthService } from '../../autentication/auth.service';
-import { NotificationService } from '../notification.service';
 import { FirestoreService } from '../../data-handling/firestore.service';
 import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
+import { CacheService } from '../../general/cache/cache.service';
 
 @Injectable({
   providedIn: 'root'
@@ -22,11 +23,10 @@ import { FirestoreUserQueryService } from '../../data-handling/firestore-user-qu
 export class ChatService {
     private destroy$ = new Subject<void>();
 
-
   constructor(private authService: AuthService,
               private firestoreUserQuery: FirestoreUserQueryService,
               private errorNotifier: ErrorNotificationService,
-              private notificationService: NotificationService,
+              private cacheService: CacheService,
               private firestoreService: FirestoreService,
               private store: Store<AppState>
             ) { }
@@ -34,42 +34,43 @@ export class ChatService {
   private handleError(action: string, error: any): Observable<never> {
     this.errorNotifier.showError(`Erro ao ${action}.`);
     console.error(`Erro ao ${action}:`, error);
-    return throwError(() => error);
+    return throwError(() => new Error(`Erro ao ${action}: ${error.message}`));
   }
 
   /** Método para obter ou criar ID do chat */
   getOrCreateChatId(participants: string[]): Observable<string> {
     const participantsKey = participants.sort().join('_');
-    const db = this.firestoreService.getFirestoreInstance();
-    console.log('Chave de participantes gerada:', participantsKey);
 
-    const chatsRef = collection(db, 'chats');
-    const chatQuery = query(chatsRef, where('participantsKey', '==', participantsKey));
+    return this.cacheService.get<string>(`chatId:${participantsKey}`).pipe(
+      switchMap(cachedChatId => {
+        if (cachedChatId) {
+          return of(cachedChatId);
+        }
 
-    return from(getDocs(chatQuery)).pipe(
-      map((querySnapshot) => {
-        if (!querySnapshot.empty) {
-          const existingChatId = querySnapshot.docs[0].id;
-          console.log('Chat existente encontrado com ID:', existingChatId);
-          return existingChatId;
-        } else {
-          console.log('Nenhum chat encontrado. Criando um novo chat...');
-          return null; // Indica que o chat não existe e precisa ser criado
-        }
-      }),
-      switchMap((chatId) => {
-        if (chatId) {
-          // Se o chat já existir, retorna o ID existente
-          return from(Promise.resolve(chatId));
-        } else {
-          // Se o chat não existir, cria um novo chat e retorna o Observable
-          return this.createChat(participants);
-        }
+        const db = this.firestoreService.getFirestoreInstance();
+        const chatsRef = collection(db, 'chats');
+        const chatQuery = query(chatsRef, where('participantsKey', '==', participantsKey));
+
+        return from(getDocs(chatQuery)).pipe(
+          switchMap((querySnapshot) => {
+            if (!querySnapshot.empty) {
+              const existingChatId = querySnapshot.docs[0].id;
+              this.cacheService.set(`chatId:${participantsKey}`, existingChatId);
+              return of(existingChatId);
+            } else {
+              return this.createChat(participants).pipe(
+                map(newChatId => {
+                  this.cacheService.set(`chatId:${participantsKey}`, newChatId);
+                  return newChatId;
+                })
+              );
+            }
+          })
+        );
       }),
       catchError(error => this.handleError('buscar ou criar chat', error))
     );
   }
-
 
   /** Criação de novo chat */
   createChat(participants: string[]): Observable<string> {
@@ -77,7 +78,7 @@ export class ChatService {
     const db = this.firestoreService.getFirestoreInstance();
     return from(addDoc(collection(db, 'chats'), chatData)).pipe(
       map(chatDocRef => {
-        this.store.dispatch(createChat({ chat: chatData }));
+        this.store.dispatch(createChat({ chat: { ...chatData, id: chatDocRef.id } }));
         return chatDocRef.id;
       }),
       catchError(error => this.handleError('criar chat', error))
@@ -143,40 +144,66 @@ export class ChatService {
   }
 
   /** Carrega chats do usuário autenticado */
-  getChats(userId: string): Observable<any[]> {
-    const db = this.firestoreService.getFirestoreInstance();
-    const chatsRef = collection(db, 'chats');
-    const userChatsQuery = query(chatsRef, where('participants', 'array-contains', userId));
+  getChats(userId: string, lastChatTimestamp?: Timestamp): Observable<Chat[]> {
+    const cacheKey = `chats:${userId}`;
 
-    return new Observable(observer => {
-      const unsubscribe = onSnapshot(userChatsQuery, async (snapshot) => {
-        const chats = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data() as Chat,
-        }));
+    return this.cacheService.get<Chat[]>(cacheKey).pipe(
+      switchMap(cachedChats => {
+        // Se houver chats no cache e não houver scroll para buscar mais, retorna o cache
+        if (cachedChats && cachedChats.length > 0 && !lastChatTimestamp) {
+          console.log(`[CacheService] Chats carregados do cache para ${userId}`);
+          return of(cachedChats);
+        }
 
-        const chatsWithDetails = await Promise.all(chats.map(async (chat) => {
-          const otherUserId = chat.participants.find(uid => uid !== userId);
+        console.log(`[Firestore] Buscando chats para ${userId}...`);
 
-          if (otherUserId) {
-            try {
-              const userDetails = await this.firestoreUserQuery.getUser(otherUserId).toPromise();
-              return { ...chat, otherParticipantDetails: userDetails || null };
-            } catch (error) {
-              console.error('Erro ao buscar detalhes do usuário:', error);
-              return { ...chat, otherParticipantDetails: null }; // Em caso de falha, retorna os detalhes do chat sem os detalhes do usuário
-            }
-          } else {
-            return { ...chat, otherParticipantDetails: null }; // Caso não exista outro usuário, retorna o chat sem detalhes adicionais
-          }
-        }));
+        const db = this.firestoreService.getFirestoreInstance();
+        const chatsRef = collection(db, 'chats');
 
-        observer.next(chatsWithDetails);
-      }, error => observer.error(error));
+        let chatQuery = query(
+          chatsRef,
+          where('participants', 'array-contains', userId),
+          orderBy('timestamp', 'desc'),
+          limit(10)
+        );
 
-      return () => unsubscribe();
-    });
+        if (lastChatTimestamp) {
+          chatQuery = query(
+            chatsRef,
+            where('participants', 'array-contains', userId),
+            orderBy('timestamp', 'desc'),
+            startAfter(lastChatTimestamp),
+            limit(10)
+          );
+        }
+
+        return new Observable<Chat[]>(observer => {
+          const unsubscribe = onSnapshot(chatQuery, async snapshot => {
+            const newChats = snapshot.docs.map(doc => ({
+              id: doc.id,
+              ...doc.data() as Chat
+            }));
+
+            // Atualiza o cache evitando duplicatas
+            const updatedChats = (cachedChats || []).concat(
+              newChats.filter(chat =>
+                !(cachedChats || []).some(cachedChat => cachedChat.id === chat.id)
+              )
+            );
+
+            this.cacheService.set(cacheKey, updatedChats);
+            console.log(`[CacheService] Chats armazenados no cache para ${userId}`);
+
+            observer.next(updatedChats);
+          }, error => observer.error(error));
+
+          return () => unsubscribe();
+        });
+      }),
+      catchError(error => this.handleError('buscar chats', error))
+    );
   }
+
 
   /** Atualização de um chat específico */
   updateChat(chatId: string, updateData: Partial<Chat>): Observable<string> {
@@ -219,15 +246,20 @@ export class ChatService {
   getMessages(chatId: string, lastMessageTimestamp?: Timestamp): Observable<Message[]> {
     const db = this.firestoreService.getFirestoreInstance();
     const messagesRef = collection(db, `chats/${chatId}/messages`);
-    const messageQuery = lastMessageTimestamp
-      ? query(messagesRef, orderBy('timestamp'), startAfter(lastMessageTimestamp))
-      : query(messagesRef, orderBy('timestamp'));
+    let messageQuery = query(messagesRef, orderBy('timestamp', 'desc'), limit(20));
+
+    if (lastMessageTimestamp) {
+      messageQuery = query(messagesRef, orderBy('timestamp', 'desc'), startAfter(lastMessageTimestamp), limit(20));
+    }
 
     return from(getDocs(messageQuery)).pipe(
-      map(snapshot => snapshot.docs.map(doc => doc.data() as Message)),
+      map(snapshot =>
+        snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse() // Inverte para exibir na ordem correta
+      ),
       catchError(error => this.handleError('buscar mensagens', error))
     );
   }
+
 
   // Adiciona o método monitorChat
   monitorChat(chatId: string): Observable<Message[]> {
@@ -236,43 +268,29 @@ export class ChatService {
     const orderedQuery = query(messagesRef, orderBy('timestamp', 'asc'));
 
     return new Observable<Message[]>(observer => {
-      const messages: Message[] = [];
+      const messagesMap = new Map<string, Message>(); // Map para evitar duplicatas
 
       const unsubscribe = onSnapshot(orderedQuery, snapshot => {
         snapshot.docChanges().forEach(async change => {
           const updatedMessage = { id: change.doc.id, ...change.doc.data() } as Message;
 
           if (change.type === 'added' || change.type === 'modified') {
-            const index = messages.findIndex(msg => msg.id === updatedMessage.id);
+            messagesMap.set(updatedMessage.id!, updatedMessage); // Atualiza ou adiciona a mensagem
 
-            // Atualizar ou adicionar mensagem
-            if (index > -1) {
-              messages[index] = updatedMessage;
-            } else {
-              messages.push(updatedMessage);
-            }
-
-            // Atualizar status da mensagem
             const currentUserUid = this.authService.currentUser?.uid;
-            if (
-              updatedMessage.status === 'sent' &&
-              updatedMessage.senderId !== currentUserUid
-            ) {
+            if (updatedMessage.status === 'sent' && updatedMessage.senderId !== currentUserUid) {
               await this.updateMessageStatus(chatId, updatedMessage.id!, 'delivered');
             }
           }
         });
 
-        // Ordenar pelo timestamp (caso necessário)
-        messages.sort((a, b) => a.timestamp.toDate().getTime() - b.timestamp.toDate().getTime());
-
-        // Emitir mensagens ordenadas
-        observer.next([...messages]);
+        observer.next(Array.from(messagesMap.values()));
       });
 
       return () => unsubscribe();
     }).pipe(takeUntil(this.destroy$));
   }
+
 
   updateMessageStatus(chatId: string, messageId: string, status: 'sent' | 'delivered' | 'read'): Observable<void> {
     const db = this.firestoreService.getFirestoreInstance();

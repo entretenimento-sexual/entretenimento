@@ -6,8 +6,9 @@ import { Observable } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Timestamp } from '@firebase/firestore';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
-import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
+import { ActivatedRoute } from '@angular/router';
+import { Subscription } from 'rxjs';
 
 @Component({
     selector: 'app-chat-module-layout',
@@ -15,6 +16,7 @@ import { RoomMessagesService } from 'src/app/core/services/batepapo/room-service
     styleUrls: ['./chat-module-layout.component.css'],
     standalone: false
 })
+
 export class ChatModuleLayoutComponent implements OnInit {
   usuario$: Observable<IUserDados | null> | undefined;
   messageContent: string = '';
@@ -24,28 +26,47 @@ export class ChatModuleLayoutComponent implements OnInit {
   selectedType: 'room' | 'chat' | undefined;
   userId: string | undefined;
 
+  private usuarioSubscription!: Subscription;
+
   constructor(private authService: AuthService,
               private chatService: ChatService,
               private roomMessages: RoomMessagesService,
-              private roomService: RoomService) {
-    console.log('Construtor do ChatModuleLayoutComponent chamado:', Date.now());
+              private route: ActivatedRoute,
+              ) {
+              console.log('Construtor do ChatModuleLayoutComponent chamado:', Date.now());
                }
 
   ngOnInit(): void {
     console.log('ngOnInit do ChatModuleLayoutComponent iniciado:', Date.now());
-    this.usuario$ = this.authService.user$;
-    // Aqui você também pode definir o currentChatId com base na lógica do seu chat
 
-    this.usuario$.subscribe(data => {
-      console.log('Dados do usuário:', data);
-    });
+    // Captura o userId diretamente da rota
+    this.route.paramMap.subscribe(params => {
+      this.userId = params.get('userId') || '';
+      console.log('UserID capturado da rota:', this.userId);
 
-  // Atribuindo o UID do usuário à propriedade userId
-    this.usuario$.subscribe(user => {
-      if (user) {
-        this.userId = user.uid;
+      if (this.userId) {
+        this.selectedChatId = this.userId; // Definir chatId ao carregar a página
+        this.selectedType = 'chat'; // Definir que é um chat privado
       }
     });
+
+    // Inscreve-se no observable do usuário autenticado
+    this.usuario$ = this.authService.user$;
+
+    // Apenas uma única inscrição para evitar chamadas múltiplas
+    this.usuarioSubscription = this.usuario$.subscribe(user => {
+      if (user) {
+        this.userId = user.uid;
+        console.log('Dados do usuário autenticado:', user);
+      }
+    });
+  }
+
+  // Para evitar vazamento de memória, desinscreva-se quando o componente for destruído
+  ngOnDestroy(): void {
+    if (this.usuarioSubscription) {
+      this.usuarioSubscription.unsubscribe();
+    }
   }
 
 

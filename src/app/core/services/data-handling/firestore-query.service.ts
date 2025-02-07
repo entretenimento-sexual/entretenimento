@@ -2,10 +2,10 @@
 import { Injectable } from '@angular/core';
 import { where, QueryConstraint, collection, onSnapshot, query, Firestore } from 'firebase/firestore';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { CacheService } from '../general/cache.service';
+import { CacheService } from '../general/cache/cache.service';
 import { FirestoreService } from './firestore.service';
 import { Observable, of } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
+import { map, catchError, switchMap } from 'rxjs/operators';
 import { FirestoreUserQueryService } from './firestore-user-query.service';
 
 @Injectable({
@@ -42,42 +42,53 @@ export class FirestoreQueryService {
    */
   getAllUsers(): Observable<IUserDados[]> {
     const cacheKey = 'allUsers';
-    const cachedUsers = this.cacheService.get<IUserDados[]>(cacheKey);
 
-    if (cachedUsers) {
-      console.log('[FirestoreQueryService] Usuários carregados do cache.');
-      return of(cachedUsers);
-    }
+    return this.cacheService.get<IUserDados[]>(cacheKey).pipe(
+      switchMap(cachedUsers => {
+        if (cachedUsers) {
+          console.log('[FirestoreQueryService] Usuários carregados do cache.');
+          return of(cachedUsers);
+        }
 
-    return this.getDocumentsByQuery<IUserDados>('users', []).pipe(
-      map((users) => {
-        this.cacheService.set(cacheKey, users, 600000); // TTL de 10 minutos
-        return users;
-      }),
-      catchError(() => of([]))
+        return this.getDocumentsByQuery<IUserDados>('users', []).pipe(
+          map(users => {
+            this.cacheService.set(cacheKey, users, 600000); // TTL de 10 minutos
+            return users;
+          }),
+          catchError(error => {
+            console.error('[FirestoreQueryService] Erro ao buscar todos os usuários:', error);
+            return of([]);
+          })
+        );
+      })
     );
   }
 
-  /**
-   * Obtém todos os usuários online com cache.
-   */
-  getOnlineUsers(): Observable<IUserDados[]> {
-    const cacheKey = 'onlineUsers';
-    const cachedUsers = this.cacheService.get<IUserDados[]>(cacheKey);
+// Obtém todos os usuários online com cache.
+   getOnlineUsers(): Observable<IUserDados[]> {
+  const cacheKey = 'onlineUsers';
 
-    if (cachedUsers) {
-      console.log('[FirestoreQueryService] Usuários online carregados do cache.');
-      return of(cachedUsers);
-    }
+  return this.cacheService.get<IUserDados[]>(cacheKey).pipe(
+    switchMap(cachedUsers => {
+      if (cachedUsers) {
+        console.log('[FirestoreQueryService] Usuários online carregados do cache.');
+        return of(cachedUsers);
+      }
 
-    return this.getDocumentsByQuery<IUserDados>('users', [where('isOnline', '==', true)]).pipe(
-      map((users) => {
-        this.cacheService.set(cacheKey, users, 60000); // TTL de 1 minuto
-        return users;
-      }),
-      catchError(() => of([]))
-    );
-  }
+      return this.getDocumentsByQuery<IUserDados>('users', [where('isOnline', '==', true)]).pipe(
+        map(users => {
+          this.cacheService.set(cacheKey, users, 60000); // TTL de 1 minuto
+          return users;
+        }),
+        catchError(error => {
+          console.error('[FirestoreQueryService] Erro ao buscar usuários online:', error);
+          return of([]);
+        })
+      );
+    })
+  );
+}
+
 
   /**
    * Busca usuários por município.

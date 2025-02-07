@@ -25,8 +25,9 @@
           (click)="selectChat(chat.id)"
           [ngClass]="{ 'selected': selectedChatId === chat.id }">
 
-      <img [src]="getOptimizedPhotoURL(chat.otherParticipantDetails?.photoURL) || 'assets/imagem-padrao.webp'"
-        alt="Foto do Usuário" loading="lazy" class="chat-user-photo">
+      <img
+      [src]="getOptimizedPhotoURL(chat.otherParticipantDetails?.photoURL) || 'assets/imagem-padrao.webp'"
+      alt="Foto do Usuário" loading="lazy" class="chat-user-photo">
       <p>{{ chat.otherParticipantDetails?.nickname }}</p>
     </div>
   </div>

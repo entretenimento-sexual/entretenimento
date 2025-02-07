@@ -12,6 +12,7 @@ import {
   clearCurrentUser,
   addUserToState,
 } from '../../actions/actions.user/user.actions';
+import { logoutSuccess } from '../../actions/actions.user/auth.actions';
 import { initialUserState } from '../../states/states.user/user.state';
 
 // Redutor para o estado de usuários.
@@ -108,8 +109,8 @@ export const userReducer = createReducer(
   }),
 
   // Ação: Remove o usuário atual do estado.
-  on(clearCurrentUser, (state) => {
-    console.log('Usuário atual removido do estado.');
+  on(clearCurrentUser, logoutSuccess, (state) => {
+    console.log('[User Reducer] Usuário removido do estado após logout.');
     return { ...state, currentUser: null };
   })
 );

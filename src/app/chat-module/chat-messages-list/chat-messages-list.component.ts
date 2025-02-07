@@ -19,6 +19,7 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef<HTMLDivElement>;
   private messagesSubscription: Subscription | undefined;
   messages: Message[] = [];
+  
 
   @Input() chatId?: string;
   @Input() type: 'chat' | 'room' | undefined;

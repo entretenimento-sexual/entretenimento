@@ -8,7 +8,7 @@ import { Observable, from, throwError, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
-import { CacheService } from '../../general/cache.service';
+import { CacheService } from '../../general/cache/cache.service';
 import { AuthService } from '../auth.service';
 
 @Injectable({

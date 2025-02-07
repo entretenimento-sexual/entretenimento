@@ -1,18 +1,19 @@
 // src/app/core/services/autentication/auth.service.ts
 import { Injectable, Injector } from '@angular/core';
-import { Observable, BehaviorSubject, switchMap, tap, of, catchError, from, map } from 'rxjs';
+import { Observable, BehaviorSubject, switchMap, tap, of, catchError, from } from 'rxjs';
+import { map, mapTo } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { getAuth, onAuthStateChanged, signOut, User } from 'firebase/auth';
+import { browserSessionPersistence, getAuth, onAuthStateChanged, setPersistence, signOut, User } from 'firebase/auth';
 import { UsuarioService } from '../user-profile/usuario.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { Store } from '@ngrx/store';
 import { AppState } from '../../../store/states/app.state';
 import { loginSuccess, logoutSuccess } from '../../../store/actions/actions.user/auth.actions';
 import { Router } from '@angular/router';
-import { getDatabase, ref, set } from 'firebase/database';
+import { getDatabase, onDisconnect, ref, serverTimestamp, set } from 'firebase/database';
 import { setCurrentUser } from 'src/app/store/actions/actions.user/user.actions';
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
-import { CacheService } from '../general/cache.service';
+import { CacheService } from '../general/cache/cache.service';
 
 const auth = getAuth();
 const db = getDatabase();
@@ -40,7 +41,30 @@ export class AuthService {
     return this.injector.get(UsuarioService);
   }
 
-  // Inicializa o listener de autenticação e recupera o estado do usuário.
+  private updateUserOnlineStatusRealtime(uid: string): void {
+    const userStatusRef = ref(db, `status/${uid}`);
+
+    // Define online
+    set(userStatusRef, { online: true, lastChanged: serverTimestamp() })
+      .then(() => {
+        console.log('[AuthService] Status online atualizado no Realtime Database.');
+
+        // Configura para marcar como offline automaticamente ao perder conexão
+        onDisconnect(userStatusRef).set({ online: false, lastChanged: serverTimestamp() });
+      })
+      .catch(error => {
+        console.error('[AuthService] Erro ao definir status online no Realtime Database:', error);
+      });
+
+    // Atualiza no Firestore também para manter a consistência
+    // Atualiza o status online no Firestore (correção do erro 1️⃣)
+    this.usuarioService.updateUserOnlineStatus(uid, true).subscribe({
+      next: () => console.log('[AuthService] Status isOnline atualizado no Firestore para online.'),
+      error: (error: Error) => console.error('[AuthService] Erro ao definir isOnline no Firestore:', error)
+    });
+  }
+
+  // Chamando a função quando o usuário se autenticar
   private initAuthStateListener(): void {
     new Observable<User | null>((observer) => {
       onAuthStateChanged(auth, (user) => {
@@ -49,12 +73,19 @@ export class AuthService {
     })
       .pipe(
         switchMap(user => {
-          if (user) {
-            return this.firestoreUserQuery.getUser(user.uid);
-          } else {
+          if (!user) {
+            console.log('[AuthService] Nenhum usuário autenticado, limpando estado.');
             this.clearCurrentUser();
             return of(null);
           }
+
+          if (this.currentUser) {
+            console.log('[AuthService] Usuário já carregado:', this.currentUser);
+            return of(this.currentUser);
+          }
+
+          console.log(`[AuthService] Usuário autenticado detectado (UID: ${user.uid}). Recuperando dados...`);
+          return this.firestoreUserQuery.getUser(user.uid);
         }),
         tap(userData => {
           if (userData) {
@@ -63,19 +94,10 @@ export class AuthService {
             localStorage.setItem('currentUser', JSON.stringify(userData));
             this.store.dispatch(loginSuccess({ user: userData }));
             this.store.dispatch(setCurrentUser({ user: userData }));
+            this.cacheService.set('currentUserUid', userData.uid, 300000);
 
-            // Configura o Realtime Database para indicar que o usuário está online
-            const userStatusRef = ref(db, `status/${userData.uid}`);
-            set(userStatusRef, { online: true, lastChanged: new Date().toISOString() })
-              .then(() => {
-                return this.usuarioService.updateUserOnlineStatus(userData.uid, true);
-              })
-              .then(() => {
-                console.log('Status isOnline atualizado no Firestore para online.');
-              })
-              .catch(error => {
-                console.error('Erro ao definir o status online:', error);
-              });
+            // Atualiza status online no Realtime Database e Firestore
+            this.updateUserOnlineStatusRealtime(userData.uid);
           }
         }),
         catchError(error => {
@@ -96,8 +118,10 @@ export class AuthService {
       const storedUser = localStorage.getItem('currentUser');
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser) as IUserDados;
+        if (parsedUser?.uid) {
         this.userSubject.next(parsedUser);
         console.log('Usuário carregado do localStorage: ', parsedUser);
+        }
       }
     } catch (error: any) {
       console.warn('Erro ao carregar o usuário do localStorage.', error);
@@ -110,36 +134,38 @@ export class AuthService {
   }
 
   getLoggedUserUID$(): Observable<string | null> {
-    return of(this.cacheService.get<string>('currentUserUid')).pipe(
+    return (this.cacheService.get<string>('currentUserUid')).pipe(
       switchMap(cachedUid => {
         if (cachedUid) {
           console.log('[AuthService] UID encontrado no cache:', cachedUid);
-          return of(cachedUid); // UID encontrado no cache
+          return of(cachedUid);
         }
 
-        // Busca no BehaviorSubject
         const currentUser = this.userSubject.value;
         if (currentUser?.uid) {
           console.log('[AuthService] UID encontrado no estado interno:', currentUser.uid);
-          this.cacheService.set('currentUserUid', currentUser.uid, 300000); // Atualiza cache
+          this.cacheService.set('currentUserUid', currentUser.uid, 300000); // 🔍 Atualiza o cache
           return of(currentUser.uid);
         }
 
-        // Busca no Firebase Auth
         const authUser = getAuth().currentUser;
         if (authUser?.uid) {
           console.log('[AuthService] UID encontrado no Firebase Auth:', authUser.uid);
-          this.cacheService.set('currentUserUid', authUser.uid, 300000); // Atualiza cache
+          this.cacheService.set('currentUserUid', authUser.uid, 300000); // 🔍 Atualiza o cache
           return of(authUser.uid);
         }
 
-        // Caso nenhuma das fontes contenha o UID
-        console.warn('[AuthService] UID não encontrado em nenhuma fonte.');
+        console.log('[AuthService] UID não encontrado em nenhuma fonte.');
         return of(null);
+      }),
+      tap(uid => {
+        if (!uid) {
+          console.log('[AuthService] UID ainda não está disponível. Retentando...');
+        }
       }),
       catchError(error => {
         console.error('[AuthService] Erro ao obter UID:', error);
-        this.globalErrorHandlerService.handleError(error); // Tratamento global de erros
+        this.globalErrorHandlerService.handleError(error);
         return of(null);
       })
     );
@@ -165,6 +191,11 @@ export class AuthService {
     this.userSubject.next(userData);
     localStorage.setItem('currentUser', JSON.stringify(userData));
     console.log('Usuário definido e salvo no localStorage:', userData);
+    this.cacheService.set('currentUserUid', userData.uid, 300000);
+
+    this.store.dispatch(setCurrentUser({ user: userData }));
+
+    console.log('[AuthService] Usuário definido e salvo no cache e localStorage:', userData);
   }
 
   logout(): Observable<void> {
@@ -197,3 +228,4 @@ export class AuthService {
     );
   }
 }
+

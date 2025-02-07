@@ -1,19 +1,24 @@
 // src/app/store/states/app.state.ts
-import { IUserState, IUserState as UserState } from './states.user/user.state';
-import { ITermsState as TermsState } from './states.user/terms.state';
-import { FileState } from './states.user/file.state';
-import { ChatState } from './states.chat/chat.state';
-import { InviteState } from './states.chat/invite.state';
-import { RoomState } from './states.chat/room.state';
-import { LocationState } from './states.location/location.state';
+
+import { cacheReducer } from "../reducers/cache.reducer";
+import { chatReducer } from "../reducers/reducers.chat/chat.reducer";
+import { inviteReducer } from "../reducers/reducers.chat/invite.reducer";
+import { roomReducer } from "../reducers/reducers.chat/room.reducer";
+import { locationReducer } from "../reducers/reducers.location/location.reducer";
+import { authReducer } from "../reducers/reducers.user/auth.reducer";
+import { fileReducer } from "../reducers/reducers.user/file.reducer";
+import { termsReducer } from "../reducers/reducers.user/terms.reducer";
+import { userReducer } from "../reducers/reducers.user/user.reducer";
+
 
 export interface AppState {
-  authState: IUserState;
-  user: IUserState;
-  file: FileState;
-  terms: TermsState;
-  chat: ChatState;
-  invite: InviteState;
-  room: RoomState;
-  location: LocationState;
+  authState: ReturnType<typeof authReducer>;
+  user: ReturnType<typeof userReducer>;
+  terms: ReturnType<typeof termsReducer>;
+  file: ReturnType<typeof fileReducer>;
+  location: ReturnType<typeof locationReducer>;
+  chat: ReturnType<typeof chatReducer>;
+  invite: ReturnType<typeof inviteReducer>;
+  room: ReturnType<typeof roomReducer>;
+  cache: ReturnType<typeof cacheReducer>; 
 }

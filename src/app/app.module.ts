@@ -53,10 +53,9 @@ registerLocaleData(localePt, 'pt-BR');
     AngularFireModule.initializeApp(environment.firebase),
     AngularFireStorageModule,
     AngularPinturaModule,
-    StoreModule.forRoot({ user: userReducer }), // Configuração única do StoreModule
     EffectsModule.forRoot([AuthEffects, UserEffects]), // Configuração única do EffectsModule
     StoreDevtoolsModule.instrument({ maxAge: 25, logOnly: environment.production }), // Configuração única do StoreDevtoolsModule
-    AppStoreModule,
+    AppStoreModule
   ],
   providers: [
     AuthService,

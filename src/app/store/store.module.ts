@@ -13,7 +13,9 @@ import { TermsEffects } from './effects/effects.user/terms.effects';
 import { ChatEffects } from './effects/effects.chat/chat.effects';
 import { InviteEffects } from './effects/effects.chat/invite.effects';
 import { RoomEffects } from './effects/effects.chat/room.effects';
+
 import { reducers } from './reducers/reducers.user/combine.reducers';
+import { CacheEffects } from './effects/cache.effects';
 
 console.log('Configurações do Store carregadas');
 
@@ -29,6 +31,7 @@ console.log('Configurações do Store carregadas');
       ChatEffects,
       InviteEffects,
       RoomEffects,
+      CacheEffects,
     ]),
     StoreDevtoolsModule.instrument({
       maxAge: 25,

@@ -37,6 +37,7 @@
   <link rel="icon" type="image/x-icon" href="favicon.ico">
 
   <!-- CSS e Bibliotecas Externas -->
+  <link rel="preconnect" href="https://firebasestorage.googleapis.com">
   <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
   <link rel="preconnect" href="https://fonts.gstatic.com">
   <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
@@ -58,15 +59,15 @@
 
   <script>
     // Script para adicionar a classe 'show-footer' ao body se a URL NÃO contiver '/chat/'
-    (function () {
-      var currentUrl = window.location.pathname;
-      if (/\/chat\//.test(currentUrl)) {
-        document.body.classList.remove('show-footer');
-      } else {
-        document.body.classList.add('show-footer');
-      }
-    })();
-  </script>
+    document.addEventListener("DOMContentLoaded", function () {
+        var currentUrl = window.location.pathname;
+        if (/\/chat\//.test(currentUrl)) {
+          document.body.classList.remove('show-footer');
+        } else {
+          document.body.classList.add('show-footer');
+        }
+      });
+    </script>
 </head>
 
 <body class="mat-typography">

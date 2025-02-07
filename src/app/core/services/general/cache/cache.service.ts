@@ -1,6 +1,10 @@
 // src/app/core/services/general/cache.service.ts
 import { Injectable } from '@angular/core';
-import { IUserDados } from '../../interfaces/iuser-dados';
+import { IUserDados } from '../../../interfaces/iuser-dados';
+import { AppState } from 'src/app/store/states/app.state';
+import { setCache } from 'src/app/store/actions/cache.actions';
+import { Store } from '@ngrx/store';
+import { firstValueFrom, Observable, of, switchMap } from 'rxjs';
 
 interface CacheItem<T> {
   data: T;
@@ -14,7 +18,7 @@ export class CacheService {
   private cache: Map<string, CacheItem<any>> = new Map();
   private defaultTTL = 300000; // Tempo padrão de expiração: 5 minutos
 
-  constructor() {
+  constructor(private store: Store<AppState>) {
     console.log('[CacheService] Serviço inicializado.');
   }
 
@@ -27,6 +31,8 @@ export class CacheService {
   set<T>(key: string, data: T, ttl?: number): void {
     const normalizedKey = this.normalizeKey(key);
     const expiration = ttl ? Date.now() + ttl : null;
+    console.log(`[CacheService] Adicionando/atualizando chave: "${normalizedKey}"`, { data, expiration });
+    console.log(`[CacheService] Stack trace de adição/atualização: "${normalizedKey}"`);
     this.cache.set(normalizedKey, { data, expiration });
     console.log(`[CacheService] Item adicionado/atualizado: "${normalizedKey}"`, { data, expiration });
   }
@@ -40,7 +46,13 @@ export class CacheService {
   setUser(uid: string, user: IUserDados, ttl: number = 300000): void {
     const normalizedKey = this.normalizeKey(`user:${uid}`);
     this.set(normalizedKey, user, ttl);
-    console.log(`[CacheService] Usuário ${uid} adicionado/atualizado no cache.`);
+    this.set('currentuseruid', uid, ttl);
+
+    // Também atualiza o `CacheState`
+    this.store.dispatch(setCache({ key: `user:${uid}`, value: user }));
+    this.store.dispatch(setCache({ key: 'currentuseruid', value: uid }));
+
+    console.log(`[CacheService] currentuseruid armazenado no CacheState: "${uid}"`);
   }
 
   /**
@@ -48,24 +60,38 @@ export class CacheService {
    * @param key Chave única.
    * @returns Dados armazenados ou `null` se não encontrado ou expirado.
    */
-  get<T>(key: string): T | null {
+  get<T>(key: string): Observable<T | null> {
     const normalizedKey = this.normalizeKey(key);
     const cachedItem = this.cache.get(normalizedKey);
 
-    if (!cachedItem) {
-      console.log(`[CacheService] Chave não encontrada: "${normalizedKey}"`);
-      return null;
-    }
+    if (cachedItem) {
+      if (cachedItem.expiration && cachedItem.expiration < Date.now()) {
+        console.log(`[CacheService] Chave expirada: "${normalizedKey}"`);
+        this.cache.delete(normalizedKey);
+        return of(null);
+      }
 
-    if (cachedItem.expiration && cachedItem.expiration < Date.now()) {
-      console.log(`[CacheService] Chave expirada: "${normalizedKey}"`);
-      this.cache.delete(normalizedKey);
-      return null;
-    }
+      console.log(`[CacheService] Chave encontrada no cache: "${normalizedKey}"`, cachedItem.data);
+      return of(cachedItem.data);
+      
+    } else {
+      console.log(`[CacheService] Chave não encontrada no cache: "${normalizedKey}"`);
 
-    console.log(`[CacheService] Chave encontrada: "${normalizedKey}"`, cachedItem.data);
-    return cachedItem.data;
+      // Busca no NgRx Store se não encontrar no cache local
+      return this.store.select(state => state.cache[normalizedKey]).pipe(
+        switchMap((fromStore) => {
+          if (fromStore) {
+            console.log(`[CacheService] Usuário carregado do NgRx Store: "${normalizedKey}"`);
+            return of(fromStore);
+          } else {
+            console.log(`[CacheService] Chave não encontrada nem no cache nem no Store: "${normalizedKey}"`);
+            return of(null);
+          }
+        })
+      );
+    }
   }
+
 
   /**
    * Verifica se uma chave existe e não está expirada.
@@ -95,7 +121,7 @@ export class CacheService {
     if (this.cache.delete(normalizedKey)) {
       console.log(`[CacheService] Item removido: "${normalizedKey}"`);
     } else {
-      console.warn(`[CacheService] Tentativa de remover chave inexistente: "${normalizedKey}"`);
+      console.log(`[CacheService] Tentativa de remover chave inexistente: "${normalizedKey}"`);
     }
   }
 
@@ -161,7 +187,7 @@ export class CacheService {
     const normalizedKey = this.normalizeKey(key);
 
     if (!this.cache.has(normalizedKey)) {
-      console.warn(`[CacheService] Tentativa de atualizar chave inexistente: "${normalizedKey}"`);
+      console.log(`[CacheService] Tentativa de atualizar chave inexistente: "${normalizedKey}"`);
       return;
     }
 
@@ -195,7 +221,7 @@ export class CacheService {
    * @returns Chave normalizada.
    */
   private normalizeKey(key: string): string {
-    return key.trim().toLowerCase();
+    return key.trim();
   }
 
   /**

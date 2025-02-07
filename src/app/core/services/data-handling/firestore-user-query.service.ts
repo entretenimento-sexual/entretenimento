@@ -1,9 +1,9 @@
 //src\app\core\services\data-handling\firestore-user-query.service.ts
 import { Injectable } from '@angular/core';
-import { CacheService } from '../general/cache.service';
+import { CacheService } from '../general/cache/cache.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { doc, getDoc, getFirestore } from '@firebase/firestore';
-import { from, Observable, of, shareReplay, switchMap, take, tap, catchError, map } from 'rxjs';
+import { from, Observable, of, shareReplay, switchMap, take, tap, catchError, map, firstValueFrom } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { addUserToState, updateUserInState } from 'src/app/store/actions/actions.user/user.actions';
@@ -12,6 +12,7 @@ import { initializeApp } from 'firebase/app';
 import { environment } from 'src/environments/environment';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
+import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
 
 const app = initializeApp(environment.firebase);
 
@@ -25,165 +26,121 @@ export class FirestoreUserQueryService {
   constructor(
     private cacheService: CacheService,
     private store: Store<AppState>,
-    private globalErrorHandler: GlobalErrorHandlerService // Para tratar erros globalmente
+    private firestoreErrorHandler: FirestoreErrorHandlerService,
+    private globalErrorHandler: GlobalErrorHandlerService
   ) { }
 
-  getUser(uid: string): Observable<IUserDados | null> {
+  private fetchUser(uid: string): Observable<IUserDados | null> {
     const normalizedUid = uid.trim();
 
-    // 1. Verificar no cache
-    const cachedUser = this.cacheService.get<IUserDados>(`user:${normalizedUid}`);
-    if (cachedUser) {
-      console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} encontrado no cache.`);
-      return of(cachedUser);
+    // 🛑 Se a Observable já foi criada, reutiliza e evita chamadas extras
+    if (this.userObservablesCache.has(normalizedUid)) {
+      return this.userObservablesCache.get(normalizedUid)!;
     }
 
-    // 2. Verificar no Store (Estado)
-    return this.store.select(selectUserProfileDataByUid(normalizedUid)).pipe(
-      take(1),
-      switchMap((userFromStore) => {
-        if (userFromStore) {
-          console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} encontrado no estado (Store).`);
-          // Atualizar o cache
-          this.cacheService.set(`user:${normalizedUid}`, userFromStore, 300000); // Cache com TTL de 5 minutos
-          return of(userFromStore);
+    console.log(`[FirestoreUserQueryService] Buscando usuário no cache: ${normalizedUid}`);
+
+    return this.cacheService.get<IUserDados>(`user:${normalizedUid}`).pipe(
+      switchMap(cachedUser => {
+        if (cachedUser) {
+          console.log(`[CacheService] Usuário encontrado no cache:`, cachedUser);
+          return of(cachedUser);
         }
 
-        // 3. Buscar no Firestore caso não esteja no estado
-        console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} não encontrado no estado. Buscando no Firestore...`);
-        const docRef = doc(this.db, 'users', normalizedUid);
-        return from(getDoc(docRef)).pipe(
-          map((docSnap) => (docSnap.exists() ? (docSnap.data() as IUserDados) : null)),
-          tap((userFromFirestore) => {
-            if (userFromFirestore) {
-              console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} encontrado no Firestore.`);
-              // Atualizar Store e Cache
-              this.store.dispatch(addUserToState({ user: userFromFirestore }));
-              this.cacheService.set(`user:${normalizedUid}`, userFromFirestore, 300000); // Cache com TTL de 5 minutos
-            } else {
-              console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} não encontrado no Firestore.`);
+        // 2️⃣ Verifica no Store (NgRx)
+        return this.store.select(selectUserProfileDataByUid(normalizedUid)).pipe(
+          take(1),
+          switchMap(userFromStore => {
+            if (userFromStore) {
+              console.log(`[NgRx Store] Usuário encontrado no Store:`, userFromStore);
+              this.cacheService.set(`user:${normalizedUid}`, userFromStore, 300000);
+              return of(userFromStore);
             }
-          }),
-          catchError((error) => {
-            console.error(`[FirestoreUserQueryService] Erro ao buscar usuário no Firestore:`, error);
-            this.globalErrorHandler.handleError(error);
-            return of(null);
+
+        // 3️⃣ Se não estiver no Store, busca no Firestore
+        return this.fetchUserFromFirestore(normalizedUid);
           })
         );
-      })
+      }),
+      shareReplay(1)
     );
   }
 
+  /**
+   * Busca o usuário diretamente no Firestore, tratando erros e atualizando o cache e Store.
+   */
+  private fetchUserFromFirestore(uid: string): Observable < IUserDados | null > {
+        console.log(`[FirestoreUserQueryService] Buscando usuário ${uid} no Firestore...`);
+        const docRef = doc(this.db, 'users', uid);
+        return from(getDoc(docRef)).pipe(
+          map(docSnap => {
+            if (docSnap.exists()) {
+              const userData = docSnap.data() as IUserDados;
+              this.store.dispatch(addUserToState({ user: userData }));
+              this.cacheService.set(`user:${uid}`, userData, 300000);
+              return userData;
+            } else {
+              console.log(`[FirestoreUserQueryService] Usuário ${uid} não encontrado.`);
+              return null;
+            }
+          }),
+          catchError(error => this.firestoreErrorHandler.handleFirestoreError(error))
+        );
+      }
+
+
+  getUser(uid: string): Observable<IUserDados | null> {
+    return this.fetchUser(uid);
+  }
+
+  getUserById(uid: string): Observable<IUserDados | null> {
+    console.log(`[FirestoreUserQueryService] Método getUserById foi chamado.`);
+    return this.fetchUser(uid);
+  }
+
+  getUserWithObservable(uid: string): Observable<IUserDados | null> {
+    const normalizedUid = uid.trim();
+
+    // Se já existe uma requisição pendente, reutiliza a observável existente
+    if (this.userObservablesCache.has(normalizedUid)) {
+      return this.userObservablesCache.get(normalizedUid)!;
+    }
+
+    const userObservable = this.fetchUser(normalizedUid).pipe(
+      shareReplay(1) // Evita múltiplas chamadas simultâneas para o mesmo usuário
+    );
+
+    this.userObservablesCache.set(normalizedUid, userObservable);
+    return userObservable;
+  }
 
   /**
    * Obtém os dados do usuário diretamente do Firestore.
    * @param uid UID do usuário.
    */
   async getUserData(uid: string): Promise<IUserDados | null> {
-    const cachedUser = this.cacheService.get<IUserDados>(`user:${uid}`);
+    if (!uid.trim()) return null;
+
+    const cacheKey = `user:${uid}`;
+
+    const cachedUser = await firstValueFrom(this.cacheService.get<IUserDados>(cacheKey));
     if (cachedUser) return cachedUser;
 
     try {
       const userDoc = await getDoc(doc(this.db, 'users', uid));
       if (userDoc.exists()) {
         const userData = userDoc.data() as IUserDados;
-        this.cacheService.set(`user:${uid}`, userData, 300000); // TTL de 5 minutos
+        this.cacheService.set(cacheKey, userData, 300000);
         return userData;
       }
+      return null;
     } catch (error) {
-      console.error(`Erro ao buscar dados do usuário ${uid}:`, error);
+      console.error(`Erro ao buscar usuário ${uid}:`, error);
       this.globalErrorHandler.handleError(error instanceof Error ? error : new Error(String(error)));
-      throw error;
+      return null;
     }
-    return null;
   }
 
-  /**
-   * Obtém os dados do usuário, verificando primeiro no cache, depois no estado e, por fim, no Firestore.
-   * @param uid UID do usuário.
-   */
-  getUserById(uid: string): Observable<IUserDados | null> {
-    console.log(`Método getUserById foi chamado.`);
-
-    // Verifica no CacheService antes de qualquer operação
-    const cachedUser = this.cacheService.get<IUserDados>(`user:${uid}`);
-    if (cachedUser) {
-      console.log(`[FirestoreUserQueryService] Usuário ${uid} encontrado no cache.`);
-      return of(cachedUser);
-    }
-
-    // Verifica no Store
-    return this.store.select(selectUserProfileDataByUid(uid)).pipe(
-      take(1),
-      tap(userFromStore => {
-        if (userFromStore) {
-          this.cacheService.set(`user:${uid}`, userFromStore, 300000); // Armazena no cache por 5 minutos
-          console.log(`[FirestoreUserQueryService] Usuário ${uid} encontrado no estado.`);
-        }
-      }),
-      switchMap(userFromStore =>
-        userFromStore
-          ? of(userFromStore)
-          : from(this.getUserData(uid)).pipe(
-            tap(userFromFirestore => {
-              if (userFromFirestore) {
-                this.cacheService.set(`user:${uid}`, userFromFirestore, 300000); // Atualiza o cache
-                console.log(`[FirestoreUserQueryService] Usuário ${uid} encontrado no Firestore.`);
-              }
-            }),
-            catchError(error => {
-              console.error(`Erro ao buscar usuário no Firestore:`, error);
-              this.globalErrorHandler.handleError(error);
-              return of(null);
-            })
-          )
-      )
-    );
-  }
-
-  /**
-   * Obtém os dados do usuário como Observable, priorizando o cache.
-   * @param uid UID do usuário.
-   */
-  getUserWithObservable(uid: string): Observable<IUserDados | null> {
-    const normalizedUid = uid.trim();
-
-    // Verificar se já está no cache
-    if (this.cacheService.has(`user:${normalizedUid}`)) {
-      const cachedUser = this.cacheService.get<IUserDados>(`user:${normalizedUid}`);
-      console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} encontrado no cache.`);
-      return of(cachedUser);
-    }
-
-    // Adicionar ao cache de não encontrados se necessário
-    if (this.cacheService.isNotFound(normalizedUid)) {
-      console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} está no cache de não encontrados.`);
-      return of(null);
-    }
-
-    // Criar Observable para buscar os dados do usuário
-    const userObservable = from(this.getUserData(normalizedUid)).pipe(
-      tap(userData => {
-        if (userData) {
-          this.cacheService.set(`user:${normalizedUid}`, userData, 300000); // Adicionar ao cache
-          console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} encontrado e armazenado no cache.`);
-        } else {
-          console.log(`[FirestoreUserQueryService] Usuário ${normalizedUid} não encontrado.`);
-          this.cacheService.markAsNotFound(normalizedUid, 30000); // Adicionar ao cache de não encontrados
-        }
-      }),
-      shareReplay(1), // Evitar múltiplas requisições simultâneas
-      catchError(error => {
-        console.error(`Erro ao buscar usuário ${normalizedUid}:`, error);
-        this.globalErrorHandler.handleError(error);
-        return of(null);
-      })
-    );
-
-    // Armazenar no cache de observables
-    this.userObservablesCache.set(normalizedUid, userObservable);
-    return userObservable;
-  }
 
   /**
    * Atualiza os dados do usuário no cache e no estado.
@@ -193,17 +150,18 @@ export class FirestoreUserQueryService {
   updateUserInStateAndCache<T extends IUserRegistrationData | IUserDados>(uid: string, updatedData: T): void {
     // Flexibilidade para lidar com diferentes tipos de dados
     const cacheKey = `user:${uid}`;
-    const cachedUser = this.cacheService.get<T>(cacheKey);
+    // 🚀 Resolva o valor do cache antes de compará-lo
+    this.cacheService.get<T>(cacheKey).pipe(take(1)).subscribe(cachedUser => {
+      if (cachedUser && JSON.stringify(cachedUser) === JSON.stringify(updatedData)) {
+        console.log(`[FirestoreUserQueryService] Dados do usuário ${uid} já atualizados no cache e estado.`);
+        return;
+      }
 
-    if (cachedUser && JSON.stringify(cachedUser) === JSON.stringify(updatedData)) {
-      console.log(`[FirestoreUserQueryService] Dados do usuário ${uid} já atualizados no cache e estado.`);
-      return;
-    }
-
-    // Atualiza o cache e o estado, independentemente do tipo
-    this.cacheService.set(cacheKey, updatedData, 300000); // TTL de 5 minutos
-    this.store.dispatch(updateUserInState({ uid, updatedData } as any)); // `as any` para manter compatibilidade com NgRx
-    console.log(`[FirestoreUserQueryService] Dados do usuário ${uid} atualizados no cache e estado.`);
+      // Atualiza o cache e o estado, independentemente do tipo
+      this.cacheService.set(cacheKey, updatedData, 300000); // TTL de 5 minutos
+      this.store.dispatch(updateUserInState({ uid, updatedData } as any)); // `as any` para manter compatibilidade com NgRx
+      console.log(`[FirestoreUserQueryService] Dados do usuário ${uid} atualizados no cache e estado.`);
+    });
   }
 
 }

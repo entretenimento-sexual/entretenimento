@@ -54,7 +54,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   logout(): void {
-    this.authService.logout()
+    console.log('[NavbarComponent] Botão "Sair" clicado. Iniciando logout...');
+
+    this.authService.logout().subscribe({
+      next: () => console.log('[NavbarComponent] Logout concluído com sucesso.'),
+      error: (error) => console.error('[NavbarComponent] Erro ao fazer logout:', error),
+    });
   }
 
   onToggleSidebar(): void {

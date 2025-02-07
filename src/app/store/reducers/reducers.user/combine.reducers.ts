@@ -10,14 +10,16 @@ import { chatReducer } from '../reducers.chat/chat.reducer';
 import { inviteReducer } from '../reducers.chat/invite.reducer';
 import { roomReducer } from '../reducers.chat/room.reducer';
 import { locationReducer } from '../reducers.location/location.reducer';
+import { cacheReducer } from '../cache.reducer';
 
 export const reducers: ActionReducerMap<AppState> = {
   authState: authReducer,
   user: userReducer,
   terms: termsReducer,
   file: fileReducer,
-    location: locationReducer,
+  location: locationReducer,
   chat: chatReducer,
   invite: inviteReducer,
   room: roomReducer,
+  cache: cacheReducer,
 };

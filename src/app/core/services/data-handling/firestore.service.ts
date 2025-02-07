@@ -7,9 +7,11 @@ import { getFirestore, collection, query, where, getDocs, doc, setDoc, updateDoc
 import { environment } from 'src/environments/environment';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 import { from, Observable, of, throwError } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, map, shareReplay, switchMap } from 'rxjs/operators';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
-import { CacheService } from '../general/cache.service';
+import { CacheService } from '../general/cache/cache.service';
+import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
 
 @Injectable({
   providedIn: 'root'
@@ -18,6 +20,8 @@ export class FirestoreService {
   private db: Firestore;
 
   constructor(private errorNotifier: ErrorNotificationService,
+              private globalErrorHandler: GlobalErrorHandlerService,
+              private firestoreErrorHandler: FirestoreErrorHandlerService,
               private cacheService: CacheService) {
 
     const app = initializeApp(environment.firebase);
@@ -38,41 +42,44 @@ export class FirestoreService {
   ): Observable<T | null> {
     const cacheKey = `${collectionName}:${docId}`;
 
-    // Verifica o cache
-    if (useCache) {
-      const cachedData = this.cacheService.get<T>(cacheKey);
-      if (cachedData) {
-        console.log(`[FirestoreService] Documento encontrado no cache: ${cacheKey}`);
-        return of(cachedData);
-      }
-    }
-
-    // Busca no Firestore
-    const docRef = doc(this.db, collectionName, docId);
-    return from(getDoc(docRef)).pipe(
-      map((docSnap) => {
-        if (docSnap.exists()) {
-          const data = docSnap.data() as T;
-
-          // Atualiza o cache
-          if (useCache) {
-            this.cacheService.set(cacheKey, data, cacheTTL);
-            console.log(`[FirestoreService] Documento carregado do Firestore e armazenado no cache: ${cacheKey}`);
-          }
-
-          return data;
-        } else {
-          console.warn(`[FirestoreService] Documento não encontrado: ${collectionName}/${docId}`);
-          return null;
+    return (useCache ? this.cacheService.get<T>(cacheKey) : of(null)).pipe(
+      switchMap(cachedData => {
+        if (cachedData) {
+          console.log(`[FirestoreService] Documento encontrado no cache: ${cacheKey}`);
+          return of(cachedData);
         }
+
+        // Busca no Firestore se não estiver no cache
+        const docRef = doc(this.db, collectionName, docId);
+        console.log(`[FirestoreService] Buscando documento do Firestore: ${collectionName}/${docId}`);
+
+        const startTime = Date.now(); // Para medir o tempo de resposta
+
+        return from(getDoc(docRef)).pipe(
+          map(docSnap => {
+            if (docSnap.exists()) {
+              const data = docSnap.data() as T;
+
+              // Atualiza o cache
+              if (useCache) {
+                this.cacheService.set(cacheKey, data, cacheTTL);
+                console.log(`[FirestoreService] Documento armazenado no cache: ${cacheKey}`);
+              }
+
+              console.log(`[FirestoreService] Documento carregado do Firestore em ${Date.now() - startTime}ms`);
+              return data;
+            } else {
+              console.log(`[FirestoreService] Documento não encontrado: ${collectionName}/${docId}`);
+              return null;
+            }
+          }),
+          catchError((error) => this.firestoreErrorHandler.handleFirestoreError(error))
+        );
       }),
-      catchError((error) => {
-        console.error(`[FirestoreService] Erro ao buscar documento ${collectionName}/${docId}:`, error);
-        this.errorNotifier.showError('Erro ao buscar documento. Tente novamente mais tarde.');
-        return of(null);
-      })
+      shareReplay(1) // Evita múltiplas requisições para o mesmo documento
     );
   }
+
 
   // Método para buscar vários documentos
   getDocuments<T>(
@@ -83,39 +90,33 @@ export class FirestoreService {
   ): Observable<T[]> {
     const cacheKey = `${collectionName}:${JSON.stringify(constraints)}`;
 
-    // Verifica o cache
-    if (useCache) {
-      const cachedData = this.cacheService.get<T[]>(cacheKey);
-      if (cachedData) {
-        console.log(`[FirestoreService] Documentos encontrados no cache: ${cacheKey}`);
-        return of(cachedData);
-      }
-    }
-
-    // Busca no Firestore
-    const collectionRef = collection(this.db, collectionName);
-    const q = query(collectionRef, ...constraints);
-
-    return from(getDocs(q)).pipe(
-      map((querySnapshot) => {
-        const data = querySnapshot.docs.map((doc) => doc.data() as T);
-
-        // Atualiza o cache
-        if (useCache) {
-          this.cacheService.set(cacheKey, data, cacheTTL);
-          console.log(`[FirestoreService] Documentos carregados do Firestore e armazenados no cache: ${cacheKey}`);
+    return (useCache ? this.cacheService.get<T[]>(cacheKey) : of(null)).pipe(
+      switchMap(cachedData => {
+        if (cachedData) {
+          console.log(`[FirestoreService] Documentos encontrados no cache: ${cacheKey}`);
+          return of(cachedData);
         }
 
-        return data;
+        const collectionRef = collection(this.db, collectionName);
+        const q = query(collectionRef, ...constraints);
+
+        return from(getDocs(q)).pipe(
+          map((querySnapshot) => {
+            const data = querySnapshot.docs.map((doc) => doc.data() as T);
+
+            if (useCache) {
+              this.cacheService.set(cacheKey, data, cacheTTL);
+              console.log(`[FirestoreService] Documentos carregados do Firestore e armazenados no cache: ${cacheKey}`);
+            }
+
+            return data;
+          }),
+          catchError((error) => this.firestoreErrorHandler.handleFirestoreError(error))
+        );
       }),
-      catchError((error) => {
-        console.error(`[FirestoreService] Erro ao buscar documentos na coleção ${collectionName}:`, error);
-        this.errorNotifier.showError('Erro ao buscar documentos. Tente novamente mais tarde.');
-        return of([]);
-      })
+      shareReplay(1) // Evita múltiplas requisições para o mesmo conjunto de documentos
     );
   }
-
 
   /**
    * Verifica se um apelido já existe na coleção 'users'.
@@ -128,10 +129,7 @@ export class FirestoreService {
 
     return from(getDocs(q)).pipe(
       map((querySnapshot) => querySnapshot.size > 0),
-      catchError((error) => {
-        this.handleError('Erro ao verificar a existência do apelido.', error);
-        return of(false);
-      })
+      catchError((error) => this.firestoreErrorHandler.handleFirestoreError(error))
     );
   }
 
@@ -146,10 +144,7 @@ export class FirestoreService {
 
     return from(getDocs(q)).pipe(
       map((querySnapshot) => querySnapshot.size > 0),
-      catchError((error) => {
-        this.handleError('Erro ao verificar a existência do e-mail.', error);
-        return of(false);
-      })
+      catchError((error) => this.firestoreErrorHandler.handleFirestoreError(error))
     );
   }
 
@@ -168,10 +163,7 @@ export class FirestoreService {
     const userRef = doc(this.db, 'users', uid);
 
     return from(setDoc(userRef, { ...userData }, { merge: true })).pipe(
-      catchError((error) => {
-        this.handleError('Erro ao salvar os dados iniciais do usuário.', error);
-        return throwError(() => new Error('Erro ao salvar os dados iniciais do usuário.'));
-      })
+      catchError(error => this.handleFirestoreError(error))
     );
   }
 
@@ -187,7 +179,7 @@ export class FirestoreService {
   incrementField(collectionName: string, docId: string, fieldName: string, incrementBy: number): Observable<void> {
     const docRef = doc(this.db, collectionName, docId);
     return from(updateDoc(docRef, { [fieldName]: increment(incrementBy) })).pipe(
-      catchError((error) => this.notifyAndThrowError('Erro ao incrementar o campo.', error))
+      catchError(error => this.handleFirestoreError(error))
     );
   }
 
@@ -199,10 +191,7 @@ export class FirestoreService {
   deleteDocument(collectionName: string, docId: string): Observable<void> {
     const docRef = doc(this.db, collectionName, docId);
     return from(deleteDoc(docRef)).pipe(
-      catchError((error) => {
-        this.handleError('Erro ao deletar o documento.', error);
-        return throwError(() => new Error('Erro ao deletar o documento.'));
-      })
+      catchError(error => this.handleFirestoreError(error))
     );
   }
 
@@ -216,28 +205,13 @@ export class FirestoreService {
   updateDocument(collection: string, docId: string, data: Partial<any>): Observable<void> {
     const docRef = doc(this.db, collection, docId);
     return from(updateDoc(docRef, data)).pipe(
-      catchError((error) => this.notifyAndThrowError('Erro ao atualizar o documento.', error))
+      catchError((error) => this.handleFirestoreError(error))
     );
   }
 
-  /**
-   * Trata erros e notifica o usuário via serviço de notificações.
-   * @param userMessage Mensagem amigável para o usuário.
-   * @param error O erro capturado.
-   */
-  private handleError(userMessage: string, error: any): void {
-    console.error(userMessage, error);
-    this.errorNotifier.showError(userMessage);
-  }
-
-  /**
-   * Notifica e lança um erro em um Observable.
-   * @param userMessage Mensagem amigável para o usuário.
-   * @param error O erro capturado.
-   * @returns Um Observable que lança o erro.
-   */
-  private notifyAndThrowError(userMessage: string, error: any): Observable<never> {
-    this.handleError(userMessage, error);
-    return throwError(() => new Error(userMessage));
+  // Centraliza o tratamento de erros do Firestore
+  private handleFirestoreError(error: any): Observable<never> {
+    this.globalErrorHandler.handleError(error);  // Delegando para o GlobalErrorHandlerService
+    return throwError(() => error);
   }
 }
