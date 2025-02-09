@@ -2,7 +2,8 @@
 import { Injectable } from '@angular/core';
 import { collection, addDoc, doc, Timestamp, setDoc, deleteDoc, orderBy, startAfter,
          onSnapshot, getDocs, where, query,
-         limit} from 'firebase/firestore';
+         limit,
+         getDoc} from 'firebase/firestore';
 import { Observable, Subject, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
@@ -16,6 +17,7 @@ import { AuthService } from '../../autentication/auth.service';
 import { FirestoreService } from '../../data-handling/firestore.service';
 import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
 import { CacheService } from '../../general/cache/cache.service';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 @Injectable({
   providedIn: 'root'
@@ -83,6 +85,41 @@ export class ChatService {
       }),
       catchError(error => this.handleError('criar chat', error))
     );
+  }
+
+  /** Buscar e persistir detalhes do outro participante */
+  fetchAndPersistParticipantDetails(chatId: string, participantUid: string): Observable<any> {
+    const db = this.firestoreService.getFirestoreInstance();
+    const userDocRef = doc(db, 'users', participantUid);
+
+    return from(getDoc(userDocRef)).pipe(
+      switchMap(userDoc => {
+        if (userDoc.exists()) {
+          const userDetails = userDoc.data() as IUserDados;
+          return this.updateChat(chatId, { otherParticipantDetails: userDetails }).pipe(
+            map(() => userDetails)
+          );
+        } else {
+          return this.handleError('buscar detalhes do participante', new Error('Usuário não encontrado.'));
+        }
+      }),
+      catchError(error => this.handleError('buscar detalhes do participante', error))
+    );
+  }
+
+  /** Atualizar detalhes do participante se necessário */
+  refreshParticipantDetailsIfNeeded(chatId: string): void {
+    this.cacheService.get<Chat>(`chat:${chatId}`).pipe(
+      switchMap(chat => {
+        if (chat && !chat.otherParticipantDetails) {
+          const otherParticipantUid = chat.participants.find(uid => uid !== this.authService.currentUser?.uid);
+          if (otherParticipantUid) {
+            return this.fetchAndPersistParticipantDetails(chatId, otherParticipantUid);
+          }
+        }
+        return of(null);
+      })
+    ).subscribe();
   }
 
   /** Envio de mensagens no chat */

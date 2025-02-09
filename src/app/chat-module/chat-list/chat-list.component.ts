@@ -7,7 +7,7 @@ import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.se
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { MatDialog } from '@angular/material/dialog';
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
-import { Observable, Subscription } from 'rxjs';
+import { combineLatest, Observable, of, Subscription } from 'rxjs';
 import { map, switchMap, take } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
@@ -57,8 +57,9 @@ export class ChatListComponent implements OnInit, OnDestroy {
         console.log('Usuário autenticado:', currentUser?.uid);
         if (!currentUser) {
           this.router.navigate(['/login']);
-          return []; // Retorna uma lista vazia se não houver usuário
+          return [];
         }
+
         console.log('Carregando salas e chats para o usuário:', currentUser.uid);
         this.rooms$ = this.roomService.getUserRooms(currentUser.uid).pipe(
           map(rooms => rooms.sort((a, b) => {
@@ -68,14 +69,25 @@ export class ChatListComponent implements OnInit, OnDestroy {
           }))
         );
 
-        // Adiciona a assinatura ao Observable rooms$
         this.rooms$.subscribe((rooms: any[]) => {
           this.rooms = rooms;
           console.log('Salas carregadas:', this.rooms);
         });
 
         return this.chatService.getChats(currentUser.uid).pipe(
-          map(chats => chats.sort((a, b) => {
+          switchMap(chats => {
+            const chatDetailsObservables = chats.map(chat => {
+              if (!chat.otherParticipantDetails) {
+                const otherParticipantUid = chat.participants.find(uid => uid !== currentUser.uid);
+                return this.chatService.fetchAndPersistParticipantDetails(chat.id!, otherParticipantUid!).pipe(
+                  map(details => ({ ...chat, otherParticipantDetails: details }))
+                );
+              }
+              return of(chat);
+            });
+            return combineLatest(chatDetailsObservables);
+          }),
+          map(chatsWithDetails => chatsWithDetails.sort((a, b) => {
             const timeA = a.lastMessage?.timestamp ? a.lastMessage.timestamp.toDate().getTime() : 0;
             const timeB = b.lastMessage?.timestamp ? b.lastMessage.timestamp.toDate().getTime() : 0;
             return timeB - timeA;
@@ -93,12 +105,13 @@ export class ChatListComponent implements OnInit, OnDestroy {
       });
     });
 
-    // Adiciona monitoramento do Store para atualizar a interface quando o estado dos chats mudar
     this.chatSubscription = this.store.select(selectAllChats).subscribe(chats => {
       console.log('Chats atualizados na interface:', chats);
-      this.regularChats = chats; // Atualizando o estado local com os chats do Store
+      this.regularChats = chats;
     });
   }
+
+
 
   sendInvite(roomId: string | undefined, event: MouseEvent): void {
     if (!roomId) {
@@ -174,30 +187,21 @@ export class ChatListComponent implements OnInit, OnDestroy {
     this.selectedChatId = chatId;
     this.chatSelected.emit({ id: chatId, type: 'chat' });
 
-    // Monitora as mensagens do chat
+    this.chatService.refreshParticipantDetailsIfNeeded(chatId);
+
     const chatSubscription = this.chatService.monitorChat(chatId).subscribe({
       next: (messages) => {
-        messages
-          .filter(
-            (msg) =>
-              msg.status === 'delivered' &&
-              msg.senderId !== this.authService.currentUser?.uid
-          )
-          .forEach((msg) => {
-            this.chatService
-              .updateMessageStatus(chatId, msg.id!, 'read')
-              .subscribe({
-                next: () => this.notificationService.decrementUnreadMessages(),
-                error: (error) =>
-                  console.error('Erro ao atualizar status da mensagem:', error),
-              });
+        messages.filter(msg => msg.status === 'delivered' && msg.senderId !== this.authService.currentUser?.uid)
+          .forEach(msg => {
+            this.chatService.updateMessageStatus(chatId, msg.id!, 'read').subscribe({
+              next: () => this.notificationService.decrementUnreadMessages(),
+              error: (error) => console.error('Erro ao atualizar status da mensagem:', error),
+            });
           });
       },
-      error: (error) =>
-        console.error(`Erro ao monitorar mensagens do chat ${chatId}:`, error),
+      error: (error) => console.error(`Erro ao monitorar mensagens do chat ${chatId}:`, error),
     });
 
-    // Cancela assinaturas anteriores se houver
     this.chatSubscription?.unsubscribe();
     this.chatSubscription = chatSubscription;
   }
@@ -214,10 +218,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
     // Monitora as mensagens da sala
     const roomSubscription = this.roomMessages.getRoomMessages(roomId).subscribe({
       next: (messages) => {
-        messages
-          .filter(
-            (msg) =>
-              msg.status === 'delivered' &&
+        messages.filter((msg) =>msg.status === 'delivered' &&
               msg.senderId !== this.authService.currentUser?.uid
           )
           .forEach((msg) => {

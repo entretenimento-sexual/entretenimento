@@ -4,7 +4,8 @@ import { IUserDados } from '../../../interfaces/iuser-dados';
 import { AppState } from 'src/app/store/states/app.state';
 import { setCache } from 'src/app/store/actions/cache.actions';
 import { Store } from '@ngrx/store';
-import { firstValueFrom, Observable, of, switchMap } from 'rxjs';
+import { firstValueFrom, map, Observable, of, switchMap, take } from 'rxjs';
+import { selectCacheItem } from 'src/app/store/selectors/cache.selectors';
 
 interface CacheItem<T> {
   data: T;
@@ -61,35 +62,49 @@ export class CacheService {
    * @returns Dados armazenados ou `null` se não encontrado ou expirado.
    */
   get<T>(key: string): Observable<T | null> {
+    const caller = this.identifyCaller();
+
+    console.log(`[CacheService] (${caller}) Buscando chave: "${key}"`);
     const normalizedKey = this.normalizeKey(key);
+
     const cachedItem = this.cache.get(normalizedKey);
-
-    if (cachedItem) {
-      if (cachedItem.expiration && cachedItem.expiration < Date.now()) {
-        console.log(`[CacheService] Chave expirada: "${normalizedKey}"`);
-        this.cache.delete(normalizedKey);
-        return of(null);
-      }
-
-      console.log(`[CacheService] Chave encontrada no cache: "${normalizedKey}"`, cachedItem.data);
-      return of(cachedItem.data);
-      
-    } else {
-      console.log(`[CacheService] Chave não encontrada no cache: "${normalizedKey}"`);
-
-      // Busca no NgRx Store se não encontrar no cache local
-      return this.store.select(state => state.cache[normalizedKey]).pipe(
-        switchMap((fromStore) => {
-          if (fromStore) {
-            console.log(`[CacheService] Usuário carregado do NgRx Store: "${normalizedKey}"`);
-            return of(fromStore);
-          } else {
-            console.log(`[CacheService] Chave não encontrada nem no cache nem no Store: "${normalizedKey}"`);
-            return of(null);
-          }
-        })
-      );
+    if (cachedItem && !this.isExpired(cachedItem.expiration)) {
+      console.log(`[CacheService] (${caller}) Chave encontrada no cache: "${key}"`);
+      return of(cachedItem.data as T);
     }
+
+    console.log(`[CacheService] (${caller}) Chave não encontrada no cache: "${key}"`);
+
+    const storeItem = this.store.select(selectCacheItem(key));
+    return storeItem.pipe(
+      take(1),
+      map((item: CacheItem<T> | null) => {
+        if (item && !this.isExpired(item.expiration)) {
+          console.log(`[CacheService] (${caller}) Chave encontrada no Store: "${key}"`);
+          return item.data;
+        } else {
+          console.log(`[CacheService] (${caller}) Chave não encontrada nem no cache nem no Store: "${key}"`);
+          return null;
+        }
+      })
+    );
+  }
+
+  private isExpired(expiration: number | null): boolean {
+    if (expiration === null) return false;
+    return Date.now() > expiration;
+  }
+
+  private identifyCaller(): string {
+    const error = new Error();
+    const stackLines = (error.stack || '').split('\n');
+
+    // A terceira linha geralmente é o chamador direto, mas pode variar conforme o ambiente.
+    const callerLine = stackLines[3] || 'Unknown Method';
+
+    // Extrair apenas o nome da função (removendo caminhos e formatação desnecessária)
+    const match = callerLine.match(/at\s+(.*)\s+\(/);
+    return match ? match[1] : 'Unknown Method';
   }
 
 
@@ -118,6 +133,7 @@ export class CacheService {
    */
   delete(key: string): void {
     const normalizedKey = this.normalizeKey(key);
+    const cachedItem = this.cache.get(normalizedKey);
     if (this.cache.delete(normalizedKey)) {
       console.log(`[CacheService] Item removido: "${normalizedKey}"`);
     } else {

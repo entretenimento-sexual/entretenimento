@@ -61,7 +61,6 @@ export class InviteUserModalComponent implements OnInit {
     });
 
     // Busca a região do usuário logado no Firestore
-    // Busca a região do usuário logado no Firestore
     this.authService.getLoggedUserUID$().pipe(first()).subscribe({
       next: (uid) => {
         if (uid) {
