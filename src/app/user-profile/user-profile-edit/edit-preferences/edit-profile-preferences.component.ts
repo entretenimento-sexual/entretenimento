@@ -1,10 +1,9 @@
 // src\app\user-profile\user-profile-edit\edit-profile-preferences\edit-profile-preferences.component.ts
 import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Observable, of } from 'rxjs';
+import { of } from 'rxjs';
 import { map, switchMap, tap } from 'rxjs/operators';
 import { UserPreferencesService } from 'src/app/core/services/preferences/user-preferences.service';
-import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 
 @Component({
     selector: 'app-edit-profile-preferences',
@@ -18,7 +17,6 @@ export class EditProfilePreferencesComponent implements OnInit {
   preferencias: any = {};
 
   constructor(private route: ActivatedRoute,
-              private usuarioService: UsuarioService,
               private router: Router,
               private userPreferencesService: UserPreferencesService) { }
 

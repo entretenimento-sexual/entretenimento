@@ -57,14 +57,21 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
   }
 
   // Método chamado ao clicar no ícone de lixeira
-  async deleteThisMessage(): Promise<void> {
+  // -> Substituímos 'async/await' por uso de Observables + subscribe()
+  deleteThisMessage(): void {
     if (!this.chatId || !this.message.id) return;
-    try {
-      await this.chatService.deleteMessage(this.chatId, this.message.id);
-      console.log('Mensagem excluída com sucesso!');
-    } catch (error) {
-      console.error('Erro ao excluir mensagem:', error);
-    }
+
+    this.chatService
+      .deleteMessage(this.chatId, this.message.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: () => {
+          console.log('Mensagem excluída com sucesso!');
+        },
+        error: (error) => {
+          console.error('Erro ao excluir mensagem:', error);
+        },
+      });
   }
 
   // Método de ciclo de vida para limpar subscrições

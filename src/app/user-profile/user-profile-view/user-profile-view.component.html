@@ -50,6 +50,10 @@
       </ng-template>
 
       <app-user-profile-preferences [uid]="uid"></app-user-profile-preferences>
+      <app-social-links-accordion
+          [uid]="uid"
+          [isOwner]="isOnOwnProfile()">
+    </app-social-links-accordion>
     </div>
   </main>
 </div>

@@ -1,1 +1,37 @@
-<p>edit-profile-social-links works!</p>
+<!-- src\app\user-profile\user-profile-edit\edit-profile-social-links\edit-profile-social-links.component.html -->
+<div class="edit-social-links-container">
+  <h2>Editar Redes Sociais</h2>
+  <p>Aqui você pode adicionar, alterar ou remover seus links de redes sociais.</p>
+
+  <div class="form-group">
+    <label for="facebookInput"><i class="fab fa-facebook-square"></i> Facebook</label>
+    <input id="facebookInput" type="text" [ngModel]="socialLinks?.facebook || ''"
+      (ngModelChange)="updateLocalLink('facebook', $event)" />
+    <button class="btn btn-danger btn-sm" (click)="removerRede('facebook')" [disabled]="!socialLinks?.facebook">
+      Remover
+    </button>
+  </div>
+
+  <div class="form-group">
+    <label for="instagramInput"><i class="fab fa-instagram"></i> Instagram</label>
+    <input id="instagramInput" type="text" [ngModel]="socialLinks?.instagram || ''"
+      (ngModelChange)="updateLocalLink('instagram', $event)" />
+    <button class="btn btn-danger btn-sm" (click)="removerRede('instagram')" [disabled]="!socialLinks?.instagram">
+      Remover
+    </button>
+  </div>
+
+  <div class="form-group">
+    <label for="twitterInput"><i class="fab fa-twitter"></i> Twitter</label>
+    <input id="twitterInput" type="text" [ngModel]="socialLinks?.twitter || ''"
+      (ngModelChange)="updateLocalLink('twitter', $event)" />
+    <button class="btn btn-danger btn-sm" (click)="removerRede('twitter')" [disabled]="!socialLinks?.twitter">
+      Remover
+    </button>
+  </div>
+
+  <div class="button-group">
+    <button class="btn btn-success" (click)="salvarRedes()">Salvar</button>
+    <button class="btn btn-secondary" (click)="cancelar()">Cancelar</button>
+  </div>
+</div>

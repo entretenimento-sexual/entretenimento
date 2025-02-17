@@ -1,0 +1,75 @@
+/* src\app\user-profile\user-profile-view\user-social-links-accordion\user-social-links-accordion.component.css */
+:host {
+  display: block;
+  margin: 16px 0;
+}
+
+/* Sobrescrever mat-expansion-panel (Material) */
+::ng-deep .mat-expansion-panel {
+  background-color: #fff;
+  border-radius: 8px;
+  margin: 10px 0;
+  box-shadow: var(--box-shadow);
+}
+
+::ng-deep .mat-expansion-panel-header {
+  background-color: var(--primary-color);
+  color: #fff;
+  border-radius: 8px 8px 0 0;
+  padding: 0.75rem 1rem;
+}
+
+::ng-deep .mat-expansion-panel-header:hover {
+  background-color: var(--primary-hover);
+}
+
+::ng-deep .mat-panel-title {
+  font-size: 1.1rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+::ng-deep .mat-expansion-panel-body {
+  padding: 1rem;
+}
+
+/* Lista de links */
+.social-link-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.social-link-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--secondary-color);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.social-link-value {
+  font-weight: normal;
+  color: var(--text-color);
+}
+
+/* Se quiser ocultar itens que não estejam definidos */
+.hidden {
+  display: none;
+}
+
+.no-links-info {
+  font-style: italic;
+  color: var(--text-color);
+  margin-bottom: 1rem;
+}
+
+.no-access-warning {
+  font-style: italic;
+  color: var(--danger-color);
+  margin-top: 1rem;
+}

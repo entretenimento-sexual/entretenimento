@@ -10,8 +10,7 @@ import { AppState } from 'src/app/store/states/app.state';
 import { selectUserById } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { observeUserChanges } from 'src/app/store/actions/actions.user/user.actions';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { Timestamp } from 'firebase/firestore';
-import { formatDate } from '@angular/common';
+import { SocialLinksAccordionComponent } from './user-social-links-accordion/user-social-links-accordion.component';
 
 enum SidebarState { CLOSED, OPEN }
 
@@ -21,6 +20,7 @@ enum SidebarState { CLOSED, OPEN }
     styleUrls: ['./user-profile-view.component.css'],
     standalone: false
 })
+
 export class UserProfileViewComponent implements OnInit, OnDestroy {
 
   private sidebarSubscription?: Subscription;  // Subscription para acompanhar o estado da sidebar

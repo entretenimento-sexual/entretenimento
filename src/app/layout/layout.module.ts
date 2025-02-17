@@ -7,7 +7,6 @@ import { GeolocationService } from '../core/services/geolocation/geolocation.ser
 import { LayoutRoutingModule } from './layout-routing.module';
 import { SharedModule } from '../shared/shared.module';
 
-
 @NgModule({
   declarations: [
     ProfileListComponent,

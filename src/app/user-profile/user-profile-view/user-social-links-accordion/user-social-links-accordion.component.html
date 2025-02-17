@@ -1,0 +1,41 @@
+<!-- src\app\user-profile\user-social-links-accordion\user-social-links-accordion.component.html -->
+<mat-accordion class="social-links-accordion">
+  <mat-expansion-panel [expanded]="true">
+    <mat-expansion-panel-header>
+      <mat-panel-title>
+        <i class="fas fa-user-edit"></i>
+        Minhas Redes Sociais
+      </mat-panel-title>
+    </mat-expansion-panel-header>
+
+    <!-- Se tiver algum link configurado -->
+    <div class="social-link-list" *ngIf="anyLinks(); else noLinks">
+      <div class="social-link-item" *ngIf="socialLinks?.facebook">
+        <i class="fab fa-facebook-square"></i> Facebook:
+        <span class="social-link-value">{{ socialLinks?.facebook }}</span>
+      </div>
+
+      <div class="social-link-item" *ngIf="socialLinks?.instagram">
+        <i class="fab fa-instagram"></i> Instagram:
+        <span class="social-link-value">{{ socialLinks?.instagram }}</span>
+      </div>
+
+      <div class="social-link-item" *ngIf="socialLinks?.twitter">
+        <i class="fab fa-twitter"></i> Twitter:
+        <span class="social-link-value">{{ socialLinks?.twitter }}</span>
+      </div>
+    </div>
+    <ng-template #noLinks>
+      <p class="no-links-info">
+        Você não adicionou nenhuma rede social ainda.
+      </p>
+    </ng-template>
+
+    <!-- Botão que leva para editar -->
+    <button class="btn btn-secondary" (click)="goToEditSocialLinks()">
+      Editar Redes Sociais
+    </button>
+
+  </mat-expansion-panel>
+</mat-accordion>
+

@@ -1,0 +1,40 @@
+/* src\styles\global-forms.css */
+/* global-forms.css */
+.input-field {
+  width: 100%;
+  padding: 7px;
+  margin-bottom: 15px;
+  border: 1px solid #cccccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  background-color: var(--input-background);
+  transition: border-color 0.3s ease, box-shadow 0.2s ease;
+}
+
+.input-field:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  outline: none;
+}
+
+.form-label {
+  font-size: 1rem;
+  color: var(--text-color);
+  margin-bottom: 8px;
+  display: block;
+}
+
+.input-field.ng-invalid.ng-touched {
+  border-color: var(--danger-color);
+}
+
+.toggle-input {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+}

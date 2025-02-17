@@ -15,6 +15,8 @@ import { UserProfilePreferencesComponent } from "./user-profile-view/user-profil
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { UserPhotoManagerComponent } from './user-photo-manager/user-photo-manager.component';
+import { MatExpansionModule } from '@angular/material/expansion';
+import { SocialLinksAccordionComponent } from './user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
 
 @NgModule({
     declarations: [
@@ -25,8 +27,8 @@ import { UserPhotoManagerComponent } from './user-photo-manager/user-photo-manag
       EditUserProfileComponent,
       UserProfileSidebarComponent,
       UserProfilePreferencesComponent,
-      UserPhotoManagerComponent
-      ],
+      UserPhotoManagerComponent,
+  ],
 
     imports: [
         CommonModule,
@@ -37,8 +39,9 @@ import { UserPhotoManagerComponent } from './user-photo-manager/user-photo-manag
         UserProfileRoutingModule,
         LayoutModule,
         MatCardModule,
-        MatButtonModule
-
+        MatButtonModule,
+        MatExpansionModule,
+        SocialLinksAccordionComponent
     ]
 })
 export class UserProfileModule { }

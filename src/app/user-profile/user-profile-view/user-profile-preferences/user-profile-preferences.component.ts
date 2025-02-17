@@ -1,8 +1,5 @@
 // src\app\user-profile\user-profile-view\user-profile-preferences\user-profile-preferences.component.ts
 import { Component, Input } from '@angular/core';
-import { SharedModule } from "../../../shared/shared.module";
-import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
 import { mapeamentoCategorias } from 'src/app/core/interfaces/icategoria-mapeamento';
 import { IUserPreferences } from 'src/app/core/interfaces/iuser-preferences';
 import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
@@ -24,8 +21,7 @@ export class UserProfilePreferencesComponent {
     relacionamento: []
   };
 
-  constructor(private usuarioService: UsuarioService,
-    private userPreferencesService: UserPreferencesService) { }
+  constructor(private userPreferencesService: UserPreferencesService) { }
 
   ngOnInit(): void {
     if (this.uid) {

@@ -7,11 +7,10 @@
     <p class="message-sender">{{ senderName }}</p>
 
     <!-- Ícone de deletar: só exibe se a mensagem é do usuário atual, por exemplo -->
-    <button *ngIf="isMessageSent()" class="message-delete-btn"
-    (click)="deleteThisMessage()" title="Excluir esta mensagem">
-      <i class="fas fa-trash"></i> <!-- Font Awesome -->
+    <button *ngIf="isMessageSent()" class="message-delete-btn" (click)="deleteThisMessage()"
+    title="Excluir esta mensagem" aria-label="Excluir esta mensagem">
+      <i class="fas fa-trash"></i>
     </button>
-    </div>
 
   <p class="message-content">{{ message.content }}</p>
 

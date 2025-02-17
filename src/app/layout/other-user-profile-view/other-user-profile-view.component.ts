@@ -4,15 +4,15 @@ import { Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { SharedModule } from "../../shared/shared.module";
-import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { catchError, of } from 'rxjs';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { SocialLinksAccordionComponent } from 'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
 
 @Component({
     selector: 'app-other-user-profile-view', // Mantém standalone para evitar que o componente dependa de um módulo específico
     templateUrl: './other-user-profile-view.component.html',
     styleUrls: ['./other-user-profile-view.component.css'], // Corrige o nome da propriedade para 'styleUrls'
-    imports: [CommonModule, SharedModule] // Importa módulos comuns e compartilhados
+    imports: [CommonModule, SharedModule, SocialLinksAccordionComponent] 
 })
 
 export class OtherUserProfileViewComponent implements OnInit {
@@ -23,9 +23,8 @@ export class OtherUserProfileViewComponent implements OnInit {
   isLoading: boolean = true; // Variável para gerenciar o estado de carregamento
 
   constructor(
-    private route: ActivatedRoute, // Rota para acessar o parâmetro ID do usuário
-    private firestoreUserQuery: FirestoreUserQueryService,
-    private firestoreQuery: FirestoreQueryService) { }
+              private route: ActivatedRoute, // Rota para acessar o parâmetro ID do usuário
+              private firestoreUserQuery: FirestoreUserQueryService,) { }
 
   ngOnInit() {
     // Obtém o ID do usuário da rota

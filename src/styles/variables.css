@@ -1,0 +1,17 @@
+/* src\styles\variables.css */
+:root {
+  --primary-color: #ff4f4f;  /* Um vermelho mais escuro e intenso */
+  --primary-hover: #ff3333;  /* Hover mais forte para interações */
+  --secondary-color: #444;  /* Cinza escuro sofisticado */
+  --background-color: #fafafa;  /* Fundo mais claro e limpo */
+  --text-color: #333333;
+  --danger-color: #dc3545;
+  --danger-hover: #c82333;
+  --success-color: #28a745;
+  --success-hover: #218838;
+  --font-family-primary: 'Roboto', sans-serif;
+  --font-family-secondary: 'Open Sans', sans-serif;
+  --box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);  /* Sombra suave */
+  --input-background: #f3f3f3;  /* Fundo suave para campos de entrada */
+  --header-height: 100px;
+}
