@@ -49,7 +49,7 @@ export class GlobalErrorHandlerService implements ErrorHandler {
    * Loga o erro no console e, opcionalmente, integra com serviços externos
    */
   private logError(error: Error | HttpErrorResponse): void {
-    console.error('Erro capturado pelo GlobalErrorHandler:', error);
+    console.log('Erro capturado pelo GlobalErrorHandler:', error);
 
     // Integre com um serviço de logging externo (opcional)
     // Exemplo: Envio para Sentry
@@ -64,7 +64,7 @@ export class GlobalErrorHandlerService implements ErrorHandler {
   private sendToExternalLoggingService(error: Error | HttpErrorResponse): void {
     // Verifique se é um erro crítico antes de enviar
     if (this.isCriticalError(error)) {
-      console.warn('Enviando erro crítico para serviço externo:', error);
+      console.log('Enviando erro crítico para serviço externo:', error);
 
       // Exemplo: Integração com um serviço externo
       // const loggingService = this.injector.get(ExternalLoggingService);

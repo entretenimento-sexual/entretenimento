@@ -1,8 +1,7 @@
 // src\app\user-profile\user-profile-view\user-profile-preferences\user-profile-preferences.component.ts
 import { Component, Input } from '@angular/core';
 import { mapeamentoCategorias } from 'src/app/core/interfaces/icategoria-mapeamento';
-import { IUserPreferences } from 'src/app/core/interfaces/iuser-preferences';
-import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
+import { IUserPreferences } from 'src/app/core/interfaces/interfaces-user-dados/iuser-preferences';
 import { UserPreferencesService } from 'src/app/core/services/preferences/user-preferences.service';
 
 @Component({
@@ -24,8 +23,9 @@ export class UserProfilePreferencesComponent {
   constructor(private userPreferencesService: UserPreferencesService) { }
 
   ngOnInit(): void {
+    console.log('[UserProfilePreferencesComponent] Iniciando com UID:', this.uid);
     if (this.uid) {
-      this.userPreferencesService.buscarPreferenciasDoUsuario(this.uid)
+      this.userPreferencesService.getUserPreferences$(this.uid)
         .subscribe((preferencias: IUserPreferences) => {
           this.agruparPreferencias(preferencias);
         });

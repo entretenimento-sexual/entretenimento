@@ -17,11 +17,15 @@ import { RoomEffects } from './effects/effects.chat/room.effects';
 import { reducers } from './reducers/reducers.user/combine.reducers';
 import { CacheEffects } from './effects/cache.effects';
 
+import { userPreferencesReducer } from './reducers/reducers.user/user-preferences.reducer';
+import { UserPreferencesEffects } from './effects/effects.user/user-preferences.effects';
+
 console.log('Configurações do Store carregadas');
 
 @NgModule({
   imports: [
     StoreModule.forRoot(reducers),
+    StoreModule.forFeature('userPreferences', userPreferencesReducer),
     EffectsModule.forRoot([
       AuthEffects,
       UserEffects,
@@ -33,6 +37,7 @@ console.log('Configurações do Store carregadas');
       RoomEffects,
       CacheEffects,
     ]),
+    EffectsModule.forFeature([UserPreferencesEffects]),
     StoreDevtoolsModule.instrument({
       maxAge: 25,
       logOnly: environment.production,

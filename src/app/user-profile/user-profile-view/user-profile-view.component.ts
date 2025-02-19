@@ -1,8 +1,8 @@
 //src\app\user-profile\user-profile-view\user-profile-view.component.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { Subscription, Observable } from 'rxjs';
-import { tap } from 'rxjs/operators';
+import { Subscription, Observable, of } from 'rxjs';
+import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { SidebarService } from 'src/app/core/services/sidebar.service';
 import { Store } from '@ngrx/store';
@@ -40,46 +40,48 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit(): void {
+    console.log('[UserProfileViewComponent] Inicializando...');
+
+    // Obtendo o usuário autenticado
     this.authService.user$.pipe(
-      tap(user => {
-        this.currentUser = user;
-      })
+      tap(user => this.currentUser = user)
     ).subscribe();
 
-    const routeUid = this.route.snapshot.paramMap.get('id');
-    if (routeUid) {
-      this.uid = routeUid;
-    } else {
-      // Usando firstValueFrom para obter o valor do Observable de forma síncrona
-      this.authService.getLoggedUserUID$().pipe(
-        tap(uid => {
-          this.uid = uid;
-          if (this.uid) {
-            console.log("Dispatching observeUserChanges para UID:", this.uid);
-            this.store.dispatch(observeUserChanges({ uid: this.uid }));
-            this.usuario$ = this.store.select(selectUserById(this.uid));
+    // Obtendo o UID do usuário da URL ou do usuário autenticado
+    this.usuario$ = this.route.paramMap.pipe(
+      map(params => params.get('id') || ''), // Se não houver ID na URL, retorna string vazia
+      switchMap(uid => {
+        if (!uid) {
+          return this.authService.getLoggedUserUID$().pipe(
+            tap(loggedUid => this.uid = loggedUid),
+            switchMap(loggedUid => loggedUid ? this.store.select(selectUserById(loggedUid)) : of(null))
+          );
+        }
+        this.uid = uid;
+        console.log("[UserProfileViewComponent] Buscando usuário pelo UID:", this.uid);
+        this.store.dispatch(observeUserChanges({ uid: this.uid })); // Disparando ação para atualizar store
+        return this.store.select(selectUserById(this.uid));
+      }),
+      tap(user => {
+        console.log("[UserProfileViewComponent] Usuário carregado:", user);
+        if (user) {
+          this.currentUser = user;
+          this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
+        }
+      }),
+      catchError(error => {
+        console.log("[UserProfileViewComponent] Erro ao carregar usuário:", error);
+        return of(null);
+      })
+    );
 
-            this.usuario$.pipe(
-              tap(user => {
-                console.log("Dados do usuário carregados:", user);
-                if (user) {
-                  this.currentUser = user;
-                  this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
-                }
-              })
-            ).subscribe();
-          }
-        })
-      ).subscribe();
-    }
-
+    // Monitorando estado da sidebar
     this.sidebarSubscription = this.sidebarService.isSidebarVisible$.subscribe(
       isVisible => {
         this.isSidebarVisible = isVisible ? SidebarState.OPEN : SidebarState.CLOSED;
       }
     );
   }
-
 
    // Obtém as chaves de um objeto (potencialmente para preferências, se necessário)
   objectKeys(obj: any): string[] {

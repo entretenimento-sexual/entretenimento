@@ -11,7 +11,7 @@ import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/f
 @Component({
     selector: 'app-edit-user-profile',
     templateUrl: './edit-user-profile.component.html',
-    styleUrls: ['./edit-user-profile.component.css', '../../user-profile.css'],
+    styleUrls: ['./edit-user-profile.component.css', ],
     standalone: false
 })
 
