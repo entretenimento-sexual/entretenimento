@@ -4,24 +4,27 @@ import { IUserDados } from '../../../interfaces/iuser-dados';
 import { AppState } from 'src/app/store/states/app.state';
 import { setCache } from 'src/app/store/actions/cache.actions';
 import { Store } from '@ngrx/store';
-import { firstValueFrom, map, Observable, of, switchMap, take } from 'rxjs';
+import { Observable, of, switchMap, take } from 'rxjs';
 import { selectCacheItem } from 'src/app/store/selectors/cache.selectors';
+import { CachePersistenceService } from './cache-persistence.service';
 
 interface CacheItem<T> {
-  data: T;
-  expiration: number | null; // Expiração em timestamp (ms) ou null para itens sem expiração
-}
+                        data: T;
+                        expiration: number | null; // Expiração em timestamp (ms) ou null para itens sem expiração
+                        }
 
 @Injectable({
   providedIn: 'root',
 })
+
 export class CacheService {
   private cache: Map<string, CacheItem<any>> = new Map();
-  private defaultTTL = 300000; // Tempo padrão de expiração: 5 minutos
+  private defaultTTL = 300000; // 5 minutos
 
-  constructor(private store: Store<AppState>) {
-    console.log('[CacheService] Serviço inicializado.');
-  }
+  constructor(private store: Store<AppState>,
+              private cachePersistence: CachePersistenceService) {
+                        console.log('[CacheService] Serviço inicializado.');
+                      }
 
   /**
    * Adiciona ou atualiza um item no cache.
@@ -32,10 +35,14 @@ export class CacheService {
   set<T>(key: string, data: T, ttl?: number): void {
     const normalizedKey = this.normalizeKey(key);
     const expiration = ttl ? Date.now() + ttl : null;
+
     console.log(`[CacheService] Adicionando/atualizando chave: "${normalizedKey}"`, { data, expiration });
-    console.log(`[CacheService] Stack trace de adição/atualização: "${normalizedKey}"`);
-    this.cache.set(normalizedKey, { data, expiration });
-    console.log(`[CacheService] Item adicionado/atualizado: "${normalizedKey}"`, { data, expiration });
+    this.cache.set(normalizedKey, { data, expiration }); // ✅ Atualiza o cache em memória
+
+    // ✅ Persiste no IndexedDB para garantir que sobreviva a recarregamentos
+    this.cachePersistence.setPersistent(normalizedKey, data).subscribe(() => {
+      console.log(`[CacheService] Item salvo no IndexedDB: "${normalizedKey}"`);
+    });
   }
 
   /**
@@ -62,33 +69,42 @@ export class CacheService {
    * @returns Dados armazenados ou `null` se não encontrado ou expirado.
    */
   get<T>(key: string): Observable<T | null> {
-    const caller = this.identifyCaller();
+    console.log(`[CacheService] Buscando chave: "${key}"`);
 
-    console.log(`[CacheService] (${caller}) Buscando chave: "${key}"`);
-    const normalizedKey = this.normalizeKey(key);
-
-    const cachedItem = this.cache.get(normalizedKey);
+    // 1️⃣ Tenta buscar primeiro na memória
+    const cachedItem = this.cache.get(key);
     if (cachedItem && !this.isExpired(cachedItem.expiration)) {
-      console.log(`[CacheService] (${caller}) Chave encontrada no cache: "${key}"`);
       return of(cachedItem.data as T);
     }
 
-    console.log(`[CacheService] (${caller}) Chave não encontrada no cache: "${key}"`);
-
-    const storeItem = this.store.select(selectCacheItem(key));
-    return storeItem.pipe(
-      take(1),
-      map((item: CacheItem<T> | null) => {
-        if (item && !this.isExpired(item.expiration)) {
-          console.log(`[CacheService] (${caller}) Chave encontrada no Store: "${key}"`);
-          return item.data;
-        } else {
-          console.log(`[CacheService] (${caller}) Chave não encontrada nem no cache nem no Store: "${key}"`);
-          return null;
+    // 2️⃣ Se não encontrar, tenta buscar no IndexedDB antes de acessar o Store
+    return this.cachePersistence.getPersistent<T>(key).pipe(
+      switchMap((persistentData) => {
+        if (persistentData) {
+          console.log(`[CacheService] Chave encontrada no IndexedDB: "${key}"`);
+          this.set(key, persistentData); // ✅ Atualiza a memória
+          return of(persistentData);
         }
+
+        console.log(`[CacheService] Não encontrado no IndexedDB. Verificando Store...`);
+        return this.store.select(selectCacheItem(key)).pipe(
+          take(1),
+          switchMap((storeData) => {
+            if (storeData) {
+              console.log(`[CacheService] Chave encontrada no Store: "${key}"`);
+              this.set(key, storeData);
+              return of(storeData);
+            }
+
+            console.log(`[CacheService] Não encontrado no Store. Buscando no Firestore...`);
+            return of(null); // Retorna null se não houver no Firestore
+          })
+        );
       })
     );
   }
+
+
 
   private isExpired(expiration: number | null): boolean {
     if (expiration === null) return false;

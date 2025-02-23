@@ -1,3 +1,4 @@
+//src\app\user-profile\user-profile-view\user-activity-feed\user-activity-feed.component.ts
 import { Component } from '@angular/core';
 
 @Component({

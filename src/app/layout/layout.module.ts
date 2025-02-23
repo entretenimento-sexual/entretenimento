@@ -11,13 +11,14 @@ import { SharedModule } from '../shared/shared.module';
   declarations: [
     ProfileListComponent,
     PerfisProximosComponent,
-
   ],
+
   imports: [
     CommonModule,
     LayoutRoutingModule,
-    SharedModule
+    SharedModule,
   ],
+
   exports: [
     ProfileListComponent,
     PerfisProximosComponent

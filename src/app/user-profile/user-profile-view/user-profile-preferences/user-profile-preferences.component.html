@@ -1,39 +1,70 @@
 <!-- src\app\user-profile\user-profile-view\user-profile-preferences\user-profile-preferences.component.html -->
-<div class="user-preferences col-lg-6"><!--meus desejos-->
+<mat-accordion class="preferences-accordion">
+  <mat-expansion-panel [expanded]="true">
+    <mat-expansion-panel-header>
+      <mat-panel-title>
+        <i class="fas fa-user-edit"></i>
+        Preferências do Usuário
+      </mat-panel-title>
+    </mat-expansion-panel-header>
 
-  <div *ngIf="categoriasDePreferencias.genero.length > 0" class="category-container">
-    <h3 class="category-title">Tenho interesse em:</h3>
-    <ul>
-      <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.genero">{{ pref | capitalize }}</li>
-    </ul>
-    <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar busca</a>
-  </div><!--genero-->
+    <!-- Se houver preferências cadastradas -->
+    <div class="preferences-list" *ngIf="preferences$ | async as preferences; else noPreferences">
 
-  <div *ngIf="categoriasDePreferencias.praticaSexual.length > 0" class="category-container">
-    <h3 class="category-title">Que curtam::</h3>
-    <ul>
-      <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.praticaSexual">{{ pref | capitalize }}
-      </li>
-    </ul>
-    <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar fetiches</a>
-  </div><!--praticaSexual-->
+      <mat-expansion-panel *ngIf="categoriasDePreferencias.genero.length > 0">
+        <mat-expansion-panel-header>
+          <mat-panel-title><i class="fas fa-users"></i> Interesse em:</mat-panel-title>
+        </mat-expansion-panel-header>
+        <div class="preferences-grid">
+          <button *ngFor="let pref of categoriasDePreferencias.genero" class="preference-item"
+            (click)="onPreferenceClick(pref)">
+            {{ pref | capitalize }}
+          </button>
+        </div>
+      </mat-expansion-panel>
 
-  <div *ngIf="categoriasDePreferencias.preferenciaFisica.length > 0" class="category-container">
-    <h3 class="category-title">Sejam:</h3>
-    <ul>
-      <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.preferenciaFisica">{{ pref | capitalize
-        }}</li>
-    </ul>
-    <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar preferências</a>
-  </div><!--preferenciaFisica-->
+      <mat-expansion-panel *ngIf="categoriasDePreferencias.praticaSexual.length > 0">
+        <mat-expansion-panel-header>
+          <mat-panel-title><i class="fas fa-fire"></i> Que curtam:</mat-panel-title>
+        </mat-expansion-panel-header>
+        <div class="preferences-grid">
+          <button *ngFor="let pref of categoriasDePreferencias.praticaSexual" class="preference-item"
+            (click)="onPreferenceClick(pref)">
+            {{ pref | capitalize }}
+          </button>
+        </div>
+      </mat-expansion-panel>
 
-  <div *ngIf="categoriasDePreferencias.relacionamento.length > 0" class="category-container">
-    <h3 class="category-title">Desejo:</h3>
-    <ul>
-      <li class="category-item tag" *ngFor="let pref of categoriasDePreferencias.relacionamento">{{ pref | capitalize }}
-      </li>
-    </ul>
-    <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">Editar desejos</a>
-  </div><!--relacionamento-->
+      <mat-expansion-panel *ngIf="categoriasDePreferencias.preferenciaFisica.length > 0">
+        <mat-expansion-panel-header>
+          <mat-panel-title><i class="fas fa-user"></i> Características desejadas:</mat-panel-title>
+        </mat-expansion-panel-header>
+        <div class="preferences-grid">
+          <button *ngFor="let pref of categoriasDePreferencias.preferenciaFisica" class="preference-item"
+            (click)="onPreferenceClick(pref)">
+            {{ pref | capitalize }}
+          </button>
+        </div>
+      </mat-expansion-panel>
 
-</div><!--user-preferences-->
+      <mat-expansion-panel *ngIf="categoriasDePreferencias.relacionamento.length > 0">
+        <mat-expansion-panel-header>
+          <mat-panel-title><i class="fas fa-heart"></i> Tipo de relacionamento:</mat-panel-title>
+        </mat-expansion-panel-header>
+        <div class="preferences-grid">
+          <button *ngFor="let pref of categoriasDePreferencias.relacionamento" class="preference-item"
+            (click)="onPreferenceClick(pref)">
+            {{ pref | capitalize }}
+          </button>
+        </div>
+      </mat-expansion-panel>
+
+    </div>
+
+    <ng-template #noPreferences>
+      <p class="no-preferences-message">Nenhuma preferência cadastrada.</p>
+    </ng-template>
+
+    
+  </mat-expansion-panel>
+</mat-accordion>

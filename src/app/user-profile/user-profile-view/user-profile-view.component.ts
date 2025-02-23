@@ -1,6 +1,6 @@
 //src\app\user-profile\user-profile-view\user-profile-view.component.ts
 import { Component, OnInit, OnDestroy } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterModule } from '@angular/router';
 import { Subscription, Observable, of } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
@@ -10,7 +10,13 @@ import { AppState } from 'src/app/store/states/app.state';
 import { selectUserById } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { observeUserChanges } from 'src/app/store/actions/actions.user/user.actions';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { CommonModule } from '@angular/common';
 import { SocialLinksAccordionComponent } from './user-social-links-accordion/user-social-links-accordion.component';
+import { UserProfilePreferencesComponent } from './user-profile-preferences/user-profile-preferences.component';
+import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
+import { SharedModule } from 'src/app/shared/shared.module';
+import { UserProfileSidebarComponent } from './user-profile-sidebar/user-profile-sidebar.component';
+import { UserProfileModule } from '../user-profile.module';
 
 enum SidebarState { CLOSED, OPEN }
 
@@ -18,14 +24,23 @@ enum SidebarState { CLOSED, OPEN }
     selector: 'app-user-profile-view',
     templateUrl: './user-profile-view.component.html',
     styleUrls: ['./user-profile-view.component.css'],
-    standalone: false
+  standalone: true,
+  imports: [
+    CommonModule,
+    RouterModule,
+    SharedModule,
+    SocialLinksAccordionComponent,
+    UserProfilePreferencesComponent,
+    UserPhotoManagerComponent,
+    UserProfileSidebarComponent 
+  ]
 })
 
 export class UserProfileViewComponent implements OnInit, OnDestroy {
 
   private sidebarSubscription?: Subscription;  // Subscription para acompanhar o estado da sidebar
   public isSidebarVisible = SidebarState.CLOSED;  // Estado atual da sidebar (aberta ou fechada)
-  public uid!: string | null;  // UID do usuário a ser carregado
+  public uid: string | null = null;  // UID do usuário a ser carregado
   public currentUser: IUserDados | null = null;  // Armazena o usuário autenticado
   public preferences: any;  // Variável potencialmente usada para armazenar preferências (pode ser necessária)
 
@@ -49,11 +64,11 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
 
     // Obtendo o UID do usuário da URL ou do usuário autenticado
     this.usuario$ = this.route.paramMap.pipe(
-      map(params => params.get('id') || ''), // Se não houver ID na URL, retorna string vazia
+      map(params => params.get('id') ?? null), // Se não houver ID na URL, retorna string vazia
       switchMap(uid => {
         if (!uid) {
           return this.authService.getLoggedUserUID$().pipe(
-            tap(loggedUid => this.uid = loggedUid),
+            tap(loggedUid => this.uid = loggedUid ?? null),
             switchMap(loggedUid => loggedUid ? this.store.select(selectUserById(loggedUid)) : of(null))
           );
         }

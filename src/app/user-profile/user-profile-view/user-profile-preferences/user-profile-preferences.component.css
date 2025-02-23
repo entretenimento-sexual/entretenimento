@@ -1,1 +1,68 @@
 /* src\app\user-profile\user-profile-view\user-profile-preferences\user-profile-preferences.component.css */
+:host {
+  display: block;
+  margin: 16px 0;
+}
+
+/* Mantendo a padronização com SocialLinksAccordionComponent */
+.mat-expansion-panel {
+  background-color: #fff;
+  border-radius: 8px;
+  margin: 10px 0;
+  box-shadow: var(--box-shadow);
+}
+
+.mat-expansion-panel-header {
+  background-color: var(--primary-color);
+  color: #fff;
+  border-radius: 8px 8px 0 0;
+  padding: 0.75rem 1rem;
+  font-weight: bold;
+}
+
+.mat-expansion-panel-header:hover {
+  background-color: var(--primary-hover);
+}
+
+.mat-panel-title {
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mat-expansion-panel-body {
+  padding: 1rem;
+}
+
+/* Grid de Preferências */
+.preferences-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+}
+
+.preference-item {
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 20px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.2s ease;
+}
+
+.preference-item:hover {
+  background: var(--primary-hover);
+  transform: scale(1.05);
+}
+
+/* Mensagem de preferências vazias */
+.no-preferences-message {
+  font-style: italic;
+  color: var(--secondary-color);
+  text-align: center;
+  margin-top: 1rem;
+}

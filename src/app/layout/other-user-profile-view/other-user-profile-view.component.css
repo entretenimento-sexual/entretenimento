@@ -1,41 +1,59 @@
 /* src\app\layout\other-user-profile-view\other-user-profile-view.component.css */
 .user-profile-container {
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
   gap: 20px;
   padding: 20px;
+  max-width: 600px;
+  margin: auto;
 }
 
 .user-info {
-  flex: 1;
+  background: #fff;
   padding: 20px;
-  border: 1px solid #ccc;
   border-radius: 10px;
-}
-
-.user-preferences {
-  flex: 1;
-  padding: 20px;
-  border: 1px solid #ccc;
-  border-radius: 10px;
+  box-shadow: var(--box-shadow);
+  text-align: center;
+  width: 100%;
 }
 
 .profile-photo {
-  width: 150px;
-  height: 150px;
+  width: 120px;
+  height: 120px;
   border-radius: 50%;
   object-fit: cover;
+  margin-bottom: 10px;
+}
+
+.user-preferences {
+  background: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: var(--box-shadow);
+  width: 100%;
+}
+
+.preference-box {
+  margin-top: 15px;
+  padding: 10px;
+  background-color: var(--input-background);
+  border-radius: 8px;
+}
+
+h2,
+h3 {
+  color: var(--primary-color);
 }
 
 ul {
-  list-style-type: none;
   padding: 0;
+  list-style: none;
 }
 
-li {
-  background-color: #e0e0e0;
+ul li {
+  background-color: #f3f3f3;
   margin-bottom: 5px;
-  padding: 5px;
+  padding: 8px;
   border-radius: 5px;
 }

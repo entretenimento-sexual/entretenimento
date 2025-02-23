@@ -2,76 +2,110 @@
 <div class="container-fluid">
   <div class="row justify-content-center">
     <div class="parateste">
-      <form class="form-common" (ngSubmit)="salvarPreferencias()">
-        <div class="preferences-flex-container">
+      <form #preferenceForm="ngForm" class="form-common" (ngSubmit)="salvarPreferencias()">
+            <div class="preferences-flex-container">
 
-            <div class="preferences-group">
-              <h3 class="category-title">Minhas Preferências de Gênero</h3>
+                <div class="preferences-group">
+                  <h3 class="category-title">Minhas Preferências de Gênero</h3>
+                <div class="checkbox-group">
+                  <label><input type="checkbox" [(ngModel)]="preferencias['homens']" name="homem">Homens</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['mulheres']" name="mulheres">Mulheres</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['casais-ele-ele']" name="casais-ele-ele">Casais Ele / Ele</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['casais-ele-ela']" name="casais-ele-ela">Casais Ele / Ela</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['casais-ela-ela']" name="casais-ela-ela">Casais Ela / Ela</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['travestis']" name="travestis">Travestis</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['transexuais']" name="transexuais">Transexuais</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['crossdressers']" name="crossdressers">Crossdressers</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['naoBinario']" name="naoBinario">Não Binário</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['intersexo']" name="intersexo">Intersexo</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['dragQueen']" name="dragQueen">Drag Queen</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['dragKing']" name="dragKing">Drag King</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['androgeno']" name="androgeno">Andrógeno</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['agenero']" name="agenero">Agênero</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['genderfluid']" name="genderfluid">Genderfluid</label>
+                  <label><input type="checkbox" [(ngModel)]="preferencias['genderqueer']" name="genderqueer">Genderqueer</label>
+                </div><!-- checkbox-group -->
+                </div><!--preferences-group-->
+
+    <!-- Seção de Práticas Sexuais -->
+      <div class="preferences-group">
+        <h3 class="category-title">Práticas Sexuais</h3>
+          <div class="checkbox-group">
+            <label><input type="checkbox" [(ngModel)]="preferencias['BDSM']" name="BDSM">BDSM</label>
+            <label><input type="checkbox" [(ngModel)]="preferencias['voyeurismo']" name="voyeurismo">Voyeurismo</label>
+            <label><input type="checkbox" [(ngModel)]="preferencias['exibicionismo']" name="exibicionismo">Exibicionismo</label>
+            <label><input type="checkbox" [(ngModel)]="preferencias['swing']" name="swing">Swing</label>
+            <label><input type="checkbox" [(ngModel)]="preferencias['menage']" name="menage">Menage</label>
+            <label><input type="checkbox" [(ngModel)]="preferencias['sexoGrupal']" name="sexoGrupal">Sexo Grupal</label>
+            <label><input type="checkbox" [(ngModel)]="preferencias['fantasiasEroticas']" name="fantasiasEroticas">Fantasias Eróticas
+              (Roleplay)</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['tantra']" name="tantra">Tantra</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['domSub']" name="domSub">Dominação e Submissão</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['sexoArLivre']" name="sexoArLivre">Sexo ao Ar Livre</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['fetiches']" name="fetiches">Fetiches Personalizados</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['edgePlay']" name="edgePlay">Edge Play</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['shibari']" name="shibari">Shibari</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['cuckold']" name="cuckold">Cuckold</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['pegging']" name="pegging">Pegging</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['sensoryPlay']" name="sensoryPlay">Sensory Play</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['dirtyTalk']" name="dirtyTalk">Dirty Talk</label>
+          </div>
+        </div>
+
+
+      <!-- Seção de Preferências Físicas -->
+        <div class="preferences-group">
+          <h3 class="category-title">Preferências Físicas</h3>
             <div class="checkbox-group">
-              <label><input type="checkbox" [(ngModel)]="preferencias['homens']" name="homem">Homens</label>
-              <label><input type="checkbox" [(ngModel)]="preferencias['mulheres']" name="mulheres">Mulheres</label>
-              <label><input type="checkbox" [(ngModel)]="preferencias['casais-ele-ele']" name="casais-ele-ele">Casais Ele / Ele</label>
-              <label><input type="checkbox" [(ngModel)]="preferencias['casais-ele-ela']" name="casais-ele-ela">Casais Ele / Ela</label>
-              <label><input type="checkbox" [(ngModel)]="preferencias['casais-ela-ela']" name="casais-ela-ela">Casais Ela / Ela</label>
-              <label><input type="checkbox" [(ngModel)]="preferencias['travestis']" name="travestis">Travestis</label>
-              <label><input type="checkbox" [(ngModel)]="preferencias['transexuais']" name="transexuais">Transexuais</label>
-              <label><input type="checkbox" [(ngModel)]="preferencias['crossdressers']" name="crossdressers">Crossdressers</label>
-            </div><!-- checkbox-group -->
-            </div><!--preferences-group-->
+              <label><input type="checkbox" [(ngModel)]="preferencias['tipoFisicoAtletico']" name="tipoFisicoAtlético">Tipo Físico
+                Atlético</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['tipoFisicoPlusSize']" name="tipoFisicoPlusSize">Tipo Físico Plus
+                Size</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['tatuagens']" name="tatuagens">Tatuagens</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['piercings']" name="piercings">Piercings</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['barba']" name="barba">Barba</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['cabelosLongos']" name="cabelosLongos">Cabelos Longos</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['cabelosCacheados']" name="cabelosCacheados">Cabelos
+                Cacheados</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['olhosClaros']" name="olhosClaros">Olhos Claros</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['corpoMusculoso']" name="corpoMusculoso">Corpo Musculoso</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['corpoMagro']" name="corpoMagro">Corpo Magro</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['corpoCurvilineo']" name="corpoCurvilineo">Corpo
+                Curvilíneo</label>
+            </div><!--checkbox-group-->
+        </div><!--preferences-group-->
 
-<!-- Seção de Práticas Sexuais -->
-  <div class="preferences-group">
-    <h3 class="category-title">Práticas Sexuais</h3>
-      <div class="checkbox-group">
-        <label><input type="checkbox" [(ngModel)]="preferencias['BDSM']" name="BDSM">BDSM</label>
-        <label><input type="checkbox" [(ngModel)]="preferencias['voyeurismo']" name="voyeurismo">Voyeurismo</label>
-        <label><input type="checkbox" [(ngModel)]="preferencias['exibicionismo']" name="exibicionismo">Exibicionismo</label>
-        <label><input type="checkbox" [(ngModel)]="preferencias['swing']" name="swing">Swing</label>
-        <label><input type="checkbox" [(ngModel)]="preferencias['menage']" name="menage">Menage</label>
-        <label><input type="checkbox" [(ngModel)]="preferencias['sexoGrupal']" name="sexoGrupal">Sexo Grupal</label>
-        <label><input type="checkbox" [(ngModel)]="preferencias['fantasiasEroticas']" name="fantasiasEroticas">Fantasias Eróticas
-          (Roleplay)</label>
-      </div>
+      <!-- Seção de Preferências de Relacionamento -->
+      <div class="preferences-group">
+        <h3 class="category-title">Preferências de Relacionamento</h3>
+          <div class="checkbox-group">
+              <label><input type="checkbox" [(ngModel)]="preferencias['relacionamentosCasuais']"
+                  name="relacionamentosCasuais">Relacionamentos Casuais</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['encontrosSemCompromisso']"
+                  name="encontrosSemCompromisso">Encontros Sem Compromisso</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['relacionamentosAbertos']"
+                  name="relacionamentosAbertos">Relacionamentos Abertos</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['poliamor']" name="poliamor">Poliamor</label>
+              <label><input type="checkbox" [(ngModel)]="preferencias['amizadeColorida']" name="amizadeColorida">Amizade
+                Colorida</label>
+                <label><input type="checkbox" [(ngModel)]="preferencias['amizadeSensual']" name="amizadeSensual">Amizade Sensual</label>
+                <label><input type="checkbox" [(ngModel)]="preferencias['relacaoMonogamica']" name="relacaoMonogamica">Relacionamento
+                  Monogâmico</label>
+                <label><input type="checkbox" [(ngModel)]="preferencias['relacaoAbertaNaoHierarquica']"
+                    name="relacaoAbertaNaoHierarquica">Relação Aberta Não-Hierárquica</label>
+          </div><!--checkbox-group-->
+        </div><!--preferences-group-->
+
+    </div> <!-- preferences-flex-container -->
+      <!-- Botões de Ação -->
+
+    <!-- Botões de Ação -->
+    <div class="button-group">
+      <button type="submit" class="btn btn-primary" [disabled]="preferenceForm.invalid">Salvar Preferências</button>
+      <button type="button" class="btn btn-secondary" (click)="voltarSemSalvar()">Voltar sem Salvar</button>
     </div>
 
-
-  <!-- Seção de Preferências Físicas -->
-    <div class="preferences-group">
-      <h3 class="category-title">Preferências Físicas</h3>
-        <div class="checkbox-group">
-          <label><input type="checkbox" [(ngModel)]="preferencias['tipoFisicoAtletico']" name="tipoFisicoAtlético">Tipo Físico
-            Atlético</label>
-          <label><input type="checkbox" [(ngModel)]="preferencias['tipoFisicoPlusSize']" name="tipoFisicoPlusSize">Tipo Físico Plus
-            Size</label>
-          <label><input type="checkbox" [(ngModel)]="preferencias['tatuagens']" name="tatuagens">Tatuagens</label>
-          <label><input type="checkbox" [(ngModel)]="preferencias['piercings']" name="piercings">Piercings</label>
-        </div><!--checkbox-group-->
-    </div><!--preferences-group-->
-
-  <!-- Seção de Preferências de Relacionamento -->
-  <div class="preferences-group">
-    <h3 class="category-title">Preferências de Relacionamento</h3>
-      <div class="checkbox-group">
-          <label><input type="checkbox" [(ngModel)]="preferencias['relacionamentosCasuais']"
-              name="relacionamentosCasuais">Relacionamentos Casuais</label>
-          <label><input type="checkbox" [(ngModel)]="preferencias['encontrosSemCompromisso']"
-              name="encontrosSemCompromisso">Encontros Sem Compromisso</label>
-          <label><input type="checkbox" [(ngModel)]="preferencias['relacionamentosAbertos']"
-              name="relacionamentosAbertos">Relacionamentos Abertos</label>
-          <label><input type="checkbox" [(ngModel)]="preferencias['poliamor']" name="poliamor">Poliamor</label>
-          <label><input type="checkbox" [(ngModel)]="preferencias['amizadeColorida']" name="amizadeColorida">Amizade
-            Colorida</label>
-      </div><!--checkbox-group-->
-    </div><!--preferences-group-->
-
-</div> <!-- preferences-flex-container -->
-  <!-- Botões de Ação -->
-
-  <div class="button-group">
-    <button type="submit">Salvar Preferências</button>
-    <button (click)="voltarSemSalvar()" class="btn btn-secondary btn-voltar">Voltar sem Salvar</button>
-  </div><!--button-group-->
-      </form>
+    </form>
 
 
     </div><!--col-lg-8-->

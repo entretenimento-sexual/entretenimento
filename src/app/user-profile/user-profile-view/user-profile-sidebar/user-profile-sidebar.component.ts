@@ -10,6 +10,9 @@ import { tap } from 'rxjs/operators';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { CommonModule } from '@angular/common';
+import { MatButtonModule } from '@angular/material/button';
+import { RouterModule } from '@angular/router';
 
 enum SidebarState { CLOSED, OPEN }
 
@@ -17,7 +20,10 @@ enum SidebarState { CLOSED, OPEN }
     selector: 'app-user-profile-sidebar',
     templateUrl: './user-profile-sidebar.component.html',
     styleUrls: ['./user-profile-sidebar.component.css'],
-    standalone: false
+    standalone: true, // ✅ Agora é standalone
+    imports: [CommonModule,
+              RouterModule,
+              MatButtonModule]
 })
 
 export class UserProfileSidebarComponent implements OnInit, OnDestroy {

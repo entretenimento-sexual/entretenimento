@@ -101,7 +101,7 @@ export class AuthService {
         }),
         catchError(error => {
           console.error('Erro ao recuperar estado de autenticação:', error);
-          this.globalErrorHandlerService.handleError(error as Error);
+          this.globalErrorHandlerService.handleError(error);
           return of(null);
         })
       )
