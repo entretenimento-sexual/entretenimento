@@ -58,6 +58,7 @@ const routes: Routes = [
   },
   { path: 'espiar', component: EspiarComponent },
   { path: 'subscription-plan', component: SubscriptionPlanComponent },
+  { path: 'admin-dashboard', loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule) },
 
   // Redirecionamento padrão para rotas desconhecidas
   { path: '**', redirectTo: '/dashboard/principal' },

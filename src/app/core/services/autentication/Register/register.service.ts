@@ -11,24 +11,23 @@ import { FirestoreUserQueryService } from '../../data-handling/firestore-user-qu
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { ValidatorService } from '../../general/validator.service';
 import { EmailVerificationService } from './email-verification.service';
+import { FirestoreValidationService } from '../../data-handling/firestore-validation.service';
 
 @Injectable({
   providedIn: 'root',
 })
 export class RegisterService {
-  constructor(
-    private firestoreService: FirestoreService,
-    private emailVerificationService: EmailVerificationService,
-    private geolocationService: GeolocationService,
-    private globalErrorHandler: GlobalErrorHandlerService,
-    private firestoreUserQuery: FirestoreUserQueryService
-  ) { }
 
-  /**
-   * Verifica se o apelido já existe no Firestore.
-   */
+  constructor(private firestoreService: FirestoreService,
+              private emailVerificationService: EmailVerificationService,
+              private geolocationService: GeolocationService,
+              private globalErrorHandler: GlobalErrorHandlerService,
+              private firestoreUserQuery: FirestoreUserQueryService,
+              private firestoreValidation: FirestoreValidationService) { }
+
+  // Verifica se o apelido já existe no Firestore.
   checkIfNicknameExists(nickname: string): Observable<boolean> {
-    return from(this.firestoreService.checkIfNicknameExists(nickname)).pipe(
+    return from(this.firestoreValidation.checkIfNicknameExists(nickname)).pipe(
       catchError((error) => {
         this.globalErrorHandler.handleError(error);
         return throwError(() => new Error('Erro ao verificar apelido.'));
@@ -36,9 +35,7 @@ export class RegisterService {
     );
   }
 
-  /**
-   * Verifica se o e-mail já está registrado no Firestore e envia recuperação de senha se necessário.
-   */
+  //Verifica se o e-mail já está registrado no Firestore e envia recuperação de senha se necessário.
   checkIfEmailExists(email: string): Observable<void> {
     return from(this.firestoreService.checkIfEmailExists(email)).pipe(
       switchMap((emailExists) => {
@@ -55,9 +52,7 @@ export class RegisterService {
     );
   }
 
-  /**
-   * Registra um novo usuário.
-   */
+  //Registra um novo usuário.
   registerUser(userRegistrationData: IUserRegistrationData, password: string): Observable<UserCredential> {
     console.log('Iniciando o processo de registro no serviço. Dados recebidos:', userRegistrationData);
 
@@ -133,10 +128,7 @@ export class RegisterService {
     );
   }
 
-
-  /**
-   * Exclui um usuário antes da verificação, caso o registro falhe.
-   */
+  //Exclui um usuário antes da verificação, caso o registro falhe.
   private rollbackUser(uid: string, error: any): Observable<never> {
     return from(this.deleteUserOnFailure(uid)).pipe(
       switchMap(() => throwError(() => error)),

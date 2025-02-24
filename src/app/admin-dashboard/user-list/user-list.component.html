@@ -1,0 +1,26 @@
+<!-- src\app\admin-dashboard\user-list\user-list.component.html -->
+<h2>Lista de Usuários</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Nome</th>
+      <th>Email</th>
+      <th>Status</th>
+      <th>Ações</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let user of users">
+      <td>{{ user.nome }}</td>
+      <td>{{ user.email }}</td>
+      <td [ngClass]="{ 'ativo': !user.suspended, 'suspenso': user.suspended }">
+        {{ user.suspended ? 'Suspenso' : 'Ativo' }}
+      </td>
+      <td>
+        <button (click)="viewUserDetails(user)">Detalhes</button>
+      </td>
+    </tr>
+  </tbody>
+</table>
+

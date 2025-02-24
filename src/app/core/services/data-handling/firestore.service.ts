@@ -3,15 +3,16 @@ import { Injectable } from '@angular/core';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc,
          increment, Firestore, getDoc,
-         QueryConstraint} from 'firebase/firestore';
+         QueryConstraint,
+         WithFieldValue} from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, map, shareReplay, switchMap } from 'rxjs/operators';
-import { ErrorNotificationService } from '../error-handler/error-notification.service';
 import { CacheService } from '../general/cache/cache.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
+import { DocumentData } from 'firebase/firestore';
 
 @Injectable({
   providedIn: 'root'
@@ -19,8 +20,7 @@ import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-h
 export class FirestoreService {
   private db: Firestore;
 
-  constructor(private errorNotifier: ErrorNotificationService,
-              private globalErrorHandler: GlobalErrorHandlerService,
+  constructor(private globalErrorHandler: GlobalErrorHandlerService,
               private firestoreErrorHandler: FirestoreErrorHandlerService,
               private cacheService: CacheService) {
 
@@ -118,22 +118,7 @@ export class FirestoreService {
     );
   }
 
-  /**
-   * Verifica se um apelido já existe na coleção 'users'.
-   * @param nickname O apelido a ser verificado.
-   * @returns Um boolean indicando se o apelido já existe.
-   */
-  checkIfNicknameExists(nickname: string): Observable<boolean> {
-    const userCollection = collection(this.db, 'users');
-    const q = query(userCollection, where('nickname', '==', nickname.trim()));
-
-    return from(getDocs(q)).pipe(
-      map((querySnapshot) => querySnapshot.size > 0),
-      catchError((error) => this.firestoreErrorHandler.handleFirestoreError(error))
-    );
-  }
-
-  /**
+   /**
    * Verifica se um e-mail já existe na coleção 'users'.
    * @param email O e-mail a ser verificado.
    * @returns Um boolean indicando se o e-mail já existe.
@@ -214,4 +199,19 @@ export class FirestoreService {
     this.globalErrorHandler.handleError(error);  // Delegando para o GlobalErrorHandlerService
     return throwError(() => error);
   }
+
+  /**
+  * Adiciona um documento a uma coleção no Firestore.
+  * @param collectionName Nome da coleção.
+  * @param data Dados a serem adicionados.
+  * @returns Um Observable<void> indicando sucesso ou erro.
+  */
+  addDocument<T extends WithFieldValue<DocumentData>>(collectionName: string, data: T): Observable<void> {
+    const docRef = doc(collection(this.db, collectionName));
+    return from(setDoc(docRef, data)).pipe(
+      catchError(error => this.handleFirestoreError(error))
+    );
+  }
 }
+
+
