@@ -1,0 +1,44 @@
+/* src\app\layout\friend.management\friend-list\friend-list.component.css */
+.friend-list {
+  padding: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #f9f9f9;
+}
+
+.friend-list h4 {
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+  color: #333;
+}
+
+.friend-list ul {
+  list-style: none;
+  padding: 0;
+}
+
+.friend-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid #ddd;
+}
+
+.friend-list li:last-child {
+  border-bottom: none;
+}
+
+.friend-list button {
+  background: #ff3b3b;
+  color: white;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.friend-list button:hover {
+  background: #e60000;
+}

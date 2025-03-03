@@ -1,0 +1,26 @@
+<!-- src\app\layout\friend.management\friend-settings\friend-settings.component.html -->
+<div class="friend-settings">
+  <h3>Configurações de Amizade</h3>
+
+  <!-- Formulário de configurações -->
+  <form [formGroup]="settingsForm">
+    <mat-slide-toggle formControlName="receiveRequests">
+      Permitir receber solicitações de amizade
+    </mat-slide-toggle>
+
+    <mat-slide-toggle formControlName="showOnlineStatus">
+      Mostrar meu status online
+    </mat-slide-toggle>
+
+    <mat-slide-toggle formControlName="allowSearchByNickname">
+      Permitir que outros me encontrem pelo nickname
+    </mat-slide-toggle>
+
+    <button mat-button color="primary" [disabled]="isLoading$ | async" (click)="saveSettings()">
+      Salvar Configurações
+    </button>
+  </form>
+
+  <!-- Loader enquanto salva -->
+  <mat-spinner *ngIf="isLoading$ | async"></mat-spinner>
+</div>

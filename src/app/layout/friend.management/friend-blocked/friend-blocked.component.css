@@ -1,0 +1,27 @@
+/* src\app\layout\friend.management\friend-blocked\friend-blocked.component.css */
+.friend-blocked {
+  padding: 15px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  max-width: 400px;
+}
+
+.friend-blocked h4 {
+  margin-bottom: 10px;
+}
+
+.friend-blocked ul {
+  list-style: none;
+  padding: 0;
+}
+
+.friend-blocked li {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px;
+  border-bottom: 1px solid #ddd;
+}
+
+.friend-blocked button {
+  cursor: pointer;
+}

@@ -1,7 +1,13 @@
 /* src\app\user-profile\user-profile-view\user-social-links-accordion\user-social-links-accordion.component.css */
+
+.social-links-accordion{
+  width: 100%;
+}
+
 :host {
   display: block;
   margin: 16px 0;
+  width: 100%;
 }
 
 /* Sobrescrever mat-expansion-panel (Material) */

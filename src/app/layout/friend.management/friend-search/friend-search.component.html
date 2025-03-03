@@ -1,0 +1,26 @@
+<!-- src\app\layout\friend.management\friend-search\friend-search.component.html -->
+<div class="friend-search">
+  <h3>Buscar Amigos</h3>
+
+  <!-- Campo de entrada acessível -->
+  <mat-form-field appearance="outline">
+    <mat-label>Digite um nome ou UID</mat-label>
+    <input matInput [formControl]="searchControl" aria-label="Buscar amigos">
+  </mat-form-field>
+
+  <!-- Loader enquanto carrega -->
+  <mat-spinner *ngIf="isLoading$ | async"></mat-spinner>
+
+  <!-- Lista de resultados -->
+  <ul *ngIf="(searchResults$ | async)?.length; else noResults">
+    <li *ngFor="let user of searchResults$ | async">
+      {{ user.nickname || user.uid }}
+      <button mat-button color="primary">Adicionar Amigo</button>
+    </li>
+  </ul>
+
+  <!-- Mensagem quando não há resultados -->
+  <ng-template #noResults>
+    <p>Nenhum usuário encontrado.</p>
+  </ng-template>
+</div>

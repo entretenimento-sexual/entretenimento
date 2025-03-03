@@ -1,0 +1,21 @@
+/* src\app\layout\friend.management\friend-requests\friend-requests.component.css */
+.friend-requests {
+  margin: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  background: #f8f9fa;
+}
+
+mat-card {
+  margin-bottom: 10px;
+}
+
+mat-card-title {
+  font-size: 1.1rem;
+  font-weight: bold;
+}
+
+mat-card-actions {
+  display: flex;
+  justify-content: space-between;
+}

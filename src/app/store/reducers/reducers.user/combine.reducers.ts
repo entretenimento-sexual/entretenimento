@@ -11,6 +11,7 @@ import { inviteReducer } from '../reducers.chat/invite.reducer';
 import { roomReducer } from '../reducers.chat/room.reducer';
 import { locationReducer } from '../reducers.location/location.reducer';
 import { cacheReducer } from '../cache.reducer';
+import { friendsReducer } from '../reducers.interactions/friends.reduce';
 
 export const reducers: ActionReducerMap<AppState> = {
   authState: authReducer,
@@ -22,4 +23,5 @@ export const reducers: ActionReducerMap<AppState> = {
   invite: inviteReducer,
   room: roomReducer,
   cache: cacheReducer,
+  friends: friendsReducer,
 };

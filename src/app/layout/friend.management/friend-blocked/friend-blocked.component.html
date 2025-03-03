@@ -1,0 +1,15 @@
+<!-- src\app\layout\friend.management\friend-blocked\friend-blocked.component.html -->
+<div class="friend-blocked" *ngIf="user && user.uid">
+  <h4>Usuários Bloqueados</h4>
+
+  <ul *ngIf="(blockedUsers$ | async)?.length; else noBlocked">
+    <li *ngFor="let blocked of blockedUsers$ | async">
+      {{ blocked.nickname || blocked.uid }}
+      <button mat-button color="warn" (click)="unblockUser(blocked.uid)">Desbloquear</button>
+    </li>
+  </ul>
+
+  <ng-template #noBlocked>
+    <p>Nenhum usuário bloqueado.</p>
+  </ng-template>
+</div>

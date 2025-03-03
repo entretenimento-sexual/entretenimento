@@ -1,5 +1,4 @@
 // src/app/store/states/app.state.ts
-
 import { cacheReducer } from "../reducers/cache.reducer";
 import { chatReducer } from "../reducers/reducers.chat/chat.reducer";
 import { inviteReducer } from "../reducers/reducers.chat/invite.reducer";
@@ -9,6 +8,9 @@ import { authReducer } from "../reducers/reducers.user/auth.reducer";
 import { fileReducer } from "../reducers/reducers.user/file.reducer";
 import { termsReducer } from "../reducers/reducers.user/terms.reducer";
 import { userReducer } from "../reducers/reducers.user/user.reducer";
+import { friendsReducer } from "../reducers/reducers.interactions/friends.reduce";
+
+
 
 
 export interface AppState {
@@ -20,5 +22,6 @@ export interface AppState {
   chat: ReturnType<typeof chatReducer>;
   invite: ReturnType<typeof inviteReducer>;
   room: ReturnType<typeof roomReducer>;
-  cache: ReturnType<typeof cacheReducer>; 
+  cache: ReturnType<typeof cacheReducer>;
+  friends: ReturnType<typeof friendsReducer>;
 }

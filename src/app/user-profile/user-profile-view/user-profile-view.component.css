@@ -42,8 +42,7 @@ p {
   text-align: center;
   margin-top: -10px;
   margin-left: -52px;
-  color: var(--secondary-color);
-  /* Usando a cor global */
+  color: var(--secondary-color);  /* Usando a cor global */
   font-family: var(--font-family-primary);
   width: 250px;
 }

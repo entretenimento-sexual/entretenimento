@@ -19,12 +19,15 @@ import { CacheEffects } from './effects/cache.effects';
 
 import { userPreferencesReducer } from './reducers/reducers.user/user-preferences.reducer';
 import { UserPreferencesEffects } from './effects/effects.user/user-preferences.effects';
+import { friendsReducer } from './reducers/reducers.interactions/friends.reduce';
+import { FriendsEffects } from './effects/effects.interactions/effects.friends';
 
 console.log('Configurações do Store carregadas');
 
 @NgModule({
   imports: [
     StoreModule.forRoot(reducers),
+    StoreModule.forFeature('friends', friendsReducer),
     StoreModule.forFeature('userPreferences', userPreferencesReducer),
     EffectsModule.forRoot([
       AuthEffects,
@@ -37,7 +40,7 @@ console.log('Configurações do Store carregadas');
       RoomEffects,
       CacheEffects,
     ]),
-    EffectsModule.forFeature([UserPreferencesEffects]),
+    EffectsModule.forFeature([UserPreferencesEffects, FriendsEffects]),
     StoreDevtoolsModule.instrument({
       maxAge: 25,
       logOnly: environment.production,

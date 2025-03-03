@@ -1,0 +1,27 @@
+<!-- src\app\layout\friend.management\friend-requests\friend-requests.component.html -->
+<div class="friend-requests" *ngIf="user && user.uid">
+  <h4>Solicitações de Amizade</h4>
+
+  <!-- 🔄 Loader enquanto os dados carregam -->
+  <mat-spinner *ngIf="isLoading$ | async"></mat-spinner>
+
+  <ul *ngIf="(friendRequests$ | async)?.length; else noRequests">
+    <li *ngFor="let request of friendRequests$ | async">
+      <mat-card>
+        <mat-card-title>{{ request.nickname || request.uid }}</mat-card-title>
+        <mat-card-actions>
+          <button mat-button color="primary" [disabled]="isLoading$ | async" (click)="acceptRequest(request)">
+            Aceitar
+          </button>
+          <button mat-button color="warn" [disabled]="isLoading$ | async" (click)="rejectRequest(request)">
+            Recusar
+          </button>
+        </mat-card-actions>
+      </mat-card>
+    </li>
+  </ul>
+
+  <ng-template #noRequests>
+    <p>Nenhuma solicitação pendente.</p>
+  </ng-template>
+</div>

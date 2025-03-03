@@ -1,3 +1,4 @@
+//src\app\dashboard\latest-photos\latest-photos.component.ts
 import { Component } from '@angular/core';
 
 @Component({

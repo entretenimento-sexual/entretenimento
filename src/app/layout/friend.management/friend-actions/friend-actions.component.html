@@ -1,0 +1,19 @@
+<!-- src\app\layout\friend.management\friend-actions\friend-actions.component.html -->
+<div class="friend-actions" *ngIf="user && user.uid">
+  <p>Ações de Amizade para: <strong>{{ user.nickname || 'Usuário' }}</strong></p>
+
+  <button mat-button color="primary" [disabled]="isLoading$ | async" (click)="sendFriendRequest(user!.uid)">
+    Enviar Solicitação
+  </button>
+
+  <mat-spinner *ngIf="isLoading$ | async"></mat-spinner>
+
+  <!-- 🔥 Exibimos a lista de solicitações de amizade -->
+  <app-friend-requests [user]="user"></app-friend-requests>
+
+  <!-- 🔥 Agora temos a lista de amigos -->
+  <app-friend-list [user]="user"></app-friend-list>
+
+  <!-- 🔥 E também a lista de bloqueados -->
+  <app-friend-blocked [user]="user"></app-friend-blocked>
+</div>
