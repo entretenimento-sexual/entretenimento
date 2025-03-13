@@ -26,7 +26,7 @@ import { RouterModule } from '@angular/router';
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
     UploadPhotoComponent,
-    UserCardComponent,
+
   ],
 
   imports: [
@@ -46,7 +46,7 @@ import { RouterModule } from '@angular/router';
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
     UploadPhotoComponent,
-    UserCardComponent
+    
   ]
 })
 export class SharedModule { }

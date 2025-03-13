@@ -10,12 +10,15 @@ import { DistanceCalculationService } from 'src/app/core/services/geolocation/di
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { Timestamp } from 'firebase/firestore';
+import { CommonModule } from '@angular/common';
+import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
 
 @Component({
   selector: 'app-online-users',
   templateUrl: './online-users.component.html',
   styleUrls: ['./online-users.component.css'],
-  standalone: false
+  standalone: true,
+  imports: [CommonModule, UserCardComponent]
 })
 export class OnlineUsersComponent implements OnInit {
   onlineUsers$: Observable<IUserDados[]> | undefined;

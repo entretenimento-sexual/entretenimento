@@ -10,9 +10,6 @@ import { termsReducer } from "../reducers/reducers.user/terms.reducer";
 import { userReducer } from "../reducers/reducers.user/user.reducer";
 import { friendsReducer } from "../reducers/reducers.interactions/friends.reduce";
 
-
-
-
 export interface AppState {
   authState: ReturnType<typeof authReducer>;
   user: ReturnType<typeof userReducer>;

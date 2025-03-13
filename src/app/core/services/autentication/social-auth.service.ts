@@ -60,10 +60,12 @@ export class SocialAuthService {
                 lastLogin: Timestamp.fromDate(new Date()),
                 firstLogin: userData?.firstLogin || Timestamp.fromDate(new Date()),
                 descricao: userData?.descricao || '',
-                facebook: userData?.facebook || '',
-                instagram: userData?.instagram || '',
-                buupe: userData?.buupe || '',
                 isSubscriber: userData?.isSubscriber || false,
+                socialLinks: {
+                  facebook: userData?.socialLinks?.facebook || '',
+                  instagram: userData?.socialLinks?.instagram || '',
+                  buupe: userData?.socialLinks?.buupe || '',
+                }
               };
 
               return this.saveUserDataToFirestore(updatedUserData).pipe(

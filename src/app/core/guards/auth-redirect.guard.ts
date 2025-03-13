@@ -10,43 +10,41 @@ export const authRedirectGuard: CanActivateFn = (route, state) => {
   const authService = inject(AuthService);
   const firestoreService = inject(FirestoreService);
   const router = inject(Router);
-  const auth = getAuth(); // Obtém a instância de autenticação do Firebase
+  const auth = getAuth();
 
   return new Promise<boolean>((resolve) => {
-      onAuthStateChanged(auth, (user) => {
-      console.log('Verificando se o usuário está autenticado (onAuthStateChanged):', user);
-      if (user) {
-        console.log('Usuário autenticado, verificando campos obrigatórios... UID:', user.uid);
-        const db = firestoreService.getFirestoreInstance();
-        // Busca o documento do usuário no Firestore
-        const userRef = doc(db, 'users', user.uid);
-        getDoc(userRef).then((userSnapshot) => {
-          if (userSnapshot.exists()) {
-            const userData = userSnapshot.data();
-            console.log('Dados do usuário recuperados:', userData);
+    onAuthStateChanged(auth, async (user) => {
+      console.log('Verificando autenticação:', user);
+      if (!user) {
+        resolve(true); // Permite acesso ao login
+        return;
+      }
 
-            const hasRequiredFields = !!userData['municipio'] && !!userData['gender'];
-            console.log('Campos obrigatórios preenchidos:', hasRequiredFields);
+      console.log('Usuário autenticado, verificando dados obrigatórios...');
+      const db = firestoreService.getFirestoreInstance();
+      const userRef = doc(db, 'users', user.uid);
+      try {
+        const userSnapshot = await getDoc(userRef);
+        if (!userSnapshot.exists()) {
+          console.log('Usuário não encontrado no Firestore.');
+          resolve(true);
+          return;
+        }
 
-            if (hasRequiredFields) {
-              console.log('Redirecionando para o dashboard...');
-              router.navigate(['/dashboard/principal']);
-              resolve(false); // Bloqueia o acesso à página de login
-            } else {
-              console.log('Campos obrigatórios não preenchidos. Permite o acesso ao login.');
-              resolve(true); // Permite o acesso ao login
-            }
-          } else {
-            console.log('Snapshot do usuário não encontrado no Firestore.');
-            resolve(true); // Permite o acesso ao login
-          }
-        }).catch(error => {
-          console.error('Erro ao buscar dados do usuário no Firestore:', error);
-          resolve(true); // Em caso de erro, permite o acesso ao login
-        });
-      } else {
-        console.log('Usuário não autenticado. Permite o acesso ao login.');
-        resolve(true); // Usuário não está logado, permite o acesso ao login
+        const userData = userSnapshot.data();
+        const hasRequiredFields = !!userData['municipio'] && !!userData['gender'];
+
+        if (hasRequiredFields) {
+          console.log('Redirecionando para o dashboard.');
+          await router.navigate(['/dashboard/principal']);
+          resolve(false);
+        } else {
+          console.log('Campos obrigatórios ausentes. Permite acesso ao login.');
+          resolve(true);
+        }
+      } catch (error) {
+        console.error('Erro ao buscar usuário:', error);
+        resolve(true);
       }
     });
   });

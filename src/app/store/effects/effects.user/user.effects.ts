@@ -1,15 +1,8 @@
 // src/app/store/effects/user/user.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import {
-  observeUserChanges,
-  loadUsers,
-  loadUsersSuccess,
-  loadUsersFailure,
-  loadOnlineUsers,
-  loadOnlineUsersSuccess,
-  loadOnlineUsersFailure,
-} from '../../actions/actions.user/user.actions';
+import { observeUserChanges, loadUsers, loadUsersSuccess, loadUsersFailure, loadOnlineUsers,
+  loadOnlineUsersSuccess, loadOnlineUsersFailure, } from '../../actions/actions.user/user.actions';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { catchError, map, switchMap, of, from } from 'rxjs';
 import { Store, select } from '@ngrx/store';

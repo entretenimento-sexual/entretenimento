@@ -1,0 +1,8 @@
+/* src\app\shared\components-globais\user-card\compact-user-card\compact-user-card.component.css */
+.status.online {
+  color: green;
+}
+
+.status.offline {
+  color: red;
+}

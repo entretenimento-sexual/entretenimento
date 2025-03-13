@@ -12,17 +12,15 @@ import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.co
 
 @NgModule({
   declarations: [
-    OnlineUsersComponent,
     DashboardLayoutComponent,
     FeaturedProfilesComponent,
-    PrincipalComponent,
   ],
   imports: [
     CommonModule,
     DashboardRoutingModule,
     RouterModule,
     NgbModule,
-    SharedModule
+    
   ]
 })
 export class DashboardModule { }

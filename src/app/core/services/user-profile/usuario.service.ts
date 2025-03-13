@@ -40,10 +40,13 @@ export class UsuarioService {
       lastLogin: timestampNow,
       firstLogin: timestampNow,
       descricao: '',
-      facebook: '',
-      instagram: '',
-      buupe: '',
       isSubscriber: false,
+      socialLinks: {
+        facebook: '',
+        instagram: '',
+        buupe: ''
+      }
+
     };
   }
 

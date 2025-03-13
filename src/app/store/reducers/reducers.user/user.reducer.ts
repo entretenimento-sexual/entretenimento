@@ -111,6 +111,11 @@ export const userReducer = createReducer(
   // Ação: Remove o usuário atual do estado.
   on(clearCurrentUser, logoutSuccess, (state) => {
     console.log('[User Reducer] Usuário removido do estado após logout.');
-    return { ...state, currentUser: null };
+    return {
+      ...state,
+      currentUser: null,
+      onlineUsers: state.onlineUsers.filter(user => user.uid !== state.currentUser?.uid) // ✅ Remove do online
+    };
   })
-);
+
+);//Fecha o userReducer

@@ -1,10 +1,8 @@
-//app.module.ts
-import { NgModule, ErrorHandler } from '@angular/core';
+// app.module.ts
+import { NgModule, ErrorHandler, isDevMode } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
-import { AngularFireModule } from '@angular/fire/compat';
-import { AngularFireStorageModule } from '@angular/fire/compat/storage';
 import { environment } from '../environments/environment';
 
 import { AppComponent } from './app.component';
@@ -28,11 +26,20 @@ import { userReducer } from './store/reducers/reducers.user/user.reducer';
 import { UserEffects } from './store/effects/effects.user/user.effects';
 import { AppStoreModule } from './store/store.module';
 
+// Firebase (versão moderna)
+import { initializeApp, provideFirebaseApp } from '@angular/fire/app';
+import { getFirestore, provideFirestore } from '@angular/fire/firestore';
+import { getAuth, provideAuth } from '@angular/fire/auth';
+import { getStorage, provideStorage } from '@angular/fire/storage';
+
 // Registro do idioma pt-BR
 import { registerLocaleData } from '@angular/common';
 import localePt from '@angular/common/locales/pt';
 import { LOCALE_ID } from '@angular/core';
 import { AuthEffects } from './store/effects/effects.user/auth.effects';
+import { reducers } from './store/reducers/reducers.user/combine.reducers';
+import { RegisterModule } from './register-module/register.module';
+
 
 registerLocaleData(localePt, 'pt-BR');
 
@@ -50,19 +57,25 @@ registerLocaleData(localePt, 'pt-BR');
     BrowserAnimationsModule,
     MatDialogModule,
     PhotoEditorModule,
-    AngularFireModule.initializeApp(environment.firebase),
-    AngularFireStorageModule,
     AngularPinturaModule,
-    EffectsModule.forRoot([AuthEffects, UserEffects]), // Configuração única do EffectsModule
-    StoreDevtoolsModule.instrument({ maxAge: 25, logOnly: environment.production }), // Configuração única do StoreDevtoolsModule
-    AppStoreModule
+    StoreModule.forRoot(reducers),
+    EffectsModule.forRoot([AuthEffects, UserEffects]),
+    StoreDevtoolsModule.instrument({ maxAge: 25, logOnly: environment.production }),
+    AppStoreModule,
+    RegisterModule,
   ],
   providers: [
     AuthService,
     EmailVerificationService,
     { provide: ErrorHandler, useClass: GlobalErrorHandlerService },
     ErrorNotificationService,
-    { provide: LOCALE_ID, useValue: 'pt-BR' }
+    { provide: LOCALE_ID, useValue: 'pt-BR' },
+
+    // ✅ Corrigindo Firebase sem erro de EnvironmentProviders
+    provideFirebaseApp(() => initializeApp(environment.firebase)),
+    provideFirestore(() => getFirestore()),
+    provideAuth(() => getAuth()),
+    provideStorage(() => getStorage()),
   ],
   bootstrap: [AppComponent]
 })

@@ -1,0 +1,8 @@
+<!-- src\app\shared\components-globais\user-card\base-user-card\base-user-card.component.html -->
+<div class="user-card">
+  <img [src]="user.photoURL || 'assets/default-avatar.png'" class="profile-photo">
+  <div class="info">
+    <h4>{{ user.nickname }}</h4>
+    <ng-content></ng-content>
+  </div>
+</div>

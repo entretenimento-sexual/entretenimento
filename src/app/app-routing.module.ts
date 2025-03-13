@@ -8,7 +8,7 @@ import { AuthGuard } from './core/guards/auth.guard';
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { authRedirectGuard } from './core/guards/auth-redirect.guard';
 import { LoginComponent } from './authentication/login-component/login-component';
-import { RegisterComponent } from './authentication/register-module/register.component';
+import { RegisterComponent } from './register-module/register.component';
 
 const routes: Routes = [
   {
@@ -48,7 +48,7 @@ const routes: Routes = [
 
   {
     path: 'register',
-    loadChildren: () => import('./authentication/register-module/register.module').then((m) => m.RegisterModule),
+    loadChildren: () => import('./register-module/register.module').then((m) => m.RegisterModule),
     canActivate: [authRedirectGuard],
   },
   {

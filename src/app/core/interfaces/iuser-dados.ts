@@ -1,5 +1,6 @@
 //src\app\core\interfaces\iuser-dados.ts
 import { Timestamp } from 'firebase/firestore';
+import { IUserSocialLinks } from './interfaces-user-dados/iuser-social-links';
 export interface IUserDados {
 
   uid: string; // ID do usuário
@@ -15,7 +16,7 @@ export interface IUserDados {
   role: 'visitante' |'free' | 'basico' | 'premium' | 'vip';
   lastLogin: Timestamp; // Data do último login
   firstLogin: Timestamp | Date | null;
-  createdAt?: Timestamp | Date | null;
+  createdAt?: Timestamp | Date | null; //Data da criação do perfil pelo usuário
   emailVerified?: string;
   gender?: string;
   orientation?: string; // Orientação sexual
@@ -26,9 +27,6 @@ export interface IUserDados {
   isSidebarOpen?: boolean;
   preferences?: string[];
   descricao: string; // Descrição do usuário
-  facebook?: string; // Perfil do Facebook
-  instagram?: string; // Perfil do Instagram
-  buupe: string;
 
   //relativo ao estado geral de usuário
   isOnline?: boolean;
@@ -37,5 +35,6 @@ export interface IUserDados {
   roomCreationSubscriptionExpires?: Date;
   monthlyPayer?: boolean;
   subscriptionExpires?: Date;
+  socialLinks?: IUserSocialLinks;
 }
 

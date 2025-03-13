@@ -16,25 +16,18 @@ import { UserProfilePreferencesComponent } from './user-profile-preferences/user
 import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
 import { SharedModule } from 'src/app/shared/shared.module';
 import { UserProfileSidebarComponent } from './user-profile-sidebar/user-profile-sidebar.component';
-import { UserProfileModule } from '../user-profile.module';
 
 enum SidebarState { CLOSED, OPEN }
 
 @Component({
     selector: 'app-user-profile-view',
-    templateUrl: './user-profile-view.component.html',
+  templateUrl: './user-profile-view.component.html',
     styleUrls: ['./user-profile-view.component.css'],
-  standalone: true,
-  imports: [
-    CommonModule,
-    RouterModule,
-    SharedModule,
-    SocialLinksAccordionComponent,
-    UserProfilePreferencesComponent,
-    UserPhotoManagerComponent,
-    UserProfileSidebarComponent 
-  ]
-})
+    standalone: true,
+    imports: [CommonModule, RouterModule, SharedModule, SocialLinksAccordionComponent,
+      UserProfilePreferencesComponent, UserPhotoManagerComponent,
+      UserProfileSidebarComponent ]
+  })
 
 export class UserProfileViewComponent implements OnInit, OnDestroy {
 

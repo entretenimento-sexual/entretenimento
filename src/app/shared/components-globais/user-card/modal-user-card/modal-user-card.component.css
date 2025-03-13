@@ -1,0 +1,10 @@
+/* src\app\shared\components-globais\user-card\modal-user-card\modal-user-card.component.css */
+.modal-card {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  background: white;
+  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+  padding: 10px;
+  border-radius: 5px;
+}

@@ -4,7 +4,7 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { UploadPhotoComponent } from 'src/app/shared/components-globais/upload-photo/upload-photo.component';
 import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
-import { NotificationService } from 'src/app/core/services/batepapo/notification.service';
+import { NotificationService } from 'src/app/core/services/batepapo/chat-notification.service';
 
 @Component({
     selector: 'app-links-interaction',

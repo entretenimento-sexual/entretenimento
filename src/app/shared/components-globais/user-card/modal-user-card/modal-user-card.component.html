@@ -1,0 +1,8 @@
+<!-- src\app\shared\components-globais\user-card\modal-user-card\modal-user-card.component.html -->
+<div class="hover-card" (mouseenter)="isHovered = true" (mouseleave)="isHovered = false">
+  <app-compact-user-card [user]="user"></app-compact-user-card>
+
+  <div class="modal-card" *ngIf="isHovered">
+    <app-detailed-user-card [user]="user"></app-detailed-user-card>
+  </div>
+</div>

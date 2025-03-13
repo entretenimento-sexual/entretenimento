@@ -10,7 +10,6 @@ import { SharedModule } from '../shared/shared.module';
 @NgModule({
   declarations: [
     ProfileListComponent,
-    PerfisProximosComponent,
   ],
 
   imports: [
@@ -21,7 +20,6 @@ import { SharedModule } from '../shared/shared.module';
 
   exports: [
     ProfileListComponent,
-    PerfisProximosComponent
   ],
   providers: [GeolocationService]
 })

@@ -94,9 +94,9 @@ export class EditUserProfileComponent implements OnInit {
           partner1Orientation: this.isCouple() ? userData.partner1Orientation : '',
           partner2Orientation: this.isCouple() ? userData.partner2Orientation : '',
           descricao: userData.descricao,
-          facebook: userData.facebook || '',
-          instagram: userData.instagram || '',
-          buupe: userData.buupe || ''
+          facebook: userData.socialLinks?.facebook || '',
+          instagram: userData.socialLinks?.instagram || '',
+          buupe: userData.socialLinks?.buupe || ''
 
         });
 

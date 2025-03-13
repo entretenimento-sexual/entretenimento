@@ -4,20 +4,31 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { DateFormatPipe } from 'src/app/shared/date-format.pipe';
 import { ModalMensagemComponent } from '../components-globais/modal-mensagem/modal-mensagem.component';
 import { MatDialog } from '@angular/material/dialog';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
+import { UserInteractionsService } from 'src/app/core/services/data-handling/user-interactions.service';
+import { AppState } from 'src/app/store/states/app.state';
+import { Store } from '@ngrx/store';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { sendFriendRequest } from 'src/app/store/actions/actions.interactions/actions.friends';
 
 @Component({
     selector: 'app-user-card',
     templateUrl: './user-card.component.html',
     styleUrls: ['./user-card.component.css'],
     providers: [DateFormatPipe], // Adiciona o pipe como provedor do componente
-    standalone: false
+    standalone: true,
+    imports: [CommonModule, RouterModule]
 })
 export class UserCardComponent {
   @Input() user!: IUserDados | null;
   @Input() distanciaKm: number | null = null;
 
   constructor(private dateFormatPipe: DateFormatPipe,
-              private dialog: MatDialog) { }
+              private dialog: MatDialog,
+              private store: Store<AppState>,
+              private errorNotifier: ErrorNotificationService,
+              private userInteractionsService: UserInteractionsService) { }
 
   ngOnChanges() {
     console.log('User:', this.user);
@@ -34,6 +45,20 @@ export class UserCardComponent {
         data: { profile: this.user }
       });
     }
+  }
+
+  adicionarAmigo(): void {
+    if (!this.user) return;
+
+    this.userInteractionsService.sendFriendRequest('meuUid', this.user.uid).subscribe({
+      next: () => {
+        this.store.dispatch(sendFriendRequest({ userUid: 'meuUid', friendUid: this.user!.uid }));
+        this.errorNotifier.showSuccess(`Solicitação de amizade enviada para ${this.user?.nickname || 'usuário'}!`);
+      },
+      error: (err) => {
+        this.errorNotifier.showError('Erro ao enviar solicitação de amizade.', err.message);
+      }
+    });
   }
 
   getUserNicknameClass(user: IUserDados | null): string {

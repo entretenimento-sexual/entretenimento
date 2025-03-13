@@ -28,9 +28,9 @@
           </div>
           <div class="category-container">
             <h3 class="category-title">Redes Sociais</h3>
-            <p *ngIf="usuario?.instagram">Instagram: {{ usuario.instagram }}</p>
-            <p *ngIf="usuario?.facebook">Facebook: {{ usuario.facebook }}</p>
-            <p *ngIf="usuario?.buupe">buupe: {{ usuario.buupe }}</p>
+            <p *ngIf="usuario?.socialLinks?.instagram">Instagram: {{ usuario.socialLinks?.instagram }}</p>
+            <p *ngIf="usuario?.socialLinks?.facebook">Facebook: {{ usuario.socialLinks?.facebook }}</p>
+            <p *ngIf="usuario?.socialLinks?.buupe">buupe: {{ usuario.socialLinks?.buupe }}</p>
           </div>
           <!-- Botões de Edição -->
           <div class="button-group">

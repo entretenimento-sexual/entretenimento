@@ -11,6 +11,7 @@ import { Router } from '@angular/router';
 import { first } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
+import { FirestoreValidationService } from '../core/services/data-handling/firestore-validation.service';
 
 @Component({
   selector: 'app-register-component',
@@ -21,7 +22,6 @@ import { RegisterService } from 'src/app/core/services/autentication/register/re
 })
 
 export class RegisterComponent implements OnInit {
-  // Inicializando propriedades com valores padrão
   registerForm!: FormGroup; // Formulário de registro
   public formSubmitted: boolean = false; // Verifica se o formulário foi enviado com sucesso
   public isLoading: boolean = false; // Indica se o registro está em andamento
@@ -38,6 +38,7 @@ export class RegisterComponent implements OnInit {
     private dialog: MatDialog,
     private router: Router,
     private authService: AuthService,
+    private firestoreValidationService: FirestoreValidationService,
     private cdr: ChangeDetectorRef
   ) { }
 
@@ -115,7 +116,7 @@ export class RegisterComponent implements OnInit {
       if (apelidoPrincipal.length >= 4) {
         console.log(`Verificando se o apelido completo "${nickname}" já existe...`);
 
-        this.registerService.checkIfNicknameExists(nickname).subscribe({
+        this.firestoreValidationService.checkIfNicknameExists(nickname).subscribe({
           next: (exists) => {
             if (exists) {
               apelidoControl?.setErrors({ nicknameExists: true });

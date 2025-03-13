@@ -15,6 +15,7 @@ import { SuggestionService } from '../core/services/data-handling/suggestion.ser
 import { AuthService } from '../core/services/autentication/auth.service';
 import { EmailInputModalComponent } from './email-input-modal/email-input-modal.component';
 
+
 @NgModule({
   declarations: [
     LoginComponent,
@@ -31,7 +32,8 @@ import { EmailInputModalComponent } from './email-input-modal/email-input-modal.
     RouterModule,
     AuthenticationRoutingModule, // Se este módulo tiver rotas
     MatCardModule,
-    EmailInputModalComponent
+    EmailInputModalComponent,
+
   ],
 
   exports: [
@@ -41,6 +43,5 @@ import { EmailInputModalComponent } from './email-input-modal/email-input-modal.
     SuggestedProfilesComponent
   ],
 
-  providers: [SuggestionService, AuthService]
 })
 export class AuthenticationModule { }

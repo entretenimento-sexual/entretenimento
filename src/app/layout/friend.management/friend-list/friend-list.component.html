@@ -7,8 +7,8 @@
 
   <ul *ngIf="(friends$ | async)?.length; else noFriends">
     <li *ngFor="let friend of friends$ | async">
-      {{ friend.nickname || friend.uid }}
-      <button mat-button color="warn" (click)="removeFriend(friend.uid)">
+      {{ friend.nickname || friend.friendUid}}
+      <button mat-button color="warn" (click)="removeFriend(friend.friendUid )">
         Remover Amigo
       </button>
     </li>

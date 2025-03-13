@@ -7,5 +7,5 @@ export interface IUserSocialLinks {
   linkedin?: string;
   youtube?: string;
   tiktok?: string;
-  buppe?: string;
+  buupe?: string;
 }

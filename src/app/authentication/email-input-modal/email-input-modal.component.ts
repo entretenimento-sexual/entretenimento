@@ -9,10 +9,7 @@ import { EmailInputModalService } from 'src/app/core/services/autentication/emai
     templateUrl: './email-input-modal.component.html',
     styleUrls: ['./email-input-modal.component.css'],
     standalone: true, // Define como standalone
-    imports: [
-    FormsModule, // Importação de diretivas, como [(ngModel)]
-    CommonModule, // Diretivas comuns, como *ngIf e *ngFor
-  ],
+    imports: [FormsModule, CommonModule,],
 })
 export class EmailInputModalComponent implements OnInit {
   public email: string = '';

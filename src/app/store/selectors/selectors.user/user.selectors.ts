@@ -34,7 +34,7 @@ export const selectUserById = (uid: string) =>
   createSelector(
     selectUserState,
     (state: IUserState) => {
-      const foundUser = state.users[uid] || null;
+      const foundUser = state.users[uid] || {} as IUserDados; // ✅ Retorna objeto vazio
       console.log(`Selecionando usuário pelo UID (${uid}):`, foundUser);
       return foundUser;
     }

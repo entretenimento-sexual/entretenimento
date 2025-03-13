@@ -11,12 +11,15 @@ import { MatDialog } from '@angular/material/dialog';
 import { ModalMensagemComponent } from 'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component';
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
 import { take } from 'rxjs/operators';
+import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
+import { CommonModule } from '@angular/common';
 
 @Component({
     selector: 'app-perfis-proximos',
     templateUrl: './perfis-proximos.component.html',
     styleUrls: ['./perfis-proximos.component.css', '../layout-profile-exibe.css'],
-    standalone: false
+    standalone: true,
+  imports: [CommonModule, UserCardComponent]
 })
 export class PerfisProximosComponent implements OnInit {
   @ViewChild(ModalMensagemComponent)

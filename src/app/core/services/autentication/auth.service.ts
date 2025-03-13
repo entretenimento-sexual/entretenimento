@@ -66,47 +66,74 @@ export class AuthService {
   // Chamando a função quando o usuário se autenticar
   private initAuthStateListener(): void {
     new Observable<User | null>((observer) => {
-      onAuthStateChanged(auth, (user) => {
-        observer.next(user);
-      });
+      onAuthStateChanged(auth, (user) => observer.next(user));
     })
       .pipe(
-        switchMap(user => {
+        switchMap((user) => {
           if (!user) {
             console.log('[AuthService] Nenhum usuário autenticado, limpando estado.');
             this.clearCurrentUser();
             return of(null);
           }
 
-          if (this.currentUser) {
-            console.log('[AuthService] Usuário já carregado:', this.currentUser);
-            return of(this.currentUser);
+          // Primeiro, verifica se o usuário já está no BehaviorSubject
+          const cachedUser = this.userSubject.value;
+          if (cachedUser?.uid === user.uid) {
+            console.log(`[AuthService] Usuário já carregado no estado:`, cachedUser);
+            return of(cachedUser);
           }
 
-          console.log(`[AuthService] Usuário autenticado detectado (UID: ${user.uid}). Recuperando dados...`);
-          return this.firestoreUserQuery.getUser(user.uid);
+          // Segundo, verifica no CacheService
+          return this.cacheService.get<IUserDados>('currentUser').pipe(
+            switchMap((cachedData) => {
+              if (cachedData?.uid === user.uid) {
+                console.log('[AuthService] Usuário recuperado do cache:', cachedData);
+                return of(cachedData);
+              }
+
+              // Terceiro, verifica no LocalStorage
+              const localUserData = localStorage.getItem('currentUser');
+              if (localUserData) {
+                const parsedUser = JSON.parse(localUserData) as IUserDados;
+                if (parsedUser?.uid === user.uid) {
+                  console.log('[AuthService] Usuário recuperado do localStorage:', parsedUser);
+                  return of(parsedUser);
+                }
+              }
+
+              // Se o usuário não estiver no cache ou localStorage, busca no Firestore
+              console.log(`[AuthService] Buscando usuário do Firestore (UID: ${user.uid})...`);
+              return this.firestoreUserQuery.getUser(user.uid);
+            })
+          );
         }),
-        tap(userData => {
+        tap((userData) => {
           if (userData) {
-            console.log('Usuário carregado no AuthService:', userData);
+            console.log('[AuthService] Definindo usuário autenticado:', userData);
+
+            // Atualiza os estados e cache para evitar buscas repetitivas
             this.userSubject.next(userData);
             localStorage.setItem('currentUser', JSON.stringify(userData));
+            this.cacheService.set('currentUser', userData, 300000); // 5 minutos de cache
+
+            // Atualiza o estado global via NgRx
             this.store.dispatch(loginSuccess({ user: userData }));
             this.store.dispatch(setCurrentUser({ user: userData }));
-            this.cacheService.set('currentUserUid', userData.uid, 300000);
 
             // Atualiza status online no Realtime Database e Firestore
             this.updateUserOnlineStatusRealtime(userData.uid);
           }
         }),
-        catchError(error => {
-          console.error('Erro ao recuperar estado de autenticação:', error);
+        catchError((error) => {
+          console.error('[AuthService] Erro ao recuperar estado de autenticação:', error);
           this.globalErrorHandlerService.handleError(error);
           return of(null);
-        })
+        }),
+        shareReplay(1) // Evita múltiplas assinaturas desnecessárias
       )
       .subscribe();
   }
+
 
   get currentUser(): IUserDados | null {
     return this.userSubject.value;

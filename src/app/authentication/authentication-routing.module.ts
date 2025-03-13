@@ -3,9 +3,8 @@ import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router'; // Adicionado 'RouterModule'
 import { ProgressiveSignupComponent } from './progressive-signup/progressive-signup.component';
 import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
-import { AuthVerificationHandlerComponent } from './register-module/auth-verification-handler/auth-verification-handler.component';
-import { FinalizarCadastroComponent } from './register-module/finalizar-cadastro/finalizar-cadastro.component';
-
+import { AuthVerificationHandlerComponent } from '../register-module/auth-verification-handler/auth-verification-handler.component';
+import { FinalizarCadastroComponent } from '../register-module/finalizar-cadastro/finalizar-cadastro.component';
 
 // Definindo as rotas para o módulo de autenticação.
 const authRoutes: Routes = [
@@ -13,7 +12,7 @@ const authRoutes: Routes = [
   { path: 'suggested-profiles', component: SuggestedProfilesComponent },
   { path: 'post-verification/action', component: AuthVerificationHandlerComponent},
   { path: 'verify-email', component: FinalizarCadastroComponent },
-  { path: 'register', loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule) },
+  { path: 'register', loadChildren: () => import('../register-module/register.module').then(m => m.RegisterModule) },
   { path: '**', redirectTo: '/' }
 ];
 

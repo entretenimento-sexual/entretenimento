@@ -18,7 +18,7 @@ import { RoomManagementService } from 'src/app/core/services/batepapo/room-servi
 import { InviteService } from 'src/app/core/services/batepapo/invite-service/invite.service';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 import { CreateRoomModalComponent } from '../modals/create-room-modal/create-room-modal.component';
-import { NotificationService } from 'src/app/core/services/batepapo/notification.service';
+import { NotificationService } from 'src/app/core/services/batepapo/chat-notification.service';
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
 
 @Component({

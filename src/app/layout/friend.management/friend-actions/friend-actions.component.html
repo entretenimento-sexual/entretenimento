@@ -2,11 +2,19 @@
 <div class="friend-actions" *ngIf="user && user.uid">
   <p>Ações de Amizade para: <strong>{{ user.nickname || 'Usuário' }}</strong></p>
 
-  <button mat-button color="primary" [disabled]="isLoading$ | async" (click)="sendFriendRequest(user!.uid)">
+  <!-- 🔹 Campo para mensagem curta -->
+  <mat-form-field appearance="outline">
+    <mat-label>Mensagem curta</mat-label>
+    <input matInput #messageInput>
+  </mat-form-field>
+
+  <button mat-button color="primary" [disabled]="isLoading$ | async"
+    (click)="sendFriendRequest(user!.uid, messageInput.value)">
     Enviar Solicitação
   </button>
 
   <mat-spinner *ngIf="isLoading$ | async"></mat-spinner>
+  <p *ngIf="(friendRequests$ | async)?.length">Solicitação enviada com sucesso!</p>
 
   <!-- 🔥 Exibimos a lista de solicitações de amizade -->
   <app-friend-requests [user]="user"></app-friend-requests>
