@@ -1,5 +1,5 @@
 <!-- src\app\layout\friend.management\friend-requests\friend-requests.component.html -->
-<div class="friend-requests" *ngIf="user && user.uid">
+<div class="friend-requests" *ngIf="user() && user().uid">
   <h4>Solicitações de Amizade</h4>
 
   <!-- 🔄 Loader enquanto os dados carregam -->

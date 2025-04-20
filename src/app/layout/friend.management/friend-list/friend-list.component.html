@@ -1,5 +1,5 @@
 <!-- src\app\layout\friend.management\friend-list\friend-list.component.html -->
-<div class="friend-list" *ngIf="user && user.uid">
+<div class="friend-list" *ngIf="user() && user().uid">
   <h4>Lista de Amigos</h4>
 
   <!-- 🔄 Loader enquanto os dados carregam -->

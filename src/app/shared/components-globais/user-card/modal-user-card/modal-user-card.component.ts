@@ -1,6 +1,6 @@
 //src\app\shared\components-globais\user-card\modal-user-card\modal-user-card.component.ts
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, input } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { CompactUserCardComponent } from '../compact-user-card/compact-user-card.component';
 import { DetailedUserCardComponent } from '../detailed-user-card/detailed-user-card.component';
@@ -13,6 +13,6 @@ import { DetailedUserCardComponent } from '../detailed-user-card/detailed-user-c
 })
 
 export class ModalUserCardComponent {
-  @Input() user!: IUserDados;
+  readonly user = input.required<IUserDados>();
   isHovered = false;
 }

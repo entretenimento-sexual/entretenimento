@@ -1,6 +1,6 @@
 //src\app\shared\components-globais\user-card\detailed-user-card\detailed-user-card.component.ts
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, input } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { BaseUserCardComponent } from '../base-user-card/base-user-card.component';
 import { MatDialog } from '@angular/material/dialog';
@@ -14,7 +14,7 @@ import { ModalMensagemComponent } from '../../modal-mensagem/modal-mensagem.comp
 })
 
 export class DetailedUserCardComponent {
-  @Input() user!: IUserDados;
+  readonly user = input.required<IUserDados>();
 
   constructor(private dialog: MatDialog) { }
 

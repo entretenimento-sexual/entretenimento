@@ -1,5 +1,5 @@
 //src\app\layout\friend.management\friend-requests\friend-requests.component.ts
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, OnInit, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store, select } from '@ngrx/store';
 import { map, Observable } from 'rxjs';
@@ -21,7 +21,7 @@ import { CacheService } from 'src/app/core/services/general/cache/cache.service'
   styleUrl: './friend-requests.component.css'
 })
 export class FriendRequestsComponent implements OnInit {
-  @Input() user!: IUserDados;
+  readonly user = input.required<IUserDados>();
   friendRequests$!: Observable<IUserDados[]>;
   isLoading$: Observable<boolean> = this.cacheService.get<boolean>('loadingRequests').pipe(
     map(value => value ?? false)
@@ -35,17 +35,18 @@ export class FriendRequestsComponent implements OnInit {
   ) { }
 
   ngOnInit(): void {
-    if (!this.user?.uid) return;
+    if (!this.user()?.uid) return;
 
     this.store.dispatch(loadRequests());
     this.friendRequests$ = this.store.pipe(select(state => state.friends.requests));
   }
 
   acceptRequest(friend: IUserDados): void {
-    if (!friend?.uid || !this.user?.uid) return;
+    const user = this.user();
+    if (!friend?.uid || !user?.uid) return;
 
     this.cacheService.set('loadingRequests', true, 5000);
-    this.userInteractionsService.acceptFriendRequest(this.user.uid, friend.uid).subscribe({
+    this.userInteractionsService.acceptFriendRequest(user.uid, friend.uid).subscribe({
       next: () => {
         this.cacheService.set('loadingRequests', false);
         this.errorNotifier.showSuccess(`Agora você é amigo de ${friend.nickname || friend.uid}!`);
@@ -58,10 +59,11 @@ export class FriendRequestsComponent implements OnInit {
   }
 
   rejectRequest(friend: IUserDados): void {
-    if (!friend?.uid || !this.user?.uid) return;
+    const user = this.user();
+    if (!friend?.uid || !user?.uid) return;
 
     this.cacheService.set('loadingRequests', true, 5000);
-    this.userInteractionsService.rejectFriendRequest(this.user.uid, friend.uid).subscribe({
+    this.userInteractionsService.rejectFriendRequest(user.uid, friend.uid).subscribe({
       next: () => {
         this.cacheService.set('loadingRequests', false);
         this.errorNotifier.showInfo(`Você recusou a solicitação de ${friend.nickname || friend.uid}.`);

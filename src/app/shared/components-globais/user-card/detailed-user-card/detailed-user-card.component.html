@@ -1,6 +1,6 @@
 <!-- src\app\shared\components-globais\user-card\detailed-user-card\detailed-user-card.component.html -->
-<app-base-user-card [user]="user">
+<app-base-user-card [user]="user()">
   <p></p>
-  <button mat-button color="primary" (click)="sendMessage(user)">Enviar Mensagem</button>
-  <button mat-button color="accent" (click)="sendFriendRequest(user)">Adicionar Amigo</button>
+  <button mat-button color="primary" (click)="sendMessage(user())">Enviar Mensagem</button>
+  <button mat-button color="accent" (click)="sendFriendRequest(user())">Adicionar Amigo</button>
 </app-base-user-card>

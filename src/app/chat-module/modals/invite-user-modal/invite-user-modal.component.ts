@@ -78,7 +78,7 @@ export class InviteUserModalComponent implements OnInit {
             error: (err) => console.error('Erro ao buscar região do usuário no Firestore:', err),
           });
         } else {
-          console.warn('UID não encontrado. Não foi possível carregar a região.');
+          console.log('UID não encontrado. Não foi possível carregar a região.');
         }
       },
       error: (err) => console.error('Erro ao obter UID do usuário:', err),

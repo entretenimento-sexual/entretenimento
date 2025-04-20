@@ -1,5 +1,5 @@
 // src\app\layout\perfis-proximos\perfis-proximos.component.ts
-import { Component, Input, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit, ViewChild, input } from '@angular/core';
 import { Router } from '@angular/router';
 import { distanceBetween, geohashForLocation } from 'geofire-common';
 import { GeoCoordinates } from 'src/app/core/interfaces/geolocation.interface';
@@ -28,8 +28,8 @@ export class PerfisProximosComponent implements OnInit {
   userLocation: GeoCoordinates | null = null;
   profiles: IUserDados[] = [];
 
-  @Input() user!: IUserDados | null;
-  @Input() distanciaKm!: number | null;
+  readonly user = input.required<IUserDados | null>();
+  readonly distanciaKm = input.required<number | null>();
 
   constructor(
     private geolocationService: GeolocationService,

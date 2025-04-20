@@ -1,5 +1,5 @@
 // src/app/photo-editor/photo-editor/photo-editor.component.ts
-import { Component, Input, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit, ViewChild, input } from '@angular/core';
 import { DomSanitizer, SafeUrl } from '@angular/platform-browser';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import {
@@ -30,11 +30,11 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 })
 
 export class PhotoEditorComponent implements OnInit {
-  @Input() imageFile!: File;                // Arquivo local da imagem a ser editada
-  @Input() storedImageUrl?: string;         // URL da imagem armazenada para edição
-  @Input() storedImageState?: string;       // Estado anterior da imagem (se houver)
-  @Input() photoId?: string;                // ID da foto para atualizar metadados
-  @Input() isEditMode: boolean = false;     // Flag para determinar se é uma edição de foto armazenada
+  readonly imageFile = input.required<File>();                // Arquivo local da imagem a ser editada
+  readonly storedImageUrl = input<string>();         // URL da imagem armazenada para edição
+  readonly storedImageState = input<string>();       // Estado anterior da imagem (se houver)
+  readonly photoId = input<string>();                // ID da foto para atualizar metadados
+  readonly isEditMode = input<boolean>(false);     // Flag para determinar se é uma edição de foto armazenada
 
   // Referência ao componente do editor de imagem
   @ViewChild('editor') editor: any;
@@ -68,15 +68,20 @@ export class PhotoEditorComponent implements OnInit {
           this.userId = user.uid;
 
           // Configura a fonte da imagem
-          if (this.storedImageUrl) {
+          
+          const storedImageUrl = this.storedImageUrl();
+          const imageFile = this.imageFile();
+          if (storedImageUrl) {
             // Carrega a imagem armazenada
-            this.src = this.storedImageUrl;
-          } else if (this.imageFile) {
+            this.src = storedImageUrl;
+          } else if (imageFile) {
             // Carrega o arquivo local
-            this.src = URL.createObjectURL(this.imageFile);
+            this.src = URL.createObjectURL(imageFile);
           }
 
           // Configura as opções do editor de imagem
+
+          const storedImageState = this.storedImageState();
           this.options = {
             ...getEditorDefaults(),
             imageReader: createDefaultImageReader({ orientImage: true }),
@@ -98,7 +103,7 @@ export class PhotoEditorComponent implements OnInit {
             imageCropAspectRatio: undefined,
             imageCrop: undefined,
             imageBackgroundColor: [255, 255, 255, 0],
-            imageState: this.storedImageState ? JSON.parse(this.storedImageState) : undefined,  // Carrega o estado anterior, se disponível
+            imageState: storedImageState ? JSON.parse(storedImageState) : undefined,  // Carrega o estado anterior, se disponível
           };
 
           // Subscrições ao estado do NgRx
@@ -128,7 +133,7 @@ export class PhotoEditorComponent implements OnInit {
     await this.saveImageState(imageStateStr).catch(error => this.errorHandler.handleError(error));
 
     // Decide se deve atualizar uma imagem existente ou fazer upload de uma nova
-    if (this.isEditMode && this.storedImageUrl && this.photoId) {
+    if (this.isEditMode() && this.storedImageUrl() && this.photoId()) {
       await this.updateStoredFile(event.dest).catch(error => this.errorHandler.handleError(error));
     } else {
       await this.uploadProcessedFile(event.dest).catch(error => this.errorHandler.handleError(error));
@@ -142,9 +147,9 @@ export class PhotoEditorComponent implements OnInit {
       return;
     }
 
-    const fileName = `${Date.now()}_${this.imageFile.name}`;
+    const fileName = `${Date.now()}_${this.imageFile().name}`;
     const path = `user_profiles/${this.userId}/${fileName}`;
-    const file = new File([processedFile], fileName, { type: this.imageFile.type });
+    const file = new File([processedFile], fileName, { type: this.imageFile().type });
 
     // Despacha a ação para iniciar o upload
     this.store.dispatch(uploadStart({ file, path, userId: this.userId, fileName }));
@@ -174,20 +179,22 @@ export class PhotoEditorComponent implements OnInit {
 
   // Atualiza uma imagem existente no storage
   async updateStoredFile(processedFile: Blob): Promise<void> {
-    if (!this.userId || !this.storedImageUrl || !this.photoId) {
+        const storedImageUrl = this.storedImageUrl();
+    const photoId = this.photoId();
+    if (!this.userId || !storedImageUrl || !photoId) {
       this.errorHandler.handleError(new Error('Informações incompletas para a substituição da foto.'));
       return;
     }
 
-    const filePath = this.storedImageUrl;
-    const file = new File([processedFile], `edited_${this.imageFile.name}`, { type: this.imageFile.type });
+    const filePath = storedImageUrl;
+    const file = new File([processedFile], `edited_${this.imageFile().name}`, { type: this.imageFile().type });
 
     try {
       // Substitui o arquivo existente no storage
       const downloadUrl = await lastValueFrom(this.storageService.replaceFile(file, filePath));
 
       // Atualiza os metadados da foto no Firestore
-      await this.photoFirestoreService.updatePhotoMetadata(this.userId, this.photoId, { url: downloadUrl });
+      await this.photoFirestoreService.updatePhotoMetadata(this.userId, photoId, { url: downloadUrl });
 
       // Fecha o modal e notifica o usuário
       this.activeModal.close('updateSuccess');

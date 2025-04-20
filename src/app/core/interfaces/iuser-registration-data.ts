@@ -21,4 +21,5 @@ export interface IUserRegistrationData {
     accepted: true,
     date: Timestamp | Date; // Data de aceitação dos termos
   }
+  profileCompleted?: boolean;
 }

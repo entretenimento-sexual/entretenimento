@@ -1,5 +1,5 @@
 //src\app\layout\friend.management\friend-blocked\friend-blocked.component.ts
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, OnInit, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store, select } from '@ngrx/store';
 import { Observable } from 'rxjs';
@@ -16,7 +16,7 @@ import { loadBlocked } from 'src/app/store/actions/actions.interactions/actions.
   styleUrl: './friend-blocked.component.css'
 })
 export class FriendBlockedComponent implements OnInit {
-  @Input() user!: IUserDados; // ⬅ Agora recebemos `user` como Input
+  readonly user = input.required<IUserDados>(); // ⬅ Agora recebemos `user` como Input
   blockedUsers$!: Observable<IUserDados[]>;
 
   constructor(
@@ -25,22 +25,25 @@ export class FriendBlockedComponent implements OnInit {
   ) { }
 
   ngOnInit(): void {
-    if (!this.user || !this.user.uid) return; // ⬅ Garante que o usuário está disponível
+    const user = this.user();
+    if (!user || !user.uid) return; // ⬅ Garante que o usuário está disponível
 
     this.store.dispatch(loadBlocked());
     this.blockedUsers$ = this.store.pipe(select(state => state.friends.blocked));
   }
 
   blockUser(friendUid: string): void {
-    if (!this.user?.uid) return;
-    this.userInteractionsService.blockUser(this.user.uid, friendUid).subscribe(() => {
+    const user = this.user();
+    if (!user?.uid) return;
+    this.userInteractionsService.blockUser(user.uid, friendUid).subscribe(() => {
       this.store.dispatch(loadBlocked()); // 🔄 Atualiza a lista de bloqueados
     });
   }
 
   unblockUser(friendUid: string): void {
-    if (!this.user?.uid) return;
-    this.userInteractionsService.blockUser(this.user.uid, friendUid).subscribe(() => {
+    const user = this.user();
+    if (!user?.uid) return;
+    this.userInteractionsService.blockUser(user.uid, friendUid).subscribe(() => {
       this.store.dispatch(loadBlocked()); // 🔄 Atualiza a lista após desbloqueio
     });
   }

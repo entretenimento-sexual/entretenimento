@@ -1,6 +1,6 @@
 <!-- src\app\shared\components-globais\user-card\compact-user-card\compact-user-card.component.html -->
-<app-base-user-card [user]="user">
-  <p class="status" [ngClass]="user.isOnline ? 'online' : 'offline'">
-    {{ user.isOnline ? 'Online' : 'Offline' }}
+<app-base-user-card [user]="user()">
+  <p class="status" [ngClass]="user().isOnline ? 'online' : 'offline'">
+    {{ user().isOnline ? 'Online' : 'Offline' }}
   </p>
 </app-base-user-card>

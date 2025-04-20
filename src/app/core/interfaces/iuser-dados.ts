@@ -17,7 +17,7 @@ export interface IUserDados {
   lastLogin: Timestamp; // Data do último login
   firstLogin: Timestamp | Date | null;
   createdAt?: Timestamp | Date | null; //Data da criação do perfil pelo usuário
-  emailVerified?: string;
+  emailVerified?: boolean;
   gender?: string;
   orientation?: string; // Orientação sexual
   partner1Orientation?: string;

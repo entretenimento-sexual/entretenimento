@@ -1,8 +1,0 @@
-/* src\app\authentication\espiar\espiar.component.css */
-p {
-  text-align: justify;
-
-  font-family: "Times New Roman", Times, serif;
-  font-size: calc(1em + 1vw);     /* O tamanho da fonte começa em 1em e aumenta de acordo com o tamanho da janela */
-  font-size: clamp(16px, 3vw, 22px);     /* Tamanho mínimo de 16px, tamanho base de 4vw, tamanho máximo de 22px */
-}

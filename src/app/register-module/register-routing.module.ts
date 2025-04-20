@@ -1,4 +1,4 @@
-//src\app\authentication\register-module\register-routing.module.ts
+//src\app\register-module\register-routing.module.ts
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { RegisterComponent } from './register.component';

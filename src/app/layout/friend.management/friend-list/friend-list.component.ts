@@ -1,5 +1,5 @@
 //src\app\layout\friend.management\friend-list\friend-list.component.ts
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, OnInit, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store, select } from '@ngrx/store';
 import { Observable } from 'rxjs';
@@ -19,33 +19,39 @@ import { IFriend } from 'src/app/core/interfaces/friendship/ifriend';
 })
 
 export class FriendListComponent implements OnInit {
-  @Input() user!: IUserDados; // 🔹 Recebemos o usuário autenticado
-  @Input() limit?: number;
+  readonly user = input.required<IUserDados>(); // 🔹 Recebemos o usuário autenticado
+  readonly limit = input<number>();
   friends$!: Observable<IFriend[]>;
 
   constructor(private store: Store<AppState>,
               private userInteractionsService: UserInteractionsService,) { }
 
   ngOnInit(): void {
-    if (!this.user?.uid) return;
+    
+    const user = this.user();
+    if (!user?.uid) return;
 
     // 🔥 Dispara ação para carregar amigos
-    this.store.dispatch(loadFriends({ uid: this.user.uid }));
+    this.store.dispatch(loadFriends({ uid: user.uid }));
 
     // 🔄 Obtém a lista de amigos do estado
     this.friends$ = this.store.pipe(select(state => state.friends.friends));
   }
 
   getLimitedFriends(friends: IUserDados[]): IUserDados[] {
-    return this.limit ? friends.slice(0, this.limit) : friends;
+
+    const limit = this.limit();
+    return limit ? friends.slice(0, limit) : friends;
   }
 
   removeFriend(friendUid: string): void {
-    if (!this.user?.uid) return;
+
+    const user = this.user();
+    if (!user?.uid) return;
 
     // 🔥 Remove amigo e recarrega a lista
-    this.userInteractionsService.blockUser(this.user.uid, friendUid).subscribe(() => {
-      this.store.dispatch(loadFriends({ uid: this.user.uid }));
+    this.userInteractionsService.blockUser(user.uid, friendUid).subscribe(() => {
+      this.store.dispatch(loadFriends({ uid: this.user().uid }));
     });
   }
 }

@@ -95,7 +95,7 @@ export class InviteSearchService {
     if (filters.some((filter) => filter instanceof where)) {
       console.log('[InviteSearchService] Filtros personalizados validados:', filters);
     } else {
-      console.warn('[InviteSearchService] Nenhum filtro válido detectado. Adicionando padrões.');
+      console.log('[InviteSearchService] Nenhum filtro válido detectado. Adicionando padrões.');
     }
 
     // Retorna os filtros após a validação/expansão

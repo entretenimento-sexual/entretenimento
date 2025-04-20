@@ -1,20 +1,20 @@
 <!-- src\app\shared\user-card\user-card.component.html -->
-<a [routerLink]="['/profile', user?.uid]" class="card user-card h-100 shadow-lg text-decoration-none">
-  <div class="card-header text-center" [ngClass]="getUserNicknameClass(user)">
+<a [routerLink]="['/profile', user()?.uid]" class="card user-card h-100 shadow-lg text-decoration-none">
+  <div class="card-header text-center" [ngClass]="getUserNicknameClass(user())">
     <h5 class="card-title m-0 d-flex align-items-center justify-content-center">
-      {{ user?.nickname }}
+      {{ user()?.nickname }}
     </h5>
   </div>
   <div class="card-img-top">
-    <img [src]="user?.photoURL || 'assets/imagem-padrao.webp'" class="img-fluid profile-photo mx-auto d-block"
-      alt="{{ user?.nickname }}">
+    <img [src]="user()?.photoURL || 'assets/imagem-padrao.webp'" class="img-fluid profile-photo mx-auto d-block"
+      alt="{{ user()?.nickname }}">
   </div>
   <div class="card-body text-center">
-    <p class="card-text mb-1">{{ user?.gender | titlecase }} | {{ user?.idade }} anos</p>
-    <p class="card-text mb-1">{{ user?.municipio }}, {{ user?.estado }}</p>
-    <p class="card-text mb-2">{{ user?.descricao?.slice(0, 80) }}...</p>
+    <p class="card-text mb-1">{{ user()?.gender | titlecase }} | {{ user()?.idade }} anos</p>
+    <p class="card-text mb-1">{{ user()?.municipio }}, {{ user()?.estado }}</p>
+    <p class="card-text mb-2">{{ user()?.descricao?.slice(0, 80) }}...</p>
     <p class="card-text mb-2">
-      Distância: {{ distanciaKm === 0 ? '> 1 km' : distanciaKm + ' km' }}
+      Distância: {{ distanciaKm() === 0 ? '> 1 km' : distanciaKm() + ' km' }}
     </p>
 
     <!-- Botão para abrir o modal com ícone e texto responsivo -->

@@ -1,5 +1,5 @@
 <!-- src\app\layout\friend.management\friend-blocked\friend-blocked.component.html -->
-<div class="friend-blocked" *ngIf="user && user.uid">
+<div class="friend-blocked" *ngIf="user() && user().uid">
   <h4>Usuários Bloqueados</h4>
 
   <ul *ngIf="(blockedUsers$ | async)?.length; else noBlocked">

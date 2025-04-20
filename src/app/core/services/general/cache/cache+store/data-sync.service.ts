@@ -66,7 +66,7 @@ export class DataSyncService {
           console.log(`✅ [Firestore] Dados carregados de ${collectionName}:`, data);
           this.cacheService.set(cacheKey, data, 300000);
         } else {
-          console.warn(`⚠️ Nenhum dado encontrado no Firestore para ${collectionName}.`);
+          console.log(`⚠️ Nenhum dado encontrado no Firestore para ${collectionName}.`);
         }
       }),
       catchError(error => {

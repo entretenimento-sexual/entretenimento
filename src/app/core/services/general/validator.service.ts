@@ -7,8 +7,8 @@ const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const FACEBOOK_REGEX = /^https?:\/\/www\.facebook\.com\/.+$/;
 const INSTAGRAM_REGEX = /^https:\/\/www\.instagram\.com\/.+$/;
 const BUUPE_REGEX = /^https:\/\/www\.buupe\.com\/.+$/;
-const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/;
-const PASSWORD_BLACKLIST = ['password', '123456', 'qwerty', '111111'];
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d!@#$%^&*(),.?":{}|<>_-]{8,}$/;
+const PASSWORD_BLACKLIST = ['password', '123456', 'qwerty', '111111', '000000'];
 
 @Injectable({
   providedIn: 'root'
@@ -34,7 +34,7 @@ export class ValidatorService {
     public static passwordValidator(minLength: number = 8): ValidatorFn {
     return (control: AbstractControl): { [key: string]: any } | null => {
       const password = control.value;
-      const passwordRegex = new RegExp(`^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d]{${minLength},}$`);
+      const passwordRegex = new RegExp(`^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d!@#$%^&*(),.?":{}|<>_-]{${minLength},}$`);
       return password && !passwordRegex.test(password) || PASSWORD_BLACKLIST.includes(password)
         ? { 'invalidPassword': { value: password } }
         : null;

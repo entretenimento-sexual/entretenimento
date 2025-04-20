@@ -1,5 +1,5 @@
 // src/app/chat-module/room-interaction/room-interaction.component.ts
-import { Component, Input, OnInit, OnDestroy, SimpleChanges, OnChanges, ViewChild, ElementRef } from '@angular/core';
+import { Component, Input, OnInit, OnDestroy, SimpleChanges, OnChanges, ViewChild, ElementRef, input } from '@angular/core';
 import { catchError, firstValueFrom, of, Subscription, switchMap, take, tap } from 'rxjs';
 import { Timestamp } from '@firebase/firestore';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
@@ -19,7 +19,7 @@ import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/f
   standalone: false
 })
 export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
-  @Input() roomId!: string | undefined;
+  readonly roomId = input.required<string | undefined>();
   @Input() roomName?: string;
   @ViewChild('messagesContainerRef', { static: false }) private messagesContainer?: ElementRef;
 
@@ -45,14 +45,16 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
   ) { }
 
   ngOnInit(): void {
-    if (!this.roomId) {
+    
+    const roomId = this.roomId();
+    if (!roomId) {
       this.errorNotifier.showError('ID da sala não fornecido.');
       return;
     }
-    this.loadRoomName(this.roomId);
-    this.loadMessages(this.roomId);
-    this.loadParticipants(this.roomId);
-    this.loadRoomCreator(this.roomId);
+    this.loadRoomName(roomId);
+    this.loadMessages(roomId);
+    this.loadParticipants(roomId);
+    this.loadRoomCreator(roomId);
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -92,7 +94,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
               const userFromState = await firstValueFrom(this.firestoreQuery.getUserFromState(msg.senderId));
               user = userFromState ? userFromState : null; // Garante que user nunca seja undefined
             } catch (error) {
-              console.warn(`Erro ao buscar usuário do estado com UID ${msg.senderId}`, error);
+              console.log(`Erro ao buscar usuário do estado com UID ${msg.senderId}`, error);
             }
 
             if (!user) {
@@ -193,7 +195,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
       return;
     }
 
-    if (!this.roomId) {
+    if (!this.roomId()) {
       this.errorNotifier.showError('Erro: ID da sala não definido.');
       return;
     }
@@ -213,7 +215,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
           timestamp: Timestamp.fromDate(new Date())
         };
 
-        return this.roomMessages.sendMessageToRoom(this.roomId! as string, newMessage);
+        return this.roomMessages.sendMessageToRoom(this.roomId()! as string, newMessage);
       }),
       catchError(error => {
         console.error('Erro ao enviar mensagem:', error);

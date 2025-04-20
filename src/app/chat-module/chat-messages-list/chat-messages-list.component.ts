@@ -1,6 +1,9 @@
 // src\app\chat-module\chat-messages-list\chat-messages-list.component.ts
-import { ChangeDetectorRef, Component, ElementRef, Input, OnChanges, OnDestroy,
-          SimpleChanges, ViewChild } from '@angular/core';
+import {
+  ChangeDetectorRef, Component, ElementRef, OnChanges, OnDestroy,
+  SimpleChanges, ViewChild,
+  input
+} from '@angular/core';
 import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { Subscription } from 'rxjs';
@@ -19,10 +22,10 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
   @ViewChild('messagesContainer') private messagesContainer!: ElementRef<HTMLDivElement>;
   private messagesSubscription: Subscription | undefined;
   messages: Message[] = [];
-  
 
-  @Input() chatId?: string;
-  @Input() type: 'chat' | 'room' | undefined;
+
+  readonly chatId = input<string>();
+  readonly type = input<'chat' | 'room'>();
 
   constructor(private authService: AuthService,
               private chatService: ChatService,
@@ -42,7 +45,10 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
   }
 
   private loadMessages(): void {
-    if (!this.chatId || !this.type) {
+    
+    const chatId = this.chatId();
+    const type = this.type();
+    if (!chatId || !type) {
       console.error('Erro: ID do chat ou tipo é undefined.');
       return;
     }
@@ -51,8 +57,8 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
     this.messagesSubscription?.unsubscribe();
     this.messages = []; // reset local
 
-    if (this.type === 'chat') {
-      this.messagesSubscription = this.chatService.monitorChat(this.chatId)
+    if (type === 'chat') {
+      this.messagesSubscription = this.chatService.monitorChat(chatId)
         .subscribe({
           next: async (messages: Message[]) => {
             // Evita duplicar mensagens
@@ -65,7 +71,7 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
             // Marcar como 'read' as mensagens 'delivered' (que não são do usuário atual)
             for (const msg of newMessages) {
               if (msg.status === 'delivered' && msg.senderId !== this.authService.currentUser?.uid) {
-                await this.chatService.updateMessageStatus(this.chatId!, msg.id!, 'read');
+                await this.chatService.updateMessageStatus(this.chatId()!, msg.id!, 'read');
               }
             }
 
@@ -75,13 +81,13 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
             setTimeout(() => this.scrollToBottom(), 0);
           },
           error: error => {
-            console.error(`Erro ao carregar mensagens do chat ${this.chatId}:`, error);
+            console.error(`Erro ao carregar mensagens do chat ${this.chatId()}:`, error);
             this.errorNotifier.showError('Erro ao carregar mensagens.');
           },
         });
 
-    } else if (this.type === 'room') {
-      this.messagesSubscription = this.roomMessage.getRoomMessages(this.chatId)
+    } else if (type === 'room') {
+      this.messagesSubscription = this.roomMessage.getRoomMessages(chatId)
         .subscribe({
           next: (newMessages) => {
             const filteredMessages = newMessages.filter(
@@ -93,7 +99,7 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
             setTimeout(() => this.scrollToBottom(), 0);
           },
           error: err => {
-            console.error(`Erro ao carregar mensagens da sala ${this.chatId}:`, err);
+            console.error(`Erro ao carregar mensagens da sala ${this.chatId()}:`, err);
             this.errorNotifier.showError('Erro ao carregar mensagens.');
           },
         });

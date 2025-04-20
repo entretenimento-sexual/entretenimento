@@ -267,9 +267,7 @@ export class CacheService {
     console.log(`[CacheService] currentUser sincronizado com UID: "${uid}"`);
   }
 
-  /**
-   * Habilita o modo de depuração para exibir informações detalhadas do cache.
-   */
+  //Habilita o modo de depuração para exibir informações detalhadas do cache.
   debug(): void {
     console.log('[CacheService] Estado atual do cache:', {
       size: this.size(),

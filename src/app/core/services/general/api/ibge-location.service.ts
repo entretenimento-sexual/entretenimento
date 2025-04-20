@@ -98,7 +98,7 @@ export class IBGELocationService {
       this.cacheService.set(this.userLocationCacheKey, newLocation, undefined); // Atualiza sem expiração
       console.log('Localização do usuário atualizada no cache:', newLocation);
     } else {
-      console.warn('Usuários com role baixo não podem alterar sua localização.');
+      console.log('Usuários com role baixo não podem alterar sua localização.');
     }
   }
 

@@ -23,7 +23,7 @@ export class AuthEffects {
                 console.log('Login bem-sucedido e e-mail verificado. Disparando loginSuccess.');
                 return loginSuccess({ user: response.user });
               } else {
-                console.warn('Login bem-sucedido, mas e-mail não verificado.');
+                console.log('Login bem-sucedido, mas e-mail não verificado.');
                 return loginFailure({ error: 'Email não verificado.' });
               }
             } else {

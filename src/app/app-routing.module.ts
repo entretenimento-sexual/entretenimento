@@ -2,7 +2,6 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
-import { EspiarComponent } from './authentication/espiar/espiar.component';
 import { ProfileListComponent } from './layout/profile-list/profile-list.component';
 import { AuthGuard } from './core/guards/auth.guard';
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
@@ -56,8 +55,7 @@ const routes: Routes = [
     component: LoginComponent,
     canActivate: [authRedirectGuard], // Redireciona usuários logados
   },
-  { path: 'espiar', component: EspiarComponent },
-  { path: 'subscription-plan', component: SubscriptionPlanComponent },
+   { path: 'subscription-plan', component: SubscriptionPlanComponent },
   { path: 'admin-dashboard', loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule) },
 
   // Redirecionamento padrão para rotas desconhecidas

@@ -1,0 +1,9 @@
+<!-- src\app\register-module\register-ui\feedback\form-success-message\form-success-message.component.html -->
+<div class="success-message" role="status" aria-live="polite">
+  <h3>Verifique seu E-mail</h3>
+  <p>
+    Enviamos um e-mail para
+    <strong>{{ form()?.get('email')?.value }}</strong>.
+  </p>
+  <button class="btn btn-primary" (click)="resendEmail.emit()">Reenviar</button>
+</div>

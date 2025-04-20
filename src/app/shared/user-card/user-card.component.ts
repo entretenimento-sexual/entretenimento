@@ -1,5 +1,5 @@
 //src\app\shared\user-card\user-card.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, input } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { DateFormatPipe } from 'src/app/shared/date-format.pipe';
 import { ModalMensagemComponent } from '../components-globais/modal-mensagem/modal-mensagem.component';
@@ -21,8 +21,8 @@ import { sendFriendRequest } from 'src/app/store/actions/actions.interactions/ac
     imports: [CommonModule, RouterModule]
 })
 export class UserCardComponent {
-  @Input() user!: IUserDados | null;
-  @Input() distanciaKm: number | null = null;
+  readonly user = input.required<IUserDados | null>();
+  readonly distanciaKm = input<number | null>(null);
 
   constructor(private dateFormatPipe: DateFormatPipe,
               private dialog: MatDialog,
@@ -31,29 +31,33 @@ export class UserCardComponent {
               private userInteractionsService: UserInteractionsService) { }
 
   ngOnChanges() {
-    console.log('User:', this.user);
-    console.log('Distância recebida:', this.distanciaKm);
+    console.log('User:', this.user());
+    console.log('Distância recebida:', this.distanciaKm());
   }
 
 
   abrirModal(event: Event): void {
     event.preventDefault(); // Evita que o link navegue para outra página
 
-    if (this.user) {
+
+    const user = this.user();
+    if (user) {
       this.dialog.open(ModalMensagemComponent, {
         width: '400px',
-        data: { profile: this.user }
+        data: { profile: user }
       });
     }
   }
 
   adicionarAmigo(): void {
-    if (!this.user) return;
+    const user = this.user();
+    if (!user) return;
 
-    this.userInteractionsService.sendFriendRequest('meuUid', this.user.uid).subscribe({
+    this.userInteractionsService.sendFriendRequest('meuUid', user.uid).subscribe({
       next: () => {
-        this.store.dispatch(sendFriendRequest({ userUid: 'meuUid', friendUid: this.user!.uid }));
-        this.errorNotifier.showSuccess(`Solicitação de amizade enviada para ${this.user?.nickname || 'usuário'}!`);
+        const userValue = this.user();
+        this.store.dispatch(sendFriendRequest({ userUid: 'meuUid', friendUid: userValue!.uid }));
+        this.errorNotifier.showSuccess(`Solicitação de amizade enviada para ${userValue?.nickname || 'usuário'}!`);
       },
       error: (err) => {
         this.errorNotifier.showError('Erro ao enviar solicitação de amizade.', err.message);

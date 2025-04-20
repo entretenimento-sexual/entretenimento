@@ -1,6 +1,6 @@
 // src\app\user-profile\user-profile-view\user-profile-preferences\user-profile-preferences.component.ts
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, Input, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit, input } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { catchError, switchMap, take, tap } from 'rxjs/operators';
@@ -24,7 +24,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
   imports: [CommonModule, RouterModule, SharedModule, MatExpansionModule],
 })
 export class UserProfilePreferencesComponent implements OnInit {
-  @Input() uid: string | null = null;
+  readonly uid = input<string | null>(null);
 
   public categoriasDePreferencias: any = {
     genero: [],
@@ -44,14 +44,16 @@ export class UserProfilePreferencesComponent implements OnInit {
     private store: Store<AppState>,) { }
 
   ngOnInit(): void {
-    console.log('[UserProfilePreferencesComponent] Iniciando com UID:', this.uid);
 
-    if (!this.uid) { // ✅ Corrigido: Evita erro de null antes de acessar a API
+    const uid = this.uid();
+    console.log('[UserProfilePreferencesComponent] Iniciando com UID:', uid);
+
+    if (!uid) { // ✅ Corrigido: Evita erro de null antes de acessar a API
       console.log('[UserProfilePreferencesComponent] UID inválido.');
       return;
     }
 
-    this.preferences$ = this.cacheService.get<IUserPreferences>(`preferences:${this.uid}`).pipe(
+    this.preferences$ = this.cacheService.get<IUserPreferences>(`preferences:${uid}`).pipe(
       switchMap((cachedPreferences) => {
         if (cachedPreferences) {
           console.log('[Cache] Preferências encontradas no cache:', cachedPreferences);
@@ -61,25 +63,26 @@ export class UserProfilePreferencesComponent implements OnInit {
         }
 
         console.log('[Store] Preferências não encontradas no cache. Verificando Store...');
-        return this.store.select(selectCacheItem(`preferences:${this.uid}`)).pipe(
+        return this.store.select(selectCacheItem(`preferences:${this.uid()}`)).pipe(
           take(1),
           switchMap((storePreferences) => {
             if (storePreferences) {
               console.log('[Store] Preferências encontradas no Store:', storePreferences);
-              this.cacheService.set(`preferences:${this.uid}`, storePreferences);
+              this.cacheService.set(`preferences:${this.uid()}`, storePreferences);
               this.agruparPreferencias(storePreferences);
               this.cdr.detectChanges();
               return of(storePreferences);
             }
 
             console.log('[Firestore] Preferências não encontradas no Store. Buscando no Firestore...');
-            return this.userPreferencesService.getUserPreferences$(this.uid!).pipe( // ✅ `this.uid!` pois já foi verificado antes
+            return this.userPreferencesService.getUserPreferences$(uid).pipe( // ✅ `this.uid!` pois já foi verificado antes
               take(1),
               tap((fetchedPreferences) => {
                 if (fetchedPreferences) {
                   console.log('[Firestore] Preferências carregadas:', fetchedPreferences);
-                  this.cacheService.set(`preferences:${this.uid}`, fetchedPreferences);
-                  this.store.dispatch(setCache({ key: `preferences:${this.uid}`, value: fetchedPreferences }));
+                  const uidValue = this.uid();
+                  this.cacheService.set(`preferences:${uidValue}`, fetchedPreferences);
+                  this.store.dispatch(setCache({ key: `preferences:${uidValue}`, value: fetchedPreferences }));
                   this.agruparPreferencias(fetchedPreferences);
                   this.cdr.detectChanges();
                 }

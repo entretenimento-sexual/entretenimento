@@ -1,5 +1,5 @@
 //src\app\shared\components-globais\user-card\base-user-card\base-user-card.component.ts
-import { Component, Input } from '@angular/core';
+import { Component, input } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 @Component({
@@ -9,5 +9,5 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
   styleUrl: './base-user-card.component.css'
 })
 export class BaseUserCardComponent {
-  @Input() user!: IUserDados;
+  readonly user = input.required<IUserDados>();
 }

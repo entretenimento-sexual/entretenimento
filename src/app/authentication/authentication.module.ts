@@ -6,7 +6,6 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms'; // Para usar 
 // Importe o RouterModule se este módulo tiver rotas
 import { RouterModule } from '@angular/router';
 import { LoginComponent } from './login-component/login-component';
-import { EspiarComponent } from './espiar/espiar.component';
 import { ProgressiveSignupComponent } from './progressive-signup/progressive-signup.component';
 import { AuthenticationRoutingModule } from './authentication-routing.module';
 import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
@@ -19,10 +18,8 @@ import { EmailInputModalComponent } from './email-input-modal/email-input-modal.
 @NgModule({
   declarations: [
     LoginComponent,
-    EspiarComponent,
     ProgressiveSignupComponent,
     SuggestedProfilesComponent,
-
   ],
 
   imports: [
@@ -38,7 +35,6 @@ import { EmailInputModalComponent } from './email-input-modal/email-input-modal.
 
   exports: [
     LoginComponent,
-    EspiarComponent,
     ProgressiveSignupComponent,
     SuggestedProfilesComponent
   ],

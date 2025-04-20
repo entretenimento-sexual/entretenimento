@@ -35,14 +35,15 @@ export class RegisterService {
     return from(this.firestoreService.checkIfEmailExists(email)).pipe(
       switchMap((emailExists) => {
         if (emailExists) {
+          // 🚩 Aqui está correto, enviar reset diretamente para o email do usuário
           const auth = getAuth();
           return from(sendPasswordResetEmail(auth, email));
         }
-        return of(void 0);
+        return of(void 0);// se não existir, não faz nada
       }),
       catchError((error) => {
         this.globalErrorHandler.handleError(error);
-        return throwError(() => new Error('Erro ao verificar e-mail.'));
+        return of(void 0); // Não indicar erro publicamente
       })
     );
   }
@@ -85,7 +86,7 @@ export class RegisterService {
             userData.longitude = location.longitude;
           }),
           catchError((error) => {
-            console.warn('⚠️ Erro ao obter localização:', error);
+            console.log('⚠️ Erro ao obter localização:', error);
             return of(null);
           }),
           switchMap(() => this.firestoreService.saveInitialUserData(user.uid, userData)),
@@ -100,7 +101,6 @@ export class RegisterService {
       })
     );
   }
-
 
   //Exclui um usuário antes da verificação, caso o registro falhe.
   private rollbackUser(uid: string, error: any): Observable<never> {

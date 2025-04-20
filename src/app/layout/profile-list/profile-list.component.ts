@@ -31,7 +31,7 @@ export class ProfileListComponent implements OnInit, OnDestroy {
         switchMap((currentUser) => {
           this.user = currentUser; // Armazena o usuário autenticado
           if (!currentUser) {
-            console.warn('[ProfileListComponent] Nenhum usuário autenticado.');
+            console.log('[ProfileListComponent] Nenhum usuário autenticado.');
             return of([]); // Retorna lista vazia se não houver usuário
           }
           // Busca perfis sugeridos

@@ -42,7 +42,7 @@ export class EditProfilePreferencesComponent implements OnInit {
       map(params => params.get('id')),
       tap(uid => {
         if (!uid) {
-          console.warn('[EditProfilePreferencesComponent] UID não encontrado na rota.');
+          console.log('[EditProfilePreferencesComponent] UID não encontrado na rota.');
           this.carregando = false;
         } else {
           console.log('[EditProfilePreferencesComponent] UID extraído:', uid);
@@ -107,7 +107,7 @@ export class EditProfilePreferencesComponent implements OnInit {
       console.log('[EditProfilePreferencesComponent] Retornando sem salvar.');
       this.router.navigate(['/perfil', this.uid]);
     } else {
-      console.warn('[EditProfilePreferencesComponent] Não foi possível retornar, UID ausente.');
+      console.log('[EditProfilePreferencesComponent] Não foi possível retornar, UID ausente.');
     }
   }
 }

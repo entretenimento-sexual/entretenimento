@@ -23,9 +23,7 @@ export class EmailVerificationService {
     private activatedRoute: ActivatedRoute // Adicionado para capturar o oobCode diretamente da URL
   ) { }
 
-  /**
-   * Recarrega o estado do usuário no Firebase Authentication e verifica se o e-mail está verificado.
-   */
+  //Recarrega o estado do usuário no Firebase Authentication e verifica se o e-mail está verificado.
   reloadCurrentUser(): Observable<boolean> {
     const auth = getAuth();
     if (auth.currentUser) {

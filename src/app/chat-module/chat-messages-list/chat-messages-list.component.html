@@ -4,7 +4,7 @@
     <app-chat-message
                       *ngFor="let message of messages"
                       [message]="message"
-                      [chatId]="chatId">
+                      [chatId]="chatId()">
   </app-chat-message>
   </ng-container>
 </div>

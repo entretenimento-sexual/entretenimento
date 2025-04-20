@@ -1,6 +1,6 @@
 //src\app\chat-module\modals\base-modal\base-modal.component.ts
 import { CommonModule } from '@angular/common';
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { Component, Output, EventEmitter, input } from '@angular/core';
 
 @Component({
   selector: 'app-base-modal',
@@ -11,7 +11,7 @@ import { Component, Input, Output, EventEmitter } from '@angular/core';
 })
 
 export class BaseModalComponent {
-  @Input() title: string = '';
+  readonly title = input<string>('');
   @Output() closeModal = new EventEmitter<void>();
 
   onClose() {

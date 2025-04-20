@@ -1,5 +1,5 @@
 // src\app\chat-module\chat-message\chat-message.component.ts
-import { Component, Input, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, input } from '@angular/core';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Subject } from 'rxjs';
@@ -14,8 +14,8 @@ import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/f
     standalone: false
 })
 export class ChatMessageComponent implements OnInit, OnDestroy {
-  @Input() message!: Message;
-  @Input() chatId?: string;
+  readonly message = input.required<Message>();
+  readonly chatId = input<string>();
   senderName: string = 'Usuário desconhecido'; // Default para nome desconhecido
   currentUserUid: string | undefined;
   private destroy$ = new Subject<void>(); // Para controle de subscrições
@@ -32,9 +32,11 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
         takeUntil(this.destroy$), // Limpar subscrições quando o componente for destruído
         switchMap(currentUser => {
           this.currentUserUid = currentUser?.uid;
-          if (this.message.senderId) {
+
+          const message = this.message();
+          if (message.senderId) {
             // Carrega os dados do usuário remetente da mensagem
-            return this.firestoreUserQuery.getUser(this.message.senderId);
+            return this.firestoreUserQuery.getUser(message.senderId);
           } else {
             // Retorna um valor vazio se não houver senderId
             return [];
@@ -53,16 +55,19 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
 
   // Verifica se a mensagem foi enviada pelo usuário atual
   isMessageSent(): boolean {
-    return this.message.senderId === this.currentUserUid;
+    return this.message().senderId === this.currentUserUid;
   }
 
   // Método chamado ao clicar no ícone de lixeira
   // -> Substituímos 'async/await' por uso de Observables + subscribe()
   deleteThisMessage(): void {
-    if (!this.chatId || !this.message.id) return;
+
+    const message = this.message();
+    const chatId = this.chatId();
+    if (!chatId || !message.id) return;
 
     this.chatService
-      .deleteMessage(this.chatId, this.message.id)
+      .deleteMessage(chatId, message.id)
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: () => {
@@ -81,7 +86,7 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
   }
 
   getStatusText(): string {
-    switch (this.message.status) {
+    switch (this.message().status) {
       case 'sent':
         return 'Enviada';
       case 'delivered':

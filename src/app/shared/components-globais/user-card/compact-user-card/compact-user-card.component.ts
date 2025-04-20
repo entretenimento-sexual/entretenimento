@@ -1,6 +1,6 @@
 //src\app\shared\components-globais\user-card\compact-user-card\compact-user-card.component.ts
 import { CommonModule } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, input } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { BaseUserCardComponent } from "../base-user-card/base-user-card.component";
 
@@ -12,5 +12,5 @@ import { BaseUserCardComponent } from "../base-user-card/base-user-card.componen
 })
 
 export class CompactUserCardComponent {
-  @Input() user!: IUserDados;
+  readonly user = input.required<IUserDados>();
 }

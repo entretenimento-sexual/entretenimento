@@ -21,7 +21,9 @@
   <section class="friends-section">
     <h2>Seus Amigos</h2>
 
-    <app-friend-list [limit]="6"></app-friend-list> <!-- Exibe apenas 6 amigos -->
+      <ng-container *ngIf="(currentUser$ | async) as user">
+        <app-friend-list [user]="user" [limit]="6"></app-friend-list>
+      </ng-container>
 
     <button class="btn btn-secondary ver-todos" routerLink="/friends">Ver Todos</button>
   </section>

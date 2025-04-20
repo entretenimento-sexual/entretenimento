@@ -13,6 +13,7 @@ import { AuthVerificationHandlerComponent } from './auth-verification-handler/au
 import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
 import { RegisterComponent } from './register.component';
 import { EmailInputModalComponent } from '../authentication/email-input-modal/email-input-modal.component';
+import { RegisterUiComponent } from './register-ui/register-ui.component';
 
 @NgModule({
   declarations: [
@@ -27,12 +28,13 @@ import { EmailInputModalComponent } from '../authentication/email-input-modal/em
     RouterModule, // ✅ Necessário para `routerLink`
     RegisterRoutingModule,
     FormsModule, // ✅ Necessário para `ngModel`
-    ReactiveFormsModule, // ✅ Necessário para `formGroup`
+    ReactiveFormsModule,
     MatInputModule,
     MatButtonModule,
     MatDialogModule,
     MatCheckboxModule,
     EmailInputModalComponent,
+    RegisterUiComponent
   ],
 
   exports: [

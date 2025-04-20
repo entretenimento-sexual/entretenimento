@@ -150,7 +150,7 @@ export class AuthService {
         }
       }
     } catch (error: any) {
-      console.warn('Erro ao carregar o usuário do localStorage.', error);
+      console.log('Erro ao carregar o usuário do localStorage.', error);
       this.globalErrorHandlerService.handleError(error);
     }
   }

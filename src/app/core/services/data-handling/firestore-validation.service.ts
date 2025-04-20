@@ -9,7 +9,6 @@ import { FirestoreService } from './firestore.service';
 import { CacheService } from '../general/cache/cache.service';
 import { NotificationService } from '../general/notification.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
-import * as userActions from 'src/app/store/actions/actions.user/user.actions';
 
 @Injectable({
   providedIn: 'root'

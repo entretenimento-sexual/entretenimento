@@ -100,7 +100,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
       this.regularChats.forEach(chat => {
         console.log('Chat ID:', chat.id, 'Detalhes do outro participante:', chat.otherParticipantDetails);
         if (!chat.id) {
-          console.warn('Atenção: Um dos chats está sem ID.', chat);
+          console.log('Atenção: Um dos chats está sem ID.', chat);
         }
       });
     });

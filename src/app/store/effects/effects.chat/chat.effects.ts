@@ -30,7 +30,7 @@ export class ChatEffects {
       withLatestFrom(this.authService.user$), // Substituímos `getUserAuthenticated()` por `user$`
       switchMap(([action, user]: [any, IUserDados | null]) => { // Explicitamente tipado `user` como `IUserDados | null`
         if (!user) {
-          console.warn('Nenhum usuário autenticado encontrado');
+          console.log('Nenhum usuário autenticado encontrado');
           return of(ChatActions.loadChatsFailure({ error: 'Usuário não autenticado' }));
         }
         console.log('Carregando chats para o usuário:', user.uid);

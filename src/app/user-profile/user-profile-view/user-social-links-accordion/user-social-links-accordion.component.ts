@@ -1,5 +1,5 @@
 //src\app\user-profile\user-profile-view\user-social-links-accordion\user-social-links-accordion.component.ts
-import { Component, OnInit, OnDestroy, Input } from '@angular/core';
+import { Component, OnInit, OnDestroy, input } from '@angular/core';
 import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-social-links.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/iuser-social-links';
@@ -18,11 +18,11 @@ import { MatExpansionModule } from '@angular/material/expansion';
 })
 
 export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
-  @Input() uid: string | null | undefined = null;
-  @Input() isOwner: boolean = false;
+  readonly uid = input<string | null | undefined>(null);
+  readonly isOwner = input<boolean>(false);
   socialLinks: IUserSocialLinks | null = null;
   private destroy$ = new Subject<void>();
-  
+
   // Lista de redes suportadas
   socialMediaPlatforms = [
     { key: 'facebook', label: 'Facebook', icon: 'fab fa-facebook-square' },
@@ -45,11 +45,12 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
               private router: Router,) { }
 
   ngOnInit(): void {
-    if (!this.uid) {
+    const uid = this.uid();
+    if (!uid) {
       console.log('[SocialLinksAccordion] Nenhum uid passado!');
       return;
     }
-    this.userSocialLinksService.getSocialLinks(this.uid)
+    this.userSocialLinksService.getSocialLinks(uid)
       .pipe(takeUntil(this.destroy$))
       .subscribe(links => {
         this.socialLinks = links;
@@ -94,8 +95,9 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
   }
 
   goToEditSocialLinks(): void {
-    if (!this.uid) return;
-    this.router.navigate(['/perfil', this.uid, 'edit-profile-social-links']);
+    const uid = this.uid();
+    if (!uid) return;
+    this.router.navigate(['/perfil', uid, 'edit-profile-social-links']);
   }
 
   ngOnDestroy(): void {

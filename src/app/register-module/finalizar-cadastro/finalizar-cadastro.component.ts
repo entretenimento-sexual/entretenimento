@@ -149,7 +149,8 @@ export class FinalizarCadastroComponent implements OnInit {
           acceptedTerms: {
             accepted: true,
             date: new Date()
-          }
+          },
+          profileCompleted: true
         };
 
         return from(this.firestoreService.saveInitialUserData(existingUserData.uid, updatedUserData)).pipe(

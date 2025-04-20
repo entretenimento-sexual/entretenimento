@@ -12,14 +12,14 @@
       <i class="fas fa-trash"></i>
     </button>
 
-  <p class="message-content">{{ message.content }}</p>
+  <p class="message-content">{{ message().content }}</p>
 
   <div class="message-footer">
     <p class="message-time">
       {{ isMessageSent() ? 'Enviado em' : 'Recebido em' }}
-      {{ message.timestamp.toDate() | date:'short' }}
+      {{ message().timestamp.toDate() | date:'short' }}
     </p>
     <!-- Status com pseudo-elemento '::before' -->
-    <p class="message-status" [ngClass]="message.status">{{ getStatusText() }}</p>
+    <p class="message-status" [ngClass]="message().status">{{ getStatusText() }}</p>
   </div>
   </div>
