@@ -21,12 +21,45 @@ export class RegisterUiComponent {
   form = input<FormGroup>();
   isLoading = input<boolean>();
   isLockedOut = input<boolean>();
-  nicknameValidado = input<boolean>();
-  emailValidado = input<boolean>();
+  readonly nicknameValidado = input<boolean>(false);
+  readonly emailValidado = input<boolean>(false);
+  readonly formSubmitted = input<boolean>(false);
 
   @Output() submitForm = new EventEmitter<void>();
   @Output() openTerms = new EventEmitter<void>();
   @Output() resendEmail = new EventEmitter<void>();
 
-  formSubmitted = false;
+  onSubmit(): void {
+    console.log('[RegisterUiComponent] Submissão do formulário detectada.');
+    if (!this.allFieldsValid()) {
+      console.warn('[RegisterUiComponent] Formulário incompleto ou inválido:', this.form()?.value);
+      return;
+    }
+    this.submitForm.emit();
+  }
+
+  formInvalid(): boolean {
+    return !this.allFieldsValid();
+  }
+
+  private allFieldsValid(): boolean {
+    const f = this.form();
+    if (!f) return false;
+
+    return (
+      (f.valid ?? false) &&
+      this.nicknameValidado() &&
+      this.emailValidado() &&
+      (f.get('apelidoPrincipal')?.valid ?? false) &&
+      (f.get('complementoApelido')?.valid ?? true) &&
+      (f.get('email')?.valid ?? false) &&
+      (f.get('password')?.valid ?? false) &&
+      (f.get('aceitarTermos')?.value === true)
+    );
+  }
+
+  shouldShowSuccessMessage(): boolean {
+    const f = this.form();
+    return this.formSubmitted() && this.emailValidado() && f?.get('email')?.value;
+  }
 }

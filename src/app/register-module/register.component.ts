@@ -135,6 +135,7 @@ export class RegisterComponent implements OnInit {
     return this.firestoreValidationService.checkIfNicknameExists(nickname).pipe(
       tap((exists: boolean) => {
         if (exists) {
+          console.log('[validateNickname] Apelido já em uso.');
           apelidoControl?.setErrors({ nicknameExists: true });
           this.nicknameValidado = false;
           this.emailValidado = false;
@@ -150,6 +151,7 @@ export class RegisterComponent implements OnInit {
         this.cdr.detectChanges();
       }),
       catchError((error: any) => {
+        console.error('[validateNickname] Erro ao verificar apelido:', error);
         apelidoControl?.setErrors({ validationError: true });
         this.nicknameValidado = false;
         this.emailValidado = false;
@@ -164,8 +166,11 @@ export class RegisterComponent implements OnInit {
   }
 
   async onRegister() {
+    console.log('[RegisterComponent] Tentativa de registro iniciada');
+
     this.clearErrorMessages();
     if (this.isLockedOut || this.registerForm.invalid) {
+      console.log('[onRegister] Formulário inválido ou bloqueado:', this.registerForm.value);
       this.errorNotification.showError('Por favor, corrija os erros antes de continuar.');
       return;
     }
@@ -189,6 +194,7 @@ export class RegisterComponent implements OnInit {
     };
 
     this.isLoading = true;
+    console.log('[RegisterComponent] Dados prontos para envio:', userRegistrationData);
 
     try {
       await this.registerService.registerUser(userRegistrationData, password).toPromise();
@@ -198,10 +204,12 @@ export class RegisterComponent implements OnInit {
       this.errorNotification.showSuccess('Registro realizado com sucesso! Redirecionando...');
       this.router.navigate(['/welcome']);
     } catch (error: any) {
+      console.error('[onRegister] Erro durante o registro:', error);
       this.handleRegistrationError(error);
     } finally {
       this.isLoading = false;
     }
+    console.log('[RegisterComponent] Registro concluído com sucesso. formSubmitted = true');
   }
 
   openTermsDialog(): void {

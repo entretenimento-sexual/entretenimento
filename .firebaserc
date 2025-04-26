@@ -1,5 +1,9 @@
 {
   "projects": {
-    "default": "entretenimento-sexual"
-  }
+    "default": "entretenimento-staging",
+    "staging": "entretenimento-staging"
+  },
+  "targets": {},
+  "etags": {},
+  "dataconnectEmulatorConfig": {}
 }

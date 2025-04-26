@@ -1,7 +1,7 @@
 <!-- src\app\register-module\register.component.html -->
 <div class="auth-container">
-  <div class="form-container">
-    <h2 class="form-header">Cadastre-se</h2>
+  <div class="">
+    <h2 class=""></h2>
 
 <app-register-ui
 [form]="registerForm"
@@ -9,6 +9,7 @@
 [isLockedOut]="isLockedOut"
 [nicknameValidado]="nicknameValidado"
 [emailValidado]="emailValidado"
+[formSubmitted]="formSubmitted"
 (submitForm)="onRegister()"
   (openTerms)="openTermsDialog()"
   (resendEmail)="resendVerificationEmail()">

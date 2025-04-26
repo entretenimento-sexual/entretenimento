@@ -26,6 +26,7 @@
       "dom"
     ],
      "types": ["node", "jasmine", "estree"]
+
   },
   "angularCompilerOptions": {
     "disableTypeScriptVersionCheck": true,

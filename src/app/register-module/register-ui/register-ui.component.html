@@ -1,54 +1,54 @@
-<!-- src\app\register-module\register-ui\register-ui.component.html -->
-<form *ngIf="form() as f" [formGroup]="f" (ngSubmit)="submitForm.emit()" class="form-ui">
+<!-- register-ui.component.html - Versão refinada e acessível -->
+<form [formGroup]="form()!" (ngSubmit)="onSubmit()" class="form-wrapper">
+  <!-- Condicional de exibição com form() e emailValidado -->
+  <ng-container *ngIf="form() && !shouldShowSuccessMessage(); else emailVerificado">
+    <h2 class="form-title">Cadastre-se</h2>
 
-  <app-nickname-field [form]="f"/>
+    <!-- Sucesso no envio -->
+    <app-form-success-message *ngIf="shouldShowSuccessMessage()" [form]="form()!" (resendEmail)="resendEmail.emit()" />
 
-  <!-- Campo Email -->
-  <div class="input-group">
-    <input type="email" formControlName="email" placeholder="E-mail válido" class="input-field"
-      [readonly]="!nicknameValidado()" aria-label="Email" />
-    <div
-      *ngIf="emailValidado?.() && form()?.get('email')?.invalid && (form()?.get('email')?.touched || form()?.get('email')?.dirty)"
-      class="alert alert-error">
-      <small *ngIf="form()?.get('email')?.hasError('required')">E-mail obrigatório.</small>
-      <small *ngIf="form()?.get('email')?.hasError('invalidEmail')">Formato inválido.</small>
+    <!-- Campo de apelido com componente separado -->
+    <app-nickname-field [form]="form()!"></app-nickname-field>
+
+    <div class="form-field">
+      <label for="email">E-mail</label>
+      <input type="email" id="email"
+              formControlName="email"
+              placeholder="Digite seu e-mail"
+              class="input-field"
+              [disabled]="!nicknameValidado()"
+              [class.disabled-input]="!nicknameValidado()"
+              aria-label="E-mail" />
     </div>
-  </div>
 
-  <!-- Campo Senha -->
-  <div class="input-group">
-    <input type="password" formControlName="password" placeholder="Senha segura" class="input-field"
-      [readonly]="!emailValidado()" aria-label="Senha" />
-    <div
-      *ngIf="form()?.get('password')?.invalid && (form()?.get('password')?.touched || form()?.get('password')?.dirty)"
-      class="alert alert-error">
-      <small>Senha deve ter pelo menos 8 caracteres, incluindo maiúsculas, minúsculas e números.</small>
+    <div class="form-field">
+      <label for="password">Escolha sua senha</label>
+      <input type="password" id="password" formControlName="password" placeholder="Escolha uma senha"
+        class="input-field" aria-label="Senha" />
     </div>
-  </div>
 
-  <!-- Termos e Condições -->
-  <div class="form-confirmation">
-    <input type="checkbox" formControlName="aceitarTermos" id="termosCheckbox" />
-    <label for="termosCheckbox">
-      Eu aceito os <a (click)="openTerms.emit()">Termos de Uso</a> e a
-      <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>.
-    </label>
-  </div>
+    <div class="form-checkbox">
+      <input type="checkbox" id="termos" formControlName="aceitarTermos" />
+      <label for="termos">
+        Eu aceito os
+        <a href="/termos" target="_blank">Termos de Uso</a> e a
+        <a href="/politica-de-privacidade" target="_blank">Política de Privacidade</a>.
+      </label>
+    </div>
 
-  <!-- Botão de Cadastro -->
-  <div class="button-container">
-    <button class="btn btn-primary" type="submit"
-      [disabled]="form()?.invalid || !nicknameValidado() || !emailValidado() || isLoading() || isLockedOut()"
-      aria-disabled="form()?.invalid || !nicknameValidado?.() || !emailValidado?.() || isLoading?.() || isLockedOut?.()">
-      <span *ngIf="isLoading?.()">Carregando...</span>
-      <span *ngIf="!isLoading?.() && !isLockedOut?.()">Cadastre-se</span>
-      <span *ngIf="isLockedOut?.()">Bloqueado</span>
+    <button type="submit" class="btn btn-primary" [disabled]="formInvalid() || isLoading()">
+      {{ isLoading() ? 'Aguarde...' : 'Cadastrar' }}
     </button>
-  </div>
+
+    <p class="login-redirect">
+      Já tem conta?
+      <a routerLink="/login">Faça login</a>
+    </p>
+  </ng-container>
+
+  <!-- Template alternativo quando email já foi validado -->
+  <ng-template #emailVerificado>
+    <app-form-success-message [form]="form()!" (resendEmail)="resendEmail.emit()">
+    </app-form-success-message>
+  </ng-template>
 </form>
-
-<app-form-success-message *ngIf="formSubmitted" [form]="form()"
-  (resendEmail)="resendEmail.emit()"/>
-
-
-<p class="login-link">Já tem uma conta? <a routerLink="/login">Faça login</a></p>

@@ -1,7 +1,6 @@
 // src/app/core/guards/auth-redirect.guard.ts
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { AuthService } from '../services/autentication/auth.service';
 import { FirestoreService } from '../services/data-handling/firestore.service';
 import { doc, getDoc } from 'firebase/firestore';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
@@ -26,7 +25,7 @@ export const authRedirectGuard: CanActivateFn = () => {
         const userSnapshot = await getDoc(userRef);
 
         if (!userSnapshot.exists()) {
-          console.warn('⚠️ Usuário autenticado, mas não encontrado no Firestore.');
+          console.log('⚠️ Usuário autenticado, mas não encontrado no Firestore.');
           resolve(true);
           return;
         }

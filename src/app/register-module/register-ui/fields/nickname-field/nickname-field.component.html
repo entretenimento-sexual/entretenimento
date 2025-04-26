@@ -1,29 +1,21 @@
-<!-- src\app\register-module\register-ui\fields\nickname-field\nickname-field.component.html -->
+<!-- nickname-field.component.html -->
 <div *ngIf="form()" [formGroup]="form()">
-  <!-- Campo Apelido Principal -->
-    <div class="input-group">
-      <input type="text" formControlName="apelidoPrincipal" placeholder="Apelido (4-12 caracteres)" class="input-field"
-        aria-label="Apelido Principal" />
-      <div
-        *ngIf="form()?.get('apelidoPrincipal')?.invalid && (form()?.get('apelidoPrincipal')?.touched || form()?.get('apelidoPrincipal')?.dirty)"
-        class="alert alert-error">
-        <small *ngIf="form()?.get('apelidoPrincipal')?.hasError('required')">Apelido é obrigatório.</small>
-        <small *ngIf="form()?.get('apelidoPrincipal')?.hasError('minlength')">Mínimo de 4 caracteres.</small>
-        <small *ngIf="form()?.get('apelidoPrincipal')?.hasError('maxlength')">Máximo de 12 caracteres.</small>
-        <small *ngIf="form()?.get('apelidoPrincipal')?.hasError('nicknameExists')">Apelido já em uso.</small>
-        <small *ngIf="form()?.get('apelidoPrincipal')?.hasError('invalidNickname')">Caracteres inválidos.</small>
-      </div>
-</div>
+  <!-- Apelido Principal -->
+  <div class="input-group">
+    <input type="text" formControlName="apelidoPrincipal" placeholder="Apelido (4-12 caracteres)" class="input-field"
+      aria-label="Apelido Principal" (input)="onInput('apelidoPrincipal')" (blur)="onBlur('apelidoPrincipal')" />
+    <div *ngIf="getTooltipMessage('apelidoPrincipal')" class="tooltip-error">
+      {{ getTooltipMessage('apelidoPrincipal') }}
+    </div>
+  </div>
 
-<!-- Campo Complemento do Apelido -->
-<div class="input-group">
-      <input type="text" formControlName="complementoApelido" placeholder="Complemento (opcional)" class="input-field"
-        aria-label="Complemento do Apelido" />
-      <div
-        *ngIf="form()?.get('complementoApelido')?.invalid && (form()?.get('complementoApelido')?.touched || form()?.get('complementoApelido')?.dirty)"
-        class="alert alert-error">
-        <small *ngIf="form()?.get('complementoApelido')?.hasError('maxlength')">Máximo 12 caracteres.</small>
-        <small *ngIf="form()?.get('complementoApelido')?.hasError('invalidNickname')">Caracteres inválidos.</small>
-      </div>
+  <!-- Complemento Apelido -->
+  <div class="input-group">
+    <input type="text" formControlName="complementoApelido" placeholder="Complemento (opcional)" class="input-field"
+      aria-label="Complemento do Apelido" (input)="onInput('complementoApelido')"
+      (blur)="onBlur('complementoApelido')" />
+    <div *ngIf="getTooltipMessage('complementoApelido')" class="tooltip-error">
+      {{ getTooltipMessage('complementoApelido') }}
+    </div>
   </div>
 </div>
