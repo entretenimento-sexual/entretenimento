@@ -8,7 +8,14 @@
     <app-form-success-message *ngIf="shouldShowSuccessMessage()" [form]="form()!" (resendEmail)="resendEmail.emit()" />
 
     <!-- Campo de apelido com componente separado -->
-    <app-nickname-field [form]="form()!"></app-nickname-field>
+    <app-nickname-field
+    
+          [form]="form()!"
+          [nicknameErrorMessage]="nicknameErrorMessage"
+          [complementoErrorMessage]="complementoErrorMessage"
+          (blurField)="blurField.emit($event)">
+
+    </app-nickname-field>
 
     <div class="form-field">
       <label for="email">E-mail</label>
@@ -23,8 +30,13 @@
 
     <div class="form-field">
       <label for="password">Escolha sua senha</label>
-      <input type="password" id="password" formControlName="password" placeholder="Escolha uma senha"
-        class="input-field" aria-label="Senha" />
+      <input
+              type="password"
+              id="password"
+              formControlName="password"
+              placeholder="Escolha uma senha"
+              class="input-field"
+              aria-label="Senha" />
     </div>
 
     <div class="form-checkbox">

@@ -3,16 +3,17 @@
   <div class="">
     <h2 class=""></h2>
 
-<app-register-ui
-[form]="registerForm"
-[isLoading]="isLoading"
-[isLockedOut]="isLockedOut"
-[nicknameValidado]="nicknameValidado"
-[emailValidado]="emailValidado"
-[formSubmitted]="formSubmitted"
-(submitForm)="onRegister()"
-  (openTerms)="openTermsDialog()"
-  (resendEmail)="resendVerificationEmail()">
-</app-register-ui>
+      <app-register-ui
+            [form]="registerForm"
+            [isLoading]="isLoading"
+            [isLockedOut]="isLockedOut"
+            [formSubmitted]="formSubmitted"
+            [nicknameErrorMessage]="nicknameErrorMessage()"
+            [complementoErrorMessage]="complementoErrorMessage()"
+            (submitForm)="onRegister()"
+            (openTerms)="openTermsDialog()"
+            (resendEmail)="resendVerificationEmail()"
+            (blurField)="onBlur($event)">
+      </app-register-ui>
   </div>
 </div>

@@ -1,5 +1,5 @@
 // src/app/register-module/register-ui/register-ui.component.ts
-import { Component, EventEmitter, Output, input } from '@angular/core';
+import { Component, EventEmitter, Input, Output, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { NicknameFieldComponent } from './fields/nickname-field/nickname-field.component';
@@ -28,6 +28,10 @@ export class RegisterUiComponent {
   @Output() submitForm = new EventEmitter<void>();
   @Output() openTerms = new EventEmitter<void>();
   @Output() resendEmail = new EventEmitter<void>();
+  @Output() blurField = new EventEmitter<string>();
+  
+  @Input() nicknameErrorMessage!: string | null;
+  @Input() complementoErrorMessage!: string | null;
 
   onSubmit(): void {
     console.log('[RegisterUiComponent] Submissão do formulário detectada.');

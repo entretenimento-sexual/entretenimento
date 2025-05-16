@@ -22,6 +22,34 @@ export class ValidatorService {
     return EMAIL_REGEX.test(email);
   }
 
+  public static nicknameValidator(): ValidatorFn {
+    const regex = /^[a-zA-Z0-9!@#$%^&*()_+\-=]{4,12}$/;
+    return (control: AbstractControl): { [key: string]: any } | null => {
+      const value = control.value?.trim();
+      return value && !regex.test(value) ? { invalidNickname: true } : null;
+    };
+  }
+
+  public static complementoNicknameValidator(): ValidatorFn {
+    const regex = /^[a-zA-Z0-9!@#$%^&*()_+\-=]{0,12}$/;
+    return (control: AbstractControl): { [key: string]: any } | null => {
+      const value = control.value?.trim();
+      return value && !regex.test(value) ? { invalidNickname: true } : null;
+    };
+  }
+
+  public static fullNicknameValidator(): ValidatorFn {
+    return (group: AbstractControl): { [key: string]: any } | null => {
+      const apelido = group.get('apelidoPrincipal')?.value?.trim() || '';
+      const complemento = group.get('complementoApelido')?.value?.trim() || '';
+      const full = `${apelido} ${complemento}`.trim();
+
+      const regex = /^[a-zA-Z0-9!@#$%^&*()_+\-= ]{4,24}$/;
+
+      return !regex.test(full) ? { invalidFullNickname: true } : null;
+    };
+  }
+
   // Validação de E-mail como ValidatorFn para Reactive Forms
   public static emailValidator(): ValidatorFn {
     return (control: AbstractControl): { [key: string]: any } | null => {

@@ -1,9 +1,9 @@
 // src/app/core/services/autentication/auth.service.ts
 import { Injectable, Injector } from '@angular/core';
 import { Observable, BehaviorSubject, switchMap, tap, of, catchError, from } from 'rxjs';
-import { distinctUntilChanged, map, mapTo, shareReplay } from 'rxjs/operators';
+import { distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { browserSessionPersistence, getAuth, onAuthStateChanged, setPersistence, signOut, User } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { UsuarioService } from '../user-profile/usuario.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { Store } from '@ngrx/store';

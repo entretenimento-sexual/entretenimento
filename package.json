@@ -6,7 +6,10 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "emulators:start": "firebase emulators:start",
+    "emulators:start:ui": "start http://localhost:4000",
+    "emulators:stop": "firebase emulators:stop"
   },
   "private": true,
   "dependencies": {

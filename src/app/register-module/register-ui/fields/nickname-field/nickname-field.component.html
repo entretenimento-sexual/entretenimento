@@ -1,21 +1,32 @@
-<!-- nickname-field.component.html -->
-<div *ngIf="form()" [formGroup]="form()">
+<!-- src\app\register-module\register-ui\fields\nickname-field\nickname-field.component.html -->
+<div *ngIf="form" [formGroup]="form!">
   <!-- Apelido Principal -->
   <div class="input-group">
-    <input type="text" formControlName="apelidoPrincipal" placeholder="Apelido (4-12 caracteres)" class="input-field"
-      aria-label="Apelido Principal" (input)="onInput('apelidoPrincipal')" (blur)="onBlur('apelidoPrincipal')" />
-    <div *ngIf="getTooltipMessage('apelidoPrincipal')" class="tooltip-error">
-      {{ getTooltipMessage('apelidoPrincipal') }}
+    <input
+            type="text"
+            formControlName="apelidoPrincipal"
+            placeholder="Apelido (4-12 caracteres)"
+            class="input-field"
+            aria-label="Apelido Principal"
+            (blur)="emitBlur('apelidoPrincipal')" />
+
+    <div *ngIf="nicknameErrorMessage" class="tooltip-error">
+      {{ nicknameErrorMessage }}
     </div>
   </div>
 
   <!-- Complemento Apelido -->
   <div class="input-group">
-    <input type="text" formControlName="complementoApelido" placeholder="Complemento (opcional)" class="input-field"
-      aria-label="Complemento do Apelido" (input)="onInput('complementoApelido')"
-      (blur)="onBlur('complementoApelido')" />
-    <div *ngIf="getTooltipMessage('complementoApelido')" class="tooltip-error">
-      {{ getTooltipMessage('complementoApelido') }}
+    <input
+          type="text"
+          formControlName="complementoApelido"
+          placeholder="Complemento (opcional)"
+          class="input-field"
+          aria-label="Complemento do Apelido"
+          (blur)="emitBlur('complementoApelido')" />
+
+    <div *ngIf="complementoErrorMessage" class="tooltip-error">
+      {{ complementoErrorMessage }}
     </div>
   </div>
 </div>
