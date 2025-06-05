@@ -4,7 +4,9 @@ import { UserCredential, createUserWithEmailAndPassword, getAuth, sendPasswordRe
 import { Timestamp } from 'firebase/firestore';
 import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, switchMap, map, tap } from 'rxjs/operators';
+
 import { FirestoreService } from '../../data-handling/firestore.service';
+import { updateProfile } from 'firebase/auth';
 import { GeolocationService } from '../../geolocation/geolocation.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
@@ -12,89 +14,26 @@ import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registratio
 import { ValidatorService } from '../../general/validator.service';
 import { EmailVerificationService } from './email-verification.service';
 import { FirestoreValidationService } from '../../data-handling/firestore-validation.service';
-import { CacheService } from '../../general/cache/cache.service';
 
 @Injectable({
   providedIn: 'root',
 })
 export class RegisterService {
-
-  constructor(private firestoreService: FirestoreService,
-              private emailVerificationService: EmailVerificationService,
-              private geolocationService: GeolocationService,
-              private globalErrorHandler: GlobalErrorHandlerService,
-              private firestoreUserQuery: FirestoreUserQueryService,
-              private firestoreValidation: FirestoreValidationService,
-              private cacheService: CacheService)
-              {
+  constructor(
+    private firestoreService: FirestoreService,
+    private emailVerificationService: EmailVerificationService,
+    private geolocationService: GeolocationService,
+    private globalErrorHandler: GlobalErrorHandlerService,
+    private firestoreUserQuery: FirestoreUserQueryService,
+    private firestoreValidation: FirestoreValidationService,
+  ) {
     console.log('[RegisterService] Firestore carregado:', this.firestoreService.getFirestoreInstance());
-               }
-
-  //Verifica se o e-mail já está registrado no Firestore e envia recuperação de senha se necessário.
-  checkIfEmailExists(email: string): Observable<void> {
-    return from(this.firestoreService.checkIfEmailExists(email)).pipe(
-      switchMap((emailExists) => {
-        if (emailExists) {
-          // 🚩 Aqui está correto, enviar reset diretamente para o email do usuário
-          const auth = getAuth();
-          return from(sendPasswordResetEmail(auth, email));
-        }
-        return of(void 0);// se não existir, não faz nada
-      }),
-      catchError((error) => {
-        this.globalErrorHandler.handleError(error);
-        return of(void 0); // Não indicar erro publicamente
-      })
-    );
   }
 
-  //Registra um novo usuário.
-   registerUser(userRegistrationData: IUserRegistrationData, password: string): Observable<UserCredential> {
-    const nickname = userRegistrationData.nickname.trim();
-
-    if (nickname.length < 4 || nickname.length > 24) {
-      return throwError(() => new Error('Apelido deve ter entre 4 e 24 caracteres.'));
-    }
-
-    if (!this.isValidEmailFormat(userRegistrationData.email)) {
-      return throwError(() => new Error('Formato de e-mail inválido.'));
-    }
-
-    // Agora chamando diretamente o serviço de validação otimizado:
-    return this.firestoreValidation.checkIfNicknameExists(nickname).pipe(
-      switchMap(nicknameExists => {
-        if (nicknameExists) {
-          return throwError(() => new Error('Apelido já está em uso.'));
-        }
-
-        return this.checkIfEmailExists(userRegistrationData.email);
-      }),
-      switchMap(() => createUserWithEmailAndPassword(getAuth(), userRegistrationData.email, password)),
-      switchMap((userCredential) => {
-        const user = userCredential.user;
-        const userData: IUserRegistrationData = {
-          ...userRegistrationData,
-          uid: user.uid,
-          firstLogin: Timestamp.fromDate(new Date()),
-          emailVerified: false,
-          registrationDate: new Date(),
-        };
-
-        return from(this.geolocationService.getCurrentLocation()).pipe(
-          tap(location => {
-            userData.latitude = location.latitude;
-            userData.longitude = location.longitude;
-          }),
-          catchError((error) => {
-            console.log('⚠️ Erro ao obter localização:', error);
-            return of(null);
-          }),
-          switchMap(() => this.firestoreService.saveInitialUserData(user.uid, userData)),
-          switchMap(() => this.emailVerificationService.sendEmailVerification(user)),
-          map(() => userCredential),
-          catchError((error) => this.rollbackUser(user.uid, error))
-        );
-      }),
+  registerUser(userRegistrationData: IUserRegistrationData, password: string): Observable<UserCredential> {
+    return this.checkNicknameAndEmail(userRegistrationData).pipe(
+      switchMap(() => this.createUserAuth(userRegistrationData.email, password)),
+      switchMap((userCredential) => this.persistUserAndSendVerification(userCredential, userRegistrationData)),
       catchError((error) => {
         this.globalErrorHandler.handleError(error);
         return throwError(() => error);
@@ -102,8 +41,63 @@ export class RegisterService {
     );
   }
 
-  //Exclui um usuário antes da verificação, caso o registro falhe.
-  private rollbackUser(uid: string, error: any): Observable<never> {
+  private checkNicknameAndEmail(user: IUserRegistrationData): Observable<void> {
+    return this.firestoreValidation.checkIfNicknameExists(user.nickname).pipe(
+      switchMap((nicknameExists) => {
+        if (nicknameExists) {
+          return throwError(() => new Error('Apelido já está em uso.'));
+        }
+        return this.checkIfEmailExists(user.email);
+      })
+    );
+  }
+
+  private createUserAuth(email: string, password: string): Observable<UserCredential> {
+    return from(createUserWithEmailAndPassword(getAuth(), email, password));
+  }
+
+  private persistUserAndSendVerification(
+    userCredential: UserCredential,
+    userRegistrationData: IUserRegistrationData
+  ): Observable<UserCredential> {
+    const user = userCredential.user;
+    const userData: IUserRegistrationData = {
+      ...userRegistrationData,
+      uid: user.uid,
+      firstLogin: Timestamp.fromDate(new Date()),
+      emailVerified: false,
+      registrationDate: new Date()
+    };
+
+    return from(this.geolocationService.getCurrentLocation()).pipe(
+      tap((location) => {
+        if (location) {
+          userData.latitude = location.latitude;
+          userData.longitude = location.longitude;
+        }
+      }),
+      catchError((err) => {
+        console.log('⚠️ Localização falhou:', err);
+        return of(null);
+      }),
+      switchMap(() => this.firestoreService.saveInitialUserData(user.uid, userData)),
+      switchMap(() => this.firestoreService.savePublicIndexNickname(userData.nickname)),
+
+      // ✅ Atualiza o perfil do Firebase Auth
+      switchMap(() => from(updateProfile(user, {
+        displayName: userData.nickname,
+        photoURL: userData.photoURL || ''
+      }))),
+
+      // ✅ Envia o e-mail de verificação
+      switchMap(() => this.emailVerificationService.sendEmailVerification(user)),
+      map(() => userCredential),
+      catchError((error) => this.rollbackUser(user.uid, error))
+    );
+  }
+
+
+    private rollbackUser(uid: string, error: any): Observable<never> {
     return from(this.deleteUserOnFailure(uid)).pipe(
       switchMap(() => throwError(() => error)),
       catchError((rollbackError) => {
@@ -113,7 +107,6 @@ export class RegisterService {
     );
   }
 
-  //Exclui o usuário criado no Firebase Auth em caso de falha.
   deleteUserOnFailure(uid: string): Observable<void> {
     const auth = getAuth();
     const user = auth.currentUser;
@@ -129,14 +122,23 @@ export class RegisterService {
     return of(void 0);
   }
 
-  //Valida se a senha é forte o suficiente.
-  isValidPassword(password: string): boolean {
-    return ValidatorService.isValidPassword(password);
-  }
-
-   //Verifica se o formato do e-mail é válido.
   isValidEmailFormat(email: string): boolean {
     return ValidatorService.isValidEmail(email);
+  }
+
+  checkIfEmailExists(email: string): Observable<void> {
+    return from(this.firestoreService.checkIfEmailExists(email)).pipe(
+      switchMap((emailExists) => {
+        if (emailExists) {
+          return from(sendPasswordResetEmail(getAuth(), email));
+        }
+        return of(void 0);
+      }),
+      catchError((error) => {
+        this.globalErrorHandler.handleError(error);
+        return of(void 0);
+      })
+    );
   }
 
   getUserProgress(uid: string) {

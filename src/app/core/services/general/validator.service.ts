@@ -95,8 +95,8 @@ export class ValidatorService {
 
   // Validação de Senha como função utilitária estática
   public static isValidPassword(password: string, minLength: number = 8): boolean {
-    const passwordRegex = new RegExp(`^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d]{${minLength},}$`);
-    return passwordRegex.test(password);
+    const passwordRegex = new RegExp(`^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d!@#$%^&*(),.?":{}|<>_-]{${minLength},}$`);
+    return passwordRegex.test(password) && !PASSWORD_BLACKLIST.includes(password);
   }
 
   // Validação de CPF (Simples, sem validação de dígito verificador)

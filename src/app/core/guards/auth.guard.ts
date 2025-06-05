@@ -22,26 +22,25 @@ export class AuthGuard implements CanActivate {
     const auth = getAuth();
     const currentUser = auth.currentUser;
 
-    if (currentUser) {
-      // Verifica se o usuário existe no Firebase e se o e-mail está verificado
-      return from(currentUser.reload()).pipe(
-        map(() => {
-          if (!currentUser.emailVerified) {
-            // Redireciona para a página de boas-vindas se o e-mail não foi verificado
-            this.router.navigate(['/welcome']);
-            return false;
-          }
-          return true; // Permite acesso à rota
-        }),
-        catchError(() => {
-          this.router.navigate(['/login']); // Redireciona para login em caso de erro
-          return of(false);
-        })
-      );
-    } else {
-      // Caso o usuário não esteja autenticado, redireciona para o login
+    if (!currentUser) {
       this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
       return of(false);
     }
+
+    // ✅ Garante que apenas usuários com token válido cheguem até aqui
+    return from(currentUser.getIdTokenResult()).pipe(
+      switchMap(() => from(currentUser.reload())),
+      map(() => {
+        if (!currentUser.emailVerified) {
+          this.router.navigate(['/welcome']);
+          return false;
+        }
+        return true;
+      }),
+      catchError(() => {
+        this.router.navigate(['/login']);
+        return of(false);
+      })
+    );
   }
 }

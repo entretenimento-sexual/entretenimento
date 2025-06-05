@@ -33,38 +33,23 @@ export class FirestoreValidationService {
           return of(cachedResult);
         }
 
-        return this.store.select(state =>
-          Object.values(state.user.users)
-            .map(u => u.nickname?.toLowerCase())
-            .filter((nickname): nickname is string => !!nickname)
-        ).pipe(
-          take(1),
-          switchMap((storedNicknames: string[]) => {
-            if (storedNicknames.includes(normalizedNickname)) {
-              console.log(`✅ [Store] Nickname '${nickname}' validado via store.`);
-              this.cacheService.set(cacheKey, true, 300000);
-              return of(true);
-            }
-
-            console.log(`🔍 [Firestore] Consultando nickname '${nickname}' no Firestore.`);
-            return this.firestoreService.getDocuments<any>('users', [
-              where('nickname', '==', nickname.trim())
-            ], false).pipe(
-              map(results => results.length > 0),
-              tap(exists => {
-                this.cacheService.set(cacheKey, exists, 300000);
-                // Aqui você NÃO PRECISA ADICIONAR NADA AO ESTADO.
-                // Pois a store será atualizada naturalmente ao adicionar novos usuários.
-              }),
-              catchError(error => {
-                this.notifier.showError('Erro ao validar apelido. Tente novamente.');
-                this.globalErrorHandler.handleError(error);
-                return of(false);
-              })
-            );
+        console.log(`🔍 [Firestore] Consultando apelido '${nickname}' na coleção 'public_index'.`);
+        return this.firestoreService.getDocuments<any>('public_index', [
+          where('type', '==', 'nickname'),
+          where('value', '==', normalizedNickname)
+        ], false).pipe(
+          map(results => results.length > 0),
+          tap(exists => {
+            this.cacheService.set(cacheKey, exists, 300000); // 5 minutos
+            console.log(`📦 [Cache] Nickname '${nickname}' armazenado com valor: ${exists}`);
+          }),
+          catchError(error => {
+            this.notifier.showError('Erro ao validar apelido. Tente novamente.');
+            this.globalErrorHandler.handleError(error);
+            return of(false); // fallback para não bloquear o registro
           })
         );
       })
-    )
+    );
   }
 }

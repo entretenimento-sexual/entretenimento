@@ -1,45 +1,29 @@
-// src\app\register-module\register.module.ts
+// src/app/register-module/register.module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { ReactiveFormsModule, FormsModule } from '@angular/forms'; // ⬅️ ADICIONADO FormsModule
 import { RegisterRoutingModule } from './register-routing.module';
-import { FormsModule, ReactiveFormsModule } from '@angular/forms'; // ✅ Adicionando FormsModule
-import { MatButtonModule } from '@angular/material/button';
-import { MatInputModule } from '@angular/material/input';
-import { MatCheckboxModule } from '@angular/material/checkbox';
-import { MatDialogModule } from '@angular/material/dialog';
-import { RouterModule } from '@angular/router'; // ✅ Adicionando RouterModule
+import { RegisterComponent } from './register.component';
+import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
 import { WelcomeComponent } from './welcome/welcome.component';
 import { AuthVerificationHandlerComponent } from './auth-verification-handler/auth-verification-handler.component';
-import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
-import { RegisterComponent } from './register.component';
+import { RegisterErrorMessagePipe } from './pipes/register-error-message.pipe';
 import { EmailInputModalComponent } from '../authentication/email-input-modal/email-input-modal.component';
-import { RegisterUiComponent } from './register-ui/register-ui.component';
 
 @NgModule({
   declarations: [
     RegisterComponent,
+    FinalizarCadastroComponent,
     WelcomeComponent,
     AuthVerificationHandlerComponent,
-    FinalizarCadastroComponent,
-
   ],
   imports: [
     CommonModule,
-    RouterModule, // ✅ Necessário para `routerLink`
-    RegisterRoutingModule,
-    FormsModule, // ✅ Necessário para `ngModel`
     ReactiveFormsModule,
-    MatInputModule,
-    MatButtonModule,
-    MatDialogModule,
-    MatCheckboxModule,
-    EmailInputModalComponent,
-    RegisterUiComponent
-  ],
-
-  exports: [
-    RegisterComponent,
+    FormsModule,
+    RegisterRoutingModule,
+    RegisterErrorMessagePipe,
     EmailInputModalComponent
-  ],
+  ]
 })
 export class RegisterModule { }

@@ -1,5 +1,5 @@
 // src/app/core/services/autentication/auth.service.ts
-import { Injectable, Injector } from '@angular/core';
+import { Injectable, Injector, Inject } from '@angular/core';
 import { Observable, BehaviorSubject, switchMap, tap, of, catchError, from } from 'rxjs';
 import { distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
@@ -27,7 +27,7 @@ export class AuthService {
   user$: Observable<IUserDados | null> = this.userSubject.asObservable();
 
   constructor(
-    private router: Router,
+    @Inject(Router) private router: Router,
     private injector: Injector,
     private firestoreUserQuery: FirestoreUserQueryService,
     private globalErrorHandlerService: GlobalErrorHandlerService,

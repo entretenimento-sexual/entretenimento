@@ -1,7 +1,6 @@
 // functions/src/moderation/moderateContent.ts
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
 
-
 export const moderateContent = onDocumentCreated("posts/{postId}", async (event) => {
   const snap = event.data;
   if (!snap) return;

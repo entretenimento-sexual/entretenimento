@@ -1,19 +1,67 @@
 <!-- src\app\register-module\register.component.html -->
-<div class="auth-container">
-  <div class="">
-    <h2 class=""></h2>
+<form [formGroup]="form" (ngSubmit)="onSubmit()" class="form-wrapper">
+  <h2 class="form-title">Cadastre-se</h2>
 
-      <app-register-ui
-            [form]="registerForm"
-            [isLoading]="isLoading"
-            [isLockedOut]="isLockedOut"
-            [formSubmitted]="formSubmitted"
-            [nicknameErrorMessage]="nicknameErrorMessage()"
-            [complementoErrorMessage]="complementoErrorMessage()"
-            (submitForm)="onRegister()"
-            (openTerms)="openTermsDialog()"
-            (resendEmail)="resendVerificationEmail()"
-            (blurField)="onBlur($event)">
-      </app-register-ui>
+  <!-- Apelido principal -->
+  <div class="form-field">
+    <label for="apelidoPrincipal">Apelido</label>
+    <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="input-field"
+      placeholder="Ex: casadinho" aria-label="Apelido" />
+    <div *ngIf="getError('apelidoPrincipal')" class="tooltip-error">
+      {{ getError('apelidoPrincipal') }}
+    </div>
   </div>
-</div>
+
+  <!-- Complemento do apelido -->
+  <div class="form-field">
+    <label for="complementoApelido">Complemento (opcional)</label>
+    <input id="complementoApelido" formControlName="complementoApelido" type="text" class="input-field"
+      placeholder="Ex: oficial" aria-label="Complemento" />
+    <div *ngIf="getError('complementoApelido')" class="tooltip-error">
+      {{ getError('complementoApelido') }}
+    </div>
+  </div>
+
+  <!-- Email -->
+  <div class="form-field">
+    <label for="email">E-mail</label>
+    <input id="email" formControlName="email" type="email" class="input-field" placeholder="email@exemplo.com"
+      aria-label="Email" />
+    <div *ngIf="getError('email')" class="tooltip-error">
+      {{ getError('email') }}
+    </div>
+  </div>
+
+  <!-- Senha -->
+  <div class="form-field">
+    <label for="password">Senha</label>
+    <input id="password" formControlName="password" type="password" class="input-field" placeholder="Escolha uma senha"
+      aria-label="Senha" />
+    <div *ngIf="getError('password')" class="tooltip-error">
+      {{ getError('password') }}
+    </div>
+  </div>
+
+  <!-- Aceite de Termos -->
+  <div class="form-checkbox">
+    <input type="checkbox" id="termos" formControlName="aceitarTermos" />
+    <label for="termos">
+      Eu aceito os
+      <a href="/termos" target="_blank">Termos de Uso</a> e a
+      <a href="/politica-de-privacidade" target="_blank">Política de Privacidade</a>.
+    </label>
+    <div *ngIf="getError('aceitarTermos')" class="tooltip-error">
+      {{ getError('aceitarTermos') }}
+    </div>
+  </div>
+
+  <!-- Botão de envio -->
+  <button type="submit" class="btn btn-primary" [disabled]="isLoading || form.invalid">
+    {{ isLoading ? 'Aguarde...' : 'Cadastrar' }}
+  </button>
+
+  <p class="login-redirect">
+    Já tem conta?
+    <a routerLink="/login">Faça login</a>
+  </p>
+</form>
