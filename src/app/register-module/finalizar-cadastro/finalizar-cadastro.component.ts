@@ -1,6 +1,6 @@
 // src/app/authentication/finalizar-cadastro/finalizar-cadastro.component.ts
 import { Component, OnInit } from '@angular/core';
-import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
+import { EmailVerificationService } from 'src/app/core/services/autentication/Register/email-verification.service';
 import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Router } from '@angular/router';

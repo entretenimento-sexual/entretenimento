@@ -1,7 +1,7 @@
 // src\app\authentication\auth-verification-handler\auth-verification-handler.component.ts
 import { Component, OnInit, OnDestroy, NgZone, ChangeDetectionStrategy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
+import { EmailVerificationService } from 'src/app/core/services/autentication/Register/email-verification.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { first, Subject, switchMap, tap } from 'rxjs';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';

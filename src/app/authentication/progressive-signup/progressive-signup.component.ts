@@ -2,7 +2,7 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { PreRegisterServiceService } from 'src/app/core/services/autentication/register/pre-register.service';
+import { PreRegisterServiceService } from 'src/app/core/services/autentication/Register/pre-register.service';
 
 @Component({
     selector: 'app-progressive-signup',

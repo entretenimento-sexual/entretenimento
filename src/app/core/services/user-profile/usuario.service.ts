@@ -10,7 +10,7 @@ import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { updateUserOnlineStatus } from 'src/app/store/actions/actions.user/user.actions';
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
-import { EmailVerificationService } from '../autentication/register/email-verification.service';
+import { EmailVerificationService } from '../autentication/Register/email-verification.service';
 
 @Injectable({
   providedIn: 'root'
