@@ -1,5 +1,5 @@
 /* src\app\photo-editor\photo-editor\photo-editor.component.css */
-@import "~@angular/material/prebuilt-themes/indigo-pink.css";
+@import "@angular/material/prebuilt-themes/indigo-pink.css";
 ::ng-deep .pintura-editor {
   height: 90vh;
   max-width: 100%;
