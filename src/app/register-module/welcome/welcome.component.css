@@ -1,4 +1,4 @@
-/* src\app\authentication\register-module\welcome\welcome.component.css */
+/* src/app/authentication/register-module/welcome/welcome.component.css */
 .welcome-container {
   max-width: 800px;
   margin: 0 auto;
@@ -30,12 +30,14 @@
 }
 
 .verification-section,
-.navigation-section {
+.navigation-section,
+.onboarding-section {
   text-align: center;
 }
 
 .verification-section h2,
-.navigation-section h2 {
+.navigation-section h2,
+.onboarding-section h2 {
   font-size: 1.5rem;
   margin-bottom: 1rem;
   color: var(--primary-color);
@@ -92,4 +94,24 @@
 .continue-btn {
   font-size: 1rem;
   padding: 0.8rem 1.5rem;
+}
+
+/* Estilos específicos da nova seção */
+.onboarding-section {
+  margin-top: 3rem;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
 }

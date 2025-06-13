@@ -38,3 +38,21 @@
   color: #999;
   cursor: pointer;
 }
+
+.tooltip-error {
+  position: absolute;
+  background-color: var(--danger-color);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  z-index: 10;
+  margin-top: 4px;
+  box-shadow: var(--box-shadow);
+  animation: fadeIn 0.3s ease;
+  white-space: nowrap;
+}
+
+.form-field {
+  position: relative;
+}

@@ -113,7 +113,6 @@ export class RegisterComponent implements OnInit {
     this.isLoading = true;
 
     this.registerService.registerUser({
-      uid: '',
       email,
       nickname: apelido,
       photoURL: '',

@@ -1,4 +1,4 @@
-<!--src\app\authentication\register-module\welcome\welcome.component.html-->
+<!-- src/app/authentication/register-module/welcome/welcome.component.html -->
 <div class="welcome-container">
   <header class="welcome-header">
     <h1>Bem-vindo(a) à nossa plataforma!</h1>
@@ -6,6 +6,7 @@
   </header>
 
   <main class="welcome-content">
+    <!-- Seção de verificação de e-mail -->
     <section class="verification-section">
       <h2>Verifique seu e-mail</h2>
       <p>
@@ -19,6 +20,30 @@
       <p *ngIf="message" class="alert alert-info">{{ message }}</p>
     </section>
 
+    <!-- Seção opcional de onboarding inicial -->
+    <section class="onboarding-section">
+      <h2>Você gostaria de compartilhar como se identifica?</h2>
+      <p class="subtitle">Isso ajuda a tornar seu perfil mais visível, mas é totalmente opcional.</p>
+
+      <!-- Seleção de gênero -->
+      <select class="input-field" [(ngModel)]="selectedGender" aria-label="Selecione sua identidade de gênero">
+        <option value="" disabled selected>Selecione seu gênero (opcional)</option>
+        <option *ngFor="let gender of validGenders" [value]="gender">{{ gender }}</option>
+      </select>
+
+      <!-- Seleção de preferências -->
+      <h2 style="margin-top: 2rem;">O que você gostaria de encontrar?</h2>
+      <p class="subtitle">Você pode marcar uma ou mais preferências (opcional).</p>
+
+      <div class="checkbox-group">
+        <label *ngFor="let preference of validPreferences" class="checkbox-item">
+          <input type="checkbox" [(ngModel)]="selectedPreferencesMap[preference]" />
+          {{ preference }}
+        </label>
+      </div>
+    </section>
+
+    <!-- Acesso rápido -->
     <section class="navigation-section">
       <h2>Navegue na plataforma</h2>
       <p>Explore as funcionalidades da plataforma:</p>
@@ -44,8 +69,7 @@
   </main>
 
   <footer class="welcome-footer">
-    <button class="btn btn-secondary continue-btn" (click)="proceedToDashboard()"
-      aria-label="Continuar sem verificar e-mail">
+    <button class="btn btn-secondary continue-btn" (click)="proceedToDashboard()" aria-label="Continuar">
       Continuar sem Verificar
     </button>
   </footer>

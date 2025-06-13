@@ -42,7 +42,8 @@
 
 .input-field {
   width: 100%;
-  /* Faz o campo ocupar todo o espaço disponível dentro de .nickname-field */
+  padding: 1px;
+    /* Faz o campo ocupar todo o espaço disponível dentro de .nickname-field */
 }
 
 /* Estilização para os links */

@@ -27,24 +27,23 @@
               "src/assets",
               {
                 "glob": "**/*",
-                 "input": "node_modules/@fortawesome/fontawesome-free/webfonts",
-                 "output": "assets/webfonts"
+                "input": "node_modules/@fortawesome/fontawesome-free/webfonts",
+                "output": "assets/webfonts"
               }
             ],
             "styles": [
-                    "src/styles/reset.css",
-                    "node_modules/bootstrap/dist/css/bootstrap.min.css",
-                    "node_modules/@angular/material/prebuilt-themes/indigo-pink.css",
-                    "node_modules/@fortawesome/fontawesome-free/css/all.css",
-                    "src/styles/variables.css",
-                    "src/styles/global-layout.css",
-                    "src/styles/global-components.css",
-                    "src/styles/global-forms.css",
-                    "src/styles/global-animations.css",
-                    "node_modules/@pqina/pintura/pintura.css",
-                    "src/styles.css"
-                  ],
-
+              "src/styles/reset.css",
+              "node_modules/bootstrap/dist/css/bootstrap.min.css",
+              "node_modules/@angular/material/prebuilt-themes/indigo-pink.css",
+              "node_modules/@fortawesome/fontawesome-free/css/all.css",
+              "src/styles/variables.css",
+              "src/styles/global-layout.css",
+              "src/styles/global-components.css",
+              "src/styles/global-forms.css",
+              "src/styles/global-animations.css",
+              "node_modules/@pqina/pintura/pintura.css",
+              "src/styles.css"
+            ],
             "scripts": []
           },
           "configurations": {
@@ -93,12 +92,8 @@
           }
         },
         "test": {
-          "builder": "@angular-devkit/build-angular:karma",
+          "builder": "@angular-builders/jest:run",
           "options": {
-            "polyfills": [
-              "zone.js",
-              "zone.js/testing"
-            ],
             "tsConfig": "tsconfig.spec.json",
             "assets": [
               "src/favicon.ico",
@@ -112,7 +107,6 @@
             ],
             "scripts": [
               "./node_modules/bootstrap/dist/js/bootstrap.bundle.min.js"
-
             ]
           }
         }

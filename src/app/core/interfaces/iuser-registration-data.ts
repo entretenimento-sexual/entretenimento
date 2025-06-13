@@ -2,24 +2,24 @@
 import { Timestamp } from 'firebase/firestore';
 
 export interface IUserRegistrationData {
-  uid: string;  // O ID único do usuário
-  email: string;  // O e-mail do usuário
-  nickname: string;  // O apelido do usuário
-  photoURL?: string;  // URL opcional da foto de perfil do usuário
-  emailVerified: boolean;  // Indica se o e-mail do usuário foi verificado
-  isSubscriber: boolean;  // Indica se o usuário é assinante
-  estado?: string;  // Estado onde o usuário reside
-  municipio?: string;  // Município onde o usuário reside
+  uid?: string;  // 🔧 Tornado opcional — preenchido somente após registro
+  email: string;
+  nickname: string;
+  photoURL?: string;
+  emailVerified: boolean;
+  isSubscriber: boolean;
+  estado?: string;
+  municipio?: string;
   municipioEstado?: string;
-  firstLogin: Timestamp | Date;  // Data e hora do primeiro login/registro
+  firstLogin: Timestamp | Date;
   registrationDate?: Timestamp | Date;
-  latitude?: number;  // Latitude do local do usuário
-  longitude?: number;  // Longitude do local do usuário
-  gender?: string;  // Gênero do usuário
-  orientation?: string;  // Orientação sexual do usuário
+  latitude?: number;
+  longitude?: number;
+  gender?: string;
+  orientation?: string;
   acceptedTerms: {
-    accepted: true,
-    date: Timestamp | Date; // Data de aceitação dos termos
-  }
+    accepted: true;
+    date: Timestamp | Date;
+  };
   profileCompleted?: boolean;
 }

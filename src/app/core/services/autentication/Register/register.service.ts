@@ -1,13 +1,17 @@
 // src/app/core/services/autentication/register.service.ts
 import { Injectable } from '@angular/core';
-import { UserCredential, createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail } from 'firebase/auth';
+import {
+  UserCredential,
+  createUserWithEmailAndPassword,
+  getAuth,
+  sendPasswordResetEmail,
+  updateProfile,
+} from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
 import { from, Observable, of, throwError } from 'rxjs';
-import { catchError, switchMap, map, tap } from 'rxjs/operators';
+import { catchError, switchMap, map } from 'rxjs/operators';
 
 import { FirestoreService } from '../../data-handling/firestore.service';
-import { updateProfile } from 'firebase/auth';
-import { GeolocationService } from '../../geolocation/geolocation.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
@@ -22,7 +26,6 @@ export class RegisterService {
   constructor(
     private firestoreService: FirestoreService,
     private emailVerificationService: EmailVerificationService,
-    private geolocationService: GeolocationService,
     private globalErrorHandler: GlobalErrorHandlerService,
     private firestoreUserQuery: FirestoreUserQueryService,
     private firestoreValidation: FirestoreValidationService,
@@ -33,7 +36,7 @@ export class RegisterService {
   registerUser(userRegistrationData: IUserRegistrationData, password: string): Observable<UserCredential> {
     return this.checkNicknameAndEmail(userRegistrationData).pipe(
       switchMap(() => this.createUserAuth(userRegistrationData.email, password)),
-      switchMap((userCredential) => this.persistUserAndSendVerification(userCredential, userRegistrationData)),
+      switchMap((userCredential) => this.persistMinimalUser(userCredential, userRegistrationData)),
       catchError((error) => {
         this.globalErrorHandler.handleError(error);
         return throwError(() => error);
@@ -56,48 +59,37 @@ export class RegisterService {
     return from(createUserWithEmailAndPassword(getAuth(), email, password));
   }
 
-  private persistUserAndSendVerification(
+  private persistMinimalUser(
     userCredential: UserCredential,
     userRegistrationData: IUserRegistrationData
   ): Observable<UserCredential> {
     const user = userCredential.user;
-    const userData: IUserRegistrationData = {
-      ...userRegistrationData,
+
+    const minimalUserData: IUserRegistrationData = {
       uid: user.uid,
-      firstLogin: Timestamp.fromDate(new Date()),
+      email: user.email!,
+      nickname: userRegistrationData.nickname,
       emailVerified: false,
-      registrationDate: new Date()
+      isSubscriber: false,
+      firstLogin: Timestamp.fromDate(new Date()),
+      registrationDate: new Date(),
+      acceptedTerms: userRegistrationData.acceptedTerms,
+      profileCompleted: false,
     };
 
-    return from(this.geolocationService.getCurrentLocation()).pipe(
-      tap((location) => {
-        if (location) {
-          userData.latitude = location.latitude;
-          userData.longitude = location.longitude;
-        }
-      }),
-      catchError((err) => {
-        console.log('⚠️ Localização falhou:', err);
-        return of(null);
-      }),
-      switchMap(() => this.firestoreService.saveInitialUserData(user.uid, userData)),
-      switchMap(() => this.firestoreService.savePublicIndexNickname(userData.nickname)),
-
-      // ✅ Atualiza o perfil do Firebase Auth
+    return this.firestoreService.saveInitialUserData(user.uid, minimalUserData).pipe(
+      switchMap(() => this.firestoreService.savePublicIndexNickname(minimalUserData.nickname)),
       switchMap(() => from(updateProfile(user, {
-        displayName: userData.nickname,
-        photoURL: userData.photoURL || ''
+        displayName: minimalUserData.nickname,
+        photoURL: ''
       }))),
-
-      // ✅ Envia o e-mail de verificação
       switchMap(() => this.emailVerificationService.sendEmailVerification(user)),
       map(() => userCredential),
       catchError((error) => this.rollbackUser(user.uid, error))
     );
   }
 
-
-    private rollbackUser(uid: string, error: any): Observable<never> {
+  private rollbackUser(uid: string, error: any): Observable<never> {
     return from(this.deleteUserOnFailure(uid)).pipe(
       switchMap(() => throwError(() => error)),
       catchError((rollbackError) => {
