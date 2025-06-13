@@ -22,26 +22,28 @@
       para essa jornada transformadora começa aqui.
     </p>
     <a [routerLink]="['/register']" class="explore-link">Cadastre-se agora e mergulhe nessa aventura. É totalmente
-      grátis!</a>
+    grátis!</a>
   </div>
 
   <div class="authentication-content-right">
     <h2>O que você procura?</h2>
     <form (submit)="register()">
 
-      <div class="form-group" *ngFor="let practice of practices">
-        <label>
-          <input type="checkbox" name="practices" [value]="practice.value"
-            (change)="capturePreference($event, practice.value)">
-          {{practice.label}}
-        </label>
-      </div>
+      @for (practice of practices; track practice) {
+        <div class="form-group">
+          <label>
+            <input type="checkbox" name="practices" [value]="practice.value"
+              (change)="capturePreference($event, practice.value)">
+              {{practice.label}}
+            </label>
+          </div>
+        }
 
-      <!-- Você pode continuar adicionando outras opções -->
+        <!-- Você pode continuar adicionando outras opções -->
 
-      <div class="form-group">
-        <button type="submit" class="submit-btn">Enviar</button>
-      </div>
-    </form>
+        <div class="form-group">
+          <button type="submit" class="submit-btn">Enviar</button>
+        </div>
+      </form>
+    </div>
   </div>
-</div>

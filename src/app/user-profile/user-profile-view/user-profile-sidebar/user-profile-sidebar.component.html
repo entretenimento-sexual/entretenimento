@@ -6,9 +6,11 @@
   <p class="user-nickname"><strong>{{ (usuario$ | async)?.nickname }}</strong></p>
 
   <nav class="profile-nav">
-    <a [routerLink]="['/perfil', uid]" *ngIf="!isOnOwnProfile()">
-      <i class="fas fa-user"></i>Meu perfil
-    </a>
+    @if (!isOnOwnProfile()) {
+      <a [routerLink]="['/perfil', uid]">
+        <i class="fas fa-user"></i>Meu perfil
+      </a>
+    }
     <a [routerLink]="['/layout/perfis-proximos']">
       <i class="fas fa-map-marker-alt"></i>Perfis próximos
     </a>

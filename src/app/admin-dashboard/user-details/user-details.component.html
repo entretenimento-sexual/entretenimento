@@ -1,13 +1,18 @@
 <!-- src\app\admin-dashboard\user-details\user-details.component.html -->
 <h2>Detalhes do Usuário</h2>
 
-<div *ngIf="user">
-  <p><strong>Nome:</strong> {{ user.nome }}</p>
-  <p><strong>Email:</strong> {{ user.email }}</p>
-  <p><strong>Status:</strong> {{ user.suspended ? 'Suspenso' : 'Ativo' }}</p>
-
-  <button *ngIf="!user.suspended" (click)="suspendUser()">Suspender</button>
-  <button *ngIf="user.suspended" (click)="unsuspendUser()">Reativar</button>
-  <button class="danger" (click)="deleteUser()">Excluir Usuário</button>
-</div>
+@if (user) {
+  <div>
+    <p><strong>Nome:</strong> {{ user.nome }}</p>
+    <p><strong>Email:</strong> {{ user.email }}</p>
+    <p><strong>Status:</strong> {{ user.suspended ? 'Suspenso' : 'Ativo' }}</p>
+    @if (!user.suspended) {
+      <button (click)="suspendUser()">Suspender</button>
+    }
+    @if (user.suspended) {
+      <button (click)="unsuspendUser()">Reativar</button>
+    }
+    <button class="danger" (click)="deleteUser()">Excluir Usuário</button>
+  </div>
+}
 

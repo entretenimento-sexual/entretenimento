@@ -1,12 +1,16 @@
 <!-- src\app\authentication\email-input-modal\email-input-modal.component.html -->
-<div *ngIf="isModalOpen" class="modal-overlay">
-  <div class="modal-content">
-    <h3>Recuperar Senha</h3>
-    <input type="email" [(ngModel)]="email" placeholder="Insira seu e-mail" />
-    <div *ngIf="message" class="alert">{{ message }}</div>
-    <div class="modal-actions">
-      <button (click)="sendEmail()">Enviar</button>
-      <button (click)="closeModal()">Fechar</button>
+@if (isModalOpen) {
+  <div class="modal-overlay">
+    <div class="modal-content">
+      <h3>Recuperar Senha</h3>
+      <input type="email" [(ngModel)]="email" placeholder="Insira seu e-mail" />
+      @if (message) {
+        <div class="alert">{{ message }}</div>
+      }
+      <div class="modal-actions">
+        <button (click)="sendEmail()">Enviar</button>
+        <button (click)="closeModal()">Fechar</button>
+      </div>
     </div>
   </div>
-</div>
+}

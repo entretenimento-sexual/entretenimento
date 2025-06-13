@@ -5,39 +5,41 @@
     <div class="user-details">
       <img ngSrc="{{ (usuario$ | async)?.photoURL || '/assets/imagem-padrao.webp' }}" width="80" height="80" alt="Foto"
         class="foto_chat" priority>
-      <p>{{ (usuario$ | async)?.nickname }}</p>
-    </div>
-    <div class="recent-interactions">
-      <app-chat-list (chatSelected)="onChatSelected($event)"></app-chat-list>
-    </div>
-  </div>
-
-  <!-- Área principal do chat -->
-  <div class="chat-window-main">
-    <div class="chat-rooms">
-      <app-chat-rooms></app-chat-rooms>
+        <p>{{ (usuario$ | async)?.nickname }}</p>
+      </div>
+      <div class="recent-interactions">
+        <app-chat-list (chatSelected)="onChatSelected($event)"></app-chat-list>
+      </div>
     </div>
 
-    <!-- Área de mensagens e interação -->
-    <div class="chat-content">
-      <div class="chat-area">
-        <ng-container *ngIf="selectedType === 'room'">
-          <app-room-interaction [roomId]="selectedChatId"></app-room-interaction>
-        </ng-container>
-        <ng-container *ngIf="selectedType === 'chat'">
-          <app-chat-messages-list [chatId]="selectedChatId" [type]="selectedType"></app-chat-messages-list>
-        </ng-container>
-        <p *ngIf="!selectedType">Selecione um chat ou uma sala.</p>
+    <!-- Área principal do chat -->
+    <div class="chat-window-main">
+      <div class="chat-rooms">
+        <app-chat-rooms></app-chat-rooms>
       </div>
 
-      <!-- Área fixa de digitação no bottom -->
-      <ng-container *ngIf="selectedType">
-        <div class="chat-input">
-          <textarea [(ngModel)]="messageContent" (keydown.enter)="sendMessage(); $event.preventDefault()"
-            placeholder="Digite sua mensagem..."></textarea>
-          <button (click)="sendMessage()">Enviar</button>
+      <!-- Área de mensagens e interação -->
+      <div class="chat-content">
+        <div class="chat-area">
+          @if (selectedType === 'room') {
+            <app-room-interaction [roomId]="selectedChatId"></app-room-interaction>
+          }
+          @if (selectedType === 'chat') {
+            <app-chat-messages-list [chatId]="selectedChatId" [type]="selectedType"></app-chat-messages-list>
+          }
+          @if (!selectedType) {
+            <p>Selecione um chat ou uma sala.</p>
+          }
         </div>
-      </ng-container>
+
+        <!-- Área fixa de digitação no bottom -->
+        @if (selectedType) {
+          <div class="chat-input">
+            <textarea [(ngModel)]="messageContent" (keydown.enter)="sendMessage(); $event.preventDefault()"
+            placeholder="Digite sua mensagem..."></textarea>
+            <button (click)="sendMessage()">Enviar</button>
+          </div>
+        }
+      </div>
     </div>
   </div>
-</div>

@@ -11,9 +11,11 @@
       A sala "<strong>{{ data.roomName }}</strong>" foi
       {{ data.action === 'created' ? 'criada' : 'atualizada' }} com sucesso!
     </p>
-    <div *ngIf="data.exceededLimit" class="warning">
-      <p>Você atingiu o limite máximo de salas criadas.</p>
-    </div>
+    @if (data.exceededLimit) {
+      <div class="warning">
+        <p>Você atingiu o limite máximo de salas criadas.</p>
+      </div>
+    }
     <div>
       <p>Informações adicionais:</p>
       <ul>

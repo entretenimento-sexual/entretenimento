@@ -2,7 +2,9 @@
 <div class="links-container">
   <a [routerLink]="['/chat', userId]" class="chat-rooms-link">
     <i class="fas fa-comments"></i> Salas de Bate-Papo
-    <span *ngIf="unreadMessagesCount > 0" class="badge">{{ unreadMessagesCount }}</span>
+    @if (unreadMessagesCount > 0) {
+      <span class="badge">{{ unreadMessagesCount }}</span>
+    }
   </a>
 
   <!-- Separador entre os links -->
@@ -12,10 +14,12 @@
     <i class="fas fa-upload"></i> Enviar Foto
   </a>
 
-    <span class="separator">|</span>
+  <span class="separator">|</span>
 
-    <a [routerLink]="['/invites']" class="chat-rooms-link">
-      <i class="fas fa-user-plus"></i> Convites
-      <span *ngIf="pendingInvitesCount > 0" class="badge">{{ pendingInvitesCount }}</span>
-    </a>
+  <a [routerLink]="['/invites']" class="chat-rooms-link">
+    <i class="fas fa-user-plus"></i> Convites
+    @if (pendingInvitesCount > 0) {
+      <span class="badge">{{ pendingInvitesCount }}</span>
+    }
+  </a>
 </div>

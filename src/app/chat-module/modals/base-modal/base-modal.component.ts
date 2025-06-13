@@ -1,5 +1,5 @@
 //src\app\chat-module\modals\base-modal\base-modal.component.ts
-import { CommonModule } from '@angular/common';
+
 import { Component, Output, EventEmitter, input } from '@angular/core';
 
 @Component({
@@ -7,7 +7,7 @@ import { Component, Output, EventEmitter, input } from '@angular/core';
   templateUrl: './base-modal.component.html',
   styleUrls: ['./base-modal.component.css'],
   standalone: true,
-  imports: [CommonModule],
+  imports: [],
 })
 
 export class BaseModalComponent {

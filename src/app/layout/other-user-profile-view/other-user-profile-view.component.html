@@ -3,27 +3,31 @@
   <div class="user-info">
     <img [src]="userProfile?.photoURL || 'assets/imagem-padrao.webp'" alt="{{ userProfile?.nickname }}"
       class="profile-photo">
-    <h2>{{ userProfile?.nickname }}</h2>
-    <p class="user-location" *ngIf="userProfile?.municipio && userProfile?.estado">
-      <i class="fas fa-map-marker-alt"></i> {{ userProfile?.municipio }}, {{ userProfile?.estado }}
-    </p>
-    <p><i class="fas fa-envelope"></i> {{ userProfile?.email }}</p>
-    <p><i class="fas fa-user"></i> {{ userProfile?.gender | titlecase }}</p>
-    <p><i class="fas fa-heart"></i> {{ userProfile?.orientation }}</p>
-    <p><i class="fas fa-info-circle"></i> {{ userProfile?.descricao }}</p>
+      <h2>{{ userProfile?.nickname }}</h2>
+      @if (userProfile?.municipio && userProfile?.estado) {
+        <p class="user-location">
+          <i class="fas fa-map-marker-alt"></i> {{ userProfile?.municipio }}, {{ userProfile?.estado }}
+        </p>
+      }
+      <p><i class="fas fa-envelope"></i> {{ userProfile?.email }}</p>
+      <p><i class="fas fa-user"></i> {{ userProfile?.gender | titlecase }}</p>
+      <p><i class="fas fa-heart"></i> {{ userProfile?.orientation }}</p>
+      <p><i class="fas fa-info-circle"></i> {{ userProfile?.descricao }}</p>
+    </div>
+
+    <div class="user-preferences">
+      <h3>O que {{ userProfile?.nickname || 'este usuário' }} procura:</h3>
+      @if (!uid) {
+        <p class="error">Erro: UID não encontrado.</p>
+      }
+      @if (uid) {
+        <app-user-profile-preferences [uid]="uid"></app-user-profile-preferences>
+      }
+
+    </div>
+
+    <app-social-links-accordion [uid]="uid" [isOwner]="false">
+    </app-social-links-accordion>
+
   </div>
-
-  <div class="user-preferences">
-    <h3>O que {{ userProfile?.nickname || 'este usuário' }} procura:</h3>
-    <p *ngIf="!uid" class="error">Erro: UID não encontrado.</p>
-<ng-container *ngIf="uid">
-  <app-user-profile-preferences [uid]="uid"></app-user-profile-preferences>
-</ng-container>
-
-  </div>
-  
-<app-social-links-accordion [uid]="uid" [isOwner]="false">
-</app-social-links-accordion>
-
-</div>
 

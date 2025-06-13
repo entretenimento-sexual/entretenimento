@@ -11,16 +11,18 @@
     </tr>
   </thead>
   <tbody>
-    <tr *ngFor="let user of users">
-      <td>{{ user.nome }}</td>
-      <td>{{ user.email }}</td>
-      <td [ngClass]="{ 'ativo': !user.suspended, 'suspenso': user.suspended }">
-        {{ user.suspended ? 'Suspenso' : 'Ativo' }}
-      </td>
-      <td>
-        <button (click)="viewUserDetails(user)">Detalhes</button>
-      </td>
-    </tr>
+    @for (user of users; track user) {
+      <tr>
+        <td>{{ user.nome }}</td>
+        <td>{{ user.email }}</td>
+        <td [ngClass]="{ 'ativo': !user.suspended, 'suspenso': user.suspended }">
+          {{ user.suspended ? 'Suspenso' : 'Ativo' }}
+        </td>
+        <td>
+          <button (click)="viewUserDetails(user)">Detalhes</button>
+        </td>
+      </tr>
+    }
   </tbody>
 </table>
 

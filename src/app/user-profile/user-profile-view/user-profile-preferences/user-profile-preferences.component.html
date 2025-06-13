@@ -9,62 +9,74 @@
     </mat-expansion-panel-header>
 
     <!-- Se houver preferências cadastradas -->
-    <div class="preferences-list" *ngIf="preferences$ | async as preferences; else noPreferences">
-
-      <mat-expansion-panel *ngIf="categoriasDePreferencias.genero.length > 0">
-        <mat-expansion-panel-header>
-          <mat-panel-title><i class="fas fa-users"></i> Interesse em:</mat-panel-title>
-        </mat-expansion-panel-header>
-        <div class="preferences-grid">
-          <button *ngFor="let pref of categoriasDePreferencias.genero" class="preference-item"
-            (click)="onPreferenceClick(pref)">
-            {{ pref | capitalize }}
-          </button>
-        </div>
-      </mat-expansion-panel>
-
-      <mat-expansion-panel *ngIf="categoriasDePreferencias.praticaSexual.length > 0">
-        <mat-expansion-panel-header>
-          <mat-panel-title><i class="fas fa-fire"></i> Que curtam:</mat-panel-title>
-        </mat-expansion-panel-header>
-        <div class="preferences-grid">
-          <button *ngFor="let pref of categoriasDePreferencias.praticaSexual" class="preference-item"
-            (click)="onPreferenceClick(pref)">
-            {{ pref | capitalize }}
-          </button>
-        </div>
-      </mat-expansion-panel>
-
-      <mat-expansion-panel *ngIf="categoriasDePreferencias.preferenciaFisica.length > 0">
-        <mat-expansion-panel-header>
-          <mat-panel-title><i class="fas fa-user"></i> Características desejadas:</mat-panel-title>
-        </mat-expansion-panel-header>
-        <div class="preferences-grid">
-          <button *ngFor="let pref of categoriasDePreferencias.preferenciaFisica" class="preference-item"
-            (click)="onPreferenceClick(pref)">
-            {{ pref | capitalize }}
-          </button>
-        </div>
-      </mat-expansion-panel>
-
-      <mat-expansion-panel *ngIf="categoriasDePreferencias.relacionamento.length > 0">
-        <mat-expansion-panel-header>
-          <mat-panel-title><i class="fas fa-heart"></i> Tipo de relacionamento:</mat-panel-title>
-        </mat-expansion-panel-header>
-        <div class="preferences-grid">
-          <button *ngFor="let pref of categoriasDePreferencias.relacionamento" class="preference-item"
-            (click)="onPreferenceClick(pref)">
-            {{ pref | capitalize }}
-          </button>
-        </div>
-      </mat-expansion-panel>
-
-    </div>
-
-    <ng-template #noPreferences>
+    @if (preferences$ | async; as preferences) {
+      <div class="preferences-list">
+        @if (categoriasDePreferencias.genero.length > 0) {
+          <mat-expansion-panel>
+            <mat-expansion-panel-header>
+              <mat-panel-title><i class="fas fa-users"></i> Interesse em:</mat-panel-title>
+            </mat-expansion-panel-header>
+            <div class="preferences-grid">
+              @for (pref of categoriasDePreferencias.genero; track pref) {
+                <button class="preference-item"
+                  (click)="onPreferenceClick(pref)">
+                  {{ pref | capitalize }}
+                </button>
+              }
+            </div>
+          </mat-expansion-panel>
+        }
+        @if (categoriasDePreferencias.praticaSexual.length > 0) {
+          <mat-expansion-panel>
+            <mat-expansion-panel-header>
+              <mat-panel-title><i class="fas fa-fire"></i> Que curtam:</mat-panel-title>
+            </mat-expansion-panel-header>
+            <div class="preferences-grid">
+              @for (pref of categoriasDePreferencias.praticaSexual; track pref) {
+                <button class="preference-item"
+                  (click)="onPreferenceClick(pref)">
+                  {{ pref | capitalize }}
+                </button>
+              }
+            </div>
+          </mat-expansion-panel>
+        }
+        @if (categoriasDePreferencias.preferenciaFisica.length > 0) {
+          <mat-expansion-panel>
+            <mat-expansion-panel-header>
+              <mat-panel-title><i class="fas fa-user"></i> Características desejadas:</mat-panel-title>
+            </mat-expansion-panel-header>
+            <div class="preferences-grid">
+              @for (pref of categoriasDePreferencias.preferenciaFisica; track pref) {
+                <button class="preference-item"
+                  (click)="onPreferenceClick(pref)">
+                  {{ pref | capitalize }}
+                </button>
+              }
+            </div>
+          </mat-expansion-panel>
+        }
+        @if (categoriasDePreferencias.relacionamento.length > 0) {
+          <mat-expansion-panel>
+            <mat-expansion-panel-header>
+              <mat-panel-title><i class="fas fa-heart"></i> Tipo de relacionamento:</mat-panel-title>
+            </mat-expansion-panel-header>
+            <div class="preferences-grid">
+              @for (pref of categoriasDePreferencias.relacionamento; track pref) {
+                <button class="preference-item"
+                  (click)="onPreferenceClick(pref)">
+                  {{ pref | capitalize }}
+                </button>
+              }
+            </div>
+          </mat-expansion-panel>
+        }
+      </div>
+    } @else {
       <p class="no-preferences-message">Nenhuma preferência cadastrada.</p>
-    </ng-template>
+    }
 
-    
+
+
   </mat-expansion-panel>
 </mat-accordion>

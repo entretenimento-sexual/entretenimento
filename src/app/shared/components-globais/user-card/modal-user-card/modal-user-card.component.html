@@ -2,7 +2,9 @@
 <div class="hover-card" (mouseenter)="isHovered = true" (mouseleave)="isHovered = false">
   <app-compact-user-card [user]="user()"></app-compact-user-card>
 
-  <div class="modal-card" *ngIf="isHovered">
-    <app-detailed-user-card [user]="user()"></app-detailed-user-card>
-  </div>
+  @if (isHovered) {
+    <div class="modal-card">
+      <app-detailed-user-card [user]="user()"></app-detailed-user-card>
+    </div>
+  }
 </div>

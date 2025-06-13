@@ -6,12 +6,16 @@
 </div>
 
 <!-- Spinner de carregamento -->
-<div *ngIf="isLoading" class="loading-spinner">
-  <div class="spinner"></div>
-  <p>Carregando...</p>
-</div>
+@if (isLoading) {
+  <div class="loading-spinner">
+    <div class="spinner"></div>
+    <p>Carregando...</p>
+  </div>
+}
 
 <!-- Mensagem de erro -->
-<div *ngIf="errorMessage" class="alert alert-danger mt-2" role="alert">
-  {{ errorMessage }}
-</div>
+@if (errorMessage) {
+  <div class="alert alert-danger mt-2" role="alert">
+    {{ errorMessage }}
+  </div>
+}

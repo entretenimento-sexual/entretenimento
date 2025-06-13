@@ -1,17 +1,27 @@
 <!-- src/app/layout/profile-list/profile-list.component.html -->
-<div class="profile-list-container" *ngIf="profiles && profiles.length">
-  <div *ngFor="let profile of profiles" class="profile-item">
-    <!-- Exibe a foto do perfil, se disponível -->
-    <img *ngIf="profile.photoURL" [src]="profile.photoURL" alt="{{ profile.nickname || profile.nome || 'Usuário' }}"
-      class="profile-photo" />
-    <!-- Apresenta o nickname ou um identificador alternativo -->
-    <h3>{{ profile.nickname || profile.nome || 'Usuário Anônimo' }}</h3>
-    <!-- Descrição do usuário -->
-    <p>{{ profile.descricao || 'Descrição não disponível' }}</p>
-    <!-- Exibe o status online -->
-    <p *ngIf="profile.isOnline" class="online-status">Online agora</p>
+@if (profiles && profiles.length) {
+  <div class="profile-list-container">
+    @for (profile of profiles; track profile) {
+      <div class="profile-item">
+        <!-- Exibe a foto do perfil, se disponível -->
+        @if (profile.photoURL) {
+          <img [src]="profile.photoURL" alt="{{ profile.nickname || profile.nome || 'Usuário' }}"
+            class="profile-photo" />
+        }
+        <!-- Apresenta o nickname ou um identificador alternativo -->
+        <h3>{{ profile.nickname || profile.nome || 'Usuário Anônimo' }}</h3>
+        <!-- Descrição do usuário -->
+        <p>{{ profile.descricao || 'Descrição não disponível' }}</p>
+        <!-- Exibe o status online -->
+        @if (profile.isOnline) {
+          <p class="online-status">Online agora</p>
+        }
+      </div>
+    }
   </div>
-</div>
-<div *ngIf="!profiles || !profiles.length" class="no-profiles">
-  <p>Nenhum perfil encontrado.</p>
-</div>
+}
+@if (!profiles || !profiles.length) {
+  <div class="no-profiles">
+    <p>Nenhum perfil encontrado.</p>
+  </div>
+}

@@ -7,63 +7,73 @@
     <form [formGroup]="loginForm" (ngSubmit)="login()" class="form">
 
       <!-- Mensagem de erro para e-mail -->
-      <div *ngIf="loginForm.controls['email'].invalid && loginForm.controls['email'].touched" class="alert alert-error">
-        {{ loginForm.controls['email'].hasError('invalidEmail') ? 'Formato de e-mail inválido' : 'E-mail é obrigatório'
-        }}
-      </div>
+      @if (loginForm.controls['email'].invalid && loginForm.controls['email'].touched) {
+        <div class="alert alert-error">
+          {{ loginForm.controls['email'].hasError('invalidEmail') ? 'Formato de e-mail inválido' : 'E-mail é obrigatório'
+          }}
+        </div>
+      }
 
       <!-- Campo de email -->
       <input formControlName="email" class="input-field" type="email" placeholder="Email" name="email" required
         (focus)="clearError()">
 
-      <!-- Mensagem de erro para senha -->
-      <div *ngIf="loginForm.controls['password'].invalid && loginForm.controls['password'].touched" class="alert alert-error">
-        {{ loginForm.controls['password'].hasError('invalidPassword') ? 'Senha inválida. Deve conter ao menos 8 caracteres, incluindo letras maiúsculas, minúsculas e números.' : 'Senha é obrigatória' }}
+        <!-- Mensagem de erro para senha -->
+        @if (loginForm.controls['password'].invalid && loginForm.controls['password'].touched) {
+          <div class="alert alert-error">
+            {{ loginForm.controls['password'].hasError('invalidPassword') ? 'Senha inválida. Deve conter ao menos 8 caracteres, incluindo letras maiúsculas, minúsculas e números.' : 'Senha é obrigatória' }}
+          </div>
+        }
+        <!-- Campo de senha -->
+        <input formControlName="password" class="input-field" type="password" placeholder="Senha" name="password" required
+          (focus)="clearError()">
+
+          <!-- Honeypot invisível -->
+          <input formControlName="honeypot" class="honeypot-hidden" type="text" name="honeypot" />
+
+          <div>
+            <input type="checkbox" formControlName="rememberMe"> Lembrar de mim
+          </div>
+
+          <!-- Botão de login -->
+          <div class="button-container">
+            <button class="btn btn-primary" type="submit" [disabled]="isLoading || loginForm.invalid">
+              {{ isLoading ? 'Aguarde...' : 'Login' }}
+            </button>
+          </div>
+
+          <!-- Spinner de carregamento -->
+          @if (isLoading) {
+            <div class="loading-overlay">
+              <div class="spinner"></div>
+            </div>
+          }
+
+          <!-- Mensagem de erro geral -->
+          @if (errorMessage) {
+            <p class="alert alert-error" aria-live="assertive">{{ errorMessage }}</p>
+          }
+
+          <!-- Link para resetar senha -->
+          <a class="forgot-password" (click)="openPasswordRecoveryModal()">Esqueci minha senha</a>
+
+          <!-- Link para registro -->
+          <p class="register-link">Não tem uma conta? <a [routerLink]="['/register']">Cadastre-se</a></p>
+        </form>
       </div>
-      <!-- Campo de senha -->
-      <input formControlName="password" class="input-field" type="password" placeholder="Senha" name="password" required
-        (focus)="clearError()">
 
-      <!-- Honeypot invisível -->
-      <input formControlName="honeypot" class="honeypot-hidden" type="text" name="honeypot" />
+      <!-- Modal de verificação de e-mail -->
+      @if (showEmailVerificationModal) {
+        <div class="modal-overlay">
+          <div class="modal-content">
+            <h2>Verificação de E-mail</h2>
+            <p>Seu e-mail ainda não foi verificado. Por favor, verifique seu e-mail ou reenvie o link de verificação.</p>
+            <button class="btn btn-primary" (click)="resendVerificationEmail()">Reenviar E-mail de Verificação</button>
+            <button class="btn btn-danger" (click)="logout()">Sair</button>
+          </div>
+        </div>
+      }
 
-      <div>
-        <input type="checkbox" formControlName="rememberMe"> Lembrar de mim
-      </div>
-      
-      <!-- Botão de login -->
-      <div class="button-container">
-        <button class="btn btn-primary" type="submit" [disabled]="isLoading || loginForm.invalid">
-          {{ isLoading ? 'Aguarde...' : 'Login' }}
-        </button>
-      </div>
-
-      <!-- Spinner de carregamento -->
-      <div class="loading-overlay" *ngIf="isLoading">
-        <div class="spinner"></div>
-      </div>
-
-      <!-- Mensagem de erro geral -->
-      <p *ngIf="errorMessage" class="alert alert-error" aria-live="assertive">{{ errorMessage }}</p>
-
-      <!-- Link para resetar senha -->
-      <a class="forgot-password" (click)="openPasswordRecoveryModal()">Esqueci minha senha</a>
-
-      <!-- Link para registro -->
-      <p class="register-link">Não tem uma conta? <a [routerLink]="['/register']">Cadastre-se</a></p>
-    </form>
-  </div>
-
-  <!-- Modal de verificação de e-mail -->
-  <div *ngIf="showEmailVerificationModal" class="modal-overlay">
-    <div class="modal-content">
-      <h2>Verificação de E-mail</h2>
-      <p>Seu e-mail ainda não foi verificado. Por favor, verifique seu e-mail ou reenvie o link de verificação.</p>
-      <button class="btn btn-primary" (click)="resendVerificationEmail()">Reenviar E-mail de Verificação</button>
-      <button class="btn btn-danger" (click)="logout()">Sair</button>
+      <!-- Modal de recuperação de senha -->
+      <app-email-input-modal></app-email-input-modal>
     </div>
-  </div>
-
-  <!-- Modal de recuperação de senha -->
-  <app-email-input-modal></app-email-input-modal>
-</div>

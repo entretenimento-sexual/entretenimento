@@ -1,15 +1,16 @@
 <!-- src\app\layout\perfis-proximos\perfis-proximos.component.html -->
-<div *ngIf="profiles.length && profiles.length > 0; else noProfilesTemplate" class="container mt-3">
-  <h2 class="profiles-title">Perfis Próximos</h2>
-
-  <div class="profiles-row">
-    <div class="profile-card" *ngFor="let profile of profiles">
-      <app-user-card [user]="profile" [distanciaKm]="profile.distanciaKm ?? null"></app-user-card>
-
+@if (profiles.length && profiles.length > 0) {
+  <div class="container mt-3">
+    <h2 class="profiles-title">Perfis Próximos</h2>
+    <div class="profiles-row">
+      @for (profile of profiles; track profile) {
+        <div class="profile-card">
+          <app-user-card [user]="profile" [distanciaKm]="profile.distanciaKm ?? null"></app-user-card>
+        </div>
+      }
     </div>
   </div>
-</div>
-
-<ng-template #noProfilesTemplate>
+} @else {
   <p class="no-profiles">Nenhum perfil próximo foi encontrado.</p>
-</ng-template>
+}
+

@@ -5,28 +5,34 @@
     <p>Preencha os dados abaixo para concluir seu cadastro.</p>
 
     <!-- Bloco de carregamento -->
-    <div *ngIf="isLoading">
-      <p>Aguarde, estamos processando sua solicitação...</p>
-    </div>
+    @if (isLoading) {
+      <div>
+        <p>Aguarde, estamos processando sua solicitação...</p>
+      </div>
+    }
 
     <!-- Exibição de mensagens -->
-    <div *ngIf="!isLoading && message">
+    @if (!isLoading && message) {
+      <div>
       <p class="alert" [ngClass]="{
           'error-message': message.includes('Erro') || message.includes('Falha') || message.includes('não coincidem'),
           'success-message': message.includes('sucesso')
         }">
-        {{ message }}
-      </p>
-    </div>
+          {{ message }}
+        </p>
+      </div>
+    }
 
     <!-- Exibe as opções de assinatura após o sucesso da verificação de e-mail -->
-    <div *ngIf="showSubscriptionOptions">
-      <h3>Deseja se tornar um assinante?</h3>
-      <button class="btn-submit" (click)="goToSubscription()">Sim, quero me tornar assinante</button>
-      <!-- Aplicar a classe btn-submit -->
-      <button class="btn-submit" (click)="continueWithoutSubscription()">Continuar sem assinar</button>
-      <!-- Aplicar a classe btn-submit -->
-    </div>
+    @if (showSubscriptionOptions) {
+      <div>
+        <h3>Deseja se tornar um assinante?</h3>
+        <button class="btn-submit" (click)="goToSubscription()">Sim, quero me tornar assinante</button>
+        <!-- Aplicar a classe btn-submit -->
+        <button class="btn-submit" (click)="continueWithoutSubscription()">Continuar sem assinar</button>
+        <!-- Aplicar a classe btn-submit -->
+      </div>
+    }
 
     <!-- Formulário de finalização de cadastro -->
     <h1>Bem-vindo à rede social do sexo!</h1>
@@ -47,7 +53,9 @@
         <option value="transexual">Transexual</option>
         <option value="crossdressers">Crossdressers</option>
       </select>
-      <div *ngIf="isFieldInvalid('gender')" class="error-message">{{ formErrors['gender'] }}</div>
+      @if (isFieldInvalid('gender')) {
+        <div class="error-message">{{ formErrors['gender'] }}</div>
+      }
 
       <!-- Orientação Sexual -->
       <label>Eu sou:</label>
@@ -61,31 +69,41 @@
       <!-- Estado -->
       <label>Estado:</label>
       <select [(ngModel)]="selectedEstado" name="estado" (change)="onEstadoChange()" class="input-field">
-        <option *ngFor="let estado of estados" [value]="estado.sigla">{{ estado.nome }}</option>
+        @for (estado of estados; track estado) {
+          <option [value]="estado.sigla">{{ estado.nome }}</option>
+        }
       </select>
 
       <!-- Município -->
       <label>Município:</label>
       <select [(ngModel)]="selectedMunicipio" name="municipio" class="input-field">
-        <option *ngFor="let municipio of municipios" [value]="municipio.nome">{{ municipio.nome }}</option>
+        @for (municipio of municipios; track municipio) {
+          <option [value]="municipio.nome">{{ municipio.nome }}</option>
+        }
       </select>
 
       <!-- Upload de Fotos -->
       <label>Foto principal:</label>
       <input type="file" (change)="uploadFile($event)" multiple class="input-field">
-      <div *ngIf="isFieldInvalid('selectedFile')" class="error-message">{{ formErrors['selectedFile'] }}</div>
+      @if (isFieldInvalid('selectedFile')) {
+        <div class="error-message">{{ formErrors['selectedFile'] }}</div>
+      }
 
       <!-- Barra de progresso para upload de fotos -->
-      <div *ngIf="isUploading" class="progress-custom">
-        <div class="progress-bar-custom" role="progressbar" [attr.aria-valuenow]="progressValue" aria-valuemin="0"
+      @if (isUploading) {
+        <div class="progress-custom">
+          <div class="progress-bar-custom" role="progressbar" [attr.aria-valuenow]="progressValue" aria-valuemin="0"
           aria-valuemax="100" [style.width]="progressValue + '%'">{{progressValue | number:'1.0-0'}}%</div>
-      </div>
+        </div>
+      }
 
       <!-- Botão de submissão -->
       <button type="submit" [disabled]="!form.valid || isLoading" class="btn-submit">Concluir Cadastro</button>
       <!-- Classe btn-submit -->
     </form>
 
-    <div *ngIf="uploadMessage" class="alert alert-warning">{{ uploadMessage }}</div>
+    @if (uploadMessage) {
+      <div class="alert alert-warning">{{ uploadMessage }}</div>
+    }
   </div>
 </div>

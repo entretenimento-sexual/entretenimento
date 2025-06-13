@@ -8,35 +8,41 @@
   <div class="participants">
     <h3>Participantes</h3>
     <ul>
-      <li *ngFor="let participant of participants" (click)="openParticipantOptions(participant)"
-        [ngClass]="participant.isOnline ? 'status-online' : 'status-offline'">
-        <div class="participant-tag" [ngStyle]="{'background-color': participant.isOnline ? '#d4edda' : '#f8d7da'}">
-          <img [src]="participant.photoURL || 'assets/default-avatar.png'" alt="{{ participant.nickname }}" />
-          <div class="participant-info">
-            <span class="nickname">{{ participant.nickname }}</span>
-            <span class="gender">{{ participant.gender || 'Não informado' }}</span>
-            <span class="municipio">{{ participant.municipio || 'Município não informado' }}</span>
-            <small *ngIf="participant.isCreator" class="creator-badge">(Criador)</small>
+      @for (participant of participants; track participant) {
+        <li (click)="openParticipantOptions(participant)"
+          [ngClass]="participant.isOnline ? 'status-online' : 'status-offline'">
+          <div class="participant-tag" [ngStyle]="{'background-color': participant.isOnline ? '#d4edda' : '#f8d7da'}">
+            <img [src]="participant.photoURL || 'assets/default-avatar.png'" alt="{{ participant.nickname }}" />
+            <div class="participant-info">
+              <span class="nickname">{{ participant.nickname }}</span>
+              <span class="gender">{{ participant.gender || 'Não informado' }}</span>
+              <span class="municipio">{{ participant.municipio || 'Município não informado' }}</span>
+              @if (participant.isCreator) {
+                <small class="creator-badge">(Criador)</small>
+              }
+            </div>
           </div>
-        </div>
-      </li>
+        </li>
+      }
     </ul>
   </div>
 
   <div class="messages-container">
     <h3>Mensagens</h3>
     <div class="messages" #messagesContainerRef>
-      <div *ngFor="let message of messages" class="message-item"
-        [ngClass]="message.senderId === currentUser?.uid ? 'user-message' : 'other-message'">
-        <p><strong>{{ message.nickname }}</strong>: {{ message.content }}</p>
-        <small>{{ message.timestamp.toDate() | date: 'short' }}</small>
-      </div>
+      @for (message of messages; track message) {
+        <div class="message-item"
+          [ngClass]="message.senderId === currentUser?.uid ? 'user-message' : 'other-message'">
+          <p><strong>{{ message.nickname }}</strong>: {{ message.content }}</p>
+          <small>{{ message.timestamp.toDate() | date: 'short' }}</small>
+        </div>
+      }
     </div>
   </div>
 
   <div class="message-input">
     <textarea [(ngModel)]="messageContent" placeholder="Digite sua mensagem"
-      (keydown.enter)="sendMessage(); $event.preventDefault()"></textarea>
+    (keydown.enter)="sendMessage(); $event.preventDefault()"></textarea>
     <button (click)="sendMessage()">Enviar</button>
   </div>
 </div>

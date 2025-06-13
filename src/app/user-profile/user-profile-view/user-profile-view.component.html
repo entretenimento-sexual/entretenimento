@@ -5,57 +5,61 @@
   <!-- Dados pessoais -->
   <main class="">
     <div class="">
-      <div *ngIf="(usuario$ | async) as usuario; else loading" [class.hidden]="!usuario">
-        <!-- Informações do próprio usuário -->
-        <div class="user-details">
-          <h3 class="category-title">Meus dados de perfil</h3>
-          <ng-container *ngIf="usuario && isCouple(usuario.gender); else notCouple">
-            Somos o casal {{ usuario.nickname }}
-            <p>{{ getCoupleDescription(usuario.gender, usuario.partner1Orientation, usuario.partner2Orientation) }}</p>
-          </ng-container>
-          <ng-template #notCouple>
-            <p *ngIf="usuario?.nickname">Sou {{ usuario.nickname }}</p>
-            <p>{{ usuario.gender | capitalize }} {{ usuario.orientation }}</p>
-          </ng-template>
-          <p>{{ usuario.municipio }}, {{ usuario.estado }}</p>
-
-        <p>Perfil criado em: {{ usuario?.firstLogin | dateFormat: 'date' }}</p>
-
-          <!-- Seção de Sobre Mim e Redes Sociais -->
-          <div class="category-container">
-            <h3 class="category-title">Sobre Mim</h3>
-            <p>{{ usuario.descricao }}</p>
-          </div>
-          <div class="category-container">
-            <h3 class="category-title">Redes Sociais</h3>
-            <p *ngIf="usuario?.socialLinks?.instagram">Instagram: {{ usuario.socialLinks?.instagram }}</p>
-            <p *ngIf="usuario?.socialLinks?.facebook">Facebook: {{ usuario.socialLinks?.facebook }}</p>
-            <p *ngIf="usuario?.socialLinks?.buupe">buupe: {{ usuario.socialLinks?.buupe }}</p>
-          </div>
-          <!-- Botões de Edição -->
-          <div class="button-group">
-            <a [routerLink]="['/perfil', uid, 'editar-dados-pessoais']" class="btn btn-secondary btn-voltar">Editar
+      @if ((usuario$ | async); as usuario) {
+        <div [class.hidden]="!usuario">
+          <!-- Informações do próprio usuário -->
+          <div class="user-details">
+            <h3 class="category-title">Meus dados de perfil</h3>
+            @if (usuario && isCouple(usuario.gender)) {
+              Somos o casal {{ usuario.nickname }}
+              <p>{{ getCoupleDescription(usuario.gender, usuario.partner1Orientation, usuario.partner2Orientation) }}</p>
+            } @else {
+              @if (usuario?.nickname) {
+                <p>Sou {{ usuario.nickname }}</p>
+              }
+              <p>{{ usuario.gender | capitalize }} {{ usuario.orientation }}</p>
+            }
+            <p>{{ usuario.municipio }}, {{ usuario.estado }}</p>
+            <p>Perfil criado em: {{ usuario?.firstLogin | dateFormat: 'date' }}</p>
+            <!-- Seção de Sobre Mim e Redes Sociais -->
+            <div class="category-container">
+              <h3 class="category-title">Sobre Mim</h3>
+              <p>{{ usuario.descricao }}</p>
+            </div>
+            <div class="category-container">
+              <h3 class="category-title">Redes Sociais</h3>
+              @if (usuario?.socialLinks?.instagram) {
+                <p>Instagram: {{ usuario.socialLinks?.instagram }}</p>
+              }
+              @if (usuario?.socialLinks?.facebook) {
+                <p>Facebook: {{ usuario.socialLinks?.facebook }}</p>
+              }
+              @if (usuario?.socialLinks?.buupe) {
+                <p>buupe: {{ usuario.socialLinks?.buupe }}</p>
+              }
+            </div>
+            <!-- Botões de Edição -->
+            <div class="button-group">
+              <a [routerLink]="['/perfil', uid, 'editar-dados-pessoais']" class="btn btn-secondary btn-voltar">Editar
               Dados Pessoais</a>
-            <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']" class="btn btn-secondary btn-voltar">Editar
+              <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']" class="btn btn-secondary btn-voltar">Editar
               Preferências</a>
+            </div>
           </div>
+          <!-- Novo componente para gerenciamento de fotos -->
+          <app-user-photo-manager></app-user-photo-manager>
         </div>
-
-        <!-- Novo componente para gerenciamento de fotos -->
-        <app-user-photo-manager></app-user-photo-manager>
-
-      </div>
-      <ng-template #loading>
+      } @else {
         <p>Carregando...</p>
-      </ng-template>
+      }
 
       <app-user-profile-preferences
-          [uid]="uid">
+        [uid]="uid">
       </app-user-profile-preferences>
       <app-social-links-accordion
-          [uid]="uid"
-          [isOwner]="isOnOwnProfile()">
-    </app-social-links-accordion>
+        [uid]="uid"
+        [isOwner]="isOnOwnProfile()">
+      </app-social-links-accordion>
     </div>
   </main>
 </div>

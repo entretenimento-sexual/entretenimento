@@ -1,68 +1,88 @@
 <!-- src\app\header\navbar\navbar.component.html -->
 <div class="navbar-with-links">
-<nav class="navbar">
-  <!-- Container principal do navbar -->
-  <div class="navbar-container">
+  <nav class="navbar">
+    <!-- Container principal do navbar -->
+    <div class="navbar-container">
 
-    <!-- Seção da marca (logo) e toggle, ficará à esquerda -->
-    <div class="navbar-header">
-      <a routerLink="/" class="navbar-brand">
-        <app-logo class="navbar-logo"></app-logo>
-      </a>
-      <button class="hamburger-btn" (click)="onToggleSidebar()">
-        &#9776; <!-- Ícone de hambúrguer -->
-      </button>
-    </div>
-    <!-- /.navbar-header -->
+      <!-- Seção da marca (logo) e toggle, ficará à esquerda -->
+      <div class="navbar-header">
+        <a routerLink="/" class="navbar-brand">
+          <app-logo class="navbar-logo"></app-logo>
+        </a>
+        <button class="hamburger-btn" (click)="onToggleSidebar()">
+          &#9776; <!-- Ícone de hambúrguer -->
+        </button>
+      </div>
+      <!-- /.navbar-header -->
 
-    <!-- Menu principal de links, ficará à direita -->
-    <ul class="navbar-menu">
-      <!-- Links para usuários autenticados -->
-      <li class="navbar-item" *ngIf="isAuthenticated">
-        <a routerLink="/dashboard/principal" class="navbar-link">Principal</a>
-      </li>
-      <li class="navbar-item" *ngIf="isAuthenticated">
-        <a [routerLink]="['/perfil', userId]" class="navbar-link">Meu Perfil</a>
-      </li>
-      <li class="navbar-item" *ngIf="isAuthenticated">
-        <a routerLink="/contato" class="navbar-link">Contato</a>
-      </li>
-      <li class="navbar-item" *ngIf="isAuthenticated">
-        <a href="javascript:void(0);" (click)="logout()" class="navbar-link">Sair</a>
-      </li>
+      <!-- Menu principal de links, ficará à direita -->
+      <ul class="navbar-menu">
+        <!-- Links para usuários autenticados -->
+        @if (isAuthenticated) {
+          <li class="navbar-item">
+            <a routerLink="/dashboard/principal" class="navbar-link">Principal</a>
+          </li>
+        }
+        @if (isAuthenticated) {
+          <li class="navbar-item">
+            <a [routerLink]="['/perfil', userId]" class="navbar-link">Meu Perfil</a>
+          </li>
+        }
+        @if (isAuthenticated) {
+          <li class="navbar-item">
+            <a routerLink="/contato" class="navbar-link">Contato</a>
+          </li>
+        }
+        @if (isAuthenticated) {
+          <li class="navbar-item">
+            <a href="javascript:void(0);" (click)="logout()" class="navbar-link">Sair</a>
+          </li>
+        }
 
-      <!-- Link para planos de assinatura (todos) -->
-      <li class="navbar-item">
-        <a routerLink="/subscription-plan" class="navbar-link">Planos de Assinatura</a>
-      </li>
+        <!-- Link para planos de assinatura (todos) -->
+        <li class="navbar-item">
+          <a routerLink="/subscription-plan" class="navbar-link">Planos de Assinatura</a>
+        </li>
 
-      <!-- Links para usuários NÃO autenticados -->
-      <li class="navbar-item" *ngIf="!isAuthenticated">
-        <a routerLink="/espiar" class="navbar-link" title="Acesso limitado ao site">Espiar</a>
-      </li>
-      <li class="navbar-item" *ngIf="!isAuthenticated && !isLoginPage">
-        <a routerLink="/login" class="navbar-link" title="Se já tem conta, clique aqui para acessar">Logar</a>
-      </li>
-      <li class="navbar-item" *ngIf="!isAuthenticated">
-        <a routerLink="/register-component" class="navbar-link" title="Clique aqui para criar uma conta">Cadastre-se</a>
-      </li>
+        <!-- Links para usuários NÃO autenticados -->
+        @if (!isAuthenticated) {
+          <li class="navbar-item">
+            <a routerLink="/espiar" class="navbar-link" title="Acesso limitado ao site">Espiar</a>
+          </li>
+        }
+        @if (!isAuthenticated && !isLoginPage) {
+          <li class="navbar-item">
+            <a routerLink="/login" class="navbar-link" title="Se já tem conta, clique aqui para acessar">Logar</a>
+          </li>
+        }
+        @if (!isAuthenticated) {
+          <li class="navbar-item">
+            <a routerLink="/register-component" class="navbar-link" title="Clique aqui para criar uma conta">Cadastre-se</a>
+          </li>
+        }
 
-      <!-- Exibe nickname/foto do usuário autenticado -->
-      <li class="navbar-item user-info" *ngIf="isAuthenticated">
-        <img *ngIf="photoURL" [src]="photoURL" alt="Foto do usuário" class="user-photo" />
-        {{ nickname }}
-      </li>
-    </ul>
-    <!-- /.navbar-menu -->
+        <!-- Exibe nickname/foto do usuário autenticado -->
+        @if (isAuthenticated) {
+          <li class="navbar-item user-info">
+            @if (photoURL) {
+              <img [src]="photoURL" alt="Foto do usuário" class="user-photo" />
+            }
+            {{ nickname }}
+          </li>
+        }
+      </ul>
+      <!-- /.navbar-menu -->
 
-  </div>  <!-- /.navbar-container -->
+    </div>  <!-- /.navbar-container -->
 
 
-</nav>
+  </nav>
 
 
   <app-links-interaction></app-links-interaction>
 </div>
 
 <!-- Banner exibido para usuários free (visitantes) -->
-<app-guest-banner *ngIf="isFree"></app-guest-banner>
+@if (isFree) {
+  <app-guest-banner></app-guest-banner>
+}

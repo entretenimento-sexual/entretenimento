@@ -1,14 +1,14 @@
 <!-- src\app\chat-module\chat-messages-list\chat-messages-list.component.html -->
 <div class="messages-container" #messagesContainer>
-  <ng-container *ngIf="messages.length > 0; else noMessages">
-    <app-chat-message
-                      *ngFor="let message of messages"
-                      [message]="message"
-                      [chatId]="chatId()">
-  </app-chat-message>
-  </ng-container>
+  @if (messages.length > 0) {
+    @for (message of messages; track message) {
+      <app-chat-message
+        [message]="message"
+        [chatId]="chatId()">
+      </app-chat-message>
+    }
+  } @else {
+    <p>Nenhuma mensagem para exibir</p>
+  }
 </div>
 
-<ng-template #noMessages>
-  <p>Nenhuma mensagem para exibir</p>
-</ng-template>

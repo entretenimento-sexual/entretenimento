@@ -1,72 +1,81 @@
 <!-- src\app\authentication\auth-verification-handler\auth-verification-handler.component.html -->
 <div class="auth-container">
   <!-- Feedback de carregamento -->
-  <div *ngIf="isLoading" class="loading-message">
-    <p>Aguarde, estamos verificando seu e-mail...</p>
-  </div>
+  @if (isLoading) {
+    <div class="loading-message">
+      <p>Aguarde, estamos verificando seu e-mail...</p>
+    </div>
+  }
 
   <!-- Mensagens de erro ou sucesso -->
-  <div *ngIf="!isLoading && message" class="alert-container">
-    <p class="alert"
-      [ngClass]="{'alert-success': message.includes('sucesso'), 'alert-error': !message.includes('sucesso')}">
-      {{ message }}
-    </p>
-  </div>
+  @if (!isLoading && message) {
+    <div class="alert-container">
+      <p class="alert"
+        [ngClass]="{'alert-success': message.includes('sucesso'), 'alert-error': !message.includes('sucesso')}">
+        {{ message }}
+      </p>
+    </div>
+  }
 
   <!--Abre modal para email de recuperação de recuperação de senha -->
   <!-- Exibe link para reenviar e-mail de recuperação de senha se houver erro relacionado -->
-  <div *ngIf="shouldShowRecoveryLink">
-    <button (click)="openPasswordRecoveryModal()" class="link-button">Reenviar e-mail para recuperação de senha</button>
-  </div>
+  @if (shouldShowRecoveryLink) {
+    <div>
+      <button (click)="openPasswordRecoveryModal()" class="link-button">Reenviar e-mail para recuperação de senha</button>
+    </div>
+  }
 
   <!-- Verificação de e-mail -->
-  <div *ngIf="!isLoading && mode === 'verifyEmail'" class="action-container">
-    <h1>Bem-vindo à nossa plataforma!</h1>
-    <p>Seu e-mail foi verificado com sucesso. Agora, você será redirecionado para finalizar seu cadastro e aproveitar
+  @if (!isLoading && mode === 'verifyEmail') {
+    <div class="action-container">
+      <h1>Bem-vindo à nossa plataforma!</h1>
+      <p>Seu e-mail foi verificado com sucesso. Agora, você será redirecionado para finalizar seu cadastro e aproveitar
       todos os recursos da plataforma!</p>
-    <button class="btn btn-primary" (click)="goToFinalizarCadastro()">Continuar</button>
-  </div>
+      <button class="btn btn-primary" (click)="goToFinalizarCadastro()">Continuar</button>
+    </div>
+  }
 
   <!-- Redefinição de senha -->
-  <div *ngIf="!isLoading && mode === 'resetPassword'" class="form-container">
-    <h2 class="form-header">Redefinir Senha</h2>
-
-    <form (ngSubmit)="onSubmit()" class="form">
-      <label for="newPassword" class="form-label">Nova Senha</label>
-      <div class="input-wrapper">
-        <input [type]="showPassword ? 'text' : 'password'" [(ngModel)]="newPassword" name="newPassword" required
-          class="input-field" />
-        <button type="button" class="toggle-input" (click)="togglePasswordVisibility()">
-          <i [ngClass]="showPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
-        </button>
-      </div>
-
-      <label for="confirmPassword" class="form-label">Confirmar Nova Senha</label>
-      <div class="input-wrapper">
-        <input [type]="showConfirmPassword ? 'text' : 'password'" [(ngModel)]="confirmPassword" name="confirmPassword"
-          required class="input-field" />
-        <button type="button" class="toggle-input" (click)="toggleConfirmPasswordVisibility()">
-          <i [ngClass]="showConfirmPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
-        </button>
-      </div>
-
-      <button type="submit" class="btn btn-primary">Redefinir Senha</button>
-    </form>
-  </div>
-</div>
-
-<!-- Modal de erro ao verificar e-mail -->
-<div *ngIf="showVerificationErrorModal" class="modal-overlay">
-  <div class="modal-content">
-    <h2>Erro ao verificar o e-mail</h2>
-    <p>Não foi possível verificar seu e-mail. Você pode tentar reenviar o e-mail de confirmação ou consultar nossas
-      perguntas frequentes.</p>
-    <div class="modal-actions">
-      <button class="btn btn-primary" (click)="resendVerificationEmail()">Reenviar e-mail de confirmação</button>
-      <button class="btn btn-secondary" (click)="redirectToFAQ()">Ver perguntas frequentes</button>
-      <button class="btn btn-danger" (click)="closeModal()">Fechar</button>
+  @if (!isLoading && mode === 'resetPassword') {
+    <div class="form-container">
+      <h2 class="form-header">Redefinir Senha</h2>
+      <form (ngSubmit)="onSubmit()" class="form">
+        <label for="newPassword" class="form-label">Nova Senha</label>
+        <div class="input-wrapper">
+          <input [type]="showPassword ? 'text' : 'password'" [(ngModel)]="newPassword" name="newPassword" required
+            class="input-field" />
+            <button type="button" class="toggle-input" (click)="togglePasswordVisibility()">
+              <i [ngClass]="showPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
+            </button>
+          </div>
+          <label for="confirmPassword" class="form-label">Confirmar Nova Senha</label>
+          <div class="input-wrapper">
+            <input [type]="showConfirmPassword ? 'text' : 'password'" [(ngModel)]="confirmPassword" name="confirmPassword"
+              required class="input-field" />
+              <button type="button" class="toggle-input" (click)="toggleConfirmPasswordVisibility()">
+                <i [ngClass]="showConfirmPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
+              </button>
+            </div>
+            <button type="submit" class="btn btn-primary">Redefinir Senha</button>
+          </form>
+        </div>
+      }
     </div>
-  </div>
-</div>
-<!-- Modal de recuperação de senha -->
-<app-email-input-modal></app-email-input-modal>
+
+    <!-- Modal de erro ao verificar e-mail -->
+    @if (showVerificationErrorModal) {
+      <div class="modal-overlay">
+        <div class="modal-content">
+          <h2>Erro ao verificar o e-mail</h2>
+          <p>Não foi possível verificar seu e-mail. Você pode tentar reenviar o e-mail de confirmação ou consultar nossas
+          perguntas frequentes.</p>
+          <div class="modal-actions">
+            <button class="btn btn-primary" (click)="resendVerificationEmail()">Reenviar e-mail de confirmação</button>
+            <button class="btn btn-secondary" (click)="redirectToFAQ()">Ver perguntas frequentes</button>
+            <button class="btn btn-danger" (click)="closeModal()">Fechar</button>
+          </div>
+        </div>
+      </div>
+    }
+    <!-- Modal de recuperação de senha -->
+    <app-email-input-modal></app-email-input-modal>

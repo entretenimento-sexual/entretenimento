@@ -17,7 +17,9 @@
         [attr.aria-busy]="isLoading" aria-live="polite">
         {{ isLoading ? 'Reenviando...' : 'Reenviar E-mail de Verificação' }}
       </button>
-      <p *ngIf="message" class="alert alert-info">{{ message }}</p>
+      @if (message) {
+        <p class="alert alert-info">{{ message }}</p>
+      }
     </section>
 
     <!-- Seção opcional de onboarding inicial -->
@@ -28,7 +30,9 @@
       <!-- Seleção de gênero -->
       <select class="input-field" [(ngModel)]="selectedGender" aria-label="Selecione sua identidade de gênero">
         <option value="" disabled selected>Selecione seu gênero (opcional)</option>
-        <option *ngFor="let gender of validGenders" [value]="gender">{{ gender }}</option>
+        @for (gender of validGenders; track gender) {
+          <option [value]="gender">{{ gender }}</option>
+        }
       </select>
 
       <!-- Seleção de preferências -->
@@ -36,10 +40,12 @@
       <p class="subtitle">Você pode marcar uma ou mais preferências (opcional).</p>
 
       <div class="checkbox-group">
-        <label *ngFor="let preference of validPreferences" class="checkbox-item">
-          <input type="checkbox" [(ngModel)]="selectedPreferencesMap[preference]" />
-          {{ preference }}
-        </label>
+        @for (preference of validPreferences; track preference) {
+          <label class="checkbox-item">
+            <input type="checkbox" [(ngModel)]="selectedPreferencesMap[preference]" />
+            {{ preference }}
+          </label>
+        }
       </div>
     </section>
 

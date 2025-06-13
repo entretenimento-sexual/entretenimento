@@ -22,5 +22,7 @@
   </form>
 
   <!-- Loader enquanto salva -->
-  <mat-spinner *ngIf="isLoading$ | async"></mat-spinner>
+  @if (isLoading$ | async) {
+    <mat-spinner></mat-spinner>
+  }
 </div>

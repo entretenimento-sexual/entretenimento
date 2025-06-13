@@ -9,27 +9,32 @@
     </mat-expansion-panel-header>
 
     <!-- Se tiver algum link configurado -->
-    <div class="social-link-list" *ngIf="anyLinks(); else noLinks">
-      <div class="social-link-item" *ngIf="socialLinks?.facebook">
-        <i class="fab fa-facebook-square"></i> Facebook:
-        <span class="social-link-value">{{ socialLinks?.facebook }}</span>
+    @if (anyLinks()) {
+      <div class="social-link-list">
+        @if (socialLinks?.facebook) {
+          <div class="social-link-item">
+            <i class="fab fa-facebook-square"></i> Facebook:
+            <span class="social-link-value">{{ socialLinks?.facebook }}</span>
+          </div>
+        }
+        @if (socialLinks?.instagram) {
+          <div class="social-link-item">
+            <i class="fab fa-instagram"></i> Instagram:
+            <span class="social-link-value">{{ socialLinks?.instagram }}</span>
+          </div>
+        }
+        @if (socialLinks?.twitter) {
+          <div class="social-link-item">
+            <i class="fab fa-twitter"></i> Twitter:
+            <span class="social-link-value">{{ socialLinks?.twitter }}</span>
+          </div>
+        }
       </div>
-
-      <div class="social-link-item" *ngIf="socialLinks?.instagram">
-        <i class="fab fa-instagram"></i> Instagram:
-        <span class="social-link-value">{{ socialLinks?.instagram }}</span>
-      </div>
-
-      <div class="social-link-item" *ngIf="socialLinks?.twitter">
-        <i class="fab fa-twitter"></i> Twitter:
-        <span class="social-link-value">{{ socialLinks?.twitter }}</span>
-      </div>
-    </div>
-    <ng-template #noLinks>
+    } @else {
       <p class="no-links-info">
         Você não adicionou nenhuma rede social ainda.
       </p>
-    </ng-template>
+    }
 
     <!-- Botão que leva para editar -->
     <button class="btn btn-secondary" (click)="goToEditSocialLinks()">

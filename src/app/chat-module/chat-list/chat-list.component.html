@@ -1,39 +1,49 @@
 <!-- src\app\chat-module\chat-list\chat-list.component.html -->
 <div>
   <!-- Exibição de Salas -->
-  <div *ngIf="rooms$ | async as rooms" class="chat-list-container">
-    <div *ngFor="let room of rooms" class="room-item"
-         (click)="selectRoom(room.roomId)"
-         [ngClass]="{ 'selected': selectedChatId === room.roomId }">
-
-      <div class="room-item">
-        <span class="room-name">{{ room.roomName }}</span>
-        <!-- Botões de gerenciamento para o dono da sala -->
-          <div *ngIf="isOwner(room)" class="room-management-buttons">
-            <button class="button" (click)="deleteRoom(room.roomId, $event); $event.stopPropagation()">Excluir Sala</button>
-            <button class="button" (click)="sendInvite(room.roomId, $event); $event.stopPropagation()">Enviar Convite</button>
-            <button class="button" (click)="editRoom(room.roomId, $event); $event.stopPropagation()">Editar Sala</button>
+  @if (rooms$ | async; as rooms) {
+    <div class="chat-list-container">
+      @for (room of rooms; track room) {
+        <div class="room-item"
+          (click)="selectRoom(room.roomId)"
+          [ngClass]="{ 'selected': selectedChatId === room.roomId }">
+          <div class="room-item">
+            <span class="room-name">{{ room.roomName }}</span>
+            <!-- Botões de gerenciamento para o dono da sala -->
+            @if (isOwner(room)) {
+              <div class="room-management-buttons">
+                <button class="button" (click)="deleteRoom(room.roomId, $event); $event.stopPropagation()">Excluir Sala</button>
+                <button class="button" (click)="sendInvite(room.roomId, $event); $event.stopPropagation()">Enviar Convite</button>
+                <button class="button" (click)="editRoom(room.roomId, $event); $event.stopPropagation()">Editar Sala</button>
+              </div>
+            }
           </div>
-      </div>
-      <hr> <!-- Linha de separação entre salas e para separar do próximo chat/room -->
+          <hr> <!-- Linha de separação entre salas e para separar do próximo chat/room -->
+        </div>
+      }
     </div>
-  </div>
+  }
 
   <!-- Exibição de Chats Regulares -->
-  <div *ngIf="regularChats.length > 0" class="chat-list-container">
-    <div *ngFor="let chat of regularChats" class="chat-item"
+  @if (regularChats.length > 0) {
+    <div class="chat-list-container">
+      @for (chat of regularChats; track chat) {
+        <div class="chat-item"
           (click)="selectChat(chat.id)"
           [ngClass]="{ 'selected': selectedChatId === chat.id }">
+          <img
+            [src]="getOptimizedPhotoURL(chat.otherParticipantDetails?.photoURL) || 'assets/imagem-padrao.webp'"
+            alt="Foto do Usuário" loading="lazy" class="chat-user-photo">
+            <p>{{ chat.otherParticipantDetails?.nickname }}</p>
+          </div>
+        }
+      </div>
+    }
 
-      <img
-      [src]="getOptimizedPhotoURL(chat.otherParticipantDetails?.photoURL) || 'assets/imagem-padrao.webp'"
-      alt="Foto do Usuário" loading="lazy" class="chat-user-photo">
-      <p>{{ chat.otherParticipantDetails?.nickname }}</p>
-    </div>
+    <!-- Mensagem caso não existam chats ou salas -->
+    @if (rooms.length === 0 && regularChats.length === 0) {
+      <div>
+        <p>Você ainda não possui chats ou salas.</p>
+      </div>
+    }
   </div>
-
-<!-- Mensagem caso não existam chats ou salas -->
-    <div *ngIf="rooms.length === 0 && regularChats.length === 0">
-      <p>Você ainda não possui chats ou salas.</p>
-    </div>
-</div>

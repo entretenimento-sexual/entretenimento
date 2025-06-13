@@ -8,9 +8,11 @@
       </button>
     </div>
     <div class="modal-body">
-      <div *ngIf="mensagemErro" class="alert alert-danger" role="alert">
-        {{ mensagemErro }}
-      </div>
+      @if (mensagemErro) {
+        <div class="alert alert-danger" role="alert">
+          {{ mensagemErro }}
+        </div>
+      }
       <!-- Conteúdo passado como input -->
       <ng-content></ng-content>
     </div>

@@ -4,64 +4,78 @@
   <div class="search-container">
     <input type="text" [(ngModel)]="searchTerm" (input)="onFilterChange()"
       placeholder="Digite um nome para buscar usuários..." class="input-field" />
-    <span class="search-icon" (click)="onFilterChange()">🔍</span>
-  </div>
-
-  <!-- Filtros adicionais -->
-  <div class="filters-container">
-    <label class="region-container">
-      Região:
-      <select [(ngModel)]="selectedRegion.uf" (change)="onRegionChange()" class="input-field"
-        [disabled]="!isRegionFieldEditable()">
-        <option value="">Selecione o Estado</option>
-        <option *ngFor="let uf of availableStates" [value]="uf">{{ uf }}</option>
-      </select>
-      
-      <select [(ngModel)]="selectedRegion.city" (change)="onFilterChange()" class="input-field"
-        [disabled]="!isRegionFieldEditable() || !selectedRegion.uf">
-        <option value="">Selecione a Cidade</option>
-        <option *ngFor="let city of availableCities" [value]="city">{{ city }}</option>
-      </select>
-    </label>
-
-    <label>
-      Gênero:
-      <select [(ngModel)]="selectedGender" (change)="onFilterChange()" class="input-field">
-        <option value="">Todos</option>
-        <option *ngFor="let gender of availableGenders" [value]="gender">
-          {{ gender | titlecase }}
-        </option>
-      </select>
-    </label>
-  </div>
-
-  <!-- Resultados -->
-  <div
-    *ngIf="!isLoading && availableUsers.length === 0 && !(searchTerm || selectedGender || selectedRegion.uf || selectedRegion.city)">
-    <p>Use os filtros acima para encontrar usuários.</p>
-  </div>
-  <div
-    *ngIf="!isLoading && availableUsers.length === 0 && (searchTerm || selectedGender || selectedRegion.uf || selectedRegion.city)">
-    <p>Nenhum usuário encontrado para os critérios aplicados.</p>
-  </div>
-
-  <div *ngIf="availableUsers.length > 0" class="user-results">
-    <div *ngFor="let user of availableUsers" class="user-card">
-      <img [src]="user.photoURL || defaultAvatar" alt="{{ user.nickname }}" class="avatar" />
-      <div class="user-details">
-        <span class="nickname">{{ user.nickname }}</span>
-        <button class="invite-btn" (click)="toggleUserSelection(user)" [class.selected]="user.selected">
-          {{ user.selected ? 'Selecionado' : 'Selecionar' }}
-        </button>
-      </div>
+      <span class="search-icon" (click)="onFilterChange()">🔍</span>
     </div>
-  </div>
 
-  <!-- Ações -->
-  <div class="footer-actions">
-    <button class="btn btn-secondary" (click)="dialogRef.close()">Cancelar</button>
-    <button class="btn btn-primary" [disabled]="!isAnyUserSelected()" (click)="confirmSelection()">
-      Enviar Convites
-    </button>
-  </div>
-</app-base-modal>
+    <!-- Filtros adicionais -->
+    <div class="filters-container">
+      <label class="region-container">
+        Região:
+        <select [(ngModel)]="selectedRegion.uf" (change)="onRegionChange()" class="input-field"
+          [disabled]="!isRegionFieldEditable()">
+          <option value="">Selecione o Estado</option>
+          @for (uf of availableStates; track uf) {
+            <option [value]="uf">{{ uf }}</option>
+          }
+        </select>
+
+        <select [(ngModel)]="selectedRegion.city" (change)="onFilterChange()" class="input-field"
+          [disabled]="!isRegionFieldEditable() || !selectedRegion.uf">
+          <option value="">Selecione a Cidade</option>
+          @for (city of availableCities; track city) {
+            <option [value]="city">{{ city }}</option>
+          }
+        </select>
+      </label>
+
+      <label>
+        Gênero:
+        <select [(ngModel)]="selectedGender" (change)="onFilterChange()" class="input-field">
+          <option value="">Todos</option>
+          @for (gender of availableGenders; track gender) {
+            <option [value]="gender">
+              {{ gender | titlecase }}
+            </option>
+          }
+        </select>
+      </label>
+    </div>
+
+    <!-- Resultados -->
+    @if (!isLoading && availableUsers.length === 0 && !(searchTerm || selectedGender || selectedRegion.uf || selectedRegion.city)) {
+      <div
+        >
+        <p>Use os filtros acima para encontrar usuários.</p>
+      </div>
+    }
+    @if (!isLoading && availableUsers.length === 0 && (searchTerm || selectedGender || selectedRegion.uf || selectedRegion.city)) {
+      <div
+        >
+        <p>Nenhum usuário encontrado para os critérios aplicados.</p>
+      </div>
+    }
+
+    @if (availableUsers.length > 0) {
+      <div class="user-results">
+        @for (user of availableUsers; track user) {
+          <div class="user-card">
+            <img [src]="user.photoURL || defaultAvatar" alt="{{ user.nickname }}" class="avatar" />
+            <div class="user-details">
+              <span class="nickname">{{ user.nickname }}</span>
+              <button class="invite-btn" (click)="toggleUserSelection(user)" [class.selected]="user.selected">
+                {{ user.selected ? 'Selecionado' : 'Selecionar' }}
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Ações -->
+    <div class="footer-actions">
+      <button class="btn btn-secondary" (click)="dialogRef.close()">Cancelar</button>
+      <button class="btn btn-primary" [disabled]="!isAnyUserSelected()" (click)="confirmSelection()">
+        Enviar Convites
+      </button>
+    </div>
+  </app-base-modal>

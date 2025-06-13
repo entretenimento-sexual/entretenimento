@@ -1,15 +1,16 @@
 <!-- src/app/photo-editor/photo-editor/photo-editor.component.html -->
 <div class="editor-container">
-  <ng-container *ngIf="!(isLoading$ | async); else loading">
+  @if (!(isLoading$ | async)) {
     <pintura-editor [src]="src" [options]="options" (process)="handleProcess($event)">
     </pintura-editor>
-  </ng-container>
-  <ng-template #loading>
+  } @else {
     <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
     <p>Carregando...</p>
-  </ng-template>
+  }
 
-  <div *ngIf="(errorMessage$ | async) as errorMessage" class="alert alert-danger">
-    {{ errorMessage }}
-  </div>
+  @if ((errorMessage$ | async); as errorMessage) {
+    <div class="alert alert-danger">
+      {{ errorMessage }}
+    </div>
+  }
 </div>

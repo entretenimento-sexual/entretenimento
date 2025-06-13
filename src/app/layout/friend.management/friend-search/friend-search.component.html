@@ -9,18 +9,23 @@
   </mat-form-field>
 
   <!-- Loader enquanto carrega -->
-  <mat-spinner *ngIf="isLoading$ | async"></mat-spinner>
+  @if (isLoading$ | async) {
+    <mat-spinner></mat-spinner>
+  }
 
   <!-- Lista de resultados -->
-  <ul *ngIf="(searchResults$ | async)?.length; else noResults">
-    <li *ngFor="let user of searchResults$ | async">
-      {{ user.nickname || user.uid }}
-      <button mat-button color="primary">Adicionar Amigo</button>
-    </li>
-  </ul>
+  @if ((searchResults$ | async)?.length) {
+    <ul>
+      @for (user of searchResults$ | async; track user) {
+        <li>
+          {{ user.nickname || user.uid }}
+          <button mat-button color="primary">Adicionar Amigo</button>
+        </li>
+      }
+    </ul>
+  } @else {
+    <p>Nenhum usuário encontrado.</p>
+  }
 
   <!-- Mensagem quando não há resultados -->
-  <ng-template #noResults>
-    <p>Nenhum usuário encontrado.</p>
-  </ng-template>
 </div>

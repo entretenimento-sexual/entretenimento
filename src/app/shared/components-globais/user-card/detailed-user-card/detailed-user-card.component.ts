@@ -1,5 +1,5 @@
 //src\app\shared\components-globais\user-card\detailed-user-card\detailed-user-card.component.ts
-import { CommonModule } from '@angular/common';
+
 import { Component, input } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { BaseUserCardComponent } from '../base-user-card/base-user-card.component';
@@ -8,7 +8,7 @@ import { ModalMensagemComponent } from '../../modal-mensagem/modal-mensagem.comp
 
 @Component({
   selector: 'app-detailed-user-card',
-  imports: [CommonModule, BaseUserCardComponent],
+  imports: [BaseUserCardComponent],
   templateUrl: './detailed-user-card.component.html',
   styleUrl: './detailed-user-card.component.css'
 })

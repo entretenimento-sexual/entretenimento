@@ -6,7 +6,7 @@ import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 import { Router } from '@angular/router';
-import { CommonModule } from '@angular/common';
+
 import { MatExpansionModule } from '@angular/material/expansion';
 
 @Component({
@@ -14,7 +14,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
   templateUrl: './user-social-links-accordion.component.html',
   styleUrls: ['./user-social-links-accordion.component.css'],
   standalone: true,
-  imports: [CommonModule, MatExpansionModule,]
+  imports: [MatExpansionModule]
 })
 
 export class SocialLinksAccordionComponent implements OnInit, OnDestroy {

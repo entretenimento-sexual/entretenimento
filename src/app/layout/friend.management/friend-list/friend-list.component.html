@@ -1,20 +1,24 @@
 <!-- src\app\layout\friend.management\friend-list\friend-list.component.html -->
-<div class="friend-list" *ngIf="user() && user().uid">
-  <h4>Lista de Amigos</h4>
-
-  <!-- 🔄 Loader enquanto os dados carregam -->
-  <mat-spinner *ngIf="!(friends$ | async)?.length"></mat-spinner>
-
-  <ul *ngIf="(friends$ | async)?.length; else noFriends">
-    <li *ngFor="let friend of friends$ | async">
-      {{ friend.nickname || friend.friendUid}}
-      <button mat-button color="warn" (click)="removeFriend(friend.friendUid )">
-        Remover Amigo
-      </button>
-    </li>
-  </ul>
-
-  <ng-template #noFriends>
-    <p>Você ainda não tem amigos adicionados.</p>
-  </ng-template>
-</div>
+@if (user() && user().uid) {
+  <div class="friend-list">
+    <h4>Lista de Amigos</h4>
+    <!-- 🔄 Loader enquanto os dados carregam -->
+    @if (!(friends$ | async)?.length) {
+      <mat-spinner></mat-spinner>
+    }
+    @if ((friends$ | async)?.length) {
+      <ul>
+        @for (friend of friends$ | async; track friend) {
+          <li>
+            {{ friend.nickname || friend.friendUid}}
+            <button mat-button color="warn" (click)="removeFriend(friend.friendUid )">
+              Remover Amigo
+            </button>
+          </li>
+        }
+      </ul>
+    } @else {
+      <p>Você ainda não tem amigos adicionados.</p>
+    }
+  </div>
+}
