@@ -1,39 +1,29 @@
-// src\app\store\selectors\auth.selectors.ts
-import { createSelector } from '@ngrx/store';
-import { AppState } from '../../states/app.state';
-import { IUserState } from '../../states/states.user/user.state';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+//src\app\store\selectors\selectors.user\auth.selectors.ts
+import { createFeatureSelector, createSelector } from '@ngrx/store';
+import { AuthState } from '../../states/states.user/auth.state';
 
-export const selectUserState = (state: AppState): IUserState => {
-  console.log('selectUserState: ', state.user);
-  return state.user;
-};
+export const selectAuthState = createFeatureSelector<AuthState>('authState');
 
-// Seletor para obter o usuário autenticado
-export const selectAuthenticatedUser = createSelector(
-  selectUserState,
-  (state: IUserState): IUserDados | null => {
-    console.log('selectAuthenticatedUser (currentUser no estado): ', state.currentUser);
-    return state.currentUser || null;
-  }
-);
-
-// Seletor para verificar se o usuário está autenticado
+// Verifica se está autenticado
 export const selectIsAuthenticated = createSelector(
-  selectAuthenticatedUser,
-  (authenticatedUser: IUserDados | null) => {
-    const isAuthenticated = !!authenticatedUser?.uid;
-    console.log('selectIsAuthenticated: ', isAuthenticated);
-    return isAuthenticated;
-  }
+  selectAuthState,
+  (state: AuthState) => state.isAuthenticated
 );
 
-// Seletor para verificar se o usuário tem os campos `municipio` e `gender` preenchidos
-export const selectHasRequiredFields = createSelector(
-  selectAuthenticatedUser,
-  (authenticatedUser: IUserDados | null) => {
-    const hasFields = !!authenticatedUser?.municipio && !!authenticatedUser?.gender;
-    console.log('selectHasRequiredFields: ', hasFields);
-    return hasFields;
-  }
+// ID do usuário autenticado
+export const selectAuthUserId = createSelector(
+  selectAuthState,
+  (state: AuthState) => state.userId
+);
+
+// Estado de carregamento
+export const selectAuthLoading = createSelector(
+  selectAuthState,
+  (state: AuthState) => state.loading
+);
+
+// Erro
+export const selectAuthError = createSelector(
+  selectAuthState,
+  (state: AuthState) => state.error
 );

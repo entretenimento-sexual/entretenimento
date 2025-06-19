@@ -88,6 +88,26 @@
   color: var(--primary-hover);
 }
 
+.input-wrapper {
+  position: relative;
+}
+
+.input-wrapper input {
+  padding-right: 40px;
+}
+
+.toggle-input {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: var(--text-color);
+}
+
 /* Responsividade */
 @media (max-width: 768px) {
   .form-container {

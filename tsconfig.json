@@ -23,11 +23,7 @@
       "ES2022",
       "dom"
     ],
-    "types": [
-      "node",
-      "jest",
-      "estree"
-    ]
+    "types": []
   },
   "angularCompilerOptions": {
     "disableTypeScriptVersionCheck": true,

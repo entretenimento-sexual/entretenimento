@@ -1,77 +1,82 @@
-<!-- src\app\register-module\register.component.html -->
-<form [formGroup]="form" (ngSubmit)="onSubmit()" class="form-wrapper">
-  <h2 class="form-title">Cadastre-se</h2>
+<form [formGroup]="form" (ngSubmit)="onSubmit()" class="form-wrapper" aria-labelledby="form-title">
+  <h2 id="form-title" class="form-title">Cadastre-se</h2>
 
   <!-- Apelido principal -->
   <div class="form-field">
-    <label for="apelidoPrincipal">Apelido</label>
+    <label for="apelidoPrincipal">Apelido *</label>
     <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="input-field"
-      placeholder="Ex: casadinho" aria-label="Apelido" />
-      @if (getError('apelidoPrincipal')) {
-        <div class="tooltip-error">
-          {{ getError('apelidoPrincipal') }}
-        </div>
-      }
+      placeholder="Ex: casadinho" aria-describedby="apelidoHelp apelidoTooltip" aria-label="Apelido" />
+    <small id="apelidoHelp" class="field-hint">Nome principal pelo qual será conhecido na plataforma.</small>
+    @if (getError('apelidoPrincipal')) {
+    <div id="apelidoTooltip" class="tooltip-error">
+      {{ getError('apelidoPrincipal') }}
+    </div>
+    }
+  </div>
+
+  <!-- Complemento do apelido -->
+  <div class="form-field">
+    <label for="complementoApelido">Complemento (opcional)</label>
+    <input id="complementoApelido" formControlName="complementoApelido" type="text" class="input-field"
+      placeholder="Ex: oficial" aria-describedby="complementoTooltip" aria-label="Complemento do apelido" />
+    @if (getError('complementoApelido')) {
+    <div id="complementoTooltip" class="tooltip-error">
+      {{ getError('complementoApelido') }}
+    </div>
+    }
+  </div>
+
+  <!-- Email -->
+  <div class="form-field">
+    <label for="email">E-mail *</label>
+    <input id="email" formControlName="email" type="email" class="input-field" placeholder="email@exemplo.com"
+      aria-describedby="emailTooltip" aria-label="E-mail" />
+    @if (getError('email')) {
+    <div id="emailTooltip" class="tooltip-error">
+      {{ getError('email') }}
+    </div>
+    }
+  </div>
+
+  <!-- Senha -->
+  <div class="form-field">
+    <label for="password">Senha</label>
+    <div class="input-wrapper">
+      <input id="password" [type]="showPassword ? 'text' : 'password'" formControlName="password" class="input-field"
+        placeholder="Escolha uma senha" aria-label="Senha" />
+      <button type="button" class="toggle-input" (click)="togglePasswordVisibility()" aria-label="Mostrar senha">
+        {{ showPassword ? '🙈' : '👁️' }}
+      </button>
+    </div>
+    @if (getError('password')) {
+    <div class="tooltip-error">
+      {{ getError('password') }}
+    </div>
+    }
     </div>
 
-    <!-- Complemento do apelido -->
-    <div class="form-field">
-      <label for="complementoApelido">Complemento (opcional)</label>
-      <input id="complementoApelido" formControlName="complementoApelido" type="text" class="input-field"
-        placeholder="Ex: oficial" aria-label="Complemento" />
-        @if (getError('complementoApelido')) {
-          <div class="tooltip-error">
-            {{ getError('complementoApelido') }}
-          </div>
-        }
-      </div>
+  <!-- Aceite de Termos -->
+  <div class="form-checkbox">
+    <input type="checkbox" id="termos" formControlName="aceitarTermos" aria-describedby="termosTooltip" />
+    <label for="termos">
+      Eu aceito os
+      <a href="/termos" target="_blank" rel="noopener noreferrer">Termos de Uso</a> e a
+      <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>.
+    </label>
+    @if (getError('aceitarTermos')) {
+    <div id="termosTooltip" class="tooltip-error">
+      {{ getError('aceitarTermos') }}
+    </div>
+    }
+  </div>
 
-      <!-- Email -->
-      <div class="form-field">
-        <label for="email">E-mail</label>
-        <input id="email" formControlName="email" type="email" class="input-field" placeholder="email@exemplo.com"
-          aria-label="Email" />
-          @if (getError('email')) {
-            <div class="tooltip-error">
-              {{ getError('email') }}
-            </div>
-          }
-        </div>
+  <!-- Botão de envio -->
+  <button type="submit" class="btn btn-primary" [disabled]="isLoading || form.invalid">
+    {{ isLoading ? 'Aguarde...' : 'Cadastrar' }}
+  </button>
 
-        <!-- Senha -->
-        <div class="form-field">
-          <label for="password">Senha</label>
-          <input id="password" formControlName="password" type="password" class="input-field" placeholder="Escolha uma senha"
-            aria-label="Senha" />
-            @if (getError('password')) {
-              <div class="tooltip-error">
-                {{ getError('password') }}
-              </div>
-            }
-          </div>
-
-          <!-- Aceite de Termos -->
-          <div class="form-checkbox">
-            <input type="checkbox" id="termos" formControlName="aceitarTermos" />
-            <label for="termos">
-              Eu aceito os
-              <a href="/termos" target="_blank">Termos de Uso</a> e a
-              <a href="/politica-de-privacidade" target="_blank">Política de Privacidade</a>.
-            </label>
-            @if (getError('aceitarTermos')) {
-              <div class="tooltip-error">
-                {{ getError('aceitarTermos') }}
-              </div>
-            }
-          </div>
-
-          <!-- Botão de envio -->
-          <button type="submit" class="btn btn-primary" [disabled]="isLoading || form.invalid">
-            {{ isLoading ? 'Aguarde...' : 'Cadastrar' }}
-          </button>
-
-          <p class="login-redirect">
-            Já tem conta?
-            <a routerLink="/login">Faça login</a>
-          </p>
-        </form>
+  <p class="login-redirect">
+    Já tem conta?
+    <a routerLink="/login">Faça login</a>
+  </p>
+</form>

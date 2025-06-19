@@ -3,6 +3,7 @@ import { IUserDados } from "src/app/core/interfaces/iuser-dados";
 import { createAction, props } from '@ngrx/store';
 
 // Ações relacionadas ao login e logout
+export const loginStart = createAction('[Auth] Login Start');
 export const login = createAction('[Auth] Login', props<{ email: string; password: string }>());
 export const loginSuccess = createAction('[Auth] Login Success', props<{ user: IUserDados }>());
 export const loginFailure = createAction('[Auth] Login Failure', props<{ error: any }>());

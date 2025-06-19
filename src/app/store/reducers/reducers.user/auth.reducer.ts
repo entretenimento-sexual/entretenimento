@@ -1,27 +1,46 @@
-// src/app/store/reducers/auth.reducer.ts
+//src\app\store\reducers\reducers.user\auth.reducer.ts
 import { createReducer, on } from '@ngrx/store';
-import { IUserState } from '../../states/states.user/user.state';
-import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.actions'; // Importando apenas as ações de autenticação
-
-export const initialAuthState: IUserState = {
-  users: {},
-  currentUser: null,
-  onlineUsers: [],
-  filteredUsers: [],
-  loading: false,
-  error: null,
-};
+import {
+  loginStart,
+  loginSuccess,
+  loginFailure,
+  logout,
+  logoutSuccess,
+} from '../../actions/actions.user/auth.actions';
+import {
+  AuthState,
+  initialAuthState,
+} from '../../states/states.user/auth.state';
 
 export const authReducer = createReducer(
   initialAuthState,
 
-  on(loginSuccess, (state, { user }) => ({
+  on(loginStart, (state) => ({
     ...state,
-    currentUser: user,
+    loading: true,
+    error: null,
   })),
 
-  on(logoutSuccess, (state) => ({
+  on(loginSuccess, (state, { user }) => ({
     ...state,
-    currentUser: null,
+    isAuthenticated: true,
+    userId: user.uid,
+    loading: false,
+    error: null,
+  })),
+
+  on(loginFailure, (state, { error }) => ({
+    ...state,
+    loading: false,
+    error,
+  })),
+
+  on(logout, (state) => ({
+    ...state,
+    loading: true,
+  })),
+
+  on(logoutSuccess, () => ({
+    ...initialAuthState,
   }))
 );

@@ -1,4 +1,4 @@
-// src/app/store/selectors/user.selectors.ts
+//src\app\store\selectors\selectors.user\user.selectors.ts
 import { createSelector, MemoizedSelector } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { IUserState } from '../../states/states.user/user.state';
@@ -84,4 +84,9 @@ export const selectUserError = createSelector(
     console.log('Erro relacionado ao estado do usuário:', state.error);
     return state.error;
   }
+);
+
+export const selectHasRequiredFields = createSelector(
+  selectCurrentUser,
+  (user: IUserDados | null) => !!user?.municipio && !!user?.gender
 );
