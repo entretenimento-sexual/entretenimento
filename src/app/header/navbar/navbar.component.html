@@ -9,80 +9,67 @@
         <a routerLink="/" class="navbar-brand">
           <app-logo class="navbar-logo"></app-logo>
         </a>
-        <button class="hamburger-btn" (click)="onToggleSidebar()">
-          &#9776; <!-- Ícone de hambúrguer -->
+        <button class="hamburger-btn" (click)="onToggleSidebar()" aria-label="Abrir menu lateral">
+          &#9776;
         </button>
       </div>
-      <!-- /.navbar-header -->
 
       <!-- Menu principal de links, ficará à direita -->
       <ul class="navbar-menu">
+
         <!-- Links para usuários autenticados -->
         @if (isAuthenticated) {
-          <li class="navbar-item">
-            <a routerLink="/dashboard/principal" class="navbar-link">Principal</a>
-          </li>
-        }
-        @if (isAuthenticated) {
-          <li class="navbar-item">
-            <a [routerLink]="['/perfil', userId]" class="navbar-link">Meu Perfil</a>
-          </li>
-        }
-        @if (isAuthenticated) {
-          <li class="navbar-item">
-            <a routerLink="/contato" class="navbar-link">Contato</a>
-          </li>
-        }
-        @if (isAuthenticated) {
-          <li class="navbar-item">
-            <a href="javascript:void(0);" (click)="logout()" class="navbar-link">Sair</a>
-          </li>
+        <li class="navbar-item"><a routerLink="/dashboard/principal" class="navbar-link">Principal</a></li>
+        <li class="navbar-item"><a [routerLink]="['/perfil', userId]" class="navbar-link">Meu Perfil</a></li>
+        <li class="navbar-item"><a routerLink="/contato" class="navbar-link">Contato</a></li>
+        <li class="navbar-item"><a href="javascript:void(0);" (click)="logout()" class="navbar-link">Sair</a></li>
         }
 
-        <!-- Link para planos de assinatura (todos) -->
+        <!-- Link para planos (todos) -->
         <li class="navbar-item">
           <a routerLink="/subscription-plan" class="navbar-link">Planos de Assinatura</a>
         </li>
 
-        <!-- Links para usuários NÃO autenticados -->
+        <!-- Links para não autenticados -->
         @if (!isAuthenticated) {
-          <li class="navbar-item">
-            <a routerLink="/espiar" class="navbar-link" title="Acesso limitado ao site">Espiar</a>
-          </li>
+        <li class="navbar-item">
+          <a routerLink="/espiar" class="navbar-link" title="Acesso limitado ao site">Espiar</a>
+        </li>
+        @if (!isLoginPage) {
+        <li class="navbar-item">
+          <a routerLink="/login" class="navbar-link" title="Já tem conta? Faça login">Logar</a>
+        </li>
         }
-        @if (!isAuthenticated && !isLoginPage) {
-          <li class="navbar-item">
-            <a routerLink="/login" class="navbar-link" title="Se já tem conta, clique aqui para acessar">Logar</a>
-          </li>
-        }
-        @if (!isAuthenticated) {
-          <li class="navbar-item">
-            <a routerLink="/register-component" class="navbar-link" title="Clique aqui para criar uma conta">Cadastre-se</a>
-          </li>
+        <li class="navbar-item">
+          <a routerLink="/register-component" class="navbar-link"
+            title="Clique aqui para criar uma conta">Cadastre-se</a>
+        </li>
         }
 
-        <!-- Exibe nickname/foto do usuário autenticado -->
+        <!-- Exibe nickname/foto -->
         @if (isAuthenticated) {
-          <li class="navbar-item user-info">
-            @if (photoURL) {
-              <img [src]="photoURL" alt="Foto do usuário" class="user-photo" />
-            }
-            {{ nickname }}
-          </li>
+        <li class="navbar-item user-info">
+          @if (photoURL) {
+          <img [src]="photoURL" alt="Foto do usuário" class="user-photo" />
+          }
+          {{ nickname }}
+        </li>
         }
+
+        <!-- Botão de alternância de tema -->
+        <li class="navbar-item">
+          <button class="dark-toggle" (click)="toggleDarkMode()" aria-label="Alternar entre claro e escuro">
+            {{ isDarkMode() ? '🌙' : '☀️' }}
+          </button>   </li>
       </ul>
-      <!-- /.navbar-menu -->
-
-    </div>  <!-- /.navbar-container -->
-
-
+    </div>
   </nav>
 
-
+  <!-- Links fixos ou dinâmicos adicionais -->
   <app-links-interaction></app-links-interaction>
 </div>
 
-<!-- Banner exibido para usuários free (visitantes) -->
+<!-- Banner visitante -->
 @if (isFree) {
-  <app-guest-banner></app-guest-banner>
+<app-guest-banner></app-guest-banner>
 }

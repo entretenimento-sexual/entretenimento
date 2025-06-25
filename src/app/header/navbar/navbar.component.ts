@@ -1,5 +1,5 @@
 //src\app\header\navbar\navbar.component.ts
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit, signal, Signal, WritableSignal } from '@angular/core';
 import { Router } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
@@ -16,10 +16,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public isAuthenticated: boolean = false;
   public nickname: string = '';
   public photoURL: string = '';
-  private userSubscription?: Subscription;
   public isFree: boolean = false;
   public userId: string = '';
   public isLoginPage: boolean = false;
+
+  private userSubscription?: Subscription;
+
+  readonly isDarkMode: WritableSignal<boolean> = signal(false);
 
   constructor(
     private authService: AuthService,
@@ -28,12 +31,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
   ) { }
 
   ngOnInit(): void {
-    // Assina as mudanças no estado de autenticação
     this.userSubscription = this.authService.user$.subscribe(user => {
       this.isAuthenticated = !!user;
       if (user) {
         this.nickname = user.nickname || 'Usuário';
-        this.photoURL = user.photoURL || ''; // Foto do usuário
+        this.photoURL = user.photoURL || '';
         this.userId = user.uid;
       } else {
         this.nickname = '';
@@ -42,10 +44,27 @@ export class NavbarComponent implements OnInit, OnDestroy {
       }
     });
 
-    // Verifica se estamos na página de login
     this.router.events.subscribe(() => {
       this.isLoginPage = this.router.url === '/login';
     });
+
+    // Inicializa o tema baseado no localStorage
+    const storedTheme = localStorage.getItem('theme');
+    const dark = storedTheme === 'dark';
+    this.setDarkMode(dark);
+    this.isDarkMode.set(dark);
+    }
+
+  toggleDarkMode(): void {
+    const newValue = !this.isDarkMode();
+    this.setDarkMode(newValue);
+    localStorage.setItem('theme', newValue ? 'dark' : 'light');
+    this.isDarkMode.set(newValue);
+  }
+
+  private setDarkMode(enable: boolean): void {
+    const root = document.documentElement;
+    root.classList.toggle('dark-mode', enable); // forma enxuta
   }
 
   ngOnDestroy(): void {

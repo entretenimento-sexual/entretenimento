@@ -1,3 +1,4 @@
+<!-- src\app\register-module\register.component.html -->
 <form [formGroup]="form" (ngSubmit)="onSubmit()" class="form-wrapper" aria-labelledby="form-title">
   <h2 id="form-title" class="form-title">Cadastre-se</h2>
 
@@ -7,11 +8,9 @@
     <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="input-field"
       placeholder="Ex: casadinho" aria-describedby="apelidoHelp apelidoTooltip" aria-label="Apelido" />
     <small id="apelidoHelp" class="field-hint">Nome principal pelo qual será conhecido na plataforma.</small>
-    @if (getError('apelidoPrincipal')) {
-    <div id="apelidoTooltip" class="tooltip-error">
+    <div *ngIf="getError('apelidoPrincipal')" id="apelidoTooltip" class="tooltip-error">
       {{ getError('apelidoPrincipal') }}
     </div>
-    }
   </div>
 
   <!-- Complemento do apelido -->
@@ -19,11 +18,9 @@
     <label for="complementoApelido">Complemento (opcional)</label>
     <input id="complementoApelido" formControlName="complementoApelido" type="text" class="input-field"
       placeholder="Ex: oficial" aria-describedby="complementoTooltip" aria-label="Complemento do apelido" />
-    @if (getError('complementoApelido')) {
-    <div id="complementoTooltip" class="tooltip-error">
+    <div *ngIf="getError('complementoApelido')" id="complementoTooltip" class="tooltip-error">
       {{ getError('complementoApelido') }}
     </div>
-    }
   </div>
 
   <!-- Email -->
@@ -31,29 +28,25 @@
     <label for="email">E-mail *</label>
     <input id="email" formControlName="email" type="email" class="input-field" placeholder="email@exemplo.com"
       aria-describedby="emailTooltip" aria-label="E-mail" />
-    @if (getError('email')) {
-    <div id="emailTooltip" class="tooltip-error">
+    <div *ngIf="getError('email')" id="emailTooltip" class="tooltip-error">
       {{ getError('email') }}
     </div>
-    }
   </div>
 
   <!-- Senha -->
   <div class="form-field">
     <label for="password">Senha</label>
     <div class="input-wrapper">
-      <input id="password" [type]="showPassword ? 'text' : 'password'" formControlName="password" class="input-field"
+      <input id="password" [type]="showPassword() ? 'text' : 'password'" formControlName="password" class="input-field"
         placeholder="Escolha uma senha" aria-label="Senha" />
       <button type="button" class="toggle-input" (click)="togglePasswordVisibility()" aria-label="Mostrar senha">
-        {{ showPassword ? '🙈' : '👁️' }}
+        {{ showPassword() ? '🙈' : '👁️' }}
       </button>
     </div>
-    @if (getError('password')) {
-    <div class="tooltip-error">
+    <div *ngIf="getError('password')" class="tooltip-error">
       {{ getError('password') }}
     </div>
-    }
-    </div>
+  </div>
 
   <!-- Aceite de Termos -->
   <div class="form-checkbox">
@@ -63,16 +56,14 @@
       <a href="/termos" target="_blank" rel="noopener noreferrer">Termos de Uso</a> e a
       <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>.
     </label>
-    @if (getError('aceitarTermos')) {
-    <div id="termosTooltip" class="tooltip-error">
+    <div *ngIf="getError('aceitarTermos')" id="termosTooltip" class="tooltip-error">
       {{ getError('aceitarTermos') }}
     </div>
-    }
   </div>
 
   <!-- Botão de envio -->
-  <button type="submit" class="btn btn-primary" [disabled]="isLoading || form.invalid">
-    {{ isLoading ? 'Aguarde...' : 'Cadastrar' }}
+  <button type="submit" class="btn btn-primary" [disabled]="isLoading() || form.invalid">
+    {{ isLoading() ? 'Aguarde...' : 'Cadastrar' }}
   </button>
 
   <p class="login-redirect">

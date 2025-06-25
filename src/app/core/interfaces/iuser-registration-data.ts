@@ -18,7 +18,7 @@ export interface IUserRegistrationData {
   gender?: string;
   orientation?: string;
   acceptedTerms: {
-    accepted: true;
+    accepted: boolean;
     date: Timestamp | Date;
   };
   profileCompleted?: boolean;

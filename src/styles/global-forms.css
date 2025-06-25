@@ -8,6 +8,7 @@
   border-radius: 8px;
   font-size: 1rem;
   background-color: var(--input-background);
+  color: var(--text-color);
   transition: border-color 0.3s ease, box-shadow 0.2s ease;
 }
 
@@ -41,7 +42,7 @@
 
 .tooltip-error {
   position: absolute;
-  background-color: var(--danger-color);
+  background-color: var(--tooltip-background);
   color: white;
   padding: 5px 10px;
   border-radius: 6px;
@@ -55,4 +56,66 @@
 
 .form-field {
   position: relative;
+}
+
+.form-wrapper {
+  width: 100%;
+  max-width: 450px;
+  padding: 25px;
+  background-color: var(--background-color);
+  color: var(--text-color);
+  border-radius: 12px;
+  box-shadow: var(--box-shadow);
+  text-align: center;
+  transition: background-color 0.3s ease, color 0.3s ease;
+  margin: auto;
+}
+
+.form-header {
+  font-size: 1.5rem;
+  margin-bottom: 20px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.form-checkbox {
+  display: flex;
+  align-items: flex-start;
+  margin: 20px 0;
+  gap: 10px;
+  color: var(--text-color);
+}
+
+.form-checkbox input[type="checkbox"]:checked {
+  accent-color: var(--primary-color);
+}
+
+.login-link,
+.register-link {
+  margin-top: 20px;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.login-link a,
+.register-link a {
+  color: var(--primary-color);
+  font-weight: bold;
+  text-decoration: underline;
+  transition: color 0.3s ease;
+}
+
+.login-link a:hover,
+.register-link a:hover {
+  color: var(--primary-hover);
+}
+
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  min-height: 70vh;
+  background-color: var(--background-color);
+  font-family: var(--font-family-primary);
 }

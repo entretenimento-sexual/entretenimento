@@ -1,66 +1,65 @@
 /* src\app\authentication\finalizar-cadastro\finalizar-cadastro.component.css */
-/* Importar fontes e usar variáveis globais de estilo */
 @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
 
-/* Alinhamento da página */
 .auth-container {
-  /* Nome padronizado para manter consistência com o login */
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
   background-color: var(--background-color);
+  font-family: var(--font-family-primary);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 .form-container {
-  /* Usar nomes consistentes para containers */
-  background-color: white;
+  background-color: var(--background-color);
+  color: var(--text-color);
   padding: 30px;
   border-radius: 12px;
   box-shadow: var(--box-shadow);
   width: 100%;
   max-width: 500px;
   text-align: center;
-  /* Padronização do alinhamento de texto */
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Padronizar títulos e textos */
 h1 {
   text-align: center;
   margin-bottom: 20px;
   font-size: 1.5rem;
-  /* Alinhar com a estilização de outros títulos */
+  color: var(--text-color);
 }
 
-/* Estilos de label e inputs para formularios */
 label {
   display: block;
   font-weight: bold;
   margin-top: 10px;
-  color: var(--text-color);  /* Utilizando variável global */
+  color: var(--text-color);
 }
 
-select {
+select,
+.input-field,
+input[type="file"] {
   width: 100%;
   margin-top: 5px;
   margin-bottom: 10px;
   border: 1px solid #ced4da;
   border-radius: 8px;
-  font-size: 1rem;  /* Manter consistência no tamanho da fonte */
+  font-size: 1rem;
   background-color: var(--input-background);
-  transition: border-color 0.3s ease, box-shadow 0.2s ease;  /* Transição suave */
+  color: var(--text-color);
+  transition: border-color 0.3s ease, box-shadow 0.2s ease;
 }
 
 .input-field:focus,
 select:focus {
-  border-color: var(--primary-color);  /* Usar cores do tema */
+  border-color: var(--primary-color);
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   outline: none;
 }
 
-/* Padronização de botões */
 .btn-submit {
-  /* Padronização do nome da classe */
   width: 100%;
   background-color: var(--primary-color);
   color: white;
@@ -76,17 +75,15 @@ select:focus {
 }
 
 .error-message {
-  color: var(--danger-color);  /* Usar variável global para cores de erro */
+  color: var(--danger-color);
   margin-top: -10px;
   font-size: 0.9rem;
 }
 
 .success-message {
   color: var(--success-color);
-  /* Usar variável global para mensagens de sucesso */
 }
 
-/* Progresso de upload */
 .progress-custom {
   background-color: #e9ecef;
   border-radius: 8px;
@@ -104,10 +101,41 @@ select:focus {
   justify-content: center;
 }
 
-/* Spinner de carregamento (padrão similar ao login) */
 .spinner {
   color: var(--primary-color);
   font-size: 1.2rem;
   font-weight: bold;
   margin-top: 10px;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: var(--modal-background);
+  color: var(--text-color);
+  padding: 25px;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 450px;
+  box-shadow: var(--box-shadow);
+  text-align: center;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.modal-actions {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }

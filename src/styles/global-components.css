@@ -70,22 +70,22 @@
 
 /* Snackbar CSS */
 .success-snackbar {
-  background-color: #4caf50;
+  background-color: var(--snackbar-success);
   color: white;
 }
 
 .error-snackbar {
-  background-color: #f44336;
+  background-color: var(--snackbar-error);
   color: white;
 }
 
 .info-snackbar {
-  background-color: #2196f3;
+  background-color: var(--snackbar-info);
   color: white;
 }
 
 .warning-snackbar {
-  background-color: #ff9800;
+  background-color: var(--snackbar-warning);
   color: white;
 }
 
@@ -103,7 +103,7 @@
 }
 
 .modal-content {
-  background-color: #ffffff;
+  background-color: var(--modal-background);
   padding: 25px;
   border-radius: 16px;
   width: 100%;
@@ -118,4 +118,18 @@
   font-size: 1.2rem;
   font-weight: bold;
   margin-top: 10px;
+}
+
+/*alternância de tema claro/escuro */
+.dark-toggle {
+  background: transparent;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: var(--text-color);
+  transition: transform 0.2s ease;
+}
+
+.dark-toggle:hover {
+  transform: scale(1.15);
 }

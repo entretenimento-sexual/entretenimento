@@ -1,12 +1,4 @@
 /* src\app\authentication\login-component\login-component.css */
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
-
-.alert-error {
-  padding: 0px;
-  margin: 0px;
-  color: red
-}
-
 .auth-container {
   display: flex;
   justify-content: center;
@@ -21,23 +13,36 @@
   width: 100%;
   max-width: 450px;
   padding: 25px;
-  background-color: #ffffff;
+  background-color: var(--background-color);
+  color: var(--text-color);
   border-radius: 12px;
   box-shadow: var(--box-shadow);
   text-align: center;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Honeypot escondido */
-.honeypot-hidden {
-  display: none;
-}
-
-.form-container:hover {
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-}
-
-.form-header{
+.form-header {
   font-size: 1.5rem;
+  margin-bottom: 20px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.register-link {
+  margin-top: 20px;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.register-link a {
+  color: var(--primary-color);
+  font-weight: bold;
+  text-decoration: underline;
+  transition: color 0.3s ease;
+}
+
+.register-link a:hover {
+  color: var(--primary-hover);
 }
 
 .forgot-password {
@@ -47,34 +52,18 @@
   text-decoration: underline;
   transition: color 0.3s ease;
   font-size: 1.1rem;
-   }
+}
 
 .forgot-password:hover {
   color: var(--primary-hover);
 }
 
-.register-link {
-  margin-top: 15px;  /* Aumenta a distância acima do link */
-  font-size: 1.2em;
-}
-
-.register-link a {
-  color: var(--primary-color);
-}
-
-.register-link a:hover {
-  color: var(--primary-hover);
-}
-
-.button-container {
-  display: flex;
-  justify-content: center;
-  margin-top: 10px;
-  margin-bottom: 20px;
+.honeypot-hidden {
+  display: none;
 }
 
 @media (max-width: 768px) {
-  .authentication-content-right {
-    max-width: 70%;
+  .form-container {
+    max-width: 100%;
   }
 }

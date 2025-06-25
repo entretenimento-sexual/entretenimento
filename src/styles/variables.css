@@ -16,18 +16,31 @@
   --header-height: 100px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --primary-color: #ff7070;
-    --primary-hover: #ff8b8b;
-    --secondary-color: #ccc;
-    --background-color: #121212;
-    --text-color: #f5f5f5;
-    --input-background: #1e1e1e;
-    --box-shadow: 0 4px 16px rgba(255, 255, 255, 0.05);
-  }
+/* Modo escuro manual global */
+:root.dark-mode {
+  --primary-color: #ff7070;
+  --primary-hover: #ff8b8b;
+  --secondary-color: #ccc;
+  --background-color: #121212;
+  --text-color: #f5f5f5;
+  --input-background: #1e1e1e;
+  --box-shadow: 0 4px 16px rgba(255, 255, 255, 0.05);
 
-  .tooltip-error {
-    background-color: #ff4f4f;
-  }
+  /* Novas para consistência */
+  --tooltip-background: #2e2e2e;
+  --modal-background: #1e1e1e;
+  --snackbar-success: #2e7d32;
+  --snackbar-error: #c62828;
+  --snackbar-info: #1976d2;
+  --snackbar-warning: #f57c00;
+}
+
+/* Aplicação do tema escuro diretamente */
+.dark-mode body {
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+.dark-mode .input-field:focus {
+  box-shadow: 0 0 0 2px var(--primary-color);
 }
