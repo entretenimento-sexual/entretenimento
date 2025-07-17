@@ -49,7 +49,7 @@
             "browser": "src/main.ts"
           },
           "configurations": {
-            "production": {
+              "production": {
               "budgets": [
                 {
                   "type": "initial",
@@ -69,8 +69,21 @@
               "extractLicenses": false,
               "sourceMap": true,
               "namedChunks": true
+            },
+            "staging": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.staging.ts"
+                }
+              ],
+              "optimization": false,
+              "outputHashing": "none",
+              "sourceMap": true,
+              "extractLicenses": false,
+              "namedChunks": true
             }
-          },
+      },
           "defaultConfiguration": "production"
         },
         "serve": {
@@ -81,6 +94,9 @@
             },
             "development": {
               "buildTarget": "entretenimento:build:development"
+            },
+            "staging": {
+              "buildTarget": "entretenimento:build:staging"
             }
           },
           "defaultConfiguration": "development"

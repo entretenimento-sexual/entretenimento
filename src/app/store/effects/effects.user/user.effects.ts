@@ -1,8 +1,10 @@
 // src/app/store/effects/user/user.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { observeUserChanges, loadUsers, loadUsersSuccess, loadUsersFailure, loadOnlineUsers,
-  loadOnlineUsersSuccess, loadOnlineUsersFailure, } from '../../actions/actions.user/user.actions';
+import {
+  observeUserChanges, loadUsers, loadUsersSuccess, loadUsersFailure, loadOnlineUsers,
+  loadOnlineUsersSuccess, loadOnlineUsersFailure
+} from '../../actions/actions.user/user.actions';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { catchError, map, switchMap, of, from } from 'rxjs';
 import { Store, select } from '@ngrx/store';
@@ -20,86 +22,78 @@ export class UserEffects {
     private store: Store<AppState>
   ) { }
 
-  /**
-   * Observa mudanças de estado de um usuário específico.
-   */
   observeUserChanges$ = createEffect(() =>
     this.actions$.pipe(
       ofType(observeUserChanges),
-      switchMap((action) => {
-        const { uid } = action;
-        console.log(`Ação observada para o UID: ${uid}`);
-
+      switchMap(({ uid }) => {
+        console.log('[UserEffects] observeUserChanges acionado para UID:', uid);
         return this.store.pipe(
           select(selectUserById(uid)),
-          switchMap((existingUser) => {
+          switchMap(existingUser => {
             if (existingUser) {
-              console.log(`Usuário já encontrado no estado: ${uid}`);
+              console.log('[UserEffects] Usuário já está no estado:', existingUser);
               return of(loadUsersSuccess({ users: [existingUser] }));
             }
-
-            console.log(`Usuário não encontrado no estado, buscando no Firestore: ${uid}`);
+            console.log('[UserEffects] Buscando usuário no Firestore:', uid);
             return this.firestoreUserQuery.getUser(uid).pipe(
-              map((user) => {
+              map(user => {
                 if (user) {
-                  console.log(`Usuário carregado com sucesso do Firestore: ${uid}`);
+                  console.log('[UserEffects] Usuário encontrado no Firestore:', user);
                   return loadUsersSuccess({ users: [user] });
                 } else {
-                  console.error(`Usuário com UID ${uid} não encontrado no Firestore.`);
+                  console.log('[UserEffects] Usuário não encontrado no Firestore:', uid);
                   return loadUsersFailure({ error: { message: `Usuário ${uid} não encontrado.` } });
                 }
               }),
-              catchError((error) => {
-                console.error(`Erro ao buscar usuário no Firestore: ${error.message}`);
-                return of(loadUsersFailure({ error: { message: error.message } }));
+              catchError(error => {
+                console.log('[UserEffects] Erro ao buscar usuário no Firestore:', error?.message || error);
+                return of(loadUsersFailure({ error: { message: error?.message || 'Erro desconhecido.' } }));
               })
             );
           })
         );
-      }),
-      catchError((error) => {
-        console.error(`Erro no efeito observeUserChanges: ${error.message}`);
-        return of(loadUsersFailure({ error: { message: error.message } }));
       })
     )
   );
 
-  /**
-   * Carrega todos os usuários.
-   */
   loadUsers$ = createEffect(() =>
     this.actions$.pipe(
       ofType(loadUsers),
-      switchMap(() =>
-        from(this.firestoreQuery.getDocumentsByQuery<IUserDados>('users', [])).pipe(
-          map((users) => {
+      switchMap(() => {
+        console.log('[UserEffects] loadUsers acionado');
+        return from(this.firestoreQuery.getDocumentsByQuery<IUserDados>('users', [])).pipe(
+          map(users => {
             if (Array.isArray(users)) {
+              console.log('[UserEffects] Usuários carregados:', users.length);
               return loadUsersSuccess({ users });
             }
             throw new Error('Dados inválidos recebidos do Firestore');
           }),
-          catchError((error) => {
-            console.error('Erro ao carregar usuários:', error);
-            return of(loadUsersFailure({ error: { message: error.message } }));
+          catchError(error => {
+            console.log('[UserEffects] Erro ao carregar usuários:', error?.message || error);
+            return of(loadUsersFailure({ error: { message: error?.message || 'Erro desconhecido.' } }));
           })
-        )
-      )
+        );
+      })
     )
   );
 
-  //Carrega todos os usuários online.
   loadOnlineUsers$ = createEffect(() =>
     this.actions$.pipe(
       ofType(loadOnlineUsers),
-      switchMap(() =>
-        this.firestoreQuery.getOnlineUsers().pipe(
-          map((users: IUserDados[]) => loadOnlineUsersSuccess({ users })),
-          catchError((error: any) => {
-            console.error('Erro ao carregar usuários online:', error);
-            return of(loadOnlineUsersFailure({ error: { message: error.message } }));
+      switchMap(() => {
+        console.log('[UserEffects] loadOnlineUsers acionado');
+        return this.firestoreQuery.getOnlineUsers().pipe(
+          map((users: IUserDados[]) => {
+            console.log('[UserEffects] Usuários online carregados:', users.length);
+            return loadOnlineUsersSuccess({ users });
+          }),
+          catchError(error => {
+            console.log('[UserEffects] Erro ao carregar usuários online:', error?.message || error);
+            return of(loadOnlineUsersFailure({ error: { message: error?.message || 'Erro desconhecido.' } }));
           })
-        )
-      )
+        );
+      })
     )
   );
 }

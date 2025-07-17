@@ -45,7 +45,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
   ) { }
 
   ngOnInit(): void {
-    
+
     const roomId = this.roomId();
     if (!roomId) {
       this.errorNotifier.showError('ID da sala não fornecido.');
@@ -75,7 +75,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
       },
       error: (err) => {
         this.errorNotifier.showError('Erro ao carregar informações da sala.');
-        console.error(err);
+        console.log(err);
       }
     });
   }
@@ -102,7 +102,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
                 // Se não encontrou no estado, tente obter do Firestore
                 user = await firstValueFrom(this.firestoreUserQuery.getUser(msg.senderId));
               } catch (error) {
-                console.error(`Erro ao buscar usuário com UID ${msg.senderId} no Firestore:`, error);
+                console.log(`Erro ao buscar usuário com UID ${msg.senderId} no Firestore:`, error);
                 this.errorNotifier.showError(`Erro ao buscar usuário com UID ${msg.senderId}`);
               }
             }
@@ -119,7 +119,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
       },
       error: (err: any) => {
         this.errorNotifier.showError('Erro ao carregar mensagens.');
-        console.error(err);
+        console.log(err);
       }
     });
   }
@@ -129,7 +129,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
       try {
         this.messagesContainer.nativeElement.scrollTop = this.messagesContainer.nativeElement.scrollHeight;
       } catch (err) {
-        console.error('Erro ao rolar para a última mensagem:', err);
+        console.log('Erro ao rolar para a última mensagem:', err);
       }
     }
   }
@@ -150,7 +150,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
       },
       error: (err: any) => {
         this.errorNotifier.showError('Erro ao carregar participantes.');
-        console.error(err);
+        console.log(err);
       }
     });
   }
@@ -164,7 +164,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
       },
       error: (err) => {
         this.errorNotifier.showError('Erro ao carregar informações do criador da sala.');
-        console.error(err);
+        console.log(err);
       }
     });
   }
@@ -218,7 +218,7 @@ export class RoomInteractionComponent implements OnInit, OnChanges, OnDestroy {
         return this.roomMessages.sendMessageToRoom(this.roomId()! as string, newMessage);
       }),
       catchError(error => {
-        console.error('Erro ao enviar mensagem:', error);
+        console.log('Erro ao enviar mensagem:', error);
         this.errorNotifier.showError('Erro ao enviar mensagem.');
         return of(null);
       })

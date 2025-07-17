@@ -36,7 +36,7 @@ export class InviteService {
         return void 0; // Retorno explícito de void
       }),
       catchError((error) => {
-        console.error(`Erro ao enviar convite para ${invite.receiverId}:`, error);
+        console.log(`Erro ao enviar convite para ${invite.receiverId}:`, error);
         this.errorNotifier.showError('Erro ao enviar convite.');
         return throwError(() => error); // Emite o erro como Observable
       })
@@ -130,7 +130,7 @@ export class InviteService {
    */
   createInvite(inviteData: Invite): Observable<void> {
     if (!inviteData.roomName || inviteData.roomName.trim() === '') {
-      console.error('O campo roomName está vazio:', inviteData);
+      console.log('O campo roomName está vazio:', inviteData);
       this.errorNotifier.showError('O nome da sala é obrigatório.');
       return throwError(() => new Error('Nome da sala é obrigatório.'));
     }
@@ -257,7 +257,7 @@ export class InviteService {
       }),
       map(() => void 0), // Transformar o retorno em `void`
       catchError((error) => {
-        console.error('Erro ao atualizar convites expirados:', error);
+        console.log('Erro ao atualizar convites expirados:', error);
         return throwError(() => error);
       })
     );
@@ -274,7 +274,7 @@ export class InviteService {
       }),
       map(() => void 0), // Transformar o retorno em `void`
       catchError((error) => {
-        console.error('Erro ao remover convites expirados:', error);
+        console.log('Erro ao remover convites expirados:', error);
         return throwError(() => error);
       })
     );

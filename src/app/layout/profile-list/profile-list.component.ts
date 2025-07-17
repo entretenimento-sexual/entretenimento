@@ -37,7 +37,7 @@ export class ProfileListComponent implements OnInit, OnDestroy {
           // Busca perfis sugeridos
           return this.firestoreQuery.getSuggestedProfiles().pipe(
             catchError((error) => {
-              console.error('Erro ao buscar perfis sugeridos:', error);
+              console.log('Erro ao buscar perfis sugeridos:', error);
               return of([]); // Retorna lista vazia em caso de erro
             })
           );

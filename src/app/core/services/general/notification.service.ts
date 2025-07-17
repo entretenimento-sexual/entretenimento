@@ -35,7 +35,7 @@ export class NotificationService {
         panelClass: ['error-snackbar']
       }).onAction().subscribe(() => {
         if (details) {
-          console.error('Detalhes do erro:', details);
+          console.log('Detalhes do erro:', details);
           alert(details); // 🔥 Substituível por um modal de erro mais elegante no futuro
         }
       });

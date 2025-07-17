@@ -58,7 +58,7 @@ export class ProgressiveSignupComponent {
       this.router.navigate(['/suggested-profiles']); // Certifique-se de que o caminho é correto
 
     } catch (error) {
-      console.error('Erro durante o registro das preferências:', error);
+      console.log('Erro durante o registro das preferências:', error);
     }
   }
 }

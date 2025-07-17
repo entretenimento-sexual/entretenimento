@@ -22,7 +22,6 @@ import { AuthService } from './core/services/autentication/auth.service';
 import { EmailVerificationService } from './core/services/autentication/register/email-verification.service';
 
 import { AngularPinturaModule } from '@pqina/angular-pintura';
-import { userReducer } from './store/reducers/reducers.user/user.reducer';
 import { UserEffects } from './store/effects/effects.user/user.effects';
 import { AppStoreModule } from './store/store.module';
 

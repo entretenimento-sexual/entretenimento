@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
 import { catchError, from, map, of, switchMap } from 'rxjs';
-import { login, loginFailure, loginSuccess } from '../../actions/actions.user/auth.actions'; // Corrigido para importar do arquivo correto
+import { login, loginFailure, loginSuccess } from '../../actions/actions.user/auth.actions';
 
 @Injectable()
 export class AuthEffects {
@@ -15,28 +15,30 @@ export class AuthEffects {
   login$ = createEffect(() =>
     this.actions$.pipe(
       ofType(login),
-      switchMap(({ email, password }) =>
-        from(this.loginService.login(email, password)).pipe(
+      switchMap(({ email, password }) => {
+        console.log('[AuthEffects] Iniciando login para:', email);
+        return from(this.loginService.login(email, password)).pipe(
           map(response => {
-            if (response.success && response.user) {
-              if (response.emailVerified) {
-                console.log('Login bem-sucedido e e-mail verificado. Disparando loginSuccess.');
-                return loginSuccess({ user: response.user });
-              } else {
-                console.log('Login bem-sucedido, mas e-mail não verificado.');
-                return loginFailure({ error: 'Email não verificado.' });
-              }
-            } else {
-              console.error('Falha no login: Credenciais inválidas ou usuário não encontrado.');
+            if (!response.success) {
+              console.log('[AuthEffects] Login falhou. Usuário não encontrado ou erro.');
               return loginFailure({ error: 'Credenciais inválidas ou usuário não encontrado.' });
             }
+
+            if (response.success && !response.emailVerified) {
+              console.log('[AuthEffects] E-mail não verificado.');
+              return loginFailure({ error: 'E-mail não verificado.' });
+            }
+
+            console.log('[AuthEffects] Login bem-sucedido. Usuário:', response.user?.uid);
+            return loginSuccess({ user: response.user! });
           }),
           catchError(error => {
-            console.error('Erro ao processar login:', error);
-            return of(loginFailure({ error }));
+            const errorMessage = typeof error === 'string' ? error : (error.message || 'Erro desconhecido');
+            console.log('[AuthEffects] Erro durante login:', errorMessage);
+            return of(loginFailure({ error: errorMessage }));
           })
-        )
-      )
+        );
+      })
     )
   );
 }

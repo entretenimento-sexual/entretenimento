@@ -101,7 +101,7 @@ export class CreateRoomModalComponent implements OnInit {
     }
 
   handleError(error: any) {
-    console.error(`Erro ao criar/atualizar a sala: ${error}`);
+    console.log(`Erro ao criar/atualizar a sala: ${error}`);
     alert(`Erro: ${error.message}`);
     this.dialogRef.close({ success: false, error: error.message });
   }

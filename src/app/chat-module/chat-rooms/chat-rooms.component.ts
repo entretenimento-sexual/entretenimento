@@ -58,7 +58,7 @@ export class ChatRoomsComponent implements OnInit {
       },
       (error) => {
         this.errorNotifier.showError('Erro ao carregar salas.');
-        console.error('Erro ao buscar salas:', error);
+        console.log('Erro ao buscar salas:', error);
       }
     );
   }

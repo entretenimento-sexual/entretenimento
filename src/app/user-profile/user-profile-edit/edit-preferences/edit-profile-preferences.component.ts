@@ -63,7 +63,7 @@ export class EditProfilePreferencesComponent implements OnInit {
           catchError(error => {
             this.errorHandler.handleError(error);
             this.notifier.showError('Erro ao buscar preferências. Tente novamente mais tarde.');
-            console.error('[EditProfilePreferencesComponent] Erro ao buscar preferências:', error);
+            console.log('[EditProfilePreferencesComponent] Erro ao buscar preferências:', error);
             return of(null);
           }),
           finalize(() => {
@@ -78,7 +78,7 @@ export class EditProfilePreferencesComponent implements OnInit {
   salvarPreferencias(): void {
     if (!this.uid) {
       this.notifier.showError('Erro: Nenhum UID encontrado.');
-      console.error('[EditProfilePreferencesComponent] Tentativa de salvar sem UID.');
+      console.log('[EditProfilePreferencesComponent] Tentativa de salvar sem UID.');
       return;
     }
 
@@ -96,7 +96,7 @@ export class EditProfilePreferencesComponent implements OnInit {
         catchError(err => {
           this.errorHandler.handleError(err);
           this.notifier.showError('Erro ao salvar preferências. Tente novamente.');
-          console.error('[EditProfilePreferencesComponent] Erro ao salvar preferências:', err);
+          console.log('[EditProfilePreferencesComponent] Erro ao salvar preferências:', err);
           return of(null);
         })
       ).subscribe();

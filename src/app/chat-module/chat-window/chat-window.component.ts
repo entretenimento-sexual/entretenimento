@@ -27,7 +27,7 @@ export class ChatWindowComponent {
         const userId = currentUser?.uid;
         const nickname = currentUser?.nickname || 'Usuário'; // Adicionando o nickname
         if (!userId) {
-          console.error("Usuário não autenticado");
+          console.log("Usuário não autenticado");
           return;
         }
 

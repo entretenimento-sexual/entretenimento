@@ -2,6 +2,7 @@
 import { createAction, props } from '@ngrx/store';
 import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
+import { environment } from 'src/environments/environment';
 
 // **Carregar conversas do usuário**
 export const loadChats = createAction('[Chat] Load Chats');
@@ -139,6 +140,7 @@ export const removeParticipantsFailure = createAction(
   props<{ error: string }>()
 );
 
+if (!environment.production) {
 console.log('Ações de Chat carregadas:', {
   loadChats, loadChatsSuccess, loadChatsFailure,
   createChat, createChatSuccess, createChatFailure,
@@ -151,3 +153,4 @@ console.log('Ações de Chat carregadas:', {
   addParticipants, addParticipantsSuccess, addParticipantsFailure,
   removeParticipants, removeParticipantsSuccess, removeParticipantsFailure,
 });
+}

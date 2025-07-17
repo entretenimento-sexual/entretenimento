@@ -8,16 +8,22 @@ import { updateUserRole, updateUserRoleSuccess, updateUserRoleFailure } from '..
 
 @Injectable()
 export class UserRoleEffects {
-  // Efeito para atualizar o papel (role) de um usuário
   updateUserRole$ = createEffect(() =>
     this.actions$.pipe(
       ofType(updateUserRole),
-      mergeMap(({ uid, newRole }) =>
-        this.usuarioService.updateUserRole(uid, newRole).pipe(
-          map(() => updateUserRoleSuccess({ uid, newRole })),
-          catchError(error => of(updateUserRoleFailure({ error })))
-        )
-      )
+      mergeMap(({ uid, newRole }) => {
+        console.log('[UserRoleEffects] Atualizando role do usuário:', { uid, newRole });
+        return this.usuarioService.updateUserRole(uid, newRole).pipe(
+          map(() => {
+            console.log('[UserRoleEffects] updateUserRoleSuccess:', { uid, newRole });
+            return updateUserRoleSuccess({ uid, newRole });
+          }),
+          catchError(error => {
+            console.log('[UserRoleEffects] Erro ao atualizar role do usuário:', error?.message || error);
+            return of(updateUserRoleFailure({ error: error?.message || error }));
+          })
+        );
+      })
     )
   );
 

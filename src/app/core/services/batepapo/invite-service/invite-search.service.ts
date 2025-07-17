@@ -73,13 +73,13 @@ export class InviteSearchService {
           return filteredUsers;
         }),
         catchError((error) => {
-          console.error('[InviteSearchService] Erro ao buscar usuários:', error);
+          console.log('[InviteSearchService] Erro ao buscar usuários:', error);
           this.errorNotification.showError('Erro ao buscar usuários elegíveis.');
           return of([]);
         })
       );
     } catch (error) {
-      console.error('[InviteSearchService] Erro inesperado:', error);
+      console.log('[InviteSearchService] Erro inesperado:', error);
       this.errorNotification.showError('Erro inesperado ao realizar a busca.');
       return of([]);
     }

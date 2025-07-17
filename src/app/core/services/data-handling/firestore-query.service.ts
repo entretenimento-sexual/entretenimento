@@ -56,7 +56,7 @@ export class FirestoreQueryService {
             return users;
           }),
           catchError(error => {
-            console.error('[FirestoreQueryService] Erro ao buscar todos os usuários:', error);
+            console.log('[FirestoreQueryService] Erro ao buscar todos os usuários:', error);
             return of([]);
           })
         );
@@ -81,7 +81,7 @@ export class FirestoreQueryService {
           return users;
         }),
         catchError(error => {
-          console.error('[FirestoreQueryService] Erro ao buscar usuários online:', error);
+          console.log('[FirestoreQueryService] Erro ao buscar usuários online:', error);
           return of([]);
         })
       );

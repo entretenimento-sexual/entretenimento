@@ -103,7 +103,7 @@ export class DataSyncService {
         return this.firestoreService.updateDocument(collectionName, docId, newData).pipe(
           tap(() => console.log(`✅ [Firestore] Dados atualizados em ${collectionName}/${docId}.`)),
           catchError(error => {
-            console.error(`❌ Erro ao atualizar no Firestore:`, error);
+            console.log(`❌ Erro ao atualizar no Firestore:`, error);
             return of(void 0);
           })
         );

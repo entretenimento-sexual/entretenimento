@@ -75,7 +75,7 @@ export class FinalizarCadastroComponent implements OnInit {
       }
     } catch (error) {
       this.message = 'Erro ao verificar o status de cadastro.';
-      console.error(error);
+      console.log(error);
       this.router.navigate(['/']);
     } finally {
       this.isLoading = false;
@@ -89,7 +89,7 @@ export class FinalizarCadastroComponent implements OnInit {
         this.estados = estados;
       },
       error: (err) => {
-        console.error('Erro ao carregar estados:', err);
+        console.log('Erro ao carregar estados:', err);
       },
     });
   }
@@ -108,7 +108,7 @@ export class FinalizarCadastroComponent implements OnInit {
         this.municipios = municipios;
       },
       error: (err) => {
-        console.error('Erro ao carregar municípios:', err);
+        console.log('Erro ao carregar municípios:', err);
       },
     });
   }
@@ -119,7 +119,7 @@ export class FinalizarCadastroComponent implements OnInit {
       next: (uid) => {
         if (!uid) {
           this.message = 'Erro: UID do usuário não encontrado.';
-          console.error('UID do usuário não encontrado.');
+          console.log('UID do usuário não encontrado.');
           return; // Finaliza o fluxo caso o UID seja inválido
         }
 
@@ -170,13 +170,13 @@ export class FinalizarCadastroComponent implements OnInit {
             this.router.navigate(['/dashboard/principal']); // Redireciona para o dashboard
           },
           error: (error) => {
-            console.error('Erro ao finalizar o cadastro:', error);
+            console.log('Erro ao finalizar o cadastro:', error);
             this.message = 'Ocorreu um erro ao finalizar o cadastro. Tente novamente mais tarde.';
           },
         });
       },
       error: (error) => {
-        console.error('Erro ao obter UID do usuário:', error);
+        console.log('Erro ao obter UID do usuário:', error);
         this.message = 'Erro ao processar sua solicitação. Tente novamente.';
       },
     });

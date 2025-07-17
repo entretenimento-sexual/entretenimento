@@ -5,14 +5,14 @@ import { OnlineUsersComponent } from './online-users/online-users.component';
 import { FeaturedProfilesComponent } from './featured-profiles/featured-profiles.component';
 import { PrincipalComponent } from './principal/principal.component';
 import { ChatRoomsComponent } from '../chat-module/chat-rooms/chat-rooms.component';
-import { AuthGuard } from '../core/guards/auth.guard'; // Autenticação
+import { authGuard } from '../core/guards/auth.guard'; // Autenticação
 import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
 
 const routes: Routes = [
   {
     path: '',
     component: DashboardLayoutComponent, // Estrutura compartilhada
-    canActivate: [AuthGuard], // Todas as rotas são protegidas por autenticação
+    canActivate: [authGuard], // Todas as rotas são protegidas por autenticação
     children: [
       { path: 'principal', component: PrincipalComponent, data: { title: 'Dashboard Principal' } },
       { path: 'online-users', component: OnlineUsersComponent, data: { title: 'Usuários Online' } },

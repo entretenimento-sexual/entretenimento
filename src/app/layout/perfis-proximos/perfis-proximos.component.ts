@@ -46,7 +46,7 @@ export class PerfisProximosComponent implements OnInit {
       const user = await this.authService.user$.pipe(take(1)).toPromise();
 
       if (!user || !user.uid) {
-        console.error('UID do usuário não está disponível.');
+        console.log('UID do usuário não está disponível.');
         return;
       }
 
@@ -57,10 +57,10 @@ export class PerfisProximosComponent implements OnInit {
         await this.loadProfilesNearUserLocation(user.uid);
         await this.userProfileService.updateUserLocation(user.uid, this.userLocation, geohash);
       } else {
-        console.error('Coordenadas de localização inválidas.');
+        console.log('Coordenadas de localização inválidas.');
       }
     } catch (error) {
-      console.error('Erro ao obter localização do usuário:', error);
+      console.log('Erro ao obter localização do usuário:', error);
     }
   }
 
@@ -81,7 +81,7 @@ export class PerfisProximosComponent implements OnInit {
   async loadProfilesNearUserLocation(uid: string): Promise<void> {
     try {
       if (!this.userLocation) {
-        console.error('Localização do usuário não está disponível.');
+        console.log('Localização do usuário não está disponível.');
         return;
       }
 
@@ -96,7 +96,7 @@ export class PerfisProximosComponent implements OnInit {
       );
       console.log('Perfis carregados com distância:', this.profiles);
     } catch (error) {
-      console.error('Erro ao carregar perfis próximos:', error);
+      console.log('Erro ao carregar perfis próximos:', error);
     }
   }
 
@@ -119,7 +119,7 @@ export class PerfisProximosComponent implements OnInit {
         }
       });
     } else {
-      console.error('Perfil não encontrado com o UID:', uid);
+      console.log('Perfil não encontrado com o UID:', uid);
     }
   }
 }

@@ -71,7 +71,7 @@ export class UsuarioService {
         this.store.dispatch(updateUserOnlineStatus({ uid, isOnline })); // Atualiza o estado no Store
       }),
       catchError((error) => {
-        console.error(`Erro ao atualizar o status de usuário para ${isOnline ? 'online' : 'offline'}:`, error);
+        console.log(`Erro ao atualizar o status de usuário para ${isOnline ? 'online' : 'offline'}:`, error);
         throw error; // Repassa o erro para que possa ser tratado pelo chamador
       })
     );
@@ -82,7 +82,7 @@ export class UsuarioService {
   updateUserRole(uid: string, newRole: string): Observable<void> {
     return from(this.userProfile.updateUserRole(uid, newRole)).pipe(
       catchError((error) => {
-        console.error('Erro ao atualizar role do usuário:', error);
+        console.log('Erro ao atualizar role do usuário:', error);
         return throwError(() => error);
       })
     );
@@ -119,7 +119,7 @@ export class UsuarioService {
       this.emailVerificationService.saveUserDataAfterEmailVerification({ uid, ...dadosAtualizados } as IUserDados)
     ).pipe(
       catchError((error) => {
-        console.error('Erro ao atualizar usuário:', error);
+        console.log('Erro ao atualizar usuário:', error);
         throw error;
       })
     );

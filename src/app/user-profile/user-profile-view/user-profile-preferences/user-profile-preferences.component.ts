@@ -88,7 +88,7 @@ export class UserProfilePreferencesComponent implements OnInit {
                 }
               }),
               catchError((error) => {
-                console.error('[UserProfilePreferencesComponent] Erro ao buscar preferências:', error);
+                console.log('[UserProfilePreferencesComponent] Erro ao buscar preferências:', error);
                 this.errorNotifier.showError('Não foi possível carregar as preferências.');
                 return of(null);
               })

@@ -115,7 +115,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   sendInvite(roomId: string | undefined, event: MouseEvent): void {
     if (!roomId) {
-      console.error('Erro: roomId está undefined.');
+      console.log('Erro: roomId está undefined.');
       return;
     }
     event.stopPropagation();
@@ -126,12 +126,12 @@ export class ChatListComponent implements OnInit, OnDestroy {
     ).subscribe({
       next: (currentUserUID) => {
         if (!currentUserUID) {
-          console.error('Erro: UID do usuário não encontrado.');
+          console.log('Erro: UID do usuário não encontrado.');
           return;
         }
         const currentUser = this.authService['userSubject'].value;
         if (!currentUser || !currentUser.role) {
-          console.error('Erro: Usuário não autenticado ou role não definido.');
+          console.log('Erro: Usuário não autenticado ou role não definido.');
           return;
         }
 
@@ -162,14 +162,14 @@ export class ChatListComponent implements OnInit, OnDestroy {
                 .sendInviteToRoom(roomId, invite)
                 .subscribe({
                   next: () => console.log(`Convite enviado para o usuário com ID: ${userId}`),
-                  error: (error) => console.error(`Erro ao enviar convite para o usuário com ID: ${userId}`, error),
+                  error: (error) => console.log(`Erro ao enviar convite para o usuário com ID: ${userId}`, error),
                 });
             });
           }
         });
       },
       error: (error) => {
-        console.error('Erro ao resolver UID do usuário:', error);
+        console.log('Erro ao resolver UID do usuário:', error);
       }
     });
   }
@@ -181,7 +181,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   selectChat(chatId: string | undefined): void {
     if (!chatId) {
-      console.error('Erro: ID do chat é undefined.');
+      console.log('Erro: ID do chat é undefined.');
       return;
     }
     this.selectedChatId = chatId;
@@ -195,11 +195,11 @@ export class ChatListComponent implements OnInit, OnDestroy {
           .forEach(msg => {
             this.chatService.updateMessageStatus(chatId, msg.id!, 'read').subscribe({
               next: () => this.notificationService.decrementUnreadMessages(),
-              error: (error) => console.error('Erro ao atualizar status da mensagem:', error),
+              error: (error) => console.log('Erro ao atualizar status da mensagem:', error),
             });
           });
       },
-      error: (error) => console.error(`Erro ao monitorar mensagens do chat ${chatId}:`, error),
+      error: (error) => console.log(`Erro ao monitorar mensagens do chat ${chatId}:`, error),
     });
 
     this.chatSubscription?.unsubscribe();
@@ -208,7 +208,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   selectRoom(roomId: string | undefined): void {
     if (!roomId) {
-      console.error('Erro: ID da sala é undefined.');
+      console.log('Erro: ID da sala é undefined.');
       return;
     }
 
@@ -227,12 +227,12 @@ export class ChatListComponent implements OnInit, OnDestroy {
               .subscribe({
               next: () => this.notificationService.decrementUnreadMessages(),
               error: (error: unknown) =>
-              console.error('Erro ao atualizar status da mensagem:', error),
+              console.log('Erro ao atualizar status da mensagem:', error),
             });
           });
         },
       error: (error: unknown) =>
-      console.error(`Erro ao monitorar mensagens da sala ${roomId}:`, error),
+      console.log(`Erro ao monitorar mensagens da sala ${roomId}:`, error),
     });
 
     // Cancela assinaturas anteriores se houver
@@ -249,7 +249,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
   deleteRoom(roomId: string | undefined, event: MouseEvent) {
     event.stopPropagation();
     if (!roomId) {
-      console.error('ID da sala é indefinido.');
+      console.log('ID da sala é indefinido.');
       return;
     }
     const dialogRef = this.dialog.open(ConfirmacaoDialogComponent, {
@@ -268,7 +268,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
             // Atualizar a lista de salas, se necessário
           })
           .catch(error => {
-            console.error('Erro ao excluir a sala:', error);
+            console.log('Erro ao excluir a sala:', error);
             // Tratar o erro de exclusão
           });
       }
@@ -279,7 +279,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
     event.stopPropagation();
     const roomData = this.rooms.find(room => room.roomId === roomId);
     if (!roomData) {
-      console.error('Sala não encontrada:', roomId);
+      console.log('Sala não encontrada:', roomId);
       return;
     }
     console.log(roomData);

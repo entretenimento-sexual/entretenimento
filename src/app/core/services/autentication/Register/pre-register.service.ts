@@ -35,7 +35,7 @@ export class PreRegisterServiceService {
       await addDoc(prefRef, combinedData);
       console.log('Preferências do usuário salvas no Firestore.');
     } catch (error) {
-      console.error('Erro ao salvar preferências do usuário:', error);
+      console.log('Erro ao salvar preferências do usuário:', error);
       throw error;
     }
   }

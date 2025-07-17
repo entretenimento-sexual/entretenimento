@@ -1,4 +1,4 @@
-//src\app\store\effects\file.effects.ts
+// src/app/store/effects/file.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { map, switchMap, catchError } from 'rxjs/operators';
@@ -16,12 +16,24 @@ export class FileEffects {
   uploadFile$ = createEffect(() =>
     this.actions$.pipe(
       ofType(uploadStart),
-      switchMap(action =>
-        this.storageService.uploadFile(action.file, action.path, action.userId).pipe(
-          map(downloadUrl => uploadSuccess({ url: downloadUrl })),
-          catchError(error => of(uploadError({ error: error.message })))
-        )
-      )
+      switchMap(action => {
+        console.log('[FileEffects] Iniciando upload:', {
+          fileName: action.file.name,
+          path: action.path,
+          userId: action.userId
+        });
+
+        return this.storageService.uploadFile(action.file, action.path, action.userId).pipe(
+          map(downloadUrl => {
+            console.log('[FileEffects] Upload concluído com sucesso. URL:', downloadUrl);
+            return uploadSuccess({ url: downloadUrl });
+          }),
+          catchError(error => {
+            console.log('[FileEffects] Erro ao fazer upload:', error?.message || error);
+            return of(uploadError({ error: error?.message || 'Erro desconhecido durante upload' }));
+          })
+        );
+      })
     )
   );
 }

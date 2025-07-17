@@ -36,13 +36,13 @@ export class SuggestedProfilesComponent implements OnInit {
               }
             },
             error: (error) => {
-              console.error('Erro ao buscar perfis sugeridos:', error);
+              console.log('Erro ao buscar perfis sugeridos:', error);
             }
           });
         }
       },
       error: (error) => {
-        console.error('Erro ao obter o usuário autenticado:', error);
+        console.log('Erro ao obter o usuário autenticado:', error);
       }
     });
   }

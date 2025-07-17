@@ -55,7 +55,7 @@ export class AuthService {
         switchMap(() => this.usuarioService.updateUserOnlineStatus(uid, true)),
         tap(() => console.log('[AuthService] Status isOnline atualizado no Firestore para online.')),
         catchError(error => {
-          console.error('[AuthService] Erro ao definir status online:', error);
+          console.log('[AuthService] Erro ao definir status online:', error);
           this.globalErrorHandlerService.handleError(error);
           return of(null);
         })
@@ -125,7 +125,7 @@ export class AuthService {
           }
         }),
         catchError((error) => {
-          console.error('[AuthService] Erro ao recuperar estado de autenticação:', error);
+          console.log('[AuthService] Erro ao recuperar estado de autenticação:', error);
           this.globalErrorHandlerService.handleError(error);
           return of(null);
         }),
@@ -183,7 +183,7 @@ export class AuthService {
           }
         }),
         catchError(error => {
-          console.error('[AuthService] Erro ao obter UID:', error);
+          console.log('[AuthService] Erro ao obter UID:', error);
           this.globalErrorHandlerService.handleError(error);
           return of(null);
         }),
@@ -207,7 +207,7 @@ export class AuthService {
 
   setCurrentUser(userData: IUserDados): void {
     if (!userData || !userData.uid) {
-      console.error('Dados de usuário inválidos fornecidos para setCurrentUser:', userData);
+      console.log('Dados de usuário inválidos fornecidos para setCurrentUser:', userData);
       return;
     }
     if (JSON.stringify(this.currentUser) !== JSON.stringify(userData)) {
@@ -243,7 +243,7 @@ export class AuthService {
           switchMap(() => from(this.router.navigate(['/login']))), // Navegar para a página de login
           map(() => void 0),
           catchError((error) => {
-            console.error('Erro ao fazer logout:', error);
+            console.log('Erro ao fazer logout:', error);
             this.globalErrorHandlerService.handleError(error as Error);
             return of(void 0);
           })

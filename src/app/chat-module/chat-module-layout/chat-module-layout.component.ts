@@ -73,7 +73,7 @@ export class ChatModuleLayoutComponent implements OnInit {
   onChatSelected(event: { id: string; type: 'room' | 'chat' }): void {
     console.log('Evento recebido:', event);
     if (!event || !event.id || !event.type) {
-      console.error('Erro: Evento de seleção inválido.', event);
+      console.log('Erro: Evento de seleção inválido.', event);
       return;
     }
 
@@ -112,7 +112,7 @@ export class ChatModuleLayoutComponent implements OnInit {
       const senderId = currentUser?.uid;
       const nickname = currentUser?.nickname || 'Usuário'; // Adicionando o nickname
       if (!senderId) {
-        console.error('Erro: Usuário não autenticado.');
+        console.log('Erro: Usuário não autenticado.');
         return;
       }
 
@@ -130,14 +130,14 @@ export class ChatModuleLayoutComponent implements OnInit {
             this.messageContent = ''; // Limpa o campo de texto após o envio
           },
           error: (error) => {
-            console.error("Erro ao enviar mensagem ao chat:", error);
+            console.log("Erro ao enviar mensagem ao chat:", error);
           }
         });
       } else if (this.selectedType === 'room' && this.selectedChatId) {
         this.roomMessages.sendMessageToRoom(this.selectedChatId, message).then(() => {
           console.log("Mensagem enviada com sucesso à sala");
           this.messageContent = ''; // Limpa o campo de texto após o envio
-        }).catch(error => console.error("Erro ao enviar mensagem à sala:", error));
+        }).catch(error => console.log("Erro ao enviar mensagem à sala:", error));
       }
     });
   }

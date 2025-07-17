@@ -26,7 +26,7 @@ export class DateFormatPipe implements PipeTransform {
           return this.dateTimeService.formatDate(date, 'dd/MM/yyyy HH:mm');
       }
     } catch (error) {
-      console.error('Erro ao formatar a data:', error);
+      console.log('Erro ao formatar a data:', error);
       return invalidMessage;
     }
   }

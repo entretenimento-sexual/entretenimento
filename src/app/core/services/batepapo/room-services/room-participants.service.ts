@@ -106,7 +106,7 @@ export class RoomParticipantsService {
           observer.complete(); // Finaliza o Observable
         })
         .catch((error) => {
-          console.error('Erro ao aceitar convite:', error);
+          console.log('Erro ao aceitar convite:', error);
           this.errorNotifier.showError('Erro ao aceitar convite.');
           observer.error(error); // Notifica erro
         });

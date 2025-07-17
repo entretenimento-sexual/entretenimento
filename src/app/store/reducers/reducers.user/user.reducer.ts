@@ -69,7 +69,7 @@ export const userReducer = createReducer(
 
   // Ação: Define o erro no estado em caso de falha ao carregar usuários.
   on(loadUsersFailure, (state, { error }) => {
-    console.error('Erro ao carregar usuários:', error);
+    console.log('Erro ao carregar usuários:', error);
     return { ...state, loading: false, error };
   }),
 

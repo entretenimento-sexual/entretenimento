@@ -45,11 +45,11 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
   }
 
   private loadMessages(): void {
-    
+
     const chatId = this.chatId();
     const type = this.type();
     if (!chatId || !type) {
-      console.error('Erro: ID do chat ou tipo é undefined.');
+      console.log('Erro: ID do chat ou tipo é undefined.');
       return;
     }
 
@@ -81,7 +81,7 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
             setTimeout(() => this.scrollToBottom(), 0);
           },
           error: error => {
-            console.error(`Erro ao carregar mensagens do chat ${this.chatId()}:`, error);
+            console.log(`Erro ao carregar mensagens do chat ${this.chatId()}:`, error);
             this.errorNotifier.showError('Erro ao carregar mensagens.');
           },
         });
@@ -99,7 +99,7 @@ export class ChatMessagesListComponent implements OnChanges, OnDestroy {
             setTimeout(() => this.scrollToBottom(), 0);
           },
           error: err => {
-            console.error(`Erro ao carregar mensagens da sala ${this.chatId()}:`, err);
+            console.log(`Erro ao carregar mensagens da sala ${this.chatId()}:`, err);
             this.errorNotifier.showError('Erro ao carregar mensagens.');
           },
         });

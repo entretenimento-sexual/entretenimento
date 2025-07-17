@@ -62,7 +62,7 @@ export class NearbyProfilesService {
 
       return profiles;
     } catch (error) {
-      console.error('Erro ao buscar perfis próximos:', error);
+      console.log('Erro ao buscar perfis próximos:', error);
       return [];
     }
   }

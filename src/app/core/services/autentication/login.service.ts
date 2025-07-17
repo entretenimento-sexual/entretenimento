@@ -89,13 +89,13 @@ export class LoginService {
           this.errorNotification.showError('Usuário não encontrado no sistema.');
         }
       } else {
-        console.error('Falha no login: usuário não retornado.');
+        console.log('Falha no login: usuário não retornado.');
         await this.authService.logout(); // Corrigido: Chamando o método de logout do AuthService
         this.errorNotification.showError('Credenciais inválidas.');
       }
       return { success: false };
     } catch (error) {
-      console.error('Erro ao fazer login:', error);
+      console.log('Erro ao fazer login:', error);
       this.globalErrorHandler.handleError(error as Error);
       this.errorNotification.showError('Erro ao realizar login. Tente novamente.');
       await this.authService.logout(); // Corrigido: Chamando o método de logout do AuthService
@@ -109,7 +109,7 @@ export class LoginService {
       await setPersistence(auth, persistence);
       console.log('Persistência de sessão definida.');
     } catch (error) {
-      console.error('Erro ao definir persistência de sessão:', error);
+      console.log('Erro ao definir persistência de sessão:', error);
       this.globalErrorHandler.handleError(error as Error);
       this.errorNotification.showError('Erro ao definir a persistência de sessão.');
       throw error;
@@ -129,7 +129,7 @@ export class LoginService {
       await sendPasswordResetEmail(auth, email);
       console.log('E-mail de recuperação enviado.');
     } catch (error) {
-      console.error('Erro ao enviar e-mail de recuperação:', error);
+      console.log('Erro ao enviar e-mail de recuperação:', error);
       this.globalErrorHandler.handleError(error as Error);
       this.errorNotification.showError('Erro ao enviar o e-mail de recuperação. Tente novamente.');
       throw error;
@@ -142,7 +142,7 @@ export class LoginService {
       await confirmPasswordReset(auth, oobCode, newPassword);
       console.log('Senha redefinida com sucesso.');
     } catch (error) {
-      console.error('Erro ao redefinir a senha:', error);
+      console.log('Erro ao redefinir a senha:', error);
       this.globalErrorHandler.handleError(error as Error);
       this.errorNotification.showError('Erro ao redefinir a senha. Tente novamente.');
       throw error;
@@ -157,7 +157,7 @@ export class LoginService {
         await reauthenticateWithCredential(user, credential);
         console.log('Reautenticação bem-sucedida.');
       } catch (error) {
-        console.error('Erro ao reautenticar usuário:', error);
+        console.log('Erro ao reautenticar usuário:', error);
         this.globalErrorHandler.handleError(error as Error);
         this.errorNotification.showError('Erro ao reautenticar o usuário. Verifique a senha e tente novamente.');
         throw error;

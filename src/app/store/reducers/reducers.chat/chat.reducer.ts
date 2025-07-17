@@ -48,7 +48,7 @@ export const chatReducer = createReducer<ChatState>(
    * Define `loading` como `false` e armazena o erro.
    */
   on(ChatActions.loadChatsFailure, (state, { error }) => {
-    console.error('[ChatReducer] Ação loadChatsFailure executada. Erro:', error);
+    console.log('[ChatReducer] Ação loadChatsFailure executada. Erro:', error);
     return {
       ...state,
       loading: false,
@@ -101,7 +101,7 @@ export const chatReducer = createReducer<ChatState>(
    * Define `loading` como `false` e armazena o erro.
    */
   on(ChatActions.createChatFailure, (state, { error }) => {
-    console.error('[ChatReducer] Ação createChatFailure executada. Erro:', error);
+    console.log('[ChatReducer] Ação createChatFailure executada. Erro:', error);
     return {
       ...state,
       loading: false,
@@ -127,7 +127,7 @@ export const chatReducer = createReducer<ChatState>(
    * Define `loading` como `false` e armazena o erro.
    */
   on(ChatActions.deleteChatFailure, (state, { error }) => {
-    console.error('[ChatReducer] Ação deleteChatFailure executada. Erro:', error);
+    console.log('[ChatReducer] Ação deleteChatFailure executada. Erro:', error);
     return {
       ...state,
       loading: false,

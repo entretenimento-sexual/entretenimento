@@ -123,7 +123,7 @@ export class EditUserProfileComponent implements OnInit {
         this.userData = { ...this.userData, photoURL: imageUrl };
       },
       error: (error: any) => {
-        console.error('Erro durante o upload da imagem:', error);
+        console.log('Erro durante o upload da imagem:', error);
       }
     });
   }
@@ -139,7 +139,7 @@ export class EditUserProfileComponent implements OnInit {
         await this.onEstadoChange(this.userData.estado);
       }
     } catch (error) {
-      console.error('Erro ao carregar os estados:', error);
+      console.log('Erro ao carregar os estados:', error);
     }
   } // fim do método loadEstados
 
@@ -166,7 +166,7 @@ export class EditUserProfileComponent implements OnInit {
         });
       }
     } catch (error) {
-      console.error('Erro ao carregar os municípios:', error);
+      console.log('Erro ao carregar os municípios:', error);
     }
   } // fim do método onEstadoChange
 
@@ -180,7 +180,7 @@ export class EditUserProfileComponent implements OnInit {
     });
     console.log('Estado do Formulário:', this.editForm);
     if (!this.editForm.valid) {
-      console.error('Formulário inválido');
+      console.log('Formulário inválido');
       return;
     }
 
@@ -216,7 +216,7 @@ export class EditUserProfileComponent implements OnInit {
           this.router.navigate(['/perfil', this.uid]);
         },
         error: (error: unknown) => {
-        console.error('Erro ao atualizar os dados do usuário:', error);
+        console.log('Erro ao atualizar os dados do usuário:', error);
         }
       });
     }

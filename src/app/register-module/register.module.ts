@@ -1,7 +1,7 @@
 // src/app/register-module/register.module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormsModule } from '@angular/forms'; // ⬅️ ADICIONADO FormsModule
+import { ReactiveFormsModule, FormsModule } from '@angular/forms'; 
 import { RegisterRoutingModule } from './register-routing.module';
 import { RegisterComponent } from './register.component';
 import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';

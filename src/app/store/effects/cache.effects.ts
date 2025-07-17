@@ -12,8 +12,11 @@ export class CacheEffects {
   setCache$ = createEffect(() =>
     this.actions$.pipe(
       ofType(CacheActions.setCache),
-      tap(action => this.cacheService.set(action.key, action.value))
+      tap(action => {
+        console.log('[CacheEffects] setCache acionado:', action.key);
+        this.cacheService.set(action.key, action.value);
+      })
     ),
-    { dispatch: false } // Não despacha nova ação, apenas executa efeito colateral
+    { dispatch: false }
   );
 }

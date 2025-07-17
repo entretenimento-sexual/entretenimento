@@ -8,6 +8,7 @@ import { Store } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { selectUserState } from '../../selectors/selectors.user/user.selectors';
 import { InviteService } from 'src/app/core/services/batepapo/invite-service/invite.service';
+import { environment } from '../../../../environments/environment';
 
 @Injectable()
 export class InviteEffects {
@@ -17,24 +18,28 @@ export class InviteEffects {
     private store: Store<AppState>
   ) { }
 
-  // Efeito para carregar convites
   loadInvites$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(InviteActions.LoadInvites), // Ouve a ação LoadInvites
+      ofType(InviteActions.LoadInvites),
       switchMap(() =>
         this.store.select(selectUserState).pipe(
-          map(userState => userState?.currentUser?.uid), // Extrai o UID do usuário
+          map(userState => userState?.currentUser?.uid),
           switchMap(userId => {
             if (!userId) {
-              console.error('Erro: usuário não autenticado.');
+              if (!environment.production) {
+                console.log('[InviteEffects] Erro: usuário não autenticado.');
+              }
               return of(InviteActions.LoadInvitesFailure({ error: 'Usuário não autenticado.' }));
             }
-
-            // Busca os convites do usuário
+            if (!environment.production) {
+              console.log('[InviteEffects] Carregando convites para o usuário:', userId);
+            }
             return this.inviteService.getInvites(userId).pipe(
               map(invites => InviteActions.LoadInvitesSuccess({ invites })),
               catchError(error => {
-                console.error('Erro ao carregar convites:', error);
+                if (!environment.production) {
+                  console.log('[InviteEffects] Erro ao carregar convites:', error);
+                }
                 return of(InviteActions.LoadInvitesFailure({ error }));
               })
             );
@@ -44,37 +49,43 @@ export class InviteEffects {
     )
   );
 
-  // Efeito para aceitar convites
   acceptInvite$ = createEffect(() =>
     this.actions$.pipe(
       ofType(InviteActions.AcceptInvite),
-      mergeMap((action) =>
-        this.inviteService
-          .updateInviteStatus(action.roomId, action.inviteId, 'accepted')
-          .pipe(
-            map(() => InviteActions.AcceptInviteSuccess({ inviteId: action.inviteId })),
-            catchError((error) => {
-              console.error('Erro ao aceitar convite:', error);
-              return of(InviteActions.AcceptInviteFailure({ error }));
-            })
-          )
-      )
+      mergeMap((action) => {
+        if (!environment.production) {
+          console.log('[InviteEffects] Aceitando convite:', action.inviteId);
+        }
+        return this.inviteService.updateInviteStatus(action.roomId, action.inviteId, 'accepted').pipe(
+          map(() => InviteActions.AcceptInviteSuccess({ inviteId: action.inviteId })),
+          catchError((error) => {
+            if (!environment.production) {
+              console.log('[InviteEffects] Erro ao aceitar convite:', error);
+            }
+            return of(InviteActions.AcceptInviteFailure({ error }));
+          })
+        );
+      })
     )
   );
 
-  // Efeito para recusar convites
   declineInvite$ = createEffect(() =>
     this.actions$.pipe(
       ofType(InviteActions.DeclineInvite),
-      mergeMap(action =>
-        this.inviteService.updateInviteStatus(action.roomId, action.inviteId, 'declined').pipe(
+      mergeMap(action => {
+        if (!environment.production) {
+          console.log('[InviteEffects] Recusando convite:', action.inviteId);
+        }
+        return this.inviteService.updateInviteStatus(action.roomId, action.inviteId, 'declined').pipe(
           map(() => InviteActions.DeclineInviteSuccess({ inviteId: action.inviteId })),
           catchError((error) => {
-            console.error('Erro ao recusar convite:', error);
+            if (!environment.production) {
+              console.log('[InviteEffects] Erro ao recusar convite:', error);
+            }
             return of(InviteActions.DeclineInviteFailure({ error }));
           })
-        )
-      )
+        );
+      })
     )
   );
 }

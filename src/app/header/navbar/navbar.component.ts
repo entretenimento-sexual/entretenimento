@@ -77,7 +77,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
 
     this.authService.logout().subscribe({
       next: () => console.log('[NavbarComponent] Logout concluído com sucesso.'),
-      error: (error) => console.error('[NavbarComponent] Erro ao fazer logout:', error),
+      error: (error) => console.log('[NavbarComponent] Erro ao fazer logout:', error),
     });
   }
 

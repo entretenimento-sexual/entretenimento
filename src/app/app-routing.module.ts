@@ -1,69 +1,66 @@
-// src\app\app-routing.module.ts
+// src/app/app-routing.module.ts
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
-import { ProfileListComponent } from './layout/profile-list/profile-list.component';
-import { AuthGuard } from './core/guards/auth.guard';
-import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
+import { authGuard } from './core/guards/auth.guard';
 import { authRedirectGuard } from './core/guards/auth-redirect.guard';
+import { ProfileListComponent } from './layout/profile-list/profile-list.component';
+import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { LoginComponent } from './authentication/login-component/login-component';
-import { RegisterComponent } from './register-module/register.component';
 
 const routes: Routes = [
-  {
-    path: '',
-    redirectTo: '/dashboard/principal',
-    pathMatch: 'full',
-  },
+  { path: '', redirectTo: '/dashboard/principal', pathMatch: 'full' },
+
+  // Rotas privadas protegidas por authGuard
   {
     path: 'dashboard',
-    loadChildren: () => import('./dashboard/dashboard.module').then((m) => m.DashboardModule),
-    canActivate: [AuthGuard], // Proteção do Dashboard
+    loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
+    canActivate: [authGuard],
   },
   {
     path: 'profile/:id',
     loadComponent: () =>
-      import('./layout/other-user-profile-view/other-user-profile-view.component').then(
-        (c) => c.OtherUserProfileViewComponent
-      ),
-    canActivate: [AuthGuard], // Proteção de perfis individuais
+      import('./layout/other-user-profile-view/other-user-profile-view.component').then(c => c.OtherUserProfileViewComponent),
+    canActivate: [authGuard],
   },
   {
     path: 'perfil',
-    loadChildren: () => import('./user-profile/user-profile.module').then((m) => m.UserProfileModule),
-    canActivate: [AuthGuard], // Proteção de rotas do perfil do usuário
-  },
-  {
-    path: 'layout',
-    loadChildren: () => import('./layout/layout.module').then((m) => m.LayoutModule),
+    loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule),
+    canActivate: [authGuard],
   },
   {
     path: 'chat',
-    loadChildren: () => import('./chat-module/chat-module').then((m) => m.ChatModule),
-    canActivate: [AuthGuard], // Proteção de chat (se for restrito a usuários logados)
+    loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule),
+    canActivate: [authGuard],
   },
-  { path: 'profile-list',
-    component: ProfileListComponent },
+  {
+    path: 'admin-dashboard',
+    loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule),
+    canActivate: [authGuard],
+  },
 
+  // Rotas públicas com authRedirectGuard para evitar acesso de usuários já logados
   {
     path: 'register',
-    loadChildren: () => import('./register-module/register.module').then((m) => m.RegisterModule),
+    loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),
     canActivate: [authRedirectGuard],
   },
   {
     path: 'login',
     component: LoginComponent,
-    canActivate: [authRedirectGuard], // Redireciona usuários logados
+    canActivate: [authRedirectGuard],
   },
-   { path: 'subscription-plan', component: SubscriptionPlanComponent },
-  { path: 'admin-dashboard', loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule) },
 
-  // Redirecionamento padrão para rotas desconhecidas
+  // Rotas acessíveis para todos
+  { path: 'profile-list', component: ProfileListComponent },
+  { path: 'subscription-plan', component: SubscriptionPlanComponent },
+
+  // Redirecionamento para dashboard por padrão
   { path: '**', redirectTo: '/dashboard/principal' },
 ];
 
 @NgModule({
-  imports: [RouterModule.forRoot(routes)],
+  imports: [RouterModule.forRoot(routes, { bindToComponentInputs: true })],
   exports: [RouterModule],
 })
 export class AppRoutingModule { }

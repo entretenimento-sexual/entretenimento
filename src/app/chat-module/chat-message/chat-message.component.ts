@@ -43,7 +43,7 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
           }
         }),
         catchError(error => {
-          console.error("Erro ao buscar nome do usuário", error);
+          console.log("Erro ao buscar nome do usuário", error);
           return []; // Retorna um array vazio para evitar erro no fluxo de dados
         })
       )
@@ -74,7 +74,7 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
           console.log('Mensagem excluída com sucesso!');
         },
         error: (error) => {
-          console.error('Erro ao excluir mensagem:', error);
+          console.log('Erro ao excluir mensagem:', error);
         },
       });
   }

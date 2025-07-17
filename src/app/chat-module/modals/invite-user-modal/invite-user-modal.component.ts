@@ -57,7 +57,7 @@ export class InviteUserModalComponent implements OnInit {
       next: (states: any[]) => {
         this.availableStates = states.map((state) => state.sigla);
       },
-      error: (err: any) => console.error('Erro ao carregar estados:', err),
+      error: (err: any) => console.log('Erro ao carregar estados:', err),
     });
 
     // Busca a região do usuário logado no Firestore
@@ -75,13 +75,13 @@ export class InviteUserModalComponent implements OnInit {
                 this.onRegionChange(); // Atualiza cidades com base na UF selecionada
               }
             },
-            error: (err) => console.error('Erro ao buscar região do usuário no Firestore:', err),
+            error: (err) => console.log('Erro ao buscar região do usuário no Firestore:', err),
           });
         } else {
           console.log('UID não encontrado. Não foi possível carregar a região.');
         }
       },
-      error: (err) => console.error('Erro ao obter UID do usuário:', err),
+      error: (err) => console.log('Erro ao obter UID do usuário:', err),
     });
   }
 
@@ -104,7 +104,7 @@ export class InviteUserModalComponent implements OnInit {
           this.selectedRegion.city = '';
         }
       },
-      error: (err) => console.error('Erro ao carregar municípios:', err),
+      error: (err) => console.log('Erro ao carregar municípios:', err),
     });
   }
 
@@ -145,7 +145,7 @@ export class InviteUserModalComponent implements OnInit {
           photoURL: user.photoURL || this.defaultAvatar,
         }));
       },
-      error: (err: any) => console.error('Erro ao buscar usuários:', err),
+      error: (err: any) => console.log('Erro ao buscar usuários:', err),
       complete: () => (this.isLoading = false),
     });
   }
@@ -163,7 +163,7 @@ export class InviteUserModalComponent implements OnInit {
     this.authService.getLoggedUserUID$().pipe(first()).subscribe({
       next: (senderId) => {
         if (!senderId) {
-          console.error('Erro: Usuário não autenticado.');
+          console.log('Erro: Usuário não autenticado.');
           return; // Finaliza o fluxo se o UID não estiver disponível
         }
 
@@ -184,13 +184,13 @@ export class InviteUserModalComponent implements OnInit {
             expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
           }).subscribe({
             next: () => console.log(`Convite enviado com sucesso para ${receiverId}.`),
-            error: (err) => console.error('Erro ao enviar convite:', err),
+            error: (err) => console.log('Erro ao enviar convite:', err),
           });
         });
 
         this.dialogRef.close(selectedUserIds); // Fecha o modal após envio
       },
-      error: (err) => console.error('Erro ao obter UID do usuário:', err),
+      error: (err) => console.log('Erro ao obter UID do usuário:', err),
     });
   }
 }

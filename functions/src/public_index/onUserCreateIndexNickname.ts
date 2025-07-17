@@ -22,7 +22,7 @@ export const onUserCreateIndexNickname = functions.firestore
       });
       console.log(`[public_index] Nickname '${nickname}' indexado.`);
     } catch (err) {
-      console.error(`[public_index] Erro ao indexar nickname '${nickname}':`, err);
+      console.log(`[public_index] Erro ao indexar nickname '${nickname}':`, err);
     }
 
     return null;

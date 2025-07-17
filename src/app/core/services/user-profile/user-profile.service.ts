@@ -33,7 +33,7 @@ export class UserProfileService {
     console.log('Método getLoggedUserProfile foi chamado.');
 
     if (!uid) {
-      console.error('UID inválido fornecido.');
+      console.log('UID inválido fornecido.');
       return of(null);
     }
 
@@ -44,7 +44,7 @@ export class UserProfileService {
     console.log(`Atualizando papel do usuário ${uid} para: ${newRole}`);
 
     if (!uid || !newRole) {
-      console.error('UID ou novo papel inválido.');
+      console.log('UID ou novo papel inválido.');
       throw new Error('UID ou novo papel inválido');
     }
 
@@ -53,7 +53,7 @@ export class UserProfileService {
       console.log('Papel do usuário atualizado com sucesso no Firestore.');
       this.store.dispatch(updateUserRole({ uid, newRole }));
     } catch (error) {
-      console.error('Erro ao atualizar o papel do usuário:', error);
+      console.log('Erro ao atualizar o papel do usuário:', error);
       throw error;
     }
   }
@@ -63,7 +63,7 @@ export class UserProfileService {
     console.log(`Atualizando localização do usuário ${uid} para latitude: ${location.latitude}, longitude: ${location.longitude}`);
 
     if (!uid || !location) {
-      console.error('UID do usuário ou localização inválidos.');
+      console.log('UID do usuário ou localização inválidos.');
       throw new Error('UID do usuário ou localização inválidos');
     }
 
@@ -76,7 +76,7 @@ export class UserProfileService {
       console.log('Localização do usuário atualizada com sucesso no Firestore.');
       this.store.dispatch(updateUserLocation({ uid, location }));
     } catch (error) {
-      console.error('Erro ao atualizar a localização do usuário:', error);
+      console.log('Erro ao atualizar a localização do usuário:', error);
       throw error;
     }
   }

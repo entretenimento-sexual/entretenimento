@@ -78,7 +78,7 @@ export class ModalMensagemComponent {
           this.mensagemEnviada.emit(this.data.profile.uid);
           this.dialogRef.close();
         },
-        error: error => console.error('Erro ao enviar mensagem:', error)
+        error: error => console.log('Erro ao enviar mensagem:', error)
       });
     }
   }

@@ -23,7 +23,7 @@ export class LegalFooterComponent {
       });
     } catch (error: any) {
       // Log do erro e feedback ao usuário
-      console.error('Erro ao abrir os Termos e Condições:', error);
+      console.log('Erro ao abrir os Termos e Condições:', error);
       // Exibir mensagem amigável ao usuário
       this.errorNotificationService.showError('Não foi possível abrir os Termos e Condições. Por favor, tente novamente mais tarde.');
     }

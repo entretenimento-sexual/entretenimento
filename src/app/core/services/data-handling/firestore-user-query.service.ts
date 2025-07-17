@@ -135,7 +135,7 @@ export class FirestoreUserQueryService {
       }
       return null;
     } catch (error) {
-      console.error(`Erro ao buscar usuário ${uid}:`, error);
+      console.log(`Erro ao buscar usuário ${uid}:`, error);
       this.globalErrorHandler.handleError(error instanceof Error ? error : new Error(String(error)));
       return null;
     }

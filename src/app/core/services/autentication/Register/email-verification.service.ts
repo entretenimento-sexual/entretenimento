@@ -29,7 +29,7 @@ export class EmailVerificationService {
     return from(currentUser.reload()).pipe(
       map(() => currentUser.emailVerified || false),
       catchError((error) => {
-        console.error('[EmailVerificationService] Erro ao recarregar usuário:', error);
+        console.log('[EmailVerificationService] Erro ao recarregar usuário:', error);
         return of(false);
       })
     );
@@ -39,7 +39,7 @@ export class EmailVerificationService {
     return from(sendEmailVerification(user, { url: redirectUrl })).pipe(
       map(() => console.log('[EmailVerificationService] E-mail de verificação enviado.')),
       catchError((error) => {
-        console.error('[EmailVerificationService] Falha ao enviar e-mail:', error);
+        console.log('[EmailVerificationService] Falha ao enviar e-mail:', error);
         return throwError(() => new Error('Erro ao enviar e-mail de verificação.'));
       })
     );
@@ -72,7 +72,7 @@ export class EmailVerificationService {
         return of(false);
       }),
       catchError((error) => {
-        console.error('[EmailVerificationService] Erro ao verificar e atualizar status:', error);
+        console.log('[EmailVerificationService] Erro ao verificar e atualizar status:', error);
         return throwError(() => error);
       })
     );
@@ -83,7 +83,7 @@ export class EmailVerificationService {
     return from(updateDoc(userRef, { emailVerified: status })).pipe(
       map(() => console.log(`[EmailVerificationService] Status atualizado: ${status}`)),
       catchError((error) => {
-        console.error('[EmailVerificationService] Falha ao atualizar status no Firestore:', error);
+        console.log('[EmailVerificationService] Falha ao atualizar status no Firestore:', error);
         return throwError(() => new Error('Erro ao atualizar verificação no Firestore.'));
       })
     );
@@ -102,7 +102,7 @@ export class EmailVerificationService {
     return from(setDoc(userRef, data, { merge: true })).pipe(
       map(() => console.log('[EmailVerificationService] Dados salvos após verificação.')),
       catchError((error) => {
-        console.error('[EmailVerificationService] Falha ao salvar dados:', error);
+        console.log('[EmailVerificationService] Falha ao salvar dados:', error);
         return throwError(() => new Error('Erro ao salvar dados do usuário.'));
       })
     );
@@ -111,7 +111,7 @@ export class EmailVerificationService {
   getCurrentUserUid(): Observable<string | null> {
     return this.authService.getLoggedUserUID$().pipe(
       catchError((error) => {
-        console.error('[EmailVerificationService] Erro ao obter UID:', error);
+        console.log('[EmailVerificationService] Erro ao obter UID:', error);
         return of(null);
       })
     );
@@ -126,7 +126,7 @@ export class EmailVerificationService {
     return this.sendEmailVerification(user, redirectUrl).pipe(
       map(() => `E-mail reenviado para ${user.email}. Verifique sua caixa de entrada.`),
       catchError((error) => {
-        console.error('[EmailVerificationService] Falha ao reenviar e-mail:', error);
+        console.log('[EmailVerificationService] Falha ao reenviar e-mail:', error);
         return throwError(() => new Error('Erro ao reenviar e-mail de verificação.'));
       })
     );

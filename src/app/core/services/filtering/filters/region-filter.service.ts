@@ -39,7 +39,7 @@ export class RegionFilterService {
           observer.complete();
         })
         .catch((error) => {
-          console.error('Erro ao buscar região do usuário:', error);
+          console.log('Erro ao buscar região do usuário:', error);
           observer.error(error);
         });
     });
@@ -86,7 +86,7 @@ export class RegionFilterService {
         }))
       ),
       catchError((error) => {
-        console.error('Erro ao buscar usuários por região:', error);
+        console.log('Erro ao buscar usuários por região:', error);
         return of([]);
       })
     );

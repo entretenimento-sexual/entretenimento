@@ -1,46 +1,35 @@
 // src/app/core/guards/auth.guard.ts
-import { Injectable } from '@angular/core';
-import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router } from '@angular/router';
-import { from, Observable, of } from 'rxjs';
-import { AuthService } from '../services/autentication/auth.service';
-import { map, take, catchError, switchMap } from 'rxjs/operators';
-import { getAuth, User } from 'firebase/auth';
+import { inject } from '@angular/core';
+import { CanActivateFn, Router, UrlTree } from '@angular/router';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
+import { Observable, of } from 'rxjs';
+import { take, switchMap } from 'rxjs/operators';
 
-@Injectable({
-  providedIn: 'root',
-})
-export class AuthGuard implements CanActivate {
-  constructor(
-    private authService: AuthService,
-    private router: Router
-  ) { }
+export const authGuard: CanActivateFn = (): Observable<boolean | UrlTree> => {
+  const router = inject(Router);
+  const auth = getAuth();
 
-  canActivate(
-    next: ActivatedRouteSnapshot,
-    state: RouterStateSnapshot
-  ): Observable<boolean> {
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
+  return new Observable<User | null>((subscriber) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      subscriber.next(user);
+      subscriber.complete();
+      unsubscribe();
+    });
+  }).pipe(
+    take(1),
+    switchMap((user) => {
+      if (!user) {
+        console.log('🚫 [authGuard] Não autenticado. Redirecionando para login.');
+        return of(router.createUrlTree(['/login']));
+      }
 
-    if (!currentUser) {
-      this.router.navigate(['/login'], { queryParams: { returnUrl: state.url } });
-      return of(false);
-    }
+      if (!user.emailVerified) {
+        console.log('⚠️ [authGuard] E-mail não verificado. Redirecionando para welcome.');
+        return of(router.createUrlTree(['/welcome']));
+      }
 
-    // ✅ Garante que apenas usuários com token válido cheguem até aqui
-    return from(currentUser.getIdTokenResult()).pipe(
-      switchMap(() => from(currentUser.reload())),
-      map(() => {
-        if (!currentUser.emailVerified) {
-          this.router.navigate(['/welcome']);
-          return false;
-        }
-        return true;
-      }),
-      catchError(() => {
-        this.router.navigate(['/login']);
-        return of(false);
-      })
-    );
-  }
-}
+      console.log('✅ [authGuard] Acesso permitido.');
+      return of(true);
+    })
+  );
+};

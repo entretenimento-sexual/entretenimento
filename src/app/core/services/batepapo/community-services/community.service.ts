@@ -29,7 +29,7 @@ export class CommunityService {
       console.log('Comunidade criada com sucesso, ID:', communityRef.id);
       return communityRef.id;
     } catch (error) {
-      console.error('Erro ao criar comunidade:', error);
+      console.log('Erro ao criar comunidade:', error);
       throw error;
     }
   }
@@ -51,7 +51,7 @@ export class CommunityService {
         }));
         observer.next(communities);
       }, error => {
-        console.error('Erro ao carregar comunidades do usuário:', error);
+        console.log('Erro ao carregar comunidades do usuário:', error);
         observer.error(error);
       });
 
@@ -71,7 +71,7 @@ export class CommunityService {
       await updateDoc(communityRef, updateData);
       console.log('Comunidade atualizada com sucesso.');
     } catch (error) {
-      console.error('Erro ao atualizar comunidade:', error);
+      console.log('Erro ao atualizar comunidade:', error);
       throw error;
     }
   }
@@ -87,7 +87,7 @@ export class CommunityService {
       await deleteDoc(communityRef);
       console.log('Comunidade deletada com sucesso.');
     } catch (error) {
-      console.error('Erro ao deletar comunidade:', error);
+      console.log('Erro ao deletar comunidade:', error);
       throw error;
     }
   }
@@ -108,7 +108,7 @@ export class CommunityService {
       await addDoc(collection(this.db, 'invites'), invite);
       console.log('Convite enviado com sucesso.');
     } catch (error) {
-      console.error('Erro ao enviar convite:', error);
+      console.log('Erro ao enviar convite:', error);
       throw error;
     }
   }
@@ -128,7 +128,7 @@ export class CommunityService {
         }));
         observer.next(members);
       }, error => {
-        console.error('Erro ao observar membros da comunidade:', error);
+        console.log('Erro ao observar membros da comunidade:', error);
         observer.error(error);
       });
 

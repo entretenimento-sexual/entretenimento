@@ -33,7 +33,7 @@ export class IBGELocationService {
         map(estados => estados.sort((a, b) => a.nome.localeCompare(b.nome))),
         tap(estados => this.cacheService.set(this.estadosCacheKey, estados, 24 * 60 * 60 * 1000)), // Cache de 24h
         catchError(error => {
-          console.error('Erro ao carregar estados:', error);
+          console.log('Erro ao carregar estados:', error);
           return of([]);
         })
       );
@@ -59,7 +59,7 @@ export class IBGELocationService {
           map(municipios => municipios.sort((a, b) => a.nome.localeCompare(b.nome))),
           tap(municipios => this.cacheService.set(cacheKey, municipios, 24 * 60 * 60 * 1000)), // Cache de 24h
           catchError(error => {
-            console.error(`Erro ao carregar municípios para o estado ${uf}:`, error);
+            console.log(`Erro ao carregar municípios para o estado ${uf}:`, error);
             return of([]);
           })
         );

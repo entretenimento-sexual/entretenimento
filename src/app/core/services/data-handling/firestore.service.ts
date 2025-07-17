@@ -100,9 +100,11 @@ export class FirestoreService {
   /** 📧 Verifica se e-mail já está registrado */
   checkIfEmailExists(email: string): Observable<boolean> {
     const q = query(collection(this.firestore, 'users'), where('email', '==', email.trim()));
-    return from(getDocs(q)).pipe(
-      map(snapshot => snapshot.size > 0),
-      catchError(err => this.firestoreErrorHandler.handleFirestoreError(err))
+    return runInInjectionContext(this.injector, () =>
+      from(getDocs(q)).pipe(
+        map(snapshot => snapshot.size > 0),
+        catchError(err => this.firestoreErrorHandler.handleFirestoreError(err))
+      )
     );
   }
 

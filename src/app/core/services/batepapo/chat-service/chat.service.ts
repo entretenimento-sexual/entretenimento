@@ -35,7 +35,7 @@ export class ChatService {
 
   private handleError(action: string, error: any): Observable<never> {
     this.errorNotifier.showError(`Erro ao ${action}.`);
-    console.error(`Erro ao ${action}:`, error);
+    console.log(`Erro ao ${action}:`, error);
     return throwError(() => new Error(`Erro ao ${action}: ${error.message}`));
   }
 

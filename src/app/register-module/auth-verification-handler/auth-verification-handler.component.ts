@@ -134,7 +134,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       this.router.navigate(['/login']);  // Redireciona para login após verificação
     } catch (error) {
       this.message = 'Erro ao verificar o e-mail.';
-      console.error('Erro ao verificar o e-mail:', error);
+      console.log('Erro ao verificar o e-mail:', error);
     } finally {
       this.isLoading = false;
     }
@@ -153,7 +153,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         this.message = 'Falha ao reenviar o e-mail de verificação.';
-        console.error('Erro ao reenviar o e-mail:', error);
+        console.log('Erro ao reenviar o e-mail:', error);
       },
       complete: () => {
         this.isLoading = false;
@@ -327,7 +327,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       },
       error: (error: any) => {
         this.message = 'Erro ao processar o cadastro. Por favor, tente novamente.';
-        console.error('Erro no processo de cadastro:', error);
+        console.log('Erro no processo de cadastro:', error);
         this.globalErrorHandlerService.handleError(error); // Centraliza o tratamento do erro
       }
     });
@@ -335,7 +335,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   // Método para armazenar os dados do usuário no cache
   private cacheUserData(userData: IUserRegistrationData): void {
     if (!userData || !userData.uid) {
-      console.error('Dados inválidos fornecidos para cacheUserData:', userData);
+      console.log('Dados inválidos fornecidos para cacheUserData:', userData);
       return;
     }
     this.firestoreUserQuery.updateUserInStateAndCache(userData.uid, userData); // Atualiza cache e estado
