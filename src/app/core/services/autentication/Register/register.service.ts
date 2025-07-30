@@ -1,7 +1,8 @@
 // src/app/core/services/autentication/register.service.ts
 import { Injectable } from '@angular/core';
-import { UserCredential, createUserWithEmailAndPassword, getAuth,
-         sendPasswordResetEmail, updateProfile } from 'firebase/auth';
+import {
+          UserCredential, createUserWithEmailAndPassword, getAuth,
+          sendPasswordResetEmail, updateProfile } from 'firebase/auth';
 import { Timestamp } from 'firebase/firestore';
 import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, switchMap, map } from 'rxjs/operators';
@@ -33,7 +34,7 @@ export class RegisterService {
   }
 
   registerUser(userRegistrationData: IUserRegistrationData, password: string): Observable<UserCredential> {
-    if (!userRegistrationData.nickname || userRegistrationData.nickname.trim().length < 3) {
+    if (!userRegistrationData.nickname || userRegistrationData.nickname.trim().length < 4) {
       return this.handleRegisterError(
         new Error('Apelido inválido. Escolha um com pelo menos 3 caracteres.'),
         'Validação inicial'
@@ -63,12 +64,9 @@ export class RegisterService {
     return from(createUserWithEmailAndPassword(getAuth(), email, password));
   }
 
-  private persistMinimalUser(
-    userCredential: UserCredential,
-    userRegistrationData: IUserRegistrationData
-  ): Observable<UserCredential> {
+  private persistMinimalUser( userCredential: UserCredential,
+                              userRegistrationData: IUserRegistrationData): Observable<UserCredential> {
     const user = userCredential.user;
-
     const minimalUserData: IUserRegistrationData = {
       uid: user.uid,
       email: user.email!,

@@ -10,6 +10,7 @@ import { GeolocationService } from '../geolocation/geolocation.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { Timestamp } from '@firebase/firestore';
 import { User, getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
+import { FirestoreValidationService } from '../data-handling/firestore-validation.service';
 
 @Injectable({
   providedIn: 'root',
@@ -20,12 +21,12 @@ export class UserRegistrationFlowService {
     private emailVerificationService: EmailVerificationService,
     private firestoreService: FirestoreService,
     private geolocationService: GeolocationService,
-    private globalErrorHandler: GlobalErrorHandlerService
+    private globalErrorHandler: GlobalErrorHandlerService,
+    private firestoreValidation: FirestoreValidationService
   ) { }
 
-  /**
-   * Etapa 1: Valida dados de entrada como e-mail e nickname
-   */
+
+  //Etapa 1: Valida dados de entrada como e-mail e nickname
   private validateNewUserData(user: IUserRegistrationData): Observable<void> {
     const nickname = user.nickname.trim();
     if (nickname.length < 4 || nickname.length > 24) {
@@ -35,10 +36,14 @@ export class UserRegistrationFlowService {
       return throwError(() => new Error('Formato de e-mail inválido.'));
     }
 
+    // O checkIfEmailExists do RegisterService já faz a validação de email e relança um erro formatado.
+    // validação de nickname usando a injeção direta do FirestoreValidationService.
     return this.registerService.checkIfEmailExists(user.email).pipe(
-      switchMap(() => this.registerService['firestoreValidation'].checkIfNicknameExists(nickname)),
+      switchMap(() => this.firestoreValidation.checkIfNicknameExists(nickname)), // USAR INJEÇÃO DIRETA
       switchMap(nicknameExists => {
         if (nicknameExists) {
+          // Lançar um erro simples. Este erro será capturado pelo catchError
+          // mais externo em handleNewUserRegistration, que o formatará e notificará.
           return throwError(() => new Error('Apelido já está em uso.'));
         }
         return of(void 0);
@@ -57,8 +62,9 @@ export class UserRegistrationFlowService {
 
   /**
    * Orquestra todo o fluxo de registro do usuário.
+   * Agora retorna Observable<User> para que o Effect possa usar o objeto User.
    */
-  handleNewUserRegistration(userData: IUserRegistrationData, password: string): Observable<void> {
+  handleNewUserRegistration(userData: IUserRegistrationData, password: string): Observable<User> {
     return this.validateNewUserData(userData).pipe(
       switchMap(() => this.createAuthUser(userData.email, password)),
       switchMap(({ user }) =>
@@ -68,22 +74,26 @@ export class UserRegistrationFlowService {
             ...userData,
             uid: user.uid,
             emailVerified: false,
-            registrationDate: new Date(),
+            registrationDate: Timestamp.fromDate(new Date()),
             firstLogin: Timestamp.fromDate(new Date()),
             latitude: location.latitude,
             longitude: location.longitude,
-          }))
+          })),
+          switchMap((preparedUserData: IUserRegistrationData) =>
+            this.firestoreService.saveInitialUserData(preparedUserData.uid!, preparedUserData)
+          ),
+          switchMap(() => this.emailVerificationService.sendEmailVerification(user)),
+          map(() => user),
         )
       ),
-      switchMap((preparedUserData: IUserRegistrationData) =>
-        this.firestoreService.saveInitialUserData(preparedUserData.uid!, preparedUserData)
-      ),
-      switchMap(() => this.emailVerificationService.sendEmailVerification(getAuth().currentUser!)),
       tap(() => console.log('[UserRegistrationFlow] Fluxo completo de registro finalizado')),
-      map(() => void 0),
       catchError((error) => {
-        this.globalErrorHandler.handleError(error);
-        return throwError(() => error);
+        // AQUI: NÃO chame globalErrorHandler.handleError(error) novamente,
+        // pois o RegisterService (ou outro ponto de origem) já o fez.
+        // Apenas relance o erro que já vem com a mensagem amigável.
+        // Se 'error' não for um Error, converta-o.
+        const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido no fluxo de registro.';
+        return throwError(() => new Error(errorMessage));
       })
     );
   }

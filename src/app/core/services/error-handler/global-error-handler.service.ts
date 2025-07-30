@@ -37,7 +37,7 @@ export class GlobalErrorHandlerService implements ErrorHandler {
    * @param error O erro original.
    * @returns Uma string com a mensagem amigável para o usuário.
    */
-  private formatErrorMessage(error: Error | HttpErrorResponse): string {
+  public formatErrorMessage(error: Error | HttpErrorResponse): string {
     // Prioriza mensagens de erro que já são amigáveis ao usuário.
     // Isso é crucial para erros que vêm de serviços como RegisterService,
     // que já formatam a mensagem para o usuário antes de lançar o erro.
