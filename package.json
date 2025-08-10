@@ -8,7 +8,9 @@
     "watch": "ng build --watch --configuration development",
     "emulators:start": "firebase emulators:start",
     "emulators:start:ui": "start http://localhost:4000",
-    "emulators:stop": "firebase emulators:stop"
+    "emulators:stop": "firebase emulators:stop",
+    "test": "jest",
+    "lint": "eslint \"src/**/*.ts\" --max-warnings=0"
   },
   "private": true,
   "dependencies": {
