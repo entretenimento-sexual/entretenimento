@@ -13,7 +13,7 @@ export class AppComponent implements OnInit {
   title = 'entretenimento';
 
   constructor(private router: Router,
-              private renderer: Renderer2) { }
+    private renderer: Renderer2) { }
 
   ngOnInit(): void {
     this.router.events
@@ -50,4 +50,3 @@ export class AppComponent implements OnInit {
   }
 }
 
- 

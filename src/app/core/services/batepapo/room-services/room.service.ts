@@ -1,122 +1,121 @@
 // src/app/core/services/batepapo/room-services/room.service.ts
 import { Injectable } from '@angular/core';
-import { getFirestore, collection, query, where, onSnapshot, getDocs, doc } from 'firebase/firestore';
+import { Firestore } from '@angular/fire/firestore';
+import { collection, query, where, onSnapshot, getDocs, doc } from 'firebase/firestore';
 import { Observable } from 'rxjs';
-import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
+import { IRoom } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable({ providedIn: 'root' })
 export class RoomService {
-  private db = getFirestore();
+  constructor(
+    private db: Firestore,
+    private errorNotifier: ErrorNotificationService,
+  ) { }
 
-  constructor(private errorNotifier: ErrorNotificationService,
-               ) { }
-
-  /**
-   * Conta o número de salas criadas por um usuário.
-   * @param userId ID do usuário.
-   * @returns Promessa com o número de salas criadas.
-   */
   async countUserRooms(userId: string): Promise<number> {
     try {
-      const roomsCollectionRef = collection(this.db, 'rooms');
-      const userRoomsQuery = query(roomsCollectionRef, where('createdBy', '==', userId));
-      const userRoomsSnapshot = await getDocs(userRoomsQuery);
-      return userRoomsSnapshot.docs.length;
+      const roomsCol = collection(this.db, 'rooms');
+      const q = query(roomsCol, where('createdBy', '==', userId));
+      const snap = await getDocs(q);
+      return snap.docs.length;
     } catch (error) {
       this.errorNotifier.showError('Erro ao contar salas do usuário.');
       throw error;
     }
   }
 
-  /**
-   * Obtém todas as salas criadas por um usuário.
-   * @param userId ID do usuário.
-   * @returns Observable contendo as salas criadas.
-   */
-  getUserRooms(userId: string): Observable<Chat[]> {
-    const roomsCollectionRef = collection(this.db, 'rooms');
-    const userRoomsQuery = query(roomsCollectionRef, where('createdBy', '==', userId));
+  getUserRooms(userId: string): Observable<IRoom[]> {
+    const roomsCol = collection(this.db, 'rooms');
+    const q = query(roomsCol, where('createdBy', '==', userId));
 
-    return new Observable((observer) => {
-      const unsubscribe = onSnapshot(
-        userRoomsQuery,
-        (snapshot) => {
-          const rooms = snapshot.docs.map((doc) => {
-            const data = doc.data();
-            return {
-              roomId: doc.id,
-              participants: data['participants'] || [],
-              timestamp: data['timestamp'] || new Date(),
-              ...data
-            } as Chat;
-          });
-          observer.next(rooms);
-        },
-        (error) => {
-          this.errorNotifier.showError('Erro ao carregar salas do usuário.');
-          observer.error(error);
-        }
-      );
-      return () => unsubscribe();
-    });
-  }
-
-  /**
-   * Obtém todas as salas disponíveis para um usuário.
-   * @param userId ID do usuário.
-   * @returns Observable contendo as salas que o usuário participa.
-   */
-  getRooms(userId: string): Observable<Chat[]> {
-    const roomsCollectionRef = collection(this.db, 'rooms');
-    const userRoomsQuery = query(roomsCollectionRef, where('participants', 'array-contains', userId));
-
-    return new Observable((observer) => {
-      const unsubscribe = onSnapshot(userRoomsQuery, (snapshot) => {
-        const rooms = snapshot.docs.map((doc) => {
-          const data = doc.data();
+    return new Observable(observer => {
+      const unsubscribe = onSnapshot(q, snapshot => {
+        const rooms: IRoom[] = snapshot.docs.map(d => {
+          const data = d.data() as any;
           return {
-            roomId: doc.id,
-            participants: data['participants'] || [],
-            timestamp: data['timestamp'] || new Date(),
-            ...data
-          } as Chat;
+            id: d.id,
+            roomName: data['roomName'],
+            createdBy: data['createdBy'],
+            participants: data['participants'] ?? [],
+            // normaliza: tenta creationTime, depois createdAt/timestamp
+            creationTime: data['creationTime'] ?? data['createdAt'] ?? data['timestamp'] ?? new Date(),
+            lastActivity: data['lastActivity'],
+            description: data['description'],
+            maxParticipants: data['maxParticipants'],
+            isPrivate: data['isPrivate'],
+            roomType: data['roomType'],
+            visibility: data['visibility'],
+          };
         });
         observer.next(rooms);
-      }, (error) => {
-        this.errorNotifier.showError('Erro ao carregar as salas.');
-        observer.error(error);
+      }, err => {
+        this.errorNotifier.showError('Erro ao carregar salas do usuário.');
+        observer.error(err);
       });
       return () => unsubscribe();
     });
   }
 
-   /**
-   * Obtém uma sala pelo ID.
-   * @param roomId ID da sala.
-   * @returns Observable contendo os detalhes da sala.
-   */
-  getRoomById(roomId: string): Observable<Chat> {
-    const roomDocRef = doc(this.db, 'rooms', roomId);
+  getRooms(userId: string): Observable<IRoom[]> {
+    const roomsCol = collection(this.db, 'rooms');
+    const q = query(roomsCol, where('participants', 'array-contains', userId));
 
-    return new Observable((observer) => {
-      const unsubscribe = onSnapshot(
-        roomDocRef,
-        (snapshot) => {
-          if (snapshot.exists()) {
-            const data = snapshot.data();
-            observer.next({ roomId: snapshot.id, participants: data['participants'] || [], timestamp: data['timestamp'] || new Date(), ...data } as Chat);
-          } else {
-            observer.error('Sala não encontrada.');
-          }
-        },
-        (error) => {
-          this.errorNotifier.showError('Erro ao carregar informações da sala.');
-          observer.error(error);
+    return new Observable(observer => {
+      const unsubscribe = onSnapshot(q, snapshot => {
+        const rooms: IRoom[] = snapshot.docs.map(d => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            roomName: data['roomName'],
+            createdBy: data['createdBy'],
+            participants: data['participants'] ?? [],
+            creationTime: data['creationTime'] ?? data['createdAt'] ?? data['timestamp'] ?? new Date(),
+            lastActivity: data['lastActivity'],
+            description: data['description'],
+            maxParticipants: data['maxParticipants'],
+            isPrivate: data['isPrivate'],
+            roomType: data['roomType'],
+            visibility: data['visibility'],
+          };
+        });
+        observer.next(rooms);
+      }, err => {
+        this.errorNotifier.showError('Erro ao carregar as salas.');
+        observer.error(err);
+      });
+      return () => unsubscribe();
+    });
+  }
+
+  getRoomById(roomId: string): Observable<IRoom> {
+    const roomRef = doc(this.db, 'rooms', roomId);
+
+    return new Observable(observer => {
+      const unsubscribe = onSnapshot(roomRef, snapshot => {
+        if (!snapshot.exists()) {
+          observer.error('Sala não encontrada.');
+          return;
         }
-      );
+        const data = snapshot.data() as any;
+        const room: IRoom = {
+          id: snapshot.id,
+          roomName: data['roomName'],
+          createdBy: data['createdBy'],
+          participants: data['participants'] ?? [],
+          creationTime: data['creationTime'] ?? data['createdAt'] ?? data['timestamp'] ?? new Date(),
+          lastActivity: data['lastActivity'],
+          description: data['description'],
+          maxParticipants: data['maxParticipants'],
+          isPrivate: data['isPrivate'],
+          roomType: data['roomType'],
+          visibility: data['visibility'],
+        };
+        observer.next(room);
+      }, err => {
+        this.errorNotifier.showError('Erro ao carregar informações da sala.');
+        observer.error(err);
+      });
       return () => unsubscribe();
     });
   }

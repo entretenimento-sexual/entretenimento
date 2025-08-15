@@ -1,15 +1,29 @@
 /* To learn more about this file see: https://angular.io/config/tsconfig. */
+/* tsconfig.json */
 {
   "compileOnSave": false,
   "compilerOptions": {
+    /* Compatibilidade entre imports ES/CJS */
     "esModuleInterop": true,
+    /* Base e aliases */
     "baseUrl": "./",
+    "paths": {
+      "src/*": ["src/*"],
+      "@app/*": ["src/app/*"],
+      "@core/*": ["src/app/core/*"],
+      "@shared/*": ["src/app/shared/*"],
+      "@env/*": ["src/environments/*"]
+    },
+
+    /* Regras de consistência e segurança */
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
+
+    /* Saída e compatibilidade */
     "sourceMap": true,
     "declaration": false,
     "experimentalDecorators": true,
@@ -19,10 +33,11 @@
     "module": "ES2022",
     "useDefineForClassFields": false,
     "skipLibCheck": true,
-    "lib": [
-      "ES2022",
-      "dom"
-    ],
+
+    /* Bibliotecas incluídas no build */
+    "lib": ["ES2022", "dom"],
+
+    /* Sem tipos globais extras no build principal */
     "types": []
   },
   "angularCompilerOptions": {
@@ -31,5 +46,15 @@
     "strictInjectionParameters": true,
     "strictInputAccessModifiers": true,
     "strictTemplates": true
-  }
+  },
+  /* Inclui somente o código da aplicação */
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/**/*.spec.ts",       // testes
+    "src/test/**/*.ts",       // setup-jest.ts e stubs
+    "jest.config.mjs"
+  ]
 }
+

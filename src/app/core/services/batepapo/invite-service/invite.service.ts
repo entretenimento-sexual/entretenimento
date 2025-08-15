@@ -1,8 +1,10 @@
 // src/app/core/services/batepapo/invite.service.ts
 import { Injectable } from '@angular/core';
-import { getFirestore, collection, doc, getDocs, query, where, runTransaction,
-         updateDoc, addDoc, Timestamp, setDoc,
-         deleteDoc,} from 'firebase/firestore';
+import { Firestore } from '@angular/fire/firestore';
+import {
+  collection, doc, getDocs, query, where, runTransaction,
+  updateDoc, addDoc, Timestamp, setDoc, deleteDoc
+} from 'firebase/firestore';
 import { Observable, from, throwError, forkJoin } from 'rxjs';
 import { map, catchError, switchMap, tap } from 'rxjs/operators';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
@@ -11,34 +13,22 @@ import { ErrorNotificationService } from '../../error-handler/error-notification
 import { FirestoreQueryService } from '../../data-handling/firestore-query.service';
 import { DistanceCalculationService } from '../../geolocation/distance-calculation.service';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable({ providedIn: 'root' })
 export class InviteService {
-  private db = getFirestore();
-
   constructor(
+    private db: Firestore, // ⬅️ injeta Firestore
     private errorNotifier: ErrorNotificationService,
     private firestoreQuery: FirestoreQueryService,
     private distanceService: DistanceCalculationService
   ) { }
 
-  /**
- * Envia um convite individual.
- * @param invite Dados do convite.
- * @returns Promise<void>
- */
   sendInvite(invite: Invite): Observable<void> {
     const invitesCollection = collection(this.db, 'invites');
     return from(addDoc(invitesCollection, invite)).pipe(
-      map(() => {
-        console.log(`Convite enviado com sucesso para ${invite.receiverId}`);
-        return void 0; // Retorno explícito de void
-      }),
-      catchError((error) => {
-        console.log(`Erro ao enviar convite para ${invite.receiverId}:`, error);
+      map(() => void 0),
+      catchError(error => {
         this.errorNotifier.showError('Erro ao enviar convite.');
-        return throwError(() => error); // Emite o erro como Observable
+        return throwError(() => error);
       })
     );
   }
@@ -46,192 +36,108 @@ export class InviteService {
   sendInviteToRoom(roomId: string, inviteData: Invite): Observable<void> {
     const inviteRef = doc(collection(this.db, `rooms/${roomId}/invites`));
     return from(setDoc(inviteRef, inviteData)).pipe(
-      map(() => {
-        console.log(`Convite enviado para a sala ${roomId}`);
-      }),
-      catchError((error) => {
+      map(() => void 0),
+      catchError(error => {
         this.errorNotifier.showError('Erro ao enviar convite.');
         return throwError(() => error);
       })
     );
   }
 
-
-  /**
-   * Envia convites para usuários próximos.
-   * Utiliza FirestoreQueryService para buscar usuários.
-   * @param roomId ID da sala.
-   * @param roomName Nome da sala.
-   * @param inviter Dados do convidante.
-   * @param maxDistanceKm Distância máxima para considerar proximidade.
-   */
   sendInvitesToNearbyUsers(
     roomId: string,
     roomName: string,
     inviter: IUserDados,
-    maxDistanceKm: number = 50
+    maxDistanceKm = 50
   ): Observable<void> {
     if (!inviter?.uid || !inviter.latitude || !inviter.longitude) {
       this.errorNotifier.showError('Dados do convidante inválidos.');
       return throwError(() => new Error('Dados do convidante inválidos.'));
     }
 
-    return from(
-      this.firestoreQuery.searchUsers([
-        where('latitude', '>', 0),
-        where('longitude', '>', 0),
-      ])
-    ).pipe(
-      map((users) =>
-        users.filter((user) => {
-          const distance = this.distanceService.calculateDistanceInKm(
-            inviter.latitude!,
-            inviter.longitude!,
-            user.latitude!,
-            user.longitude!,
-            maxDistanceKm
-          );
-          return user.uid !== inviter.uid && distance !== null;
-        })
-      ),
-      switchMap((nearbyUsers) => {
-        const currentTimestamp = Timestamp.fromDate(new Date());
-        const expirationTimestamp = Timestamp.fromDate(
-          new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    return from(this.firestoreQuery.searchUsers([
+      where('latitude', '>', 0),
+      where('longitude', '>', 0),
+    ])).pipe(
+      map(users => users.filter(user => {
+        const distance = this.distanceService.calculateDistanceInKm(
+          inviter.latitude!, inviter.longitude!, user.latitude!, user.longitude!, maxDistanceKm
         );
-
-        // Cria um array de Observables para todos os convites
-        const inviteObservables = nearbyUsers.map((user) =>
+        return user.uid !== inviter.uid && distance !== null;
+      })),
+      switchMap(nearbyUsers => {
+        const now = Timestamp.fromDate(new Date());
+        const expires = Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+        const tasks = nearbyUsers.map(user =>
           this.createInvite({
-            roomId,
-            roomName,
+            roomId, roomName,
             receiverId: user.uid,
             senderId: inviter.uid,
             status: 'pending',
-            sentAt: currentTimestamp,
-            expiresAt: expirationTimestamp,
+            sentAt: now,
+            expiresAt: expires,
           })
         );
-
-        // Usa forkJoin para processar todos os Observables de forma combinada
-        return forkJoin(inviteObservables).pipe(map(() => void 0));
+        return forkJoin(tasks).pipe(map(() => void 0));
       }),
       tap(() => console.log('Convites enviados com sucesso.')),
-      catchError((error) => {
+      catchError(error => {
         this.errorNotifier.showError('Erro ao enviar convites.');
         return throwError(() => error);
       })
     );
   }
 
-  /**
-   * Cria um convite no Firestore.
-   * @param inviteData Dados do convite.
-   */
   createInvite(inviteData: Invite): Observable<void> {
-    if (!inviteData.roomName || inviteData.roomName.trim() === '') {
-      console.log('O campo roomName está vazio:', inviteData);
+    if (!inviteData.roomName?.trim()) {
       this.errorNotifier.showError('O nome da sala é obrigatório.');
       return throwError(() => new Error('Nome da sala é obrigatório.'));
     }
-
-    const invitePayload = {
-      ...inviteData,
-    };
-
-    return from(addDoc(collection(this.db, 'invites'), invitePayload)).pipe(
-      map(() => {
-        console.log('Convite criado com sucesso.', invitePayload);
-      }),
-      catchError((error) => {
+    return from(addDoc(collection(this.db, 'invites'), { ...inviteData })).pipe(
+      map(() => void 0),
+      catchError(error => {
         this.errorNotifier.showError('Erro ao criar convite.');
         return throwError(() => error);
       })
     );
   }
 
-
-  /**
-   * Atualiza o status de um convite.
-   * @param roomId ID da sala.
-   * @param inviteId ID do convite.
-   * @param status Novo status ('accepted' | 'declined').
-   */
-  updateInviteStatus(
-    roomId: string,
-    inviteId: string,
-    status: 'accepted' | 'declined'
-  ): Observable<void> {
+  updateInviteStatus(roomId: string, inviteId: string, status: 'accepted' | 'declined'): Observable<void> {
     const inviteRef = doc(this.db, `rooms/${roomId}/invites/${inviteId}`);
     return from(updateDoc(inviteRef, { status })).pipe(
-      map(() => {
-        console.log('Status do convite atualizado com sucesso.');
-      }),
-      catchError((error) => {
+      map(() => void 0),
+      catchError(error => {
         this.errorNotifier.showError('Erro ao atualizar status do convite.');
         return throwError(() => error);
       })
     );
   }
 
-  /**
-   * Obtém convites de um usuário.
-   * @param userId ID do usuário.
-   * @returns Observable com os convites.
-   */
   getInvites(userId: string): Observable<Invite[]> {
-    const invitesQuery = query(
-      collection(this.db, 'invites'),
-      where('receiverId', '==', userId)
-    );
-
+    const invitesQuery = query(collection(this.db, 'invites'), where('receiverId', '==', userId));
     return from(getDocs(invitesQuery)).pipe(
-      map((snapshot) => snapshot.docs.map((doc) => doc.data() as Invite)),
-      catchError((error) => {
+      map(snapshot => snapshot.docs.map(d => d.data() as Invite)),
+      catchError(error => {
         this.errorNotifier.showError('Erro ao carregar convites.');
         return throwError(() => error);
       })
     );
   }
 
-  /**
-   * Verifica se o role pode enviar convites.
-   * @param role Papel do usuário.
-   */
-  private isRoleAllowedToInvite(
-    role: 'visitante' | 'free' | 'basico' | 'premium' | 'vip'
-  ): boolean {
-    const allowedRoles = ['basico', 'premium', 'vip'];
-    return allowedRoles.includes(role);
-  }
-
-  /**
-   * Envia um convite usando transação.
-   * @param invite Dados do convite.
-   */
   sendInviteWithTransaction(invite: Invite): Observable<void> {
-    return from(
-      runTransaction(this.db, async (transaction) => {
-        const inviteRef = doc(collection(this.db, 'invites'));
-
-        const existingInviteQuery = query(
-          collection(this.db, 'invites'),
-          where('receiverId', '==', invite.receiverId),
-          where('roomId', '==', invite.roomId)
-        );
-        const existingInviteSnapshot = await getDocs(existingInviteQuery);
-
-        if (!existingInviteSnapshot.empty) {
-          throw new Error('Convite já existente.');
-        }
-
-        transaction.set(inviteRef, invite);
-      })
-    ).pipe(
-      map(() => {
-        console.log('Convite enviado com sucesso.');
-      }),
-      catchError((error) => {
+    return from(runTransaction(this.db, async (transaction) => {
+      const inviteRef = doc(collection(this.db, 'invites'));
+      const existing = query(
+        collection(this.db, 'invites'),
+        where('receiverId', '==', invite.receiverId),
+        where('roomId', '==', invite.roomId)
+      );
+      const snap = await getDocs(existing);
+      if (!snap.empty) throw new Error('Convite já existente.');
+      transaction.set(inviteRef, invite);
+    })).pipe(
+      map(() => void 0),
+      catchError(error => {
         this.errorNotifier.showError('Erro ao enviar convite.');
         return throwError(() => error);
       })
@@ -239,24 +145,13 @@ export class InviteService {
   }
 
   updateExpiredInvites(): Observable<void> {
-    const currentTimestamp = Timestamp.fromDate(new Date());
-    const invitesCollection = collection(this.db, 'invites');
-    const expiredInvitesQuery = query(
-      invitesCollection,
-      where('status', '==', 'pending'),
-      where('expiresAt', '<=', currentTimestamp)
-    );
-
-    return from(getDocs(expiredInvitesQuery)).pipe(
-      switchMap((snapshot) => {
-        const updatePromises = snapshot.docs.map((doc) =>
-          updateDoc(doc.ref, { status: 'expired' })
-        );
-
-        return forkJoin(updatePromises);
-      }),
-      map(() => void 0), // Transformar o retorno em `void`
-      catchError((error) => {
+    const now = Timestamp.fromDate(new Date());
+    const invitesCol = collection(this.db, 'invites');
+    const q = query(invitesCol, where('status', '==', 'pending'), where('expiresAt', '<=', now));
+    return from(getDocs(q)).pipe(
+      switchMap(snapshot => forkJoin(snapshot.docs.map(d => updateDoc(d.ref, { status: 'expired' })))),
+      map(() => void 0),
+      catchError(error => {
         console.log('Erro ao atualizar convites expirados:', error);
         return throwError(() => error);
       })
@@ -264,16 +159,12 @@ export class InviteService {
   }
 
   deleteExpiredInvites(): Observable<void> {
-    const invitesCollection = collection(this.db, 'invites');
-    const expiredInvitesQuery = query(invitesCollection, where('status', '==', 'expired'));
-
-    return from(getDocs(expiredInvitesQuery)).pipe(
-      switchMap((snapshot) => {
-        const deletePromises = snapshot.docs.map((doc) => deleteDoc(doc.ref));
-        return forkJoin(deletePromises);
-      }),
-      map(() => void 0), // Transformar o retorno em `void`
-      catchError((error) => {
+    const invitesCol = collection(this.db, 'invites');
+    const q = query(invitesCol, where('status', '==', 'expired'));
+    return from(getDocs(q)).pipe(
+      switchMap(snapshot => forkJoin(snapshot.docs.map(d => deleteDoc(d.ref)))),
+      map(() => void 0),
+      catchError(error => {
         console.log('Erro ao remover convites expirados:', error);
         return throwError(() => error);
       })

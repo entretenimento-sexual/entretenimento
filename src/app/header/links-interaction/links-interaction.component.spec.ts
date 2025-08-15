@@ -8,7 +8,7 @@ describe('LinksInteractionComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [LinksInteractionComponent]
+      declarations: [LinksInteractionComponent]
     })
     .compileComponents();
 

@@ -1,6 +1,10 @@
+//src\app\shared\components-globais\generic-modal\generic-modal.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { GenericModalComponent } from './generic-modal.component';
+import { CommonModule } from '@angular/common';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 
 describe('GenericModalComponent', () => {
   let component: GenericModalComponent;
@@ -8,10 +12,14 @@ describe('GenericModalComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [GenericModalComponent]
-    })
-    .compileComponents();
-    
+      declarations: [GenericModalComponent],
+      imports: [CommonModule, FormsModule, ReactiveFormsModule, MatDialogModule],
+      providers: [
+        { provide: MatDialogRef, useValue: { close: jest.fn() } },
+        { provide: MAT_DIALOG_DATA, useValue: {} },
+      ],
+    }).compileComponents();
+
     fixture = TestBed.createComponent(GenericModalComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();

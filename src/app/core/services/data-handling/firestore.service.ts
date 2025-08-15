@@ -1,10 +1,10 @@
-// src/app/core/services/autentication/firestore.service.ts
-import { Injectable, Injector, inject, runInInjectionContext } from '@angular/core';
+// src\app\core\services\data-handling\firestore.service.ts
+import { Inject, Injectable, Injector, inject, runInInjectionContext } from '@angular/core';
 import {
-  Firestore, collection, doc, query, collectionData, QueryConstraint,
-  setDoc, updateDoc, deleteDoc, increment, WithFieldValue, DocumentData,
-  getDocs, where, getDoc, arrayUnion
-} from '@angular/fire/firestore';
+          Firestore, collection, doc, query, collectionData, QueryConstraint,
+          setDoc, updateDoc, deleteDoc, increment, WithFieldValue, DocumentData,
+          getDocs, where, getDoc, arrayUnion
+        } from '@angular/fire/firestore';
 import { Timestamp } from 'firebase/firestore';
 import { getAuth, User } from 'firebase/auth';
 import { Observable, from, of, throwError } from 'rxjs';
@@ -19,13 +19,13 @@ import { IUserRegistrationData } from '../../interfaces/iuser-registration-data'
   providedIn: 'root'
 })
 export class FirestoreService {
-  private firestore = inject(Firestore);
-  private injector = inject(Injector);
 
   constructor(
     private globalErrorHandler: GlobalErrorHandlerService,
     private firestoreErrorHandler: FirestoreErrorHandlerService,
-    private cacheService: CacheService
+    private cacheService: CacheService,
+    private injector: Injector,
+    @Inject(Firestore) private firestore: Firestore
   ) { }
 
   /** 🔍 Retorna instância do Firestore */

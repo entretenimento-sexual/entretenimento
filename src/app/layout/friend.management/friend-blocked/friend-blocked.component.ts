@@ -7,6 +7,7 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AppState } from 'src/app/store/states/app.state';
 import { UserInteractionsService } from 'src/app/core/services/data-handling/user-interactions.service';
 import { loadBlocked } from 'src/app/store/actions/actions.interactions/actions.friends';
+import { IBlockedUser } from 'src/app/core/interfaces/friendship/ifriend';
 
 @Component({
   selector: 'app-friend-blocked',
@@ -17,7 +18,7 @@ import { loadBlocked } from 'src/app/store/actions/actions.interactions/actions.
 })
 export class FriendBlockedComponent implements OnInit {
   readonly user = input.required<IUserDados>(); // ⬅ Agora recebemos `user` como Input
-  blockedUsers$!: Observable<IUserDados[]>;
+  blockedUsers$!: Observable<IBlockedUser[]>;
 
   constructor(
     private store: Store<AppState>,

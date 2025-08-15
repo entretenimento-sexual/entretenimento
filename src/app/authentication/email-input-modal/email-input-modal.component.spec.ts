@@ -1,3 +1,4 @@
+//src\app\authentication\email-input-modal\email-input-modal.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { EmailInputModalComponent } from './email-input-modal.component';

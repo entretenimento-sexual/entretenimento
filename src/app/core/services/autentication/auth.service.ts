@@ -14,9 +14,8 @@ import { getDatabase, onDisconnect, ref, serverTimestamp, set } from 'firebase/d
 import { setCurrentUser } from 'src/app/store/actions/actions.user/user.actions';
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 import { CacheService } from '../general/cache/cache.service';
-
-const auth = getAuth();
-const db = getDatabase();
+import { getApps, initializeApp } from 'firebase/app';            // 👈 garante app
+import { environment } from 'src/environments/environment';       // 👈 config do app
 
 @Injectable({
   providedIn: 'root'
@@ -25,6 +24,10 @@ export class AuthService {
   private userSubject = new BehaviorSubject<IUserDados | null>(null);
   private cachedUid$: Observable<string | null> | null = null;
   user$: Observable<IUserDados | null> = this.userSubject.asObservable();
+
+  // ✅ Só declara (sem chamar getAuth/getDatabase)
+  private auth!: ReturnType<typeof getAuth>;
+  private db!: ReturnType<typeof getDatabase>;
 
   constructor(
     @Inject(Router) private router: Router,
@@ -35,16 +38,24 @@ export class AuthService {
     private store: Store<AppState>
   ) {
     console.log('[AuthService] Inicializando AuthService...');
+
+    // 👇 garante que exista um app default antes de usar auth/db
+    if (!getApps().length) {
+      initializeApp(environment.firebase);
+    }
+    // reobtém instâncias depois da garantia do app
+    this.auth = getAuth();
+    this.db = getDatabase();
+
     this.initAuthStateListener();
   }
 
-  // Método para obter o UsuarioService apenas quando necessário
   private get usuarioService(): UsuarioService {
     return this.injector.get(UsuarioService);
   }
 
   private updateUserOnlineStatusRealtime(uid: string): void {
-    const userStatusRef = ref(db, `status/${uid}`);
+    const userStatusRef = ref(this.db, `status/${uid}`);  // 👈 this.db
 
     from(set(userStatusRef, { online: true, lastChanged: serverTimestamp() }))
       .pipe(
@@ -63,10 +74,9 @@ export class AuthService {
       .subscribe();
   }
 
-  // Chamando a função quando o usuário se autenticar
   private initAuthStateListener(): void {
     new Observable<User | null>((observer) => {
-      onAuthStateChanged(auth, (user) => observer.next(user));
+      onAuthStateChanged(this.auth, (user) => observer.next(user)); // 👈 this.auth
     })
       .pipe(
         switchMap((user) => {
@@ -76,14 +86,12 @@ export class AuthService {
             return of(null);
           }
 
-          // Primeiro, verifica se o usuário já está no BehaviorSubject
           const cachedUser = this.userSubject.value;
           if (cachedUser?.uid === user.uid) {
             console.log(`[AuthService] Usuário já carregado no estado:`, cachedUser);
             return of(cachedUser);
           }
 
-          // Segundo, verifica no CacheService
           return this.cacheService.get<IUserDados>('currentUser').pipe(
             switchMap((cachedData) => {
               if (cachedData?.uid === user.uid) {
@@ -91,7 +99,6 @@ export class AuthService {
                 return of(cachedData);
               }
 
-              // Terceiro, verifica no LocalStorage
               const localUserData = localStorage.getItem('currentUser');
               if (localUserData) {
                 const parsedUser = JSON.parse(localUserData) as IUserDados;
@@ -101,7 +108,6 @@ export class AuthService {
                 }
               }
 
-              // Se o usuário não estiver no cache ou localStorage, busca no Firestore
               console.log(`[AuthService] Buscando usuário do Firestore (UID: ${user.uid})...`);
               return this.firestoreUserQuery.getUser(user.uid);
             })
@@ -110,17 +116,11 @@ export class AuthService {
         tap((userData) => {
           if (userData) {
             console.log('[AuthService] Definindo usuário autenticado:', userData);
-
-            // Atualiza os estados e cache para evitar buscas repetitivas
             this.userSubject.next(userData);
             localStorage.setItem('currentUser', JSON.stringify(userData));
-            this.cacheService.set('currentUser', userData, 300000); // 5 minutos de cache
-
-            // Atualiza o estado global via NgRx
+            this.cacheService.set('currentUser', userData, 300000);
             this.store.dispatch(loginSuccess({ user: userData }));
             this.store.dispatch(setCurrentUser({ user: userData }));
-
-            // Atualiza status online no Realtime Database e Firestore
             this.updateUserOnlineStatusRealtime(userData.uid);
           }
         }),
@@ -129,11 +129,10 @@ export class AuthService {
           this.globalErrorHandlerService.handleError(error);
           return of(null);
         }),
-        shareReplay(1) // Evita múltiplas assinaturas desnecessárias
+        shareReplay(1)
       )
       .subscribe();
   }
-
 
   get currentUser(): IUserDados | null {
     return this.userSubject.value;
@@ -168,7 +167,7 @@ export class AuthService {
             console.log('[AuthService] UID encontrado no cache:', cachedUid);
             return of(cachedUid);
           }
-          const authUser = auth.currentUser;
+          const authUser = this.auth.currentUser;  // 👈 this.auth
           if (authUser?.uid) {
             console.log('[AuthService] UID encontrado no Firebase Auth:', authUser.uid);
             this.cacheService.set('currentUserUid', authUser.uid, 300000);
@@ -187,12 +186,12 @@ export class AuthService {
           this.globalErrorHandlerService.handleError(error);
           return of(null);
         }),
-        shareReplay(1) // Compartilha o último valor emitido para evitar múltiplas chamadas
+        shareReplay(1)
       );
     }
-
     return this.cachedUid$;
   }
+
   public logoutAndClearUser(): void {
     this.clearCurrentUser();
   }
@@ -229,18 +228,16 @@ export class AuthService {
           console.log('[AuthService] UID não encontrado. Não é possível efetuar logout.');
           return of(void 0);
         }
-
-        // Atualizar o status online do usuário para offline
         return this.usuarioService.updateUserOnlineStatus(uid, false).pipe(
           tap(() => console.log('Status isOnline atualizado no Firestore para offline.')),
-          switchMap(() => from(signOut(auth))), // Efetuar logout no Firebase
+          switchMap(() => from(signOut(this.auth))),   // 👈 this.auth
           tap(() => {
             console.log('Logout do Firebase realizado com sucesso.');
-            this.clearCurrentUser(); // Limpar estado local e no Store
-            this.store.dispatch(logoutSuccess()); // Disparar ação de logout no Store
+            this.clearCurrentUser();
+            this.store.dispatch(logoutSuccess());
             console.log('Logout realizado com sucesso e estado do usuário atualizado.');
           }),
-          switchMap(() => from(this.router.navigate(['/login']))), // Navegar para a página de login
+          switchMap(() => from(this.router.navigate(['/login']))),
           map(() => void 0),
           catchError((error) => {
             console.log('Erro ao fazer logout:', error);

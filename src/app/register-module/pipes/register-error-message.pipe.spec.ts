@@ -1,3 +1,4 @@
+// src/app/register-module/pipes/register-error-message.pipe.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { RegisterErrorMessagePipe } from './register-error-message.pipe';
 
@@ -13,9 +14,14 @@ describe('RegisterErrorMessagePipe', () => {
     expect(pipe).toBeTruthy();
   });
 
-  it('transforms X to Y', () => {
-    const value: any = 'X';
-    const args: string[] = [];
-    expect(pipe.transform(value, args)).toEqual('Y');
+  it('returns default message for unknown error', () => {
+    const err = {} as Record<string, any>; // objeto vazio simula erro desconhecido
+    expect(pipe.transform(err)).toEqual('Erro de validação.');
   });
+
+  // Se quiser testar um código específico:
+  // it('maps code X to default (or specific) message', () => {
+  //   const err = { code: 'X' } as any;
+  //   expect(pipe.transform(err)).toEqual('Erro de validação.');
+  // });
 });

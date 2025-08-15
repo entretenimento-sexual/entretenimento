@@ -1,23 +1,21 @@
+//src\app\shared\components-globais\user-card\detailed-user-card\detailed-user-card.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-
 import { DetailedUserCardComponent } from './detailed-user-card.component';
 
 describe('DetailedUserCardComponent', () => {
-  let component: DetailedUserCardComponent;
   let fixture: ComponentFixture<DetailedUserCardComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [DetailedUserCardComponent]
-    })
-    .compileComponents();
+      imports: [DetailedUserCardComponent],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(DetailedUserCardComponent);
-    component = fixture.componentInstance;
+    fixture.componentRef.setInput('user', { uid: 'u1' } as any);
     fixture.detectChanges();
   });
 
   it('should create', () => {
-    expect(component).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

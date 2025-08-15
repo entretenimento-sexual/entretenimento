@@ -1,6 +1,6 @@
 // src/app/app-routing.module.ts
 import { NgModule } from '@angular/core';
-import { RouterModule, Routes } from '@angular/router';
+import { NoPreloading, RouterModule, Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth.guard';
 import { authRedirectGuard } from './core/guards/auth-redirect.guard';
@@ -31,6 +31,7 @@ const routes: Routes = [
   {
     path: 'chat',
     loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule),
+    canLoad: [authGuard],
     canActivate: [authGuard],
   },
   {
@@ -60,7 +61,10 @@ const routes: Routes = [
 ];
 
 @NgModule({
-  imports: [RouterModule.forRoot(routes, { bindToComponentInputs: true })],
+  imports: [RouterModule.forRoot(routes, { preloadingStrategy: NoPreloading,
+                                           bindToComponentInputs: true
+                                         })
+            ],
   exports: [RouterModule],
 })
 export class AppRoutingModule { }

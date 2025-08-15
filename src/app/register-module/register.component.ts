@@ -1,13 +1,17 @@
-// src\app\register-module\register.component.ts
+// src/app/register-module/register.component.ts
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
 import { Timestamp } from 'firebase/firestore';
+import { Observable, of } from 'rxjs';
+import { catchError, map, tap } from 'rxjs/operators';
+
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { FirestoreValidationService } from 'src/app/core/services/data-handling/firestore-validation.service';
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
+import { ValidatorService } from 'src/app/core/services/general/validator.service';
 import { IUserRegistrationData } from '../core/interfaces/iuser-registration-data';
 
 @Component({
@@ -19,90 +23,110 @@ import { IUserRegistrationData } from '../core/interfaces/iuser-registration-dat
 })
 export class RegisterComponent {
   private fb = inject(FormBuilder);
+  private validatorService = inject(FirestoreValidationService);
   private registerService = inject(RegisterService);
   private emailVerification = inject(EmailVerificationService);
   private errorNotification = inject(ErrorNotificationService);
-  private validatorService = inject(FirestoreValidationService);
   private router = inject(Router);
 
   readonly form: FormGroup = this.fb.group({
-    apelidoPrincipal: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(12)]],
+    apelidoPrincipal: this.fb.control(
+      '',
+      {
+        validators: [
+          Validators.required,
+          Validators.minLength(4),
+          Validators.maxLength(12),
+          ValidatorService.nicknameValidator()
+        ],
+        asyncValidators: [this.apelidoAsyncValidator.bind(this)],
+        updateOn: 'blur'
+      }
+    ),
     complementoApelido: [''],
-    email: [{ value: '', disabled: false }, [Validators.required, Validators.email]],
+    email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required, Validators.minLength(6)]],
     aceitarTermos: [false, Validators.requiredTrue]
   });
 
   readonly isLoading = signal(false);
   readonly showPassword = signal(false);
-  readonly nicknameInUse = signal(false);
+  readonly apelidoEmUso = signal(false);
 
   readonly apelidoCompleto = computed(() => {
-    const principal = this.form.get('apelidoPrincipal')?.value || '';
-    const complemento = this.form.get('complementoApelido')?.value || '';
-    return NicknameUtils.montarApelidoCompleto(principal, complemento);
+    const p = this.form.get('apelidoPrincipal')!.value || '';
+    const c = this.form.get('complementoApelido')!.value || '';
+    return NicknameUtils.montarApelidoCompleto(p, c);
   });
 
   constructor() {
     effect(() => {
-      const apelido = this.apelidoCompleto();
-      // Checa a disponibilidade do apelido apenas se for válido para evitar chamadas desnecessárias
-      if (apelido && apelido.length >= 4 && this.form.get('apelidoPrincipal')?.valid) {
-        this.validatorService.checkIfNicknameExists(apelido).subscribe((exists: boolean) => {
-          this.nicknameInUse.set(exists);
-        });
-      } else {
-        this.nicknameInUse.set(false); // Limpa o status se o apelido for inválido
-      }
+      const inUse = this.form.get('apelidoPrincipal')!.errors?.['apelidoEmUso'] === true;
+      this.apelidoEmUso.set(inUse);
     });
   }
 
-  togglePasswordVisibility(): void {
-    this.showPassword.update(value => !value);
+  private apelidoAsyncValidator(ctrl: AbstractControl): Observable<ValidationErrors | null> {
+    const nick: string = ctrl.value?.trim() || '';
+
+    if (nick.length < 4) return of(null);
+
+    if (ctrl.errors && (
+      ctrl.errors['required'] ||
+      ctrl.errors['minlength'] ||
+      ctrl.errors['maxlength'] ||
+      ctrl.errors['invalidNickname']
+    )) {
+      return of(null);
+    }
+
+    return this.validatorService.checkIfNicknameExists(nick).pipe(
+      map(exists => exists ? { apelidoEmUso: true } : null),
+      // 👇 se Firestore falhar, não poluir a UI com erro trocado
+      catchError(err => {
+        console.error('[apelidoAsyncValidator] falha na consulta:', err);
+        return of(null);
+      })
+    );
   }
 
   getError(controlName: string): string | null {
-    const control = this.form.get(controlName);
-    if (!control || control.pristine || control.valid) return null;
+    const ctrl = this.form.get(controlName);
+    if (!ctrl || ctrl.pristine || ctrl.valid) return null;
 
-    // Erros de validação do Angular
-    if (control.errors?.['required']) return 'Campo obrigatório';
-    if (control.errors?.['minlength']) return `Mínimo de ${control.errors['minlength'].requiredLength} caracteres.`;
-    if (control.errors?.['maxlength']) return `Máximo de ${control.errors['maxlength'].requiredLength} caracteres.`;
-    if (control.errors?.['email']) return 'Formato de e-mail inválido';
+    // 👇 evita TypeError quando errors é null
+    const errs = ctrl.errors || {};
 
-    // Erros específicos do apelido
-    if (controlName === 'apelidoPrincipal' && this.nicknameInUse()) return 'Apelido já está em uso';
+    if (errs['required']) return 'Campo obrigatório';
+    if (errs['minlength']) return `Mínimo de ${errs['minlength'].requiredLength} caracteres.`;
+    if (errs['maxlength']) return `Máximo de ${errs['maxlength'].requiredLength} caracteres.`;
+    if (errs['invalidNickname']) return 'Apelido contém caracteres inválidos.';
+    if (errs['apelidoEmUso']) return 'Este apelido já está em uso.';
 
-    // Erros genéricos de senha (ex: se o RegisterService retornar 'auth/weak-password')
-    // Nota: A validação de força de senha mais robusta pode ser feita aqui ou no backend.
-    if (controlName === 'password' && control.errors?.['weakPassword']) {
-      return 'Senha muito fraca. Use uma combinação de letras, números e símbolos.';
+    if (controlName === 'email' && errs['email']) return 'Formato de e-mail inválido';
+    if (controlName === 'password' && errs['minlength']) {
+      return `Senha precisa ter ao menos ${errs['minlength'].requiredLength} caracteres.`;
     }
     return null;
   }
+  
 
   onSubmit(): void {
     if (this.isLoading()) return;
-    // Marca todos os controles como 'touched' para exibir mensagens de erro
+
     this.form.markAllAsTouched();
 
-    if (this.form.invalid || this.nicknameInUse()) {
+    if (this.form.invalid) {
       this.errorNotification.showError('Verifique os campos preenchidos.');
       return;
     }
 
     this.isLoading.set(true);
-    const apelido = this.apelidoCompleto();
-    const { email, password, aceitarTermos } = this.form.getRawValue();
-
-    const userRegistrationData: IUserRegistrationData = {
+    const { email, password, aceitarTermos } = this.form.getRawValue() as any;
+    const payload: IUserRegistrationData = {
       email,
-      nickname: apelido,
-      acceptedTerms: {
-        accepted: aceitarTermos === true,
-        date: Timestamp.fromDate(new Date())
-      },
+      nickname: this.apelidoCompleto(),
+      acceptedTerms: { accepted: aceitarTermos, date: Timestamp.fromDate(new Date()) },
       emailVerified: false,
       isSubscriber: false,
       firstLogin: Timestamp.fromDate(new Date()),
@@ -110,19 +134,20 @@ export class RegisterComponent {
       profileCompleted: false
     };
 
-    this.registerService.registerUser(userRegistrationData, password).subscribe({
+    this.registerService.registerUser(payload, password).subscribe({
       next: () => {
         this.emailVerification.resendVerificationEmail().subscribe(() => {
           this.router.navigate(['/welcome']);
         });
       },
-      error: (err) => {
-        // O GlobalErrorHandlerService já lidará com a exibição da mensagem de erro amigável.
-        // Não precisamos chamar errorNotification.showError() aqui novamente,
-        // pois o erro já foi propagado e tratado globalmente.
-        console.log('[RegisterComponent] Erro no registro (capturado no componente):', err);
+      error: err => {
+        this.errorNotification.showError(err.message || 'Erro no registro.');
         this.isLoading.set(false);
       }
     });
+  }
+
+  togglePasswordVisibility(): void {
+    this.showPassword.update(v => !v);
   }
 }

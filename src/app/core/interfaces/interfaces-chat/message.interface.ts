@@ -1,5 +1,5 @@
 //src\app\core\interfaces\interfaces-chat\message.interface.tsmessage.interface.ts
-import { Timestamp } from "@firebase/firestore";
+import { Timestamp } from "firebase/firestore";
 export interface Message {
   id?: string;
   content: string;

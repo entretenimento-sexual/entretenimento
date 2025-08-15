@@ -3,7 +3,7 @@ import { Injectable } from '@angular/core';
 import { CacheService } from '../cache.service';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
-import { Observable, of, from, switchMap, take, tap, catchError } from 'rxjs';
+import { Observable, of, switchMap, take, tap, catchError } from 'rxjs';
 import { GlobalErrorHandlerService } from '../../../error-handler/global-error-handler.service';
 import { FirestoreService } from '../../../data-handling/firestore.service';
 import { WithFieldValue, DocumentData, QueryConstraint } from 'firebase/firestore';

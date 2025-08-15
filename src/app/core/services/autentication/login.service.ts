@@ -1,7 +1,8 @@
 // src/app/core/services/autentication/login.service.ts
 import { Injectable } from '@angular/core';
 import { first } from 'rxjs';
-import { getAuth, signInWithEmailAndPassword, sendPasswordResetEmail,
+import {
+  getAuth, signInWithEmailAndPassword, sendPasswordResetEmail,
   confirmPasswordReset, setPersistence, browserLocalPersistence,
   browserSessionPersistence, EmailAuthProvider, Persistence, reauthenticateWithCredential
 } from 'firebase/auth';
@@ -15,17 +16,21 @@ import { observeUserChanges } from 'src/app/store/actions/actions.user/user.acti
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { loginSuccess } from 'src/app/store/actions/actions.user/auth.actions';
-import { doc, Timestamp, updateDoc } from '@firebase/firestore';
+
+// 🔁 use os helpers do AngularFire Firestore (MESMA instância do app)
+import { doc, Timestamp, updateDoc } from '@angular/fire/firestore';
+
 import { FirestoreService } from '../data-handling/firestore.service';
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 
-// Inicializa o objeto de autenticação do Firebase
-const auth = getAuth();
+// 👇 garante app inicializado antes de pegar o auth
+import { getApps, initializeApp } from 'firebase/app';
+import { environment } from 'src/environments/environment';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class LoginService {
+  // ✅ Só declara
+  private auth!: ReturnType<typeof getAuth>;
 
   constructor(
     private router: Router,
@@ -34,47 +39,44 @@ export class LoginService {
     private firestoreUserQuery: FirestoreUserQueryService,
     private authService: AuthService,
     private store: Store<AppState>,
-    private globalErrorHandler: GlobalErrorHandlerService,  // Tratamento de erros globais
-    private errorNotification: ErrorNotificationService     // Serviço de notificação de erro
-  ) { }
+    private globalErrorHandler: GlobalErrorHandlerService,
+    private errorNotification: ErrorNotificationService
+  ) {
+    // ✅ evita app/no-app
+    if (!getApps().length) {
+      initializeApp(environment.firebase);
+    }
+    this.auth = getAuth();
+  }
 
   async login(email: string, password: string): Promise<{ success: boolean, emailVerified?: boolean, user?: IUserDados }> {
     const db = this.firestoreService.getFirestoreInstance();
     console.log(`Tentativa de login para o email: ${email}`);
     try {
-      // Obtém o valor do campo "lembrar-me" do formulário
       const rememberMe = this.getRememberMeValue();
-      // Define a persistência da sessão com base na escolha do usuário
       await this.setSessionPersistence(rememberMe ? browserLocalPersistence : browserSessionPersistence);
-      console.log('Persistência de sessão definida.');
 
-      // Realiza a autenticação do usuário
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // ✅ use a instância já garantida
+      const userCredential = await signInWithEmailAndPassword(this.auth, email, password);
       const user = userCredential.user;
 
       if (user) {
         console.log('Login bem-sucedido:', user.uid);
 
-        // Busca os dados do usuário
         const userData = await this.firestoreUserQuery.getUser(user.uid).pipe(first()).toPromise();
 
         if (userData) {
-          // Define o estado do usuário através do AuthService
-          await this.authService.setCurrentUser(userData);
+          // `setCurrentUser` não é async, mas manter `await` não quebra
+          await this.authService.setCurrentUser(userData as any);
           this.store.dispatch(loginSuccess({ user: userData }));
-          console.log('Dados do usuário carregados após login:', userData);
 
-          // Atualiza o campo `lastLogin` diretamente no Firestore
           const timestampNow = Timestamp.fromDate(new Date());
           const userDocRef = doc(db, 'users', user.uid);
           await updateDoc(userDocRef, { lastLogin: timestampNow });
-          console.log(`Data do último login atualizada para o usuário ${user.uid}.`);
 
-          // Atualiza o status do usuário para online e armazena no Firestore
           await this.usuarioService.updateUserOnlineStatus(user.uid, true);
           this.store.dispatch(observeUserChanges({ uid: user.uid }));
 
-          // Redirecionamento baseado no status do usuário
           if (!userData.nickname || !userData.gender) {
             this.router.navigate(['/finalizar-cadastro']);
           } else if (!user.emailVerified) {
@@ -85,12 +87,12 @@ export class LoginService {
           return { success: true, emailVerified: user.emailVerified, user: userData };
         } else {
           console.log('Dados do usuário não encontrados no Firestore após login.');
-          await this.authService.logout(); // Corrigido: Chamando o método de logout do AuthService
+          await this.authService.logout();
           this.errorNotification.showError('Usuário não encontrado no sistema.');
         }
       } else {
         console.log('Falha no login: usuário não retornado.');
-        await this.authService.logout(); // Corrigido: Chamando o método de logout do AuthService
+        await this.authService.logout();
         this.errorNotification.showError('Credenciais inválidas.');
       }
       return { success: false };
@@ -98,15 +100,14 @@ export class LoginService {
       console.log('Erro ao fazer login:', error);
       this.globalErrorHandler.handleError(error as Error);
       this.errorNotification.showError('Erro ao realizar login. Tente novamente.');
-      await this.authService.logout(); // Corrigido: Chamando o método de logout do AuthService
+      await this.authService.logout();
       return { success: false };
     }
   }
 
-  // Método para definir a persistência da sessão
   async setSessionPersistence(persistence: Persistence): Promise<void> {
     try {
-      await setPersistence(auth, persistence);
+      await setPersistence(this.auth, persistence); // ✅ this.auth
       console.log('Persistência de sessão definida.');
     } catch (error) {
       console.log('Erro ao definir persistência de sessão:', error);
@@ -116,17 +117,14 @@ export class LoginService {
     }
   }
 
-  // Método auxiliar para obter o valor do "lembrar-me" (simulação para o exemplo)
   private getRememberMeValue(): boolean {
-    // Este método deve recuperar o valor do campo "lembrar-me" do formulário.
-    // Ajuste conforme necessário no seu formulário (ex.: `this.loginForm.controls['rememberMe'].value`)
-    return true; // Exemplo: retorna `true` se a opção "lembrar-me" estiver selecionada
+    return true;
   }
 
   async sendPasswordResetEmail(email: string): Promise<void> {
     console.log('Enviando e-mail de recuperação de senha para:', email);
     try {
-      await sendPasswordResetEmail(auth, email);
+      await sendPasswordResetEmail(this.auth, email); // ✅ this.auth
       console.log('E-mail de recuperação enviado.');
     } catch (error) {
       console.log('Erro ao enviar e-mail de recuperação:', error);
@@ -139,7 +137,7 @@ export class LoginService {
   async confirmPasswordReset(oobCode: string, newPassword: string): Promise<void> {
     console.log('Confirmando redefinição de senha com oobCode:', oobCode);
     try {
-      await confirmPasswordReset(auth, oobCode, newPassword);
+      await confirmPasswordReset(this.auth, oobCode, newPassword); // ✅ this.auth
       console.log('Senha redefinida com sucesso.');
     } catch (error) {
       console.log('Erro ao redefinir a senha:', error);
@@ -150,7 +148,7 @@ export class LoginService {
   }
 
   async reauthenticateUser(password: string): Promise<void> {
-    const user = auth.currentUser;
+    const user = this.auth.currentUser; // ✅ this.auth
     if (user && user.email) {
       const credential = EmailAuthProvider.credential(user.email, password);
       try {

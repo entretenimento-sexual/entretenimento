@@ -1,9 +1,9 @@
 // src\app\chat-module\chat-messages-list\chat-messages-list.component.ts
 import {
-  ChangeDetectorRef, Component, ElementRef, OnChanges, OnDestroy,
-  SimpleChanges, ViewChild,
-  input
-} from '@angular/core';
+          ChangeDetectorRef, Component, ElementRef, OnChanges, OnDestroy,
+          SimpleChanges, ViewChild,
+          input
+        } from '@angular/core';
 import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { Subscription } from 'rxjs';

@@ -1,64 +1,52 @@
-//src\app\core\services\data-handling\firestore-user-query.service.ts
+// src/app/core/services/data-handling/firestore-user-query.service.ts
 import { Injectable } from '@angular/core';
 import { CacheService } from '../general/cache/cache.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { doc, getDoc, getFirestore } from '@firebase/firestore';
+import { doc, getDoc } from '@angular/fire/firestore'; // 👈 AngularFire
 import { from, Observable, of, shareReplay, switchMap, take, tap, catchError, map, firstValueFrom } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { addUserToState, updateUserInState } from 'src/app/store/actions/actions.user/user.actions';
 import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.user/user-profile.selectors';
-import { initializeApp } from 'firebase/app';
-import { environment } from 'src/environments/environment';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
-
-const app = initializeApp(environment.firebase);
+import { FirestoreService } from './firestore.service'; // 👈 usa o service que já injeta AngularFire
 
 @Injectable({
   providedIn: 'root',
 })
 export class FirestoreUserQueryService {
-  private db = getFirestore(app); // Inicializa Firestore
+  // 👇 usa a mesma instância do AngularFire em todo o app
+  private db = this.firestoreService.getFirestoreInstance();
   private userObservablesCache: Map<string, Observable<IUserDados | null>> = new Map();
 
   constructor(
     private cacheService: CacheService,
     private store: Store<AppState>,
     private firestoreErrorHandler: FirestoreErrorHandlerService,
-    private globalErrorHandler: GlobalErrorHandlerService
+    private globalErrorHandler: GlobalErrorHandlerService,
+    private firestoreService: FirestoreService // 👈 injeta aqui
   ) { }
 
   private fetchUser(uid: string): Observable<IUserDados | null> {
     const normalizedUid = uid.trim();
-
-    // 🛑 Se a Observable já foi criada, reutiliza e evita chamadas extras
     if (this.userObservablesCache.has(normalizedUid)) {
       return this.userObservablesCache.get(normalizedUid)!;
     }
 
-    console.log(`[FirestoreUserQueryService] Buscando usuário no cache: ${normalizedUid}`);
-
     return this.cacheService.get<IUserDados>(`user:${normalizedUid}`).pipe(
       switchMap(cachedUser => {
-        if (cachedUser) {
-          console.log(`[CacheService] Usuário encontrado no cache:`, cachedUser);
-          return of(cachedUser);
-        }
+        if (cachedUser) return of(cachedUser);
 
-        // 2️⃣ Verifica no Store (NgRx)
         return this.store.select(selectUserProfileDataByUid(normalizedUid)).pipe(
           take(1),
           switchMap(userFromStore => {
             if (userFromStore) {
-              console.log(`[NgRx Store] Usuário encontrado no Store:`, userFromStore);
               this.cacheService.set(`user:${normalizedUid}`, userFromStore, 300000);
               return of(userFromStore);
             }
-
-        // 3️⃣ Se não estiver no Store, busca no Firestore
-        return this.fetchUserFromFirestore(normalizedUid);
+            return this.fetchUserFromFirestore(normalizedUid);
           })
         );
       }),
@@ -66,27 +54,22 @@ export class FirestoreUserQueryService {
     );
   }
 
-  /**
-   * Busca o usuário diretamente no Firestore, tratando erros e atualizando o cache e Store.
-   */
-  private fetchUserFromFirestore(uid: string): Observable < IUserDados | null > {
-        console.log(`[FirestoreUserQueryService] Buscando usuário ${uid} no Firestore...`);
-        const docRef = doc(this.db, 'users', uid);
-        return from(getDoc(docRef)).pipe(
-          map(docSnap => {
-            if (docSnap.exists()) {
-              const userData = docSnap.data() as IUserDados;
-              this.store.dispatch(addUserToState({ user: userData }));
-              this.cacheService.set(`user:${uid}`, userData, 300000);
-              return userData;
-            } else {
-              console.log(`[FirestoreUserQueryService] Usuário ${uid} não encontrado.`);
-              return null;
-            }
-          }),
-          catchError(error => this.firestoreErrorHandler.handleFirestoreError(error))
-        );
-      }
+  private fetchUserFromFirestore(uid: string): Observable<IUserDados | null> {
+    const docRef = doc(this.db, 'users', uid);
+    return from(getDoc(docRef)).pipe(
+      map(docSnap => {
+        if (docSnap.exists()) {
+          const userData = docSnap.data() as IUserDados;
+          this.store.dispatch(addUserToState({ user: userData }));
+          this.cacheService.set(`user:${uid}`, userData, 300000);
+          return userData;
+        } else {
+          return null;
+        }
+      }),
+      catchError(error => this.firestoreErrorHandler.handleFirestoreError(error))
+    );
+  }
 
 
   getUser(uid: string): Observable<IUserDados | null> {

@@ -1,5 +1,4 @@
 //src\app\shared\components-globais\user-card\modal-user-card\modal-user-card.component.ts
-
 import { Component, input } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { CompactUserCardComponent } from '../compact-user-card/compact-user-card.component';

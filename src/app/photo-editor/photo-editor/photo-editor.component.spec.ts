@@ -1,23 +1,22 @@
+// src/app/photo-editor/photo-editor/photo-editor.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-
+import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import { PhotoEditorComponent } from './photo-editor.component';
 
 describe('PhotoEditorComponent', () => {
-  let component: PhotoEditorComponent;
   let fixture: ComponentFixture<PhotoEditorComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PhotoEditorComponent]
-    })
-    .compileComponents();
+      declarations: [PhotoEditorComponent],
+      providers: [{ provide: NgbActiveModal, useValue: { close: () => { }, dismiss: () => { } } }],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(PhotoEditorComponent);
-    component = fixture.componentInstance;
     fixture.detectChanges();
   });
 
   it('should create', () => {
-    expect(component).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

@@ -38,7 +38,7 @@ export class ChatModuleLayoutComponent implements OnInit {
 
   ngOnInit(): void {
     console.log('ngOnInit do ChatModuleLayoutComponent iniciado:', Date.now());
-
+    
     // Captura o userId diretamente da rota
     this.route.paramMap.subscribe(params => {
       this.userId = params.get('userId') || '';

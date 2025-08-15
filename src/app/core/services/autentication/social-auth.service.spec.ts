@@ -1,3 +1,4 @@
+//src\app\core\services\autentication\social-auth.service.spec.ts
 import { TestBed } from '@angular/core/testing';
 
 import { SocialAuthService } from './social-auth.service';

@@ -1,21 +1,22 @@
+// src/app/user-profile/user-profile-edit/edit-preferences/edit-profile-preferences.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { EditProfilePreferencesComponent } from './edit-profile-preferences.component';
 
 describe('EditProfilePreferencesComponent', () => {
-  let component: EditProfilePreferencesComponent;
   let fixture: ComponentFixture<EditProfilePreferencesComponent>;
 
-  beforeEach(() => {
-    TestBed.configureTestingModule({
-      declarations: [EditProfilePreferencesComponent]
-    });
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      declarations: [EditProfilePreferencesComponent], // não-standalone?
+      imports: [FormsModule, ReactiveFormsModule],      // 👈 precisa p/ ngForm
+    }).compileComponents();
+
     fixture = TestBed.createComponent(EditProfilePreferencesComponent);
-    component = fixture.componentInstance;
     fixture.detectChanges();
   });
 
   it('should create', () => {
-    expect(component).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });

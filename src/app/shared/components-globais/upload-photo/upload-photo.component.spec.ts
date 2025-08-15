@@ -1,23 +1,22 @@
+//src\app\shared\components-globais\upload-photo\upload-photo.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-
+import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import { UploadPhotoComponent } from './upload-photo.component';
 
 describe('UploadPhotoComponent', () => {
-  let component: UploadPhotoComponent;
   let fixture: ComponentFixture<UploadPhotoComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [UploadPhotoComponent]
-    })
-    .compileComponents();
+      declarations: [UploadPhotoComponent],
+      providers: [{ provide: NgbActiveModal, useValue: { close: () => { }, dismiss: () => { } } }],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(UploadPhotoComponent);
-    component = fixture.componentInstance;
     fixture.detectChanges();
   });
 
   it('should create', () => {
-    expect(component).toBeTruthy();
+    expect(fixture.componentInstance).toBeTruthy();
   });
 });
