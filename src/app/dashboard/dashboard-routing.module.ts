@@ -5,23 +5,24 @@ import { OnlineUsersComponent } from './online-users/online-users.component';
 import { FeaturedProfilesComponent } from './featured-profiles/featured-profiles.component';
 import { PrincipalComponent } from './principal/principal.component';
 import { ChatRoomsComponent } from '../chat-module/chat-rooms/chat-rooms.component';
-import { authGuard } from '../core/guards/auth.guard'; // Autenticação
 import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
+import { authOnlyGuard } from '../core/guards/auth-only.guard';
+import { emailVerifiedGuard } from '../core/guards/email-verified.guard';
 
 const routes: Routes = [
   {
     path: '',
-    component: DashboardLayoutComponent, // Estrutura compartilhada
-    canActivate: [authGuard], // Todas as rotas são protegidas por autenticação
+    component: DashboardLayoutComponent,
+    canActivate: [authOnlyGuard], // << era authGuard
     children: [
-      { path: 'principal', component: PrincipalComponent, data: { title: 'Dashboard Principal' } },
-      { path: 'online-users', component: OnlineUsersComponent, data: { title: 'Usuários Online' } },
-      { path: 'featured-profiles', component: FeaturedProfilesComponent, data: { title: 'Perfis em Destaque' } },
-      { path: 'chat-rooms', component: ChatRoomsComponent, data: { title: 'Salas de Chat' } },
+      { path: 'principal', component: PrincipalComponent }, // permite sem verificar
+      { path: 'online-users', component: OnlineUsersComponent }, // opcional exigir
+      { path: 'featured-profiles', component: FeaturedProfilesComponent, canActivate: [emailVerifiedGuard] }, // exige verificação
+      { path: 'chat-rooms', component: ChatRoomsComponent, canActivate: [emailVerifiedGuard] }, // exige verificação
       { path: '', redirectTo: 'principal', pathMatch: 'full' },
     ]
   },
-  { path: '**', redirectTo: 'principal' } // Redirecionamento para rotas não encontradas
+  { path: '**', redirectTo: 'principal' }
 ];
 
 @NgModule({

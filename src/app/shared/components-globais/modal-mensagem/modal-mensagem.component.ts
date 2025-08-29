@@ -6,7 +6,7 @@ import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.se
 import { Timestamp } from '@firebase/firestore';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
-import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
+import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { switchMap, take, throwError } from 'rxjs';
 
 @Component({
@@ -54,7 +54,7 @@ export class ModalMensagemComponent {
                   if (chatId !== null) {
                     return this.chatService.sendMessage(chatId, mensagem, currentUserUid).pipe(
                       switchMap(() => {
-                        const chatUpdate: Partial<Chat> = {
+                        const chatUpdate: Partial<IChat> = {
                           lastMessage: mensagem
                         };
                         return this.chatService.updateChat(chatId, chatUpdate);

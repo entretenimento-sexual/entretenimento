@@ -1,4 +1,4 @@
-// src\app\core\services\validator.service.ts
+//src\app\core\services\general\validator.service.ts
 import { Injectable } from '@angular/core';
 import { AbstractControl, ValidatorFn } from '@angular/forms';
 
@@ -59,7 +59,7 @@ export class ValidatorService {
   }
 
   // Validação de Senha como ValidatorFn para Reactive Forms
-    public static passwordValidator(minLength: number = 8): ValidatorFn {
+  public static passwordValidator(minLength: number = 8): ValidatorFn {
     return (control: AbstractControl): { [key: string]: any } | null => {
       const password = control.value;
       const passwordRegex = new RegExp(`^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)[A-Za-z\\d!@#$%^&*(),.?":{}|<>_-]{${minLength},}$`);

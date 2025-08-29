@@ -1,5 +1,4 @@
 //src\app\chat-module\modals\base-modal\base-modal.component.ts
-
 import { Component, Output, EventEmitter, input } from '@angular/core';
 
 @Component({

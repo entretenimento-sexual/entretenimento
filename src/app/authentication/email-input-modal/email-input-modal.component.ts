@@ -1,5 +1,4 @@
-// src\app\authentication\email-input-modal\email-input-modal.component.ts
-
+//src\app\authentication\email-input-modal\email-input-modal.component.ts
 import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
@@ -8,7 +7,7 @@ import { EmailInputModalService } from 'src/app/core/services/autentication/emai
     selector: 'app-email-input-modal',
     templateUrl: './email-input-modal.component.html',
     styleUrls: ['./email-input-modal.component.css'],
-    standalone: true, // Define como standalone
+    standalone: true, 
     imports: [FormsModule],
 })
 export class EmailInputModalComponent implements OnInit {

@@ -4,7 +4,7 @@ import { FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors }
 import { Router } from '@angular/router';
 import { Timestamp } from 'firebase/firestore';
 import { Observable, of } from 'rxjs';
-import { catchError, map, tap } from 'rxjs/operators';
+import { catchError, finalize, map, tap } from 'rxjs/operators';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
@@ -30,21 +30,18 @@ export class RegisterComponent {
   private router = inject(Router);
 
   readonly form: FormGroup = this.fb.group({
-    apelidoPrincipal: this.fb.control(
-      '',
-      {
-        validators: [
-          Validators.required,
-          Validators.minLength(4),
-          Validators.maxLength(12),
-          ValidatorService.nicknameValidator()
-        ],
-        asyncValidators: [this.apelidoAsyncValidator.bind(this)],
-        updateOn: 'blur'
-      }
-    ),
+    apelidoPrincipal: this.fb.control('', {
+      validators: [
+        Validators.required,
+        Validators.minLength(4),
+        Validators.maxLength(12),
+        ValidatorService.nicknameValidator()
+      ],
+      asyncValidators: [this.apelidoAsyncValidator.bind(this)],
+      updateOn: 'blur' // ✅ roda o async validator só no blur
+    }),
     complementoApelido: [''],
-    email: ['', [Validators.required, Validators.email]],
+    email: ['', [Validators.required, Validators.email]],  // updateOn padrão (change)
     password: ['', [Validators.required, Validators.minLength(6)]],
     aceitarTermos: [false, Validators.requiredTrue]
   });
@@ -52,6 +49,7 @@ export class RegisterComponent {
   readonly isLoading = signal(false);
   readonly showPassword = signal(false);
   readonly apelidoEmUso = signal(false);
+  readonly infoMessage = signal<string | null>(null);
 
   readonly apelidoCompleto = computed(() => {
     const p = this.form.get('apelidoPrincipal')!.value || '';
@@ -84,10 +82,21 @@ export class RegisterComponent {
       map(exists => exists ? { apelidoEmUso: true } : null),
       // 👇 se Firestore falhar, não poluir a UI com erro trocado
       catchError(err => {
-        console.error('[apelidoAsyncValidator] falha na consulta:', err);
+        console.log('[apelidoAsyncValidator] falha na consulta:', err);
         return of(null);
       })
     );
+  }
+
+  onNicknameTyping(): void {
+    const ctrl = this.form.get('apelidoPrincipal');
+    if (!ctrl) return;
+
+    // se o único erro for "apelidoEmUso", limpa para não travar UX enquanto digita
+    const errs = ctrl.errors;
+    if (errs && Object.keys(errs).length === 1 && errs['apelidoEmUso']) {
+      ctrl.setErrors(null);
+    }
   }
 
   getError(controlName: string): string | null {
@@ -109,12 +118,12 @@ export class RegisterComponent {
     }
     return null;
   }
-  
 
   onSubmit(): void {
+    console.log('[RegisterComponent] SUBMIT disparou');
     if (this.isLoading()) return;
-
     this.form.markAllAsTouched();
+    this.form.updateValueAndValidity();
 
     if (this.form.invalid) {
       this.errorNotification.showError('Verifique os campos preenchidos.');
@@ -122,6 +131,8 @@ export class RegisterComponent {
     }
 
     this.isLoading.set(true);
+    this.infoMessage.set(null);
+
     const { email, password, aceitarTermos } = this.form.getRawValue() as any;
     const payload: IUserRegistrationData = {
       email,
@@ -134,18 +145,60 @@ export class RegisterComponent {
       profileCompleted: false
     };
 
-    this.registerService.registerUser(payload, password).subscribe({
-      next: () => {
-        this.emailVerification.resendVerificationEmail().subscribe(() => {
-          this.router.navigate(['/welcome']);
-        });
-      },
-      error: err => {
-        this.errorNotification.showError(err.message || 'Erro no registro.');
-        this.isLoading.set(false);
-      }
-    });
-  }
+    this.registerService.registerUser(payload, password)
+      .pipe(finalize(() => this.isLoading.set(false)))
+      .subscribe({
+        next: () => {
+          this.router.navigate(['/register/welcome'], { queryParams: { email } });
+        },
+        error: (err) => {
+          const code = err?.code || '';
+          const raw = (err?.message || '').toLowerCase();
+          console.log('[RegisterComponent] erro no registro:', err);
+
+          // 0) erros específicos do envio do e-mail de verificação
+          if (code === 'auth/unauthorized-domain' || code === 'auth/invalid-continue-uri') {
+            this.errorNotification.showError(
+              'Não foi possível enviar o e-mail de verificação (domínio de redirecionamento não autorizado).'
+            );
+            return;
+          }
+          if (code === 'email-verification-failed') {
+            this.errorNotification.showError('Não conseguimos enviar o e-mail de verificação. Tente novamente.');
+            return;
+          }
+          if (code === 'auth/too-many-requests') {
+            this.errorNotification.showError('Muitas tentativas. Aguarde alguns minutos e tente de novo.');
+            return;
+          }
+
+          // 1) apelido já em uso → inline
+          if (code === 'nickname-in-use' || /apelido.*em uso/.test(raw)) {
+            const ctrl = this.form.get('apelidoPrincipal');
+            ctrl?.setErrors({ apelidoEmUso: true });
+            ctrl?.markAsTouched();
+            setTimeout(() => document.getElementById('apelidoPrincipal')?.focus());
+            return;
+          }
+
+          // 2) e-mail existente → fluxo "suave"
+          if (code === 'email-exists-soft') {
+            this.infoMessage.set('Enviamos um e-mail para você recuperar o acesso. Verifique sua caixa de entrada e a pasta de spam.');
+            setTimeout(() => document.getElementById('email')?.focus());
+            return;
+          }
+
+          // 3) fallback antigo
+          if (/verifica(ç|c)ão|enviar e-mail/.test(raw)) {
+            this.errorNotification.showError('Não conseguimos enviar o e-mail de verificação. Verifique sua conexão e tente novamente.');
+            return;
+          }
+
+          // 4) genérico
+          this.errorNotification.showError('Não foi possível concluir o cadastro. Tente novamente.');
+        },
+      });
+    }
 
   togglePasswordVisibility(): void {
     this.showPassword.update(v => !v);

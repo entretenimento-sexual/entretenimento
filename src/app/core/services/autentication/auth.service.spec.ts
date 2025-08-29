@@ -47,16 +47,10 @@ import { Router } from '@angular/router';
 
 import { loginSuccess, logoutSuccess } from '../../../store/actions/actions.user/auth.actions';
 
-// pegue SEMPRE os mocks via requireMock (é o mesmo módulo que o serviço usa)
-const firebaseApp = jest.requireMock('firebase/app') as {
-  getApps: jest.Mock; initializeApp: jest.Mock;
-};
-const firebaseAuth = jest.requireMock('firebase/auth') as {
-  getAuth: jest.Mock; onAuthStateChanged: jest.Mock; signOut: jest.Mock;
-};
-const firebaseDb = jest.requireMock('firebase/database') as {
-  getDatabase: jest.Mock; ref: jest.Mock; set: jest.Mock; onDisconnect: jest.Mock;
-};
+// use SEMPRE os mocks globais do setup via requireMock:
+const firebaseApp = jest.requireMock('firebase/app');
+const firebaseAuth = jest.requireMock('firebase/auth');
+const firebaseDb = jest.requireMock('firebase/database');
 
 // ===================== Mocks dos serviços injetados =====================
 
@@ -112,10 +106,14 @@ describe('AuthService', () => {
     jest.clearAllMocks();
 
     // defaults dos mocks firebase
-    firebaseApp.getApps.mockReturnValue([]);         // força initializeApp por padrão
+    firebaseApp.getApps.mockReturnValue([]);     // força initializeApp
     firebaseApp.initializeApp.mockReturnValue({});
+
     firebaseAuth.getAuth.mockReturnValue({ currentUser: { uid: 'u-auth' } });
-    firebaseDb.getDatabase.mockReturnValue({});
+
+    firebaseDb.getDatabase.mockReturnValue({});  // só para consistência
+    firebaseDb.serverTimestamp.mockReturnValue(123456789);
+    firebaseDb.onDisconnect.mockReturnValue(onDisconnectObj);
 
     TestBed.configureTestingModule({
       providers: [
@@ -141,7 +139,7 @@ describe('AuthService', () => {
   });
 
   it('não inicializa app extra se já houver um app', () => {
-    firebaseApp.getApps.mockReturnValue([{}]); // já existe app
+    firebaseApp.getApps.mockReturnValue([{}]);
     const service = createService();
 
     expect(service).toBeTruthy();

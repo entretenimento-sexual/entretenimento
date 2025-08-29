@@ -7,7 +7,7 @@ import { collection, addDoc, doc, Timestamp, setDoc, deleteDoc, orderBy, startAf
 import { Observable, Subject, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, takeUntil } from 'rxjs/operators';
 import { Store } from '@ngrx/store';
-import { Chat } from '../../../interfaces/interfaces-chat/chat.interface';
+import { IChat } from '../../../interfaces/interfaces-chat/chat.interface';
 import { Message } from '../../../interfaces/interfaces-chat/message.interface';
 import { addMessage,  createChat,  deleteChat as deleteChat, deleteMessage as deleteMessage,
          updateChat } from 'src/app/store/actions/actions.chat/chat.actions';
@@ -76,7 +76,7 @@ export class ChatService {
 
   /** Criação de novo chat */
   createChat(participants: string[]): Observable<string> {
-    const chatData: Chat = { participants, participantsKey: participants.sort().join('_'), timestamp: Timestamp.now() };
+    const chatData: IChat = { participants, participantsKey: participants.sort().join('_'), timestamp: Timestamp.now() };
     const db = this.firestoreService.getFirestoreInstance();
     return from(addDoc(collection(db, 'chats'), chatData)).pipe(
       map(chatDocRef => {
@@ -109,7 +109,7 @@ export class ChatService {
 
   /** Atualizar detalhes do participante se necessário */
   refreshParticipantDetailsIfNeeded(chatId: string): void {
-    this.cacheService.get<Chat>(`chat:${chatId}`).pipe(
+    this.cacheService.get<IChat>(`chat:${chatId}`).pipe(
       switchMap(chat => {
         if (chat && !chat.otherParticipantDetails) {
           const otherParticipantUid = chat.participants.find(uid => uid !== this.authService.currentUser?.uid);
@@ -156,7 +156,7 @@ export class ChatService {
         return from(addDoc(messagesRef, message)).pipe(
           switchMap(messageRef => {
             // Atualiza o campo lastMessage no chat com a nova mensagem
-            const chatUpdate: Partial<Chat> = {
+            const chatUpdate: Partial<IChat> = {
               lastMessage: {
                 content: message.content,
                 nickname: message.nickname,
@@ -181,10 +181,10 @@ export class ChatService {
   }
 
   /** Carrega chats do usuário autenticado */
-  getChats(userId: string, lastChatTimestamp?: Timestamp): Observable<Chat[]> {
+  getChats(userId: string, lastChatTimestamp?: Timestamp): Observable<IChat[]> {
     const cacheKey = `chats:${userId}`;
 
-    return this.cacheService.get<Chat[]>(cacheKey).pipe(
+    return this.cacheService.get<IChat[]>(cacheKey).pipe(
       switchMap(cachedChats => {
         // Se houver chats no cache e não houver scroll para buscar mais, retorna o cache
         if (cachedChats && cachedChats.length > 0 && !lastChatTimestamp) {
@@ -214,11 +214,11 @@ export class ChatService {
           );
         }
 
-        return new Observable<Chat[]>(observer => {
+        return new Observable<IChat[]>(observer => {
           const unsubscribe = onSnapshot(chatQuery, async snapshot => {
             const newChats = snapshot.docs.map(doc => ({
               id: doc.id,
-              ...doc.data() as Chat
+              ...doc.data() as IChat
             }));
 
             // Atualiza o cache evitando duplicatas
@@ -243,7 +243,7 @@ export class ChatService {
 
 
   /** Atualização de um chat específico */
-  updateChat(chatId: string, updateData: Partial<Chat>): Observable<string> {
+  updateChat(chatId: string, updateData: Partial<IChat>): Observable<string> {
     const db = this.firestoreService.getFirestoreInstance();
     const chatDocRef = doc(db, 'chats', chatId);
     return from(setDoc(chatDocRef, updateData, { merge: true })).pipe(

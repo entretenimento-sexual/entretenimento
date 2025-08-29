@@ -249,8 +249,11 @@ describe('FirestoreService', () => {
       service.savePublicIndexNickname('FoO').subscribe({
         next: () => {
           // docId deve ser normalizado
-          const call = mDoc.mock.calls.find((c) => c[1] === 'public_index' && c[2] === 'nickname:foo');
-          expect(call).toBeTruthy();
+          const wroteNew = mDoc.mock.calls.some(([colRef, docId]) =>
+            colRef && (colRef as any).__collection__ && docId === 'nickname:newnick'
+          );
+          expect(wroteNew).toBe(true);
+          expect(wroteNew).toBeTruthy();
           expect(mSetDoc).toHaveBeenCalled();
           const payload = mSetDoc.mock.calls[0][1];
           expect(payload.value).toBe('foo');

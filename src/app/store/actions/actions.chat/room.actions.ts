@@ -1,7 +1,7 @@
 // src/app/store/actions/actions.chat/room.actions.ts
 import { createAction, props } from '@ngrx/store';
-import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
+import { IRoom } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 
 // Ações para carregar salas
 export const LoadRooms = createAction(
@@ -11,7 +11,7 @@ export const LoadRooms = createAction(
 
 export const LoadRoomsSuccess = createAction(
   '[Room] Load Rooms Success',
-  props<{ rooms: Chat[] }>()
+  props<{ rooms: IRoom[] }>()
 );
 export const LoadRoomsFailure = createAction(
   '[Room] Load Rooms Failure',
@@ -25,7 +25,7 @@ export const CreateRoom = createAction(
 );
 export const CreateRoomSuccess = createAction(
   '[Room] Create Room Success',
-  props<{ room: Chat }>()
+  props<{ room: IRoom }>()
 );
 export const CreateRoomFailure = createAction(
   '[Room] Create Room Failure',

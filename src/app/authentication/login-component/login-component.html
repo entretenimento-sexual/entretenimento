@@ -4,7 +4,7 @@
     <h2 class="form-header">Já tem conta?<br>Faça login</h2>
 
     <!-- Formulário de login usando Reactive Forms -->
-    <form [formGroup]="loginForm" (ngSubmit)="login()" class="form">
+    <form [formGroup]="loginForm" (ngSubmit)="login()" class="form" autocomplete="on">
 
       <!-- Mensagem de erro para e-mail -->
       @if (loginForm.controls['email'].invalid && loginForm.controls['email'].touched) {
@@ -15,8 +15,13 @@
       }
 
       <!-- Campo de email -->
-      <input formControlName="email" class="input-field" type="email" placeholder="Email" name="email" required
-        (focus)="clearError()">
+      <input formControlName="email"
+             id="email" class="input-field"
+             type="email" name="email"
+             placeholder="Email"
+             required
+             autocomplete="email"
+             (focus)="clearError()">
 
         <!-- Mensagem de erro para senha -->
         @if (loginForm.controls['password'].invalid && loginForm.controls['password'].touched) {
@@ -25,11 +30,23 @@
           </div>
         }
         <!-- Campo de senha -->
-        <input formControlName="password" class="input-field" type="password" placeholder="Senha" name="password" required
-          (focus)="clearError()">
+        <input formControlName="password"
+                id="password"
+                class="input-field"
+                type="password"
+                name="password"
+                placeholder="Senha"
+                required
+                autocomplete="current-password"
+                (focus)="clearError()">
 
-          <!-- Honeypot invisível -->
-          <input formControlName="honeypot" class="honeypot-hidden" type="text" name="honeypot" />
+          <!-- Honeypot (não use nomes comuns) -->
+          <input formControlName="honeypot"
+                  class="honeypot-hidden"
+                  type="text" name="company"
+                  tabindex="-1"
+                  aria-hidden="true"
+                  autocomplete="off">
 
           <div>
             <input type="checkbox" formControlName="rememberMe"> Lembrar de mim

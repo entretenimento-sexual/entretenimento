@@ -8,7 +8,7 @@
     </p>
     <p>Envie convites para os perfis que desejar.</p>
     <p>
-      A sala "<strong>{{ data.roomName }}</strong>" foi
+      A sala "<strong>{{ data.room.roomName }}</strong>" foi
       {{ data.action === 'created' ? 'criada' : 'atualizada' }} com sucesso!
     </p>
     @if (data.exceededLimit) {

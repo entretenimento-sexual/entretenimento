@@ -1,8 +1,8 @@
 // src/app/store/states/states.chat/room.state.ts
-import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
+import { IRoom } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 
 export interface RoomState {
-  rooms: Chat[];           // Lista de salas
+  rooms: IRoom[];              // Lista de salas
   loading: boolean;        // Indicador de carregamento
   error: string | null;    // Mensagem de erro, se houver
 }

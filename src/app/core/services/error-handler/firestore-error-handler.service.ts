@@ -38,8 +38,7 @@ export class FirestoreErrorHandlerService {
     this.notifier.showError(userFriendlyMessage, error.message);
 
     // Loga o erro completo no console para o desenvolvedor.
-    // Usamos console.error para maior visibilidade.
-    console.error(consoleLogMessage, error);
+    console.log(consoleLogMessage, error);
 
     // Re-lança o erro original para que a cadeia de Observables possa continuar
     // tratando ou propagando o erro.

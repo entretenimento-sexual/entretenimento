@@ -47,7 +47,7 @@ export class AuthEffects {
             return registerSuccess({ user: cred.user });
           }),
           catchError((error: any) => {
-            console.error('[AuthEffects] register$ erro formatado:', error.message);
+            console.log('[AuthEffects] register$ erro formatado:', error.message);
             // error já vem formatado pelo GlobalErrorHandler
             const msg = error?.message || 'Erro desconhecido durante o registro.';
             return of(registerFailure({ error: msg }));
@@ -83,7 +83,7 @@ export class AuthEffects {
             // AQUI: Apenas use error.message, pois o erro já foi formatado
             // e notificado pelos serviços de nível inferior (se aplicável ao loginService).
             const errorMessage = error.message || 'Erro desconhecido durante o login.';
-            console.error('[AuthEffects] Erro durante login (formatado):', errorMessage, error);
+            console.log('[AuthEffects] Erro durante login (formatado):', errorMessage, error);
             return of(loginFailure({ error: errorMessage }));
           })
         );

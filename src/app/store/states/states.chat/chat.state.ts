@@ -1,9 +1,9 @@
 // src/app/store/states/states.chat/chat.state.ts
-import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
+import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
 export interface ChatState {
-  chats: Chat[];          // Lista de conversas
+  chats: IChat[];          // Lista de conversas
   messages: {              // Dicionário de mensagens agrupadas por ID de chat
     [chatId: string]: Message[];
   };

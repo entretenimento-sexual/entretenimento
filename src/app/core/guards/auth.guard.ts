@@ -24,8 +24,8 @@ export const authGuard: CanActivateFn = (): Observable<boolean | UrlTree> => {
       }
 
       if (!user.emailVerified) {
-        console.log('⚠️ [authGuard] E-mail não verificado. Redirecionando para welcome.');
-        return of(router.createUrlTree(['/welcome']));
+        console.log('⚠️ [authGuard] E-mail não verificado. Redirecionando para register/welcome.');
+        return of(router.createUrlTree(['/register/welcome']));
       }
 
       console.log('✅ [authGuard] Acesso permitido.');

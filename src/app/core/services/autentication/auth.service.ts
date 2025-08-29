@@ -14,18 +14,18 @@ import { getDatabase, onDisconnect, ref, serverTimestamp, set } from 'firebase/d
 import { setCurrentUser } from 'src/app/store/actions/actions.user/user.actions';
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 import { CacheService } from '../general/cache/cache.service';
-import { getApps, initializeApp } from 'firebase/app';            // 👈 garante app
-import { environment } from 'src/environments/environment';       // 👈 config do app
+import { getApps, initializeApp } from 'firebase/app';
+import { environment } from 'src/environments/environment';
 
-@Injectable({
-  providedIn: 'root'
-})
+// 👇 novo import
+import { EmailVerificationService } from './register/email-verification.service';
+
+@Injectable({ providedIn: 'root' })
 export class AuthService {
   private userSubject = new BehaviorSubject<IUserDados | null>(null);
   private cachedUid$: Observable<string | null> | null = null;
   user$: Observable<IUserDados | null> = this.userSubject.asObservable();
 
-  // ✅ Só declara (sem chamar getAuth/getDatabase)
   private auth!: ReturnType<typeof getAuth>;
   private db!: ReturnType<typeof getDatabase>;
 
@@ -35,15 +35,15 @@ export class AuthService {
     private firestoreUserQuery: FirestoreUserQueryService,
     private globalErrorHandlerService: GlobalErrorHandlerService,
     private cacheService: CacheService,
-    private store: Store<AppState>
+    private store: Store<AppState>,
+    // 👇 injete o service
+    private emailVerificationService: EmailVerificationService
   ) {
     console.log('[AuthService] Inicializando AuthService...');
 
-    // 👇 garante que exista um app default antes de usar auth/db
     if (!getApps().length) {
       initializeApp(environment.firebase);
     }
-    // reobtém instâncias depois da garantia do app
     this.auth = getAuth();
     this.db = getDatabase();
 
@@ -55,7 +55,7 @@ export class AuthService {
   }
 
   private updateUserOnlineStatusRealtime(uid: string): void {
-    const userStatusRef = ref(this.db, `status/${uid}`);  // 👈 this.db
+    const userStatusRef = ref(this.db, `status/${uid}`);
 
     from(set(userStatusRef, { online: true, lastChanged: serverTimestamp() }))
       .pipe(
@@ -76,7 +76,7 @@ export class AuthService {
 
   private initAuthStateListener(): void {
     new Observable<User | null>((observer) => {
-      onAuthStateChanged(this.auth, (user) => observer.next(user)); // 👈 this.auth
+      onAuthStateChanged(this.auth, (user) => observer.next(user));
     })
       .pipe(
         switchMap((user) => {
@@ -122,6 +122,17 @@ export class AuthService {
             this.store.dispatch(loginSuccess({ user: userData }));
             this.store.dispatch(setCurrentUser({ user: userData }));
             this.updateUserOnlineStatusRealtime(userData.uid);
+
+            // 👇 SINCRONIA TARDIA: se o auth já está verificado, mas o Firestore não
+            const authUser = this.auth.currentUser;
+            if (authUser?.emailVerified && userData.emailVerified !== true) {
+              this.emailVerificationService
+                .updateEmailVerificationStatus(authUser.uid, true)
+                .subscribe({
+                  next: () => console.log('[AuthService] emailVerified sincronizado no Firestore.'),
+                  error: (e) => console.log('[AuthService] Falha ao sincronizar emailVerified:', e)
+                });
+            }
           }
         }),
         catchError((error) => {
@@ -138,22 +149,6 @@ export class AuthService {
     return this.userSubject.value;
   }
 
-  private loadUserFromLocalStorage(): void {
-    try {
-      const storedUser = localStorage.getItem('currentUser');
-      if (storedUser) {
-        const parsedUser = JSON.parse(storedUser) as IUserDados;
-        if (parsedUser?.uid) {
-        this.userSubject.next(parsedUser);
-        console.log('Usuário carregado do localStorage: ', parsedUser);
-        }
-      }
-    } catch (error: any) {
-      console.log('Erro ao carregar o usuário do localStorage.', error);
-      this.globalErrorHandlerService.handleError(error);
-    }
-  }
-
   isAuthenticated(): boolean {
     return this.userSubject.value !== null;
   }
@@ -167,7 +162,7 @@ export class AuthService {
             console.log('[AuthService] UID encontrado no cache:', cachedUid);
             return of(cachedUid);
           }
-          const authUser = this.auth.currentUser;  // 👈 this.auth
+          const authUser = this.auth.currentUser;
           if (authUser?.uid) {
             console.log('[AuthService] UID encontrado no Firebase Auth:', authUser.uid);
             this.cacheService.set('currentUserUid', authUser.uid, 300000);
@@ -177,9 +172,7 @@ export class AuthService {
           return of(null);
         }),
         tap(uid => {
-          if (!uid) {
-            console.log('[AuthService] UID ainda não está disponível.');
-          }
+          if (!uid) console.log('[AuthService] UID ainda não está disponível.');
         }),
         catchError(error => {
           console.log('[AuthService] Erro ao obter UID:', error);
@@ -213,7 +206,6 @@ export class AuthService {
       this.userSubject.next(userData);
       localStorage.setItem('currentUser', JSON.stringify(userData));
       this.cacheService.set('currentUserUid', userData.uid, 300000);
-
       this.store.dispatch(setCurrentUser({ user: userData }));
       console.log('[AuthService] Usuário definido e salvo no cache e localStorage:', userData);
     } else {
@@ -230,7 +222,7 @@ export class AuthService {
         }
         return this.usuarioService.updateUserOnlineStatus(uid, false).pipe(
           tap(() => console.log('Status isOnline atualizado no Firestore para offline.')),
-          switchMap(() => from(signOut(this.auth))),   // 👈 this.auth
+          switchMap(() => from(signOut(this.auth))),
           tap(() => {
             console.log('Logout do Firebase realizado com sucesso.');
             this.clearCurrentUser();
@@ -249,4 +241,3 @@ export class AuthService {
     );
   }
 }
-

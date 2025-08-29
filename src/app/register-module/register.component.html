@@ -1,73 +1,141 @@
 <!-- src\app\register-module\register.component.html -->
-<form [formGroup]="form" (ngSubmit)="onSubmit()" class="form-wrapper" aria-labelledby="form-title">
-  <h2 id="form-title" class="form-title">Cadastre-se</h2>
+<div class="auth-container">
+  <div class="form-container">
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" aria-labelledby="form-title" autocomplete="on">
+      <h2 id="form-title" class="form-header">Cadastre-se</h2>
 
-  <!-- Apelido principal -->
-  <div class="form-field">
-    <label for="apelidoPrincipal">Apelido *</label>
-    <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="input-field"
-      placeholder="Ex: casadinho" aria-describedby="apelidoHelp apelidoTooltip" aria-label="Apelido" />
-    <small id="apelidoHelp" class="field-hint">Nome principal pelo qual será conhecido na plataforma.</small>
-    <div *ngIf="getError('apelidoPrincipal')" id="apelidoTooltip" class="tooltip-error">
-      {{ getError('apelidoPrincipal') }}
-    </div>
-  </div>
+      <!-- Apelido principal -->
+      <div class="form-field nickname-field">
+        <label for="apelidoPrincipal">Apelido *</label>
 
-  <!-- Complemento do apelido -->
-  <div class="form-field">
-    <label for="complementoApelido">Complemento (opcional)</label>
-    <input id="complementoApelido" formControlName="complementoApelido" type="text" class="input-field"
-      placeholder="Ex: oficial" aria-describedby="complementoTooltip" aria-label="Complemento do apelido" />
-    <div *ngIf="getError('complementoApelido')" id="complementoTooltip" class="tooltip-error">
-      {{ getError('complementoApelido') }}
-    </div>
-  </div>
+        <!-- Linha: input + feedback lateral -->
+        <div class="field-row">
+          <div class="input-wrapper">
+            <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="input-field"
+              name="nickname" autocomplete="nickname" placeholder="Ex: casadinho"
+              aria-describedby="apelidoHelp apelidoTooltip" aria-label="Apelido"
+              [attr.aria-invalid]="(form.get('apelidoPrincipal')?.touched && form.get('apelidoPrincipal')?.invalid) ? true : null"
+              [ngClass]="{
+                'is-pending': form.get('apelidoPrincipal')?.pending,
+                'is-invalid': form.get('apelidoPrincipal')?.touched && form.get('apelidoPrincipal')?.invalid,
+                'is-valid':  form.get('apelidoPrincipal')?.touched && form.get('apelidoPrincipal')?.valid && !apelidoEmUso()
+              }" (input)="onNicknameTyping()" />
+          </div>
 
-  <!-- Email -->
-  <div class="form-field">
-    <label for="email">E-mail *</label>
-    <input id="email" formControlName="email" type="email" class="input-field" placeholder="email@exemplo.com"
-      aria-describedby="emailTooltip" aria-label="E-mail" />
-    <div *ngIf="getError('email')" id="emailTooltip" class="tooltip-error">
-      {{ getError('email') }}
-    </div>
-  </div>
+          <!-- Painel de feedback lateral (NÃO sobrepõe nada) -->
+          <div class="inline-feedback" aria-live="polite">
+            <div *ngIf="form.get('apelidoPrincipal')?.pending" class="badge info">
+              <span class="inline-spinner"></span> Verificando…
+            </div>
 
-  <!-- Senha -->
-  <div class="form-field">
-    <label for="password">Senha</label>
-    <div class="input-wrapper">
-      <input id="password" [type]="showPassword() ? 'text' : 'password'" formControlName="password" class="input-field"
-        placeholder="Escolha uma senha" aria-label="Senha" />
-      <button type="button" class="toggle-input" (click)="togglePasswordVisibility()" aria-label="Mostrar senha">
-        {{ showPassword() ? '🙈' : '👁️' }}
+            <div
+              *ngIf="!form.get('apelidoPrincipal')?.pending && form.get('apelidoPrincipal')?.touched && form.get('apelidoPrincipal')?.valid && !apelidoEmUso()"
+              class="badge ok">
+              Disponível
+            </div>
+
+            <div *ngIf="!form.get('apelidoPrincipal')?.pending && apelidoEmUso()" class="badge error">
+              Apelido em uso
+            </div>
+          </div>
+        </div>
+
+        <!-- Dica + contador -->
+        <div class="hint-row">
+          <small id="apelidoHelp" class="field-hint">Nome principal pelo qual será conhecido na plataforma.</small>
+          <small class="char-counter" [class.warn]="(form.get('apelidoPrincipal')?.value?.length || 0) > 10">
+            {{ (form.get('apelidoPrincipal')?.value?.length || 0) }}/12
+          </small>
+        </div>
+
+        <!-- Mensagens de erro (agora SEM position:absolute) -->
+        <div *ngIf="
+            form.get('apelidoPrincipal')?.touched &&
+            form.get('apelidoPrincipal')?.invalid &&
+            !form.get('apelidoPrincipal')?.pending
+          " id="apelidoTooltip" class="tooltip-error">
+          <ng-container *ngIf="form.get('apelidoPrincipal')?.hasError('required')">
+            Campo obrigatório
+          </ng-container>
+          <ng-container *ngIf="form.get('apelidoPrincipal')?.hasError('minlength')">
+            Mínimo de 4 caracteres.
+          </ng-container>
+          <ng-container *ngIf="form.get('apelidoPrincipal')?.hasError('maxlength')">
+            Máximo de 12 caracteres.
+          </ng-container>
+          <ng-container *ngIf="form.get('apelidoPrincipal')?.hasError('invalidNickname')">
+            Apelido contém caracteres inválidos.
+          </ng-container>
+          <ng-container *ngIf="form.get('apelidoPrincipal')?.hasError('apelidoEmUso')">
+            Este apelido já está em uso.
+          </ng-container>
+        </div>
+      </div>
+
+      <!-- Complemento do apelido -->
+      <div class="form-field">
+        <label for="complementoApelido">Complemento (opcional)</label>
+        <input id="complementoApelido" formControlName="complementoApelido" type="text" class="input-field"
+          name="nicknameSuffix" autocomplete="off" placeholder="Ex: oficial" aria-describedby="complementoTooltip"
+          aria-label="Complemento do apelido" />
+        <div *ngIf="getError('complementoApelido')" id="complementoTooltip" class="tooltip-error">
+          {{ getError('complementoApelido') }}
+        </div>
+      </div>
+
+      <!-- Email -->
+      <div class="form-field">
+        <label for="email">E-mail *</label>
+        <input id="email" formControlName="email" type="email" class="input-field" name="email" autocomplete="email"
+          placeholder="email@exemplo.com" aria-describedby="emailTooltip" aria-label="E-mail" />
+        <div *ngIf="getError('email')" id="emailTooltip" class="tooltip-error">
+          {{ getError('email') }}
+        </div>
+      </div>
+
+      <!-- Senha -->
+      <div class="form-field">
+        <label for="password">Senha</label>
+        <div class="input-wrapper">
+          <input id="password" [type]="showPassword() ? 'text' : 'password'" formControlName="password"
+            class="input-field" name="password" autocomplete="new-password" placeholder="Escolha uma senha"
+            aria-label="Senha" />
+          <button type="button" class="toggle-input" (click)="togglePasswordVisibility()" aria-label="Mostrar senha">
+            {{ showPassword() ? '🙈' : '👁️' }}
+          </button>
+        </div>
+        <div *ngIf="getError('password')" class="tooltip-error">
+          {{ getError('password') }}
+        </div>
+      </div>
+
+      <!-- Aceite de Termos -->
+      <div class="form-checkbox">
+        <input type="checkbox" id="termos" formControlName="aceitarTermos" autocomplete="off"
+          aria-describedby="termosTooltip" />
+        <label for="termos">
+          Eu aceito os
+          <a href="/termos" target="_blank" rel="noopener noreferrer">Termos de Uso</a> e a
+          <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>.
+        </label>
+        <div *ngIf="getError('aceitarTermos')" id="termosTooltip" class="tooltip-error">
+          {{ getError('aceitarTermos') }}
+        </div>
+      </div>
+
+      <!-- mensagem discreta neutra -->
+      <p *ngIf="infoMessage()" class="alert alert-info" aria-live="polite">
+        {{ infoMessage() }}
+      </p>
+
+      <button class="btn btn-primary" type="submit" [disabled]="isLoading() || form.pending || !form.valid">
+        {{ isLoading() ? 'Aguarde...' : 'Cadastrar' }}
       </button>
-    </div>
-    <div *ngIf="getError('password')" class="tooltip-error">
-      {{ getError('password') }}
-    </div>
+
+      <p class="login-redirect">
+        Já tem conta?
+        <a routerLink="/login">Faça login</a>
+      </p>
+    </form>
   </div>
-
-  <!-- Aceite de Termos -->
-  <div class="form-checkbox">
-    <input type="checkbox" id="termos" formControlName="aceitarTermos" aria-describedby="termosTooltip" />
-    <label for="termos">
-      Eu aceito os
-      <a href="/termos" target="_blank" rel="noopener noreferrer">Termos de Uso</a> e a
-      <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>.
-    </label>
-    <div *ngIf="getError('aceitarTermos')" id="termosTooltip" class="tooltip-error">
-      {{ getError('aceitarTermos') }}
-    </div>
-  </div>
-
-  <!-- Botão de envio -->
-  <button type="submit" class="btn btn-primary" [disabled]="isLoading() || form.invalid">
-    {{ isLoading() ? 'Aguarde...' : 'Cadastrar' }}
-  </button>
-
-  <p class="login-redirect">
-    Já tem conta?
-    <a routerLink="/login">Faça login</a>
-  </p>
-</form>
+</div>

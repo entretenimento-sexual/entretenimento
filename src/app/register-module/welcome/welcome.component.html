@@ -1,82 +1,83 @@
 <!-- src/app/authentication/register-module/welcome/welcome.component.html -->
 <div class="welcome-container">
   <header class="welcome-header">
-    <h1>Bem-vindo(a) à nossa plataforma!</h1>
-    <p class="subtitle">Estamos felizes por tê-lo(a) aqui. Antes de começar, precisamos de algumas confirmações.</p>
+    <h1>Confirme seu e-mail para começar</h1>
+    <p class="subtitle">
+      Enviamos um link de verificação para <strong>{{ email || 'seu e-mail' }}</strong>.
+      Assim que você confirmar, liberamos todos os recursos.
+    </p>
   </header>
 
   <main class="welcome-content">
-    <!-- Seção de verificação de e-mail -->
-    <section class="verification-section">
-      <h2>Verifique seu e-mail</h2>
-      <p>
-        Um e-mail foi enviado para sua caixa de entrada com um link de verificação.
-        Clique no link para ativar sua conta e começar a usar todos os recursos da plataforma.
-      </p>
-      <button class="btn btn-primary resend-btn" (click)="resendVerificationEmail()" [disabled]="isLoading"
-        [attr.aria-busy]="isLoading" aria-live="polite">
-        {{ isLoading ? 'Reenviando...' : 'Reenviar E-mail de Verificação' }}
-      </button>
-      @if (message) {
-        <p class="alert alert-info">{{ message }}</p>
-      }
-    </section>
+    <section class="welcome-card">
+      <h2 class="card-title">
+        Status:
+        <span *ngIf="emailVerified; else notVerified" class="badge ok">verificado</span>
+        <ng-template #notVerified><span class="badge warn">não verificado</span></ng-template>
+      </h2>
 
-    <!-- Seção opcional de onboarding inicial -->
-    <section class="onboarding-section">
-      <h2>Você gostaria de compartilhar como se identifica?</h2>
-      <p class="subtitle">Isso ajuda a tornar seu perfil mais visível, mas é totalmente opcional.</p>
+      <ol class="steps">
+        <li>Abra sua caixa de entrada.</li>
+        <li>Procure pelo e-mail “Confirme seu endereço”.</li>
+        <li>Clique no botão do e-mail para confirmar.</li>
+      </ol>
 
-      <!-- Seleção de gênero -->
-      <select class="input-field" [(ngModel)]="selectedGender" aria-label="Selecione sua identidade de gênero">
-        <option value="" disabled selected>Selecione seu gênero (opcional)</option>
-        @for (gender of validGenders; track gender) {
-          <option [value]="gender">{{ gender }}</option>
-        }
-      </select>
+      <div *ngIf="message" class="alert alert-info" role="status" aria-live="polite">
+        {{ message }}
+      </div>
 
-      <!-- Seleção de preferências -->
-      <h2 style="margin-top: 2rem;">O que você gostaria de encontrar?</h2>
-      <p class="subtitle">Você pode marcar uma ou mais preferências (opcional).</p>
-
-      <div class="checkbox-group">
-        @for (preference of validPreferences; track preference) {
-          <label class="checkbox-item">
-            <input type="checkbox" [(ngModel)]="selectedPreferencesMap[preference]" />
-            {{ preference }}
-          </label>
-        }
+      <div class="actions">
+        <button class="btn btn-primary" (click)="checkNow()" [disabled]="busy" [attr.aria-busy]="busy">
+          {{ busy ? 'Checando…' : 'Já verifiquei — checar agora' }}
+        </button>
+        <button class="btn btn-secondary" (click)="resendVerificationEmail()" [disabled]="busy" [attr.aria-busy]="busy">
+          {{ busy ? 'Reenviando…' : 'Reenviar e-mail' }}
+        </button>
+        <button class="btn" (click)="proceedToDashboard()" [disabled]="busy">
+          Continuar sem verificar
+        </button>
       </div>
     </section>
 
-    <!-- Acesso rápido -->
-    <section class="navigation-section">
-      <h2>Navegue na plataforma</h2>
-      <p>Explore as funcionalidades da plataforma:</p>
-      <ul class="navigation-list">
-        <li>
-          <a class="navigation-link" [routerLink]="'/dashboard/principal'" aria-label="Ir para o painel principal">
-            <i class="icon icon-dashboard"></i> Painel Principal
-          </a>
-        </li>
-        <li>
-          <a class="navigation-link" [routerLink]="'/profile'" aria-label="Acesse seu perfil pessoal">
-            <i class="icon icon-profile"></i> Seu Perfil
-          </a>
-        </li>
-        <li>
-          <a class="navigation-link" [routerLink]="'/subscription-plan'"
-            aria-label="Gerencie seus planos de assinatura">
-            <i class="icon icon-subscription"></i> Planos de Assinatura
-          </a>
-        </li>
-      </ul>
+    <!-- Onboarding opcional (colapsado) -->
+    <details class="welcome-card details-optional">
+      <summary>Quero adiantar meu perfil (opcional)</summary>
+
+      <div class="optional-grid">
+        <div>
+          <label class="form-label">Identidade de gênero (opcional)</label>
+          <select class="input-field" [(ngModel)]="selectedGender" aria-label="Selecione seu gênero">
+            <option value="" disabled selected>Selecione seu gênero (opcional)</option>
+            <option *ngFor="let gender of validGenders" [value]="gender">{{ gender }}</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="form-label">O que você gostaria de encontrar? (opcional)</label>
+          <div class="checkbox-group">
+            <label class="checkbox-item" *ngFor="let preference of validPreferences">
+              <input type="checkbox" [(ngModel)]="selectedPreferencesMap[preference]" />
+              {{ preference }}
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions right">
+        <button class="btn btn-primary" (click)="saveOptionalProfile()" [disabled]="savingOptional || busy"
+          [attr.aria-busy]="savingOptional">
+          {{ savingOptional ? 'Salvando…' : 'Salvar preferências' }}
+        </button>
+      </div>
+    </details>
+
+    <!-- Sucesso pós-verificação: CTA destacado, sem auto-redirect brusco -->
+    <section *ngIf="emailVerified" class="welcome-card success-card">
+      <h2 class="card-title">Tudo certo! 🎉</h2>
+      <p>Seu e-mail está verificado. Você pode seguir para o painel quando quiser.</p>
+      <div class="actions">
+        <button class="btn btn-primary" (click)="proceedToDashboard()">Ir para o painel</button>
+      </div>
     </section>
   </main>
-
-  <footer class="welcome-footer">
-    <button class="btn btn-secondary continue-btn" (click)="proceedToDashboard()" aria-label="Continuar">
-      Continuar sem Verificar
-    </button>
-  </footer>
 </div>

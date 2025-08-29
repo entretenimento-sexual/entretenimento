@@ -5,16 +5,16 @@
     <div class="chat-list-container">
       @for (room of rooms; track room) {
         <div class="room-item"
-          (click)="selectRoom(room.roomId)"
-          [ngClass]="{ 'selected': selectedChatId === room.roomId }">
+          (click)="selectRoom(room.id)"
+          [ngClass]="{ 'selected': selectedChatId === room.id }">
           <div class="room-item">
             <span class="room-name">{{ room.roomName }}</span>
             <!-- Botões de gerenciamento para o dono da sala -->
             @if (isOwner(room)) {
               <div class="room-management-buttons">
-                <button class="button" (click)="deleteRoom(room.roomId, $event); $event.stopPropagation()">Excluir Sala</button>
-                <button class="button" (click)="sendInvite(room.roomId, $event); $event.stopPropagation()">Enviar Convite</button>
-                <button class="button" (click)="editRoom(room.roomId, $event); $event.stopPropagation()">Editar Sala</button>
+                <button class="button" (click)="deleteRoom(room.id, $event); $event.stopPropagation()">Excluir Sala</button>
+                <button class="button" (click)="sendInvite(room.id, $event); $event.stopPropagation()">Enviar Convite</button>
+                <button class="button" (click)="editRoom(room.id, $event); $event.stopPropagation()">Editar Sala</button>
               </div>
             }
           </div>

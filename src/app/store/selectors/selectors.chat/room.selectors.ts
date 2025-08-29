@@ -1,7 +1,7 @@
 // src/app/store/selectors/selectors.chat/room.selectors.ts
 import { createSelector, createFeatureSelector } from '@ngrx/store';
 import { ChatState } from '../../states/states.chat/chat.state';
-import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
+import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 
 // Seleciona o estado de chat (que inclui as salas)
 export const selectChatState = createFeatureSelector<ChatState>('chat');
@@ -15,7 +15,7 @@ export const selectAllRooms = createSelector(
 // Seleciona uma sala específica pelo ID
 export const selectRoomById = (roomId: string) => createSelector(
   selectAllRooms,
-  (rooms: Chat[]) => rooms.find(room => room.id === roomId)
+  (rooms: IChat[]) => rooms.find(room => room.id === roomId)
 );
 
 // Seleciona mensagens em uma sala específica

@@ -1,16 +1,23 @@
 // src/app/core/services/autentication/firestore-query.service.ts
 import { Injectable } from '@angular/core';
-import { where, QueryConstraint, collection, onSnapshot, query, Firestore } from '@angular/fire/firestore'; // 👈 AngularFire
+import {
+  where,
+  QueryConstraint,
+  collection,
+  onSnapshot,
+  query,
+  Firestore
+} from 'firebase/firestore'; // 👈 use o SDK puro do Firebase AQUI
+
+import { Observable, of } from 'rxjs';
+import { map, catchError, switchMap } from 'rxjs/operators';
+
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { CacheService } from '../general/cache/cache.service';
 import { FirestoreService } from './firestore.service';
-import { Observable, of } from 'rxjs';
-import { map, catchError, switchMap } from 'rxjs/operators';
 import { FirestoreUserQueryService } from './firestore-user-query.service';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable({ providedIn: 'root' })
 export class FirestoreQueryService {
 
   constructor(
@@ -19,10 +26,13 @@ export class FirestoreQueryService {
     private firestoreUserQuery: FirestoreUserQueryService
   ) { }
 
+  // Tipagem coerente com o SDK do Firebase
   getFirestoreInstance(): Firestore {
     return this.firestoreService.getFirestoreInstance();
   }
 
+  // Se o FirestoreService.getDocument/getDocuments já usam o SDK puro do Firebase,
+  // esta assinatura continua ok. (Se usarem AngularFire, mantenha lá e tudo bem.)
   getDocumentById<T>(collectionName: string, id: string): Observable<T | null> {
     return this.firestoreService.getDocument<T>(collectionName, id);
   }
@@ -38,7 +48,7 @@ export class FirestoreQueryService {
         if (cachedUsers) return of(cachedUsers);
         return this.getDocumentsByQuery<IUserDados>('users', []).pipe(
           map(users => {
-            this.cacheService.set(cacheKey, users, 600000);
+            this.cacheService.set(cacheKey, users, 600_000); // 10 min
             return users;
           }),
           catchError(error => {
@@ -57,7 +67,7 @@ export class FirestoreQueryService {
         if (cachedUsers) return of(cachedUsers);
         return this.getDocumentsByQuery<IUserDados>('users', [where('isOnline', '==', true)]).pipe(
           map(users => {
-            this.cacheService.set(cacheKey, users, 60000);
+            this.cacheService.set(cacheKey, users, 60_000); // 1 min
             return users;
           }),
           catchError(error => {
@@ -79,15 +89,18 @@ export class FirestoreQueryService {
     );
   }
 
+  // 🔧 AQUI estava o warning: trocamos para o SDK puro do Firebase (mesmas funções, mas de 'firebase/firestore')
   getOnlineUsersByRegion(municipio: string): Observable<IUserDados[]> {
     const db = this.firestoreService.getFirestoreInstance();
     const usersRef = collection(db, 'users');
     const q = query(usersRef, where('isOnline', '==', true), where('municipio', '==', municipio));
+
     return new Observable<IUserDados[]>(observer => {
       const unsubscribe = onSnapshot(q, snapshot => {
-        const users = snapshot.docs.map(doc => doc.data() as IUserDados);
+        const users = snapshot.docs.map(d => d.data() as IUserDados);
         observer.next(users);
       }, error => observer.error(error));
+
       return () => unsubscribe();
     });
   }

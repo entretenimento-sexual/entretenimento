@@ -1,150 +1,104 @@
 // src/app/core/services/data-handling/firestore-user-query.service.ts
-import { Injectable } from '@angular/core';
-import { CacheService } from '../general/cache/cache.service';
-import { IUserDados } from '../../interfaces/iuser-dados';
-import { doc, getDoc } from '@angular/fire/firestore'; // 👈 AngularFire
-import { from, Observable, of, shareReplay, switchMap, take, tap, catchError, map, firstValueFrom } from 'rxjs';
+import { Inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
+import { Firestore, doc, getDoc } from '@angular/fire/firestore';
+import { from, Observable, of, switchMap, take, shareReplay, map, catchError, firstValueFrom, tap } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { addUserToState, updateUserInState } from 'src/app/store/actions/actions.user/user.actions';
 import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.user/user-profile.selectors';
+import { CacheService } from '../general/cache/cache.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
-import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
-import { FirestoreService } from './firestore.service'; // 👈 usa o service que já injeta AngularFire
+import { IUserDados } from '../../interfaces/iuser-dados';
+import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable({ providedIn: 'root' })
 export class FirestoreUserQueryService {
-  // 👇 usa a mesma instância do AngularFire em todo o app
-  private db = this.firestoreService.getFirestoreInstance();
-  private userObservablesCache: Map<string, Observable<IUserDados | null>> = new Map();
+  private userObservablesCache = new Map<string, Observable<IUserDados | null>>();
 
   constructor(
-    private cacheService: CacheService,
+    private cache: CacheService,
     private store: Store<AppState>,
-    private firestoreErrorHandler: FirestoreErrorHandlerService,
-    private globalErrorHandler: GlobalErrorHandlerService,
-    private firestoreService: FirestoreService // 👈 injeta aqui
+    private globalError: GlobalErrorHandlerService,
+    private firestoreError: FirestoreErrorHandlerService,
+    private injector: Injector,
+    @Inject(Firestore) private firestore: Firestore
   ) { }
 
-  private fetchUser(uid: string): Observable<IUserDados | null> {
-    const normalizedUid = uid.trim();
-    if (this.userObservablesCache.has(normalizedUid)) {
-      return this.userObservablesCache.get(normalizedUid)!;
-    }
+  /** Lê direto do Firestore (Injection-context safe) */
+  private getUserFromFirestore$(uid: string): Observable<IUserDados | null> {
+    return runInInjectionContext(this.injector, () => {
+      const ref = doc(this.firestore, 'users', uid);
+      return from(getDoc(ref)).pipe(
+        map(snap => (snap.exists() ? (snap.data() as IUserDados) : null)),
+        tap(user => {
+          if (user) {
+            this.store.dispatch(addUserToState({ user }));
+            this.cache.set(`user:${uid}`, user, 300_000);
+          }
+        }),
+        catchError(err => this.firestoreError.handleFirestoreError(err))
+      );
+    });
+  }
 
-    return this.cacheService.get<IUserDados>(`user:${normalizedUid}`).pipe(
-      switchMap(cachedUser => {
-        if (cachedUser) return of(cachedUser);
-
-        return this.store.select(selectUserProfileDataByUid(normalizedUid)).pipe(
+  /** Caminho único de leitura com cache + store + Firestore */
+  private fetchUser$(uid: string): Observable<IUserDados | null> {
+    const id = uid.trim();
+    return this.cache.get<IUserDados>(`user:${id}`).pipe(
+      switchMap(cached => {
+        if (cached) return of(cached);
+        return this.store.select(selectUserProfileDataByUid(id)).pipe(
           take(1),
-          switchMap(userFromStore => {
-            if (userFromStore) {
-              this.cacheService.set(`user:${normalizedUid}`, userFromStore, 300000);
-              return of(userFromStore);
-            }
-            return this.fetchUserFromFirestore(normalizedUid);
-          })
+          switchMap(fromStore => (fromStore ? of(fromStore) : this.getUserFromFirestore$(id)))
         );
       }),
       shareReplay(1)
     );
   }
 
-  private fetchUserFromFirestore(uid: string): Observable<IUserDados | null> {
-    const docRef = doc(this.db, 'users', uid);
-    return from(getDoc(docRef)).pipe(
-      map(docSnap => {
-        if (docSnap.exists()) {
-          const userData = docSnap.data() as IUserDados;
-          this.store.dispatch(addUserToState({ user: userData }));
-          this.cacheService.set(`user:${uid}`, userData, 300000);
-          return userData;
-        } else {
-          return null;
-        }
-      }),
-      catchError(error => this.firestoreErrorHandler.handleFirestoreError(error))
-    );
-  }
-
-
+  /** API pública simples (observable) com memoização por UID */
   getUser(uid: string): Observable<IUserDados | null> {
-    return this.fetchUser(uid);
-  }
-
-  getUserById(uid: string): Observable<IUserDados | null> {
-    console.log(`[FirestoreUserQueryService] Método getUserById foi chamado.`);
-    return this.fetchUser(uid);
-  }
-
-  getUserWithObservable(uid: string): Observable<IUserDados | null> {
-    const normalizedUid = uid.trim();
-
-    // Se já existe uma requisição pendente, reutiliza a observável existente
-    if (this.userObservablesCache.has(normalizedUid)) {
-      return this.userObservablesCache.get(normalizedUid)!;
+    const id = uid.trim();
+    if (!this.userObservablesCache.has(id)) {
+      this.userObservablesCache.set(id, this.fetchUser$(id));
     }
-
-    const userObservable = this.fetchUser(normalizedUid).pipe(
-      shareReplay(1) // Evita múltiplas chamadas simultâneas para o mesmo usuário
-    );
-
-    this.userObservablesCache.set(normalizedUid, userObservable);
-    return userObservable;
+    return this.userObservablesCache.get(id)!;
   }
 
-  /**
-   * Obtém os dados do usuário diretamente do Firestore.
-   * @param uid UID do usuário.
-   */
+  /** API pública async/await (se precisar em componentes) */
   async getUserData(uid: string): Promise<IUserDados | null> {
-    if (!uid.trim()) return null;
-
-    const cacheKey = `user:${uid}`;
-
-    const cachedUser = await firstValueFrom(this.cacheService.get<IUserDados>(cacheKey));
-    if (cachedUser) return cachedUser;
-
-    try {
-      const userDoc = await getDoc(doc(this.db, 'users', uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data() as IUserDados;
-        this.cacheService.set(cacheKey, userData, 300000);
-        return userData;
-      }
-      return null;
-    } catch (error) {
-      console.log(`Erro ao buscar usuário ${uid}:`, error);
-      this.globalErrorHandler.handleError(error instanceof Error ? error : new Error(String(error)));
-      return null;
-    }
+    const id = uid.trim();
+    const fromCache = await firstValueFrom(this.cache.get<IUserDados>(`user:${id}`));
+    if (fromCache) return fromCache;
+    return await firstValueFrom(this.getUser(id));
   }
 
+  /** 🔁 Alias de compatibilidade: mantém a API antiga funcionando */
+  getUserWithObservable(uid: string): Observable<IUserDados | null> {
+    return this.getUser(uid);
+  }
 
-  /**
-   * Atualiza os dados do usuário no cache e no estado.
-   * @param uid UID do usuário.
-   * @param updatedData Dados atualizados.
-   */
+  /** 🔁 Outro alias de compatibilidade (se usado em algum lugar) */
+  getUserById(uid: string): Observable<IUserDados | null> {
+    return this.getUser(uid);
+  }
+
+  /** ♻️ Invalida caches e o observable memorizado (caso precise forçar reload) */
+  invalidateUserCache(uid: string): void {
+    const id = uid.trim();
+    this.userObservablesCache.delete(id);
+    // se seu CacheService tiver delete, use; senão, set TTL curto:
+    this.cache.set(`user:${id}`, null as any, 1);
+  }
+
+  /** Atualiza cache + store */
   updateUserInStateAndCache<T extends IUserRegistrationData | IUserDados>(uid: string, updatedData: T): void {
-    // Flexibilidade para lidar com diferentes tipos de dados
-    const cacheKey = `user:${uid}`;
-    // 🚀 Resolva o valor do cache antes de compará-lo
-    this.cacheService.get<T>(cacheKey).pipe(take(1)).subscribe(cachedUser => {
-      if (cachedUser && JSON.stringify(cachedUser) === JSON.stringify(updatedData)) {
-        console.log(`[FirestoreUserQueryService] Dados do usuário ${uid} já atualizados no cache e estado.`);
-        return;
-      }
-
-      // Atualiza o cache e o estado, independentemente do tipo
-      this.cacheService.set(cacheKey, updatedData, 300000); // TTL de 5 minutos
-      this.store.dispatch(updateUserInState({ uid, updatedData } as any)); // `as any` para manter compatibilidade com NgRx
-      console.log(`[FirestoreUserQueryService] Dados do usuário ${uid} atualizados no cache e estado.`);
+    const key = `user:${uid}`;
+    this.cache.get<T>(key).pipe(take(1)).subscribe(existing => {
+      if (existing && JSON.stringify(existing) === JSON.stringify(updatedData)) return;
+      this.cache.set(key, updatedData, 300_000);
+      this.store.dispatch(updateUserInState({ uid, updatedData } as any));
     });
   }
-
 }

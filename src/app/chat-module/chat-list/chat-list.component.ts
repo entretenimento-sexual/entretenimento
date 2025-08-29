@@ -1,7 +1,7 @@
 // src/app/chat-module/chat-list/chat-list.component.ts
 import { Component, EventEmitter, OnDestroy, OnInit, Output } from '@angular/core';
 import { Router } from '@angular/router';
-import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
+import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
@@ -20,6 +20,7 @@ import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface
 import { CreateRoomModalComponent } from '../modals/create-room-modal/create-room-modal.component';
 import { NotificationService } from 'src/app/core/services/batepapo/chat-notification.service';
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
+import { IRoom } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 
 @Component({
   selector: 'app-chat-list',
@@ -29,13 +30,14 @@ import { RoomMessagesService } from 'src/app/core/services/batepapo/room-service
 })
 
 export class ChatListComponent implements OnInit, OnDestroy {
-  rooms: any[] = [];
-  rooms$: Observable<any[]> | undefined;
-  regularChats: Chat[] = [];
+  rooms: IRoom[] = [];
+  rooms$: Observable<IRoom[]> | undefined;
+  regularChats: IChat[] = [];
   userSubscription: Subscription | undefined;
   chatSubscription: Subscription | undefined;
   @Output() chatSelected = new EventEmitter<{ id: string, type: 'room' | 'chat' }>();
   selectedChatId: string | undefined;
+  private currentUserUid: string | null = null;
 
   constructor(private authService: AuthService,
               private chatService: ChatService,
@@ -51,47 +53,65 @@ export class ChatListComponent implements OnInit, OnDestroy {
   ngOnInit() {
     console.log('Iniciando ChatListComponent, carregando conversas do usuário.');
 
+    // guarda UID para uso sincrônico (ex.: isOwner)
+    this.authService.getLoggedUserUID$().pipe(take(1)).subscribe(uid => this.currentUserUid = uid);
+
     this.userSubscription = this.authService.user$.pipe(
       take(1),
       switchMap(currentUser => {
         console.log('Usuário autenticado:', currentUser?.uid);
         if (!currentUser) {
           this.router.navigate(['/login']);
-          return [];
+          return of<IChat[]>([]);
         }
 
         console.log('Carregando salas e chats para o usuário:', currentUser.uid);
         this.rooms$ = this.roomService.getUserRooms(currentUser.uid).pipe(
-          map(rooms => rooms.sort((a, b) => {
-            const timeA = a.lastMessage?.timestamp?.toDate().getTime() || 0;
-            const timeB = b.lastMessage?.timestamp?.toDate().getTime() || 0;
-            return timeB - timeA;
-          }))
+          map((rooms: IRoom[]) =>
+            rooms.sort((a, b) => {
+              const timeA =
+                a.lastMessage?.timestamp?.toDate?.().getTime?.() ??
+                (a.lastActivity instanceof Date ? a.lastActivity.getTime() : (a.lastActivity as any)?.toDate?.().getTime?.() ?? 0) ??
+                (a.creationTime instanceof Date ? a.creationTime.getTime() : (a.creationTime as any)?.toDate?.().getTime?.() ?? 0) ??
+                0;
+              const timeB =
+                b.lastMessage?.timestamp?.toDate?.().getTime?.() ??
+                (b.lastActivity instanceof Date ? b.lastActivity.getTime() : (b.lastActivity as any)?.toDate?.().getTime?.() ?? 0) ??
+                (b.creationTime instanceof Date ? b.creationTime.getTime() : (b.creationTime as any)?.toDate?.().getTime?.() ?? 0) ??
+                0;
+              return timeB - timeA;
+            })
+          )
         );
 
-        this.rooms$.subscribe((rooms: any[]) => {
+        this.rooms$.subscribe((rooms: IRoom[]) => {
           this.rooms = rooms;
           console.log('Salas carregadas:', this.rooms);
         });
 
+
+        // CHATS 1:1 (IChat[])
         return this.chatService.getChats(currentUser.uid).pipe(
-          switchMap(chats => {
+          switchMap((chats: IChat[]) => {
+            if (!chats.length) return of<IChat[]>([]);
             const chatDetailsObservables = chats.map(chat => {
               if (!chat.otherParticipantDetails) {
-                const otherParticipantUid = chat.participants.find(uid => uid !== currentUser.uid);
-                return this.chatService.fetchAndPersistParticipantDetails(chat.id!, otherParticipantUid!).pipe(
-                  map(details => ({ ...chat, otherParticipantDetails: details }))
-                );
+                const otherParticipantUid = chat.participants.find((uid: string) => uid !== this.authService.currentUser?.uid); // 👈 tipado
+                return this.chatService
+                  .fetchAndPersistParticipantDetails(chat.id!, otherParticipantUid!)
+                  .pipe(map(details => ({ ...chat, otherParticipantDetails: details } as IChat)));
               }
               return of(chat);
             });
             return combineLatest(chatDetailsObservables);
           }),
-          map(chatsWithDetails => chatsWithDetails.sort((a, b) => {
-            const timeA = a.lastMessage?.timestamp ? a.lastMessage.timestamp.toDate().getTime() : 0;
-            const timeB = b.lastMessage?.timestamp ? b.lastMessage.timestamp.toDate().getTime() : 0;
-            return timeB - timeA;
-          }))
+          map((chatsWithDetails: IChat[]) =>
+            chatsWithDetails.sort((a, b) => {
+              const timeA = a.lastMessage?.timestamp ? a.lastMessage.timestamp.toDate().getTime() : 0;
+              const timeB = b.lastMessage?.timestamp ? b.lastMessage.timestamp.toDate().getTime() : 0;
+              return timeB - timeA;
+            })
+          )
         );
       })
     ).subscribe(chats => {
@@ -110,7 +130,6 @@ export class ChatListComponent implements OnInit, OnDestroy {
       this.regularChats = chats;
     });
   }
-
 
 
   sendInvite(roomId: string | undefined, event: MouseEvent): void {
@@ -241,9 +260,8 @@ export class ChatListComponent implements OnInit, OnDestroy {
   }
 
   // Verifica se o usuário atual é o dono da sala
-  isOwner(room: any): boolean {
-    const currentUser = this.authService.getLoggedUserUID$();
-    return room.createdBy === currentUser;
+  isOwner(room: IRoom): boolean {
+    return !!this.currentUserUid && room.createdBy === this.currentUserUid;
   }
 
   deleteRoom(roomId: string | undefined, event: MouseEvent) {
@@ -277,7 +295,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   editRoom(roomId: string, event: MouseEvent) {
     event.stopPropagation();
-    const roomData = this.rooms.find(room => room.roomId === roomId);
+    const roomData = this.rooms.find(room => room.id === roomId);
     if (!roomData) {
       console.log('Sala não encontrada:', roomId);
       return;
@@ -286,7 +304,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
     // Abre o modal de edição com os dados da sala
     const dialogRef = this.dialog.open(CreateRoomModalComponent, {
       width: '50%',
-      data: { roomId: roomId, roomData: roomData, isEditing: true }
+      data: { roomId, roomData, isEditing: true }
     });
 
     dialogRef.afterClosed().subscribe(result => {

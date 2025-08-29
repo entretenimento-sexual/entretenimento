@@ -1,51 +1,61 @@
-// src\app\authentication\auth-verification-handler\auth-verification-handler.component.ts
-import { Component, OnInit, OnDestroy, NgZone, ChangeDetectionStrategy } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
-import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
+// src/app/authentication/auth-verification-handler/auth-verification-handler.component.ts
+import { Component, OnInit, OnDestroy, NgZone } from '@angular/core';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+
+import { EmailVerificationService, VerifyEmailResult } from 'src/app/core/services/autentication/register/email-verification.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { first, Subject, switchMap, tap } from 'rxjs';
-import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
-import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
-import { getAuth } from 'firebase/auth';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
+import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
+import { EmailInputModalComponent } from 'src/app/authentication/email-input-modal/email-input-modal.component';
+import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
+
+import { Subject, take, takeUntil, switchMap, tap } from 'rxjs';
+import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+
 @Component({
-    selector: 'app-auth-verification-handler',
-    templateUrl: './auth-verification-handler.component.html',
-    styleUrls: ['./auth-verification-handler.component.css'],
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: false,
-  })
-
+  selector: 'app-auth-verification-handler',
+  templateUrl: './auth-verification-handler.component.html',
+  styleUrls: ['./auth-verification-handler.component.css'],
+  standalone: true,
+  imports: [CommonModule, FormsModule, RouterModule, EmailInputModalComponent]
+})
 export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
+  // estado geral
   public isLoading = true;
+  public mode: 'verifyEmail' | 'resetPassword' | '' = '';
+  public oobCode = '';
+  public message = '';
+
+  // flags de UI específicas de verificação de e-mail
+  public verifyOk = false;
+  public showResendVerifyCTA = false;   // botão "Reenviar e-mail de verificação"
+  public showGoToLoginCTA = false;      // CTA "Ir para login" quando não há usuário logado
+
+  // reset de senha
+  public newPassword = '';
+  public confirmPassword = '';
+  public showPassword = false;
+  public showConfirmPassword = false;
+  public shouldShowRecoveryLink = false;  // link para reenvio de recuperação se der erro
+
+  // (resto do formulário opcional/antigo – mantido)
   public showSubscriptionOptions = false;
-  public mode: string = '';
-  public oobCode: string = '';
-  public newPassword: string = '';
-  public confirmPassword: string = '';
-  public showPassword: boolean = false;
-  public showConfirmPassword: boolean = false;
-  public showVerificationErrorModal: boolean = false;
-  public shouldShowRecoveryLink: boolean = false;
-
-  // Variável única para mensagens de sucesso e erro
-  public message: string = '';
-
-  public gender: string = '';
-  public orientation: string = '';
-  public selectedEstado: string = '';
-  public selectedMunicipio: string = '';
+  public gender = '';
+  public orientation = '';
+  public selectedEstado = '';
+  public selectedMunicipio = '';
   public estados: any[] = [];
   public municipios: any[] = [];
   public selectedFile: File | null = null;
-  public isUploading: boolean = false;
-  public progressValue: number = 0;
-  public uploadMessage: string = '';
+  public isUploading = false;
+  public progressValue = 0;
+  public uploadMessage = '';
   public formErrors: { [key: string]: string } = {
     gender: '',
     orientation: '',
@@ -58,45 +68,41 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
   constructor(
     private route: ActivatedRoute,
+    private router: Router,
+    private ngZone: NgZone,
+
     private emailVerificationService: EmailVerificationService,
     private loginService: LoginService,
     private firestoreService: FirestoreService,
-    private emailInputModalService: EmailInputModalService,
     private firestoreUserQuery: FirestoreUserQueryService,
     private globalErrorHandlerService: GlobalErrorHandlerService,
     private authService: AuthService,
-    private router: Router,
-    private ngZone: NgZone
+    private emailInputModalService: EmailInputModalService   // ✅ injeta o service do modal
   ) { }
 
   ngOnInit(): void {
-    this.route.queryParams.subscribe(async params => {
-      this.mode = params['mode'];
-      this.oobCode = params['oobCode'];
-      console.log('Modo atual:', this.mode);
+    this.route.queryParams
+      .pipe(takeUntil(this.ngUnsubscribe))
+      .subscribe(params => {
+        this.mode = (params['mode'] || '') as any;
+        this.oobCode = params['oobCode'] || '';
 
-      if (this.oobCode) {
-        //this.oobCodeService.setCode(this.oobCode);
-      } else {
-        this.message = 'Código inválido.';
-        this.isLoading = false;
-        return;
-      }
+        if (!this.oobCode && this.mode === 'resetPassword') {
+          // Para reset de senha, o Firebase exige o oobCode também
+          this.message = 'Código inválido.';
+          this.isLoading = false;
+          return;
+        }
 
-      // Aguardar autenticação para garantir que o UID esteja disponível
-      this.authService.user$.pipe(first()).subscribe((userData: IUserDados | null) => {
-        if (userData) {
-          if (this.mode === 'verifyEmail') {
-            this.handleEmailVerification();
-          } else if (this.mode === 'resetPassword') {
-            this.isLoading = false;
-          }
+        if (this.mode === 'verifyEmail') {
+          this.processVerifyEmail();
+        } else if (this.mode === 'resetPassword') {
+          this.isLoading = false; // apenas exibe o form de redefinição
         } else {
-          this.message = 'Erro: Nenhum usuário autenticado.';
+          this.message = 'Ação desconhecida.';
           this.isLoading = false;
         }
       });
-    });
   }
 
   ngOnDestroy(): void {
@@ -104,95 +110,114 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.ngUnsubscribe.complete();
   }
 
-  async handleEmailVerification(): Promise<void> {
+  // === VERIFICAÇÃO DE E-MAIL ===
+  private processVerifyEmail(): void {
     this.isLoading = true;
+    // Usa o handler “rico” do service (retorna ok + reason + firestoreUpdated)
+    this.emailVerificationService
+      .handleEmailVerification()
+      .pipe(take(1), takeUntil(this.ngUnsubscribe))
+      .subscribe({
+        next: (res: VerifyEmailResult) => {
+          this.isLoading = false;
 
-    try {
-      // Obtendo diretamente o usuário autenticado do Firebase usando ferramentas nativas
-      const auth = getAuth(); // Obtém a instância do Firebase Auth
-      const currentUser = auth.currentUser; // Obtém o usuário atual
+          if (res.ok) {
+            this.verifyOk = true;
 
-      if (!currentUser || !currentUser.uid) {
-        this.message = 'Erro: UID do usuário não encontrado.';
-        this.isLoading = false;
-        return;
-      }
+            if (res.reason === 'not-logged-in') {
+              // Verificado, mas sem sessão — peça login
+              this.message = 'Seu e-mail foi verificado. Faça login para continuar.';
+              this.showGoToLoginCTA = true;
+              this.showResendVerifyCTA = false;
+              return;
+            }
 
-      // Verifica se o e-mail já foi verificado anteriormente
-      const userData = await this.firestoreUserQuery.getUser(currentUser.uid).pipe(first()).toPromise();
+            // Sessão presente (ou Firestore sincronizado)
+            if (res.firestoreUpdated) {
+              this.message = 'E-mail verificado com sucesso! Você pode continuar.';
+            } else {
+              this.message = 'E-mail verificado. Não conseguimos sincronizar seu perfil agora, mas isso será atualizado automaticamente.';
+            }
 
-      if (userData?.emailVerified) {
-        this.message = 'Seu e-mail já foi verificado anteriormente. Faça login para continuar.';
-        this.router.navigate(['/login']); // Redireciona para a tela de login
-        return;
-      }
+            // Leva para o welcome com autocheck leve (sem forçar)
+            this.ngZone.run(() => {
+              setTimeout(() => this.router.navigate(['/register/welcome'], { queryParams: { autocheck: '1' } }), 1200);
+            });
+            return;
+          }
 
-      // Verificar o email com o código oobCode
-      await this.emailVerificationService.verifyEmail(this.oobCode);
+          // Falha — personalize a razão
+          this.verifyOk = false;
+          this.showGoToLoginCTA = false;
 
-      this.message = 'E-mail verificado com sucesso! Faça login para continuar.';
-      this.router.navigate(['/login']);  // Redireciona para login após verificação
-    } catch (error) {
-      this.message = 'Erro ao verificar o e-mail.';
-      console.log('Erro ao verificar o e-mail:', error);
-    } finally {
-      this.isLoading = false;
-    }
-  }
-
-  // Outros métodos permanecem inalterados...
-  goToFinalizarCadastro(): void {
-    this.router.navigate(['/finalizar-cadastro']);
+          switch (res.reason) {
+            case 'expired':
+              this.message = 'O link de verificação expirou. Reenvie um novo e-mail.';
+              this.showResendVerifyCTA = true;
+              break;
+            case 'invalid':
+              this.message = 'O link de verificação é inválido ou já foi utilizado.';
+              this.showResendVerifyCTA = true;
+              break;
+            case 'not-verified':
+              this.message = 'Quase lá! Processamos o link, mas sua sessão ainda não refletiu a verificação. Tente novamente em alguns segundos ou reenvie o e-mail.';
+              this.showResendVerifyCTA = true;
+              break;
+            default:
+              this.message = 'Não foi possível verificar seu e-mail agora.';
+              this.showResendVerifyCTA = true;
+          }
+        },
+        error: (err) => {
+          this.isLoading = false;
+          this.verifyOk = false;
+          this.showResendVerifyCTA = true;
+          this.message = 'Erro ao verificar o e-mail.';
+          this.globalErrorHandlerService.handleError(err);
+        }
+      });
   }
 
   resendVerificationEmail(): void {
     this.isLoading = true;
-    this.emailVerificationService.resendVerificationEmail().subscribe({
-      next: (message) => {
-        this.message = message;
-      },
-      error: (error) => {
-        this.message = 'Falha ao reenviar o e-mail de verificação.';
-        console.log('Erro ao reenviar o e-mail:', error);
-      },
-      complete: () => {
-        this.isLoading = false;
-      }
-    });
+    this.emailVerificationService
+      .resendVerificationEmail()
+      .pipe(take(1), takeUntil(this.ngUnsubscribe))
+      .subscribe({
+        next: (txt) => {
+          this.message = txt || 'E-mail reenviado. Verifique sua caixa de entrada e spam.';
+          this.verifyOk = false;
+          this.showResendVerifyCTA = false; // já reenviado
+        },
+        error: (err) => {
+          this.message = 'Falha ao reenviar o e-mail de verificação.';
+          this.globalErrorHandlerService.handleError(err);
+        },
+        complete: () => (this.isLoading = false),
+      });
   }
 
-
-  redirectToFAQ(): void {
-    this.router.navigate(['/faq']); // Redireciona para a página de FAQ
+  goToLogin(): void {
+    this.router.navigate(['/login']);
   }
 
-  closeModal(): void {
-    this.showVerificationErrorModal = false;
+  goToWelcome(): void {
+    this.router.navigate(['/register/welcome'], { queryParams: { autocheck: '1' } });
   }
 
+  // === RESET DE SENHA ===
   async onSubmit(): Promise<void> {
-    this.message = '';  // Limpa mensagens anteriores
-    console.log('Submissão iniciada com modo:', this.mode);  // Debug log
-
     if (this.mode === 'resetPassword') {
       await this.resetPassword();
-    } else if (this.mode === 'verifyEmail') {
-      this.finishRegistration();
     }
   }
 
-  openPasswordRecoveryModal(): void {
-    this.emailInputModalService.openModal();
-  }
-
   async resetPassword(): Promise<void> {
-    console.log('Tentando redefinir a senha...');  // Debug log
     this.isLoading = true;
     this.shouldShowRecoveryLink = false;
 
     if (this.newPassword !== this.confirmPassword) {
       this.message = 'As senhas não coincidem.';
-      console.log('Erro: Senhas não coincidem');  // Debug log
       this.isLoading = false;
       return;
     }
@@ -204,63 +229,40 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
     try {
       await this.loginService.confirmPasswordReset(this.oobCode, this.newPassword);
-      this.message = 'Senha redefinida com sucesso! Você será redirecionado para a página de login em breve.';
-
+      this.message = 'Senha redefinida com sucesso! Redirecionando para o login...';
       this.newPassword = '';
       this.confirmPassword = '';
 
       this.ngZone.run(() => {
-        setTimeout(() => this.router.navigate(['/login']), 3000);
+        setTimeout(() => this.router.navigate(['/login']), 1500);
       });
     } catch (error: any) {
       this.handlePasswordResetError(error);
-
     } finally {
       this.isLoading = false;
     }
   }
 
   private handlePasswordResetError(error: any): void {
+    const code = error?.code;
     const resetErrors = ['auth/expired-action-code', 'auth/invalid-action-code'];
 
-    if (resetErrors.includes(error.code)) {
+    if (resetErrors.includes(code)) {
       this.shouldShowRecoveryLink = true;
-      this.message = error.code === 'auth/expired-action-code' ?
-        'O link de redefinição de senha expirou.' :
-        'O código de redefinição é inválido ou já foi usado.';
+      this.message = code === 'auth/expired-action-code'
+        ? 'O link de redefinição de senha expirou.'
+        : 'O código de redefinição é inválido ou já foi usado.';
     } else {
       this.shouldShowRecoveryLink = true;
       this.message = 'Erro ao redefinir a senha.';
     }
   }
 
-  // Funções de cadastro
-  checkFieldValidity(field: string, value: any): void {
-    if (!value) {
-      this.formErrors[field] = `O campo ${field} é obrigatório.`;
-    } else {
-      this.formErrors[field] = '';
-    }
+  // === utilitários / CTA auxiliares ===
+  redirectToFAQ(): void {
+    this.router.navigate(['/faq']);
   }
 
-  isFieldInvalid(field: string): boolean {
-    return !!this.formErrors[field];
-  }
-
-  uploadFile(event: any): void {
-    this.selectedFile = event.target.files[0];
-    this.checkFieldValidity('selectedFile', this.selectedFile);
-  }
-
-  goToSubscription(): void {
-    this.router.navigate(['/subscription-plan']);
-  }
-
-  continueWithoutSubscription(): void {
-    this.router.navigate(['/dashboard/principal']);
-  }
-
-  // Função para alternar a visibilidade da senha
   togglePasswordVisibility(): void {
     this.showPassword = !this.showPassword;
   }
@@ -269,9 +271,13 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.showConfirmPassword = !this.showConfirmPassword;
   }
 
-  // Finalização do cadastro
+  openPasswordRecoveryModal(): void {
+    this.emailInputModalService.openModal(); // ✅ agora existe e está injetado
+  }
+
+  // Fluxo de “finalização de cadastro” (mantido)
   finishRegistration(): void {
-    this.message = 'Processando cadastro...'; // Feedback inicial
+    this.message = 'Processando cadastro...';
 
     this.authService.getLoggedUserUID$().pipe(
       switchMap((uid) => {
@@ -280,7 +286,6 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
           throw new Error('UID do usuário não encontrado.');
         }
 
-        // Verifica se os dados estão no cache antes de buscar no Firestore
         return this.firestoreUserQuery.getUser(uid).pipe(
           switchMap((existingUserData: IUserDados | null) => {
             if (!existingUserData) {
@@ -299,46 +304,27 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
               orientation: this.orientation,
               estado: this.selectedEstado,
               municipio: this.selectedMunicipio,
-              acceptedTerms: {
-                accepted: true,
-                date: new Date()
-              }
+              acceptedTerms: { accepted: true, date: new Date() }
             };
 
-            // Salva os dados no Firestore
             return this.firestoreService.saveInitialUserData(uid, userData).pipe(
-              tap(() => {
-                this.cacheUserData(userData); // Atualiza o cache local
-              })
+              tap(() => this.firestoreUserQuery.updateUserInStateAndCache(uid, userData))
             );
           })
         );
-      })
+      }),
+      take(1),
+      takeUntil(this.ngUnsubscribe)
     ).subscribe({
       next: () => {
         this.message = 'Cadastro finalizado com sucesso!';
-        console.log('Dados do usuário salvos com sucesso.');
-
         this.showSubscriptionOptions = true;
-
-        setTimeout(() => {
-          this.ngZone.run(() => this.router.navigate(['/dashboard/principal']));
-        }, 3000);
+        setTimeout(() => this.ngZone.run(() => this.router.navigate(['/dashboard/principal'])), 3000);
       },
       error: (error: any) => {
         this.message = 'Erro ao processar o cadastro. Por favor, tente novamente.';
-        console.log('Erro no processo de cadastro:', error);
-        this.globalErrorHandlerService.handleError(error); // Centraliza o tratamento do erro
+        this.globalErrorHandlerService.handleError(error);
       }
     });
-  }
-  // Método para armazenar os dados do usuário no cache
-  private cacheUserData(userData: IUserRegistrationData): void {
-    if (!userData || !userData.uid) {
-      console.log('Dados inválidos fornecidos para cacheUserData:', userData);
-      return;
-    }
-    this.firestoreUserQuery.updateUserInStateAndCache(userData.uid, userData); // Atualiza cache e estado
-    console.log(`[AuthVerificationHandlerComponent] Dados do usuário ${userData.uid} armazenados no cache.`);
   }
 }

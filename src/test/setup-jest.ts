@@ -1,29 +1,47 @@
-﻿//src\test\setup-jest.ts
+﻿// src/test/setup-jest.ts
 // ============================================================================
 // 🔥 Mocks de Firebase (DEVEM vir antes de qualquer import)
 // ============================================================================
+
+// ---- Pequenos "flags" de ambiente de browser que impactam presence ----
+const UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119 Safari/537.36';
+
+Object.defineProperty(globalThis, 'navigator', {
+  value: {
+    userAgent: UA,
+    platform: 'Win32',
+    vendor: 'Google Inc.',
+    language: 'pt-BR',
+    onLine: true,
+  },
+  writable: true,
+});
+
+Object.defineProperty(document, 'visibilityState', {
+  value: 'visible',
+  writable: true,
+});
 
 // firebase/app
 jest.mock('firebase/app', () => {
   const app = { name: '[DEFAULT]' };
   return {
     initializeApp: jest.fn(() => app),
-    getApps: jest.fn(() => []), // default: força init; em testes específicos você pode mockar para [app]
+    getApps: jest.fn(() => []),
     getApp: jest.fn(() => app),
   };
 });
 
 // firebase/auth
 jest.mock('firebase/auth', () => {
-  const onAuthStateChanged = jest.fn((_auth: any, cb: any) => {
-    // em testes você pode sobrescrever esse mock para emitir usuário
-    cb?.(null);
+  // Não emite nada por padrão; os testes decidem quando emitir.
+  const onAuthStateChanged = jest.fn((_auth: any, _cb: any) => {
     return () => { };
   });
+
   return {
-    getAuth: jest.fn(() => ({
-      currentUser: null,
-    })),
+    getAuth: jest.fn(() => ({ currentUser: null })),
     onAuthStateChanged,
     signOut: jest.fn(() => Promise.resolve()),
     signInWithPopup: jest.fn(() => Promise.resolve({ user: { uid: 'uid-x' } })),
@@ -36,21 +54,41 @@ jest.mock('firebase/auth', () => {
 
 // firebase/database
 jest.mock('firebase/database', () => {
+  const __refs = new Map<string, any>();
+  const ref = jest.fn((_db: any, path?: string) => {
+    const key = path ?? '';
+    if (!__refs.has(key)) __refs.set(key, { __path: key });
+    return __refs.get(key);
+  });
+
   const set = jest.fn(() => Promise.resolve());
-  const ref = jest.fn(() => ({}));
-  const onDisconnect = jest.fn(() => ({
+  const update = jest.fn(() => Promise.resolve());
+  const remove = jest.fn(() => Promise.resolve());
+
+  const onDisconnect = jest.fn((_ref?: any) => ({
     set: jest.fn(() => Promise.resolve()),
+    update: jest.fn(() => Promise.resolve()),
+    remove: jest.fn(() => Promise.resolve()),
   }));
+
+  const serverTimestamp = jest.fn(() => Date.now()); // ⬅️ ADICIONE ISTO
+
   const getDatabase = jest.fn(() => ({
     ref,
     set,
+    update,
+    remove,
     onDisconnect,
   }));
+
   return {
     getDatabase,
     ref,
     set,
+    update,
+    remove,
     onDisconnect,
+    serverTimestamp,
   };
 });
 
@@ -60,24 +98,61 @@ jest.mock('firebase/firestore', () => {
   const setDoc = jest.fn(async () => { });
   const updateDoc = jest.fn(async () => { });
   const deleteDoc = jest.fn(async () => { });
-  const getDoc = jest.fn(async () => ({ exists: () => false, data: () => undefined, id: 'doc-1' }));
-  const getDocs = jest.fn(async () => ({ docs: [] as any[] }));
+
+  // doc() agora carrega a "path" para possibilitar respostas condicionais em getDoc()
+  const doc = jest.fn((first: any, ...segments: string[]) => {
+    const base = typeof first === 'object' && first?.__path ? first.__path : '';
+    const path = [base, ...segments].filter(Boolean).join('/');
+    return { __path: path };
+  });
+
+  const collection = jest.fn((_db: any, ...segments: string[]) => {
+    const path = segments.filter(Boolean).join('/');
+    return { __path: path };
+  });
+
   const where = jest.fn(() => ({}));
   const query = jest.fn(() => ({}));
-  const collection = jest.fn(() => ({}));
-  const doc = jest.fn(() => ({}));
+
+  // getDoc condicional:
+  // - public_index/* → não existe (permite criar novo apelido)
+  // - users/*       → existe com isSubscriber + oldnick (fallback p/ quando o spec não stubba a 2ª leitura)
+  const getDoc = jest.fn(async (docRef: any) => {
+    const p: string = docRef?.__path ?? '';
+    const id = p.split('/').pop() ?? 'doc-1';
+
+    if (p.startsWith('public_index/')) {
+      return { exists: () => false, data: () => undefined, id };
+    }
+    if (p.startsWith('users/')) {
+      return {
+        exists: () => true,
+        data: () => ({ isSubscriber: true, publicNickname: 'oldnick' }),
+        id,
+      };
+    }
+    return { exists: () => false, data: () => undefined, id };
+  });
+
+  const getDocs = jest.fn(async () => ({ docs: [] as any[] }));
+
   const onSnapshot = jest.fn((_q: any, next?: any) => {
-    // emite coleção vazia
     next?.({ docs: [] });
     return () => { };
   });
+
+  // precisam ser jest.fn para specs sobrescreverem com .mockImplementation
   const serverTimestamp = jest.fn(() => new Date());
-  const arrayUnion = (...values: any[]) => ({ __op: 'arrayUnion', values });
-  const increment = (n: number) => ({ __op: 'increment', n });
+  const arrayUnion = jest.fn((...values: any[]) => ({ __op: 'arrayUnion', values }));
+  const increment = jest.fn((n: number) => ({ __op: 'increment', n }));
 
   class Timestamp {
-    static now() { return { toMillis: () => Date.now() }; }
-    static fromDate(d: Date) { return { toDate: () => d }; }
+    static now() {
+      return { toMillis: () => Date.now(), toDate: () => new Date() } as any;
+    }
+    static fromDate(d: Date) {
+      return { toDate: () => d } as any;
+    }
   }
 
   return {
@@ -106,23 +181,55 @@ jest.mock('@firebase/firestore', () => {
   const setDoc = jest.fn(async () => { });
   const updateDoc = jest.fn(async () => { });
   const deleteDoc = jest.fn(async () => { });
-  const getDoc = jest.fn(async () => ({ exists: () => false, data: () => undefined, id: 'doc-1' }));
-  const getDocs = jest.fn(async () => ({ docs: [] as any[] }));
+
+  const doc = jest.fn((_db: any, ...segments: string[]) => {
+    const path = segments.filter(Boolean).join('/');
+    return { __path: path };
+  });
+
+  const collection = jest.fn((_db: any, ...segments: string[]) => {
+    const path = segments.filter(Boolean).join('/');
+    return { __path: path };
+  });
+
   const where = jest.fn(() => ({}));
   const query = jest.fn(() => ({}));
-  const collection = jest.fn(() => ({}));
-  const doc = jest.fn(() => ({}));
+
+  const getDoc = jest.fn(async (docRef: any) => {
+    const p: string = docRef?.__path ?? '';
+    const id = p.split('/').pop() ?? 'doc-1';
+
+    if (p.startsWith('public_index/')) {
+      return { exists: () => false, data: () => undefined, id };
+    }
+    if (p.startsWith('users/')) {
+      return {
+        exists: () => true,
+        data: () => ({ isSubscriber: true, publicNickname: 'oldnick' }),
+        id,
+      };
+    }
+    return { exists: () => false, data: () => undefined, id };
+  });
+
+  const getDocs = jest.fn(async () => ({ docs: [] as any[] }));
+
   const onSnapshot = jest.fn((_q: any, next?: any) => {
     next?.({ docs: [] });
     return () => { };
   });
+
   const serverTimestamp = jest.fn(() => new Date());
-  const arrayUnion = (...values: any[]) => ({ __op: 'arrayUnion', values });
-  const increment = (n: number) => ({ __op: 'increment', n });
+  const arrayUnion = jest.fn((...values: any[]) => ({ __op: 'arrayUnion', values }));
+  const increment = jest.fn((n: number) => ({ __op: 'increment', n }));
 
   class Timestamp {
-    static now() { return { toMillis: () => Date.now() }; }
-    static fromDate(d: Date) { return { toDate: () => d }; }
+    static now() {
+      return { toMillis: () => Date.now(), toDate: () => new Date() } as any;
+    }
+    static fromDate(d: Date) {
+      return { toDate: () => d } as any;
+    }
   }
 
   return {
@@ -149,8 +256,9 @@ jest.mock('@firebase/firestore', () => {
 // Ambiente Angular/Jest
 // ============================================================================
 
-// src/test/setup-jest.ts
 import { setupZoneTestEnv } from 'jest-preset-angular/setup-env/zone';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { of } from 'rxjs';
 setupZoneTestEnv();
 import 'cross-fetch/polyfill';
 
@@ -179,6 +287,7 @@ Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
     save: jest.fn(), restore: jest.fn(), beginPath: jest.fn(),
     moveTo: jest.fn(), lineTo: jest.fn(), arc: jest.fn(),
     stroke: jest.fn(), fill: jest.fn(), closePath: jest.fn(),
+    measureText: jest.fn(() => ({ width: 0 })),
   }),
   configurable: true,
 });
@@ -195,46 +304,131 @@ import { provideMockStore } from '@ngrx/store/testing';
 import { commonTestingProviders } from './jest-stubs/test-providers';
 
 // AngularFire (não usados diretamente pelos seus serviços, mas mantidos por compat)
-jest.mock('@angular/fire/app', () => ({
-  initializeApp: jest.fn(() => ({})),
-  provideFirebaseApp: jest.fn(() => ({ provide: 'FIREBASE_APP', useValue: {} })),
-}));
-jest.mock('@angular/fire/auth', () => ({
-  getAuth: jest.fn(() => ({})),
-  provideAuth: jest.fn(() => ({ provide: 'FIREBASE_AUTH', useValue: {} })),
-}));
-jest.mock('@angular/fire/firestore', () => ({
-  getFirestore: jest.fn(() => ({})),
-  provideFirestore: jest.fn(() => ({ provide: 'FIREBASE_FIRESTORE', useValue: {} })),
-  collection: jest.fn(),
-  doc: jest.fn(),
-  query: jest.fn(),
-  where: jest.fn(),
-  getDocs: jest.fn(),
-  getDoc: jest.fn(),
-  setDoc: jest.fn(),
-  updateDoc: jest.fn(),
-  deleteDoc: jest.fn(),
-  collectionData: jest.fn(),
-  increment: jest.fn(),
-  arrayUnion: jest.fn(),
-}));
-jest.mock('@angular/fire/storage', () => ({
-  getStorage: jest.fn(() => ({})),
-  provideStorage: jest.fn(() => ({ provide: 'FIREBASE_STORAGE', useValue: {} })),
-}));
+jest.mock('@angular/fire/app', () => {
+  const FirebaseApp = Symbol('FirebaseApp');
+  return {
+    FirebaseApp,
+    initializeApp: jest.fn(() => ({})),
+    provideFirebaseApp: jest.fn(() => ({ provide: FirebaseApp, useValue: {} })),
+  };
+});
+jest.mock('@angular/fire/auth', () => {
+  const Auth = Symbol('Auth');
+  return {
+    Auth,
+    getAuth: jest.fn(() => ({ currentUser: null })),
+    provideAuth: jest.fn(() => ({ provide: Auth, useValue: {} })),
+  };
+});
 
+// --- @angular/fire/firestore ---
+// Reexporta as MESMAS fns do mock de 'firebase/firestore' para compartilhar as mesmas .mock.calls
+jest.mock('@angular/fire/firestore', () => {
+  const firebaseFs = jest.requireMock('firebase/firestore');
+  const Firestore = Symbol('Firestore');
+  return {
+    Firestore,
+    provideFirestore: jest.fn(() => ({ provide: Firestore, useValue: {} })),
+    getFirestore: firebaseFs.getFirestore,
+    collection: firebaseFs.collection,
+    doc: firebaseFs.doc,
+    query: firebaseFs.query,
+    where: firebaseFs.where,
+    getDocs: firebaseFs.getDocs,
+    getDoc: firebaseFs.getDoc,
+    setDoc: firebaseFs.setDoc,
+    updateDoc: firebaseFs.updateDoc,
+    deleteDoc: firebaseFs.deleteDoc,
+    onSnapshot: firebaseFs.onSnapshot,
+    serverTimestamp: firebaseFs.serverTimestamp,
+    increment: firebaseFs.increment,
+    arrayUnion: firebaseFs.arrayUnion,
+    Timestamp: firebaseFs.Timestamp,
+    collectionData: jest.fn(),
+  };
+});
+
+// --- @angular/fire/storage ---
+jest.mock('@angular/fire/storage', () => {
+  const Storage = Symbol('Storage');
+  return {
+    Storage,
+    getStorage: jest.fn(() => ({})),
+    provideStorage: jest.fn(() => ({ provide: Storage, useValue: {} })),
+  };
+});
+
+// --- @angular/fire/database --- (bridge total para o mock de 'firebase/database')
+jest.mock('@angular/fire/database', () => {
+  const firebaseDb = jest.requireMock('firebase/database');
+  const Database = Symbol('Database');
+  return {
+    Database,
+    provideDatabase: jest.fn(() => ({ provide: Database, useValue: {} })),
+    getDatabase: firebaseDb.getDatabase,
+    ref: firebaseDb.ref,
+    set: firebaseDb.set,
+    update: firebaseDb.update,
+    remove: firebaseDb.remove,
+    onDisconnect: firebaseDb.onDisconnect,
+  };
+});
+
+// Configuração base do TestBed
 beforeEach(() => {
   TestBed.configureTestingModule({
     imports: [RouterTestingModule, HttpClientTestingModule],
     providers: [
-      provideMockStore({ initialState: {} }),
+      provideMockStore({
+        initialState: {
+          user: {
+            currentUser: null,
+            isAuthenticated: false,
+            usuarios: [],
+            onlineUsers: [],
+            filteredOnlineUsers: [],
+          },
+          chat: {
+            chats: [],
+            messages: [],
+            loading: false,
+            error: null,
+          },
+          friendship: {         // 👈 adicione
+            requests: [],
+            friends: [],
+            incoming: [],
+            sent: [],
+            loading: false,
+            error: null,
+          },
+        },
+      }),
       ...commonTestingProviders(),
       { provide: MAT_DIALOG_DATA, useValue: {} },
       { provide: MatDialogRef, useValue: { close: jest.fn() } },
+      {
+        provide: MatSnackBar,
+        useValue: {
+          open: jest.fn(() => ({
+            onAction: () => of(void 0),
+            afterDismissed: () => of({ dismissedByAction: false }),
+          })),
+        },
+      },
     ],
   });
 });
+
+// ---------------- Helpers úteis nos testes ----------------
+// Permite disparar o callback registrado por onAuthStateChanged sem repetir boilerplate nos specs
+(globalThis as any).emitAuthUser = (user: any) => {
+  const auth = jest.requireMock('firebase/auth');
+  const calls = (auth.onAuthStateChanged as jest.Mock).mock.calls;
+  const last = calls[calls.length - 1];
+  const cb = last?.[1];
+  if (typeof cb === 'function') cb(user);
+};
 
 // ---------------- Consoles: silenciar por padrão ----------------
 
@@ -247,16 +441,15 @@ const __ORIGINAL_CONSOLE__ = {
 };
 
 // Env flags:
-// - JEST_SILENCE_CONSOLE: controla log/info/debug (default: true)
-// - JEST_SILENCE_WARN: controla warn (default: true)
-// - JEST_CONSOLE_ALLOW: whitelista padrões (separados por "|")
-// - FAIL_ON_CONSOLE_ERROR: lança erro ao ocorrer console.error (default: false)
+// - JEST_SILENCE_CONSOLE (default: true)
+// - JEST_SILENCE_WARN    (default: true)
+// - JEST_CONSOLE_ALLOW   (patterns separados por "|")
+// - FAIL_ON_CONSOLE_ERROR (default: false)
 const SILENCE_STD = (process.env['JEST_SILENCE_CONSOLE'] ?? 'true') !== 'false';
 const SILENCE_WARN = (process.env['JEST_SILENCE_WARN'] ?? 'true') !== 'false';
 const FAIL_ON_ERROR = (process.env['FAIL_ON_CONSOLE_ERROR'] ?? 'false') === 'true';
 let ALLOW_LIST: string[] = (process.env['JEST_CONSOLE_ALLOW'] ?? '')
   .split('|').map(s => s.trim()).filter(Boolean);
-
 
 function stringifySafe(v: unknown): string {
   if (typeof v === 'string') return v;
@@ -268,7 +461,6 @@ function matchesAllowList(args: unknown[]): boolean {
   return ALLOW_LIST.some(p => text.includes(p));
 }
 
-// helpers para habilitar logs em um teste
 (globalThis as any).allowConsole = (patterns: string | string[]) => {
   const arr = Array.isArray(patterns) ? patterns : [patterns];
   ALLOW_LIST = [...ALLOW_LIST, ...arr.filter(Boolean)];

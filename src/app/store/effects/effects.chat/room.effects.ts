@@ -6,8 +6,8 @@ import * as RoomActions from '../../actions/actions.chat/room.actions';
 import { map, mergeMap, catchError } from 'rxjs/operators';
 import { from, of } from 'rxjs';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
-import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { environment } from '../../../../environments/environment';
+import { IRoom } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 
 @Injectable()
 export class RoomEffects {
@@ -26,7 +26,7 @@ export class RoomEffects {
           console.log('[RoomEffects] LoadRooms acionado para usuário ID:', userId);
         }
         return this.roomService.getRooms(userId).pipe(
-          map((rooms: Chat[]) => {
+          map((rooms: IRoom[]) => {
             if (!environment.production) {
               console.log('[RoomEffects] LoadRoomsSuccess com salas:', rooms);
             }
@@ -51,12 +51,11 @@ export class RoomEffects {
           console.log('[RoomEffects] CreateRoom acionado com detalhes:', action.roomDetails);
         }
         return this.roomManagement.createRoom(action.roomDetails, action.roomDetails.creatorId).pipe(
-          map((room: unknown) => {
-            const validRoom = room as Chat;
+          map((room: IRoom) => { // 👈 tipar como IRoom
             if (!environment.production) {
-              console.log('[RoomEffects] CreateRoomSuccess com sala:', validRoom);
+              console.log('[RoomEffects] CreateRoomSuccess com sala:', room);
             }
-            return RoomActions.CreateRoomSuccess({ room: validRoom });
+            return RoomActions.CreateRoomSuccess({ room }); // 👈 payload deve esperar IRoom
           }),
           catchError(error => {
             if (!environment.production) {

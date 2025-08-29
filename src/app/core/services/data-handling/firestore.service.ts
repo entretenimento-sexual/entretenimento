@@ -1,10 +1,10 @@
 // src\app\core\services\data-handling\firestore.service.ts
 import { Inject, Injectable, Injector, inject, runInInjectionContext } from '@angular/core';
 import {
-          Firestore, collection, doc, query, collectionData, QueryConstraint,
-          setDoc, updateDoc, deleteDoc, increment, WithFieldValue, DocumentData,
-          getDocs, where, getDoc, arrayUnion
-        } from '@angular/fire/firestore';
+  Firestore, collection, doc, query, collectionData, QueryConstraint,
+  setDoc, updateDoc, deleteDoc, increment, WithFieldValue, DocumentData,
+  getDocs, where, getDoc, arrayUnion
+} from '@angular/fire/firestore';
 import { Timestamp } from 'firebase/firestore';
 import { getAuth, User } from 'firebase/auth';
 import { Observable, from, of, throwError } from 'rxjs';
@@ -33,13 +33,29 @@ export class FirestoreService {
     return this.firestore;
   }
 
+  /** 🔎 Lê o documento do índice público de apelido (ou null se não existir). */
+  getPublicNicknameIndex(nickname: string): Observable<any | null> {
+    const normalized = nickname.trim().toLowerCase();
+    const docId = `nickname:${normalized}`;
+    return this.getDocument<any>('public_index', docId);
+  }
+
+  /** ⚡ Check de existência do índice de apelido (O(1)). */
+  checkNicknameIndexExists(nickname: string): Observable<boolean> {
+    return this.getPublicNicknameIndex(nickname).pipe(
+      map(doc => !!doc)
+    );
+  }
+
   /** 🔍 Busca documento por ID */
   getDocument<T>(collectionName: string, docId: string): Observable<T | null> {
-    const docRef = doc(this.firestore, collectionName, docId);
-    return from(getDoc(docRef)).pipe(
-      map(docSnap => docSnap.exists() ? (docSnap.data() as T) : null),
-      catchError(err => this.handleFirestoreError(err))
-    );
+    return runInInjectionContext(this.injector, () => {
+      const docRef = doc(this.firestore, collectionName, docId);
+      return from(getDoc(docRef)).pipe(
+        map(docSnap => docSnap.exists() ? (docSnap.data() as T) : null),
+        catchError(err => this.handleFirestoreError(err))
+      );
+    });
   }
 
   /** 📋 Busca múltiplos documentos com cache opcional */

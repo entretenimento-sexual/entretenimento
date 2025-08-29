@@ -2,12 +2,12 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { RegisterComponent } from './register.component';
+import { WelcomeComponent } from './welcome/welcome.component';
+
 
 const routes: Routes = [
-  {
-    path: '',
-    component: RegisterComponent, // Acesso público
-  },
+  { path: '', component: RegisterComponent },     // /register
+  { path: 'welcome', component: WelcomeComponent } // /register/welcome  👈 precisa existir
 ];
 
 @NgModule({

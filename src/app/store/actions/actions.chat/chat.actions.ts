@@ -1,6 +1,6 @@
 // src/app/store/actions/actions.chat/chat.actions.ts
 import { createAction, props } from '@ngrx/store';
-import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
+import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { environment } from 'src/environments/environment';
 
@@ -8,7 +8,7 @@ import { environment } from 'src/environments/environment';
 export const loadChats = createAction('[Chat] Load Chats');
 export const loadChatsSuccess = createAction(
   '[Chat] Load Chats Success',
-  props<{ chats: Chat[] }>()
+  props<{ chats: IChat[] }>()
 );
 export const loadChatsFailure = createAction(
   '[Chat] Load Chats Failure',
@@ -18,11 +18,11 @@ export const loadChatsFailure = createAction(
 // **Criar uma nova conversa**
 export const createChat = createAction(
   '[Chat] Create Chat',
-  props<{ chat: Chat }>()
+  props<{ chat: IChat }>()
 );
 export const createChatSuccess = createAction(
   '[Chat] Create Chat Success',
-  props<{ chat: Chat }>()
+  props<{ chat: IChat }>()
 );
 export const createChatFailure = createAction(
   '[Chat] Create Chat Failure',
@@ -32,11 +32,11 @@ export const createChatFailure = createAction(
 // **Atualizar conversa**
 export const updateChat = createAction(
   '[Chat] Update Chat',
-  props<{ chatId: string; updateData: Partial<Chat> }>()
+  props<{ chatId: string; updateData: Partial<IChat> }>()
 );
 export const updateChatSuccess = createAction(
   '[Chat] Update Chat Success',
-  props<{ chatId: string; updateData: Partial<Chat> }>()
+  props<{ chatId: string; updateData: Partial<IChat> }>()
 );
 export const updateChatFailure = createAction(
   '[Chat] Update Chat Failure',

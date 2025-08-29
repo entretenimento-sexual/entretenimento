@@ -16,42 +16,34 @@ export class FirestoreValidationService {
   constructor(
     private firestoreService: FirestoreService,
     private cacheService: CacheService,
-    private store: Store<AppState>,
-    private notifier: NotificationService,
-    private globalErrorHandler: GlobalErrorHandlerService
   ) { }
 
   checkIfNicknameExists(nickname: string): Observable<boolean> {
-    const normalizedNickname = nickname.trim().toLowerCase();
-    const cacheKey = `validation:nickname:${normalizedNickname}`;
+    const normalized = nickname.trim().toLowerCase();
+    const cacheKey = `validation:nickname:${normalized}`;
 
-    // Evita verificar apelidos inválidos ou vazios
-    if (!normalizedNickname || normalizedNickname.length < 4) {
-      console.log(`⚠️ Apelido em branco ou inválido ignorado: '${nickname}'`);
+    // evita consultas desnecessárias
+    if (!normalized || normalized.length < 4) {
+      console.log(`⚠️ Apelido inválido/curto ignorado: '${nickname}'`);
       return of(false);
     }
 
     return this.cacheService.get<boolean>(cacheKey).pipe(
-      switchMap(cachedResult => {
-        if (cachedResult !== null) {
-          console.log(`✅ [Cache] Nickname '${nickname}' validado via cache: ${cachedResult}`);
-          return of(cachedResult);
+      switchMap(cached => {
+        if (cached !== null) {
+          console.log(`✅ [Cache] nickname '${normalized}': ${cached}`);
+          return of(cached);
         }
 
-        console.log(`🔍 [Firestore] Consultando apelido '${normalizedNickname}' na coleção 'public_index'.`);
-        return this.firestoreService.getDocuments<any>('public_index', [], false).pipe(
-          map(results =>
-            results.some(d =>
-              (d?.type === 'nickname') &&
-              (String(d?.value || '').toLowerCase() === normalizedNickname)
-            )
-          ),
+        console.log(`🔍 [Firestore] lookup O(1) de '${normalized}' em public_index via docId`);
+        return this.firestoreService.checkNicknameIndexExists(normalized).pipe(
           tap(exists => {
-            if (!exists) this.cacheService.set(cacheKey, exists, 60000);
+            // cache para ambos os resultados; TTL de 60s é um bom equilíbrio
+            this.cacheService.set(cacheKey, exists, 60_000);
           }),
-          // em caso de falha, não propaga erro crítico pro usuário no blur
-          catchError(error => {
-            console.log('🔥 Erro na verificação de apelido no Firestore (silenciado no validator):', error);
+          catchError(err => {
+            // não travar UX do blur por falha transitória de rede
+            console.log('🔥 Falha silenciosa no validator de apelido:', err);
             return of(false);
           })
         );

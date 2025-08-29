@@ -1,7 +1,7 @@
 // src/app/store/selectors/selectors.chat/chat.selectors.ts
 import { createSelector, createFeatureSelector } from '@ngrx/store';
 import { ChatState } from '../../states/states.chat/chat.state';
-import { Chat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
+import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 
 // Seletor para o estado de conversas
 export const selectChatState = createFeatureSelector<ChatState>('chat');
@@ -15,7 +15,7 @@ export const selectAllChats = createSelector(
 // Seleciona uma conversa específica pelo ID
 export const selectChatById = (chatId: string) => createSelector(
   selectAllChats,
-  (chats: Chat[]) => chats.find(chat => chat.id === chatId)
+  (chats: IChat[]) => chats.find(chat => chat.id === chatId)
 );
 
 // Seleciona mensagens em uma conversa específica

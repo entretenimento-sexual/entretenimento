@@ -7,6 +7,7 @@ import { authRedirectGuard } from './core/guards/auth-redirect.guard';
 import { ProfileListComponent } from './layout/profile-list/profile-list.component';
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { LoginComponent } from './authentication/login-component/login-component';
+import { authOnlyGuard } from './core/guards/auth-only.guard';
 
 const routes: Routes = [
   { path: '', redirectTo: '/dashboard/principal', pathMatch: 'full' },
@@ -15,7 +16,7 @@ const routes: Routes = [
   {
     path: 'dashboard',
     loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
-    canActivate: [authGuard],
+    canMatch: [authOnlyGuard],
   },
   {
     path: 'profile/:id',
@@ -50,6 +51,20 @@ const routes: Routes = [
     path: 'login',
     component: LoginComponent,
     canActivate: [authRedirectGuard],
+  },
+
+  {
+    path: 'post-verification/action',
+    loadComponent: () =>
+      import('./register-module/auth-verification-handler/auth-verification-handler.component')
+        .then(m => m.AuthVerificationHandlerComponent)
+  },
+  // opcional e recomendado: atender também ao caminho padrão do Firebase
+  {
+    path: '__/auth/action',
+    loadComponent: () =>
+      import('./register-module/auth-verification-handler/auth-verification-handler.component')
+        .then(m => m.AuthVerificationHandlerComponent)
   },
 
   // Rotas acessíveis para todos

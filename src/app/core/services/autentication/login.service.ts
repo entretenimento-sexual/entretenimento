@@ -2,10 +2,10 @@
 import { Injectable } from '@angular/core';
 import { first } from 'rxjs';
 import {
-  getAuth, signInWithEmailAndPassword, sendPasswordResetEmail,
-  confirmPasswordReset, setPersistence, browserLocalPersistence,
-  browserSessionPersistence, EmailAuthProvider, Persistence, reauthenticateWithCredential
-} from 'firebase/auth';
+        getAuth, signInWithEmailAndPassword, sendPasswordResetEmail,
+        confirmPasswordReset, setPersistence, browserLocalPersistence,
+        browserSessionPersistence, EmailAuthProvider, Persistence, reauthenticateWithCredential
+      } from 'firebase/auth';
 import { Router } from '@angular/router';
 import { UsuarioService } from '../user-profile/usuario.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
