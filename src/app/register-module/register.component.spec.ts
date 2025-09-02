@@ -94,8 +94,7 @@ describe('RegisterComponent', () => {
       '123456'
     );
 
-    expect(emailVerification.resendVerificationEmail).toHaveBeenCalled();
-    expect(router.navigate).toHaveBeenCalledWith(['/welcome']);
+    expect(router.navigate).toHaveBeenCalledWith(['/register/welcome'], { queryParams: { email: 'jd@example.com' } });
   });
 
   it('togglePasswordVisibility deve alternar o sinal', () => {

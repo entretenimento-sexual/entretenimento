@@ -6,7 +6,7 @@ import { EmailVerificationService } from 'src/app/core/services/autentication/re
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
-import { browserLocalPersistence, browserSessionPersistence, getAuth, User } from 'firebase/auth';
+import { browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Observable } from 'rxjs';
 

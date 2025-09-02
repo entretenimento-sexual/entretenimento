@@ -1,35 +1,29 @@
 // src/app/core/guards/auth.guard.ts
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree } from '@angular/router';
-import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
-import { Observable, of } from 'rxjs';
-import { take, switchMap } from 'rxjs/operators';
+import { Auth, authState } from '@angular/fire/auth';
+import { from, of, Observable } from 'rxjs';
+import { map, take, switchMap } from 'rxjs/operators';
 
-export const authGuard: CanActivateFn = (): Observable<boolean | UrlTree> => {
+export const authGuard: CanActivateFn = (_route, state): Observable<boolean | UrlTree> => {
   const router = inject(Router);
-  const auth = getAuth();
+  const auth = inject(Auth);
 
-  return new Observable<User | null>((subscriber) => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      subscriber.next(user);
-      subscriber.complete();
-      unsubscribe();
-    });
-  }).pipe(
+  return authState(auth).pipe(
     take(1),
-    switchMap((user) => {
+    switchMap(user => {
+      if (!user) return of<null>(null);                 // ⬅️ sem `as const`
+      if (user.emailVerified) return of(user);
+      return from(user.reload()).pipe(map(() => auth.currentUser));
+    }),
+    map(user => {
       if (!user) {
-        console.log('🚫 [authGuard] Não autenticado. Redirecionando para login.');
-        return of(router.createUrlTree(['/login']));
+        return router.createUrlTree(['/login'], { queryParams: { redirectTo: state.url } });
       }
-
       if (!user.emailVerified) {
-        console.log('⚠️ [authGuard] E-mail não verificado. Redirecionando para register/welcome.');
-        return of(router.createUrlTree(['/register/welcome']));
+        return router.createUrlTree(['/register/welcome'], { queryParams: { redirectTo: state.url } });
       }
-
-      console.log('✅ [authGuard] Acesso permitido.');
-      return of(true);
+      return true;                                       // ⬅️ simples
     })
   );
 };

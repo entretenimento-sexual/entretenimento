@@ -1,128 +1,145 @@
-// src\app\layout\perfis-proximos\perfis-proximos.component.ts
-import { Component, OnInit, ViewChild, input } from '@angular/core';
+// src/app/layout/perfis-proximos/perfis-proximos.component.ts
+import { Component, OnInit, ViewChild, input, DestroyRef, inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { distanceBetween, geohashForLocation } from 'geofire-common';
+import { geohashForLocation } from 'geofire-common';
 import { GeoCoordinates } from 'src/app/core/interfaces/geolocation.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { GeolocationService } from 'src/app/core/services/geolocation/geolocation.service';
+import { GeolocationService, GeolocationError, GeolocationErrorCode } from 'src/app/core/services/geolocation/geolocation.service';
 import { NearbyProfilesService } from 'src/app/core/services/geolocation/near-profile.service';
 import { MatDialog } from '@angular/material/dialog';
 import { ModalMensagemComponent } from 'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component';
 import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { take } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
-
+import { AsyncPipe, CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
 @Component({
-    selector: 'app-perfis-proximos',
-    templateUrl: './perfis-proximos.component.html',
-    styleUrls: ['./perfis-proximos.component.css', '../layout-profile-exibe.css'],
-    standalone: true,
-  imports: [UserCardComponent]
+  selector: 'app-perfis-proximos',
+  templateUrl: './perfis-proximos.component.html',
+  styleUrls: ['./perfis-proximos.component.css', '../layout-profile-exibe.css'],
+  standalone: true,
+  imports: [CommonModule, AsyncPipe, FormsModule, UserCardComponent]
 })
 export class PerfisProximosComponent implements OnInit {
-  @ViewChild(ModalMensagemComponent)
-  modalMensagem!: ModalMensagemComponent;
+  @ViewChild(ModalMensagemComponent) modalMensagem!: ModalMensagemComponent;
 
   userLocation: GeoCoordinates | null = null;
   profiles: IUserDados[] = [];
 
+  // Slider de raio (UI) + limite imposto pela policy do role/verificação
+  uiDistanceKm?: number;
+  policyMaxDistanceKm = 20;
+
   readonly user = input.required<IUserDados | null>();
   readonly distanciaKm = input.required<number | null>();
 
-  constructor(
-    private geolocationService: GeolocationService,
-    private authService: AuthService,
-    private nearbyProfilesService: NearbyProfilesService,
-    private router: Router,
-    private dialog: MatDialog,
-    private userProfileService: UserProfileService
+  private readonly destroyRef = inject(DestroyRef);
 
+  constructor(
+    private readonly geolocationService: GeolocationService,
+    // ⚠️ precisa ser visível ao template
+    protected readonly authService: AuthService,
+    private readonly nearbyProfilesService: NearbyProfilesService,
+    private readonly router: Router,
+    private readonly dialog: MatDialog,
+    private readonly userProfileService: UserProfileService,
+    private readonly errorNotificationService: ErrorNotificationService,
+    private readonly globalErrorHandlerService: GlobalErrorHandlerService
   ) { }
 
-  async ngOnInit(): Promise<void> {
-    try {
-      const user = await this.authService.user$.pipe(take(1)).toPromise();
-
-      if (!user || !user.uid) {
-        console.log('UID do usuário não está disponível.');
-        return;
-      }
-
-      this.userLocation = await this.geolocationService.getCurrentLocation();
-
-      if (this.isValidCoordinates(this.userLocation?.latitude, this.userLocation?.longitude)) {
-        const geohash = geohashForLocation([this.userLocation.latitude, this.userLocation.longitude]);
-        await this.loadProfilesNearUserLocation(user.uid);
-        await this.userProfileService.updateUserLocation(user.uid, this.userLocation, geohash);
-      } else {
-        console.log('Coordenadas de localização inválidas.');
-      }
-    } catch (error) {
-      console.log('Erro ao obter localização do usuário:', error);
-    }
+  ngOnInit(): void {
+    // Nada de geolocalização aqui – só após gesto do usuário.
   }
 
-  isValidCoordinates(latitude: number | null, longitude: number | null): boolean {
-    console.log('Latitude:', latitude, 'Tipo:', typeof latitude);
-    console.log('Longitude:', longitude, 'Tipo:', typeof longitude);
+  /** Chamado pelo botão no template */
+  onEnableLocationClick(): void {
+    this.authService.user$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: async (user) => {
+        if (!user?.uid) {
+          this.errorNotificationService.showError('Usuário não autenticado.');
+          return;
+        }
+        try {
+          const precise = await this.geolocationService.getCurrentLocation({ requireUserGesture: true });
+          const { coords: safeCoords, geohash, policy } = this.geolocationService.applyRolePrivacy(
+            precise,
+            user.role,
+            !!user.emailVerified
+          );
 
-    return (
-      typeof latitude === 'number' &&
-      typeof longitude === 'number' &&
-      latitude >= -90 &&
-      latitude <= 90 &&
-      longitude >= -180 &&
-      longitude <= 180
-    );
+          this.userLocation = safeCoords;
+
+          // Limite + valor inicial do slider
+          this.policyMaxDistanceKm = policy.maxDistanceKm || 20;
+          this.uiDistanceKm ??= this.policyMaxDistanceKm;
+
+          // Carrega perfis respeitando o slider (capado pelo limite)
+          await this.loadProfilesNearUserLocation(user.uid);
+
+          // Atualiza localização (coarse)
+          const finalHash = geohash ?? geohashForLocation([safeCoords.latitude!, safeCoords.longitude!]);
+          await this.userProfileService.updateUserLocation(user.uid, { ...safeCoords, geohash: finalHash }, finalHash);
+        } catch (err) {
+          this.handleGeoError(err);
+        }
+      },
+      error: (err) => this.handleGeoError(err)
+    });
   }
 
-  async loadProfilesNearUserLocation(uid: string): Promise<void> {
+  private async loadProfilesNearUserLocation(uid: string): Promise<void> {
     try {
       if (!this.userLocation) {
-        console.log('Localização do usuário não está disponível.');
+        this.errorNotificationService.showInfo('Localização não disponível.');
         return;
       }
-
       const { latitude, longitude } = this.userLocation;
-      const maxDistanceKm = 20;
+      const capKm = Math.min(this.uiDistanceKm ?? this.policyMaxDistanceKm, this.policyMaxDistanceKm);
 
       this.profiles = await this.nearbyProfilesService.getProfilesNearLocation(
-        latitude,
-        longitude,
-        maxDistanceKm,
-        uid  // Passando o UID do usuário logado para o filtro
+        latitude!, longitude!, capKm, uid
       );
-      console.log('Perfis carregados com distância:', this.profiles);
     } catch (error) {
-      console.log('Erro ao carregar perfis próximos:', error);
+      this.errorNotificationService.showError('Erro ao carregar perfis próximos.');
+      this.globalErrorHandlerService.handleError(error as Error);
     }
   }
 
-// daqui pra baixo é sobre envio de mensagem
   abrirModalMensagem(uid: string): void {
-    console.log('UID do perfil selecionado para mensagem:', uid);
-
-    const perfilSelecionado = this.profiles.find(profile => profile.uid === uid)
-    if (perfilSelecionado) {
-      const dialogRef = this.dialog.open(ModalMensagemComponent, {
-        width: '22%',
-        minWidth: 300,
-        data: { profile: perfilSelecionado } // Passe o perfil encontrado como parte dos dados
-      });
-
-      dialogRef.afterClosed().subscribe(result => {
-        // Trate o resultado aqui
-        if (result) {
-          this.router.navigate(['/chat', uid]);
-        }
-      });
-    } else {
-      console.log('Perfil não encontrado com o UID:', uid);
+    const perfilSelecionado = this.profiles.find(p => p.uid === uid);
+    if (!perfilSelecionado) {
+      this.errorNotificationService.showInfo('Perfil não encontrado.');
+      return;
     }
+    const dialogRef = this.dialog.open(ModalMensagemComponent, {
+      width: '22%',
+      minWidth: 300,
+      data: { profile: perfilSelecionado }
+    });
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) this.router.navigate(['/chat', uid]);
+    });
+  }
+
+  private handleGeoError(err: unknown): void {
+    let msg = 'Falha ao obter a sua localização.';
+    if (err instanceof GeolocationError) {
+      switch (err.code) {
+        case GeolocationErrorCode.UNSUPPORTED: msg = 'Seu navegador não suporta geolocalização.'; break;
+        case GeolocationErrorCode.INSECURE_CONTEXT: msg = 'Ative HTTPS (ou use localhost) para permitir a geolocalização.'; break;
+        case GeolocationErrorCode.PERMISSION_DENIED: msg = 'Permissão de localização negada.'; break;
+        case GeolocationErrorCode.USER_GESTURE_REQUIRED: msg = 'Clique em “Ativar localização” para continuar.'; break;
+        case GeolocationErrorCode.POSITION_UNAVAILABLE: msg = 'Posição atual indisponível.'; break;
+        case GeolocationErrorCode.TIMEOUT: msg = 'Tempo esgotado ao tentar localizar você.'; break;
+        default: msg = 'Ocorreu um erro desconhecido ao obter localização.';
+      }
+    }
+    this.errorNotificationService.showError(msg);
+    this.globalErrorHandlerService.handleError(err as Error);
   }
 }
-
-
-

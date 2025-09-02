@@ -1,11 +1,20 @@
-//src\app\core\services\autentication\register\register.service.ts
+// src/app/core/services/autentication/register/register.service.ts
 import { Injectable } from '@angular/core';
-import {
-          createUserWithEmailAndPassword, getAuth, sendPasswordResetEmail,
-          updateProfile, UserCredential } from 'firebase/auth';
-import { Timestamp, doc, runTransaction, writeBatch } from 'firebase/firestore';
 import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, switchMap, map, tap } from 'rxjs/operators';
+
+import {getAuth,
+        createUserWithEmailAndPassword,
+        sendPasswordResetEmail,
+        updateProfile,
+        UserCredential,
+      } from 'firebase/auth';
+
+import {doc,
+        runTransaction,
+        writeBatch,
+        Timestamp,
+      } from 'firebase/firestore';
 
 import { FirestoreService } from '../../data-handling/firestore.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
@@ -18,6 +27,9 @@ import { environment } from 'src/environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class RegisterService {
+  // ✅ usa SDK Web diretamente (sem DI do Auth)
+  private readonly auth = getAuth();
+
   constructor(
     private firestoreService: FirestoreService,
     private emailVerificationService: EmailVerificationService,
@@ -33,9 +45,10 @@ export class RegisterService {
     console.log('[RegisterService] registerUser iniciado', userData);
 
     return this.validateUserData(userData).pipe(
+      // 1) cria usuário no Auth
       switchMap(() => this.createFirebaseUser(userData.email, password)),
 
-      // grava User + Índice de forma atômica primeiro
+      // 2) grava user + índice (transação atômica)
       switchMap((cred) => {
         const payload: IUserRegistrationData = {
           uid: cred.user.uid,
@@ -46,15 +59,16 @@ export class RegisterService {
           isSubscriber: false,
           profileCompleted: false,
           registrationDate: new Date(),
-          firstLogin: Timestamp.fromDate(new Date())
+          firstLogin: Timestamp.fromDate(new Date()),
         };
+
         return this.persistUserAndIndexAtomic(cred.user.uid, userData.nickname, payload).pipe(
           map(() => cred),
           catchError(err => this.rollbackUser(cred.user.uid, err))
         );
       }),
 
-      // envia e-mail depois; se falhar, limpa tudo
+      // 3) envia e-mail de verificação
       switchMap((cred) =>
         this.emailVerificationService.sendEmailVerification(cred.user).pipe(
           map(() => cred),
@@ -66,7 +80,7 @@ export class RegisterService {
         )
       ),
 
-      // por último, updateProfile; se falhar, limpa tudo
+      // 4) updateProfile (rollback se falhar)
       switchMap((cred) =>
         from(updateProfile(cred.user, { displayName: userData.nickname, photoURL: '' })).pipe(
           map(() => cred),
@@ -82,43 +96,54 @@ export class RegisterService {
     );
   }
 
-
+  // -------------------- Validações --------------------
   private validateUserData(user: IUserRegistrationData): Observable<void> {
     const nickname = user.nickname?.trim() || '';
-    console.debug('[RegisterService] validateUserData nickname:', nickname, 'length:', nickname.length);
-
     if (nickname.length < 4 || nickname.length > 24) {
-      console.log('[RegisterService] validateUserData: apelido fora do tamanho permitido');
       return this.handleRegisterError(new Error('Apelido deve ter entre 4 e 24 caracteres.'), 'Validação');
     }
     if (!this.isValidEmailFormat(user.email)) {
-      console.log('[RegisterService] validateUserData: formato de e-mail inválido');
       return this.handleRegisterError(new Error('Formato de e-mail inválido.'), 'Validação');
     }
 
     return this.firestoreValidation.checkIfNicknameExists(nickname).pipe(
-      tap(exists => console.debug('[RegisterService] checkIfNicknameExists ->', exists)),
       switchMap((exists) => {
         if (exists) {
-          console.log('[RegisterService] validateUserData: apelido já está em uso');
           return this.handleRegisterError(new Error('Apelido já está em uso.'), 'Validação');
         }
-        console.debug('[RegisterService] validateUserData: apelido disponível, validando e-mail');
-        return this.checkIfEmailExists(user.email).pipe(
-          tap(() => console.debug('[RegisterService] checkIfEmailExists: e-mail não existe ou reset enviado'))
+        return this.checkIfEmailExists(user.email);
+      })
+    );
+  }
+
+  isValidEmailFormat(email: string): boolean {
+    return ValidatorService.isValidEmail(email);
+  }
+
+  private checkIfEmailExists(email: string): Observable<void> {
+    return from(this.firestoreService.checkIfEmailExists(email)).pipe(
+      switchMap((exists) => {
+        if (!exists) return of(void 0);
+        // fluxo “suave”: envia reset e encerra com erro tipado
+        return from(sendPasswordResetEmail(this.auth, email)).pipe(
+          switchMap(() =>
+            throwError(() => ({
+              code: 'email-exists-soft',
+              message: 'Se existir uma conta com este e-mail, você receberá instruções para recuperar o acesso.'
+            }))
+          )
         );
       })
     );
   }
 
-  /** Persiste user + índice do apelido de forma ATÔMICA (tudo ou nada). */
+  // ------------- Persistência atômica (user + índice) -------------
   private persistUserAndIndexAtomic(
     uid: string,
     nickname: string,
     payload: IUserRegistrationData
   ): Observable<void> {
-    // pode haver pequeno desencontro de tipos entre AngularFire e SDK web → use 'as any' se o TS reclamar
-    const db: any = this.firestoreService.getFirestoreInstance();
+    const db = this.firestoreService.getFirestoreInstance();
 
     const normalized = nickname.trim().toLowerCase();
     const userRef = doc(db, 'users', uid);
@@ -126,9 +151,9 @@ export class RegisterService {
 
     console.debug('[RegisterService] persistUserAndIndexAtomic → iniciando transaction', { uid, normalized });
 
-    return from(runTransaction(db, async (tx: any) => {
-      // 1) unicidade do apelido (evita corrida)
-      const idxSnap = await tx.get(indexRef);
+    return from(runTransaction(db, async (transaction) => {
+      // 1) unicidade do apelido
+      const idxSnap = await transaction.get(indexRef);
       if (idxSnap.exists()) {
         const err: any = new Error('Apelido já está em uso.');
         err.code = 'nickname-in-use';
@@ -136,15 +161,13 @@ export class RegisterService {
       }
 
       // 2) grava o documento do usuário
-      tx.set(userRef, {
+      transaction.set(userRef, {
         ...payload,
-        nicknameHistory: [
-          { nickname: normalized, date: Timestamp.now() }
-        ]
+        nicknameHistory: [{ nickname: normalized, date: Timestamp.now() }]
       }, { merge: true });
 
       // 3) grava o índice público do apelido
-      tx.set(indexRef, {
+      transaction.set(indexRef, {
         type: 'nickname',
         value: normalized,
         uid,
@@ -157,11 +180,11 @@ export class RegisterService {
     );
   }
 
-  /** Limpeza completa se algo falhar depois do Auth: apaga user doc, índice e o Auth user. */
+  /** Limpa Firestore + índice e tenta deletar o Auth user (rollback) */
   private cleanupOnFailure(uid: string, nickname: string): Observable<void> {
-    const db: any = this.firestoreService.getFirestoreInstance();
-
+    const db = this.firestoreService.getFirestoreInstance();
     const normalized = nickname.trim().toLowerCase();
+
     const userRef = doc(db, 'users', uid);
     const indexRef = doc(db, 'public_index', `nickname:${normalized}`);
     const batch = writeBatch(db);
@@ -174,26 +197,20 @@ export class RegisterService {
     return from(batch.commit()).pipe(
       catchError(err => {
         console.log('[RegisterService] cleanupOnFailure → falha ao limpar Firestore/Índice', err);
-        // segue o fluxo mesmo assim
         return of(void 0);
       }),
-      // por fim, apaga o usuário do Auth (se ainda estiver logado)
       switchMap(() => this.deleteUserOnFailure(uid)),
-      catchError(err => {
-        console.log('[RegisterService] cleanupOnFailure → falha ao deletar Auth user', err);
-        return of(void 0);
-      }),
+      catchError(() => of(void 0)),
       map(() => void 0)
     );
   }
 
+  // -------------------- Auth helpers --------------------
   private createFirebaseUser(email: string, password: string): Observable<UserCredential> {
-    console.debug('[RegisterService] createFirebaseUser: entrando em createUserWithEmailAndPassword');
-    return from(createUserWithEmailAndPassword(getAuth(), email, password));
+    return from(createUserWithEmailAndPassword(this.auth, email, password));
   }
 
   private rollbackUser(uid: string, error: any): Observable<never> {
-    console.log('[RegisterService] Rollback iniciado para uid:', uid, 'erro:', error);
     return from(this.deleteUserOnFailure(uid)).pipe(
       switchMap(() => throwError(() => error)),
       catchError((rollbackErr) => {
@@ -204,9 +221,7 @@ export class RegisterService {
   }
 
   deleteUserOnFailure(uid: string): Observable<void> {
-    console.debug('[RegisterService] deleteUserOnFailure:', uid);
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
+    const currentUser = this.auth.currentUser;
     if (currentUser?.uid === uid) {
       return from(currentUser.delete()).pipe(
         tap(() => console.debug('[RegisterService] usuário deletado com sucesso')),
@@ -219,28 +234,7 @@ export class RegisterService {
     return of(void 0);
   }
 
-  isValidEmailFormat(email: string): boolean {
-    const valid = ValidatorService.isValidEmail(email);
-    console.debug('[RegisterService] isValidEmailFormat:', email, '->', valid);
-    return valid;
-  }
-
-  private checkIfEmailExists(email: string): Observable<void> {
-    console.log('[RegisterService] checkIfEmailExists:', email);
-    return from(this.firestoreService.checkIfEmailExists(email)).pipe(
-      switchMap((exists) => {
-        if (!exists) return of(void 0);
-        // envia reset e encerra com erro tipado "suave"
-        return from(sendPasswordResetEmail(getAuth(), email)).pipe(
-          switchMap(() => throwError(() => ({
-            code: 'email-exists-soft',
-            message: 'Se existir uma conta com este e-mail, você receberá instruções para recuperar o acesso.'
-          })))
-        );
-      })
-    );
-  }
-
+  // -------------------- Erros --------------------
   private handleRegisterError(error: any, context = 'Erro no registro'): Observable<never> {
     const message = this.mapErrorMessage(error);
     console.log(`[${context}]`, error);
@@ -249,20 +243,20 @@ export class RegisterService {
   }
 
   private mapErrorMessage(error: any): string {
+    if ((error as any)?.code === 'email-exists-soft') {
+      return (error as any).message ?? 'E-mail já cadastrado.';
+    }
+
     if (error instanceof FirebaseError) {
       switch (error.code) {
-        case 'auth/email-already-in-use':
-          return 'Este e-mail já está em uso. Tente outro ou faça login.';
-        case 'auth/weak-password':
-          return 'Senha fraca. Ela precisa ter pelo menos 6 caracteres.';
-        case 'auth/invalid-email':
-          return 'Formato de e-mail inválido.';
-        case 'auth/network-request-failed':
-          return 'Problema de conexão. Verifique sua internet.';
-        default:
-          return `Erro no registro (${error.code}).`;
+        case 'auth/email-already-in-use': return 'Este e-mail já está em uso. Tente outro ou faça login.';
+        case 'auth/weak-password': return 'Senha fraca. Ela precisa ter pelo menos 6 caracteres.';
+        case 'auth/invalid-email': return 'Formato de e-mail inválido.';
+        case 'auth/network-request-failed': return 'Problema de conexão. Verifique sua internet.';
+        default: return `Erro no registro (${error.code}).`;
       }
     }
+
     if (error instanceof Error) return error.message;
     return 'Erro inesperado no processo de registro.';
   }

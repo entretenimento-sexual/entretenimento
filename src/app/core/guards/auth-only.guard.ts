@@ -1,29 +1,15 @@
-//src\app\core\guards\auth-only.guard.ts
+// src/app/core/guards/auth-only.guard.ts
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree } from '@angular/router';
-import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
-import { Observable, of } from 'rxjs';
-import { take, switchMap } from 'rxjs/operators';
+import { AngularFireAuth } from '@angular/fire/compat/auth';
+import { map, take } from 'rxjs/operators';
 
-export const authOnlyGuard: CanActivateFn = (_route, state): Observable<boolean | UrlTree> => {
+export const authOnlyGuard: CanActivateFn = (_route, state) => {
   const router = inject(Router);
-  const auth = getAuth();
+  const afAuth = inject(AngularFireAuth);
 
-  return new Observable<User | null>((subscriber) => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      subscriber.next(user);
-      subscriber.complete();
-      unsub();
-    });
-  }).pipe(
+  return afAuth.authState.pipe(
     take(1),
-    switchMap((user) => {
-      if (!user) {
-        // não logado → manda pro login com redirect de volta
-        return of(router.createUrlTree(['/login'], { queryParams: { redirectTo: state.url } }));
-      }
-      // logado (verificado ou não) → permite
-      return of(true);
-    })
+    map(user => user ? true : router.createUrlTree(['/login'], { queryParams: { redirectTo: state.url } }))
   );
 };

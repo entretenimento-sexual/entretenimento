@@ -1,6 +1,96 @@
 ﻿// src/test/setup-jest.ts
 // ============================================================================
-// 🔥 Mocks de Firebase (DEVEM vir antes de qualquer import)
+// ⚙️ Silenciador de console (deve rodar o mais cedo possível)
+// ----------------------------------------------------------------------------
+// - Desliga console.log/info/debug por padrão (controlável via env).
+// - console.warn também pode ser silenciado (default: true).
+// - console.error pode falhar o teste (default: false).
+// - Permite "lista branca" via JEST_CONSOLE_ALLOW="palavra1|regex2"
+//   (match simples por substring).
+// ============================================================================
+
+const __ORIGINAL_CONSOLE__ = {
+  log: console.log,
+  info: console.info,
+  debug: console.debug,
+  warn: console.warn,
+  error: console.error,
+};
+
+// Env flags:
+// - JEST_SILENCE_CONSOLE (default: true)  -> log/info/debug
+// - JEST_SILENCE_WARN    (default: true)  -> warn
+// - JEST_CONSOLE_ALLOW   (default: "")    -> padrões separados por "|"
+// - FAIL_ON_CONSOLE_ERROR (default: false)-> lança erro no console.error
+const SILENCE_STD = (process.env['JEST_SILENCE_CONSOLE'] ?? 'true') !== 'false';
+const SILENCE_WARN = (process.env['JEST_SILENCE_WARN'] ?? 'true') !== 'false';
+const FAIL_ON_ERROR = (process.env['FAIL_ON_CONSOLE_ERROR'] ?? 'false') === 'true';
+let ALLOW_LIST: string[] = (process.env['JEST_CONSOLE_ALLOW'] ?? '')
+  .split('|').map(s => s.trim()).filter(Boolean);
+
+function stringifySafe(v: unknown): string {
+  if (typeof v === 'string') return v;
+  try { return JSON.stringify(v); } catch { return String(v); }
+}
+function matchesAllowList(args: unknown[]): boolean {
+  if (!ALLOW_LIST.length) return false;
+  const text = args.map(stringifySafe).join(' ');
+  return ALLOW_LIST.some(p => text.includes(p));
+}
+
+// ✅ Spies aplicados AGORA (fora de hooks), para capturar logs em import-time
+if (SILENCE_STD) {
+  // log/info/debug ficam mudos, exceto se baterem na allowlist
+  jest.spyOn(console, 'log').mockImplementation((...args: any[]) => {
+    if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.log(...args);
+  });
+  jest.spyOn(console, 'info').mockImplementation((...args: any[]) => {
+    if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.info(...args);
+  });
+  jest.spyOn(console, 'debug').mockImplementation((...args: any[]) => {
+    if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.debug(...args);
+  });
+}
+
+if (SILENCE_WARN) {
+  jest.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
+    if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.warn(...args);
+  });
+} else {
+  // Modo "falante" para warn, porém com prefixo (útil para debugar)
+  jest.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
+    if (matchesAllowList(args)) return __ORIGINAL_CONSOLE__.warn(...args);
+    __ORIGINAL_CONSOLE__.warn('[WARN nos testes]', ...args);
+  });
+}
+
+jest.spyOn(console, 'error').mockImplementation((...args: any[]) => {
+  if (matchesAllowList(args)) return __ORIGINAL_CONSOLE__.error(...args);
+  // mantém visível no output, mas opcionalmente falha o teste
+  __ORIGINAL_CONSOLE__.error('[ERROR nos testes]', ...args);
+  if (FAIL_ON_ERROR) {
+    const msg = args.map(stringifySafe).join(' ');
+    throw new Error(`console.error disparado durante o teste: ${msg}`);
+  }
+});
+
+// Helpers globais para ajustar allowlist dinamicamente em specs, se necessário:
+(globalThis as any).allowConsole = (patterns: string | string[]) => {
+  const arr = Array.isArray(patterns) ? patterns : [patterns];
+  ALLOW_LIST = [...ALLOW_LIST, ...arr.filter(Boolean)];
+};
+(globalThis as any).resetConsoleAllow = () => {
+  ALLOW_LIST = (process.env['JEST_CONSOLE_ALLOW'] ?? '')
+    .split('|').map(s => s.trim()).filter(Boolean);
+};
+
+// Restaura após cada arquivo de teste (o Jest reexecuta este setup a cada spec)
+afterAll(() => {
+  jest.restoreAllMocks();
+});
+
+// ============================================================================
+// 🔥 Mocks de Firebase (DEVEM vir antes de qualquer import da app)
 // ============================================================================
 
 // ---- Pequenos "flags" de ambiente de browser que impactam presence ----
@@ -23,7 +113,7 @@ Object.defineProperty(document, 'visibilityState', {
   writable: true,
 });
 
-// firebase/app
+// --- firebase/app ---
 jest.mock('firebase/app', () => {
   const app = { name: '[DEFAULT]' };
   return {
@@ -33,13 +123,11 @@ jest.mock('firebase/app', () => {
   };
 });
 
-// firebase/auth
+// --- firebase/auth ---
 jest.mock('firebase/auth', () => {
-  // Não emite nada por padrão; os testes decidem quando emitir.
   const onAuthStateChanged = jest.fn((_auth: any, _cb: any) => {
-    return () => { };
+    return () => { /* unsubscribe noop */ };
   });
-
   return {
     getAuth: jest.fn(() => ({ currentUser: null })),
     onAuthStateChanged,
@@ -52,7 +140,7 @@ jest.mock('firebase/auth', () => {
   };
 });
 
-// firebase/database
+// --- firebase/database ---
 jest.mock('firebase/database', () => {
   const __refs = new Map<string, any>();
   const ref = jest.fn((_db: any, path?: string) => {
@@ -71,14 +159,10 @@ jest.mock('firebase/database', () => {
     remove: jest.fn(() => Promise.resolve()),
   }));
 
-  const serverTimestamp = jest.fn(() => Date.now()); // ⬅️ ADICIONE ISTO
+  const serverTimestamp = jest.fn(() => Date.now());
 
   const getDatabase = jest.fn(() => ({
-    ref,
-    set,
-    update,
-    remove,
-    onDisconnect,
+    ref, set, update, remove, onDisconnect,
   }));
 
   return {
@@ -92,14 +176,14 @@ jest.mock('firebase/database', () => {
   };
 });
 
-// firebase/firestore
+// --- firebase/firestore ---
 jest.mock('firebase/firestore', () => {
   const addDoc = jest.fn(async () => ({ id: 'doc-1' }));
   const setDoc = jest.fn(async () => { });
   const updateDoc = jest.fn(async () => { });
   const deleteDoc = jest.fn(async () => { });
 
-  // doc() agora carrega a "path" para possibilitar respostas condicionais em getDoc()
+  // doc() carrega a "path" para que getDoc() consiga responder condicionalmente
   const doc = jest.fn((first: any, ...segments: string[]) => {
     const base = typeof first === 'object' && first?.__path ? first.__path : '';
     const path = [base, ...segments].filter(Boolean).join('/');
@@ -114,13 +198,9 @@ jest.mock('firebase/firestore', () => {
   const where = jest.fn(() => ({}));
   const query = jest.fn(() => ({}));
 
-  // getDoc condicional:
-  // - public_index/* → não existe (permite criar novo apelido)
-  // - users/*       → existe com isSubscriber + oldnick (fallback p/ quando o spec não stubba a 2ª leitura)
   const getDoc = jest.fn(async (docRef: any) => {
     const p: string = docRef?.__path ?? '';
     const id = p.split('/').pop() ?? 'doc-1';
-
     if (p.startsWith('public_index/')) {
       return { exists: () => false, data: () => undefined, id };
     }
@@ -135,24 +215,15 @@ jest.mock('firebase/firestore', () => {
   });
 
   const getDocs = jest.fn(async () => ({ docs: [] as any[] }));
+  const onSnapshot = jest.fn((_q: any, next?: any) => { next?.({ docs: [] }); return () => { }; });
 
-  const onSnapshot = jest.fn((_q: any, next?: any) => {
-    next?.({ docs: [] });
-    return () => { };
-  });
-
-  // precisam ser jest.fn para specs sobrescreverem com .mockImplementation
   const serverTimestamp = jest.fn(() => new Date());
   const arrayUnion = jest.fn((...values: any[]) => ({ __op: 'arrayUnion', values }));
   const increment = jest.fn((n: number) => ({ __op: 'increment', n }));
 
   class Timestamp {
-    static now() {
-      return { toMillis: () => Date.now(), toDate: () => new Date() } as any;
-    }
-    static fromDate(d: Date) {
-      return { toDate: () => d } as any;
-    }
+    static now() { return { toMillis: () => Date.now(), toDate: () => new Date() } as any; }
+    static fromDate(d: Date) { return { toDate: () => d } as any; }
   }
 
   return {
@@ -175,7 +246,7 @@ jest.mock('firebase/firestore', () => {
   };
 });
 
-// Alias usado em alguns arquivos (ex.: Timestamp importado de '@firebase/firestore')
+// --- Alias usado em alguns arquivos (ex.: Timestamp importado de '@firebase/firestore')
 jest.mock('@firebase/firestore', () => {
   const addDoc = jest.fn(async () => ({ id: 'doc-1' }));
   const setDoc = jest.fn(async () => { });
@@ -198,7 +269,6 @@ jest.mock('@firebase/firestore', () => {
   const getDoc = jest.fn(async (docRef: any) => {
     const p: string = docRef?.__path ?? '';
     const id = p.split('/').pop() ?? 'doc-1';
-
     if (p.startsWith('public_index/')) {
       return { exists: () => false, data: () => undefined, id };
     }
@@ -213,23 +283,15 @@ jest.mock('@firebase/firestore', () => {
   });
 
   const getDocs = jest.fn(async () => ({ docs: [] as any[] }));
-
-  const onSnapshot = jest.fn((_q: any, next?: any) => {
-    next?.({ docs: [] });
-    return () => { };
-  });
+  const onSnapshot = jest.fn((_q: any, next?: any) => { next?.({ docs: [] }); return () => { }; });
 
   const serverTimestamp = jest.fn(() => new Date());
   const arrayUnion = jest.fn((...values: any[]) => ({ __op: 'arrayUnion', values }));
   const increment = jest.fn((n: number) => ({ __op: 'increment', n }));
 
   class Timestamp {
-    static now() {
-      return { toMillis: () => Date.now(), toDate: () => new Date() } as any;
-    }
-    static fromDate(d: Date) {
-      return { toDate: () => d } as any;
-    }
+    static now() { return { toMillis: () => Date.now(), toDate: () => new Date() } as any; }
+    static fromDate(d: Date) { return { toDate: () => d } as any; }
   }
 
   return {
@@ -253,29 +315,28 @@ jest.mock('@firebase/firestore', () => {
 });
 
 // ============================================================================
-// Ambiente Angular/Jest
+// 🧪 Ambiente Angular + Jest
 // ============================================================================
 
 import { setupZoneTestEnv } from 'jest-preset-angular/setup-env/zone';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { of } from 'rxjs';
 setupZoneTestEnv();
+
 import 'cross-fetch/polyfill';
 
-// TextEncoder/TextDecoder
+// TextEncoder/TextDecoder (Node)
 import { TextEncoder, TextDecoder } from 'util';
 (globalThis as any).TextEncoder = TextEncoder;
 (globalThis as any).TextDecoder = TextDecoder as any;
 
-// indexedDB
+// indexedDB (fake)
 try {
   // @ts-ignore
   if (!(globalThis as any).indexedDB) {
     require('fake-indexeddb/auto');
   }
-} catch { }
+} catch { /* noop */ }
 
-// ---- CANVAS + ResizeObserver ----
+// ---- Canvas + ResizeObserver ----
 Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
   value: () => ({
     canvas: {},
@@ -291,7 +352,6 @@ Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
   }),
   configurable: true,
 });
-
 class ResizeObserverMock { observe = jest.fn(); unobserve = jest.fn(); disconnect = jest.fn(); }
 (globalThis as any).ResizeObserver = ResizeObserverMock;
 
@@ -301,9 +361,11 @@ import { MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { RouterTestingModule } from '@angular/router/testing';
 import { HttpClientTestingModule } from '@angular/common/http/testing';
 import { provideMockStore } from '@ngrx/store/testing';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { of } from 'rxjs';
 import { commonTestingProviders } from './jest-stubs/test-providers';
 
-// AngularFire (não usados diretamente pelos seus serviços, mas mantidos por compat)
+// AngularFire (compat bridge — usado por alguns serviços)
 jest.mock('@angular/fire/app', () => {
   const FirebaseApp = Symbol('FirebaseApp');
   return {
@@ -318,11 +380,12 @@ jest.mock('@angular/fire/auth', () => {
     Auth,
     getAuth: jest.fn(() => ({ currentUser: null })),
     provideAuth: jest.fn(() => ({ provide: Auth, useValue: {} })),
+    authState: jest.fn(() => ({} as any)),
+    signOut: jest.fn(() => Promise.resolve()),
   };
 });
 
-// --- @angular/fire/firestore ---
-// Reexporta as MESMAS fns do mock de 'firebase/firestore' para compartilhar as mesmas .mock.calls
+// @angular/fire/firestore — reexporta mocks do firebase/firestore
 jest.mock('@angular/fire/firestore', () => {
   const firebaseFs = jest.requireMock('firebase/firestore');
   const Firestore = Symbol('Firestore');
@@ -348,7 +411,7 @@ jest.mock('@angular/fire/firestore', () => {
   };
 });
 
-// --- @angular/fire/storage ---
+// @angular/fire/storage
 jest.mock('@angular/fire/storage', () => {
   const Storage = Symbol('Storage');
   return {
@@ -358,7 +421,7 @@ jest.mock('@angular/fire/storage', () => {
   };
 });
 
-// --- @angular/fire/database --- (bridge total para o mock de 'firebase/database')
+// @angular/fire/database — bridge total para o mock de 'firebase/database'
 jest.mock('@angular/fire/database', () => {
   const firebaseDb = jest.requireMock('firebase/database');
   const Database = Symbol('Database');
@@ -374,7 +437,7 @@ jest.mock('@angular/fire/database', () => {
   };
 });
 
-// Configuração base do TestBed
+// Configuração base do TestBed — usada automaticamente por specs que não configuram o TestBed
 beforeEach(() => {
   TestBed.configureTestingModule({
     imports: [RouterTestingModule, HttpClientTestingModule],
@@ -394,7 +457,7 @@ beforeEach(() => {
             loading: false,
             error: null,
           },
-          friendship: {         // 👈 adicione
+          friendship: {
             requests: [],
             friends: [],
             incoming: [],
@@ -420,8 +483,8 @@ beforeEach(() => {
   });
 });
 
-// ---------------- Helpers úteis nos testes ----------------
-// Permite disparar o callback registrado por onAuthStateChanged sem repetir boilerplate nos specs
+// ---------------- Helpers úteis globais para specs ----------------
+// Permite disparar o callback mais recente registrado por onAuthStateChanged
 (globalThis as any).emitAuthUser = (user: any) => {
   const auth = jest.requireMock('firebase/auth');
   const calls = (auth.onAuthStateChanged as jest.Mock).mock.calls;
@@ -429,80 +492,3 @@ beforeEach(() => {
   const cb = last?.[1];
   if (typeof cb === 'function') cb(user);
 };
-
-// ---------------- Consoles: silenciar por padrão ----------------
-
-const __ORIGINAL_CONSOLE__ = {
-  log: console.log,
-  info: console.info,
-  debug: console.debug,
-  warn: console.warn,
-  error: console.error,
-};
-
-// Env flags:
-// - JEST_SILENCE_CONSOLE (default: true)
-// - JEST_SILENCE_WARN    (default: true)
-// - JEST_CONSOLE_ALLOW   (patterns separados por "|")
-// - FAIL_ON_CONSOLE_ERROR (default: false)
-const SILENCE_STD = (process.env['JEST_SILENCE_CONSOLE'] ?? 'true') !== 'false';
-const SILENCE_WARN = (process.env['JEST_SILENCE_WARN'] ?? 'true') !== 'false';
-const FAIL_ON_ERROR = (process.env['FAIL_ON_CONSOLE_ERROR'] ?? 'false') === 'true';
-let ALLOW_LIST: string[] = (process.env['JEST_CONSOLE_ALLOW'] ?? '')
-  .split('|').map(s => s.trim()).filter(Boolean);
-
-function stringifySafe(v: unknown): string {
-  if (typeof v === 'string') return v;
-  try { return JSON.stringify(v); } catch { return String(v); }
-}
-function matchesAllowList(args: unknown[]): boolean {
-  if (!ALLOW_LIST.length) return false;
-  const text = args.map(stringifySafe).join(' ');
-  return ALLOW_LIST.some(p => text.includes(p));
-}
-
-(globalThis as any).allowConsole = (patterns: string | string[]) => {
-  const arr = Array.isArray(patterns) ? patterns : [patterns];
-  ALLOW_LIST = [...ALLOW_LIST, ...arr.filter(Boolean)];
-};
-(globalThis as any).resetConsoleAllow = () => {
-  ALLOW_LIST = (process.env['JEST_CONSOLE_ALLOW'] ?? '')
-    .split('|').map(s => s.trim()).filter(Boolean);
-};
-
-beforeAll(() => {
-  if (SILENCE_STD) {
-    jest.spyOn(console, 'log').mockImplementation((...args: any[]) => {
-      if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.log(...args);
-    });
-    jest.spyOn(console, 'info').mockImplementation((...args: any[]) => {
-      if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.info(...args);
-    });
-    jest.spyOn(console, 'debug').mockImplementation((...args: any[]) => {
-      if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.debug(...args);
-    });
-  }
-  if (SILENCE_WARN) {
-    jest.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
-      if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.warn(...args);
-    });
-  } else {
-    jest.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
-      if (matchesAllowList(args)) return __ORIGINAL_CONSOLE__.warn(...args);
-      __ORIGINAL_CONSOLE__.warn('[WARN nos testes]', ...args);
-    });
-  }
-
-  jest.spyOn(console, 'error').mockImplementation((...args: any[]) => {
-    if (matchesAllowList(args)) return __ORIGINAL_CONSOLE__.error(...args);
-    __ORIGINAL_CONSOLE__.error('[ERROR nos testes]', ...args);
-    if (FAIL_ON_ERROR) {
-      const msg = args.map(stringifySafe).join(' ');
-      throw new Error(`console.error disparado durante o teste: ${msg}`);
-    }
-  });
-});
-
-afterAll(() => {
-  jest.restoreAllMocks();
-});

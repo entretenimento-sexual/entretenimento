@@ -19,6 +19,7 @@ import { environment } from 'src/environments/environment';
 
 // 👇 novo import
 import { EmailVerificationService } from './register/email-verification.service';
+import { GeolocationTrackingService } from '../geolocation/geolocation-tracking.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -36,8 +37,8 @@ export class AuthService {
     private globalErrorHandlerService: GlobalErrorHandlerService,
     private cacheService: CacheService,
     private store: Store<AppState>,
-    // 👇 injete o service
-    private emailVerificationService: EmailVerificationService
+    private emailVerificationService: EmailVerificationService,
+    private geoloc: GeolocationTrackingService,
   ) {
     console.log('[AuthService] Inicializando AuthService...');
 
@@ -228,6 +229,7 @@ export class AuthService {
             this.clearCurrentUser();
             this.store.dispatch(logoutSuccess());
             console.log('Logout realizado com sucesso e estado do usuário atualizado.');
+            this.geoloc.stopTracking(); // garante que o watchPosition não continue rodando
           }),
           switchMap(() => from(this.router.navigate(['/login']))),
           map(() => void 0),

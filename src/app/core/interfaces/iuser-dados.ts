@@ -36,5 +36,8 @@ export interface IUserDados {
   monthlyPayer?: boolean;
   subscriptionExpires?: Date;
   socialLinks?: IUserSocialLinks;
+
+  profileCompleted?: boolean;
+  suspended?: boolean;
 }
 

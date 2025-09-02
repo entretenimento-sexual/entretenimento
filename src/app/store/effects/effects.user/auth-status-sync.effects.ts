@@ -42,6 +42,7 @@ export class AuthStatusSyncEffects {
             if (uid) {
               console.log('Atualizando status do usuário para offline após logout:', uid);
               return from(this.usuarioService.updateUserOnlineStatus(uid, false)).pipe(
+                // só sinalizamos sucesso de update do status se quiser rastrear
                 map(() => updateUserOnlineStatusSuccess({ uid, isOnline: false })),
                 catchError(error => {
                   console.log('Erro ao atualizar status para offline:', error);

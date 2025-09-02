@@ -1,34 +1,85 @@
-<!-- src\app\dashboard\online-users\online-users.component.html -->
-<div class="container mt-3">
-  <h2 class="online-users-title">Perfis Online</h2>
+<!-- src/app/dashboard/online-users/online-users.component.html -->
+<div class="container mt-3" [attr.aria-busy]="loading ? 'true' : 'false'">
+  <h2 class="online-users-title mb-3">Perfis Online</h2>
 
-  <!-- Spinner de carregamento enquanto os usuários estão sendo carregados -->
-  @if (loading) {
-    <div class="d-flex justify-content-center my-4">
-      <div class="spinner-border" role="status">
-        <span class="visually-hidden">Carregando...</span>
-      </div>
-    </div>
+  <!-- Aviso de precisão limitada para contas não verificadas -->
+  @if (authService.user$ | async; as user) {
+  @if (!user?.emailVerified) {
+  <div class="alert alert-warning" role="status" aria-live="polite">
+    Sua conta não verificada limita a precisão e o raio de busca para proteger sua privacidade.
+  </div>
+  }
   }
 
-  <!-- Se houver perfis online, eles são exibidos -->
-  @if (onlineUsers$ | async; as onlineUsers) {
-    <!-- Exibe os perfis online se a lista não estiver vazia -->
-    @if (onlineUsers.length > 0) {
-      <div>
-        <div class="row row-cols-1 row-cols-md-3 g-4">
-          @for (user of onlineUsers; track user) {
-            <div class="col">
-              <!-- Componente de card de usuário, exibindo a distância calculada -->
-              <app-user-card [user]="user" [distanciaKm]="user.distanciaKm ?? null"></app-user-card>
-            </div>
-          }
+  <!-- Quando ainda não temos a localização do usuário -->
+  @if (!userLocation) {
+  <div class="alert alert-info" role="status" aria-live="polite">
+    Ative sua localização para priorizar perfis online próximos a você.
+  </div>
+
+  <button type="button" class="btn btn-primary mb-3" (click)="enableLocation()" [disabled]="loading"
+    [attr.aria-busy]="loading ? 'true' : 'false'" aria-describedby="onlineLocHelp">
+    {{ loading ? 'Obtendo sua localização...' : 'Ativar localização' }}
+  </button>
+
+  <p id="onlineLocHelp" class="form-text text-muted">
+    Só pedimos sua posição após um clique seu. Precisão e raio variam conforme seu plano e verificação.
+  </p>
+  } @else {
+  <!-- Controles quando já temos a localização -->
+  <div class="card mb-3" aria-labelledby="distControlTitleOnline">
+    <div class="card-body">
+      <h3 class="h6 mb-3" id="distControlTitleOnline">Ajustar raio de busca</h3>
+
+      <div class="row align-items-center g-2">
+        <div class="col-12 col-sm-8">
+          <input type="range" class="form-range" [(ngModel)]="uiDistanceKm" (ngModelChange)="onDistanceChange($event)"
+            [min]="1" [max]="policyMaxDistanceKm" [step]="1" aria-label="Raio de busca em quilômetros" />
+        </div>
+
+        <div class="col-12 col-sm-4">
+          <div class="d-flex justify-content-between small text-muted">
+            <span>1 km</span>
+            <span>{{ uiDistanceKm ?? policyMaxDistanceKm }} / {{ policyMaxDistanceKm }} km máx.</span>
+          </div>
         </div>
       </div>
-    } @else {
-      <p class="text-center mt-4">Nenhum usuário online no momento.</p>
-    }
+
+      <p class="form-text mt-2 mb-0">
+        O raio é limitado ao máximo permitido pelo seu plano e status de verificação.
+      </p>
+
+      <!-- Botão opcional para atualizar a posição (reaproveita o enableLocation) -->
+      <div class="mt-3">
+        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="enableLocation()" [disabled]="loading"
+          [attr.aria-busy]="loading ? 'true' : 'false'">
+          Atualizar minha posição
+        </button>
+      </div>
+    </div>
+  </div>
   }
 
-  <!-- Caso a lista de perfis online seja vazia -->
+  <!-- Spinner global -->
+  @if (loading) {
+  <div class="d-flex justify-content-center my-4" aria-live="polite">
+    <div class="spinner-border" role="status" aria-label="Carregando"></div>
+  </div>
+  }
+
+  <!-- Lista de usuários -->
+  @if (onlineUsers$ | async; as onlineUsers) {
+  @if (onlineUsers.length > 0) {
+  <div class="row row-cols-1 row-cols-md-3 g-4">
+    @for (user of onlineUsers; track user.uid) {
+    <div class="col">
+      <app-user-card [user]="user" [distanciaKm]="user.distanciaKm ?? null">
+      </app-user-card>
+    </div>
+    }
+  </div>
+  } @else if (userLocation && !loading) {
+  <p class="text-center mt-4">Nenhum usuário online no momento.</p>
+  }
+  }
 </div>

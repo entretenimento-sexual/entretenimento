@@ -6,6 +6,7 @@ import { NO_ERRORS_SCHEMA } from '@angular/core';
 
 
 import { RoomCreationConfirmationModalComponent } from './room-creation-confirmation-modal.component';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 
 describe('RoomCreationConfirmationComponent', () => {
   let component: RoomCreationConfirmationModalComponent;
@@ -16,8 +17,18 @@ describe('RoomCreationConfirmationComponent', () => {
       declarations: [RoomCreationConfirmationModalComponent],
       imports: [CommonModule, RouterTestingModule],
       schemas: [NO_ERRORS_SCHEMA],
-    })
-    .compileComponents();
+      providers: [
+        {
+          provide: MAT_DIALOG_DATA, useValue: {
+            action: 'create',
+            exceededLimit: false,
+            roomCount: 0,
+            room: { roomName: 'Sala Teste' } // adicione outros campos se o template usar
+          }
+        },
+        { provide: MatDialogRef, useValue: { close: jest.fn() } },
+      ],
+    }).compileComponents();
 
     fixture = TestBed.createComponent(RoomCreationConfirmationModalComponent);
     component = fixture.componentInstance;

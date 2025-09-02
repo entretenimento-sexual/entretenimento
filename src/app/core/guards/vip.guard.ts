@@ -1,34 +1,24 @@
-//src\app\core\guards\vip.guard.ts
+// src/app/core/guards/vip.guard.ts
 import { Injectable } from '@angular/core';
-import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router } from '@angular/router';
+import { CanActivate, Router, UrlTree } from '@angular/router';
 import { Observable } from 'rxjs';
-import { map, take, filter } from 'rxjs/operators';
-import { UsuarioStateService } from '../services/autentication/usuario-state.service';
+import { map, take } from 'rxjs/operators';
+import { AuthService } from '../services/autentication/auth.service';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class VipGuard implements CanActivate {
   constructor(
-    private usuarioStateService: UsuarioStateService,
-    private router: Router
+    private readonly authService: AuthService,
+    private readonly router: Router
   ) { }
 
-  canActivate(
-    next: ActivatedRouteSnapshot,
-    state: RouterStateSnapshot
-  ): Observable<boolean> | Promise<boolean> | boolean {
-    return this.usuarioStateService.temAcessoVip().pipe(
-      filter(user => !!user), // Garante que o user não seja nulo
-      take(1), // Pega apenas o primeiro valor emitido para não ficar em uma subscrição infinita
-      map(hasVipAccess => {
-        if (!hasVipAccess) {
-          this.router.navigate(['/subscription-plan']).then(() => {
-            console.log('Acesso restrito a usuários VIP. Redirecionando para página de subscrição.');
-          });
-          return false;
-        }
-        return true;
+  canActivate(): Observable<boolean | UrlTree> {
+    return this.authService.user$.pipe(
+      take(1),
+      map(user => {
+        const role = (user?.role || 'free').toString().toLowerCase();
+        const allowed = role === 'vip' || role === 'premium';
+        return allowed ? true : this.router.createUrlTree(['/subscription-plan']);
       })
     );
   }

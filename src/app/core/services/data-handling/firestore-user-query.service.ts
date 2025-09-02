@@ -1,6 +1,5 @@
 // src/app/core/services/data-handling/firestore-user-query.service.ts
-import { Inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
-import { Firestore, doc, getDoc } from '@angular/fire/firestore';
+import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { from, Observable, of, switchMap, take, shareReplay, map, catchError, firstValueFrom, tap } from 'rxjs';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
@@ -12,6 +11,10 @@ import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-h
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 
+// ✅ SDK Web
+import { getApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, Firestore } from 'firebase/firestore';
+
 @Injectable({ providedIn: 'root' })
 export class FirestoreUserQueryService {
   private userObservablesCache = new Map<string, Observable<IUserDados | null>>();
@@ -21,14 +24,17 @@ export class FirestoreUserQueryService {
     private store: Store<AppState>,
     private globalError: GlobalErrorHandlerService,
     private firestoreError: FirestoreErrorHandlerService,
-    private injector: Injector,
-    @Inject(Firestore) private firestore: Firestore
+    private injector: Injector
   ) { }
+
+  private db(): Firestore {
+    return getFirestore(getApp());
+  }
 
   /** Lê direto do Firestore (Injection-context safe) */
   private getUserFromFirestore$(uid: string): Observable<IUserDados | null> {
     return runInInjectionContext(this.injector, () => {
-      const ref = doc(this.firestore, 'users', uid);
+      const ref = doc(this.db(), 'users', uid);
       return from(getDoc(ref)).pipe(
         map(snap => (snap.exists() ? (snap.data() as IUserDados) : null)),
         tap(user => {
@@ -66,7 +72,7 @@ export class FirestoreUserQueryService {
     return this.userObservablesCache.get(id)!;
   }
 
-  /** API pública async/await (se precisar em componentes) */
+  /** API pública async/await */
   async getUserData(uid: string): Promise<IUserDados | null> {
     const id = uid.trim();
     const fromCache = await firstValueFrom(this.cache.get<IUserDados>(`user:${id}`));
@@ -74,21 +80,18 @@ export class FirestoreUserQueryService {
     return await firstValueFrom(this.getUser(id));
   }
 
-  /** 🔁 Alias de compatibilidade: mantém a API antiga funcionando */
+  /** Aliases de compatibilidade */
   getUserWithObservable(uid: string): Observable<IUserDados | null> {
     return this.getUser(uid);
   }
-
-  /** 🔁 Outro alias de compatibilidade (se usado em algum lugar) */
   getUserById(uid: string): Observable<IUserDados | null> {
     return this.getUser(uid);
   }
 
-  /** ♻️ Invalida caches e o observable memorizado (caso precise forçar reload) */
+  /** ♻️ Invalida caches e o observable memorizado */
   invalidateUserCache(uid: string): void {
     const id = uid.trim();
     this.userObservablesCache.delete(id);
-    // se seu CacheService tiver delete, use; senão, set TTL curto:
     this.cache.set(`user:${id}`, null as any, 1);
   }
 

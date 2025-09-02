@@ -1,0 +1,20 @@
+/* src/app/shared/location-cta/location-cta.component.scss */
+.loc-cta {
+  display: grid;
+  gap: .5rem;
+  align-items: start;
+}
+
+.loc-cta.busy {
+  opacity: .7;
+  pointer-events: none;
+}
+
+.copy {
+  font-size: .95rem;
+  color: var(--mat-sys-on-surface-variant, #666);
+}
+
+.hint {
+  opacity: .8;
+}

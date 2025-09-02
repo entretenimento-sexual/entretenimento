@@ -1,8 +1,12 @@
 // src/app/authentication/register-module/welcome/welcome.component.ts
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
-import { getAuth } from 'firebase/auth';
-import { Timestamp, doc, setDoc } from 'firebase/firestore';
+
+import { Auth } from '@angular/fire/auth';
+import { Timestamp, doc, setDoc } from '@angular/fire/firestore';
+
+import { firstValueFrom } from 'rxjs';
+
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
 import { ValidGenders } from 'src/app/core/enums/valid-genders.enum';
@@ -27,25 +31,25 @@ export class WelcomeComponent implements OnInit, OnDestroy {
   selectedGender = '';
   selectedPreferencesMap: Record<string, boolean> = {};
 
-  private pollTimer: any = null;
+  private pollTimer: ReturnType<typeof setInterval> | null = null;
   private pollTries = 0;
 
   constructor(
     private emailVerificationService: EmailVerificationService,
     private firestore: FirestoreService,
     private router: Router,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private auth: Auth // ✅ injeta a instância do Auth (AngularFire)
   ) { }
 
   ngOnInit(): void {
-    const auth = getAuth();
-    this.email = auth.currentUser?.email ?? null;
-    this.emailVerified = !!auth.currentUser?.emailVerified;
+    const u = this.auth.currentUser;
+    this.email = u?.email ?? null;
+    this.emailVerified = !!u?.emailVerified;
 
-    // Se veio do link de verificação, ou se pedirmos, podemos checar já de cara
     const autoCheck = this.route.snapshot.queryParamMap.get('autocheck') === '1';
     if (autoCheck || !this.emailVerified) {
-      this.startPolling(); // polling leve (pára sozinho quando verificar)
+      this.startPolling();
     }
   }
 
@@ -53,22 +57,19 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     if (this.pollTimer) clearInterval(this.pollTimer);
   }
 
-  /** Recarrega o usuário e atualiza o flag local; se verificar, sincroniza no Firestore */
-  private reloadAndSync(): Promise<boolean> {
-    const auth = getAuth();
-    if (!auth.currentUser) return Promise.resolve(false);
+  /** Recarrega o usuário e sincroniza o emailVerified no Firestore quando virar true */
+  private async reloadAndSync(): Promise<boolean> {
+    const u = this.auth.currentUser;
+    if (!u) return false;
 
-    return auth.currentUser.reload().then(async () => {
-      const verified = !!auth.currentUser?.emailVerified;
-      this.emailVerified = verified;
+    await u.reload();
+    this.emailVerified = !!u.emailVerified;
 
-      if (verified && auth.currentUser?.uid) {
-        // Sincroniza campo emailVerified no Firestore (idempotente)
-        await this.emailVerificationService.updateEmailVerificationStatus(auth.currentUser.uid, true).toPromise();
-        this.message = 'E-mail verificado com sucesso!';
-      }
-      return verified;
-    });
+    if (this.emailVerified && u.uid) {
+      await firstValueFrom(this.emailVerificationService.updateEmailVerificationStatus(u.uid, true));
+      this.message = 'E-mail verificado com sucesso!';
+    }
+    return this.emailVerified;
   }
 
   /** Botão: "Já verifiquei — checar agora" */
@@ -104,7 +105,6 @@ export class WelcomeComponent implements OnInit, OnDestroy {
   /** Continuar sem verificar (não bloqueia) */
   proceedToDashboard(): void {
     const redirectTo = this.route.snapshot.queryParamMap.get('redirectTo') || '/dashboard/principal';
-
     this.router.navigateByUrl(redirectTo).then(ok => {
       if (!ok) this.router.navigate(['/dashboard/principal']);
     }).catch(() => {
@@ -114,8 +114,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
 
   /** Salva dados opcionais (se o usuário quiser adiantar) */
   async saveOptionalProfile(): Promise<void> {
-    const auth = getAuth();
-    const uid = auth.currentUser?.uid;
+    const uid = this.auth.currentUser?.uid;
     if (!uid) return;
 
     const selectedPreferences = Object.entries(this.selectedPreferencesMap)
@@ -150,7 +149,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
       this.pollTries++;
       await this.reloadAndSync();
       if (this.emailVerified || this.pollTries >= 8) {
-        clearInterval(this.pollTimer);
+        clearInterval(this.pollTimer!);
         this.pollTimer = null;
       }
     }, 4000);

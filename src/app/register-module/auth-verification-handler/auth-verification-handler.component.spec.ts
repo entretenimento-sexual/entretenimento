@@ -16,11 +16,15 @@ describe('AuthVerificationHandlerComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [AuthVerificationHandlerComponent],
-      imports: [RouterTestingModule],
+      imports: [AuthVerificationHandlerComponent, RouterTestingModule],
       providers: [
         { provide: ActivatedRoute, useValue: { queryParams: of({ mode: 'verifyEmail', oobCode: 'x' }) } },
-        { provide: EmailVerificationService, useValue: { verifyEmail: () => Promise.resolve(), resendVerificationEmail: () => of('ok') } },
+        {
+          provide: EmailVerificationService, useValue: {
+            handleEmailVerification: () => of({ ok: true, reason: 'not-logged-in', firestoreUpdated: false }),
+            resendVerificationEmail: () => of('ok'),
+          }
+        },
         { provide: AuthService, useValue: { user$: of({ uid: 'u1' }), getLoggedUserUID$: () => of('u1') } },
         { provide: FirestoreUserQueryService, useValue: { getUser: () => of(null), updateUserInStateAndCache: () => { } } },
         { provide: GlobalErrorHandlerService, useValue: { handleError: () => { } } },
