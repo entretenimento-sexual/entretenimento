@@ -1,4 +1,3 @@
-// src/app/core/services/data-handling/firestore-user-query.service.ts
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { from, Observable, of, switchMap, take, shareReplay, map, catchError, firstValueFrom, tap } from 'rxjs';
 import { Store } from '@ngrx/store';
@@ -10,10 +9,11 @@ import { GlobalErrorHandlerService } from '../error-handler/global-error-handler
 import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
-
-// ✅ SDK Web
 import { getApp } from 'firebase/app';
-import { getFirestore, doc, getDoc, Firestore } from 'firebase/firestore';
+import {
+  getFirestore, doc, getDoc, onSnapshot,
+  Firestore, DocumentSnapshot, DocumentData
+} from 'firebase/firestore';
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreUserQueryService {
@@ -31,7 +31,6 @@ export class FirestoreUserQueryService {
     return getFirestore(getApp());
   }
 
-  /** Lê direto do Firestore (Injection-context safe) */
   private getUserFromFirestore$(uid: string): Observable<IUserDados | null> {
     return runInInjectionContext(this.injector, () => {
       const ref = doc(this.db(), 'users', uid);
@@ -48,7 +47,6 @@ export class FirestoreUserQueryService {
     });
   }
 
-  /** Caminho único de leitura com cache + store + Firestore */
   private fetchUser$(uid: string): Observable<IUserDados | null> {
     const id = uid.trim();
     return this.cache.get<IUserDados>(`user:${id}`).pipe(
@@ -63,7 +61,6 @@ export class FirestoreUserQueryService {
     );
   }
 
-  /** API pública simples (observable) com memoização por UID */
   getUser(uid: string): Observable<IUserDados | null> {
     const id = uid.trim();
     if (!this.userObservablesCache.has(id)) {
@@ -72,7 +69,6 @@ export class FirestoreUserQueryService {
     return this.userObservablesCache.get(id)!;
   }
 
-  /** API pública async/await */
   async getUserData(uid: string): Promise<IUserDados | null> {
     const id = uid.trim();
     const fromCache = await firstValueFrom(this.cache.get<IUserDados>(`user:${id}`));
@@ -80,28 +76,38 @@ export class FirestoreUserQueryService {
     return await firstValueFrom(this.getUser(id));
   }
 
-  /** Aliases de compatibilidade */
   getUserWithObservable(uid: string): Observable<IUserDados | null> {
     return this.getUser(uid);
   }
+
   getUserById(uid: string): Observable<IUserDados | null> {
     return this.getUser(uid);
   }
 
-  /** ♻️ Invalida caches e o observable memorizado */
   invalidateUserCache(uid: string): void {
     const id = uid.trim();
     this.userObservablesCache.delete(id);
     this.cache.set(`user:${id}`, null as any, 1);
   }
 
-  /** Atualiza cache + store */
   updateUserInStateAndCache<T extends IUserRegistrationData | IUserDados>(uid: string, updatedData: T): void {
     const key = `user:${uid}`;
     this.cache.get<T>(key).pipe(take(1)).subscribe(existing => {
       if (existing && JSON.stringify(existing) === JSON.stringify(updatedData)) return;
       this.cache.set(key, updatedData, 300_000);
       this.store.dispatch(updateUserInState({ uid, updatedData } as any));
+    });
+  }
+
+  watchUserDocDeleted$(uid: string): Observable<boolean> {
+    return new Observable<boolean>((sub) => {
+      const ref = doc(this.db(), 'users', uid);
+      const unsub = onSnapshot(
+        ref,
+        (snap: DocumentSnapshot<DocumentData>) => sub.next(!snap.exists()),
+        (err) => sub.error(err)
+      );
+      return () => unsub();
     });
   }
 }

@@ -1,12 +1,46 @@
-/* src\app\header\guest-banner\guest-banner.component.css */
+/* src/app/header/guest-banner/guest-banner.component.css */
 .guest-banner {
-  background-color: #f2dede;
-  border-color: #ebccd1;
-  color: #a94442;
-  padding: 1px;
+  background: #fff3cd;
+  color: #664d03;
+  border: 1px solid #ffecb5;
+  border-left: 4px solid #f59f00;
+  padding: 10px 12px;
+  margin: 0;
   font-size: 14px;
-  
-  border: 1px solid transparent;
+}
+
+.guest-banner .actions {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: 12px;
+}
+
+.guest-banner button {
+  padding: 4px 10px;
+  border: 1px solid #e6b900;
+  background: #ffe69c;
+  cursor: pointer;
   border-radius: 4px;
-  text-align: center;
+}
+
+.guest-banner button:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.guest-banner button.link {
+  background: transparent;
+  border: none;
+  text-decoration: underline;
+  color: inherit;
+}
+
+.guest-banner p.ok {
+  color: #0f5132;
+  margin: 6px 0 0;
+}
+
+.guest-banner p.err {
+  color: #842029;
+  margin: 6px 0 0;
 }

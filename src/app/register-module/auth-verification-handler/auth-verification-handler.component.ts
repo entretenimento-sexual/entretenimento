@@ -14,7 +14,8 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { EmailInputModalComponent } from 'src/app/authentication/email-input-modal/email-input-modal.component';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 
-import { Subject, take, takeUntil, switchMap, tap } from 'rxjs';
+import { Subject, firstValueFrom } from 'rxjs';
+import { take, takeUntil, switchMap, tap } from 'rxjs/operators';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
@@ -141,7 +142,8 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
             // Leva para o welcome com autocheck leve (sem forçar)
             this.ngZone.run(() => {
-              setTimeout(() => this.router.navigate(['/register/welcome'], { queryParams: { autocheck: '1' } }), 1200);
+              setTimeout(() => this.router.navigate(['/register/welcome'],
+                { queryParams: { autocheck: '1' } }), 1200);
             });
             return;
           }
@@ -202,7 +204,10 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   }
 
   goToWelcome(): void {
-    this.router.navigate(['/register/welcome'], { queryParams: { autocheck: '1' } });
+    this.router.navigate(
+      ['/register/welcome'],
+      { queryParams: { autocheck: '1' }, replaceUrl: true } // ✅ aqui dentro
+    );
   }
 
   // === RESET DE SENHA ===
@@ -228,7 +233,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     }
 
     try {
-      await this.loginService.confirmPasswordReset(this.oobCode, this.newPassword);
+      await firstValueFrom(this.loginService.confirmPasswordReset$(this.oobCode, this.newPassword));
       this.message = 'Senha redefinida com sucesso! Redirecionando para o login...';
       this.newPassword = '';
       this.confirmPassword = '';
@@ -319,7 +324,12 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       next: () => {
         this.message = 'Cadastro finalizado com sucesso!';
         this.showSubscriptionOptions = true;
-        setTimeout(() => this.ngZone.run(() => this.router.navigate(['/dashboard/principal'])), 3000);
+        this.ngZone.run(() => {
+          this.router.navigate(['/register/welcome'], {
+            queryParams: { autocheck: '1' },
+            replaceUrl: true
+          });
+        });
       },
       error: (error: any) => {
         this.message = 'Erro ao processar o cadastro. Por favor, tente novamente.';

@@ -1,5 +1,5 @@
 /* src/app/authentication/register-module/welcome/welcome.component.css */
-
+/* ====== Container ====== */
 .welcome-container {
   max-width: 760px;
   margin: 0 auto;
@@ -16,19 +16,23 @@
   margin-top: .25rem;
 }
 
+/* ====== Grid de conteúdo ====== */
 .welcome-content {
   display: grid;
   gap: 16px;
 }
 
+/* ====== Card base ====== */
 .welcome-card {
   background: var(--background-color);
   color: var(--text-color);
   border-radius: 12px;
   box-shadow: var(--box-shadow);
   padding: 16px;
+  transition: background-color .3s ease, color .3s ease, box-shadow .3s ease;
 }
 
+/* ====== Título + selo ====== */
 .card-title {
   display: flex;
   align-items: center;
@@ -37,25 +41,32 @@
   font-size: 1.1rem;
 }
 
+/* ====== Badges de status ====== */
 .badge {
   display: inline-flex;
   align-items: center;
+  gap: .4rem;
   padding: .2rem .6rem;
   border-radius: 9999px;
-  font-size: .8rem;
+  border: 1px solid transparent;
   line-height: 1;
+  font-size: .8rem;
+  white-space: nowrap;
 }
 
 .badge.ok {
   background: #ecfdf5;
   color: #065f46;
+  border-color: rgba(16, 185, 129, .35);
 }
 
 .badge.warn {
   background: #fff7ed;
   color: #9a3412;
+  border-color: rgba(234, 88, 12, .35);
 }
 
+/* ====== Passos ====== */
 .steps {
   margin: .5rem 0 1rem 1.25rem;
   opacity: .95;
@@ -65,6 +76,7 @@
   margin: .2rem 0;
 }
 
+/* ====== Ações ====== */
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -76,6 +88,7 @@
   justify-content: flex-end;
 }
 
+/* ====== Detalhes opcionais ====== */
 .details-optional>summary {
   cursor: pointer;
   font-weight: 500;
@@ -104,13 +117,77 @@
   gap: .5rem;
 }
 
+/* ====== Cards especiais ====== */
 .success-card {
   border-left: 4px solid var(--success-color);
 }
 
-/* Responsivo */
+/* Quando usamos a classe de alerta no card de sessão inválida */
+.welcome-card.alert-error {
+  background: #fee2e2;
+  color: #7f1d1d;
+  border-left: 4px solid var(--danger-color);
+}
+
+/* ====== Banner robusto (harmoniza com .alert global) ====== */
+/* Seu global já define .alert, .alert-success, .alert-error, .alert-info.
+   Aqui adicionamos o 'warning' para manter paridade. */
+.alert.alert-warning {
+  background-color: var(--snackbar-warning);
+  color: white;
+}
+
+/* Botões dentro do banner/alerta */
+.alert .actions {
+  margin-top: 8px;
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+/* Bloco de detalhes técnicos (quando houver) */
+.tech-details {
+  margin-top: 8px;
+  white-space: pre-wrap;
+  font-size: .85rem;
+  background: rgba(0, 0, 0, .05);
+  padding: 8px;
+  border-radius: 8px;
+  overflow: auto;
+}
+
+/* ====== Responsivo ====== */
 @media (min-width: 768px) {
   .optional-grid {
     grid-template-columns: 1fr 1fr;
   }
+}
+
+/* ====== Dark mode tweaks ====== */
+:root.dark-mode .welcome-card {
+  background: var(--background-color);
+  color: var(--text-color);
+}
+
+:root.dark-mode .welcome-card.alert-error {
+  background: rgba(198, 40, 40, .1);
+  color: #ffdcdc;
+  border-left-color: var(--danger-color);
+}
+
+:root.dark-mode .tech-details {
+  background: rgba(255, 255, 255, .05);
+}
+
+/* Mantém contraste dos badges no dark */
+:root.dark-mode .badge.ok {
+  background: rgba(16, 185, 129, .12);
+  color: #a7f3d0;
+  border-color: rgba(16, 185, 129, .35);
+}
+
+:root.dark-mode .badge.warn {
+  background: rgba(234, 88, 12, .12);
+  color: #fdba74;
+  border-color: rgba(234, 88, 12, .35);
 }

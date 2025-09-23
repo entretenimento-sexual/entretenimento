@@ -1,5 +1,5 @@
 // src/app/app.module.ts
-import { NgModule, ErrorHandler, LOCALE_ID } from '@angular/core';
+import { NgModule, ErrorHandler, LOCALE_ID, APP_INITIALIZER } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
@@ -28,12 +28,18 @@ import { EmailVerificationService } from './core/services/autentication/register
 
 import { environment } from '../environments/environment';
 
-// 🔥 AngularFire (compat) — funciona em NgModule
+// 🔥 AngularFire (compat) — mantém para módulos que ainda usam compat
 import { AngularFireModule } from '@angular/fire/compat';
 import { AngularFireAuthModule } from '@angular/fire/compat/auth';
 import { AngularFirestoreModule } from '@angular/fire/compat/firestore';
 import { AngularFireStorageModule } from '@angular/fire/compat/storage';
 import { AngularFireDatabaseModule } from '@angular/fire/compat/database';
+
+// ✅ Inicialização única/antecipada via DI (modular SDK)
+import { provideFirebase } from './core/firebase/firebase.factory';
+import { FIREBASE_APP, FIREBASE_AUTH } from './core/firebase/firebase.tokens';
+import type { Auth } from 'firebase/auth';
+import { configureAuthPersistence } from './core/firebase/firebase.factory';
 
 // i18n pt-BR
 import { registerLocaleData } from '@angular/common';
@@ -60,7 +66,7 @@ registerLocaleData(localePt, 'pt-BR');
     StoreDevtoolsModule.instrument({ maxAge: 25, logOnly: environment.production }),
     AppStoreModule,
 
-    // ✅ Compat modules (NgModule-friendly)
+    // ⚠️ Mantido: compat modules que seu app já utiliza
     AngularFireModule.initializeApp(environment.firebase),
     AngularFireAuthModule,
     AngularFirestoreModule,
@@ -68,10 +74,33 @@ registerLocaleData(localePt, 'pt-BR');
     AngularFireDatabaseModule,
   ],
   providers: [
+    // ✅ cria/fornece App, Auth e Firestore 1x (e reaproveita se já houver)
+    ...provideFirebase(),
+
+    // ✅ garante que o Firebase App exista antes do bootstrap (evita race)
+    {
+      provide: APP_INITIALIZER,
+      multi: true,
+      deps: [FIREBASE_APP],
+      useFactory: () => () => {
+        const f = (environment as any)?.firebase ?? {};
+        if (!f.apiKey || !f.projectId) throw new Error('[Firebase] environment.firebase incompleto');
+        return Promise.resolve(true);
+      },
+    },
+
+    // ✅ garante persistência (IndexedDB → LocalStorage → memória) ANTES do primeiro onAuthStateChanged
+    {
+      provide: APP_INITIALIZER,
+      multi: true,
+      deps: [FIREBASE_AUTH],
+      useFactory: (auth: Auth) => () => configureAuthPersistence(auth),
+    },
+
     { provide: ErrorHandler, useClass: GlobalErrorHandlerService },
     ErrorNotificationService,
-    AuthService,                   // pode remover (já é providedIn: 'root'); manter não quebra
-    EmailVerificationService,      // idem
+    AuthService,              // (já é providedIn: 'root' — manter não quebra)
+    EmailVerificationService, // idem
     { provide: LOCALE_ID, useValue: 'pt-BR' },
   ],
   bootstrap: [AppComponent],

@@ -2,12 +2,8 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { map, catchError, switchMap, tap } from 'rxjs/operators';
-import { Store } from '@ngrx/store';
-import { AppState } from 'src/app/store/states/app.state';
 import { FirestoreService } from './firestore.service';
 import { CacheService } from '../general/cache/cache.service';
-import { NotificationService } from '../general/notification.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 
 @Injectable({
   providedIn: 'root'

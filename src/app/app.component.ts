@@ -2,6 +2,7 @@
 import { Component, OnInit, Renderer2 } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
+import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
 
 @Component({
   selector: 'app-root',
@@ -13,23 +14,24 @@ export class AppComponent implements OnInit {
   title = 'entretenimento';
 
   constructor(private router: Router,
-    private renderer: Renderer2) { }
+              private renderer: Renderer2,
+              private orchestrator: AuthOrchestratorService) { }
 
   ngOnInit(): void {
+    // ✅ inicia watchers de sessão/doc
+    this.orchestrator.start();
+
     this.router.events
       .pipe(filter(event => event instanceof NavigationEnd))
       .subscribe((event: NavigationEnd) => {
         if (/\/chat\//.test(event.url)) {
-          // Remover a classe para ocultar o footer
           this.renderer.removeClass(document.body, 'show-footer');
         } else {
-          // Adicionar a classe para exibir o footer
           this.renderer.addClass(document.body, 'show-footer');
         }
       });
 
-
-    // Inicializa tema baseado no localStorage
+     // Inicializa tema baseado no localStorage
     const dark = localStorage.getItem('theme') === 'dark';
     this.setDarkMode(dark);
   }

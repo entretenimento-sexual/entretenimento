@@ -10,6 +10,7 @@ import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registratio
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import { IBGELocationService } from 'src/app/core/services/general/api/ibge-location.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { Timestamp } from 'firebase/firestore';
 
 @Component({
   selector: 'app-finalizar-cadastro',
@@ -141,7 +142,7 @@ export class FinalizarCadastroComponent implements OnInit {
           email: existingUserData.email || '',
           nickname: existingUserData.nickname || '',
           isSubscriber: existingUserData.isSubscriber || false,
-          firstLogin: existingUserData.firstLogin || new Date(),
+          firstLogin: existingUserData.firstLogin || (Timestamp as any).fromDate?.(new Date()) || new Date(),
           gender: this.gender || existingUserData.gender || '',
           orientation: this.orientation || existingUserData.orientation || '',
           estado: this.selectedEstado || existingUserData.estado || '',

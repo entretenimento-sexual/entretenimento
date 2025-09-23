@@ -1,33 +1,52 @@
-//src\app\core\guards\email-verified.guard.ts
+// src/app/core/guards/email-verified.guard.ts
 import { inject } from '@angular/core';
-import { CanActivateFn, Router, UrlTree } from '@angular/router';
-import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
+import { CanActivateFn, Router, UrlTree, ActivatedRouteSnapshot } from '@angular/router';
 import { Observable, of } from 'rxjs';
-import { take, switchMap } from 'rxjs/operators';
+import { map, take } from 'rxjs/operators';
+import { FIREBASE_AUTH } from '../firebase/firebase.tokens';
+import { onAuthStateChanged, type Auth, type User } from 'firebase/auth';
+import { environment } from 'src/environments/environment';
 
-export const emailVerifiedGuard: CanActivateFn = (_route, state): Observable<boolean | UrlTree> => {
+function routeAllowsUnverified(route: ActivatedRouteSnapshot): boolean {
+  let cursor: ActivatedRouteSnapshot | null = route;
+  while (cursor) {
+    if (cursor.data?.['allowUnverified'] === true) return true;
+    cursor = cursor.parent ?? null;
+  }
+  return false;
+}
+
+export const emailVerifiedGuard: CanActivateFn = (route, state): Observable<boolean | UrlTree> => {
   const router = inject(Router);
-  const auth = getAuth();
+  const auth = inject(FIREBASE_AUTH) as Auth;
 
-  return new Observable<User | null>((sub) => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      sub.next(user);
-      sub.complete();
-      unsub();
-    });
-  }).pipe(
+  if (environment?.features?.enforceEmailVerified === false) {
+    return of(true);
+  }
+
+  const auth$ = new Observable<User | null>((obs) => {
+    const unsub = onAuthStateChanged(
+      auth,
+      (u) => { obs.next(u); obs.complete(); },
+      () => { obs.next(null); obs.complete(); }
+    );
+    return () => unsub();
+  });
+
+  return auth$.pipe(
     take(1),
-    switchMap((user) => {
+    map((user) => {
       if (!user) {
-        return of(router.createUrlTree(['/login'], { queryParams: { redirectTo: state.url } }));
+        return router.createUrlTree(['/login'], { queryParams: { redirectTo: state.url } });
       }
-      if (user.emailVerified) return of(true);
+      if (user.emailVerified) return true;
 
-      // permite circular nas telas do fluxo de verificação
-      const allowed = ['/register/welcome', '/post-verification/action', '/__/auth/action'];
-      if (allowed.some(prefix => state.url.startsWith(prefix))) return of(true);
+      if (routeAllowsUnverified(route)) return true;
 
-      return of(router.createUrlTree(['/register/welcome'], { queryParams: { redirectTo: state.url } }));
+      const allowed = ['/post-verification/action', '/__/auth/action', '/register/welcome'];
+      if (allowed.some(p => state.url.startsWith(p))) return true;
+
+      return router.createUrlTree(['/register/welcome'], { queryParams: { redirectTo: state.url } });
     })
   );
 };

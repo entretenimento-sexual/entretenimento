@@ -1,21 +1,24 @@
 // src/app/core/services/autentication/register/register.service.ts
-import { Injectable } from '@angular/core';
+import { Injectable, Inject } from '@angular/core';
 import { from, Observable, of, throwError } from 'rxjs';
-import { catchError, switchMap, map, tap } from 'rxjs/operators';
+import { catchError, switchMap, map, tap, timeout } from 'rxjs/operators';
 
-import {getAuth,
-        createUserWithEmailAndPassword,
-        sendPasswordResetEmail,
-        updateProfile,
-        UserCredential,
-      } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
+  UserCredential,
+  type Auth,
+} from 'firebase/auth';
 
-import {doc,
-        runTransaction,
-        writeBatch,
-        Timestamp,
-      } from 'firebase/firestore';
+import {
+  doc,
+  runTransaction,
+  writeBatch,
+  Timestamp,
+} from 'firebase/firestore';
 
+import { FIREBASE_AUTH } from '../../../firebase/firebase.tokens';
 import { FirestoreService } from '../../data-handling/firestore.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { FirestoreValidationService } from '../../data-handling/firestore-validation.service';
@@ -25,28 +28,58 @@ import { ValidatorService } from '../../general/validator.service';
 import { FirebaseError } from 'firebase/app';
 import { environment } from 'src/environments/environment';
 
+// novos serviços “substitutivos” ao antigo AuthService
+import { CurrentUserStoreService } from '../auth/current-user-store.service';
+import { CacheService } from '../../general/cache/cache.service';
+
+type SignupContext = {
+  cred: UserCredential;
+  warns: string[];
+};
+
 @Injectable({ providedIn: 'root' })
 export class RegisterService {
-  // ✅ usa SDK Web diretamente (sem DI do Auth)
-  private readonly auth = getAuth();
+  // ⏱️ timeouts defensivos p/ rede lenta
+  private readonly NET_TIMEOUT_MS = 12_000;
 
   constructor(
     private firestoreService: FirestoreService,
     private emailVerificationService: EmailVerificationService,
     private globalErrorHandler: GlobalErrorHandlerService,
-    private firestoreValidation: FirestoreValidationService
+    private firestoreValidation: FirestoreValidationService,
+    private currentUserStore: CurrentUserStoreService,
+    private cache: CacheService,
+    @Inject(FIREBASE_AUTH) private auth: Auth, // ✅ Auth único via DI
   ) {
     if (!environment.production) {
       console.log('[RegisterService] Serviço carregado.');
     }
   }
 
+  /**
+   * Fluxo principal de registro
+   * - Valida dados
+   * - Cria user no Auth
+   * - Persiste users/{uid} + índice de apelido (transação)
+   * - Envia e-mail de verificação (sem rollback em falha)
+   * - updateProfile(displayName) (sem rollback em falha)
+   * - Semeia estado local (CurrentUserStore + Cache) com emailVerified=false
+   */
   registerUser(userData: IUserRegistrationData, password: string): Observable<UserCredential> {
     console.log('[RegisterService] registerUser iniciado', userData);
 
+    // ⚠️ guarda simples: não inicia se offline
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      return this.handleRegisterError(new Error('Sem conexão com a internet. Verifique e tente novamente.'), 'Rede');
+    }
+
     return this.validateUserData(userData).pipe(
       // 1) cria usuário no Auth
-      switchMap(() => this.createFirebaseUser(userData.email, password)),
+      switchMap(() =>
+        this.createFirebaseUser(userData.email, password).pipe(
+          timeout({ each: this.NET_TIMEOUT_MS }),
+        )
+      ),
 
       // 2) grava user + índice (transação atômica)
       switchMap((cred) => {
@@ -63,34 +96,58 @@ export class RegisterService {
         };
 
         return this.persistUserAndIndexAtomic(cred.user.uid, userData.nickname, payload).pipe(
-          map(() => cred),
+          map((): SignupContext => ({ cred, warns: [] })),
           catchError(err => this.rollbackUser(cred.user.uid, err))
         );
       }),
 
-      // 3) envia e-mail de verificação
-      switchMap((cred) =>
-        this.emailVerificationService.sendEmailVerification(cred.user).pipe(
-          map(() => cred),
-          catchError(err =>
-            this.cleanupOnFailure(cred.user.uid, userData.nickname).pipe(
-              switchMap(() => this.rollbackUser(cred.user.uid, err))
-            )
-          )
+      // 3) Envia e-mail de verificação (não é crítico → não dá rollback)
+      switchMap((ctx) =>
+        this.emailVerificationService.sendEmailVerification(ctx.cred.user).pipe(
+          timeout({ each: this.NET_TIMEOUT_MS }),
+          catchError((err) => {
+            console.log('[RegisterService] Falha ao enviar e-mail de verificação:', err);
+            ctx.warns.push('email-verification-failed');
+            return of(void 0);
+          }),
+          map(() => ctx)
         )
       ),
 
-      // 4) updateProfile (rollback se falhar)
-      switchMap((cred) =>
-        from(updateProfile(cred.user, { displayName: userData.nickname, photoURL: '' })).pipe(
-          map(() => cred),
-          catchError(err =>
-            this.cleanupOnFailure(cred.user.uid, userData.nickname).pipe(
-              switchMap(() => this.rollbackUser(cred.user.uid, err))
-            )
-          )
+      // 4) updateProfile (não é crítico → não dá rollback)
+      switchMap((ctx) =>
+        from(updateProfile(ctx.cred.user, { displayName: userData.nickname, photoURL: '' })).pipe(
+          timeout({ each: this.NET_TIMEOUT_MS }),
+          catchError((err) => {
+            console.log('[RegisterService] Falha no updateProfile:', err);
+            ctx.warns.push('update-profile-failed');
+            return of(void 0);
+          }),
+          map(() => ctx)
         )
       ),
+
+      // 5) semeia estado local (sem depender do AuthService)
+      tap((ctx) => {
+        const { user } = ctx.cred;
+        this.seedLocalStateAfterSignup(user.uid, {
+          uid: user.uid,
+          email: user.email || '',
+          nickname: userData.nickname,
+          emailVerified: false,
+          isSubscriber: false,
+          profileCompleted: false,
+          registrationDate: new Date(),
+          firstLogin: Timestamp.fromDate(new Date()),
+          acceptedTerms: userData.acceptedTerms,
+        });
+        if (ctx.warns.length) {
+          console.log('[RegisterService] Aviso(s) não-críticos na criação:', ctx.warns.join(', '));
+        }
+      }),
+
+      // 6) devolve o UserCredential original
+      map((ctx) => ctx.cred),
 
       catchError((err) => this.handleRegisterError(err, 'Registro'))
     );
@@ -126,6 +183,7 @@ export class RegisterService {
         if (!exists) return of(void 0);
         // fluxo “suave”: envia reset e encerra com erro tipado
         return from(sendPasswordResetEmail(this.auth, email)).pipe(
+          timeout({ each: this.NET_TIMEOUT_MS }),
           switchMap(() =>
             throwError(() => ({
               code: 'email-exists-soft',
@@ -133,6 +191,16 @@ export class RegisterService {
             }))
           )
         );
+      }),
+      catchError((err) => {
+        // se a verificação/reset falhar por rede, trate e prossiga
+        if ((err as FirebaseError)?.code === 'auth/network-request-failed') {
+          return this.handleRegisterError(
+            new Error('Conexão instável ao verificar e-mail. Tente novamente.'),
+            'Verificação de e-mail'
+          );
+        }
+        return throwError(() => err);
       })
     );
   }
@@ -206,8 +274,12 @@ export class RegisterService {
   }
 
   // -------------------- Auth helpers --------------------
-  private createFirebaseUser(email: string, password: string): Observable<UserCredential> {
+  private createUserWithEmailAndPasswordSafe(email: string, password: string): Observable<UserCredential> {
     return from(createUserWithEmailAndPassword(this.auth, email, password));
+  }
+
+  private createFirebaseUser(email: string, password: string): Observable<UserCredential> {
+    return this.createUserWithEmailAndPasswordSafe(email, password);
   }
 
   private rollbackUser(uid: string, error: any): Observable<never> {
@@ -234,12 +306,35 @@ export class RegisterService {
     return of(void 0);
   }
 
+  // -------------------- Estado local após cadastro --------------------
+  private seedLocalStateAfterSignup(uid: string, data: Partial<IUserRegistrationData>): void {
+    const snapshot = {
+      uid,
+      email: data.email || '',
+      nickname: data.nickname || '',
+      emailVerified: false,
+      isSubscriber: false,
+      profileCompleted: false,
+      firstLogin: data.firstLogin || Timestamp.fromDate(new Date()),
+      registrationDate: data.registrationDate || new Date(),
+      acceptedTerms: data.acceptedTerms,
+    } as any;
+
+    this.currentUserStore.set(snapshot);
+    this.cache.syncCurrentUserWithUid(snapshot);
+
+    console.log('[RegisterService] Estado local semeado (CurrentUserStore/Cache).');
+  }
+
   // -------------------- Erros --------------------
   private handleRegisterError(error: any, context = 'Erro no registro'): Observable<never> {
     const message = this.mapErrorMessage(error);
     console.log(`[${context}]`, error);
     this.globalErrorHandler.handleError(new Error(message));
-    return throwError(() => new Error(message));
+    // Preserve também o code (quando existir) para a UI
+    const userErr: any = new Error(message);
+    if (error && (error as any).code) userErr.code = (error as any).code;
+    return throwError(() => userErr);
   }
 
   private mapErrorMessage(error: any): string {
@@ -249,12 +344,17 @@ export class RegisterService {
 
     if (error instanceof FirebaseError) {
       switch (error.code) {
-        case 'auth/email-already-in-use': return 'Este e-mail já está em uso. Tente outro ou faça login.';
+        case 'auth/email-already-in-use': return 'Este e-mail já está em uso. Tente outro.';
         case 'auth/weak-password': return 'Senha fraca. Ela precisa ter pelo menos 6 caracteres.';
         case 'auth/invalid-email': return 'Formato de e-mail inválido.';
         case 'auth/network-request-failed': return 'Problema de conexão. Verifique sua internet.';
+        case 'deadline-exceeded': return 'Tempo de resposta excedido. Tente novamente.';
         default: return `Erro no registro (${error.code}).`;
       }
+    }
+
+    if (error?.name === 'TimeoutError') {
+      return 'Conexão lenta. Tente novamente em instantes.';
     }
 
     if (error instanceof Error) return error.message;

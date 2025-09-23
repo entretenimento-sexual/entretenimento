@@ -13,7 +13,6 @@ const authRoutes: Routes = [
   { path: 'post-verification/action', component: AuthVerificationHandlerComponent},
   { path: 'verify-email', component: FinalizarCadastroComponent },
   { path: 'register', loadChildren: () => import('../register-module/register.module').then(m => m.RegisterModule) },
-  { path: '**', redirectTo: '/' }
 ];
 
 @NgModule({

@@ -1,86 +1,109 @@
-//src\app\layout\other-user-profile-view\other-user-profile-view.component.ts
+// src/app/layout/other-user-profile-view/other-user-profile-view.component.ts
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { SharedModule } from "../../shared/shared.module";
-import { catchError, of } from 'rxjs';
+import { catchError, finalize, of } from 'rxjs';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { SocialLinksAccordionComponent } from 'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
-
 import { UserProfilePreferencesComponent } from 'src/app/user-profile/user-profile-view/user-profile-preferences/user-profile-preferences.component';
+// ⬇️ novos imports para o tratamento centralizado
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Component({
-    selector: 'app-other-user-profile-view',
-    templateUrl: './other-user-profile-view.component.html',
-    styleUrls: ['./other-user-profile-view.component.css'],
-    standalone: true,
-    imports: [
-      CommonModule,
-      SharedModule,
-      SocialLinksAccordionComponent,
-      UserProfilePreferencesComponent,
-    ]
-  })
-
+  selector: 'app-other-user-profile-view',
+  templateUrl: './other-user-profile-view.component.html',
+  styleUrls: ['./other-user-profile-view.component.css'],
+  standalone: true,
+  imports: [
+    CommonModule,
+    SharedModule,
+    SocialLinksAccordionComponent,
+    UserProfilePreferencesComponent,
+  ]
+})
 export class OtherUserProfileViewComponent implements OnInit {
-  uid: string | null = null; // Armazena o ID do usuário a ser exibido
-  userProfile: IUserDados | null | undefined = null; // Armazena os dados do perfil do usuário
-  categoriasDePreferencias = {
-                              genero: [] as string[],
-                              praticaSexual: [] as string[], };// Inicializa categorias com arrays vazios
+  uid: string | null = null;
+  userProfile: IUserDados | null = null;
 
-  isLoading: boolean = true; // Variável para gerenciar o estado de carregamento
+  categoriasDePreferencias = {
+    genero: [] as string[],
+    praticaSexual: [] as string[],
+  };
+
+  isLoading = true;
 
   constructor(
-              private route: ActivatedRoute, // Rota para acessar o parâmetro ID do usuário
-              private firestoreUserQuery: FirestoreUserQueryService,
-              private cdr: ChangeDetectorRef) { }
+    private route: ActivatedRoute,
+    private firestoreUserQuery: FirestoreUserQueryService,
+    private cdr: ChangeDetectorRef,
+    // ⬇️ injeções para centralizar o erro
+    private globalErrorHandler: GlobalErrorHandlerService,
+    private errorNotification: ErrorNotificationService
+  ) { }
 
   ngOnInit() {
-    // Obtém o ID do usuário da rota
     this.uid = this.route.snapshot.paramMap.get('id');
 
-    if (this.uid) {
-      this.loadUserProfile(this.uid); // Carrega o perfil do usuário
-    } else {
-      this.isLoading = false; // Se o ID não for encontrado, interrompe o carregamento
+    if (!this.uid) {
+      this.reportError('UID não encontrado na rota.', { routeParams: this.route.snapshot.params });
+      this.isLoading = false;
+      return;
     }
+
+    this.loadUserProfile(this.uid);
+  }
+
+  /** Centraliza o tratamento e notificação de erros */
+  private reportError(message: string, extra?: Record<string, unknown>, cause?: unknown): void {
+    // Cria um Error nativo (compatível com ErrorHandler)
+    const err = new Error(message);
+
+    // Anexa metadados opcionais para o GlobalErrorHandler / logger
+    (err as any).context = 'OtherUserProfileViewComponent';
+    (err as any).extra = { uid: this.uid, ...extra };
+    if (cause !== undefined) (err as any).cause = cause;
+
+    // Envia para o handler global (tipo aceito: Error | HttpErrorResponse)
+    this.globalErrorHandler.handleError(err);
+
+    // Notificação amigável
+    this.errorNotification?.showError?.(message);
   }
 
   loadUserProfile(uid: string): void {
+    this.isLoading = true;
+
     this.firestoreUserQuery.getUserById(uid)
       .pipe(
-        catchError((error: any) => {
-          console.log('[OtherUserProfileViewComponent] Erro ao buscar usuário:', error);
-          this.isLoading = false;
+        catchError((error: unknown) => {
+          this.reportError('Falha ao carregar perfil do usuário.', { uid }, error);
           return of(null);
+        }),
+        finalize(() => {
+          this.isLoading = false;
+          this.cdr.detectChanges();
         })
       )
       .subscribe((profile: IUserDados | null) => {
-        if (profile) {
-          this.userProfile = {
-            ...profile,
-            preferences: profile.preferences && Array.isArray(profile.preferences)
-              ? profile.preferences
-              : [] // 🛠 Garante que preferences seja um array
-          };
-
-          console.log('[OtherUserProfileViewComponent] Municipio:', profile.municipio);
-          console.log('[OtherUserProfileViewComponent] Estado:', profile.estado);
-          console.log('[OtherUserProfileViewComponent] Nickname:', profile.nickname);
-          console.log('[OtherUserProfileViewComponent] Preferences:', this.userProfile.preferences); // Agora preferences não será undefined
-
-          this.categoriasDePreferencias = {
-            genero: this.userProfile.preferences?.filter((pref: string) => pref.includes('genero')) || [],
-            praticaSexual: this.userProfile.preferences?.filter((pref: string) => pref.includes('praticaSexual')) || [],
-          };
-
-          this.cdr.detectChanges(); // Força a atualização do template
-        } else {
-          console.log('[OtherUserProfileViewComponent] Usuário não encontrado.');
+        if (!profile) {
+          // Perfil não encontrado também é um erro de UX (mas não crítico)
+          this.reportError('Usuário não encontrado.', { uid });
+          this.userProfile = null;
+          return;
         }
-        this.isLoading = false;
+
+        this.userProfile = {
+          ...profile,
+          preferences: Array.isArray(profile.preferences) ? profile.preferences : []
+        };
+
+        this.categoriasDePreferencias = {
+          genero: this.userProfile.preferences?.filter((p: string) => p?.includes('genero')) || [],
+          praticaSexual: this.userProfile.preferences?.filter((p: string) => p?.includes('praticaSexual')) || [],
+        };
       });
   }
 }

@@ -1,21 +1,33 @@
-/* src\app\layout\other-user-profile-view\other-user-profile-view.component.css */
+/* src/app/layout/other-user-profile-view/other-user-profile-view.component.css */
+
+/* ===== Base (mobile-first) ===== */
 .user-profile-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 20px;
-  padding: 20px;
-  max-width: 80%;
-  margin: auto;
+  gap: 16px;
+  padding: 16px;
+  width: min(960px, 100%);
+  margin: 0 auto;
+}
+
+.user-info,
+.user-preferences {
+  background-color: var(--background-color);
+  color: var(--text-color);
+  padding: 16px;
+  border-radius: 10px;
+  box-shadow: var(--box-shadow);
+  width: 100%;
 }
 
 .user-info {
-  background: #fff;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: var(--box-shadow);
   text-align: center;
-  width: 100%;
+}
+
+.profile-photo-wrapper {
+  display: grid;
+  place-items: center;
+  margin-bottom: 8px;
 }
 
 .profile-photo {
@@ -26,34 +38,142 @@
   margin-bottom: 10px;
 }
 
-.user-preferences {
-  background: #fff;
-  padding: 20px;
-  border-radius: 10px;
-  box-shadow: var(--box-shadow);
-  width: 100%;
+h1.profile-title {
+  font-size: 1.25rem;
+  line-height: 1.2;
+  margin: 6px 0 10px;
+  color: var(--text-color);
 }
 
-.preference-box {
-  margin-top: 15px;
-  padding: 10px;
-  background-color: var(--input-background);
-  border-radius: 8px;
+.user-location {
+  margin: 6px 0 14px;
+  color: var(--text-color);
+  opacity: 0.9;
 }
 
-h2,
-h3 {
+.user-basics {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.user-basic-item dd {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-color);
+}
+
+.email-link {
   color: var(--primary-color);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.2s ease;
 }
 
-ul {
-  padding: 0;
-  list-style: none;
+.email-link:hover {
+  color: var(--primary-hover);
 }
 
-ul li {
-  background-color: #f3f3f3;
-  margin-bottom: 5px;
-  padding: 8px;
-  border-radius: 5px;
+.error {
+  color: var(--danger-color);
+  font-weight: 600;
+}
+
+/* Helpers usados no template (pode mover para o global se preferir) */
+.visually-hidden,
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Foco teclado consistente com a paleta */
+:focus-visible {
+  outline: 3px solid var(--primary-color);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ===== Breakpoints ===== */
+
+/* >= 480px: levemente mais espaçamento e tipografia */
+@media (min-width: 480px) {
+  .user-profile-container {
+    gap: 20px;
+    padding: 20px;
+  }
+
+  .user-info,
+  .user-preferences {
+    padding: 20px;
+  }
+
+  h1.profile-title {
+    font-size: 1.35rem;
+  }
+}
+
+/* >= 768px: foto maior, títulos um pouco maiores */
+@media (min-width: 768px) {
+  .profile-photo {
+    width: 140px;
+    height: 140px;
+  }
+
+  h1.profile-title {
+    font-size: 1.5rem;
+  }
+}
+
+/* >= 992px: layout em duas colunas (perfil fixo à esquerda, conteúdo à direita) */
+@media (min-width: 992px) {
+  .user-profile-container {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    /* esquerda: card do usuário | direita: conteúdo */
+    gap: 24px;
+    align-items: start;
+  }
+
+  .user-info {
+    text-align: center;
+    position: sticky;
+    /* mantém o card do usuário visível ao rolar */
+    top: 20px;
+  }
+
+  .user-preferences {
+    grid-column: 2;
+    /* joga a seção de preferências para a coluna da direita */
+  }
+
+  /* Terceira seção (social links) — sem classe própria, selecionamos pelo aria-labelledby */
+  section[role="region"][aria-labelledby="social-heading"] {
+    grid-column: 2;
+    /* mesma coluna da direita */
+  }
+}
+
+/* >= 1200px: ajuste fino de medidas */
+@media (min-width: 1200px) {
+  .user-profile-container {
+    gap: 28px;
+  }
+
+  .profile-photo {
+    width: 150px;
+    height: 150px;
+  }
+
+  h1.profile-title {
+    font-size: 1.65rem;
+  }
 }

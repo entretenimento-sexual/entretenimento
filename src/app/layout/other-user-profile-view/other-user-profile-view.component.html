@@ -1,33 +1,88 @@
-<!-- src\app\layout\other-user-profile-view\other-user-profile-view.component.html -->
-<div class="user-profile-container">
-  <div class="user-info">
-    <img [src]="userProfile?.photoURL || 'assets/imagem-padrao.webp'" alt="{{ userProfile?.nickname }}"
-      class="profile-photo">
-      <h2>{{ userProfile?.nickname }}</h2>
-      @if (userProfile?.municipio && userProfile?.estado) {
-        <p class="user-location">
-          <i class="fas fa-map-marker-alt"></i> {{ userProfile?.municipio }}, {{ userProfile?.estado }}
-        </p>
-      }
-      <p><i class="fas fa-envelope"></i> {{ userProfile?.email }}</p>
-      <p><i class="fas fa-user"></i> {{ userProfile?.gender | titlecase }}</p>
-      <p><i class="fas fa-heart"></i> {{ userProfile?.orientation }}</p>
-      <p><i class="fas fa-info-circle"></i> {{ userProfile?.descricao }}</p>
-    </div>
+<section class="user-profile-container" aria-labelledby="profile-heading"
+  [attr.aria-busy]="isLoading ? 'true' : 'false'">
+  <header class="user-info" role="region" aria-label="Informações do usuário">
+    <figure class="profile-photo-wrapper">
+      <img [src]="userProfile?.photoURL || 'assets/imagem-padrao.webp'"
+        [attr.alt]="userProfile?.nickname ? ('Foto de perfil de ' + (userProfile?.nickname ?? '')) : 'Foto de perfil padrão'"
+        class="profile-photo" width="160" height="160" loading="lazy" decoding="async" />
+      <figcaption class="visually-hidden">
+        {{ userProfile?.nickname || 'Usuário' }}
+      </figcaption>
+    </figure>
 
-    <div class="user-preferences">
-      <h3>O que {{ userProfile?.nickname || 'este usuário' }} procura:</h3>
-      @if (!uid) {
-        <p class="error">Erro: UID não encontrado.</p>
-      }
-      @if (uid) {
-        <app-user-profile-preferences [uid]="uid"></app-user-profile-preferences>
-      }
+    <!-- Um H1 para a visão -->
+    <h1 id="profile-heading" class="profile-title">
+      {{ userProfile?.nickname || 'Perfil de usuário' }}
+    </h1>
 
-    </div>
+    @if (userProfile?.municipio && userProfile?.estado) {
+    <p class="user-location">
+      <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+      <span class="sr-only">Localização: </span>
+      {{ userProfile?.municipio }}, {{ userProfile?.estado }}
+    </p>
+    }
 
-    <app-social-links-accordion [uid]="uid" [isOwner]="false">
+    <dl class="user-basics" role="list">
+      <div class="user-basic-item" role="listitem">
+        <dt class="sr-only">E-mail</dt>
+        <dd>
+          <i class="fas fa-envelope" aria-hidden="true"></i>
+          <a *ngIf="userProfile?.email as email" [href]="'mailto:' + email" class="email-link">
+            <span class="sr-only">Enviar e-mail para </span>{{ email }}
+          </a>
+          <span *ngIf="!userProfile?.email">Não informado</span>
+        </dd>
+      </div>
+
+      <div class="user-basic-item" role="listitem">
+        <dt class="sr-only">Gênero</dt>
+        <dd>
+          <i class="fas fa-user" aria-hidden="true"></i>
+          <!-- IMPORTANTE: parênteses para o pipe -->
+          <span>
+            {{ userProfile?.gender ? (userProfile?.gender | titlecase) : 'Não informado' }}
+          </span>
+        </dd>
+      </div>
+
+      <div class="user-basic-item" role="listitem">
+        <dt class="sr-only">Orientação</dt>
+        <dd>
+          <i class="fas fa-heart" aria-hidden="true"></i>
+          <span>{{ userProfile?.orientation ?? 'Não informado' }}</span>
+        </dd>
+      </div>
+
+      <div class="user-basic-item" role="listitem">
+        <dt class="sr-only">Descrição</dt>
+        <dd>
+          <i class="fas fa-info-circle" aria-hidden="true"></i>
+          <span>{{ userProfile?.descricao ?? 'Sem descrição' }}</span>
+        </dd>
+      </div>
+    </dl>
+  </header>
+
+  <section class="user-preferences" role="region" aria-labelledby="prefs-heading">
+    <h2 id="prefs-heading">
+      O que {{ userProfile?.nickname || 'este usuário' }} procura
+    </h2>
+
+    @if (!uid) {
+    <p class="error" role="alert" aria-live="assertive">
+      Erro: UID não encontrado.
+    </p>
+    }
+
+    @if (uid) {
+    <app-user-profile-preferences [uid]="uid" aria-label="Preferências do usuário"></app-user-profile-preferences>
+    }
+  </section>
+
+  <section role="region" aria-labelledby="social-heading">
+    <h2 id="social-heading" class="visually-hidden">Redes sociais do usuário</h2>
+    <app-social-links-accordion [uid]="uid" [isOwner]="false" aria-label="Links sociais do usuário">
     </app-social-links-accordion>
-
-  </div>
-
+  </section>
+</section>

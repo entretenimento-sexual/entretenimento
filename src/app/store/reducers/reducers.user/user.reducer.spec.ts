@@ -69,7 +69,7 @@ describe('userReducer', () => {
 
     expect(state.currentUser).toEqual(user);
     expect(state.users[user.uid]).toEqual(user);
-    expect(state.onlineUsers.find(x => x.uid === user.uid)).toBeTruthy();
+    expect(state.onlineUsers.find((x: IUserDados) => x.uid === user.uid)).toBeTruthy();
   });
 
   it('setCurrentUser deve ter o mesmo efeito de loginSuccess (hidrata e seta currentUser)', () => {
@@ -78,7 +78,7 @@ describe('userReducer', () => {
 
     expect(state.currentUser).toEqual(user);
     expect(state.users[user.uid]).toEqual(user);
-    expect(state.onlineUsers.find(x => x.uid === user.uid)).toBeFalsy();
+    expect(state.onlineUsers.find((x: IUserDados) => x.uid === user.uid)).toBeFalsy();
   });
 
   it('updateUserOnlineStatus deve criar patch mínimo quando uid não existe e refletir no array', () => {
@@ -88,7 +88,7 @@ describe('userReducer', () => {
     expect(state.users[uid]).toBeTruthy();
     expect(state.users[uid].uid).toBe(uid);
     expect(state.users[uid].isOnline).toBe(true);
-    expect(state.onlineUsers.find(x => x.uid === uid)).toBeTruthy();
+    expect(state.onlineUsers.find((x: IUserDados) => x.uid === uid)).toBeTruthy();
   });
 
   it('updateUserOnlineStatus deve espelhar no currentUser quando for o mesmo uid', () => {
@@ -98,7 +98,7 @@ describe('userReducer', () => {
 
     expect(s2.currentUser?.isOnline).toBe(true);
     expect(s2.users['me']?.isOnline).toBe(true);
-    expect(s2.onlineUsers.find(x => x.uid === 'me')).toBeTruthy();
+    expect(s2.onlineUsers.find((x: IUserDados) => x.uid === 'me')).toBeTruthy();
   });
 
   it('loadOnlineUsersSuccess deve preencher users + onlineUsers sem duplicar e mantendo merges', () => {
@@ -113,7 +113,7 @@ describe('userReducer', () => {
 
     expect(s2.users['x']?.nickname).toBe('depois');
     expect(s2.users['y']?.uid).toBe('y');
-    expect(s2.onlineUsers.map(u => u.uid).sort()).toEqual(['x', 'y']);
+    expect(s2.onlineUsers.map((x: IUserDados) => x.uid).sort()).toEqual(['x', 'y']);
   });
 
   it('clearCurrentUser deve limpar currentUser e removê-lo de onlineUsers, mantendo o dicionário', () => {
@@ -122,7 +122,7 @@ describe('userReducer', () => {
     const s2 = reduceFrom(s1, clearCurrentUser());
 
     expect(s2.currentUser).toBeNull();
-    expect(s2.onlineUsers.find(x => x.uid === 'me')).toBeFalsy();
+    expect(s2.onlineUsers.find((x: IUserDados) => x.uid === 'me')).toBeFalsy();
     expect(s2.users['me']).toBeTruthy();
   });
 
@@ -132,7 +132,7 @@ describe('userReducer', () => {
     const s2 = reduceFrom(s1, logoutSuccess());
 
     expect(s2.currentUser).toBeNull();
-    expect(s2.onlineUsers.find(x => x.uid === 'me')).toBeFalsy();
+    expect(s2.onlineUsers.find((x: IUserDados) => x.uid === 'me')).toBeFalsy();
     expect(s2.users['me']).toBeTruthy();
   });
 

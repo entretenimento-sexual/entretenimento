@@ -4,48 +4,55 @@ import { NoPreloading, RouterModule, Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth.guard';
 import { authRedirectGuard } from './core/guards/auth-redirect.guard';
+import { authOnlyGuard } from './core/guards/auth-only.guard';
+import { emailVerifiedGuard } from './core/guards/email-verified.guard';
+
 import { ProfileListComponent } from './layout/profile-list/profile-list.component';
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { LoginComponent } from './authentication/login-component/login-component';
-import { authOnlyGuard } from './core/guards/auth-only.guard';
 
 const routes: Routes = [
   { path: '', redirectTo: '/dashboard/principal', pathMatch: 'full' },
 
-  // Rotas privadas protegidas por authGuard
+  // 🔒 Área logada (só entra se autenticado) + exige e-mail verificado
   {
     path: 'dashboard',
     loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
     canMatch: [authOnlyGuard],
+    canActivate: [emailVerifiedGuard],
   },
+
+  // 🔒 Outras rotas privadas
   {
     path: 'profile/:id',
     loadComponent: () =>
-      import('./layout/other-user-profile-view/other-user-profile-view.component').then(c => c.OtherUserProfileViewComponent),
-    canActivate: [authGuard],
+      import('./layout/other-user-profile-view/other-user-profile-view.component')
+        .then(c => c.OtherUserProfileViewComponent),
+    canActivate: [authGuard, emailVerifiedGuard],
   },
   {
     path: 'perfil',
     loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule),
-    canActivate: [authGuard],
+    canActivate: [authGuard, emailVerifiedGuard],
   },
   {
     path: 'chat',
     loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule),
     canLoad: [authGuard],
-    canActivate: [authGuard],
+    canActivate: [authGuard, emailVerifiedGuard],
   },
   {
     path: 'admin-dashboard',
     loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule),
-    canActivate: [authGuard],
+    canActivate: [authGuard, emailVerifiedGuard],
   },
 
-  // Rotas públicas com authRedirectGuard para evitar acesso de usuários já logados
+  // ✉️ Fluxos de registro/login (bloqueiam se já estiver logado)
   {
     path: 'register',
     loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),
     canActivate: [authRedirectGuard],
+    data: { allowUnverified: true }, 
   },
   {
     path: 'login',
@@ -53,33 +60,39 @@ const routes: Routes = [
     canActivate: [authRedirectGuard],
   },
 
+  // ✅ Handler do e-mail de verificação
   {
     path: 'post-verification/action',
     loadComponent: () =>
       import('./register-module/auth-verification-handler/auth-verification-handler.component')
-        .then(m => m.AuthVerificationHandlerComponent)
+        .then(m => m.AuthVerificationHandlerComponent),
+    data: { allowUnverified: true },
   },
-  // opcional e recomendado: atender também ao caminho padrão do Firebase
+  // (opcional) caminho “padrão” do Firebase
   {
     path: '__/auth/action',
     loadComponent: () =>
       import('./register-module/auth-verification-handler/auth-verification-handler.component')
-        .then(m => m.AuthVerificationHandlerComponent)
+        .then(m => m.AuthVerificationHandlerComponent),
+    data: { allowUnverified: true },
   },
 
-  // Rotas acessíveis para todos
+  // 🌐 Públicas
   { path: 'profile-list', component: ProfileListComponent },
   { path: 'subscription-plan', component: SubscriptionPlanComponent },
 
-  // Redirecionamento para dashboard por padrão
+  // ↪️ Fallback
   { path: '**', redirectTo: '/dashboard/principal' },
 ];
 
 @NgModule({
-  imports: [RouterModule.forRoot(routes, { preloadingStrategy: NoPreloading,
-                                           bindToComponentInputs: true
-                                         })
-            ],
+  imports: [
+    RouterModule.forRoot(routes, {
+      preloadingStrategy: NoPreloading,
+      bindToComponentInputs: true,
+      initialNavigation: 'enabledBlocking',
+    }),
+  ],
   exports: [RouterModule],
 })
 export class AppRoutingModule { }

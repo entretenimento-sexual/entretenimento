@@ -1,5 +1,5 @@
 // src/app/core/services/data-handling/firestore.service.ts
-import { Injectable, Injector, runInInjectionContext } from '@angular/core';
+import { Inject, Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { Observable, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
 
@@ -8,23 +8,22 @@ import { GlobalErrorHandlerService } from '../error-handler/global-error-handler
 import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 
-// ✅ pegue o app padrão inicializado pelo AngularFire compat
-import { getApp } from 'firebase/app';
+// ✅ Tokens de DI para instâncias únicas do Firebase
+import { FIREBASE_AUTH, FIREBASE_DB } from '../../firebase/firebase.tokens';
 
-// ✅ use o SDK Web modular direto
+// ✅ SDK Web modular (tipos + funções puras)
 import {
-  getFirestore as getFirestoreMod,
-  Firestore as FirestoreMod,
+  type Firestore,
   collection, doc, query, QueryConstraint,
   setDoc, updateDoc, deleteDoc, increment,
   WithFieldValue, DocumentData,
   getDocs, where, getDoc, arrayUnion,
   Timestamp
 } from 'firebase/firestore';
+import type { Auth } from 'firebase/auth';
 
-// (opcional) util do AngularFire para stream de coleções
+// (opcional) util moderno do AngularFire para streams
 import { collectionData } from '@angular/fire/firestore';
-import { getAuth } from 'firebase/auth';
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreService {
@@ -33,13 +32,15 @@ export class FirestoreService {
     private globalErrorHandler: GlobalErrorHandlerService,
     private firestoreErrorHandler: FirestoreErrorHandlerService,
     private cacheService: CacheService,
-    private injector: Injector
+    private injector: Injector,
+    // 🔗 instâncias únicas, inicializadas no AppModule (provideFirebase + APP_INITIALIZER)
+    @Inject(FIREBASE_DB) private db: Firestore,
+    @Inject(FIREBASE_AUTH) private auth: Auth,
   ) { }
 
-  /** 🔍 Retorna instância do Firestore (SDK Web modular) */
-  getFirestoreInstance(): FirestoreMod {
-    // usa o app default criado por AngularFireModule.initializeApp(...)
-    return getFirestoreMod(getApp());
+  /** 🔍 Retorna a instância única do Firestore (via DI) */
+  getFirestoreInstance(): Firestore {
+    return this.db;
   }
 
   /** 🔎 Lê o documento do índice público de apelido (ou null se não existir). */
@@ -143,8 +144,8 @@ export class FirestoreService {
   saveInitialUserData(uid: string, data: IUserRegistrationData): Observable<void> {
     const db = this.getFirestoreInstance();
 
-    if (data.municipio && data.estado) {
-      data.municipioEstado = `${data.municipio} - ${data.estado}`;
+    if ((data as any).municipio && (data as any).estado) {
+      (data as any).municipioEstado = `${(data as any).municipio} - ${(data as any).estado}`;
     }
 
     const userRef = doc(db, 'users', uid);
@@ -152,7 +153,13 @@ export class FirestoreService {
       { nickname: data.nickname.trim().toLowerCase(), date: Timestamp.now() }
     ];
 
-    return from(setDoc(userRef, { ...data, nicknameHistory: arrayUnion(...nicknameHistory) }, { merge: true })).pipe(
+    return from(
+      setDoc(
+        userRef,
+        { ...data, nicknameHistory: arrayUnion(...nicknameHistory) },
+        { merge: true }
+      )
+    ).pipe(
       map(() => void 0),
       catchError(err => this.handleFirestoreError(err))
     );
@@ -166,7 +173,7 @@ export class FirestoreService {
     const data = {
       type: 'nickname',
       value: normalized,
-      uid: getAuth().currentUser?.uid ?? null,
+      uid: this.auth.currentUser?.uid ?? null,
       createdAt: Timestamp.now(),
       lastChangedAt: Timestamp.now()
     };
@@ -180,7 +187,7 @@ export class FirestoreService {
   /** 🔁 Atualiza apelido público (somente assinantes) */
   updatePublicNickname(oldNickname: string, newNickname: string, isSubscriber: boolean): Observable<void> {
     const db = this.getFirestoreInstance();
-    const authUser = getAuth().currentUser;
+    const authUser = this.auth.currentUser;
 
     if (!authUser) return throwError(() => new Error('Usuário não autenticado.'));
     if (!isSubscriber) return throwError(() => new Error('Mudança de apelido restrita a assinantes.'));

@@ -1,27 +1,17 @@
-// src\app\core\services\autentication\email-input-modal.service.ts
+// src/app/core/services/autentication/email-input-modal.service.ts
 import { Injectable } from '@angular/core';
 import { Subject } from 'rxjs';
 import { LoginService } from '../autentication/login.service';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class EmailInputModalService {
-  public isModalOpen: Subject<boolean> = new Subject<boolean>();
-  public emailSentMessage: Subject<string> = new Subject<string>();
-
+  public isModalOpen = new Subject<boolean>();
+  public emailSentMessage = new Subject<string>();
 
   constructor(private loginService: LoginService) { }
 
-  // Abre o modal
-  openModal(): void {
-    this.isModalOpen.next(true);
-  }
-
-  // Fecha o modal
-  closeModal(): void {
-    this.isModalOpen.next(false);
-  }
+  openModal(): void { this.isModalOpen.next(true); }
+  closeModal(): void { this.isModalOpen.next(false); }
 
   // Envia o e-mail de recuperação de senha
   sendPasswordRecoveryEmail(email: string): void {
@@ -30,13 +20,14 @@ export class EmailInputModalService {
       return;
     }
 
-    this.loginService.sendPasswordResetEmail(email)
-      .then(() => {
+    this.loginService.sendPasswordResetEmail$(email).subscribe({
+      next: () => {
         this.emailSentMessage.next('E-mail de recuperação de senha enviado com sucesso!');
         this.closeModal();
-      })
-      .catch(() => {
+      },
+      error: () => {
         this.emailSentMessage.next('Falha ao enviar o e-mail de recuperação de senha.');
-      });
+      },
+    });
   }
 }

@@ -8,6 +8,42 @@
     </p>
   </header>
 
+  <!-- Banner robusto (harmoniza com seus estilos globais .alert*) -->
+  <div *ngIf="banner as b" class="alert" [ngClass]="{
+         'alert-info': b.variant === 'info',
+         'alert-error': b.variant === 'error',
+         'alert-success': b.variant === 'success',
+         'alert-warning': b.variant === 'warn' || b.variant,
+       }" role="alert" aria-live="assertive" style="margin-bottom:16px;">
+    <strong style="display:block; margin-bottom:4px;">{{ b.title }}</strong>
+    <span>{{ b.message }}</span>
+    <div *ngIf="lastCheckedAt" style="margin-top:6px; font-size:.85rem; opacity:.8;">
+      Última checagem: {{ lastCheckedAt | date:'shortTime' }}
+    </div>
+
+    <div class="actions" style="margin-top:8px; display:flex; gap:.5rem; flex-wrap:wrap;">
+      <button class="btn btn-secondary" (click)="checkNow()" [disabled]="busy" [attr.aria-busy]="busy">
+        {{ busy ? 'Checando…' : 'Checar agora' }}
+      </button>
+      <button class="btn" (click)="resendVerificationEmail()" [disabled]="busy" [attr.aria-busy]="busy">
+        {{ busy ? 'Reenviando…' : 'Reenviar e-mail' }}
+      </button>
+      <button class="btn" (click)="openInbox()">Abrir seu e-mail</button>
+      <button class="btn" (click)="copyEmail()" [disabled]="!email">Copiar e-mail</button>
+      <button class="btn" (click)="toggleTech()">
+        {{ showTech ? 'Ocultar detalhes' : 'Mostrar detalhes técnicos' }}
+      </button>
+      <button class="btn" (click)="reloadPage()">Recarregar</button>
+      <button class="btn" (click)="restartRegistration()">Refazer cadastro</button>
+      <button class="btn btn-primary" *ngIf="emailVerified" (click)="proceedToDashboard()">Ir para o painel</button>
+    </div>
+
+    <pre *ngIf="showTech && b.details"
+      style="margin-top:8px; white-space:pre-wrap; font-size:.85rem; background:rgba(0,0,0,.05); padding:8px; border-radius:8px; overflow:auto;">
+{{ b.details }}
+    </pre>
+  </div>
+
   <main class="welcome-content">
     <section class="welcome-card">
       <h2 class="card-title">
@@ -22,10 +58,6 @@
         <li>Clique no botão do e-mail para confirmar.</li>
       </ol>
 
-      <div *ngIf="message" class="alert alert-info" role="status" aria-live="polite">
-        {{ message }}
-      </div>
-
       <div class="actions">
         <button class="btn btn-primary" (click)="checkNow()" [disabled]="busy" [attr.aria-busy]="busy">
           {{ busy ? 'Checando…' : 'Já verifiquei — checar agora' }}
@@ -33,8 +65,8 @@
         <button class="btn btn-secondary" (click)="resendVerificationEmail()" [disabled]="busy" [attr.aria-busy]="busy">
           {{ busy ? 'Reenviando…' : 'Reenviar e-mail' }}
         </button>
-        <button class="btn" (click)="proceedToDashboard()" [disabled]="busy">
-          Continuar sem verificar
+        <button class="btn" (click)="proceedToDashboard()" [disabled]="busy || !emailVerified">
+          Ir para o painel
         </button>
       </div>
     </section>
@@ -81,3 +113,16 @@
     </section>
   </main>
 </div>
+
+<!-- Estado de sessão inválida (sem redirecionar para login) -->
+<section *ngIf="sessionInvalid" class="welcome-card alert-error" style="border-left:4px solid #c62828;">
+  <h2 class="card-title">Sessão encerrada</h2>
+  <p>Não conseguimos manter sua sessão ativa durante a verificação. Você pode tentar reconectar ou refazer o cadastro.
+  </p>
+  <div class="actions">
+    <button class="btn btn-secondary" (click)="checkNow()" [disabled]="busy" [attr.aria-busy]="busy">
+      Tentar reconectar
+    </button>
+    <button class="btn btn-primary" (click)="restartRegistration()">Refazer cadastro</button>
+  </div>
+</section>

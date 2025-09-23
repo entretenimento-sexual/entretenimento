@@ -1,27 +1,29 @@
 /* src/app/register-module/register.component.css */
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+/* ================================
+   RegisterComponent styles (scoped)
+   ================================ */
 
-/* ====== Containers ====== */
+/* ====== Container ====== */
 .auth-container {
   display: flex;
   justify-content: center;
   align-items: center;
   flex-direction: column;
   min-height: 70vh;
+  padding: 16px;
   background-color: var(--background-color);
   font-family: var(--font-family-primary);
-  padding: 16px;
 }
 
 .form-container {
   width: 100%;
-  max-width: 480px;
+  max-width: 520px;
   padding: 24px;
   background-color: var(--background-color);
   color: var(--text-color);
   border-radius: 12px;
   box-shadow: var(--box-shadow);
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color .3s ease, color .3s ease;
 }
 
 .form-container form {
@@ -35,37 +37,34 @@
   color: var(--text-color);
 }
 
+/* ====== Campos ====== */
 .form-field {
   margin-bottom: 16px;
+  position: relative;
 }
 
-/* ====== Inputs padronizados (escopo local) ====== */
 .input-wrapper {
   position: relative;
-  /* ancora botão "olho" */
 }
 
 .input-field {
   display: block;
   width: 100%;
-  box-sizing: border-box;
   height: 40px;
-  /* padroniza altura */
   padding: 8px 12px;
+  margin-bottom: 0;
   border-radius: 8px;
   border: 1px solid var(--border-color, #d1d5db);
   background: var(--input-background, #f3f3f3);
   color: var(--text-color, #111827);
-  margin-bottom: 0;
-  /* evita espaçamento duplo com .form-field */
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
 }
 
-/* espaço extra somente quando há botão/ícone interno (ex.: senha) */
 .input-wrapper .input-field {
   padding-right: 44px;
+  /* espaço pro botão de olho */
 }
 
-/* Botão olho (senha) – já há definição global; mantemos aqui por segurança */
 .toggle-input {
   position: absolute;
   top: 50%;
@@ -75,14 +74,13 @@
   width: 32px;
   display: grid;
   place-items: center;
-  line-height: 1;
   background: transparent;
   border: none;
   cursor: pointer;
   color: var(--text-color);
 }
 
-/* ====== Estados de validação no input ====== */
+/* ====== Estados do input ====== */
 .input-field.is-pending {
   border-color: #6366f1;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, .12);
@@ -99,7 +97,6 @@
   box-shadow: 0 0 0 3px rgba(239, 68, 68, .12);
 }
 
-/* reforço visual específico do apelido quando inválido */
 .nickname-field .input-field.is-invalid {
   border-color: #ef4444 !important;
   box-shadow: 0 0 0 3px rgba(239, 68, 68, .12);
@@ -112,16 +109,13 @@
   gap: 12px;
 }
 
-/* painel de feedback ao lado (desktop) */
 .inline-feedback {
   min-width: 210px;
-  /* garante leitura confortável em telas largas */
   flex: 0 0 auto;
   font-size: .9rem;
-  /* aria-live: polite; "message": "Propriedade desconhecida: 'aria-live'", */
 }
 
-/* badges */
+/* ====== Badges (feedback lateral) ====== */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -151,24 +145,36 @@
   border-color: rgba(220, 38, 38, .35);
 }
 
-/* spinner inline */
+/* Tema escuro para badges (usa o contexto do host) */
+:host-context(.dark-mode) .badge.info {
+  background: rgba(59, 130, 246, .15);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, .45);
+}
+
+:host-context(.dark-mode) .badge.ok {
+  background: rgba(16, 185, 129, .15);
+  color: #6ee7b7;
+  border-color: rgba(16, 185, 129, .45);
+}
+
+:host-context(.dark-mode) .badge.error {
+  background: rgba(220, 38, 38, .15);
+  color: #fca5a5;
+  border-color: rgba(220, 38, 38, .45);
+}
+
+/* ====== Inline spinner do feedback ====== */
 .inline-spinner {
-  display: inline-block;
   width: 14px;
   height: 14px;
   border: 2px solid rgba(59, 130, 246, .3);
   border-top-color: #3b82f6;
   border-radius: 50%;
-  animation: spin .7s linear infinite;
+  animation: rgspin .7s linear infinite;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-/* ====== Dicas + contador ====== */
+/* ====== Dica + contador ====== */
 .hint-row {
   display: flex;
   align-items: center;
@@ -192,8 +198,7 @@
   opacity: 1;
 }
 
-/* ====== Mensagens (override do global) ====== */
-/* No global, .tooltip-error é absolute; aqui forçamos estático p/ não sobrepor */
+/* ====== Erros do campo (estático p/ não sobrepor) ====== */
 .form-container .tooltip-error {
   position: static !important;
   margin-top: .35rem;
@@ -204,11 +209,10 @@
   border-radius: .5rem;
   font-size: .9rem;
   white-space: normal;
-  /* permite quebrar linha */
   overflow-wrap: break-word;
 }
 
-/* ====== Check de termos ====== */
+/* ====== Aceite de termos ====== */
 .form-checkbox {
   display: flex;
   align-items: flex-start;
@@ -217,10 +221,81 @@
   color: var(--text-color);
 }
 
+/* ====== CTA “Já tem conta?” ====== */
+.login-redirect {
+  margin-top: 16px;
+  font-size: .95rem;
+  text-align: center;
+}
+
+/* ====== Botões (herda de global .btn) ====== */
+button.btn:disabled,
+button[disabled] {
+  opacity: .65;
+  cursor: not-allowed;
+}
+
+/* ====== Overlay: “Criando sua conta” ====== */
+.rg-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .45);
+  z-index: 9999;
+  backdrop-filter: blur(1px);
+}
+
+.rg-card {
+  min-width: 280px;
+  max-width: 90vw;
+  background: var(--modal-background, #111);
+  color: #fff;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+  padding: 24px 20px;
+  text-align: center;
+}
+
+.rg-title {
+  margin: 8px 0 4px;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.rg-sub {
+  margin: 0;
+  opacity: .9;
+}
+
+.rg-spinner {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 10px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, .25);
+  border-top-color: #fff;
+  animation: rgspin 1s linear infinite;
+}
+
+/* ====== Animações ====== */
+@keyframes rgspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Tema escuro p/ cartão do overlay (via contexto) */
+:host-context(.dark-mode) .rg-card {
+  background: var(--modal-background, #1e1e1e);
+  color: #fff;
+}
+
 /* ====== Responsivo ====== */
 @media (min-width: 1024px) {
   .form-container {
-    max-width: 520px;
+    max-width: 560px;
   }
 
   .form-field {
@@ -237,6 +312,4 @@
   .inline-feedback {
     min-width: 0;
   }
-
-  /* feedback desce abaixo do input */
 }
