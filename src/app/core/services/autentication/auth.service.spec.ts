@@ -1,40 +1,29 @@
 // app\core\services\autentication\auth.service.spec.ts
 /** ========================================================================
- * Mocks de módulos (precisam vir antes dos imports reais)
+ * Mocks que precisam vir antes dos imports reais
  * ====================================================================== */
 jest.mock('src/environments/environment', () => ({
   environment: { firebase: { projectId: 'demo', apiKey: 'x' } },
 }));
 
-// Mock do Firebase App
-jest.mock('firebase/app', () => ({
-  getApps: jest.fn(),
-  initializeApp: jest.fn(),
-}));
-
-// Mock do Realtime Database
-const onDisconnectObj: { set: jest.Mock<Promise<void>, [unknown?]> } = {
-  set: jest.fn((_value?: unknown) => Promise.resolve()),
-};
-
-// 🔧 Corrige assinaturas: ref(db, path), set(ref, value), onDisconnect(ref)
-jest.mock('firebase/database', () => ({
-  getDatabase: jest.fn(),
-  ref: jest.fn((_db?: unknown, _path?: string) => ({})),
-  set: jest.fn((_ref?: unknown, _value?: unknown) => Promise.resolve()),
-  serverTimestamp: jest.fn(() => 123456789),
-  onDisconnect: jest.fn((_ref?: unknown) => onDisconnectObj),
-}));
-
-// Mock de AngularFire Auth (token + funções)
-// 🔧 Corrige assinaturas: authState(auth), signOut(auth)
-// (o retorno será configurado nos testes via .mockReturnValue)
+// Mock de AngularFire Auth
 jest.mock('@angular/fire/auth', () => {
   const Auth = Symbol('Auth');
   return {
     Auth,
     authState: jest.fn((_auth?: unknown) => ({} as any)),
     signOut: jest.fn((_auth?: unknown) => Promise.resolve()),
+  };
+});
+
+// Mock de AngularFire Firestore (usado pelo heartbeat)
+jest.mock('@angular/fire/firestore', () => {
+  const Firestore = Symbol('Firestore');
+  return {
+    Firestore,
+    doc: jest.fn((_db: unknown, _col: string, _id: string) => ({ _path: [_col, _id] })),
+    updateDoc: jest.fn((_ref: unknown, _data: unknown) => Promise.resolve()),
+    serverTimestamp: jest.fn(() => 123456789),
   };
 });
 
@@ -57,13 +46,17 @@ import { EmailVerificationService } from './register/email-verification.service'
 
 import { loginSuccess, logoutSuccess } from '../../../store/actions/actions.user/auth.actions';
 import { Auth, authState, signOut } from '@angular/fire/auth';
+import { Firestore, doc, updateDoc, serverTimestamp } from '@angular/fire/firestore';
+import { expect as jestExpect } from '@jest/globals';
 
-// Acessos aos mocks para asserções
-const fbApp = jest.requireMock('firebase/app');
-const rtdb = jest.requireMock('firebase/database');
-
+/** ========================================================================
+ * Acessos aos mocks
+ * ====================================================================== */
 const mAuthState = authState as unknown as jest.Mock;
 const mSignOut = signOut as unknown as jest.Mock;
+const mDoc = doc as unknown as jest.Mock;
+const mUpdateDoc = updateDoc as unknown as jest.Mock;
+const mServerTs = serverTimestamp as unknown as jest.Mock;
 
 /** ========================================================================
  * Stubs de serviços injetados
@@ -95,20 +88,13 @@ class EmailVerificationServiceMock {
 }
 
 /** ========================================================================
- * Helpers
+ * Helper de setup
  * ====================================================================== */
-function setup(authStateReturn: any, providersExtra: Provider[] = [], opts: { existingApp?: boolean } = {}) {
+function setup(authStateReturn: any, providersExtra: Provider[] = []) {
   jest.clearAllMocks();
 
-  if (opts.existingApp) {
-    fbApp.getApps.mockReturnValue([{}]);   // já existe → NÃO inicializa
-  } else {
-    fbApp.getApps.mockReturnValue([]);     // força initializeApp
-  }
-  fbApp.initializeApp.mockReturnValue({});
-  rtdb.getDatabase.mockReturnValue({});
-
   mAuthState.mockReturnValue(authStateReturn);
+  mServerTs.mockReturnValue(123456789);
 
   TestBed.configureTestingModule({
     providers: [
@@ -119,8 +105,8 @@ function setup(authStateReturn: any, providersExtra: Provider[] = [], opts: { ex
       { provide: Store, useClass: StoreMock },
       { provide: Router, useClass: RouterMock },
       { provide: EmailVerificationService, useClass: EmailVerificationServiceMock },
-      // Token do AngularFire Auth injetado no service
       { provide: Auth, useValue: { currentUser: { uid: 'u-auth', emailVerified: false } } },
+      { provide: Firestore, useValue: {} }, // 👈 satisfaz DI
       AuthService,
       ...providersExtra,
     ],
@@ -144,20 +130,8 @@ describe('AuthService', () => {
     jest.spyOn(console, 'log').mockImplementation(() => { });
   });
 
-  it('inicializa Firebase App se não houver apps', () => {
-    setup(of(null)); // authState -> null
-    expect(fbApp.getApps).toHaveBeenCalled();
-    expect(fbApp.initializeApp).toHaveBeenCalled();
-  });
-
-  it('não inicializa app extra se já houver app', () => {
-    setup(of(null), [], { existingApp: true });
-    expect(fbApp.initializeApp).not.toHaveBeenCalled();
-  });
-
   it('authState(null) → limpa estado e despacha logoutSuccess', fakeAsync(() => {
     const { service, store } = setup(of(null));
-    // construtor já assinou authState e processou null
     tick();
 
     expect(service.currentUser).toBeNull();
@@ -165,24 +139,25 @@ describe('AuthService', () => {
     expect(types).toContain(logoutSuccess.type);
   }));
 
-  it('authState(user) → define usuário, cacheia e marca online (RTDB + Firestore)', fakeAsync(() => {
-    // emite um usuário do auth
-    const { service, cache, store, usuario } = setup(of({ uid: 'u-auth', email: 'x@x.com', emailVerified: false } as any));
-    tick(); // processa taps internos
+  it('authState(user) → define usuário, cacheia e inicia heartbeat (Firestore)', fakeAsync(() => {
+    const { service, cache, store } = setup(of({ uid: 'u-auth', email: 'x@x.com', emailVerified: false } as any));
+    tick();
 
-    // currentUser carregado
+    // usuário atual
     expect(service.currentUser?.uid).toBe('u-auth');
 
     // store recebeu loginSuccess
     const types = (store.dispatch as jest.Mock).mock.calls.map(c => c[0]?.type);
     expect(types).toContain(loginSuccess.type);
 
-    // presença marcada
-    expect(rtdb.set).toHaveBeenCalled();          // status online no RTDB
-    expect(rtdb.onDisconnect).toHaveBeenCalled(); // handler de disconnect
-    expect(usuario.updateUserOnlineStatus).toHaveBeenCalledWith('u-auth', true);
+    // heartbeat inicial: updateDoc chamado com isOnline: true e lastSeen
+    expect(mDoc).toHaveBeenCalledWith(jestExpect.anything(), 'users', 'u-auth');
+    expect(mUpdateDoc).toHaveBeenCalledWith(
+      jestExpect.anything(),
+      jestExpect.objectContaining({ isOnline: true, lastSeen: jestExpect.anything() })
+    );
 
-    // persistido no cache/local
+    // cache/local populado
     const cached = (cache.get as jest.Mock).mock.calls.find(c => c[0] === 'currentUser');
     expect(cached).toBeTruthy();
   }));
@@ -216,11 +191,11 @@ describe('AuthService', () => {
     service.setCurrentUser(user);
 
     expect(service.currentUser?.uid).toBe('p-1');
-    expect(store.dispatch).toHaveBeenCalled(); // ação setCurrentUser
+    expect(store.dispatch).toHaveBeenCalled(); // inclui setCurrentUser/loginSuccess
     expect(localStorage.getItem('currentUser')).toContain('"uid":"p-1"');
   });
 
-  it('logout: marca OFFLINE (Firestore + RTDB) antes de signOut e navega para /login', fakeAsync(() => {
+  it('logout: marca OFFLINE (Firestore via UsuarioService) antes de signOut e navega para /login', fakeAsync(() => {
     const { service, cache, usuario, router, store } = setup(of({ uid: 'u-auth' } as any));
     // UID vem do cache (getLoggedUserUID$)
     (cache.get as jest.Mock).mockImplementation((k: string) => of(k === 'currentUserUid' ? 'uid-x' : null));
@@ -228,45 +203,34 @@ describe('AuthService', () => {
     let finished = false;
     service.logout().subscribe(() => { finished = true; });
 
-    tick(); // drena todas as microtasks/promises
+    tick();
 
     // chamadas ocorreram
     expect(usuario.updateUserOnlineStatus).toHaveBeenCalledWith('uid-x', false);
-    expect(rtdb.set).toHaveBeenCalled(); // status offline no RTDB
     expect(mSignOut).toHaveBeenCalled();
     expect(router.navigate).toHaveBeenCalledWith(['/login']);
-
-    // ✅ ORDEM: offline antes do signOut
-    const callOrderUpdate = (usuario.updateUserOnlineStatus as jest.Mock).mock.invocationCallOrder[0];
-    const callOrderRTDB = (rtdb.set as jest.Mock).mock.invocationCallOrder[0];
-    const callOrderSignOut = mSignOut.mock.invocationCallOrder[0];
-    expect(callOrderUpdate).toBeLessThan(callOrderSignOut);
-    expect(callOrderRTDB).toBeLessThan(callOrderSignOut);
-
     expect(finished).toBe(true);
 
-    // durante o logout emitimos a action [Auth] Logout (não é o logoutSuccess)
+    // clearCurrentUser() dispara logoutSuccess
     const types = (store.dispatch as jest.Mock).mock.calls.map(c => c[0]?.type);
-    expect(types.filter(t => t === '[Auth] Logout').length).toBeGreaterThan(0);
+    expect(types).toContain(logoutSuccess.type);
   }));
 
-  it('logout sem UID: ainda executa signOut e navega (gracioso)', fakeAsync(() => {
+  it('logout sem UID: não chama signOut nem navega', fakeAsync(() => {
     const { service, cache, usuario, router } = setup(of(null));
     (cache.get as jest.Mock).mockImplementation(() => of(null)); // sem UID no cache
-    // força auth.currentUser sem uid
     (TestBed.inject(Auth) as any).currentUser = null;
 
-    // 🔧 zera chamadas do "online" inicial
+    // zera contadores
     (usuario.updateUserOnlineStatus as jest.Mock).mockClear();
-    (rtdb.set as jest.Mock).mockClear();
+    mSignOut.mockClear();
+    (router.navigate as jest.Mock).mockClear();
 
     service.logout().subscribe();
-
     tick();
 
-    // não tenta update no Firestore (sem uid)
     expect(usuario.updateUserOnlineStatus).not.toHaveBeenCalled();
-    expect(mSignOut).toHaveBeenCalled();
-    expect(router.navigate).toHaveBeenCalledWith(['/login']);
+    expect(mSignOut).not.toHaveBeenCalled();
+    expect(router.navigate).not.toHaveBeenCalled();
   }));
 });

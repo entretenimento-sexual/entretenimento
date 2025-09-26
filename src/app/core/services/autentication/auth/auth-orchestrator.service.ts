@@ -1,5 +1,5 @@
 // src/app/core/services/autentication/auth/auth-orchestrator.service.ts
-import { Injectable, Inject } from '@angular/core';
+import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { Router } from '@angular/router';
 import { of, Subscription } from 'rxjs';
 import { filter, switchMap, scan, take } from 'rxjs/operators';
@@ -8,32 +8,27 @@ import { AuthSessionService } from './auth-session.service';
 import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
 import { CurrentUserStoreService } from './current-user-store.service';
 
-import { FIREBASE_AUTH } from '@core/firebase/firebase.tokens';
-import { signOut, type Auth } from 'firebase/auth';
-import { doc, onSnapshot,  getDocFromServer, // ✅ confirma no servidor (sem cache)
-         type Unsubscribe as FsUnsub } from 'firebase/firestore';
-import { FirestoreService } from '../../data-handling/firestore.service';
+import { Auth, signOut } from '@angular/fire/auth';
+import { doc, docSnapshots, Firestore } from '@angular/fire/firestore';
 
 type TerminateReason =
   | 'deleted'
   | 'suspended'
   | 'auth-invalid'
   | 'doc-missing-confirmed'
-  | 'forbidden'; // 🔸 regras Firestore / permission-denied
+  | 'forbidden';
 
 @Injectable({ providedIn: 'root' })
 export class AuthOrchestratorService {
   private authKeepAliveTimer: any = null;
-  private docUnsub: FsUnsub | null = null;
+  private docSub: Subscription | null = null;
   private deletedSub: Subscription | null = null;
   private terminating = false;
 
-  // Janela de graça e “já vi o doc existir”
-  private freshUntil = 0;          // timestamp (ms)
-  private sawUserDocOnce = false;  // true assim que o doc existir em algum momento
-  private missingDocProbe?: any;   // timeout para rechecagem
+  private freshUntil = 0;
+  private sawUserDocOnce = false;
+  private missingDocProbe?: any;
 
-  // Evita múltiplas inicializações acidentais
   private started = false;
 
   constructor(
@@ -41,21 +36,19 @@ export class AuthOrchestratorService {
     private userQuery: FirestoreUserQueryService,
     private currentUserStore: CurrentUserStoreService,
     private router: Router,
-    private firestoreService: FirestoreService,
-    @Inject(FIREBASE_AUTH) private auth: Auth
+    private auth: Auth,
+    private db: Firestore,
+    private injector: Injector
   ) { }
 
-  /** Inicia watchers – chame no AppComponent ngOnInit (idempotente). */
   start(): void {
-    if (this.started) return; // 🚦 idempotente
+    if (this.started) return;
     this.started = true;
 
     this.authSession.authUser$
       .pipe(
-        // SSR-safe
         filter(() => typeof window !== 'undefined' && typeof document !== 'undefined'),
         switchMap(u => {
-          // limpar estado/watchers da sessão anterior
           this.stopKeepAlive();
           this.unwatchUserDoc();
           this.unwatchDeleted();
@@ -68,24 +61,14 @@ export class AuthOrchestratorService {
             return of(null);
           }
 
-          // 🎯 Graça híbrida:
-          // - usuários novos (creationTime recente): ~30s
-          // - usuários antigos: pelo menos 6s no login
           const now = Date.now();
-          const createdAt = u.metadata?.creationTime
-            ? new Date(u.metadata.creationTime).getTime()
-            : now;
+          const createdAt = u.metadata?.creationTime ? new Date(u.metadata.creationTime).getTime() : now;
           const graceNewUser = createdAt + 30_000;
           const graceAnyLogin = now + 6_000;
           this.freshUntil = Math.max(graceNewUser, graceAnyLogin);
 
-          // 1) Watcher direto no doc (existe/suspenso/deletado soft)
           this.watchUserDoc(u.uid);
-
-          // 2) Keep-alive do Auth (user disabled/deleted no Console)
           this.startKeepAlive();
-
-          // 3) Watcher “redundante” (doc ausente) com scan + confirmação
           this.watchUserDocDeleted(u.uid);
 
           return of(null);
@@ -94,55 +77,50 @@ export class AuthOrchestratorService {
       .subscribe();
   }
 
-  // ---------------- helpers ----------------
   private inRegistrationFlow(url: string): boolean {
-    // cobre /register e subrotas (inclui welcome), e handlers do e-mail
     return /^\/(register(\/|$)|__\/auth\/action|post-verification\/action)/.test(url || '');
   }
 
-  // Confirma se o users/{uid} segue ausente após pequena espera (server-first)
   private async confirmUserDocMissing(uid: string, delayMs = 1200): Promise<boolean> {
-    if (this.missingDocProbe) { clearTimeout(this.missingDocProbe); this.missingDocProbe = undefined; }
+    // Cancela probe anterior, se houver
+    if (this.missingDocProbe) {
+      clearTimeout(this.missingDocProbe);
+      this.missingDocProbe = undefined;
+    }
 
-    // Se offline, não confirmamos ausência
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+    // Se estiver offline, não confirma como "missing"
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return false;
+    }
 
-    await new Promise(res => this.missingDocProbe = setTimeout(res, delayMs));
+    // Pequeno atraso para evitar falso positivo logo após login/criação
+    await new Promise<void>(res => this.missingDocProbe = setTimeout(res, delayMs));
+
     try {
-      const db = this.firestoreService.getFirestoreInstance();
-      // tenta do servidor; se indisponível, cai no catch e não confirma ausência
-      const again = await getDocFromServer(doc(db, 'users', uid));
-      return !again.exists();
+      const exists = await this.userQuery.checkUserExistsFromServer(uid);
+      return !exists; // true = doc ausente confirmado
     } catch {
-      // Falha de rede/servidor: não confirmar “missing”
+      // Em erro de rede/perm, seja conservador: não derruba sessão
       return false;
     }
   }
 
   private async confirmAndSignOutIfMissing(uid: string, reason: Extract<TerminateReason, 'deleted' | 'doc-missing-confirmed'>) {
     const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
-    if (!allowAct) return; // ainda em graça
+    if (!allowAct) return;
     const stillMissing = await this.confirmUserDocMissing(uid);
     if (stillMissing) this.hardSignOutToEntry(reason);
   }
 
-  // ---------------- Firestore doc watcher ----------------
   private watchUserDoc(uid: string): void {
-    const db = this.firestoreService.getFirestoreInstance();
-    const ref = doc(db, 'users', uid);
-
-    this.docUnsub = onSnapshot(
-      ref,
-      (snap) => {
+    const ref = runInInjectionContext(this.injector, () => doc(this.db, 'users', uid));
+    this.docSub = runInInjectionContext(this.injector, () => docSnapshots(ref)).subscribe({
+      next: (snap) => {
         if (!snap.exists()) {
-          // Não derruba de imediato: confirma ausência
           this.confirmAndSignOutIfMissing(uid, 'doc-missing-confirmed');
           return;
         }
-
-        // Doc existe
         this.sawUserDocOnce = true;
-
         const data: any = snap.data() || {};
         const status = (data.status || data.moderation?.status || '').toString().toLowerCase();
         const suspended =
@@ -154,32 +132,26 @@ export class AuthOrchestratorService {
         if (suspended) this.hardSignOutToEntry('suspended');
         else if (deletedByUser) this.hardSignOutToEntry('deleted');
       },
-      (err: any) => {
-        // 🔐 Erros do snapshot: trate os relevantes
+      error: (err: any) => {
         const code = (err?.code || '').toString();
-        // permission-denied: regras bloqueando leitura do próprio doc
         if (code === 'permission-denied') {
-          this.hardSignOutToEntry('forbidden'); // mapeie no welcome
+          this.hardSignOutToEntry('forbidden');
           return;
         }
-        // unavailable / network: ignore (não derruba), os watchers continuam
-        // outros erros → silencioso para não travar navegação
       }
-    );
+    });
   }
 
   private unwatchUserDoc(): void {
-    if (this.docUnsub) { this.docUnsub(); this.docUnsub = null; }
+    if (this.docSub) { this.docSub.unsubscribe(); this.docSub = null; }
   }
 
-  // ---------------- Serviço extra (doc ausente) ----------------
   private watchUserDocDeleted(uid: string): void {
     this.deletedSub = this.userQuery.watchUserDocDeleted$(uid)
       .pipe(
-        // Gatilho único respeitando graça + sawOnce
         scan(
           (state, deleted) => {
-            if (state.fired) return state; // já disparamos
+            if (state.fired) return state;
             const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
             const shouldFire = deleted && allowAct;
             return { fired: shouldFire || state.fired };
@@ -189,7 +161,6 @@ export class AuthOrchestratorService {
         take(1)
       )
       .subscribe(() => {
-        // Confirmar antes de derrubar
         this.confirmAndSignOutIfMissing(uid, 'deleted');
       });
   }
@@ -198,7 +169,6 @@ export class AuthOrchestratorService {
     if (this.deletedSub) { this.deletedSub.unsubscribe(); this.deletedSub = null; }
   }
 
-  // ---------------- AUTH keep-alive ----------------
   private startKeepAlive(): void {
     if (this.authKeepAliveTimer) return;
     this.authKeepAliveTimer = setInterval(async () => {
@@ -227,8 +197,6 @@ export class AuthOrchestratorService {
     }
   }
 
-  // ---------------- Encerramento comum → bem-comportado ----------------
-  /** Nunca envia para /login; leva para /register/welcome com motivo. */
   private hardSignOutToEntry(reason: TerminateReason): void {
     if (this.terminating) return;
     this.terminating = true;
@@ -241,7 +209,6 @@ export class AuthOrchestratorService {
     signOut(this.auth).finally(() => {
       this.currentUserStore.clear();
 
-      // Se já está em telas de registro, mantenha nelas; senão vá ao welcome
       const url = this.router.url || '';
       if (!this.inRegistrationFlow(url)) {
         this.router.navigate(['/register/welcome'], {
@@ -250,8 +217,6 @@ export class AuthOrchestratorService {
         }).finally(() => (this.terminating = false));
         return;
       }
-
-      // Permite que o feedback local (welcome) informe o usuário
       this.terminating = false;
     });
   }

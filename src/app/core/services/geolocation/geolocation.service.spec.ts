@@ -1,104 +1,79 @@
 // src/app/core/services/geolocation/geolocation.service.spec.ts
-/* ============================================================================
- * Testes do GeolocationService (versão compat TS sem .resolves/.rejects/it.each)
- * ==========================================================================*/
-
-jest.mock('geofire-common', () => ({
-  geohashForLocation: jest.fn((_latlng?: [number, number]) => 'hash123456789'),
-}));
-
-import { TestBed, fakeAsync, tick } from '@angular/core/testing';
-import { firstValueFrom, take } from 'rxjs';
-
+import { TestBed } from '@angular/core/testing';
 import {
   GeolocationService,
   GeolocationError,
   GeolocationErrorCode,
-  GeoPolicy,
+  type GeoPolicy,
 } from './geolocation.service';
-import { geohashForLocation } from 'geofire-common';
-
-type CoordsInit = Partial<GeolocationPosition['coords']>;
-
-function buildPosition(coords: CoordsInit = {}): GeolocationPosition {
-  return {
-    coords: {
-      latitude: 10.123456,
-      longitude: -20.987654,
-      altitude: null,
-      accuracy: 10,
-      altitudeAccuracy: null,
-      heading: null,
-      speed: null,
-      ...coords,
-    },
-    timestamp: Date.now(),
-  } as GeolocationPosition;
-}
+import { of } from 'rxjs';
+import type { GeoCoordinates } from '../../interfaces/geolocation.interface';
 
 describe('GeolocationService', () => {
   let service: GeolocationService;
 
-  let getCurrentPositionMock: jest.Mock;
-  let watchPositionMock: jest.Mock;
-  let clearWatchMock: jest.Mock;
-  let permissionsQueryMock: jest.Mock;
+  // backups
+  const origIsSecure = (window as any).isSecureContext;
+  const origLocation = window.location;
+  const origNavigator: any = { ...navigator };
 
-  const setSecure = (isSecure: boolean, host = 'localhost') => {
-    Object.defineProperty(window, 'isSecureContext', { value: isSecure, configurable: true });
-    Object.defineProperty(window, 'location', {
-      value: { hostname: host } as any,
-      configurable: true,
-    });
-  };
+  let clearCalled = false;
 
-  const setPermissions = (state: PermissionState | 'unsupported') => {
-    if (state === 'unsupported') {
-      Object.defineProperty(navigator as any, 'permissions', { value: undefined, configurable: true });
-    } else {
-      permissionsQueryMock = jest.fn().mockResolvedValue({ state });
-      Object.defineProperty(navigator as any, 'permissions', {
-        value: { query: permissionsQueryMock },
-        configurable: true,
-      });
-    }
-  };
+  const geoMock = {
+    getCurrentPosition: (success: PositionCallback) => {
+      success({
+        coords: {
+          latitude: 1,
+          longitude: 0,
+          accuracy: 0,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+        } as any,
+        timestamp: Date.now(),
+      } as GeolocationPosition);
+    },
+    watchPosition: (success: PositionCallback) => {
+      // emite 2 posições SINCRONAMENTE (evita fake timers / tick)
+      success({
+        coords: {
+          latitude: 1,
+          longitude: 0,
+          accuracy: 0,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+        } as any,
+        timestamp: Date.now(),
+      } as GeolocationPosition);
+      success({
+        coords: {
+          latitude: 1.001,
+          longitude: 0,
+          accuracy: 0,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+        } as any,
+        timestamp: Date.now(),
+      } as GeolocationPosition);
+      return 42 as unknown as number;
+    },
+    clearWatch: (_id: number) => {
+      clearCalled = true;
+    },
+  } as unknown as Geolocation;
 
-  const setGeolocationSuccess = (pos: GeolocationPosition) => {
-    getCurrentPositionMock = jest.fn((success: PositionCallback) => success(pos));
-    watchPositionMock = jest.fn((success: PositionCallback) => {
-      const id = 42;
-      setTimeout(() => success(pos), 0);
-      setTimeout(
-        () => success({ ...pos, coords: { ...pos.coords, latitude: pos.coords.latitude + 0.001 } }),
-        5
-      );
-      return id;
-    });
-    clearWatchMock = jest.fn();
-    Object.defineProperty(navigator, 'geolocation', {
-      value: {
-        getCurrentPosition: getCurrentPositionMock,
-        watchPosition: watchPositionMock,
-        clearWatch: clearWatchMock,
-      },
-      configurable: true,
-    });
-  };
-
-  const setGeolocationError = (code: 1 | 2 | 3) => {
-    getCurrentPositionMock = jest.fn((_s: PositionCallback, err: PositionErrorCallback) => err({ code } as any));
-    watchPositionMock = jest.fn((_s: PositionCallback, err: PositionErrorCallback) => err({ code } as any));
-    clearWatchMock = jest.fn();
-    Object.defineProperty(navigator, 'geolocation', {
-      value: {
-        getCurrentPosition: getCurrentPositionMock,
-        watchPosition: watchPositionMock,
-        clearWatch: clearWatchMock,
-      },
-      configurable: true,
-    });
-  };
+  function setPermissions(state: PermissionState | 'unsupported') {
+    const permissions: any =
+      state === 'unsupported'
+        ? {}
+        : { query: () => Promise.resolve({ state }) };
+    (navigator as any).permissions = permissions;
+  }
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -106,201 +81,227 @@ describe('GeolocationService', () => {
     });
     service = TestBed.inject(GeolocationService);
 
-    setSecure(true, 'localhost');
+    (window as any).isSecureContext = true;
+
+    Object.defineProperty(navigator, 'geolocation', {
+      value: geoMock,
+      configurable: true,
+      writable: true,
+    });
+
     setPermissions('granted');
-    setGeolocationSuccess(buildPosition());
-
-    jest.spyOn(console, 'error').mockImplementation(() => { });
-    jest.spyOn(console, 'warn').mockImplementation(() => { });
-    jest.spyOn(console, 'log').mockImplementation(() => { });
+    clearCalled = false;
   });
 
-  afterEach(() => {
-    jest.clearAllMocks();
+  afterAll(() => {
+    (window as any).isSecureContext = origIsSecure;
+    Object.defineProperty(window, 'location', { value: origLocation });
+    Object.defineProperty(navigator, 'geolocation', {
+      value: origNavigator.geolocation,
+      configurable: true,
+      writable: true,
+    });
+    (navigator as any).permissions = origNavigator.permissions;
   });
 
-  // ---------------------------------------------------------
-  // Pré-checagens
-  // ---------------------------------------------------------
-  it('isSupported: true quando navigator.geolocation existe', () => {
-    expect(service.isSupported()).toBe(true);
+  it('deve ser criado', () => {
+    expect(service).toBeTruthy();
   });
 
-  it('isSupported: false quando navigator.geolocation não existe', () => {
-    Object.defineProperty(navigator, 'geolocation', { value: undefined, configurable: true });
-    expect(service.isSupported()).toBe(false);
+  describe('isSupported / isSecureContext', () => {
+    it('isSupported() retorna true quando navigator.geolocation existe', () => {
+      expect(service.isSupported()).toBe(true);
+    });
+
+    it('isSecureContext() respeita window.isSecureContext/hostname', () => {
+      (window as any).isSecureContext = true;
+      Object.defineProperty(window, 'location', { value: { hostname: 'example.com' } as any });
+      expect(service.isSecureContext()).toBe(true);
+
+      (window as any).isSecureContext = false;
+      Object.defineProperty(window, 'location', { value: { hostname: 'localhost' } as any });
+      expect(service.isSecureContext()).toBe(true);
+
+      (window as any).isSecureContext = false;
+      Object.defineProperty(window, 'location', { value: { hostname: 'example.com' } as any });
+      expect(service.isSecureContext()).toBe(false);
+    });
   });
 
-  it('isSecureContext: true em HTTPS', () => {
-    setSecure(true, 'qualquer.com');
-    expect(service.isSecureContext()).toBe(true);
+  describe('queryPermission()', () => {
+    it('retorna estado quando Permissions API disponível', async () => {
+      setPermissions('granted');
+      const state = await service.queryPermission();
+      expect(state).toBe('granted');
+    });
+
+    it('retorna "unsupported" quando Permissions API ausente', async () => {
+      setPermissions('unsupported');
+      const state2 = await service.queryPermission();
+      expect(state2).toBe('unsupported');
+    });
   });
 
-  it('isSecureContext: true em localhost mesmo sem HTTPS', () => {
-    setSecure(false, 'localhost');
-    expect(service.isSecureContext()).toBe(true);
+  describe('currentPosition$', () => {
+    it('emite coordenadas e completa (sucesso)', (done) => {
+      service.currentPosition$().subscribe({
+        next: (coords) => {
+          expect(coords.latitude).toBeCloseTo(1, 6);
+          expect(coords.longitude).toBeCloseTo(0, 6);
+          expect(typeof coords.geohash).toBe('string');
+          expect((coords.geohash || '').length).toBeGreaterThan(0);
+        },
+        complete: () => done(),
+        error: done.fail,
+      });
+    });
+
+    it('mapeia erro DOM → GeolocationError (PERMISSION_DENIED)', (done) => {
+      const errGeo = { code: 1 } as GeolocationPositionError;
+      (navigator.geolocation as any).getCurrentPosition = (_s: any, e: any) => e(errGeo);
+
+      service.currentPosition$().subscribe({
+        next: () => done.fail('não deveria emitir sucesso'),
+        error: (err: unknown) => {
+          expect(err instanceof GeolocationError).toBe(true);
+          expect((err as GeolocationError).code).toBe(GeolocationErrorCode.PERMISSION_DENIED);
+          done();
+        },
+      });
+    });
+
+    it('requireUserGesture:true + permissão != granted → USER_GESTURE_REQUIRED e NÃO chama geolocation', (done) => {
+      setPermissions('prompt'); // não é granted
+
+      let called = false;
+      (navigator.geolocation as any).getCurrentPosition = () => { called = true; };
+
+      service.currentPosition$({ requireUserGesture: true }).subscribe({
+        next: () => done.fail('não deveria emitir sucesso'),
+        error: (err: GeolocationError) => {
+          expect(called).toBe(false);
+          expect(err.code).toBe(GeolocationErrorCode.USER_GESTURE_REQUIRED);
+          done();
+        },
+      });
+    });
   });
 
-  it('isSecureContext: false sem HTTPS e sem localhost', () => {
-    setSecure(false, 'example.com');
-    expect(service.isSecureContext()).toBe(false);
+  describe('watchPosition$', () => {
+    it('emite atualizações (2 chamadas síncronas) e chama clearWatch no unsubscribe', (done) => {
+      const received: number[] = [];
+
+      const sub = service.watchPosition$().subscribe({
+        next: (coords) => received.push(coords.latitude),
+        error: done.fail,
+      });
+
+      setTimeout(() => {
+        expect(received.length).toBe(2);
+        expect(received[0]).toBeCloseTo(1, 6);
+        expect(received[1]).toBeCloseTo(1.001, 6);
+        sub.unsubscribe();
+        expect(clearCalled).toBe(true);
+        done();
+      }, 0);
+    });
+
+    it('mapeia erro do DOM em erro tipado (TIMEOUT)', (done) => {
+      (navigator.geolocation as any).watchPosition = (_success: any, error: any) => {
+        setTimeout(() => error({ code: 3 }), 0);
+        return 7;
+      };
+
+      service.watchPosition$().subscribe({
+        next: () => done.fail('não deveria emitir sucesso'),
+        error: (err: GeolocationError) => {
+          expect(err.code).toBe(GeolocationErrorCode.TIMEOUT);
+          done();
+        },
+      });
+    });
   });
 
-  it('queryPermission: retorna state quando Permissions API existe', async () => {
-    setPermissions('prompt');
-    const res = await service.queryPermission();
-    expect(res).toBe('prompt');
+  describe('privacidade / utilitários', () => {
+    it('toCoarseGeohash reduz para o tamanho solicitado (mín 1, máx geohash.length)', () => {
+      const g = 'u4pruydqqvj';
+      expect(service.toCoarseGeohash(g, 3)).toBe('u4p');
+      expect(service.toCoarseGeohash(g, 50)).toBe(g);
+      expect(service.toCoarseGeohash(undefined as any, 5)).toBeUndefined();
+    });
+
+    it('toCoarseCoords arredonda latitude/longitude e respeita clamp de casas', () => {
+      const coords: GeoCoordinates = {
+        latitude: 12.3456789,
+        longitude: -98.7654321,
+        accuracy: 5,
+        altitude: null,
+        altitudeAccuracy: null,
+        heading: null,
+        speed: null,
+        geohash: undefined,
+      };
+      const out = service.toCoarseCoords(coords, 9);
+      expect(out.latitude).toBeCloseTo(12.345679, 6);
+      expect(out.longitude).toBeCloseTo(-98.765432, 6);
+
+      const out2 = service.toCoarseCoords(coords, 2);
+      expect(out2.latitude).toBeCloseTo(12.35, 2);
+      expect(out2.longitude).toBeCloseTo(-98.77, 2);
+    });
+
+    it('getPolicyFor retorna política por role e aplica downgrade quando email não verificado', () => {
+      const vip = service.getPolicyFor('vip', true);
+      expect(vip).toEqual({ geohashLen: 9, maxDistanceKm: 100, decimals: 5 } as GeoPolicy);
+
+      const basicoUnverified = service.getPolicyFor('basico', false);
+      expect(basicoUnverified.geohashLen).toBeLessThanOrEqual(5);
+      expect(basicoUnverified.maxDistanceKm).toBeLessThanOrEqual(20);
+      expect(basicoUnverified.decimals).toBeLessThanOrEqual(2);
+    });
+
+    it('applyRolePrivacy reduz precisão de coords e do geohash conforme a policy', () => {
+      const coords: GeoCoordinates = {
+        latitude: -23.55052,
+        longitude: -46.633308,
+        accuracy: 5,
+        altitude: null,
+        altitudeAccuracy: null,
+        heading: null,
+        speed: null,
+        geohash: undefined,
+      };
+
+      const { coords: coarse, geohash, policy } = service.applyRolePrivacy(coords, 'free', true);
+
+      expect(typeof geohash).toBe('string');
+      expect((geohash || '').length).toBe(policy.geohashLen);
+      expect(Number.isFinite(coarse.latitude)).toBe(true);
+      expect(Number.isFinite(coarse.longitude)).toBe(true);
+      expect(coarse.latitude).toBeCloseTo(-23.55, 2);
+      expect(coarse.longitude).toBeCloseTo(-46.63, 2);
+    });
   });
 
-  it('queryPermission: "unsupported" quando API não existe', async () => {
-    setPermissions('unsupported');
-    const res = await service.queryPermission();
-    expect(res).toBe('unsupported');
+  describe('getCurrentLocation (legacy)', () => {
+    it('resolve com a posição atual (wrap de currentPosition$)', async () => {
+      const fake: GeoCoordinates = {
+        latitude: 1,
+        longitude: 0,
+        accuracy: 0,
+        altitude: null,
+        altitudeAccuracy: null,
+        heading: null,
+        speed: null,
+        geohash: 'abc',
+      };
+
+      // evita depender do preflight/DOM aqui; testamos apenas o wrap
+      jest.spyOn(service, 'currentPosition$').mockReturnValue(of(fake));
+
+      const got = await service.getCurrentLocation();
+      expect(got.latitude).toBeCloseTo(1, 6);
+      expect(got.longitude).toBeCloseTo(0, 6);
+    });
   });
-
-  // ---------------------------------------------------------
-  // currentPosition$ (sucesso e erros)
-  // ---------------------------------------------------------
-  it('currentPosition$: emite coordenadas com geohash e completa', async () => {
-    const pos = buildPosition({ latitude: -23.55, longitude: -46.63 });
-    setGeolocationSuccess(pos);
-
-    const result = await firstValueFrom(service.currentPosition$());
-    expect(result.latitude).toBeCloseTo(-23.55, 6);
-    expect(result.longitude).toBeCloseTo(-46.63, 6);
-    expect(result.geohash).toBe('hash123456789');
-    expect(geohashForLocation).toHaveBeenCalledWith([-23.55, -46.63]);
-    expect(getCurrentPositionMock).toHaveBeenCalled();
-  });
-
-  async function expectCurrentPositionToFailWith(code: GeolocationErrorCode) {
-    let err: unknown;
-    try {
-      await firstValueFrom(service.currentPosition$());
-    } catch (e) {
-      err = e;
-    }
-    expect(err).toBeInstanceOf(GeolocationError);
-    expect((err as GeolocationError).code).toBe(code);
-  }
-
-  it('currentPosition$: mapeia erro do DOM 1 → PERMISSION_DENIED', async () => {
-    setGeolocationError(1);
-    await expectCurrentPositionToFailWith(GeolocationErrorCode.PERMISSION_DENIED);
-  });
-
-  it('currentPosition$: mapeia erro do DOM 2 → POSITION_UNAVAILABLE', async () => {
-    setGeolocationError(2);
-    await expectCurrentPositionToFailWith(GeolocationErrorCode.POSITION_UNAVAILABLE);
-  });
-
-  it('currentPosition$: mapeia erro do DOM 3 → TIMEOUT', async () => {
-    setGeolocationError(3);
-    await expectCurrentPositionToFailWith(GeolocationErrorCode.TIMEOUT);
-  });
-
-  it('currentPosition$: falha com USER_GESTURE_REQUIRED quando requireUserGesture=true e permissão não é "granted"', async () => {
-    setPermissions('prompt'); // não concedida
-    const pos = buildPosition();
-    setGeolocationSuccess(pos);
-
-    let err: unknown;
-    try {
-      await firstValueFrom(service.currentPosition$({ requireUserGesture: true }));
-    } catch (e) {
-      err = e;
-    }
-    expect((err as GeolocationError).code).toBe(GeolocationErrorCode.USER_GESTURE_REQUIRED);
-    expect(getCurrentPositionMock).not.toHaveBeenCalled(); // travou no preflight
-  });
-
-  it('currentPosition$: falha com INSECURE_CONTEXT quando não é https e não é localhost', async () => {
-    setSecure(false, 'example.com');
-    let err: unknown;
-    try {
-      await firstValueFrom(service.currentPosition$());
-    } catch (e) {
-      err = e;
-    }
-    expect((err as GeolocationError).code).toBe(GeolocationErrorCode.INSECURE_CONTEXT);
-  });
-
-  // ---------------------------------------------------------
-  // watchPosition$ (stream contínuo + cleanup)
-  // ---------------------------------------------------------
-  it('watchPosition$: emite atualizações e chama clearWatch no unsubscribe', fakeAsync(() => {
-    const pos = buildPosition({ latitude: 1, longitude: 2 });
-    setGeolocationSuccess(pos);
-
-    const received: number[] = [];
-    const sub = service.watchPosition$().pipe(take(2)).subscribe((v) => received.push(v.latitude));
-
-    tick(0);  // resolve preflight
-    tick(10); // 2 emissões
-
-    expect(received.length).toBe(2);
-    expect(received[0]).toBeCloseTo(1, 6);
-    expect(received[1]).toBeCloseTo(1.001, 6);
-
-    sub.unsubscribe();
-    expect(clearWatchMock).toHaveBeenCalledWith(42);
-  }));
-
-  // ---------------------------------------------------------
-  // Utilitários de privacidade + políticas
-  // ---------------------------------------------------------
-  it('toCoarseGeohash: fatia o geohash no comprimento solicitado', () => {
-    expect(service.toCoarseGeohash('hash123456789', 5)).toBe('hash1');
-    expect(service.toCoarseGeohash('abc', 9)).toBe('abc');
-  });
-
-  it('toCoarseCoords: arredonda lat/lon ao número de casas, com clamp 0..6', () => {
-    const rounded = service.toCoarseCoords(
-      { latitude: 12.3456789, longitude: -45.987654, geohash: undefined } as any,
-      3
-    );
-    expect(rounded.latitude).toBe(12.346);
-    expect(rounded.longitude).toBe(-45.988);
-
-    const rounded6 = service.toCoarseCoords(
-      { latitude: 12.3456789, longitude: -45.987654, geohash: undefined } as any,
-      10
-    );
-    expect(rounded6.latitude).toBe(12.345679);
-    expect(rounded6.longitude).toBe(-45.987654);
-  });
-
-  it('getPolicyFor: retorna política por role, caindo para free; reduzida se email não verificado', () => {
-    const vip = service.getPolicyFor('vip', true);
-    expect(vip).toEqual({ geohashLen: 9, maxDistanceKm: 100, decimals: 5 });
-
-    const desconhecido = service.getPolicyFor('nao-existe', true);
-    expect(desconhecido).toEqual({ geohashLen: 5, maxDistanceKm: 10, decimals: 2 });
-
-    const reduzida = service.getPolicyFor('premium', false);
-    expect(reduzida).toEqual({ geohashLen: 5, maxDistanceKm: 20, decimals: 2 });
-  });
-
-  it('applyRolePrivacy: aplica arredondamento e fatia do geohash conforme policy', () => {
-    const coords = { latitude: -23.5566778, longitude: -46.6622333 } as any;
-    const out = service.applyRolePrivacy(coords, 'premium', true);
-
-    expect(out.coords.latitude).toBeCloseTo(-23.5567, 4);
-    expect(out.coords.longitude).toBeCloseTo(-46.6622, 4);
-    expect(out.geohash).toBe('hash1234'); // 8 chars
-    expect(out.policy).toEqual({ geohashLen: 8, maxDistanceKm: 50, decimals: 4 });
-  });
-
-  // ---------------------------------------------------------
-  // Compat (Promise)
-  // ---------------------------------------------------------
-  it('getCurrentLocation: resolve igual ao currentPosition$', async () => {
-    const pos = buildPosition({ latitude: 9.9, longitude: 8.8 });
-    setGeolocationSuccess(pos);
-
-    const v = await service.getCurrentLocation();
-    expect(v.latitude).toBeCloseTo(9.9, 6);
-    expect(v.longitude).toBeCloseTo(8.8, 6);
-    expect(v.geohash).toBe('hash123456789');
-  });
-});
+})

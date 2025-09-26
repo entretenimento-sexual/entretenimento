@@ -3,6 +3,7 @@
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
     "types": ["jest", "node"],
+    "emitDecoratorMetadata": false,
     /* Jest roda em Node: precisa desta resolução */
     "moduleResolution": "node",
     "baseUrl": ".",
@@ -14,7 +15,7 @@
       "@env/*": ["src/environments/*"]
     }
   },
-  "files": ["src/test/setup-jest.ts"],
+  "files": ["src/test/setup-jest.ts", "src/polyfills.ts"],
   "include": [
     "src/**/*.spec.ts",
     "src/**/*.d.ts",

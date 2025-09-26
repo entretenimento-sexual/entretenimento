@@ -1,24 +1,21 @@
 // src/app/core/services/autentication/register/register.service.ts
-import { Injectable, Inject } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, switchMap, map, tap, timeout } from 'rxjs/operators';
 
 import {
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  updateProfile,
-  UserCredential,
-  type Auth,
-} from 'firebase/auth';
+  // ⬇️ use as funções/Tipos do AngularFire (zona-safe)
+  createUserWithEmailAndPassword,  sendPasswordResetEmail,
+  updateProfile, type UserCredential, Auth } from '@angular/fire/auth';
 
 import {
+  // ⬇️ Firestore via AngularFire
   doc,
   runTransaction,
   writeBatch,
   Timestamp,
-} from 'firebase/firestore';
+} from '@angular/fire/firestore';
 
-import { FIREBASE_AUTH } from '../../../firebase/firebase.tokens';
 import { FirestoreService } from '../../data-handling/firestore.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { FirestoreValidationService } from '../../data-handling/firestore-validation.service';
@@ -39,7 +36,6 @@ type SignupContext = {
 
 @Injectable({ providedIn: 'root' })
 export class RegisterService {
-  // ⏱️ timeouts defensivos p/ rede lenta
   private readonly NET_TIMEOUT_MS = 12_000;
 
   constructor(
@@ -49,39 +45,28 @@ export class RegisterService {
     private firestoreValidation: FirestoreValidationService,
     private currentUserStore: CurrentUserStoreService,
     private cache: CacheService,
-    @Inject(FIREBASE_AUTH) private auth: Auth, // ✅ Auth único via DI
+    // ⬇️ injeta a instância de Auth fornecida por provideAuth(...)
+    private auth: Auth,
   ) {
     if (!environment.production) {
       console.log('[RegisterService] Serviço carregado.');
     }
   }
 
-  /**
-   * Fluxo principal de registro
-   * - Valida dados
-   * - Cria user no Auth
-   * - Persiste users/{uid} + índice de apelido (transação)
-   * - Envia e-mail de verificação (sem rollback em falha)
-   * - updateProfile(displayName) (sem rollback em falha)
-   * - Semeia estado local (CurrentUserStore + Cache) com emailVerified=false
-   */
   registerUser(userData: IUserRegistrationData, password: string): Observable<UserCredential> {
     console.log('[RegisterService] registerUser iniciado', userData);
 
-    // ⚠️ guarda simples: não inicia se offline
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       return this.handleRegisterError(new Error('Sem conexão com a internet. Verifique e tente novamente.'), 'Rede');
     }
 
     return this.validateUserData(userData).pipe(
-      // 1) cria usuário no Auth
       switchMap(() =>
-        this.createFirebaseUser(userData.email, password).pipe(
+        from(createUserWithEmailAndPassword(this.auth, userData.email, password)).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
         )
       ),
 
-      // 2) grava user + índice (transação atômica)
       switchMap((cred) => {
         const payload: IUserRegistrationData = {
           uid: cred.user.uid,
@@ -101,7 +86,6 @@ export class RegisterService {
         );
       }),
 
-      // 3) Envia e-mail de verificação (não é crítico → não dá rollback)
       switchMap((ctx) =>
         this.emailVerificationService.sendEmailVerification(ctx.cred.user).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
@@ -114,7 +98,6 @@ export class RegisterService {
         )
       ),
 
-      // 4) updateProfile (não é crítico → não dá rollback)
       switchMap((ctx) =>
         from(updateProfile(ctx.cred.user, { displayName: userData.nickname, photoURL: '' })).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
@@ -127,7 +110,6 @@ export class RegisterService {
         )
       ),
 
-      // 5) semeia estado local (sem depender do AuthService)
       tap((ctx) => {
         const { user } = ctx.cred;
         this.seedLocalStateAfterSignup(user.uid, {
@@ -146,14 +128,12 @@ export class RegisterService {
         }
       }),
 
-      // 6) devolve o UserCredential original
       map((ctx) => ctx.cred),
 
       catchError((err) => this.handleRegisterError(err, 'Registro'))
     );
   }
 
-  // -------------------- Validações --------------------
   private validateUserData(user: IUserRegistrationData): Observable<void> {
     const nickname = user.nickname?.trim() || '';
     if (nickname.length < 4 || nickname.length > 24) {
@@ -178,10 +158,9 @@ export class RegisterService {
   }
 
   private checkIfEmailExists(email: string): Observable<void> {
-    return from(this.firestoreService.checkIfEmailExists(email)).pipe(
+    return this.firestoreService.checkIfEmailExists(email).pipe(
       switchMap((exists) => {
         if (!exists) return of(void 0);
-        // fluxo “suave”: envia reset e encerra com erro tipado
         return from(sendPasswordResetEmail(this.auth, email)).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
           switchMap(() =>
@@ -193,7 +172,6 @@ export class RegisterService {
         );
       }),
       catchError((err) => {
-        // se a verificação/reset falhar por rede, trate e prossiga
         if ((err as FirebaseError)?.code === 'auth/network-request-failed') {
           return this.handleRegisterError(
             new Error('Conexão instável ao verificar e-mail. Tente novamente.'),
@@ -205,7 +183,6 @@ export class RegisterService {
     );
   }
 
-  // ------------- Persistência atômica (user + índice) -------------
   private persistUserAndIndexAtomic(
     uid: string,
     nickname: string,
@@ -220,7 +197,6 @@ export class RegisterService {
     console.debug('[RegisterService] persistUserAndIndexAtomic → iniciando transaction', { uid, normalized });
 
     return from(runTransaction(db, async (transaction) => {
-      // 1) unicidade do apelido
       const idxSnap = await transaction.get(indexRef);
       if (idxSnap.exists()) {
         const err: any = new Error('Apelido já está em uso.');
@@ -228,13 +204,11 @@ export class RegisterService {
         throw err;
       }
 
-      // 2) grava o documento do usuário
       transaction.set(userRef, {
         ...payload,
         nicknameHistory: [{ nickname: normalized, date: Timestamp.now() }]
       }, { merge: true });
 
-      // 3) grava o índice público do apelido
       transaction.set(indexRef, {
         type: 'nickname',
         value: normalized,
@@ -248,7 +222,6 @@ export class RegisterService {
     );
   }
 
-  /** Limpa Firestore + índice e tenta deletar o Auth user (rollback) */
   private cleanupOnFailure(uid: string, nickname: string): Observable<void> {
     const db = this.firestoreService.getFirestoreInstance();
     const normalized = nickname.trim().toLowerCase();
@@ -273,7 +246,6 @@ export class RegisterService {
     );
   }
 
-  // -------------------- Auth helpers --------------------
   private createUserWithEmailAndPasswordSafe(email: string, password: string): Observable<UserCredential> {
     return from(createUserWithEmailAndPassword(this.auth, email, password));
   }
@@ -306,7 +278,6 @@ export class RegisterService {
     return of(void 0);
   }
 
-  // -------------------- Estado local após cadastro --------------------
   private seedLocalStateAfterSignup(uid: string, data: Partial<IUserRegistrationData>): void {
     const snapshot = {
       uid,
@@ -326,12 +297,10 @@ export class RegisterService {
     console.log('[RegisterService] Estado local semeado (CurrentUserStore/Cache).');
   }
 
-  // -------------------- Erros --------------------
   private handleRegisterError(error: any, context = 'Erro no registro'): Observable<never> {
     const message = this.mapErrorMessage(error);
     console.log(`[${context}]`, error);
     this.globalErrorHandler.handleError(new Error(message));
-    // Preserve também o code (quando existir) para a UI
     const userErr: any = new Error(message);
     if (error && (error as any).code) userErr.code = (error as any).code;
     return throwError(() => userErr);

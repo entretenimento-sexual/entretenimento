@@ -3,8 +3,7 @@ import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree, ActivatedRouteSnapshot } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { map, take } from 'rxjs/operators';
-import { FIREBASE_AUTH } from '../firebase/firebase.tokens';
-import { onAuthStateChanged, type Auth, type User } from 'firebase/auth';
+import { Auth, authState } from '@angular/fire/auth'; // ✅ AngularFire
 import { environment } from 'src/environments/environment';
 
 function routeAllowsUnverified(route: ActivatedRouteSnapshot): boolean {
@@ -18,24 +17,15 @@ function routeAllowsUnverified(route: ActivatedRouteSnapshot): boolean {
 
 export const emailVerifiedGuard: CanActivateFn = (route, state): Observable<boolean | UrlTree> => {
   const router = inject(Router);
-  const auth = inject(FIREBASE_AUTH) as Auth;
+  const auth = inject(Auth); // ⬅️ vem do provideAuth(...) no AppModule
 
   if (environment?.features?.enforceEmailVerified === false) {
     return of(true);
   }
 
-  const auth$ = new Observable<User | null>((obs) => {
-    const unsub = onAuthStateChanged(
-      auth,
-      (u) => { obs.next(u); obs.complete(); },
-      () => { obs.next(null); obs.complete(); }
-    );
-    return () => unsub();
-  });
-
-  return auth$.pipe(
+  return authState(auth).pipe(
     take(1),
-    map((user) => {
+    map(user => {
       if (!user) {
         return router.createUrlTree(['/login'], { queryParams: { redirectTo: state.url } });
       }

@@ -9,6 +9,7 @@ import { Firestore, collection, doc, query, collectionData, setDoc, updateDoc,
          } from '@angular/fire/firestore';
 
 import { getAuth } from 'firebase/auth';
+import { Auth } from '@angular/fire/auth';
 import { Timestamp } from 'firebase/firestore';
 
 // === IMPORTA AS CLASSES COMO TOKENS (para DI) ===
@@ -55,7 +56,6 @@ describe('FirestoreService', () => {
     mCollection.mockImplementation(() => ({ __collection__: true }));
     mDoc.mockImplementation(() => ({ __doc__: true }));
     mQuery.mockImplementation(() => ({ __query__: true }));
-    mGetAuth.mockReturnValue({ currentUser: { uid: 'u-123' } });
   });
 
   beforeEach(() => {
@@ -63,7 +63,7 @@ describe('FirestoreService', () => {
       providers: [
         FirestoreService,
         { provide: Firestore, useValue: {} },
-        // >>> usa classes como tokens, mocks como implementações
+        { provide: Auth, useValue: { currentUser: { uid: 'u-123' } } },
         { provide: GlobalErrorHandlerService, useClass: GlobalErrorHandlerServiceMock },
         { provide: FirestoreErrorHandlerService, useClass: FirestoreErrorHandlerServiceMock },
         { provide: CacheService, useClass: CacheServiceMock },
@@ -243,7 +243,8 @@ describe('FirestoreService', () => {
   });
 
   describe('savePublicIndexNickname', () => {
-    it('usa getAuth().currentUser e grava no índice público', (done) => {
+    it('usa this.auth.currentUser e grava no índice público', (done) => {
+      (TestBed.inject(Auth) as any).currentUser = { uid: 'u-123' }; // garante uid
       mSetDoc.mockResolvedValueOnce(undefined);
 
       service.savePublicIndexNickname('FoO').subscribe({
@@ -256,7 +257,7 @@ describe('FirestoreService', () => {
 
           const payload = mSetDoc.mock.calls[0][1];
           expect(payload.value).toBe('foo');
-          expect(payload.uid).toBe('u-123');
+          expect(payload.uid).toBe('u-123'); // ✅ agora não é mais null
           expect(payload.type).toBe('nickname');
           done();
         },
@@ -266,7 +267,7 @@ describe('FirestoreService', () => {
 
   describe('updatePublicNickname', () => {
     it('falha se não autenticado', (done) => {
-      mGetAuth.mockReturnValueOnce({ currentUser: null });
+      (TestBed.inject(Auth) as any).currentUser = null; // 👈 em vez de mGetAuth.mockReturnValueOnce(...)
       service.updatePublicNickname('a', 'b', true).subscribe({
         next: () => fail('era esperado erro'),
         error: (e) => {
@@ -277,6 +278,7 @@ describe('FirestoreService', () => {
     });
 
     it('falha se não for assinante', (done) => {
+      (TestBed.inject(Auth) as any).currentUser = { uid: 'u-123' }; // garante autenticado
       service.updatePublicNickname('a', 'b', false).subscribe({
         next: () => fail('era esperado erro'),
         error: (e) => {
@@ -286,8 +288,9 @@ describe('FirestoreService', () => {
       });
     });
 
+
     it('falha se novo apelido já estiver em uso', (done) => {
-      mGetAuth.mockReturnValueOnce({ currentUser: { uid: 'u-123' } });
+      (TestBed.inject(Auth) as any).currentUser = { uid: 'u-123' };
       mGetDoc.mockResolvedValueOnce({ exists: () => true });
 
       service.updatePublicNickname('old', 'new', true).subscribe({
@@ -300,7 +303,7 @@ describe('FirestoreService', () => {
     });
 
     it('sucesso: deleta antigo e cria o novo', (done) => {
-      mGetAuth.mockReturnValueOnce({ currentUser: { uid: 'u-123' } });
+      (TestBed.inject(Auth) as any).currentUser = { uid: 'u-123' };
       mGetDoc.mockResolvedValueOnce({ exists: () => false });
       mDeleteDoc.mockResolvedValueOnce(undefined);
       mSetDoc.mockResolvedValueOnce(undefined);
@@ -309,7 +312,7 @@ describe('FirestoreService', () => {
         next: () => {
           expect(mDeleteDoc).toHaveBeenCalled();
           expect(mSetDoc).toHaveBeenCalled();
-          const call = mDoc.mock.calls.find((args) => args[1] === 'nickname:newnick');
+          const call = mDoc.mock.calls.find((args) => args[1] === 'public_index' && args[2] === 'nickname:newnick'); // 👈 caminho completo
           expect(call).toBeTruthy();
           done();
         },

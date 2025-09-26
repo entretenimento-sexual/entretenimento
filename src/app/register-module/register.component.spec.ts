@@ -11,6 +11,7 @@ import { FirestoreValidationService } from '../core/services/data-handling/fires
 import { RegisterService } from '../core/services/autentication/register/register.service';
 import { EmailVerificationService } from '../core/services/autentication/register/email-verification.service';
 import { ErrorNotificationService } from '../core/services/error-handler/error-notification.service';
+import { Auth } from '@angular/fire/auth'; // 👈 prover Auth
 
 // Mocks simples
 class MockFirestoreValidationService {
@@ -44,8 +45,10 @@ describe('RegisterComponent', () => {
         { provide: RegisterService, useClass: MockRegisterService },
         { provide: EmailVerificationService, useClass: MockEmailVerificationService },
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },
+        // 👇 garante que waitForAuthUserOnce resolva imediatamente
+        { provide: Auth, useValue: { currentUser: { uid: 'u-test' } } },
       ],
-      schemas: [NO_ERRORS_SCHEMA], // ignora tags/atributos desconhecidos do template
+      schemas: [NO_ERRORS_SCHEMA],
     }).compileComponents();
 
     fixture = TestBed.createComponent(RegisterComponent);
@@ -66,14 +69,13 @@ describe('RegisterComponent', () => {
   });
 
   it('deve exibir erro e não chamar register quando o form estiver inválido', () => {
-    // formulário começa inválido (campos vazios)
     component.onSubmit();
 
     expect(errorNotification.showError).toHaveBeenCalled();
     expect(registerService.registerUser).not.toHaveBeenCalled();
   });
 
-  it('deve chamar register, verificar e navegar quando o form estiver válido', () => {
+  it('deve chamar register, verificar e navegar quando o form estiver válido', async () => {
     component.form.patchValue({
       apelidoPrincipal: 'john',
       complementoApelido: 'doe',
@@ -83,6 +85,9 @@ describe('RegisterComponent', () => {
     });
 
     component.onSubmit();
+
+    // aguarda microtasks do await waitForAuthUserOnce + navigate
+    await fixture.whenStable();
 
     expect(registerService.registerUser).toHaveBeenCalledWith(
       jestExpect.objectContaining({
@@ -94,7 +99,10 @@ describe('RegisterComponent', () => {
       '123456'
     );
 
-    expect(router.navigate).toHaveBeenCalledWith(['/register/welcome'], { queryParams: { email: 'jd@example.com' } });
+    expect(router.navigate).toHaveBeenCalledWith(
+      ['/register/welcome'],
+      { queryParams: { email: 'jd@example.com', autocheck: '1' }, replaceUrl: true }
+    );
   });
 
   it('togglePasswordVisibility deve alternar o sinal', () => {

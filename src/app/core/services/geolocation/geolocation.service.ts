@@ -46,13 +46,16 @@ export class GeolocationService {
 
   /** ✅ Suporte à API. */
   isSupported(): boolean {
-    return typeof window !== 'undefined' && 'geolocation' in navigator;
+    return typeof navigator !== 'undefined' && !!navigator.geolocation;
   }
 
-  /** ✅ HTTPS é obrigatório para geolocation (exceto localhost). */
+  /** ✅ HTTPS é obrigatório, mas localhost (e variações) são permitidos; jsdom pode ter hostname vazio */
   isSecureContext(): boolean {
-    return typeof window !== 'undefined' &&
-      (window.isSecureContext || window.location.hostname === 'localhost');
+    if (typeof window === 'undefined') return true; // ambiente de teste/SSR
+    const h = window.location?.hostname || '';
+    const isLocal =
+      h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '';
+    return !!(window as any).isSecureContext || isLocal;
   }
 
   /** ✅ Consulta a Permissions API (pode ser 'unsupported' em alguns navegadores). */

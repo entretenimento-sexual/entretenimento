@@ -2,15 +2,20 @@
 import { TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { AppComponent } from './app.component';
+import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
 
 describe('AppComponent', () => {
+  const orchestratorStub = { start: jest.fn() };
+
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [RouterTestingModule],
       declarations: [AppComponent],
+      providers: [
+        { provide: AuthOrchestratorService, useValue: orchestratorStub }, // ✅
+      ],
     }).compileComponents();
 
-    // limpa efeitos colaterais entre testes
     document.documentElement.className = '';
     document.body.className = '';
     localStorage.clear();
@@ -49,8 +54,11 @@ describe('AppComponent', () => {
     jest.spyOn(Storage.prototype, 'getItem').mockReturnValue('dark');
     const fixture = TestBed.createComponent(AppComponent);
 
+    // chama ngOnInit manualmente (evita side-effects de detectChanges)
     fixture.componentInstance.ngOnInit();
 
     expect(document.documentElement.classList.contains('dark-mode')).toBe(true);
+    // opcional: garante que o orchestrator foi chamado
+    expect(orchestratorStub.start).toHaveBeenCalled();
   });
 });

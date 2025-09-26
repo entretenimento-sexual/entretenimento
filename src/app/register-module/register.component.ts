@@ -1,10 +1,9 @@
 // src/app/register-module/register.component.ts
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, Inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { FormBuilder, FormGroup, Validators, AbstractControl, ValidationErrors } from '@angular/forms';
 import { Router } from '@angular/router';
-import { Timestamp } from 'firebase/firestore';
-import { Observable, of } from 'rxjs';
-import { catchError, finalize, map } from 'rxjs/operators';
+import { firstValueFrom, Observable, of } from 'rxjs';
+import { catchError, finalize, map, take, filter } from 'rxjs/operators';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -13,9 +12,10 @@ import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
 import { ValidatorService } from 'src/app/core/services/general/validator.service';
 import { IUserRegistrationData } from '../core/interfaces/iuser-registration-data';
 
-// 🔑 mesma instância do Auth do app
-import { FIREBASE_AUTH } from 'src/app/core/firebase/firebase.tokens';
-import { onAuthStateChanged, type Auth, type User } from 'firebase/auth';
+// ✅ AngularFire (mesmas instâncias providas no app.module)
+import { Auth, user } from '@angular/fire/auth';
+import { Timestamp } from '@angular/fire/firestore';
+import type { User } from 'firebase/auth';
 
 type UiBannerVariant = 'info' | 'warn' | 'error' | 'success';
 type UiBanner = {
@@ -39,7 +39,8 @@ export class RegisterComponent {
   private errorNotification = inject(ErrorNotificationService);
   private router = inject(Router);
 
-  constructor(@Inject(FIREBASE_AUTH) private auth: Auth) {
+  // ✅ injeta Auth de @angular/fire/auth (sem token custom)
+  constructor(private auth: Auth) {
     effect(() => {
       const inUse = this.form.get('apelidoPrincipal')!.errors?.['apelidoEmUso'] === true;
       this.apelidoEmUso.set(inUse);
@@ -70,15 +71,11 @@ export class RegisterComponent {
   readonly apelidoEmUso = signal(false);
   readonly infoMessage = signal<string | null>(null);
 
-  // banner robusto (usuário + dev)
   readonly banner = signal<UiBanner | null>(null);
   readonly showTech = signal(false);
 
-  // overlay “criando…”
   readonly creating = signal(false);
   readonly creatingMsg = signal('Estamos criando seu usuário, aguarde…');
-
-  // estados de ação
   readonly syncing = signal(false);
 
   readonly apelidoCompleto = computed(() => {
@@ -87,29 +84,21 @@ export class RegisterComponent {
     return NicknameUtils.montarApelidoCompleto(p, c);
   });
 
-  // espera a sessão ficar visível no onAuthStateChanged (evita “flash” de login)
+  // ✅ espera o user com AngularFire (zone-safe)
   private waitForAuthUserOnce(timeoutMs = 6000): Promise<User> {
     const existing = this.auth.currentUser as User | null;
     if (existing) return Promise.resolve(existing);
 
-    return new Promise<User>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('auth-wait-timeout')), timeoutMs);
-      const unsub = onAuthStateChanged(
-        this.auth,
-        (u) => {
-          if (u) {
-            clearTimeout(timer);
-            unsub();
-            resolve(u);
-          }
-        },
-        (err) => {
-          clearTimeout(timer);
-          unsub();
-          reject(err);
-        }
-      );
-    });
+    const wait$ = user(this.auth).pipe(
+      filter((u): u is User => !!u),
+      take(1)
+    );
+
+    const timeout = new Promise<never>((_, rej) =>
+      setTimeout(() => rej(new Error('auth-wait-timeout')), timeoutMs)
+    );
+
+    return Promise.race([firstValueFrom(wait$), timeout]);
   }
 
   // ---------------- validators ----------------
@@ -123,9 +112,7 @@ export class RegisterComponent {
       ctrl.errors['minlength'] ||
       ctrl.errors['maxlength'] ||
       ctrl.errors['invalidNickname']
-    )) {
-      return of(null);
-    }
+    )) return of(null);
 
     return this.validatorService.checkIfNicknameExists(nick).pipe(
       map(exists => exists ? { apelidoEmUso: true } : null),
@@ -166,26 +153,20 @@ export class RegisterComponent {
   private setBanner(variant: UiBannerVariant, title: string, message: string, details?: any) {
     let det: string | undefined = undefined;
     if (details !== undefined) {
-      try {
-        det = typeof details === 'string' ? details : JSON.stringify(details, null, 2);
-      } catch {
-        det = String(details);
-      }
+      try { det = typeof details === 'string' ? details : JSON.stringify(details, null, 2); }
+      catch { det = String(details); }
     }
     this.banner.set({ variant, title, message, details: det });
     this.showTech.set(false);
   }
 
-  toggleTech(): void {
-    this.showTech.update(v => !v);
-  }
+  toggleTech(): void { this.showTech.update(v => !v); }
 
   async syncSessionNow() {
     if (this.syncing()) return;
     this.syncing.set(true);
     try {
       await this.waitForAuthUserOnce(6000);
-      // sessão ok → ir para welcome com autocheck
       const email = this.form.get('email')?.value || '';
       this.router.navigate(['/register/welcome'], { queryParams: { email, autocheck: '1' }, replaceUrl: true });
     } catch (e) {
@@ -255,7 +236,6 @@ export class RegisterComponent {
           try {
             await this.waitForAuthUserOnce(8000);
           } catch (e) {
-            // Não conseguiu “ver” a sessão agora → sem login! feedback com ações
             this.creating.set(false);
             this.creatingMsg.set('Conta criada, finalizando…');
             this.setBanner(
@@ -267,7 +247,6 @@ export class RegisterComponent {
             return;
           }
 
-          // Agora sim, com user disponível, podemos ir ao welcome
           this.creatingMsg.set('Tudo pronto! Redirecionando…');
           this.router.navigate(
             ['/register/welcome'],
@@ -277,7 +256,6 @@ export class RegisterComponent {
         error: (err: any) => {
           this.creating.set(false);
 
-          // códigos conhecidos → mensagens específicas
           const code = err?.code || '';
           const rawMsg = (err?.message || '').toLowerCase();
 
@@ -318,18 +296,12 @@ export class RegisterComponent {
             return;
           }
 
-          // genérico (com detalhes técnicos)
           this.setBanner('error', 'Não foi possível concluir o cadastro', 'Tente novamente. Se persistir, copie os detalhes técnicos e envie ao suporte.', err);
           this.errorNotification.showError('Não foi possível concluir o cadastro. Tente novamente.');
         },
       });
   }
 
-  reloadPage() {
-    window.location.reload();
-  }
-
-   togglePasswordVisibility(): void {
-    this.showPassword.update(v => !v);
-  }
+  reloadPage() { window.location.reload(); }
+  togglePasswordVisibility(): void { this.showPassword.update(v => !v); }
 }

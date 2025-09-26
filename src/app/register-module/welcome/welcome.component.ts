@@ -1,20 +1,21 @@
 // src/app/authentication/register-module/welcome/welcome.component.ts
-import { Component, Inject, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 
-import {
-  Timestamp, doc, setDoc, onSnapshot, getDoc, type Unsubscribe as FsUnsubscribe,
-} from 'firebase/firestore';
-
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subscription } from 'rxjs';
 import { take, tap } from 'rxjs/operators';
 
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
-import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
+// (Se não precisar mais do wrapper, pode remover o FirestoreService do projeto)
 import { ValidGenders } from 'src/app/core/enums/valid-genders.enum';
 import { ValidPreferences } from 'src/app/core/enums/valid-preferences.enum';
-import { FIREBASE_AUTH } from 'src/app/core/firebase/firebase.tokens';
-import { Auth, onAuthStateChanged, signOut, User } from 'firebase/auth';
+
+// ✅ AngularFire
+import { Auth, user, signOut } from '@angular/fire/auth';
+import {
+  Firestore, doc, setDoc, getDoc, docSnapshots, Timestamp
+} from '@angular/fire/firestore';
+import type { User as FbUser } from 'firebase/auth';
 
 type UiBannerVariant = 'info' | 'warn' | 'error' | 'success';
 type UiBanner = {
@@ -53,26 +54,27 @@ export class WelcomeComponent implements OnInit, OnDestroy {
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private pollTries = 0;
-  private authUnsub: (() => void) | null = null;
-  private userDocUnsub: FsUnsubscribe | null = null;
+  private authSub: Subscription | null = null;
+  private userDocSub: Subscription | null = null;
   private authKeepAliveTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private emailVerificationService: EmailVerificationService,
-    private firestore: FirestoreService,
     private router: Router,
     private route: ActivatedRoute,
-    @Inject(FIREBASE_AUTH) private auth: Auth
+    // ✅ mesmas instâncias fornecidas no app.module
+    private auth: Auth,
+    private db: Firestore
   ) { }
 
   // ---------------- lifecycle ----------------
   ngOnInit(): void {
     const autoCheck = this.route.snapshot.queryParamMap.get('autocheck') === '1';
 
-    // Listener do Auth (instância modular única)
-    this.authUnsub = onAuthStateChanged(this.auth, (u: User | null) => {
-      // sempre limpa watcher anterior ao trocar usuário
-      if (this.userDocUnsub) { this.userDocUnsub(); this.userDocUnsub = null; }
+    // ✅ listener zone-safe do AngularFire
+    this.authSub = user(this.auth).subscribe((u: FbUser | null) => {
+      // limpa watcher anterior ao trocar usuário
+      if (this.userDocSub) { this.userDocSub.unsubscribe(); this.userDocSub = null; }
 
       // fail-safe: sem sessão → não sai pro login, só bloqueia as ações
       if (!u) {
@@ -93,11 +95,10 @@ export class WelcomeComponent implements OnInit, OnDestroy {
       this.email = u.email ?? null;
       this.emailVerified = !!u.emailVerified;
 
-      // Watcher do doc do usuário: se remover, não manda pra /login
-      const db = this.firestore.getFirestoreInstance();
-      this.userDocUnsub = onSnapshot(
-        doc(db, 'users', u.uid),
-        (snap) => {
+      // ✅ watcher do doc via AngularFire
+      const ref = doc(this.db, 'users', u.uid);
+      this.userDocSub = docSnapshots(ref).subscribe({
+        next: (snap) => {
           if (!snap.exists()) {
             this.setBanner(
               'warn',
@@ -107,13 +108,13 @@ export class WelcomeComponent implements OnInit, OnDestroy {
             signOut(this.auth).finally(() => { this.sessionInvalid = true; });
           }
         },
-        () => { /* silencioso */ }
-      );
+        error: () => { /* silencioso */ }
+      });
 
       // Keep-alive: detecta invalidação no Console/Admin
       this.startAuthKeepAlive(5000);
 
-      // Polling para sincronizar e-mail verificado (handler → welcome)
+      // Polling para sincronizar e-mail verificado
       if (autoCheck || !this.emailVerified) this.startPolling();
     });
   }
@@ -121,8 +122,8 @@ export class WelcomeComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     if (this.pollTimer) clearInterval(this.pollTimer);
     if (this.authKeepAliveTimer) clearInterval(this.authKeepAliveTimer);
-    if (this.authUnsub) { this.authUnsub(); this.authUnsub = null; }
-    if (this.userDocUnsub) { this.userDocUnsub(); this.userDocUnsub = null; }
+    if (this.authSub) { this.authSub.unsubscribe(); this.authSub = null; }
+    if (this.userDocSub) { this.userDocSub.unsubscribe(); this.userDocSub = null; }
   }
 
   // ---------------- banner helpers ----------------
@@ -206,8 +207,7 @@ export class WelcomeComponent implements OnInit, OnDestroy {
 
     // Fallback: Firestore já marcou como verificado (ex.: pelo handler)
     try {
-      const db = this.firestore.getFirestoreInstance();
-      const snap = await getDoc(doc(db, 'users', u.uid));
+      const snap = await getDoc(doc(this.db, 'users', u.uid));
       const fsVerified = snap.exists() && (snap.data() as any)?.emailVerified === true;
       if (fsVerified) {
         this.emailVerified = true;
@@ -285,9 +285,8 @@ export class WelcomeComponent implements OnInit, OnDestroy {
 
     this.savingOptional = true;
     try {
-      const db = this.firestore.getFirestoreInstance();
       await setDoc(
-        doc(db, 'user_profile', uid),
+        doc(this.db, 'user_profile', uid),
         {
           gender: this.selectedGender || null,
           preferences: selectedPreferences,

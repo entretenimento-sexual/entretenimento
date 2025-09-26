@@ -1,7 +1,7 @@
 // src/app/core/services/data-handling/firestore-query.service.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { expect as jestExpect } from '@jest/globals'; // 👈 garante typings do Jest
+import { expect as jestExpect } from '@jest/globals';
 
 import * as fb from 'firebase/firestore';
 
@@ -110,27 +110,17 @@ describe('FirestoreQueryService (Jest)', () => {
   });
 
   describe('getOnlineUsers', () => {
-    it('usa cache quando houver', (done) => {
-      const cached = [{ uid: 'o1' }] as unknown as IUserDados[];
-      mockCache.get.mockReturnValueOnce(of(cached));
-
-      service.getOnlineUsers().subscribe((res) => {
-        expect(res).toEqual(cached);
-        expect(mockFs.getDocuments).not.toHaveBeenCalled();
-        expect(mockCache.set).not.toHaveBeenCalled();
-        done();
-      });
-    });
-
-    it('busca e seta cache quando não houver', (done) => {
+    it('consulta sem cache e aplica where isOnline==true', (done) => {
       const users = [{ uid: 'o1' }, { uid: 'o2' }] as unknown as IUserDados[];
-      mockCache.get.mockReturnValueOnce(of(undefined));
       mockFs.getDocuments.mockReturnValueOnce(of(users));
 
       service.getOnlineUsers().subscribe((res) => {
         expect(res).toEqual(users);
+        // garante que foi delegada a consulta com constraints
         expect(mockFs.getDocuments).toHaveBeenCalledWith('users', jestExpect.any(Array));
-        expect(mockCache.set).toHaveBeenCalledWith('onlineUsers', users, 60_000);
+        // sem cache
+        expect(mockCache.get).not.toHaveBeenCalled();
+        expect(mockCache.set).not.toHaveBeenCalled();
         done();
       });
     });
@@ -160,7 +150,7 @@ describe('FirestoreQueryService (Jest)', () => {
     jest.spyOn(service, 'getOnlineUsers').mockReturnValue(of(list));
 
     service.getOnlineUsersByMunicipio('Rio').subscribe((res) => {
-      expect(res.length).toBe(2); // 👈 sem toHaveLength
+      expect(res.length).toBe(2);
       expect(res.every(u => u.municipio === 'Rio')).toBe(true);
       done();
     });
@@ -169,12 +159,12 @@ describe('FirestoreQueryService (Jest)', () => {
   it('getOnlineUsersByRegion emite via onSnapshot (mock)', (done) => {
     jest.spyOn(fb, 'collection').mockReturnValue({} as any);
     jest.spyOn(fb, 'query').mockReturnValue({} as any);
-    // 👇 cast para evitar erro de overload do TS
+    // inclui "id" nos docs para preencher o idField 'uid'
     (jest.spyOn(fb as any, 'onSnapshot') as unknown as jest.Mock).mockImplementation((_q: any, next: Function) => {
       const fakeSnap = {
         docs: [
-          { data: () => ({ uid: 'r1', municipio: 'Rio', isOnline: true }) },
-          { data: () => ({ uid: 'r2', municipio: 'Rio', isOnline: true }) },
+          { id: 'r1', data: () => ({ municipio: 'Rio', isOnline: true }) },
+          { id: 'r2', data: () => ({ municipio: 'Rio', isOnline: true }) },
         ],
       };
       next(fakeSnap);
@@ -186,8 +176,8 @@ describe('FirestoreQueryService (Jest)', () => {
       expect(fb.collection).toHaveBeenCalled();
       expect(fb.query).toHaveBeenCalled();
       expect((fb as any).onSnapshot).toHaveBeenCalled();
-      expect(res.length).toBe(2); // 👈 sem toHaveLength
-      expect(res[0].uid).toBe('r1');
+      expect(res.length).toBe(2);
+      expect(res[0].uid).toBe('r1'); // agora vem de d.id
       done();
     });
   });

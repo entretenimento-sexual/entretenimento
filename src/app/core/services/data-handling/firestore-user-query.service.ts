@@ -1,3 +1,4 @@
+//src\app\core\services\data-handling\firestore-user-query.service.ts
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { from, Observable, of, switchMap, take, shareReplay, map, catchError, firstValueFrom, tap } from 'rxjs';
 import { Store } from '@ngrx/store';
@@ -5,15 +6,17 @@ import { AppState } from 'src/app/store/states/app.state';
 import { addUserToState, updateUserInState } from 'src/app/store/actions/actions.user/user.actions';
 import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.user/user-profile.selectors';
 import { CacheService } from '../general/cache/cache.service';
-import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
-import { getApp } from 'firebase/app';
 import {
-  getFirestore, doc, getDoc, onSnapshot,
-  Firestore, DocumentSnapshot, DocumentData
-} from 'firebase/firestore';
+  doc, getDoc,
+  Firestore,
+  docSnapshots,
+  // ✅ Importa a função 'getDocFromServer' que vamos usar
+  getDocFromServer,
+  docData
+} from '@angular/fire/firestore';
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreUserQueryService {
@@ -22,29 +25,37 @@ export class FirestoreUserQueryService {
   constructor(
     private cache: CacheService,
     private store: Store<AppState>,
-    private globalError: GlobalErrorHandlerService,
     private firestoreError: FirestoreErrorHandlerService,
+    private db: Firestore,
     private injector: Injector
   ) { }
 
-  private db(): Firestore {
-    return getFirestore(getApp());
-  }
-
   private getUserFromFirestore$(uid: string): Observable<IUserDados | null> {
-    return runInInjectionContext(this.injector, () => {
-      const ref = doc(this.db(), 'users', uid);
-      return from(getDoc(ref)).pipe(
-        map(snap => (snap.exists() ? (snap.data() as IUserDados) : null)),
-        tap(user => {
-          if (user) {
-            this.store.dispatch(addUserToState({ user }));
-            this.cache.set(`user:${uid}`, user, 300_000);
-          }
-        }),
-        catchError(err => this.firestoreError.handleFirestoreError(err))
-      );
-    });
+    const ref = runInInjectionContext(this.injector, () => doc(this.db, 'users', uid));
+    return from(runInInjectionContext(this.injector, () => getDoc(ref))).pipe(
+      map(snap => (snap.exists() ? (snap.data() as IUserDados) : null)),
+      tap(user => {
+        if (user) {
+          this.store.dispatch(addUserToState({ user }));
+          this.cache.set(`user:${uid}`, user, 300_000);
+        }
+      }),
+      catchError(err => this.firestoreError.handleFirestoreError(err))
+    );
+  }
+  
+  async checkUserExistsFromServer(uid: string): Promise<boolean> {
+    try {
+      return await runInInjectionContext(this.injector, async () => {
+        const ref = doc(this.db, 'users', uid);
+        const snap = await getDocFromServer(ref);
+        return snap.exists();
+      });
+    } catch (error) {
+      this.firestoreError.handleFirestoreError(error);
+      // Em caso de erro, seja conservador para não derrubar sessão por engano
+      return true;
+    }
   }
 
   private fetchUser$(uid: string): Observable<IUserDados | null> {
@@ -61,12 +72,9 @@ export class FirestoreUserQueryService {
     );
   }
 
-  getUser(uid: string): Observable<IUserDados | null> {
-    const id = uid.trim();
-    if (!this.userObservablesCache.has(id)) {
-      this.userObservablesCache.set(id, this.fetchUser$(id));
-    }
-    return this.userObservablesCache.get(id)!;
+  getUser(uid: string): Observable<any | null> {
+    const ref = runInInjectionContext(this.injector, () => doc(this.db, 'users', uid));
+    return runInInjectionContext(this.injector, () => docData<any>(ref, { idField: 'uid' }));
   }
 
   async getUserData(uid: string): Promise<IUserDados | null> {
@@ -87,7 +95,7 @@ export class FirestoreUserQueryService {
   invalidateUserCache(uid: string): void {
     const id = uid.trim();
     this.userObservablesCache.delete(id);
-    this.cache.set(`user:${id}`, null as any, 1);
+    this.cache.set(`user:${id}`, null, 1);
   }
 
   updateUserInStateAndCache<T extends IUserRegistrationData | IUserDados>(uid: string, updatedData: T): void {
@@ -100,14 +108,10 @@ export class FirestoreUserQueryService {
   }
 
   watchUserDocDeleted$(uid: string): Observable<boolean> {
-    return new Observable<boolean>((sub) => {
-      const ref = doc(this.db(), 'users', uid);
-      const unsub = onSnapshot(
-        ref,
-        (snap: DocumentSnapshot<DocumentData>) => sub.next(!snap.exists()),
-        (err) => sub.error(err)
-      );
-      return () => unsub();
-    });
+    const ref = runInInjectionContext(this.injector, () => doc(this.db, 'users', uid));
+    return runInInjectionContext(this.injector, () => docSnapshots(ref)).pipe(
+      map(snap => !snap.exists()),
+      catchError(err => this.firestoreError.handleFirestoreError(err))
+    );
   }
 }

@@ -9,12 +9,10 @@ import { emailVerifiedGuard } from './core/guards/email-verified.guard';
 
 import { ProfileListComponent } from './layout/profile-list/profile-list.component';
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
-import { LoginComponent } from './authentication/login-component/login-component';
 
 const routes: Routes = [
   { path: '', redirectTo: '/dashboard/principal', pathMatch: 'full' },
 
-  // 🔒 Área logada (só entra se autenticado) + exige e-mail verificado
   {
     path: 'dashboard',
     loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
@@ -22,7 +20,6 @@ const routes: Routes = [
     canActivate: [emailVerifiedGuard],
   },
 
-  // 🔒 Outras rotas privadas
   {
     path: 'profile/:id',
     loadComponent: () =>
@@ -38,7 +35,7 @@ const routes: Routes = [
   {
     path: 'chat',
     loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule),
-    canLoad: [authGuard],
+    canMatch: [authGuard], // ← em vez de canLoad
     canActivate: [authGuard, emailVerifiedGuard],
   },
   {
@@ -47,20 +44,21 @@ const routes: Routes = [
     canActivate: [authGuard, emailVerifiedGuard],
   },
 
-  // ✉️ Fluxos de registro/login (bloqueiam se já estiver logado)
   {
     path: 'register',
     loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),
     canActivate: [authRedirectGuard],
-    data: { allowUnverified: true }, 
+    data: { allowUnverified: true },
   },
   {
     path: 'login',
-    component: LoginComponent,
+    loadChildren: () =>
+      import('./authentication/authentication.module')
+        .then(m => m.AuthenticationModule),
     canActivate: [authRedirectGuard],
+    data: { allowUnverified: true },
   },
 
-  // ✅ Handler do e-mail de verificação
   {
     path: 'post-verification/action',
     loadComponent: () =>
@@ -68,7 +66,6 @@ const routes: Routes = [
         .then(m => m.AuthVerificationHandlerComponent),
     data: { allowUnverified: true },
   },
-  // (opcional) caminho “padrão” do Firebase
   {
     path: '__/auth/action',
     loadComponent: () =>
@@ -77,14 +74,11 @@ const routes: Routes = [
     data: { allowUnverified: true },
   },
 
-  // 🌐 Públicas
   { path: 'profile-list', component: ProfileListComponent },
   { path: 'subscription-plan', component: SubscriptionPlanComponent },
 
-  // ↪️ Fallback
   { path: '**', redirectTo: '/dashboard/principal' },
 ];
-
 @NgModule({
   imports: [
     RouterModule.forRoot(routes, {

@@ -1,12 +1,13 @@
 // src/app/core/services/autentication/auth/current-user-store.service.ts
-import { Injectable, Inject } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { distinctUntilChanged, map } from 'rxjs/operators';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
 import { CacheService } from '@core/services/general/cache/cache.service';
-import { FIREBASE_AUTH } from '@core/firebase/firebase.tokens';
-import type { Auth } from 'firebase/auth';
+
+// ⬇️ use o Auth de @angular/fire/auth (combina com provideAuth do AppModule)
+import { Auth } from '@angular/fire/auth';
 
 @Injectable({ providedIn: 'root' })
 export class CurrentUserStoreService {
@@ -18,7 +19,8 @@ export class CurrentUserStoreService {
 
   constructor(
     private cache: CacheService,
-    @Inject(FIREBASE_AUTH) private auth: Auth,
+    // ⬇️ injeta diretamente o Auth
+    private auth: Auth,
   ) { }
 
   set(user: IUserDados): void {
@@ -28,11 +30,9 @@ export class CurrentUserStoreService {
 
     this.userSubject.next(user);
 
-    // 🔒 Persistências síncronas para fallback rápido
     localStorage.setItem(this.keyUser, JSON.stringify(user));
     localStorage.setItem(this.keyUid, user.uid);
 
-    // ❄ Cache em memória + IndexedDB
     this.cache.set(this.keyUid, user.uid, 300_000);
   }
 
@@ -50,14 +50,12 @@ export class CurrentUserStoreService {
       const parsed = JSON.parse(raw) as IUserDados;
       const authUid = this.auth.currentUser?.uid ?? null;
 
-      // ✅ Só restaura se o Auth atual existe E bate com o cache
       if (parsed?.uid && authUid && parsed.uid === authUid) {
         this.userSubject.next(parsed);
         this.cache.set(this.keyUid, parsed.uid, 300_000);
         return parsed;
       }
 
-      // ❌ Caso contrário, limpa o espelho para não “reviver” sessão morta
       localStorage.removeItem(this.keyUser);
       return null;
     } catch {
@@ -73,15 +71,12 @@ export class CurrentUserStoreService {
   }
 
   getLoggedUserUIDSnapshot(): string | null {
-    // 1) estado atual
     const fromState = this.userSubject.value?.uid ?? null;
     if (fromState) return fromState;
 
-    // 2) cache síncrono (memória ou localStorage)
     const fromCache = this.cache.getSync<string>(this.keyUid);
     if (fromCache) return fromCache;
 
-    // 3) fallback Auth
     return this.auth.currentUser?.uid ?? null;
   }
 }

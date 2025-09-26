@@ -1,11 +1,11 @@
-//src\app\core\firebase\firebase.factory.ts
-import { Provider } from '@angular/core';
-import { initializeApp, getApps, type FirebaseApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator, type Auth, setPersistence, indexedDBLocalPersistence,
-         browserLocalPersistence, inMemoryPersistence } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator, type Firestore } from 'firebase/firestore';
-import { environment } from 'src/environments/environment';
+// src/app/core/firebase/firebase.factory.ts
+import { Provider, inject } from '@angular/core';
+import { FirebaseApp, getApps, initializeApp } from '@angular/fire/app';
+import { Auth, browserLocalPersistence, connectAuthEmulator, getAuth, indexedDBLocalPersistence, inMemoryPersistence, setPersistence } from '@angular/fire/auth';
+import { connectFirestoreEmulator, Firestore, getFirestore } from '@angular/fire/firestore';
+
 import { FIREBASE_APP, FIREBASE_AUTH, FIREBASE_DB } from './firebase.tokens';
+import { environment } from 'src/environments/environment';
 
 function initFirebaseApp(): FirebaseApp {
   return getApps()[0] ?? initializeApp(environment.firebase);
@@ -46,8 +46,8 @@ function initDb(app: FirebaseApp): Firestore {
 
 export function provideFirebase(): Provider[] {
   return [
-    { provide: FIREBASE_APP, useFactory: initFirebaseApp },
-    { provide: FIREBASE_AUTH, deps: [FIREBASE_APP], useFactory: initAuth },
-    { provide: FIREBASE_DB, deps: [FIREBASE_APP], useFactory: initDb },
+    { provide: FIREBASE_APP, useFactory: () => inject(FirebaseApp) },
+    { provide: FIREBASE_AUTH, useFactory: () => inject(Auth) },
+    { provide: FIREBASE_DB, useFactory: () => inject(Firestore) },
   ];
 }

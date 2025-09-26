@@ -375,12 +375,14 @@ jest.mock('@angular/fire/app', () => {
   };
 });
 jest.mock('@angular/fire/auth', () => {
+  const { of } = require('rxjs');
   const Auth = Symbol('Auth');
   return {
     Auth,
-    getAuth: jest.fn(() => ({ currentUser: null })),
     provideAuth: jest.fn(() => ({ provide: Auth, useValue: {} })),
-    authState: jest.fn(() => ({} as any)),
+    // ➜ retorne Observables:
+    authState: jest.fn(() => of(null)),
+    user: jest.fn(() => of(null)),
     signOut: jest.fn(() => Promise.resolve()),
   };
 });

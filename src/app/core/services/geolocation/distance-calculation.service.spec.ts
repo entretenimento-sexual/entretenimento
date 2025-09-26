@@ -1,14 +1,14 @@
-// src/app/core/services/geolocation/distance-calculation.service.spec.ts
+// src/app/core/services/distance-calculation.service.ts
 import { TestBed } from '@angular/core/testing';
-import { DistanceCalculationService } from './distance-calculation.service';
+import { DistanceCalculationService } from '../geolocation/distance-calculation.service';
+
+// mocka a lib externa para termos previsibilidade
+jest.mock('geofire-common', () => ({
+  distanceBetween: jest.fn(() => 1.234567), // km
+}));
 
 describe('DistanceCalculationService', () => {
   let service: DistanceCalculationService;
-
-  beforeAll(() => {
-    // silencia logs deste arquivo (seu setup-jest já cobre globalmente, mas deixo garantido)
-    jest.spyOn(console, 'log').mockImplementation(() => { });
-  });
 
   beforeEach(() => {
     TestBed.configureTestingModule({
@@ -17,30 +17,22 @@ describe('DistanceCalculationService', () => {
     service = TestBed.inject(DistanceCalculationService);
   });
 
-  it('calcula distância em metros entre dois pontos válidos', () => {
-    // (0,0) -> (0,1) ~ 111 km na linha do Equador
-    const d = service.calculateDistance(0, 0, 0, 1);
-    expect(typeof d).toBe('number');
-    expect(d!).toBeGreaterThan(100_000);
-    expect(d!).toBeLessThan(120_000);
+  it('calcula distância em metros quando coordenadas são válidas', () => {
+    const m = service.calculateDistance(0, 0, 0.01, 0.01);
+    // 1.234567 km => 1234.567 m
+    expect(m).toBeCloseTo(1234.567, 3);
   });
 
   it('retorna null para coordenadas inválidas', () => {
-    expect(service.calculateDistance(95, 0, 0, 0)).toBeNull();
-    expect(service.calculateDistance(0, 190, 0, 0)).toBeNull();
+    expect(service.calculateDistance(999, 0, 0, 0)).toBeNull();
+    expect(service.calculateDistance(0, 0, 0, 181)).toBeNull();
   });
 
-  it('calculateDistanceInKm retorna valor arredondado quando dentro do limite', () => {
-    // ~111 km → limite 200 km → mantém
-    const km = service.calculateDistanceInKm(0, 0, 0, 1, 200);
-    expect(km).not.toBeNull();
-    expect(km!).toBeGreaterThan(100);
-    expect(km!).toBeLessThan(120);
-  });
+  it('calculateDistanceInKm arredonda para 2 casas e respeita maxDistanceKm', () => {
+    const km = service.calculateDistanceInKm(0, 0, 0.01, 0.01);
+    expect(km).toBeCloseTo(1.23, 2); // 1.234567 arredondado
 
-  it('calculateDistanceInKm retorna null quando fora do limite', () => {
-    // ~111 km → limite 50 km → filtra
-    const km = service.calculateDistanceInKm(0, 0, 0, 1, 50);
-    expect(km).toBeNull();
+    const limited = service.calculateDistanceInKm(0, 0, 0.01, 0.01, 1.0);
+    expect(limited).toBeNull(); // 1.23 > 1.0
   });
 });

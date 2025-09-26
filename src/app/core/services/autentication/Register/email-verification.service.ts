@@ -1,24 +1,27 @@
 // src/app/core/services/autentication/register/email-verification.service.ts
-import { Injectable, Inject } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 
-import type { User, Auth } from 'firebase/auth';
-import { sendEmailVerification, applyActionCode, checkActionCode } from 'firebase/auth';
+import { Auth } from '@angular/fire/auth';
+import { User, sendEmailVerification, applyActionCode, checkActionCode } from 'firebase/auth';
 
-import { doc, setDoc, updateDoc, Timestamp, collection, getDocs, query, where } from 'firebase/firestore';
+import {
+  doc, setDoc, updateDoc, Timestamp,
+  collection, getDocs, query, where
+} from '@angular/fire/firestore';
+
 import { from, of, throwError, Observable } from 'rxjs';
 import { catchError, map, switchMap, tap, timeout } from 'rxjs/operators';
 
-import { FIREBASE_AUTH } from '../../../firebase/firebase.tokens';
 import { FirestoreService } from '../../data-handling/firestore.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 import { environment } from 'src/environments/environment';
 
 export type VerifyEmailReason =
-  | 'expired'        // link expirado
-  | 'invalid'        // link inválido
-  | 'not-logged-in'  // verificado, mas sem usuário logado (não deu pra atualizar Firestore)
-  | 'not-verified'   // applyActionCode ok, mas currentUser não refletiu ainda
+  | 'expired'
+  | 'invalid'
+  | 'not-logged-in'
+  | 'not-verified'
   | 'unknown';
 
 export interface VerifyEmailResult {
@@ -29,13 +32,13 @@ export interface VerifyEmailResult {
 
 @Injectable({ providedIn: 'root' })
 export class EmailVerificationService {
-  // timeouts defensivos (rede lenta)
   private readonly NET_TIMEOUT_MS = 12000;
 
   constructor(
     private firestoreService: FirestoreService,
     private activatedRoute: ActivatedRoute,
-    @Inject(FIREBASE_AUTH) private auth: Auth, // ✅ Auth único via DI
+    // ✅ injeta o Auth provido por provideAuth()
+    private auth: Auth,
   ) { }
 
   /** Recarrega o usuário atual e retorna se o e-mail está verificado */
@@ -53,10 +56,7 @@ export class EmailVerificationService {
     );
   }
 
-  /**
-   * Envia o e-mail de verificação com handleCodeInApp para cair no handler.
-   * Retorna erro com `code` confiável.
-   */
+  /** Envia o e-mail de verificação para a rota handler da app */
   sendEmailVerification(user: User, redirectUrl: string = this.getRedirectUrl()): Observable<void> {
     return from(sendEmailVerification(user, { url: redirectUrl, handleCodeInApp: true })).pipe(
       timeout({ each: this.NET_TIMEOUT_MS }),
@@ -76,7 +76,7 @@ export class EmailVerificationService {
     );
   }
 
-  /** 👉 ROTA DO HANDLER (usada dentro do link do e-mail) */
+  /** URL que o link do e-mail deve abrir (seu handler) */
   private getRedirectUrl(): string {
     const isLocal = /^localhost$|^127\.0\.0\.1$/.test(location.hostname);
     const base = isLocal && location.origin
@@ -98,14 +98,13 @@ export class EmailVerificationService {
     );
   }
 
-  /** Fallback: atualiza emailVerified pelo e-mail (sem depender de sessão) */
+  /** Fallback: marca emailVerified pelo e-mail (sem depender de sessão) */
   private updateEmailVerifiedByEmail(email: string): Observable<void> {
     const fs = this.firestoreService.getFirestoreInstance();
     const qref = query(collection(fs, 'users'), where('email', '==', email));
     return from(getDocs(qref)).pipe(
       switchMap((snap) => {
         if (snap.empty) return throwError(() => new Error('Usuário não encontrado pelo e-mail.'));
-        // Atualiza todos que tiverem esse e-mail (normalmente 1)
         const writes = snap.docs.map(d => updateDoc(d.ref, { emailVerified: true }));
         return from(Promise.all(writes));
       }),
@@ -113,24 +112,20 @@ export class EmailVerificationService {
     );
   }
 
+  /** Fluxo completo do handler (rota aberta pelo link do e-mail) */
   handleEmailVerification(): Observable<VerifyEmailResult> {
     const actionCode = this.activatedRoute.snapshot.queryParamMap.get('oobCode');
     if (!actionCode) return throwError(() => new Error('Código de verificação ausente na URL.'));
 
-    // 1) Descobre o e-mail antes de aplicar o código
     return from(checkActionCode(this.auth, actionCode)).pipe(
       timeout({ each: this.NET_TIMEOUT_MS }),
-      // 2) Aplica de fato o código
       switchMap(info => this.verifyEmail(actionCode).pipe(map(() => info))),
-      // 3) Atualiza Firestore com ou sem sessão
       switchMap((info) => {
         const emailFromCode = (info?.data as any)?.email as string | undefined;
         const u = this.auth.currentUser;
 
         if (!u) {
-          if (!emailFromCode) {
-            return of<VerifyEmailResult>({ ok: true, reason: 'not-logged-in' });
-          }
+          if (!emailFromCode) return of<VerifyEmailResult>({ ok: true, reason: 'not-logged-in' });
           return this.updateEmailVerifiedByEmail(emailFromCode).pipe(
             map(() => ({ ok: true, firestoreUpdated: true } as VerifyEmailResult)),
             catchError(() => of({ ok: true, firestoreUpdated: false, reason: 'not-logged-in' } as VerifyEmailResult))
@@ -199,7 +194,7 @@ export class EmailVerificationService {
     return of(uid);
   }
 
-  /** Reenvia o e-mail de verificação usando a mesma rota do handler */
+  /** Reenvia o e-mail de verificação */
   resendVerificationEmail(redirectUrl: string = this.getRedirectUrl()): Observable<string> {
     const user = this.auth.currentUser;
     if (!user) return throwError(() => new Error('Nenhum usuário autenticado encontrado.'));

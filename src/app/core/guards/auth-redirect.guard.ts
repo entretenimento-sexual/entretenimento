@@ -5,8 +5,10 @@ import { of, Observable } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import { FirestoreUserQueryService } from '../services/data-handling/firestore-user-query.service';
-import { FIREBASE_AUTH } from '../firebase/firebase.tokens';
-import { onAuthStateChanged, type Auth, type User } from 'firebase/auth';
+
+// ✅ use o Auth do AngularFire e o stream pronto
+import { Auth, user } from '@angular/fire/auth';
+import type { User } from 'firebase/auth';
 
 /**
  * Guard para rotas "públicas" (login/registro) com exceção controlada:
@@ -19,69 +21,48 @@ import { onAuthStateChanged, type Auth, type User } from 'firebase/auth';
 export const authRedirectGuard: CanActivateFn = (route, state): Observable<boolean | UrlTree> => {
   const router = inject(Router);
   const users = inject(FirestoreUserQueryService);
-  const auth = inject(FIREBASE_AUTH) as Auth;
+  const auth = inject(Auth); // ✅ mesma instância criada por provideAuth no app.module
 
   const allowUnverified = route.data?.['allowUnverified'] === true;
 
-  // Observable do estado de auth (modular)
-  const authState$ = new Observable<User | null>((observer) => {
-    const unsub = onAuthStateChanged(
-      auth,
-      (u) => {
-        observer.next(u);
-        observer.complete();
-      },
-      (err) => observer.error?.(err)
-    );
-    return () => unsub();
-  });
-
-  return authState$.pipe(
+  // ✅ observable zone-safe do AngularFire, sem criar Observable manual
+  return user(auth).pipe(
     take(1),
-    switchMap((user) => {
-      // Não logado → sempre permite (login/registro/etc.)
-      if (!user) {
+    switchMap((fbUser: User | null) => {
+      if (!fbUser) {
         console.log('👤 Nenhum usuário autenticado. Acesso permitido à rota atual.');
         return of(true);
       }
 
-      // Logado → busca doc no Firestore para decidir (perfil/emailVerified podem atrasar no Auth)
-      return users.getUser(user.uid).pipe(
+      return users.getUser(fbUser.uid).pipe(
         take(1),
         map((uDoc) => {
           const profileCompleted = uDoc?.profileCompleted === true;
           const emailVerifiedDoc = uDoc?.emailVerified === true;
           const isFullyReady = profileCompleted && emailVerifiedDoc;
 
-          // Rotas que ACEITAM não verificado/incompleto (ex.: /register/welcome)
           if (allowUnverified) {
             if (!isFullyReady) {
-              console.log('⚠️ Usuario logado, mas não verificado e/ou perfil incompleto → rota allowUnverified liberada.');
-              return true; // deixa entrar para finalizar/checkar
+              console.log('⚠️ Logado, mas pendente → allowUnverified liberada.');
+              return true;
             }
-            console.log('✅ Perfil completo e e-mail verificado em rota allowUnverified → redirecionando para dashboard.');
+            console.log('✅ Completo/verificado em allowUnverified → dashboard.');
             return router.createUrlTree(['/dashboard/principal']);
           }
 
-          // Rotas públicas normais (login/registro "raiz"): se já está logado,
-          // decide melhor destino.
           if (!isFullyReady) {
-            console.log('ℹ️ Usuario logado mas pendente → mandando para /register/welcome');
+            console.log('ℹ️ Logado mas pendente → /register/welcome');
             const qp: Record<string, string> = { autocheck: '1' };
-            // opcional: manter intenção original
             if (state?.url && state.url !== '/login') qp['redirectTo'] = state.url;
             return router.createUrlTree(['/register/welcome'], { queryParams: qp });
           }
 
-          console.log('👤 Autenticado e pronto → redirecionando para dashboard.');
+          console.log('👤 Autenticado e pronto → dashboard.');
           return router.createUrlTree(['/dashboard/principal']);
         }),
         catchError((err) => {
-          console.log('❌ Erro ao consultar dados do usuário no Firestore (guard):', err);
-
-          // Fallback: se a rota aceita não verificado, libera; senão manda pro welcome
+          console.log('❌ Erro Firestore (guard):', err);
           if (allowUnverified) return of(true);
-
           const qp: Record<string, string> = { autocheck: '1' };
           if (state?.url && state.url !== '/login') qp['redirectTo'] = state.url;
           return of(router.createUrlTree(['/register/welcome'], { queryParams: qp }) as UrlTree);
@@ -89,8 +70,7 @@ export const authRedirectGuard: CanActivateFn = (route, state): Observable<boole
       );
     }),
     catchError((err) => {
-      console.log('❌ Erro ao ler estado de autenticação (guard):', err);
-      // Em caso de erro inesperado no próprio estado de auth, não bloqueie a navegação
+      console.log('❌ Erro no estado de auth (guard):', err);
       return of(true);
     })
   );

@@ -1,5 +1,5 @@
-//src\app\header\navbar\navbar.component.ts
-import { Component, OnDestroy, OnInit, Inject } from '@angular/core';
+// src/app/header/navbar/navbar.component.ts
+import { Component, Injector, OnDestroy, OnInit, runInInjectionContext } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Subscription, combineLatest, Observable } from 'rxjs';
 import { filter, startWith, map, distinctUntilChanged } from 'rxjs/operators';
@@ -7,8 +7,9 @@ import { filter, startWith, map, distinctUntilChanged } from 'rxjs/operators';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { SidebarService } from 'src/app/core/services/sidebar.service';
 
-import { FIREBASE_AUTH } from 'src/app/core/firebase/firebase.tokens';
-import { onAuthStateChanged, type Auth, type User } from 'firebase/auth';
+// ✅ As importações e injeções neste arquivo já estavam corretas!
+import { Auth, user } from '@angular/fire/auth';
+import type { User } from 'firebase/auth';
 
 @Component({
   selector: 'app-navbar',
@@ -27,25 +28,20 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private subs = new Subscription();
 
   constructor(
-    @Inject(FIREBASE_AUTH) private auth: Auth,   // 👈 usa a mesma instância modular do app
+    private auth: Auth,
+    private injector: Injector,
     private authService: AuthService,
     private router: Router,
     private sidebarService: SidebarService
   ) { }
 
+  // ✅ Uso do 'user(this.auth)' é a melhor prática para obter o estado do usuário.
   private authState$(): Observable<User | null> {
-    return new Observable<User | null>((obs) => {
-      const unsub = onAuthStateChanged(
-        this.auth,
-        (u) => obs.next(u),
-        () => obs.next(null)
-      );
-      return () => unsub();
-    }).pipe(startWith(this.auth.currentUser));
+    return runInInjectionContext(this.injector, () => user(this.auth))
+      .pipe(startWith(this.auth.currentUser));
   }
 
   ngOnInit(): void {
-    // 1) Só considera autenticado quando há Firebase user **e** perfil
     const combined$ = combineLatest([
       this.authState$(),
       this.authService.user$.pipe(startWith(null))
@@ -65,7 +61,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
       })
     );
 
-    // 2) Detecta rota /login
     this.subs.add(
       this.router.events.pipe(
         filter(e => e instanceof NavigationEnd),
@@ -75,7 +70,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
       })
     );
 
-    // 3) Dark mode inicial
     const storedTheme = localStorage.getItem('theme');
     this.setDarkMode(storedTheme === 'dark');
   }
@@ -100,10 +94,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   logout(): void {
-    console.log('[NavbarComponent] Botão "Sair" clicado. Iniciando logout...');
     this.authService.logout().subscribe({
-      next: () => console.log('[NavbarComponent] Logout concluído com sucesso.'),
-      error: (error) => console.log('[NavbarComponent] Erro ao fazer logout:', error),
+      next: () => console.log('[NavbarComponent] Logout concluído.'),
+      error: (error) => console.error('[NavbarComponent] Erro no logout:', error),
     });
   }
 
