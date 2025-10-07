@@ -3,6 +3,8 @@ import { Component, OnInit, Renderer2 } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { filter } from 'rxjs/operators';
 import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
+import { AuthDebugService } from './core/services/util-service/auth-debug.service';
+import { environment } from 'src/environments/environment';
 
 @Component({
   selector: 'app-root',
@@ -13,11 +15,18 @@ import { AuthOrchestratorService } from './core/services/autentication/auth/auth
 export class AppComponent implements OnInit {
   title = 'entretenimento';
 
-  constructor(private router: Router,
-              private renderer: Renderer2,
-              private orchestrator: AuthOrchestratorService) { }
+  constructor(
+    private router: Router,
+    private renderer: Renderer2,
+    private orchestrator: AuthOrchestratorService,
+    private authDebug: AuthDebugService
+  ) { }
 
   ngOnInit(): void {
+    if (!environment.production) {
+      this.authDebug.start();
+    }
+
     // ✅ inicia watchers de sessão/doc
     this.orchestrator.start();
 
@@ -30,25 +39,5 @@ export class AppComponent implements OnInit {
           this.renderer.addClass(document.body, 'show-footer');
         }
       });
-
-     // Inicializa tema baseado no localStorage
-    const dark = localStorage.getItem('theme') === 'dark';
-    this.setDarkMode(dark);
-  }
-
-  toggleDarkMode(): void {
-    const root = document.documentElement;
-    const isDark = root.classList.toggle('dark-mode');
-    localStorage.setItem('theme', isDark ? 'dark' : 'light');
-  }
-
-  private setDarkMode(enable: boolean): void {
-    const root = document.documentElement;
-    if (enable) {
-      root.classList.add('dark-mode');
-    } else {
-      root.classList.remove('dark-mode');
     }
-  }
-}
-
+   }

@@ -18,3 +18,7 @@ button.danger {
 .suspenso {
   color: red;
 }
+
+mat-card {
+  display: block;
+}

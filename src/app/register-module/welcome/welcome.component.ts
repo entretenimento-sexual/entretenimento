@@ -2,7 +2,7 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 
-import { firstValueFrom, Subscription } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 import { take, tap } from 'rxjs/operators';
 
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
@@ -11,11 +11,10 @@ import { ValidGenders } from 'src/app/core/enums/valid-genders.enum';
 import { ValidPreferences } from 'src/app/core/enums/valid-preferences.enum';
 
 // ✅ AngularFire
-import { Auth, user, signOut } from '@angular/fire/auth';
-import {
-  Firestore, doc, setDoc, getDoc, docSnapshots, Timestamp
-} from '@angular/fire/firestore';
-import type { User as FbUser } from 'firebase/auth';
+import { Auth } from '@angular/fire/auth';
+import { Firestore } from '@angular/fire/firestore';
+import { onAuthStateChanged, signOut  } from 'firebase/auth';
+import { doc, getDoc, onSnapshot, setDoc, Timestamp, Unsubscribe } from 'firebase/firestore';
 
 type UiBannerVariant = 'info' | 'warn' | 'error' | 'success';
 type UiBanner = {
@@ -54,9 +53,8 @@ export class WelcomeComponent implements OnInit, OnDestroy {
 
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private pollTries = 0;
-  private authSub: Subscription | null = null;
-  private userDocSub: Subscription | null = null;
-  private authKeepAliveTimer: ReturnType<typeof setInterval> | null = null;
+  private unsubscribeAuth: (() => void) | null = null;
+  private userDocUnsub: Unsubscribe | null = null;
 
   constructor(
     private emailVerificationService: EmailVerificationService,
@@ -71,22 +69,14 @@ export class WelcomeComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     const autoCheck = this.route.snapshot.queryParamMap.get('autocheck') === '1';
 
-    // ✅ listener zone-safe do AngularFire
-    this.authSub = user(this.auth).subscribe((u: FbUser | null) => {
-      // limpa watcher anterior ao trocar usuário
-      if (this.userDocSub) { this.userDocSub.unsubscribe(); this.userDocSub = null; }
+    this.unsubscribeAuth = onAuthStateChanged(this.auth, (u) => {
 
-      // fail-safe: sem sessão → não sai pro login, só bloqueia as ações
       if (!u) {
         this.email = null;
         this.emailVerified = false;
         this.sessionInvalid = true;
-        this.setBanner(
-          'warn',
-          'Sessão não encontrada',
-          'Não encontramos uma sessão ativa. Você pode tentar reconectar, recarregar a página ou refazer o cadastro.'
-        );
-        this.stopAuthKeepAlive();
+        this.setBanner('warn', 'Sessão não encontrada',
+          'Não encontramos uma sessão ativa. Você pode tentar reconectar, recarregar a página ou refazer o cadastro.');
         if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
         return;
       }
@@ -95,35 +85,24 @@ export class WelcomeComponent implements OnInit, OnDestroy {
       this.email = u.email ?? null;
       this.emailVerified = !!u.emailVerified;
 
-      // ✅ watcher do doc via AngularFire
       const ref = doc(this.db, 'users', u.uid);
-      this.userDocSub = docSnapshots(ref).subscribe({
-        next: (snap) => {
-          if (!snap.exists()) {
-            this.setBanner(
-              'warn',
-              'Conta removida durante o cadastro',
-              'Sua conta foi removida enquanto você confirmava o e-mail. Você pode refazer o cadastro.'
-            );
-            signOut(this.auth).finally(() => { this.sessionInvalid = true; });
-          }
-        },
-        error: () => { /* silencioso */ }
-      });
+      this.userDocUnsub?.();
+      this.userDocUnsub = onSnapshot(ref, (snap) => {
+        if (!snap.exists()) {
+          this.setBanner('warn', 'Conta removida durante o cadastro', 'Você pode refazer o cadastro.');
+          signOut(this.auth).finally(() => { this.sessionInvalid = true; });
+        }
+      }, () => {/* opcional: handler de erro */ });
 
-      // Keep-alive: detecta invalidação no Console/Admin
-      this.startAuthKeepAlive(5000);
-
-      // Polling para sincronizar e-mail verificado
-      if (autoCheck || !this.emailVerified) this.startPolling();
+         if (autoCheck || !this.emailVerified) this.startPolling();
     });
   }
 
   ngOnDestroy(): void {
+    this.userDocUnsub?.(); this.userDocUnsub = null;
+    this.unsubscribeAuth?.(); this.unsubscribeAuth = null;
+
     if (this.pollTimer) clearInterval(this.pollTimer);
-    if (this.authKeepAliveTimer) clearInterval(this.authKeepAliveTimer);
-    if (this.authSub) { this.authSub.unsubscribe(); this.authSub = null; }
-    if (this.userDocSub) { this.userDocSub.unsubscribe(); this.userDocSub = null; }
   }
 
   // ---------------- banner helpers ----------------
@@ -143,42 +122,6 @@ export class WelcomeComponent implements OnInit, OnDestroy {
     const det = this.banner?.details;
     if (!det || !navigator?.clipboard) return;
     navigator.clipboard.writeText(det).catch(() => { });
-  }
-
-  // ---------------- keep-alive (AUTH) ----------------
-  private startAuthKeepAlive(intervalMs = 30000): void {
-    if (this.authKeepAliveTimer) return;
-    this.authKeepAliveTimer = setInterval(async () => {
-      const u = this.auth.currentUser;
-      if (!u) return;
-      try {
-        await u.reload(); // força refresh do token/claims
-      } catch (e: any) {
-        const code = e?.code || '';
-        if (
-          code === 'auth/user-token-expired' ||
-          code === 'auth/user-disabled' ||
-          code === 'auth/user-not-found' ||
-          code === 'auth/invalid-user-token'
-        ) {
-          // ❗Nunca navegar para /login
-          this.setBanner(
-            'warn',
-            'Sessão encerrada',
-            'Não conseguimos manter sua sessão ativa. Você pode tentar reconectar ou refazer o cadastro.',
-            e
-          );
-          signOut(this.auth).finally(() => { this.sessionInvalid = true; });
-        }
-      }
-    }, intervalMs);
-  }
-
-  private stopAuthKeepAlive(): void {
-    if (this.authKeepAliveTimer) {
-      clearInterval(this.authKeepAliveTimer);
-      this.authKeepAliveTimer = null;
-    }
   }
 
   // CTA: reabrir fluxo de cadastro (sem login)

@@ -1,7 +1,6 @@
 /* src\styles\global-components.css */
 /* global-components.css */
 
-/* Botões */
 .btn {
   display: inline-block;
   background-color: var(--primary-color);
@@ -46,6 +45,20 @@
   background-color: #666;
 }
 
+.btn:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+button[disabled],
+.btn[disabled],
+[aria-disabled="true"] {
+  opacity: .7;
+  cursor: not-allowed !important;
+}
+
 /* Alertas */
 .alert {
   padding: 5px;
@@ -54,6 +67,16 @@
   font-size: 1rem;
   color: white;
   font-weight: bold;
+}
+
+.alert-warning {
+  background-color: var(--snackbar-warning);
+  color: #fff;
+}
+
+.alert-secondary {
+  background-color: var(--secondary-color);
+  color: #fff;
 }
 
 .alert-success {
@@ -68,7 +91,7 @@
   background-color: var(--primary-color);
 }
 
-/* Snackbar CSS */
+/* Snackbar */
 .success-snackbar {
   background-color: var(--snackbar-success);
   color: white;
@@ -92,10 +115,7 @@
 /* Modal */
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   background-color: rgba(0, 0, 0, 0.75);
   display: flex;
   justify-content: center;
@@ -120,7 +140,7 @@
   margin-top: 10px;
 }
 
-/*alternância de tema claro/escuro */
+/* Toggle */
 .dark-toggle {
   background: transparent;
   border: none;
@@ -132,4 +152,34 @@
 
 .dark-toggle:hover {
   transform: scale(1.15);
+}
+
+/* === Alto Contraste (padronizado em html.high-contrast) === */
+html.high-contrast .btn,
+html.high-contrast .btn-primary,
+html.high-contrast .btn-secondary,
+html.high-contrast .btn-danger,
+html.high-contrast .btn-success {
+  background: var(--primary-color) !important;
+  color: var(--background-color) !important;
+  border: 2px solid var(--text-color) !important;
+  transform: none !important;
+}
+
+html.high-contrast .btn:hover {
+  background: var(--primary-hover) !important;
+}
+
+html.high-contrast button[disabled],
+html.high-contrast .btn[disabled],
+html.high-contrast [aria-disabled="true"] {
+  opacity: 1 !important;
+  border-style: dashed !important;
+  color: var(--background-color) !important;
+}
+
+html.high-contrast .alert {
+  color: #000 !important;
+  background: #ff0 !important;  /* amarelo forte */
+  border: 3px solid #000 !important;
 }

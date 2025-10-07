@@ -1,120 +1,150 @@
-// src\app\store\reducers\reducers.interactions\friends.reduce.ts
+// src/app/store/reducers/reducers.interactions/friends.reduce.ts
 import { createReducer, on } from '@ngrx/store';
 import * as FriendsActions from '../../actions/actions.interactions/actions.friends';
 import { FriendsState } from '../../states/states.interactions/friends.state';
-import { IBlockedUser, IFriend } from 'src/app/core/interfaces/friendship/ifriend';
+import { IBlockedUser } from 'src/app/core/interfaces/friendship/ifriend';
 
-/** 🔹 Estado inicial do reducer */
+/** 🔹 Estado inicial do reducer (deve espelhar o initialState do FriendsState) */
 export const initialState: FriendsState = {
   friends: [],
   requests: [],
   blocked: [],
-  searchResults: [], // 🔹 Garante que o estado de busca comece corretamente
+  searchResults: [],
   settings: { receiveRequests: true, showOnlineStatus: true, allowSearchByNickname: true },
   loading: false,
   loadingRequests: false,
-  error: null
+  error: null,
+
+  // ⬇ Flags de envio de solicitação
+  sendingFriendRequest: false,
+  sendFriendRequestError: null,
+  sendFriendRequestSuccess: false,
 };
 
 /** 🔥 Reducer principal para interações de amizade */
 export const friendsReducer = createReducer(
-  initialState as FriendsState, // ✅ Define explicitamente o tipo para evitar erros
+  initialState as FriendsState,
 
   /** 🔄 Iniciar carregamento dos amigos */
   on(FriendsActions.loadFriends, (state): FriendsState => ({
-    ...state, loading: true
+    ...state,
+    loading: true,
+    // opcional: zera erros anteriores do domínio
+    // error: null,
   })),
 
   /** ✅ Carregar amigos com sucesso */
   on(FriendsActions.loadFriendsSuccess, (state, { friends }): FriendsState => ({
     ...state,
-    friends: Array.isArray(friends) ? friends : [], // 🔥 Garante que friends sempre seja um array válido
+    friends: Array.isArray(friends) ? friends : [],
     loading: false,
-    error: null
+    error: null,
   })),
 
   /** ❌ Falha ao carregar amigos */
   on(FriendsActions.loadFriendsFailure, (state, { error }): FriendsState => ({
-    ...state, loading: false, error
+    ...state,
+    loading: false,
+    error,
   })),
 
   /** 🔄 Iniciar carregamento das solicitações de amizade */
   on(FriendsActions.loadRequests, (state): FriendsState => ({
-    ...state, loadingRequests: true
+    ...state,
+    loadingRequests: true,
   })),
 
   /** ✅ Carregar solicitações de amizade com sucesso */
   on(FriendsActions.loadRequestsSuccess, (state, { requests }): FriendsState => ({
     ...state,
-    requests: Array.isArray(requests) ? requests : [], // 🔥 Garante que requests seja sempre um array válido
-    loadingRequests: false
+    requests: Array.isArray(requests) ? requests : [],
+    loadingRequests: false,
   })),
 
   /** ❌ Falha ao carregar solicitações de amizade */
   on(FriendsActions.loadRequestsFailure, (state, { error }): FriendsState => ({
-    ...state, loadingRequests: false, error
+    ...state,
+    loadingRequests: false,
+    error,
   })),
 
   /** ✅ Carregar lista de usuários bloqueados */
   on(FriendsActions.loadBlockedSuccess, (state, { blocked }): FriendsState => ({
     ...state,
-    blocked: Array.isArray(blocked) ? blocked : [] // 🔥 Garante que blocked seja sempre um array válido
+    blocked: Array.isArray(blocked) ? blocked : [],
   })),
 
-  /** ➕ Enviar solicitação de amizade com sucesso */
-  on(FriendsActions.sendFriendRequestSuccess, (state, { friend }): FriendsState => {
-    // 🔹 Evita adicionar duplicatas na lista de amigos
-    const alreadyExists = state.friends.some(f => f.friendUid === friend.friendUid);
+  /**
+   * ➕ Fluxo de envio de solicitação de amizade
+   * - Não altera a lista de friends aqui (somente quando houver aceite).
+   */
+  on(FriendsActions.sendFriendRequest, (state): FriendsState => ({
+    ...state,
+    sendingFriendRequest: true,
+    sendFriendRequestError: null,
+    sendFriendRequestSuccess: false,
+  })),
 
-    return {
-      ...state,
-      friends: alreadyExists ? state.friends : [...state.friends, friend]
-    };
-  }),
+  on(FriendsActions.sendFriendRequestSuccess, (state): FriendsState => ({
+    ...state,
+    sendingFriendRequest: false,
+    sendFriendRequestSuccess: true,
+  })),
 
-  /** ❌ Falha ao enviar solicitação de amizade */
   on(FriendsActions.sendFriendRequestFailure, (state, { error }): FriendsState => ({
-    ...state, error
+    ...state,
+    sendingFriendRequest: false,
+    sendFriendRequestError: error,
+  })),
+
+  on(FriendsActions.resetSendFriendRequestStatus, (state): FriendsState => ({
+    ...state,
+    sendFriendRequestSuccess: false,
+    sendFriendRequestError: null,
   })),
 
   /** 🚫 Bloquear um amigo */
   on(FriendsActions.blockFriendSuccess, (state, { uid }): FriendsState => {
-    const friendToBlock = state.friends.find(friend => friend.friendUid === uid);
-
+    const friendToBlock = state.friends.find(f => f.friendUid === uid);
     if (!friendToBlock) {
-      return { ...state }; // ✅ Se o amigo não existir, evita estado inválido
+      return { ...state }; // evita estado inválido quando não encontrado
     }
 
-    // 🔹 Verifica se o usuário já está bloqueado
-    const alreadyBlocked = state.blocked.some(blocked => blocked.blockedUid === uid);
+    const alreadyBlocked = state.blocked.some(b => b.blockedUid === uid);
 
     return {
       ...state,
-      friends: state.friends.filter(friend => friend.friendUid !== uid),
+      friends: state.friends.filter(f => f.friendUid !== uid),
       blocked: alreadyBlocked
         ? state.blocked
-        : [...state.blocked, { blockerUid: uid, blockedUid: friendToBlock.friendUid, timestamp: new Date() }]
+        : [
+          ...state.blocked,
+          { blockerUid: uid, blockedUid: friendToBlock.friendUid, timestamp: new Date() } as IBlockedUser,
+        ],
     };
   }),
 
   /** ✅ Desbloquear um amigo */
   on(FriendsActions.unblockFriendSuccess, (state, { uid }): FriendsState => ({
     ...state,
-    blocked: state.blocked.filter((user: IBlockedUser) => user.blockedUid !== uid) // 🔥 Remove o usuário da lista de bloqueados
+    blocked: state.blocked.filter((user: IBlockedUser) => user.blockedUid !== uid),
   })),
 
   /** 🔍 Atualizar resultados de pesquisa de amigos */
   on(FriendsActions.loadSearchResultsSuccess, (state, { results }): FriendsState => ({
-    ...state, searchResults: Array.isArray(results) ? results : [] // 🔥 Garante que results seja um array válido
+    ...state,
+    searchResults: Array.isArray(results) ? results : [],
   })),
 
   /** ❌ Falha na busca de amigos */
   on(FriendsActions.loadSearchResultsFailure, (state, { error }): FriendsState => ({
-    ...state, error
+    ...state,
+    error,
   })),
 
   /** ⚙ Atualiza as configurações de amizade */
   on(FriendsActions.updateFriendSettings, (state, { settings }): FriendsState => ({
-    ...state, settings
+    ...state,
+    settings,
   }))
 );

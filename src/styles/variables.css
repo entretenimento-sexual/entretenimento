@@ -1,47 +1,202 @@
-/* src\styles\variables.css */
+/* src/styles/variables.css
+   ----------------------------------------------------------------------------
+   Design tokens (cores, tipografia, superfícies, estados).
+   - Claro = html
+   - Escuro = html.dark-mode
+   - Alto contraste = html.high-contrast (pode combinar com .dark-mode)
+   ----------------------------------------------------------------------------
+*/
 :root {
-  --primary-color: #ff4f4f;  /* Um vermelho mais escuro e intenso */
-  --primary-hover: #ff3333;  /* Hover mais forte para interações */
-  --secondary-color: #444;  /* Cinza escuro sofisticado */
-  --background-color: #fafafa;  /* Fundo mais claro e limpo */
-  --text-color: #333333;
+  --bs-body-bg: var(--background-color);
+  --bs-body-color: var(--text-color);
+}
+
+/* ============================== */
+/*            TEMA CLARO          */
+/* ============================== */
+html {
+  /* Marca / Ação */
+  --primary-color: #ff4f4f;
+  --primary-hover: #ff3333;
+  --secondary-color: #444444;
+
+  /* Base (CLARO mesmo) */
+  --background-color: #ffffff;
+  /* bem claro pra diferenciar do dark */
+  --text-color: #111418;
+  /* quase preto, leitura forte */
+  color-scheme: light;
+  /* scrollbars/inputs nativos do SO */
+
+  /* Feedback */
   --danger-color: #dc3545;
   --danger-hover: #c82333;
   --success-color: #28a745;
   --success-hover: #218838;
+
+  /* Tipografia */
   --font-family-primary: 'Roboto', sans-serif;
   --font-family-secondary: 'Open Sans', sans-serif;
-  --box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);  /* Sombra suave */
-  --input-background: #f3f3f3;  /* Fundo suave para campos de entrada */
-  --header-height: 100px;
+
+  /* Sombra */
+  --box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+
+  /* Inputs / Overlays */
+  --input-background: #ffffff;
   --tooltip-background: #212121;
+  /* tooltip escuro no tema claro */
+  --modal-background: #ffffff;
+
+  /* Layout */
+  --header-height: 100px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Foco (A11y) */
+  --focus-ring: 2px solid rgba(255, 79, 79, 0.75);
+  --focus-ring-dark: 2px solid rgba(255, 139, 139, 0.9);
+  --focus-offset: 2px;
+
+  /* Superfícies (cards/seções) */
+  --surface-color: #ffffff;
+  --surface-border: rgba(0, 0, 0, 0.08);
+
+  /* Header (aliases) */
+  --header-bg: var(--surface-color);
+  --header-fg: var(--text-color);
+  --header-hover-bg: rgba(0, 0, 0, 0.06);
+
+  /* Snackbar */
+  --snackbar-success: #2e7d32;
+  --snackbar-error: #c62828;
+  --snackbar-info: #1976d2;
+  --snackbar-warning: #f57c00;
+
+  /* Slider */
+  --range-track-height: 6px;
+  --range-thumb-size: 18px;
+  --range-track-color: #d7d7d7;
+  /* trilho claro */
+  --range-track-color-dark: #2e2e2e;
+  /* referência pro dark */
+  --range-thumb-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
-/* Modo escuro manual global */
-:root.dark-mode {
+/* ============================== */
+/*            TEMA ESCURO         */
+/* ============================== */
+html.dark-mode {
+  /* Marca / Ação (tom mais suave no escuro) */
   --primary-color: #ff7070;
   --primary-hover: #ff8b8b;
-  --secondary-color: #ccc;
-  --background-color: #121212;
-  --text-color: #f5f5f5;
-  --input-background: #1e1e1e;
-  --box-shadow: 0 4px 16px rgba(255, 255, 255, 0.05);
+  --secondary-color: #cccccc;
 
-  /* Novas para consistência */
+  /* Base (ESCURO de verdade) */
+  --background-color: #0b0f14;
+  /* mais escuro que #121212, efeito imediato */
+  --text-color: #e6edf3;
+  /* texto claro e limpo */
+  color-scheme: dark;
+
+  /* Inputs / Overlays */
+  --input-background: #161b22;
+  /* sem “acinzentar” demais */
   --tooltip-background: #2e2e2e;
-  --modal-background: #1e1e1e;
+  --modal-background: #11161d;
+
+  /* Sombra (sutil no dark) */
+  --box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+
+  /* Foco */
+  --range-track-color: var(--range-track-color-dark);
+  --focus-ring: var(--focus-ring-dark);
+
+  /* Superfícies (diferem do fundo pra criar degraus) */
+  --surface-color: #0f1620;
+  --surface-border: rgba(240, 246, 252, 0.12);
+
+  /* Header (aliases) */
+  --header-bg: var(--surface-color);
+  --header-fg: var(--text-color);
+  --header-hover-bg: rgba(255, 255, 255, 0.08);
+
+  /* Snackbar (mesmos tons, funcionam bem no dark) */
   --snackbar-success: #2e7d32;
   --snackbar-error: #c62828;
   --snackbar-info: #1976d2;
   --snackbar-warning: #f57c00;
 }
 
-/* Aplicação do tema escuro diretamente */
-.dark-mode body {
-  background-color: var(--background-color);
-  color: var(--text-color);
+/* Foco extra opcional em inputs no escuro */
+html.dark-mode .input-field:focus {
+  box-shadow: 0 0 0 2px var(--primary-color);
 }
 
-.dark-mode .input-field:focus {
-  box-shadow: 0 0 0 2px var(--primary-color);
+/* ============================================ */
+/*          ALTO CONTRASTE (TEMA CLARO)         */
+/* ============================================ */
+html.high-contrast:not(.dark-mode) {
+  --background-color: #ffffff;
+  --text-color: #111111;
+
+  --primary-color: #000000;
+  --primary-hover: #222222;
+  --secondary-color: #000000;
+
+  --input-background: #ffffff;
+  --tooltip-background: #000000;
+
+  --box-shadow: none;
+
+  --surface-color: var(--background-color);
+  --surface-border: currentColor;
+
+  --focus-ring: 3px solid #000000;
+  --focus-offset: 3px;
+
+  --range-track-color: #000000;
+  --range-thumb-size: 22px;
+
+  --header-bg: var(--background-color);
+  --header-fg: var(--text-color);
+  --header-hover-bg: transparent;
+}
+
+/* ============================================ */
+/*       ALTO CONTRASTE + TEMA ESCURO           */
+/* ============================================ */
+html.dark-mode.high-contrast {
+  --background-color: #000000;
+  --text-color: #ffffff;
+
+  --primary-color: #ffffff;
+  --primary-hover: #e6e6e6;
+  --secondary-color: #ffffff;
+
+  --input-background: #000000;
+  --tooltip-background: #ffffff;
+
+  --focus-ring: 3px solid #ffffff;
+  --focus-offset: 3px;
+
+  --range-track-color: #ffffff;
+  --range-thumb-size: 22px;
+
+  --surface-color: #000000;
+  /* igual ao fundo pra “flat” total */
+  --surface-border: currentColor;
+
+  --header-bg: var(--background-color);
+  --header-fg: var(--text-color);
+  --header-hover-bg: transparent;
+}
+
+/* Preferência do SO: mais contraste */
+@media (prefers-contrast: more) {
+  html {
+    --focus-ring: 3px solid currentColor;
+    --focus-offset: 3px;
+    --box-shadow: none;
+  }
 }

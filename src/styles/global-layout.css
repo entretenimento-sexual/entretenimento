@@ -1,4 +1,8 @@
 /* src\styles\global-layout.css */
+/*
+  Regra principal para o layout da aplicação.
+  Define as cores base e a transição suave entre temas.
+*/
 html,
 body {
   height: 100%;
@@ -6,11 +10,6 @@ body {
   background-color: var(--background-color);
   color: var(--text-color);
   transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-body {
-  justify-content: center;
-  align-items: center;
 }
 
 ul {
@@ -26,3 +25,56 @@ a {
 a:hover {
   color: var(--primary-hover);
 }
+
+/* Foco visível genérico para elementos focáveis */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* Foco global mais espesso em alto contraste */
+html.high-contrast a:focus-visible,
+html.high-contrast input:focus-visible,
+html.high-contrast select:focus-visible,
+html.high-contrast textarea:focus-visible,
+html.high-contrast button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* Links sempre sublinhados em alto contraste para reforçar affordance */
+html.high-contrast a {
+  color: var(--text-color);
+  text-decoration: underline;
+}
+
+html.high-contrast a:hover {
+  color: var(--text-color);
+  background: #ff0;
+  /* realce simples e muito visível */
+}
+
+/* Preferência do usuário: mais contraste ou movimento reduzido => sem transições */
+@media (prefers-contrast: more),
+(prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0s !important;
+    animation-duration: 0s !important;
+    animation-iteration-count: 1 !important;
+    /* Evita loops de animação */
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+  ❌ BLOCOS REMOVIDOS ❌
+  As regras abaixo eram redundantes e causavam o conflito de especificidade com `!important`.
+  A regra `html, body { ... }` no topo do arquivo já cuida da aplicação do tema de forma correta.
+*/

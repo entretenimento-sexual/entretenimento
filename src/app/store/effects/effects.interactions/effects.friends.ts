@@ -1,69 +1,91 @@
-// src\app\store\effects\effects.interactions\effects.friends.ts
+// src/app/store/effects/effects.interactions/effects.friends.ts
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Injectable } from '@angular/core';
 import { UserInteractionsService } from 'src/app/core/services/data-handling/user-interactions.service';
-import { loadFriends, loadFriendsSuccess, sendFriendRequest, sendFriendRequestSuccess, sendFriendRequestFailure, loadFriendsFailure } from '../../actions/actions.interactions/actions.friends';
-import { mergeMap, map, catchError, of, switchMap } from 'rxjs';
+import * as FriendsActions from '../../actions/actions.interactions/actions.friends';
+import { catchError, map, mergeMap, of, exhaustMap, tap } from 'rxjs';
 import { IFriend } from 'src/app/core/interfaces/friendship/ifriend';
 import { environment } from '../../../../environments/environment';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Injectable()
 export class FriendsEffects {
-  constructor(private actions$: Actions,
-    private userInteractionsService: UserInteractionsService) { }
+  constructor(
+    private actions$: Actions,
+    private userInteractionsService: UserInteractionsService,
+    private errorNotifier: ErrorNotificationService
+  ) { }
 
+  /** Carregar amigos */
   loadFriends$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(loadFriends),
+      ofType(FriendsActions.loadFriends),
       mergeMap(({ uid }) => {
         if (!environment.production) {
-          console.log('[FriendsEffects] loadFriends acionado para UID:', uid);
+          console.log('[FriendsEffects] loadFriends →', uid);
         }
         return this.userInteractionsService.listFriends(uid).pipe(
-          map(friends => {
-            const mappedFriends = friends.map(friend => ({
-              friendUid: friend.friendUid,
-              friendSince: new Date(friend.friendSince)
-            }) as IFriend);
-            if (!environment.production) {
-              console.log('[FriendsEffects] loadFriendsSuccess com amigos:', mappedFriends);
-            }
-            return loadFriendsSuccess({ friends: mappedFriends });
-          }),
-          catchError(error => {
-            if (!environment.production) {
-              console.log('[FriendsEffects] Erro ao carregar amigos:', error);
-            }
-            return of(loadFriendsFailure({ error: error.message }));
-          })
+          map(friends => FriendsActions.loadFriendsSuccess({ friends })),
+          catchError(err =>
+            of(
+              FriendsActions.loadFriendsFailure({
+                error: err?.message ?? String(err ?? 'Erro desconhecido'),
+              })
+            )
+          )
         );
       })
     )
   );
 
+  /**
+   * Enviar solicitação de amizade
+   * - usamos `exhaustMap` para evitar “duplo clique” disparando solicitações em paralelo
+   */
   sendFriendRequest$ = createEffect(() =>
     this.actions$.pipe(
-      ofType(sendFriendRequest),
-      switchMap(({ userUid, friendUid }) => {
+      ofType(FriendsActions.sendFriendRequest),
+      exhaustMap(({ userUid, friendUid, message }) => {
         if (!environment.production) {
-          console.log('[FriendsEffects] Enviando solicitação de amizade de', userUid, 'para', friendUid);
+          console.log('[FriendsEffects] sendFriendRequest →', { userUid, friendUid, message });
         }
-        return this.userInteractionsService.sendFriendRequest(userUid, friendUid).pipe(
-          map(() => {
-            const newFriend: IFriend = { friendUid: friendUid, friendSince: new Date() };
-            if (!environment.production) {
-              console.log('[FriendsEffects] sendFriendRequestSuccess com amigo:', newFriend);
-            }
-            return sendFriendRequestSuccess({ friend: newFriend });
-          }),
-          catchError(error => {
-            if (!environment.production) {
-              console.log('[FriendsEffects] Erro ao enviar solicitação de amizade:', error);
-            }
-            return of(sendFriendRequestFailure({ error: error.message }));
-          })
+        return this.userInteractionsService.sendFriendRequest(userUid, friendUid, message).pipe(
+          // sucesso não adiciona à lista de friends — só sinaliza sucesso
+          map(() =>
+            FriendsActions.sendFriendRequestSuccess({
+              // payload é mantido por compatibilidade; o reducer ignora
+              friend: { friendUid, friendSince: new Date() } as IFriend,
+            })
+          ),
+          catchError(err =>
+            of(
+              FriendsActions.sendFriendRequestFailure({
+                error: err?.message ?? 'Falha ao enviar solicitação.',
+              })
+            )
+          )
         );
       })
     )
+  );
+
+  /** Notificação de erro (side effect sem dispatch) */
+  notifySendFriendRequestFailure$ = createEffect(
+    () =>
+      this.actions$.pipe(
+        ofType(FriendsActions.sendFriendRequestFailure),
+        tap(({ error }) => this.errorNotifier.showError('Erro ao enviar solicitação.', error))
+      ),
+    { dispatch: false }
+  );
+
+  /** Notificação de sucesso (side effect sem dispatch) */
+  notifySendFriendRequestSuccess$ = createEffect(
+    () =>
+      this.actions$.pipe(
+        ofType(FriendsActions.sendFriendRequestSuccess),
+        tap(() => this.errorNotifier.showSuccess('Solicitação enviada!'))
+      ),
+    { dispatch: false }
   );
 }

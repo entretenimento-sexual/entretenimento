@@ -1,24 +1,45 @@
-<!-- src\app\layout\friend.management\friend-list\friend-list.component.html -->
+<!-- src/app/layout/friend.management/friend-list/friend-list.component.html -->
 @if (user() && user().uid) {
-  <div class="friend-list">
-    <h4>Lista de Amigos</h4>
-    <!-- 🔄 Loader enquanto os dados carregam -->
-    @if (!(friends$ | async)?.length) {
-      <mat-spinner></mat-spinner>
-    }
-    @if ((friends$ | async)?.length) {
-      <ul>
-        @for (friend of friends$ | async; track friend) {
-          <li>
-            {{ friend.nickname || friend.friendUid}}
-            <button mat-button color="warn" (click)="removeFriend(friend.friendUid )">
-              Remover Amigo
-            </button>
-          </li>
-        }
-      </ul>
-    } @else {
-      <p>Você ainda não tem amigos adicionados.</p>
-    }
+<div class="friend-list">
+  <h4>Lista de Amigos</h4>
+
+  <!-- Carregando (usa loadingSafe$ para não “colar” eternamente se algo travar) -->
+  @if (loadingSafe$ | async) {
+  <div class="loading">
+    <mat-spinner></mat-spinner>
   </div>
+  } @else {
+
+  <!-- Erro -->
+  @if (error$ | async; as errorMsg) {
+  <div class="error">
+    <p>Não foi possível carregar seus amigos.</p>
+    <small>{{ errorMsg }}</small>
+  </div>
+  } @else {
+
+  <!-- Sem amigos (somente quando não está carregando) -->
+  @if (emptyAfterLoad$ | async) {
+  <p>Você ainda não tem amigos adicionados…</p>
+  } @else {
+
+  <!-- Lista -->
+  @if (visibleFriends$ | async; as friends) {
+  @if (friends.length > 0) {
+  <ul>
+    @for (friend of friends; track trackByFriend($index, friend)) {
+    <li>
+      {{ friend.nickname || friend.friendUid }}
+      <button mat-button color="warn" (click)="removeFriend(friend.friendUid)">
+        Remover
+      </button>
+    </li>
+    }
+  </ul>
+  }
+  }
+  }
+  }
+  }
+</div>
 }

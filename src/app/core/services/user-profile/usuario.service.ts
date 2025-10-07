@@ -36,7 +36,7 @@ export class UsuarioService {
       email: user.email,
       nickname: null,
       photoURL: user.photoURL || null,
-      role: 'basico',
+      role: 'basic',
       lastLogin: timestampNow,
       firstLogin: timestampNow,
       descricao: '',

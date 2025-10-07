@@ -12,6 +12,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
+import { IFriendRequest } from 'src/app/core/interfaces/friendship/ifriend-request';
+import { selectFriendRequests } from 'src/app/store/selectors/selectors.interactions/friend.selector';
 
 @Component({
   selector: 'app-friend-requests',
@@ -22,10 +24,10 @@ import { CacheService } from 'src/app/core/services/general/cache/cache.service'
 })
 export class FriendRequestsComponent implements OnInit {
   readonly user = input.required<IUserDados>();
-  friendRequests$!: Observable<IUserDados[]>;
-  isLoading$: Observable<boolean> = this.cacheService.get<boolean>('loadingRequests').pipe(
-    map(value => value ?? false)
-  );
+           friendRequests$!: Observable<IFriendRequest[]>;
+           isLoading$: Observable<boolean> = this.cacheService.get<boolean>('loadingRequests').pipe(
+           map(value => value ?? false)
+       );
 
   constructor(
     private store: Store<AppState>,
@@ -38,39 +40,41 @@ export class FriendRequestsComponent implements OnInit {
     if (!this.user()?.uid) return;
 
     this.store.dispatch(loadRequests());
-    this.friendRequests$ = this.store.pipe(select(state => state.friends.requests));
+    this.friendRequests$ = this.store.select(selectFriendRequests);
   }
 
-  acceptRequest(friend: IUserDados): void {
-    const user = this.user();
-    if (!friend?.uid || !user?.uid) return;
+  acceptRequest(req: IFriendRequest): void {
+    const me = this.user();
+    if (!me?.uid || !req?.requesterUid) return;
 
     this.cacheService.set('loadingRequests', true, 5000);
-    this.userInteractionsService.acceptFriendRequest(user.uid, friend.uid).subscribe({
+    this.userInteractionsService.acceptFriendRequest(me.uid, req.requesterUid).subscribe({
       next: () => {
         this.cacheService.set('loadingRequests', false);
-        this.errorNotifier.showSuccess(`Agora você é amigo de ${friend.nickname || friend.uid}!`);
+        this.errorNotifier.showSuccess(`Agora você é amigo de ${req.requesterUid}.`);
       },
-      error: (err) => {
+      error: (err: unknown) => {
         this.cacheService.set('loadingRequests', false);
-        this.errorNotifier.showError('Erro ao aceitar solicitação.', err.message);
+        const msg = (err as any)?.message ?? String(err);
+        this.errorNotifier.showError('Erro ao aceitar solicitação.', msg);
       }
     });
   }
 
-  rejectRequest(friend: IUserDados): void {
-    const user = this.user();
-    if (!friend?.uid || !user?.uid) return;
+  rejectRequest(req: IFriendRequest): void {
+    const me = this.user();
+    if (!me?.uid || !req?.requesterUid) return;
 
     this.cacheService.set('loadingRequests', true, 5000);
-    this.userInteractionsService.rejectFriendRequest(user.uid, friend.uid).subscribe({
+    this.userInteractionsService.rejectFriendRequest(me.uid, req.requesterUid).subscribe({
       next: () => {
         this.cacheService.set('loadingRequests', false);
-        this.errorNotifier.showInfo(`Você recusou a solicitação de ${friend.nickname || friend.uid}.`);
+        this.errorNotifier.showInfo(`Você recusou a solicitação de ${req.requesterUid}.`);
       },
-      error: (err) => {
+      error: (err: unknown) => {
         this.cacheService.set('loadingRequests', false);
-        this.errorNotifier.showError('Erro ao recusar solicitação.', err.message);
+        const msg = (err as any)?.message ?? String(err);
+        this.errorNotifier.showError('Erro ao recusar solicitação.', msg);
       }
     });
   }

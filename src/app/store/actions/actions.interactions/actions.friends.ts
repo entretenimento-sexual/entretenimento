@@ -40,3 +40,7 @@ export const loadSearchResultsFailure = createAction('[Friends] Load Search Resu
 
 // ⚙ Atualizar configurações de amizade
 export const updateFriendSettings = createAction('[Friends] Update Friend Settings', props<{ settings: { receiveRequests: boolean; showOnlineStatus: boolean; allowSearchByNickname: boolean } }>());
+
+export const resetSendFriendRequestStatus = createAction(
+  '[Friends] Reset Send Friend Request Status'
+);

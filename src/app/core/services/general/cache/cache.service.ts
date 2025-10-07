@@ -12,7 +12,7 @@ import { IUserDados } from '../../../interfaces/iuser-dados';
 
 /**
  * Item interno do cache em memória.
- * - `expiration = null` significa sem expiração.
+ * - `expiration = null` significa sem expiração (até limpar memória).
  */
 interface CacheItem<T> {
   data: T;
@@ -30,11 +30,18 @@ export class CacheService {
   /** TTL default (5 min) para itens que você quiser expirar */
   private readonly defaultTTL = 300_000;
 
+  /**
+   * Controle de verbosidade:
+   * - Coloque `false` em produção ou proteja via environment.
+   * - Ex.: importar `environment` e usar `!environment.production`.
+   */
+  private readonly verbose = true;
+
   constructor(
     private store: Store<AppState>,
     private cachePersistence: CachePersistenceService, // IndexedDB
   ) {
-    console.log('[CacheService] Serviço inicializado.');
+    this.log('Serviço inicializado.');
   }
 
   // ===========================================================================
@@ -42,55 +49,73 @@ export class CacheService {
   // ===========================================================================
 
   /**
-   * Adiciona/atualiza um item no cache.
+   * Adiciona/atualiza um item no cache (idempotente).
    * - Memória (imediato)
    * - IndexedDB (assíncrono)
    * - (Opcional) localStorage para HOT_KEYS (leitura síncrona com getSync)
+   *
+   * Idempotência: se os dados **e** a expiração não mudarem, a operação é "noop"
+   * (evita spam de log e escrita redundante em IndexedDB/localStorage).
    */
   set<T>(key: string, data: T, ttl?: number): void {
     const normalizedKey = this.normalizeKey(key);
     const expiration = ttl ? Date.now() + ttl : null;
 
-    console.log(`[CacheService] set → "${normalizedKey}"`, { data, expiration });
+    const prev = this.cache.get(normalizedKey);
+    const sameData = prev ? this.deepEqual(prev.data, data) : false;
+    const sameExp = prev ? prev.expiration === expiration : false;
+
+    if (sameData && sameExp) {
+      // this.log(`set (noop) → "${normalizedKey}"`);
+      return;
+    }
+
+    this.log(`set → "${normalizedKey}"`, { expiration });
     this.cache.set(normalizedKey, { data, expiration });
 
     // IndexedDB (durável)
-    this.cachePersistence.setPersistent(normalizedKey, data).subscribe(() => {
-      // log de confirmação
-    });
+    this.cachePersistence.setPersistent(normalizedKey, data).subscribe(() => { });
 
     // Espelho síncrono apenas para chaves quentes
     if (HOT_KEYS.has(normalizedKey)) {
-      try {
-        localStorage.setItem(normalizedKey, JSON.stringify(data));
-      } catch { /* no-op (privacy, quotas, modo privado etc.) */ }
+      this.mirrorHotKeyToLocalStorage(normalizedKey, data);
     }
   }
 
   /**
-   * API semântica para armazenar usuário atual, alinhada às grandes plataformas.
-   * - Grava `user:{uid}`
-   * - Atualiza `currentUserUid`
-   * - Dispara Store (NgRx)
+   * API semântica para armazenar usuário atual (escolha usar **esta** OU `syncCurrentUserWithUid`).
+   * - Grava `user:{uid}` (uid normalizado para lower-case na **chave**)
+   * - Atualiza `currentUserUid` (mantém o UID como veio)
+   * - Dispara Store (NgRx) apenas se houve mudança
+   *
+   * ⚠️ Recomenda-se **não** chamar `syncCurrentUserWithUid` no mesmo fluxo para evitar duplicidades.
    */
   setUser(uid: string, user: IUserDados, ttl: number = this.defaultTTL): void {
-    const normalizedUserKey = this.normalizeKey(`user:${uid}`);
-    this.set(normalizedUserKey, user, ttl);
-    this.set('currentUserUid', uid, ttl); // 🔥 HOT_KEY
+    const userKey = this.userKey(uid);
+    const prev = this.cache.get(userKey);
+    const changed = !prev || !this.deepEqual(prev.data, user);
 
-    this.store.dispatch(setCache({ key: normalizedUserKey, value: user }));
-    this.store.dispatch(setCache({ key: 'currentUserUid', value: uid }));
-    console.log(`[CacheService] setUser → user:${uid} + currentUserUid`);
+    this.set(userKey, user, ttl);
+    this.set('currentUserUid', uid, ttl); // 🔥 HOT_KEY (mantém forma original do UID)
+
+    if (changed) {
+      this.store.dispatch(setCache({ key: userKey, value: user }));
+      this.store.dispatch(setCache({ key: 'currentUserUid', value: uid }));
+      this.log(`setUser → ${userKey} + currentUserUid (store dispatch)`);
+    } else {
+      this.log(`setUser → ${userKey} + currentUserUid (unchanged)`);
+    }
   }
 
   /**
    * Atualiza um item já existente (mantém/renova TTL).
+   * Idempotente: se o valor não mudou e a expiração é a mesma, não persiste novamente.
    */
   update<T>(key: string, data: T, ttl?: number): void {
     const normalizedKey = this.normalizeKey(key);
 
     if (!this.cache.has(normalizedKey)) {
-      console.log(`[CacheService] update → chave inexistente: "${normalizedKey}"`);
+      this.log(`update → chave inexistente: "${normalizedKey}"`);
       return;
     }
 
@@ -98,13 +123,22 @@ export class CacheService {
       ? Date.now() + ttl
       : this.cache.get(normalizedKey)!.expiration;
 
+    const prev = this.cache.get(normalizedKey)!;
+    const sameData = this.deepEqual(prev.data, data);
+    const sameExp = prev.expiration === newExpiration;
+
+    if (sameData && sameExp) {
+      // this.log(`update (noop) → "${normalizedKey}"`);
+      return;
+    }
+
     this.cache.set(normalizedKey, { data, expiration: newExpiration });
-    console.log(`[CacheService] update → "${normalizedKey}"`, { data, expiration: newExpiration });
+    this.log(`update → "${normalizedKey}"`, { expiration: newExpiration });
 
     // Mantém persistência/espelho como em set()
     this.cachePersistence.setPersistent(normalizedKey, data).subscribe(() => { });
     if (HOT_KEYS.has(normalizedKey)) {
-      try { localStorage.setItem(normalizedKey, JSON.stringify(data)); } catch { }
+      this.mirrorHotKeyToLocalStorage(normalizedKey, data);
     }
   }
 
@@ -122,7 +156,7 @@ export class CacheService {
    */
   get<T>(key: string): Observable<T | null> {
     const normalizedKey = this.normalizeKey(key);
-    console.log(`[CacheService] get → "${normalizedKey}"`);
+    this.log(`get → "${normalizedKey}"`);
 
     // 1) Memória
     const mem = this.cache.get(normalizedKey);
@@ -137,12 +171,12 @@ export class CacheService {
           // Reidrata memória e espelho (se hot key)
           this.cache.set(normalizedKey, { data: persist, expiration: null });
           if (HOT_KEYS.has(normalizedKey)) {
-            try { localStorage.setItem(normalizedKey, JSON.stringify(persist)); } catch { }
+            this.mirrorHotKeyToLocalStorage(normalizedKey, persist);
           }
           return of(persist);
         }
 
-        console.log('[CacheService] get → não achou no IndexedDB, consultando Store...');
+        this.log('get → não achou no IndexedDB, consultando Store...');
         // 3) Store (NgRx)
         return this.store.select(selectCacheItem(normalizedKey)).pipe(
           take(1),
@@ -150,7 +184,7 @@ export class CacheService {
             if (storeData !== undefined && storeData !== null) {
               this.cache.set(normalizedKey, { data: storeData, expiration: null });
               if (HOT_KEYS.has(normalizedKey)) {
-                try { localStorage.setItem(normalizedKey, JSON.stringify(storeData)); } catch { }
+                this.mirrorHotKeyToLocalStorage(normalizedKey, storeData);
               }
               return of(storeData as T);
             }
@@ -223,13 +257,13 @@ export class CacheService {
       try { localStorage.removeItem(normalizedKey); } catch { }
     }
 
-    console.log(`[CacheService] delete → "${normalizedKey}" (${existed ? 'ok' : 'não existia'})`);
+    this.log(`delete → "${normalizedKey}" (${existed ? 'ok' : 'não existia'})`);
   }
 
   /** Limpa somente memória (rápido). */
   clear(): void {
     this.cache.clear();
-    console.log('[CacheService] clear → memória limpa.');
+    this.log('clear → memória limpa.');
   }
 
   /** Remove itens expirados (memória). */
@@ -241,17 +275,17 @@ export class CacheService {
 
     expiredKeys.forEach((k) => this.cache.delete(k));
     if (expiredKeys.length) {
-      console.log(`[CacheService] removeExpired → ${expiredKeys.length} itens removidos.`);
+      this.log(`removeExpired → ${expiredKeys.length} itens removidos.`);
     }
   }
 
   /** Habilita limpeza automática de expirados (memória). */
   enableAutoCleanup(interval = 60_000): () => void {
-    console.log(`[CacheService] AutoCleanup ON (${interval}ms).`);
+    this.log(`AutoCleanup ON (${interval}ms).`);
     const id = setInterval(() => this.removeExpired(), interval);
     return () => {
       clearInterval(id);
-      console.log('[CacheService] AutoCleanup OFF.');
+      this.log('AutoCleanup OFF.');
     };
   }
 
@@ -259,15 +293,56 @@ export class CacheService {
   // UTILITÁRIOS
   // ===========================================================================
 
-  /** Normaliza chaves para consistência. */
+  /** Normaliza chaves para consistência (trim). */
   private normalizeKey(key: string): string {
     return key.trim();
+  }
+
+  /** Monta chave de usuário com UID em lower-case (evita duplicidade por casing). */
+  private userKey(uid: string): string {
+    return `user:${uid.trim().toLowerCase()}`;
   }
 
   /** Verifica expiração. */
   private isExpired(expiration: number | null): boolean {
     return expiration !== null && Date.now() > expiration;
   }
+
+  /** Comparação rasa via JSON (suficiente para dados plain). */
+  private deepEqual(a: any, b: any): boolean {
+    if (a === b) return true;
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      // Fallback caso haja referência circular (não esperado aqui)
+      return false;
+    }
+  }
+
+  /** Espelha HOT_KEYS em localStorage (uso exclusivo para chaves do conjunto HOT_KEYS). */
+  private mirrorHotKeyToLocalStorage(key: string, data: any): void {
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+    } catch {
+      // silencioso (privacy mode / quotas / etc.)
+    }
+  }
+
+  /** Log condicional. */
+  private log(message: string, extra?: any): void {
+    if (!this.verbose) return;
+    if (extra !== undefined) {
+      // eslint-disable-next-line no-console
+      console.log(`[CacheService] ${message}`, extra);
+    } else {
+      // eslint-disable-next-line no-console
+      console.log(`[CacheService] ${message}`);
+    }
+  }
+
+  // ===========================================================================
+  // Conveniências
+  // ===========================================================================
 
   /**
    * Marca um item como "não encontrado" por um TTL curto (mitiga re-buscas consecutivas).
@@ -294,23 +369,41 @@ export class CacheService {
 
   /** Loga estado interno (debug). */
   debug(): void {
-    console.log('[CacheService] DEBUG', {
+    this.log('DEBUG', {
       size: this.size(),
       keys: this.keys(),
     });
   }
 
+  // ===========================================================================
+  // Bootstrap helpers (use um OU outro, não os dois)
+  // ===========================================================================
+
   /**
    * Sincroniza dados do usuário com UID (usado em bootstraps/refresh).
-   * - `user:{uid}`
-   * - `currentUser`
+   * - `user:{uid}` (lower-case na chave)
+   * - `currentUser` (espelho HOT_KEY)
    * - `currentUserUid` (HOT_KEY → espelho em localStorage)
+   *
+   * ⚠️ Use esta função para "semeadura" completa em bootstraps/refresh.
+   * ⚠️ Evite chamar junto com `setUser` no mesmo fluxo.
    */
   syncCurrentUserWithUid(userData: IUserDados): void {
-    const uid = userData.uid.trim().toLowerCase();
-    this.set(`user:${uid}`, userData, this.defaultTTL);
-    this.set('currentUser', userData, this.defaultTTL);      // 🔥 HOT_KEY
-    this.set('currentUserUid', userData.uid, this.defaultTTL); // 🔥 HOT_KEY
-    console.log(`[CacheService] syncCurrentUserWithUid → uid=${uid}`);
+    const key = this.userKey(userData.uid);
+    const prev = this.cache.get(key);
+    const changed = !prev || !this.deepEqual(prev.data, userData);
+
+    this.set(key, userData, this.defaultTTL);
+    this.set('currentUser', userData, this.defaultTTL);          // 🔥 HOT_KEY
+    this.set('currentUserUid', userData.uid, this.defaultTTL);   // 🔥 HOT_KEY
+
+    if (changed) {
+      this.store.dispatch(setCache({ key, value: userData }));
+      this.store.dispatch(setCache({ key: 'currentUser', value: userData }));
+      this.store.dispatch(setCache({ key: 'currentUserUid', value: userData.uid }));
+      this.log(`syncCurrentUserWithUid → ${key} + currentUser + currentUserUid (store dispatch)`);
+    } else {
+      this.log(`syncCurrentUserWithUid → ${key} + currentUser + currentUserUid (unchanged)`);
+    }
   }
 }

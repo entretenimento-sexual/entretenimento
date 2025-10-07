@@ -14,29 +14,32 @@ export class CurrentUserStoreService {
   private readonly keyUser = 'currentUser';
   private readonly keyUid = 'currentUserUid';
 
-  private userSubject = new BehaviorSubject<IUserDados | null>(null);
-  readonly user$: Observable<IUserDados | null> = this.userSubject.asObservable();
+  // ✅ PASSO ÚNICO: Inicializa com `undefined` para que os guardiões saibam
+  // que o estado de autenticação ainda não foi determinado.
+  private userSubject = new BehaviorSubject<IUserDados | null | undefined>(undefined);
+  readonly user$: Observable<IUserDados | null | undefined> = this.userSubject.asObservable();
 
   constructor(
-    private cache: CacheService,
-    // ⬇️ injeta diretamente o Auth
-    private auth: Auth,
-  ) { }
+              private cache: CacheService,
+              private auth: Auth,
+            ) { }
 
   set(user: IUserDados): void {
     if (!user || !user.uid) return;
     const current = this.userSubject.value;
-    if (JSON.stringify(current) === JSON.stringify(user)) return;
+    // Opcional: Evita emissões desnecessárias se o objeto for idêntico.
+    if (current && JSON.stringify(current) === JSON.stringify(user)) return;
 
     this.userSubject.next(user);
 
+    // Persistência
     localStorage.setItem(this.keyUser, JSON.stringify(user));
     localStorage.setItem(this.keyUid, user.uid);
-
     this.cache.set(this.keyUid, user.uid, 300_000);
   }
 
   clear(): void {
+    if (this.userSubject.value === null) return; // Evita múltiplas limpezas
     this.userSubject.next(null);
     localStorage.removeItem(this.keyUser);
     localStorage.removeItem(this.keyUid);

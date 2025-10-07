@@ -5,9 +5,11 @@ import { ProgressiveSignupComponent } from './progressive-signup/progressive-sig
 import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
 import { AuthVerificationHandlerComponent } from '../register-module/auth-verification-handler/auth-verification-handler.component';
 import { FinalizarCadastroComponent } from '../register-module/finalizar-cadastro/finalizar-cadastro.component';
+import { LoginComponent } from './login-component/login-component';
 
 // Definindo as rotas para o módulo de autenticação.
 const authRoutes: Routes = [
+  { path: '', component: LoginComponent },
   { path: 'progressive-signup', component: ProgressiveSignupComponent },
   { path: 'suggested-profiles', component: SuggestedProfilesComponent },
   { path: 'post-verification/action', component: AuthVerificationHandlerComponent},

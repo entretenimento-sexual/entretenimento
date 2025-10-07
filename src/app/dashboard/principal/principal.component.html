@@ -25,6 +25,8 @@
       <app-friend-list [user]="user" [limit]="6"></app-friend-list>
     }
 
-    <button class="btn btn-secondary ver-todos" routerLink="/friends">Ver Todos</button>
+    @if (showSeeAll$ | async) {
+    <button class="btn btn-secondary ver-todos" routerLink="/friends/list">Ver Todos</button>
+    }
   </section>
 </div>

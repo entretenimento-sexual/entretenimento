@@ -9,6 +9,7 @@ export interface IFriend {
   gender?: string;  // Gênero do usuário
 }
 export interface IBlockedUser {
+  nickname?: string;
   blockerUid: string;  // Usuário que bloqueia
   blockedUid: string;  // Usuário bloqueado
   timestamp: Date;     // Data do bloqueio

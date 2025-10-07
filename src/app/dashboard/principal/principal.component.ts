@@ -5,13 +5,13 @@ import { Observable } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AppState } from 'src/app/store/states/app.state';
 import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.selectors';
-import { filter, take } from 'rxjs/operators';
+import { filter, map, take } from 'rxjs/operators';
 import { CommonModule } from '@angular/common';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { FriendListComponent } from 'src/app/layout/friend.management/friend-list/friend-list.component';
 import { OnlineUsersComponent } from '../online-users/online-users.component';
 import { loadRequests } from 'src/app/store/actions/actions.interactions/actions.friends';
-import { selectPendingFriendRequestsCount } from 'src/app/store/selectors/selectors.interactions/friend.selector';
+import { selectFriendsCount, selectPendingFriendRequestsCount } from 'src/app/store/selectors/selectors.interactions/friend.selector';
 
 @Component({
     selector: 'app-principal',
@@ -25,10 +25,12 @@ import { selectPendingFriendRequestsCount } from 'src/app/store/selectors/select
 export class PrincipalComponent implements OnInit {
   currentUser$: Observable<IUserDados | null>;
   pendingRequestsCount$: Observable<number>;
+  showSeeAll$: Observable<boolean>;
 
   constructor(private store: Store<AppState>) {
-              this.currentUser$ = this.store.select(selectCurrentUser);
-              this.pendingRequestsCount$ = this.store.select(selectPendingFriendRequestsCount);
+    this.currentUser$ = this.store.select(selectCurrentUser);
+    this.pendingRequestsCount$ = this.store.select(selectPendingFriendRequestsCount);
+    this.showSeeAll$ = this.store.select(selectFriendsCount).pipe(map(c => c > 6));
             }
 
   ngOnInit(): void {

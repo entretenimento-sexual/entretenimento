@@ -4,22 +4,23 @@ import { NoPreloading, RouterModule, Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth.guard';
 import { authRedirectGuard } from './core/guards/auth-redirect.guard';
-import { authOnlyGuard } from './core/guards/auth-only.guard';
 import { emailVerifiedGuard } from './core/guards/email-verified.guard';
 
 import { ProfileListComponent } from './layout/profile-list/profile-list.component';
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
+import { adminCanMatch } from './core/guards/admin.guard';
+import { environment } from 'src/environments/environment';
 
 const routes: Routes = [
-  { path: '', redirectTo: '/dashboard/principal', pathMatch: 'full' },
-
+  { path: '',
+    redirectTo: 'login',
+    pathMatch: 'full'
+  },
   {
     path: 'dashboard',
     loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
-    canMatch: [authOnlyGuard],
-    canActivate: [emailVerifiedGuard],
-  },
 
+  },
   {
     path: 'profile/:id',
     loadComponent: () =>
@@ -35,15 +36,21 @@ const routes: Routes = [
   {
     path: 'chat',
     loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule),
-    canMatch: [authGuard], // ← em vez de canLoad
+    canActivate: [authGuard, emailVerifiedGuard],
+  },
+  {
+    path: 'friends',
+    loadChildren: () =>
+      import('./layout/friend.management/friend.management.module')
+        .then(m => m.FriendManagementModule),
     canActivate: [authGuard, emailVerifiedGuard],
   },
   {
     path: 'admin-dashboard',
     loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule),
-    canActivate: [authGuard, emailVerifiedGuard],
+    canMatch: [adminCanMatch],     // ⬅️ aqui
+    canActivate: [emailVerifiedGuard],
   },
-
   {
     path: 'register',
     loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),
@@ -58,7 +65,6 @@ const routes: Routes = [
     canActivate: [authRedirectGuard],
     data: { allowUnverified: true },
   },
-
   {
     path: 'post-verification/action',
     loadComponent: () =>
@@ -73,18 +79,24 @@ const routes: Routes = [
         .then(m => m.AuthVerificationHandlerComponent),
     data: { allowUnverified: true },
   },
-
   { path: 'profile-list', component: ProfileListComponent },
-  { path: 'subscription-plan', component: SubscriptionPlanComponent },
+  { path: 'subscription-plan',
+    component: SubscriptionPlanComponent
+  },
+  { path: '**',
+    redirectTo: 'login'
+  },
 
-  { path: '**', redirectTo: '/dashboard/principal' },
 ];
+
 @NgModule({
   imports: [
     RouterModule.forRoot(routes, {
       preloadingStrategy: NoPreloading,
       bindToComponentInputs: true,
       initialNavigation: 'enabledBlocking',
+      //enableTracing: !environment.production //enableTracing:
+      //registra os eventos de navegação interna no console. Uso para depuração.
     }),
   ],
   exports: [RouterModule],

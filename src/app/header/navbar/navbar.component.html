@@ -41,8 +41,7 @@
         </li>
         }
         <li class="navbar-item">
-          <a routerLink="/register" class="navbar-link"
-            title="Clique aqui para criar uma conta">Cadastre-se</a>
+          <a routerLink="/register" class="navbar-link" title="Clique aqui para criar uma conta">Cadastre-se</a>
         </li>
         }
 
@@ -58,10 +57,21 @@
 
         <!-- Botão de alternância de tema -->
         <li class="navbar-item">
-          <button class="dark-toggle" (click)="toggleDarkMode()" aria-label="Alternar entre claro e escuro">
+          <button class="dark-toggle" (click)="toggleDarkMode()" aria-label="Alternar entre claro e escuro"
+            [attr.aria-pressed]="isDarkMode() ? 'true' : 'false'">
             {{ isDarkMode() ? '🌙' : '☀️' }}
-          </button>   </li>
-      </ul>
+          </button>
+        </li>
+
+        <!-- ⭐ Novo: Botão Alto Contraste -->
+        <li class="navbar-item">
+          <button class="contrast-toggle" (click)="toggleHighContrast()"
+            [attr.aria-pressed]="isHighContrast() ? 'true' : 'false'" aria-label="Alternar alto contraste">
+            {{ isHighContrast() ? 'HC ON' : 'HC OFF' }}
+          </button>
+        </li>
+
+        </ul>
     </div>
   </nav>
 

@@ -1,34 +1,48 @@
-// src\app\core\guards\premium.guard.ts
+// src/app/core/guards/premium.guard.ts
 import { Injectable } from '@angular/core';
-import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot, Router } from '@angular/router';
-import { Observable } from 'rxjs';
-import { map, take, filter } from 'rxjs/operators';
-import { UsuarioStateService } from '../services/autentication/usuario-state.service';
+import { CanActivate, Router, UrlTree, RouterStateSnapshot } from '@angular/router';
+import { combineLatest, of } from 'rxjs';
+import { filter, map, take } from 'rxjs/operators';
+import { AccessControlService } from '../services/autentication/auth/access-control.service';
+import { CurrentUserStoreService } from '../services/autentication/auth/current-user-store.service';
+import { ErrorNotificationService } from '../services/error-handler/error-notification.service';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class PremiumGuard implements CanActivate {
   constructor(
-    private usuarioStateService: UsuarioStateService,
-    private router: Router
+    private readonly access: AccessControlService,
+    private readonly currentUser: CurrentUserStoreService,
+    private readonly toast: ErrorNotificationService,
+    private readonly router: Router
   ) { }
 
-  canActivate(
-    next: ActivatedRouteSnapshot,
-    state: RouterStateSnapshot
-  ): Observable<boolean> | Promise<boolean> | boolean {
-    return this.usuarioStateService.temAcessoPremium().pipe(
-      filter(user => !!user), // Garante que o user não seja nulo
-      take(1), // Pega apenas o primeiro valor emitido para não ficar em uma subscrição infinita
-      map(hasPremiumAccess => {
-        if (!hasPremiumAccess) {
-            this.router.navigate(['/subscription-plan']).then(() => {
-            console.log('Acesso restrito a usuários Premium. Redirecionando para página de subscrição.');
-          });
-          return false;
+  canActivate(_: any, state: RouterStateSnapshot) {
+    // 1) checa permissão premium+
+    const ok$ = this.access.hasAtLeast$('premium').pipe(take(1));
+
+    // 2) resolve usuário (null|user), ignorando 'undefined' inicial
+    const user$ = this.currentUser.user$.pipe(
+      filter(u => u !== undefined),
+      take(1)
+    );
+
+    return combineLatest([ok$, user$]).pipe(
+      map(([ok, user]) => {
+        if (ok) return true;
+
+        // feedback
+        this.toast.showError('Este recurso é exclusivo para assinantes Premium ou VIP.');
+
+        // não logado → login (com redirect)
+        if (!user) {
+          return this.router.createUrlTree(['/login'], { queryParams: { redirect: state.url } });
         }
-        return true;
+
+        // logado sem nível suficiente → planos (com CTA)
+        return this.router.createUrlTree(
+          ['/subscription-plan'],
+          { queryParams: { need: 'premium', from: state.url } }
+        );
       })
     );
   }

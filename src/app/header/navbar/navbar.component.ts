@@ -7,7 +7,6 @@ import { filter, startWith, map, distinctUntilChanged } from 'rxjs/operators';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { SidebarService } from 'src/app/core/services/sidebar.service';
 
-// ✅ As importações e injeções neste arquivo já estavam corretas!
 import { Auth, user } from '@angular/fire/auth';
 import type { User } from 'firebase/auth';
 
@@ -25,7 +24,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public userId = '';
   public isLoginPage = false;
 
+  // === Tema/Acessibilidade (fonte de verdade do app) ===
+  private _isDarkModeActive = false;
+  private _isHighContrastActive = false;
+
+  // Getters usados no template
+  isDarkMode(): boolean { return this._isDarkModeActive; }
+  isHighContrast(): boolean { return this._isHighContrastActive; }
+
   private subs = new Subscription();
+  private prefersDarkMql?: MediaQueryList;
+  private prefersDarkListener?: (ev: MediaQueryListEvent) => void;
 
   constructor(
     private auth: Auth,
@@ -35,13 +44,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
     private sidebarService: SidebarService
   ) { }
 
-  // ✅ Uso do 'user(this.auth)' é a melhor prática para obter o estado do usuário.
   private authState$(): Observable<User | null> {
     return runInInjectionContext(this.injector, () => user(this.auth))
       .pipe(startWith(this.auth.currentUser));
   }
 
   ngOnInit(): void {
+    // ====== Sessão/Nav ======
     const combined$ = combineLatest([
       this.authState$(),
       this.authService.user$.pipe(startWith(null))
@@ -70,29 +79,66 @@ export class NavbarComponent implements OnInit, OnDestroy {
       })
     );
 
-    const storedTheme = localStorage.getItem('theme');
-    this.setDarkMode(storedTheme === 'dark');
-  }
-
-  isDarkMode(): boolean {
-    return document.documentElement.classList.contains('dark-mode');
-  }
-
-  toggleDarkMode(): void {
-    const root = document.documentElement;
-    const next = !root.classList.contains('dark-mode');
-    root.classList.toggle('dark-mode', next);
-    localStorage.setItem('theme', next ? 'dark' : 'light');
-  }
-
-  private setDarkMode(enable: boolean): void {
-    document.documentElement.classList.toggle('dark-mode', enable);
+    // ====== TEMA/CONTRASTE – inicialização única ======
+    this.initializeThemes();
   }
 
   ngOnDestroy(): void {
     this.subs.unsubscribe();
+    if (this.prefersDarkMql && this.prefersDarkListener) {
+      this.prefersDarkMql.removeEventListener('change', this.prefersDarkListener);
+    }
   }
 
+  // =========================
+  //    THEME STATE MACHINE
+  // =========================
+  private initializeThemes(): void {
+    const root = document.documentElement;
+    this._isDarkModeActive = root.classList.contains('dark-mode');
+    this._isHighContrastActive = root.classList.contains('high-contrast');
+    this.applyThemeStates(false); // só sincroniza visual; não persiste aqui
+  }
+
+  private applyThemeStates(persist: boolean = true): void {
+    const root = document.documentElement;
+    root.classList.toggle('dark-mode', this._isDarkModeActive);
+    root.classList.toggle('high-contrast', this._isHighContrastActive);
+    root.style.colorScheme = this._isDarkModeActive ? 'dark' : 'light';
+    root.setAttribute('data-theme', this._isDarkModeActive ? 'dark' : 'light');
+    root.setAttribute('data-hc', this._isHighContrastActive ? 'on' : 'off');
+
+    if (persist) {
+      localStorage.setItem('theme', this._isDarkModeActive ? 'dark' : 'light');
+      localStorage.setItem('high-contrast', this._isHighContrastActive ? '1' : '0');
+    }
+  }
+
+  toggleDarkMode(): void {
+    this._isDarkModeActive = !this._isDarkModeActive;
+    console.log('[toggleDarkMode]', this._isDarkModeActive);
+    this.applyThemeStates(true);
+  }
+
+  toggleHighContrast(): void {
+    this._isHighContrastActive = !this._isHighContrastActive;
+    console.log('[toggleHighContrast]', this._isHighContrastActive);
+    this.applyThemeStates(true);
+  }
+
+  resetAppearance(): void {
+    // default: claro + HC off
+    localStorage.setItem('theme', 'light');
+    localStorage.setItem('high-contrast', '0');
+
+    this._isDarkModeActive = false;
+    this._isHighContrastActive = false;
+
+    // aplica no DOM sem regravar (já gravamos acima)
+    this.applyThemeStates(false);
+  }
+
+  // === Outros ===
   logout(): void {
     this.authService.logout().subscribe({
       next: () => console.log('[NavbarComponent] Logout concluído.'),

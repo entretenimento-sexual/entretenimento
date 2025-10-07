@@ -3,84 +3,115 @@
 <html lang="pt-br">
 
 <head>
-  <!-- Meta Tags Básicas -->
-  <meta charset="utf-8">
-  <title>Entretenimento Sexual - Encontre Seu Parceiro Ideal</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Básico -->
+  <meta charset="utf-8" />
+  <title>Entretenimento Sexual — Encontre seu parceiro ideal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <base href="/" />
 
-  <!-- Meta Tags para SEO -->
+  <!-- SEO -->
+  <link rel="canonical" href="https://entretenimento.app/" />
   <meta name="description"
-    content="Entretenimento Sexual é a plataforma ideal para você encontrar parceiros para encontros focados em prazer sexual. Junte-se a nós e explore suas fantasias.">
-  <meta name="keywords" content="sexo, encontros adultos, entretenimento sexual, fantasias, prazer">
+    content="Entretenimento Sexual é a plataforma ideal para encontrar parceiros focados em prazer. Explore suas fantasias com segurança e privacidade." />
+  <meta name="keywords" content="sexo, encontros adultos, entretenimento sexual, fantasias, prazer, namoro casual" />
+  <meta name="robots" content="index,follow" />
 
-  <!-- Robots -->
-  <meta name="robots" content="index, follow">
+  <!-- Classificação 18+ -->
+  <meta name="rating" content="adult" />
+  <meta name="restricted-to" content="18" />
 
-  <!-- Meta Tags de Conteúdo Adulto -->
-  <meta name="rating" content="adult">
-  <meta name="restricted-to" content="18">
-
-  <!-- Open Graph Tags (Facebook, LinkedIn, etc.) -->
-  <meta property="og:title" content="Entretenimento Sexual - Encontre Seu Parceiro Ideal">
+  <!-- Open Graph -->
+  <meta property="og:locale" content="pt_BR" />
+  <meta property="og:site_name" content="Entretenimento Sexual" />
+  <meta property="og:title" content="Entretenimento Sexual — Encontre seu parceiro ideal" />
   <meta property="og:description"
-    content="A plataforma ideal para você encontrar parceiros para encontros focados em prazer sexual.">
-  <meta property="og:image" content="link_para_imagem_de_destaque">
-  <meta property="og:type" content="website">
+    content="Encontre parceiros para encontros focados em prazer. Crie sua conta grátis." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://entretenimento.app/" />
+  <meta property="og:image" content="https://entretenimento.app/assets/og-cover.jpg" />
+  <meta property="og:image:alt" content="Capa do Entretenimento Sexual" />
+  <meta property="og:image:type" content="image/jpeg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
 
-  <!-- Twitter Card Tags -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Entretenimento Sexual - Encontre Seu Parceiro Ideal">
-  <meta name="twitter:description"
-    content="A plataforma ideal para você encontrar parceiros para encontros focados em prazer sexual.">
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@seuTwitter" />
+  <meta name="twitter:title" content="Entretenimento Sexual — Encontre seu parceiro ideal" />
+  <meta name="twitter:description" content="Plataforma para encontros focados em prazer. Descubra, combine e curta." />
+  <meta name="twitter:image" content="https://entretenimento.app/assets/og-cover.jpg" />
+  <meta name="twitter:image:alt" content="Capa do Entretenimento Sexual" />
 
-  <!-- Favicons e Ícones -->
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <!-- Aparência do UA -->
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e141b" media="(prefers-color-scheme: dark)">
 
-  <!-- CSS e Bibliotecas Externas -->
-  <link rel="preconnect" href="https://firebasestorage.googleapis.com">
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-  <link rel="preconnect" href="https://fonts.gstatic.com">
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet">
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <!-- Ícones -->
+  <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png" />
 
-  <base href="/">
+  <!-- Fonts / Icons -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
 
+  <!-- === Tema: bootstrap simples === -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('theme');
+        var hc = localStorage.getItem('high-contrast');
+        if (t !== 'dark' && t !== 'light') { t = 'light'; localStorage.setItem('theme', 'light'); }
+        if (hc !== '1' && hc !== '0') { hc = '0'; localStorage.setItem('high-contrast', '0'); }
+
+        var root = document.documentElement;
+        root.classList.toggle('dark-mode', t === 'dark');
+        root.classList.toggle('high-contrast', hc === '1');
+        root.style.colorScheme = (t === 'dark') ? 'dark' : 'light';
+        root.setAttribute('data-theme', t);
+        root.setAttribute('data-hc', hc === '1' ? 'on' : 'off');
+
+        // Paint-guard mínimo do body (evita flash e garante que body obedeça tokens no primeiro paint)
+        var styleEl = document.createElement('style');
+        styleEl.id = 'paint-guard';
+        styleEl.textContent = "body{background-color:var(--background-color)!important;color:var(--text-color)!important}";
+        document.head.appendChild(styleEl);
+
+        // Footer: estado inicial no primeiro paint (Angular depois mantém em runtime)
+        document.addEventListener('DOMContentLoaded', function () {
+          // aplica tokens inline novamente por segurança
+          document.body.style.setProperty('background-color', 'var(--background-color)', 'important');
+          document.body.style.setProperty('color', 'var(--text-color)', 'important');
+
+          // mostra footer se NÃO estiver em /chat/...
+          var isChat = /\/chat(\/|$)/.test(location.pathname);
+          document.body.classList.toggle('show-footer', !isChat);
+        });
+      } catch (e) { }
+    })();
+  </script>
+
+    <!-- Footer: CSS de visibilidade -->
   <style>
-    /* Ocultar o footer por padrão */
+    /* Esconde footer por padrão; só mostra quando body tiver .show-footer */
     app-footer {
       display: none;
     }
 
-    /* Exibir o footer quando a classe 'show-footer' estiver presente no body */
     body.show-footer app-footer {
       display: block;
     }
   </style>
 
-  <script>
-    // Script para adicionar a classe 'show-footer' ao body se a URL NÃO contiver '/chat/'
-    document.addEventListener("DOMContentLoaded", function () {
-        var currentUrl = window.location.pathname;
-        if (/\/chat\//.test(currentUrl)) {
-          document.body.classList.remove('show-footer');
-        } else {
-          document.body.classList.add('show-footer');
-        }
-      });
-    </script>
-
-<script>console.log('[index.html] carregado');</script>
-
+  <script>console.log('[index.html] carregado');</script>
 </head>
 
 <body class="mat-typography">
   <app-root></app-root>
-
-  <!-- Bibliotecas JS Externas -->
-  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
-  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-
+  <noscript>Habilite o JavaScript para usar este site.</noscript>
 </body>
 
 </html>

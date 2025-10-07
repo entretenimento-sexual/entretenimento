@@ -1,28 +1,64 @@
 <!-- src\app\admin-dashboard\user-list\user-list.component.html -->
-<h2>Lista de Usuários</h2>
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Usuários</mat-card-title>
+    <span class="spacer"></span>
+    <mat-form-field appearance="outline" style="width: 280px">
+      <mat-label>Buscar</mat-label>
+      <input matInput (keyup)="applyFilter($event.target.value)" placeholder="Nome ou e-mail" />
+    </mat-form-field>
+  </mat-card-header>
 
-<table>
-  <thead>
-    <tr>
-      <th>Nome</th>
-      <th>Email</th>
-      <th>Status</th>
-      <th>Ações</th>
-    </tr>
-  </thead>
-  <tbody>
-    @for (user of users; track user) {
-      <tr>
-        <td>{{ user.nome }}</td>
-        <td>{{ user.email }}</td>
-        <td [ngClass]="{ 'ativo': !user.suspended, 'suspenso': user.suspended }">
-          {{ user.suspended ? 'Suspenso' : 'Ativo' }}
-        </td>
-        <td>
-          <button (click)="viewUserDetails(user)">Detalhes</button>
-        </td>
-      </tr>
-    }
-  </tbody>
-</table>
+  <mat-progress-bar *ngIf="loading" mode="indeterminate"></mat-progress-bar>
 
+  <div class="table-wrapper">
+    <table mat-table [dataSource]="dataSource" matSort>
+      <ng-container matColumnDef="nome">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Nome</th>
+        <td mat-cell *matCellDef="let row">{{ row.nome }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="email">
+        <th mat-header-cell *matHeaderCellDef mat-sort-header>Email</th>
+        <td mat-cell *matCellDef="let row">{{ row.email }}</td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let row">
+          <mat-chip [color]="row.suspended ? 'warn' : 'primary'" selected>
+            {{ row.suspended ? 'Suspenso' : 'Ativo' }}
+          </mat-chip>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="acoes">
+        <th mat-header-cell *matHeaderCellDef>Ações</th>
+        <td mat-cell *matCellDef="let row">
+          <button mat-icon-button [matMenuTriggerFor]="m" matTooltip="Ações">
+            <mat-icon>more_vert</mat-icon>
+          </button>
+          <mat-menu #m="matMenu">
+            <button mat-menu-item (click)="viewUserDetails(row)">
+              <mat-icon>visibility</mat-icon>
+              <span>Detalhes</span>
+            </button>
+            <button mat-menu-item (click)="toggleSuspend(row)">
+              <mat-icon>{{ row.suspended ? 'lock_open' : 'lock' }}</mat-icon>
+              <span>{{ row.suspended ? 'Reativar' : 'Suspender' }}</span>
+            </button>
+            <button mat-menu-item (click)="deleteUser(row)">
+              <mat-icon>delete</mat-icon>
+              <span>Excluir</span>
+            </button>
+          </mat-menu>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+    </table>
+  </div>
+
+  <mat-paginator [pageSize]="10" [pageSizeOptions]="[5,10,25,50]"></mat-paginator>
+</mat-card>

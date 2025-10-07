@@ -68,3 +68,18 @@ export const selectFriendsError = createSelector(
   selectFriendsState,
   (state: FriendsState) => state.error
 );
+
+export const selectIsSendingFriendRequest = createSelector(
+  selectFriendsState,
+  s => s.sendingFriendRequest
+);
+
+export const selectSendFriendRequestError = createSelector(
+  selectFriendsState,
+  s => s.sendFriendRequestError
+);
+
+export const selectSendFriendRequestSuccess = createSelector(
+  selectFriendsState,
+  s => s.sendFriendRequestSuccess
+);

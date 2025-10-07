@@ -45,7 +45,6 @@ import { nearbyProfilesReducer } from './reducers/reducers.location/nearby-profi
     StoreModule.forRoot(reducers),
 
     // FEATURE SLICES
-    StoreModule.forFeature('friends', friendsReducer),
     StoreModule.forFeature('userPreferences', userPreferencesReducer),
     StoreModule.forFeature('locationNearbyProfiles', nearbyProfilesReducer),
 

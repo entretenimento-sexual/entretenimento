@@ -123,6 +123,22 @@ export class UserInteractionsService {
     );
   }
 
+  /** 🔹 Rejeita uma solicitação de amizade (remove o doc da subcoleção) */
+  rejectFriendRequest(myUid: string, requesterUid: string): Observable<void> {
+    if (!myUid || !requesterUid) return of(void 0);
+    // Cada solicitação foi salva com docId = requesterUid (ver sendFriendRequest)
+    return this.dataSyncService.deleteDocument(`users/${myUid}/friendRequests`, requesterUid);
+  }
+
+  /** 🔎 Busca de usuários por termo (stub dev) — retorne [] até integrar uma query real */
+  findUsersBySearchTerm(term: string): Observable<IUserDados[]> {
+    const q = (term ?? '').trim();
+    if (!q) return of([]);
+    // TODO: Substituir por uma query real no Firestore / DataSyncService (index, prefix search, etc.)
+    // Por ora, devolve vazio para não quebrar o build:
+    return of([]);
+  }
+
   /** 🔹 Remove solicitações de amizade expiradas */
   cleanupExpiredRequests(uid: string): void {
     this.dataSyncService.getData<IFriendRequest[]>(

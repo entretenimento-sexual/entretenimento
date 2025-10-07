@@ -187,7 +187,8 @@ export class AuthOrchestratorService {
           this.hardSignOutToEntry('auth-invalid');
         }
       }
-    }, 30_000);
+      // Segurança extra: se o token expirou, mas o reload não lançou erro, força signOut
+    }, 600_000);
   }
 
   private stopKeepAlive(): void {

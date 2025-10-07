@@ -1,9 +1,8 @@
 // src/app/core/guards/email-verified.guard.ts
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree, ActivatedRouteSnapshot } from '@angular/router';
-import { Observable, of } from 'rxjs';
-import { map, take } from 'rxjs/operators';
-import { Auth, authState } from '@angular/fire/auth'; // ✅ AngularFire
+import { Auth } from '@angular/fire/auth';
+import { defer, from, map, of } from 'rxjs';
 import { environment } from 'src/environments/environment';
 
 function routeAllowsUnverified(route: ActivatedRouteSnapshot): boolean {
@@ -15,17 +14,18 @@ function routeAllowsUnverified(route: ActivatedRouteSnapshot): boolean {
   return false;
 }
 
-export const emailVerifiedGuard: CanActivateFn = (route, state): Observable<boolean | UrlTree> => {
+export const emailVerifiedGuard: CanActivateFn = (route, state) => {
   const router = inject(Router);
-  const auth = inject(Auth); // ⬅️ vem do provideAuth(...) no AppModule
+  const auth = inject(Auth);
 
   if (environment?.features?.enforceEmailVerified === false) {
     return of(true);
   }
 
-  return authState(auth).pipe(
-    take(1),
-    map(user => {
+  // ✅ Espera o ready, decide por currentUser
+  return defer(() => from((auth as any).authStateReady?.() ?? Promise.resolve())).pipe(
+    map(() => {
+      const user = auth.currentUser;
       if (!user) {
         return router.createUrlTree(['/login'], { queryParams: { redirectTo: state.url } });
       }

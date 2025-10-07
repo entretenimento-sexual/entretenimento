@@ -1,11 +1,10 @@
 // src/app/core/guards/auth.guard.ts
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree } from '@angular/router';
-import { of, from } from 'rxjs';
-import { take, switchMap, map, catchError } from 'rxjs/operators';
+import { defer, from, map, of, switchMap, take, catchError } from 'rxjs';
 
 import { FirestoreUserQueryService } from '../services/data-handling/firestore-user-query.service';
-import { Auth, user } from '@angular/fire/auth';
+import { Auth } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
 
 export const authGuard: CanActivateFn = (_route, state) => {
@@ -23,13 +22,14 @@ export const authGuard: CanActivateFn = (_route, state) => {
 
   const enforceVerified = !!environment?.features?.enforceEmailVerified;
 
-  return user(auth).pipe(
-    take(1),
+  // ✅ Espera a restauração e decide com base em auth.currentUser
+  return defer(() => from((auth as any).authStateReady?.() ?? Promise.resolve())).pipe(
+    map(() => auth.currentUser),
     switchMap((u) => {
       if (!u) return of<UrlTree | boolean>(toLogin());
 
-      // força refresh para capturar disable/delete de Console/Admin
-      return from(u.reload()).pipe(
+      // (opcional) reload defensivo, mas sem quebrar a decisão se falhar
+      return defer(() => from(u.reload())).pipe(
         catchError(() => of(void 0)),
         map(() => auth.currentUser),
         switchMap((refreshed) => {

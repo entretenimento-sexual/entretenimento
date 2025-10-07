@@ -2,19 +2,8 @@
 import { Injectable } from '@angular/core';
 import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, switchMap, map, tap, timeout } from 'rxjs/operators';
-
-import {
-  // ⬇️ use as funções/Tipos do AngularFire (zona-safe)
-  createUserWithEmailAndPassword,  sendPasswordResetEmail,
-  updateProfile, type UserCredential, Auth } from '@angular/fire/auth';
-
-import {
-  // ⬇️ Firestore via AngularFire
-  doc,
-  runTransaction,
-  writeBatch,
-  Timestamp,
-} from '@angular/fire/firestore';
+import { Auth } from '@angular/fire/auth';
+import { doc, runTransaction, writeBatch, Timestamp } from 'firebase/firestore';
 
 import { FirestoreService } from '../../data-handling/firestore.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
@@ -24,6 +13,12 @@ import { EmailVerificationService } from './email-verification.service';
 import { ValidatorService } from '../../general/validator.service';
 import { FirebaseError } from 'firebase/app';
 import { environment } from 'src/environments/environment';
+import {
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
+  UserCredential
+} from 'firebase/auth';
 
 // novos serviços “substitutivos” ao antigo AuthService
 import { CurrentUserStoreService } from '../auth/current-user-store.service';
@@ -183,10 +178,7 @@ export class RegisterService {
     );
   }
 
-  private persistUserAndIndexAtomic(
-    uid: string,
-    nickname: string,
-    payload: IUserRegistrationData
+  private persistUserAndIndexAtomic(uid: string, nickname: string, payload: IUserRegistrationData
   ): Observable<void> {
     const db = this.firestoreService.getFirestoreInstance();
 

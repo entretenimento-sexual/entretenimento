@@ -1,16 +1,23 @@
-/* src\app\header\navbar\navbar.component.css */
+/* src/app/header/navbar/navbar.component.css */
 .navbar-with-links {
   display: flex;
-  flex-direction: column;  /* empilha verticalmente nav e links-interaction */
+  flex-direction: column;
   width: 100%;
   height: var(--header-height);
+  background: var(--header-bg);
+  /* usa tokens */
+  color: var(--header-fg);
 }
 
 /* Barra de navegação */
 .navbar {
-  background-color: #333;
+  background: var(--header-bg);
+  /* antes: #333 */
+  color: var(--header-fg);
   display: flex;
-  align-items: center;  /* justify-content: center; // se quiser centralizar algo no nav */
+  align-items: center;
+  border-bottom: 1px solid var(--surface-border);
+  /* separação sutil */
 }
 
 /* Container principal do nav (logo + menu) */
@@ -38,14 +45,32 @@
   display: flex;
   gap: 20px;
   align-items: center;
-  flex-grow: 0;  /* não expande */
-  justify-content: flex-end;  /* à direita */
+  flex-grow: 0;
+  justify-content: flex-end;
 }
 
 /* Itens do menu */
 .navbar-item {
   flex-grow: 0;
   flex-shrink: 0;
+}
+
+/* Links do menu */
+.navbar-item a {
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 16px;
+  transition: background-color .2s, transform .2s, color .2s;
+  color: var(--header-fg);  /* antes: white */
+  text-decoration: none;
+  display: block;
+}
+
+.navbar-item a:hover,
+.navbar-item a:focus-visible {
+  background-color: var(--header-hover-bg);  /* antes: #555 */
+  color: var(--header-fg);
+  outline: none;
 }
 
 /* Foto do usuário */
@@ -55,22 +80,6 @@
   border-radius: 50%;
   margin-right: 10px;
   object-fit: cover;
-}
-
-/* Links do menu */
-.navbar-item a {
-  padding: 5px 10px;
-  border-radius: 4px;
-  font-size: 16px;
-  transition: background-color 0.2s, transform 0.2s;
-  color: white;
-  text-decoration: none;
-  display: block;
-}
-
-.navbar-item a:hover {
-  background-color: #555;
-  transform: scale(1.05);
 }
 
 /* Logo */
@@ -85,12 +94,12 @@
   background: none;
   border: none;
   font-size: 24px;
-  color: white;
+  color: var(--header-fg);
+  /* antes: white */
   display: none;
   cursor: pointer;
 }
 
-/* Ajuste para mobile */
 @media only screen and (max-width: 600px) {
   .hamburger-btn {
     display: inline-block;
@@ -113,7 +122,7 @@
 }
 
 .user-info {
-  color: #fff;
+  color: var(--header-fg);
   display: flex;
   align-items: center;
   gap: 10px;

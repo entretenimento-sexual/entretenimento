@@ -4,10 +4,12 @@ import { CommonModule, AsyncPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { BehaviorSubject, Observable, firstValueFrom, combineLatest, interval } from 'rxjs';
-import { map, startWith } from 'rxjs/operators';
+import { map, startWith, filter, take } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
+// ⛳️ MIGRAÇÃO: usamos a store canônica do usuário (app-level) no lugar do antigo AuthService
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { GeolocationService, GeolocationError, GeolocationErrorCode } from 'src/app/core/services/geolocation/geolocation.service';
 import { DistanceCalculationService } from 'src/app/core/services/geolocation/distance-calculation.service';
@@ -57,7 +59,8 @@ export class OnlineUsersComponent implements OnInit {
   private readonly LS_LAST_COORDS = 'geo:lastCoords';
 
   constructor(
-    protected readonly authService: AuthService,
+    // ⛳️ MIGRAÇÃO: substitui AuthService por CurrentUserStoreService
+    protected readonly currentUserStore: CurrentUserStoreService,
     private readonly geolocationService: GeolocationService,
     private readonly distanceService: DistanceCalculationService,
     private readonly errorNotificationService: ErrorNotificationService,
@@ -66,10 +69,17 @@ export class OnlineUsersComponent implements OnInit {
   ) { }
 
   // ============== Ciclo de vida ==============
+
   ngOnInit(): void {
-    // Se já permitiu e o browser está com geolocation=granted, ativa automático e silencioso
-    this.tryAutoEnableLocation();
-  }
+      firstValueFrom(
+        this.currentUserStore.user$.pipe(
+          filter((u): u is IUserDados | null => u !== undefined), // 👈 remove undefined do fluxo
+          take(1)
+        )
+        )
+        .then(user => this.tryAutoEnableLocation(user))
+              .catch(err => this.handleGeoError(err));
+          }
 
   // ============== Fluxo principal ==============
   /** Botão “Ativar localização” */
@@ -79,7 +89,7 @@ export class OnlineUsersComponent implements OnInit {
 
   /**
    * Ativa a localização e arma o pipeline da lista:
-   * - obtém usuário logado
+   * - obtém usuário logado (via CurrentUserStoreService)
    * - pega posição (respeita gesto/HTTPS)
    * - aplica política (coarse + cap de raio)
    * - persiste preferências simples
@@ -90,9 +100,13 @@ export class OnlineUsersComponent implements OnInit {
     this.loading = true;
 
     try {
-      // 1) Usuário logado
-      const currentUser = await firstValueFrom(this.authService.user$);
-      if (!currentUser?.uid) throw new Error('[OnlineUsers] Usuário não encontrado.');
+      // 1) Usuário logado (⛳️ MIGRAÇÃO: origem mudou)
+      const currentUser = await firstValueFrom(
+        this.currentUserStore.user$.pipe(
+          filter((u): u is IUserDados => !!u?.uid),
+          take(1)
+        )
+      );
 
       // 2) Posição atual (pode vir undefined — fazemos guard)
       const raw = await firstValueFrom(
@@ -221,8 +235,15 @@ export class OnlineUsersComponent implements OnInit {
   }
 
   // ============== Auto-ativação ==============
-  private async tryAutoEnableLocation(): Promise<void> {
-    if (!this.readAlwaysAllow()) return;
+  /**
+   * Auto-ativa somente se:
+   *  - houver usuário (uid válido)
+   *  - a preferência local (LS_ALWAYS_ALLOW) estiver ligada
+   *  - permissão do navegador estiver "granted"
+   */
+  private async tryAutoEnableLocation(user: IUserDados | null): Promise<void> {
+    if (!user?.uid) return;                      // precisa de usuário
+    if (!this.readAlwaysAllow()) return;         // precisa da preferência local marcada
     const state = await this.getPermissionStateSafe();
     if (state === 'granted') {
       await this.enableLocationInternal({ requireUserGesture: false, silent: true });

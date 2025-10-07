@@ -1,1 +1,19 @@
 /* src\app\admin-dashboard\user-list\user-list.component.css */
+.spacer {
+  flex: 1 1 auto;
+}
+
+mat-card-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.table-wrapper {
+  overflow: auto;
+  max-height: calc(100vh - 280px);
+}
+
+mat-card {
+  display: block;
+}

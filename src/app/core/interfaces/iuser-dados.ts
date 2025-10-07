@@ -13,7 +13,7 @@ export interface IUserDados {
   photoURL: string | null | undefined;
   nome?: string; // Nome completo do usuário
   idade?: number; // Idade do usuário
-  role: 'visitante' |'free' | 'basico' | 'premium' | 'vip';
+  role: 'visitante' |'free' | 'basic' | 'premium' | 'vip';
   lastLogin: Timestamp; // Data do último login
   firstLogin: Timestamp | Date | null;
   createdAt?: Timestamp | Date | null; //Data da criação do perfil pelo usuário

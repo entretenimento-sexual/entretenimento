@@ -1,27 +1,32 @@
-<!-- src\app\layout\friend.management\friend-actions\friend-actions.component.html -->
 @if (user && user.uid) {
-  <div class="friend-actions">
-    <p>Ações de Amizade para: <strong>{{ user.nickname || 'Usuário' }}</strong></p>
-    <!-- 🔹 Campo para mensagem curta -->
-    <mat-form-field appearance="outline">
-      <mat-label>Mensagem curta</mat-label>
-      <input matInput #messageInput>
+<div class="friend-actions" aria-live="polite">
+  <p>Ações de Amizade para: <strong>{{ user.nickname || 'Usuário' }}</strong></p>
+
+  <form [formGroup]="form" (ngSubmit)="send()">
+    <mat-form-field appearance="outline" class="w-full">
+      <mat-label>UID do amigo</mat-label>
+      <input matInput formControlName="friendUid" autocomplete="off" aria-label="UID do amigo">
+      @if (form.get('friendUid')?.touched && form.get('friendUid')?.invalid) {
+      <small class="text-warn">Informe um UID válido (min 6 caracteres).</small>
+      }
     </mat-form-field>
-    <button mat-button color="primary" [disabled]="isLoading$ | async"
-      (click)="sendFriendRequest(user!.uid, messageInput.value)">
+
+    <mat-form-field appearance="outline" class="w-full">
+      <mat-label>Mensagem curta (opcional)</mat-label>
+      <input matInput formControlName="message" maxlength="140" aria-label="Mensagem curta">
+      <mat-hint align="end">{{ form.get('message')?.value?.length || 0 }}/140</mat-hint>
+    </mat-form-field>
+
+    <button mat-raised-button color="primary" type="submit" [disabled]="(isSending$ | async) || form.invalid">
       Enviar Solicitação
     </button>
-    @if (isLoading$ | async) {
-      <mat-spinner></mat-spinner>
-    }
-    @if ((friendRequests$ | async)?.length) {
-      <p>Solicitação enviada com sucesso!</p>
-    }
-    <!-- 🔥 Exibimos a lista de solicitações de amizade -->
+    @if (isSending$ | async) { <mat-spinner diameter="24"></mat-spinner> }
+  </form>
+
+  <section class="mt-4">
     <app-friend-requests [user]="user"></app-friend-requests>
-    <!-- 🔥 Agora temos a lista de amigos -->
-    <app-friend-list [user]="user"></app-friend-list>
-    <!-- 🔥 E também a lista de bloqueados -->
+    <app-friend-list [user]="user" [limit]="6"></app-friend-list>
     <app-friend-blocked [user]="user"></app-friend-blocked>
-  </div>
+  </section>
+</div>
 }

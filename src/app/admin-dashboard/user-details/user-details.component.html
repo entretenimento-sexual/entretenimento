@@ -1,18 +1,26 @@
 <!-- src\app\admin-dashboard\user-details\user-details.component.html -->
-<h2>Detalhes do Usuário</h2>
+<mat-card *ngIf="user as u">
+  <mat-card-header>
+    <mat-card-title>{{ u.nome }}</mat-card-title>
+    <mat-card-subtitle>{{ u.email }}</mat-card-subtitle>
+  </mat-card-header>
 
-@if (user) {
-  <div>
-    <p><strong>Nome:</strong> {{ user.nome }}</p>
-    <p><strong>Email:</strong> {{ user.email }}</p>
-    <p><strong>Status:</strong> {{ user.suspended ? 'Suspenso' : 'Ativo' }}</p>
-    @if (!user.suspended) {
-      <button (click)="suspendUser()">Suspender</button>
-    }
-    @if (user.suspended) {
-      <button (click)="unsuspendUser()">Reativar</button>
-    }
-    <button class="danger" (click)="deleteUser()">Excluir Usuário</button>
-  </div>
-}
+  <mat-card-content>
+    <p><strong>UID:</strong> {{ u.uid }}</p>
+    <p>
+      <strong>Status:</strong>
+      <mat-chip [color]="u.suspended ? 'warn' : 'primary'" selected>
+        {{ u.suspended ? 'Suspenso' : 'Ativo' }}
+      </mat-chip>
+    </p>
+  </mat-card-content>
 
+  <mat-progress-bar *ngIf="loading" mode="indeterminate"></mat-progress-bar>
+
+  <mat-card-actions align="end">
+    <button mat-stroked-button color="primary" (click)="!u.suspended ? suspendUser() : unsuspendUser()">
+      {{ u.suspended ? 'Reativar' : 'Suspender' }}
+    </button>
+    <button mat-raised-button color="warn" (click)="deleteUser()">Excluir</button>
+  </mat-card-actions>
+</mat-card>

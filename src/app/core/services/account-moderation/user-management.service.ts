@@ -3,7 +3,8 @@ import { Injectable } from '@angular/core';
 import { FirestoreService } from '../data-handling/firestore.service';
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 import { Auth } from '@angular/fire/auth';             // ✅ injete o Auth
-import { deleteUser } from 'firebase/auth';            // função modular do SDK
+import { deleteUser } from 'firebase/auth';
+import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 import { Observable, of, throwError, from } from 'rxjs';
 import { concatMap, catchError, map } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
@@ -13,8 +14,13 @@ export class UserManagementService {
   constructor(
     private firestoreService: FirestoreService,
     private firestoreQuery: FirestoreQueryService,
-    private auth: Auth                                         // ✅ DI do Angular
+    private auth: Auth,
+    private firestoreUserQuery: FirestoreUserQueryService
   ) { }
+
+  getUserById(uid: string) {
+    return this.firestoreUserQuery.getUserById(uid);
+  }
 
   resetLoginAttempts(uid: string): Observable<void> {
     return this.firestoreService.updateDocument('users', uid, { loginAttempts: 0 });

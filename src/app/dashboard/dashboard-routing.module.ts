@@ -6,14 +6,13 @@ import { FeaturedProfilesComponent } from './featured-profiles/featured-profiles
 import { PrincipalComponent } from './principal/principal.component';
 import { ChatRoomsComponent } from '../chat-module/chat-rooms/chat-rooms.component';
 import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
-import { authOnlyGuard } from '../core/guards/auth-only.guard';
 import { emailVerifiedGuard } from '../core/guards/email-verified.guard';
 
 const routes: Routes = [
   {
     path: '',
     component: DashboardLayoutComponent,
-    canActivate: [authOnlyGuard], // << era authGuard
+    canActivate: [], // << era authGuard
     children: [
       { path: 'principal', component: PrincipalComponent }, // permite sem verificar
       { path: 'online-users', component: OnlineUsersComponent }, // opcional exigir

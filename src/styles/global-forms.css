@@ -8,7 +8,6 @@
   border-radius: 8px;
   font-size: 1rem;
   background-color: var(--input-background);
-  color: var(--text-color);
   transition: border-color 0.3s ease, box-shadow 0.2s ease;
 }
 
@@ -27,6 +26,81 @@
 
 .input-field.ng-invalid.ng-touched {
   border-color: var(--danger-color);
+}
+
+/* === Range Acessível (Chrome/Safari/Edge) === */
+input[type="range"],
+.form-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: var(--range-track-height);
+  background: transparent;
+  width: 100%;
+}
+
+/* trilho */
+input[type="range"]::-webkit-slider-runnable-track,
+.form-range::-webkit-slider-runnable-track {
+  height: var(--range-track-height);
+  background-color: var(--range-track-color);
+  border-radius: var(--radius-sm);
+}
+
+/* polegar */
+input[type="range"]::-webkit-slider-thumb,
+.form-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--range-thumb-size);
+  height: var(--range-thumb-size);
+  border-radius: 50%;
+  background: var(--primary-color);
+  box-shadow: var(--range-thumb-shadow);
+  margin-top: calc((var(--range-track-height) - var(--range-thumb-size)) / 2);
+  transition: transform .1s ease;
+}
+
+/* foco visível */
+input[type="range"]:focus-visible,
+.form-range:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* interação */
+input[type="range"]::-webkit-slider-thumb:hover,
+.form-range::-webkit-slider-thumb:hover {
+  transform: scale(1.05);
+}
+
+/* === Firefox === */
+input[type="range"]::-moz-range-track,
+.form-range::-moz-range-track {
+  height: var(--range-track-height);
+  background-color: var(--range-track-color);
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+input[type="range"]::-moz-range-thumb,
+.form-range::-moz-range-thumb {
+  width: var(--range-thumb-size);
+  height: var(--range-thumb-size);
+  border-radius: 50%;
+  border: none;
+  background: var(--primary-color);
+  box-shadow: var(--range-thumb-shadow);
+}
+
+/* foco visível no Firefox */
+input[type="range"]:focus-visible::-moz-range-thumb,
+.form-range:focus-visible::-moz-range-thumb {
+  outline: var(--focus-ring);
+}
+
+/* Tooltips/erros acima de overlays */
+.tooltip-error {
+  z-index: 1000;
 }
 
 .toggle-input {
@@ -118,4 +192,66 @@
   min-height: 70vh;
   background-color: var(--background-color);
   font-family: var(--font-family-primary);
+}
+
+/* Inputs com borda nítida (HC) */
+html.high-contrast .input-field {
+  background: var(--background-color);
+  color: var(--text-color);
+  border: 2px solid var(--text-color);
+}
+
+html.high-contrast .input-field:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  box-shadow: none;
+}
+
+/* Slider (Chrome/Edge/Safari) em HC */
+html.high-contrast input[type="range"],
+html.high-contrast .form-range {
+  height: var(--range-track-height);
+}
+
+html.high-contrast input[type="range"]::-webkit-slider-runnable-track,
+html.high-contrast .form-range::-webkit-slider-runnable-track {
+  background: var(--range-track-color);
+  height: 4px;
+}
+
+html.high-contrast input[type="range"]::-webkit-slider-thumb,
+html.high-contrast .form-range::-webkit-slider-thumb {
+  background: var(--background-color);
+  border: 3px solid var(--text-color);
+  width: var(--range-thumb-size);
+  height: var(--range-thumb-size);
+  margin-top: calc((4px - var(--range-thumb-size)) / 2);
+  box-shadow: none;
+}
+
+/* Slider (Firefox) em HC */
+html.high-contrast input[type="range"]::-moz-range-track,
+html.high-contrast .form-range::-moz-range-track {
+  background: var(--range-track-color);
+  height: 4px;
+}
+
+html.high-contrast input[type="range"]::-moz-range-thumb,
+html.high-contrast .form-range::-moz-range-thumb {
+  background: var(--background-color);
+  border: 3px solid var(--text-color);
+  width: var(--range-thumb-size);
+  height: var(--range-thumb-size);
+  box-shadow: none;
+}
+
+/* Tooltips e snackbars com contraste alto */
+html.high-contrast .tooltip-error,
+html.high-contrast .success-snackbar,
+html.high-contrast .error-snackbar,
+html.high-contrast .info-snackbar,
+html.high-contrast .warning-snackbar {
+  color: #000 !important;
+  background: #ff0 !important;
+  border: 3px solid #000 !important;
 }

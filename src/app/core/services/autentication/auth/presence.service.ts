@@ -1,21 +1,24 @@
 // src/app/core/services/autentication/auth/presence.service.ts
-import { Injectable } from '@angular/core';
+import { Injectable, NgZone } from '@angular/core';
+import { Firestore } from '@angular/fire/firestore';
 import { doc, updateDoc, serverTimestamp as fsServerTimestamp } from 'firebase/firestore';
-import { FirestoreService } from '@core/services/data-handling/firestore.service';
 
 @Injectable({ providedIn: 'root' })
+
 export class PresenceService {
   private heartbeatTimer: any = null;
   private beforeUnloadHandler?: () => void;
 
-  constructor(private fsService: FirestoreService) { }
+  constructor(
+              private db: Firestore, // ✅ Injeta o Firestore diretamente
+              private zone: NgZone
+              ) { }
 
   start(uid: string): void {
     if (!uid) return;
     if (this.heartbeatTimer) return;
 
-    const fs = this.fsService.getFirestoreInstance();
-    const userRef = doc(fs, 'users', uid);
+    const userRef = doc(this.db, 'users', uid);
 
     const tick = () => {
       if (typeof navigator !== 'undefined' && !navigator.onLine) return;

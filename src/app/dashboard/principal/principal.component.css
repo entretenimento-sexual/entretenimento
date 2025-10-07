@@ -5,18 +5,85 @@
   gap: 20px;
 }
 
+/* Card de boas-vindas com superfície */
 .welcome-section {
   grid-column: 1 / -1;
-  /* Ocupa toda a linha */
-  background-color: #e9ecef;
+  background-color: var(--surface-color);  /* antes: #ffffff */
+  color: var(--text-color);
   padding: 20px;
   border-radius: 8px;
+  border-left: 6px solid var(--primary-color);
+  box-shadow: var(--box-shadow);
+  border: 1px solid var(--surface-border);
+}
+
+.welcome-section h1 {
+  margin-bottom: 8px;
+  line-height: 1.2;
+}
+
+.welcome-section p {
+  margin: 6px 0;
+  line-height: 1.5;
 }
 
 .online-users-section,
 .latest-photos-section {
-  background-color: #ffffff;
+  background-color: var(--surface-color);  /* antes: #ffffff */
+  color: var(--text-color);
   padding: 15px;
   border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--surface-border);  /* antes: rgba(0,0,0,0.08) */
+  box-shadow: var(--box-shadow);
+}
+
+.online-users-section h2,
+.latest-photos-section h2 {
+  margin-bottom: 12px;
+  line-height: 1.25;
+}
+
+.friends-section {
+  background-color: var(--surface-color);
+  color: var(--text-color);
+  padding: 15px;
+  border-radius: 8px;
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--box-shadow);
+}
+
+.friends-section h2 {
+  margin-bottom: 12px;
+  line-height: 1.25;
+}
+
+.ver-todos:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* Dark mode: NÃO precisa bloco extra — já herdamos via variáveis */
+
+/* High contrast: borda forte e sem sombra */
+:root.high-contrast .welcome-section,
+:root.high-contrast .online-users-section,
+:root.high-contrast .latest-photos-section {
+  background: var(--surface-color) !important;
+  color: var(--text-color) !important;
+  border: 3px solid var(--surface-border) !important;
+  box-shadow: none !important;
+}
+
+/* Botão em HC com contraste alto */
+:root.high-contrast .ver-todos {
+  background: var(--primary-color) !important;
+  color: var(--background-color) !important;
+  border: 2px solid var(--surface-border) !important;
+}
+
+@media (max-width: 768px) {
+  .principal-container {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
 }
