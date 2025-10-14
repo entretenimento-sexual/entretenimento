@@ -25,7 +25,13 @@
 
   <section class="mt-4">
     <app-friend-requests [user]="user"></app-friend-requests>
-    <app-friend-list [user]="user" [limit]="6"></app-friend-list>
+    <app-friend-list
+                      [user]="user"
+                      [limit]="6"
+                      [displayMode]="'dashboard'"
+                      [sortBy]="'online'"
+                      [filters]="{ onlyOnline: true }">
+    </app-friend-list>
     <app-friend-blocked [user]="user"></app-friend-blocked>
   </section>
 </div>

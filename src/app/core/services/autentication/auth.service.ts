@@ -1,4 +1,5 @@
 // src/app/core/services/autentication/auth.service.ts
+//sendo descontinuado
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { Router } from '@angular/router';
 import { Observable, BehaviorSubject, of, from } from 'rxjs';
@@ -19,6 +20,7 @@ import { GeolocationTrackingService } from '../geolocation/geolocation-tracking.
 
 import { Auth, authState, signOut, type User } from '@angular/fire/auth';
 import { doc, updateDoc, serverTimestamp as fsServerTimestamp, Firestore } from '@angular/fire/firestore';
+import { PresenceService } from './auth/presence.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -26,8 +28,6 @@ export class AuthService {
   user$: Observable<IUserDados | null> = this.userSubject.asObservable();
 
   private cachedUid$: Observable<string | null> | null = null;
-  private heartbeatTimer: any = null;
-  private beforeUnloadHandler?: () => void;
   private readonly NET_TIMEOUT_MS = 10000;
 
   constructor(
@@ -35,6 +35,7 @@ export class AuthService {
     private firestoreUserQuery: FirestoreUserQueryService,
     private globalErrorHandlerService: GlobalErrorHandlerService,
     private cacheService: CacheService,
+    private presence: PresenceService,
     private store: Store<AppState>,
     private emailVerificationService: EmailVerificationService,
     private geoloc: GeolocationTrackingService,
@@ -49,47 +50,6 @@ export class AuthService {
   /** Helper para garantir contexto de injeção em qualquer callback async */
   private afRun<T>(fn: () => T): T {
     return runInInjectionContext(this.injector, fn);
-  }
-
-  private startHeartbeat(uid: string): void {
-    if (this.heartbeatTimer) return;
-
-    // crie o ref dentro do contexto
-    const userRef = this.afRun(() => doc(this.db, 'users', uid));
-
-    const safeUpdate = (online: boolean) =>
-      this.afRun(() =>
-        updateDoc(userRef, { isOnline: online, lastSeen: fsServerTimestamp() }).catch(() => { })
-      );
-
-    const tick = () => {
-      if (typeof navigator !== 'undefined' && !navigator.onLine) return;
-      safeUpdate(true);
-    };
-
-    // 1ª batida já dentro do contexto
-    tick();
-
-    // timer executa a cada 30s *dentro* do contexto de injeção
-    this.heartbeatTimer = setInterval(() => this.afRun(tick), 30_000);
-
-    // listeners também chamam dentro do contexto
-    this.beforeUnloadHandler = () => safeUpdate(false);
-    window.addEventListener('beforeunload', this.beforeUnloadHandler);
-
-    window.addEventListener('offline', () => safeUpdate(false));
-    window.addEventListener('online', () => this.afRun(tick));
-  }
-
-  private stopHeartbeat(): void {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
-    }
-    if (this.beforeUnloadHandler) {
-      window.removeEventListener('beforeunload', this.beforeUnloadHandler);
-      this.beforeUnloadHandler = undefined;
-    }
   }
 
   private buildMinimalUserFromAuth(u: User): IUserDados {
@@ -138,7 +98,7 @@ export class AuthService {
       tap((userData) => {
         if (userData) {
           this.setCurrentUser(userData);
-          this.startHeartbeat(userData.uid);
+          this.presence.start(userData.uid);
           const authUser = this.auth.currentUser;
           if (authUser?.emailVerified && userData.emailVerified !== true) {
             this.emailVerificationService
@@ -146,6 +106,7 @@ export class AuthService {
               .subscribe({ next: () => { }, error: () => { } });
           }
         } else {
+          this.presence.stop();
           this.clearCurrentUser();
           this.geoloc.stopTracking();
         }
@@ -190,7 +151,7 @@ export class AuthService {
   }
 
   private clearCurrentUser(): void {
-    this.stopHeartbeat();
+    this.presence.stop();
     this.userSubject.next(null);
     localStorage.removeItem('currentUser');
     this.cachedUid$ = null;
@@ -214,17 +175,24 @@ export class AuthService {
       take(1),
       switchMap((uid) => {
         if (!uid) return of(void 0);
-        this.stopHeartbeat();
+        this.presence.stop();
+        // ⚠️ NÃO engula erro aqui: deixe o log aparecer se falhar
         return this.usuarioService.updateUserOnlineStatus(uid, false).pipe(
-          switchMap(() => from(signOut(this.auth)).pipe(timeout({ each: this.NET_TIMEOUT_MS }))),
+          switchMap(() => from(signOut(this.auth))),
           tap(() => {
             this.clearCurrentUser();
             this.geoloc.stopTracking();
           }),
           switchMap(() => from(this.router.navigate(['/login']))),
-          map(() => void 0),
-          catchError(() => of(void 0))
+          map(() => void 0)
         );
+      }),
+      catchError((err) => {
+        console.error('[AuthService.logout] falhou ao setar offline:', err);
+        // Mesmo se falhar, finalize a sessão local p/ não travar o usuário
+        this.clearCurrentUser();
+        this.geoloc.stopTracking();
+        return of(void 0);
       })
     );
   }

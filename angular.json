@@ -36,6 +36,7 @@
               "src/styles/reset.css",
               "node_modules/bootstrap/dist/css/bootstrap.min.css",
               "node_modules/@angular/material/prebuilt-themes/indigo-pink.css",
+              "src/styles/angular-material-bridge.css",
               "node_modules/@fortawesome/fontawesome-free/css/all.css",
               "src/styles/variables.css",
               "src/styles/global-layout.css",

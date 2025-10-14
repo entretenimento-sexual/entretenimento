@@ -1,166 +1,177 @@
-/* src\app\shared\user-card\user-card.component.css */
+/* Card base */
 .user-card {
-  border-radius: 10px;
+  position: relative;
+  display: block;
+  width: 100%;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
   overflow: hidden;
-  transition: transform 0.2s, box-shadow 0.2s;
-  max-width: 220px;
-  margin: 5px auto;
-  padding: 5px;
-  background-color: #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  font-family: 'Roboto', sans-serif;
+  background: var(--surface-color);
+  color: var(--text-color);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .08);
+  transition: transform .2s, box-shadow .2s;
+  line-height: 1.25;
+  /* tipografia mais compacta */
 }
+
 .user-card:hover {
-  transform: scale(1.05);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .18);
 }
 
-.card-body a.text-muted {
-  text-decoration: none;
-  font-size: 0.8rem;
+/* Mídia (foto) — maior por padrão */
+.media {
+  position: relative;
+  display: block;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
 }
 
-.card-body a.text-muted:hover {
-  text-decoration: underline;
-  color: #007bff;
+@media (max-width: 360px) {
+  .media {
+    aspect-ratio: 1.1 / 1;
+  }
 }
 
-/* Nickname - estilização das diferentes classes */
-.nickname-online {
-  color: #fff;  /* Texto em branco para maior contraste */
-  background-color: #28a745;  /* Fundo verde para indicar online */
-  padding: 5px;
-  border-radius: 5px;
-  font-weight: bold;
-}
-
-.nickname-offline {
-  color: #fff;  /* Texto em branco para contraste */
-  background-color: #6c757d;  /* Fundo cinza */
-  padding: 5px;
-  border-radius: 5px;
-}
-
-.nickname-recent {
-  color: #fff;  /* Texto em branco */
-  background-color: #007bff;  /* Fundo azul */
-  padding: 5px;
-  border-radius: 5px;
-  font-weight: bold;
-}
-
-.nickname-inactive {
-  color: #fff;  /* Texto em branco */
-  background-color: #dc3545;  /* Fundo vermelho para indicar inatividade */
-  padding: 5px;
-  border-radius: 5px;
-  font-style: italic;
-}
-
-/* Imagem de perfil */
+/* phones muito pequenos */
 .profile-photo {
   width: 100%;
-  height: 180px;
+  height: 100%;
   object-fit: cover;
-  border-radius: 0;
+  display: block;
 }
 
-/* Texto no card */
-.card-title {
-  font-weight: 600;
-  font-size: 1rem;
-  margin-bottom: 5px;
-  text-align: center;
+/* Faixa do nickname integrada na imagem */
+.nick-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: .5rem .75rem;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  color: #fff;
+  font-weight: 700;
+  background: linear-gradient(to top, rgba(0, 0, 0, .55) 0%, rgba(0, 0, 0, .35) 60%, rgba(0, 0, 0, 0) 100%);
 }
 
-.card-text {
-  font-size: 0.8rem;
-  color: #6c757d;
-  text-align: center;
-  margin-bottom: 5px;
+.status-dot {
+  width: .6rem;
+  height: .6rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, .25);
 }
 
-/* Estilização para o botão de enviar mensagem */
+.nick-strip.is-online .status-dot {
+  background: #2ecc71;
+}
+
+.nick-strip.is-offline .status-dot {
+  background: #bdc3c7;
+}
+
+.nick {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Corpo */
+.user-card .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  /* menos espaço entre linhas */
+  padding: 12px 14px 14px;
+}
+
+.meta {
+  margin: 0;
+  font-size: .92rem;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+}
+
+.description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  min-height: 2.4em;
+  margin: .15rem 0 .3rem;
+  color: color-mix(in oklab, var(--text-color) 65%, transparent);
+}
+
+.distance {
+  margin: 0;
+  font-size: .92rem;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+
+.distance-ico {
+  opacity: .9;
+}
+
+/* Ações */
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .6rem;
+  width: 100%;
+  margin-top: auto;
+}
+
+.actions .btn {
+  inline-size: 100%;
+  min-width: 0;
+  justify-content: center;
+  padding: .55rem .75rem;
+  line-height: 1.1;
+  border-radius: 8px;
+}
+
 .btn-outline-primary {
-  font-size: 0.9rem;
-  padding: 8px 12px;
+  font-size: .9rem;
   color: var(--primary-color);
   border: 1px solid var(--primary-color);
-  background-color: transparent;
-  transition: background-color 0.3s, color 0.3s, transform 0.2s;
-}
-
-.btn-outline-primary i {
-  font-size: 1rem;
-}
-
-/* Foto de perfil no modal */
-.profile-photo-modal {
-  width: 80px;
-  height: 80px;
-  object-fit: cover;
-  border: 2px solid #007bff;
-}
-
-/* Nome do destinatário */
-.modal-recipient-name {
-  font-weight: bold;
-  font-size: 1.2rem;
-  margin-bottom: 1rem;
-}
-
-/* Textarea para mensagem */
-.message-textarea {
-  min-height: 150px;
-  resize: vertical;
-}
-
-/* Botões no modal */
-.modal-footer .btn {
-  margin: 0 0.5rem;
-}
-
-/* Estilização do modal */
-.modal-content {
-  background-color: #f8f9fa;
-  border-radius: 10px;
-  box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+  background: transparent;
+  transition: background-color .2s, color .2s, transform .2s;
 }
 
 .btn-outline-primary:hover {
-  background-color: var(--primary-color);
+  background: var(--primary-color);
   color: #fff;
-  transform: scale(1.05);
-}
-.btn-outline-primary span {
-  margin-left: 5px;
+  transform: translateY(-1px);
 }
 
-/* Responsividade */
-@media (max-width: 576px) {
-  .user-card {
-    max-width: 100%;
-    padding: 10px;
-  }
+.btn-outline-success {
+  font-size: .9rem;
+}
 
-  .profile-photo {
-    height: 150px;
-  }
+.actions .btn i {
+  flex: 0 0 auto;
+}
 
-  .card-title {
-    font-size: 0.9rem;
-  }
+.actions .btn .btn-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-  .card-text {
-    font-size: 0.8rem;
+/* Responsivo — botões em coluna no mobile estreito */
+@media (max-width: 420px) {
+  .actions {
+    grid-template-columns: 1fr;
   }
+}
 
-  .btn-outline-primary {
-    font-size: 0.8rem;
-    padding: 6px 10px;
-  }
-
-  .btn-outline-primary i {
-    font-size: 0.9rem;
-  }
+/* Alto contraste */
+:root.high-contrast .user-card {
+  border: 3px solid var(--text-color);
+  box-shadow: none;
 }

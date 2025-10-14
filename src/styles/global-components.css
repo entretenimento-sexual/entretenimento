@@ -183,3 +183,28 @@ html.high-contrast .alert {
   background: #ff0 !important;  /* amarelo forte */
   border: 3px solid #000 !important;
 }
+
+/* Variante ghost/link para ações discretas */
+.btn-ghost {
+  background: transparent !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--surface-border) !important;
+}
+
+.btn-ghost:hover,
+.btn-ghost:focus-visible {
+  background: var(--header-hover-bg) !important;
+}
+
+/* Variante link (só texto) mantendo foco visível */
+.btn-link {
+  background: transparent !important;
+  color: var(--primary-color) !important;
+  border: none !important;
+  padding: 0 !important;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: var(--primary-hover) !important;
+}

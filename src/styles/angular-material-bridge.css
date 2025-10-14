@@ -1,0 +1,101 @@
+/* src\styles\angular-material-bridge.css */
+/* ============ Angular Material Overrides (globais) ============ */
+
+/* mat-form-field (outline) – bordas, label, input, fundo */
+.mat-mdc-form-field {
+  --mdc-outlined-text-field-outline-color: var(--surface-border);
+  --mdc-outlined-text-field-hover-outline-color: var(--surface-border);
+  --mdc-outlined-text-field-focus-outline-color: var(--primary-color);
+
+  --mdc-outlined-text-field-label-text-color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  --mdc-outlined-text-field-input-text-color: var(--text-color);
+  --mdc-outlined-text-field-caret-color: var(--primary-color);
+
+  background: var(--input-background);
+}
+
+.mdc-notched-outline__leading,
+.mdc-notched-outline__notch,
+.mdc-notched-outline__trailing {
+  border-color: var(--surface-border) !important;
+}
+
+.mdc-text-field--focused .mdc-notched-outline__leading,
+.mdc-text-field--focused .mdc-notched-outline__notch,
+.mdc-text-field--focused .mdc-notched-outline__trailing {
+  border-color: var(--primary-color) !important;
+}
+
+.mat-mdc-form-field mat-label {
+  color: var(--text-color) !important;
+}
+
+.mat-mdc-input-element {
+  color: var(--text-color) !important;
+}
+
+.mat-mdc-input-element::placeholder {
+  color: color-mix(in oklab, var(--text-color) 55%, transparent);
+}
+
+/* mat-select trigger (texto + chevron) */
+.mat-mdc-select {
+  --mat-select-enabled-trigger-text-color: var(--text-color);
+  --mat-select-focused-trigger-text-color: var(--text-color);
+}
+
+.mat-mdc-select-trigger,
+.mat-mdc-select-value,
+.mat-mdc-select-arrow {
+  color: var(--text-color) !important;
+}
+
+/* mat-select panel (overlay) – opções como “Recentes/Online/…” */
+.cdk-overlay-container .mat-mdc-select-panel,
+.cdk-overlay-pane .mat-mdc-select-panel {
+  background: var(--surface-color) !important;
+  color: var(--text-color) !important;
+  border: 1px solid var(--surface-border) !important;
+}
+
+.cdk-overlay-container .mat-mdc-select-panel .mat-mdc-option .mdc-list-item__primary-text,
+.cdk-overlay-pane .mat-mdc-select-panel .mat-mdc-option .mdc-list-item__primary-text {
+  color: var(--text-color) !important;
+}
+
+.cdk-overlay-container .mat-mdc-select-panel .mat-mdc-option:hover,
+.cdk-overlay-pane .mat-mdc-select-panel .mat-mdc-option:hover {
+  background: color-mix(in oklab, var(--primary-color) 18%, transparent) !important;
+}
+
+.cdk-overlay-container .mat-mdc-select-panel .mat-mdc-option.mdc-list-item--selected,
+.cdk-overlay-pane .mat-mdc-select-panel .mat-mdc-option.mdc-list-item--selected {
+  background: color-mix(in oklab, var(--primary-color) 24%, transparent) !important;
+}
+
+/* slide-toggle (“Só online”) – rótulo e estados */
+.mat-mdc-slide-toggle .mdc-form-field {
+  color: var(--text-color) !important;
+}
+
+.mat-mdc-slide-toggle {
+  --mdc-switch-selected-track-color: color-mix(in oklab, var(--primary-color) 50%, transparent);
+  --mdc-switch-selected-handle-color: var(--primary-color);
+  --mdc-switch-selected-icon-color: #fff;
+  --mdc-switch-unselected-track-color: var(--surface-border);
+  --mdc-switch-unselected-handle-color: var(--text-color);
+}
+
+/* chips das métricas (X amigos / online / pedidos / bloqueados) */
+.mat-mdc-chip,
+.mat-mdc-chip .mdc-evolution-chip__text-label,
+.mat-mdc-chip .mat-mdc-chip-action-label,
+mat-chip,
+mat-chip .mdc-evolution-chip__text-label {
+  color: var(--text-color) !important;
+}
+
+mat-chip mat-icon,
+.mat-mdc-chip mat-icon {
+  color: var(--text-color) !important;
+}

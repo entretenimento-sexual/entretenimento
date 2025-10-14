@@ -9,14 +9,16 @@
 
   @if (friendRequests$ | async; as requests) {
   <ul>
-    @for (req of requests; track req) {
+    @for (req of requests; track req.id) {
     <li>
       <mat-card>
         <mat-card-title>De: {{ req.requesterUid }}</mat-card-title>
         <mat-card-subtitle>{{ req.message || 'Sem mensagem' }}</mat-card-subtitle>
+
         <mat-card-content>
-          Enviado em: {{ req.timestamp | date:'short' }}
+          Enviado em: {{ req.createdAt.toDate() | date:'short' }}
         </mat-card-content>
+
         <mat-card-actions>
           <button mat-button color="primary" [disabled]="isLoading$ | async" (click)="acceptRequest(req)">
             Aceitar

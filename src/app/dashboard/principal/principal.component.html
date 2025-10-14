@@ -10,7 +10,7 @@
 
   <section class="online-users-section">
     <h2>Usuários Online</h2>
-    <app-online-users></app-online-users>
+    <app-online-users [currentUser]="(currentUser$ | async)"></app-online-users>
   </section>
 
   <section class="latest-photos-section">
@@ -19,10 +19,39 @@
   </section>
 
   <section class="friends-section">
-    <h2>Seus Amigos</h2>
+    <h2 id="friends-heading">Seus Amigos</h2>
+
+    <!-- ✅ NOVO: mini-toolbar acessível -->
+    <div role="toolbar" aria-labelledby="friends-heading" class="friends-toolbar"
+      style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-secondary" type="button" (click)="toggleExpand()" aria-controls="friends-list-region"
+        [attr.aria-expanded]="expanded()">
+        {{ expanded() ? 'Compactar' : 'Expandir' }}
+      </button>
+
+      <label class="sr-only" for="sortSelect">Ordenar por</label>
+      <mat-select id="sortSelect" placeholder="Ordenar por" [value]="sortBy()" (valueChange)="onSortChange($event)"
+        style="min-width:160px">
+        <mat-option value="online">Online</mat-option>
+        <mat-option value="recent">Recentes</mat-option>
+        <mat-option value="distance">Distância</mat-option>
+        <mat-option value="alpha">A–Z</mat-option>
+      </mat-select>
+
+      <mat-slide-toggle [checked]="filters().onlyOnline ?? false" (change)="onOnlyOnlineToggle($event.checked)">
+        Só online
+      </mat-slide-toggle>
+
+      <!-- Link para página completa -->
+      <a class="btn btn-secondary" routerLink="/friends/list">Ver Todos</a>
+    </div>
 
     @if ((currentUser$ | async); as user) {
-      <app-friend-list [user]="user" [limit]="6"></app-friend-list>
+    <div id="friends-list-region">
+      <app-friend-list [user]="user" [limit]="expanded() ? 0 : 6" [displayMode]="expanded() ? 'full' : 'dashboard'"
+        [sortBy]="sortBy()" [filters]="filters()">
+      </app-friend-list>
+    </div>
     }
 
     @if (showSeeAll$ | async) {

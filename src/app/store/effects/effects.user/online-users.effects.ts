@@ -1,6 +1,6 @@
+//src\app\store\effects\effects.user\online-users.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { catchError, map, mergeMap, withLatestFrom, tap } from 'rxjs/operators';
 import { of } from 'rxjs';

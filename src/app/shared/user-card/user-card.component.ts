@@ -16,7 +16,7 @@ import { sendFriendRequest } from 'src/app/store/actions/actions.interactions/ac
     selector: 'app-user-card',
     templateUrl: './user-card.component.html',
     styleUrls: ['./user-card.component.css'],
-    providers: [DateFormatPipe], // Adiciona o pipe como provedor do componente
+    providers: [DateFormatPipe], 
     standalone: true,
     imports: [CommonModule, RouterModule]
 })
@@ -56,7 +56,7 @@ export class UserCardComponent {
     this.userInteractionsService.sendFriendRequest('meuUid', user.uid).subscribe({
       next: () => {
         const userValue = this.user();
-        this.store.dispatch(sendFriendRequest({ userUid: 'meuUid', friendUid: userValue!.uid }));
+        this.store.dispatch(sendFriendRequest({ requesterUid: 'meuUid', targetUid: userValue!.uid }));
         this.errorNotifier.showSuccess(`Solicitação de amizade enviada para ${userValue?.nickname || 'usuário'}!`);
       },
       error: (err) => {

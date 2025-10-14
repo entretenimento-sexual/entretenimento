@@ -8,7 +8,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AppState } from 'src/app/store/states/app.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { IFriendRequest } from '../../../core/interfaces/friendship/ifriend-request';
+import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
 
 import { FriendBlockedComponent } from '../friend-blocked/friend-blocked.component';
 import { FriendListComponent } from '../friend-list/friend-list.component';
@@ -22,31 +22,36 @@ import { MatButtonModule } from '@angular/material/button';
 import {
   sendFriendRequest,
   resetSendFriendRequestStatus,
-  loadRequests,
+  loadInboundRequests,   // ✅ em vez de loadRequests
   loadFriends,
 } from 'src/app/store/actions/actions.interactions/actions.friends';
+
 import {
   selectFriendRequests,
+  // estes três adicionaremos no passo 2
   selectIsSendingFriendRequest,
   selectSendFriendRequestError,
   selectSendFriendRequestSuccess,
 } from 'src/app/store/selectors/selectors.interactions/friend.selector';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
 
 @Component({
   selector: 'app-friend-actions',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule, ReactiveFormsModule,
-    MatProgressSpinnerModule, MatFormFieldModule, MatInputModule, MatButtonModule,
-    FriendBlockedComponent, FriendListComponent, FriendRequestsComponent,
+    CommonModule,
+    ReactiveFormsModule,
+    SharedMaterialModule,          // ✅ menos repetição
+    FriendBlockedComponent,
+    FriendListComponent,
+    FriendRequestsComponent,
   ],
   templateUrl: './friend-actions.component.html',
   styleUrl: './friend-actions.component.css',
 })
-
 export class FriendActionsComponent implements OnInit {
   @Input({ required: true }) user!: IUserDados;
 
@@ -56,13 +61,12 @@ export class FriendActionsComponent implements OnInit {
 
   form!: FormGroup;
 
-  friendRequests$!: Observable<IFriendRequest[]>;
+  friendRequests$!: Observable<(FriendRequest & { id: string })[]>; // ✅ tipagem correta
   isSending$!: Observable<boolean>;
   sendError$!: Observable<string | null>;
   sendSuccess$!: Observable<boolean>;
 
   ngOnInit(): void {
-    // form com validações leves (reforce no backend)
     this.form = this.fb.group({
       friendUid: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(64)]],
       message: ['', [Validators.maxLength(140)]],
@@ -70,31 +74,29 @@ export class FriendActionsComponent implements OnInit {
 
     if (!this.user?.uid) return;
 
-    // popula observables do store
+    // store selectors
     this.friendRequests$ = this.store.select(selectFriendRequests);
     this.isSending$ = this.store.select(selectIsSendingFriendRequest);
     this.sendError$ = this.store.select(selectSendFriendRequestError);
     this.sendSuccess$ = this.store.select(selectSendFriendRequestSuccess);
 
-    // carrega listas iniciais
+    // carregar dados iniciais
     this.store.dispatch(loadFriends({ uid: this.user.uid }));
-    this.store.dispatch(loadRequests());
+    this.store.dispatch(loadInboundRequests({ uid: this.user.uid })); // ✅ era loadRequests()
 
-    // feedback visual ao usuário (sucesso/erro) — idealmente isso vive em Effects,
-    // mas aqui deixamos um listener fino em ambiente dev.
+    // feedback de envio
     this.sendSuccess$
       .pipe(takeUntilDestroyed(), filter(Boolean))
       .subscribe(() => {
         this.notifier.showSuccess('Solicitação enviada!');
-        this.form.reset();               // limpa o form
-        this.store.dispatch(loadRequests()); // recarrega pendências
-        this.store.dispatch(resetSendFriendRequestStatus()); // zera flags
+        this.form.reset();
+        this.store.dispatch(loadInboundRequests({ uid: this.user.uid })); // recarrega inbox
+        this.store.dispatch(resetSendFriendRequestStatus());
       });
 
     this.sendError$
       .pipe(takeUntilDestroyed(), filter((e): e is string => !!e))
       .subscribe((msg) => {
-        // global-error-handler deve cuidar de erros inesperados; aqui focamos em mensagens de domínio
         this.notifier.showError('Erro ao enviar solicitação.', msg);
         this.store.dispatch(resetSendFriendRequestStatus());
       });
@@ -111,21 +113,19 @@ export class FriendActionsComponent implements OnInit {
     const friendUid = (this.form.value.friendUid as string).trim();
     const message = ((this.form.value.message as string) || '').trim();
 
-    // não permite auto-solicitação
     if (friendUid === this.user.uid) {
       this.notifier.showInfo('Você não pode enviar solicitação para si mesmo.');
       return;
     }
-
-    // pequena sanitização; regras completas devem ser server-side
     if (/[\n\r\t]/.test(message)) {
       this.notifier.showInfo('A mensagem não pode conter quebras de linha.');
       return;
     }
 
+    // ✅ nomes de props corretos da action:
     this.store.dispatch(sendFriendRequest({
-      userUid: this.user.uid,
-      friendUid,
+      requesterUid: this.user.uid,
+      targetUid: friendUid,
       message,
     }));
   }

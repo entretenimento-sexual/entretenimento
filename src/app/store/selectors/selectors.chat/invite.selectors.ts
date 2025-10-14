@@ -2,17 +2,11 @@
 import { createFeatureSelector, createSelector } from '@ngrx/store';
 import { InviteState } from '../../states/states.chat/invite.state';
 
-// Seletor para o estado de convites
 export const selectInviteState = createFeatureSelector<InviteState>('invite');
 
-// Selecionar todos os convites
-export const selectInvites = createSelector(selectInviteState, (state) => state.invites);
+export const selectInvites = createSelector(selectInviteState, s => s.invites);
+export const selectInvitesLoading = createSelector(selectInviteState, s => s.loading);
+export const selectInvitesError = createSelector(selectInviteState, s => s.error);
 
-// Selecionar convites pendentes
-export const selectPendingInvites = createSelector(selectInvites, (invites) =>
-  invites.filter((invite) => invite.status === 'pending')
-);
-
-// Selecionar um convite específico pelo ID
-export const selectInviteById = (inviteId: string) =>
-  createSelector(selectInvites, (invites) => invites.find((invite) => invite.id === inviteId));
+export const selectPendingInvites = createSelector(selectInvites, list => list.filter(i => i.status === 'pending'));
+export const selectPendingInvitesCount = createSelector(selectPendingInvites, list => list.length);

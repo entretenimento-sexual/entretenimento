@@ -16,6 +16,12 @@ export const selectCurrentUser: MemoizedSelector<AppState, IUserDados | null> = 
   }
 );
 
+/** ✅ Novo: emite apenas uid (string | undefined) */
+export const selectCurrentUserUid = createSelector(
+  selectCurrentUser,
+  (u) => u?.uid
+);
+
 // Seleciona todos os usuários armazenados no estado.
 export const selectAllUsers = createSelector(
   selectUserState,

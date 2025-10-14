@@ -1,164 +1,215 @@
 // src/app/core/services/data-handling/user-interactions.service.ts
+// DEPRECATED: use FriendshipService instead, which uses DataSyncService internally.
+// DEPRECATED: use FriendshipService instead, which uses DataSyncService internally.
+// DEPRECATED: use FriendshipService instead, which uses DataSyncService internally.
 import { Injectable } from '@angular/core';
 import { DataSyncService } from '../general/cache/cache+store/data-sync.service';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { Observable, of, switchMap, take, tap, map } from 'rxjs';
-import { IFriendRequest } from '../../interfaces/friendship/ifriend-request';
-import { IBlockedUser, IFriend } from '../../interfaces/friendship/ifriend';
-import { IUserDados } from '../../interfaces/iuser-dados';
 
-@Injectable({
-  providedIn: 'root'
-})
+import { IUserDados } from '../../interfaces/iuser-dados';
+import { Friend } from '../../interfaces/friendship/friend.interface';
+import { FriendRequest } from '../../interfaces/friendship/friend-request.interface';
+import { BlockedUser } from '../../interfaces/friendship/blocked-user.interface';
+
+import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
+import { Timestamp } from 'firebase/firestore';
+
+@Injectable({ providedIn: 'root' })
 export class UserInteractionsService {
   constructor(
-    private dataSyncService: DataSyncService,
-    private store: Store<AppState>
+    private dataSync: DataSyncService,
+    private store: Store<AppState>,
+    private notify: ErrorNotificationService
   ) { }
 
-  /** 🔹 Retorna a lista de amigos de um usuário */
-  listFriends(uid: string): Observable<IFriend[]> {
-    if (!uid) {
-      return of([]);
-    }
+  /** Garante que o valor é um IUserDados */
+  private isUserDados = (x: unknown): x is IUserDados =>
+    !!x && typeof x === 'object' && 'uid' in (x as any);
 
-    return this.dataSyncService.getData<IFriend[]>(
-      `friends:${uid}`,
-      state => Array.isArray(state.friends?.friends) ? state.friends.friends : [],
-      `users/${uid}/friends`
-    ).pipe(
-      map(friends => Array.isArray(friends) ? friends.flat() : []),
-      tap(friends => console.log(`✅ Amigos carregados:`, friends))
-    );
+  /** 🔹 Lista de amigos de um usuário */
+  listFriends(uid: string): Observable<Friend[]> {
+    if (!uid) return of([]);
+
+    return this.dataSync
+      .getData<Friend[]>(
+        `friends:${uid}`,
+        state => (Array.isArray(state.friends?.friends) ? state.friends.friends : []),
+        `users/${uid}/friends`
+      )
+      .pipe(
+        map(friends => (Array.isArray(friends) ? friends.flat() : [])),
+        tap(friends => console.debug('[Friendship] Amigos carregados:', friends))
+      );
   }
 
-  /** 🔹 Envia uma solicitação de amizade */
+  /** 🔹 Envia solicitação de amizade (doc em: users/{targetUid}/friendRequests/{requesterUid}) */
   sendFriendRequest(uid: string, friendUid: string, message: string = ''): Observable<void> {
-    if (!uid || !friendUid) {
-      return of(void 0);
-    }
+    if (!uid || !friendUid || uid === friendUid) return of(void 0);
 
-    const requestData: IFriendRequest = {
+    const requestData: FriendRequest = {
       requesterUid: uid,
-      recipientUid: friendUid,
-      type: 'request',
+      targetUid: friendUid,
       message,
-      timestamp: new Date(),
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // Expira em 30 dias
+      status: 'pending',
+      createdAt: Timestamp.now(),
+      expiresAt: Timestamp.fromMillis(Date.now() + 30 * 24 * 60 * 60 * 1000), // +30d
     };
 
-    return this.dataSyncService.saveData<IFriendRequest>(
-      `friend_requests:${friendUid}`,
-      state => Array.isArray(state.friends?.requests) ? state.friends.requests : [],
-      `users/${friendUid}/friendRequests`,
-      uid,  // ✅ Passando `docId` corretamente
-      requestData
-    );
+    // cacheKey e selector seguem seu padrão de DataSyncService
+    return this.dataSync
+      .saveData<FriendRequest>(
+        `friend_requests:${friendUid}`,
+        state => (Array.isArray(state.friends?.requests) ? state.friends.requests : []),
+        `users/${friendUid}/friendRequests`,
+        uid, // docId = requesterUid
+        requestData
+      )
+      .pipe(
+        tap(() => {
+          console.debug('[Friendship] Solicitação enviada:', requestData);
+          this.notify.showSuccess('Solicitação de amizade enviada.');
+        })
+      );
   }
 
-  /** 🔹 Bloqueia um usuário */
-  blockUser(uid: string, friendUid: string): Observable<void> {
-    if (!uid || !friendUid) {
-      return of(void 0);
-    }
+  /** 🔹 Bloquear usuário (doc: users/{ownerUid}/blocked/{targetUid}) */
+  blockUser(uid: string, friendUid: string, reason?: string): Observable<void> {
+    if (!uid || !friendUid) return of(void 0);
 
-    const blockData: IBlockedUser = {
-      blockerUid: uid,
-      blockedUid: friendUid,
-      timestamp: new Date()
+    const blockData: BlockedUser = {
+      uid: friendUid,
+      reason,
+      blockedAt: Timestamp.now(),
     };
 
-    return this.dataSyncService.saveData<IBlockedUser>(
-      `blocked:${uid}`,
-      state => Array.isArray(state.friends?.blocked) ? state.friends.blocked : [],
-      `users/${uid}/blocked`,
-      friendUid, // ✅ Passando `docId` corretamente
-      blockData
-    );
+    return this.dataSync
+      .saveData<BlockedUser>(
+        `blocked:${uid}`,
+        state => (Array.isArray(state.friends?.blocked) ? state.friends.blocked : []),
+        `users/${uid}/blocked`,
+        friendUid, // docId
+        blockData
+      )
+      .pipe(
+        tap(() => {
+          console.debug('[Friendship] Usuário bloqueado:', blockData);
+          this.notify.showInfo('Usuário bloqueado.');
+        })
+      );
   }
 
-  /** 🔹 Aceita uma solicitação de amizade */
-  acceptFriendRequest(uid: string, friendUid: string): Observable<void> {
-    if (!uid || !friendUid) {
-      return of(void 0);
-    }
+  acceptFriendRequest(myUid: string, friendUid: string): Observable<void> {
+    if (!myUid || !friendUid) return of(void 0);
 
-    return this.dataSyncService.getData<IUserDados>(
-      `users:${friendUid}`,
-      state => {
-        const userState = state.user as unknown;
-        if (Array.isArray(userState)) {
-          return userState.find((u: IUserDados) => u.uid === friendUid) ?? null;
-        }
-        return typeof userState === 'object' && userState !== null
-          ? (userState as Record<string, IUserDados>)[friendUid] ?? null
-          : null;
-      },
-      `users/${friendUid}`
-    ).pipe(
-      switchMap(friendDetails => {
-        if (!friendDetails || Array.isArray(friendDetails)) {
-          return of(void 0);
-        }
+    return this.dataSync
+      // 👇 aceite que pode vir array e trate abaixo
+      .getData<IUserDados | (IUserDados | null)[]>(
+        `users:${friendUid}`,
+        (state) => {
+          const userState: unknown = (state as any).user;
 
-        const friendData: IFriend = {
-          friendUid,
-          friendSince: new Date(),
-          nickname: friendDetails.nickname ?? undefined,
-          photoURL: friendDetails.photoURL ?? undefined,
-          municipioEstado: friendDetails.municipio ? `${friendDetails.municipio} - ${friendDetails.estado ?? ''}` : undefined,
-          gender: friendDetails.gender ?? undefined,
-          idade: friendDetails.idade ?? undefined
-        };
+          if (Array.isArray(userState)) {
+            // quando o estado for array, tente localizar o usuário
+            const found = (userState as (IUserDados | null)[]).find(
+              (u): u is IUserDados => this.isUserDados(u) && u.uid === friendUid
+            );
+            return found ? [found] : [];
+          }
 
-        return this.dataSyncService.saveData<IFriend>(
-          `friends:${uid}`,
-          state => Array.isArray(state.friends?.friends) ? state.friends.friends : [],
-          `users/${uid}/friends`,
-          friendUid,  // ✅ Passando `docId` corretamente
-          friendData
-        );
-      })
-    );
+          if (userState && typeof userState === 'object') {
+            const byId = (userState as Record<string, IUserDados>)[friendUid];
+            return byId ? [byId] : [];
+          }
+
+          return [];
+        },
+        `users/${friendUid}`
+      )
+      .pipe(
+        switchMap((raw) => {
+          // 🔎 Narrow final: se vier array, extraia um único objeto; se vier objeto, valide
+          const friendDetails: IUserDados | null = Array.isArray(raw)
+            ? raw.find((u): u is IUserDados => this.isUserDados(u) && u.uid === friendUid) ?? null
+            : (this.isUserDados(raw) ? raw : null);
+
+          const nowTs = Timestamp.now();
+
+          const friendData: Friend = {
+            friendUid,
+            since: nowTs,
+            lastInteractionAt: nowTs,
+            nickname: friendDetails?.nickname ?? undefined, // ✅ agora o TS aceita
+          };
+
+          return this.dataSync.saveData<Friend>(
+            `friends:${myUid}`,
+            state => (Array.isArray(state.friends?.friends) ? state.friends.friends : []),
+            `users/${myUid}/friends`,
+            friendUid,
+            friendData
+          );
+        }),
+        tap(() => {
+          console.debug('[Friendship] Solicitação aceita. Novo amigo:', { myUid, friendUid });
+          this.notify.showSuccess('Agora vocês são amigos!');
+        })
+      );
   }
 
-  /** 🔹 Rejeita uma solicitação de amizade (remove o doc da subcoleção) */
+  /** 🔹 Rejeita solicitação (remove o doc da subcoleção inbound) */
   rejectFriendRequest(myUid: string, requesterUid: string): Observable<void> {
     if (!myUid || !requesterUid) return of(void 0);
-    // Cada solicitação foi salva com docId = requesterUid (ver sendFriendRequest)
-    return this.dataSyncService.deleteDocument(`users/${myUid}/friendRequests`, requesterUid);
+
+    return this.dataSync
+      .deleteDocument(`users/${myUid}/friendRequests`, requesterUid)
+      .pipe(
+        tap(() => {
+          console.debug('[Friendship] Solicitação rejeitada:', { myUid, requesterUid });
+          this.notify.showInfo('Solicitação rejeitada.');
+        })
+      );
   }
 
-  /** 🔎 Busca de usuários por termo (stub dev) — retorne [] até integrar uma query real */
+  /** 🔎 Busca de usuários (stub) */
   findUsersBySearchTerm(term: string): Observable<IUserDados[]> {
     const q = (term ?? '').trim();
     if (!q) return of([]);
-    // TODO: Substituir por uma query real no Firestore / DataSyncService (index, prefix search, etc.)
-    // Por ora, devolve vazio para não quebrar o build:
+    // TODO: integrar query real no Firestore / index
     return of([]);
   }
 
-  /** 🔹 Remove solicitações de amizade expiradas */
+  /** 🔹 Limpa solicitações expiradas na inbox do usuário (users/{uid}/friendRequests) */
   cleanupExpiredRequests(uid: string): void {
-    this.dataSyncService.getData<IFriendRequest[]>(
-      `friend_requests:${uid}`,
-      state => Array.isArray(state.friends?.requests) ? state.friends.requests : [],
-      `users/${uid}/friendRequests`
-    ).pipe(take(1)).subscribe(requests => {
-      if (!requests.length) {
-        return;
-      }
+    this.dataSync
+      // 👇 Force a retornar lista (ou null)
+      .getData<FriendRequest[] | null>(
+        `friend_requests:${uid}`,
+        state => (Array.isArray(state.friends?.requests) ? state.friends.requests : []),
+        `users/${uid}/friendRequests`
+      )
+      .pipe(take(1))
+      .subscribe((requests) => {
+        // 👇 Garanta array tipado de FriendRequest
+        const list: FriendRequest[] = Array.isArray(requests) ? requests as FriendRequest[] : [];
+        if (!list.length) return;
 
-      const expiredRequests = requests.filter(req =>
-        req && !Array.isArray(req) && req.expiresAt && new Date(req.expiresAt) <= new Date()
-      );
+        const now = Date.now();
 
-      expiredRequests.forEach(request => {
-        if (request && typeof request === 'object' && 'recipientUid' in request) {
-          this.dataSyncService.deleteDocument(`users/${uid}/friendRequests`, request.recipientUid).subscribe(); // ✅ Passando `docId`
+        // ✅ Acesse expiresAt com segurança (Timestamp | undefined)
+        const expired = list.filter(r => !!r?.expiresAt && r.expiresAt!.toMillis() <= now);
+
+        for (const req of expired) {
+          // inbound: docId = requesterUid
+          if (req.requesterUid) {
+            this.dataSync
+              .deleteDocument(`users/${uid}/friendRequests`, req.requesterUid)
+              .subscribe(() =>
+                console.debug('[Friendship] Solicitação expirada removida:', req.requesterUid)
+              );
+          }
         }
       });
-    });
   }
 }

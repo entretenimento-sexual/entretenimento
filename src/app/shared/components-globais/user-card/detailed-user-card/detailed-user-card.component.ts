@@ -1,5 +1,4 @@
 //src\app\shared\components-globais\user-card\detailed-user-card\detailed-user-card.component.ts
-
 import { Component, input } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { BaseUserCardComponent } from '../base-user-card/base-user-card.component';

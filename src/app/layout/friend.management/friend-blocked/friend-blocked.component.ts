@@ -1,13 +1,23 @@
-//src\app\layout\friend.management\friend-blocked\friend-blocked.component.ts
+// src/app/layout/friend.management/friend-blocked/friend-blocked.component.ts
 import { Component, OnInit, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Store, select } from '@ngrx/store';
 import { Observable } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AppState } from 'src/app/store/states/app.state';
-import { UserInteractionsService } from 'src/app/core/services/data-handling/user-interactions.service';
-import { loadBlocked } from 'src/app/store/actions/actions.interactions/actions.friends';
-import { IBlockedUser } from 'src/app/core/interfaces/friendship/ifriend';
+
+// ✅ novas ações unificadas de amizade
+import {
+  loadBlockedUsers,
+  // se você decidir usar NgRx pra bloquear/desbloquear via effects:
+  // blockUser,
+  // unblockUser,
+} from '../../../store/actions/actions.interactions/actions.friends';
+
+import { BlockedUser } from 'src/app/core/interfaces/friendship/blocked-user.interface';
+
+// ✅ novo serviço unificado
+import { FriendshipService } from 'src/app/core/services/interactions/friendship.service';
 
 @Component({
   selector: 'app-friend-blocked',
@@ -17,35 +27,48 @@ import { IBlockedUser } from 'src/app/core/interfaces/friendship/ifriend';
   styleUrl: './friend-blocked.component.css'
 })
 export class FriendBlockedComponent implements OnInit {
-  readonly user = input.required<IUserDados>(); // ⬅ Agora recebemos `user` como Input
-  blockedUsers$!: Observable<IBlockedUser[]>;
+  readonly user = input.required<IUserDados>();
+  blockedUsers$!: Observable<BlockedUser[]>;
 
   constructor(
     private store: Store<AppState>,
-    private userInteractionsService: UserInteractionsService
+    private friendship: FriendshipService, // ⬅️ trocou o serviço
   ) { }
 
   ngOnInit(): void {
-    const user = this.user();
-    if (!user || !user.uid) return; // ⬅ Garante que o usuário está disponível
+    const u = this.user();
+    if (!u?.uid) return;
 
-    this.store.dispatch(loadBlocked());
+    // ⬅️ nova action
+    this.store.dispatch(loadBlockedUsers({ uid: u.uid }));
+
+    // você pode manter esse select direto enquanto não cria selectors dedicados
     this.blockedUsers$ = this.store.pipe(select(state => state.friends.blocked));
   }
 
   blockUser(friendUid: string): void {
-    const user = this.user();
-    if (!user?.uid) return;
-    this.userInteractionsService.blockUser(user.uid, friendUid).subscribe(() => {
-      this.store.dispatch(loadBlocked()); // 🔄 Atualiza a lista de bloqueados
+    const u = this.user();
+    if (!u?.uid) return;
+
+    // Se ainda não tiver Effects pra isso, usa o serviço e depois refaz o load:
+    this.friendship.blockUser(u.uid, friendUid).subscribe(() => {
+      this.store.dispatch(loadBlockedUsers({ uid: u.uid }));
     });
+
+    // Quando tiver Effects prontos:
+    // this.store.dispatch(blockUser({ ownerUid: u.uid, targetUid: friendUid }));
   }
 
   unblockUser(friendUid: string): void {
-    const user = this.user();
-    if (!user?.uid) return;
-    this.userInteractionsService.blockUser(user.uid, friendUid).subscribe(() => {
-      this.store.dispatch(loadBlocked()); // 🔄 Atualiza a lista após desbloqueio
+    const u = this.user();
+    if (!u?.uid) return;
+
+    // Corrigido: chamar o método certo
+    this.friendship.unblockUser(u.uid, friendUid).subscribe(() => {
+      this.store.dispatch(loadBlockedUsers({ uid: u.uid }));
     });
+
+    // Quando tiver Effects prontos:
+    // this.store.dispatch(unblockUser({ ownerUid: u.uid, targetUid: friendUid }));
   }
 }

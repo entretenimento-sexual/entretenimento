@@ -1,85 +1,115 @@
-//src\app\store\selectors\selectors.interactions\friend.selector.ts
+// src/app/store/selectors/selectors.interactions/friend.selector.ts
 import { createSelector, createFeatureSelector } from '@ngrx/store';
-import { FriendsState } from '../../states/states.interactions/friends.state';
+import { FriendsState, initialState } from '../../states/states.interactions/friends.state'; // ✅ do states
+import { AppState } from '../../states/app.state';
 
-// 🔍 Obtém a Feature 'friends'
-export const selectFriendsState = createFeatureSelector<FriendsState>('friends');
+/** ✅ Feature key deve bater com StoreModule.forFeature */
+export const selectFriendsState =
+  createFeatureSelector<FriendsState>('interactions_friends');
 
-/** 🔄 SELETORES PARA AMIGOS */
-// 🔥 Obtém a lista de todos os amigos
+/** 🔒 Guard leve para evitar crash em dev se a feature ainda não montou (evita TypeError) */
+const selectFriendsStateSafe = createSelector(
+  (state: AppState) => state as any,
+  (state) => (state?.['interactions_friends'] as FriendsState) ?? initialState
+);
+
+/** 🔄 Amigos */
+export const selectFriends = createSelector(
+  selectFriendsStateSafe,
+  (s) => s.friends
+);
+
 export const selectAllFriends = createSelector(
-  selectFriendsState,
-  (state: FriendsState) => Array.isArray(state.friends) ? state.friends : []
+  selectFriends,
+  (friends) => Array.isArray(friends) ? friends : []
 );
 
-export const selectAllFriendsFlattened = createSelector(
-  selectAllFriends,
-  (friends) => friends.flat() // 🔥 Garante um array unidimensional
-);
-
-// 🔥 Obtém a contagem total de amigos
 export const selectFriendsCount = createSelector(
   selectAllFriends,
   (friends) => friends.length
 );
 
-/** 📩 SELETORES PARA SOLICITAÇÕES DE AMIZADE */
-// 🔥 Obtém a lista de todas as solicitações de amizade pendentes
+/** 📩 Solicitações (seu reducer salva em "requests") */
 export const selectFriendRequests = createSelector(
-  selectFriendsState,
-  (state: FriendsState) => state.requests
+  selectFriendsStateSafe,
+  (s) => s.requests
 );
 
-// 🔥 Obtém a contagem de solicitações pendentes
-export const selectPendingFriendRequestsCount = createSelector(  // 🔥 Agora está corrigido
+export const selectPendingFriendRequestsCount = createSelector(
   selectFriendRequests,
-  (requests) => requests ? requests.length : 0
+  (req) => req?.length ?? 0
 );
 
-/** 🚫 SELETORES PARA AMIGOS BLOQUEADOS */
-// 🔥 Obtém a lista de usuários bloqueados
+/** 🚫 Bloqueados */
 export const selectBlockedFriends = createSelector(
-  selectFriendsState,
-  (state: FriendsState) => state.blocked
+  selectFriendsStateSafe,
+  (s) => s.blocked
 );
 
-// 🔥 Obtém a contagem de usuários bloqueados
 export const selectBlockedFriendsCount = createSelector(
   selectBlockedFriends,
   (blocked) => blocked.length
 );
 
-/** ⏳ SELETORES PARA STATUS DE CARREGAMENTO */
-// 🔥 Obtém o status de carregamento
+/** ⏳ Loading + ❌ Error — use os nomes reais do seu reducer: "loading" e "loadingRequests" */
 export const selectFriendsLoading = createSelector(
-  selectFriendsState,
-  (state: FriendsState) => state.loading
+  selectFriendsStateSafe,
+  (s) => s.loading
 );
 
-// 🔥 Obtém se há alguma requisição de amizade sendo carregada
 export const selectRequestsLoading = createSelector(
-  selectFriendsState,
-  (state: FriendsState) => state.loadingRequests
+  selectFriendsStateSafe,
+  (s) => s.loadingRequests
 );
 
-/** ❌ SELETOR DE ERROS */
-// 🔥 Obtém os erros do estado de amigos
 export const selectFriendsError = createSelector(
-  selectFriendsState,
-  (state: FriendsState) => state.error
+  selectFriendsStateSafe,
+  (s) => s.error ?? null
 );
 
 export const selectIsSendingFriendRequest = createSelector(
-  selectFriendsState,
-  s => s.sendingFriendRequest
+  selectFriendsStateSafe,
+  (s) => s.sendingFriendRequest
 );
 
 export const selectSendFriendRequestError = createSelector(
-  selectFriendsState,
-  s => s.sendFriendRequestError
+  selectFriendsStateSafe,
+  (s) => s.sendFriendRequestError
 );
 
 export const selectSendFriendRequestSuccess = createSelector(
-  selectFriendsState,
-  s => s.sendFriendRequestSuccess
+  selectFriendsStateSafe,
+  (s) => s.sendFriendRequestSuccess
+);
+
+/** 👀 View Model (online/distância/etc.) */
+export interface FriendVM {
+  friendUid: string;
+  nickname?: string;
+  lastInteractionAt?: number;
+  distanceKm?: number;
+  isOnline?: boolean;
+}
+
+// "presence" é opcional; se não existir, não quebra
+const selectPresenceMap = (state: AppState) =>
+  ((state as any)?.presence?.byUid ?? {}) as Record<string, boolean>;
+
+export const selectFriendsVM = createSelector(
+  selectAllFriends,
+  selectPresenceMap, // continua igual
+  (friends, presence): FriendVM[] =>
+    friends.map((f: any) => {
+      const uid = f.friendUid ?? f.uid; // ✅ robusto a ambos
+      const fromPresence = !!presence[uid];
+      const fromFriend = typeof f.isOnline === 'boolean' ? f.isOnline : undefined;
+
+      return {
+        friendUid: uid,
+        nickname: f.nickname,
+        lastInteractionAt: f.lastInteractionAt ?? 0,
+        distanceKm: f.distanceKm,
+        isOnline: fromFriend ?? fromPresence,   // ✅ PRIORIDADE: Friend.isOnline
+      };
+    })
 );

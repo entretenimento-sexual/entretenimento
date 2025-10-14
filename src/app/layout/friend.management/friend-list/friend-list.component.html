@@ -1,41 +1,89 @@
 <!-- src/app/layout/friend.management/friend-list/friend-list.component.html -->
 @if (user() && user().uid) {
-<div class="friend-list">
-  <h4>Lista de Amigos</h4>
+<div class="friend-list" [class.compact]="displayMode() === 'dashboard'" [class.full]="displayMode() === 'full'"
+  role="region" aria-labelledby="friends-heading">
 
-  <!-- Carregando (usa loadingSafe$ para não “colar” eternamente se algo travar) -->
+  <h4 id="friends-heading">Lista de Amigos</h4>
+
   @if (loadingSafe$ | async) {
-  <div class="loading">
-    <mat-spinner></mat-spinner>
+  <div class="loading" role="status" aria-live="polite">
+    <mat-spinner diameter="28"></mat-spinner>
+    <span class="sr-only">Carregando amigos…</span>
   </div>
   } @else {
 
-  <!-- Erro -->
   @if (error$ | async; as errorMsg) {
-  <div class="error">
+  <div class="error" role="alert">
     <p>Não foi possível carregar seus amigos.</p>
     <small>{{ errorMsg }}</small>
   </div>
   } @else {
 
-  <!-- Sem amigos (somente quando não está carregando) -->
   @if (emptyAfterLoad$ | async) {
   <p>Você ainda não tem amigos adicionados…</p>
   } @else {
 
-  <!-- Lista -->
   @if (visibleFriends$ | async; as friends) {
   @if (friends.length > 0) {
+
   <ul>
     @for (friend of friends; track trackByFriend($index, friend)) {
-    <li>
-      {{ friend.nickname || friend.friendUid }}
-      <button mat-button color="warn" (click)="removeFriend(friend.friendUid)">
-        Remover
-      </button>
+    <li [class.is-online]="friend.isOnline">
+      <!-- Avatar monograma -->
+      <span class="friend-avatar" aria-hidden="true">
+        {{ (friend.nickname || friend.friendUid) | slice:0:1 | uppercase }}
+      </span>
+
+      <!-- Nome + meta -->
+      <div class="friend-info">
+        <span class="friend-nickname">
+          {{ friend.nickname || friend.friendUid }}
+        </span>
+
+        <span class="friend-meta">
+          @if (friend.isOnline) {
+          <span class="status-dot" aria-label="Online" title="Online"></span>
+          }
+          @if (friend.distanceKm !== undefined) {
+          <span class="pill distance" aria-label="Distância aproximada">
+            <i class="fa-solid fa-location-dot" aria-hidden="true"></i>
+            {{ friend.distanceKm | number:'1.0-1' }} km
+          </span>
+          }
+        </span>
+      </div>
+
+      <!-- Ações (links estilizados) -->
+      <div class="friend-actions">
+        <a class="btn btn-ghost btn-icon" [routerLink]="['/profile', friend.friendUid]"
+          aria-label="Ver perfil de {{ friend.nickname || friend.friendUid }}">
+          <i class="fa-solid fa-user" aria-hidden="true"></i>
+          Ver perfil
+        </a>
+
+        @if (displayMode() === 'dashboard') {
+        <a href="#" role="button" class="btn btn-secondary btn-icon"
+          (click)="inviteFriend(friend.friendUid); $event.preventDefault()">
+          <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+          Convidar
+        </a>
+        } @else {
+        <a href="#" role="button" class="btn btn-secondary btn-icon"
+          (click)="inviteFriend(friend.friendUid); $event.preventDefault()">
+          <i class="fa-solid fa-paper-plane" aria-hidden="true"></i>
+          Convidar
+        </a>
+        <a href="#" role="button" class="btn btn-danger btn-icon"
+          (click)="removeFriend(friend.friendUid); $event.preventDefault()">
+          <i class="fa-solid fa-user-xmark" aria-hidden="true"></i>
+          Remover
+        </a>
+        }
+      </div>
     </li>
     }
   </ul>
+
   }
   }
   }

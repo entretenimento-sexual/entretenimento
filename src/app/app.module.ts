@@ -4,35 +4,43 @@ import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-
 import { MatDialogModule } from '@angular/material/dialog';
-import { PhotoEditorModule } from './photo-editor/photo-editor.module';
+import { MatSnackBarModule } from '@angular/material/snack-bar';
 
 import { AppComponent } from './app.component';
 import { AppRoutingModule } from './app-routing.module';
-
 import { HeaderModule } from './header/header.module';
 import { FooterModule } from './footer/footer.module';
+import { PhotoEditorModule } from './photo-editor/photo-editor.module';
 
 import { EffectsModule } from '@ngrx/effects';
 import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 import { AppStoreModule } from './store/store.module';
 import { AuthEffects } from './store/effects/effects.user/auth.effects';
 import { UserEffects } from './store/effects/effects.user/user.effects';
+import { FriendsEffects } from './store/effects/effects.interactions/effects.friends';
 
 import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';
 import { environment } from '../environments/environment';
 
-// AngularFire providers (em providers, não em imports!)
+// AngularFire providers (FICAM EM PROVIDERS num NgModule)
 import { provideFirebaseApp, initializeApp, getApp } from '@angular/fire/app';
-import { connectAuthEmulator, provideAuth } from '@angular/fire/auth';
-import { connectFirestoreEmulator, provideFirestore } from '@angular/fire/firestore';
+import { provideAuth, connectAuthEmulator } from '@angular/fire/auth';
+import { provideFirestore, connectFirestoreEmulator } from '@angular/fire/firestore';
 import { provideDatabase } from '@angular/fire/database';
 import { provideStorage } from '@angular/fire/storage';
 
-// Firebase SDK
-import { getAuth, initializeAuth, indexedDBLocalPersistence, browserLocalPersistence, inMemoryPersistence, browserPopupRedirectResolver, browserSessionPersistence } from 'firebase/auth';
+// Firebase SDK (para configurar initializeAuth etc.)
+import {
+  getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  inMemoryPersistence,
+  browserPopupRedirectResolver,
+} from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getDatabase } from 'firebase/database';
 import { getStorage } from 'firebase/storage';
@@ -42,10 +50,12 @@ import { registerLocaleData } from '@angular/common';
 import localePt from '@angular/common/locales/pt';
 registerLocaleData(localePt, 'pt-BR');
 
-// espera de sessão
+// sessão / orquestrador
 import { AuthSessionService } from './core/services/autentication/auth/auth-session.service';
-import { AdminLinkComponent } from "./admin-dashboard/admin-link/admin-link.component";
 import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
+
+// standalone comp
+import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.component';
 
 function authReadyInitializer(session: AuthSessionService) {
   return () => session.whenReady();
@@ -60,47 +70,44 @@ function startOrchestratorAfterReady(session: AuthSessionService, orchestrator: 
     BrowserModule,
     AppRoutingModule,
     FormsModule,
-    HttpClientModule,
     ReactiveFormsModule,
+    HttpClientModule,
     BrowserAnimationsModule,
     MatDialogModule,
+    MatSnackBarModule,
     HeaderModule,
     FooterModule,
     PhotoEditorModule,
-    EffectsModule.forRoot([AuthEffects, UserEffects]),
-    AppStoreModule,
-    ...(environment.production ? [] : [StoreDevtoolsModule.instrument({ maxAge: 25 })]),
-    AdminLinkComponent
-],
 
+    AppStoreModule,
+    
+    ...(environment.production ? [] : [StoreDevtoolsModule.instrument({ maxAge: 25 })]),
+
+    // standalone component pode ficar em imports
+    AdminLinkComponent,
+  ],
   providers: [
-    // Firebase
+    // 🔥 AngularFire — em providers (não em imports) quando usando NgModule
     provideFirebaseApp(() => initializeApp(environment.firebase)),
     provideAuth(() => {
       const app = getApp();
-      // initializeAuth só pode ser chamado uma vez
       try {
         const auth = initializeAuth(app, {
-          persistence: [indexedDBLocalPersistence,
-                        browserLocalPersistence,
-                        browserSessionPersistence,
-                        inMemoryPersistence
-                      ],
+          persistence: [
+            indexedDBLocalPersistence,
+            browserLocalPersistence,
+            browserSessionPersistence,
+            inMemoryPersistence,
+          ],
           popupRedirectResolver: browserPopupRedirectResolver,
         });
-
-        // (opcional) emulador de Auth
         const cfg: any = environment;
         const emu = cfg?.emulators?.auth;
         if (!environment.production && cfg?.useEmulators && emu?.host && emu?.port) {
-          // Import: connectAuthEmulator de '@angular/fire/auth'
-          // import { connectAuthEmulator } from '@angular/fire/auth';
           connectAuthEmulator(auth, `http://${emu.host}:${emu.port}`, { disableWarnings: true });
         }
-
         return auth;
       } catch {
-        // Já inicializado (HMR). Só retorna a instância existente e conecta emulador se preciso.
         const auth = getAuth(app);
         const cfg: any = environment;
         const emu = cfg?.emulators?.auth;
@@ -110,7 +117,6 @@ function startOrchestratorAfterReady(session: AuthSessionService, orchestrator: 
         return auth;
       }
     }),
-
     provideFirestore(() => {
       const db = getFirestore(getApp());
       const cfg: any = environment;
@@ -123,14 +129,14 @@ function startOrchestratorAfterReady(session: AuthSessionService, orchestrator: 
     provideDatabase(() => getDatabase(getApp())),
     provideStorage(() => getStorage(getApp())),
 
-    // 🔒 Espera a restauração do Auth antes da 1ª navegação
+    // Inicializadores
     { provide: APP_INITIALIZER, useFactory: authReadyInitializer, deps: [AuthSessionService], multi: true },
     { provide: APP_INITIALIZER, useFactory: startOrchestratorAfterReady, deps: [AuthSessionService, AuthOrchestratorService], multi: true },
+
     // Erros e i18n
     { provide: ErrorHandler, useClass: GlobalErrorHandlerService },
     ErrorNotificationService,
     { provide: LOCALE_ID, useValue: 'pt-BR' },
-
   ],
   bootstrap: [AppComponent],
 })

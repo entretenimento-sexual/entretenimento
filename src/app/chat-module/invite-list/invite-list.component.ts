@@ -3,7 +3,7 @@ import { Component, OnInit } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
-import { LoadInvites, UpdateInviteStatus } from 'src/app/store/actions/actions.chat/invite.actions';
+import { LoadInvites } from 'src/app/store/actions/actions.chat/invite.actions';
 import { selectInvites } from 'src/app/store/selectors/selectors.chat/invite.selectors';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -57,12 +57,6 @@ export class InviteListComponent implements OnInit {
       return;
     }
 
-    this.store.dispatch(
-      UpdateInviteStatus({
-        roomId: invite.roomId || 'default-room-id', // Substituir por lógica real
-        inviteId: invite.id,
-        status
-      })
-    );
+    
   }
 }

@@ -6,36 +6,17 @@ import * as InviteActions from '../../actions/actions.chat/invite.actions';
 export const inviteReducer = createReducer<InviteState>(
   initialInviteState,
 
-  // Carregar convites
-  on(InviteActions.LoadInvites, (state) => ({
-    ...state,
-    loading: true,
-    error: null
-  })),
-  on(InviteActions.LoadInvitesSuccess, (state, { invites }) => ({
-    ...state,
-    invites,
-    loading: false
-  })),
-  on(InviteActions.LoadInvitesFailure, (state, { error }) => ({
-    ...state,
-    loading: false,
-    error
-  })),
+  on(InviteActions.LoadInvites, s => ({ ...s, loading: true, error: null })),
+  on(InviteActions.LoadInvitesSuccess, (s, { invites }) => ({ ...s, loading: false, invites })),
+  on(InviteActions.LoadInvitesFailure, (s, { error }) => ({ ...s, loading: false, error })),
 
-  // Aceitar convite
-  on(InviteActions.AcceptInvite, (state, { inviteId }) => ({
-    ...state,
-    invites: state.invites.map(invite =>
-      invite.id === inviteId ? { ...invite, status: 'accepted' } : invite
-    )
+  // ✅ atualiza somente no sucesso
+  on(InviteActions.AcceptInviteSuccess, (s, { inviteId }) => ({
+    ...s,
+    invites: s.invites.map(i => i.id === inviteId ? { ...i, status: 'accepted' } : i),
   })),
-
-  // Recusar convite
-  on(InviteActions.DeclineInvite, (state, { inviteId }) => ({
-    ...state,
-    invites: state.invites.map(invite =>
-      invite.id === inviteId ? { ...invite, status: 'declined' } : invite
-    )
-  }))
+  on(InviteActions.DeclineInviteSuccess, (s, { inviteId }) => ({
+    ...s,
+    invites: s.invites.map(i => i.id === inviteId ? { ...i, status: 'declined' } : i),
+  })),
 );

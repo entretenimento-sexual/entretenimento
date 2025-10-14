@@ -6,8 +6,8 @@
       <ul>
         @for (blocked of blockedUsers$ | async; track blocked) {
           <li>
-            {{ blocked.nickname || blocked.blockerUid }}
-            <button mat-button color="warn" (click)="unblockUser(blocked.blockerUid)">Desbloquear</button>
+            {{ blocked.uid }}
+            <button mat-button color="warn" (click)="unblockUser(blocked.uid)">Desbloquear</button>
           </li>
         }
       </ul>

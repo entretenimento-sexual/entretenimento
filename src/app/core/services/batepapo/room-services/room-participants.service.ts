@@ -14,7 +14,6 @@ export class RoomParticipantsService {
   constructor(
     private db: Firestore,
     private errorNotifier: ErrorNotificationService,
-    private firestoreQuery: FirestoreQueryService,
     private usuarioService: UsuarioService,
   ) { }
 

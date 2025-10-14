@@ -255,3 +255,89 @@ html.high-contrast .warning-snackbar {
   background: #ff0 !important;
   border: 3px solid #000 !important;
 }
+/* ========================= */
+/*  Angular Material – global */
+/* ========================= */
+
+/* --- <mat-form-field appearance="outline"> (Buscar / Ordenar por) --- */
+.mat-mdc-form-field {
+  /* borda: normal/hover/foco */
+  --mdc-outlined-text-field-outline-color: var(--surface-border);
+  --mdc-outlined-text-field-hover-outline-color: var(--surface-border);
+  --mdc-outlined-text-field-focus-outline-color: var(--primary-color);
+
+  /* cores de label/input/caret */
+  --mdc-outlined-text-field-label-text-color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  --mdc-outlined-text-field-input-text-color: var(--text-color);
+  --mdc-outlined-text-field-caret-color: var(--primary-color);
+
+  /* fundo do campo (respeita claro/escuro) */
+  background: var(--input-background);
+}
+
+/* fallback direto na outline (quando variáveis MDC não bastam) */
+.mdc-notched-outline__leading,
+.mdc-notched-outline__notch,
+.mdc-notched-outline__trailing {
+  border-color: var(--surface-border) !important;
+}
+
+.mdc-text-field--focused .mdc-notched-outline__leading,
+.mdc-text-field--focused .mdc-notched-outline__notch,
+.mdc-text-field--focused .mdc-notched-outline__trailing {
+  border-color: var(--primary-color) !important;
+}
+
+/* label e placeholder visíveis no dark */
+.mat-mdc-form-field mat-label {
+  color: var(--text-color) !important;
+}
+
+.mat-mdc-input-element {
+  color: var(--text-color) !important;
+}
+
+.mat-mdc-input-element::placeholder {
+  color: color-mix(in oklab, var(--text-color) 55%, transparent);
+}
+
+/* --- <mat-select> trigger (“Ordenar por”) --- */
+.mat-mdc-select {
+  --mat-select-enabled-trigger-text-color: var(--text-color);
+  --mat-select-focused-trigger-text-color: var(--text-color);
+}
+
+.mat-mdc-select-trigger,
+.mat-mdc-select-value,
+.mat-mdc-select-arrow {
+  color: var(--text-color) !important;
+  /* texto + chevron */
+}
+
+/* --- <mat-slide-toggle> (“Só online”) --- */
+.mat-mdc-slide-toggle .mdc-form-field {
+  color: var(--text-color) !important;
+}
+
+/* Trilho e handle no estado selecionado (escuro/claridade corretos) */
+.mat-mdc-slide-toggle {
+  --mdc-switch-selected-track-color: color-mix(in oklab, var(--primary-color) 50%, transparent);
+  --mdc-switch-selected-handle-color: var(--primary-color);
+  --mdc-switch-selected-icon-color: #fff;
+  --mdc-switch-unselected-track-color: var(--surface-border);
+  --mdc-switch-unselected-handle-color: var(--text-color);
+}
+
+/* --- Chips de métricas (X amigos/online/pedidos/bloqueados) --- */
+.mat-mdc-chip,
+.mat-mdc-chip .mdc-evolution-chip__text-label,
+.mat-mdc-chip .mat-mdc-chip-action-label,
+mat-chip,
+mat-chip .mdc-evolution-chip__text-label {
+  color: var(--text-color) !important;
+}
+
+mat-chip mat-icon,
+.mat-mdc-chip mat-icon {
+  color: var(--text-color) !important;
+}

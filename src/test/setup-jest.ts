@@ -383,6 +383,7 @@ jest.mock('@angular/fire/auth', () => {
     // ➜ retorne Observables:
     authState: jest.fn(() => of(null)),
     user: jest.fn(() => of(null)),
+    idToken: jest.fn(() => of(null)),
     signOut: jest.fn(() => Promise.resolve()),
   };
 });

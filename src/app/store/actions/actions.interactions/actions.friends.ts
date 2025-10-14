@@ -1,46 +1,67 @@
-// src\app\store\actions\actions.interactions\actions.friends.ts
+//src\app\store\actions\actions.interactions\actions.friends.ts
 import { createAction, props } from '@ngrx/store';
-import { IFriend } from 'src/app/core/interfaces/friendship/ifriend';
-import { IFriendRequest } from 'src/app/core/interfaces/friendship/ifriend-request';
-import { IBlockedUser } from 'src/app/core/interfaces/friendship/ifriend';
+import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
+import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
+import { BlockedUser } from 'src/app/core/interfaces/friendship/blocked-user.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
-// 🔄 Carregar amigos (Corrigido para usar IFriend[])
-export const loadFriends = createAction('[Friends] Load Friends', props<{ uid: string }>());
-export const loadFriendsSuccess = createAction('[Friends] Load Friends Success', props<{ friends: IFriend[] }>());
-export const loadFriendsFailure = createAction('[Friends] Load Friends Failure', props<{ error: string }>());
+// Load friends
+export const loadFriends = createAction('[Friendship] Load Friends', props<{ uid: string }>());
+export const loadFriendsSuccess = createAction('[Friendship] Load Friends Success', props<{ friends: Friend[] }>());
+export const loadFriendsFailure = createAction('[Friendship] Load Friends Failure', props<{ error: string }>());
 
-// 📩 Carregar pedidos de amizade (Corrigido para IFriendRequest[])
-export const loadRequests = createAction('[Friends] Load Requests');
-export const loadRequestsSuccess = createAction('[Friends] Load Requests Success', props<{ requests: IFriendRequest[] }>());
-export const loadRequestsFailure = createAction('[Friends] Load Requests Failure', props<{ error: string }>());
+// Friend Requests
+export const sendFriendRequest = createAction('[Friendship] Send Request', props<{ requesterUid: string; targetUid: string; message?: string }>());
+export const sendFriendRequestSuccess = createAction('[Friendship] Send Request Success');
+export const sendFriendRequestFailure = createAction('[Friendship] Send Request Failure', props<{ error: string }>());
 
-// 🚫 Carregar lista de bloqueados (Corrigido para IBlockedUser[])
-export const loadBlocked = createAction('[Friends] Load Blocked');
-export const loadBlockedSuccess = createAction('[Friends] Load Blocked Success', props<{ blocked: IBlockedUser[] }>());
+export const loadInboundRequests = createAction('[Friendship] Load Inbound Requests', props<{ uid: string }>());
+export const loadInboundRequestsSuccess = createAction('[Friendship] Load Inbound Requests Success', props<{ requests: (FriendRequest & { id: string })[] }>());
+export const loadInboundRequestsFailure = createAction('[Friendship] Load Inbound Requests Failure', props<{ error: string }>());
 
-// ➕ Enviar solicitação de amizade (mantém IUserDados apenas para perfis)
-export const sendFriendRequest = createAction('[Friends] Send Friend Request', props<{ userUid: string, friendUid: string; message?: string }>());
-export const sendFriendRequestSuccess = createAction('[Friends] Send Friend Request Success', props<{ friend: IFriend }>());
-export const sendFriendRequestFailure = createAction('[Friends] Send Friend Request Failure', props<{ error: string }>());
+export const acceptFriendRequest = createAction('[Friendship] Accept Request', props<{ requestId: string; requesterUid: string; targetUid: string }>());
+export const acceptFriendRequestSuccess = createAction('[Friendship] Accept Request Success', props<{ requestId: string }>());
+export const acceptFriendRequestFailure = createAction('[Friendship] Accept Request Failure', props<{ error: string }>());
 
-// 🚫 Bloquear usuário
-export const blockFriend = createAction('[Friends] Block Friend', props<{ uid: string }>());
-export const blockFriendSuccess = createAction('[Friends] Block Friend Success', props<{ uid: string }>());
+export const declineFriendRequest = createAction('[Friendship] Decline Request', props<{ requestId: string }>());
+export const declineFriendRequestSuccess = createAction('[Friendship] Decline Request Success', props<{ requestId: string }>());
+export const declineFriendRequestFailure = createAction('[Friendship] Decline Request Failure', props<{ error: string }>());
 
-// ✅ **Desbloquear usuário**
-export const unblockFriend = createAction('[Friends] Unblock Friend', props<{ uid: string }>());
-export const unblockFriendSuccess = createAction('[Friends] Unblock Friend Success', props<{ uid: string }>());
+// Block
+export const blockUser = createAction('[Friendship] Block User', props<{ ownerUid: string; targetUid: string; reason?: string }>());
+export const unblockUser = createAction('[Friendship] Unblock User', props<{ ownerUid: string; targetUid: string }>());
+export const loadBlockedUsers = createAction('[Friendship] Load Blocked Users', props<{ uid: string }>());
+export const loadBlockedUsersSuccess = createAction('[Friendship] Load Blocked Users Success', props<{ blocked: BlockedUser[] }>());
 
-
-// 🔍 **Carregar resultados da pesquisa**
-export const loadSearchResults = createAction('[Friends] Load Search Results', props<{ searchTerm: string }>());
-export const loadSearchResultsSuccess = createAction('[Friends] Load Search Results Success', props<{ results: IUserDados[] }>());
-export const loadSearchResultsFailure = createAction('[Friends] Load Search Results Failure', props<{ error: string }>()); // ✅ **Adicionado!**
-
-// ⚙ Atualizar configurações de amizade
-export const updateFriendSettings = createAction('[Friends] Update Friend Settings', props<{ settings: { receiveRequests: boolean; showOnlineStatus: boolean; allowSearchByNickname: boolean } }>());
-
+// 👇 RESET do status de envio (usado no reducer)
 export const resetSendFriendRequestStatus = createAction(
-  '[Friends] Reset Send Friend Request Status'
+  '[Friendship] Reset Send Friend Request Status'
+);
+
+// 👇 Ações de busca (usadas no FriendSearchComponent e no reducer)
+export const loadSearchResults = createAction(
+  '[Friendship] Load Search Results',
+  props<{ searchTerm: string }>()
+);
+
+export const loadSearchResultsSuccess = createAction(
+  '[Friendship] Load Search Results Success',
+  props<{ results: IUserDados[] }>()
+);
+
+export const loadSearchResultsFailure = createAction(
+  '[Friendship] Load Search Results Failure',
+  props<{ error: string }>()
+);
+
+// 👇 Ação de settings (usada no FriendSettingsComponent e no reducer)
+export const updateFriendSettings = createAction(
+  '[Friendship] Update Friend Settings',
+  props<{
+    settings: {
+      receiveRequests: boolean;
+      showOnlineStatus: boolean;
+      allowSearchByNickname: boolean;
+    };
+  }>()
 );

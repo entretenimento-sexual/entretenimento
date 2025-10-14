@@ -1,3 +1,4 @@
+//src\app\admin-dashboard\user-list\user-list.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { UserListComponent } from './user-list.component';
@@ -8,7 +9,8 @@ describe('UserListComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [UserListComponent],
+      imports: [UserListComponent],
+      declarations: [],
     })
     .compileComponents();
 

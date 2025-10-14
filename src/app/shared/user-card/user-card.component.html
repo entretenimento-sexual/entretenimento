@@ -1,31 +1,61 @@
 <!-- src\app\shared\user-card\user-card.component.html -->
-<a [routerLink]="['/profile', user()?.uid]" class="card user-card h-100 shadow-lg text-decoration-none">
-  <div class="card-header text-center" [ngClass]="getUserNicknameClass(user())">
-    <h5 class="card-title m-0 d-flex align-items-center justify-content-center">
-      {{ user()?.nickname }}
-    </h5>
-  </div>
-  <div class="card-img-top">
-    <img [src]="user()?.photoURL || 'assets/imagem-padrao.webp'" class="img-fluid profile-photo mx-auto d-block"
-      alt="{{ user()?.nickname }}">
-  </div>
-  <div class="card-body text-center">
-    <p class="card-text mb-1">{{ user()?.gender | titlecase }} | {{ user()?.idade }} anos</p>
-    <p class="card-text mb-1">{{ user()?.municipio }}, {{ user()?.estado }}</p>
-    <p class="card-text mb-2">{{ user()?.descricao?.slice(0, 80) }}...</p>
-    <p class="card-text mb-2">
-      Distância: {{ distanciaKm() === 0 ? '> 1 km' : distanciaKm() + ' km' }}
+<article class="card user-card shadow-lg" [attr.aria-labelledby]="'uc-title-' + (user()?.uid || 'x')"
+  [attr.aria-describedby]="'uc-desc-' + (user()?.uid || 'x')">
+
+  <!-- Foto grande + faixa do nickname integrada -->
+  <a class="media d-block profile-link" [routerLink]="['/profile', user()?.uid]"
+    [attr.aria-label]="'Ver perfil de ' + (user()?.nickname || 'usuário')">
+
+    <img [src]="user()?.photoURL || 'assets/imagem-padrao.webp'" class="profile-photo"
+      alt="{{ user()?.nickname || 'Foto do usuário' }}" loading="lazy" decoding="async" />
+
+    <div class="nick-strip" [class.is-online]="user()?.isOnline" [class.is-offline]="!user()?.isOnline">
+      <span class="status-dot" aria-hidden="true"></span>
+      <span class="nick text-truncate" [attr.id]="'uc-title-' + (user()?.uid || 'x')">
+        {{ user()?.nickname }}
+      </span>
+      <span class="sr-only">
+        {{ user()?.isOnline ? 'Online' : 'Offline' }}
+      </span>
+    </div>
+  </a>
+
+  <div class="card-body d-flex flex-column">
+    <p class="meta">
+      {{ user()?.gender | titlecase }} • {{ user()?.idade }} anos
+    </p>
+    <p class="meta">
+      {{ user()?.municipio }}, {{ user()?.estado }}
     </p>
 
-    <!-- Botão para abrir o modal com ícone e texto responsivo -->
-    <button class="btn btn-outline-primary btn-sm mt-2 d-inline-flex align-items-center" (click)="abrirModal($event)">
-      <i class="fas fa-paper-plane"></i>
-      <span class="d-none d-md-inline ms-2">Enviar Mensagem</span>
-    </button>
-    <!-- Botão para adicionar amigo -->
-    <button class="btn btn-outline-success btn-sm mt-2 d-inline-flex align-items-center" (click)="adicionarAmigo()">
-      <i class="fas fa-user-plus"></i>
-      <span class="d-none d-md-inline ms-2">Adicionar Amigo</span>
-    </button>
+    <p class="description" [attr.id]="'uc-desc-' + (user()?.uid || 'x')">
+      {{ (user()?.descricao || '') }}
+    </p>
+
+    <!-- Distância com ícone -->
+    <p class="distance mb-2">
+      <i class="fas fa-location-dot distance-ico" aria-hidden="true"></i>
+      <span class="sr-only">Distância:</span>
+      @if (distanciaKm() == null) {
+      <strong>—</strong>
+      } @else if (distanciaKm()! < 1) { <strong>&lt; 1 km</strong>
+        } @else {
+        <strong>{{ distanciaKm() | number:'1.0-1' }} km</strong>
+        }
+    </p>
+
+    <div class="actions mt-auto">
+      <button type="button" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center"
+        (click)="abrirModal($event)" aria-label="Enviar mensagem para {{ user()?.nickname || 'usuário' }}">
+        <i class="fas fa-paper-plane" aria-hidden="true"></i>
+        <span class="btn-label d-none d-md-inline ms-2">Enviar mensagem</span>
+      </button>
+
+      <button type="button" class="btn btn-outline-success btn-sm d-inline-flex align-items-center"
+        (click)="adicionarAmigo()" aria-label="Adicionar {{ user()?.nickname || 'usuário' }} como amigo">
+        <i class="fas fa-user-plus" aria-hidden="true"></i>
+        <span class="btn-label d-none d-md-inline ms-2">Adicionar amigo</span>
+      </button>
+    </div>
   </div>
-</a>
+</article>

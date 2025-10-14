@@ -1,5 +1,5 @@
 // src\app\core\services\usuario.service.ts
-import { Injectable, Injector } from '@angular/core';
+import { Injectable } from '@angular/core';
 import { Observable, catchError, from, tap, throwError } from 'rxjs';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { FirestoreService } from '../data-handling/firestore.service';
@@ -11,6 +11,7 @@ import { AppState } from 'src/app/store/states/app.state';
 import { updateUserOnlineStatus } from 'src/app/store/actions/actions.user/user.actions';
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 import { EmailVerificationService } from '../autentication/register/email-verification.service';
+import { Firestore } from '@angular/fire/firestore';
 
 @Injectable({
   providedIn: 'root'
@@ -18,8 +19,7 @@ import { EmailVerificationService } from '../autentication/register/email-verifi
 
 export class UsuarioService {
 
-  constructor(
-              private firestoreService: FirestoreService,
+  constructor(private afs: Firestore,
               private firestoreQuery: FirestoreQueryService,
               private userProfile: UserProfileService,
               private emailVerificationService: EmailVerificationService,
@@ -62,17 +62,15 @@ export class UsuarioService {
 
   // Atualiza o status online de um usuário no Firestore e no Store
   updateUserOnlineStatus(uid: string, isOnline: boolean): Observable<void> {
-    const db = this.firestoreService.getFirestoreInstance();
-    const userDocRef = doc(db, 'users', uid);
-
-    return from(updateDoc(userDocRef, { isOnline: isOnline })).pipe(
+    const userDocRef = doc(this.afs, 'users', uid);
+    return from(updateDoc(userDocRef, { isOnline })).pipe(
       tap(() => {
-        console.log(`Status isOnline atualizado no Firestore para ${isOnline ? 'online' : 'offline'}.`);
-        this.store.dispatch(updateUserOnlineStatus({ uid, isOnline })); // Atualiza o estado no Store
+        console.log(`[UsuarioService] isOnline → ${isOnline} (${uid})`);
+        this.store.dispatch(updateUserOnlineStatus({ uid, isOnline }));
       }),
       catchError((error) => {
-        console.log(`Erro ao atualizar o status de usuário para ${isOnline ? 'online' : 'offline'}:`, error);
-        throw error; // Repassa o erro para que possa ser tratado pelo chamador
+        console.error('[UsuarioService] erro ao atualizar isOnline:', error);
+        return throwError(() => error);
       })
     );
   }

@@ -102,8 +102,8 @@ export class InviteService {
     );
   }
 
-  updateInviteStatus(roomId: string, inviteId: string, status: 'accepted' | 'declined'): Observable<void> {
-    const inviteRef = doc(this.db, `rooms/${roomId}/invites/${inviteId}`);
+  updateInviteStatus(inviteId: string, status: 'accepted' | 'declined'): Observable<void> {
+    const inviteRef = doc(this.db, `invites/${inviteId}`);
     return from(updateDoc(inviteRef, { status })).pipe(
       map(() => void 0),
       catchError(error => {
@@ -116,7 +116,9 @@ export class InviteService {
   getInvites(userId: string): Observable<Invite[]> {
     const invitesQuery = query(collection(this.db, 'invites'), where('receiverId', '==', userId));
     return from(getDocs(invitesQuery)).pipe(
-      map(snapshot => snapshot.docs.map(d => d.data() as Invite)),
+      map(snapshot =>
+        snapshot.docs.map(d => ({ id: d.id, ...(d.data() as Invite) })) // 👈 agora vem o id
+      ),
       catchError(error => {
         this.errorNotifier.showError('Erro ao carregar convites.');
         return throwError(() => error);

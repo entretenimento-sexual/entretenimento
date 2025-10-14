@@ -1,12 +1,14 @@
 // src\app\store\states\states.interactions\friends.state.ts
+import { BlockedUser } from 'src/app/core/interfaces/friendship/blocked-user.interface';
+import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
+import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { IBlockedUser, IFriend } from 'src/app/core/interfaces/friendship/ifriend';
-import { IFriendRequest } from 'src/app/core/interfaces/friendship/ifriend-request';
+
 
 export interface FriendsState {
-  friends: IFriend[];
-  requests: IFriendRequest[];
-  blocked: IBlockedUser[];
+  friends: Friend[];
+  requests: (FriendRequest & { id: string })[]; 
+  blocked: BlockedUser[];
   searchResults: IUserDados[];
     settings: {
       receiveRequests: boolean;

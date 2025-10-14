@@ -1,23 +1,32 @@
-//src\app\dashboard\dashboard-routing.module.ts
+// src/app/dashboard/dashboard-routing.module.ts
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
-import { OnlineUsersComponent } from './online-users/online-users.component';
 import { FeaturedProfilesComponent } from './featured-profiles/featured-profiles.component';
 import { PrincipalComponent } from './principal/principal.component';
 import { ChatRoomsComponent } from '../chat-module/chat-rooms/chat-rooms.component';
 import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
 import { emailVerifiedGuard } from '../core/guards/email-verified.guard';
 
+// ✅ ajuste o caminho conforme sua estrutura real
+import { OnlineUsersComponent } from './online/online-users/online-users.component';
+import { OnlineUsersFullComponent } from './online/online-users-full/online-users-full.component';
+
 const routes: Routes = [
   {
     path: '',
     component: DashboardLayoutComponent,
-    canActivate: [], // << era authGuard
+    canActivate: [], // (se quiser proteger, coloque o guard aqui)
     children: [
-      { path: 'principal', component: PrincipalComponent }, // permite sem verificar
-      { path: 'online-users', component: OnlineUsersComponent }, // opcional exigir
-      { path: 'featured-profiles', component: FeaturedProfilesComponent, canActivate: [emailVerifiedGuard] }, // exige verificação
-      { path: 'chat-rooms', component: ChatRoomsComponent, canActivate: [emailVerifiedGuard] }, // exige verificação
+      { path: 'principal', component: PrincipalComponent },
+
+      // mini/painel (se quiser manter)
+      { path: 'online-users', component: OnlineUsersComponent },
+
+      // ✅ página “cheia” para ver todos (recomendado usar um slug curto)
+      { path: 'online', component: OnlineUsersFullComponent, canActivate: [emailVerifiedGuard] },
+
+      { path: 'featured-profiles', component: FeaturedProfilesComponent, canActivate: [emailVerifiedGuard] },
+      { path: 'chat-rooms', component: ChatRoomsComponent, canActivate: [emailVerifiedGuard] },
       { path: '', redirectTo: 'principal', pathMatch: 'full' },
     ]
   },

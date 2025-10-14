@@ -1,0 +1,133 @@
+/* src/app/dashboard/online-users-full/online-users-full.component.css */
+
+/* casca da página (respeita claro/escuro) */
+.page-shell {
+  padding: 24px;
+  color: var(--text-color);
+}
+
+/* header da página */
+.page-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.head-left {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "back title"
+    "back subtitle";
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: center;
+}
+
+.back-btn {
+  grid-area: back;
+  padding: 8px 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+  color: var(--text-color);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.back-btn:hover {
+  background: var(--header-hover-bg);
+}
+
+.back-btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.hide-xs {
+  display: none;
+}
+
+@media (min-width: 420px) {
+  .hide-xs {
+    display: inline;
+  }
+}
+
+.page-title {
+  grid-area: title;
+  margin: 0;
+  font-weight: 700;
+  font-size: clamp(1.125rem, 1.6vw, 1.6rem);
+}
+
+.page-subtitle {
+  grid-area: subtitle;
+  margin: 0;
+  font-size: .95rem;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+}
+
+/* ações do header (tabs/segmented) */
+.head-actions {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+}
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-color);
+}
+
+.seg-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-color);
+  padding: 8px 12px;
+  font-size: .95rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1;
+}
+
+.seg-btn:hover {
+  background: var(--header-hover-bg);
+  cursor: pointer;
+}
+
+.seg-btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.seg-btn.active {
+  background: color-mix(in oklab, var(--primary-color) 16%, transparent);
+  color: var(--text-color);
+}
+
+/* alto contraste */
+:root.high-contrast .back-btn,
+:root.high-contrast .segmented {
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  border: 3px solid var(--text-color) !important;
+}
+
+/* forced colors (Windows HC) */
+@media (forced-colors: active) {
+
+  .back-btn,
+  .segmented,
+  .seg-btn {
+    border: 2px solid CanvasText;
+  }
+}

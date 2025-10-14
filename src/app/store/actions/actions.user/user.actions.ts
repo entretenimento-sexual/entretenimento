@@ -1,4 +1,4 @@
-// src\app\store\actions\actions.user\user.actions.ts
+//src\app\store\actions\actions.user\user.actions.ts
 import { createAction, props } from '@ngrx/store';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IError } from 'src/app/core/interfaces/ierror';
