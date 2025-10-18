@@ -18,7 +18,6 @@ import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 import { AppStoreModule } from './store/store.module';
 import { AuthEffects } from './store/effects/effects.user/auth.effects';
 import { UserEffects } from './store/effects/effects.user/user.effects';
-import { FriendsEffects } from './store/effects/effects.interactions/effects.friends';
 
 import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';
@@ -80,7 +79,7 @@ function startOrchestratorAfterReady(session: AuthSessionService, orchestrator: 
     PhotoEditorModule,
 
     AppStoreModule,
-    
+
     ...(environment.production ? [] : [StoreDevtoolsModule.instrument({ maxAge: 25 })]),
 
     // standalone component pode ficar em imports

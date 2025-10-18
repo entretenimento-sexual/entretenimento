@@ -1,53 +1,249 @@
-/* src\app\header\links-interaction\links-interaction.component.css */
-.links-container {
-  display: flex;
-  justify-content: center;  /* Links começam alinhados à esquerda */
-  gap: 10px;  /* Ajusta o espaçamento entre os links */
+/* src/app/header/links-interaction/links-interaction.component.css */
+
+/* barra “flat” que respeita as vars globais */
+.links-bar {
+  display: inline-flex;
   align-items: center;
-  height: 40px;
-  background-color:#dee2e6;
+  gap: .5rem .75rem;
+  padding: .25rem .5rem;
+  background: transparent;
+  /* deixa o header respirar */
+  color: var(--header-fg);
 }
 
-.chat-rooms-link {
+/* links/botões “ghost” */
+.link {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .35rem .6rem;
+  border-radius: var(--radius-md);
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
   text-decoration: none;
-  color: #007bff;
-  font-size: 16px;
-  padding: 4px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
+  font-size: .95rem;
+  line-height: 1;
+  transition: background-color .18s ease;
 }
 
-.chat-rooms-link:hover {
-  background-color: #e9ecef;
+.link:hover {
+  background: var(--header-hover-bg);
 }
 
-.separator {
-  color: #999;
-  padding: 0 10px;  /* Espaçamento horizontal para o separador */
-  font-size: 22px;
+.link:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
+.link .fas {
+  font-size: 1rem;
+  opacity: .9;
+}
+
+.label {
+  white-space: nowrap;
+}
+
+/* separador discreto */
+.dot {
+  opacity: .4;
+  user-select: none;
+  padding: 0 .1rem;
+}
+
+/* badge compacto e legível */
 .badge {
-  background-color: #dc3545;
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  padding: 0 .35rem;
+  border-radius: 999px;
+  background: var(--danger-color);
   color: #fff;
-  border-radius: 50%;
-  padding: 4px 8px;
-  font-size: 12px;
-  margin-left: 5px;
+  font-size: .72rem;
+  font-weight: 700;
+  line-height: 1.1rem;
+  margin-left: .25rem;
 }
 
-@media (min-width: 1024px) {
-  .links-container {
-    justify-content: flex-start;
-    padding: 0px;
+/* botão só-ícone alinhado ao Material */
+.icon-btn {
+  margin-left: .25rem;
+}
+
+/* ===== Menu ===== */
+.requests-menu .mat-mdc-menu-content {
+  padding: .25rem .25rem .5rem;
+}
+
+.requests-menu {
+  color: var(--text-color);
+}
+
+.menu-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .25rem .5rem .5rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.menu-hd .view-all {
+  font-size: .875rem;
+  color: var(--primary-color);
+}
+
+.menu-hd .view-all:hover {
+  color: var(--primary-hover);
+}
+
+.menu-empty {
+  padding: .75rem .75rem 1rem;
+  opacity: .8;
+}
+
+.req {
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: .5rem;
+  align-items: start;
+  padding: .35rem .35rem .25rem;
+  border-radius: var(--radius-sm);
+}
+
+.req:hover {
+  background: var(--header-hover-bg);
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--surface-border);
+}
+
+.body .uid {
+  font-weight: 600;
+  font-size: .92rem;
+}
+
+.body .msg {
+  font-size: .86rem;
+  opacity: .9;
+  margin-top: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.acts {
+  display: inline-flex;
+  gap: .15rem;
+  margin-top: .25rem;
+}
+
+/* Botão do sininho/person_add com badge “bonitinho” */
+.icon-btn[mat-icon-button] {
+  position: relative;
+}
+
+/* Menu de solicitações */
+.requests-menu {
+  min-width: 340px;
+  padding: .25rem .25rem .5rem;
+  background: var(--surface-color);
+  color: var(--text-color);
+  border: 1px solid var(--surface-border);
+}
+
+.requests-menu .menu-hd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .5rem .5rem .5rem;
+  border-bottom: 1px solid var(--surface-border);
+  font-weight: 600;
+}
+
+.requests-menu .menu-empty {
+  padding: .875rem;
+  opacity: .8;
+}
+
+.requests-menu .req {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: .65rem;
+  align-items: start;
+  padding: .5rem .5rem;
+  border-radius: .5rem;
+}
+
+.requests-menu .req:hover {
+  background: var(--header-hover-bg);
+}
+
+.requests-menu .avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  display: grid;
+  place-items: center;
+}
+
+.requests-menu .avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.requests-menu .body {
+  min-width: 0;
+  /* para truncar corretamente */
+}
+
+.requests-menu .name {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.requests-menu .msg {
+  font-size: .875rem;
+  opacity: .9;
+  margin-top: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.requests-menu .acts {
+  display: inline-flex;
+  gap: .25rem;
+  margin-top: .35rem;
+}
+
+.requests-menu .acts button mat-icon {
+  font-size: 18px;
+}
+
+/* Dark mode: hover mais sutil */
+html.dark-mode .requests-menu .req:hover {
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+}
+
+/* responsivo: some só os rótulos em telas estreitas */
+@media (max-width: 640px) {
+  .label {
+    display: none;
   }
 
-  .chat-rooms-link {
-    font-size: 18px;
-    padding: 10px 30px;
-  }
-
-  .separator {
-    font-size: 25px;
+  .links-bar {
+    gap: .25rem .5rem;
   }
 }

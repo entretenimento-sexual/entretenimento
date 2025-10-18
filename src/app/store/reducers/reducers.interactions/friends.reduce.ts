@@ -4,16 +4,15 @@ import * as A from '../../actions/actions.interactions/actions.friends';
 import { FriendsState, initialState } from '../../states/states.interactions/friends.state';
 import { BlockedUser } from '../../../core/interfaces/friendship/blocked-user.interface';
 
-// Reducer
 export const friendsReducer = createReducer(
   initialState,
 
-  // Friends
+  /* 👥 Friends */
   on(A.loadFriends, (s): FriendsState => ({ ...s, loading: true, error: null })),
   on(A.loadFriendsSuccess, (s, { friends }): FriendsState => ({ ...s, loading: false, friends })),
   on(A.loadFriendsFailure, (s, { error }): FriendsState => ({ ...s, loading: false, error })),
 
-  // Send friend request
+  /* ✉️ Send Friend Request */
   on(A.sendFriendRequest, (s): FriendsState => ({
     ...s,
     sendingFriendRequest: true,
@@ -37,8 +36,10 @@ export const friendsReducer = createReducer(
     sendFriendRequestError: null,
   })),
 
-  // Inbound requests
-  on(A.loadInboundRequests, (s): FriendsState => ({ ...s, loadingRequests: true, error: null })),
+  /* 📥 Inbound (Recebidas) */
+  on(A.loadInboundRequests, (s): FriendsState => ({
+    ...s, loadingRequests: true, error: null
+  })),
   on(A.loadInboundRequestsSuccess, (s, { requests }): FriendsState => ({
     ...s, loadingRequests: false, requests
   })),
@@ -46,24 +47,84 @@ export const friendsReducer = createReducer(
     ...s, loadingRequests: false, error
   })),
 
-  // Block list
-  on(A.loadBlockedUsersSuccess, (s, { blocked }): FriendsState => ({ ...s, blocked })),
-
-  // Otimistas simples (opcional)
-  on(A.blockUser, (s, { targetUid, reason }): FriendsState => {
-    const exists = s.blocked.some(b => b.uid === targetUid);
-    if (exists) return s;
-    const entry: BlockedUser = { uid: targetUid, reason, blockedAt: null };
-    return { ...s, blocked: [...s.blocked, entry] };
-  }),
-  on(A.unblockUser, (s, { targetUid }): FriendsState => ({
-    ...s, blocked: s.blocked.filter(b => b.uid !== targetUid)
+  /* 📤 Outbound (Enviadas) */
+  on(A.loadOutboundRequests, (s): FriendsState => ({
+    ...s, loadingOutboundRequests: true, error: null
+  })),
+  on(A.loadOutboundRequestsSuccess, (s, { requests }): FriendsState => ({
+    ...s, loadingOutboundRequests: false, outboundRequests: requests
+  })),
+  on(A.loadOutboundRequestsFailure, (s, { error }): FriendsState => ({
+    ...s, loadingOutboundRequests: false, error
   })),
 
-  // Search (mantém compatibilidade com a tela)
+  on(A.loadRequesterProfilesSuccess, (s, { map }) => ({
+    ...s,
+    requestersMap: { ...s.requestersMap, ...map }
+  })),
+
+  /* ✅ Accept / Decline (limpa da lista inbound localmente) */
+  on(A.acceptFriendRequestSuccess, (s, { requestId }): FriendsState => ({
+    ...s,
+    requests: s.requests.filter(r => r.id !== requestId),
+  })),
+  on(A.declineFriendRequestSuccess, (s, { requestId }): FriendsState => ({
+    ...s,
+    requests: s.requests.filter(r => r.id !== requestId),
+  })),
+
+  /* ❌ Cancel outbound (remove da lista enviada local) */
+  on(A.cancelFriendRequestSuccess, (s, { requestId }): FriendsState => ({
+    ...s,
+    outboundRequests: s.outboundRequests.filter(r => r.id !== requestId),
+  })),
+
+  /* 🚫 Block list */
+  // loading + sucesso + erro da lista bloqueada
+  on(A.loadBlockedUsers, (s): FriendsState => ({
+    ...s, loadingBlocked: true, blockError: null
+  })),
+  on(A.loadBlockedUsersSuccess, (s, { blocked }): FriendsState => ({
+    ...s, loadingBlocked: false, blocked
+  })),
+  on(A.loadBlockedUsersFailure, (s, { error }): FriendsState => ({
+    ...s, loadingBlocked: false, blockError: error
+  })),
+
+  // 🔒 Block (somente no Success para evitar rollback)
+  on(A.blockUserSuccess, (s, { targetUid }): FriendsState => {
+    const exists = s.blocked.some(b => b.uid === targetUid);
+    if (exists) return { ...s, blockError: null };
+    const entry: BlockedUser = { uid: targetUid, reason: undefined, blockedAt: null };
+    return { ...s, blocked: [...s.blocked, entry], blockError: null };
+  }),
+  on(A.blockUserFailure, (s, { error }): FriendsState => ({
+    ...s, blockError: error
+  })),
+
+  // 🔓 Unblock (somente no Success para evitar rollback)
+  on(A.unblockUserSuccess, (s, { targetUid }): FriendsState => ({
+    ...s, blocked: s.blocked.filter(b => b.uid !== targetUid), blockError: null
+  })),
+  on(A.unblockUserFailure, (s, { error }): FriendsState => ({
+    ...s, blockError: error
+  })),
+
+  /* 🔎 Search */
   on(A.loadSearchResultsSuccess, (s, { results }): FriendsState => ({ ...s, searchResults: results })),
   on(A.loadSearchResultsFailure, (s, { error }): FriendsState => ({ ...s, error })),
 
-  // Settings
+  /* ⚙️ Settings */
   on(A.updateFriendSettings, (s, { settings }): FriendsState => ({ ...s, settings })),
+
+  /* 🔴 Realtime inbound listener */
+  on(A.startInboundRequestsListener, (s): FriendsState => ({
+    ...s, loadingRequests: true, error: null
+  })),
+  on(A.inboundRequestsChanged, (s, { requests }): FriendsState => ({
+    ...s, loadingRequests: false, requests
+  })),
+  on(A.stopInboundRequestsListener, (s): FriendsState => ({
+    ...s, loadingRequests: false
+  })),
 );

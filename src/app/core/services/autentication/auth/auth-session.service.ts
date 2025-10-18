@@ -1,9 +1,8 @@
 // src/app/core/services/autentication/auth/auth-session.service.ts
 import { Injectable } from '@angular/core';
-import { Observable, from, of, firstValueFrom, timer, race } from 'rxjs';
+import { Observable, from, of } from 'rxjs';
 import { catchError, filter, map, shareReplay, take } from 'rxjs/operators';
 import { Auth, authState, onAuthStateChanged, signOut, User } from '@angular/fire/auth';
-import type { Auth as FirebaseAuth } from 'firebase/auth';
 
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {

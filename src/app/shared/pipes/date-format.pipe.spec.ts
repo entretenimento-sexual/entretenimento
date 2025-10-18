@@ -1,7 +1,7 @@
 //src\app\shared\date-format.pipe.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { DateFormatPipe } from './date-format.pipe';
-import { DateTimeService } from '../core/services/general/date-time.service';
+import { DateTimeService } from '../../core/services/general/date-time.service';
 
 describe('DateFormatPipe', () => {
   beforeEach(() => {

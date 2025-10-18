@@ -1,38 +1,128 @@
 <!-- src/app/layout/friend.management/friend-requests/friend-requests.component.html -->
-@if (user() && user().uid) {
-<div class="friend-requests">
-  <h4>Solicitações de Amizade</h4>
+<div class="friend-requests" aria-live="polite">
+  <h4 id="fr-title">Solicitações de Amizade</h4>
 
-  @if (isLoading$ | async) {
-  <mat-spinner></mat-spinner>
+  <mat-tab-group aria-labelledby="fr-title">
+<!-- TODAS -->
+<mat-tab>
+  <ng-template mat-tab-label>
+    Todas
+    <span matBadge="{{ (totalCount$ | async) || 0 }}" matBadgeOverlap="false" matBadgeSize="small" class="ms-2"></span>
+  </ng-template>
+
+  @if (bothLoading$ | async) {
+  <div class="panel-loading" role="status" aria-live="polite" aria-label="Carregando solicitações">
+    <mat-spinner diameter="28"></mat-spinner>
+  </div>
   }
 
-  @if (friendRequests$ | async; as requests) {
-  <ul>
-    @for (req of requests; track req.id) {
-    <li>
-      <mat-card>
-        <mat-card-title>De: {{ req.requesterUid }}</mat-card-title>
-        <mat-card-subtitle>{{ req.message || 'Sem mensagem' }}</mat-card-subtitle>
-
-        <mat-card-content>
-          Enviado em: {{ req.createdAt.toDate() | date:'short' }}
-        </mat-card-content>
-
-        <mat-card-actions>
-          <button mat-button color="primary" [disabled]="isLoading$ | async" (click)="acceptRequest(req)">
-            Aceitar
-          </button>
-          <button mat-button color="warn" [disabled]="isLoading$ | async" (click)="rejectRequest(req)">
-            Recusar
-          </button>
-        </mat-card-actions>
-      </mat-card>
-    </li>
+  <div class="tab-panel">
+    @if (vm$ | async; as vm) {
+    @if ((vm.inbound.length + vm.outbound.length) === 0) {
+    <div class="empty-state" role="note">
+      <mat-icon fontIcon="inbox"></mat-icon>
+      <p>Nenhuma solicitação no momento.</p>
+      <a class="btn-link" routerLink="/friends/search">Procurar pessoas</a>
+    </div>
+    } @else {
+    <div class="tab-scroll">
+      <ul class="list-unstyled">
+        <!-- inbound -->
+        @for (req of vm.inbound; track trackById($index, req)) {
+        <li class="mb-2">
+          <mat-card>
+            <mat-card-title>De: {{ req.requesterUid }}</mat-card-title>
+            <mat-card-subtitle>{{ req.message || 'Sem mensagem' }}</mat-card-subtitle>
+            <mat-card-content>{{ req.createdAt | dateFormat:'datetime' }}</mat-card-content>
+            <mat-card-actions>
+              <button mat-button color="primary" (click)="acceptRequest(req)">Aceitar</button>
+              <button mat-button color="warn" (click)="declineRequest(req)">Recusar</button>
+            </mat-card-actions>
+          </mat-card>
+        </li>
+        }
+        <!-- outbound -->
+        @for (req of vm.outbound; track trackById($index, req)) {
+        <li class="mb-2">
+          <mat-card>
+            <mat-card-title>Para: {{ req.targetUid }}</mat-card-title>
+            <mat-card-subtitle>{{ req.message || 'Sem mensagem' }}</mat-card-subtitle>
+            <mat-card-content>{{ req.createdAt | dateFormat:'datetime' }}</mat-card-content>
+            <mat-card-actions>
+              <button mat-button color="warn" (click)="cancelRequest(req)">Cancelar</button>
+            </mat-card-actions>
+          </mat-card>
+        </li>
+        }
+      </ul>
+    </div>
     }
-  </ul>
-  } @else {
-  <p>Nenhuma solicitação pendente.</p>
-  }
+    }
+  </div>
+</mat-tab>
+    <!-- ========== RECEBIDAS ========== -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        Recebidas
+        <span matBadge="{{ (inboundCount$ | async) || 0 }}" matBadgeOverlap="false" matBadgeSize="small"
+          class="ms-2"></span>
+      </ng-template>
+
+      @if (loadingInbound$ | async) { <mat-spinner></mat-spinner> }
+
+      @if (inbound$ | async; as requests) {
+      @if (requests.length === 0) {
+      <p>Nenhuma solicitação pendente.</p>
+      } @else {
+      <ul class="list-unstyled">
+        @for (req of requests; track trackById($index, req)) {
+        <li class="mb-2">
+          <mat-card>
+            <mat-card-title>De: {{ req.requesterUid }}</mat-card-title>
+            <mat-card-subtitle>{{ req.message || 'Sem mensagem' }}</mat-card-subtitle>
+            <mat-card-content>Enviado em: {{ req.createdAt | dateFormat:'datetime' }}</mat-card-content>
+            <mat-card-actions>
+              <button mat-button color="primary" (click)="acceptRequest(req)">Aceitar</button>
+              <button mat-button color="warn" (click)="declineRequest(req)">Recusar</button>
+            </mat-card-actions>
+          </mat-card>
+        </li>
+        }
+      </ul>
+      }
+      }
+    </mat-tab>
+
+    <!-- ========== ENVIADAS ========== -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        Enviadas
+        <span matBadge="{{ (outboundCount$ | async) || 0 }}" matBadgeOverlap="false" matBadgeSize="small"
+          class="ms-2"></span>
+      </ng-template>
+
+      @if (loadingOutbound$ | async) { <mat-spinner></mat-spinner> }
+
+      @if (outbound$ | async; as sent) {
+      @if (sent.length === 0) {
+      <p>Você não tem solicitações enviadas pendentes.</p>
+      } @else {
+      <ul class="list-unstyled">
+        @for (req of sent; track trackById($index, req)) {
+        <li class="mb-2">
+          <mat-card>
+            <mat-card-title>Para: {{ req.targetUid }}</mat-card-title>
+            <mat-card-subtitle>{{ req.message || 'Sem mensagem' }}</mat-card-subtitle>
+            <mat-card-content>Enviada em: {{ req.createdAt | dateFormat:'datetime' }}</mat-card-content>
+            <mat-card-actions>
+              <button mat-button color="warn" (click)="cancelRequest(req)">Cancelar</button>
+            </mat-card-actions>
+          </mat-card>
+        </li>
+        }
+      </ul>
+      }
+      }
+    </mat-tab>
+  </mat-tab-group>
 </div>
-}

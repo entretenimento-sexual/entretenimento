@@ -1,4 +1,4 @@
-// src\app\register-module\pipes\register-error-message.pipe.ts
+//src\app\shared\pipes\register-error-message.pipe.ts
 import { Pipe, PipeTransform } from '@angular/core';
 
 @Pipe({

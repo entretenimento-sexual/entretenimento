@@ -10,7 +10,7 @@ import { CommonModule } from '@angular/common';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { FriendListComponent } from 'src/app/layout/friend.management/friend-list/friend-list.component';
 import { loadInboundRequests } from 'src/app/store/actions/actions.interactions/actions.friends';
-import { selectFriendsCount, selectPendingFriendRequestsCount } from 'src/app/store/selectors/selectors.interactions/friend.selector';
+import { selectFriendsCount, selectInboundRequestsCount } from 'src/app/store/selectors/selectors.interactions/friend.selector';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { RouterModule } from '@angular/router';
@@ -39,7 +39,7 @@ export class PrincipalComponent implements OnInit {
 
   constructor(private store: Store<AppState>) {
     this.currentUser$ = this.store.select(selectCurrentUser);
-    this.pendingRequestsCount$ = this.store.select(selectPendingFriendRequestsCount);
+    this.pendingRequestsCount$ = this.store.select(selectInboundRequestsCount);
     this.showSeeAll$ = this.store.select(selectFriendsCount).pipe(map(c => c > 6));
             }
 

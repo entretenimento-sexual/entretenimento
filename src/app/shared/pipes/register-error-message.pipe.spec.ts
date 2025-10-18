@@ -1,4 +1,4 @@
-// src/app/register-module/pipes/register-error-message.pipe.spec.ts
+//src\app\shared\pipes\register-error-message.pipe.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { RegisterErrorMessagePipe } from './register-error-message.pipe';
 

@@ -6,7 +6,7 @@ import { RegisterRoutingModule } from './register-routing.module';
 import { RegisterComponent } from './register.component';
 import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
 import { WelcomeComponent } from './welcome/welcome.component';
-import { RegisterErrorMessagePipe } from './pipes/register-error-message.pipe';
+import { RegisterErrorMessagePipe } from '../shared/pipes/register-error-message.pipe';
 import { EmailInputModalComponent } from '../authentication/email-input-modal/email-input-modal.component';
 
 @NgModule({

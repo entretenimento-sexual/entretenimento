@@ -8,12 +8,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AppState } from 'src/app/store/states/app.state';
 import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { UserInteractionsService } from 'src/app/core/services/data-handling/user-interactions.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { environment } from 'src/environments/environment';
 import { toObservable } from '@angular/core/rxjs-interop';
 
-import { loadFriends, /*, blockFriend */
+import { blockUser, loadFriends, /*, blockFriend */
 sendFriendRequest} from 'src/app/store/actions/actions.interactions/actions.friends';
 import {
   selectAllFriends,
@@ -44,7 +43,6 @@ export class FriendListComponent implements OnInit {
   readonly filters$ = toObservable(this.filters);
 
   private store = inject<Store<AppState>>(Store as any);
-  private interactions = inject(UserInteractionsService);
   private notifier = inject(ErrorNotificationService);
 
   // observables
@@ -128,13 +126,7 @@ export class FriendListComponent implements OnInit {
   removeFriend(friendUid: string): void {
     const u = this.user();
     if (!u?.uid) return;
-    this.interactions.blockUser(u.uid, friendUid).pipe(
-      tap(() => this.notifier.showInfo('Usuário removido/bloqueado.')),
-      catchError((err: any) => {
-        this.notifier.showError('Não foi possível remover o amigo.', err?.message);
-        return of(null);
-      })
-    ).subscribe();
+    this.store.dispatch(blockUser({ ownerUid: u.uid, targetUid: friendUid })); // ⬅️ via effect
   }
 
   inviteFriend(friendUid: string): void {

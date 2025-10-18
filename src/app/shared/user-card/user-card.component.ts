@@ -1,22 +1,23 @@
 //src\app\shared\user-card\user-card.component.ts
 import { Component, input } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { DateFormatPipe } from 'src/app/shared/date-format.pipe';
+import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { ModalMensagemComponent } from '../components-globais/modal-mensagem/modal-mensagem.component';
 import { MatDialog } from '@angular/material/dialog';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { UserInteractionsService } from 'src/app/core/services/data-handling/user-interactions.service';
 import { AppState } from 'src/app/store/states/app.state';
 import { Store } from '@ngrx/store';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { sendFriendRequest } from 'src/app/store/actions/actions.interactions/actions.friends';
+import { take } from 'rxjs/operators';
+import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.selectors';
 
 @Component({
     selector: 'app-user-card',
     templateUrl: './user-card.component.html',
     styleUrls: ['./user-card.component.css'],
-    providers: [DateFormatPipe], 
+    providers: [DateFormatPipe],
     standalone: true,
     imports: [CommonModule, RouterModule]
 })
@@ -28,7 +29,7 @@ export class UserCardComponent {
               private dialog: MatDialog,
               private store: Store<AppState>,
               private errorNotifier: ErrorNotificationService,
-              private userInteractionsService: UserInteractionsService) { }
+              ) { }
 
   ngOnChanges() {
     console.log('User:', this.user());
@@ -50,41 +51,40 @@ export class UserCardComponent {
   }
 
   adicionarAmigo(): void {
-    const user = this.user();
-    if (!user) return;
+    const target = this.user();
+    if (!target) return;
 
-    this.userInteractionsService.sendFriendRequest('meuUid', user.uid).subscribe({
-      next: () => {
-        const userValue = this.user();
-        this.store.dispatch(sendFriendRequest({ requesterUid: 'meuUid', targetUid: userValue!.uid }));
-        this.errorNotifier.showSuccess(`Solicitação de amizade enviada para ${userValue?.nickname || 'usuário'}!`);
-      },
-      error: (err) => {
-        this.errorNotifier.showError('Erro ao enviar solicitação de amizade.', err.message);
+    this.store.select(selectCurrentUser).pipe(take(1)).subscribe(me => {
+      if (!me?.uid) {
+        this.errorNotifier.showInfo('É necessário estar logado.');
+        return;
       }
+      if (target.uid === me.uid) {
+        this.errorNotifier.showInfo('Você não pode se adicionar.');
+        return;
+      }
+      this.store.dispatch(sendFriendRequest({ requesterUid: me.uid, targetUid: target.uid }));
     });
   }
 
   getUserNicknameClass(user: IUserDados | null): string {
-    if (!user || !user.lastLogin) {
-      return '';
-    }
+    if (!user || !user.lastLogin) return '';
 
-    const now = new Date();
-    const lastLogin = this.dateFormatPipe.transform(user.lastLogin, 'datetime');
+    const toDate = (v: any): Date => {
+      if (v instanceof Date) return v;
+      if (typeof v === 'number') return new Date(v);
+      if (v?.toDate) return v.toDate(); // Timestamp do Firestore
+      return new Date(v);
+    };
 
-    // Converte a data formatada de volta para um objeto Date para calcular a diferença de dias
-    const lastLoginDate = new Date(lastLogin);
-    const daysSinceLastLogin = Math.floor((now.getTime() - lastLoginDate.getTime()) / (1000 * 60 * 60 * 24));
+    const now = Date.now();
+    const last = +toDate(user.lastLogin);
+    const days = Math.floor((now - last) / (1000 * 60 * 60 * 24));
 
-    if (user.isOnline) {
-      return 'nickname-online';
-    } else if (daysSinceLastLogin <= 7) { // Usuários recentes (últimos 7 dias)
-      return 'nickname-recent';
-    } else if (daysSinceLastLogin > 30) { // Usuários inativos (mais de 30 dias)
-      return 'nickname-inactive';
-    } else {
-      return 'nickname-offline';
-    }
+    if (user.isOnline) return 'nickname-online';
+    if (days <= 7) return 'nickname-recent';
+    if (days > 30) return 'nickname-inactive';
+    return 'nickname-offline';
   }
-}
+  }
+

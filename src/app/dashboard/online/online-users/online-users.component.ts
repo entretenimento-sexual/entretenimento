@@ -17,6 +17,7 @@ import { UserCardComponent } from 'src/app/shared/user-card/user-card.component'
 import { toObservable } from '@angular/core/rxjs-interop';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { RouterModule } from '@angular/router';
+import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
 
 type PermissionState = 'granted' | 'prompt' | 'denied';
 type IUserWithDistance = IUserDados & { distanciaKm?: number };
@@ -75,6 +76,7 @@ export class OnlineUsersComponent implements OnInit {
     private readonly errorNotificationService: ErrorNotificationService,
     private readonly globalErrorHandlerService: GlobalErrorHandlerService,
     private readonly firestoreQueryService: FirestoreQueryService,
+    private readonly geoTracking: GeolocationTrackingService,
   ) {
     // Unifica Input + Store (fallback)
     this.currentUserResolved$ = combineLatest([
@@ -122,42 +124,66 @@ export class OnlineUsersComponent implements OnInit {
       );
       this.log('enableLocationInternal → user:', currentUser.uid);
 
-      const raw = await firstValueFrom(
-        this.geolocationService.currentPosition$({ requireUserGesture: opts.requireUserGesture })
-      );
-      if (!raw) throw new Error('[OnlineUsers] Posição não disponível.');
+      // ⬇️ 2.1) Snapshot recente (até 3 min) para montar a UI já
+      const snap = this.geoTracking.getLastSnapshot(3 * 60 * 1000);
+      let hadSnapshot = false;
+      if (snap?.latitude != null && snap?.longitude != null) {
+        this.userLocation = { latitude: snap.latitude, longitude: snap.longitude };
+        this.policyMaxDistanceKm = this.policyMaxDistanceKm || 20;
+        this.uiDistanceKm = this.uiDistanceKm ?? this.policyMaxDistanceKm;
+        this.setupStreamsAfterLocation(currentUser);
+        this.dist$.next(this.uiDistanceKm!);
+        hadSnapshot = true;
+        this.log('Usando snapshot local enquanto refinamos a posição...');
+      }
 
+      // ⬇️ 2.2) Tenta obter posição atual com parâmetros mais “perdoados”
+      // maximumAge > 0 permite o navegador devolver fix recente (reduz TIMEOUT)
+      const raw = await firstValueFrom(
+        this.geolocationService.currentPosition$({
+          requireUserGesture: opts.requireUserGesture,
+          enableHighAccuracy: false,
+          maximumAge: 300_000,   // 5 min
+          timeout: 20_000        // 20s
+        })
+      );
+
+      // sucesso → aplica política e atualiza UI
       const { coords: safe, policy } = this.geolocationService.applyRolePrivacy(
         raw, currentUser.role, !!currentUser.emailVerified
       );
-      if (safe?.latitude == null || safe?.longitude == null) {
-        throw new Error('[OnlineUsers] applyRolePrivacy retornou coords inválidas.');
-      }
-
-      // ✅ posição obtida
       this.userLocation = { latitude: safe.latitude, longitude: safe.longitude };
       this.policyMaxDistanceKm = policy?.maxDistanceKm ?? 20;
       this.uiDistanceKm = this.uiDistanceKm ?? this.policyMaxDistanceKm;
 
-      this.persistLastCoords(this.userLocation);
-      await this.maybePersistAlwaysAllow(opts);
+      // se viemos só com snapshot antes, agora os streams já estão montados;
+      // o próximo tick recalcula distâncias com a posição “refinada”.
+      if (!hadSnapshot) {
+        this.setupStreamsAfterLocation(currentUser);
+        this.dist$.next(this.uiDistanceKm!);
+      }
 
-      this.setupStreamsAfterLocation(currentUser);
-      this.dist$.next(this.uiDistanceKm!);
+      this.persistLastCoords(this.userLocation);
+
+      // ⬇️ inicie o watch para manter a posição fresca sem novos prompts
+      this.geoTracking.startTracking(currentUser.uid);
+
+      await this.maybePersistAlwaysAllow(opts);
 
       if (!opts.silent) {
         this.errorNotificationService.showSuccess('Localização ativada e usuários carregados.');
       }
     } catch (err) {
-      // 🔇 Silencia o caso específico no modo silencioso
-      if (
-        opts.silent &&
-        err instanceof GeolocationError &&
-        err.code === GeolocationErrorCode.USER_GESTURE_REQUIRED
-      ) {
-        this.log('auto-enable bloqueado por USER_GESTURE_REQUIRED (silencioso)');
-        return;
+      // Se deu TIMEOUT mas a UI já está em pé via snapshot, só avise leve e não “quebre”
+      if (err instanceof GeolocationError && err.code === GeolocationErrorCode.TIMEOUT) {
+        if (this.userLocation) {
+          this.log('Timeout ao refinar posição; mantendo snapshot.');
+          this.errorNotificationService.showInfo('Não foi possível atualizar sua posição agora; usando a última conhecida.');
+          this.loading = false;
+          return;
+        }
       }
+      // Demais casos seguem para o handler padrão
       this.handleGeoError(err);
     } finally {
       this.loading = false;
@@ -337,8 +363,8 @@ export class OnlineUsersComponent implements OnInit {
   }
 
   private async maybePersistAlwaysAllow(ctx: { requireUserGesture: boolean; silent: boolean }): Promise<void> {
-    // Só pergunta no fluxo com gesto explícito (clique) e quando ainda não está salvo
-    if (!ctx.requireUserGesture) return;
+    // Só pergunta quando NÃO for silencioso (ou seja, veio de um clique)
+    if (ctx.silent) return;
     if (this.readAlwaysAllow()) return;
 
     const state = await this.getPermissionStateSafe();

@@ -2,22 +2,56 @@
 import { Injectable, NgZone } from '@angular/core';
 import { FirestoreService } from '../data-handling/firestore.service'; // <- pasta irmã
 import { Timestamp } from 'firebase/firestore';
+import { GeoCoordinates } from '../../interfaces/geolocation.interface';
 
 type PermissionState = 'granted' | 'prompt' | 'denied' | 'unsupported';
 
 @Injectable({ providedIn: 'root' })
 export class GeolocationTrackingService {
   private watchId: number | null = null;
+
   private lastWrite = 0;
-  private readonly minWriteIntervalMs = 15_000; // reduz writes no Firestore
-  private readonly consentKey = 'geoConsent';   // pista local para browsers sem Permissions API
+  private lastCoords?: GeoCoordinates;                 // ⬅️ add
+  private readonly minWriteIntervalMs = 15_000;       // anti-spam básico
+  private readonly distanceThresholdM = 100;          // ⬅️ add: mínima variação p/ gravar
+  private readonly forceWriteIntervalMs = 120_000;    // ⬅️ add: “keepalive” a cada 2min
+
+  private readonly consentKey = 'geoConsent';
+  private readonly cacheKey = 'geo:last';             // ⬅️ add: snapshot local
 
   constructor(
     private ngZone: NgZone,
     private firestore: FirestoreService
   ) { }
 
-  /** Evita rodar em SSR */
+  // ---------- CACHE LOCAL ----------
+  private writeCache(coords: GeoCoordinates) {
+    try { localStorage.setItem(this.cacheKey, JSON.stringify({ coords, timestamp: Date.now() })); } catch { }
+  }
+  getLastSnapshot(maxAgeMs = 120_000): GeoCoordinates | null {  // ⬅️ público p/ UI usar
+    try {
+      const raw = localStorage.getItem(this.cacheKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as { coords: GeoCoordinates; timestamp: number };
+      if (!parsed?.coords || !parsed?.timestamp) return null;
+      if (Date.now() - parsed.timestamp > maxAgeMs) return null;
+      return parsed.coords;
+    } catch { return null; }
+  }
+
+  // ---------- DISTÂNCIA ----------
+  private toRad(d: number) { return d * Math.PI / 180; }
+  private distanceMeters(a: GeoCoordinates, b: GeoCoordinates): number {
+    const R = 6371000;
+    const dLat = this.toRad(b.latitude - a.latitude);
+    const dLon = this.toRad(b.longitude - a.longitude);
+    const lat1 = this.toRad(a.latitude);
+    const lat2 = this.toRad(b.latitude);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  // ---------- PERMISSÃO - evita rodar em SSR ----------
   private isBrowser(): boolean {
     return typeof window !== 'undefined' && typeof navigator !== 'undefined';
   }
@@ -77,7 +111,7 @@ export class GeolocationTrackingService {
     }
   }
 
-  /** Inicia o watchPosition (requer permissão concedida) */
+  // ---------- TRACK ----------
   startTracking(uid: string): void {
     if (!this.isBrowser() || !navigator.geolocation || this.watchId !== null) return;
 
@@ -85,18 +119,30 @@ export class GeolocationTrackingService {
       this.watchId = navigator.geolocation.watchPosition(
         (pos) => {
           const now = Date.now();
-          if (now - this.lastWrite < this.minWriteIntervalMs) return;
-          this.lastWrite = now;
-
           const { latitude, longitude, accuracy } = pos.coords;
+          const curr: GeoCoordinates = { latitude, longitude, accuracy } as any;
+
+          const moved = this.lastCoords
+            ? this.distanceMeters(this.lastCoords, curr)
+            : Number.POSITIVE_INFINITY;
+
+          // regras de economia:
+          const enoughTime = (now - this.lastWrite) >= this.minWriteIntervalMs;
+          const bigMove = moved >= this.distanceThresholdM;
+          const keepAlive = (now - this.lastWrite) >= this.forceWriteIntervalMs;
+
+          if (!enoughTime || (!bigMove && !keepAlive)) return;
+
+          this.lastWrite = now;
+          this.lastCoords = curr;
+          this.writeCache(curr); // ⬅️ snapshot local sempre
+
           this.firestore.updateDocument('users', uid, {
             latitude,
             longitude,
             locationAccuracy: Math.round(accuracy ?? 0),
             lastLocationAt: Timestamp.now()
-          }).subscribe({
-            error: () => { /* ignora falhas intermitentes de rede */ }
-          });
+          }).subscribe({ error: () => { } });
         },
         (err) => {
           if (err.code === err.PERMISSION_DENIED) {
@@ -104,12 +150,15 @@ export class GeolocationTrackingService {
             this.stopTracking();
           }
         },
-        { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 }
+        {
+          enableHighAccuracy: false,     // ⬅️ menor consumo; faça um botão “preciso” se quiser
+          maximumAge: 300_000,           // ⬅️ aceita fix até 5min (reduz TIMEOUT)
+          timeout: 20_000
+        }
       );
     });
   }
 
-  /** Para o watcher (ex.: no logout) */
   stopTracking(): void {
     if (!this.isBrowser()) return;
     if (this.watchId !== null && navigator.geolocation) {

@@ -8,18 +8,16 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 export const selectUserState = (state: AppState): IUserState => state.user;
 
 // Seleciona o usuário atual no estado.
-export const selectCurrentUser: MemoizedSelector<AppState, IUserDados | null> = createSelector(
+export const selectCurrentUser = createSelector(
   selectUserState,
-  (state: IUserState): IUserDados | null => {
-    console.log('Selecionando o usuário atual:', state.currentUser);
-    return state.currentUser ? state.currentUser : null;
-  }
+  (state: IUserState): IUserDados | null => state.currentUser ?? null
 );
 
-/** ✅ Novo: emite apenas uid (string | undefined) */
-export const selectCurrentUserUid = createSelector(
+
+/** ✅ Retorna string | null (não undefined) */
+export const selectCurrentUserUid: MemoizedSelector<AppState, string | null> = createSelector(
   selectCurrentUser,
-  (u) => u?.uid
+  (u) => u?.uid ?? null
 );
 
 // Seleciona todos os usuários armazenados no estado.

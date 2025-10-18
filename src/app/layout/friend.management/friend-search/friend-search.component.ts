@@ -4,7 +4,6 @@ import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { debounceTime, distinctUntilChanged, switchMap, catchError, of, Observable, map } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { UserInteractionsService } from 'src/app/core/services/data-handling/user-interactions.service';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,6 +13,7 @@ import { CacheService } from 'src/app/core/services/general/cache/cache.service'
 import { Store, select } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { loadSearchResultsSuccess } from 'src/app/store/actions/actions.interactions/actions.friends';
+import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 
 @Component({
   selector: 'app-friend-search',
@@ -35,13 +35,13 @@ export class FriendSearchComponent implements OnInit {
   searchResults$: Observable<IUserDados[]>;
 
   constructor(
-    private userInteractionsService: UserInteractionsService,
+    private friendship: FriendshipService,
     private errorNotifier: ErrorNotificationService,
     private cacheService: CacheService,
     private store: Store<AppState>
   ) {
     this.isLoading$ = this.cacheService.get<boolean>('loadingSearch').pipe(map(value => value ?? false));
-    this.searchResults$ = this.store.pipe(select(state => state.friends.searchResults));
+    this.searchResults$ = this.store.pipe(select(s => s.interactions_friends.searchResults));
   }
 
   ngOnInit(): void {
@@ -70,7 +70,7 @@ export class FriendSearchComponent implements OnInit {
           return of();
         }
 
-        return this.userInteractionsService.findUsersBySearchTerm(searchTerm).pipe(
+        return this.friendship.searchUsers(searchTerm).pipe(
           switchMap(results => {
             this.cacheService.set(cacheKey, results, 300000); // 🔥 Cache de 5 minutos
             this.store.dispatch(loadSearchResultsSuccess({ results })); // ✅ Atualiza Store

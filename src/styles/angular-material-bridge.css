@@ -99,3 +99,102 @@ mat-chip mat-icon,
 .mat-mdc-chip mat-icon {
   color: var(--text-color) !important;
 }
+
+/* Painel do menu (overlay) com classe aplicada via `class="menu-requests-panel"` */
+.cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel {
+  min-width: 360px;
+  max-width: 420px;
+  border-radius: 12px;
+  background: var(--surface-color);
+  color: var(--text-color);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--box-shadow);
+  overflow: hidden;
+}
+
+.cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel .mat-mdc-menu-content {
+  padding: 8px 8px 10px;
+  font-size: .95rem;
+  line-height: 1.25;
+  max-height: min(70vh, 440px);
+  overflow: auto;
+}
+
+/* Seus itens custom dentro do menu */
+.menu-requests-panel .req {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: .65rem;
+  align-items: start;
+  padding: .5rem;
+  border-radius: .5rem;
+}
+
+.menu-requests-panel .req:hover {
+  background: var(--header-hover-bg);
+}
+
+.menu-requests-panel .avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 9999px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  display: grid;
+  place-items: center;
+}
+
+.menu-requests-panel .avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.menu-requests-panel .name {
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.menu-requests-panel .msg {
+  font-size: .875rem;
+  opacity: .9;
+  margin-top: 2px;
+}
+
+.menu-requests-panel .acts {
+  display: inline-flex;
+  gap: .25rem;
+  margin-top: .35rem;
+}
+
+.menu-requests-panel .acts button mat-icon {
+  font-size: 18px;
+}
+
+html.dark-mode .cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel {
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .5);
+}
+
+/* ultima alteração em 18OUT2025, se der ruim excluir daqui pra baixo que tá trank */
+/* Tabs – contraste e foco */
+.mat-mdc-tab .mdc-tab__text-label {
+  color: var(--text-color) !important;
+}
+
+.mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+  color: var(--primary-color) !important;
+}
+
+.mat-mdc-tab .mdc-tab-indicator__content--underline {
+  border-color: var(--surface-border) !important;
+}
+
+.mat-mdc-tab.mdc-tab--active .mdc-tab-indicator__content--underline {
+  border-color: var(--primary-color) !important;
+}
+
+.mdc-tab:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}

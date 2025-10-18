@@ -1,109 +1,65 @@
 // src/app/layout/friend.management/friend-requests/friend-requests.component.ts
-import { Component, OnInit, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Store, select } from '@ngrx/store';
-import { map, Observable } from 'rxjs';
-
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { Store } from '@ngrx/store';
+import { map, filter, take, combineLatest } from 'rxjs';
 import { AppState } from 'src/app/store/states/app.state';
+import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
+import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 
-// ⬇️ NOVO serviço unificado de amizade
-import { FriendshipService } from 'src/app/core/services/interactions/friendship.service';
-
-// ⬇️ NOVAS actions unificadas de amizade
-import {
-  loadInboundRequests,
-  // Se quiser trocar o service por NgRx Effects mais tarde:
-  // acceptFriendRequest,
-  // declineFriendRequest,
-} from '../../../store/actions/actions.interactions/actions.friends';
-
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { CacheService } from 'src/app/core/services/general/cache/cache.service';
-
-// Modelo
-import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
+import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
+import { selectInboundRequests, selectInboundRequestsCount, selectRequestsLoading } from 'src/app/store/selectors/selectors.interactions/friends/inbound.selectors';
+import { selectOutboundRequests, selectOutboundRequestsCount, selectOutboundRequestsLoading } from 'src/app/store/selectors/selectors.interactions/friends/outbound.selectors';
+import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
 
 @Component({
   selector: 'app-friend-requests',
   standalone: true,
-  imports: [CommonModule, MatProgressSpinnerModule, MatButtonModule, MatCardModule],
+  imports: [CommonModule, SharedMaterialModule, DateFormatPipe], // ⬅️
   templateUrl: './friend-requests.component.html',
-  styleUrl: './friend-requests.component.css',
+  styleUrls: ['./friend-requests.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FriendRequestsComponent implements OnInit {
-  readonly user = input.required<IUserDados>();
+  private store = inject(Store) as Store<AppState>;
 
-  // Se sua store mantém as requests em state.friends.requests:
-  friendRequests$!: Observable<(FriendRequest & { id?: string })[]>;
+  uid$ = this.store.select(selectCurrentUserUid);
 
-  // Loading “provisório” via CacheService (mantive sua abordagem)
-  isLoading$: Observable<boolean> = this.cache.get<boolean>('loadingRequests').pipe(
-    map(v => v ?? false)
+  // dados
+  inbound$ = this.store.select(selectInboundRequests);
+  outbound$ = this.store.select(selectOutboundRequests);
+
+  // ✅ VM agregada para a aba “Todas”
+  vm$ = combineLatest([this.inbound$, this.outbound$]).pipe(
+    map(([inb, outb]) => ({ inbound: inb ?? [], outbound: outb ?? [] }))
   );
 
-  constructor(
-    private store: Store<AppState>,
-    private friendship: FriendshipService,
-    private notify: ErrorNotificationService,
-    private cache: CacheService,
-  ) { }
+  // contadores
+  inboundCount$ = this.store.select(selectInboundRequestsCount);
+  outboundCount$ = this.store.select(selectOutboundRequestsCount);
+  totalCount$ = combineLatest([this.inboundCount$, this.outboundCount$]).pipe(
+    map(([a, b]) => (a ?? 0) + (b ?? 0))
+  );
+
+  // loading
+  loadingInbound$ = this.store.select(selectRequestsLoading);
+  loadingOutbound$ = this.store.select(selectOutboundRequestsLoading);
+  bothLoading$ = combineLatest([this.loadingInbound$, this.loadingOutbound$]).pipe(
+    map(([a, b]) => !!a || !!b)
+  );
 
   ngOnInit(): void {
-    const u = this.user();
-    if (!u?.uid) return;
-
-    // 🔄 carrega solicitações recebidas do usuário logado
-    this.store.dispatch(loadInboundRequests({ uid: u.uid }));
-
-    // Enquanto você não cria novos selectors “friendship.selectors.ts”:
-    this.friendRequests$ = this.store.pipe(
-      select(s => s.friends.requests as (FriendRequest & { id?: string })[])
-    );
-  }
-
-  acceptRequest(req: FriendRequest & { id?: string }): void {
-    const u = this.user();
-    if (!u?.uid || !req?.id || !req?.requesterUid) return;
-
-    this.cache.set('loadingRequests', true, 5000);
-    this.friendship.acceptRequest(req.id, req.requesterUid, u.uid).subscribe({
-      next: () => {
-        this.cache.set('loadingRequests', false);
-        this.notify.showSuccess('Solicitação aceita — vocês agora são amigos.');
-        this.store.dispatch(loadInboundRequests({ uid: u.uid }));
-      },
-      error: (err: unknown) => {
-        this.cache.set('loadingRequests', false);
-        this.notify.showError('Erro ao aceitar solicitação.', (err as any)?.message);
-      },
+    this.uid$.pipe(filter(Boolean), take(1)).subscribe(uid => {
+      this.store.dispatch(A.loadInboundRequests({ uid: uid! }));
+      this.store.dispatch(A.loadOutboundRequests({ uid: uid! }));
     });
-
-    // ✅ Versão 100% NgRx (quando criar os Effects):
-    // this.store.dispatch(acceptFriendRequest({ requestId: req.id, requesterUid: req.requesterUid, targetUid: u.uid }));
   }
 
-  rejectRequest(req: FriendRequest & { id?: string }): void {
-    if (!req?.id) return;
-
-    this.cache.set('loadingRequests', true, 5000);
-    this.friendship.declineRequest(req.id).subscribe({
-      next: () => {
-        this.cache.set('loadingRequests', false);
-        this.notify.showInfo('Solicitação recusada.');
-        const u = this.user();
-        if (u?.uid) this.store.dispatch(loadInboundRequests({ uid: u.uid }));
-      },
-      error: (err: unknown) => {
-        this.cache.set('loadingRequests', false);
-        this.notify.showError('Erro ao recusar solicitação.', (err as any)?.message);
-      },
-    });
-
-    // ✅ Versão 100% NgRx (quando criar os Effects):
-    // this.store.dispatch(declineFriendRequest({ requestId: req.id }));
+  trackById = (_: number, item: any) => item?.id ?? _;
+  async acceptRequest(req: { id: string; requesterUid: string }) {
+    const uid = await this.uid$.pipe(filter(Boolean), take(1)).toPromise();
+    this.store.dispatch(A.acceptFriendRequest({ requestId: req.id, requesterUid: req.requesterUid, targetUid: uid! }));
   }
+  declineRequest(req: { id: string }) { this.store.dispatch(A.declineFriendRequest({ requestId: req.id })); }
+  cancelRequest(req: { id: string }) { this.store.dispatch(A.cancelFriendRequest({ requestId: req.id })); }
 }

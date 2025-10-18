@@ -15,13 +15,14 @@ import { setCache } from 'src/app/store/actions/cache.actions';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
 
 @Component({
   selector: 'app-user-profile-preferences',
   templateUrl: './user-profile-preferences.component.html',
   styleUrls: ['./user-profile-preferences.component.css'],
   standalone: true,
-  imports: [CommonModule, RouterModule, SharedModule, MatExpansionModule],
+  imports: [CommonModule, RouterModule, SharedModule, MatExpansionModule, CapitalizePipe],
 })
 export class UserProfilePreferencesComponent implements OnInit {
   readonly uid = input<string | null>(null);

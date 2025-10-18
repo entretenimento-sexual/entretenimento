@@ -10,8 +10,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatSnackBarModule } from '@angular/material/snack-bar'; // 👈 novo
 
 // Pipes e componentes já existentes
-import { DateFormatPipe } from './date-format.pipe';
-import { CapitalizePipe } from './capitalize.pipe';
+import { DateFormatPipe } from './pipes/date-format.pipe';
+import { CapitalizePipe } from './pipes/capitalize.pipe';
 import { ModalMensagemComponent } from './components-globais/modal-mensagem/modal-mensagem.component';
 import { TextoDialogComponent } from './components-globais/texto-dialog/texto-dialog.component';
 import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dialog/confirmacao-dialog.component';
@@ -23,8 +23,6 @@ import { LocationCtaComponent } from './location-cta/location-cta.component';
 
 @NgModule({
   declarations: [
-    DateFormatPipe,
-    CapitalizePipe,
     ModalMensagemComponent,
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
@@ -42,13 +40,11 @@ import { LocationCtaComponent } from './location-cta/location-cta.component';
     AngularPinturaModule,
   ],
   exports: [
-    DateFormatPipe,
-    CapitalizePipe,
     ModalMensagemComponent,
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
     UploadPhotoComponent,
-    
+
   ]
 })
 export class SharedModule { }

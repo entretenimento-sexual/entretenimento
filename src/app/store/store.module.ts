@@ -7,7 +7,6 @@ import { environment } from '../../environments/environment';
 
 // ROOT reducers
 import { reducers } from './reducers'; // ⬅️ Agora centralizado via index.ts
-                            // e ir esvaziando o combine.reduce substituído por reducers/index.ts
 
 // EFFECTS - USER
 import { AuthEffects } from './effects/effects.user/auth.effects';
@@ -25,7 +24,8 @@ import { InviteEffects } from './effects/effects.chat/invite.effects';
 import { RoomEffects } from './effects/effects.chat/room.effects';
 
 // EFFECTS - INTERACTIONS
-import { FriendsEffects } from './effects/effects.interactions/effects.friends';
+import { FriendsNetworkEffects } from './effects/effects.interactions/effects.friends/friends-network.effects';
+import { FriendsRequestsEffects } from './effects/effects.interactions/effects.friends/friends-requests.effects';
 
 // EFFECTS - LOCATION
 import { NearbyProfilesEffects } from './effects/effects.location/nearby-profiles.effects';
@@ -38,6 +38,7 @@ import { CacheEffects } from './effects/cache.effects';
 import { friendsReducer } from './reducers/reducers.interactions/friends.reduce';
 import { userPreferencesReducer } from './reducers/reducers.user/user-preferences.reducer';
 import { nearbyProfilesReducer } from './reducers/reducers.location/nearby-profiles.reducer';
+
 
 // 🔧 Feature slice names devem bater com seus selectors!
 @NgModule({
@@ -63,7 +64,8 @@ import { nearbyProfilesReducer } from './reducers/reducers.location/nearby-profi
       NearbyProfilesEffects,
       LocationEffects,
       UserPreferencesEffects,
-      FriendsEffects,
+      FriendsRequestsEffects,
+      FriendsNetworkEffects,
       UserRoleEffects,
       AuthStatusSyncEffects,
     ]),

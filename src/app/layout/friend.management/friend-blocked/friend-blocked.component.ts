@@ -17,7 +17,7 @@ import {
 import { BlockedUser } from 'src/app/core/interfaces/friendship/blocked-user.interface';
 
 // ✅ novo serviço unificado
-import { FriendshipService } from 'src/app/core/services/interactions/friendship.service';
+import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 
 @Component({
   selector: 'app-friend-blocked',
@@ -43,7 +43,7 @@ export class FriendBlockedComponent implements OnInit {
     this.store.dispatch(loadBlockedUsers({ uid: u.uid }));
 
     // você pode manter esse select direto enquanto não cria selectors dedicados
-    this.blockedUsers$ = this.store.pipe(select(state => state.friends.blocked));
+    this.blockedUsers$ = this.store.pipe(select(s => s.interactions_friends.blocked));
   }
 
   blockUser(friendUid: string): void {

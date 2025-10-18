@@ -1,8 +1,65 @@
-//firestore.rules
+//C:\entretenimento\firestore.rules
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+
+    // Doc do usuário (perfil)
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if isSelf(userId);
+    }
+
+    // Subcoleção de amigos (minha visão)
+    match /users/{userId}/friends/{friendId} {
+      // Dono sempre pode ler/escrever sua lista
+      allow read, write: if isSelf(userId)
+        // DEV-ONLY: permitir que o "outro lado" crie o doc recíproco no batch de aceitação.
+        || (
+          // somente criação do doc recíproco
+          signedIn() &&
+          request.method == 'create' &&
+          // o id do doc (friendId) precisa ser exatamente o UID de quem está criando
+          friendId == request.auth.uid &&
+          // e o payload tem que apontar de volta para o dono da coleção
+          request.resource.data.friendUid == userId
+        );
+    }
+
+    // Subcoleção de bloqueados (somente o dono)
+    match /users/{userId}/blocked/{targetId} {
+      allow read, write: if isSelf(userId);
+    }
+
+    // Solicitações de amizade
+    match /friendRequests/{reqId} {
+      // Somente participantes podem ler
+      allow read: if signedIn() &&
+        (resource.data.requesterUid == request.auth.uid ||
+         resource.data.targetUid    == request.auth.uid);
+
+      // Criar: apenas o requester, status 'pending'
+      allow create: if signedIn()
+        && request.resource.data.requesterUid == request.auth.uid
+        && request.resource.data.targetUid    != request.auth.uid
+        && request.resource.data.status       == 'pending'
+        && request.resource.data.createdAt    is timestamp
+        && (!('message' in request.resource.data) || request.resource.data.message is string);
+
+      // Atualizar: apenas o alvo pode mudar para 'accepted'/'declined'
+      allow update: if signedIn()
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['accepted', 'declined']
+        && request.resource.data.respondedAt is timestamp
+        // não deixa trocar participantes
+        && request.resource.data.requesterUid == resource.data.requesterUid
+        && request.resource.data.targetUid    == resource.data.targetUid
+        // só o destinatário pode responder
+        && request.auth.uid == resource.data.targetUid;
+
+      // Deletar: requester pode cancelar enquanto pendente
+      allow delete: if signedIn()
+        && resource.data.status == 'pending'
+        && request.auth.uid == resource.data.requesterUid;
     }
   }
 }

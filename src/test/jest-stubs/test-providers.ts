@@ -14,11 +14,11 @@ import { AuthService } from '../../app/core/services/autentication/auth.service'
 import { ChatService } from '../../app/core/services/batepapo/chat-service/chat.service';
 import { UserPreferencesService } from '../../app/core/services/preferences/user-preferences.service';
 import { DataSyncService } from '../../app/core/services/general/cache/cache+store/data-sync.service';
-import { UserInteractionsService } from '../../app/core/services/data-handling/user-interactions.service';
 import { StorageService } from '../../app/core/services/image-handling/storage.service';
 import { PhotoFirestoreService } from '../../app/core/services/image-handling/photo-firestore.service';
 import { SubscriptionService } from '../../app/core/services/subscriptions/subscription.service';
 import { RoomManagementService } from '../../app/core/services/batepapo/room-services/room-management.service';
+import { FriendshipService } from '../../app/core/services/interactions/friendship/friendship.service';
 
 export const angularFireTokenStubs: Provider[] = [
   { provide: Firestore, useValue: {} as any },
@@ -51,7 +51,12 @@ export const appServiceStubs: Provider[] = [
 
   { provide: UserPreferencesService, useValue: {} },
   { provide: DataSyncService, useValue: {} },
-  { provide: UserInteractionsService, useValue: {} },
+  { provide: FriendshipService, useValue: {
+      searchUsers: jest.fn(() => of([])),
+      blockUser: jest.fn(() => of(void 0)),
+      // adicione métodos usados nos componentes sob teste, se necessário
+    }
+  },
   { provide: StorageService, useValue: {} },
   { provide: PhotoFirestoreService, useValue: {} },
   { provide: SubscriptionService, useValue: {} },

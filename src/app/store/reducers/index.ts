@@ -1,4 +1,4 @@
-// \src\app\store\reducers\index.ts
+// src/app/store/reducers/index.ts
 import { ActionReducerMap } from '@ngrx/store';
 import { AppState } from '../states/app.state';
 
@@ -16,8 +16,10 @@ import { locationReducer } from './reducers.location/location.reducer';
 import { nearbyProfilesReducer } from './reducers.location/nearby-profiles.reducer';
 
 import { friendsReducer } from './reducers.interactions/friends.reduce';
-
 import { cacheReducer } from './cache.reducer';
+
+// Mantemos uma constante pra evitar “magic string”
+export const FRIENDS_FEATURE_KEY = 'interactions_friends' as const;
 
 export const reducers: ActionReducerMap<AppState> = {
   // USER DOMAIN
@@ -28,11 +30,11 @@ export const reducers: ActionReducerMap<AppState> = {
   userPreferences: userPreferencesReducer,
 
   // INTERACTIONS DOMAIN
-  friends: friendsReducer,
+  [FRIENDS_FEATURE_KEY]: friendsReducer, // chave alinha com os selectors
 
   // LOCATION DOMAIN
   location: locationReducer,
-  nearbyProfiles: nearbyProfilesReducer,
+  nearbyProfiles: nearbyProfilesReducer, 
 
   // CHAT DOMAIN
   chat: chatReducer,

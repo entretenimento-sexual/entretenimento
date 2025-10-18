@@ -9,14 +9,10 @@ import { CacheService } from '../general/cache/cache.service';
 import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
-import {
-  doc, getDoc,
-  Firestore,
-  docSnapshots,
-  // ✅ Importa a função 'getDocFromServer' que vamos usar
-  getDocFromServer,
-  docData
-} from '@angular/fire/firestore';
+import { doc, getDoc, Firestore, docSnapshots, getDocFromServer, docData } from '@angular/fire/firestore';
+import { collection, documentId, getDocs, query, where } from 'firebase/firestore';
+
+export type UserPublic = { uid: string; nickname?: string; avatarUrl?: string };
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreUserQueryService {
@@ -29,6 +25,72 @@ export class FirestoreUserQueryService {
     private db: Firestore,
     private injector: Injector
   ) { }
+
+  private chunk<T>(arr: T[], size: number): T[][] {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+    return out;
+  }
+
+  getUsersPublicMap$(uids: string[]): Observable<Record<string, UserPublic>> {
+    const ids = Array.from(new Set((uids ?? []).filter(Boolean)));
+    if (!ids.length) return of({} as Record<string, UserPublic>);
+
+    const col = runInInjectionContext(this.injector, () => collection(this.db, 'users'));
+    const groups = this.chunk(ids, 10); // 'in' aceita até 10
+
+    return from(
+      runInInjectionContext(this.injector, async () => {
+        const mapOut: Record<string, UserPublic> = {};
+
+        // Tenta batch por 'in'
+        try {
+          const snaps = await Promise.all(
+            groups.map(g => getDocs(query(col, where(documentId(), 'in', g))))
+          );
+          for (const snap of snaps) {
+            snap.forEach(d => {
+              const data: any = d.data();
+              mapOut[d.id] = {
+                uid: d.id,
+                nickname: data?.nickname ?? data?.displayName ?? data?.name ?? undefined,
+                avatarUrl: data?.photoURL ?? data?.avatarUrl ?? data?.imageUrl ?? undefined,
+              };
+              // opcional: hidratar store+cache
+              this.store.dispatch(addUserToState({ user: { uid: d.id, ...data } as IUserDados }));
+              this.cache.set(`user:${d.id}`, { uid: d.id, ...data }, 300_000);
+            });
+          }
+          return mapOut;
+        } catch {
+          // Fallback (se 'documentId()' não estiver acessível): N leituras individuais
+          const docs = await Promise.all(
+            ids.map(async uid => {
+              const ds = await getDoc(runInInjectionContext(this.injector, () => doc(this.db, 'users', uid)));
+              return ds.exists() ? { uid: ds.id, ...(ds.data() as any) } : null;
+            })
+          );
+          for (const d of docs) {
+            if (!d) continue;
+            mapOut[d.uid] = {
+              uid: d.uid,
+              nickname: d.nickname ?? d.displayName ?? d.name ?? undefined,
+              avatarUrl: d.photoURL ?? d.avatarUrl ?? d.imageUrl ?? undefined,
+            };
+            this.store.dispatch(addUserToState({ user: d as IUserDados }));
+            this.cache.set(`user:${d.uid}`, d as any, 300_000);
+          }
+          return mapOut;
+        }
+      })
+    ).pipe(
+      catchError(err => {
+        this.firestoreError.handleFirestoreError(err);
+        // devolve um mapa vazio, mantendo tipagem do efeito
+        return of({} as Record<string, UserPublic>);
+     })
+    );
+  }
 
   private getUserFromFirestore$(uid: string): Observable<IUserDados | null> {
     const ref = runInInjectionContext(this.injector, () => doc(this.db, 'users', uid));
@@ -43,7 +105,7 @@ export class FirestoreUserQueryService {
       catchError(err => this.firestoreError.handleFirestoreError(err))
     );
   }
-  
+
   async checkUserExistsFromServer(uid: string): Promise<boolean> {
     try {
       return await runInInjectionContext(this.injector, async () => {

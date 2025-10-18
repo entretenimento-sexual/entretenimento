@@ -14,8 +14,9 @@ import { CommonModule } from '@angular/common';
 import { SocialLinksAccordionComponent } from './user-social-links-accordion/user-social-links-accordion.component';
 import { UserProfilePreferencesComponent } from './user-profile-preferences/user-profile-preferences.component';
 import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
-import { SharedModule } from 'src/app/shared/shared.module';
 import { UserProfileSidebarComponent } from './user-profile-sidebar/user-profile-sidebar.component';
+import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
+import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
 
 enum SidebarState { CLOSED, OPEN }
 
@@ -24,9 +25,9 @@ enum SidebarState { CLOSED, OPEN }
   templateUrl: './user-profile-view.component.html',
     styleUrls: ['./user-profile-view.component.css'],
     standalone: true,
-    imports: [CommonModule, RouterModule, SharedModule, SocialLinksAccordionComponent,
+    imports: [CommonModule, RouterModule, SocialLinksAccordionComponent,
       UserProfilePreferencesComponent, UserPhotoManagerComponent,
-      UserProfileSidebarComponent ]
+      UserProfileSidebarComponent, DateFormatPipe, CapitalizePipe ]
   })
 
 export class UserProfileViewComponent implements OnInit, OnDestroy {

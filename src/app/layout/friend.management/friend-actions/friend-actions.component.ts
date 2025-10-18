@@ -27,12 +27,17 @@ import {
 } from 'src/app/store/actions/actions.interactions/actions.friends';
 
 import {
-  selectFriendRequests,
-  // estes três adicionaremos no passo 2
-  selectIsSendingFriendRequest,
-  selectSendFriendRequestError,
-  selectSendFriendRequestSuccess,
-} from 'src/app/store/selectors/selectors.interactions/friend.selector';
+  selectInboundRequests,                    // ⬅️ em vez de selectFriendRequests
+} from 'src/app/store/selectors/selectors.interactions/friends/inbound.selectors';
+
+import {
+  selectIsSendingFriendRequest,             // ok
+} from 'src/app/store/selectors/selectors.interactions/friends/busy.selectors';
+
+import {
+  selectSendFriendRequestError,             // ⬅️ vamos criar
+  selectSendFriendRequestSuccess,           // ⬅️ vamos criar
+} from 'src/app/store/selectors/selectors.interactions/friends/friends.selectors';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
@@ -44,13 +49,13 @@ import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
   imports: [
     CommonModule,
     ReactiveFormsModule,
-    SharedMaterialModule,          // ✅ menos repetição
+    SharedMaterialModule,
     FriendBlockedComponent,
     FriendListComponent,
     FriendRequestsComponent,
   ],
   templateUrl: './friend-actions.component.html',
-  styleUrl: './friend-actions.component.css',
+  styleUrls: ['./friend-actions.component.css'],
 })
 export class FriendActionsComponent implements OnInit {
   @Input({ required: true }) user!: IUserDados;
@@ -75,7 +80,7 @@ export class FriendActionsComponent implements OnInit {
     if (!this.user?.uid) return;
 
     // store selectors
-    this.friendRequests$ = this.store.select(selectFriendRequests);
+    this.friendRequests$ = this.store.select(selectInboundRequests);
     this.isSending$ = this.store.select(selectIsSendingFriendRequest);
     this.sendError$ = this.store.select(selectSendFriendRequestError);
     this.sendSuccess$ = this.store.select(selectSendFriendRequestSuccess);

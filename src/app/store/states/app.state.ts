@@ -29,10 +29,11 @@ export interface AppState {
   invite: ReturnType<typeof inviteReducer>;
   room: ReturnType<typeof roomReducer>;
 
-  // INTERACTIONS
-  friends: ReturnType<typeof friendsReducer>;
+  // INTERACTIONS DOMAIN
+  /** Alinha com a chave de registro e com os selectors */
+  interactions_friends: ReturnType<typeof friendsReducer>;
 
-  // LOCATION
+  // LOCATION DOMAIN
   location: ReturnType<typeof locationReducer>;
   nearbyProfiles: ReturnType<typeof nearbyProfilesReducer>;
 

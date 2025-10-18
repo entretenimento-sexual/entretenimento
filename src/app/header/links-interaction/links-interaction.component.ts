@@ -1,61 +1,80 @@
-//src\app\header\links-interaction\links-interaction.component.ts
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
+// src/app/header/links-interaction/links-interaction.component.ts
+import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Store } from '@ngrx/store';
+import { AppState } from 'src/app/store/states/app.state';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { UploadPhotoComponent } from 'src/app/shared/components-globais/upload-photo/upload-photo.component';
 import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
 import { NotificationService } from 'src/app/core/services/batepapo/chat-notification.service';
 
-@Component({
-    selector: 'app-links-interaction',
-    templateUrl: './links-interaction.component.html',
-    styleUrls: ['./links-interaction.component.css'],
-    standalone: false
-})
-export class LinksInteractionComponent implements OnInit {
-  selectedImageFile!: File;
-  userId: string | null = null;
-  unreadMessagesCount: number = 0;
-  pendingInvitesCount: number = 0;
+import {
+  selectInboundRequestsCount,
+  selectInboundRequests
+} from 'src/app/store/selectors/selectors.interactions/friend.selector';
+import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
 
-  constructor(private modalService: NgbModal,
-              private notificationService: NotificationService,
-              private cdr: ChangeDetectorRef,
-              private authService: AuthService) { }
+import { distinctUntilChanged, filter, map, take } from 'rxjs/operators';
+import { Observable, Subscription, firstValueFrom } from 'rxjs';
+import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
+import { selectInboundRequestsVM } from 'src/app/store/selectors/selectors.interactions/friends/vm.selectors';
+
+@Component({
+  selector: 'app-links-interaction',
+  templateUrl: './links-interaction.component.html',
+  styleUrls: ['./links-interaction.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  standalone: false,
+})
+export class LinksInteractionComponent implements OnInit, OnDestroy {
+  private store = inject(Store<AppState>);
+  private modalService = inject(NgbModal);
+  private notificationService = inject(NotificationService);
+
+  // Auth
+  userId$: Observable<string | null> = this.store.select(selectCurrentUserUid);
+  isLogged$: Observable<boolean> = this.userId$.pipe(map(Boolean), distinctUntilChanged());
+
+  // Contadores
+  pendingFriendReqCount$ = this.store.select(selectInboundRequestsCount);
+  unreadMessagesCount$ = this.notificationService.unreadMessagesCount$;
+  pendingInvitesCount$ = this.notificationService.pendingInvitesCount$;
+
+  // Mini-inbox
+  inboundRequestsVM$ = this.store.select(selectInboundRequestsVM);
+
+  private sub = new Subscription();
 
   ngOnInit(): void {
-    // Obtenha o userId do usuário autenticado
-    this.authService.user$.subscribe(user => {
-      if (user) {
-        this.userId = user.uid; // Captura o userId do usuário
-        this.notificationService.monitorUnreadMessages(user.uid); // Monitora mensagens para o usuário
-      }
-    });
+    this.sub.add(
+      this.userId$
+        .pipe(filter((uid): uid is string => !!uid), distinctUntilChanged())
+        .subscribe(uid => this.notificationService.monitorUnreadMessages(uid))
+    );
+  }
+  ngOnDestroy(): void { this.sub.unsubscribe(); }
 
-
-    // Inscrever-se nas notificações de mensagens não lidas
-    this.notificationService.unreadMessagesCount$.subscribe(count => {
-      console.log('Contagem de mensagens não lidas recebida no componente:', count);
-      this.unreadMessagesCount = count;
-      this.cdr.detectChanges();
-    });
-
-// Inscrever-se nas notificações de convites pendentes
-this.notificationService.pendingInvitesCount$.subscribe(count => {
-  this.pendingInvitesCount = count;
-  this.cdr.detectChanges();
-});
+  // Ações do mini-menu
+  async refreshInboundOnOpen() {
+    const uid = await firstValueFrom(this.userId$.pipe(filter(Boolean), take(1)));
+    this.store.dispatch(A.loadInboundRequests({ uid }));
+  }
+  async accept(req: { id: string; requesterUid: string; targetUid?: string }) {
+    const me = await firstValueFrom(this.userId$.pipe(filter(Boolean), take(1)));
+    this.store.dispatch(A.acceptFriendRequest({ requestId: req.id, requesterUid: req.requesterUid, targetUid: me! }));
+  }
+  decline(req: { id: string }) {
+    this.store.dispatch(A.declineFriendRequest({ requestId: req.id }));
+  }
+  async block(req: { id: string; requesterUid: string }) {
+    const me = await firstValueFrom(this.userId$.pipe(filter(Boolean), take(1)));
+    this.store.dispatch(A.blockUser({ ownerUid: me!, targetUid: req.requesterUid }));
+    this.store.dispatch(A.declineFriendRequest({ requestId: req.id }));
   }
 
   onUploadPhotoClick(): void {
     const modalRef = this.modalService.open(UploadPhotoComponent, { size: 'lg' });
-
-    modalRef.componentInstance.photoSelected.subscribe((file: File) => {
-      this.selectedImageFile = file;
-      this.openPhotoEditorWithFile(this.selectedImageFile);
-    });
+    modalRef.componentInstance.photoSelected.subscribe((file: File) => this.openPhotoEditorWithFile(file));
   }
-
   openPhotoEditorWithFile(file: File): void {
     const editorModalRef = this.modalService.open(PhotoEditorComponent, { size: 'lg' });
     editorModalRef.componentInstance.imageFile = file;

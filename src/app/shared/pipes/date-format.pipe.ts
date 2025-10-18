@@ -1,15 +1,18 @@
 // src/app/shared/date-format.pipe.ts
 import { Pipe, PipeTransform } from '@angular/core';
-import { DateTimeService } from '../core/services/general/date-time.service';
+import { DateTimeService } from '../../core/services/general/date-time.service';
 
 @Pipe({
   name: 'dateFormat',
-  standalone: false
+  standalone: true
 })
 export class DateFormatPipe implements PipeTransform {
   constructor(private dateTimeService: DateTimeService) { }
 
-  transform(value: any, formatType: string = 'datetime', invalidMessage: string = 'Data inválida'): string {
+  transform(value: any,
+            formatType: string = 'datetime',
+            invalidMessage: string = 'Data inválida'
+          ): string {
     try {
       const date = this.dateTimeService.convertToDate(value); // Usa o serviço para conversão
 

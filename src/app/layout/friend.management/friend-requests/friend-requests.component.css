@@ -1,21 +1,102 @@
 /* src\app\layout\friend.management\friend-requests\friend-requests.component.css */
+:host {
+  display: block;
+}
+
 .friend-requests {
   margin: 1rem;
   padding: 1rem;
-  border-radius: 8px;
-  background: #f8f9fa;
+  border-radius: var(--radius-lg, 12px);
+  background: var(--surface-color);
+  color: var(--text-color);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--box-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
 }
 
+/* título */
+#fr-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+/* altura mínima do painel + rolagem só no conteúdo */
+.tab-panel {
+  min-height: clamp(420px, 60vh, 840px);
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+.panel-loading {
+  min-height: clamp(280px, 50vh, 720px);
+  display: grid;
+  place-items: center;
+}
+
+.tab-scroll {
+  overflow: auto;
+  padding: .25rem .25rem .5rem;
+}
+
+/* cartões */
 mat-card {
-  margin-bottom: 10px;
+  background: var(--surface-color);
+  color: var(--text-color);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: none;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+
+mat-card:hover {
+  background: color-mix(in oklab, var(--primary-color) 6%, var(--surface-color));
+  border-color: color-mix(in oklab, var(--primary-color) 20%, var(--surface-border));
 }
 
 mat-card-title {
-  font-size: 1.1rem;
-  font-weight: bold;
+  font-size: 1rem;
+  font-weight: 700;
 }
 
-mat-card-actions {
-  display: flex;
-  justify-content: space-between;
+mat-card-subtitle {
+  opacity: .9;
+}
+
+/* estado vazio */
+.empty-state {
+  min-height: clamp(280px, 40vh, 560px);
+  border: 2px dashed var(--surface-border);
+  border-radius: var(--radius-md, 8px);
+  display: grid;
+  place-items: center;
+  gap: .5rem;
+  text-align: center;
+  padding: 1.25rem;
+}
+
+.empty-state mat-icon {
+  font-size: 36px;
+  width: 36px;
+  height: 36px;
+  opacity: .75;
+}
+
+/* A11y: foco visível nos botões dentro dos cards */
+mat-card-actions button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* Dark/HC já vêm das vars globais; reforços para HC: */
+html.high-contrast .friend-requests,
+html.high-contrast .empty-state,
+html.high-contrast mat-card {
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  border: 2px solid currentColor !important;
+  box-shadow: none !important;
 }

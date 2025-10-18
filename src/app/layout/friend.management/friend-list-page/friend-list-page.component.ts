@@ -7,15 +7,8 @@ import { map } from 'rxjs/operators';
 import { AppState } from 'src/app/store/states/app.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.selectors';
-import {
-  selectFriendsCount,
-  selectPendingFriendRequestsCount,
-  selectBlockedFriendsCount,
-  selectFriendsVM,
-} from 'src/app/store/selectors/selectors.interactions/friend.selector';
-
-
-// ❌ SUPRIMIDO: imports individuais de Mat* (motivo acima)
+import { selectFriendsCount, selectInboundRequestsCount, selectBlockedFriendsCount,
+        selectFriendsVM, } from 'src/app/store/selectors/selectors.interactions/friend.selector';
 // ✅ Entrando com o módulo centralizado:
 import { FriendListComponent } from '../friend-list/friend-list.component';
 import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
@@ -33,7 +26,7 @@ export class FriendListPageComponent {
   currentUser$: Observable<IUserDados | null> = this.store.select(selectCurrentUser);
   friendsVM$ = this.store.select(selectFriendsVM);
   friendsCount$ = this.store.select(selectFriendsCount);
-  pendingRequestsCount$ = this.store.select(selectPendingFriendRequestsCount);
+  pendingRequestsCount$ = this.store.select(selectInboundRequestsCount);
   blockedCount$ = this.store.select(selectBlockedFriendsCount);
   onlineCount$ = this.friendsVM$.pipe(map(list => list.filter(f => f.isOnline).length));
 
