@@ -13,6 +13,9 @@ import { MatBadgeModule } from '@angular/material/badge';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatCardModule } from '@angular/material/card';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { TextFieldModule } from '@angular/cdk/text-field';
 
 const MATERIAL = [
   MatButtonModule,
@@ -28,7 +31,13 @@ const MATERIAL = [
   MatBadgeModule,
   MatMenuModule,
   MatCardModule,
+  MatDividerModule,
+  MatTooltipModule,
+  TextFieldModule
 ];
 
-@NgModule({ exports: MATERIAL })
+@NgModule({
+  imports: MATERIAL,
+  exports: MATERIAL
+})
 export class SharedMaterialModule { }

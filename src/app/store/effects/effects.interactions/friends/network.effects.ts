@@ -1,7 +1,8 @@
-// src/app/store/effects/effects.interactions/friends-network.effects.ts
+//src\app\store\effects\effects.interactions\friends\network.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import * as A from '../../../actions/actions.interactions/actions.friends';
+import * as RT from '../../../actions/actions.interactions/friends/friends-realtime.actions';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { Store } from '@ngrx/store';
 import { of } from 'rxjs';
@@ -17,7 +18,6 @@ export class FriendsNetworkEffects {
     private store: Store<AppState>,
   ) { }
 
-  /** Bootstrap por usuário → carrega tudo e inicia listener */
   bootstrapOnUser$ = createEffect(() =>
     this.store.select(selectCurrentUserUid).pipe(
       filter((uid): uid is string => !!uid),
@@ -28,13 +28,13 @@ export class FriendsNetworkEffects {
           A.loadInboundRequests({ uid }),
           A.loadOutboundRequests({ uid }),
           A.loadBlockedUsers({ uid }),
-          A.startInboundRequestsListener({ uid }),
+          RT.startInboundRequestsListener({ uid }),
+          RT.startOutboundRequestsListener({ uid }),
         )
       )
     )
   );
 
-  /** Lista de amigos */
   loadFriends$ = createEffect(() =>
     this.actions$.pipe(
       ofType(A.loadFriends),
@@ -48,13 +48,11 @@ export class FriendsNetworkEffects {
     )
   );
 
-  /** Block / Unblock / Blocked list */
   blockUser$ = createEffect(() =>
     this.actions$.pipe(
       ofType(A.blockUser),
       mergeMap(({ ownerUid, targetUid, reason }) =>
         this.svc.blockUser(ownerUid, targetUid, reason).pipe(
-          // sucesso explícito + recarregar lista
           mergeMap(() => of(
             A.blockUserSuccess({ ownerUid, targetUid }),
             A.loadBlockedUsers({ uid: ownerUid })
@@ -80,7 +78,6 @@ export class FriendsNetworkEffects {
     )
   );
 
-  /** Blocked list */
   loadBlocked$ = createEffect(() =>
     this.actions$.pipe(
       ofType(A.loadBlockedUsers),

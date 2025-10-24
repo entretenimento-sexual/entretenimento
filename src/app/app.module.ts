@@ -13,11 +13,8 @@ import { HeaderModule } from './header/header.module';
 import { FooterModule } from './footer/footer.module';
 import { PhotoEditorModule } from './photo-editor/photo-editor.module';
 
-import { EffectsModule } from '@ngrx/effects';
 import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 import { AppStoreModule } from './store/store.module';
-import { AuthEffects } from './store/effects/effects.user/auth.effects';
-import { UserEffects } from './store/effects/effects.user/user.effects';
 
 import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';

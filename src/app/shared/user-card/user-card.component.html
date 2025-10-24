@@ -1,17 +1,15 @@
 <!-- src\app\shared\user-card\user-card.component.html -->
 <article class="card user-card shadow-lg" [attr.aria-labelledby]="'uc-title-' + (user()?.uid || 'x')"
   [attr.aria-describedby]="'uc-desc-' + (user()?.uid || 'x')">
-
   <!-- Foto grande + faixa do nickname integrada -->
   <a class="media d-block profile-link" [routerLink]="['/profile', user()?.uid]"
     [attr.aria-label]="'Ver perfil de ' + (user()?.nickname || 'usuário')">
-
     <img [src]="user()?.photoURL || 'assets/imagem-padrao.webp'" class="profile-photo"
       alt="{{ user()?.nickname || 'Foto do usuário' }}" loading="lazy" decoding="async" />
 
     <div class="nick-strip" [class.is-online]="user()?.isOnline" [class.is-offline]="!user()?.isOnline">
       <span class="status-dot" aria-hidden="true"></span>
-      <span class="nick text-truncate" [attr.id]="'uc-title-' + (user()?.uid || 'x')">
+      <span class="nick text-truncate" [ngClass]="nicknameClass()" [attr.id]="'uc-title-' + (user()?.uid || 'x')">
         {{ user()?.nickname }}
       </span>
       <span class="sr-only">
@@ -29,7 +27,7 @@
     </p>
 
     <p class="description" [attr.id]="'uc-desc-' + (user()?.uid || 'x')">
-      {{ (user()?.descricao || '') }}
+      {{ user()?.descricao || '' }}
     </p>
 
     <!-- Distância com ícone -->
@@ -46,7 +44,7 @@
 
     <div class="actions mt-auto">
       <button type="button" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center"
-        (click)="abrirModal($event)" aria-label="Enviar mensagem para {{ user()?.nickname || 'usuário' }}">
+        (click)="abrirDM($event)" aria-label="Enviar mensagem para {{ user()?.nickname || 'usuário' }}">
         <i class="fas fa-paper-plane" aria-hidden="true"></i>
         <span class="btn-label d-none d-md-inline ms-2">Enviar mensagem</span>
       </button>

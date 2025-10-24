@@ -5,7 +5,7 @@ import { environment } from 'src/environments/environment';
 import { FriendshipRepo } from './friendship.repo';
 import { Friend } from '../../../interfaces/friendship/friend.interface';
 import { FriendRequest } from '../../../interfaces/friendship/friend-request.interface';
-import { BlockedUser } from '../../../interfaces/friendship/blocked-user.interface';
+import { BlockedUserActive } from '../../../interfaces/friendship/blocked-user.interface';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 
 @Injectable({ providedIn: 'root' })
@@ -32,14 +32,15 @@ export class FriendshipService {
         if (friendSnap.exists()) {
           return throwError(() => new Error('Vocês já são amigos.'));
         }
-        return forkJoin([
-          this.repo.isBlockedByA(requesterUid, targetUid), // eu bloqueei ele
-          this.repo.isBlockedByA(targetUid, requesterUid), // ele me bloqueou
-        ]);
+        // 👉 objeto em vez de array para tipagem estável
+        return forkJoin({
+          iBlockedSnap: this.repo.isBlockedByA(requesterUid, targetUid),
+          blockedMeSnap: this.repo.isBlockedByA(targetUid, requesterUid),
+        });
       }),
-      switchMap(([iBlocked, blockedMe]) => {
-        if (iBlocked.exists()) return throwError(() => new Error('Você bloqueou este usuário.'));
-        if (blockedMe.exists()) return throwError(() => new Error('Você foi bloqueado por este usuário.'));
+      switchMap(({ iBlockedSnap, blockedMeSnap }) => {
+        if (iBlockedSnap.exists()) return throwError(() => new Error('Você bloqueou este usuário.'));
+        if (blockedMeSnap.exists()) return throwError(() => new Error('Você foi bloqueado por este usuário.'));
         return this.repo.findDuplicatePending(requesterUid, targetUid);
       }),
       switchMap(snap => {
@@ -85,7 +86,7 @@ export class FriendshipService {
     this.dbg('unblockUser', { ownerUid, targetUid });
     return this.repo.unblockUser(ownerUid, targetUid);
   }
-  listBlocked(uid: string): Observable<BlockedUser[]> {
+  listBlocked(uid: string): Observable<BlockedUserActive[]> {
     return this.repo.listBlocked(uid);
   }
 
@@ -103,5 +104,8 @@ export class FriendshipService {
   /** Realtime */
   watchInboundRequests(uid: string) {
     return this.repo.watchInboundRequests(uid);
+  }
+  watchOutboundRequests(uid: string) {
+    return this.repo.watchOutboundRequests(uid);
   }
 }

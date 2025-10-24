@@ -7,16 +7,14 @@ import { UploadPhotoComponent } from 'src/app/shared/components-globais/upload-p
 import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
 import { NotificationService } from 'src/app/core/services/batepapo/chat-notification.service';
 
-import {
-  selectInboundRequestsCount,
-  selectInboundRequests
-} from 'src/app/store/selectors/selectors.interactions/friend.selector';
+import { selectInboundRequestsCount} from 'src/app/store/selectors/selectors.interactions/friend.selector';
 import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
+import { selectInboundRequestsRichVM } from 'src/app/store/selectors/selectors.interactions/friends';
 
 import { distinctUntilChanged, filter, map, take } from 'rxjs/operators';
 import { Observable, Subscription, firstValueFrom } from 'rxjs';
 import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
-import { selectInboundRequestsVM } from 'src/app/store/selectors/selectors.interactions/friends/vm.selectors';
+
 
 @Component({
   selector: 'app-links-interaction',
@@ -40,7 +38,7 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   pendingInvitesCount$ = this.notificationService.pendingInvitesCount$;
 
   // Mini-inbox
-  inboundRequestsVM$ = this.store.select(selectInboundRequestsVM);
+  inboundRequestsVM$ = this.store.select(selectInboundRequestsRichVM);
 
   private sub = new Subscription();
 

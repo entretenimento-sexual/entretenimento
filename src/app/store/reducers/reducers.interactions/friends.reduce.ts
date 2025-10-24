@@ -1,8 +1,9 @@
 // src/app/store/reducers/reducers.interactions/friends.reduce.ts
 import { createReducer, on } from '@ngrx/store';
 import * as A from '../../actions/actions.interactions/actions.friends';
+import * as RT from '../../actions/actions.interactions/friends/friends-realtime.actions';
 import { FriendsState, initialState } from '../../states/states.interactions/friends.state';
-import { BlockedUser } from '../../../core/interfaces/friendship/blocked-user.interface';
+import { BlockedUserActive } from 'src/app/core/interfaces/friendship/blocked-user.interface';
 
 export const friendsReducer = createReducer(
   initialState,
@@ -92,12 +93,20 @@ export const friendsReducer = createReducer(
   })),
 
   // 🔒 Block (somente no Success para evitar rollback)
-  on(A.blockUserSuccess, (s, { targetUid }): FriendsState => {
+  on(A.blockUserSuccess, (s, { ownerUid, targetUid }): FriendsState => {
     const exists = s.blocked.some(b => b.uid === targetUid);
     if (exists) return { ...s, blockError: null };
-    const entry: BlockedUser = { uid: targetUid, reason: undefined, blockedAt: null };
+    const entry: BlockedUserActive = {
+     uid: targetUid,
+          isBlocked: true,
+            reason: undefined,
+              blockedAt: null,       // na UI podemos exibir “agora”; no backend virá timestamp real
+                unblockedAt: null,
+                  actorUid: ownerUid ?? '',   // quem executou a ação (o próprio usuário)
+                    updatedAt: null
+                    };
     return { ...s, blocked: [...s.blocked, entry], blockError: null };
-  }),
+   }),
   on(A.blockUserFailure, (s, { error }): FriendsState => ({
     ...s, blockError: error
   })),
@@ -118,13 +127,22 @@ export const friendsReducer = createReducer(
   on(A.updateFriendSettings, (s, { settings }): FriendsState => ({ ...s, settings })),
 
   /* 🔴 Realtime inbound listener */
-  on(A.startInboundRequestsListener, (s): FriendsState => ({
+  on(RT.startInboundRequestsListener, (s): FriendsState => ({
     ...s, loadingRequests: true, error: null
   })),
-  on(A.inboundRequestsChanged, (s, { requests }): FriendsState => ({
+  on(RT.inboundRequestsChanged, (s, { requests }): FriendsState => ({
     ...s, loadingRequests: false, requests
   })),
-  on(A.stopInboundRequestsListener, (s): FriendsState => ({
+  on(RT.stopInboundRequestsListener, (s): FriendsState => ({
     ...s, loadingRequests: false
   })),
+   on(RT.startOutboundRequestsListener, (s) => ({
+   ...s, loadingOutboundRequests: true, error: null
+   })),
+ on(RT.outboundRequestsChanged, (s, { requests }) => ({
+   ...s, loadingOutboundRequests: false, outboundRequests: requests
+ })),
+ on(RT.stopOutboundRequestsListener, (s) => ({
+   ...s, loadingOutboundRequests: false
+ })),
 );

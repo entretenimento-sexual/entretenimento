@@ -1,5 +1,5 @@
 // src/app/store/states/states.interactions/friends.state.ts
-import { BlockedUser } from 'src/app/core/interfaces/friendship/blocked-user.interface';
+import { BlockedUserActive } from 'src/app/core/interfaces/friendship/blocked-user.interface';
 import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
 import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -9,7 +9,7 @@ export interface FriendsState {
   requests: (FriendRequest & { id: string })[];// 📥 Recebidas (inbound)
   requestersMap: Record<string, { uid: string; nickname?: string; avatarUrl?: string }>;
   outboundRequests: (FriendRequest & { id: string })[];// 📤 Enviadas (outbound)
-  blocked: BlockedUser[];
+  blocked: BlockedUserActive[];
   searchResults: IUserDados[];
   settings: {
     receiveRequests: boolean;

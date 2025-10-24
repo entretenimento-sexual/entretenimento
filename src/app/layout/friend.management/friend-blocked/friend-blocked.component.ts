@@ -14,7 +14,7 @@ import {
   // unblockUser,
 } from '../../../store/actions/actions.interactions/actions.friends';
 
-import { BlockedUser } from 'src/app/core/interfaces/friendship/blocked-user.interface';
+import { BlockedUserActive } from 'src/app/core/interfaces/friendship/blocked-user.interface';
 
 // ✅ novo serviço unificado
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
@@ -28,7 +28,7 @@ import { FriendshipService } from 'src/app/core/services/interactions/friendship
 })
 export class FriendBlockedComponent implements OnInit {
   readonly user = input.required<IUserDados>();
-  blockedUsers$!: Observable<BlockedUser[]>;
+  blockedUsers$!: Observable<BlockedUserActive[]>;
 
   constructor(
     private store: Store<AppState>,

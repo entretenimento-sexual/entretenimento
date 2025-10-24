@@ -1,0 +1,63 @@
+<!-- src/app/shared/components-globais/user-card/send-request-dialog/send-request-dialog.component.html -->
+<div class="header">
+  <div class="avatar" *ngIf="data.avatarUrl; else fallbackAvatar" aria-hidden="true">
+    <img [src]="data.avatarUrl!" alt="" />
+  </div>
+  <ng-template #fallbackAvatar>
+    <div class="avatar avatar-fallback" aria-hidden="true">
+      <mat-icon>person</mat-icon>
+    </div>
+  </ng-template>
+
+  <div class="title-wrap">
+    <h2 mat-dialog-title class="title">
+      Adicionar <span class="nick">{{ data.nickname || 'usuário' }}</span>?
+    </h2>
+    
+  </div>
+</div>
+
+<mat-divider></mat-divider>
+
+<mat-dialog-content class="content">
+  <p class="lead">
+
+  </p>
+
+  <ng-container *ngIf="canAddNote">
+    <!-- fill = fica mais Material e com presença visual melhor -->
+    <mat-form-field appearance="fill" class="field w-100" floatLabel="always">
+      <mat-label>Mensagem (opcional)</mat-label>
+
+      <textarea matInput cdkTextareaAutosize cdkAutosizeMinRows="3" cdkAutosizeMaxRows="6" [attr.maxlength]="maxLen"
+        [formControl]="form.controls.message" (keydown.enter)="onEnter($event)" cdkFocusInitial
+        aria-label="Mensagem opcional ao convidar"></textarea>
+
+      <mat-hint align="start">
+        <span class="kbd">Ctrl</span>/<span class="kbd">⌘</span> + <span class="kbd">Enter</span> para enviar
+      </mat-hint>
+      <mat-hint align="end" [class.warn]="form.controls.message.invalid">
+        {{ charsUsed() }}/{{ maxLen }}
+      </mat-hint>
+      <mat-error *ngIf="form.controls.message.hasError('maxlength')">
+        Limite de {{ maxLen }} caracteres excedido.
+      </mat-error>
+    </mat-form-field>
+  </ng-container>
+
+  <div class="policy" role="note">
+    <mat-icon class="i" aria-hidden="true">shield</mat-icon>
+    <span>Lembrete: seguimos políticas anti-spam e de segurança. Convites impróprios podem ser restringidos.</span>
+  </div>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end" class="actions">
+  <button mat-button (click)="cancel()" [disabled]="submitting()">Cancelar</button>
+
+  <button mat-raised-button color="primary" (click)="confirm()" [disabled]="form.invalid || submitting()"
+    aria-label="Enviar solicitação de amizade">
+    <mat-progress-spinner *ngIf="submitting()" diameter="18" mode="indeterminate"
+      class="btn-spinner"></mat-progress-spinner>
+    Enviar solicitação
+  </button>
+</mat-dialog-actions>

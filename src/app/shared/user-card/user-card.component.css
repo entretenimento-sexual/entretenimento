@@ -1,177 +1,123 @@
 /* Card base */
+/* Container */
 .user-card {
-  position: relative;
-  display: block;
-  width: 100%;
-  border: 1px solid var(--surface-border);
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
-  background: var(--surface-color);
-  color: var(--text-color);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .08);
-  transition: transform .2s, box-shadow .2s;
-  line-height: 1.25;
-  /* tipografia mais compacta */
 }
 
-.user-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, .18);
-}
-
-/* Mídia (foto) — maior por padrão */
+/* Capa + faixa */
 .media {
   position: relative;
   display: block;
-  aspect-ratio: 4 / 3;
-  overflow: hidden;
 }
 
-@media (max-width: 360px) {
-  .media {
-    aspect-ratio: 1.1 / 1;
-  }
-}
-
-/* phones muito pequenos */
 .profile-photo {
   width: 100%;
-  height: 100%;
+  height: 180px;
   object-fit: cover;
   display: block;
 }
 
-/* Faixa do nickname integrada na imagem */
 .nick-strip {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
   padding: .5rem .75rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, .55), rgba(0, 0, 0, 0));
   display: flex;
   align-items: center;
   gap: .5rem;
   color: #fff;
-  font-weight: 700;
-  background: linear-gradient(to top, rgba(0, 0, 0, .55) 0%, rgba(0, 0, 0, .35) 60%, rgba(0, 0, 0, 0) 100%);
-}
-
-.status-dot {
-  width: .6rem;
-  height: .6rem;
-  border-radius: 50%;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, .25);
 }
 
 .nick-strip.is-online .status-dot {
-  background: #2ecc71;
+  background: #22c55e;
 }
 
 .nick-strip.is-offline .status-dot {
-  background: #bdc3c7;
+  background: #94a3b8;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
 }
 
 .nick {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 75%;
+  font-weight: 600;
+}
+
+/* Classes dinâmicas do nickname */
+.nickname-online {
+  text-shadow: 0 1px 0 rgba(0, 0, 0, .4);
+}
+
+.nickname-recent {
+  color: #c7f9ff;
+}
+
+.nickname-offline {
+  color: #e2e8f0;
+}
+
+.nickname-inactive {
+  color: #cbd5e1;
+  text-decoration: line-through;
 }
 
 /* Corpo */
-.user-card .card-body {
-  display: flex;
-  flex-direction: column;
-  gap: .15rem;
-  /* menos espaço entre linhas */
-  padding: 12px 14px 14px;
+.card-body {
+  padding: .75rem .9rem 1rem;
 }
 
 .meta {
   margin: 0;
-  font-size: .92rem;
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  color: #5b6b7a;
+  font-size: .925rem;
 }
 
 .description {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-  min-height: 2.4em;
-  margin: .15rem 0 .3rem;
-  color: color-mix(in oklab, var(--text-color) 65%, transparent);
+  margin: .5rem 0 0;
+  color: #334155;
+  min-height: 2.25rem;
 }
 
+/* Distância */
 .distance {
-  margin: 0;
-  font-size: .92rem;
-  display: flex;
-  align-items: center;
-  gap: .4rem;
+  color: #475569;
+  font-size: .9rem;
 }
 
 .distance-ico {
-  opacity: .9;
+  margin-right: .35rem;
 }
 
 /* Ações */
 .actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: .6rem;
-  width: 100%;
-  margin-top: auto;
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
 }
 
-.actions .btn {
-  inline-size: 100%;
-  min-width: 0;
-  justify-content: center;
-  padding: .55rem .75rem;
-  line-height: 1.1;
-  border-radius: 8px;
+.btn {
+  cursor: pointer;
 }
 
-.btn-outline-primary {
-  font-size: .9rem;
-  color: var(--primary-color);
-  border: 1px solid var(--primary-color);
-  background: transparent;
-  transition: background-color .2s, color .2s, transform .2s;
+/* Utilidades (se não tiver Bootstrap) */
+.d-none {
+  display: none;
 }
 
-.btn-outline-primary:hover {
-  background: var(--primary-color);
-  color: #fff;
-  transform: translateY(-1px);
+.d-md-inline {
+  display: inline;
 }
 
-.btn-outline-success {
-  font-size: .9rem;
-}
-
-.actions .btn i {
-  flex: 0 0 auto;
-}
-
-.actions .btn .btn-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Responsivo — botões em coluna no mobile estreito */
-@media (max-width: 420px) {
-  .actions {
-    grid-template-columns: 1fr;
+@media (max-width: 768px) {
+  .d-md-inline {
+    display: none;
   }
-}
-
-/* Alto contraste */
-:root.high-contrast .user-card {
-  border: 3px solid var(--text-color);
-  box-shadow: none;
 }

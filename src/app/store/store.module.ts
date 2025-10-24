@@ -23,9 +23,9 @@ import { ChatEffects } from './effects/effects.chat/chat.effects';
 import { InviteEffects } from './effects/effects.chat/invite.effects';
 import { RoomEffects } from './effects/effects.chat/room.effects';
 
-// EFFECTS - INTERACTIONS
-import { FriendsNetworkEffects } from './effects/effects.interactions/effects.friends/friends-network.effects';
-import { FriendsRequestsEffects } from './effects/effects.interactions/effects.friends/friends-requests.effects';
+// EFFECTS - INTERACTIONS - FRIENDS
+import { FriendsRequestsCrudEffects } from './effects/effects.interactions/friends/requests-crud.effects';
+import { FriendsNetworkEffects } from './effects/effects.interactions/friends/network.effects';
 
 // EFFECTS - LOCATION
 import { NearbyProfilesEffects } from './effects/effects.location/nearby-profiles.effects';
@@ -38,6 +38,8 @@ import { CacheEffects } from './effects/cache.effects';
 import { friendsReducer } from './reducers/reducers.interactions/friends.reduce';
 import { userPreferencesReducer } from './reducers/reducers.user/user-preferences.reducer';
 import { nearbyProfilesReducer } from './reducers/reducers.location/nearby-profiles.reducer';
+import { FriendsRequestsProfilesEffects } from './effects/effects.interactions/friends/requests-profiles.effects';
+import { FriendsRequestsRealtimeEffects } from './effects/effects.interactions/friends/requests-realtime.effects';
 
 
 // 🔧 Feature slice names devem bater com seus selectors!
@@ -64,10 +66,13 @@ import { nearbyProfilesReducer } from './reducers/reducers.location/nearby-profi
       NearbyProfilesEffects,
       LocationEffects,
       UserPreferencesEffects,
-      FriendsRequestsEffects,
       FriendsNetworkEffects,
       UserRoleEffects,
       AuthStatusSyncEffects,
+      FriendsRequestsCrudEffects,
+      FriendsRequestsRealtimeEffects,
+      FriendsRequestsProfilesEffects,
+      FriendsNetworkEffects,
     ]),
 
     // 🔍 Devtools (apenas em dev)

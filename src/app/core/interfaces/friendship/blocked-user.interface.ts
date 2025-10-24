@@ -1,7 +1,25 @@
 // src/app/core/interfaces/friendship/blocked-user.interface.ts
-import { Timestamp } from 'firebase/firestore';
-export interface BlockedUser {
-  uid: string;
+import { Timestamp, FieldValue } from 'firebase/firestore';
+
+/** Estado atual do bloqueio */
+export interface BlockedUserActive {
+  uid: string;               // alvo do bloqueio
+  isBlocked: boolean;        // ativo?
+  blockedAt?: Timestamp | null;
+  unblockedAt?: Timestamp | null;
   reason?: string;
-  blockedAt: Timestamp | null; // null quando desbloquear (se seguir a opção 2)
+  actorUid: string;          // quem executou a ação
+  updatedAt: Timestamp | null;
+}
+
+/** Tipos de evento registrados na trilha */
+export type BlockEventType = 'block' | 'unblock';
+
+/** Evento imutável de auditoria */
+export interface BlockEvent {
+  type: BlockEventType;
+  targetUid: string;
+  reason?: string;
+  actorUid?: string;
+  createdAt: Timestamp | FieldValue; // serverTimestamp()
 }

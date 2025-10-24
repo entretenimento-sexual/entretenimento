@@ -1,99 +1,436 @@
-/* src\app\layout\friend.management\friend-requests\friend-requests.component.css */
+/* ============================================================================
+   Friend Requests – CSS do componente
+   Regras:
+   - Avatar SEMPRE à esquerda, colado na borda do card (retrato 3:4)
+   - Todos os dados ficam à direita do avatar (header + info + ações)
+   - Em ≥1200px, as fotos aparecem numa terceira coluna à direita do texto
+   - Se não houver fotos, a terceira coluna fica como espaço reservado
+   ============================================================================ */
+
 :host {
+  /* Tuning responsivo */
+  --avatar-col-mobile: 96px;
+  /* largura do avatar na faixa mobile/tablet */
+  --avatar-col-desktop: 220px;
+  /* largura do avatar no desktop (ajustada em MQs) */
+  --avatar-aspect: 3 / 4;
+  /* retrato */
+  --rail-thumb: 96px;
+  /* lado do quadrado de cada thumb */
+  --rail-gap: 8px;
+  /* gap entre thumbs */
+  --rail-cols: 2;
+  /* colunas na galeria */
+  --media-pad: 16px;
+  /* resguardo entre texto e a galeria */
   display: block;
+  box-sizing: border-box;
 }
 
 .friend-requests {
   margin: 1rem;
   padding: 1rem;
-  border-radius: var(--radius-lg, 12px);
+  border-radius: var(--radius-md);
   background: var(--surface-color);
   color: var(--text-color);
   border: 1px solid var(--surface-border);
-  box-shadow: var(--box-shadow);
-  display: flex;
-  flex-direction: column;
-  gap: .5rem;
-}
-
-/* título */
-#fr-title {
-  font-size: 1.125rem;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-/* altura mínima do painel + rolagem só no conteúdo */
-.tab-panel {
-  min-height: clamp(420px, 60vh, 840px);
+  min-height: clamp(480px, 60svh, 800px);
   display: flex;
   flex-direction: column;
   gap: .75rem;
+  box-sizing: border-box;
 }
 
-.panel-loading {
-  min-height: clamp(280px, 50vh, 720px);
-  display: grid;
-  place-items: center;
+/* Zera o padding do conteúdo do card para usarmos a grade no nível do mat-card */
+.friend-requests mat-card .mat-mdc-card-content {
+  padding: 0 !important;
+  display: contents;
 }
 
-.tab-scroll {
-  overflow: auto;
-  padding: .25rem .25rem .5rem;
+/* fallback caso o encapsulamento bloqueie */
+:host ::ng-deep .mat-mdc-card-content {
+  padding: 0 !important;
+  display: contents;
 }
 
-/* cartões */
+/* ---------------- Lista / Card ---------------- */
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
 mat-card {
+  position: relative;
+  display: grid;
+  /* grade mestre do card */
+  grid-template-columns: var(--avatar-col-mobile) 1fr;
+  grid-template-areas:
+    "avatar header"
+    "avatar content"
+    "avatar actions";
+  column-gap: 12px;
+  align-items: start;
   background: var(--surface-color);
   color: var(--text-color);
   border: 1px solid var(--surface-border);
-  border-radius: var(--radius-md, 8px);
-  box-shadow: none;
-  transition: background-color .15s ease, border-color .15s ease;
+  border-radius: var(--radius-md);
+  box-sizing: border-box;
 }
 
 mat-card:hover {
-  background: color-mix(in oklab, var(--primary-color) 6%, var(--surface-color));
-  border-color: color-mix(in oklab, var(--primary-color) 20%, var(--surface-border));
+  background: var(--header-hover-bg);
 }
 
-mat-card-title {
-  font-size: 1rem;
-  font-weight: 700;
+/* Header do card fica na área 'header' (à direita do avatar) */
+.hdr {
+  grid-area: header;
+  padding: 6px 10px 0 0;
+  /* levemente mais compacto */
 }
 
-mat-card-subtitle {
+.hdr-main {
+  display: grid;
+  gap: .35rem;
+}
+
+.title-row {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+}
+
+.title-row .title-spacer {
+  flex: 1 1 auto;
+}
+
+.name {
+  font-weight: 800;
+  font-size: 1.04rem;
+}
+
+.role-pill {
+  margin-left: .25rem;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: .72rem;
+  line-height: 1.2;
+  border: 1px solid var(--surface-border);
+  background: color-mix(in oklab, var(--primary-color) 14%, transparent);
+}
+
+.role-pill[data-role="premium"] {
+  background: color-mix(in oklab, gold 30%, transparent);
+  border-color: color-mix(in oklab, gold 40%, var(--surface-border));
+}
+
+.meta-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .5rem;
+  opacity: .95;
+}
+
+.meta-chip {
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 1px solid var(--surface-border);
+  font-size: .78rem;
+}
+
+/* Status online pontinho */
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-left: .25rem;
+  background: #9aa;
+}
+
+.status-dot.online {
+  background: #2ecc71;
+}
+
+/* Bloco de info (datas/mensagem) ocupa a área 'content' */
+.info-block {
+  grid-area: content;
+  padding: 6px 10px 10px 0;
+  /* menos vertical */
+  display: grid;
+  gap: .45rem;
+}
+
+.block-icon {
+  color: var(--danger-color);
+  opacity: .55;
+  transition: opacity .15s ease, transform .15s ease;
+}
+
+.block-icon:hover,
+.block-icon:focus-visible {
+  opacity: 1;
+  transform: scale(1.05);
+}
+
+/* Em telas touch, pode ficar sempre um pouco mais visível */
+@media (pointer: coarse) {
+  .block-icon {
+    opacity: .8;
+  }
+}
+
+/* Garante que o header não estoure para a coluna de mídia */
+.hdr {
+  overflow: hidden;
+}
+
+.when {
+  font-size: .9rem;
   opacity: .9;
 }
 
-/* estado vazio */
-.empty-state {
-  min-height: clamp(280px, 40vh, 560px);
-  border: 2px dashed var(--surface-border);
-  border-radius: var(--radius-md, 8px);
-  display: grid;
-  place-items: center;
+.msg {
+  margin-top: .15rem;
+}
+
+/* Ações no rodapé (área 'actions') */
+mat-card-actions {
+  grid-area: actions;
+  padding: 0 10px 10px 0;
+  /* compactado */
+  display: flex;
   gap: .5rem;
-  text-align: center;
-  padding: 1.25rem;
 }
 
-.empty-state mat-icon {
-  font-size: 36px;
-  width: 36px;
-  height: 36px;
-  opacity: .75;
+/* Avatar SEMPRE na coluna à esquerda (área 'avatar') */
+.content-with-rail,
+.aside-rail {
+  display: contents;
 }
 
-/* A11y: foco visível nos botões dentro dos cards */
+/* achatam wrappers */
+
+.big-avatar {
+  grid-area: avatar;
+  width: 100%;
+  aspect-ratio: var(--avatar-aspect);
+  /* retrato 3:4 */
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  background: color-mix(in oklab, var(--text-color) 12%, transparent);
+}
+
+.big-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.big-avatar-fallback mat-icon {
+  font-size: 56px;
+  width: 56px;
+  height: 56px;
+  opacity: .7;
+}
+
+/* Ícones/legendas */
+.type-icon {
+  font-size: 18px;
+  vertical-align: -2px;
+  margin-right: .2rem;
+}
+
+.type-icon.recebidas {
+  color: var(--snackbar-success);
+}
+
+.type-icon.enviadas {
+  color: var(--primary-color);
+}
+
+.tab-legend,
+.panel-head {
+  font-weight: 900;
+  letter-spacing: .06em;
+}
+
+.tab-legend.recebidas,
+.panel-head.recebidas {
+  color: var(--snackbar-success);
+}
+
+.tab-legend.enviadas,
+.panel-head.enviadas {
+  color: var(--primary-color);
+}
+
+.empty-inline {
+  margin: 1rem 0;
+  opacity: .9;
+}
+
+/* Galeria de fotos (área 'media') – oculta por padrão, só aparece em ≥1200px */
+.media-rail {
+  grid-area: media;
+  display: none;
+}
+
+.thumb {
+  display: block;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  aspect-ratio: 1 / 1;
+  background: color-mix(in oklab, var(--text-color) 10%, transparent);
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* empurra o “Bloquear” pra direita das ações */
+mat-card-actions .btn-block {
+  margin-left: 0 !important;
+}
+
+/* fantasma com tom de atenção, mas discreto */
+mat-card-actions .btn-ghost.warn {
+  color: var(--danger-color) !important;
+  border-color: color-mix(in oklab, var(--danger-color) 40%, var(--surface-border)) !important;
+  opacity: .9;
+}
+
+mat-card-actions .btn-ghost.warn:hover,
+mat-card-actions .btn-ghost.warn:focus-visible {
+  opacity: 1;
+}
+
+/* ícone um tico menor pra ficar sutil */
+mat-card-actions {
+  grid-area: actions;
+  display: flex;
+  gap: .5rem;
+  justify-content: flex-start;
+  align-items: center;
+  padding: 0 12px 12px 0;
+
+}
+.mat-mdc-card-actions {
+  justify-content: flex-start !important;
+  /* 👈 override do default */
+}
+
+/* ============================================================================
+   DESKTOP MÉDIO (≥ 992px)
+   - Avatar alarga mantendo retrato
+   ============================================================================ */
+@media (min-width: 992px) {
+  mat-card {
+    grid-template-columns: var(--avatar-col-desktop) 1fr;
+  }
+}
+
+/* ============================================================================
+   DESKTOP GRANDE (≥ 1200px)
+   - Ativa a terceira coluna “media” e reduz levemente alturas/espaçamentos
+   ============================================================================ */
+@media (min-width: 1200px) {
+
+  /* leve “trim” global em telas grandes */
+  :host {
+    /* avatar um pouco menor (mantém 3:4) e thumbs mais compactos */
+    --avatar-col-desktop: clamp(148px, 10.2vw, 184px);
+    --rail-thumb: clamp(68px, 5vw, 86px);
+    --rail-gap: 6px;
+  }
+
+  mat-card {
+    /* calcula a largura fixa do rail de fotos */
+    --media-width: calc(var(--rail-cols) * var(--rail-thumb) + (var(--rail-cols) - 1) * var(--rail-gap));
+    grid-template-columns: var(--avatar-col-desktop) 1fr var(--media-width);
+    grid-template-areas:
+      "avatar header  media"
+      "avatar content media"
+      "avatar actions media";
+    column-gap: 10px;
+    /* um tico mais junto */
+  }
+
+  .hdr,
+  .info-block,
+  mat-card-actions {
+    padding-right: 8px;
+  }
+
+  .name {
+    font-size: 1.02rem;
+  }
+
+  /* um degrauzinho menor */
+  .meta-chip {
+    font-size: .76rem;
+  }
+
+  /* idem chips */
+  .info-block {
+    gap: .4rem;
+  }
+
+  /* compacta um pouco as linhas */
+
+  .media-rail {
+    display: grid;
+    grid-template-columns: repeat(var(--rail-cols), 1fr);
+    grid-auto-rows: var(--rail-thumb);
+    gap: var(--rail-gap);
+    align-content: start;
+    overflow: auto;
+    padding: 6px 6px 6px 0;
+    /* respiro menor */
+    scrollbar-gutter: stable;
+  }
+}
+
+/* ============================================================================
+   DESKTOP MUITO GRANDE (≥ 1600px)
+   - Mais uma “fechadinha” suave sem distorcer proporções
+   ============================================================================ */
+@media (min-width: 1600px) {
+  :host {
+    --avatar-col-desktop: clamp(140px, 9.6vw, 176px);
+    --rail-thumb: clamp(64px, 4.6vw, 82px);
+    --rail-gap: 6px;
+  }
+
+  mat-card {
+    column-gap: 8px;
+  }
+
+  .hdr,
+  .info-block,
+  mat-card-actions {
+    padding-right: 6px;
+  }
+}
+
+/* ---------------- Acessibilidade / foco ---------------- */
 mat-card-actions button:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
 
-/* Dark/HC já vêm das vars globais; reforços para HC: */
+/* ---------------- Alto contraste ---------------- */
 html.high-contrast .friend-requests,
-html.high-contrast .empty-state,
 html.high-contrast mat-card {
   background: var(--background-color) !important;
   color: var(--text-color) !important;

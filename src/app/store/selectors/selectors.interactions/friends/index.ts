@@ -7,3 +7,4 @@ export * from './blocked.selectors';
 export * from './search.selectors';
 export * from './vm.selectors';
 export * from './busy.selectors';
+export * from './vm-selectors';

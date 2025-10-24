@@ -1,2 +1,6 @@
 /* src/styles.css */
-/* vazio */
+.send-request-dialog-panel .mat-mdc-dialog-surface {
+  border-radius: 16px;
+  box-shadow: var(--box-shadow);
+  background: var(--modal-background);
+}

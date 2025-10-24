@@ -1,0 +1,257 @@
+/* src/app/shared/components-globais/user-card/send-request-dialog/send-request-dialog.component.css */
+:host {
+  display: block;
+}
+
+/* ============ HEADER ============ */
+.header {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px 8px;
+  background: color-mix(in oklab, var(--primary-color) 10%, var(--surface-color));
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+}
+
+.avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-color);
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.avatar-fallback {
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, Canvas, CanvasText 7%);
+}
+
+.avatar-fallback mat-icon {
+  font-size: 28px;
+}
+
+.title-wrap {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text-color);
+}
+
+.nick {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ============ CONTENT ============ */
+.content {
+  padding: 14px 18px 6px;
+  overflow: visible;
+  background: var(--surface-color);
+}
+
+.lead {
+  margin: 0 0 10px;
+  opacity: .9;
+}
+
+.field {
+  margin-top: 12px;
+}
+
+/* respiro pra label no topo */
+.w-100,
+.content .mat-mdc-form-field {
+  width: 100%;
+  display: block;
+}
+
+/* Aparência FILL — tema claro (usa teus tokens globais) */
+.content .mat-mdc-form-field.mat-mdc-form-field-appearance-fill {
+  --mdc-filled-text-field-container-color: var(--input-background);
+  --mdc-filled-text-field-input-text-color: var(--text-color);
+  --mdc-filled-text-field-label-text-color: color-mix(in oklab, var(--text-color) 75%, transparent);
+  --mdc-filled-text-field-caret-color: var(--primary-color);
+
+  --mdc-filled-text-field-focus-active-indicator-color: var(--primary-color);
+  --mdc-filled-text-field-active-indicator-color: var(--surface-border);
+  --mdc-filled-text-field-hover-active-indicator-color: var(--surface-border);
+
+  --mat-form-field-subscript-text-color: color-mix(in oklab, var(--text-color) 75%, transparent);
+}
+
+/* wrapper arredondado */
+.content .mat-mdc-text-field-wrapper {
+  border-radius: 12px !important;
+}
+
+/* força legibilidade independente do tema base */
+.content .mat-mdc-form-field mat-label,
+.content .mat-mdc-form-field .mat-mdc-input-element,
+.content .mat-mdc-form-field .mat-mdc-form-field-icon-suffix,
+.content .mat-mdc-form-field .mat-mdc-form-field-icon-prefix {
+  color: var(--text-color) !important;
+}
+
+/* evita textarea “branco” em ambientes que ignoram tokens */
+.content textarea.mat-mdc-input-element {
+  background: transparent !important;
+  color: var(--text-color) !important;
+}
+
+/* placeholder e hints (contador e atalho) */
+.content .mat-mdc-input-element::placeholder {
+  color: color-mix(in oklab, var(--text-color) 55%, transparent) !important;
+}
+
+.mat-mdc-form-field-subscript-wrapper,
+.mat-mdc-form-field-hint-wrapper {
+  color: color-mix(in oklab, var(--text-color) 75%, transparent) !important;
+}
+
+mat-hint.warn {
+  color: #ff6b6b !important;
+}
+
+/* atalho visual (Ctrl/⌘) */
+.kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: .85em;
+  padding: .05rem .35rem;
+  border: 1px solid var(--surface-border);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--surface-color), var(--text-color) 6%);
+}
+
+/* nota de política */
+.policy {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12.5px;
+  opacity: .95;
+  color: var(--text-color);
+}
+
+.policy .i {
+  font-size: 18px;
+  height: 18px;
+  width: 18px;
+  line-height: 18px;
+  opacity: .9;
+}
+
+/* divider & ícones */
+mat-divider {
+  border-top-color: var(--surface-border) !important;
+  opacity: 1 !important;
+}
+
+mat-icon {
+  color: var(--text-color);
+}
+
+/* ============ ACTIONS ============ */
+.actions {
+  padding: 8px 14px 12px;
+  background: var(--surface-color);
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.btn-spinner {
+  margin-right: 8px;
+}
+
+/* ============ DARK MODE (inversão real) ============ */
+:host-context(html.dark-mode),
+:host-context(body.dark),
+:host-context([data-theme="dark"]) {
+
+  /* planos invertidos */
+  .header {
+    background: color-mix(in oklab, var(--primary-color) 18%, var(--surface-color));
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .45) inset;
+  }
+
+  .content,
+  .actions {
+    background: color-mix(in oklab, var(--surface-color) 90%, black 10%);
+  }
+
+  .avatar-fallback {
+    background: color-mix(in oklab, Canvas, CanvasText 15%);
+  }
+
+  /* campo FILL: container escuro e tipografia clara */
+  .content .mat-mdc-form-field.mat-mdc-form-field-appearance-fill {
+    --mdc-filled-text-field-container-color: var(--input-background);
+    /* no teu tema dark = #161b22 */
+    --mdc-filled-text-field-input-text-color: var(--text-color);
+    --mdc-filled-text-field-label-text-color: color-mix(in oklab, var(--text-color) 82%, transparent);
+    --mdc-filled-text-field-caret-color: var(--primary-color);
+
+    --mdc-filled-text-field-focus-active-indicator-color: var(--primary-color);
+    --mdc-filled-text-field-active-indicator-color: color-mix(in oklab, var(--text-color) 28%, transparent);
+    --mdc-filled-text-field-hover-active-indicator-color: color-mix(in oklab, var(--text-color) 34%, transparent);
+
+    --mat-form-field-subscript-text-color: color-mix(in oklab, var(--text-color) 88%, transparent);
+  }
+
+  /* reforço direto caso o tema base injete estilos */
+  .content .mat-mdc-form-field mat-label,
+  .content .mat-mdc-form-field .mat-mdc-input-element,
+  .content .mat-mdc-form-field .mat-mdc-form-field-icon-suffix,
+  .content .mat-mdc-form-field .mat-mdc-form-field-icon-prefix {
+    color: var(--text-color) !important;
+  }
+
+  .content .mat-mdc-input-element::placeholder {
+    color: color-mix(in oklab, var(--text-color) 70%, transparent) !important;
+  }
+
+  .mat-mdc-form-field-subscript-wrapper,
+  .mat-mdc-form-field-hint-wrapper {
+    color: color-mix(in oklab, var(--text-color) 88%, transparent) !important;
+  }
+
+  mat-divider {
+    border-top-color: var(--surface-border) !important;
+  }
+
+  mat-icon {
+    color: var(--text-color) !important;
+  }
+}
+
+/* ============ RESPONSIVO ============ */
+@media (max-width:420px) {
+  .header {
+    grid-template-columns: 48px 1fr;
+    padding: 10px 12px 6px;
+  }
+
+  .avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+  }
+}
