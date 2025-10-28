@@ -4,41 +4,30 @@ import { initialUserState } from '../../states/states.user/user.state';
 import { IUserDados } from '../../../core/interfaces/iuser-dados';
 import { Timestamp } from 'firebase/firestore';
 
-import {
-  addUserToState,
-  loadUsers,
-  loadUsersSuccess,
-  loadUsersFailure,
-  loadOnlineUsersSuccess,
-  updateUserOnlineStatus,
-  setFilteredOnlineUsers,
-  setCurrentUser,
-  clearCurrentUser,
-} from '../../actions/actions.user/user.actions';
+import { addUserToState, loadUsers, loadUsersSuccess, loadUsersFailure,
+        loadOnlineUsersSuccess, updateUserOnlineStatus, setFilteredOnlineUsers,
+        setCurrentUser, clearCurrentUser } from '../../actions/actions.user/user.actions';
 
-import {
-  loginSuccess,
-  logoutSuccess
-} from '../../actions/actions.user/auth.actions';
+import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.actions';
 
 function reduceFrom(initial = initialUserState, ...actions: any[]) {
   return actions.reduce((state, action) => userReducer(state, action), initial);
 }
 
 /** Helper pra mockar Timestamp.now() do firebase (já stubado no setup-jest) */
-const tsNow = () => Timestamp.now();
+const nowMs = () => Date.now();
 
 const u = (overrides?: Partial<IUserDados>): IUserDados => ({
   uid: 'u1',
   email: 'u1@mail.com',
   nickname: 'u1',
-  role: 'basico',
+  role: 'basic',
   emailVerified: true,
   isOnline: false,
   // ---- obrigatórios na sua interface
   photoURL: null,
-  lastLogin: tsNow(),
-  firstLogin: tsNow(),
+  lastLogin: nowMs(),
+  firstLogin: nowMs(),
   isSubscriber: false,
   descricao: '',
   // ---- sobrescritas
@@ -54,8 +43,8 @@ const v = (overrides?: Partial<IUserDados>): IUserDados => ({
   isOnline: true,
   // obrigatórios
   photoURL: null,
-  lastLogin: tsNow(),
-  firstLogin: tsNow(),
+  lastLogin: nowMs(),
+  firstLogin: nowMs(),
   isSubscriber: true,
   descricao: '',
   // sobrescritas

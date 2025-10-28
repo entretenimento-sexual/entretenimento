@@ -12,7 +12,6 @@ import { GeolocationService, GeolocationError, GeolocationErrorCode } from 'src/
 import { DistanceCalculationService } from 'src/app/core/services/geolocation/distance-calculation.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { Timestamp } from 'firebase/firestore';
 import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
@@ -273,18 +272,19 @@ export class OnlineUsersComponent implements OnInit {
     const m = (a.municipio?.toLowerCase() || '').localeCompare(b.municipio?.toLowerCase() || '');
     if (m !== 0) return m;
 
-    const aLast = a.lastLogin instanceof Timestamp ? a.lastLogin.toMillis() : 0;
-    const bLast = b.lastLogin instanceof Timestamp ? b.lastLogin.toMillis() : 0;
+    const aLast = typeof a.lastLogin === 'number' ? a.lastLogin : 0;
+    const bLast = typeof b.lastLogin === 'number' ? b.lastLogin : 0;
     return bLast - aLast;
   }
 
   private isRecent(lastSeen: unknown, nowMs: number, windowMs: number): boolean {
     let ms = 0;
-    if (lastSeen instanceof Timestamp) ms = lastSeen.toMillis();
-    else if (lastSeen && typeof lastSeen === 'object' && 'seconds' in (lastSeen as any)) {
-      ms = ((lastSeen as any).seconds || 0) * 1000;
-    } else if (typeof lastSeen === 'number') {
+    if (typeof lastSeen === 'number') {
       ms = lastSeen;
+    } else if (lastSeen && typeof lastSeen === 'object') {
+      const obj = lastSeen as any;
+      if (typeof obj.toMillis === 'function') ms = obj.toMillis();
+      else if (typeof obj.seconds === 'number') ms = obj.seconds * 1000;
     }
     return ms > 0 && (nowMs - ms) <= windowMs;
   }
@@ -422,9 +422,7 @@ export class OnlineUsersComponent implements OnInit {
         case GeolocationErrorCode.INSECURE_CONTEXT: msg = 'Ative HTTPS (ou use localhost) para permitir a geolocalização.'; break;
         case GeolocationErrorCode.PERMISSION_DENIED: msg = 'Permissão de localização negada.'; break;
         case GeolocationErrorCode.USER_GESTURE_REQUIRED:
-          msg = 'Clique em “Ativar localização” para continuar.';
-          isGestureOnly = true; // <- não reportar globalmente
-          break;
+          msg = 'Clique em “Ativar localização” para continuar.'; isGestureOnly = true; break;
         case GeolocationErrorCode.POSITION_UNAVAILABLE: msg = 'Posição atual indisponível.'; break;
         case GeolocationErrorCode.TIMEOUT: msg = 'Tempo esgotado ao tentar localizar você.'; break;
         default: msg = 'Ocorreu um erro desconhecido ao obter localização.';
@@ -433,12 +431,9 @@ export class OnlineUsersComponent implements OnInit {
       msg = err.message || msg;
     }
 
-    this.log('ERRO:', err);
     this.errorNotificationService.showError(msg);
-
-    // Só repassa para o GlobalErrorHandler quando NÃO for o caso de gesto exigido
     if (!isGestureOnly && err instanceof Error) {
       this.globalErrorHandlerService.handleError(err);
     }
-  }
+}
 }

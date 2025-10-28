@@ -4,7 +4,6 @@ import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, switchMap, map, tap, timeout } from 'rxjs/operators';
 import { Auth } from '@angular/fire/auth';
 import { doc, runTransaction, writeBatch, Timestamp } from 'firebase/firestore';
-
 import { FirestoreService } from '../../data-handling/firestore.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { FirestoreValidationService } from '../../data-handling/firestore-validation.service';
@@ -13,14 +12,9 @@ import { EmailVerificationService } from './email-verification.service';
 import { ValidatorService } from '../../general/validator.service';
 import { FirebaseError } from 'firebase/app';
 import { environment } from 'src/environments/environment';
-import {
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  updateProfile,
-  UserCredential
-} from 'firebase/auth';
-
-// novos serviços “substitutivos” ao antigo AuthService
+import { createUserWithEmailAndPassword, sendPasswordResetEmail, updateProfile,
+         UserCredential } from 'firebase/auth';
+import { userConverter } from '../../data-handling/converters/user.firestore-converter';
 import { CurrentUserStoreService } from '../auth/current-user-store.service';
 import { CacheService } from '../../general/cache/cache.service';
 
@@ -61,18 +55,21 @@ export class RegisterService {
           timeout({ each: this.NET_TIMEOUT_MS }),
         )
       ),
-
       switchMap((cred) => {
+        const now = Date.now();
         const payload: IUserRegistrationData = {
           uid: cred.user.uid,
           email: cred.user.email!,
           nickname: userData.nickname,
-          acceptedTerms: userData.acceptedTerms,
+          acceptedTerms: {
+            accepted: !!userData.acceptedTerms?.accepted,
+            date: userData.acceptedTerms?.date ?? now,
+          },
           emailVerified: false,
           isSubscriber: false,
           profileCompleted: false,
-          registrationDate: new Date(),
-          firstLogin: Timestamp.fromDate(new Date()),
+          registrationDate: userData.registrationDate ?? now,
+          firstLogin: userData.firstLogin ?? now,
         };
 
         return this.persistUserAndIndexAtomic(cred.user.uid, userData.nickname, payload).pipe(
@@ -107,6 +104,7 @@ export class RegisterService {
 
       tap((ctx) => {
         const { user } = ctx.cred;
+        const now = Date.now();
         this.seedLocalStateAfterSignup(user.uid, {
           uid: user.uid,
           email: user.email || '',
@@ -114,8 +112,8 @@ export class RegisterService {
           emailVerified: false,
           isSubscriber: false,
           profileCompleted: false,
-          registrationDate: new Date(),
-          firstLogin: Timestamp.fromDate(new Date()),
+          registrationDate: userData.registrationDate ?? now,
+          firstLogin: userData.firstLogin ?? now,
           acceptedTerms: userData.acceptedTerms,
         });
         if (ctx.warns.length) {
@@ -178,15 +176,16 @@ export class RegisterService {
     );
   }
 
-  private persistUserAndIndexAtomic(uid: string, nickname: string, payload: IUserRegistrationData
+  private persistUserAndIndexAtomic(
+    uid: string,
+    nickname: string,
+    payload: IUserRegistrationData
   ): Observable<void> {
     const db = this.firestoreService.getFirestoreInstance();
-
     const normalized = nickname.trim().toLowerCase();
-    const userRef = doc(db, 'users', uid);
-    const indexRef = doc(db, 'public_index', `nickname:${normalized}`);
 
-    console.debug('[RegisterService] persistUserAndIndexAtomic → iniciando transaction', { uid, normalized });
+    const userRef = doc(db, 'users', uid).withConverter(userConverter);
+    const indexRef = doc(db, 'public_index', `nickname:${normalized}`);
 
     return from(runTransaction(db, async (transaction) => {
       const idxSnap = await transaction.get(indexRef);
@@ -196,11 +195,16 @@ export class RegisterService {
         throw err;
       }
 
-      transaction.set(userRef, {
-        ...payload,
-        nicknameHistory: [{ nickname: normalized, date: Timestamp.now() }]
-      }, { merge: true });
+      transaction.set(
+        userRef,
+        {
+          ...payload,
+          nicknameHistory: [{ nickname: normalized, date: Date.now() }] // ✅ epoch (ms)
+        },
+        { merge: true }
+      );
 
+      // índice pode ficar com Timestamp; não vai pro Store
       transaction.set(indexRef, {
         type: 'nickname',
         value: normalized,
@@ -238,14 +242,6 @@ export class RegisterService {
     );
   }
 
-  private createUserWithEmailAndPasswordSafe(email: string, password: string): Observable<UserCredential> {
-    return from(createUserWithEmailAndPassword(this.auth, email, password));
-  }
-
-  private createFirebaseUser(email: string, password: string): Observable<UserCredential> {
-    return this.createUserWithEmailAndPasswordSafe(email, password);
-  }
-
   private rollbackUser(uid: string, error: any): Observable<never> {
     return from(this.deleteUserOnFailure(uid)).pipe(
       switchMap(() => throwError(() => error)),
@@ -271,21 +267,27 @@ export class RegisterService {
   }
 
   private seedLocalStateAfterSignup(uid: string, data: Partial<IUserRegistrationData>): void {
-    const snapshot = {
+    const now = Date.now();
+
+    const snapshot: Partial<IUserRegistrationData> = {
       uid,
       email: data.email || '',
       nickname: data.nickname || '',
-      emailVerified: false,
-      isSubscriber: false,
-      profileCompleted: false,
-      firstLogin: data.firstLogin || Timestamp.fromDate(new Date()),
-      registrationDate: data.registrationDate || new Date(),
-      acceptedTerms: data.acceptedTerms,
-    } as any;
+      emailVerified: !!data.emailVerified,
+      isSubscriber: !!data.isSubscriber,
+      profileCompleted: !!data.profileCompleted,
 
-    this.currentUserStore.set(snapshot);
-    this.cache.syncCurrentUserWithUid(snapshot);
+      firstLogin: typeof data.firstLogin === 'number' ? data.firstLogin : now,
+      registrationDate: typeof data.registrationDate === 'number' ? data.registrationDate : now,
 
+      acceptedTerms: {
+        accepted: !!data.acceptedTerms?.accepted,
+        date: data.acceptedTerms?.date ?? now,
+      },
+    };
+
+    this.currentUserStore.set(snapshot as any);
+    this.cache.syncCurrentUserWithUid(snapshot as any);
     console.log('[RegisterService] Estado local semeado (CurrentUserStore/Cache).');
   }
 

@@ -3,7 +3,7 @@
   <h2 class="profiles-title">Perfis Próximos</h2>
 
   <!-- Info sobre verificação de e-mail (sem acionar geolocation) -->
-  @if (authService.user$ | async; as user) {
+  @if (user$ | async; as user) {
   @if (!user?.emailVerified) {
   <div class="alert alert-warning" role="status" aria-live="polite">
     Sua conta ainda não está verificada. A precisão da localização e o raio de busca
@@ -12,8 +12,7 @@
   }
   }
 
-  @if (!userLocation) {
-  <!-- CTA: só solicita geolocalização após gesto -->
+  @if (!userLocation()) {
   <div class="alert alert-info" role="status" aria-live="polite">
     Ative sua localização para listar perfis próximos respeitando sua privacidade e nível de acesso.
   </div>
@@ -26,6 +25,7 @@
     A precisão e o raio de busca variam conforme seu plano e verificação de e-mail.
   </p>
   } @else {
+
   <!-- Controles de raio (capados pelo limite da policy) -->
   <div class="card mb-3" aria-labelledby="distControlTitle">
     <div class="card-body">
@@ -33,14 +33,15 @@
 
       <div class="row align-items-center g-2">
         <div class="col-12 col-sm-8">
-          <input type="range" class="form-range" [(ngModel)]="uiDistanceKm" [min]="1" [max]="policyMaxDistanceKm"
-            [step]="1" aria-label="Raio de busca em quilômetros" />
+          <input type="range" class="form-range" [value]="uiDistanceKm()" [min]="1" [max]="policyMaxDistanceKm()"
+            [step]="1" (input)="onDistanceChangeKm($any($event.target).value)"
+            aria-label="Raio de busca em quilômetros" />
         </div>
 
         <div class="col-12 col-sm-4">
           <div class="d-flex justify-content-between small text-muted">
             <span>1 km</span>
-            <span>{{ uiDistanceKm ?? policyMaxDistanceKm }} / {{ policyMaxDistanceKm }} km máx.</span>
+            <span>{{ uiDistanceKm() }} / {{ policyMaxDistanceKm() }} km máx.</span>
           </div>
         </div>
       </div>
@@ -51,17 +52,26 @@
     </div>
   </div>
 
+  <!-- feedback de carregamento/erro baseado no VM -->
+  @if (nearbyLoading$ | async) {
+  <div class="alert alert-secondary" role="status" aria-live="polite">Carregando perfis…</div>
+  }
+  @if (nearbyError$ | async; as err) {
+  <div class="alert alert-danger" role="alert" aria-live="assertive">{{ err }}</div>
+  }
+
+  @if (profiles$ | async; as profiles) {
   @if (profiles.length > 0) {
   <div class="profiles-row mt-3">
     @for (profile of profiles; track profile.uid) {
     <div class="profile-card">
-      <app-user-card [user]="profile" [distanciaKm]="profile.distanciaKm ?? null">
-      </app-user-card>
+      <app-user-card [user]="profile" [distanciaKm]="profile.distanciaKm ?? null"></app-user-card>
     </div>
     }
   </div>
   } @else {
   <p class="no-profiles text-center mt-4">Nenhum perfil próximo foi encontrado.</p>
+  }
   }
   }
 </div>

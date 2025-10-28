@@ -141,7 +141,7 @@ export class GeolocationTrackingService {
             latitude,
             longitude,
             locationAccuracy: Math.round(accuracy ?? 0),
-            lastLocationAt: Timestamp.now()
+            lastLocationAt: Date.now(),
           }).subscribe({ error: () => { } });
         },
         (err) => {

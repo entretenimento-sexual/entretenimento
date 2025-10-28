@@ -1,43 +1,58 @@
-//src\app\core\interfaces\iuser-dados.ts
-import { Timestamp } from 'firebase/firestore';
+// src/app/core/interfaces/iuser-dados.ts
 import { IUserSocialLinks } from './interfaces-user-dados/iuser-social-links';
-export interface IUserDados {
 
-  uid: string; // ID do usuário
+export interface IUserDados {
+  uid: string;
   nickname?: string | null;
   roomIds?: string[];
-  latitude?: number; // Adicione latitude e longitude aqui
+
+  latitude?: number;
   longitude?: number;
   distanciaKm?: number | undefined;
-  email: string | null; // Email do usuário
+
+  email: string | null;
   photoURL: string | null | undefined;
-  nome?: string; // Nome completo do usuário
-  idade?: number; // Idade do usuário
-  role: 'visitante' |'free' | 'basic' | 'premium' | 'vip';
-  lastLogin: Timestamp; // Data do último login
-  firstLogin: Timestamp | Date | null;
-  createdAt?: Timestamp | Date | null; //Data da criação do perfil pelo usuário
+  nome?: string;
+  idade?: number;
+
+  role: 'visitante' | 'free' | 'basic' | 'premium' | 'vip';
+
+  // 🔁 AGORA COMO EPOCH (ms)
+  lastLogin: number;                    // obrigatório (ex: 0 se faltar)
+  firstLogin?: number | null;
+  createdAt?: number | null;
+
   emailVerified?: boolean;
+
   gender?: string;
-  orientation?: string; // Orientação sexual
+  orientation?: string;
   partner1Orientation?: string;
   partner2Orientation?: string;
-  estado?: string; // Estado do usuário
-  municipio?: string; // Município do usuário
+  estado?: string;
+  municipio?: string;
   isSidebarOpen?: boolean;
   preferences?: string[];
-  descricao: string; // Descrição do usuário
+  descricao: string;
 
-  //relativo ao estado geral de usuário
   isOnline?: boolean;
   isSubscriber: boolean;
-  singleRoomCreationRightExpires?: Date;
-  roomCreationSubscriptionExpires?: Date;
-  monthlyPayer?: boolean;
-  subscriptionExpires?: Date;
-  socialLinks?: IUserSocialLinks;
 
+  // assinaturas/expirações como epoch (ms)
+  singleRoomCreationRightExpires?: number | null;
+  roomCreationSubscriptionExpires?: number | null;
+  monthlyPayer?: boolean;
+  subscriptionExpires?: number | null;
+  acceptedTerms?: { accepted: boolean; date: number | null };
+  nicknameHistory?: Array<{ nickname: string; date: number | null }>;
+  socialLinks?: IUserSocialLinks;
   profileCompleted?: boolean;
   suspended?: boolean;
-}
 
+  // presença (se você usa no doc)
+  lastSeen?: number | null;
+  lastOfflineAt?: number | null;
+  lastOnlineAt?: number | null;
+  lastLocationAt?: number | null;
+  registrationDate?: number | null;
+
+}

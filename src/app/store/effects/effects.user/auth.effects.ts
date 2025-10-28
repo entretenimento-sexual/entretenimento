@@ -7,8 +7,6 @@ import { switchMap, map, catchError } from 'rxjs/operators';
 import { login, loginFailure, loginSuccess, register, registerFailure, registerSuccess } from '../../actions/actions.user/auth.actions';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { UserCredential } from 'firebase/auth';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { Timestamp } from 'firebase/firestore';            // ✅ correto
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
 
 @Injectable()
@@ -17,23 +15,23 @@ export class AuthEffects {
     private actions$: Actions,
     private loginService: LoginService,
     private registerService: RegisterService,
-    private globalErrorHandler: GlobalErrorHandlerService
   ) { }
 
   register$ = createEffect(() =>
     this.actions$.pipe(
       ofType(register),
       switchMap(({ email, password, nickname }) => {
+        const now = Date.now();
         const userRegistrationData: IUserRegistrationData = {
           email,
           nickname,
-          acceptedTerms: { accepted: true, date: Timestamp.fromDate(new Date()) },
+          acceptedTerms: { accepted: true, date: now },
           emailVerified: false,
           isSubscriber: false,
-          firstLogin: Timestamp.fromDate(new Date()),
-          profileCompleted: false
+          firstLogin: now,
+          registrationDate: now,
+          profileCompleted: false,
         };
-
         return this.registerService.registerUser(userRegistrationData, password).pipe(
           map((cred: UserCredential) => registerSuccess({ user: cred.user })),
           catchError((error: any) => {

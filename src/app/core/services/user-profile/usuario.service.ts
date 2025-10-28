@@ -2,7 +2,6 @@
 import { Injectable } from '@angular/core';
 import { Observable, catchError, from, tap, throwError } from 'rxjs';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { FirestoreService } from '../data-handling/firestore.service';
 import { doc, getDoc, Timestamp, updateDoc } from '@firebase/firestore';
 import { User } from 'firebase/auth';
 import { UserProfileService } from './user-profile.service';
@@ -29,7 +28,7 @@ export class UsuarioService {
   private mapUserToUserDados(user: User | null): IUserDados | null {
     if (!user) return null;
 
-    const timestampNow = this.getCurrentTimestamp();
+    const now = Date.now();
 
     return {
       uid: user.uid,
@@ -37,8 +36,8 @@ export class UsuarioService {
       nickname: null,
       photoURL: user.photoURL || null,
       role: 'basic',
-      lastLogin: timestampNow,
-      firstLogin: timestampNow,
+      lastLogin: now,
+      firstLogin: now,
       descricao: '',
       isSubscriber: false,
       socialLinks: {
@@ -48,11 +47,6 @@ export class UsuarioService {
       }
 
     };
-  }
-
-  // Método auxiliar para obter o timestamp atual
-  private getCurrentTimestamp(): Timestamp {
-    return Timestamp.fromDate(new Date());
   }
 
   // Obtém usuários online por região específica (município)

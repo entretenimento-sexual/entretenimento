@@ -5,7 +5,6 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 import { EmailVerificationService, VerifyEmailResult } from 'src/app/core/services/autentication/register/email-verification.service';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
 import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
@@ -18,6 +17,10 @@ import { Subject, firstValueFrom } from 'rxjs';
 import { take, takeUntil, switchMap, tap } from 'rxjs/operators';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { DateTimeService } from 'src/app/core/services/general/date-time.service';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service'; // ✅ novo
+
+type HandlerMode = 'verifyEmail' | 'resetPassword' | '';
 
 @Component({
   selector: 'app-auth-verification-handler',
@@ -27,25 +30,21 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
   imports: [CommonModule, FormsModule, RouterModule, EmailInputModalComponent]
 })
 export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
-  // estado geral
   public isLoading = true;
-  public mode: 'verifyEmail' | 'resetPassword' | '' = '';
+  public mode: HandlerMode = '';
   public oobCode = '';
   public message = '';
 
-  // flags de UI específicas de verificação de e-mail
   public verifyOk = false;
-  public showResendVerifyCTA = false;   // botão "Reenviar e-mail de verificação"
-  public showGoToLoginCTA = false;      // CTA "Ir para login" quando não há usuário logado
+  public showResendVerifyCTA = false;
+  public showGoToLoginCTA = false;
 
-  // reset de senha
   public newPassword = '';
   public confirmPassword = '';
   public showPassword = false;
   public showConfirmPassword = false;
-  public shouldShowRecoveryLink = false;  // link para reenvio de recuperação se der erro
+  public shouldShowRecoveryLink = false;
 
-  // (resto do formulário opcional/antigo – mantido)
   public showSubscriptionOptions = false;
   public gender = '';
   public orientation = '';
@@ -77,19 +76,20 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     private firestoreService: FirestoreService,
     private firestoreUserQuery: FirestoreUserQueryService,
     private globalErrorHandlerService: GlobalErrorHandlerService,
-    private authService: AuthService,
-    private emailInputModalService: EmailInputModalService   // ✅ injeta o service do modal
+    private emailInputModalService: EmailInputModalService,
+    private dateTime: DateTimeService,
+    private currentUserStore: CurrentUserStoreService, // ✅ substitui AuthService
   ) { }
 
   ngOnInit(): void {
     this.route.queryParams
       .pipe(takeUntil(this.ngUnsubscribe))
       .subscribe(params => {
-        this.mode = (params['mode'] || '') as any;
-        this.oobCode = params['oobCode'] || '';
+        const modeFromQuery = (params['mode'] as HandlerMode) ?? '';
+        this.mode = modeFromQuery;
+        this.oobCode = params['oobCode'] ?? '';
 
         if (!this.oobCode && this.mode === 'resetPassword') {
-          // Para reset de senha, o Firebase exige o oobCode também
           this.message = 'Código inválido.';
           this.isLoading = false;
           return;
@@ -98,7 +98,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         if (this.mode === 'verifyEmail') {
           this.processVerifyEmail();
         } else if (this.mode === 'resetPassword') {
-          this.isLoading = false; // apenas exibe o form de redefinição
+          this.isLoading = false;
         } else {
           this.message = 'Ação desconhecida.';
           this.isLoading = false;
@@ -111,10 +111,8 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     this.ngUnsubscribe.complete();
   }
 
-  // === VERIFICAÇÃO DE E-MAIL ===
   private processVerifyEmail(): void {
     this.isLoading = true;
-    // Usa o handler “rico” do service (retorna ok + reason + firestoreUpdated)
     this.emailVerificationService
       .handleEmailVerification()
       .pipe(take(1), takeUntil(this.ngUnsubscribe))
@@ -126,29 +124,25 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
             this.verifyOk = true;
 
             if (res.reason === 'not-logged-in') {
-              // Verificado, mas sem sessão — peça login
               this.message = 'Seu e-mail foi verificado. Faça login para continuar.';
               this.showGoToLoginCTA = true;
               this.showResendVerifyCTA = false;
               return;
             }
 
-            // Sessão presente (ou Firestore sincronizado)
-            if (res.firestoreUpdated) {
-              this.message = 'E-mail verificado com sucesso! Você pode continuar.';
-            } else {
-              this.message = 'E-mail verificado. Não conseguimos sincronizar seu perfil agora, mas isso será atualizado automaticamente.';
-            }
+            this.message = res.firestoreUpdated
+              ? 'E-mail verificado com sucesso! Você pode continuar.'
+              : 'E-mail verificado. Não conseguimos sincronizar seu perfil agora, mas isso será atualizado automaticamente.';
 
-            // Leva para o welcome com autocheck leve (sem forçar)
             this.ngZone.run(() => {
-              setTimeout(() => this.router.navigate(['/register/welcome'],
-                { queryParams: { autocheck: '1' } }), 1200);
+              setTimeout(() => this.router.navigate(
+                ['/register/welcome'],
+                { queryParams: { autocheck: '1' } }
+              ), 1200);
             });
             return;
           }
 
-          // Falha — personalize a razão
           this.verifyOk = false;
           this.showGoToLoginCTA = false;
 
@@ -162,7 +156,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
               this.showResendVerifyCTA = true;
               break;
             case 'not-verified':
-              this.message = 'Quase lá! Processamos o link, mas sua sessão ainda não refletiu a verificação. Tente novamente em alguns segundos ou reenvie o e-mail.';
+              this.message = 'Quase lá! Processamos o link, mas sua sessão ainda não refletiu a verificação.';
               this.showResendVerifyCTA = true;
               break;
             default:
@@ -189,7 +183,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         next: (txt) => {
           this.message = txt || 'E-mail reenviado. Verifique sua caixa de entrada e spam.';
           this.verifyOk = false;
-          this.showResendVerifyCTA = false; // já reenviado
+          this.showResendVerifyCTA = false;
         },
         error: (err) => {
           this.message = 'Falha ao reenviar o e-mail de verificação.';
@@ -204,13 +198,9 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   }
 
   goToWelcome(): void {
-    this.router.navigate(
-      ['/register/welcome'],
-      { queryParams: { autocheck: '1' }, replaceUrl: true } // ✅ aqui dentro
-    );
+    this.router.navigate(['/register/welcome'], { queryParams: { autocheck: '1' }, replaceUrl: true });
   }
 
-  // === RESET DE SENHA ===
   async onSubmit(): Promise<void> {
     if (this.mode === 'resetPassword') {
       await this.resetPassword();
@@ -263,7 +253,6 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     }
   }
 
-  // === utilitários / CTA auxiliares ===
   redirectToFAQ(): void {
     this.router.navigate(['/faq']);
   }
@@ -277,14 +266,14 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   }
 
   openPasswordRecoveryModal(): void {
-    this.emailInputModalService.openModal(); // ✅ agora existe e está injetado
+    this.emailInputModalService.openModal();
   }
 
-  // Fluxo de “finalização de cadastro” (mantido)
+  // 🔁 Agora usando CurrentUserStoreService
   finishRegistration(): void {
     this.message = 'Processando cadastro...';
 
-    this.authService.getLoggedUserUID$().pipe(
+    this.currentUserStore.getLoggedUserUID$().pipe(
       switchMap((uid) => {
         if (!uid) {
           this.message = 'Erro ao identificar o usuário. Por favor, tente novamente.';
@@ -298,18 +287,26 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
               throw new Error('Dados do usuário não encontrados no Firestore.');
             }
 
+            const firstLoginDate = this.dateTime.convertToDate(existingUserData.firstLogin ?? new Date());
+
             const userData: IUserRegistrationData = {
               uid,
-              emailVerified: true,
               email: existingUserData.email || '',
               nickname: existingUserData.nickname || '',
+              emailVerified: true,
               isSubscriber: existingUserData.isSubscriber || false,
-              firstLogin: existingUserData.firstLogin || new Date(),
+
+              firstLogin: existingUserData.firstLogin ?? Date.now(),
+              registrationDate: existingUserData.registrationDate ?? Date.now(),
+
               gender: this.gender,
               orientation: this.orientation,
               estado: this.selectedEstado,
               municipio: this.selectedMunicipio,
-              acceptedTerms: { accepted: true, date: new Date() }
+
+              acceptedTerms: { accepted: true, date: Date.now() },
+
+              profileCompleted: existingUserData.profileCompleted ?? false,
             };
 
             return this.firestoreService.saveInitialUserData(uid, userData).pipe(

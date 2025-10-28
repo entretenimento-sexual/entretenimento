@@ -4,7 +4,6 @@
     "outDir": "./out-tsc/spec",
     "types": ["jest", "node"],
     "emitDecoratorMetadata": false,
-    /* Jest roda em Node: precisa desta resolução */
     "moduleResolution": "node",
     "baseUrl": ".",
     "paths": {
@@ -13,15 +12,14 @@
       "@core/*": ["src/app/core/*"],
       "@shared/*": ["src/app/shared/*"],
       "@env/*": ["src/environments/*"]
-    }
+    },
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
   "files": ["src/test/setup-jest.ts", "src/polyfills.ts"],
   "include": [
     "src/**/*.spec.ts",
     "src/**/*.d.ts",
-    /* garante que o editor conheça os tipos de jest/beforeEach/etc */
     "src/test/setup-jest.ts",
-    /* (opcional) se tiver helpers de teste fora de src/test, inclua-os aqui */
     "src/test/**/*.ts"
   ],
   "exclude": []

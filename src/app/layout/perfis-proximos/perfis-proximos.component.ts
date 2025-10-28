@@ -1,22 +1,43 @@
 // src/app/layout/perfis-proximos/perfis-proximos.component.ts
-import { Component, OnInit, ViewChild, input, DestroyRef, inject } from '@angular/core';
+import { Component, ViewChild, DestroyRef, inject, signal, computed, effect } from '@angular/core';
 import { Router } from '@angular/router';
 import { geohashForLocation } from 'geofire-common';
-import { GeoCoordinates } from 'src/app/core/interfaces/geolocation.interface';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { GeolocationService, GeolocationError, GeolocationErrorCode } from 'src/app/core/services/geolocation/geolocation.service';
-import { NearbyProfilesService } from 'src/app/core/services/geolocation/near-profile.service';
-import { MatDialog } from '@angular/material/dialog';
-import { ModalMensagemComponent } from 'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component';
-import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { take } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
 import { AsyncPipe, CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+
+import { GeoCoordinates } from 'src/app/core/interfaces/geolocation.interface';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+
+import { GeolocationService, GeolocationError, GeolocationErrorCode } from 'src/app/core/services/geolocation/geolocation.service';
+import { UserProfileService } from 'src/app/core/services/user-profile/user-profile.service';
+
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+
+import { take, switchMap, distinctUntilChanged, map, filter, tap, shareReplay } from 'rxjs/operators';
+import { BehaviorSubject, Observable, combineLatest, firstValueFrom, of } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
+import { MatDialog } from '@angular/material/dialog';
+import { ModalMensagemComponent } from 'src/app/shared/components-globais/modal-mensagem/modal-mensagem.component';
+import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
+
+// Auth infra
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
+
+// Cache leve de UI
+import { CacheService } from 'src/app/core/services/general/cache/cache.service';
+
+// NgRx
+import { Store } from '@ngrx/store';
+import { NearbyProfilesActions } from 'src/app/store/actions/actions.location/nearby-profiles.actions';
+import * as LocationActions from 'src/app/store/actions/actions.location/location.actions'; // 👈 namespace (named exports)
+import {
+  selectLocationNearbyVMByUid,
+  selectMaxDistanceKm
+} from 'src/app/store/selectors/selectors.location/location.selectors';
 
 @Component({
   selector: 'app-perfis-proximos',
@@ -25,106 +46,164 @@ import { FormsModule } from '@angular/forms';
   standalone: true,
   imports: [CommonModule, AsyncPipe, FormsModule, UserCardComponent]
 })
-export class PerfisProximosComponent implements OnInit {
+export class PerfisProximosComponent {
   @ViewChild(ModalMensagemComponent) modalMensagem!: ModalMensagemComponent;
 
-  userLocation: GeoCoordinates | null = null;
-  profiles: IUserDados[] = [];
-
-  // Slider de raio (UI) + limite imposto pela policy do role/verificação
-  uiDistanceKm?: number;
-  policyMaxDistanceKm = 20;
-
-  readonly user = input.required<IUserDados | null>();
-  readonly distanciaKm = input.required<number | null>();
-
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cache = inject(CacheService);
 
-  constructor(
-    private readonly geolocationService: GeolocationService,
-    // ⚠️ precisa ser visível ao template
-    protected readonly authService: AuthService,
-    private readonly nearbyProfilesService: NearbyProfilesService,
-    private readonly router: Router,
-    private readonly dialog: MatDialog,
-    private readonly userProfileService: UserProfileService,
-    private readonly errorNotificationService: ErrorNotificationService,
-    private readonly globalErrorHandlerService: GlobalErrorHandlerService
-  ) { }
+  // Signals locais: política / UX
+  private readonly _userLocation = signal<GeoCoordinates | null>(null);
+  readonly userLocation = computed(() => this._userLocation());
 
-  ngOnInit(): void {
-    // Nada de geolocalização aqui – só após gesto do usuário.
-  }
+  private readonly _policyMaxDistanceKm = signal<number>(20);
+  readonly policyMaxDistanceKm = computed(() => this._policyMaxDistanceKm());
 
-  /** Chamado pelo botão no template */
-  onEnableLocationClick(): void {
-    this.authService.user$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: async (user) => {
-        if (!user?.uid) {
-          this.errorNotificationService.showError('Usuário não autenticado.');
-          return;
+  private readonly _uiDistanceKm =
+    signal<number | undefined>(this.cache.getSync<number>('uiDistanceKm') ?? undefined);
+  readonly uiDistanceKm = computed(() => this._uiDistanceKm() ?? this.policyMaxDistanceKm());
+
+  private readonly _lastError = signal<string | null>(null);
+  readonly lastError = computed(() => this._lastError());
+
+  // DEPENDÊNCIAS
+  private readonly geolocationService = inject(GeolocationService);
+  private readonly userProfileService = inject(UserProfileService);
+  private readonly errorNotificationService = inject(ErrorNotificationService);
+  private readonly globalErrorHandlerService = inject(GlobalErrorHandlerService);
+  private readonly dialog = inject(MatDialog);
+  private readonly router = inject(Router);
+
+  private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly authSession = inject(AuthSessionService);
+  private readonly accessControl = inject(AccessControlService);
+  private readonly store = inject(Store);
+
+  // USER STREAM
+  readonly user$ = this.currentUserStore.user$.pipe(
+    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b))
+  );
+  private readonly uid$ = this.currentUserStore.getLoggedUserUID$();
+
+  // Mantém slider da UI alinhado ao store (searchParams.maxDistanceKm)
+  private readonly syncUiWithStore$ = this.store.select(selectMaxDistanceKm).pipe(
+    tap((v) => {
+      if (typeof v === 'number' && Number.isFinite(v)) {
+        if (this._uiDistanceKm() !== v) this._uiDistanceKm.set(v);
+      }
+    }),
+    takeUntilDestroyed(this.destroyRef)
+  ).subscribe();
+
+  // Trigger manual (ex.: após ativar localização)
+  private readonly reload$ = new BehaviorSubject<void>(undefined);
+
+  // VM combinando Location + NearbyProfiles (por UID)
+  readonly vm$ = combineLatest([this.uid$, this.reload$]).pipe(
+    map(([uid]) => uid),
+    filter((uid): uid is string => !!uid),
+    switchMap(uid => this.store.select(selectLocationNearbyVMByUid(uid)).pipe(
+      tap(vm => {
+        // cache-first: só carrega se não estiver fresh
+        if (vm.key && vm.currentLocation && !vm.isFresh) {
+          const params = {
+            uid,
+            lat: vm.currentLocation.latitude,
+            lon: vm.currentLocation.longitude,
+            radiusKm: vm.maxDistanceKm,
+          };
+          this.store.dispatch(NearbyProfilesActions.load({ params }));
         }
-        try {
-          const precise = await this.geolocationService.getCurrentLocation({ requireUserGesture: true });
-          const { coords: safeCoords, geohash, policy } = this.geolocationService.applyRolePrivacy(
-            precise,
-            user.role,
-            !!user.emailVerified
-          );
+      })
+    )),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
-          this.userLocation = safeCoords;
+  // Observables para o template
+  readonly profiles$: Observable<IUserDados[]> = this.vm$.pipe(map(vm => vm.list));
+  readonly nearbyLoading$ = this.vm$.pipe(map(vm => vm.loading));
+  readonly nearbyError$ = this.vm$.pipe(map(vm => vm.error));
+  readonly ttlLeftMs$ = this.vm$.pipe(map(vm => vm.ttlLeftMs));
 
-          // Limite + valor inicial do slider
-          this.policyMaxDistanceKm = policy.maxDistanceKm || 20;
-          this.uiDistanceKm ??= this.policyMaxDistanceKm;
+  // Persistência leve do slider (TTL 15min)
+  private readonly uiDistancePersistEffect = effect(() => {
+    const v = this._uiDistanceKm();
+    if (v && Number.isFinite(v)) this.cache.set('uiDistanceKm', v, 15 * 60 * 1000);
+  });
 
-          // Carrega perfis respeitando o slider (capado pelo limite)
-          await this.loadProfilesNearUserLocation(user.uid);
-
-          // Atualiza localização (coarse)
-          const finalHash = geohash ?? geohashForLocation([safeCoords.latitude!, safeCoords.longitude!]);
-          await this.userProfileService.updateUserLocation(user.uid, { ...safeCoords, geohash: finalHash }, finalHash);
-        } catch (err) {
-          this.handleGeoError(err);
-        }
-      },
-      error: (err) => this.handleGeoError(err)
-    });
-  }
-
-  private async loadProfilesNearUserLocation(uid: string): Promise<void> {
+  // AÇÕES DE UI
+  async onEnableLocationClick(): Promise<void> {
     try {
-      if (!this.userLocation) {
-        this.errorNotificationService.showInfo('Localização não disponível.');
+      await this.authSession.whenReady();
+      const user = await firstValueFrom(this.user$);
+      if (!user?.uid) {
+        this.errorNotificationService.showError('Você precisa estar autenticado para usar esta área.');
         return;
       }
-      const { latitude, longitude } = this.userLocation;
-      const capKm = Math.min(this.uiDistanceKm ?? this.policyMaxDistanceKm, this.policyMaxDistanceKm);
 
-      this.profiles = await this.nearbyProfilesService.getProfilesNearLocation(
-        latitude!, longitude!, capKm, uid
+      const precise = await this.geolocationService.getCurrentLocation({ requireUserGesture: true });
+      const { coords: safeCoords, geohash, policy } = this.geolocationService.applyRolePrivacy(
+        precise, user.role, !!user.emailVerified
       );
-    } catch (error) {
-      this.errorNotificationService.showError('Erro ao carregar perfis próximos.');
-      this.globalErrorHandlerService.handleError(error as Error);
+
+      // Atualiza UI local (cap)
+      this._userLocation.set(safeCoords);
+      this._policyMaxDistanceKm.set(policy.maxDistanceKm || 20);
+      if (this._uiDistanceKm() == null) this._uiDistanceKm.set(this._policyMaxDistanceKm());
+
+      // 🔁 Atualiza slice 'location' (usa suas actions reais)
+      this.store.dispatch(LocationActions.updateCurrentLocation({
+        latitude: safeCoords.latitude!, longitude: safeCoords.longitude!
+      }));
+
+      // Atualiza coarse location no perfil (best-effort)
+      const finalHash = geohash ?? geohashForLocation([safeCoords.latitude!, safeCoords.longitude!]);
+      if (navigator.onLine) {
+        await this.userProfileService
+          .updateUserLocation(user.uid, { ...safeCoords, geohash: finalHash }, finalHash)
+          .catch(() => { });
+      }
+
+      // Recalcula VM → dispara load se precisar
+      this.reload$.next();
+
+    } catch (err) {
+      this.handleGeoError(err);
     }
+  }
+
+  onDistanceChangeKm(next: number | string): void {
+    const asNumber = Math.floor(Number(next) || 1);
+    const capped = Math.min(Math.max(1, asNumber), this.policyMaxDistanceKm());
+
+    // Atualiza UI local
+    this._uiDistanceKm.set(capped);
+
+    // 🔁 Atualiza no slice 'location' (nova action)
+    this.store.dispatch(LocationActions.setMaxDistance({ maxDistanceKm: capped }));
+
+    // Nova key → novo cache (ou hit de cache existente)
+    this.reload$.next();
   }
 
   abrirModalMensagem(uid: string): void {
-    const perfilSelecionado = this.profiles.find(p => p.uid === uid);
-    if (!perfilSelecionado) {
-      this.errorNotificationService.showInfo('Perfil não encontrado.');
-      return;
-    }
-    const dialogRef = this.dialog.open(ModalMensagemComponent, {
-      width: '22%',
-      minWidth: 300,
-      data: { profile: perfilSelecionado }
-    });
-    dialogRef.afterClosed().subscribe(result => {
-      if (result) this.router.navigate(['/chat', uid]);
+    this.profiles$.pipe(take(1), takeUntilDestroyed(this.destroyRef)).subscribe(list => {
+      const perfilSelecionado = list.find(p => p.uid === uid);
+      if (!perfilSelecionado) {
+        this.errorNotificationService.showInfo('Perfil não encontrado.');
+        return;
+      }
+      const dialogRef = this.dialog.open(ModalMensagemComponent, {
+        width: 'min(480px, 92vw)',
+        data: { profile: perfilSelecionado }
+      });
+      dialogRef.afterClosed().pipe(take(1)).subscribe(result => {
+        if (result) this.router.navigate(['/chat', uid]);
+      });
     });
   }
+
+  trackByUid = (_: number, item: IUserDados) => item.uid;
 
   private handleGeoError(err: unknown): void {
     let msg = 'Falha ao obter a sua localização.';
@@ -139,6 +218,7 @@ export class PerfisProximosComponent implements OnInit {
         default: msg = 'Ocorreu um erro desconhecido ao obter localização.';
       }
     }
+    this._lastError.set(msg);
     this.errorNotificationService.showError(msg);
     this.globalErrorHandlerService.handleError(err as Error);
   }

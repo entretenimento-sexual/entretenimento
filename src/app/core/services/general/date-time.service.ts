@@ -1,135 +1,133 @@
-//src\app\core\services\general\date-time.service.ts
+// src/app/core/services/general/date-time.service.ts
 import { Injectable } from '@angular/core';
 import { Timestamp } from 'firebase/firestore';
-import { format, differenceInMinutes, differenceInHours, differenceInDays, isBefore, isAfter } from 'date-fns';
+import {
+  format,
+  differenceInMinutes,
+  differenceInHours,
+  differenceInDays,
+  isWithinInterval,
+  formatDistanceToNowStrict,
+} from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
-@Injectable({
-  providedIn: 'root',
-})
+type TimestampLike = { seconds: number; nanoseconds?: number };
+type DateLike = Date | Timestamp | number | string | TimestampLike;
+
+@Injectable({ providedIn: 'root' })
 export class DateTimeService {
-  /**
-   * Converte um valor genérico para `Date`, suportando `Timestamp`, Unix time, strings e objetos `Date`.
-   * @param value Valor a ser convertido.
-   * @returns Objeto `Date`.
-   */
-  convertToDate(value: any): Date {
-    if (!value) throw new Error('Data inválida');
+  /** Tenta converter um valor genérico para Date. Lança erro se inválido. */
+  convertToDate(value: DateLike): Date {
+    if (value == null) throw new Error('Data inválida');
+
+    // Date
     if (value instanceof Date) return value;
+
+    // Firestore Timestamp
     if (value instanceof Timestamp) return value.toDate();
-    if (typeof value === 'string' || typeof value === 'number') {
-      const date = new Date(value);
-      if (isNaN(date.getTime())) throw new Error('Data inválida');
-      return date;
+
+    // Objeto tipo {seconds, nanoseconds}
+    if (typeof value === 'object') {
+      const v = value as TimestampLike;
+      if (typeof v.seconds === 'number') {
+        const ms = v.seconds * 1000 + (v.nanoseconds ? v.nanoseconds / 1_000_000 : 0);
+        const d = new Date(ms);
+        if (Number.isFinite(d.getTime())) return d;
+      }
+      throw new Error('Formato de data não suportado');
     }
-    if (value.seconds && value.nanoseconds) {
-      return new Date(value.seconds * 1000 + value.nanoseconds / 1000000);
+
+    // number ou string
+    if (typeof value === 'number') {
+      const d = new Date(value);
+      if (Number.isFinite(d.getTime())) return d;
+      throw new Error('Data inválida');
     }
+
+    // string: tratar numeric-like como epoch
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (/^\d+$/.test(trimmed)) {
+        const asNumber = Number(trimmed);
+        const d = new Date(asNumber);
+        if (Number.isFinite(d.getTime())) return d;
+      }
+      // tenta parse “normal” (ISO, etc.)
+      const d = new Date(trimmed);
+      if (Number.isFinite(d.getTime())) return d;
+      throw new Error('Data inválida');
+    }
+
     throw new Error('Formato de data não suportado');
   }
 
-  /**
-   * Calcula a diferença entre duas datas em minutos.
-   * @param date1 Primeira data.
-   * @param date2 Segunda data.
-   * @returns Diferença em minutos.
-   */
-  calculateDifferenceInMinutes(date1: any, date2: any): number {
+  /** Diferença em minutos. Por padrão, absoluta. */
+  calculateDifferenceInMinutes(date1: DateLike, date2: DateLike, absolute = true): number {
     const d1 = this.convertToDate(date1);
     const d2 = this.convertToDate(date2);
-    return differenceInMinutes(d1, d2);
+    const diff = differenceInMinutes(d1, d2);
+    return absolute ? Math.abs(diff) : diff;
   }
 
-  /**
-   * Calcula a diferença entre duas datas em horas.
-   * @param date1 Primeira data.
-   * @param date2 Segunda data.
-   * @returns Diferença em horas.
-   */
-  calculateDifferenceInHours(date1: any, date2: any): number {
+  /** Diferença em horas. Por padrão, absoluta. */
+  calculateDifferenceInHours(date1: DateLike, date2: DateLike, absolute = true): number {
     const d1 = this.convertToDate(date1);
     const d2 = this.convertToDate(date2);
-    return differenceInHours(d1, d2);
+    const diff = differenceInHours(d1, d2);
+    return absolute ? Math.abs(diff) : diff;
   }
 
-  /**
-   * Calcula a diferença entre duas datas em dias.
-   * @param date1 Primeira data.
-   * @param date2 Segunda data.
-   * @returns Diferença em dias.
-   */
-  calculateDifferenceInDays(date1: any, date2: any): number {
+  /** Diferença em dias. Por padrão, absoluta. */
+  calculateDifferenceInDays(date1: DateLike, date2: DateLike, absolute = true): number {
     const d1 = this.convertToDate(date1);
     const d2 = this.convertToDate(date2);
-    return differenceInDays(d1, d2);
+    const diff = differenceInDays(d1, d2);
+    return absolute ? Math.abs(diff) : diff;
   }
 
-  /**
-   * Verifica se uma data está no futuro.
-   * @param date Data a ser verificada.
-   * @returns Verdadeiro se a data estiver no futuro.
-   */
-  isFutureDate(date: any): boolean {
+  /** Está no futuro? */
+  isFutureDate(date: DateLike): boolean {
     const d = this.convertToDate(date);
-    return isAfter(d, new Date());
+    return d.getTime() > Date.now();
   }
 
-  /**
-   * Verifica se uma data está no passado.
-   * @param date Data a ser verificada.
-   * @returns Verdadeiro se a data estiver no passado.
-   */
-  isPastDate(date: any): boolean {
+  /** Está no passado? */
+  isPastDate(date: DateLike): boolean {
     const d = this.convertToDate(date);
-    return isBefore(d, new Date());
+    return d.getTime() < Date.now();
   }
 
-  /**
-   * Verifica se uma data está dentro de um intervalo.
-   * @param date Data a ser verificada.
-   * @param startDate Data de início.
-   * @param endDate Data de término.
-   * @returns Verdadeiro se a data estiver dentro do intervalo.
-   */
-  isWithinRange(date: any, startDate: any, endDate: any): boolean {
+  /** Intervalo (inclusivo nas bordas). */
+  isWithinRange(date: DateLike, startDate: DateLike, endDate: DateLike): boolean {
     const d = this.convertToDate(date);
     const start = this.convertToDate(startDate);
     const end = this.convertToDate(endDate);
-    return isAfter(d, start) && isBefore(d, end);
+    const a = Math.min(start.getTime(), end.getTime());
+    const b = Math.max(start.getTime(), end.getTime());
+    return isWithinInterval(d, { start: new Date(a), end: new Date(b) });
   }
 
-  /**
-   * Formata uma data de acordo com o padrão especificado.
-   * @param date Data a ser formatada.
-   * @param formatType Padrão de formatação (e.g., 'dd/MM/yyyy').
-   * @returns Data formatada como string.
-   */
-  formatDate(date: any, formatType: string): string {
+  /** Formata uma data (padrão: 'dd/MM/yyyy HH:mm'). */
+  formatDate(date: DateLike, formatType = 'dd/MM/yyyy HH:mm'): string {
     const d = this.convertToDate(date);
     return format(d, formatType, { locale: ptBR });
   }
 
-  /**
-   * Calcula tempo decorrido em formato legível (segundos, minutos, horas, dias).
-   * @param date Data base.
-   * @returns String legível com tempo decorrido.
-   */
-  calculateElapsedTime(date: any): string {
+  /** “há x tempo” com pluralização correta. */
+  calculateElapsedTime(date: DateLike): string {
     const d = this.convertToDate(date);
-    const now = new Date();
-    const secondsDifference = Math.floor((now.getTime() - d.getTime()) / 1000);
-    const minutesDifference = Math.floor(secondsDifference / 60);
-    const hoursDifference = Math.floor(minutesDifference / 60);
-    const daysDifference = Math.floor(hoursDifference / 24);
-
-    if (secondsDifference < 60) {
-      return `${secondsDifference} segundo${secondsDifference === 1 ? '' : 's'} atrás`;
-    } else if (minutesDifference < 60) {
-      return `${minutesDifference} minuto${minutesDifference === 1 ? '' : 's'} atrás`;
-    } else if (hoursDifference < 24) {
-      return `${hoursDifference} hora${hoursDifference === 1 ? '' : 's'} atrás`;
-    } else {
-      return `${daysDifference} dia${daysDifference === 1 ? '' : 's'} atrás`;
-    }
+    return formatDistanceToNowStrict(d, { addSuffix: true, locale: ptBR });
   }
+
+  /** Converte para epoch ms (number). Retorna null se inválido. */
+  toEpoch(value: DateLike): number | null {
+    try { return this.convertToDate(value).getTime(); } catch { return null; }
+  }
+
+  /** Converte para Firestore Timestamp. Retorna null se inválido. */
+  toTimestamp(value: DateLike): Timestamp | null {
+    try { return Timestamp.fromDate(this.convertToDate(value)); } catch { return null; }
+  }
+
+  nowEpoch(): number { return Date.now(); }
 }

@@ -1,18 +1,14 @@
-//src\app\store\actions\actions.location\nearby-profiles.actions.ts
-import { createAction, props } from '@ngrx/store';
+// src/app/store/actions/actions.location/nearby-profiles.actions.ts
+import { createActionGroup, props } from '@ngrx/store';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { NearbyQueryParams } from '../../states/states.location/nearby-profiles.state';
 
-export const loadNearbyProfiles = createAction(
-  '[Location] Load Nearby Profiles',
-  props<{ latitude: number; longitude: number; maxDistanceKm: number; userUid: string }>()
-);
-
-export const loadNearbyProfilesSuccess = createAction(
-  '[Location] Load Nearby Profiles Success',
-  props<{ profiles: IUserDados[] }>()
-);
-
-export const loadNearbyProfilesFailure = createAction(
-  '[Location] Load Nearby Profiles Failure',
-  props<{ error: any }>()
-);
+export const NearbyProfilesActions = createActionGroup({
+  source: 'Nearby Profiles',
+  events: {
+    load: props<{ params: NearbyQueryParams; force?: boolean }>(),
+    loaded: props<{ key: string; list: IUserDados[]; updatedAt: number }>(),
+    error: props<{ key: string; message: string }>(),
+    invalidate: props<{ key?: string }>(),
+  },
+});

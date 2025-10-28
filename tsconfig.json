@@ -3,9 +3,7 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    /* Compatibilidade entre imports ES/CJS */
     "esModuleInterop": true,
-    /* Base e aliases */
     "baseUrl": "./",
     "paths": {
       "src/*": ["src/*"],
@@ -15,7 +13,6 @@
       "@env/*": ["src/environments/*"]
     },
 
-    /* Regras de consistência e segurança */
     "forceConsistentCasingInFileNames": true,
     "strict": true,
     "noImplicitOverride": true,
@@ -23,10 +20,10 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
 
-    /* Saída e compatibilidade */
     "sourceMap": true,
     "declaration": false,
     "experimentalDecorators": true,
+
     "moduleResolution": "bundler",
     "importHelpers": true,
     "target": "ES2022",
@@ -34,10 +31,8 @@
     "useDefineForClassFields": false,
     "skipLibCheck": true,
 
-    /* Bibliotecas incluídas no build */
-    "lib": ["ES2022", "dom"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],   // ← IMPORTANTE
 
-    /* Sem tipos globais extras no build principal */
     "types": []
   },
   "angularCompilerOptions": {
@@ -47,14 +42,10 @@
     "strictInputAccessModifiers": true,
     "strictTemplates": true
   },
-  /* Inclui somente o código da aplicação */
-  "include": [
-    "src/**/*.ts"
-  ],
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
   "exclude": [
-    "src/**/*.spec.ts",       // testes
-    "src/test/**/*.ts",       // setup-jest.ts e stubs
+    "src/**/*.spec.ts",
+    "src/test/**/*.ts",
     "jest.config.mjs"
   ]
 }
-

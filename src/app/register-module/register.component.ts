@@ -14,7 +14,6 @@ import { IUserRegistrationData } from '../core/interfaces/iuser-registration-dat
 
 // ✅ AngularFire (mesmas instâncias providas no app.module)
 import { Auth, user } from '@angular/fire/auth';
-import { Timestamp } from '@angular/fire/firestore';
 import type { User } from 'firebase/auth';
 
 type UiBannerVariant = 'info' | 'warn' | 'error' | 'success';
@@ -218,14 +217,15 @@ export class RegisterComponent {
     this.banner.set(null);
 
     const { email, password, aceitarTermos } = this.form.getRawValue() as any;
+    const now = Date.now();
     const payload: IUserRegistrationData = {
       email,
       nickname: this.apelidoCompleto(),
-      acceptedTerms: { accepted: aceitarTermos, date: Timestamp.fromDate(new Date()) },
+      acceptedTerms: { accepted: aceitarTermos, date: now },
       emailVerified: false,
       isSubscriber: false,
-      firstLogin: Timestamp.fromDate(new Date()),
-      registrationDate: Timestamp.fromDate(new Date()),
+      firstLogin: now,
+      registrationDate: now,
       profileCompleted: false
     };
 

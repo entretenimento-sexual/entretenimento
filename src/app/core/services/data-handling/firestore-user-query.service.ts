@@ -1,4 +1,4 @@
-//src\app\core\services\data-handling\firestore-user-query.service.ts
+// src/app/core/services/data-handling/firestore-user-query.service.ts
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { from, Observable, of, switchMap, take, shareReplay, map, catchError, firstValueFrom, tap } from 'rxjs';
 import { Store } from '@ngrx/store';
@@ -7,16 +7,22 @@ import { addUserToState, updateUserInState } from 'src/app/store/actions/actions
 import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.user/user-profile.selectors';
 import { CacheService } from '../general/cache/cache.service';
 import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
+
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
-import { doc, getDoc, Firestore, docSnapshots, getDocFromServer, docData } from '@angular/fire/firestore';
-import { collection, documentId, getDocs, query, where } from 'firebase/firestore';
+
+import {
+  Firestore, doc, getDoc, docData, docSnapshots, getDocFromServer,
+} from '@angular/fire/firestore';
+import {
+  collection, documentId, getDocs, query, where, DocumentReference, CollectionReference,
+} from 'firebase/firestore';
+import { userConverter } from './converters/user.firestore-converter';
 
 export type UserPublic = { uid: string; nickname?: string; avatarUrl?: string };
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreUserQueryService {
-  private userObservablesCache = new Map<string, Observable<IUserDados | null>>();
 
   constructor(
     private cache: CacheService,
@@ -26,76 +32,83 @@ export class FirestoreUserQueryService {
     private injector: Injector
   ) { }
 
+  /* ---------- helpers Firestore com converter ---------- */
+  private usersCol() {
+    return runInInjectionContext(this.injector, () =>
+      collection(this.db, 'users').withConverter(userConverter)
+    );
+  }
+  private userRef(uid: string) {
+    return runInInjectionContext(this.injector, () =>
+      doc(this.db, 'users', uid).withConverter(userConverter)
+    );
+  }
+
   private chunk<T>(arr: T[], size: number): T[][] {
     const out: T[][] = [];
     for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
     return out;
   }
 
+  /* ---------- listagem pública (com converter) ---------- */
   getUsersPublicMap$(uids: string[]): Observable<Record<string, UserPublic>> {
     const ids = Array.from(new Set((uids ?? []).filter(Boolean)));
-    if (!ids.length) return of({} as Record<string, UserPublic>);
+    if (!ids.length) return of({});
 
-    const col = runInInjectionContext(this.injector, () => collection(this.db, 'users'));
-    const groups = this.chunk(ids, 10); // 'in' aceita até 10
+    const col = this.usersCol();
+    const groups = this.chunk(ids, 10);
 
-    return from(
-      runInInjectionContext(this.injector, async () => {
-        const mapOut: Record<string, UserPublic> = {};
+    return from((async () => {
+      const mapOut: Record<string, UserPublic> = {};
 
-        // Tenta batch por 'in'
-        try {
-          const snaps = await Promise.all(
-            groups.map(g => getDocs(query(col, where(documentId(), 'in', g))))
-          );
-          for (const snap of snaps) {
-            snap.forEach(d => {
-              const data: any = d.data();
-              mapOut[d.id] = {
-                uid: d.id,
-                nickname: data?.nickname ?? data?.displayName ?? data?.name ?? undefined,
-                avatarUrl: data?.photoURL ?? data?.avatarUrl ?? data?.imageUrl ?? undefined,
-              };
-              // opcional: hidratar store+cache
-              this.store.dispatch(addUserToState({ user: { uid: d.id, ...data } as IUserDados }));
-              this.cache.set(`user:${d.id}`, { uid: d.id, ...data }, 300_000);
-            });
-          }
-          return mapOut;
-        } catch {
-          // Fallback (se 'documentId()' não estiver acessível): N leituras individuais
-          const docs = await Promise.all(
-            ids.map(async uid => {
-              const ds = await getDoc(runInInjectionContext(this.injector, () => doc(this.db, 'users', uid)));
-              return ds.exists() ? { uid: ds.id, ...(ds.data() as any) } : null;
-            })
-          );
-          for (const d of docs) {
-            if (!d) continue;
-            mapOut[d.uid] = {
-              uid: d.uid,
-              nickname: d.nickname ?? d.displayName ?? d.name ?? undefined,
-              avatarUrl: d.photoURL ?? d.avatarUrl ?? d.imageUrl ?? undefined,
+      try {
+        const snaps = await Promise.all(groups.map(g =>
+          getDocs(query(col, where(documentId(), 'in', g)))
+        ));
+        for (const snap of snaps) {
+          snap.forEach(d => {
+            const data = d.data(); // IUserDados (já contém uid do converter)
+            mapOut[data.uid] = {
+              uid: data.uid,
+              nickname: data?.nickname ?? (data as any)?.displayName ?? (data as any)?.name ?? undefined,
+              avatarUrl: data?.photoURL ?? (data as any)?.avatarUrl ?? (data as any)?.imageUrl ?? undefined,
             };
-            this.store.dispatch(addUserToState({ user: d as IUserDados }));
-            this.cache.set(`user:${d.uid}`, d as any, 300_000);
-          }
-          return mapOut;
+            this.store.dispatch(addUserToState({ user: data }));
+            this.cache.set(`user:${data.uid}`, data, 300_000);
+          });
         }
-      })
-    ).pipe(
-      catchError(err => {
-        this.firestoreError.handleFirestoreError(err);
-        // devolve um mapa vazio, mantendo tipagem do efeito
-        return of({} as Record<string, UserPublic>);
-     })
+        return mapOut;
+      } catch {
+        // Fallback (1 a 1) ainda com converter
+        const docs = await Promise.all(ids.map(async uid => {
+          const ds = await runInInjectionContext(this.injector, () =>
+            getDoc(this.userRef(uid))
+           );
+          return ds.exists() ? ds.data() : null;
+        }));
+        for (const data of docs) {
+          if (!data) continue;
+          mapOut[data.uid] = {
+            uid: data.uid,
+            nickname: data?.nickname ?? (data as any)?.displayName ?? (data as any)?.name ?? undefined,
+            avatarUrl: data?.photoURL ?? (data as any)?.avatarUrl ?? (data as any)?.imageUrl ?? undefined,
+          };
+          this.store.dispatch(addUserToState({ user: data }));
+          this.cache.set(`user:${data.uid}`, data, 300_000);
+        }
+        return mapOut;
+      }
+    })()).pipe(
+      catchError(err => { this.firestoreError.handleFirestoreError(err); return of({}); })
     );
   }
 
+  /* ---------- leitura pontual (converter) ---------- */
   private getUserFromFirestore$(uid: string): Observable<IUserDados | null> {
-    const ref = runInInjectionContext(this.injector, () => doc(this.db, 'users', uid));
-    return from(runInInjectionContext(this.injector, () => getDoc(ref))).pipe(
-      map(snap => (snap.exists() ? (snap.data() as IUserDados) : null)),
+    return from(
+          runInInjectionContext(this.injector, () => getDoc(this.userRef(uid)))
+         ).pipe(
+      map(snap => (snap.exists() ? snap.data()! : null)),
       tap(user => {
         if (user) {
           this.store.dispatch(addUserToState({ user }));
@@ -106,20 +119,20 @@ export class FirestoreUserQueryService {
     );
   }
 
+  /* ---------- exists no servidor (sem converter é ok) ---------- */
   async checkUserExistsFromServer(uid: string): Promise<boolean> {
     try {
-      return await runInInjectionContext(this.injector, async () => {
-        const ref = doc(this.db, 'users', uid);
-        const snap = await getDocFromServer(ref);
-        return snap.exists();
-      });
+      const snap = await runInInjectionContext(this.injector, () =>
+            getDocFromServer(doc(this.db, 'users', uid))
+            );
+      return snap.exists();
     } catch (error) {
       this.firestoreError.handleFirestoreError(error);
-      // Em caso de erro, seja conservador para não derrubar sessão por engano
       return true;
     }
   }
 
+  /* ---------- Cache -> Store -> Firestore ---------- */
   private fetchUser$(uid: string): Observable<IUserDados | null> {
     const id = uid.trim();
     return this.cache.get<IUserDados>(`user:${id}`).pipe(
@@ -134,9 +147,12 @@ export class FirestoreUserQueryService {
     );
   }
 
-  getUser(uid: string): Observable<any | null> {
-    const ref = runInInjectionContext(this.injector, () => doc(this.db, 'users', uid));
-    return runInInjectionContext(this.injector, () => docData<any>(ref, { idField: 'uid' }));
+  /* ---------- stream reativo do doc (converter) ---------- */
+  getUser(uid: string): Observable<IUserDados | null> {
+    return runInInjectionContext(this.injector, () => docData(this.userRef(uid))).pipe(
+      map(v => (v ?? null) as IUserDados | null),
+      catchError(err => this.firestoreError.handleFirestoreError(err))
+    );
   }
 
   async getUserData(uid: string): Promise<IUserDados | null> {
@@ -149,15 +165,14 @@ export class FirestoreUserQueryService {
   getUserWithObservable(uid: string): Observable<IUserDados | null> {
     return this.getUser(uid);
   }
-
   getUserById(uid: string): Observable<IUserDados | null> {
     return this.getUser(uid);
   }
 
   invalidateUserCache(uid: string): void {
     const id = uid.trim();
-    this.userObservablesCache.delete(id);
-    this.cache.set(`user:${id}`, null, 1);
+    // this.userObservablesCache.delete(id);
+    this.cache.set(`user:${id}`, null as any, 1);
   }
 
   updateUserInStateAndCache<T extends IUserRegistrationData | IUserDados>(uid: string, updatedData: T): void {
@@ -169,7 +184,10 @@ export class FirestoreUserQueryService {
     });
   }
 
+  /* ---------- apenas para saber se o doc sumiu ---------- */
   watchUserDocDeleted$(uid: string): Observable<boolean> {
+    // pode ser sem converter; se quiser padronizar:
+    // const ref = this.userRef(uid);
     const ref = runInInjectionContext(this.injector, () => doc(this.db, 'users', uid));
     return runInInjectionContext(this.injector, () => docSnapshots(ref)).pipe(
       map(snap => !snap.exists()),

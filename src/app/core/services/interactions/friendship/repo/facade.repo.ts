@@ -2,8 +2,9 @@
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore, collection, getDocs, query, where,
-  doc, getDoc, CollectionReference, QuerySnapshot, DocumentData
+  doc, getDoc, CollectionReference, QuerySnapshot
 } from '@angular/fire/firestore';
+import { DocumentData } from 'firebase/firestore'; // <- DocumentData daqui
 import { FriendsRepo } from './friends.repo';
 import { BlocksRepo } from './blocks.repo';
 import { CooldownRepo } from './cooldown.repo';
@@ -14,13 +15,10 @@ import { IUserDados } from '../../../../interfaces/iuser-dados';
 @Injectable({ providedIn: 'root' })
 export class FriendshipRepo {
   private db = inject(Firestore);
-
-  constructor(
-    private friends: FriendsRepo,
-    private blocks: BlocksRepo,
-    private cd: CooldownRepo,
-    private reqs: RequestsRepo,
-  ) { }
+  private friends = inject(FriendsRepo);
+  private blocks = inject(BlocksRepo);
+  private cd = inject(CooldownRepo);
+  private reqs = inject(RequestsRepo);
 
   /* Friends */
   getFriendDoc$(a: string, b: string) { return this.friends.getFriendDoc$(a, b); }

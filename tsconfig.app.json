@@ -3,14 +3,14 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/app",
-    "types": [
-      "@angular/localize"
-    ]
+    "types": ["@angular/localize"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],   // ← redundante, mas força no alvo
+    "useDefineForClassFields": false
   },
-  "files": [
-    "src/main.ts"
-  ],
-  "include": [
-    "src/**/*.d.ts"
+  "files": ["src/main.ts"],
+  "include": ["src/**/*.ts"],
+  "exclude": [
+    "src/**/*.spec.ts",
+    "src/test/**/*.ts"
   ]
 }

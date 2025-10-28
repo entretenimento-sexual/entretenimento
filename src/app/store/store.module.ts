@@ -1,12 +1,12 @@
 // src/app/store/store.module.ts
 import { NgModule } from '@angular/core';
-import { StoreModule } from '@ngrx/store';
+import { StoreModule, ActionReducer } from '@ngrx/store';
 import { EffectsModule } from '@ngrx/effects';
 import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 import { environment } from '../../environments/environment';
 
-// ROOT reducers
-import { reducers } from './reducers'; // ⬅️ Agora centralizado via index.ts
+// ROOT reducers (index.ts centraliza seus reducers root)
+import { reducers } from './reducers';
 
 // EFFECTS - USER
 import { AuthEffects } from './effects/effects.user/auth.effects';
@@ -26,6 +26,8 @@ import { RoomEffects } from './effects/effects.chat/room.effects';
 // EFFECTS - INTERACTIONS - FRIENDS
 import { FriendsRequestsCrudEffects } from './effects/effects.interactions/friends/requests-crud.effects';
 import { FriendsNetworkEffects } from './effects/effects.interactions/friends/network.effects';
+import { FriendsRequestsProfilesEffects } from './effects/effects.interactions/friends/requests-profiles.effects';
+import { FriendsRequestsRealtimeEffects } from './effects/effects.interactions/friends/requests-realtime.effects';
 
 // EFFECTS - LOCATION
 import { NearbyProfilesEffects } from './effects/effects.location/nearby-profiles.effects';
@@ -37,56 +39,102 @@ import { CacheEffects } from './effects/cache.effects';
 // REDUCERS - FEATURE
 import { friendsReducer } from './reducers/reducers.interactions/friends.reduce';
 import { userPreferencesReducer } from './reducers/reducers.user/user-preferences.reducer';
-import { nearbyProfilesReducer } from './reducers/reducers.location/nearby-profiles.reducer';
-import { FriendsRequestsProfilesEffects } from './effects/effects.interactions/friends/requests-profiles.effects';
-import { FriendsRequestsRealtimeEffects } from './effects/effects.interactions/friends/requests-realtime.effects';
+import { nearbyProfilesReducer, nearbyProfilesFeatureKey } from './reducers/reducers.location/nearby-profiles.reducer';
+import { locationReducer } from './reducers/reducers.location/location.reducer';
 
+/**
+ * Logger inline (opcional). Deixe desativado por padrão.
+ * Se precisar depurar tempo/estado por ação, ative
+ * adicionando `loggerMetaReducer` ao array `metaReducers` logo abaixo.
+ */
+function loggerMetaReducer<S>(reducer: ActionReducer<S>): ActionReducer<S> {
+  if (environment.production) return reducer;
+  return (state, action) => {
+    const t0 = performance?.now?.() ?? Date.now();
+    const next = reducer(state, action);
+    const t1 = performance?.now?.() ?? Date.now();
+    // eslint-disable-next-line no-console
+    console.groupCollapsed?.(`[NGRX] ${action.type} +${(t1 - t0).toFixed(2)}ms`);
+    // eslint-disable-next-line no-console
+    console.log('prev:', state);
+    // eslint-disable-next-line no-console
+    console.log('action:', action);
+    // eslint-disable-next-line no-console
+    console.log('next:', next);
+    // eslint-disable-next-line no-console
+    console.groupEnd?.();
+    return next;
+  };
+}
 
-// 🔧 Feature slice names devem bater com seus selectors!
+// Ative o logger incluindo-o aqui (apenas quando precisar):
+const metaReducers = environment.production ? [] : [
+  // loggerMetaReducer,
+];
+
 @NgModule({
   imports: [
-    StoreModule.forRoot(reducers),
+    StoreModule.forRoot(reducers, {
+      metaReducers,
+      runtimeChecks: {
+        strictStateImmutability: true,
+        strictActionImmutability: true,
+        strictStateSerializability: true,
+        strictActionSerializability: true,
+      },
+    }),
 
     // FEATURE SLICES
     StoreModule.forFeature('userPreferences', userPreferencesReducer),
-    StoreModule.forFeature('locationNearbyProfiles', nearbyProfilesReducer),
+    StoreModule.forFeature(nearbyProfilesFeatureKey, nearbyProfilesReducer), // 'nearbyProfiles'
     StoreModule.forFeature('interactions_friends', friendsReducer),
+    StoreModule.forFeature('location', locationReducer), // 👈 garante match com location.selectors
 
     // EFFECTS ROOT
     EffectsModule.forRoot([
+      // USER
       AuthEffects,
       UserEffects,
       FileEffects,
       OnlineUsersEffects,
       TermsEffects,
+      UserPreferencesEffects,
+      UserRoleEffects,
+      AuthStatusSyncEffects,
+
+      // CHAT
       ChatEffects,
       InviteEffects,
       RoomEffects,
-      CacheEffects,
-      NearbyProfilesEffects,
-      LocationEffects,
-      UserPreferencesEffects,
-      FriendsNetworkEffects,
-      UserRoleEffects,
-      AuthStatusSyncEffects,
+
+      // INTERACTIONS - FRIENDS
+      FriendsNetworkEffects,        // ⚠️ não duplicar
       FriendsRequestsCrudEffects,
       FriendsRequestsRealtimeEffects,
       FriendsRequestsProfilesEffects,
-      FriendsNetworkEffects,
+
+      // LOCATION
+      NearbyProfilesEffects,
+      LocationEffects,
+
+      // CACHE
+      CacheEffects,
     ]),
 
-    // 🔍 Devtools (apenas em dev)
+    // 🔍 Devtools (apenas em dev) — com trace p/ facilitar debug
     StoreDevtoolsModule.instrument({
-      maxAge: 25,
+      maxAge: 50,
       logOnly: environment.production,
+      trace: true,
+      traceLimit: 25,
     }),
   ],
 })
 export class AppStoreModule {
   constructor() {
     if (!environment.production) {
-      console.log('[NgRx] AppStoreModule inicializado com reducers e effects');
+      // eslint-disable-next-line no-console
+      console.log('[NgRx] AppStoreModule inicializado com reducers, effects, runtimeChecks e DevTools (trace ON)');
     }
   }
 }
-

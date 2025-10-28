@@ -1,12 +1,18 @@
-//src\app\core\interfaces\friendship\friend-request.interface.ts
-import { Timestamp } from 'firebase/firestore';
+// src/app/core/interfaces/friendship/friend-request.interface.ts
+export type FriendRequestStatus =
+  | 'pending' | 'accepted' | 'declined' | 'expired' | 'canceled' | 'blocked';
+
 export interface FriendRequest {
   id?: string;
   requesterUid: string;
   targetUid: string;
   message?: string;
-  status: 'pending' | 'accepted' | 'declined' | 'expired';
-  createdAt: Timestamp;
-  respondedAt?: Timestamp;
-  expiresAt?: Timestamp;
+  status: FriendRequestStatus;
+
+  // 🔁 sempre epoch ms ou null
+  createdAt: number | null;
+  respondedAt?: number | null;
+  acceptedAt?: number | null;
+  updatedAt?: number | null;
+  expiresAt?: number | null;
 }

@@ -35,10 +35,11 @@ export enum GeolocationErrorCode {
 
 /** Erro padronizado do serviço. */
 export class GeolocationError extends Error {
-  constructor(
-    message: string,
-    public readonly code: GeolocationErrorCode
-  ) { super(message); }
+  constructor(message: string, public readonly code: GeolocationErrorCode) {
+    super(message);
+    this.name = 'GeolocationError';
+    Object.setPrototypeOf(this, GeolocationError.prototype);
+  }
 }
 
 @Injectable({ providedIn: 'root' })
@@ -51,11 +52,11 @@ export class GeolocationService {
 
   /** ✅ HTTPS é obrigatório, mas localhost (e variações) são permitidos; jsdom pode ter hostname vazio */
   isSecureContext(): boolean {
-    if (typeof window === 'undefined') return true; // ambiente de teste/SSR
+    if (typeof window === 'undefined') return true;
     const h = window.location?.hostname || '';
-    const isLocal =
-      h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '';
-    return !!(window as any).isSecureContext || isLocal;
+    const isLocal = h === 'localhost' || h === '127.0.0.1' || h === '::1' || h === '';
+    const secure = (window as any).isSecureContext ?? (window.location?.protocol === 'https:');
+    return !!secure || isLocal;
   }
 
   /** ✅ Consulta a Permissions API (pode ser 'unsupported' em alguns navegadores). */

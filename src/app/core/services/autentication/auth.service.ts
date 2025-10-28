@@ -19,8 +19,9 @@ import { EmailVerificationService } from './register/email-verification.service'
 import { GeolocationTrackingService } from '../geolocation/geolocation-tracking.service';
 
 import { Auth, authState, signOut, type User } from '@angular/fire/auth';
-import { doc, updateDoc, serverTimestamp as fsServerTimestamp, Firestore } from '@angular/fire/firestore';
+import { serverTimestamp as fsServerTimestamp, Firestore } from '@angular/fire/firestore';
 import { PresenceService } from './auth/presence.service';
+import { DateTimeService } from '../general/date-time.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -40,6 +41,7 @@ export class AuthService {
     private emailVerificationService: EmailVerificationService,
     private geoloc: GeolocationTrackingService,
     private usuarioService: UsuarioService,
+    private dateTime: DateTimeService,
     private injector: Injector,
     private auth: Auth,
     private db: Firestore
@@ -158,17 +160,34 @@ export class AuthService {
     this.store.dispatch(logoutSuccess());
   }
 
+  private toEpoch(v: any): number | null { return this.dateTime.toEpoch(v); }
+  private serializeUser(u: IUserDados): IUserDados {
+    return {
+      ...u,
+      lastLogin: this.toEpoch(u.lastLogin) ?? 0,
+      firstLogin: this.toEpoch(u.firstLogin) as any,
+      createdAt: this.toEpoch(u.createdAt) as any,
+      singleRoomCreationRightExpires: this.toEpoch(u.singleRoomCreationRightExpires) as any,
+      roomCreationSubscriptionExpires: this.toEpoch(u.roomCreationSubscriptionExpires) as any,
+      subscriptionExpires: this.toEpoch(u.subscriptionExpires) as any,
+    } as any;
+  }
+
   setCurrentUser(userData: IUserDados): void {
     if (!userData || !userData.uid) return;
     if (JSON.stringify(this.currentUser) !== JSON.stringify(userData)) {
-      this.userSubject.next(userData);
-      localStorage.setItem('currentUser', JSON.stringify(userData));
-      this.cacheService.set('currentUser', userData, 300000);
-      this.cacheService.set('currentUserUid', userData.uid, 300000);
-      this.store.dispatch(loginSuccess({ user: userData }));
-      this.store.dispatch(setCurrentUser({ user: userData }));
+      const serial = this.serializeUser(userData); // ✅ datas como epoch
+      this.userSubject.next(serial);
+      localStorage.setItem('currentUser', JSON.stringify(serial));
+      this.cacheService.set('currentUser', serial, 300000);
+      this.cacheService.set('currentUserUid', serial.uid, 300000);
+
+      // ✅ também despacha serializado
+      this.store.dispatch(loginSuccess({ user: serial }));
+      this.store.dispatch(setCurrentUser({ user: serial }));
     }
   }
+
 
   logout(): Observable<void> {
     return this.getLoggedUserUID$().pipe(
