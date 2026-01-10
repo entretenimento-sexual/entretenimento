@@ -4,7 +4,7 @@ import { Firestore, collection, doc, getDocs, query, setDoc, where } from '@angu
 import { Observable, from, of, throwError } from 'rxjs';
 import { map, switchMap, tap, catchError, distinctUntilChanged, shareReplay } from 'rxjs/operators';
 import { IUserPreferences } from '../../interfaces/interfaces-user-dados/iuser-preferences';
-import { FirestoreService } from '../data-handling/firestore.service';
+import { FirestoreService } from '../data-handling/legacy/firestore.service';
 import { CacheService } from '../general/cache/cache.service';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';

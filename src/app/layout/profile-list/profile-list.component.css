@@ -1,2 +1,69 @@
 /* src\app\layout\profile-list\profile-list.component.css */
+.profile-list-container {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
 
+.profile-item {
+  grid-column: span 3;
+  /* 4 cards por linha em desktop */
+  background: var(--surface-color);
+  color: var(--text-color);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--box-shadow);
+  padding: 16px;
+  transition: transform 0.12s ease, box-shadow 0.2s ease;
+}
+
+.profile-item:hover {
+  transform: translateY(-2px);
+}
+
+.profile-photo {
+  width: 100%;
+  height: 180px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  margin-bottom: 10px;
+  display: block;
+}
+
+.online-status {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--success-color);
+}
+
+.no-profiles {
+  padding: 24px;
+  text-align: center;
+  color: color-mix(in oklab, var(--text-color) 75%, transparent);
+}
+
+/* Responsividade */
+@media (max-width: 1200px) {
+  .profile-item {
+    grid-column: span 4;
+  }
+
+  /* 3 por linha */
+}
+
+@media (max-width: 900px) {
+  .profile-item {
+    grid-column: span 6;
+  }
+
+  /* 2 por linha */
+}
+
+@media (max-width: 600px) {
+  .profile-item {
+    grid-column: span 12;
+  }
+
+  /* 1 por linha */
+}

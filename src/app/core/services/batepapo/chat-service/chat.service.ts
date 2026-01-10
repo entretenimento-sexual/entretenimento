@@ -14,7 +14,7 @@ import { addMessage,  createChat,  deleteChat as deleteChat, deleteMessage as de
 import { AppState } from 'src/app/store/states/app.state';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 import { AuthService } from '../../autentication/auth.service';
-import { FirestoreService } from '../../data-handling/firestore.service';
+import { FirestoreService } from '../../data-handling/legacy/firestore.service';
 import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
 import { CacheService } from '../../general/cache/cache.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -145,8 +145,15 @@ export class ChatService {
         // Atribui o nickname ao campo da mensagem
         message.nickname = user.nickname || 'Anônimo';
         message.senderId = senderId;
+
+        // ✅ timestamp “oficial” do seu app
         message.timestamp = Timestamp.now();
-        message.status = 'sent'; // Define o status inicial como 'sent'
+
+        // ✅ compat para rules (opcional)
+        (message as any).senderUid = senderId;
+        (message as any).createdAt = message.timestamp;
+
+        message.status = 'sent';
 
         // Referência para a coleção de mensagens dentro do chat
         const db = this.firestoreService.getFirestoreInstance();

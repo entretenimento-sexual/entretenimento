@@ -1,11 +1,11 @@
 // src/app/authentication/suggested-profiles/suggested-profiles.component.ts
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { SuggestionService } from 'src/app/core/services/data-handling/suggestion.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { catchError, filter, switchMap } from 'rxjs/operators';
 import { of } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { SuggestionService } from 'src/app/core/services/user-profile/recommendations/suggestion.service';
 
 @Component({
   selector: 'app-suggested-profiles',
@@ -18,7 +18,7 @@ export class SuggestedProfilesComponent implements OnInit {
   noProfilesMessage = '';
   matchingProfilesCount = 0;
 
-  // ✅ injeta serviços (sem AuthService)
+  // ✅ injeta serviços (sem Service anterior)
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly suggestionService = inject(SuggestionService);
   private readonly destroyRef = inject(DestroyRef);

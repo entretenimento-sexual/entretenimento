@@ -17,27 +17,35 @@ export const environment = {
     storageBucket: 'entretenimento-sexual.appspot.com',
     messagingSenderId: '668950141209',
     appId: '1:668950141209:web:73e27794c51e493cf44d88',
-    measurementId: 'G-GWTPJVK044', // se usar Analytics
+    measurementId: 'G-GWTPJVK044',
   },
 
   apiEndpoint: 'https://api.seuprojeto.com',
   enableDebugTools: false,
 
-  // Nunca exponha segredos no app web
   virusTotalApiKey: '',
 
-  // Em produção, SEM emuladores
   emulators: undefined,
-
+  integrations: {
+    virusTotal: {
+      enabled: false,   // ⬅️ deixe off até decidir usar proxy + chave no backend
+      apiKey: undefined,
+      useProxy: true,
+      region: 'us-central1',
+    }
+  },
   appCheck: {
     enabled: true,
-    provider: 'reCaptchaV3',         // ou 'reCaptchaEnterprise'
+    provider: 'reCaptchaV3',
     siteKey: 'prod-recaptcha-v3-site-key',
   },
 
   features: {
-    enforceEmailVerified: true,      // ✅ produção: obrigatório
-    showGuestBanner: false,          // normalmente escondemos (opcional)
+    enforceEmailVerified: true,
+    showGuestBanner: false,
     restrictedRoutesWhenUnverified: ['/dashboard', '/chat', '/friends', '/upload'],
   },
-};
+
+  friendsPageSize: 24,
+  dashboardFriendsLimit: 12,
+} as const;

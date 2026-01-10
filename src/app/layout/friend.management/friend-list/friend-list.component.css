@@ -1,11 +1,9 @@
-/* ========== Friend List – PRO look com tokens + FALLBACKS ========== */
+/* src\app\layout\friend.management\friend-list\friend-list.component.css */
+:host {
+  display: block;
+}
 
-/* Container */
 .friend-list {
-  --card-gap: 16px;
-  --item-pad: 12px;
-  --avatar-size: 44px;
-
   background: var(--surface-color, #fff);
   color: var(--text-color, #111418);
   border: 1px solid var(--surface-border, rgba(0, 0, 0, .08));
@@ -14,158 +12,20 @@
   padding: 14px;
 }
 
-.friend-list h4 {
-  margin-bottom: 12px;
-  font-size: clamp(.95rem, 2vw, 1rem);
-  font-weight: 600;
-  line-height: 1.25;
-}
-
-/* GRID de cartões */
-.friend-list ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-
+.friend-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
-  gap: var(--card-gap);
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
 }
 
-/* Densidade por modo */
-.friend-list.compact ul {
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+.friend-list.compact .friend-cards-grid {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 }
 
-.friend-list.full ul {
+.friend-list.full .friend-cards-grid {
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
 }
 
-/* Card */
-.friend-list li {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  column-gap: 12px;
-
-  padding: var(--item-pad);
-  background: var(--background-color, #fff);
-  border: 1px solid var(--surface-border, rgba(0, 0, 0, .08));
-  border-radius: var(--radius-md, 8px);
-  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
-}
-
-.friend-list li:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--box-shadow, 0 6px 20px rgba(0, 0, 0, .15));
-  /* degrade com fallback quando color-mix não existir */
-  border-color:
-    color-mix(in oklab, var(--primary-color, #ff4f4f) 30%, var(--surface-border, rgba(0, 0, 0, .08)));
-}
-
-/* Online: anel sutil no card */
-.friend-list li.is-online {
-  border-color:
-    color-mix(in oklab, var(--success-color, #28a745) 28%, var(--surface-border, rgba(0, 0, 0, .08)));
-}
-
-/* Avatar monograma (AGORA COM FALLBACK DE CORES) */
-.friend-avatar {
-  width: var(--avatar-size);
-  height: var(--avatar-size);
-  border-radius: 50%;
-  display: inline-grid;
-  place-items: center;
-  font-weight: 700;
-  line-height: 1;
-  color: #fff;
-  user-select: none;
-  background: linear-gradient(135deg,
-      var(--primary-color, #ff4f4f),
-      var(--success-color, #28a745));
-  box-shadow:
-    inset 0 0 0 2px rgba(255, 255, 255, .12),
-    0 1px 0 rgba(0, 0, 0, .12);
-}
-
-/* Nome + meta */
-.friend-info {
-  min-width: 0;
-  display: grid;
-  grid-template-rows: auto auto;
-  row-gap: 2px;
-}
-
-.friend-nickname {
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Meta */
-.friend-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: .85rem;
-  opacity: .82;
-}
-
-/* status dot */
-.status-dot {
-  display: inline-block;
-  width: .6rem;
-  height: .6rem;
-  border-radius: 50%;
-  background: var(--success-color, #28a745);
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, .06);
-}
-
-/* pill */
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--surface-border, rgba(0, 0, 0, .08));
-  background: color-mix(in oklab, var(--surface-color, #fff) 82%, var(--background-color, #fff));
-  white-space: nowrap;
-}
-
-/* Ações */
-.friend-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-}
-
-/* Links “ghost” / ícones alinhados (usa botões globais) */
-.btn-ghost {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-}
-
-.btn-icon {
-  display: inline-flex;
-  align-items: center;
-  gap: .5rem;
-}
-
-/* Dashboard: esconder “Remover” para reduzir ruído */
-.friend-list.compact .friend-actions .btn-danger {
-  display: none;
-}
-
-/* Foco acessível no card inteiro */
-.friend-list li:focus-within {
-  outline: var(--focus-ring, 2px solid rgba(255, 79, 79, 0.75));
-  outline-offset: var(--focus-offset, 2px);
-}
-
-/* Loading centralizado */
 .loading {
   display: flex;
   gap: .5rem;
@@ -174,20 +34,31 @@
   padding: 12px;
 }
 
-/* Responsivo */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.empty,
+.end {
+  text-align: center;
+  padding: 12px;
+  color: #666;
+}
+
 @media (max-width: 520px) {
   .friend-list {
     padding: 10px;
   }
 
-  .friend-list ul {
+  .friend-cards-grid {
     grid-template-columns: 1fr;
-  }
-}
-
-/* Respeito a preferências */
-@media (prefers-reduced-motion: reduce) {
-  .friend-list li {
-    transition: none !important;
   }
 }

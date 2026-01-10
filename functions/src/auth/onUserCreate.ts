@@ -1,11 +1,14 @@
 // functions/src/auth/onUserCreate.ts
-import * as functions from "firebase-functions";
-import {db, fieldValue} from "../firebaseApp";
+import { auth } from "firebase-functions/v1";
+import { db, FieldValue } from "../firebaseApp";
 
-export const onUserCreate = functions.auth.user().onCreate((userRecord) => {
-  return db.collection("users").doc(userRecord.uid).set({
-    email: userRecord.email,
-    createdAt: fieldValue.serverTimestamp(),
-    status: "active",
-  });
+export const onUserCreate = auth.user().onCreate(async (user) => {
+  await db.collection("users").doc(user.uid).set(
+    {
+      email: user.email ?? null,
+      createdAt: FieldValue.serverTimestamp(),
+      status: "active",
+    },
+    { merge: true }
+  );
 });

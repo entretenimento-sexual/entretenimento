@@ -1,83 +1,82 @@
-// src/app/store/reducers/user.reducer.ts
+// src/app/store/reducers/reducers.user/user.reducer.ts
 import { createReducer, on } from '@ngrx/store';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+
 import {
   loadUsers,
   loadUsersSuccess,
   loadUsersFailure,
-  updateUserOnlineStatus,
+  updateUserOnlineStatus, // @deprecated (legado)
   loadOnlineUsersSuccess,
   setFilteredOnlineUsers,
   setCurrentUser,
   clearCurrentUser,
   addUserToState,
 } from '../../actions/actions.user/user.actions';
+
 import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.actions';
 import { initialUserState } from '../../states/states.user/user.state';
 
 type UserMap = { [uid: string]: IUserDados };
 
-/* ---------- Helpers puros (sem mutação) ---------- */
+/* ========================================================================
+   Helpers puros (sem mutação) — padrão “plataforma grande”
+   ======================================================================== */
 
-// insere/atualiza no dicionário users com merge superficial (last-write-wins)
 function upsertUser(map: UserMap, user: IUserDados): UserMap {
   if (!user?.uid) return map;
   return {
     ...map,
     [user.uid]: {
       ...(map[user.uid] || {}),
-      ...user
-    }
+      ...user,
+    },
   };
 }
 
-// insere/atualiza um usuário em um array por UID
 function upsertInArray(list: IUserDados[], user: IUserDados): IUserDados[] {
   if (!user?.uid) return list;
-  const idx = list.findIndex(u => u.uid === user.uid);
+  const idx = list.findIndex((u) => u.uid === user.uid);
   if (idx === -1) return [...list, user];
   const copy = [...list];
   copy[idx] = { ...copy[idx], ...user };
   return copy;
 }
 
-// remove por UID
 function removeByUid(list: IUserDados[], uid?: string | null): IUserDados[] {
   if (!uid) return list;
-  return list.filter(u => u.uid !== uid);
+  return list.filter((u) => u.uid !== uid);
 }
 
-// “hidrata” o mapa com uma lista (útil ao carregar usuários/onlineUsers)
 function mergeListIntoMap(map: UserMap, users: IUserDados[]): UserMap {
-  return users.reduce((acc, u) => upsertUser(acc, u), map);
+  return (users ?? []).reduce((acc, u) => upsertUser(acc, u), map);
 }
 
-/* ---------- Reducer ---------- */
+/* ========================================================================
+   Reducer
+   ======================================================================== */
 
 export const userReducer = createReducer(
   initialUserState,
 
-  // Ação: adicionar/atualizar um único usuário no estado
+  /* ------------------ Hidratação / CRUD local ------------------ */
+
   on(addUserToState, (state, { user }) => ({
     ...state,
     users: upsertUser(state.users, user),
   })),
 
-  // Carregamento de todos os usuários
   on(loadUsers, (state) => ({
     ...state,
     loading: true,
   })),
 
-  on(loadUsersSuccess, (state, { users }) => {
-    const merged = mergeListIntoMap(state.users, users);
-    return {
-      ...state,
-      users: merged,
-      loading: false,
-      error: null,
-    };
-  }),
+  on(loadUsersSuccess, (state, { users }) => ({
+    ...state,
+    users: mergeListIntoMap(state.users, users),
+    loading: false,
+    error: null,
+  })),
 
   on(loadUsersFailure, (state, { error }) => ({
     ...state,
@@ -85,15 +84,17 @@ export const userReducer = createReducer(
     error,
   })),
 
-  // Carregamento de usuários online
+  /**
+   * ✅ OnlineUsers deve ser “o que veio da query”.
+   * Ex.: UserPresenceQueryService usa where('isOnline','==',true).
+   * ❌ Não forçamos isOnline=true aqui (isso causava “simulação”).
+   */
   on(loadOnlineUsersSuccess, (state, { users }) => {
-    // mantém o mapa “quente” com os online
     const mergedUsers = mergeListIntoMap(state.users, users);
-    // evita duplicidade e preserva merges anteriores
-    const nextOnline = users.reduce(
-      (acc, u) => upsertInArray(acc, { ...u, isOnline: true }),
-      [] as IUserDados[]
-    );
+
+    // array coerente e sem duplicidade (last-write-wins)
+    const nextOnline = (users ?? []).reduce((acc, u) => upsertInArray(acc, u), [] as IUserDados[]);
+
     return {
       ...state,
       users: mergedUsers,
@@ -102,24 +103,20 @@ export const userReducer = createReducer(
     };
   }),
 
-  // Atualiza status online; se o usuário não existir no mapa, faz um patch mínimo
+  /**
+   * @deprecated
+   * Mantido por compatibilidade com fluxos antigos.
+   * A presença oficial é: PresenceService -> Firestore -> Query -> loadOnlineUsersSuccess.
+   */
   on(updateUserOnlineStatus, (state, { uid, isOnline }) => {
     const baseUser = state.users[uid] || ({ uid } as IUserDados);
     const patched = { ...baseUser, isOnline };
 
-    // atualiza dicionário
     const users = upsertUser(state.users, patched);
+    const onlineUsers = isOnline ? upsertInArray(state.onlineUsers, patched) : removeByUid(state.onlineUsers, uid);
 
-    // mantém o array online coerente
-    const onlineUsers = isOnline
-      ? upsertInArray(state.onlineUsers, patched)
-      : removeByUid(state.onlineUsers, uid);
-
-    // se o currentUser é o mesmo, espelha o campo
     const currentUser =
-      state.currentUser?.uid === uid
-        ? { ...state.currentUser, isOnline }
-        : state.currentUser;
+      state.currentUser?.uid === uid ? { ...state.currentUser, isOnline } : state.currentUser;
 
     return {
       ...state,
@@ -129,54 +126,45 @@ export const userReducer = createReducer(
     };
   }),
 
-  // Filtrados (ex.: UI aplicando filtros sobre onlineUsers)
   on(setFilteredOnlineUsers, (state, { filteredUsers }) => ({
     ...state,
     filteredUsers,
   })),
 
-  /* --------- Sessão / autenticação --------- */
+  /* ------------------ Sessão / Auth ------------------ */
 
-  // Quando o auth efetiva login: seta currentUser E hidrata o mapa
   on(loginSuccess, (state, { user }) => ({
     ...state,
     currentUser: user,
     users: upsertUser(state.users, user),
-    // opcional: se já sabemos que está online, refletemos no array
-    onlineUsers: user.isOnline ? upsertInArray(state.onlineUsers, user) : state.onlineUsers,
+    // Observação: NÃO “forçamos” entrar em onlineUsers aqui.
+    // Quem controla onlineUsers é a query de presença (loadOnlineUsersSuccess).
     loading: false,
     error: null,
   })),
 
-  // setCurrentUser vindo de flows internos: mesmo tratamento do loginSuccess
   on(setCurrentUser, (state, { user }) => ({
     ...state,
     currentUser: user,
     users: upsertUser(state.users, user),
-    onlineUsers: user.isOnline ? upsertInArray(state.onlineUsers, user) : state.onlineUsers,
   })),
 
-  // Limpa usuário atual (não precisa limpar o mapa inteiro)
   on(clearCurrentUser, (state) => {
     const uidToRemove = state.currentUser?.uid ?? null;
     return {
       ...state,
       currentUser: null,
-      // se você preferir manter o usuário no array online até o backend “confirmar”,
-      // remova a linha abaixo. Aqui removemos para a UI refletir imediatamente.
+      // Se em algum fluxo legado ele entrou no array, removemos.
       onlineUsers: removeByUid(state.onlineUsers, uidToRemove),
     };
   }),
 
-  // Logout global
   on(logoutSuccess, (state) => {
     const uidToRemove = state.currentUser?.uid ?? null;
     return {
       ...state,
       currentUser: null,
       onlineUsers: removeByUid(state.onlineUsers, uidToRemove),
-      // mantém `users` para não “piscar” a UI; se quiser limpar tudo:
-      // users: {},
     };
   })
-);
+);//Linha 170

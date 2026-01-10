@@ -1,185 +1,134 @@
 // src/app/core/services/data-handling/firestore-query.service.ts
 import { Injectable } from '@angular/core';
-import {
-  Firestore, collection, query, where, onSnapshot, QueryConstraint, Timestamp
-} from 'firebase/firestore';
+import { Firestore } from '@angular/fire/firestore';
+import { QueryConstraint, where } from 'firebase/firestore';
 import { Observable, of } from 'rxjs';
-import { catchError, map, shareReplay, switchMap, take } from 'rxjs/operators';
+import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { CacheService } from '../general/cache/cache.service';
-import { FirestoreService } from './firestore.service';
 import { FirestoreUserQueryService } from './firestore-user-query.service';
-import { GlobalErrorHandlerService } from '../../services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
+import { FirestoreReadService } from './firestore/core/firestore-read.service';
+import { UserPresenceQueryService } from './queries/user-presence.query.service';
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreQueryService {
-  // memoize streams para evitar múltiplos onSnapshot para a mesma consulta
-  private readonly liveStreams = new Map<string, Observable<any[]>>();
-
   constructor(
-    private readonly firestoreService: FirestoreService,
+    private readonly db: Firestore,
     private readonly cacheService: CacheService,
     private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly globalError: GlobalErrorHandlerService,
-    private readonly notify: ErrorNotificationService
+    private readonly read: FirestoreReadService,
+    private readonly presenceQuery: UserPresenceQueryService
   ) { }
 
-  // ————————————————————————————————————————
-  // Helpers
-
   getFirestoreInstance(): Firestore {
-    return this.firestoreService.getFirestoreInstance();
-  }
-
-  /** Converte uma query em stream reativa (onSnapshot), com compartilhamento */
-  private queryToLive$<T>(
-    collectionName: string,
-    constraints: QueryConstraint[],
-    opts?: { idField?: string; key?: string }
-  ): Observable<T[]> {
-    const db = this.getFirestoreInstance();
-    const colRef = collection(db, collectionName);
-    const q = query(colRef, ...constraints);
-
-    const key = opts?.key ?? `${collectionName}:${constraints.map(c => (c as any)?._query?.E || c.type || 'q').join('|')}`;
-
-    if (!this.liveStreams.has(key)) {
-      const live$ = new Observable<T[]>((observer) => {
-        const unsubscribe = onSnapshot(
-          q,
-          (snap) => {
-            const rows = snap.docs.map((d) => {
-              const data = d.data() as T;
-              return opts?.idField ? ({ ...data, [opts.idField]: d.id } as T) : data;
-            });
-            observer.next(rows);
-          },
-          (err) => {
-            this.globalError.handleError(err);
-            this.notify.showError?.('Erro ao ouvir atualizações do Firestore.');
-            observer.error(err);
-          }
-        );
-        return () => unsubscribe();
-      }).pipe(
-        // 🔁 garante 1 listener por key + reentrega o último valor aos novos subscribers
-        shareReplay({ bufferSize: 1, refCount: true })
-      );
-
-      this.liveStreams.set(key, live$);
-    }
-
-    return this.liveStreams.get(key)! as Observable<T[]>;
-  }
-
-  /** Reatividade por “recentes”: usuários com lastSeen dentro de windowMs (default: 45s) */
-  getRecentlyOnline$(windowMs = 45_000): Observable<IUserDados[]> {
-    // para otimizar, escutamos quem passou por aqui nos últimos 5 minutos
-    const fiveMinAgo = Timestamp.fromMillis(Date.now() - 5 * 60_000);
-    const key = `recent:lastSeen>=${fiveMinAgo.toMillis()}`;
-
-    return this.queryToLive$<IUserDados>('users', [where('lastSeen', '>=', fiveMinAgo)], {
-      idField: 'uid',
-      key
-    }).pipe(
-      map(list => {
-        const cutoff = Date.now() - windowMs;
-        return list.filter(u => {
-          // aceita Timestamp do Firestore ou número/Date eventual
-          const t = u && (u as any).lastSeen;
-          const ms =
-            t instanceof Timestamp ? t.toMillis() :
-              typeof t === 'number' ? t :
-                t?.toDate?.() instanceof Date ? (t.toDate() as Date).getTime() :
-                  0;
-          return ms >= cutoff; // “online recente”
-        });
-      }),
-      catchError(() => of([] as IUserDados[]))
-    );
+    return this.db;
   }
 
   getDocumentById<T>(collectionName: string, id: string): Observable<T | null> {
-    return this.firestoreService.getDocument<T>(collectionName, id);
+    return this.read.getDocument<T>(collectionName, id);
   }
 
+  /**
+   * Query genérica com cache (padrão “plataforma grande”: reduz leituras repetidas).
+   */
   getDocumentsByQuery<T>(collectionName: string, constraints: QueryConstraint[]): Observable<T[]> {
-    return this.firestoreService.getDocuments<T>(collectionName, constraints);
+    return this.read.getDocumentsOnce<T>(collectionName, constraints, {
+      useCache: true,
+      cacheTTL: 300_000,
+    });
   }
 
-  // ————————————————————————————————————————
-  // “All users” pode ficar com cache, pois não exige tempo real
+  /**
+   * Todos os usuários (cache agressivo)
+   */
   getAllUsers(): Observable<IUserDados[]> {
     const cacheKey = 'allUsers';
+
     return this.cacheService.get<IUserDados[]>(cacheKey).pipe(
-      switchMap(cached => {
+      switchMap((cached) => {
         if (cached) return of(cached);
+
         return this.getDocumentsByQuery<IUserDados>('users', []).pipe(
-          map(users => {
-            this.cacheService.set(cacheKey, users, 600_000); // 10 min
+          map((users) => {
+            this.cacheService.set(cacheKey, users, 600_000);
             return users;
           }),
-          catchError(err => {
-            console.log('[FirestoreQueryService] Erro ao buscar todos os usuários:', err);
-            return of<IUserDados[]>([]);
-          })
+          catchError(() => of<IUserDados[]>([]))
         );
       })
     );
   }
 
-  // ————————————————————————————————————————
-  // ONLINE — versão reativa (recomendada)
+  // =========================================================
+  // PRESENÇA (fonte única: UserPresenceQueryService)
+  // =========================================================
+
+  /**
+   * Stream realtime de usuários online (delegação).
+   */
   getOnlineUsers$(): Observable<IUserDados[]> {
-    return this.queryToLive$IUser('isOnline:true', [where('isOnline', '==', true)]);
-  }
-  private queryToLive$IUser(key: string, constraints: QueryConstraint[]): Observable<IUserDados[]> {
-    return this.queryToLive$<IUserDados>('users', constraints, { idField: 'uid', key }).pipe(
-      catchError(() => of([] as IUserDados[]))
-    );
+    return this.presenceQuery.getOnlineUsers$();
   }
 
-  // ONLINE — leitura única (retrocompat), **sem cache** para não travar a UI
+  /**
+   * Snapshot "once" (use quando você não quer ficar ouvindo).
+   */
   getOnlineUsers(): Observable<IUserDados[]> {
-    return this.getDocumentsByQuery<IUserDados>('users', [where('isOnline', '==', true)]).pipe(
-      take(1),
+    return this.presenceQuery.getOnlineUsersOnce$().pipe(take(1));
+  }
+
+  /**
+   * Mantém nomenclatura esperada pelo projeto (região = município, hoje).
+   * Realtime (onSnapshot por baixo).
+   */
+  getOnlineUsersByRegion(municipio: string): Observable<IUserDados[]> {
+    return this.presenceQuery.getOnlineUsersByRegion$(municipio);
+  }
+
+  /**
+   * “Recentemente online” (ex.: lastSeen >= now - windowMs)
+   */
+  getRecentlyOnline$(windowMs = 45_000): Observable<IUserDados[]> {
+    return this.presenceQuery.getRecentlyOnline$(windowMs);
+  }
+
+  // =========================================================
+  // WRAPPERS (COMPAT) — mantêm nomenclaturas antigas
+  // =========================================================
+
+  /**
+   * Compat: usado por partes antigas e pelo spec.
+   */
+  getUsersByMunicipio(municipio: string): Observable<IUserDados[]> {
+    return this.getDocumentsByQuery<IUserDados>('users', [where('municipio', '==', municipio)]).pipe(
       catchError(() => of([] as IUserDados[]))
     );
   }
 
-  // ————————————————————————————————————————
-  // Filtros adicionais
-
-  getUsersByMunicipio(municipio: string): Observable<IUserDados[]> {
-    return this.getDocumentsByQuery<IUserDados>('users', [where('municipio', '==', municipio)]);
-  }
-
-  // 🔁 Reativo por município (online)
-  getOnlineUsersByMunicipio$(municipio: string): Observable<IUserDados[]> {
-    return this.queryToLive$IUser(`isOnline:true|mun:${municipio}`, [
-      where('isOnline', '==', true),
-      where('municipio', '==', municipio)
-    ]);
-  }
-
-  // compat atual (não-reativo)
+  /**
+   * Compat: versão “municipio”.
+   * Hoje, município == region no seu sistema.
+   */
   getOnlineUsersByMunicipio(municipio: string): Observable<IUserDados[]> {
-    return this.getOnlineUsers().pipe(
-      map(users => users.filter(u => u.municipio === municipio))
+    return this.getOnlineUsersByRegion(municipio).pipe(
+      catchError(() => of([] as IUserDados[]))
     );
   }
 
-  // Removida a variação manual de onSnapshot: use a versão $ acima
-  // Mantive um alias reativo por "região", caso queira
-  getOnlineUsersByRegion(municipio: string): Observable<IUserDados[]> {
-    return this.getOnlineUsersByMunicipio$(municipio);
+  /**
+   * Compat: sugestões (pode evoluir para ranking no futuro).
+   * Por ora: delega para listagem simples.
+   */
+  getSuggestedProfiles(): Observable<IUserDados[]> {
+    return this.getDocumentsByQuery<IUserDados>('users', []).pipe(
+      catchError(() => of([] as IUserDados[]))
+    );
   }
 
-  getSuggestedProfiles(): Observable<IUserDados[]> {
-    return this.getDocumentsByQuery<IUserDados>('users', []);
-  }
+  // =========================================================
+  // Consultas específicas
+  // =========================================================
 
   getProfilesByOrientationAndLocation(
     gender: string,
@@ -190,14 +139,31 @@ export class FirestoreQueryService {
       where('gender', '==', gender),
       where('orientation', '==', orientation),
       where('municipio', '==', municipio),
-    ]);
+    ]).pipe(catchError(() => of([] as IUserDados[])));
   }
 
+  /**
+   * Nome histórico, mas útil: pega do “state layer” de userQuery
+   */
   getUserFromState(uid: string): Observable<IUserDados | null> {
     return this.firestoreUserQuery.getUserWithObservable(uid);
   }
 
   searchUsers(constraints: QueryConstraint[]): Observable<IUserDados[]> {
-    return this.getDocumentsByQuery<IUserDados>('users', constraints);
+    return this.getDocumentsByQuery<IUserDados>('users', constraints).pipe(
+      catchError(() => of([] as IUserDados[]))
+    );
   }
-}
+}/*Linha 157
+tudo no projeto deve rodar redondo em dev, staging, prod e emu.
+ AuthSession manda no UID
+/*CurrentUserStore manda no IUserDados
+qualquer UID fora disso vira derivado / compat
+//logout() do auth.service.ts que está sendo descontinuado
+// ainda está sendo usado em alguns lugares e precisa ser migrado.
+Ferramentas de debug ajudam bastante
+É assim que funcionam as grandes plataformas?
+Compatibilizar o estado online do usuário com o presence.service e aproximar do funcionamento ideal
+deixar explícito que é Firebase/AngularFire e o que é NgRx, evitando misturar responsabilidades
+*/
+

@@ -1,19 +1,23 @@
 //src\app\store\reducers\reducers.user\auth.reducer.ts
 import { createReducer, on } from '@ngrx/store';
 import {
-  loginStart,
-  loginSuccess,
-  loginFailure,
-  logout,
-  logoutSuccess,
+  loginStart, loginSuccess, loginFailure, logout, logoutSuccess, authSessionChanged
 } from '../../actions/actions.user/auth.actions';
-import {
-  AuthState,
-  initialAuthState,
-} from '../../states/states.user/auth.state';
+import { AuthState, //Está esmaecido
+         initialAuthState } from '../../states/states.user/auth.state';
 
 export const authReducer = createReducer(
   initialAuthState,
+
+  on(authSessionChanged, (state, { uid, emailVerified }) => ({
+    ...state,
+    ready: true,
+    isAuthenticated: !!uid,
+    userId: uid,
+    emailVerified,
+    loading: false,
+    error: null,
+  })),
 
   on(loginStart, (state) => ({
     ...state,
@@ -21,10 +25,10 @@ export const authReducer = createReducer(
     error: null,
   })),
 
-  on(loginSuccess, (state, { user }) => ({
+  // ✅ loginSuccess pode continuar existindo por UX/fluxos atuais,
+  // mas o "source of truth" do UID passa a ser authSessionChanged.
+  on(loginSuccess, (state) => ({
     ...state,
-    isAuthenticated: true,
-    userId: user.uid,
     loading: false,
     error: null,
   })),
@@ -40,7 +44,8 @@ export const authReducer = createReducer(
     loading: true,
   })),
 
-  on(logoutSuccess, () => ({
+  on(logoutSuccess, (state) => ({
     ...initialAuthState,
+    ready: true, // ✅ já sabemos que a sessão é nula
   }))
 );

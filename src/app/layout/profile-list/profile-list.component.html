@@ -1,27 +1,22 @@
 <!-- src/app/layout/profile-list/profile-list.component.html -->
 @if (profiles && profiles.length) {
-  <div class="profile-list-container">
-    @for (profile of profiles; track profile) {
-      <div class="profile-item">
-        <!-- Exibe a foto do perfil, se disponível -->
-        @if (profile.photoURL) {
-          <img [src]="profile.photoURL" alt="{{ profile.nickname || profile.nome || 'Usuário' }}"
-            class="profile-photo" />
-        }
-        <!-- Apresenta o nickname ou um identificador alternativo -->
-        <h3>{{ profile.nickname || profile.nome || 'Usuário Anônimo' }}</h3>
-        <!-- Descrição do usuário -->
-        <p>{{ profile.descricao || 'Descrição não disponível' }}</p>
-        <!-- Exibe o status online -->
-        @if (profile.isOnline) {
-          <p class="online-status">Online agora</p>
-        }
-      </div>
+<div class="profile-list-container">
+  @for (profile of profiles; track trackByUid($index, profile)) {
+  <div class="profile-item">
+    @if (profile.photoURL) {
+    <img [src]="profile.photoURL" alt="{{ displayName(profile) }}" class="profile-photo" />
+    }
+    <h3>{{ displayName(profile) }}</h3>
+    <p>{{ profile.descricao || 'Descrição não disponível' }}</p>
+    @if (profile.isOnline) {
+    <p class="online-status">Online agora</p>
     }
   </div>
+  }
+</div>
 }
 @if (!profiles || !profiles.length) {
-  <div class="no-profiles">
-    <p>Nenhum perfil encontrado.</p>
-  </div>
+<div class="no-profiles">
+  <p>Nenhum perfil encontrado.</p>
+</div>
 }

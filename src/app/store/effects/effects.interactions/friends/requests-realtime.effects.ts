@@ -2,10 +2,11 @@
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { of } from 'rxjs';
-import { catchError, map, switchMap, takeUntil } from 'rxjs/operators';
+import { catchError, filter, map, switchMap, takeUntil } from 'rxjs/operators';
 import * as A from '../../../actions/actions.interactions/actions.friends';
 import * as RT from '../../../actions/actions.interactions/friends/friends-realtime.actions';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
+import { authSessionChanged } from 'src/app/store/actions/actions.user/auth.actions';
 
 @Injectable()
 export class FriendsRequestsRealtimeEffects {
@@ -35,6 +36,14 @@ export class FriendsRequestsRealtimeEffects {
           takeUntil(this.actions$.pipe(ofType(RT.stopOutboundRequestsListener)))
         )
       )
+    )
+  );
+
+  stopOnSessionNull$ = createEffect(() =>
+    this.actions$.pipe(
+      ofType(authSessionChanged),
+      filter(({ uid }) => !uid),
+      map(() => RT.stopInboundRequestsListener())
     )
   );
 }

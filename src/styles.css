@@ -1,4 +1,16 @@
 /* src/styles.css */
+
+/* 1) Imports sempre no topo */
+@import './styles/reset.css';
+@import './styles/variables.css';
+@import './styles/global-layout.css';
+@import './styles/global-components.css';
+@import './styles/global-forms.css';
+@import './styles/global-animations.css';
+@import './styles/angular-material-bridge.css';
+@import '@fortawesome/fontawesome-free/css/all.min.css';
+
+/* 2) Suas regras globais vêm depois */
 .send-request-dialog-panel .mat-mdc-dialog-surface {
   border-radius: 16px;
   box-shadow: var(--box-shadow);

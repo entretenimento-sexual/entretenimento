@@ -5,7 +5,7 @@ import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { Observable, of, switchMap, take, tap, catchError } from 'rxjs';
 import { GlobalErrorHandlerService } from '../../../error-handler/global-error-handler.service';
-import { FirestoreService } from '../../../data-handling/firestore.service';
+import { FirestoreService } from '../../../data-handling/legacy/firestore.service';
 import { WithFieldValue, DocumentData, QueryConstraint } from 'firebase/firestore';
 
 @Injectable({

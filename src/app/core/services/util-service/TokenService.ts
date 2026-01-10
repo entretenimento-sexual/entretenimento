@@ -1,41 +1,39 @@
-// src\app\core\services\autentication\TokenService.ts
+// src/app/core/services/autentication/TokenService.ts
 import { Injectable } from '@angular/core';
-import { Auth, onAuthStateChanged, User } from '@angular/fire/auth';
+import { Auth, User, user, idToken } from '@angular/fire/auth';
 import { Observable, of } from 'rxjs';
-import { map, switchMap, take } from 'rxjs/operators';
+import { catchError, map, shareReplay, take } from 'rxjs/operators';
+import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class TokenService {
-  user$: Observable<User | null>;
+  readonly user$: Observable<User | null>;
 
-  constructor(private auth: Auth) {
-    // Cria um Observable para rastrear o estado de autenticação do usuário
-    this.user$ = new Observable(observer => {
-      // Monitore as mudanças no estado de autenticação
-      const unsubscribe = onAuthStateChanged(auth, user => {
-        observer.next(user);  // Emite o estado atual do usuário
-        observer.complete(); // Completa o Observable
-      });
-
-      // Função de limpeza ao final da subscrição
-      return () => unsubscribe();
-    });
+  constructor(
+    private readonly auth: Auth,
+    private readonly globalErrorHandler: GlobalErrorHandlerService
+  ) {
+    this.user$ = user(this.auth).pipe(
+      catchError((e) => {
+        try { this.globalErrorHandler.handleError(e); } catch { }
+        return of(null);
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
 
-  // Recupera o token do usuário atual (se ele estiver autenticado)
   getToken(): Observable<string | null> {
-    return this.user$.pipe(
-      switchMap(user => (user ? user.getIdToken() : of(null))),
-      take(1)
+    return idToken(this.auth).pipe(
+      take(1),
+      catchError((e) => {
+        try { this.globalErrorHandler.handleError(e); } catch { }
+        return of(null);
+      })
     );
   }
 
-  // Verifica se o usuário está autenticado
   isLoggedIn(): Observable<boolean> {
-    return this.user$.pipe(
-      map(user => !!user)
-    );
+    return this.user$.pipe(map((u) => !!u));
   }
 }
+// avaliar descontinuar ou transformar em simples wrapper do AuthSessionService.

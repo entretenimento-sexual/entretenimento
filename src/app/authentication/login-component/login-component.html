@@ -1,96 +1,90 @@
-<!-- src\app\authentication\login-component\login-component.component.html -->
+<!-- src/app/authentication/login-component/login-component.component.html -->
 <div class="auth-container">
   <div class="form-container">
     <h2 class="form-header">Já tem conta?<br>Faça login</h2>
 
     <!-- Formulário de login usando Reactive Forms -->
-    <form [formGroup]="loginForm" (ngSubmit)="login()" class="form" autocomplete="on">
-
-      <!-- Mensagem de erro para e-mail -->
-      @if (loginForm.controls['email'].invalid && loginForm.controls['email'].touched) {
-        <div class="alert alert-error">
-          {{ loginForm.controls['email'].hasError('invalidEmail') ? 'Formato de e-mail inválido' : 'E-mail é obrigatório'
-          }}
-        </div>
-      }
+  <form [formGroup]="loginForm" (ngSubmit)="login()" class="form" autocomplete="on" novalidate
+    [attr.aria-busy]="isLoading ? 'true' : 'false'" aria-describedby="form-status">
 
       <!-- Campo de email -->
-      <input formControlName="email"
-             id="email" class="input-field"
-             type="email" name="email"
-             placeholder="Email"
-             required
-             autocomplete="email"
-             (focus)="clearError()">
+      <input formControlName="email" id="email" class="input-field" type="email" name="email" placeholder="Email" required
+        autocomplete="email"
+        [attr.aria-invalid]="loginForm.controls['email'].touched && loginForm.controls['email'].invalid ? 'true' : 'false'"
+        [attr.aria-describedby]="loginForm.controls['email'].invalid ? 'email-error' : null" (focus)="clearError()" />
 
-        <!-- Mensagem de erro para senha -->
-        @if (loginForm.controls['password'].invalid && loginForm.controls['password'].touched) {
-          <div class="alert alert-error">
-            {{ loginForm.controls['password'].hasError('invalidPassword') ? 'Senha inválida. Deve conter ao menos 8 caracteres, incluindo letras maiúsculas, minúsculas e números.' : 'Senha é obrigatória' }}
-          </div>
-        }
-        <!-- Campo de senha -->
-        <input formControlName="password"
-                id="password"
-                class="input-field"
-                type="password"
-                name="password"
-                placeholder="Senha"
-                required
-                autocomplete="current-password"
-                (focus)="clearError()">
+      <!-- Campo de senha -->
+      <input formControlName="password" id="password" class="input-field" type="password" name="password"
+        placeholder="Senha" required autocomplete="current-password"
+        [attr.aria-invalid]="loginForm.controls['password'].touched && loginForm.controls['password'].invalid ? 'true' : 'false'"
+        [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error' : null" (focus)="clearError()" />
 
-          <!-- Honeypot (não use nomes comuns) -->
-          <input formControlName="honeypot"
-                  class="honeypot-hidden"
-                  type="text" name="company"
-                  tabindex="-1"
-                  aria-hidden="true"
-                  autocomplete="off">
+      <!-- Honeypot -->
+      <input formControlName="honeypot" class="honeypot-hidden" type="text" name="company" tabindex="-1" aria-hidden="true"
+        autocomplete="off" />
 
-          <div>
-            <input type="checkbox" formControlName="rememberMe"> Lembrar de mim
-          </div>
-
-          <!-- Botão de login -->
-          <div class="button-container">
-            <button class="btn btn-primary" type="submit" [disabled]="isLoading || loginForm.invalid">
-              {{ isLoading ? 'Aguarde...' : 'Login' }}
-            </button>
-          </div>
-
-          <!-- Spinner de carregamento -->
-          @if (isLoading) {
-            <div class="loading-overlay">
-              <div class="spinner"></div>
-            </div>
-          }
-
-          <!-- Mensagem de erro geral -->
-          @if (errorMessage) {
-            <p class="alert alert-error" aria-live="assertive">{{ errorMessage }}</p>
-          }
-
-          <!-- Link para resetar senha -->
-          <a class="forgot-password" (click)="openPasswordRecoveryModal()">Esqueci minha senha</a>
-
-          <!-- Link para registro -->
-          <p class="register-link">Não tem uma conta? <a [routerLink]="['/register']">Cadastre-se</a></p>
-        </form>
+      <!-- Lembrar de mim -->
+      <div class="remember-me">
+        <input type="checkbox" id="rememberMe" formControlName="rememberMe" />
+        <label for="rememberMe">Lembrar de mim</label>
       </div>
 
-      <!-- Modal de verificação de e-mail -->
-      @if (showEmailVerificationModal) {
-        <div class="modal-overlay">
-          <div class="modal-content">
-            <h2>Verificação de E-mail</h2>
-            <p>Seu e-mail ainda não foi verificado. Por favor, verifique seu e-mail ou reenvie o link de verificação.</p>
-            <button class="btn btn-primary" (click)="resendVerificationEmail()">Reenviar E-mail de Verificação</button>
-            <button class="btn btn-danger" (click)="logout()">Sair</button>
-          </div>
-        </div>
+      <!-- Botão de login -->
+    <div class="button-container">
+      <!-- habilita com campos preenchidos (mesmo inválidos) -->
+      <button class="btn btn-primary" type="submit" [disabled]="isLoading || !(hasRequiredFields$ | async)"
+        [attr.aria-disabled]="(isLoading || !(hasRequiredFields$ | async)) ? 'true' : 'false'">
+        {{ isLoading ? 'Aguarde...' : 'Login' }}
+      </button>
+    </div>
+
+            <!-- Spinner de carregamento -->
+      @if (isLoading) {
+      <div class="loading-overlay" aria-hidden="true">
+        <div class="spinner"></div>
+      </div>
       }
 
-      <!-- Modal de recuperação de senha -->
-      <app-email-input-modal></app-email-input-modal>
+      <!-- Mensagem de erro geral -->
+      @if (errorMessage) {
+      <p id="form-status" class="alert alert-error" role="alert" aria-live="assertive">
+        {{ errorMessage }}
+      </p>
+      }
+
+      <!-- Link para resetar senha -->
+      <button class="forgot-password btn-link" type="button" (click)="openPasswordRecoveryModal()"
+        [disabled]="isLoading">
+        Esqueci minha senha
+      </button>
+
+      <!-- Link para registro -->
+      <p class="register-link">
+        Não tem uma conta?
+        <a [routerLink]="['/register']">Cadastre-se</a>
+      </p>
+    </form>
+  </div>
+
+  <!-- Modal de verificação de e-mail -->
+  @if (showEmailVerificationModal) {
+  <div class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="verify-title"
+    aria-describedby="verify-desc">
+    <div class="modal-content">
+      <h2 id="verify-title">Verificação de E-mail</h2>
+      <p id="verify-desc">
+        Seu e-mail ainda não foi verificado. Por favor, verifique sua caixa de entrada
+        ou reenvie o link de verificação.
+      </p>
+      <div class="modal-actions">
+        <button class="btn btn-primary" type="button" (click)="resendVerificationEmail()">Reenviar E-mail de
+          Verificação</button>
+        <button class="btn btn-danger" type="button" (click)="logout()">Sair</button>
+      </div>
     </div>
+  </div>
+  }
+
+  <!-- Modal de recuperação de senha -->
+  <app-email-input-modal></app-email-input-modal>
+</div>

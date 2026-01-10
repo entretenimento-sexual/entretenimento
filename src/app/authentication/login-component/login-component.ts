@@ -1,149 +1,251 @@
 // src/app/authentication/login-component/login-component.ts
-import { ChangeDetectionStrategy, Component, OnInit } from '@angular/core';
+//Ainda não tem um Guard “anti-login quando já está logado”
+import { ChangeDetectionStrategy, ChangeDetectorRef,
+         Component, DestroyRef, OnInit, inject, } from '@angular/core';
 import { Router } from '@angular/router';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+
+import { Observable, of } from 'rxjs';
+import { catchError, distinctUntilChanged, finalize, map, shareReplay, startWith, tap } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
-import { browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { firstValueFrom, Observable } from 'rxjs';
 
 @Component({
   selector: 'app-login-component',
   templateUrl: './login-component.html',
   styleUrls: ['./login-component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
-  standalone: false
+  standalone: false,
 })
 export class LoginComponent implements OnInit {
+  // Reactive Form
   loginForm!: FormGroup;
-  honeypot = '';
+
+  // UI State
   errorMessage = '';
   successMessage = '';
   isLoading = false;
   showEmailVerificationModal = false;
 
-  isAuthenticated$!: Observable<boolean>;
+  /**
+   * ✅ Habilita o botão quando email/senha tiverem conteúdo (mesmo inválidos),
+   * mantendo uma UX “fácil de testar” e acessível.
+   */
   hasRequiredFields$!: Observable<boolean>;
 
+  // Angular 16+ / 19: destruição reativa (evita vazamento de subscribe)
+  private readonly destroyRef = inject(DestroyRef);
+
   constructor(
-    private router: Router,
-    private errorNotificationService: ErrorNotificationService,
-    public emailInputModalService: EmailInputModalService,
-    public emailVerificationService: EmailVerificationService,
-    private loginservice: LoginService,
-    private authService: AuthService,
-    private formBuilder: FormBuilder
+    private readonly router: Router,
+    private readonly notify: ErrorNotificationService,
+
+    // modais / fluxos
+    public readonly emailInputModalService: EmailInputModalService,
+    public readonly emailVerificationService: EmailVerificationService,
+
+    // login
+    private readonly loginservice: LoginService,
+
+    // logout (enquanto este serviço existir no projeto)
+    private readonly authService: AuthService,
+
+    private readonly formBuilder: FormBuilder,
+    private readonly cdr: ChangeDetectorRef
   ) { }
 
   ngOnInit(): void {
     this.initializeForm();
+
+    this.hasRequiredFields$ = this.loginForm.valueChanges.pipe(
+      startWith(this.loginForm.value),
+      map(v => !!(v?.email?.trim()) && !!v?.password),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
 
   initializeForm(): void {
     this.loginForm = this.formBuilder.group({
       email: ['', [Validators.required, Validators.email]],
       password: ['', Validators.required],
-      honeypot: [''],
-      rememberMe: [false]
+      honeypot: [''], // anti-bot
+      rememberMe: [false],
     });
   }
 
+  // Getters (mantém o template limpo)
   get email() { return this.loginForm.get('email'); }
   get password() { return this.loginForm.get('password'); }
-  get isHoneypotFilled(): boolean { return this.honeypot.length > 0; }
+  get isHoneypotFilled(): boolean { return !!this.loginForm.get('honeypot')?.value; }
 
-  async login(): Promise<void> {
-    this.clearError();
+  /**
+   * ✅ Mantém consistência visual + OnPush:
+   * - ativa/desativa formulário
+   * - exibe spinner
+   */
+  private setBusyState(isBusy: boolean): void {
+    this.isLoading = isBusy;
+
+    // Importante: desabilitar com emitEvent:false para não “mexer” no hasRequiredFields$
+    if (isBusy) this.loginForm.disable({ emitEvent: false });
+    else this.loginForm.enable({ emitEvent: false });
+
+    this.cdr.markForCheck();
+  }
+
+  /** Centraliza escrita de erro + toast + OnPush */
+  private setError(message: string): void {
+    this.errorMessage = message;
+    this.successMessage = '';
+    this.notify.showError(message);
+    this.cdr.markForCheck();
+  }
+
+  /** Centraliza escrita de sucesso + toast + OnPush */
+  private setSuccess(message: string): void {
+    this.successMessage = message;
+    this.errorMessage = '';
+    this.notify.showSuccess(message);
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * ✅ Login reativo (sem persistência duplicada!)
+   * - A persistência já é aplicada dentro do LoginService (via rememberMe).
+   * - Aqui só coletamos valores, validamos e chamamos login$().
+   */
+  login(): void {
+    if (this.isLoading) return;
+
+    // limpa mensagens antigas antes de validar
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.cdr.markForCheck();
 
     const rememberMe = !!this.loginForm.get('rememberMe')?.value;
-    await firstValueFrom(
-      this.loginservice.setSessionPersistence$(rememberMe ? browserLocalPersistence : browserSessionPersistence)
-    );
 
+    // Honeypot: se preenchido, trava tentativa (anti-bot)
     if (this.isHoneypotFilled) {
-      this.errorMessage = 'Detectado comportamento suspeito. Tente novamente.';
-      this.errorNotificationService.showError(this.errorMessage);
+      this.setError('Detectado comportamento suspeito. Tente novamente.');
       return;
     }
 
+    // Validação de formulário
     if (this.loginForm.invalid) {
-      this.errorMessage = 'Por favor, preencha o formulário corretamente.';
-      this.errorNotificationService.showError(this.errorMessage);
+      this.setError('Por favor, preencha o formulário corretamente.');
       return;
     }
 
-    this.isLoading = true;
-    try {
-      const email = this.email?.value;
-      const password = this.password?.value;
+    const email = (this.email?.value as string).trim();
+    const password = this.password?.value as string;
 
-      const result = await firstValueFrom(this.loginservice.login$(email, password, rememberMe));
+    this.setBusyState(true);
 
-      if (result.success) {
-        if (result.needsProfileCompletion) {
-          await this.router.navigate(['/finalizar-cadastro']);
+    this.loginservice.login$(email, password, rememberMe).pipe(
+      tap((result) => {
+        // O LoginService retorna success=false em falhas (não lança), então tratamos aqui.
+        if (!result?.success) {
+          this.setError(result?.message || 'Não foi possível entrar. Tente novamente.');
           return;
         }
+
+        // 1) Perfil incompleto → fluxo de finalizar cadastro
+        if (result.needsProfileCompletion) {
+          this.router.navigate(['/finalizar-cadastro']).catch(() => { });
+          return;
+        }
+
+        // 2) E-mail não verificado → abre modal
         if (!result.emailVerified) {
           this.showEmailVerificationModal = true;
           this.successMessage = '';
-        } else {
-          this.successMessage = 'Login realizado com sucesso!';
-          this.errorNotificationService.showSuccess(this.successMessage);
-          await this.router.navigate(['/dashboard']);
+          this.cdr.markForCheck();
+          return;
         }
-      } else {
-        this.errorMessage = result.message || 'Não foi possível entrar. Tente novamente.';
-        this.errorNotificationService.showError(this.errorMessage);
-      }
-    } catch (error: any) {
-      this.handleError(error);
-    } finally {
-      this.isLoading = false;
-    }
+
+        // 3) Sucesso total → segue para a área logada
+        this.setSuccess('Login realizado com sucesso!');
+        this.router.navigate(['/dashboard/principal']).catch(() => { });
+      }),
+      catchError((err) => {
+        /**
+         * Segurança: se acontecer um erro inesperado no componente/stream,
+         * garantimos feedback. O mapeamento principal já ocorre no service
+         * e no GlobalErrorHandler.
+         */
+        this.setError(err?.message || 'Erro inesperado. Tente novamente.');
+        return of(void 0);
+      }),
+      finalize(() => this.setBusyState(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
-  private handleError(error: any): void {
-    const code = error?.code as string | undefined;
-    switch (code) {
-      case 'auth/user-not-found':
-        this.errorMessage = 'Usuário não encontrado. Verifique o e-mail inserido.'; break;
-      case 'auth/wrong-password':
-      case 'auth/invalid-credential':
-        this.errorMessage = 'E-mail ou senha incorretos.'; break;
-      case 'auth/user-disabled':
-        this.errorMessage = 'Este usuário foi desativado.'; break;
-      case 'auth/too-many-requests':
-        this.errorMessage = 'Muitas tentativas falhas. Por favor, tente mais tarde.'; break;
-      case 'auth/network-request-failed':
-        this.errorMessage = 'Falha de conexão ao autenticar. Verifique sua internet ou tente novamente.'; break;
-      default:
-        this.errorMessage = 'Erro inesperado. Tente novamente mais tarde.';
-    }
-    this.errorNotificationService.showError(this.errorMessage);
+  /**
+   * Chamado no (focus) dos inputs:
+   * - limpa apenas a mensagem de erro (para não atrapalhar leitura)
+   * - mantém OnPush
+   */
+  clearError(): void {
+    if (!this.errorMessage) return;
+    this.errorMessage = '';
+    this.cdr.markForCheck();
   }
-
-  clearError(): void { this.errorMessage = ''; }
 
   openPasswordRecoveryModal(): void {
+    // Modal é controlado por service (mantém nomenclatura existente)
     this.emailInputModalService.openModal();
   }
 
-  async resendVerificationEmail(): Promise<void> {
-    try {
-      const msg = await firstValueFrom(this.emailVerificationService.resendVerificationEmail());
-      this.successMessage = msg ?? 'E-mail de verificação reenviado. Verifique sua caixa de entrada.';
-      this.errorNotificationService.showSuccess(this.successMessage);
-    } catch {
-      this.errorMessage = 'Erro ao reenviar o e-mail de verificação.';
-      this.errorNotificationService.showError(this.errorMessage);
-    }
+  resendVerificationEmail(): void {
+    if (this.isLoading) return;
+
+    this.setBusyState(true);
+
+    this.emailVerificationService.resendVerificationEmail().pipe(
+      tap((msg) => {
+        // Mensagem padrão caso o service retorne vazio
+        this.setSuccess(msg ?? 'E-mail de verificação reenviado. Verifique sua caixa de entrada.');
+      }),
+      catchError(() => {
+        this.setError('Erro ao reenviar o e-mail de verificação.');
+        return of(void 0);
+      }),
+      finalize(() => this.setBusyState(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   logout(): void {
-    this.authService.logout().subscribe(() => { });
+    if (this.isLoading) return;
+
+    // UX: fecha modal e limpa mensagens ao sair
+    this.showEmailVerificationModal = false;
+    this.errorMessage = '';
+    this.successMessage = '';
+    this.cdr.markForCheck();
+
+    this.setBusyState(true);
+
+    this.authService.logout().pipe(
+      //auth.service.ts está sendo descontinuado
+      finalize(() => this.setBusyState(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: () => {
+        // opcional: garantir rota pública após logout
+        this.router.navigate(['/login']).catch(() => { });
+      },
+      error: () => {
+        // fallback: se logout falhar, o handler global já registrou; aqui só UX
+        this.setError('Não foi possível sair agora. Tente novamente.');
+      }
+    });
   }
 }

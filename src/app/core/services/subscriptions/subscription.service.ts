@@ -6,7 +6,7 @@ import { Router } from '@angular/router';
 
 import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/confirmacao-dialog/confirmacao-dialog.component';
 
-// 🔁 Novo: usamos a store de usuário atual (no lugar de AuthService)
+// 🔁 Novo: usamos a store de usuário atual (no lugar do service anterior)
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 // 🔁 Novo: normaliza datas para Date (evita TS2322)
 import { DateTimeService } from 'src/app/core/services/general/date-time.service';

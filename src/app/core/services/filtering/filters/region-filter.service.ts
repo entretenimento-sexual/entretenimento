@@ -2,7 +2,7 @@
 import { Injectable } from '@angular/core';
 import { catchError, from, map, Observable, of } from 'rxjs';
 import { collection, doc, getDoc, getDocs, query, QueryConstraint, QueryDocumentSnapshot, where } from 'firebase/firestore';
-import { FirestoreService } from '../../data-handling/firestore.service';
+import { FirestoreService } from '../../data-handling/legacy/firestore.service';
 import { IBGELocationService } from '../../general/api/ibge-location.service';
 
 @Injectable({

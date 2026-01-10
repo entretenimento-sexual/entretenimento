@@ -17,14 +17,17 @@ export const selectFriendsVM = createSelector(
   (friends, presence): FriendVM[] =>
     (friends ?? []).map((f: any) => {
       const uid = f.friendUid ?? f.uid;
-      const fromPresence = !!presence[uid];
+
+      const fromPresence = presence[uid] === true; // só true = online
       const fromFriend = typeof f.isOnline === 'boolean' ? f.isOnline : undefined;
+
       return {
         friendUid: uid,
         nickname: f.nickname,
         lastInteractionAt: f.lastInteractionAt ?? 0,
         distanceKm: f.distanceKm,
-        isOnline: fromFriend ?? fromPresence,
+        // ✅ presença tem prioridade
+        isOnline: fromPresence ? true : (fromFriend ?? false),
       };
     })
 );

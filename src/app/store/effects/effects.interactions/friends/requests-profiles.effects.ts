@@ -14,6 +14,8 @@ import { selectRequestersMap } from 'src/app/store/selectors/selectors.interacti
 import { selectInboundRequests } from 'src/app/store/selectors/selectors.interactions/friends/inbound.selectors';
 
 const shorten = (uid?: string) => uid ? `${uid.slice(0, 6)}…${uid.slice(-4)}` : 'alguém';
+type InboundReq = { id?: string | null; requesterUid: string }; // InboundReq está esmaerecido
+type OutboundReq = { id?: string | null; targetUid: string }; // OutboundReq está esmaerecido
 
 @Injectable()
 export class FriendsRequestsProfilesEffects {
@@ -29,7 +31,10 @@ export class FriendsRequestsProfilesEffects {
     this.actions$.pipe(
       ofType(A.loadInboundRequestsSuccess, RT.inboundRequestsChanged),
       map(({ requests }) => {
-        const uids = Array.from(new Set((requests ?? []).map(r => r.requesterUid))).slice(0, 30);
+        const uids = Array.from(
+          new Set((requests ?? []).map((r: InboundReq) => r.requesterUid))
+        ).slice(0, 30);
+
         return A.loadRequesterProfiles({ uids });
       })
     )
@@ -52,7 +57,10 @@ export class FriendsRequestsProfilesEffects {
     this.actions$.pipe(
       ofType(A.loadOutboundRequestsSuccess, RT.outboundRequestsChanged),
       map(({ requests }) => {
-        const uids = Array.from(new Set((requests ?? []).map(r => r.targetUid))).slice(0, 30);
+        const uids = Array.from(
+          new Set((requests ?? []).map((r: OutboundReq) => r.targetUid))
+        ).slice(0, 30);
+
         return A.loadTargetProfiles({ uids });
       })
     )
@@ -81,19 +89,32 @@ export class FriendsRequestsProfilesEffects {
         ),
         map(([{ map: arrived }, reqs, currentMap]) => {
           const map = { ...currentMap, ...arrived };
-          const fresh = (reqs ?? []).filter(r => r.id && !this.seenInbound.has(r.id!));
+
+          const fresh = (reqs ?? []).filter(
+            (r: InboundReq): r is InboundReq & { id: string } =>
+              !!r.id && !this.seenInbound.has(r.id)
+          );
+
           return { fresh, map };
         }),
         filter(({ fresh }) => fresh.length > 0),
         tap(({ fresh, map }) => {
-          fresh.forEach(r => this.seenInbound.add(r.id!));
+          fresh.forEach((r) => this.seenInbound.add(r.id));
+
           const first = fresh[0];
           const name = map[first.requesterUid]?.nickname || shorten(first.requesterUid);
-          const msg = fresh.length === 1
-            ? `Nova solicitação de amizade: ${name}`
-            : `${fresh.length} novas solicitações de amizade`;
+
+          const msg =
+            fresh.length === 1
+              ? `Nova solicitação de amizade: ${name}`
+              : `${fresh.length} novas solicitações de amizade`;
+
           const ref = this.snack.open(msg, 'Ver', { duration: 6000 });
-          ref.onAction().subscribe(() => this.router.navigate(['/friends', 'requests']));
+
+          // opcional (mais seguro): take(1)
+          ref.onAction().pipe(/* take(1) */).subscribe(() =>
+            this.router.navigate(['/friends', 'requests'])
+          );
         })
       ),
     { dispatch: false }

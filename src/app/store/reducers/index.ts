@@ -15,11 +15,10 @@ import { roomReducer } from './reducers.chat/room.reducer';
 import { locationReducer } from './reducers.location/location.reducer';
 import { nearbyProfilesReducer } from './reducers.location/nearby-profiles.reducer';
 
-import { friendsReducer } from './reducers.interactions/friends.reduce';
 import { cacheReducer } from './cache.reducer';
-
-// Mantemos uma constante pra evitar “magic string”
-export const FRIENDS_FEATURE_KEY = 'interactions_friends' as const;
+// ✅ imports de paginação de amigos
+import { friendsPaginationReducer } from './reducers.interactions/friends-pagination.reducer';
+import { friendsReducer } from './reducers.interactions/friends.reduce';
 
 export const reducers: ActionReducerMap<AppState> = {
   // USER DOMAIN
@@ -29,12 +28,9 @@ export const reducers: ActionReducerMap<AppState> = {
   file: fileReducer,
   userPreferences: userPreferencesReducer,
 
-  // INTERACTIONS DOMAIN
-  [FRIENDS_FEATURE_KEY]: friendsReducer, // chave alinha com os selectors
-
   // LOCATION DOMAIN
   location: locationReducer,
-  nearbyProfiles: nearbyProfilesReducer, 
+  nearbyProfiles: nearbyProfilesReducer,
 
   // CHAT DOMAIN
   chat: chatReducer,
@@ -43,4 +39,10 @@ export const reducers: ActionReducerMap<AppState> = {
 
   // CACHE
   cache: cacheReducer,
+
+  // ✅ FRIENDS (root, já que carrega no boot)
+  interactions_friends: friendsReducer,
+
+  // ✅ PAGINAÇÃO DE AMIGOS (root slice simples)
+  friendsPages: friendsPaginationReducer,
 };

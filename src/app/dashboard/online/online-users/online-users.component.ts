@@ -304,7 +304,7 @@ export class OnlineUsersComponent implements OnInit {
     const state = await this.getPermissionStateSafe();
     this.log('auto-enable: permission state =', state);
 
-    const canTrySilently = (state === 'granted' || state === null);
+    const canTrySilently = (state === 'granted');
     if (canTrySilently) {
       try {
         // 🚫 Sem abrir prompt: travamos no service se não estiver "granted"

@@ -1,82 +1,124 @@
-<!-- src\app\header\navbar\navbar.component.html -->
+<!-- src/app/header/navbar/navbar.component.html -->
 <div class="navbar-with-links">
-  <nav class="navbar">
+  <nav class="navbar" role="navigation" aria-label="Navegação principal">
     <!-- Container principal do navbar -->
     <div class="navbar-container">
 
       <!-- Seção da marca (logo) e toggle, ficará à esquerda -->
       <div class="navbar-header">
-        <a routerLink="/" class="navbar-brand">
+        <a routerLink="/" class="navbar-brand" routerLinkActive="active" #rlaHome="routerLinkActive"
+          [attr.aria-current]="rlaHome.isActive ? 'page' : null">
           <app-logo class="navbar-logo"></app-logo>
+          <span class="visually-hidden">Página inicial</span>
         </a>
-        <button class="hamburger-btn" (click)="onToggleSidebar()" aria-label="Abrir menu lateral">
+
+        <button class="hamburger-btn" (click)="onToggleSidebar()" aria-label="Abrir menu lateral"
+          aria-controls="app-sidebar" aria-expanded="false">
           &#9776;
         </button>
       </div>
 
       <!-- Menu principal de links, ficará à direita -->
-      <ul class="navbar-menu">
-
+      <ul class="navbar-menu" role="menubar">
         <!-- Links para usuários autenticados -->
         @if (isAuthenticated) {
-        <li class="navbar-item"><a routerLink="/dashboard/principal" class="navbar-link">Principal</a></li>
-        <li class="navbar-item"><a [routerLink]="['/perfil', userId]" class="navbar-link">Meu Perfil</a></li>
-        <li class="navbar-item"><a routerLink="/contato" class="navbar-link">Contato</a></li>
-        <li class="navbar-item"><a href="javascript:void(0);" (click)="logout()" class="navbar-link">Sair</a></li>
+        <li class="navbar-item" role="none">
+          <a routerLink="/dashboard/principal" class="navbar-link" routerLinkActive="active"
+            #rlaPrincipal="routerLinkActive" [attr.aria-current]="rlaPrincipal.isActive ? 'page' : null"
+            role="menuitem">
+            Principal
+          </a>
+        </li>
+
+        <li class="navbar-item" role="none">
+          <a [routerLink]="['/perfil', userId]" class="navbar-link" routerLinkActive="active"
+            #rlaPerfil="routerLinkActive" [attr.aria-current]="rlaPerfil.isActive ? 'page' : null" role="menuitem">
+            Meu Perfil
+          </a>
+        </li>
+
+        <li class="navbar-item" role="none">
+          <a routerLink="/contato" class="navbar-link" routerLinkActive="active" #rlaContato="routerLinkActive"
+            [attr.aria-current]="rlaContato.isActive ? 'page' : null" role="menuitem">
+            Contato
+          </a>
+        </li>
+
+        <li class="navbar-item" role="none">
+          <a href="javascript:void(0);" (click)="logout()" class="navbar-link" role="menuitem">
+            Sair
+          </a>
+        </li>
         }
 
         <!-- Link para planos (todos) -->
-        <li class="navbar-item">
-          <a routerLink="/subscription-plan" class="navbar-link">Planos de Assinatura</a>
+        <li class="navbar-item" role="none">
+          <a routerLink="/subscription-plan" class="navbar-link" routerLinkActive="active" #rlaPlanos="routerLinkActive"
+            [attr.aria-current]="rlaPlanos.isActive ? 'page' : null" role="menuitem">
+            Planos de Assinatura
+          </a>
         </li>
 
         <!-- Links para não autenticados -->
         @if (!isAuthenticated) {
-        <li class="navbar-item">
-          <a routerLink="/espiar" class="navbar-link" title="Acesso limitado ao site">Espiar</a>
+        <li class="navbar-item" role="none">
+          <a routerLink="/espiar" class="navbar-link" routerLinkActive="active" #rlaEspiar="routerLinkActive"
+            [attr.aria-current]="rlaEspiar.isActive ? 'page' : null" title="Acesso limitado ao site" role="menuitem">
+            Espiar
+          </a>
         </li>
+
         @if (!isLoginPage) {
-        <li class="navbar-item">
-          <a routerLink="/login" class="navbar-link" title="Já tem conta? Faça login">Logar</a>
+        <li class="navbar-item" role="none">
+          <a routerLink="/login" class="navbar-link" routerLinkActive="active" #rlaLogin="routerLinkActive"
+            [attr.aria-current]="rlaLogin.isActive ? 'page' : null" title="Já tem conta? Faça login" role="menuitem">
+            Logar
+          </a>
         </li>
         }
-        <li class="navbar-item">
-          <a routerLink="/register" class="navbar-link" title="Clique aqui para criar uma conta">Cadastre-se</a>
+
+        <li class="navbar-item" role="none">
+          <a routerLink="/register" class="navbar-link" routerLinkActive="active" #rlaRegister="routerLinkActive"
+            [attr.aria-current]="rlaRegister.isActive ? 'page' : null" title="Clique aqui para criar uma conta"
+            role="menuitem">
+            Cadastre-se
+          </a>
         </li>
         }
 
         <!-- Exibe nickname/foto -->
         @if (isAuthenticated) {
-        <li class="navbar-item user-info">
+        <li class="navbar-item user-info" role="none">
           @if (photoURL) {
-          <img [src]="photoURL" alt="Foto do usuário" class="user-photo" />
+          <img [src]="photoURL" [alt]="'Foto de ' + nickname" class="user-photo" width="32" height="32" loading="lazy"
+            decoding="async" referrerpolicy="no-referrer" />
           }
-          {{ nickname }}
+          <span class="user-name" aria-label="Usuário autenticado: {{ nickname }}">{{ nickname }}</span>
         </li>
         }
 
         <!-- Botão de alternância de tema -->
-        <li class="navbar-item">
+        <li class="navbar-item" role="none">
           <button class="dark-toggle" (click)="toggleDarkMode()" aria-label="Alternar entre claro e escuro"
-            [attr.aria-pressed]="isDarkMode() ? 'true' : 'false'">
+            [attr.aria-pressed]="isDarkMode() ? 'true' : 'false'" role="menuitem">
             {{ isDarkMode() ? '🌙' : '☀️' }}
           </button>
         </li>
 
-        <!-- ⭐ Novo: Botão Alto Contraste -->
-        <li class="navbar-item">
+        <!-- ⭐ Botão Alto Contraste -->
+        <li class="navbar-item" role="none">
           <button class="contrast-toggle" (click)="toggleHighContrast()"
-            [attr.aria-pressed]="isHighContrast() ? 'true' : 'false'" aria-label="Alternar alto contraste">
+            [attr.aria-pressed]="isHighContrast() ? 'true' : 'false'" aria-label="Alternar alto contraste"
+            role="menuitem">
             {{ isHighContrast() ? 'HC ON' : 'HC OFF' }}
           </button>
         </li>
-
-        </ul>
+      </ul>
     </div>
   </nav>
 
   <!-- Links fixos ou dinâmicos adicionais -->
-  <app-links-interaction></app-links-interaction>
+  <app-links-interaction id="app-sidebar"></app-links-interaction>
 </div>
 
 <!-- Banner visitante -->

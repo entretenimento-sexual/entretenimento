@@ -1,5 +1,4 @@
 /* src\app\user-profile\user-profile-view\user-social-links-accordion\user-social-links-accordion.component.css */
-
 .social-links-accordion{
   width: 100%;
 }
@@ -78,4 +77,44 @@
   font-style: italic;
   color: var(--danger-color);
   margin-top: 1rem;
+}
+.inline-editor {
+  margin-top: 1rem;
+  padding-top: .5rem;
+  border-top: 1px solid var(--surface-border);
+}
+
+.inline-editor-title {
+  font-size: 1rem;
+  margin-bottom: .5rem;
+  color: var(--text-color);
+}
+
+.edit-row {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  align-items: center;
+  gap: .5rem;
+  margin: .4rem 0;
+}
+
+.edit-label {
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.edit-actions {
+  display: inline-flex;
+  gap: .4rem;
+}
+
+@media (max-width: 640px) {
+  .edit-row {
+    grid-template-columns: 1fr;
+    gap: .35rem;
+  }
+
+  .edit-actions {
+    justify-content: flex-end;
+  }
 }

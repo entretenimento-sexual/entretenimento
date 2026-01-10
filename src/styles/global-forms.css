@@ -98,11 +98,6 @@ input[type="range"]:focus-visible::-moz-range-thumb,
   outline: var(--focus-ring);
 }
 
-/* Tooltips/erros acima de overlays */
-.tooltip-error {
-  z-index: 1000;
-}
-
 .toggle-input {
   position: absolute;
   right: 10px;
@@ -117,11 +112,11 @@ input[type="range"]:focus-visible::-moz-range-thumb,
 .tooltip-error {
   position: absolute;
   background-color: var(--tooltip-background);
-  color: white;
+  color: #fff;
   padding: 5px 10px;
   border-radius: 6px;
   font-size: 0.875rem;
-  z-index: 10;
+  z-index: 1000;
   margin-top: 4px;
   box-shadow: var(--box-shadow);
   animation: fadeIn 0.3s ease;

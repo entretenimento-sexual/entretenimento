@@ -60,3 +60,27 @@ export class AuthFacade {
     );
   }
 }
+/*
+(1) fonte única,
+(2) hidratação / limpeza automática,
+(3) gating de listeners realtime,
+(4) observabilidade + erro centralizado.
+
+AuthSessionService como dono do UID
+authState(this.auth).pipe(shareReplay…) + uid$ com distinctUntilChanged()
+é o padrão certo: um stream, replayado, barato, e “sempre igual”.
+
+CurrentUserStoreService como dono do IUserDados
+Ter BehaviorSubject<IUserDados | null | undefined> é ótimo porque:
+
+undefined = “ainda não hidratei”
+null = “não logado”
+objeto = “logado e com perfil carregado”
+
+Restore seguro
+restoreFromCache() comparando UID do auth.currentUser?.uid com o UID persistido
+é exatamente o tipo de “não confie no storage” que se vê em produção.
+Gating na header (LinksInteraction)
+O canListen$ com emailVerified === true + fora do fluxo de registro evita exatamente
+os 400 (Bad Request) / listeners indevidos antes do usuário estar pronto.
+ */

@@ -4,7 +4,7 @@ import { doc, setDoc, getDoc, deleteField } from 'firebase/firestore';
 import { Observable, from, of, throwError } from 'rxjs';
 import { switchMap, catchError, map } from 'rxjs/operators';
 import { IUserSocialLinks } from '../../interfaces/interfaces-user-dados/iuser-social-links';
-import { FirestoreService } from '../data-handling/firestore.service';
+import { FirestoreService } from '../data-handling/legacy/firestore.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 
 @Injectable({

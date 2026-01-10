@@ -13,9 +13,9 @@ import { Auth } from '@angular/fire/auth';
 import { Timestamp } from 'firebase/firestore';
 
 // === IMPORTA AS CLASSES COMO TOKENS (para DI) ===
-import { CacheService } from '../../services/general/cache/cache.service';
-import { GlobalErrorHandlerService } from '../../services/error-handler/global-error-handler.service';
-import { FirestoreErrorHandlerService } from '../../services/error-handler/firestore-error-handler.service';
+import { CacheService } from '../../general/cache/cache.service';
+import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { FirestoreErrorHandlerService } from '../../error-handler/firestore-error-handler.service';
 
 // ---- helpers para tipar os mocks
 const mCollection = collection as unknown as jest.Mock;

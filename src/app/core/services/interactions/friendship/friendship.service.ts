@@ -108,4 +108,8 @@ export class FriendshipService {
   watchOutboundRequests(uid: string) {
     return this.repo.watchOutboundRequests(uid);
   }
+
+  listFriendsPage(uid: string, pageSize = 24, after: number | null = null) {
+    return this.repo.listFriendsPage(uid, pageSize, after);
+  }
 }

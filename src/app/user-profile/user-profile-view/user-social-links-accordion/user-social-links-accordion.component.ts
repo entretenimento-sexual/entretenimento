@@ -1,107 +1,236 @@
-//src\app\user-profile\user-profile-view\user-social-links-accordion\user-social-links-accordion.component.ts
-import { Component, OnInit, OnDestroy, input } from '@angular/core';
-import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-social-links.service';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/iuser-social-links';
-import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+// src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.ts
+import { Component, OnDestroy, OnInit, input, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-
 import { MatExpansionModule } from '@angular/material/expansion';
+import { BehaviorSubject, combineLatest, of, Subject } from 'rxjs';
+import { distinctUntilChanged, map, shareReplay, startWith, switchMap, takeUntil, tap } from 'rxjs/operators';
+
+import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-social-links.service';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+
+import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/iuser-social-links';
+
+type PlatformKey = keyof IUserSocialLinks;
+type Platform = { key: PlatformKey; label: string; icon: string };
 
 @Component({
   selector: 'app-social-links-accordion',
   templateUrl: './user-social-links-accordion.component.html',
   styleUrls: ['./user-social-links-accordion.component.css'],
   standalone: true,
-  imports: [MatExpansionModule]
+  imports: [CommonModule, MatExpansionModule],
 })
-
 export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
-  readonly uid = input<string | null | undefined>(null);
-  readonly isOwner = input<boolean>(false);
-  socialLinks: IUserSocialLinks | null = null;
-  private destroy$ = new Subject<void>();
+  // --- inputs ---
+  readonly uid = input<string | null | undefined>(null);     // UID do perfil exibido
+  readonly isOwner = input<boolean>(false);                   // Perfil é do usuário logado?
 
-  // Lista de redes suportadas
-  socialMediaPlatforms = [
+  // --- estado ---
+  socialLinks: IUserSocialLinks | null = null;
+  normalizedLinks: Partial<Record<PlatformKey, string>> = {};
+  private destroy$ = new Subject<void>();
+  private readonly loggedUid$ = new BehaviorSubject<string | null>(null);
+
+  // Redes suportadas (expansível):
+  socialMediaPlatforms: Platform[] = [
     { key: 'facebook', label: 'Facebook', icon: 'fab fa-facebook-square' },
     { key: 'instagram', label: 'Instagram', icon: 'fab fa-instagram' },
-    { key: 'twitter', label: 'Twitter', icon: 'fab fa-twitter' },
+    { key: 'twitter', label: 'X (Twitter)', icon: 'fab fa-twitter' },
     { key: 'linkedin', label: 'LinkedIn', icon: 'fab fa-linkedin' },
     { key: 'youtube', label: 'YouTube', icon: 'fab fa-youtube' },
     { key: 'tiktok', label: 'TikTok', icon: 'fab fa-tiktok' },
     { key: 'snapchat', label: 'Snapchat', icon: 'fab fa-snapchat-ghost' },
-    { key: 'sexlog', label: 'Sexlog', icon: '' },
-    { key: 'd4swing', label: 'D4', icon: '' },
-    { key: 'buppe', label: 'Buppe', icon: '' },
-
-    // ... e assim por diante, até ~20
+    { key: 'sexlog', label: 'Sexlog', icon: 'fas fa-link' },
+    { key: 'd4swing', label: 'D4', icon: 'fas fa-link' },
+    { key: 'buppe', label: 'Buppe', icon: 'fas fa-link' },
   ];
 
-  constructor(
-              private userSocialLinksService: UserSocialLinksService,
-              private authService: AuthService,
-              private router: Router,) { }
+  // injeções
+  private readonly userSocialLinksService = inject(UserSocialLinksService);
+  private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly session = inject(AuthSessionService);
+  private readonly notify = inject(ErrorNotificationService);
+  private readonly router = inject(Router);
 
   ngOnInit(): void {
-    const uid = this.uid();
-    if (!uid) {
-      console.log('[SocialLinksAccordion] Nenhum uid passado!');
+    // mantém UID logado do store
+    this.currentUserStore.user$
+      .pipe(
+        startWith(undefined),
+        map(u => u?.uid ?? null),
+        distinctUntilChanged(),
+        takeUntil(this.destroy$),
+      )
+      .subscribe(this.loggedUid$);
+
+    // carrega os links do perfil (uid input)
+    const profileUid = this.uid();
+    if (!profileUid) {
+      console.warn('[SocialLinksAccordion] Nenhum uid passado ao componente.');
       return;
     }
-    this.userSocialLinksService.getSocialLinks(uid)
-      .pipe(takeUntil(this.destroy$))
-      .subscribe(links => {
-        this.socialLinks = links;
-      });
+
+    this.userSocialLinksService.getSocialLinks(profileUid)
+      .pipe(
+        takeUntil(this.destroy$),
+        tap(links => {
+          this.socialLinks = links ?? null;
+          this.normalizedLinks = this.buildNormalizedLinks(links ?? {});
+        })
+      )
+      .subscribe();
   }
 
+  ngOnDestroy(): void {
+    this.destroy$.next(); this.destroy$.complete();
+  }
+
+  // ---------------------------
+  // Helpers de renderização
+  // ---------------------------
   anyLinks(): boolean {
     if (!this.socialLinks) return false;
-    return this.socialMediaPlatforms.some(platform => !!this.socialLinks![platform.key]);
+    return this.socialMediaPlatforms.some(p => !!this.socialLinks?.[p.key]);
   }
 
-  // Exemplo de método p/ salvar ou atualizar
-  updateSocialLink(key: keyof IUserSocialLinks, value: string): void {
-    if (!this.authService.currentUser?.uid) return;
-    const uid = this.authService.currentUser.uid;
+  trackByKey = (_: number, item: Platform) => item.key;
 
-    const newLinks = {
-      ...(this.socialLinks || {}),
-      [key]: value
+  canEdit(): boolean {
+    const logged = this.loggedUid$.value;
+    const viewed = this.uid();
+    return !!(this.isOwner() || (logged && viewed && logged === viewed));
+  }
+
+  // ---------------------------
+  // Ações (CRUD)
+  // ---------------------------
+  updateSocialLink(key: PlatformKey, rawValue: string): void {
+    if (!this.canEdit()) {
+      this.notify.showError('Você não pode alterar as redes deste perfil.');
+      return;
+    }
+    const ownerUid = this.uid();
+    if (!ownerUid) return;
+
+    const value = (rawValue ?? '').trim();
+    const newLinks: IUserSocialLinks = {
+      ...(this.socialLinks ?? {}),
+      [key]: value,
     };
 
-    this.userSocialLinksService.saveSocialLinks(uid, newLinks)
+    // normaliza para exibição depois do persist
+    const normalized = this.normalizeValue(key, value);
+
+    this.userSocialLinksService.saveSocialLinks(ownerUid, newLinks)
       .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        // Atualiza local
-        this.socialLinks = newLinks;
+      .subscribe({
+        next: () => {
+          this.socialLinks = newLinks;
+          this.normalizedLinks = {
+            ...this.normalizedLinks,
+            [key]: normalized,
+          };
+          this.notify.showSuccess('Redes sociais atualizadas.');
+        },
+        error: () => this.notify.showError('Não foi possível salvar agora. Tente novamente.'),
       });
   }
 
-  // Exemplo de método p/ remover
-  removeLink(key: keyof IUserSocialLinks): void {
-    if (!this.authService.currentUser?.uid) return;
-    const uid = this.authService.currentUser.uid;
+  removeLink(key: PlatformKey): void {
+    if (!this.canEdit()) {
+      this.notify.showError('Você não pode alterar as redes deste perfil.');
+      return;
+    }
+    const ownerUid = this.uid();
+    if (!ownerUid) return;
 
-    this.userSocialLinksService.removeLink(uid, key)
+    this.userSocialLinksService.removeLink(ownerUid, key)
       .pipe(takeUntil(this.destroy$))
-      .subscribe(() => {
-        if (this.socialLinks) {
-          delete this.socialLinks[key];
-        }
+      .subscribe({
+        next: () => {
+          if (this.socialLinks) {
+            const clone = { ...this.socialLinks };
+            delete clone[key];
+            this.socialLinks = clone;
+            const norm = { ...this.normalizedLinks };
+            delete norm[key];
+            this.normalizedLinks = norm;
+          }
+          this.notify.showSuccess('Link removido.');
+        },
+        error: () => this.notify.showError('Não foi possível remover agora.'),
       });
   }
 
   goToEditSocialLinks(): void {
     const uid = this.uid();
     if (!uid) return;
-    this.router.navigate(['/perfil', uid, 'edit-profile-social-links']);
+    this.router.navigate(['/perfil', uid, 'edit-profile-social-links']).catch(() => { });
   }
 
-  ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
+  // ---------------------------
+  // Normalização de valores
+  // ---------------------------
+  private buildNormalizedLinks(links: Partial<IUserSocialLinks>): Partial<Record<PlatformKey, string>> {
+    const out: Partial<Record<PlatformKey, string>> = {};
+    (Object.keys(links) as PlatformKey[]).forEach(k => {
+      const v = (links[k] ?? '').toString().trim();
+      if (!v) return;
+      out[k] = this.normalizeValue(k, v);
+    });
+    return out;
+  }
+
+  private normalizeValue(key: PlatformKey, value: string): string {
+    const cleanHandle = (h: string) => h.replace(/^@/, '').trim();
+    const ensureHttps = (url: string) =>
+      /^(https?:)?\/\//i.test(url) ? (url.startsWith('http') ? url : `https:${url}`) : `https://${url}`;
+
+    switch (key) {
+      case 'facebook':
+        return value.includes('facebook.com')
+          ? ensureHttps(value)
+          : `https://facebook.com/${cleanHandle(value)}`;
+
+      case 'instagram':
+        return value.includes('instagram.com')
+          ? ensureHttps(value)
+          : `https://instagram.com/${cleanHandle(value)}`;
+
+      case 'twitter':
+        // redireciona para X
+        if (value.includes('twitter.com') || value.includes('x.com')) return ensureHttps(value);
+        return `https://x.com/${cleanHandle(value)}`;
+
+      case 'linkedin':
+        // aceita profile/company. Se vier handle, assume /in/
+        if (/linkedin\.com\/(in|company)\//i.test(value)) return ensureHttps(value);
+        return `https://linkedin.com/in/${cleanHandle(value)}`;
+
+      case 'youtube':
+        // aceita links de canal/@handle; se handle, usa @
+        if (value.includes('youtube.com') || value.includes('youtu.be')) return ensureHttps(value);
+        return `https://youtube.com/@${cleanHandle(value)}`;
+
+      case 'tiktok':
+        return value.includes('tiktok.com')
+          ? ensureHttps(value)
+          : `https://tiktok.com/@${cleanHandle(value)}`;
+
+      case 'snapchat':
+        return value.includes('snapchat.com')
+          ? ensureHttps(value)
+          : `https://snapchat.com/add/${cleanHandle(value)}`;
+
+      // domínios “outros”: apenas garante https
+      case 'sexlog':
+      case 'd4swing':
+      case 'buppe':
+      default:
+        return ensureHttps(value);
+    }
   }
 }

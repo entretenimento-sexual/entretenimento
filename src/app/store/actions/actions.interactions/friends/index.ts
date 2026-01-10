@@ -4,6 +4,7 @@ export * from './friends-requests.actions';
 export * from './friends-blocks.actions';
 export * from './friends-realtime.actions';
 export * from './friends-misc.actions';
+export * from './friends-pagination.actions';
 
 
 //depois vê quem fica, se esse ou se o index.ts dentro de friends/

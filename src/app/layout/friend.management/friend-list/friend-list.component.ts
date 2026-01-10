@@ -1,140 +1,173 @@
-// src/app/layout/friend.management/friend-list/friend-list.component.ts
-import { ChangeDetectionStrategy, Component, OnInit, input, inject, signal } from '@angular/core';
+//src\app\layout\friend.management\friend-list\friend-list.component.ts
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Store, select } from '@ngrx/store';
-import { Observable, combineLatest, map, tap, catchError, of, startWith, switchMap, timer } from 'rxjs';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs/operators';
+import { Observable, combineLatest } from 'rxjs';
+
+import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
-import { AppState } from 'src/app/store/states/app.state';
-import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { environment } from 'src/environments/environment';
-import { toObservable } from '@angular/core/rxjs-interop';
 
-import { blockUser, loadFriends, /*, blockFriend */
-sendFriendRequest} from 'src/app/store/actions/actions.interactions/actions.friends';
-import {
-  selectAllFriends,
-  selectFriendsLoading,
-  selectFriendsError,
-  selectFriendsCount,
-} from 'src/app/store/selectors/selectors.interactions/friend.selector';
-import { selectFriendsVM, FriendVM } from 'src/app/store/selectors/selectors.interactions/friend.selector';
-import { RouterModule } from '@angular/router';
+type SortKey = 'none' | 'recent' | 'online' | 'distance' | 'alpha';
+type IUserForCard = IUserDados & {
+  distanceKm?: number | null;
+  lastInteractionAt?: number | null;
+};
 
 @Component({
   selector: 'app-friend-list',
   standalone: true,
-  imports: [CommonModule, MatProgressSpinnerModule, RouterModule],
+  imports: [CommonModule, MatProgressSpinnerModule, UserCardComponent],
   templateUrl: './friend-list.component.html',
   styleUrls: ['./friend-list.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class FriendListComponent implements OnInit {
-  // inputs (Signal Inputs)
-  readonly user = input.required<IUserDados>();
-  readonly limit = input<number>();
-  readonly displayMode = input<'dashboard' | 'full'>('dashboard');
-  readonly sortBy = input<'recent' | 'online' | 'distance' | 'alpha'>('recent');
-  readonly filters = input<{ onlyOnline?: boolean }>({});
-  // signals to observables
-  readonly sortBy$ = toObservable(this.sortBy);
-  readonly filters$ = toObservable(this.filters);
+export class FriendListComponent {
+  /** 🔹 dados vindos do container (selector/slice paginado, etc.) */
+  readonly items = input<readonly any[]>([]);
 
-  private store = inject<Store<AppState>>(Store as any);
-  private notifier = inject(ErrorNotificationService);
+  /** 🔹 controles opcionais */
+  readonly isLoading = input<boolean>(false);
+  readonly reachedEnd = input<boolean>(false);
+  readonly limit = input<number>(0);
+  readonly displayMode = input<'dashboard' | 'full'>('full');
+  /** 'none' = já vem ordenado/filtrado do container */
+  readonly sortBy = input<SortKey>('none');
+  readonly filters = input<{ onlyOnline?: boolean; q?: string }>({});
+  /** 🔹 amigos aceitos apenas (default: true) */
+  readonly onlyAccepted = input<boolean>(true);
 
-  // observables
-  friendsRaw$!: Observable<FriendVM[]>;   // agora vem do selectFriendsVM
-  loading$!: Observable<boolean>;
-  error$!: Observable<string | null>;
-  totalCount$!: Observable<number>;
+  /** 🔹 distância como nos “online” (se tiver coords em ambos) */
+  readonly computeDistance = input<boolean>(false);
+  readonly currentUser = input<IUserDados | null>(null);
 
-  visibleFriends$!: Observable<FriendVM[]>;
-  showSeeAll$!: Observable<boolean>;
-  hasFriends$!: Observable<boolean>;
-  emptyAfterLoad$!: Observable<boolean>;
-  loadingSafe$!: Observable<boolean>;
+  private readonly items$ = toObservable(this.items);
+  private readonly sortBy$ = toObservable(this.sortBy);
+  private readonly filters$ = toObservable(this.filters);
+  private readonly limit$ = toObservable(this.limit);
+  private readonly onlyAccepted$ = toObservable(this.onlyAccepted);
+  private readonly computeDist$ = toObservable(this.computeDistance);
+  private readonly currentUser$ = toObservable(this.currentUser);
 
-  ngOnInit(): void {
-    const u = this.user();
-    if (!u?.uid) return;
+  /** 🔎 aplica filtros/ordenação quando pedido e normaliza p/ UserCard */
+  visibleUsers$: Observable<IUserForCard[]> = combineLatest([
+    this.items$, this.sortBy$, this.filters$, this.limit$,
+    this.onlyAccepted$, this.computeDist$, this.currentUser$
+  ]).pipe(
+    map(([raw, sortKey, f, lim, onlyAccepted, doDist, me]) => {
+      let list = [...(raw ?? [])];
 
-    // 1) load idempotente
-    this.store.dispatch(loadFriends({ uid: u.uid }));
+      // 0) só aceitos (quando o slice ainda mistura pendentes/bloqueados)
+      if (onlyAccepted) {
+        list = list.filter(i => (i.status ?? i.friendStatus ?? 'accepted') === 'accepted');
+      }
 
-    // 2) seletores
-    // ❗️ANTES: this.friends$ = selectAllFriends (SUPRIMIDO como fonte primária p/ visible)
-    // ✅ AGORA:
-    this.friendsRaw$ = this.store.pipe(select(selectFriendsVM));
-    this.loading$ = this.store.pipe(select(selectFriendsLoading));
-    this.error$ = this.store.pipe(select(selectFriendsError));
-    this.totalCount$ = this.store.pipe(select(selectFriendsCount));
+      // 1) filtro: só online
+      if (f?.onlyOnline) {
+        list = list.filter(i => !!(i.isOnline ?? i.online));
+      }
 
-    const limit = this.limit() ?? 0;
+      // 2) filtro: texto (nickname/name/uid)
+      const q = (f?.q ?? '').trim().toLowerCase();
+      if (q) {
+        list = list.filter(i => {
+          const name = (i.name ?? i.displayName ?? i.nickname ?? '').toLowerCase();
+          const uid = String(i.uid ?? i.friendUid ?? '').toLowerCase();
+          return name.includes(q) || uid.includes(q);
+        });
+      }
 
-    // 3) Ordenação + Filtro + Limit
-    this.visibleFriends$ = combineLatest([
-      this.friendsRaw$,
-      this.sortBy$,
-      this.filters$,
-    ]).pipe(
-      map(([list, sortBy, filters]) => {
-        let acc = [...list];
-        if (filters?.onlyOnline) acc = acc.filter(f => f.isOnline);
-        switch (sortBy) {
-          case 'online': acc.sort((a, b) => Number(b.isOnline) - Number(a.isOnline)); break;
-          case 'distance': acc.sort((a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity)); break;
-          case 'alpha': acc.sort((a, b) => (a.nickname ?? '').localeCompare(b.nickname ?? '')); break;
-          case 'recent':
-          default: acc.sort((a, b) => (b.lastInteractionAt ?? 0) - (a.lastInteractionAt ?? 0)); break;
-        }
-        if (limit > 0) acc = acc.slice(0, limit);
-        if (!environment.production) console.log('[FriendList] visibleFriends$', { limit, sortBy, filters, count: acc.length });
-        return acc;
-      })
-    );
+      // 3) ordenação opcional
+      switch (sortKey) {
+        case 'online':
+          list.sort((a, b) => Number(b.isOnline ?? b.online) - Number(a.isOnline ?? a.online));
+          break;
+        case 'alpha':
+          list.sort((a, b) => (a.name ?? a.nickname ?? '').localeCompare(b.name ?? b.nickname ?? ''));
+          break;
+        case 'distance':
+          list.sort((a, b) => (this.readDistance(a, me, doDist) - this.readDistance(b, me, doDist)));
+          break;
+        case 'recent':
+          list.sort((a, b) => (this.readLastInteraction(b) - this.readLastInteraction(a)));
+          break;
+        case 'none':
+        default:
+          // já vem ordenado do container
+          break;
+      }
 
-    // loadingSafe
-    this.loadingSafe$ = combineLatest([this.loading$, this.totalCount$]).pipe(
-      switchMap(([loading, count]) => {
-        if (!loading) return of(false);
-        if (count > 0) return of(false);
-        return timer(5000).pipe(map(() => false), startWith(true));
-      })
-    );
+      // 4) limit opcional (0 = sem limite)
+      if ((lim ?? 0) > 0) list = list.slice(0, lim!);
 
-    this.hasFriends$ = this.totalCount$.pipe(map(c => c > 0));
+      // 5) normalização + distância
+      return list.map(i => this.toUserDados(i, me, doDist));
+    })
+  );
 
-    this.emptyAfterLoad$ = combineLatest([this.loadingSafe$, this.totalCount$]).pipe(
-      map(([loadingSafe, count]) => !loadingSafe && count === 0),
-      tap(v => !environment.production && console.log('[FriendList] emptyAfterLoad =', v))
-    );
+  trackByUid = (_: number, u: IUserForCard) => u.uid;
 
-    this.showSeeAll$ = this.totalCount$.pipe(map(count => (limit > 0 ? count > limit : count > 0)));
+  // ===== Normalização =====
+  private toUserDados(i: any, me: IUserDados | null, doDist: boolean): IUserForCard {
+    const lastInteractionAt = this.readLastInteraction(i);
+    const distanceKm = this.readDistance(i, me, doDist);
 
-    if (!environment.production) {
-      this.loading$.subscribe(l => console.log('[FriendList] loading =', l));
-      this.totalCount$.subscribe(c => console.log('[FriendList] totalCount =', c));
-      this.error$.subscribe(e => e && console.warn('[FriendList] error =', e));
+    return {
+      uid: i.uid ?? i.friendUid ?? i.id,
+      nickname: i.nickname ?? i.name ?? i.displayName ?? (i.uid ?? i.friendUid ?? ''),
+      photoURL: i.photoURL ?? i.avatarUrl ?? i.photoUrl ?? '',
+      isOnline: !!(i.isOnline ?? i.online),
+      descricao: i.bio ?? i.descricao ?? '',
+      municipio: i.municipio ?? i.city ?? '',
+      estado: i.estado ?? i.state ?? '',
+      // extras
+      distanceKm,
+      lastInteractionAt,
+      idade: i.idade,
+      gender: i.gender,
+      lastLogin: i.lastLogin,
+    } as IUserForCard;
+  }
+
+  /** Usa acceptedAt, lastInteractionAt (ms) ou Timestamp.toMillis() */
+  private readLastInteraction(i: any): number {
+    const cand = i.lastInteractionAt ?? i.acceptedAt ?? i.respondedAt ?? i.updatedAt;
+    if (typeof cand === 'number') return cand;
+    if (cand?.toMillis) return cand.toMillis();
+    if (typeof cand?.seconds === 'number') return cand.seconds * 1000;
+    return 0;
+    // observação: se você já guarda lastMessageAt/lastContactAt, pode preferir aqui
+  }
+
+  /** Distância: prioriza valor já pronto; senão calcula com Haversine se solicitado */
+  private readDistance(i: any, me: IUserDados | null, doDist: boolean): number {
+    const ready = i.distanceKm ?? i.distance;
+    if (typeof ready === 'number') return ready;
+
+    if (!doDist) return Number.POSITIVE_INFINITY;
+    const fLat = i.latitude ?? i.lat;
+    const fLng = i.longitude ?? i.lng;
+    const uLat = me?.latitude ?? (me as any)?.lat;
+    const uLng = me?.longitude ?? (me as any)?.lng;
+    if ([fLat, fLng, uLat, uLng].some(v => typeof v !== 'number')) {
+      return Number.POSITIVE_INFINITY;
     }
+    return this.haversineKm(uLat!, uLng!, fLat!, fLng!);
   }
 
-  trackByFriend = (_: number, f: FriendVM) => f.friendUid;
-
-  removeFriend(friendUid: string): void {
-    const u = this.user();
-    if (!u?.uid) return;
-    this.store.dispatch(blockUser({ ownerUid: u.uid, targetUid: friendUid })); // ⬅️ via effect
+  /** Haversine simples (km) — suficiente para o card, sem depender de serviço */
+  private haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+    const toRad = (d: number) => (d * Math.PI) / 180;
+    const R = 6371;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c * 10) / 10; // 1 casa decimal como no online
   }
-
-  inviteFriend(friendUid: string): void {
-    const u = this.user();
-    if (!u?.uid) return;
-
-    // ✅ Usar as props corretas do action
-    this.store.dispatch(sendFriendRequest({ requesterUid: u.uid, targetUid: friendUid }));
-  // opcional: incluir message -> { userUid: u.uid, friendUid, message: 'Vamos nos conectar!' }
-}
 }

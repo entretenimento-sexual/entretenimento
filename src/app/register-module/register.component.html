@@ -1,35 +1,49 @@
 <!-- src/app/register-module/register.component.html -->
 <div class="auth-container">
   <div class="form-container">
+
     <!-- Banner robusto -->
     <div *ngIf="banner() as b" class="alert" [ngClass]="{
-           'alert-info': b.variant === 'info',
-           'alert-error': b.variant === 'error',
-           'alert-success': b.variant === 'success',
-           'alert-warning': b.variant === 'warn',
+        'alert-info': b.variant === 'info',
+        'alert-error': b.variant === 'error',
+        'alert-success': b.variant === 'success',
+        'alert-warning': b.variant === 'warn'
       }" role="alert" aria-live="assertive" style="margin-bottom:16px;">
       <strong style="display:block; margin-bottom:4px;">{{ b.title }}</strong>
       <span>{{ b.message }}</span>
 
       <div class="actions" style="margin-top:8px; display:flex; gap:.5rem; flex-wrap:wrap;">
-        <button class="btn btn-secondary" type="button" (click)="onSubmit()" [disabled]="isLoading()">Tentar
-          novamente</button>
-        <button class="btn" type="button" (click)="syncSessionNow()" [disabled]="syncing()">Sincronizar sessão</button>
-        <button class="btn" type="button" (click)="resetForm()">Refazer cadastro</button>
+        <button class="btn btn-secondary" type="button" (click)="onSubmit()" [disabled]="isLoading()">
+          Tentar novamente
+        </button>
+
+        <button class="btn" type="button" (click)="syncSessionNow()" [disabled]="syncing()">
+          Sincronizar sessão
+        </button>
+
+        <button class="btn" type="button" (click)="resetForm()">
+          Refazer cadastro
+        </button>
+
         <button class="btn" type="button" (click)="toggleTech()">
           {{ showTech() ? 'Ocultar detalhes' : 'Mostrar detalhes técnicos' }}
         </button>
-        <button class="btn" type="button" (click)="copyDetails()" *ngIf="b.details">Copiar detalhes</button>
-        <button class="btn" type="button" (click)="reloadPage()">Recarregar</button>
+
+        <button class="btn" type="button" (click)="copyDetails()" *ngIf="b.details">
+          Copiar detalhes
+        </button>
+
+        <button class="btn" type="button" (click)="reloadPage()">
+          Recarregar
+        </button>
       </div>
 
       <pre *ngIf="showTech() && b.details"
-        style="margin-top:8px; white-space:pre-wrap; font-size:.85rem; background:rgba(0,0,0,.05); padding:8px; border-radius:8px; overflow:auto;">
-{{ b.details }}
-      </pre>
+        style="margin-top:8px; white-space:pre-wrap; font-size:.85rem; background:rgba(0,0,0,.05); padding:8px; border-radius:8px; overflow:auto;">{{ b.details }}</pre>
     </div>
 
-    <form [formGroup]="form" (ngSubmit)="onSubmit()" aria-labelledby="form-title" autocomplete="on">
+    <form [formGroup]="form" (ngSubmit)="onSubmit()" aria-labelledby="form-title" autocomplete="on" novalidate
+      [attr.aria-busy]="isLoading() ? 'true' : null">
       <h2 id="form-title" class="form-header">Cadastre-se</h2>
 
       <!-- Apelido principal -->
@@ -39,25 +53,29 @@
         <div class="field-row">
           <div class="input-wrapper">
             <input id="apelidoPrincipal" formControlName="apelidoPrincipal" type="text" class="input-field"
-              name="nickname" autocomplete="nickname" placeholder="Ex: casadinho"
-              aria-describedby="apelidoHelp apelidoTooltip" aria-label="Apelido"
+              name="nickname" autocomplete="nickname" placeholder="Ex: casadinho" spellcheck="false"
+              autocapitalize="none" inputmode="text" maxlength="12" aria-describedby="apelidoHelp apelidoTooltip"
+              aria-label="Apelido"
               [attr.aria-invalid]="(form.get('apelidoPrincipal')?.touched && form.get('apelidoPrincipal')?.invalid) ? true : null"
               [ngClass]="{
-                     'is-pending': form.get('apelidoPrincipal')?.pending,
-                     'is-invalid': form.get('apelidoPrincipal')?.touched && form.get('apelidoPrincipal')?.invalid,
-                     'is-valid':  form.get('apelidoPrincipal')?.touched && form.get('apelidoPrincipal')?.valid && !apelidoEmUso()
-                   }" (input)="onNicknameTyping()" />
+                'is-pending': form.get('apelidoPrincipal')?.pending,
+                'is-invalid': form.get('apelidoPrincipal')?.touched && form.get('apelidoPrincipal')?.invalid,
+                'is-valid':  form.get('apelidoPrincipal')?.touched && form.get('apelidoPrincipal')?.valid && !apelidoEmUso()
+              }" (input)="onNicknameTyping()" />
           </div>
 
           <div class="inline-feedback" aria-live="polite">
             <div *ngIf="form.get('apelidoPrincipal')?.pending" class="badge info">
-              <span class="inline-spinner"></span> Verificando…
+              <span class="inline-spinner" aria-hidden="true"></span> Verificando…
             </div>
-            <div
-              *ngIf="!form.get('apelidoPrincipal')?.pending && form.get('apelidoPrincipal')?.touched && form.get('apelidoPrincipal')?.valid && !apelidoEmUso()"
-              class="badge ok">
+
+            <div *ngIf="!form.get('apelidoPrincipal')?.pending
+                    && form.get('apelidoPrincipal')?.touched
+                    && form.get('apelidoPrincipal')?.valid
+                    && !apelidoEmUso()" class="badge ok">
               Disponível
             </div>
+
             <div *ngIf="!form.get('apelidoPrincipal')?.pending && apelidoEmUso()" class="badge error">
               Apelido em uso
             </div>
@@ -65,24 +83,24 @@
         </div>
 
         <div class="hint-row">
-          <small id="apelidoHelp" class="field-hint">Nome principal pelo qual será conhecido na plataforma.</small>
+          <small id="apelidoHelp" class="field-hint">
+            Nome principal pelo qual será conhecido na plataforma.
+          </small>
+
           <small class="char-counter" [class.warn]="(form.get('apelidoPrincipal')?.value?.length || 0) > 10">
             {{ (form.get('apelidoPrincipal')?.value?.length || 0) }}/12
           </small>
         </div>
 
+        <!-- Prévia do apelido final -->
+        <small class="field-hint" style="display:block; margin-top:.35rem;">
+          Seu apelido ficará como: <strong>{{ apelidoCompleto() }}</strong>
+        </small>
+
         <div
-          *ngIf="form.get('apelidoPrincipal')?.touched && form.get('apelidoPrincipal')?.invalid && !form.get('apelidoPrincipal')?.pending"
+          *ngIf="getError('apelidoPrincipal') && form.get('apelidoPrincipal')?.touched && !form.get('apelidoPrincipal')?.pending"
           id="apelidoTooltip" class="tooltip-error">
-          <ng-container *ngIf="form.get('apelidoPrincipal')?.hasError('required')">Campo obrigatório</ng-container>
-          <ng-container *ngIf="form.get('apelidoPrincipal')?.hasError('minlength')">Mínimo de 4
-            caracteres.</ng-container>
-          <ng-container *ngIf="form.get('apelidoPrincipal')?.hasError('maxlength')">Máximo de 12
-            caracteres.</ng-container>
-          <ng-container *ngIf="form.get('apelidoPrincipal')?.hasError('invalidNickname')">Apelido contém caracteres
-            inválidos.</ng-container>
-          <ng-container *ngIf="form.get('apelidoPrincipal')?.hasError('apelidoEmUso')">Este apelido já está em
-            uso.</ng-container>
+          {{ getError('apelidoPrincipal') }}
         </div>
       </div>
 
@@ -90,18 +108,16 @@
       <div class="form-field">
         <label for="complementoApelido">Complemento (opcional)</label>
         <input id="complementoApelido" formControlName="complementoApelido" type="text" class="input-field"
-          name="nicknameSuffix" autocomplete="off" placeholder="Ex: oficial" aria-describedby="complementoTooltip"
+          name="nicknameSuffix" autocomplete="off" placeholder="Ex: oficial" autocapitalize="none"
           aria-label="Complemento do apelido" />
-        <div *ngIf="getError('complementoApelido')" id="complementoTooltip" class="tooltip-error">
-          {{ getError('complementoApelido') }}
-        </div>
       </div>
 
       <!-- Email -->
       <div class="form-field">
         <label for="email">E-mail *</label>
         <input id="email" formControlName="email" type="email" class="input-field" name="email" autocomplete="email"
-          placeholder="email@exemplo.com" aria-describedby="emailTooltip" aria-label="E-mail" />
+          placeholder="email@exemplo.com" autocapitalize="none" inputmode="email" aria-describedby="emailTooltip"
+          aria-label="E-mail" />
         <div *ngIf="getError('email')" id="emailTooltip" class="tooltip-error">
           {{ getError('email') }}
         </div>
@@ -109,16 +125,25 @@
 
       <!-- Senha -->
       <div class="form-field">
-        <label for="password">Senha</label>
+        <label for="password">Senha *</label>
+
         <div class="input-wrapper">
           <input id="password" [type]="showPassword() ? 'text' : 'password'" formControlName="password"
             class="input-field" name="password" autocomplete="new-password" placeholder="Escolha uma senha"
-            aria-label="Senha" />
-          <button type="button" class="toggle-input" (click)="togglePasswordVisibility()" aria-label="Mostrar senha">
+            aria-describedby="passwordTooltip passwordHelp" aria-label="Senha" />
+
+          <button type="button" class="toggle-input" (click)="togglePasswordVisibility()"
+            [attr.aria-pressed]="showPassword() ? 'true' : 'false'"
+            [attr.aria-label]="showPassword() ? 'Ocultar senha' : 'Mostrar senha'">
             {{ showPassword() ? '🙈' : '👁️' }}
           </button>
         </div>
-        <div *ngIf="getError('password')" class="tooltip-error">
+
+        <small id="passwordHelp" class="field-hint" style="display:block; margin-top:.35rem;">
+          Mínimo de 6 caracteres.
+        </small>
+
+        <div *ngIf="getError('password')" id="passwordTooltip" class="tooltip-error">
           {{ getError('password') }}
         </div>
       </div>
@@ -129,20 +154,23 @@
           aria-describedby="termosTooltip" />
         <label for="termos">
           Eu aceito os
-          <a href="/termos" target="_blank" rel="noopener noreferrer">Termos de Uso</a> e a
+          <a href="/termos" target="_blank" rel="noopener noreferrer">Termos de Uso</a>
+          e a
           <a href="/politica-de-privacidade" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>.
         </label>
+
         <div *ngIf="getError('aceitarTermos')" id="termosTooltip" class="tooltip-error">
           {{ getError('aceitarTermos') }}
         </div>
       </div>
 
-      <!-- mensagem neutra (ex.: e-mail já usado = fluxo suave) -->
+      <!-- mensagem neutra -->
       <p *ngIf="infoMessage()" class="alert alert-info" aria-live="polite">
         {{ infoMessage() }}
       </p>
 
-      <button class="btn btn-primary" type="submit" [disabled]="isLoading() || form.pending || !form.valid">
+      <button class="btn btn-primary" type="submit"
+        [disabled]="isLoading() || creating() || form.pending || !form.valid">
         {{ isLoading() ? 'Aguarde…' : 'Cadastrar' }}
       </button>
 

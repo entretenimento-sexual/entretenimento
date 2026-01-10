@@ -1,7 +1,12 @@
-// functions\src\firebaseApp.ts
-import * as admin from "firebase-admin";
+// functions/src/firebaseApp.ts
+import { getApps, getApp, initializeApp } from 'firebase-admin/app';
+import { getFirestore, FieldValue, Timestamp } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
+import { getStorage } from 'firebase-admin/storage';
 
-const app = admin.apps.length === 0 ? admin.initializeApp() : admin.app();
+export const adminApp = getApps().length ? getApp() : initializeApp();
+export const db = getFirestore(adminApp);
+export const auth = getAuth(adminApp);
+export const storage = getStorage(adminApp);
 
-export const db = admin.firestore(app);
-export const fieldValue = admin.firestore.FieldValue;
+export { FieldValue, Timestamp };

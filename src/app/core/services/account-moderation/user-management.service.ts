@@ -1,6 +1,6 @@
 // src/app/core/services/autentication/user-management.service.ts
 import { Injectable } from '@angular/core';
-import { FirestoreService } from '../data-handling/firestore.service';
+import { FirestoreService } from '../data-handling/legacy/firestore.service';
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 import { Auth } from '@angular/fire/auth';             // ✅ injete o Auth
 import { deleteUser } from 'firebase/auth';

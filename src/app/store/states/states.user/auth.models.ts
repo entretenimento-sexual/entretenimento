@@ -1,10 +1,10 @@
-//src\app\store\states\states.user\auth.models.ts
+// src/app/store/states/states.user/auth.models.ts
 export interface AuthError {
   message: string;
   code?: string;
 }
 
-export interface AuthState {
+export interface AuthTokenModel {
   userId: string | null;
   token: string | null;
   isAuthenticated: boolean;

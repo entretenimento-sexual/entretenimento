@@ -54,5 +54,31 @@ export interface IUserDados {
   lastOnlineAt?: number | null;
   lastLocationAt?: number | null;
   registrationDate?: number | null;
-
 }
+
+/* C:.
+│   geolocation.interface.ts
+│   icategoria - mapeamento.ts
+│   ierror.ts
+│   iuser - dados.ts
+│   iuser - registration - data.ts
+│   user - public.interface.ts
+│
+├───friendship
+│       blocked - user.interface.ts
+│       friend - request.interface.ts
+│       friend.interface.ts
+│
+├───interfaces - chat
+│       chat.interface.ts
+│       community.interface.ts
+│       invite.interface.ts
+│       message.interface.ts
+│       room.interface.ts
+│
+├───interfaces - user - dados
+│       iuser - preferences.ts
+│       iuser - social - links.ts
+│
+└───logs
+iadming - log.ts */

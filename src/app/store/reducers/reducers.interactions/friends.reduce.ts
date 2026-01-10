@@ -4,6 +4,7 @@ import * as A from '../../actions/actions.interactions/actions.friends';
 import * as RT from '../../actions/actions.interactions/friends/friends-realtime.actions';
 import { FriendsState, initialState } from '../../states/states.interactions/friends.state';
 import { BlockedUserActive } from 'src/app/core/interfaces/friendship/blocked-user.interface';
+import { authSessionChanged, logoutSuccess } from '../../actions/actions.user/auth.actions';
 
 export const friendsReducer = createReducer(
   initialState,
@@ -145,4 +146,11 @@ export const friendsReducer = createReducer(
  on(RT.stopOutboundRequestsListener, (s) => ({
    ...s, loadingOutboundRequests: false
  })),
+
+  on(logoutSuccess, () => initialState),
+
+  // opcional: se a sessão virar nula por qualquer motivo
+  on(authSessionChanged, (s, { uid }) => (uid ? s : initialState)),
 );
+
+

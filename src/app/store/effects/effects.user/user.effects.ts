@@ -75,16 +75,4 @@ export class UserEffects {
       )
     )
   );
-
-  loadOnlineUsers$ = createEffect(() =>
-    this.actions$.pipe(
-      ofType(loadOnlineUsers),
-      switchMap(() =>
-        this.firestoreQuery.getOnlineUsers().pipe(
-          map((users: IUserDados[]) => loadOnlineUsersSuccess({ users: (users || []).map(serializeUser) })),
-          catchError(error => of(loadOnlineUsersFailure({ error: { message: error?.message || 'Erro desconhecido.' } })))
-        )
-      )
-    )
-  );
 }

@@ -223,7 +223,10 @@ jest.mock('firebase/firestore', () => {
 
   class Timestamp {
     static now() { return { toMillis: () => Date.now(), toDate: () => new Date() } as any; }
-    static fromDate(d: Date) { return { toDate: () => d } as any; }
+    static fromDate(d: Date) { return { toMillis: () => d.getTime(), toDate: () => d } as any; }
+    static fromMillis(ms: number) {
+      return { toMillis: () => ms, toDate: () => new Date(ms), seconds: Math.floor(ms / 1000) } as any;
+    }
   }
 
   return {
@@ -291,7 +294,10 @@ jest.mock('@firebase/firestore', () => {
 
   class Timestamp {
     static now() { return { toMillis: () => Date.now(), toDate: () => new Date() } as any; }
-    static fromDate(d: Date) { return { toDate: () => d } as any; }
+    static fromDate(d: Date) { return { toMillis: () => d.getTime(), toDate: () => d } as any; }
+    static fromMillis(ms: number) {
+      return { toMillis: () => ms, toDate: () => new Date(ms), seconds: Math.floor(ms / 1000) } as any;
+    }
   }
 
   return {

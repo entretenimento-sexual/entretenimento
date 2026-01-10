@@ -1,65 +1,299 @@
-//C:\entretenimento\firestore.rules
+// C:\entretenimento\firestore.rules
+rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ========= Helpers =========
     function signedIn() { return request.auth != null; }
-    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+    function uid() { return request.auth.uid; }
+    function isSelf(userId) { return signedIn() && uid() == userId; }
 
-    // Doc do usuário (perfil)
+    function isStr(v) { return v is string; }
+    function isTs(v) { return v is timestamp; }
+
+    // ========= USERS =========
     match /users/{userId} {
-      allow read, write: if isSelf(userId);
+      allow get, create, update: if isSelf(userId);
+      allow delete: if false;
     }
 
-    // Subcoleção de amigos (minha visão)
     match /users/{userId}/friends/{friendId} {
-      // Dono sempre pode ler/escrever sua lista
-      allow read, write: if isSelf(userId)
-        // DEV-ONLY: permitir que o "outro lado" crie o doc recíproco no batch de aceitação.
-        || (
-          // somente criação do doc recíproco
-          signedIn() &&
-          request.method == 'create' &&
-          // o id do doc (friendId) precisa ser exatamente o UID de quem está criando
-          friendId == request.auth.uid &&
-          // e o payload tem que apontar de volta para o dono da coleção
-          request.resource.data.friendUid == userId
-        );
-    }
-
-    // Subcoleção de bloqueados (somente o dono)
-    match /users/{userId}/blocked/{targetId} {
       allow read, write: if isSelf(userId);
     }
 
-    // Solicitações de amizade
+    // ✅ ajuste o nome conforme seu app usa (blocks OU blocked)
+    match /users/{userId}/blocks/{targetId} {
+      allow read, write: if isSelf(userId);
+    }
+
+    // ========= PRESENCE =========
+    match /presence/{presenceUid} {
+      allow read: if signedIn();
+
+      function optString(k) {
+        return !(k in request.resource.data) || request.resource.data[k] is string || request.resource.data[k] == null;
+      }
+      function optNumberOrNull(k) {
+        return !(k in request.resource.data) || request.resource.data[k] is number || request.resource.data[k] == null;
+      }
+      function optTimestamp(k) {
+        return !(k in request.resource.data) || request.resource.data[k] is timestamp;
+      }
+
+      allow create, update: if isSelf(presenceUid)
+        && request.resource.data.uid == uid()
+        && request.resource.data.keys().hasOnly([
+          "uid",
+          "isOnline",
+          "lastSeen",
+          "updatedAt",
+          "nickname",
+          "municipio",
+          "estado",
+          "photoURL",
+          "latitude",
+          "longitude"
+        ])
+        && request.resource.data.isOnline is bool
+        && request.resource.data.lastSeen is timestamp
+        && optTimestamp("updatedAt")
+        && optString("nickname")
+        && optString("municipio")
+        && optString("estado")
+        && optString("photoURL")
+        && optNumberOrNull("latitude")
+        && optNumberOrNull("longitude");
+
+      allow delete: if isSelf(presenceUid);
+    }
+
+    // ========= FRIEND REQUESTS =========
     match /friendRequests/{reqId} {
-      // Somente participantes podem ler
       allow read: if signedIn() &&
-        (resource.data.requesterUid == request.auth.uid ||
-         resource.data.targetUid    == request.auth.uid);
+        (resource.data.requesterUid == uid() ||
+         resource.data.targetUid    == uid());
 
-      // Criar: apenas o requester, status 'pending'
       allow create: if signedIn()
-        && request.resource.data.requesterUid == request.auth.uid
-        && request.resource.data.targetUid    != request.auth.uid
+        && request.resource.data.requesterUid == uid()
+        && request.resource.data.targetUid    != uid()
         && request.resource.data.status       == 'pending'
-        && request.resource.data.createdAt    is timestamp
-        && (!('message' in request.resource.data) || request.resource.data.message is string);
+        && request.resource.data.createdAt    is timestamp;
 
-      // Atualizar: apenas o alvo pode mudar para 'accepted'/'declined'
       allow update: if signedIn()
         && resource.data.status == 'pending'
-        && request.resource.data.status in ['accepted', 'declined']
+        && request.resource.data.status in ['accepted','declined']
+        && uid() == resource.data.targetUid
         && request.resource.data.respondedAt is timestamp
-        // não deixa trocar participantes
-        && request.resource.data.requesterUid == resource.data.requesterUid
-        && request.resource.data.targetUid    == resource.data.targetUid
-        // só o destinatário pode responder
-        && request.auth.uid == resource.data.targetUid;
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status','respondedAt']);
 
-      // Deletar: requester pode cancelar enquanto pendente
       allow delete: if signedIn()
         && resource.data.status == 'pending'
-        && request.auth.uid == resource.data.requesterUid;
+        && uid() == resource.data.requesterUid;
+    }
+
+    // ========= CHATS =========
+    match /chats/{chatId} {
+      function isChatParticipant() {
+        return signedIn() && (uid() in resource.data.participants);
+      }
+
+      allow read: if isChatParticipant();
+
+      allow create: if signedIn()
+        && (uid() in request.resource.data.participants)
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() >= 2
+        && isTs(request.resource.data.timestamp)
+        && (!('participantsKey' in request.resource.data) || isStr(request.resource.data.participantsKey));
+
+      allow update: if isChatParticipant()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "lastMessage",
+          "otherParticipantDetails",
+          "timestamp"
+        ]);
+
+      allow delete: if false;
+    }
+
+    match /chats/{chatId}/messages/{messageId} {
+      function isChatParticipantByChat() {
+        return signedIn()
+          && (uid() in get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+      }
+
+      function senderIsMeCreate() {
+        return (request.resource.data.senderId == uid())
+          || (("senderUid" in request.resource.data) && request.resource.data.senderUid == uid());
+      }
+
+      function messageHasTime() {
+        return (("timestamp" in request.resource.data) && isTs(request.resource.data.timestamp))
+          || (("createdAt" in request.resource.data) && isTs(request.resource.data.createdAt));
+      }
+
+      allow read: if isChatParticipantByChat();
+
+      allow create: if isChatParticipantByChat()
+        && senderIsMeCreate()
+        && isStr(request.resource.data.content) && request.resource.data.content.size() > 0
+        && isStr(request.resource.data.nickname)
+        && messageHasTime()
+        && (!("status" in request.resource.data) || request.resource.data.status == "sent");
+
+      // ✅ update: somente status (delivered/read) e somente pelo NÃO-remetente
+      allow update: if isChatParticipantByChat()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status"])
+        && request.resource.data.status in ["delivered","read"]
+        && (
+          (("senderId" in resource.data) && resource.data.senderId != uid())
+          ||
+          (("senderUid" in resource.data) && resource.data.senderUid != uid())
+        );
+
+      allow delete: if false;
+    }
+
+    // ========= ROOMS =========
+    match /rooms/{roomId} {
+      function isRoomParticipant() {
+        return signedIn() && (uid() in resource.data.participants);
+      }
+      function isRoomOwner() {
+        return signedIn() && resource.data.createdBy == uid();
+      }
+
+      allow read: if isRoomParticipant();
+
+      allow create: if signedIn()
+        && request.resource.data.createdBy == uid()
+        && request.resource.data.participants is list
+        && (uid() in request.resource.data.participants)
+        && isStr(request.resource.data.roomName)
+        && ("creationTime" in request.resource.data) && isTs(request.resource.data.creationTime);
+
+      allow update: if isRoomParticipant()
+        && (
+          (isRoomOwner()
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "roomName",
+              "description",
+              "expirationDate",
+              "maxParticipants",
+              "isPrivate",
+              "roomType",
+              "visibility",
+              "participants",
+              "lastActivity",
+              "lastMessage"
+            ])
+          )
+          ||
+          (!isRoomOwner()
+            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+              "lastActivity",
+              "lastMessage"
+            ])
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    match /rooms/{roomId}/messages/{messageId} {
+      function isRoomParticipantByRoom() {
+        return signedIn()
+          && (uid() in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants);
+      }
+
+      function senderIsMeCreate() {
+        return (request.resource.data.senderId == uid())
+          || (("senderUid" in request.resource.data) && request.resource.data.senderUid == uid());
+      }
+
+      function messageHasTime() {
+        return (("timestamp" in request.resource.data) && isTs(request.resource.data.timestamp))
+          || (("createdAt" in request.resource.data) && isTs(request.resource.data.createdAt));
+      }
+
+      allow read: if isRoomParticipantByRoom();
+
+      allow create: if isRoomParticipantByRoom()
+        && senderIsMeCreate()
+        && isStr(request.resource.data.content) && request.resource.data.content.size() > 0
+        && isStr(request.resource.data.nickname)
+        && messageHasTime()
+        && (!("status" in request.resource.data) || request.resource.data.status == "sent");
+
+      allow update: if isRoomParticipantByRoom()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status"])
+        && request.resource.data.status in ["delivered","read"]
+        && (
+          (("senderId" in resource.data) && resource.data.senderId != uid())
+          ||
+          (("senderUid" in resource.data) && resource.data.senderUid != uid())
+        );
+
+      allow delete: if false;
+    }
+
+    match /rooms/{roomId}/invites/{inviteId} {
+      function canSeeInvite() {
+        return signedIn()
+          && (resource.data.senderId == uid() || resource.data.receiverId == uid());
+      }
+
+      allow read: if canSeeInvite();
+
+      allow create: if signedIn()
+        && request.resource.data.senderId == uid()
+        && request.resource.data.roomId == roomId
+        && request.resource.data.receiverId != uid()
+        && request.resource.data.status == "pending"
+        && isTs(request.resource.data.sentAt)
+        && isTs(request.resource.data.expiresAt)
+        && isStr(request.resource.data.roomName);
+
+      allow update: if signedIn()
+        && resource.data.status == "pending"
+        && resource.data.receiverId == uid()
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status"])
+        && request.resource.data.status in ["accepted","declined"];
+
+      allow delete: if signedIn()
+        && resource.data.status == "pending"
+        && resource.data.senderId == uid();
+    }
+
+    // ========= PUBLIC INDEX =========
+    match /public_index/{docId} {
+      allow get: if docId.matches('^nickname:.+') ||
+        (signedIn() && docId.matches('^email:.+') && resource.data.uid == uid());
+
+      allow list: if false;
+
+      function validDocId() {
+        return docId.matches('^nickname:.+') || docId.matches('^email:.+');
+      }
+
+      function common() {
+        return signedIn()
+          && validDocId()
+          && request.resource.data.uid == uid()
+          && request.resource.data.type in ["nickname","email"]
+          && request.resource.data.value is string;
+      }
+
+      allow create: if common()
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.lastChangedAt is timestamp;
+
+      allow update: if common()
+        && resource.data.uid == uid()
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.lastChangedAt is timestamp;
+
+      allow delete: if signedIn() && resource.data.uid == uid();
     }
   }
 }

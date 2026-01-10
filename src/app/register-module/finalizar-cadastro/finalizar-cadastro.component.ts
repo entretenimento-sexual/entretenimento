@@ -1,7 +1,7 @@
 //src\app\register-module\finalizar-cadastro\finalizar-cadastro.component.ts
 import { Component, OnInit } from '@angular/core';
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
-import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
+import { FirestoreService } from 'src/app/core/services/data-handling/legacy/firestore.service';
 import { Router } from '@angular/router';
 import { of, from, map, take, switchMap  } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -42,7 +42,7 @@ export class FinalizarCadastroComponent implements OnInit {
     private firestoreService: FirestoreService,
     private storageService: StorageService,
     private router: Router,
-    // ⬇️ novo store em vez do AuthService
+    // ⬇️ novo store que substitui Service
     private currentUserStore: CurrentUserStoreService,
   ) { }
 
@@ -184,4 +184,6 @@ export class FinalizarCadastroComponent implements OnInit {
 
   goToSubscription(): void { this.router.navigate(['/subscription-plan']); }
   continueWithoutSubscription(): void { this.router.navigate(['/dashboard/principal']); }
-}
+} /* 187linas, o firestoreService e o authService estão sendo descontinuados,
+   buscar realocar métodos para outros serviços mais especializados.
+   */

@@ -1,101 +1,81 @@
-/* src\app\user-profile\user-profile-view\user-profile-sidebar\user-profile-sidebar.component.css */
-/* Estilos básicos da sidebar */
+/* src/app/user-profile/user-profile-view/user-profile-sidebar/user-profile-sidebar.component.css */
+
 .sidebar {
   flex: 1;
   padding: 20px;
   margin-right: 20px;
-  background-color: #2c3e50;
-  /* Cor de fundo mais escura para elegância */
+  background-color: var(--surface-color);
+  color: var(--text-color);
   border-radius: 15px;
-  /* Bordas mais arredondadas */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  /* Sombra suave */
-  color: #ecf0f1;
-  /* Cor clara para o texto */
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  /* Animação suave */
+  box-shadow: var(--box-shadow);
+  transition: transform .3s ease, box-shadow .3s ease, background-color .3s ease, color .3s ease;
 }
 
 .sidebar.visible {
   transform: translateX(0);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-  /* Aumenta a sombra quando visível */
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .2);
 }
 
-/* Header e imagem de perfil */
 .profile-header {
   text-align: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .profile-picture {
   width: 120px;
   height: 120px;
-  border-radius: 50%;
+  border-radius: 9999px;
   object-fit: cover;
-  border: 3px solid #ecf0f1;
-  /* Bordas brancas mais finas */
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  border: 3px solid color-mix(in oklab, var(--text-color) 25%, transparent);
+  box-shadow: var(--box-shadow);
+  background: var(--surface-color);
 }
 
-/* Estilo dos links do menu */
+.user-nickname {
+  text-align: center;
+  color: var(--secondary-color);
+  font-family: var(--font-family-primary);
+  font-size: 1.1rem;
+  margin: 10px 0 16px;
+}
+
 .profile-nav {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  /* Alinha à esquerda */
+  gap: .5rem;
 }
 
 .profile-nav a {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
   width: 100%;
-  text-decoration: none;
-  color: #ecf0f1;
-  padding: 12px 15px;
-  margin: 6px 0;
-  font-family: 'Roboto', sans-serif;
-  font-weight: 500;
-  background-color: rgba(255, 255, 255, 0.1);
-  /* Fundo sutil */
-  border-radius: 8px;
-  /* Cantos arredondados */
-  transition: background-color 0.3s, color 0.3s;
-  /* Animação de transição */
+  color: var(--text-color);
+  background-color: color-mix(in oklab, var(--primary-color) 6%, transparent);
+  padding: 10px 12px;
+  border-radius: 10px;
+  transition: background-color .2s ease, color .2s ease, transform .05s ease;
+}
+
+.profile-nav a:hover {
+  background: color-mix(in oklab, var(--primary-color) 14%, transparent);
+  transform: translateY(-1px);
 }
 
 .profile-nav i {
-  margin-right: 10px;
-  color: #f39c12;
-  /* Ícones em laranja dourado */
+  color: var(--primary-color);
 }
 
-/* Efeito de hover */
-.profile-nav a:hover {
-  background-color: #34495e;
-  /* Fundo mais escuro ao hover */
-  color: #f39c12;
-}
-
-/* Nickname do usuário */
-.user-nickname {
-  text-align: center;
-  color: #f39c12;
-  /* Cor laranja dourado */
-  font-family: 'Roboto', sans-serif;
-  font-size: 1.2em;
-  margin-bottom: 20px;
-}
-
-/* Ajuste para telas menores */
-@media only screen and (max-width: 600px) {
+@media (max-width: 600px) {
   .sidebar {
-    padding: 15px;
+    padding: 16px;
     margin-right: 0;
+    border-radius: 12px;
     box-shadow: none;
-    border-radius: 0;
   }
 
   .profile-nav a {
     padding: 10px;
-    font-size: 0.9em;
+    font-size: .95rem;
   }
 }

@@ -10,10 +10,7 @@ import { ProgressiveSignupComponent } from './progressive-signup/progressive-sig
 import { AuthenticationRoutingModule } from './authentication-routing.module';
 import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
 import { MatCardModule } from '@angular/material/card';
-import { SuggestionService } from '../core/services/data-handling/suggestion.service';
-import { AuthService } from '../core/services/autentication/auth.service';
 import { EmailInputModalComponent } from './email-input-modal/email-input-modal.component';
-
 
 @NgModule({
   declarations: [

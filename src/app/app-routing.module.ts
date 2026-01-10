@@ -54,7 +54,7 @@ const routes: Routes = [
   {
     path: 'register',
     loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),
-    canActivate: [authRedirectGuard],
+    //canActivate: [authRedirectGuard],
     data: { allowUnverified: true },
   },
   {
@@ -62,7 +62,7 @@ const routes: Routes = [
     loadChildren: () =>
       import('./authentication/authentication.module')
         .then(m => m.AuthenticationModule),
-    canActivate: [authRedirectGuard],
+    //canActivate: [authRedirectGuard],
     data: { allowUnverified: true },
   },
   {
@@ -94,9 +94,10 @@ const routes: Routes = [
     RouterModule.forRoot(routes, {
       preloadingStrategy: NoPreloading,
       bindToComponentInputs: true,
-      initialNavigation: 'enabledBlocking',
+      initialNavigation: 'enabledNonBlocking',
       //enableTracing: !environment.production //enableTracing:
       //registra os eventos de navegação interna no console. Uso para depuração.
+      //enableTracing: true,
     }),
   ],
   exports: [RouterModule],

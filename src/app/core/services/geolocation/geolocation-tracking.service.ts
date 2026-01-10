@@ -1,6 +1,6 @@
 // src/app/core/services/geolocation/geolocation-tracking.service.ts
 import { Injectable, NgZone } from '@angular/core';
-import { FirestoreService } from '../data-handling/firestore.service'; // <- pasta irmã
+import { FirestoreService } from '../data-handling/legacy/firestore.service'; // <- pasta irmã
 import { Timestamp } from 'firebase/firestore';
 import { GeoCoordinates } from '../../interfaces/geolocation.interface';
 

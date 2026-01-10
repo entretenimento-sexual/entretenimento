@@ -16,6 +16,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TextFieldModule } from '@angular/cdk/text-field';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 
 const MATERIAL = [
   MatButtonModule,
@@ -33,6 +34,7 @@ const MATERIAL = [
   MatCardModule,
   MatDividerModule,
   MatTooltipModule,
+  MatProgressBarModule,
   TextFieldModule
 ];
 

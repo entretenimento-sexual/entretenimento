@@ -1,28 +1,46 @@
-<!-- src\app\user-profile\user-profile-view\user-profile-sidebar\user-profile-sidebar.component.html -->
+<!-- src/app/user-profile/user-profile-view/user-profile-sidebar/user-profile-sidebar.component.html -->
 <aside class="sidebar" [ngClass]="{'visible': isSidebarVisible}">
   <header class="profile-header">
-    <img [src]="(usuario$ | async)?.photoURL || 'assets/imagem-padrao.webp'" alt="Foto de Perfil" class="profile-picture">
-  </header><!-- profile-header -->
-  <p class="user-nickname"><strong>{{ (usuario$ | async)?.nickname }}</strong></p>
+    <img [src]="(usuario$ | async)?.photoURL || 'assets/imagem-padrao.webp'"
+      [alt]="(usuario$ | async)?.nickname || 'Foto do perfil'" class="profile-picture" loading="lazy"
+      referrerpolicy="no-referrer" />
+  </header>
+
+  <p class="user-nickname"><strong>{{ (usuario$ | async)?.nickname || 'Meu perfil' }}</strong></p>
 
   <nav class="profile-nav">
-    @if (!isOnOwnProfile()) {
-      <a [routerLink]="['/perfil', uid]">
-        <i class="fas fa-user"></i>Meu perfil
-      </a>
+    @if (!(isOwnProfile$ | async)) {
+    <a [routerLink]="['/perfil', uid]">
+      <i class="fas fa-user"></i>Meu perfil
+    </a>
     }
+
     <a [routerLink]="['/layout/perfis-proximos']">
       <i class="fas fa-map-marker-alt"></i>Perfis próximos
     </a>
-    <a [routerLink]="['/perfil', uid, 'fotos']"><i class="fas fa-images"></i>Minhas fotos</a>
-    <a href="#"><i class="fas fa-cogs"></i>Minhas preferências</a>
-    <a href="#"><i class="fas fa-users"></i>Meus amigos</a>
-    <a href="#"><i class="fas fa-star"></i>Meus favoritos</a>
-    <a [routerLink]="['/chat', uid]"><i class="fas fa-comments"></i>Bate-papo</a>
+
+    <a [routerLink]="['/perfil', uid, 'fotos']">
+      <i class="fas fa-images"></i>Minhas fotos
+    </a>
+
+    <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">
+      <i class="fas fa-cogs"></i>Minhas preferências
+    </a>
+
+    <a [routerLink]="['/amigos']">
+      <i class="fas fa-users"></i>Meus amigos
+    </a>
+
+    <a [routerLink]="['/favoritos']">
+      <i class="fas fa-star"></i>Meus favoritos
+    </a>
+
+    <a [routerLink]="['/chat', uid]">
+      <i class="fas fa-comments"></i>Bate-papo
+    </a>
 
     <a (click)="createRoomIfSubscriber()" style="cursor: pointer;">
-      <i class="fas fa-comments"></i>Criar sala
+      <i class="fas fa-door-open"></i>Criar sala
     </a>
-    <!-- Você pode adicionar mais links conforme necessário -->
   </nav>
-</aside><!--sidebar col-md-3-->
+</aside>

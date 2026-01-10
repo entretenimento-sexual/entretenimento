@@ -4,7 +4,7 @@ import {
   Firestore, collection, getDocs, query, where,
   doc, getDoc, CollectionReference, QuerySnapshot
 } from '@angular/fire/firestore';
-import { DocumentData } from 'firebase/firestore'; // <- DocumentData daqui
+import { DocumentData } from 'firebase/firestore';
 import { FriendsRepo } from './friends.repo';
 import { BlocksRepo } from './blocks.repo';
 import { CooldownRepo } from './cooldown.repo';
@@ -67,6 +67,10 @@ export class FriendshipRepo {
     return from(getDoc(doc(this.db, `users/${uid}`))).pipe(
       map(d => (d.exists() ? ({ uid: d.id, ...(d.data() as any) } as IUserDados) : null))
     );
+  }
+
+  listFriendsPage(uid: string, pageSize = 24, after: number | null = null) {
+    return this.friends.listFriendsPage(uid, pageSize, after);
   }
 
   /* util */

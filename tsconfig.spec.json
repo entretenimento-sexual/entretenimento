@@ -11,7 +11,8 @@
       "@app/*": ["src/app/*"],
       "@core/*": ["src/app/core/*"],
       "@shared/*": ["src/app/shared/*"],
-      "@env/*": ["src/environments/*"]
+      "@env/*": ["src/environments/*"],
+      "@store/*": ["src/app/store/*"]
     },
     "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },

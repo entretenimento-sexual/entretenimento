@@ -1,0 +1,20 @@
+/* src/app/layout/friend.management/friend-cards/friend-cards.component.css */
+.friend-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.friend-list.full .friend-cards-grid {
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.loading,
+.empty,
+.end {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}

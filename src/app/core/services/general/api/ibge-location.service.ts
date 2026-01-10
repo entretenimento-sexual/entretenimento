@@ -1,110 +1,164 @@
 // src/app/core/services/geolocation/ibge-location.service.ts
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
-import { catchError, map, switchMap, tap } from 'rxjs/operators';
-import { AuthService } from '../../autentication/auth.service';
-import { CacheService } from '../cache/cache.service';
+import { catchError, map, switchMap, tap, take } from 'rxjs/operators';
 
-@Injectable({
-  providedIn: 'root',
-})
-export class IBGELocationService {
-  private readonly estadosUrl = 'https://servicodados.ibge.gov.br/api/v1/localidades/estados';
-  private readonly municipiosUrl = 'https://servicodados.ibge.gov.br/api/v1/localidades/estados/{UF}/municipios';
+// ✅ Substitui Service anterior por store/ACL reativos
+import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
+import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 
-  private estadosCacheKey = 'ibge:estados';
-  private municipiosCacheKey = 'ibge:municipios';
-  private userLocationCacheKey = 'user:location';
+// Cache central (mesmo usado no app)
+import { CacheService } from '@core/services/general/cache/cache.service';
 
-    constructor(private http: HttpClient,
-                private authService: AuthService,
-                private cacheService: CacheService) { }
-
-  //Retorna a lista de estados (com cache).
-  getEstados(): Observable<any[]> {
-  return this.cacheService.get<any[]>(this.estadosCacheKey).pipe(
-    switchMap(cachedEstados => {
-      if (cachedEstados) {
-        return of(cachedEstados);
-      }
-
-      return this.http.get<any[]>(this.estadosUrl).pipe(
-        map(estados => estados.sort((a, b) => a.nome.localeCompare(b.nome))),
-        tap(estados => this.cacheService.set(this.estadosCacheKey, estados, 24 * 60 * 60 * 1000)), // Cache de 24h
-        catchError(error => {
-          console.log('Erro ao carregar estados:', error);
-          return of([]);
-        })
-      );
-    })
-  );
+/** Tipos mínimos dos endpoints do IBGE */
+export interface IbgeUF {
+  id: number;
+  sigla: string;
+  nome: string;
+  // regiao?: { id: number; sigla: string; nome: string };
 }
 
-  /**
-   * Retorna os municípios de um estado, com base na sigla do estado (UF).
-   * @param uf Sigla do estado.
-   */
-  getMunicipios(uf: string): Observable<any[]> {
-    const cacheKey = `${this.municipiosCacheKey}:${uf}`;
+export interface IbgeMunicipio {
+  id: number;
+  nome: string;
+  // microrregiao?: any;
+}
 
-    return this.cacheService.get<any[]>(cacheKey).pipe(
-      switchMap(cachedMunicipios => {
-        if (cachedMunicipios) {
-          return of(cachedMunicipios);
-        }
+export interface UserLocation {
+  uf: string;           // ex.: 'RJ'
+  municipio: string;    // ex.: 'Rio de Janeiro'
+}
 
-        const url = this.municipiosUrl.replace('{UF}', uf);
-        return this.http.get<any[]>(url).pipe(
-          map(municipios => municipios.sort((a, b) => a.nome.localeCompare(b.nome))),
-          tap(municipios => this.cacheService.set(cacheKey, municipios, 24 * 60 * 60 * 1000)), // Cache de 24h
-          catchError(error => {
-            console.log(`Erro ao carregar municípios para o estado ${uf}:`, error);
-            return of([]);
+@Injectable({ providedIn: 'root' })
+export class IBGELocationService {
+  private readonly http = inject(HttpClient);
+  private readonly cache = inject(CacheService);
+  private readonly userStore = inject(CurrentUserStoreService);
+  private readonly access = inject(AccessControlService);
+
+  private readonly estadosUrl = 'https://servicodados.ibge.gov.br/api/v1/localidades/estados';
+  private readonly municipiosUrlTpl = 'https://servicodados.ibge.gov.br/api/v1/localidades/estados/{UF}/municipios';
+
+  private readonly estadosCacheKey = 'ibge:estados';
+  private readonly municipiosCacheKey = 'ibge:municipios';
+  private readonly userLocationCacheKey = 'user:location';
+
+  // 24h (ms)
+  private readonly TTL_24H = 24 * 60 * 60 * 1000;
+
+  // Collator pt-BR para ordenação estável de nomes
+  private readonly collator = new Intl.Collator('pt-BR', { sensitivity: 'base' });
+
+  /** Carrega e cacheia a lista de UFs (ordenada por nome). */
+  getEstados(): Observable<IbgeUF[]> {
+    return this.cache.get<IbgeUF[]>(this.estadosCacheKey).pipe(
+      switchMap(cached => {
+        if (cached) return of(cached);
+
+        return this.http.get<IbgeUF[]>(this.estadosUrl).pipe(
+          map(list => [...list].sort((a, b) => this.collator.compare(a.nome, b.nome))),
+          tap(list => this.cache.set(this.estadosCacheKey, list, this.TTL_24H)),
+          catchError(err => {
+            console.log('[IBGELocationService] Erro ao carregar estados:', err);
+            return of<IbgeUF[]>([]);
           })
         );
       })
     );
   }
 
- // Retorna a localização do usuário (estado e município) do cache ou inicializa com valores padrão.
-  getUserLocation(): Observable<{ uf: string; municipio: string } | null> {
-  return this.cacheService.get<{ uf: string; municipio: string }>(this.userLocationCacheKey).pipe(
-    switchMap(cachedLocation => {
-      if (cachedLocation) {
-        return of(cachedLocation);
-      }
-
-      const user = this.authService.currentUser;
-      if (user && user.estado && user.municipio) {
-        const location = { uf: user.estado, municipio: user.municipio };
-        this.cacheService.set(this.userLocationCacheKey, location, undefined); // Sem expiração
-        return of(location);
-      }
-
-      return of(null);
-    })
-  );
-}
-
   /**
-   * Atualiza o cache de localização do usuário, se permitido.
-   * @param newLocation Nova localização (estado e município).
+   * Carrega e cacheia os municípios de uma UF (ordenados por nome).
+   * @param uf Sigla (ex.: 'RJ', 'SP')
    */
-  updateUserLocation(newLocation: { uf: string; municipio: string }): void {
-    const userRole = this.authService.currentUser?.role || 'visitante';
+  getMunicipios(uf: string): Observable<IbgeMunicipio[]> {
+    const UF = (uf || '').trim().toUpperCase();
+    if (!UF) return of<IbgeMunicipio[]>([]);
 
-    if (['premium', 'vip'].includes(userRole)) {
-      this.cacheService.set(this.userLocationCacheKey, newLocation, undefined); // Atualiza sem expiração
-      console.log('Localização do usuário atualizada no cache:', newLocation);
-    } else {
-      console.log('Usuários com role baixo não podem alterar sua localização.');
-    }
+    const cacheKey = `${this.municipiosCacheKey}:${UF}`;
+
+    return this.cache.get<IbgeMunicipio[]>(cacheKey).pipe(
+      switchMap(cached => {
+        if (cached) return of(cached);
+
+        const url = this.municipiosUrlTpl.replace('{UF}', encodeURIComponent(UF));
+        return this.http.get<IbgeMunicipio[]>(url).pipe(
+          map(list => [...list].sort((a, b) => this.collator.compare(a.nome, b.nome))),
+          tap(list => this.cache.set(cacheKey, list, this.TTL_24H)),
+          catchError(err => {
+            console.log(`[IBGELocationService] Erro ao carregar municípios de ${UF}:`, err);
+            return of<IbgeMunicipio[]>([]);
+          })
+        );
+      })
+    );
   }
 
-  //Limpa o cache da localização do usuário.
+  /**
+   * Retorna a localização do usuário (UF/município) do cache; se não houver,
+   * tenta derivar do usuário logado no store e então persiste em cache.
+   */
+  getUserLocation(): Observable<UserLocation | null> {
+    return this.cache.get<UserLocation>(this.userLocationCacheKey).pipe(
+      switchMap(cached => {
+        if (cached) return of(cached);
+
+        // ⚠️ user$ pode emitir undefined na resolução inicial → pegamos 1 valor “estável”
+        return this.userStore.user$.pipe(
+          take(1),
+          map(u => {
+            // Mantém compat com campos já usados no seu projeto
+            const uf = (u as any)?.estado || (u as any)?.UF || '';
+            const municipio = (u as any)?.municipio || (u as any)?.cidade || '';
+            if (uf && municipio) {
+              const loc = { uf: String(uf).toUpperCase(), municipio: String(municipio) } as UserLocation;
+              this.cache.set(this.userLocationCacheKey, loc); // sem expiração
+              return loc;
+            }
+            return null;
+          })
+        );
+      })
+    );
+  }
+
+  /**
+   * Atualiza o cache local de localização do usuário SE o usuário tiver
+   * permissão mínima (premium ou superior). A checagem usa AccessControlService.
+   *
+   * Obs.: Mantive assinatura void; a operação é assíncrona/reativa internamente.
+   * Se você quiser feedback para a UI, crie uma variante que retorne Observable<boolean>.
+   */
+  updateUserLocation(newLocation: UserLocation): void {
+    const loc: UserLocation = {
+      uf: (newLocation?.uf || '').trim().toUpperCase(),
+      municipio: (newLocation?.municipio || '').trim(),
+    };
+    if (!loc.uf || !loc.municipio) {
+      console.log('[IBGELocationService] updateUserLocation ignorado: payload inválido.', newLocation);
+      return;
+    }
+
+    this.access.hasAtLeast$('premium').pipe(take(1)).subscribe(allowed => {
+      if (allowed) {
+        this.cache.set(this.userLocationCacheKey, loc); // persistência local sem expiração
+        console.log('[IBGELocationService] Localização atualizada no cache:', loc);
+      } else {
+        console.log('[IBGELocationService] Role insuficiente para alterar localização (precisa premium+).');
+      }
+    });
+  }
+
+  /** Limpa o cache da localização do usuário. */
   clearUserLocationCache(): void {
-    this.cacheService.delete(this.userLocationCacheKey);
-    console.log('Cache de localização do usuário limpo.');
+    this.cache.delete(this.userLocationCacheKey);
+    console.log('[IBGELocationService] Cache de localização limpo.');
+  }
+
+  /** (Opcional) pré-aquece caches típicos para UX mais fluida. */
+  warmCaches(uf?: string): void {
+    this.getEstados().pipe(take(1)).subscribe({ next: () => { }, error: () => { } });
+    if (uf) this.getMunicipios(uf).pipe(take(1)).subscribe({ next: () => { }, error: () => { } });
   }
 }

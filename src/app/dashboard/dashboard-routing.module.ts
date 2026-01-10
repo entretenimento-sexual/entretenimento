@@ -6,8 +6,6 @@ import { PrincipalComponent } from './principal/principal.component';
 import { ChatRoomsComponent } from '../chat-module/chat-rooms/chat-rooms.component';
 import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
 import { emailVerifiedGuard } from '../core/guards/email-verified.guard';
-
-// ✅ ajuste o caminho conforme sua estrutura real
 import { OnlineUsersComponent } from './online/online-users/online-users.component';
 import { OnlineUsersFullComponent } from './online/online-users-full/online-users-full.component';
 
@@ -27,6 +25,15 @@ const routes: Routes = [
 
       { path: 'featured-profiles', component: FeaturedProfilesComponent, canActivate: [emailVerifiedGuard] },
       { path: 'chat-rooms', component: ChatRoomsComponent, canActivate: [emailVerifiedGuard] },
+      {
+        path: 'friends/list',
+        canActivate: [emailVerifiedGuard],
+        loadComponent: () =>
+          import('src/app/layout/friend.management/friend-list-page/friend-list-page.component')
+            .then(m => m.FriendListPageComponent)
+      },
+      { path: 'friends', redirectTo: 'friends/list', pathMatch: 'full' },
+
       { path: '', redirectTo: 'principal', pathMatch: 'full' },
     ]
   },

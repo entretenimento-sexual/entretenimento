@@ -1,5 +1,5 @@
 // src/app/app.module.ts
-import { NgModule, ErrorHandler, LOCALE_ID, APP_INITIALIZER } from '@angular/core';
+import { NgModule, ErrorHandler, LOCALE_ID } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
@@ -20,25 +20,28 @@ import { GlobalErrorHandlerService } from './core/services/error-handler/global-
 import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';
 import { environment } from '../environments/environment';
 
-// AngularFire providers (FICAM EM PROVIDERS num NgModule)
+// AngularFire
 import { provideFirebaseApp, initializeApp, getApp } from '@angular/fire/app';
 import { provideAuth, connectAuthEmulator } from '@angular/fire/auth';
 import { provideFirestore, connectFirestoreEmulator } from '@angular/fire/firestore';
 import { provideDatabase } from '@angular/fire/database';
-import { provideStorage } from '@angular/fire/storage';
 
-// Firebase SDK (para configurar initializeAuth etc.)
-import {
-  getAuth,
-  initializeAuth,
-  indexedDBLocalPersistence,
-  browserLocalPersistence,
-  browserSessionPersistence,
-  inMemoryPersistence,
-  browserPopupRedirectResolver,
-} from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getDatabase } from 'firebase/database';
+// Firebase Web SDK (Auth)
+import {  getAuth,
+          initializeAuth,
+          indexedDBLocalPersistence,
+          browserLocalPersistence,
+          browserSessionPersistence,
+          inMemoryPersistence,
+          browserPopupRedirectResolver,
+        } from 'firebase/auth';
+
+// Firebase Web SDK (Firestore)
+import { initializeFirestore, setLogLevel } from 'firebase/firestore';
+
+// RTDB & Storage
+import { getDatabase, connectDatabaseEmulator } from 'firebase/database';
+import { provideStorage, connectStorageEmulator } from '@angular/fire/storage';
 import { getStorage } from 'firebase/storage';
 
 // i18n
@@ -46,19 +49,8 @@ import { registerLocaleData } from '@angular/common';
 import localePt from '@angular/common/locales/pt';
 registerLocaleData(localePt, 'pt-BR');
 
-// sessão / orquestrador
-import { AuthSessionService } from './core/services/autentication/auth/auth-session.service';
-import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
-
-// standalone comp
+// Standalone
 import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.component';
-
-function authReadyInitializer(session: AuthSessionService) {
-  return () => session.whenReady();
-}
-function startOrchestratorAfterReady(session: AuthSessionService, orchestrator: AuthOrchestratorService) {
-  return async () => { await session.whenReady(); orchestrator.start(); };
-}
 
 @NgModule({
   declarations: [AppComponent],
@@ -71,65 +63,119 @@ function startOrchestratorAfterReady(session: AuthSessionService, orchestrator: 
     BrowserAnimationsModule,
     MatDialogModule,
     MatSnackBarModule,
+
     HeaderModule,
     FooterModule,
     PhotoEditorModule,
 
     AppStoreModule,
+    ...(environment.production ? [] : [StoreDevtoolsModule.instrument({ maxAge: 25, trace: true })]),
 
-    ...(environment.production ? [] : [StoreDevtoolsModule.instrument({ maxAge: 25 })]),
-
-    // standalone component pode ficar em imports
+    // standalone
     AdminLinkComponent,
   ],
   providers: [
-    // 🔥 AngularFire — em providers (não em imports) quando usando NgModule
+    // 🔥 Firebase App
     provideFirebaseApp(() => initializeApp(environment.firebase)),
+
+    // 🔐 Auth (no emulador: só memória; em prod: persistência completa)
     provideAuth(() => {
       const app = getApp();
-      try {
-        const auth = initializeAuth(app, {
-          persistence: [
-            indexedDBLocalPersistence,
-            browserLocalPersistence,
-            browserSessionPersistence,
-            inMemoryPersistence,
-          ],
-          popupRedirectResolver: browserPopupRedirectResolver,
-        });
-        const cfg: any = environment;
-        const emu = cfg?.emulators?.auth;
-        if (!environment.production && cfg?.useEmulators && emu?.host && emu?.port) {
-          connectAuthEmulator(auth, `http://${emu.host}:${emu.port}`, { disableWarnings: true });
-        }
-        return auth;
-      } catch {
-        const auth = getAuth(app);
-        const cfg: any = environment;
-        const emu = cfg?.emulators?.auth;
-        if (!environment.production && cfg?.useEmulators && emu?.host && emu?.port) {
-          connectAuthEmulator(auth, `http://${emu.host}:${emu.port}`, { disableWarnings: true });
-        }
-        return auth;
-      }
-    }),
-    provideFirestore(() => {
-      const db = getFirestore(getApp());
       const cfg: any = environment;
-      const emu = cfg?.emulators?.firestore;
-      if (!environment.production && cfg?.useEmulators && emu?.host && emu?.port) {
-        connectFirestoreEmulator(db, emu.host, emu.port);
+      const usingEmu =
+        !environment.production &&
+        cfg?.useEmulators &&
+        cfg?.emulators?.auth?.host &&
+        cfg?.emulators?.auth?.port;
+
+      const persistence = usingEmu
+        ? [inMemoryPersistence] // evita refresh token inválido no emulador
+        : [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence];
+
+      let auth;
+      try {
+        auth = initializeAuth(app, { persistence, popupRedirectResolver: browserPopupRedirectResolver });
+      } catch {
+        auth = getAuth(app);
       }
+
+      if (usingEmu) {
+        const url = `http://${cfg.emulators.auth.host}:${cfg.emulators.auth.port}`;
+        connectAuthEmulator(auth, url, { disableWarnings: true });
+        // log não-bloqueante (ignora CORS):
+        try { fetch(url, { mode: 'no-cors' }).catch(() => { }); } catch { }
+        console.log('[AUTH][EMU-CONNECTED]', { url });
+      }
+
+      return auth;
+    }),
+
+    // 🗄️ Firestore (long-polling + emulador)
+    provideFirestore(() => {
+      const app = getApp();
+
+      const db = initializeFirestore(app, {
+        experimentalForceLongPolling: true,
+        useFetchStreams: false,
+        ignoreUndefinedProperties: true,
+      } as any);
+
+      if (!environment.production) setLogLevel('debug');
+
+      const cfg: any = environment;
+      const usingEmu =
+        !environment.production &&
+        cfg?.useEmulators &&
+        cfg?.emulators?.firestore?.host &&
+        cfg?.emulators?.firestore?.port;
+
+      if (usingEmu) {
+        connectFirestoreEmulator(db, cfg.emulators.firestore.host, cfg.emulators.firestore.port);
+        console.log('[FS][EMU-CONNECTED]', cfg.emulators.firestore);
+      }
+
       return db;
     }),
-    provideDatabase(() => getDatabase(getApp())),
-    provideStorage(() => getStorage(getApp())),
 
-    // Inicializadores
-    { provide: APP_INITIALIZER, useFactory: authReadyInitializer, deps: [AuthSessionService], multi: true },
-    { provide: APP_INITIALIZER, useFactory: startOrchestratorAfterReady, deps: [AuthSessionService, AuthOrchestratorService], multi: true },
+    // 💾 RTDB & Storage
+    provideDatabase(() => {
+      const db = getDatabase(getApp());
 
-    // Erros e i18n
+      const cfg: any = environment;
+      const usingEmu =
+        !environment.production &&
+        cfg?.useEmulators &&
+        cfg?.emulators?.database?.host &&
+        cfg?.emulators?.database?.port;
+
+      if (usingEmu) {
+        connectDatabaseEmulator(db, cfg.emulators.database.host, cfg.emulators.database.port);
+        console.log('[RTDB][EMU-CONNECTED]', cfg.emulators.database);
+      }
+
+      return db;
+    }),
+
+    provideStorage(() => {
+      const storage = getStorage(getApp());
+
+      const cfg: any = environment;
+      const usingEmu =
+        !environment.production &&
+        cfg?.useEmulators &&
+        cfg?.emulators?.storage?.host &&
+        cfg?.emulators?.storage?.port;
+
+      if (usingEmu) {
+        connectStorageEmulator(storage, cfg.emulators.storage.host, cfg.emulators.storage.port);
+        console.log('[ST][EMU-CONNECTED]', cfg.emulators.storage);
+      }
+
+      return storage;
+    }),
+
+
+    // Erros & i18n
     { provide: ErrorHandler, useClass: GlobalErrorHandlerService },
     ErrorNotificationService,
     { provide: LOCALE_ID, useValue: 'pt-BR' },

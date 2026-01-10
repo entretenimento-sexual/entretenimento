@@ -18,7 +18,7 @@ import { RoomManagementService } from 'src/app/core/services/batepapo/room-servi
 import { InviteService } from 'src/app/core/services/batepapo/invite-service/invite.service';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 import { CreateRoomModalComponent } from '../modals/create-room-modal/create-room-modal.component';
-import { NotificationService } from 'src/app/core/services/batepapo/chat-notification.service';
+import { ChatNotificationService } from 'src/app/core/services/batepapo/chat-notification.service';
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
 import { IRoom } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 
@@ -43,7 +43,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
               private chatService: ChatService,
               private roomService: RoomService,
               private roomMessages: RoomMessagesService,
-              private notificationService: NotificationService,
+              private chatnotification: ChatNotificationService,
               private roomManagement: RoomManagementService,
               private inviteService: InviteService,
               public dialog: MatDialog,
@@ -213,7 +213,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
         messages.filter(msg => msg.status === 'delivered' && msg.senderId !== this.authService.currentUser?.uid)
           .forEach(msg => {
             this.chatService.updateMessageStatus(chatId, msg.id!, 'read').subscribe({
-              next: () => this.notificationService.decrementUnreadMessages(),
+              next: () => this.chatnotification.decrementUnreadMessages(),
               error: (error) => console.log('Erro ao atualizar status da mensagem:', error),
             });
           });
@@ -244,7 +244,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
             this.roomMessages
               .updateMessageStatus(roomId, msg.id!, 'read')
               .subscribe({
-              next: () => this.notificationService.decrementUnreadMessages(),
+              next: () => this.chatnotification.decrementUnreadMessages(),
               error: (error: unknown) =>
               console.log('Erro ao atualizar status da mensagem:', error),
             });

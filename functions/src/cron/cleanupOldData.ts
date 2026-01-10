@@ -2,14 +2,23 @@
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {getFirestore, Timestamp} from "firebase-admin/firestore";
 
-export const cleanupOldData = onSchedule("every 24 hours", async () => {
-  const db = getFirestore();
-  const cutoff = Timestamp.now().toMillis() - 30 * 24 * 60 * 60 * 1000; // 30 dias
-  const oldPosts = await db.collection("posts").where("createdAt", "<", cutoff).get();
+export const cleanupOldData = onSchedule(
+  {
+    schedule: "every 24 hours",
+    timeZone: "America/Sao_Paulo",
+    region: "southamerica-east1",
+    // considerar usar a hora do fuso do usuário
+  },
+  async () => {
+    const db = getFirestore();
+    const cutoffTs = Timestamp.fromMillis(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  const batch = db.batch();
-  oldPosts.docs.forEach((doc) => batch.delete(doc.ref));
-  await batch.commit();
+    const oldPosts = await db.collection("posts")
+      .where("createdAt", "<", cutoffTs)
+      .get();
 
-  console.log("Posts antigos removidos.");
-});
+    const batch = db.batch();
+    oldPosts.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  }
+);

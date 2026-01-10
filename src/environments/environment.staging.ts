@@ -1,8 +1,8 @@
 // src/environments/environment.staging.ts
 // Ambiente de STAGING
-// - Próximo de produção (sem emuladores)
-// - Debug tools ligadas para testes internos
-// - Flags mais rígidas que o dev
+// - Sem emuladores
+// - Debug tools ligadas
+// - Flags mais rígidas
 
 export const environment = {
   production: false,
@@ -14,31 +14,33 @@ export const environment = {
     authDomain: 'entretenimento-staging.firebaseapp.com',
     databaseURL: 'https://entretenimento-staging-default-rtdb.firebaseio.com',
     projectId: 'entretenimento-staging',
-    storageBucket: 'entretenimento-staging.firebasestorage.app',
+    // ✅ CORRIGIDO: bucket usa .appspot.com
+    storageBucket: 'entretenimento-staging.appspot.com',
     messagingSenderId: '918083447157',
     appId: '1:918083447157:web:6a2841d918b0348a3f8b3c',
-    // measurementId opcional em staging, adicione se usar Analytics no stage
-    // measurementId: 'G-XXXXXXXXXX',
+    // measurementId: 'G-XXXXXXXXXX', // adicione se usar Analytics no stage
   },
 
   apiEndpoint: 'https://api.staging.seuprojeto.com',
   enableDebugTools: true,
 
-  // NÃO coloque chaves secretas no cliente
   virusTotalApiKey: '',
 
-  // Sem emuladores no staging
+  // staging: sem emuladores
   emulators: undefined,
 
   appCheck: {
-    enabled: true,             // em staging já vale testar App Check
-    provider: 'reCaptchaV3',   // ou 'reCaptchaEnterprise'
+    enabled: true,
+    provider: 'reCaptchaV3',
     siteKey: 'staging-recaptcha-v3-site-key',
   },
 
   features: {
-    enforceEmailVerified: true,     // ⚠️ staging: exigir verificação
+    enforceEmailVerified: true, // exigir verificação
     showGuestBanner: true,
     restrictedRoutesWhenUnverified: ['/dashboard', '/chat', '/friends'],
   },
-};
+
+  friendsPageSize: 24,
+  dashboardFriendsLimit: 12,
+} as const;

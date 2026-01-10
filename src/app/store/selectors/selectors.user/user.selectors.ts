@@ -3,94 +3,86 @@ import { createSelector, MemoizedSelector } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { IUserState } from '../../states/states.user/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { selectAuthUid } from './auth.selectors';
 
-// Seleciona o estado de usuário do estado global da aplicação.
 export const selectUserState = (state: AppState): IUserState => state.user;
 
-// Seleciona o usuário atual no estado.
 export const selectCurrentUser = createSelector(
   selectUserState,
-  (state: IUserState): IUserDados | null => state.currentUser ?? null
+  (state): IUserDados | null => state.currentUser ?? null
 );
 
-
-/** ✅ Retorna string | null (não undefined) */
+/** ✅ UID uniforme: sempre vem do AUTH */
 export const selectCurrentUserUid: MemoizedSelector<AppState, string | null> = createSelector(
-  selectCurrentUser,
-  (u) => u?.uid ?? null
+  selectAuthUid,
+  (uid) => uid
 );
 
-// Seleciona todos os usuários armazenados no estado.
-export const selectAllUsers = createSelector(
+export const selectUsersMap = createSelector(
   selectUserState,
-  (state: IUserState): IUserDados[] => {
-    const usersArray = Object.values(state.users);
-    console.log('Selecionando todos os usuários armazenados no estado:', usersArray.length);
-    return usersArray;
-  }
+  (state) => state.users ?? {}
 );
 
-/**
- * Seleciona um usuário específico pelo UID.
- * @param uid - Identificador único do usuário.
- */
+export const selectAllUsers = createSelector(
+  selectUsersMap,
+  (map) => Object.values(map)
+);
+
+/** ✅ fonte oficial do online: state.onlineUsers (query/presence) */
+export const selectOnlineUsers = createSelector(
+  selectUserState,
+  (s) => s.onlineUsers ?? []
+);
+
+// compat
+export const selectAllOnlineUsers = selectOnlineUsers;
+
+/** ✅ recomendado: null quando não existe */
+export const selectUserByIdOrNull = (uid: string) =>
+  createSelector(selectUsersMap, (map) => map[uid] ?? null);
+
+/** compat “safe”: evita quebrar UI, mas não mascara uid */
+function fallbackUser(uid: string): IUserDados {
+  return {
+    uid,
+    email: null,
+    photoURL: null,
+    role: 'visitante',
+    lastLogin: 0,
+    descricao: '',
+    isSubscriber: false,
+  };
+}
+
+/** @deprecated prefira selectUserByIdOrNull */
 export const selectUserById = (uid: string) =>
-  createSelector(
-    selectUserState,
-    (state: IUserState) => {
-      const foundUser = state.users[uid] || {} as IUserDados; // ✅ Retorna objeto vazio
-      console.log(`Selecionando usuário pelo UID (${uid}):`, foundUser);
-      return foundUser;
-    }
-  );
+  createSelector(selectUsersMap, (map) => map[uid] ?? fallbackUser(uid));
 
-// Seleciona todos os usuários online.
-export const selectAllOnlineUsers = createSelector(
-  selectAllUsers,
-  (users: IUserDados[]): IUserDados[] => {
-    const onlineUsers = users.filter((user) => user.isOnline);
-    console.log('Selecionando todos os usuários online:', onlineUsers.length);
-    return onlineUsers;
-  }
-);
-
-/**
- * Seleciona os usuários online em uma região específica.
- * @param region - Nome da região ou município.
- */
 export const selectOnlineUsersByRegion = (region: string) =>
-  createSelector(
-    selectAllOnlineUsers,
-    (onlineUsers: IUserDados[]): IUserDados[] => {
-      const normalizedRegion = region.trim().toLowerCase();
-      const filteredUsers = onlineUsers.filter((user) => {
-        const userMunicipio = user.municipio?.trim().toLowerCase() || '';
-        return userMunicipio === normalizedRegion;
-      });
-      console.log(`Usuários online filtrados pela região (${region}):`, filteredUsers.length);
-      return filteredUsers;
-    }
-  );
+  createSelector(selectOnlineUsers, (onlineUsers) => {
+    const normalized = region.trim().toLowerCase();
+    return onlineUsers.filter(u => (u.municipio?.trim().toLowerCase() || '') === normalized);
+  });
 
-// Seleciona o estado de carregamento (loading) do estado de usuários.
 export const selectUserLoading = createSelector(
   selectUserState,
-  (state: IUserState) => {
-    console.log('Estado de carregamento do usuário:', state.loading);
-    return state.loading;
-  }
+  (state) => state.loading
 );
 
-// Seleciona os erros relacionados ao estado de usuários.
 export const selectUserError = createSelector(
   selectUserState,
-  (state: IUserState) => {
-    console.log('Erro relacionado ao estado do usuário:', state.error);
-    return state.error;
-  }
+  (state) => state.error
 );
 
 export const selectHasRequiredFields = createSelector(
   selectCurrentUser,
-  (user: IUserDados | null) => !!user?.municipio && !!user?.gender
+  (user) => !!user?.municipio && !!user?.gender
 );
+
+/* CurrentUserStore manda no IUserDados
+qualquer UID fora disso vira derivado / compat
+//logout() do auth.service.ts que está sendo descontinuado
+// ainda está sendo usado em alguns lugares e precisa ser migrado.
+Ferramentas de debug ajudam bastante
+É assim que funcionam as grandes plataformas ?
+*/

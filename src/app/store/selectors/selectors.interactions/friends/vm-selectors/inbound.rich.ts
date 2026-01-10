@@ -27,7 +27,10 @@ export const selectInboundRequestsRichVM = createSelector(
       .map((r: any) => {
         const u = users[r.requesterUid];
         const p = pickUser(u);
-        const online = typeof p.isOnline === 'boolean' ? p.isOnline : !!presence[r.requesterUid];
+        const online =
+          presence[r.requesterUid] === true
+            ? true
+            : (typeof p.isOnline === 'boolean' ? p.isOnline : false);
         return {
           ...r,
           id: r.id!,
@@ -44,5 +47,5 @@ export const selectInboundRequestsRichVM = createSelector(
           photos: p.photos,
         };
       })
-      .sort((a, b) => tsMs(b.createdAt) - tsMs(a.createdAt))
+      .sort((a: InboundRequestRichVM, b: InboundRequestRichVM) => tsMs(b.createdAt) - tsMs(a.createdAt))
 );

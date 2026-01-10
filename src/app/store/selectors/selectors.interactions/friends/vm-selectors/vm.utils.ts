@@ -1,14 +1,24 @@
 // src/app/store/selectors/selectors.interactions/friends/vm-selectors/vm.utils.ts
 import { AppState } from '../../../../states/app.state';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
-export const selectPresenceMap = (state: AppState) =>
-  ((state as any)?.presence?.byUid ?? {}) as Record<string, boolean>;
+export const selectPresenceMap = (state: AppState): Record<string, boolean> => {
+  const list = state?.user?.onlineUsers ?? [];
+  const map: Record<string, boolean> = {};
+
+  // Se onlineUsers vem de query where('isOnline','==',true),
+  // então só existir no array já significa "online".
+  for (const u of list) {
+    if (u?.uid) map[u.uid] = true;
+  }
+  return map;
+};
 
 export const selectUsersMap = (state: AppState) =>
-  ((state as any)?.user?.users ?? {}) as Record<string, any>;
+  (state?.user?.users ?? {}) as Record<string, IUserDados>;
 
+// mantém helpers como estão...
 export const shorten = (uid?: string) => (uid ? `${uid.slice(0, 6)}…${uid.slice(-4)}` : '');
-
 export const getAvatar = (u?: any) => u?.photoURL || u?.avatarUrl || u?.imageUrl || undefined;
 
 export const tsMs = (t: any): number => {

@@ -119,4 +119,14 @@ export class RoomService {
       return () => unsubscribe();
     });
   }
-}
+}/* Linha 122
+ AuthSession manda no UID
+/*CurrentUserStore manda no IUserDados
+qualquer UID fora disso vira derivado / compat
+//logout() do auth.service.ts que está sendo descontinuado
+// ainda está sendo usado em alguns lugares e precisa ser migrado.
+Ferramentas de debug ajudam bastante
+É assim que funcionam as grandes plataformas?
+Compatibilizar o estado online do usuário com o presence.service e aproximar do funcionamento ideal
+deixar explícito que é Firebase/AngularFire e o que é NgRx
+*/

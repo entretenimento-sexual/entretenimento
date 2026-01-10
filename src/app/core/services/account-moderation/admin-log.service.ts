@@ -4,7 +4,7 @@ import { Timestamp } from 'firebase/firestore';
 import { Observable, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { IAdminLog } from '../../interfaces/logs/iadming-log';
-import { FirestoreService } from '../data-handling/firestore.service';
+import { FirestoreService } from '../data-handling/legacy/firestore.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 

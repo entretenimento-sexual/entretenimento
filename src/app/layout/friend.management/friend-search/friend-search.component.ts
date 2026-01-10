@@ -1,19 +1,27 @@
-//src\app\layout\friend.management\friend-search\friend-search.component.ts
-import { Component, OnInit } from '@angular/core';
+// src/app/layout/friend.management/friend-search/friend-search.component.ts
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
 import { debounceTime, distinctUntilChanged, switchMap, catchError, of, Observable, map } from 'rxjs';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatListModule } from '@angular/material/list';
+
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
-import { Store, select } from '@ngrx/store';
+import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
+
+import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { loadSearchResultsSuccess } from 'src/app/store/actions/actions.interactions/actions.friends';
-import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
+
+// ✅ use os selectors que você criou
+import {
+  selectFriendSearchResults,
+  selectHasFriendSearchResults
+} from 'src/app/store/selectors/selectors.interactions/friends/search.selectors';
 
 @Component({
   selector: 'app-friend-search',
@@ -27,70 +35,65 @@ import { FriendshipService } from 'src/app/core/services/interactions/friendship
     MatListModule
   ],
   templateUrl: './friend-search.component.html',
-  styleUrl: './friend-search.component.css'
+  styleUrls: ['./friend-search.component.css']
 })
 export class FriendSearchComponent implements OnInit {
-  searchControl = new FormControl('');
-  isLoading$: Observable<boolean>;
-  searchResults$: Observable<IUserDados[]>;
+  private friendship = inject(FriendshipService);
+  private errorNotifier = inject(ErrorNotificationService);
+  private cacheService = inject(CacheService);
+  private store = inject<Store<AppState>>(Store as any);
 
-  constructor(
-    private friendship: FriendshipService,
-    private errorNotifier: ErrorNotificationService,
-    private cacheService: CacheService,
-    private store: Store<AppState>
-  ) {
-    this.isLoading$ = this.cacheService.get<boolean>('loadingSearch').pipe(map(value => value ?? false));
-    this.searchResults$ = this.store.pipe(select(s => s.interactions_friends.searchResults));
-  }
+  searchControl = new FormControl<string>('', { nonNullable: true });
+
+  // você pode manter o loading pelo cache por enquanto
+  isLoading$: Observable<boolean> = this.cacheService
+    .get<boolean>('loadingSearch')
+    .pipe(map(value => value ?? false));
+
+  // 🔁 agora pelo selector (nada de s => s.interactions_friends.xxx)
+  searchResults$: Observable<IUserDados[]> = this.store.select(selectFriendSearchResults);
+  hasResults$ = this.store.select(selectHasFriendSearchResults);
 
   ngOnInit(): void {
     this.searchControl.valueChanges.pipe(
       debounceTime(500),
       distinctUntilChanged(),
-      switchMap(searchTerm => this.searchFriends(searchTerm ?? '')) // 🔹 Garante que `searchTerm` nunca será `null`
+      switchMap(term => this.searchFriends(term ?? ''))
     ).subscribe();
   }
 
-  /**
-   * Realiza a busca de amigos no Firestore e armazena no Store.
-   * @param searchTerm Termo de busca (nickname ou UID).
-   */
+  /** Busca e grava no Store (com cache de 5 min). */
   private searchFriends(searchTerm: string): Observable<void> {
-    if (!searchTerm.trim()) return of(); // Evita buscas vazias
+    if (!searchTerm.trim()) return of();
 
     const cacheKey = `search:${searchTerm}`;
     this.updateLoadingState(true);
 
     return this.cacheService.get<IUserDados[]>(cacheKey).pipe(
-      switchMap(cachedResults => {
-        if (cachedResults) {
+      switchMap(cached => {
+        if (cached) {
           this.updateLoadingState(false);
-          this.store.dispatch(loadSearchResultsSuccess({ results: cachedResults })); // ✅ Usa Store
+          this.store.dispatch(loadSearchResultsSuccess({ results: cached }));
           return of();
         }
 
         return this.friendship.searchUsers(searchTerm).pipe(
           switchMap(results => {
-            this.cacheService.set(cacheKey, results, 300000); // 🔥 Cache de 5 minutos
-            this.store.dispatch(loadSearchResultsSuccess({ results })); // ✅ Atualiza Store
+            this.cacheService.set(cacheKey, results, 300_000); // 5 min
+            this.store.dispatch(loadSearchResultsSuccess({ results }));
             this.updateLoadingState(false);
             return of();
           })
         );
       }),
-      catchError(error => {
+      catchError(err => {
         this.updateLoadingState(false);
-        this.errorNotifier.showError('Erro ao buscar usuários.', error.message);
+        this.errorNotifier.showError('Erro ao buscar usuários.', err?.message ?? 'Erro desconhecido');
         return of();
       })
     );
   }
 
-  /**
-   * Atualiza o estado de carregamento no CacheService.
-   * @param state Estado do carregamento (true/false).
-   */
   private updateLoadingState(state: boolean): void {
     this.cacheService.set('loadingSearch', state, 5000);
   }

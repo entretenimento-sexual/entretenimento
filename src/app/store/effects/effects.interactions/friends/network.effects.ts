@@ -1,14 +1,15 @@
-//src\app\store\effects\effects.interactions\friends\network.effects.ts
+// src/app/store/effects/effects.interactions/friends/network.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
+import { Store } from '@ngrx/store';
+import { of, combineLatest } from 'rxjs';
+import { catchError, distinctUntilChanged, filter, map, mergeMap, switchMap } from 'rxjs/operators';
+
 import * as A from '../../../actions/actions.interactions/actions.friends';
 import * as RT from '../../../actions/actions.interactions/friends/friends-realtime.actions';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
-import { Store } from '@ngrx/store';
-import { of } from 'rxjs';
-import { catchError, filter, map, mergeMap, switchMap, distinctUntilChanged } from 'rxjs/operators';
 import { AppState } from 'src/app/store/states/app.state';
-import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
+import { selectAuthReady, selectAuthUid } from 'src/app/store/selectors/selectors.user/auth.selectors';
 
 @Injectable()
 export class FriendsNetworkEffects {
@@ -19,19 +20,22 @@ export class FriendsNetworkEffects {
   ) { }
 
   bootstrapOnUser$ = createEffect(() =>
-    this.store.select(selectCurrentUserUid).pipe(
-      filter((uid): uid is string => !!uid),
+    combineLatest([
+      this.store.select(selectAuthReady),
+      this.store.select(selectAuthUid),
+    ]).pipe(
+      filter(([ready]) => ready === true),
+      map(([, uid]) => uid),
       distinctUntilChanged(),
-      switchMap(uid =>
-        of(
-          A.loadFriends({ uid }),
-          A.loadInboundRequests({ uid }),
-          A.loadOutboundRequests({ uid }),
-          A.loadBlockedUsers({ uid }),
-          RT.startInboundRequestsListener({ uid }),
-          RT.startOutboundRequestsListener({ uid }),
-        )
-      )
+      filter((uid): uid is string => !!uid),
+      switchMap(uid => of(
+        A.loadFriends({ uid }),
+        A.loadInboundRequests({ uid }),
+        A.loadOutboundRequests({ uid }),
+        A.loadBlockedUsers({ uid }),
+        RT.startInboundRequestsListener({ uid }),
+        RT.startOutboundRequestsListener({ uid }),
+      ))
     )
   );
 
@@ -90,4 +94,5 @@ export class FriendsNetworkEffects {
       )
     )
   );
-}
+}//linha 115, não esquecer o debug
+

@@ -6,7 +6,7 @@ import { FormsModule } from '@angular/forms';
 
 import { EmailVerificationService, VerifyEmailResult } from 'src/app/core/services/autentication/register/email-verification.service';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
-import { FirestoreService } from 'src/app/core/services/data-handling/firestore.service';
+import { FirestoreService } from 'src/app/core/services/data-handling/legacy/firestore.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
@@ -78,7 +78,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     private globalErrorHandlerService: GlobalErrorHandlerService,
     private emailInputModalService: EmailInputModalService,
     private dateTime: DateTimeService,
-    private currentUserStore: CurrentUserStoreService, // ✅ substitui AuthService
+    private currentUserStore: CurrentUserStoreService, // ✅ substitui o anterior
   ) { }
 
   ngOnInit(): void {

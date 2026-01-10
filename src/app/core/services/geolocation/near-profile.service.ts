@@ -2,7 +2,7 @@
 import { Injectable } from '@angular/core';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { collection, query, where, getDocs, startAt, limit } from '@firebase/firestore';
-import { FirestoreService } from '../data-handling/firestore.service';
+import { FirestoreService } from '../data-handling/legacy/firestore.service';
 import { geohashQueryBounds } from 'geofire-common';
 import { DistanceCalculationService } from './distance-calculation.service';
 

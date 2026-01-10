@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, Input, OnInit, inject } from '@angu
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Store } from '@ngrx/store';
-import { Observable, filter, map } from 'rxjs';
+import { Observable, filter } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AppState } from 'src/app/store/states/app.state';
@@ -11,9 +11,10 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
 
 import { FriendBlockedComponent } from '../friend-blocked/friend-blocked.component';
-import { FriendListComponent } from '../friend-list/friend-list.component';
 import { FriendRequestsComponent } from '../friend-requests/friend-requests.component';
+import { FriendCardsComponent } from '../friend-cards/friend-cards.component'; // ✅ usa cards
 
+import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
@@ -22,25 +23,29 @@ import { MatButtonModule } from '@angular/material/button';
 import {
   sendFriendRequest,
   resetSendFriendRequestStatus,
-  loadInboundRequests,   // ✅ em vez de loadRequests
-  loadFriends,
+  loadInboundRequests,
 } from 'src/app/store/actions/actions.interactions/actions.friends';
 
 import {
-  selectInboundRequests,                    // ⬅️ em vez de selectFriendRequests
+  selectInboundRequests,
 } from 'src/app/store/selectors/selectors.interactions/friends/inbound.selectors';
 
 import {
-  selectIsSendingFriendRequest,             // ok
+  selectIsSendingFriendRequest,
 } from 'src/app/store/selectors/selectors.interactions/friends/busy.selectors';
 
 import {
-  selectSendFriendRequestError,             // ⬅️ vamos criar
-  selectSendFriendRequestSuccess,           // ⬅️ vamos criar
+  selectSendFriendRequestError,
+  selectSendFriendRequestSuccess,
 } from 'src/app/store/selectors/selectors.interactions/friends/friends.selectors';
 
+import * as P from 'src/app/store/actions/actions.interactions/friends/friends-pagination.actions';
+import {
+  selectFriendsPageItems,
+  selectFriendsPageLoading,
+} from 'src/app/store/selectors/selectors.interactions/friends/pagination.selectors';
+
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
 
 @Component({
   selector: 'app-friend-actions',
@@ -51,8 +56,12 @@ import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
     ReactiveFormsModule,
     SharedMaterialModule,
     FriendBlockedComponent,
-    FriendListComponent,
     FriendRequestsComponent,
+    FriendCardsComponent,            // ✅ importa o componente de cards
+    MatProgressSpinnerModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatButtonModule,
   ],
   templateUrl: './friend-actions.component.html',
   styleUrls: ['./friend-actions.component.css'],
@@ -66,10 +75,14 @@ export class FriendActionsComponent implements OnInit {
 
   form!: FormGroup;
 
-  friendRequests$!: Observable<(FriendRequest & { id: string })[]>; // ✅ tipagem correta
+  friendRequests$!: Observable<(FriendRequest & { id: string })[]>;
   isSending$!: Observable<boolean>;
   sendError$!: Observable<string | null>;
   sendSuccess$!: Observable<boolean>;
+
+  // ✅ Observables para alimentar o card grid
+  friendsItems$!: Observable<any[]>;
+  friendsLoading$!: Observable<boolean>;
 
   ngOnInit(): void {
     this.form = this.fb.group({
@@ -79,15 +92,20 @@ export class FriendActionsComponent implements OnInit {
 
     if (!this.user?.uid) return;
 
-    // store selectors
+    // Inbox de solicitações
     this.friendRequests$ = this.store.select(selectInboundRequests);
     this.isSending$ = this.store.select(selectIsSendingFriendRequest);
     this.sendError$ = this.store.select(selectSendFriendRequestError);
     this.sendSuccess$ = this.store.select(selectSendFriendRequestSuccess);
 
-    // carregar dados iniciais
-    this.store.dispatch(loadFriends({ uid: this.user.uid }));
-    this.store.dispatch(loadInboundRequests({ uid: this.user.uid })); // ✅ era loadRequests()
+    // ✅ Carrega a 1ª página da lista de amigos para este UID (ex.: 12 itens)
+    this.store.dispatch(P.loadFriendsFirstPage({ uid: this.user.uid, pageSize: 12 }));
+    // Inbox de pedidos recebidos
+    this.store.dispatch(loadInboundRequests({ uid: this.user.uid }));
+
+    // ✅ Liga selectors “fábrica” ao UID deste componente
+    this.friendsItems$ = this.store.select(selectFriendsPageItems(this.user.uid));
+    this.friendsLoading$ = this.store.select(selectFriendsPageLoading(this.user.uid));
 
     // feedback de envio
     this.sendSuccess$
@@ -95,7 +113,7 @@ export class FriendActionsComponent implements OnInit {
       .subscribe(() => {
         this.notifier.showSuccess('Solicitação enviada!');
         this.form.reset();
-        this.store.dispatch(loadInboundRequests({ uid: this.user.uid })); // recarrega inbox
+        this.store.dispatch(loadInboundRequests({ uid: this.user.uid }));
         this.store.dispatch(resetSendFriendRequestStatus());
       });
 
@@ -127,7 +145,6 @@ export class FriendActionsComponent implements OnInit {
       return;
     }
 
-    // ✅ nomes de props corretos da action:
     this.store.dispatch(sendFriendRequest({
       requesterUid: this.user.uid,
       targetUid: friendUid,

@@ -1,21 +1,18 @@
 // src/app/store/selectors/selectors.interactions/friends/feature.ts
-import { createFeatureSelector, createSelector } from '@ngrx/store';
+import { createSelector } from '@ngrx/store';
+import { AppState } from 'src/app/store/states/app.state';
 import { FriendsState, initialState } from '../../../states/states.interactions/friends.state';
-import { selectInboundRequests } from './inbound.selectors';
 
 export const FRIENDS_FEATURE_KEY = 'interactions_friends' as const;
 
-export const selectFriendsState =
-  createFeatureSelector<FriendsState>(FRIENDS_FEATURE_KEY);
+// root selector (padrão mais estável no seu setup)
+export const selectFriendsState = (s: AppState): FriendsState =>
+  s?.interactions_friends ?? initialState;
 
-export const selectFriendsStateSafe = createSelector(
-  selectFriendsState,
-  (s) => s ?? initialState
-);
+// ✅ compat: mantém os selectors existentes funcionando
+export const selectFriendsStateSafe = selectFriendsState;
 
 export const selectRequestersMap = createSelector(
-  selectFriendsStateSafe,
-  s => s.requestersMap
+  selectFriendsState,
+  (s) => s.requestersMap
 );
-
-

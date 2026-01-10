@@ -6,7 +6,7 @@ import { Auth } from '@angular/fire/auth';
 import { Observable, from, of } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
 
-import { FirestoreService } from '../data-handling/firestore.service';
+import { FirestoreService } from '../data-handling/legacy/firestore.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';

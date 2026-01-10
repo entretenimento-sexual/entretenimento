@@ -50,7 +50,13 @@
             "browser": "src/main.ts"
           },
           "configurations": {
-              "production": {
+            "production": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.prod.ts"
+                }
+              ],
               "budgets": [
                 {
                   "type": "initial",
@@ -63,7 +69,11 @@
                   "maximumError": "4kb"
                 }
               ],
-              "outputHashing": "all"
+              "optimization": true,
+              "outputHashing": "all",
+              "sourceMap": false,
+              "extractLicenses": true,
+              "namedChunks": false
             },
             "development": {
               "optimization": false,
@@ -83,8 +93,21 @@
               "sourceMap": true,
               "extractLicenses": false,
               "namedChunks": true
+            },
+            "dev-emu": {
+              "fileReplacements": [
+                {
+                  "replace": "src/environments/environment.ts",
+                  "with": "src/environments/environment.dev-emu.ts"
+                }
+              ],
+              "optimization": false,
+              "outputHashing": "none",
+              "sourceMap": true,
+              "extractLicenses": false,
+              "namedChunks": true
             }
-      },
+          },
           "defaultConfiguration": "production"
         },
         "serve": {
@@ -98,6 +121,9 @@
             },
             "staging": {
               "buildTarget": "entretenimento:build:staging"
+            },
+            "dev-emu": {
+              "buildTarget": "entretenimento:build:dev-emu"
             }
           },
           "defaultConfiguration": "development"

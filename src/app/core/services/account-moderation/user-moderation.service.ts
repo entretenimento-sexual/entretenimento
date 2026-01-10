@@ -1,6 +1,6 @@
 //src\app\core\services\autentication\account-moderation\user-moderation.service.ts
 import { Injectable } from '@angular/core';
-import { FirestoreService } from '../data-handling/firestore.service';
+import { FirestoreService } from '../data-handling/legacy/firestore.service';
 import { Timestamp } from 'firebase/firestore';
 import { Observable, of, tap } from 'rxjs';
 import { AdminLogService } from './admin-log.service';

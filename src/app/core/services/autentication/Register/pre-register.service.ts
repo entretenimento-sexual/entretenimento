@@ -1,7 +1,7 @@
 //src\app\core\services\autentication\Register\pre-register.service.ts
 import { Injectable } from '@angular/core';
 import { addDoc, collection } from '@firebase/firestore';
-import { FirestoreService } from '../../data-handling/firestore.service';
+import { FirestoreService } from '../../data-handling/legacy/firestore.service';
 
 @Injectable({
   providedIn: 'root'

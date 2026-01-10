@@ -2,21 +2,30 @@
 import { Injectable } from '@angular/core';
 import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, switchMap, map, tap, timeout } from 'rxjs/operators';
+
 import { Auth } from '@angular/fire/auth';
+import { Firestore } from '@angular/fire/firestore';
 import { doc, runTransaction, writeBatch, Timestamp } from 'firebase/firestore';
-import { FirestoreService } from '../../data-handling/firestore.service';
+
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
-import { FirestoreValidationService } from '../../data-handling/firestore-validation.service';
+import { FirestoreValidationService } from '../../data-handling/firestore/validation/firestore-validation.service';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { EmailVerificationService } from './email-verification.service';
 import { ValidatorService } from '../../general/validator.service';
 import { FirebaseError } from 'firebase/app';
 import { environment } from 'src/environments/environment';
-import { createUserWithEmailAndPassword, sendPasswordResetEmail, updateProfile,
-         UserCredential } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  updateProfile,
+  UserCredential,
+  fetchSignInMethodsForEmail,
+} from 'firebase/auth';
+
 import { userConverter } from '../../data-handling/converters/user.firestore-converter';
 import { CurrentUserStoreService } from '../auth/current-user-store.service';
 import { CacheService } from '../../general/cache/cache.service';
+import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 
 type SignupContext = {
   cred: UserCredential;
@@ -28,23 +37,17 @@ export class RegisterService {
   private readonly NET_TIMEOUT_MS = 12_000;
 
   constructor(
-    private firestoreService: FirestoreService,
-    private emailVerificationService: EmailVerificationService,
-    private globalErrorHandler: GlobalErrorHandlerService,
-    private firestoreValidation: FirestoreValidationService,
-    private currentUserStore: CurrentUserStoreService,
-    private cache: CacheService,
-    // ⬇️ injeta a instância de Auth fornecida por provideAuth(...)
-    private auth: Auth,
-  ) {
-    if (!environment.production) {
-      console.log('[RegisterService] Serviço carregado.');
-    }
-  }
+    private readonly emailVerificationService: EmailVerificationService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly firestoreValidation: FirestoreValidationService,
+    private readonly currentUserStore: CurrentUserStoreService,
+    private readonly cache: CacheService,
+    private readonly auth: Auth,
+    private readonly db: Firestore,
+    private readonly ctx: FirestoreContextService
+  ) { }
 
   registerUser(userData: IUserRegistrationData, password: string): Observable<UserCredential> {
-    console.log('[RegisterService] registerUser iniciado', userData);
-
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       return this.handleRegisterError(new Error('Sem conexão com a internet. Verifique e tente novamente.'), 'Rede');
     }
@@ -55,6 +58,7 @@ export class RegisterService {
           timeout({ each: this.NET_TIMEOUT_MS }),
         )
       ),
+
       switchMap((cred) => {
         const now = Date.now();
         const payload: IUserRegistrationData = {
@@ -78,32 +82,32 @@ export class RegisterService {
         );
       }),
 
-      switchMap((ctx) =>
-        this.emailVerificationService.sendEmailVerification(ctx.cred.user).pipe(
+      switchMap((ctx2) =>
+        this.emailVerificationService.sendEmailVerification(ctx2.cred.user).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
           catchError((err) => {
-            console.log('[RegisterService] Falha ao enviar e-mail de verificação:', err);
-            ctx.warns.push('email-verification-failed');
+            this.safeHandle('[RegisterService] Falha ao enviar e-mail de verificação (warn).', err);
+            ctx2.warns.push('email-verification-failed');
             return of(void 0);
           }),
-          map(() => ctx)
+          map(() => ctx2)
         )
       ),
 
-      switchMap((ctx) =>
-        from(updateProfile(ctx.cred.user, { displayName: userData.nickname, photoURL: '' })).pipe(
+      switchMap((ctx2) =>
+        from(updateProfile(ctx2.cred.user, { displayName: userData.nickname, photoURL: '' })).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
           catchError((err) => {
-            console.log('[RegisterService] Falha no updateProfile:', err);
-            ctx.warns.push('update-profile-failed');
+            this.safeHandle('[RegisterService] Falha no updateProfile (warn).', err);
+            ctx2.warns.push('update-profile-failed');
             return of(void 0);
           }),
-          map(() => ctx)
+          map(() => ctx2)
         )
       ),
 
-      tap((ctx) => {
-        const { user } = ctx.cred;
+      tap((ctx2) => {
+        const { user } = ctx2.cred;
         const now = Date.now();
         this.seedLocalStateAfterSignup(user.uid, {
           uid: user.uid,
@@ -116,12 +120,14 @@ export class RegisterService {
           firstLogin: userData.firstLogin ?? now,
           acceptedTerms: userData.acceptedTerms,
         });
-        if (ctx.warns.length) {
-          console.log('[RegisterService] Aviso(s) não-críticos na criação:', ctx.warns.join(', '));
+
+        if (!environment.production && ctx2.warns.length) {
+          // logs leves em dev
+          console.debug('[RegisterService] Warn(s):', ctx2.warns.join(', '));
         }
       }),
 
-      map((ctx) => ctx.cred),
+      map((ctx2) => ctx2.cred),
 
       catchError((err) => this.handleRegisterError(err, 'Registro'))
     );
@@ -138,9 +144,7 @@ export class RegisterService {
 
     return this.firestoreValidation.checkIfNicknameExists(nickname).pipe(
       switchMap((exists) => {
-        if (exists) {
-          return this.handleRegisterError(new Error('Apelido já está em uso.'), 'Validação');
-        }
+        if (exists) return this.handleRegisterError(new Error('Apelido já está em uso.'), 'Validação');
         return this.checkIfEmailExists(user.email);
       })
     );
@@ -151,9 +155,10 @@ export class RegisterService {
   }
 
   private checkIfEmailExists(email: string): Observable<void> {
-    return this.firestoreService.checkIfEmailExists(email).pipe(
-      switchMap((exists) => {
-        if (!exists) return of(void 0);
+    return from(fetchSignInMethodsForEmail(this.auth, email)).pipe(
+      switchMap((methods) => {
+        if (!methods || methods.length === 0) return of(void 0);
+
         return from(sendPasswordResetEmail(this.auth, email)).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
           switchMap(() =>
@@ -176,74 +181,43 @@ export class RegisterService {
     );
   }
 
-  private persistUserAndIndexAtomic(
-    uid: string,
-    nickname: string,
-    payload: IUserRegistrationData
-  ): Observable<void> {
-    const db = this.firestoreService.getFirestoreInstance();
+  private persistUserAndIndexAtomic(uid: string, nickname: string, payload: IUserRegistrationData): Observable<void> {
     const normalized = nickname.trim().toLowerCase();
 
-    const userRef = doc(db, 'users', uid).withConverter(userConverter);
-    const indexRef = doc(db, 'public_index', `nickname:${normalized}`);
+    return this.ctx.deferPromise$(() =>
+      runTransaction(this.db as any, async (transaction) => {
+        const userRef = doc(this.db as any, 'users', uid).withConverter(userConverter as any);
+        const indexRef = doc(this.db as any, 'public_index', `nickname:${normalized}`);
 
-    return from(runTransaction(db, async (transaction) => {
-      const idxSnap = await transaction.get(indexRef);
-      if (idxSnap.exists()) {
-        const err: any = new Error('Apelido já está em uso.');
-        err.code = 'nickname-in-use';
-        throw err;
-      }
+        const idxSnap = await transaction.get(indexRef);
+        if (idxSnap.exists()) {
+          const err: any = new Error('Apelido já está em uso.');
+          err.code = 'nickname-in-use';
+          throw err;
+        }
 
-      transaction.set(
-        userRef,
-        {
-          ...payload,
-          nicknameHistory: [{ nickname: normalized, date: Date.now() }] // ✅ epoch (ms)
-        },
-        { merge: true }
-      );
+        transaction.set(
+          userRef,
+          { ...payload, nicknameHistory: [{ nickname: normalized, date: Date.now() }] },
+          { merge: true }
+        );
 
-      // índice pode ficar com Timestamp; não vai pro Store
-      transaction.set(indexRef, {
-        type: 'nickname',
-        value: normalized,
-        uid,
-        createdAt: Timestamp.now(),
-        lastChangedAt: Timestamp.now()
-      });
-    })).pipe(
-      tap(() => console.debug('[RegisterService] persistUserAndIndexAtomic → OK')),
-      map(() => void 0)
-    );
-  }
-
-  private cleanupOnFailure(uid: string, nickname: string): Observable<void> {
-    const db = this.firestoreService.getFirestoreInstance();
-    const normalized = nickname.trim().toLowerCase();
-
-    const userRef = doc(db, 'users', uid);
-    const indexRef = doc(db, 'public_index', `nickname:${normalized}`);
-    const batch = writeBatch(db);
-
-    console.log('[RegisterService] cleanupOnFailure → iniciando cleanup', { uid, normalized });
-
-    batch.delete(userRef);
-    batch.delete(indexRef);
-
-    return from(batch.commit()).pipe(
-      catchError(err => {
-        console.log('[RegisterService] cleanupOnFailure → falha ao limpar Firestore/Índice', err);
-        return of(void 0);
-      }),
-      switchMap(() => this.deleteUserOnFailure(uid)),
-      catchError(() => of(void 0)),
-      map(() => void 0)
+        transaction.set(indexRef, {
+          type: 'nickname',
+          value: normalized,
+          uid,
+          createdAt: Timestamp.now(),
+          lastChangedAt: Timestamp.now()
+        });
+      })
+    ).pipe(
+      map(() => void 0),
+      catchError(err => throwError(() => err))
     );
   }
 
   private rollbackUser(uid: string, error: any): Observable<never> {
-    return from(this.deleteUserOnFailure(uid)).pipe(
+    return this.deleteUserOnFailure(uid).pipe(
       switchMap(() => throwError(() => error)),
       catchError((rollbackErr) => {
         this.globalErrorHandler.handleError(rollbackErr);
@@ -256,7 +230,6 @@ export class RegisterService {
     const currentUser = this.auth.currentUser;
     if (currentUser?.uid === uid) {
       return from(currentUser.delete()).pipe(
-        tap(() => console.debug('[RegisterService] usuário deletado com sucesso')),
         catchError((error) => {
           this.globalErrorHandler.handleError(error);
           return throwError(() => new Error('Erro ao deletar usuário.'));
@@ -276,25 +249,19 @@ export class RegisterService {
       emailVerified: !!data.emailVerified,
       isSubscriber: !!data.isSubscriber,
       profileCompleted: !!data.profileCompleted,
-
       firstLogin: typeof data.firstLogin === 'number' ? data.firstLogin : now,
       registrationDate: typeof data.registrationDate === 'number' ? data.registrationDate : now,
-
-      acceptedTerms: {
-        accepted: !!data.acceptedTerms?.accepted,
-        date: data.acceptedTerms?.date ?? now,
-      },
+      acceptedTerms: { accepted: !!data.acceptedTerms?.accepted, date: data.acceptedTerms?.date ?? now },
     };
 
     this.currentUserStore.set(snapshot as any);
     this.cache.syncCurrentUserWithUid(snapshot as any);
-    console.log('[RegisterService] Estado local semeado (CurrentUserStore/Cache).');
   }
 
   private handleRegisterError(error: any, context = 'Erro no registro'): Observable<never> {
     const message = this.mapErrorMessage(error);
-    console.log(`[${context}]`, error);
-    this.globalErrorHandler.handleError(new Error(message));
+    this.safeHandle(`[RegisterService] ${context}`, error, { mappedMessage: message });
+
     const userErr: any = new Error(message);
     if (error && (error as any).code) userErr.code = (error as any).code;
     return throwError(() => userErr);
@@ -316,11 +283,17 @@ export class RegisterService {
       }
     }
 
-    if (error?.name === 'TimeoutError') {
-      return 'Conexão lenta. Tente novamente em instantes.';
-    }
-
+    if (error?.name === 'TimeoutError') return 'Conexão lenta. Tente novamente em instantes.';
     if (error instanceof Error) return error.message;
     return 'Erro inesperado no processo de registro.';
+  }
+
+  private safeHandle(msg: string, original: unknown, meta?: Record<string, unknown>): void {
+    try {
+      const e = new Error(msg);
+      (e as any).original = original;
+      (e as any).meta = meta;
+      this.globalErrorHandler.handleError(e);
+    } catch { }
   }
 }

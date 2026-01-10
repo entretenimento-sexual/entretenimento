@@ -57,9 +57,10 @@ export class CacheService {
    * Idempotência: se os dados **e** a expiração não mudarem, a operação é "noop"
    * (evita spam de log e escrita redundante em IndexedDB/localStorage).
    */
-  set<T>(key: string, data: T, ttl?: number): void {
+  set<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
     const normalizedKey = this.normalizeKey(key);
     const expiration = ttl ? Date.now() + ttl : null;
+    const persist = opts?.persist ?? true;
 
     const prev = this.cache.get(normalizedKey);
     const sameData = prev ? this.deepEqual(prev.data, data) : false;
@@ -73,10 +74,10 @@ export class CacheService {
     this.log(`set → "${normalizedKey}"`, { expiration });
     this.cache.set(normalizedKey, { data, expiration });
 
-    // IndexedDB (durável)
-    this.cachePersistence.setPersistent(normalizedKey, data).subscribe(() => { });
+    if (persist) {
+      this.cachePersistence.setPersistent(normalizedKey, data).subscribe(() => { });
+    }
 
-    // Espelho síncrono apenas para chaves quentes
     if (HOT_KEYS.has(normalizedKey)) {
       this.mirrorHotKeyToLocalStorage(normalizedKey, data);
     }
@@ -111,8 +112,9 @@ export class CacheService {
    * Atualiza um item já existente (mantém/renova TTL).
    * Idempotente: se o valor não mudou e a expiração é a mesma, não persiste novamente.
    */
-  update<T>(key: string, data: T, ttl?: number): void {
+  update<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
     const normalizedKey = this.normalizeKey(key);
+    const persist = opts?.persist ?? true;
 
     if (!this.cache.has(normalizedKey)) {
       this.log(`update → chave inexistente: "${normalizedKey}"`);
@@ -127,16 +129,15 @@ export class CacheService {
     const sameData = this.deepEqual(prev.data, data);
     const sameExp = prev.expiration === newExpiration;
 
-    if (sameData && sameExp) {
-      // this.log(`update (noop) → "${normalizedKey}"`);
-      return;
-    }
+    if (sameData && sameExp) return;
 
     this.cache.set(normalizedKey, { data, expiration: newExpiration });
     this.log(`update → "${normalizedKey}"`, { expiration: newExpiration });
 
-    // Mantém persistência/espelho como em set()
-    this.cachePersistence.setPersistent(normalizedKey, data).subscribe(() => { });
+    if (persist) {
+      this.cachePersistence.setPersistent(normalizedKey, data).subscribe(() => { });
+    }
+
     if (HOT_KEYS.has(normalizedKey)) {
       this.mirrorHotKeyToLocalStorage(normalizedKey, data);
     }

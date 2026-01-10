@@ -216,3 +216,5 @@ export class AuthService {
     );
   }
 }
+// auth.service.ts está sendo descontinuado
+// Favor migrar para AuthOrchestratorService.ts e outros novos serviços de auth

@@ -3,7 +3,6 @@ import { Component, OnInit, OnDestroy } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/iuser-social-links';
 import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-social-links.service';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
 import { Subject, takeUntil } from 'rxjs';
 
 @Component({
@@ -21,7 +20,6 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
   constructor(
     private route: ActivatedRoute,
     private router: Router,
-    private authService: AuthService,
     private userSocialLinksService: UserSocialLinksService,
   ) { }
 

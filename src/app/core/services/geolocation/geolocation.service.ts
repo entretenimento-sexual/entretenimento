@@ -4,7 +4,7 @@ import { Observable, defer, from, firstValueFrom, switchMap } from 'rxjs';
 import { geohashForLocation } from 'geofire-common';
 import { GeoCoordinates } from '../../interfaces/geolocation.interface';
 
-export type UserRole = 'vip' | 'premium' | 'basico' | 'free' | string;
+export type UserRole = 'vip' | 'premium' | 'basic' | 'free' | string;
 
 export interface GeoPolicy {
   geohashLen: number;    // precisão de geohash para consultas

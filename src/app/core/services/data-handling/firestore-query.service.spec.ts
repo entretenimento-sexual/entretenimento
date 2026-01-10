@@ -3,18 +3,23 @@ import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { expect as jestExpect } from '@jest/globals';
 
-import * as fb from 'firebase/firestore';
-
+import { Firestore } from '@angular/fire/firestore';
 import { FirestoreQueryService } from './firestore-query.service';
-import { FirestoreService } from './firestore.service';
+
 import { CacheService } from '../general/cache/cache.service';
 import { FirestoreUserQueryService } from './firestore-user-query.service';
+import { FirestoreReadService } from './firestore/core/firestore-read.service';
+import { UserPresenceQueryService } from './queries/user-presence.query.service';
+
 import { IUserDados } from '../../interfaces/iuser-dados';
 
-class MockFirestoreService {
-  getFirestoreInstance = jest.fn().mockReturnValue({} as any);
+// ========================
+// Mocks
+// ========================
+
+class MockFirestoreReadService {
   getDocument = jest.fn().mockReturnValue(of(null));
-  getDocuments = jest.fn().mockReturnValue(of([]));
+  getDocumentsOnce = jest.fn().mockReturnValue(of([]));
 }
 
 class MockCacheService {
@@ -26,26 +31,42 @@ class MockFirestoreUserQueryService {
   getUserWithObservable = jest.fn().mockReturnValue(of(null));
 }
 
+class MockUserPresenceQueryService {
+  getOnlineUsers$ = jest.fn().mockReturnValue(of([]));
+  getOnlineUsersOnce$ = jest.fn().mockReturnValue(of([]));
+  getOnlineUsersByRegion$ = jest.fn().mockReturnValue(of([]));
+  getRecentlyOnline$ = jest.fn().mockReturnValue(of([]));
+}
+
 describe('FirestoreQueryService (Jest)', () => {
   let service: FirestoreQueryService;
-  let mockFs: MockFirestoreService;
+
+  let mockRead: MockFirestoreReadService;
   let mockCache: MockCacheService;
   let mockUserQuery: MockFirestoreUserQueryService;
+  let mockPresence: MockUserPresenceQueryService;
+
+  const firestoreMock = {} as unknown as Firestore;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
         FirestoreQueryService,
-        { provide: FirestoreService, useClass: MockFirestoreService },
+
+        { provide: Firestore, useValue: firestoreMock },
         { provide: CacheService, useClass: MockCacheService },
         { provide: FirestoreUserQueryService, useClass: MockFirestoreUserQueryService },
+        { provide: FirestoreReadService, useClass: MockFirestoreReadService },
+        { provide: UserPresenceQueryService, useClass: MockUserPresenceQueryService },
       ],
     });
 
     service = TestBed.inject(FirestoreQueryService);
-    mockFs = TestBed.inject(FirestoreService) as unknown as MockFirestoreService;
+
+    mockRead = TestBed.inject(FirestoreReadService) as unknown as MockFirestoreReadService;
     mockCache = TestBed.inject(CacheService) as unknown as MockCacheService;
     mockUserQuery = TestBed.inject(FirestoreUserQueryService) as unknown as MockFirestoreUserQueryService;
+    mockPresence = TestBed.inject(UserPresenceQueryService) as unknown as MockUserPresenceQueryService;
 
     jest.clearAllMocks();
   });
@@ -54,29 +75,32 @@ describe('FirestoreQueryService (Jest)', () => {
     expect(service).toBeTruthy();
   });
 
-  it('getFirestoreInstance delega para FirestoreService.getFirestoreInstance', () => {
+  it('getFirestoreInstance retorna a instância injetada', () => {
     const instance = service.getFirestoreInstance();
-    expect(mockFs.getFirestoreInstance).toHaveBeenCalled();
-    expect(instance).toBeTruthy();
+    expect(instance).toBe(firestoreMock);
   });
 
-  it('getDocumentById delega para FirestoreService.getDocument', (done) => {
+  it('getDocumentById delega para FirestoreReadService.getDocument', (done) => {
     const obj = { uid: '123' } as unknown as IUserDados;
-    mockFs.getDocument.mockReturnValue(of(obj));
+    mockRead.getDocument.mockReturnValueOnce(of(obj));
 
-    service.getDocumentById<IUserDados>('users', '123').subscribe((res) => {
-      expect(mockFs.getDocument).toHaveBeenCalledWith('users', '123');
+    service.getDocumentById<IUserDados>('users', '123').subscribe((res: IUserDados | null) => {
+      expect(mockRead.getDocument).toHaveBeenCalledWith('users', '123');
       expect(res).toEqual(obj);
       done();
     });
   });
 
-  it('getDocumentsByQuery delega para FirestoreService.getDocuments', (done) => {
+  it('getDocumentsByQuery delega para FirestoreReadService.getDocumentsOnce (com cache)', (done) => {
     const result = [{ uid: '1' }] as unknown as IUserDados[];
-    mockFs.getDocuments.mockReturnValue(of(result));
+    mockRead.getDocumentsOnce.mockReturnValueOnce(of(result));
 
-    service.getDocumentsByQuery<IUserDados>('users', []).subscribe((res) => {
-      expect(mockFs.getDocuments).toHaveBeenCalledWith('users', jestExpect.any(Array));
+    service.getDocumentsByQuery<IUserDados>('users', []).subscribe((res: IUserDados[]) => {
+      expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
+        'users',
+        jestExpect.any(Array),
+        { useCache: true, cacheTTL: 300_000 }
+      );
       expect(res).toEqual(result);
       done();
     });
@@ -87,9 +111,9 @@ describe('FirestoreQueryService (Jest)', () => {
       const cached = [{ uid: 'c1' }] as unknown as IUserDados[];
       mockCache.get.mockReturnValueOnce(of(cached));
 
-      service.getAllUsers().subscribe((res) => {
+      service.getAllUsers().subscribe((res: IUserDados[]) => {
         expect(res).toEqual(cached);
-        expect(mockFs.getDocuments).not.toHaveBeenCalled();
+        expect(mockRead.getDocumentsOnce).not.toHaveBeenCalled();
         expect(mockCache.set).not.toHaveBeenCalled();
         done();
       });
@@ -98,109 +122,120 @@ describe('FirestoreQueryService (Jest)', () => {
     it('busca e seta cache quando não houver', (done) => {
       const users = [{ uid: 'u1' }, { uid: 'u2' }] as unknown as IUserDados[];
       mockCache.get.mockReturnValueOnce(of(undefined));
-      mockFs.getDocuments.mockReturnValueOnce(of(users));
+      mockRead.getDocumentsOnce.mockReturnValueOnce(of(users));
 
-      service.getAllUsers().subscribe((res) => {
+      service.getAllUsers().subscribe((res: IUserDados[]) => {
         expect(res).toEqual(users);
-        expect(mockFs.getDocuments).toHaveBeenCalledWith('users', jestExpect.any(Array));
+        expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
+          'users',
+          jestExpect.any(Array),
+          { useCache: true, cacheTTL: 300_000 }
+        );
         expect(mockCache.set).toHaveBeenCalledWith('allUsers', users, 600_000);
         done();
       });
     });
   });
 
-  describe('getOnlineUsers', () => {
-    it('consulta sem cache e aplica where isOnline==true', (done) => {
-      const users = [{ uid: 'o1' }, { uid: 'o2' }] as unknown as IUserDados[];
-      mockFs.getDocuments.mockReturnValueOnce(of(users));
+  describe('presença (delegação)', () => {
+    it('getOnlineUsers$ delega para UserPresenceQueryService.getOnlineUsers$', (done) => {
+      const users = [{ uid: 'o1', isOnline: true }] as unknown as IUserDados[];
+      mockPresence.getOnlineUsers$.mockReturnValueOnce(of(users));
 
-      service.getOnlineUsers().subscribe((res) => {
+      service.getOnlineUsers$().subscribe((res: IUserDados[]) => {
+        expect(mockPresence.getOnlineUsers$).toHaveBeenCalled();
         expect(res).toEqual(users);
-        // garante que foi delegada a consulta com constraints
-        expect(mockFs.getDocuments).toHaveBeenCalledWith('users', jestExpect.any(Array));
-        // sem cache
-        expect(mockCache.get).not.toHaveBeenCalled();
-        expect(mockCache.set).not.toHaveBeenCalled();
+        done();
+      });
+    });
+
+    it('getOnlineUsers delega para UserPresenceQueryService.getOnlineUsersOnce$', (done) => {
+      const users = [{ uid: 'o1', isOnline: true }] as unknown as IUserDados[];
+      mockPresence.getOnlineUsersOnce$.mockReturnValueOnce(of(users));
+
+      service.getOnlineUsers().subscribe((res: IUserDados[]) => {
+        expect(mockPresence.getOnlineUsersOnce$).toHaveBeenCalled();
+        expect(res).toEqual(users);
+        done();
+      });
+    });
+
+    it('getOnlineUsersByRegion delega para UserPresenceQueryService.getOnlineUsersByRegion$', (done) => {
+      const users = [{ uid: 'r1', municipio: 'Rio', isOnline: true }] as unknown as IUserDados[];
+      mockPresence.getOnlineUsersByRegion$.mockReturnValueOnce(of(users));
+
+      service.getOnlineUsersByRegion('Rio').subscribe((res: IUserDados[]) => {
+        expect(mockPresence.getOnlineUsersByRegion$).toHaveBeenCalledWith('Rio');
+        expect(res).toEqual(users);
+        done();
+      });
+    });
+
+    it('getRecentlyOnline$ delega para UserPresenceQueryService.getRecentlyOnline$', (done) => {
+      const users = [{ uid: 'x1' }] as unknown as IUserDados[];
+      mockPresence.getRecentlyOnline$.mockReturnValueOnce(of(users));
+
+      service.getRecentlyOnline$(45_000).subscribe((res: IUserDados[]) => {
+        expect(mockPresence.getRecentlyOnline$).toHaveBeenCalledWith(45_000);
+        expect(res).toEqual(users);
         done();
       });
     });
   });
 
-  it('getUsersByMunicipio aplica where', (done) => {
-    const users = [{ uid: 'm1', municipio: 'Rio' }] as unknown as IUserDados[];
-    mockFs.getDocuments.mockReturnValueOnce(of(users));
+  describe('wrappers compat', () => {
+    it('getUsersByMunicipio aplica where (1 constraint)', (done) => {
+      const users = [{ uid: 'm1', municipio: 'Rio' }] as unknown as IUserDados[];
+      mockRead.getDocumentsOnce.mockReturnValueOnce(of(users));
 
-    service.getUsersByMunicipio('Rio').subscribe((res) => {
-      expect(res).toEqual(users);
-      const lastArgs = mockFs.getDocuments.mock.calls.at(-1)!;
-      expect(lastArgs[0]).toBe('users');
-      expect(Array.isArray(lastArgs[1])).toBe(true);
-      expect((lastArgs[1] as any[]).length).toBe(1);
-      done();
-    });
-  });
+      service.getUsersByMunicipio('Rio').subscribe((res: IUserDados[]) => {
+        expect(res).toEqual(users);
 
-  it('getOnlineUsersByMunicipio filtra pela cidade', (done) => {
-    const list = [
-      { uid: '1', municipio: 'Rio' },
-      { uid: '2', municipio: 'Niterói' },
-      { uid: '3', municipio: 'Rio' },
-    ] as unknown as IUserDados[];
+        const last = mockRead.getDocumentsOnce.mock.calls.at(-1)!;
+        expect(last[0]).toBe('users');
+        expect(Array.isArray(last[1])).toBe(true);
+        expect((last[1] as any[]).length).toBe(1);
 
-    jest.spyOn(service, 'getOnlineUsers').mockReturnValue(of(list));
-
-    service.getOnlineUsersByMunicipio('Rio').subscribe((res) => {
-      expect(res.length).toBe(2);
-      expect(res.every(u => u.municipio === 'Rio')).toBe(true);
-      done();
-    });
-  });
-
-  it('getOnlineUsersByRegion emite via onSnapshot (mock)', (done) => {
-    jest.spyOn(fb, 'collection').mockReturnValue({} as any);
-    jest.spyOn(fb, 'query').mockReturnValue({} as any);
-    // inclui "id" nos docs para preencher o idField 'uid'
-    (jest.spyOn(fb as any, 'onSnapshot') as unknown as jest.Mock).mockImplementation((_q: any, next: Function) => {
-      const fakeSnap = {
-        docs: [
-          { id: 'r1', data: () => ({ municipio: 'Rio', isOnline: true }) },
-          { id: 'r2', data: () => ({ municipio: 'Rio', isOnline: true }) },
-        ],
-      };
-      next(fakeSnap);
-      return () => { };
+        done();
+      });
     });
 
-    service.getOnlineUsersByRegion('Rio').subscribe((res) => {
-      expect(mockFs.getFirestoreInstance).toHaveBeenCalled();
-      expect(fb.collection).toHaveBeenCalled();
-      expect(fb.query).toHaveBeenCalled();
-      expect((fb as any).onSnapshot).toHaveBeenCalled();
-      expect(res.length).toBe(2);
-      expect(res[0].uid).toBe('r1'); // agora vem de d.id
-      done();
+    it('getOnlineUsersByMunicipio delega para getOnlineUsersByRegion', (done) => {
+      const users = [{ uid: '1', municipio: 'Rio', isOnline: true }] as unknown as IUserDados[];
+      mockPresence.getOnlineUsersByRegion$.mockReturnValueOnce(of(users));
+
+      service.getOnlineUsersByMunicipio('Rio').subscribe((res: IUserDados[]) => {
+        expect(mockPresence.getOnlineUsersByRegion$).toHaveBeenCalledWith('Rio');
+        expect(res).toEqual(users);
+        done();
+      });
     });
-  });
 
-  it('getSuggestedProfiles delega para getDocuments([])', (done) => {
-    const users = [{ uid: 's1' }] as unknown as IUserDados[];
-    mockFs.getDocuments.mockReturnValueOnce(of(users));
+    it('getSuggestedProfiles delega para getDocumentsOnce com constraints []', (done) => {
+      const users = [{ uid: 's1' }] as unknown as IUserDados[];
+      mockRead.getDocumentsOnce.mockReturnValueOnce(of(users));
 
-    service.getSuggestedProfiles().subscribe((res) => {
-      expect(res).toEqual(users);
-      expect(mockFs.getDocuments).toHaveBeenCalledWith('users', jestExpect.any(Array));
-      done();
+      service.getSuggestedProfiles().subscribe((res: IUserDados[]) => {
+        expect(res).toEqual(users);
+        expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
+          'users',
+          jestExpect.any(Array),
+          { useCache: true, cacheTTL: 300_000 }
+        );
+        done();
+      });
     });
   });
 
   it('getProfilesByOrientationAndLocation envia 3 constraints', (done) => {
     const users = [{ uid: 'p1' }] as unknown as IUserDados[];
-    mockFs.getDocuments.mockReturnValueOnce(of(users));
+    mockRead.getDocumentsOnce.mockReturnValueOnce(of(users));
 
-    service.getProfilesByOrientationAndLocation('M', 'hetero', 'Rio').subscribe((res) => {
+    service.getProfilesByOrientationAndLocation('M', 'hetero', 'Rio').subscribe((res: IUserDados[]) => {
       expect(res).toEqual(users);
-      const [, constraints] = mockFs.getDocuments.mock.calls.at(-1)!;
-      expect((constraints as any[]).length).toBe(3);
+      const last = mockRead.getDocumentsOnce.mock.calls.at(-1)!;
+      const constraints = last[1] as any[];
+      expect(constraints.length).toBe(3);
       done();
     });
   });
@@ -209,21 +244,25 @@ describe('FirestoreQueryService (Jest)', () => {
     const user = { uid: 'uX' } as unknown as IUserDados;
     mockUserQuery.getUserWithObservable.mockReturnValueOnce(of(user));
 
-    service.getUserFromState('uX').subscribe((res) => {
+    service.getUserFromState('uX').subscribe((res: IUserDados | null) => {
       expect(res).toEqual(user);
       expect(mockUserQuery.getUserWithObservable).toHaveBeenCalledWith('uX');
       done();
     });
   });
 
-  it('searchUsers delega para getDocuments com constraints', (done) => {
+  it('searchUsers delega para getDocumentsOnce com constraints', (done) => {
     const constraints: any[] = [{}, {}];
     const result = [{ uid: 'z1' }] as unknown as IUserDados[];
-    mockFs.getDocuments.mockReturnValueOnce(of(result));
+    mockRead.getDocumentsOnce.mockReturnValueOnce(of(result));
 
-    service.searchUsers(constraints as any).subscribe((res) => {
+    service.searchUsers(constraints as any).subscribe((res: IUserDados[]) => {
       expect(res).toEqual(result);
-      expect(mockFs.getDocuments).toHaveBeenCalledWith('users', constraints as any);
+      expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
+        'users',
+        constraints as any,
+        { useCache: true, cacheTTL: 300_000 }
+      );
       done();
     });
   });

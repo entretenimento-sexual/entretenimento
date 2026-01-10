@@ -15,13 +15,13 @@
 
   <section class="latest-photos-section">
     <h2>Últimas Fotos</h2>
-    <!--<app-latest-photos></app-latest-photos>  Novo componente -->
+    <!-- <app-latest-photos></app-latest-photos> -->
   </section>
 
-  <section class="friends-section">
+  <section class="friends-section" aria-labelledby="friends-heading">
     <h2 id="friends-heading">Seus Amigos</h2>
 
-    <!-- ✅ NOVO: mini-toolbar acessível -->
+    <!-- Toolbar -->
     <div role="toolbar" aria-labelledby="friends-heading" class="friends-toolbar"
       style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
       <button class="btn btn-secondary" type="button" (click)="toggleExpand()" aria-controls="friends-list-region"
@@ -42,17 +42,16 @@
         Só online
       </mat-slide-toggle>
 
-      <!-- Link para página completa -->
       <a class="btn btn-secondary" routerLink="/friends/list">Ver Todos</a>
     </div>
 
-    @if ((currentUser$ | async); as user) {
+    <!-- Grid de cards -->
     <div id="friends-list-region">
-      <app-friend-list [user]="user" [limit]="expanded() ? 0 : 6" [displayMode]="expanded() ? 'full' : 'dashboard'"
-        [sortBy]="sortBy()" [filters]="filters()">
-      </app-friend-list>
+      <app-friend-cards [items]="(items$ | async) ?? []" [isLoading]="(loading$ | async) ?? false"
+        [reachedEnd]="(reachedEnd$ | async) ?? false" [displayMode]="expanded() ? 'full' : 'dashboard'"
+        [limit]="expanded() ? 0 : 6" [sortBy]="sortBy()"
+        [filters]="{ onlyOnline: (filters().onlyOnline ?? false) }"></app-friend-cards>
     </div>
-    }
 
     @if (showSeeAll$ | async) {
     <button class="btn btn-secondary ver-todos" routerLink="/friends/list">Ver Todos</button>

@@ -1,8 +1,8 @@
 // src\app\core\services\usuario.service.ts
 import { Injectable } from '@angular/core';
-import { Observable, catchError, from, tap, throwError } from 'rxjs';
+import { Observable, catchError, from, of, tap, throwError } from 'rxjs';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { doc, getDoc, Timestamp, updateDoc } from '@firebase/firestore';
+import { doc, getDoc, updateDoc } from '@firebase/firestore';
 import { User } from 'firebase/auth';
 import { UserProfileService } from './user-profile.service';
 import { Store } from '@ngrx/store';
@@ -25,7 +25,7 @@ export class UsuarioService {
               private store: Store<AppState>) { }
 
   // Método para mapear um usuário do Firebase (User) para o formato da interface IUserDados
-  private mapUserToUserDados(user: User | null): IUserDados | null {
+  private mapUserToUserDados(user: User | null): IUserDados | null {//está esmaecido
     if (!user) return null;
 
     const now = Date.now();
@@ -54,21 +54,14 @@ export class UsuarioService {
     return this.firestoreQuery.getOnlineUsersByRegion(municipio);
   }
 
-  // Atualiza o status online de um usuário no Firestore e no Store
-  updateUserOnlineStatus(uid: string, isOnline: boolean): Observable<void> {
-    const userDocRef = doc(this.afs, 'users', uid);
-    return from(updateDoc(userDocRef, { isOnline })).pipe(
-      tap(() => {
-        console.log(`[UsuarioService] isOnline → ${isOnline} (${uid})`);
-        this.store.dispatch(updateUserOnlineStatus({ uid, isOnline }));
-      }),
-      catchError((error) => {
-        console.error('[UsuarioService] erro ao atualizar isOnline:', error);
-        return throwError(() => error);
-      })
-    );
+  /**
+ * @deprecated Presença é controlada exclusivamente por PresenceService (AuthOrchestratorService).
+ * Remover usos e confiar no pipeline de presença.
+ */
+  updateUserOnlineStatus(_uid: string, _isOnline: boolean, _syncStore = true): Observable<void> {
+    // Não escrever em Firestore aqui — writer único é PresenceService.
+    return of(void 0);
   }
-
 
   // Atualiza o papel (role) de um usuário no Firestore
   updateUserRole(uid: string, newRole: string): Observable<void> {
@@ -78,29 +71,6 @@ export class UsuarioService {
         return throwError(() => error);
       })
     );
-  }
-
-  async updateUserRoomIds(userId: string, roomId: string, action: 'add' | 'remove'): Promise<void> {
-    const userRef = doc(this.firestoreQuery.getFirestoreInstance(), 'users', userId);
-    const userDoc = await getDoc(userRef);
-
-    if (userDoc.exists()) {
-      const userData = userDoc.data();
-      const roomIds = userData['roomIds'] || [];
-
-      if (action === 'add') {
-        if (!roomIds.includes(roomId)) {
-          roomIds.push(roomId);
-        }
-      } else if (action === 'remove') {
-        const index = roomIds.indexOf(roomId);
-        if (index > -1) {
-          roomIds.splice(index, 1);
-        }
-      }
-
-      await updateDoc(userRef, { roomIds });
-    }
   }
 
   // Atualiza os dados de um usuário específico no Firestore
@@ -116,4 +86,11 @@ export class UsuarioService {
       })
     );
   }
-}
+}//Linha122
+/* O que ele não deveria fazer
+
+❌ Presença(isOnline / lastSeen) → isso é 100 % PresenceService.
+❌ Query de online users → isso é UserPresenceQueryService.
+❌ Gerenciar vínculos de chat(roomIds) → isso é chat - domain.
+❌ Depender do EmailVerificationService para update genérico → acoplamento perigoso.
+Com ideia de descontinuar esse service*/

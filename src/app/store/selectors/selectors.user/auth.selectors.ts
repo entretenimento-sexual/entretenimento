@@ -1,29 +1,39 @@
-//src\app\store\selectors\selectors.user\auth.selectors.ts
-import { createFeatureSelector, createSelector } from '@ngrx/store';
-import { AuthState } from '../../states/states.user/auth.state';
+// src/app/store/selectors/selectors.user/auth.selectors.ts
+import { createSelector } from '@ngrx/store';
+import { AppState } from '../../states/app.state';
+import { AuthState, initialAuthState } from '../../states/states.user/auth.state';
 
-export const selectAuthState = createFeatureSelector<AuthState>('authState');
+export const selectAuthState = (s: AppState | undefined): AuthState => s?.auth ?? initialAuthState;
 
-// Verifica se está autenticado
 export const selectIsAuthenticated = createSelector(
   selectAuthState,
-  (state: AuthState) => state.isAuthenticated
+  (state) => state.isAuthenticated
 );
 
-// ID do usuário autenticado
-export const selectAuthUserId = createSelector(
+export const selectAuthUid = createSelector(
   selectAuthState,
-  (state: AuthState) => state.userId
+  (state) => state.userId
 );
 
-// Estado de carregamento
+// compat
+export const selectAuthUserId = selectAuthUid;
+
+export const selectAuthEmailVerified = createSelector(
+  selectAuthState,
+  (state) => state.emailVerified
+);
+
+export const selectAuthReady = createSelector(
+  selectAuthState,
+  (state) => state.ready
+);
+
 export const selectAuthLoading = createSelector(
   selectAuthState,
-  (state: AuthState) => state.loading
+  (state) => state.loading
 );
 
-// Erro
 export const selectAuthError = createSelector(
   selectAuthState,
-  (state: AuthState) => state.error
+  (state) => state.error
 );

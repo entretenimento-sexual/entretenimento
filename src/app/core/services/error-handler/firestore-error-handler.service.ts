@@ -1,55 +1,139 @@
 // src/app/core/services/error-handler/firestore-error-handler.service.ts
 import { Injectable } from '@angular/core';
-import { ErrorNotificationService } from './error-notification.service';
 import { FirebaseError } from 'firebase/app';
-import { throwError, Observable } from 'rxjs';
+import { Observable, EMPTY, of, throwError } from 'rxjs';
+import { ErrorNotificationService } from './error-notification.service';
 
-@Injectable({
-  providedIn: 'root'
-})
+export type FirestoreErrorHandlerOptions = {
+  /** Quando true, não exibe toast/snackbar — mas mantém log para dev */
+  silent?: boolean;
+
+  /** Contexto para facilitar debug (ex: nickname-soft, register-submit etc) */
+  context?: string;
+};
+
+type NormalizedError = {
+  userMessage: string;
+  details?: string;
+  code?: string;
+  consolePrefix: string;
+};
+
+@Injectable({ providedIn: 'root' })
 export class FirestoreErrorHandlerService {
-
   constructor(private notifier: ErrorNotificationService) { }
 
-  /**
-   * Lida com erros específicos do Firestore, exibindo mensagens personalizadas para o usuário
-   * e logando detalhes completos para o desenvolvedor.
-   * @param error Erro retornado pela operação no Firestore.
-   * @returns Um Observable que lança o erro original.
-   */
-  handleFirestoreError(error: any): Observable<never> {
-    let userFriendlyMessage: string; // Mensagem formatada para o usuário
-    let consoleLogMessage: string;   // Mensagem detalhada para o console
+  // ============================================================================
+  // 1) MODO “FALHA” (mantém seu comportamento atual)
+  // - Use quando você QUER que o fluxo quebre (ex.: submit/commit crítico)
+  // ============================================================================
+  handleFirestoreError(error: any, opts?: FirestoreErrorHandlerOptions): Observable<never> {
+    const n = this.normalize(error, opts);
 
-    if (error instanceof FirebaseError) {
-      // Mapeia códigos de erro do Firebase para mensagens amigáveis.
-      userFriendlyMessage = this.getErrorMessage(error.code);
-      consoleLogMessage = `[FirestoreErrorHandler] Erro Firebase (${error.code}): ${userFriendlyMessage}`;
-    } else {
-      // Lida com erros que não são instâncias de FirebaseError (erros inesperados).
-      userFriendlyMessage = 'Ocorreu um erro inesperado no Firestore.';
-      consoleLogMessage = '[FirestoreErrorHandler] Erro inesperado:';
-      this.notifier.showGenericError(); // Exibe uma notificação genérica para erros não mapeados.
-    }
+    this.notifyIfNeeded(n, opts);
+    this.logError(n, error);
 
-    // Exibe a mensagem amigável para o usuário através do serviço de notificação.
-    // O 'error.message' original é passado como um detalhe opcional, que pode ser exibido
-    // se o ErrorNotificationService tiver essa funcionalidade (ex: botão "Detalhes").
-    this.notifier.showError(userFriendlyMessage, error.message);
-
-    // Loga o erro completo no console para o desenvolvedor.
-    console.log(consoleLogMessage, error);
-
-    // Re-lança o erro original para que a cadeia de Observables possa continuar
-    // tratando ou propagando o erro.
     return throwError(() => error);
   }
 
-  /**
-   * Mapeia códigos de erro do Firestore para mensagens mais amigáveis e compreensíveis pelo usuário.
-   * @param code Código de erro do Firestore (ex: 'permission-denied', 'unavailable').
-   * @returns Uma string com a mensagem amigável correspondente ao código de erro.
-   */
+  // ============================================================================
+  // 2) MODO “FALLBACK” (mais genérico)
+  // - Use quando você NÃO quer derrubar o stream
+  // - Ideal pra realtime/presença/listagens/VM selectors via effects
+  // ============================================================================
+  handleFirestoreErrorAndReturn<T>(
+    error: any,
+    fallback: T,
+    opts?: FirestoreErrorHandlerOptions
+  ): Observable<T> {
+    const n = this.normalize(error, opts);
+
+    this.notifyIfNeeded(n, opts);
+    this.logError(n, error);
+
+    return of(fallback);
+  }
+
+  /** Atalho: retorna [] (muito comum em queries/listas) */
+  handleFirestoreErrorAndReturnEmptyArray<T>(
+    error: any,
+    opts?: FirestoreErrorHandlerOptions
+  ): Observable<T[]> {
+    return this.handleFirestoreErrorAndReturn<T[]>(error, [], opts);
+  }
+
+  /** Atalho: retorna null (muito comum em docById) */
+  handleFirestoreErrorAndReturnNull<T>(
+    error: any,
+    opts?: FirestoreErrorHandlerOptions
+  ): Observable<T | null> {
+    return this.handleFirestoreErrorAndReturn<T | null>(error, null, opts);
+  }
+
+  /** Atalho: completa sem emitir (quando UI não precisa nem de fallback) */
+  handleFirestoreErrorAndComplete<T>(
+    error: any,
+    opts?: FirestoreErrorHandlerOptions
+  ): Observable<T> {
+    const n = this.normalize(error, opts);
+
+    this.notifyIfNeeded(n, opts);
+    this.logError(n, error);
+
+    return EMPTY;
+  }
+
+  // ============================================================================
+  // 3) MODO “SIDE-EFFECT ONLY” (mais genérico ainda)
+  // - Só notifica/loga, sem mexer no controle do fluxo
+  // - Útil quando você quer tratar fora do catchError
+  // ============================================================================
+  report(error: any, opts?: FirestoreErrorHandlerOptions): void {
+    const n = this.normalize(error, opts);
+    this.notifyIfNeeded(n, opts);
+    this.logError(n, error);
+  }
+
+  // ============================================================================
+  // Internals (genéricos)
+  // ============================================================================
+
+  private normalize(error: any, opts?: FirestoreErrorHandlerOptions): NormalizedError {
+    const silent = opts?.silent === true;
+    const context = opts?.context ? ` | ctx=${opts.context}` : '';
+
+    const details = typeof error?.message === 'string' ? error.message : undefined;
+
+    if (error instanceof FirebaseError) {
+      const userMessage = this.getErrorMessage(error.code);
+      return {
+        userMessage,
+        details,
+        code: error.code,
+        consolePrefix: `[FirestoreErrorHandler] FirebaseError (${error.code})${context}${silent ? ' [silent]' : ''}`,
+      };
+    }
+
+    return {
+      userMessage: 'Ocorreu um erro inesperado no Firestore.',
+      details,
+      consolePrefix: `[FirestoreErrorHandler] Erro inesperado${context}${silent ? ' [silent]' : ''}`,
+    };
+  }
+
+  private notifyIfNeeded(n: NormalizedError, opts?: FirestoreErrorHandlerOptions): void {
+    if (opts?.silent === true) return;
+    // Mantém seu padrão showError(msg, details)
+    this.notifier.showError(n.userMessage, n.details);
+  }
+
+  private logError(n: NormalizedError, raw: any): void {
+    // Se quiser deixar ainda mais “plataforma grande”:
+    // - em prod: console.warn/console.error pode ser reduzido
+    // - e mandar pra telemetry (Sentry etc) no GlobalErrorHandler
+    console.error(n.consolePrefix, raw);
+  }
+
   private getErrorMessage(code: string): string {
     switch (code) {
       case 'permission-denied':
@@ -83,8 +167,7 @@ export class FirestoreErrorHandlerService {
       case 'unknown':
         return 'Ocorreu um erro desconhecido no Firestore.';
       default:
-        // Mensagem padrão para códigos de erro não explicitamente mapeados.
         return 'Ocorreu um erro inesperado no Firestore. Por favor, tente novamente.';
     }
   }
-}
+}// Linha 94 - Há métodos aqui no FirestoreErrorHandlerService que não sejam tão específicos?
