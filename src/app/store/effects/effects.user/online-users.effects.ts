@@ -66,6 +66,7 @@ const serializeUser = (u: IUserDados): IUserDados =>
   subscriptionExpires: toEpoch(u.subscriptionExpires as any),
 
   lastSeen: toEpoch(u.lastSeen as any),
+  updatedAt: toEpoch((u as any).updatedAt),
   lastOfflineAt: toEpoch(u.lastOfflineAt as any),
   lastOnlineAt: toEpoch(u.lastOnlineAt as any),
   lastLocationAt: toEpoch(u.lastLocationAt as any),

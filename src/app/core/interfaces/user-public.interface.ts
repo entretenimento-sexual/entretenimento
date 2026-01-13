@@ -1,16 +1,30 @@
-//src\app\core\interfaces\user-public.interface.ts
+// src/app/core/interfaces/user-public.interface.ts
 export interface UserPublic {
   uid: string;
 
-  // o que os cards de solicitações usam:
   nickname?: string;
   avatarUrl?: string;
+
+  // compat opcional (se sua UI ainda usa photoURL)
+  photoURL?: string;
+
   isOnline?: boolean;
-  role?: string;         // 'vip' | 'premium' | 'basic' | etc.
+
+  // ✅ presença (para query de recentes)
+  lastSeen?: number;        // epoch ms
+  lastOnlineAt?: number;    // epoch ms
+  lastOfflineAt?: number;   // epoch ms
+
+  role?: string;
   gender?: string;
   age?: number;
   orientation?: string;
   municipio?: string;
   estado?: string;
-  photos?: string[];     // urls de miniaturas
+  photos?: string[];
+
+  // ✅ geo “safe/coarse” (se você precisa calcular distância no client)
+  latitude?: number;
+  longitude?: number;
+  geohash?: string;
 }

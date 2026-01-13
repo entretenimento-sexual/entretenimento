@@ -1,13 +1,11 @@
 // src\app\core\services\usuario.service.ts
 import { Injectable } from '@angular/core';
-import { Observable, catchError, from, of, tap, throwError } from 'rxjs';
+import { Observable, catchError, from, of, throwError } from 'rxjs';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { doc, getDoc, updateDoc } from '@firebase/firestore';
 import { User } from 'firebase/auth';
 import { UserProfileService } from './user-profile.service';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
-import { updateUserOnlineStatus } from 'src/app/store/actions/actions.user/user.actions';
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 import { EmailVerificationService } from '../autentication/register/email-verification.service';
 import { Firestore } from '@angular/fire/firestore';

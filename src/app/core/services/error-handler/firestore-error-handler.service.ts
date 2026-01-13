@@ -3,6 +3,7 @@ import { Injectable } from '@angular/core';
 import { FirebaseError } from 'firebase/app';
 import { Observable, EMPTY, of, throwError } from 'rxjs';
 import { ErrorNotificationService } from './error-notification.service';
+import { GlobalErrorHandlerService } from './global-error-handler.service';
 
 export type FirestoreErrorHandlerOptions = {
   /** Quando true, não exibe toast/snackbar — mas mantém log para dev */
@@ -21,7 +22,9 @@ type NormalizedError = {
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreErrorHandlerService {
-  constructor(private notifier: ErrorNotificationService) { }
+  constructor(private notifier: ErrorNotificationService,
+              private globalErrorHandler: GlobalErrorHandlerService
+              ) { }
 
   // ============================================================================
   // 1) MODO “FALHA” (mantém seu comportamento atual)
@@ -127,11 +130,16 @@ export class FirestoreErrorHandlerService {
     this.notifier.showError(n.userMessage, n.details);
   }
 
-  private logError(n: NormalizedError, raw: any): void {
-    // Se quiser deixar ainda mais “plataforma grande”:
-    // - em prod: console.warn/console.error pode ser reduzido
-    // - e mandar pra telemetry (Sentry etc) no GlobalErrorHandler
-    console.error(n.consolePrefix, raw);
+  private logError(n: NormalizedError, raw: any, opts?: FirestoreErrorHandlerOptions): void {
+    const e = new Error(n.userMessage);
+    (e as any).code = n.code;
+    (e as any).details = n.details;
+    (e as any).original = raw;
+    (e as any).context = opts?.context;
+    (e as any).silent = opts?.silent === true;
+    (e as any).feature = 'firestore';
+
+    this.globalErrorHandler.handleError(e);
   }
 
   private getErrorMessage(code: string): string {
@@ -170,4 +178,4 @@ export class FirestoreErrorHandlerService {
         return 'Ocorreu um erro inesperado no Firestore. Por favor, tente novamente.';
     }
   }
-}// Linha 94 - Há métodos aqui no FirestoreErrorHandlerService que não sejam tão específicos?
+}// Linha 173 - Há métodos aqui no FirestoreErrorHandlerService que não sejam tão específicos?

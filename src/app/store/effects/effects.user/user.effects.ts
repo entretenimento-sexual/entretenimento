@@ -28,6 +28,10 @@ const serializeUser = (u: IUserDados) =>
   lastLogin: toEpoch(u.lastLogin) ?? 0,
   firstLogin: toEpoch(u.firstLogin),
   createdAt: toEpoch(u.createdAt),
+  updatedAt: toEpoch((u as any).updatedAt),     // ✅ ADD
+  lastSeen: toEpoch((u as any).lastSeen),       // ✅ (ajuda com presença)
+  lastOnlineAt: toEpoch((u as any).lastOnlineAt),
+  lastOfflineAt: toEpoch((u as any).lastOfflineAt),
   singleRoomCreationRightExpires: toEpoch(u.singleRoomCreationRightExpires as any),
   roomCreationSubscriptionExpires: toEpoch(u.roomCreationSubscriptionExpires as any),
   subscriptionExpires: toEpoch(u.subscriptionExpires as any),
@@ -68,7 +72,7 @@ export class UserEffects {
     this.actions$.pipe(
       ofType(loadUsers),
       switchMap(() =>
-        from(this.firestoreQuery.getDocumentsByQuery<IUserDados>('users', [])).pipe(
+        this.firestoreQuery.getDocumentsByQuery<IUserDados>('users', []).pipe(
           map(users => loadUsersSuccess({ users: (users || []).map(serializeUser) })),
           catchError(error => of(loadUsersFailure({ error: { message: error?.message || 'Erro desconhecido.' } })))
         )

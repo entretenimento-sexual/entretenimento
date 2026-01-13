@@ -1,9 +1,8 @@
 // src/app/core/debug/auth-debug.service.ts
 import { Injectable, EnvironmentInjector, runInInjectionContext, inject } from '@angular/core';
 import { Auth, authState, idToken } from '@angular/fire/auth';
-import { Subscription, combineLatest, EMPTY } from 'rxjs';
-import { catchError, distinctUntilChanged, map } from 'rxjs/operators';
-
+import { Subscription, combineLatest, EMPTY, from, defer } from 'rxjs';
+import { catchError, distinctUntilChanged, map, startWith, take, filter, shareReplay } from 'rxjs/operators';
 // ⬇️ IMPORTA do SDK WEB (não do @angular/fire)
 import { onIdTokenChanged, type Auth as FirebaseAuth } from 'firebase/auth';
 
@@ -128,18 +127,36 @@ export class AuthDebugService {
       }));
 
       // 5) Cross-check: Firebase/AuthSession vs NgRx (alerta quando divergir)
+
+      // “sessionReady”: só fica true depois do 1º emit do authSession.uid$
+      const sessionReady$ = defer(() => from(this.authSession.whenReady())).pipe(
+        map(() => true),
+        startWith(false),
+        shareReplay({ bufferSize: 1, refCount: true })
+      );
+      // combineLatest tipado por objeto (evita unknown[])
+      const cross$ = combineLatest({
+        sessionReady: sessionReady$,
+        storeReady: storeReady$,
+        sessionUid: this.authSession.uid$,
+        ngrxUid: storeUid$,
+      }).pipe(
+        // só compara depois que ambos “estão prontos”
+        filter(({ sessionReady, storeReady }) => sessionReady && storeReady),
+        // reduz ruído
+        distinctUntilChanged((a, b) => a.sessionUid === b.sessionUid && a.ngrxUid === b.ngrxUid),
+        catchError(err => {
+          this.globalErrorHandler.handleError(
+            err instanceof Error ? err : new Error('AuthDebugService: falha no cross-check uid')
+          );
+          return EMPTY;
+        })
+      );
+
       this.subs.add(
-        combineLatest([this.authSession.uid$, storeUid$]).pipe(
-          distinctUntilChanged((a, b) => a[0] === b[0] && a[1] === b[1]),
-          catchError(err => {
-            this.globalErrorHandler.handleError(
-              err instanceof Error ? err : new Error('AuthDebugService: falha no cross-check uid')
-            );
-            return EMPTY;
-          })
-        ).subscribe(([sessionUid, ngrxUid]) => {
+        cross$.subscribe(({ sessionUid, ngrxUid }) => {
           if (sessionUid !== ngrxUid) {
-            console.warn(`[AUTH][${ts()}] UID MISMATCH (session vs ngrx)`, { sessionUid, ngrxUid });
+            console.warn(`[AUTH][${ts()}] UID MISMATCH (session vs ngrx)`, { sessionUid, ngrxUid });//linha 159
           }
         })
       );

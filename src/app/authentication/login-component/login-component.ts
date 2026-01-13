@@ -4,6 +4,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef,
          Component, DestroyRef, OnInit, inject, } from '@angular/core';
 import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { AuthOrchestratorService } from 'src/app/core/services/autentication/auth/auth-orchestrator.service';
 
 import { Observable, of } from 'rxjs';
 import { catchError, distinctUntilChanged, finalize, map, shareReplay, startWith, tap } from 'rxjs/operators';
@@ -13,7 +14,6 @@ import { EmailInputModalService } from 'src/app/core/services/autentication/emai
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
 
 @Component({
   selector: 'app-login-component',
@@ -25,7 +25,6 @@ import { AuthService } from 'src/app/core/services/autentication/auth.service';
 export class LoginComponent implements OnInit {
   // Reactive Form
   loginForm!: FormGroup;
-
   // UI State
   errorMessage = '';
   successMessage = '';
@@ -44,6 +43,7 @@ export class LoginComponent implements OnInit {
   constructor(
     private readonly router: Router,
     private readonly notify: ErrorNotificationService,
+    private readonly authOrchestrator: AuthOrchestratorService,
 
     // modais / fluxos
     public readonly emailInputModalService: EmailInputModalService,
@@ -51,10 +51,6 @@ export class LoginComponent implements OnInit {
 
     // login
     private readonly loginservice: LoginService,
-
-    // logout (enquanto este serviço existir no projeto)
-    private readonly authService: AuthService,
-
     private readonly formBuilder: FormBuilder,
     private readonly cdr: ChangeDetectorRef
   ) { }
@@ -225,7 +221,6 @@ export class LoginComponent implements OnInit {
   logout(): void {
     if (this.isLoading) return;
 
-    // UX: fecha modal e limpa mensagens ao sair
     this.showEmailVerificationModal = false;
     this.errorMessage = '';
     this.successMessage = '';
@@ -233,19 +228,18 @@ export class LoginComponent implements OnInit {
 
     this.setBusyState(true);
 
-    this.authService.logout().pipe(
-      //auth.service.ts está sendo descontinuado
+    this.authOrchestrator.logout$().pipe(
       finalize(() => this.setBusyState(false)),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: () => {
-        // opcional: garantir rota pública após logout
-        this.router.navigate(['/login']).catch(() => { });
+        // não precisa navegar aqui: o Orchestrator já cai em /login
+        this.notify.showSuccess('Você saiu da sua conta.');
       },
       error: () => {
-        // fallback: se logout falhar, o handler global já registrou; aqui só UX
         this.setError('Não foi possível sair agora. Tente novamente.');
       }
     });
   }
 }
+//254 linhas é grande demais para um componente login?

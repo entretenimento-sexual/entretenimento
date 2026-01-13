@@ -20,7 +20,7 @@ import { GeolocationTrackingService } from '../geolocation/geolocation-tracking.
 
 import { Auth, authState, signOut, type User } from '@angular/fire/auth';
 import { serverTimestamp as fsServerTimestamp, Firestore } from '@angular/fire/firestore';
-import { PresenceService } from './auth/presence.service';
+import { PresenceService } from '../presence/presence.service';
 import { DateTimeService } from '../general/date-time.service';
 
 @Injectable({ providedIn: 'root' })
@@ -44,8 +44,7 @@ export class AuthService {
     private dateTime: DateTimeService,
     private injector: Injector,
     private auth: Auth,
-    private db: Firestore
-  ) {
+     ) {
     this.initAuthStateListener();
   }
 
@@ -217,4 +216,5 @@ export class AuthService {
   }
 }
 // auth.service.ts está sendo descontinuado
+// método de logout ainda não migrado
 // Favor migrar para AuthOrchestratorService.ts e outros novos serviços de auth

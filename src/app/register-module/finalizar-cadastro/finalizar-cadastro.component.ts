@@ -1,7 +1,6 @@
 //src\app\register-module\finalizar-cadastro\finalizar-cadastro.component.ts
 import { Component, OnInit } from '@angular/core';
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
-import { FirestoreService } from 'src/app/core/services/data-handling/legacy/firestore.service';
 import { Router } from '@angular/router';
 import { of, from, map, take, switchMap  } from 'rxjs';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -10,6 +9,7 @@ import { StorageService } from 'src/app/core/services/image-handling/storage.ser
 import { IBGELocationService } from 'src/app/core/services/general/api/ibge-location.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { FirestoreUserWriteService } from 'src/app/core/services/data-handling/firestore-user-write.service';
 
 @Component({
   selector: 'app-finalizar-cadastro',
@@ -39,11 +39,11 @@ export class FinalizarCadastroComponent implements OnInit {
     private emailVerificationService: EmailVerificationService,
     private ibgeLocationService: IBGELocationService,
     private firestoreUserQuery: FirestoreUserQueryService,
-    private firestoreService: FirestoreService,
     private storageService: StorageService,
     private router: Router,
     // ⬇️ novo store que substitui Service
     private currentUserStore: CurrentUserStoreService,
+    private firestoreUserWrite: FirestoreUserWriteService
   ) { }
 
   private getLS(): any {
@@ -128,7 +128,7 @@ export class FinalizarCadastroComponent implements OnInit {
               profileCompleted: true
             };
 
-            return from(this.firestoreService.saveInitialUserData(existingUserData.uid, updatedUserData)).pipe(
+            return from(this.firestoreUserWrite.saveInitialUserData$(existingUserData.uid, updatedUserData)).pipe(
               switchMap(() => this.avatarFile
                 ? this.storageService.uploadProfileAvatar(this.avatarFile, existingUserData.uid)
                 : of(null)
@@ -184,6 +184,6 @@ export class FinalizarCadastroComponent implements OnInit {
 
   goToSubscription(): void { this.router.navigate(['/subscription-plan']); }
   continueWithoutSubscription(): void { this.router.navigate(['/dashboard/principal']); }
-} /* 187linas, o firestoreService e o authService estão sendo descontinuados,
+} /* 189 linhas, o firestoreService e o authService estão sendo descontinuados,
    buscar realocar métodos para outros serviços mais especializados.
    */

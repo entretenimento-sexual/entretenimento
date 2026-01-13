@@ -1,18 +1,9 @@
 // src/app/core/services/autentication/auth/auth-orchestrator.service.ts
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { NavigationEnd, Router } from '@angular/router';
-import { combineLatest, firstValueFrom, from, of, Subscription, timer } from 'rxjs';
-import {
-  catchError,
-  distinctUntilChanged,
-  exhaustMap,
-  filter,
-  map,
-  scan,
-  startWith,
-  switchMap,
-  take,
-} from 'rxjs/operators';
+import { combineLatest, firstValueFrom, from, Observable, of, Subscription, timer } from 'rxjs';
+import { catchError, defaultIfEmpty, distinctUntilChanged, exhaustMap, filter, finalize, map, scan,
+         startWith, switchMap, take } from 'rxjs/operators';
 
 import { AuthSessionService } from './auth-session.service';
 import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
@@ -21,7 +12,7 @@ import { CurrentUserStoreService } from './current-user-store.service';
 import { Auth, signOut } from '@angular/fire/auth';
 import { doc, docSnapshots, Firestore } from '@angular/fire/firestore';
 
-import { PresenceService } from './presence.service';
+import { PresenceService } from '../../presence/presence.service';
 
 // ✅ central error routing
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -33,6 +24,23 @@ type TerminateReason =
   | 'auth-invalid'
   | 'doc-missing-confirmed'
   | 'forbidden';
+
+/**
+* =============================================================================
+* AUTH ORCHESTRATOR (Efeitos colaterais e ciclo de vida)
+* - Decide quando iniciar/parar watchers e rotinas da sessão (keepAlive, doc watch).
+* - Garante gating por contexto de app:
+*    - Não roda presença no fluxo de registro
+*    - Não roda presença enquanto emailVerified=false
+* - Centraliza encerramento de sessão (signOut forçado), limpeza e navegação.
+* - Erros: roteia via GlobalErrorHandler + ErrorNotification (quando apropriado),
+*   preservando privacidade (mensagens genéricas).
+*
+* NÃO é camada “Firebase pura”:
+* - aqui é permitido conhecer Router, PresenceService, Store (CurrentUserStore),
+*   e aplicar regras de plataforma.
+* =============================================================================
+*/
 
 @Injectable({ providedIn: 'root' })
 export class AuthOrchestratorService {
@@ -85,6 +93,7 @@ export class AuthOrchestratorService {
     combineLatest([this.authSession.authUser$, url$]).pipe(
       filter(() => typeof window !== 'undefined' && typeof document !== 'undefined'),
       switchMap(([u, url]) => {
+        if (this.terminating) return of(null);
         // reset watchers/keepAlive (mantive sua estratégia)
         this.stopKeepAlive();
         this.unwatchUserDoc();
@@ -176,12 +185,6 @@ export class AuthOrchestratorService {
     this.stopPresenceIfRunning();
     this.presence.start(uid);
     this.presenceUid = uid;
-  }
-
-  private stopPresenceIfRunning(): void {
-    if (!this.presenceUid) return;
-    this.presence.stop();
-    this.presenceUid = null;
   }
 
   private inRegistrationFlow(url: string): boolean {
@@ -342,40 +345,114 @@ export class AuthOrchestratorService {
     this.keepAliveSub = null;
   }
 
+  private stopPresenceIfRunning$(): Observable<void> {
+    if (!this.presenceUid) return of(void 0);
+
+    // marca como parado aqui pra evitar reentrância
+    this.presenceUid = null;
+
+    return this.presence.stop$().pipe(
+      take(1),
+      defaultIfEmpty(void 0),
+      catchError((err) => {
+        this.reportSilent(err, { phase: 'presence.stop$' });
+        return of(void 0);
+      })
+    );
+  }
+
+  // mantém o método atual (compat)
+  private stopPresenceIfRunning(): void {
+    this.stopPresenceIfRunning$().pipe(take(1)).subscribe({ next: () => { }, error: () => { } });
+  }
+
   private hardSignOutToEntry(reason: TerminateReason): void {
     if (this.terminating) return;
     this.terminating = true;
 
-    // toast + global report (comportamento controlado)
     this.notifySessionEnded(reason);
 
     this.stopKeepAlive();
     this.unwatchUserDoc();
     this.unwatchDeleted();
-    this.stopPresenceIfRunning();
 
     if (this.missingDocProbe) {
       clearTimeout(this.missingDocProbe);
       this.missingDocProbe = undefined;
     }
 
-    signOut(this.auth).finally(() => {
-      this.currentUserStore.clear();
+    this.stopPresenceIfRunning$().pipe(
+      take(1),
+      switchMap(() =>
+        from(signOut(this.auth)).pipe(
+          catchError((err) => {
+            // signOut falhar não pode “prender” o usuário
+            this.reportSilent(err, { phase: 'hardSignOut.signOut', reason });
+            return of(void 0);
+          })
+        )
+      ),
+      finalize(() => {
+        this.currentUserStore.clear();
 
-      const url = this.router.url || '';
-      if (!this.inRegistrationFlow(url)) {
-        this.router.navigate(['/register/welcome'], {
-          queryParams: { reason, autocheck: '1' },
-          replaceUrl: true,
-        }).finally(() => (this.terminating = false));
-        return;
-      }
+        const url = this.router.url || '';
+        if (!this.inRegistrationFlow(url)) {
+          this.router.navigate(['/register/welcome'], {
+            queryParams: { reason, autocheck: '1' },
+            replaceUrl: true,
+          }).finally(() => (this.terminating = false));
+          return;
+        }
 
-      this.terminating = false;
-    });
+        this.terminating = false;
+      })
+    ).subscribe();
+  }
+
+  logout$(): Observable<void> {
+    if (this.terminating) return of(void 0);
+    this.terminating = true;
+
+    this.stopKeepAlive();
+    this.unwatchUserDoc();
+    this.unwatchDeleted();
+
+    if (this.missingDocProbe) {
+      clearTimeout(this.missingDocProbe);
+      this.missingDocProbe = undefined;
+    }
+
+    return this.stopPresenceIfRunning$().pipe(
+      take(1),
+      switchMap(() =>
+        from(signOut(this.auth)).pipe(
+          catchError((err) => {
+            this.reportSilent(err, { phase: 'logout.signOut' });
+            return of(void 0);
+          })
+        )
+      ),
+      finalize(() => {
+        this.currentUserStore.clear();
+
+        const url = this.router.url || '';
+        if (url !== '/login') {
+          this.router.navigate(['/login'], { replaceUrl: true })
+            .finally(() => (this.terminating = false));
+          return;
+        }
+
+        this.terminating = false;
+      })
+    );
+  }
+
+  // opcional: wrapper imperativo (compat)
+  logout(): void {
+    this.logout$().pipe(take(1)).subscribe({ next: () => { }, error: () => { } });
   }
 }
- /* Linha 378, está grande demais, considerar refatorar em partes menores ou
+ /* Linha 448, está grande demais, gigante, considerar refatorar em partes menores ou
   buscar realocar métodos para outros serviços mais especializados, mesmo
   que tenha que criar novos e não esquercer que o método logout() do auth.service.ts
   ainda está sendo usado em alguns lugares e precisa ser migrado.

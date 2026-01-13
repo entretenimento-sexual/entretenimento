@@ -18,38 +18,81 @@ import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.act
 import { initialUserState } from '../../states/states.user/user.state';
 
 type UserMap = { [uid: string]: IUserDados };
+type AnyDateLike = import('firebase/firestore').Timestamp | Date | number | null | undefined;
 
 /* ========================================================================
    Helpers puros (sem mutação) — padrão “plataforma grande”
    ======================================================================== */
 
+function toEpoch(v: AnyDateLike): number | null {
+  if (v == null) return null;
+  if (typeof v === 'object' && typeof (v as any).toMillis === 'function') return (v as any).toMillis();
+  if (v instanceof Date) return v.getTime();
+  if (typeof v === 'number') return v;
+  return null;
+}
+
+function sanitizeUser(u: IUserDados): IUserDados {
+  if (!u) return u;
+
+  // converte apenas campos que podem virar Timestamp no Firestore
+  // (use “as any” porque seu IUserDados pode não tipar todos)
+  const anyU = u as any;
+
+  return {
+    ...u,
+
+    // comuns
+    lastLogin: toEpoch(anyU.lastLogin) ?? anyU.lastLogin,
+    firstLogin: toEpoch(anyU.firstLogin) ?? anyU.firstLogin,
+    createdAt: toEpoch(anyU.createdAt) ?? anyU.createdAt,
+    updatedAt: toEpoch(anyU.updatedAt) ?? anyU.updatedAt,
+
+    // presença (se existirem no seu modelo)
+    lastSeen: toEpoch(anyU.lastSeen) ?? anyU.lastSeen,
+    lastOnlineAt: toEpoch(anyU.lastOnlineAt) ?? anyU.lastOnlineAt,
+    lastOfflineAt: toEpoch(anyU.lastOfflineAt) ?? anyU.lastOfflineAt,
+    lastLocationAt: toEpoch(anyU.lastLocationAt) ?? anyU.lastLocationAt,
+    registrationDate: toEpoch(anyU.registrationDate) ?? anyU.registrationDate,
+
+    // assinaturas (se existirem)
+    subscriptionExpires: toEpoch(anyU.subscriptionExpires) ?? anyU.subscriptionExpires,
+    roomCreationSubscriptionExpires: toEpoch(anyU.roomCreationSubscriptionExpires) ?? anyU.roomCreationSubscriptionExpires,
+    singleRoomCreationRightExpires: toEpoch(anyU.singleRoomCreationRightExpires) ?? anyU.singleRoomCreationRightExpires,
+  } as IUserDados;
+}
+
 function upsertUser(map: UserMap, user: IUserDados): UserMap {
-  if (!user?.uid) return map;
+  const safe = sanitizeUser(user);
+  if (!safe?.uid) return map;
+
   return {
     ...map,
-    [user.uid]: {
-      ...(map[user.uid] || {}),
-      ...user,
+    [safe.uid]: {
+      ...(map[safe.uid] || {}),
+      ...safe,
     },
   };
 }
 
 function upsertInArray(list: IUserDados[], user: IUserDados): IUserDados[] {
-  if (!user?.uid) return list;
-  const idx = list.findIndex((u) => u.uid === user.uid);
-  if (idx === -1) return [...list, user];
-  const copy = [...list];
-  copy[idx] = { ...copy[idx], ...user };
-  return copy;
-}
+  const safe = sanitizeUser(user);
+  if (!safe?.uid) return list;
 
-function removeByUid(list: IUserDados[], uid?: string | null): IUserDados[] {
-  if (!uid) return list;
-  return list.filter((u) => u.uid !== uid);
+  const idx = list.findIndex((u) => u.uid === safe.uid);
+  if (idx === -1) return [...list, safe];
+
+  const copy = [...list];
+  copy[idx] = { ...copy[idx], ...safe };
+  return copy;
 }
 
 function mergeListIntoMap(map: UserMap, users: IUserDados[]): UserMap {
   return (users ?? []).reduce((acc, u) => upsertUser(acc, u), map);
+}
+function removeByUid(list: IUserDados[], uid?: string | null): IUserDados[] {
+  if (!uid) return list;
+  return list.filter((u) => u.uid !== uid);
 }
 
 /* ========================================================================
@@ -132,23 +175,22 @@ export const userReducer = createReducer(
   })),
 
   /* ------------------ Sessão / Auth ------------------ */
-
-  on(loginSuccess, (state, { user }) => ({
-    ...state,
-    currentUser: user,
-    users: upsertUser(state.users, user),
-    // Observação: NÃO “forçamos” entrar em onlineUsers aqui.
-    // Quem controla onlineUsers é a query de presença (loadOnlineUsersSuccess).
-    loading: false,
-    error: null,
-  })),
+  on(loginSuccess, (state, { user }) => {
+    const safe = sanitizeUser(user);
+    return {
+      ...state,
+      currentUser: safe,
+      users: upsertUser(state.users, safe),
+      loading: false,
+      error: null,
+    };
+  }),
 
   on(setCurrentUser, (state, { user }) => ({
     ...state,
-    currentUser: user,
+    currentUser: sanitizeUser(user),
     users: upsertUser(state.users, user),
   })),
-
   on(clearCurrentUser, (state) => {
     const uidToRemove = state.currentUser?.uid ?? null;
     return {

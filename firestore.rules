@@ -17,6 +17,11 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    match /users/{uid} {
+  allow get: if request.auth != null && request.auth.uid == uid;
+  allow list: if false;
+}
+
     match /users/{userId}/friends/{friendId} {
       allow read, write: if isSelf(userId);
     }
@@ -27,45 +32,39 @@ service cloud.firestore {
     }
 
     // ========= PRESENCE =========
-    match /presence/{presenceUid} {
-      allow read: if signedIn();
+match /presence/{presenceUid} {
+  allow read: if signedIn();
 
-      function optString(k) {
-        return !(k in request.resource.data) || request.resource.data[k] is string || request.resource.data[k] == null;
-      }
-      function optNumberOrNull(k) {
-        return !(k in request.resource.data) || request.resource.data[k] is number || request.resource.data[k] == null;
-      }
-      function optTimestamp(k) {
-        return !(k in request.resource.data) || request.resource.data[k] is timestamp;
-      }
+  function optString(k) { return !(k in request.resource.data) || request.resource.data[k] is string || request.resource.data[k] == null; }
+  function optNumberOrNull(k) { return !(k in request.resource.data) || request.resource.data[k] is number || request.resource.data[k] == null; }
+  function optTimestamp(k) { return !(k in request.resource.data) || request.resource.data[k] is timestamp; }
 
-      allow create, update: if isSelf(presenceUid)
-        && request.resource.data.uid == uid()
-        && request.resource.data.keys().hasOnly([
-          "uid",
-          "isOnline",
-          "lastSeen",
-          "updatedAt",
-          "nickname",
-          "municipio",
-          "estado",
-          "photoURL",
-          "latitude",
-          "longitude"
-        ])
-        && request.resource.data.isOnline is bool
-        && request.resource.data.lastSeen is timestamp
-        && optTimestamp("updatedAt")
-        && optString("nickname")
-        && optString("municipio")
-        && optString("estado")
-        && optString("photoURL")
-        && optNumberOrNull("latitude")
-        && optNumberOrNull("longitude");
-
-      allow delete: if isSelf(presenceUid);
-    }
+  allow create, update: if isSelf(presenceUid)
+    && request.resource.data.uid == uid()
+    && request.resource.data.keys().hasOnly([
+      "uid",
+      "isOnline",
+      "presenceState",
+      "lastSeen",
+      "updatedAt",
+      "nickname",
+      "municipio",
+      "estado",
+      "photoURL",
+      "latitude",
+      "longitude"
+    ])
+    && request.resource.data.isOnline is bool
+    && request.resource.data.lastSeen is timestamp
+    && optTimestamp("updatedAt")
+    && request.resource.data.presenceState in ["online","away","offline"]
+    && optString("nickname")
+    && optString("municipio")
+    && optString("estado")
+    && optString("photoURL")
+    && optNumberOrNull("latitude")
+    && optNumberOrNull("longitude");
+}
 
     // ========= FRIEND REQUESTS =========
     match /friendRequests/{reqId} {
@@ -266,6 +265,11 @@ service cloud.firestore {
     }
 
     // ========= PUBLIC INDEX =========
+match /public_index/{uid} {
+  allow get, list: if request.auth != null; // ou emailVerified, ou role etc.
+  allow create, update: if request.auth != null && request.auth.uid == uid;
+}
+
     match /public_index/{docId} {
       allow get: if docId.matches('^nickname:.+') ||
         (signedIn() && docId.matches('^email:.+') && resource.data.uid == uid());

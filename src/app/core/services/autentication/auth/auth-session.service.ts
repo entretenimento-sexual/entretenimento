@@ -4,6 +4,21 @@ import { Observable, from, of } from 'rxjs';
 import { catchError, distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
 import { Auth, authState, onAuthStateChanged, signOut, User } from '@angular/fire/auth';
 
+/**
+ * =============================================================================
+ * AUTH SESSION (Fonte de verdade)
+ * - Responsável por expor o estado de autenticação do Firebase Auth (User | null).
+ * - Exposição reativa: authUser$ e uid$ (shareReplay + distinctUntilChanged).
+ * - NÃO conhece Router, Firestore, Presence, NgRx, nem UI/toast.
+ * - NÃO tem efeitos colaterais automáticos (não start/stop em outros serviços).
+ *
+ * Contratos:
+ * - uid$ é a única fonte confiável de UID.
+ * - Métodos utilitários (signOut$, revalidateSession$, forceReload$) são ações
+ *   explícitas, disparadas por quem orquestra a sessão.
+ * =============================================================================
+ */
+
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {
   readonly authUser$: Observable<User | null>;

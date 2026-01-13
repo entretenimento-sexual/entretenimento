@@ -7,6 +7,20 @@ import { CacheService } from '@core/services/general/cache/cache.service';
 import { AuthSessionService } from './auth-session.service';
 import { Auth } from '@angular/fire/auth';
 
+/**
+ * =============================================================================
+ * CURRENT USER STORE (estado do perfil - domínio)
+ * - Dona do IUserDados (hidratado do Firestore / cache).
+ * - Tri-state recomendado:
+ *    - undefined: ainda não hidratou
+ *    - null: deslogado
+ *    - IUserDados: logado com perfil
+ *
+ * NÃO faz:
+ * - NÃO faz queries diretas no Firestore (isso é dos Query/Repository/Read services).
+ * =============================================================================
+ */
+
 @Injectable({ providedIn: 'root' })
 export class CurrentUserStoreService {
   private readonly keyUser = 'currentUser';
