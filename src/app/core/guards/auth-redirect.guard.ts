@@ -1,4 +1,5 @@
 // src/app/core/guards/auth-redirect.guard.ts
+// Não esqueça os comentáros explicativos sobre o propósito desse guard.
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';

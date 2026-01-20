@@ -5,37 +5,34 @@ import { AppModule } from './app/app.module';
 import { environment } from './environments/environment';
 import { setLogLevel } from 'firebase/firestore';
 
-// ✅ Switch global de debug (ligado só em dev)
-(window as any).__DBG_ON__ = !environment.production;
+setLogLevel(environment.production ? 'error' : 'silent');
 
-// ✅ Helper de log colorido e com timestamp (use window.DBG(...) no console)
-function DBG(tag: string, ...args: any[]) {
+const DBG_KEY = '__DBG_ON__';
+
+// ✅ Debug OFF por padrão. Liga manualmente via localStorage.
+const dbgOn =
+  !environment.production &&
+  environment.enableDebugTools === true &&
+  typeof window !== 'undefined' &&
+  localStorage.getItem(DBG_KEY) === '1';
+
+(window as any).__DBG_ON__ = dbgOn;
+
+// ✅ helper opcional: não loga nada se dbgOff
+(window as any).DBG = (...args: any[]) => {
   if (!(window as any).__DBG_ON__) return;
-  const ts = new Date().toISOString().slice(11, 23);
-  console.log(`%c[${ts}] ${tag}`, 'color:#0bf;font-weight:600', ...args);
-}
-(window as any).DBG = DBG;
+  //console.log(...args);
+};
 
-// Logs iniciais
-console.log('[BOOT] main.ts começou', { ua: navigator.userAgent, base: document.baseURI });
-console.info('[BOOT] start');
-
-// Captura erros “perdidos” no bootstrap
+// ✅ sempre ligado: captura erros “perdidos”
 window.addEventListener('error', (e) => {
-  console.error('[window.error]', (e as any).error || (e as any).message || e);
+  //console.error('[window.error]', (e as any).error || (e as any).message || e);
 });
 window.addEventListener('unhandledrejection', (e) => {
-  console.error('[unhandledrejection]', (e as any).reason || e);
+  //console.error('[unhandledrejection]', (e as any).reason || e);
 });
 
-if (!environment.enableDebugTools) {
-  setLogLevel('error'); // ou 'silent'
-}
 
 platformBrowserDynamic()
   .bootstrapModule(AppModule)
-  .then(() => {
-    console.log('[Angular] bootstrap ok');
-    DBG('[BOOTSTRAP]', { mode: environment.production ? 'prod' : 'dev' });
-  })
-  .catch(err => console.error('[bootstrapModule] erro:', err));
+ // .catch(err => console.error('[bootstrapModule] erro:', err));

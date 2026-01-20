@@ -17,6 +17,9 @@ import { toObservable } from '@angular/core/rxjs-interop';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { RouterModule } from '@angular/router';
 import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
+import { AppState } from 'src/app/store/states/app.state';
+import { Store } from '@ngrx/store';
+import { selectOnlineUsers } from 'src/app/store/selectors/selectors.user/user.selectors';
 
 type PermissionState = 'granted' | 'prompt' | 'denied';
 type IUserWithDistance = IUserDados & { distanciaKm?: number };
@@ -74,8 +77,8 @@ export class OnlineUsersComponent implements OnInit {
     private readonly distanceService: DistanceCalculationService,
     private readonly errorNotificationService: ErrorNotificationService,
     private readonly globalErrorHandlerService: GlobalErrorHandlerService,
-    private readonly firestoreQueryService: FirestoreQueryService,
     private readonly geoTracking: GeolocationTrackingService,
+    private readonly store: Store<AppState>,
   ) {
     // Unifica Input + Store (fallback)
     this.currentUserResolved$ = combineLatest([
@@ -191,8 +194,11 @@ export class OnlineUsersComponent implements OnInit {
 
   /** Após termos posição do usuário, montamos os streams de listagem/contagem. */
   private setupStreamsAfterLocation(currentUser: IUserDados): void {
-    const onlineRaw$ = this.firestoreQueryService
-      .getRecentlyOnline$(OnlineUsersComponent.RECENT_WINDOW_MS); // ✅ dados reais do Firestore
+    const onlineRaw$ = this.store.select(selectOnlineUsers).pipe(
+      map((users) => Array.isArray(users) ? (users as IUserDados[]) : []),
+      // (opcional) shareReplay se você reutilizar isso em mais de um lugar dentro do componente
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
     const uiTick$ = interval(OnlineUsersComponent.UI_REFRESH_MS).pipe(startWith(0));
     const km$ = this.dist$.pipe(startWith(this.uiDistanceKm ?? this.policyMaxDistanceKm));

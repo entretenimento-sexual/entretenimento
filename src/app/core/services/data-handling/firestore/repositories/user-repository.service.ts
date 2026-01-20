@@ -1,4 +1,5 @@
 // src/app/core/services/data-handling/user-repository.service.ts
+// Não esqueça os comentários
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';

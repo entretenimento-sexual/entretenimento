@@ -24,7 +24,7 @@ import {
 import { Observable, map, switchMap } from 'rxjs';
 
 import { FirestoreRepoBase } from './base.repo';
-import { Friend } from '../../../../interfaces/friendship/friend.interface';
+import { Friend, FriendDocWrite } from '../../../../interfaces/friendship/friend.interface';
 import { FriendRequest } from '../../../../interfaces/friendship/friend-request.interface';
 import { CooldownRepo } from './cooldown.repo';
 
@@ -130,10 +130,10 @@ export class RequestsRepo extends FirestoreRepoBase {
         const [aSnap, bSnap] = await Promise.all([tx.get(aRef), tx.get(bRef)]);
         if (aSnap.exists() || bSnap.exists()) throw new Error('Vocês já são amigos.');
 
-        const since = serverTimestamp() as unknown as Timestamp;
+        const now = serverTimestamp();
 
-        const a: Friend = { friendUid: targetUid, since, lastInteractionAt: since };
-        const b: Friend = { friendUid: requesterUid, since, lastInteractionAt: since };
+        const a: FriendDocWrite = { friendUid: targetUid, since: now, lastInteractionAt: now };
+        const b: FriendDocWrite = { friendUid: requesterUid, since: now, lastInteractionAt: now };
 
         tx.set(aRef, a, { merge: true });
         tx.set(bRef, b, { merge: true });

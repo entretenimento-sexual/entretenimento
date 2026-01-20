@@ -30,7 +30,6 @@ import { CurrentUserStoreService } from './auth/current-user-store.service';
 
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 import { FirestoreUserWriteService } from '../data-handling/firestore-user-write.service';
-import { MatSelectModule } from '@angular/material/select';
 
 export interface LoginResult {
   success: boolean;
@@ -419,6 +418,6 @@ export class LoginService {
 
     return { code, message };
   }
-} /* Já tem 427 linhas, considerar refatorar em partes menores ou
+} /* Já tem 421 linhas, considerar refatorar em partes menores ou
 buscar realocar métodos para outros serviços mais especializados, mesmo
 que tenha que criar novos */

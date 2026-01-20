@@ -1,10 +1,13 @@
 // src/app/store/states/states.interactions/friends-pagination.state.ts
-import type { Timestamp } from 'firebase/firestore';
 import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 
 export interface FriendsPageSlice {
   items: Friend[];
-  nextOrderValue: number | Timestamp | null;
+  /**
+   * ✅ Store serializável: cursor sempre epoch (number) ou null.
+   * (nada de Timestamp aqui)
+   */
+  nextOrderValue: number | null;
   reachedEnd: boolean;
   loading: boolean;
   error: string | null;
@@ -12,7 +15,7 @@ export interface FriendsPageSlice {
 
 export interface FriendsPaginationState {
   byUid: Record<string, FriendsPageSlice>;
-}
+  }
 
 export const emptyFriendsPageSlice: FriendsPageSlice = {
   items: [],
@@ -22,6 +25,4 @@ export const emptyFriendsPageSlice: FriendsPageSlice = {
   error: null,
 };
 
-export const initialFriendsPaginationState: FriendsPaginationState = {
-  byUid: {},
-};
+export const initialFriendsPaginationState: FriendsPaginationState = { byUid: {} };

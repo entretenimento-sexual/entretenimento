@@ -1,7 +1,8 @@
 // src/app/core/services/autentication/register/register.service.ts
+// Não esqueça os comentários
 import { Injectable } from '@angular/core';
 import { from, Observable, of, throwError } from 'rxjs';
-import { catchError, switchMap, map, tap, timeout } from 'rxjs/operators';
+import { catchError, switchMap, map, tap, timeout, take } from 'rxjs/operators';
 
 import { Auth } from '@angular/fire/auth';
 import { Firestore } from '@angular/fire/firestore';
@@ -14,12 +15,9 @@ import { EmailVerificationService } from './email-verification.service';
 import { ValidatorService } from '../../general/validator.service';
 import { FirebaseError } from 'firebase/app';
 import { environment } from 'src/environments/environment';
-import {
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  updateProfile,
-  UserCredential,
-  fetchSignInMethodsForEmail,
+import { createUserWithEmailAndPassword, sendPasswordResetEmail, updateProfile,
+  UserCredential,  fetchSignInMethodsForEmail,  onIdTokenChanged,
+  type User // User está esmaecido
 } from 'firebase/auth';
 
 import { userConverter } from '../../data-handling/converters/user.firestore-converter';
@@ -59,6 +57,13 @@ export class RegisterService {
         )
       ),
 
+      // garante que o Auth “propagou” antes do Firestore escrever (rules dependem disso)
+      switchMap((cred) =>
+        this.waitAuthPropagationForFirestore$(cred.user.uid).pipe(
+          map(() => cred)
+        )
+      ),
+
       switchMap((cred) => {
         const now = Date.now();
         const payload: IUserRegistrationData = {
@@ -78,7 +83,7 @@ export class RegisterService {
 
         return this.persistUserAndIndexAtomic(cred.user.uid, userData.nickname, payload).pipe(
           map((): SignupContext => ({ cred, warns: [] })),
-          catchError(err => this.rollbackUser(cred.user.uid, err))
+          catchError(err => throwError(() => err))
         );
       }),
 
@@ -130,6 +135,41 @@ export class RegisterService {
       map((ctx2) => ctx2.cred),
 
       catchError((err) => this.handleRegisterError(err, 'Registro'))
+    );
+  }
+
+  /**
+ * =============================================================================
+ * waitAuthPropagationForFirestore$
+ * - Evita race-condition: createUser retorna cred, mas Firestore ainda pode estar com user=null
+ * - Só libera quando onIdTokenChanged já está com o uid esperado
+ * - Mantém fluxo 100% reativo (Observable)
+ * =============================================================================
+ */
+  private waitAuthPropagationForFirestore$(expectedUid: string): Observable<void> {
+     // se já está ok, não espera evento nenhum
+    if (this.auth.currentUser?.uid === expectedUid) return of(void 0);
+    return from(this.auth.currentUser?.getIdToken(true) ?? Promise.resolve('')).pipe(
+      switchMap(() =>
+        new Observable<void>((subscriber) => {
+          const unsub = onIdTokenChanged(
+            this.auth,
+            (user: User | null) => {
+              if (user?.uid === expectedUid) {
+                subscriber.next();
+                subscriber.complete();
+              }
+            },
+            (err: unknown) => subscriber.error(err)
+          );
+
+          return () => unsub();
+        })
+      ),
+      timeout({ each: this.NET_TIMEOUT_MS }),
+      take(1),
+      map(() => void 0),
+      catchError((err) => this.handleRegisterError(err, 'Sincronização Auth/Firestore'))
     );
   }
 
@@ -189,10 +229,13 @@ export class RegisterService {
         const userRef = doc(this.db as any, 'users', uid).withConverter(userConverter as any);
         const indexRef = doc(this.db as any, 'public_index', `nickname:${normalized}`);
 
+        // ✅ novo: public profile (discovery)
+        const publicProfileRef = doc(this.db as any, 'public_profiles', uid);
+
         const idxSnap = await transaction.get(indexRef);
         if (idxSnap.exists()) {
           const err: any = new Error('Apelido já está em uso.');
-          err.code = 'nickname-in-use';
+          err.code = 'nickname/in-use';
           throw err;
         }
 
@@ -209,20 +252,20 @@ export class RegisterService {
           createdAt: Timestamp.now(),
           lastChangedAt: Timestamp.now()
         });
+
+        // ✅ cria doc público mínimo (enriquece depois via edição de perfil)
+        transaction.set(publicProfileRef, {
+          uid,
+          nickname: nickname.trim(),
+          nicknameNormalized: normalized,
+          role: 'basic',
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
       })
     ).pipe(
       map(() => void 0),
       catchError(err => throwError(() => err))
-    );
-  }
-
-  private rollbackUser(uid: string, error: any): Observable<never> {
-    return this.deleteUserOnFailure(uid).pipe(
-      switchMap(() => throwError(() => error)),
-      catchError((rollbackErr) => {
-        this.globalErrorHandler.handleError(rollbackErr);
-        return throwError(() => error);
-      })
     );
   }
 
@@ -274,7 +317,9 @@ export class RegisterService {
 
     if (error instanceof FirebaseError) {
       switch (error.code) {
-        case 'auth/email-already-in-use': return 'Este e-mail já está em uso. Tente outro.';
+        case 'auth/email-already-in-use':
+          return 'Se existir uma conta com este e-mail, você receberá instruções para recuperar o acesso.';
+          // segurança: não vaza info sobre existência de conta
         case 'auth/weak-password': return 'Senha fraca. Ela precisa ter pelo menos 6 caracteres.';
         case 'auth/invalid-email': return 'Formato de e-mail inválido.';
         case 'auth/network-request-failed': return 'Problema de conexão. Verifique sua internet.';
@@ -296,4 +341,4 @@ export class RegisterService {
       this.globalErrorHandler.handleError(e);
     } catch { }
   }
-}
+} // 343 linhas - já está no limite

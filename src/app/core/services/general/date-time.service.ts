@@ -1,4 +1,6 @@
 // src/app/core/services/general/date-time.service.ts
+// Serviço para manipulação e formatação de datas e horas
+// Não esquecer comentários e ferramentas de debug
 import { Injectable } from '@angular/core';
 import { Timestamp } from 'firebase/firestore';
 import {

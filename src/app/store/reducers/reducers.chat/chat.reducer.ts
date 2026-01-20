@@ -22,8 +22,7 @@ export const chatReducer = createReducer<ChatState>(
    * Define `loading` como `true` para indicar o início do processo.
    */
   on(ChatActions.loadChats, (state) => {
-    console.log('[ChatReducer] Ação loadChats iniciada');
-    return {
+        return {
       ...state,
       loading: true,
       error: null

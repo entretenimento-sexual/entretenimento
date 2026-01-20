@@ -1,4 +1,6 @@
-// src/app/core/services/interactions/friendship/repo/facade.repo.ts
+// src\app\core\services\interactions\friendship\repo\facade.repo.ts
+// Nomes trocados podem causar confusão, exporta FriendshipRepo
+// Não esquecer comentários e ferramentas de debug
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore, collection, getDocs, query, where,

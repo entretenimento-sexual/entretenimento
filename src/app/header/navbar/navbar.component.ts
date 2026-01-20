@@ -1,4 +1,5 @@
 // src/app/header/navbar/navbar.component.ts
+// Não esqueça os comentáros explicativos.
 import { Component, Injector, OnDestroy, OnInit, runInInjectionContext, inject, DestroyRef } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Subscription, combineLatest, Observable } from 'rxjs';
@@ -228,7 +229,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
   onToggleSidebar(): void {
     this.sidebarService.toggleSidebar();
   }
-
+// usuário só deve perder a sessão se clicar em logout, mesmo que perca o estado de online.
   logout(): void {
     this.authOrchestrator.logout$().pipe(
       take(1),

@@ -13,7 +13,7 @@ import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/f
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 
-// 🔄 Nova base (substitui AuthService)
+// 🔄 Nova base (substitui o antigo Service de auth)
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 

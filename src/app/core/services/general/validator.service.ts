@@ -1,4 +1,5 @@
 //src\app\core\services\general\validator.service.ts
+// Não esqueça os comentários explicativos.
 import { Injectable } from '@angular/core';
 import { AbstractControl, ValidatorFn } from '@angular/forms';
 

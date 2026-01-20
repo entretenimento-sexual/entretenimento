@@ -7,6 +7,7 @@ import type { UserCredential } from 'firebase/auth';
 import { RegisterService } from '../register/register.service';
 import { EmailVerificationService, VerifyEmailResult } from '../register/email-verification.service';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
+import { LogoutService } from './logout.service';
 
 export interface RegisterFacadeResult {
   success: boolean;
@@ -24,6 +25,7 @@ export class AuthFacade {
   constructor(
     private readonly registerService: RegisterService,
     private readonly emailVerification: EmailVerificationService,
+    private logout: LogoutService,
   ) { }
 
   register$(user: IUserRegistrationData, password: string): Observable<RegisterFacadeResult> {
@@ -59,6 +61,14 @@ export class AuthFacade {
       finalize(() => this.loadingSubject.next(false))
     );
   }
+  logout$(): Observable<void> {
+    return this.logout.logout$();
+  }
+
+  logoutNow(): void {
+    this.logout.logout();
+  }
+
 }
 /*
 (1) fonte única,

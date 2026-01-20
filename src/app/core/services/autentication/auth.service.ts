@@ -1,6 +1,6 @@
 // src/app/core/services/autentication/auth.service.ts
 //sendo descontinuado
-import { Injectable, Injector, runInInjectionContext } from '@angular/core';
+import { Injectable, Injector } from '@angular/core';
 import { Router } from '@angular/router';
 import { Observable, BehaviorSubject, of, from } from 'rxjs';
 import { switchMap, tap, catchError, distinctUntilChanged, map, shareReplay, timeout, retry, take } from 'rxjs/operators';
@@ -17,9 +17,9 @@ import { FirestoreUserQueryService } from '../data-handling/firestore-user-query
 import { CacheService } from '../general/cache/cache.service';
 import { EmailVerificationService } from './register/email-verification.service';
 import { GeolocationTrackingService } from '../geolocation/geolocation-tracking.service';
+import { sanitizeUserForStore } from 'src/app/store/utils/user-store.serializer';
 
 import { Auth, authState, signOut, type User } from '@angular/fire/auth';
-import { serverTimestamp as fsServerTimestamp, Firestore } from '@angular/fire/firestore';
 import { PresenceService } from '../presence/presence.service';
 import { DateTimeService } from '../general/date-time.service';
 
@@ -42,15 +42,9 @@ export class AuthService {
     private geoloc: GeolocationTrackingService,
     private usuarioService: UsuarioService,
     private dateTime: DateTimeService,
-    private injector: Injector,
     private auth: Auth,
      ) {
     this.initAuthStateListener();
-  }
-
-  /** Helper para garantir contexto de injeção em qualquer callback async */
-  private afRun<T>(fn: () => T): T {
-    return runInInjectionContext(this.injector, fn);
   }
 
   private buildMinimalUserFromAuth(u: User): IUserDados {
@@ -159,23 +153,10 @@ export class AuthService {
     this.store.dispatch(logoutSuccess());
   }
 
-  private toEpoch(v: any): number | null { return this.dateTime.toEpoch(v); }
-  private serializeUser(u: IUserDados): IUserDados {
-    return {
-      ...u,
-      lastLogin: this.toEpoch(u.lastLogin) ?? 0,
-      firstLogin: this.toEpoch(u.firstLogin) as any,
-      createdAt: this.toEpoch(u.createdAt) as any,
-      singleRoomCreationRightExpires: this.toEpoch(u.singleRoomCreationRightExpires) as any,
-      roomCreationSubscriptionExpires: this.toEpoch(u.roomCreationSubscriptionExpires) as any,
-      subscriptionExpires: this.toEpoch(u.subscriptionExpires) as any,
-    } as any;
-  }
-
-  setCurrentUser(userData: IUserDados): void {
+   setCurrentUser(userData: IUserDados): void {
     if (!userData || !userData.uid) return;
     if (JSON.stringify(this.currentUser) !== JSON.stringify(userData)) {
-      const serial = this.serializeUser(userData); // ✅ datas como epoch
+      const serial = sanitizeUserForStore(userData);
       this.userSubject.next(serial);
       localStorage.setItem('currentUser', JSON.stringify(serial));
       this.cacheService.set('currentUser', serial, 300000);
@@ -216,5 +197,5 @@ export class AuthService {
   }
 }
 // auth.service.ts está sendo descontinuado
-// método de logout ainda não migrado
+// método de logout migrado para AuthOrchestratorService.ts
 // Favor migrar para AuthOrchestratorService.ts e outros novos serviços de auth

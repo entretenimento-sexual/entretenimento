@@ -1,4 +1,6 @@
 // src/app/core/services/autentication/auth/presence/presence-dom-streams.service.ts
+// Serviço para criar streams de eventos do DOM relacionados à presença do usuário
+// Não esquecer comentários e ferramentas de debug
 import { Injectable } from '@angular/core';
 import { EMPTY, Observable, fromEvent } from 'rxjs';
 import { distinctUntilChanged, map, startWith } from 'rxjs/operators';

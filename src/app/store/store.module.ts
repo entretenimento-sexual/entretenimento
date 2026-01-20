@@ -1,4 +1,6 @@
 // src/app/store/store.module.ts
+// Módulo central do NgRx Store: configura reducers, effects, DevTools, runtimeChecks etc.
+// Manter comentários para facilitar navegação no código
 import { NgModule } from '@angular/core';
 import { StoreModule, ActionReducer } from '@ngrx/store';
 import { EffectsModule } from '@ngrx/effects';

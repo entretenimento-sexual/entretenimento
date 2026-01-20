@@ -1,4 +1,5 @@
 // src/app/core/guards/premium.guard.ts
+// Não esqueça os comentáros explicativos sobre o propósito desse guard.
 import { Injectable } from '@angular/core';
 import { CanActivate, Router, UrlTree, RouterStateSnapshot } from '@angular/router';
 import { combineLatest, of } from 'rxjs';

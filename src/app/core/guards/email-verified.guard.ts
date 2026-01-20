@@ -1,4 +1,5 @@
 // src/app/core/guards/email-verified.guard.ts
+// Não esqueça os comentáros explicativos sobre o propósito desse guard.
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree, ActivatedRouteSnapshot } from '@angular/router';
 import { Auth } from '@angular/fire/auth';

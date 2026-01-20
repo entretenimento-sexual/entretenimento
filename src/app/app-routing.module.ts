@@ -3,13 +3,12 @@ import { NgModule } from '@angular/core';
 import { NoPreloading, RouterModule, Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth.guard';
-import { authRedirectGuard } from './core/guards/auth-redirect.guard';
 import { emailVerifiedGuard } from './core/guards/email-verified.guard';
+import { guestOnlyGuard } from './core/guards/guest-only.guard';
 
 import { ProfileListComponent } from './layout/profile-list/profile-list.component';
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { adminCanMatch } from './core/guards/admin.guard';
-import { environment } from 'src/environments/environment';
 
 const routes: Routes = [
   { path: '',
@@ -54,7 +53,7 @@ const routes: Routes = [
   {
     path: 'register',
     loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),
-    //canActivate: [authRedirectGuard],
+    canActivate: [guestOnlyGuard],
     data: { allowUnverified: true },
   },
   {
@@ -62,7 +61,7 @@ const routes: Routes = [
     loadChildren: () =>
       import('./authentication/authentication.module')
         .then(m => m.AuthenticationModule),
-    //canActivate: [authRedirectGuard],
+    canActivate: [guestOnlyGuard],
     data: { allowUnverified: true },
   },
   {

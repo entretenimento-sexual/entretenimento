@@ -1,4 +1,5 @@
 // src/app/core/services/presence/presence.service.ts
+// Não esquecer comentários e ferramentas de debug
 import { Injectable, NgZone } from '@angular/core';
 import { EMPTY, Observable, Subscription, combineLatest, interval, merge, of } from 'rxjs';
 import {
@@ -21,6 +22,7 @@ import {
 import { PresenceDomStreamsService } from './presence-dom-streams.service';
 import { PresenceLeaderElectionService } from './presence-leader-election.service';
 import { PresenceWriterService } from './presence-writer.service';
+import { environment } from 'src/environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class PresenceService {
@@ -34,6 +36,8 @@ export class PresenceService {
    */
   private static readonly SET_OFFLINE_ON_EXIT = false;
 
+  private readonly debug = !environment.production;
+
   private sub = new Subscription();
   private activeUid?: string;
   private leaderKey?: string;
@@ -45,20 +49,42 @@ export class PresenceService {
     private readonly writer: PresenceWriterService
   ) { }
 
+  // ---------------------------------------------------------
+  // Debug helper (não polui prod)
+  // ---------------------------------------------------------
+  private dbg(msg: string, extra?: unknown): void {
+    if (!this.debug) return;
+    // eslint-disable-next-line no-console
+    console.log(`[PresenceService] ${msg}`, extra ?? '');
+  }
+
   start(uid: string): void {
     const cleanUid = (uid ?? '').trim();
     if (!cleanUid) return;
 
-    if (this.activeUid === cleanUid) return;
-    if (this.activeUid && this.activeUid !== cleanUid) this.stop();
+    if (this.activeUid === cleanUid) {
+      this.dbg('start ignorado (já ativo)', { uid: cleanUid });
+      return;
+    }
+
+    if (this.activeUid && this.activeUid !== cleanUid) {
+      this.dbg('start com uid diferente → stop anterior', { from: this.activeUid, to: cleanUid });
+      this.stop();
+    }
 
     this.activeUid = cleanUid;
     this.leaderKey = this.leader.buildLeaderKey(cleanUid);
 
+    this.dbg('START', { uid: cleanUid, leaderKey: this.leaderKey });
+
     const dom = this.domStreams.create();
 
     // createIsLeader$ já tem shareReplay(refCount) internamente
-    const isLeader$ = this.leader.createIsLeader$(cleanUid, dom.storage$);
+    const isLeader$ = this.leader.createIsLeader$(cleanUid, dom.storage$).pipe(
+      distinctUntilChanged(),
+      tap((isLeader) => this.dbg('isLeader$', { uid: cleanUid, isLeader })),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
     // visibilidade com estado inicial (e replay pra evitar múltiplos subscriptions)
     const initialVis: 'hidden' | 'visible' =
@@ -69,6 +95,7 @@ export class PresenceService {
     const visibility$ = dom.visibility$.pipe(
       startWith(initialVis),
       distinctUntilChanged(),
+      tap((v) => this.dbg('visibility$', { uid: cleanUid, v })),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
@@ -82,7 +109,12 @@ export class PresenceService {
         vis === 'hidden'
           ? this.writer.setAway$(cleanUid)
           : this.writer.setOnline$(cleanUid)
-      )
+      ),
+      catchError((err) => {
+        // Writer já faz routing centralizado, aqui só evitamos quebrar stream
+        this.dbg('bootstrap$ erro (suprimido no stream)', err);
+        return EMPTY;
+      })
     );
 
     // 2) heartbeat SOMENTE quando líder + visible
@@ -93,7 +125,11 @@ export class PresenceService {
         return interval(PresenceService.HEARTBEAT_MS).pipe(
           startWith(0),
           filter(() => (typeof navigator === 'undefined' ? true : navigator.onLine !== false)),
-          exhaustMap(() => this.writer.beatOnline$(cleanUid))
+          exhaustMap(() => this.writer.beatOnline$(cleanUid)),
+          catchError((err) => {
+            this.dbg('heartbeat$ erro (suprimido no stream)', err);
+            return EMPTY;
+          })
         );
       })
     );
@@ -101,6 +137,7 @@ export class PresenceService {
     // 3) rede voltou: líder seta online/away conforme visibilidade atual
     const onOnline$ = dom.online$.pipe(
       auditTime(1000),
+      tap(() => this.dbg('DOM online$', { uid: cleanUid })),
       switchMap(() =>
         combineLatest([isLeader$.pipe(take(1)), visibility$.pipe(take(1))]).pipe(
           filter(([leader]) => leader),
@@ -110,7 +147,11 @@ export class PresenceService {
               : this.writer.setOnline$(cleanUid)
           )
         )
-      )
+      ),
+      catchError((err) => {
+        this.dbg('onOnline$ erro (suprimido no stream)', err);
+        return EMPTY;
+      })
     );
 
     // 4) visibilidade mudou: líder seta away/online (não usa beatOnline$ aqui)
@@ -126,19 +167,28 @@ export class PresenceService {
               : this.writer.setOnline$(cleanUid)
           )
         )
-      )
+      ),
+      catchError((err) => {
+        this.dbg('onVisibility$ erro (suprimido no stream)', err);
+        return EMPTY;
+      })
     );
 
     // 5) rede caiu: líder tenta setOffline (best-effort)
     const onOffline$ = dom.offline$.pipe(
       auditTime(250),
+      tap((reason) => this.dbg('DOM offline$', { uid: cleanUid, reason })),
       switchMap((reason) =>
         isLeader$.pipe(
           take(1),
           filter(Boolean),
           exhaustMap(() => this.writer.setOffline$(cleanUid, reason))
         )
-      )
+      ),
+      catchError((err) => {
+        this.dbg('onOffline$ erro (suprimido no stream)', err);
+        return EMPTY;
+      })
     );
 
     // 6) exit: libera liderança imediatamente (sincrono); opcionalmente tenta setOffline
@@ -151,12 +201,19 @@ export class PresenceService {
       })),
       tap(({ wasLeader, key }) => {
         // libera para outra aba reassumir sem esperar TTL
-        if (wasLeader) this.leader.releaseLeadership(key);
+        if (wasLeader && key) {
+          this.dbg('EXIT: releaseLeadership()', { uid: cleanUid, key });
+          this.leader.releaseLeadership(key);
+        }
       }),
       switchMap(({ reason, wasLeader }) => {
         if (!PresenceService.SET_OFFLINE_ON_EXIT) return EMPTY;
         if (!wasLeader) return EMPTY;
         return this.writer.setOffline$(cleanUid, reason);
+      }),
+      catchError((err) => {
+        this.dbg('onExit$ erro (suprimido no stream)', err);
+        return EMPTY;
       })
     );
 
@@ -174,24 +231,32 @@ export class PresenceService {
     const uid = this.activeUid;
     const key = this.leaderKey;
 
+    // Para imediatamente todos os streams (evita beatOnline concorrente)
     this.sub.unsubscribe();
     this.sub = new Subscription();
+
     this.activeUid = undefined;
     this.leaderKey = undefined;
 
     const wasLeader = !!uid && this.leader.isLeaderNow(uid);
 
+    this.dbg('STOP$', { uid: uid ?? null, wasLeader });
+
     const markOffline$ =
       wasLeader && uid
         ? this.writer.setOffline$(uid, 'stop$()').pipe(
           defaultIfEmpty(void 0),
-          catchError(() => of(void 0))
+          catchError(() => of(void 0)) // writer já roteia erros; aqui é só “não travar stop$”
         )
         : of(void 0);
 
     return markOffline$.pipe(
       finalize(() => {
-        if (wasLeader) this.leader.releaseLeadership(key);
+        // release liderança (idempotente e safe)
+        if (wasLeader && key) {
+          this.dbg('STOP$: releaseLeadership()', { key });
+          this.leader.releaseLeadership(key);
+        }
       }),
       map(() => void 0)
     );
@@ -200,8 +265,7 @@ export class PresenceService {
   stop(): void {
     this.stop$().pipe(take(1)).subscribe({ next: () => { }, error: () => { } });
   }
-}
-// 203 linhas, parece estar no limite, mas ok.
+} // 268 linhas, parece estar no limite.
 // ***** Sempre considerar que existe no projeto o user-presence.query.service.ts *****
 // ***** Sempre considerar que existe no projeto o user-discovery.query.service.ts
 // ***** Sempre considerar que existe o presence\presence-dom-streams.service.ts *****

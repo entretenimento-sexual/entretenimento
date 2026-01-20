@@ -1,4 +1,5 @@
 //src\app\core\services\interactions\friendship\friendship.service.ts
+// Não esquecer comentários e ferramentas de debug
 import { Injectable, inject } from '@angular/core';
 import { switchMap, forkJoin, throwError, Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
@@ -112,4 +113,4 @@ export class FriendshipService {
   listFriendsPage(uid: string, pageSize = 24, after: number | null = null) {
     return this.repo.listFriendsPage(uid, pageSize, after);
   }
-}
+} //115 linhas

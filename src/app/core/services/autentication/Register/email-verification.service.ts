@@ -1,4 +1,6 @@
 // src/app/core/services/autentication/register/email-verification.service.ts
+// EmailVerificationService: gerencia o fluxo de verificação de e-mail
+// Não esquecer os comentários
 import { Injectable } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 
@@ -149,7 +151,7 @@ export class EmailVerificationService {
 
         // Se for bloqueio de domínio/URL, tentamos um fallback garantido (authDomain)
         if (code === 'auth/unauthorized-domain' || code === 'auth/invalid-continue-uri') {
-          console.warn('[EmailVerificationService] Dominio/URL não autorizado. Tentando fallback no authDomain…');
+          console.log('[EmailVerificationService] Dominio/URL não autorizado. Tentando fallback no authDomain…');
           return from(sendEmailVerification(user, safeAcs)).pipe(
             timeout({ each: this.NET_TIMEOUT_MS }),
             tap(() => console.log('[EmailVerificationService] E-mail de verificação enviado (fallback authDomain).')),
@@ -310,6 +312,6 @@ export class EmailVerificationService {
       default: return 'Erro ao verificar o e-mail.';
     }
   }
-}/* Linha313, precisa buscar redução do service buscando realocar
+}/* Linha315, precisa buscar redução do service buscando realocar
     métodos daqui para outros serviços mais especializados, se houver.
     auth.service.ts e firestore.service.ts estão sendo descontinuados */

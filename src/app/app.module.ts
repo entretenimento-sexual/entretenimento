@@ -1,5 +1,6 @@
 // src/app/app.module.ts
-import { NgModule, ErrorHandler, LOCALE_ID } from '@angular/core';
+// Não esqueça os comentáros explicativos.
+import { NgModule, ErrorHandler, LOCALE_ID, APP_INITIALIZER } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
@@ -22,7 +23,7 @@ import { environment } from '../environments/environment';
 
 // AngularFire
 import { provideFirebaseApp, initializeApp, getApp } from '@angular/fire/app';
-import { provideAuth, connectAuthEmulator } from '@angular/fire/auth';
+import { provideAuth, connectAuthEmulator, Auth } from '@angular/fire/auth';
 import { provideFirestore, connectFirestoreEmulator } from '@angular/fire/firestore';
 import { provideDatabase } from '@angular/fire/database';
 
@@ -32,7 +33,6 @@ import {  getAuth,
           indexedDBLocalPersistence,
           browserLocalPersistence,
           browserSessionPersistence,
-          inMemoryPersistence,
           browserPopupRedirectResolver,
         } from 'firebase/auth';
 
@@ -51,6 +51,17 @@ registerLocaleData(localePt, 'pt-BR');
 
 // Standalone
 import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.component';
+
+/**
+ * ✅ APP_INITIALIZER: segura o bootstrap “lógico” até o Firebase Auth restaurar a sessão.
+ *
+ * Por que isso importa?
+ * - Sem isso, guards/Router podem rodar com auth.currentUser=null no boot (flash),
+ *   causando redirecionamentos errados (/login) mesmo com usuário “logado” na persistência.
+ */
+export function authRestoreInitializer(auth: Auth) {
+  return () => (auth as any).authStateReady?.() ?? Promise.resolve();
+}
 
 @NgModule({
   declarations: [AppComponent],
@@ -77,6 +88,8 @@ import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.comp
   providers: [
     // 🔥 Firebase App
     provideFirebaseApp(() => initializeApp(environment.firebase)),
+    // ✅ Garante restore antes do app decidir rotas/guards
+    { provide: APP_INITIALIZER, useFactory: authRestoreInitializer, deps: [Auth], multi: true },
 
     // 🔐 Auth (no emulador: só memória; em prod: persistência completa)
     provideAuth(() => {
@@ -88,30 +101,46 @@ import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.comp
         cfg?.emulators?.auth?.host &&
         cfg?.emulators?.auth?.port;
 
+      /**
+       * ✅ Persistência:
+       * - Emulador: browserSessionPersistence (não perde no refresh).
+       *   (se você quiser “persistência total” no emulador, troque por indexedDBLocalPersistence.)
+       * - Produção: todas as persistências (fallback automático do SDK).
+       */
       const persistence = usingEmu
-        ? [inMemoryPersistence] // evita refresh token inválido no emulador
+        ? [browserSessionPersistence]
         : [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence];
 
       let auth;
       try {
-        auth = initializeAuth(app, { persistence, popupRedirectResolver: browserPopupRedirectResolver });
+        auth = initializeAuth(app, {
+          persistence,
+          popupRedirectResolver: browserPopupRedirectResolver,
+        });
       } catch {
+        // Caso o Auth já tenha sido inicializado em outro lugar, reaproveita instância
         auth = getAuth(app);
       }
 
       if (usingEmu) {
         const url = `http://${cfg.emulators.auth.host}:${cfg.emulators.auth.port}`;
         connectAuthEmulator(auth, url, { disableWarnings: true });
-        // log não-bloqueante (ignora CORS):
+
+        // log não-bloqueante (ignora CORS)
         try { fetch(url, { mode: 'no-cors' }).catch(() => { }); } catch { }
-        console.log('[AUTH][EMU-CONNECTED]', { url });
+
+        //try { (window as any).DBG?.('[AUTH][EMU-CONNECTED]', { url }); } catch { }
       }
 
       return auth;
     }),
 
+
     // 🗄️ Firestore (long-polling + emulador)
     provideFirestore(() => {
+      // ✅ garante silêncio (ou troque para 'error' se quiser ver só erros)
+      //setLogLevel(environment.production ? 'error' : 'silent');
+
       const app = getApp();
 
       const db = initializeFirestore(app, {
@@ -119,8 +148,6 @@ import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.comp
         useFetchStreams: false,
         ignoreUndefinedProperties: true,
       } as any);
-
-      if (!environment.production) setLogLevel('debug');
 
       const cfg: any = environment;
       const usingEmu =
@@ -131,7 +158,7 @@ import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.comp
 
       if (usingEmu) {
         connectFirestoreEmulator(db, cfg.emulators.firestore.host, cfg.emulators.firestore.port);
-        console.log('[FS][EMU-CONNECTED]', cfg.emulators.firestore);
+        //try { (window as any).DBG?.('[FS][EMU-CONNECTED]', cfg.emulators.firestore); } catch { }
       }
 
       return db;
@@ -150,7 +177,7 @@ import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.comp
 
       if (usingEmu) {
         connectDatabaseEmulator(db, cfg.emulators.database.host, cfg.emulators.database.port);
-        console.log('[RTDB][EMU-CONNECTED]', cfg.emulators.database);
+       // try { (window as any).DBG?.('[RTDB][EMU-CONNECTED]', cfg.emulators.database); } catch { }
       }
 
       return db;
@@ -168,12 +195,11 @@ import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.comp
 
       if (usingEmu) {
         connectStorageEmulator(storage, cfg.emulators.storage.host, cfg.emulators.storage.port);
-        console.log('[ST][EMU-CONNECTED]', cfg.emulators.storage);
+      //  try { (window as any).DBG?.('[ST][EMU-CONNECTED]', cfg.emulators.storage); } catch { }
       }
 
       return storage;
     }),
-
 
     // Erros & i18n
     { provide: ErrorHandler, useClass: GlobalErrorHandlerService },

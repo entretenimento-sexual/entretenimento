@@ -1,9 +1,11 @@
 // src\app\core\guards\user.owner.guard.ts
+// Não esqueça os comentáros explicativos sobre o propósito desse guard.
 import { Injectable } from '@angular/core';
 import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot } from '@angular/router';
 import { Observable } from 'rxjs';
 import { map, take } from 'rxjs/operators';
 import { AuthService } from '../services/autentication/auth.service';
+// AuthService foi descontinuado, verifique a alternativa mais recente.
 
 @Injectable({
   providedIn: 'root'

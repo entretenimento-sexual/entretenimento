@@ -13,57 +13,18 @@ import {
   clearCurrentUser,
   addUserToState,
 } from '../../actions/actions.user/user.actions';
-
+import { sanitizeUserForStore } from 'src/app/store/utils/user-store.serializer';
 import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.actions';
 import { initialUserState } from '../../states/states.user/user.state';
 
 type UserMap = { [uid: string]: IUserDados };
-type AnyDateLike = import('firebase/firestore').Timestamp | Date | number | null | undefined;
 
 /* ========================================================================
    Helpers puros (sem mutação) — padrão “plataforma grande”
    ======================================================================== */
 
-function toEpoch(v: AnyDateLike): number | null {
-  if (v == null) return null;
-  if (typeof v === 'object' && typeof (v as any).toMillis === 'function') return (v as any).toMillis();
-  if (v instanceof Date) return v.getTime();
-  if (typeof v === 'number') return v;
-  return null;
-}
-
-function sanitizeUser(u: IUserDados): IUserDados {
-  if (!u) return u;
-
-  // converte apenas campos que podem virar Timestamp no Firestore
-  // (use “as any” porque seu IUserDados pode não tipar todos)
-  const anyU = u as any;
-
-  return {
-    ...u,
-
-    // comuns
-    lastLogin: toEpoch(anyU.lastLogin) ?? anyU.lastLogin,
-    firstLogin: toEpoch(anyU.firstLogin) ?? anyU.firstLogin,
-    createdAt: toEpoch(anyU.createdAt) ?? anyU.createdAt,
-    updatedAt: toEpoch(anyU.updatedAt) ?? anyU.updatedAt,
-
-    // presença (se existirem no seu modelo)
-    lastSeen: toEpoch(anyU.lastSeen) ?? anyU.lastSeen,
-    lastOnlineAt: toEpoch(anyU.lastOnlineAt) ?? anyU.lastOnlineAt,
-    lastOfflineAt: toEpoch(anyU.lastOfflineAt) ?? anyU.lastOfflineAt,
-    lastLocationAt: toEpoch(anyU.lastLocationAt) ?? anyU.lastLocationAt,
-    registrationDate: toEpoch(anyU.registrationDate) ?? anyU.registrationDate,
-
-    // assinaturas (se existirem)
-    subscriptionExpires: toEpoch(anyU.subscriptionExpires) ?? anyU.subscriptionExpires,
-    roomCreationSubscriptionExpires: toEpoch(anyU.roomCreationSubscriptionExpires) ?? anyU.roomCreationSubscriptionExpires,
-    singleRoomCreationRightExpires: toEpoch(anyU.singleRoomCreationRightExpires) ?? anyU.singleRoomCreationRightExpires,
-  } as IUserDados;
-}
-
 function upsertUser(map: UserMap, user: IUserDados): UserMap {
-  const safe = sanitizeUser(user);
+  const safe = sanitizeUserForStore(user);
   if (!safe?.uid) return map;
 
   return {
@@ -76,7 +37,7 @@ function upsertUser(map: UserMap, user: IUserDados): UserMap {
 }
 
 function upsertInArray(list: IUserDados[], user: IUserDados): IUserDados[] {
-  const safe = sanitizeUser(user);
+  const safe = sanitizeUserForStore(user);
   if (!safe?.uid) return list;
 
   const idx = list.findIndex((u) => u.uid === safe.uid);
@@ -176,7 +137,7 @@ export const userReducer = createReducer(
 
   /* ------------------ Sessão / Auth ------------------ */
   on(loginSuccess, (state, { user }) => {
-    const safe = sanitizeUser(user);
+    const safe = sanitizeUserForStore(user);
     return {
       ...state,
       currentUser: safe,
@@ -188,18 +149,9 @@ export const userReducer = createReducer(
 
   on(setCurrentUser, (state, { user }) => ({
     ...state,
-    currentUser: sanitizeUser(user),
+    currentUser: sanitizeUserForStore(user),
     users: upsertUser(state.users, user),
   })),
-  on(clearCurrentUser, (state) => {
-    const uidToRemove = state.currentUser?.uid ?? null;
-    return {
-      ...state,
-      currentUser: null,
-      // Se em algum fluxo legado ele entrou no array, removemos.
-      onlineUsers: removeByUid(state.onlineUsers, uidToRemove),
-    };
-  }),
 
   on(logoutSuccess, (state) => {
     const uidToRemove = state.currentUser?.uid ?? null;

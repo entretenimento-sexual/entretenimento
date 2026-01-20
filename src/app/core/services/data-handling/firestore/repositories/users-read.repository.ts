@@ -1,4 +1,5 @@
 //src\app\core\services\data-handling\firestore\repositories\users-read.repository.ts
+// Não esqueça os comentários
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { from, Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -82,4 +83,11 @@ export class UsersReadRepository {
       catchError(err => this.firestoreError.handleFirestoreError(err))
     );
   }
-}
+} // 86 linhas
+/* C:.
+  src\app\core\services\data-handling\firestore\repositories
+  public-index.repository.ts
+  user-repository.service.ts
+  users-read.repository.ts
+  Não existem subpastas
+ */

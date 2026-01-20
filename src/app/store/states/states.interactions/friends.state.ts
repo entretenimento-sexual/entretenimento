@@ -1,5 +1,4 @@
 // src/app/store/states/states.interactions/friends.state.ts
-import { Timestamp } from 'firebase/firestore';
 import { BlockedUserActive } from 'src/app/core/interfaces/friendship/blocked-user.interface';
 import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
 import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';

@@ -217,7 +217,7 @@ export class LoginComponent implements OnInit {
       takeUntilDestroyed(this.destroyRef)
     ).subscribe();
   }
-
+// usuário só deve perder a sessão se clicar em logout
   logout(): void {
     if (this.isLoading) return;
 

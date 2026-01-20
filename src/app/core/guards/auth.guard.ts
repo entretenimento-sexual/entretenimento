@@ -1,4 +1,5 @@
 // src/app/core/guards/auth.guard.ts
+// Não esqueça os comentáros explicativos sobre o propósito desse guard.
 import { inject } from '@angular/core';
 import { CanActivateFn, Router, UrlTree } from '@angular/router';
 import { defer, from, map, of, switchMap, take, catchError } from 'rxjs';

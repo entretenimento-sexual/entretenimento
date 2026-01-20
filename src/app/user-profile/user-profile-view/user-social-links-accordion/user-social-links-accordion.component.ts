@@ -69,7 +69,7 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
     // carrega os links do perfil (uid input)
     const profileUid = this.uid();
     if (!profileUid) {
-      console.warn('[SocialLinksAccordion] Nenhum uid passado ao componente.');
+      console.log('[SocialLinksAccordion] Nenhum uid passado ao componente.');
       return;
     }
 

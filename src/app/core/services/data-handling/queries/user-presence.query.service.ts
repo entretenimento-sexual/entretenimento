@@ -115,7 +115,7 @@ export class UserPresenceQueryService {
    * - Se você quiser, dá pra extrair pra um "UserModelAdapterService" / utils,
    *   e reutilizar também no user-discovery.query.service.ts
    */
-  private toUserDadosPublic(u: UserPublic): IUserDados {
+  private toUserDadosPublic(u: UserPublic): IUserDados {// está esmaecido
     return {
       uid: u.uid,
       nickname: u.nickname ?? null,

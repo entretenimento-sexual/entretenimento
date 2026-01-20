@@ -1,4 +1,5 @@
 // src/app/core/services/autentication/auth/auth-session.service.ts
+// Não esquecer os comentários
 import { Injectable } from '@angular/core';
 import { Observable, from, of } from 'rxjs';
 import { catchError, distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
@@ -60,14 +61,17 @@ export class AuthSessionService {
     );
   }
 
-  forceReload$() {
-    const u = this.auth.currentUser;
-    if (!u) return of(void 0);
-    return from(u.reload()).pipe(
-      map(() => void 0),
-      catchError(() => this.signOut$())
-    );
-  }
+  //não fazer signOut, deixa o Orchestrator decidir
+    forceReload$() {
+      const u = this.auth.currentUser;
+      if (!u) return of(void 0);
+
+      return from(u.reload()).pipe(
+        map(() => void 0),
+        catchError((e) => of(void 0)) // ou: throwError(() => e) se você quiser tratar acima
+      );
+    }
+
 
   get currentAuthUser(): User | null {
     return this.auth.currentUser;

@@ -1,7 +1,6 @@
 // src/app/store/actions/actions.interactions/friends/friends-pagination.actions.ts
 import { createAction, props } from '@ngrx/store';
 import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
-import type { Timestamp } from 'firebase/firestore';
 
 export const loadFriendsFirstPage = createAction(
   '[Friends Page] Load First',
@@ -23,7 +22,15 @@ export const loadFriendsPageSuccess = createAction(
   props<{
     uid: string;
     items: Friend[];
-    nextOrderValue: number | Timestamp | null;
+
+    /**
+     * ✅ Store serializável:
+     * cursor sempre como epoch (number) ou null.
+     * Quem lê Firestore converte Timestamp => epoch (toMillis) antes do dispatch.
+     * Quem monta query converte epoch => Timestamp (Timestamp.fromMillis) quando necessário.
+     */
+    nextOrderValue: number | null;
+
     reachedEnd: boolean;
     append: boolean; // false = replace(first/refresh), true = append(next)
   }>()
@@ -38,3 +45,6 @@ export const resetFriendsPagination = createAction(
   '[Friends Page] Reset',
   props<{ uid: string }>()
 );
+
+//Timestamp não é serializável
+//src\app\store\utils\user-store.serializer.ts

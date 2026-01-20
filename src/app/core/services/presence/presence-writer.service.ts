@@ -1,20 +1,16 @@
-//src\app\core\services\presence\presence-writer.service.ts
+// src/app/core/services/presence/presence-writer.service.ts
+// Não esqueça os comentários
 import { Injectable } from '@angular/core';
-import { Firestore, doc, updateDoc, setDoc, serverTimestamp as afServerTimestamp} from '@angular/fire/firestore';
+import {
+  Firestore, doc, updateDoc, setDoc, serverTimestamp as afServerTimestamp
+} from '@angular/fire/firestore';
+import { Auth } from '@angular/fire/auth';
+
 import { EMPTY, Observable } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-
-/**
- * ============================================================================
- * CAMADA FIREBASE (write)
- * - NÃO conhece NgRx
- * - escreve presença com robustez (update + seed on NOT_FOUND)
- * - erros são SILENCIOSOS (observabilidade) via GlobalErrorHandlerService
- * ============================================================================
- */
 
 type PresencePublicPatch = Partial<{
   nickname: string | null;
@@ -29,53 +25,67 @@ export type PresenceState = 'online' | 'away' | 'offline';
 
 @Injectable({ providedIn: 'root' })
 export class PresenceWriterService {
-  /**
-   * Compatibilidade:
-   * enquanto a app usa where('isOnline','==',true), mantemos este campo.
-   */
   private static readonly KEEP_ISONLINE_COMPAT = true;
-
   private readonly tabId = this.createTabId();
 
   constructor(
     private readonly db: Firestore,
     private readonly ctx: FirestoreContextService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly auth: Auth, // ✅ permite distinguir "erro real" vs "logout em andamento"
   ) { }
 
-  /** Batida normal (heartbeat) */
   beatOnline$(uid: string): Observable<void> {
     return this.writePresence$(uid, 'online', {}, { mode: 'heartbeat' });
   }
 
-  /** Evento explícito de volta/online (opcionalmente marca lastOnlineAt) */
   setOnline$(uid: string): Observable<void> {
     return this.writePresence$(uid, 'online', {}, { mode: 'state' });
   }
 
-  /** Aba oculta / inatividade visual */
   setAway$(uid: string): Observable<void> {
     return this.writePresence$(uid, 'away', {}, { mode: 'state' });
   }
 
-  /** Encerramento best-effort */
   setOffline$(uid: string, _reason: string): Observable<void> {
-    // reason: melhor NÃO persistir em /presence (coleção legível por qualquer signedIn).
+    // Mantém API (compat). Não persistimos reason no doc por privacidade/ruído.
     return this.writePresence$(uid, 'offline', {}, { mode: 'state' });
   }
 
-  /** opcional: quando você souber nickname/coords/municipio, patcha presença */
   patchPublic$(uid: string, patch: PresencePublicPatch): Observable<void> {
-    // ✅ não força mudança de estado; só atualiza “public fields”
     return this.writePresence$(uid, 'online', patch, { mode: 'public' });
   }
 
-  /**
-   * Core:
-   * - lastSeen SEMPRE serverTimestamp() (padroniza para Timestamp no Firestore)
-   * - presenceSessionId por aba (tabId)
-   * - updateDoc, e se NOT_FOUND: setDoc merge como seed
-   */
+  /** ✅ mantém seu método, sem runInInjectionContext redundante */
+  upsertOnlinePresence$(uid: string, sessionId: string): Observable<void> {
+    const cleanUid = (uid ?? '').trim();
+    if (!cleanUid) return EMPTY;
+
+    return this.ctx.deferPromise$(() =>
+      this.ctx.run(() => {
+        const ref = doc(this.db, `presence/${cleanUid}`);
+
+        return setDoc(ref, {
+          uid: cleanUid,
+          presenceSessionId: sessionId,
+          presenceState: 'online',
+          isOnline: true,
+          lastSeen: afServerTimestamp(),
+          updatedAt: afServerTimestamp(),
+          lastStateChangeAt: afServerTimestamp(),
+          lastOnlineAt: afServerTimestamp(),
+        } as any, { merge: true });
+      })
+    ).pipe(
+      map(() => void 0),
+      catchError((err) => {
+        // aqui é registro explícito do doc, então permission-denied com auth presente é bug.
+        this.reportPresenceError(err, { uid: cleanUid, state: 'online', mode: 'upsertOnlinePresence$' });
+        return EMPTY;
+      })
+    );
+  }
+
   private writePresence$(
     uid: string,
     state: PresenceState,
@@ -103,10 +113,6 @@ export class PresenceWriterService {
       ...extra,
     };
 
-    // ✅ mesmo em public, NÃO precisa “mudar estado” se o doc já existir,
-    // mas as rules exigem presenceState existir no doc final.
-    // Para updateDoc, request.resource.data inclui o doc final (merge com o existente).
-    // Para seed (NOT_FOUND), precisamos garantir os campos obrigatórios.
     const patchForUpdate =
       opts.mode === 'public'
         ? base
@@ -116,70 +122,116 @@ export class PresenceWriterService {
           ...(PresenceWriterService.KEEP_ISONLINE_COMPAT ? { isOnline: state !== 'offline' } : {}),
         };
 
-    return this.ctx
-      .deferPromise$(() => {
-        // ✅ doc() dentro do Injection Context
-        const ref = this.ctx.run(() => doc(this.db, 'presence', cleanUid));
+    return this.ctx.deferPromise$(() =>
+      this.ctx.run(() => {
+        const ref = doc(this.db, 'presence', cleanUid);
 
         return updateDoc(ref, patchForUpdate as any).catch((err: any) => {
           if (!this.isNotFound(err)) throw err;
 
-          // ✅ seed precisa PASSAR NAS RULES (isOnline + presenceState + timestamps)
-          // Aqui faz sentido assumir "online" ao criar doc, porque o patchPublic$ só roda com sessão ativa.
+          // seed (primeira escrita)
           const seed = {
             uid: cleanUid,
             presenceSessionId: this.tabId,
-            isOnline: true,
-            presenceState: 'online',
+            isOnline: state !== 'offline',
+            presenceState: state,
             lastSeen: afServerTimestamp(),
             updatedAt: afServerTimestamp(),
+            ...eventStamps,
             ...extra,
           };
 
-          return setDoc(ref, seed as any, { merge: true }); //Linha 127
+          return setDoc(ref, seed as any, { merge: true });
         });
       })
-      .pipe(
-        map(() => void 0),
-        catchError((err) => {
-          this.reportPresenceError(err, { uid: cleanUid, state, payload: patchForUpdate });
+    ).pipe(
+      map(() => void 0),
+      catchError((err) => {
+        /**
+         * ✅ Patch principal:
+         * - permission-denied durante logout (ou token já inválido) é esperado e NÃO deve poluir o GlobalErrorHandler.
+         * - Mas permission-denied com auth presente continua sendo sinal de bug/regra, então reportamos.
+         */
+        if (this.shouldSuppressPermissionDenied(err)) {
           return EMPTY;
-        })
-      );
+        }
+
+        this.reportPresenceError(err, { uid: cleanUid, state, payload: patchForUpdate, mode: opts.mode });
+        return EMPTY;
+      })
+    );
   }
+
+  // ---------------------------------------------------------
+  // Error classification
+  // ---------------------------------------------------------
 
   private isNotFound(err: any): boolean {
     const code = err?.code ?? err?.message ?? '';
     return String(code).includes('not-found') || String(code).includes('NOT_FOUND');
   }
 
-  private reportPresenceError(err: any, context: any): void {
+  private isPermissionDenied(err: any): boolean {
+    const code = err?.code ?? '';
+    const msg = err?.message ?? '';
+    const s = `${code} ${msg}`.toLowerCase();
+    return s.includes('permission-denied') || s.includes('permission_denied');
+  }
+
+  /**
+   * Suprime somente o caso “esperado”:
+   * - permission-denied + sem sessão atual (logout em andamento / token caiu).
+   *
+   * Isso resolve o ruído no console do seu log:
+   * "FirebaseError: PERMISSION_DENIED: false for 'update' ..."
+   */
+  private shouldSuppressPermissionDenied(err: any): boolean {
+    if (!this.isPermissionDenied(err)) return false;
+
+    // se não há currentUser, o Firestore vai negar update mesmo (regras).
+    // e isso acontece durante logout / troca de conta / token inválido.
+    const authed = !!this.auth.currentUser;
+    return authed === false;
+  }
+
+  private toError(err: unknown, msg: string): Error {
+    if (err instanceof Error) return err;
+    const anyErr = err as any;
+    const detail = typeof anyErr?.message === 'string' ? anyErr.message : String(err);
+    const e = new Error(`${msg}${detail ? `: ${detail}` : ''}`);
+    (e as any).original = err;
+    return e;
+  }
+
+  private reportPresenceError(err: unknown, context: any): void {
     try {
-      const e = new Error('[PresenceWriterService] Firestore presence update failed');
+      const e = this.toError(err, '[PresenceWriterService] Firestore presence write failed');
       (e as any).silent = true;
       (e as any).feature = 'presence';
-      (e as any).original = err;
       (e as any).context = context;
-      (this.globalErrorHandler as any)?.handleError?.(e);
+      this.globalErrorHandler.handleError(e);
     } catch { }
   }
 
   private createTabId(): string {
     try {
       // @ts-ignore
-      const id =
-        typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null;
+      const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : null;
       return id || `tab_${Math.random().toString(36).slice(2)}_${Date.now()}`;
     } catch {
       return `tab_${Math.random().toString(36).slice(2)}_${Date.now()}`;
     }
   }
-}//linha 149
+} // linha 225
+// 225 linhas, parece estar no limite.
+// Considerar refatorar se crescer mais.
+// ***** Sempre considerar que existe no projeto o presence/presence.service.ts *****
+// ***** Sempre considerar que existe no projeto o presence/presence-dom-streams.service.ts *****
 // ***** Sempre considerar que existe no projeto o user-presence.query.service.ts *****
-// ***** Sempre considerar que existe no projeto o user-discovery.query.service.ts
-// ***** Sempre considerar que existe o presence\presence-dom-streams.service.ts *****
-// ***** Sempre considerar que existe o data-handling/firestore-user-write.service.ts *****
-// ***** Sempre considerar que existe o data-handling/firestore-user-query.service.ts *****
-// ***** Sempre considerar que existe o data-handling/queries/user-discovery.query.service.ts *****
-// ***** Sempre considerar que existe o data-handling/queries/user-presence.query.service.ts *****
-// ***** Sempre considerar que existe o autentication/auth/current-user-store.service.ts *****
+// ***** Sempre considerar que existe no projeto o user-discovery.query.service.ts *****
+// ***** Não tem no projeto presence/presence-reader.service.ts *****
+// ***** Não tem no projeto presence/presence-orchestrator.service.ts *****
+// ***** Não tem no projeto presence/presence-cleanup.service.ts *****
+// ***** Não tem no projeto presence/presence-status.service.ts *****
+// ***** Não tem no projeto presence/presence-initializer.service.ts *****
+// ***** Não tem no projeto presence/presence-helpers.service.ts *****

@@ -1,8 +1,9 @@
 // src/app/core/debug/auth-debug.service.ts
+// Não esquecer comentários e ferramentas de debug
 import { Injectable, EnvironmentInjector, runInInjectionContext, inject } from '@angular/core';
 import { Auth, authState, idToken } from '@angular/fire/auth';
 import { Subscription, combineLatest, EMPTY, from, defer } from 'rxjs';
-import { catchError, distinctUntilChanged, map, startWith, take, filter, shareReplay } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, map, startWith, take, filter, shareReplay, tap, auditTime, debounceTime } from 'rxjs/operators';
 // ⬇️ IMPORTA do SDK WEB (não do @angular/fire)
 import { onIdTokenChanged, type Auth as FirebaseAuth } from 'firebase/auth';
 
@@ -85,7 +86,11 @@ export class AuthDebugService {
       const off = onIdTokenChanged(
         this.auth as unknown as FirebaseAuth,
         (u) => console.log(`[AUTH][${ts()}] firebase.onIdTokenChanged(cb) →`, u ? { uid: u.uid } : null),
-        (err) => console.warn(`[AUTH][${ts()}] firebase.onIdTokenChanged error`, err)
+        (err) => {
+          this.globalErrorHandler.handleError(
+            err instanceof Error ? err : new Error('AuthDebugService: firebase.onIdTokenChanged error')
+          );
+        }
       );
       this.subs.add({ unsubscribe: off });
 
@@ -134,17 +139,44 @@ export class AuthDebugService {
         startWith(false),
         shareReplay({ bufferSize: 1, refCount: true })
       );
-      // combineLatest tipado por objeto (evita unknown[])
+
+
+      // ✅ Cross-check “menos ruidoso”:
+      // - espera sessionReady e storeReady
+      // - ignora o transiente comum: sessionUid já veio mas NgRx ainda está “deslogado”
+      // - aplica um settle curto (debounce) pra evitar log no mesmo ciclo do login
       const cross$ = combineLatest({
         sessionReady: sessionReady$,
-        storeReady: storeReady$,
-        sessionUid: this.authSession.uid$,
-        ngrxUid: storeUid$,
+        sessionUid: this.authSession.uid$.pipe(distinctUntilChanged()),
+        ngrxReady: storeReady$,
+        ngrxAuthed: storeAuthed$.pipe(auditTime(0)),
+        ngrxUid: storeUid$.pipe(auditTime(0)),
       }).pipe(
-        // só compara depois que ambos “estão prontos”
-        filter(({ sessionReady, storeReady }) => sessionReady && storeReady),
-        // reduz ruído
-        distinctUntilChanged((a, b) => a.sessionUid === b.sessionUid && a.ngrxUid === b.ngrxUid),
+        filter(({ sessionReady, ngrxReady }) => sessionReady === true && ngrxReady === true),
+
+        // ✅ settle: se resolver rápido (ciclo normal do login), não loga
+        debounceTime(25),
+
+        // ✅ normaliza null
+        map(({ sessionUid, ngrxUid, ngrxAuthed }) => ({
+          sessionUid: sessionUid ?? null,
+          ngrxUid: ngrxUid ?? null,
+          ngrxAuthed,
+        })),
+
+        // ✅ ignora padrão transitório esperado no login:
+        // sessionUid existe, mas NgRx ainda não “assumiu” authed/uid
+        filter(({ sessionUid, ngrxAuthed, ngrxUid }) => {
+          const isExpectedTransient = !!sessionUid && !ngrxAuthed && !ngrxUid;
+          return !isExpectedTransient;
+        }),
+
+        distinctUntilChanged((a, b) =>
+          a.sessionUid === b.sessionUid &&
+          a.ngrxUid === b.ngrxUid &&
+          a.ngrxAuthed === b.ngrxAuthed
+        ),
+
         catchError(err => {
           this.globalErrorHandler.handleError(
             err instanceof Error ? err : new Error('AuthDebugService: falha no cross-check uid')
@@ -154,9 +186,9 @@ export class AuthDebugService {
       );
 
       this.subs.add(
-        cross$.subscribe(({ sessionUid, ngrxUid }) => {
+        cross$.subscribe(({ sessionUid, ngrxUid, ngrxAuthed }) => {
           if (sessionUid !== ngrxUid) {
-            console.warn(`[AUTH][${ts()}] UID MISMATCH (session vs ngrx)`, { sessionUid, ngrxUid });//linha 159
+            console.log(`[AUTH][${ts()}] UID MISMATCH (session vs ngrx)`, { sessionUid, ngrxUid, ngrxAuthed });
           }
         })
       );

@@ -10,6 +10,7 @@ import * as RT from '../../../actions/actions.interactions/friends/friends-realt
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { AppState } from 'src/app/store/states/app.state';
 import { selectAuthReady, selectAuthUid } from 'src/app/store/selectors/selectors.user/auth.selectors';
+import { environment } from 'src/environments/environment';
 
 @Injectable()
 export class FriendsNetworkEffects {
@@ -18,6 +19,10 @@ export class FriendsNetworkEffects {
     private svc: FriendshipService,
     private store: Store<AppState>,
   ) { }
+
+  private dbg(msg: string, extra?: unknown) {
+    if (!environment.production) console.log(`[FRIENDS_NET] ${msg}`, extra ?? '');
+  }
 
   bootstrapOnUser$ = createEffect(() =>
     combineLatest([
@@ -94,5 +99,5 @@ export class FriendsNetworkEffects {
       )
     )
   );
-}//linha 115, não esquecer o debug
+}//linha 102, não esquecer o debug
 

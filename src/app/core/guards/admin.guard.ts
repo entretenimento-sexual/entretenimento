@@ -1,4 +1,5 @@
 // src/app/core/guards/admin.guard.ts
+// Não esqueça os comentáros explicativos sobre o propósito desse guard.
 import { inject } from '@angular/core';
 import { CanMatchFn, CanActivateChildFn, Router, UrlTree } from '@angular/router';
 import { Auth, user } from '@angular/fire/auth';

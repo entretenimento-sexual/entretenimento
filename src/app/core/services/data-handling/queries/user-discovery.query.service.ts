@@ -1,6 +1,5 @@
 // src/app/core/services/data-handling/queries/user-discovery.query.service.ts
 // Não esqueça os comentários
-
 import { Injectable, DestroyRef, inject } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { catchError, switchMap, map, distinctUntilChanged, shareReplay, take } from 'rxjs/operators';
@@ -23,9 +22,11 @@ import { AuthSessionService } from '@core/services/autentication/auth/auth-sessi
  * - NÃO abre leitura sem sessão (evita rules/400 em boot deslogado).
  * - Erros: FirestoreErrorHandlerService (caminho central de observabilidade).
  *
- * Nota de arquitetura (plataforma grande):
- * - O ideal é discovery ler de um índice público (ex.: public_index) com campos “exponíveis”.
- * - A coleção `users` costuma ter campos privados; migrar para índice público reduz risco em rules.
+ * Arquitetura de "plataforma grande":
+ * - Discovery NÃO lê de `users` (dados privados).
+ * - Discovery lê de um "perfil público consultável": `public_profiles/{uid}`.
+ * - `public_index` fica restrito a índices técnicos (ex.: nickname único),
+ *   NÃO é fonte de discovery.
  * =============================================================================
  */
 @Injectable({ providedIn: 'root' })
@@ -33,10 +34,10 @@ export class UserDiscoveryQueryService {
   private readonly destroyRef = inject(DestroyRef);
 
   /**
-   * ⚠️ Por enquanto mantido como 'users' (compat com seu app).
-   * Recomendação: migrar discovery para 'public_index' quando estabilizar o modelo público.
+   * Fonte oficial do discovery:
+   * - perfil público consultável por filtros
    */
-  private readonly DISCOVERY_COL = 'users';
+  private readonly DISCOVERY_COL = 'public_profiles';
 
   /**
    * UID (sessão) – guard de segurança/robustez:
@@ -69,6 +70,43 @@ export class UserDiscoveryQueryService {
   }
 
   // --------------------------------------------------------------------------
+  // Helpers de compatibilidade (IUserDados)
+  // --------------------------------------------------------------------------
+
+  /**
+   * Normaliza o doc do public_profiles para o formato compatível com IUserDados.
+   * - Discovery não é presence: aqui não definimos status online como verdade.
+   * - isOnline/lastSeen ficam como fallback (depois a Facade combina com presence).
+   */
+  private toUserDadosFromPublicProfile(raw: any): IUserDados {
+    const uid = (raw?.uid ?? '').toString().trim();
+
+    return {
+      uid,
+
+      nickname: raw?.nickname ?? null,
+      photoURL: raw?.photoURL ?? raw?.avatarUrl ?? null,
+
+      role: raw?.role ?? 'basic',
+      gender: raw?.gender ?? null,
+      age: raw?.age ?? null,
+      orientation: raw?.orientation ?? null,
+      municipio: raw?.municipio ?? null,
+      estado: raw?.estado ?? null,
+
+      // Discovery não assume presença
+      isOnline: false,
+      lastSeen: null,
+      lastOnlineAt: null,
+      lastOfflineAt: null,
+
+      latitude: raw?.latitude ?? null,
+      longitude: raw?.longitude ?? null,
+      geohash: raw?.geohash ?? null,
+    } as unknown as IUserDados;
+  }
+
+  // --------------------------------------------------------------------------
   // Guards internos
   // --------------------------------------------------------------------------
 
@@ -77,7 +115,10 @@ export class UserDiscoveryQueryService {
    * - uid=null => []
    * - uid=string => executa getDocumentsOnce
    */
-  private onceGuardedQuery(constraints: QueryConstraint[], opts?: { cacheTTL?: number }): Observable<IUserDados[]> {
+  private onceGuardedQuery(
+    constraints: QueryConstraint[],
+    opts?: { cacheTTL?: number }
+  ): Observable<IUserDados[]> {
     const safeConstraints = constraints ?? [];
 
     return this.uid$.pipe(
@@ -86,14 +127,14 @@ export class UserDiscoveryQueryService {
         if (!uid) return of([] as IUserDados[]);
 
         return this.read
-          .getDocumentsOnce<IUserDados>(this.DISCOVERY_COL, safeConstraints, {
+          .getDocumentsOnce<any>(this.DISCOVERY_COL, safeConstraints, {
             useCache: true,
             cacheTTL: opts?.cacheTTL ?? 60_000,
             mapIdField: 'uid',
           })
           .pipe(
+            map((docs) => (docs ?? []).map((d) => this.toUserDadosFromPublicProfile(d))),
             catchError((err) => {
-              // handler central deve registrar e devolver um fallback seguro
               this.firestoreError.handleFirestoreError(err);
               return of([] as IUserDados[]);
             })
@@ -143,7 +184,7 @@ export class UserDiscoveryQueryService {
    * e quase sempre precisa paginação.
    */
   getAllUsers$(): Observable<IUserDados[]> {
-    const cacheKey = 'discovery:users:all';
+    const cacheKey = 'discovery:public_profiles:all';
 
     return this.uid$.pipe(
       take(1),
@@ -155,15 +196,14 @@ export class UserDiscoveryQueryService {
             if (cached?.length) return of(cached);
 
             return this.read
-              .getDocumentsOnce<IUserDados>(this.DISCOVERY_COL, [], {
+              .getDocumentsOnce<any>(this.DISCOVERY_COL, [], {
                 useCache: true,
                 cacheTTL: 300_000,
                 mapIdField: 'uid',
               })
               .pipe(
+                map((docs) => (docs ?? []).map((d) => this.toUserDadosFromPublicProfile(d))),
                 map((users) => {
-                  // CacheService é um cache “da app”; FirestoreReadService cache é mais “técnico”.
-                  // Aqui você define o TTL “funcional” para UX/painel.
                   this.cache.set(cacheKey, users, 600_000);
                   return users;
                 })
@@ -175,17 +215,50 @@ export class UserDiscoveryQueryService {
           })
         );
       }),
-      // shareReplay evita que múltiplos subscribers disparem o fluxo de cache/read repetidamente
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
-}//182 linhas
-
-// ***** Sempre considerar que existe no projeto o user-presence.query.service.ts *****
-// ***** Sempre considerar que existe no projeto o user-discovery.query.service.ts
-// ***** Sempre considerar que existe o presence\presence-dom-streams.service.ts *****
-// ***** Sempre considerar que existe o data-handling/firestore-user-write.service.ts *****
-// ***** Sempre considerar que existe o data-handling/firestore-user-query.service.ts *****
-// ***** Sempre considerar que existe o data-handling/queries/user-discovery.query.service.ts *****
-// ***** Sempre considerar que existe o data-handling/queries/user-presence.query.service.ts *****
-// ***** Sempre considerar que existe o autentication/auth/current-user-store.service.ts *****
+} // 222 linhas
+/* PS C: \entretenimento\src\app\core\services\data - handling > tree / f
+C:.
+│   firestore- query.service.spec.ts
+│   firestore- query.service.ts
+│   firestore- user - query.service.spec.ts
+│   firestore - user - query.service.ts
+│   firestore- user - write.service.ts
+│
+├───converters
+│       friend - request.firestore - converter.ts
+│       user.firestore - converter.ts
+│
+├───firestore
+│   ├───core
+│   │       firestore- context.service.ts
+│   │       firestore - live - query.service.ts
+│   │       firestore - read.service.ts
+│   │       firestore - write.service.ts
+│   │
+│   ├───repositories
+│   │       public- index.repository.ts
+│   │       public - profiles.repository.ts
+│   │       user - repository.service.ts
+│   │       users- read.repository.ts
+│   │
+│   ├───state
+│   │       user-state - cache.service.ts
+│   │
+│   └───validation
+│           firestore-validation.service.ts
+│
+├───legacy
+│       firestore.service.spec.ts
+│       firestore.service.ts
+│
+├───queries
+│       query-uid.service.spec.ts
+│       query-uid.service.ts
+│       user-discovery.query.service.ts
+│       user-presence.query.service.ts
+│
+└───suggestion
+ */

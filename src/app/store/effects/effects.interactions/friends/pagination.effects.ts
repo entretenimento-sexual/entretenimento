@@ -1,9 +1,13 @@
 // src/app/store/effects/effects.interactions/friends/pagination.effects.ts
+// Não esquecer comentários e ferramentas de debug
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Store } from '@ngrx/store';
-import { of, EMPTY } from 'rxjs';
-import { catchError, map, switchMap, withLatestFrom } from 'rxjs/operators';
+import { concatLatestFrom } from '@ngrx/operators';
+
+import { of } from 'rxjs';
+import { catchError, filter, map, switchMap } from 'rxjs/operators';
+
 import * as P from '../../../actions/actions.interactions/friends/friends-pagination.actions';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { AppState } from 'src/app/store/states/app.state';
@@ -13,38 +17,56 @@ import {
   selectFriendsPageReachedEnd,
 } from '../../../selectors/selectors.interactions/friends/pagination.selectors';
 
-// helper: normaliza cursor (number | Timestamp | null) => number | null
-function toAfterNumber(v: any): number | null {
-  if (v == null) return null;
-  if (typeof v === 'number') return v;
-  if (typeof v?.toMillis === 'function') return v.toMillis();
-  return Number(v) || null;
-}
+import { toEpoch } from 'src/app/store/utils/user-store.serializer';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 @Injectable()
 export class FriendsPaginationEffects {
-  private actions$ = inject(Actions);
-  private store = inject<Store<AppState>>(Store as any);
-  private svc = inject(FriendshipService);
+  private readonly actions$ = inject(Actions);
+  private readonly store = inject(Store<AppState>);
+  private readonly svc = inject(FriendshipService);
+  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
+
+  /** normaliza cursor para Store: number | null (epoch) */
+  private normalizeCursor(v: unknown): number | null {
+    // aceita number | Timestamp | Date | null
+    return toEpoch(v as any);
+  }
+
+  private report(err: unknown, context: Record<string, unknown>): void {
+    try {
+      const e = new Error('[FriendsPaginationEffects] listFriendsPage failed');
+      (e as any).feature = 'friends-pagination';
+      (e as any).original = err;
+      (e as any).context = context;
+      this.globalErrorHandler.handleError(e);
+    } catch { }
+  }
 
   /** First + Refresh (replace) */
   loadFirstOrRefresh$ = createEffect(() =>
     this.actions$.pipe(
       ofType(P.loadFriendsFirstPage, P.refreshFriendsPage),
+
+      // evita query com uid inválido
+      filter(({ uid }) => !!(uid ?? '').trim()),
+
       switchMap(({ uid, pageSize }) =>
         this.svc.listFriendsPage(uid, pageSize ?? 24, null).pipe(
           map(({ items, nextAfter, reachedEnd }) =>
             P.loadFriendsPageSuccess({
               uid,
               items,
-              nextOrderValue: nextAfter ?? null,
+              // ✅ Store sempre epoch
+              nextOrderValue: this.normalizeCursor(nextAfter),
               reachedEnd,
-              append: false, // replace
+              append: false,
             })
           ),
-          catchError((err) =>
-            of(P.loadFriendsPageFailure({ uid, error: String(err?.message ?? err) }))
-          )
+          catchError((err) => {
+            this.report(err, { step: 'first-or-refresh', uid, pageSize: pageSize ?? 24 });
+            return of(P.loadFriendsPageFailure({ uid, error: String((err as any)?.message ?? err) }));
+          })
         )
       )
     )
@@ -54,40 +76,40 @@ export class FriendsPaginationEffects {
   loadNext$ = createEffect(() =>
     this.actions$.pipe(
       ofType(P.loadFriendsNextPage),
-      // pega do store a situação atual desse UID
-      withLatestFrom(
-        this.actions$.pipe(ofType(P.loadFriendsNextPage)), // reemite a ação para acessar uid/pageSize
-      ),
-      // ^ truque pra manter acesso ao action nas próximas etapas sem perder o tipo
-      switchMap(([_, action]) =>
-        this.store.select(selectFriendsPageLoading(action.uid)).pipe(
-          withLatestFrom(
-            this.store.select(selectFriendsPageReachedEnd(action.uid)),
-            this.store.select(selectFriendsPageNextOrder(action.uid))
+
+      // pega os 3 pedaços do store diretamente (sem reemitir action)
+      concatLatestFrom((action) => [
+        this.store.select(selectFriendsPageLoading(action.uid)),
+        this.store.select(selectFriendsPageReachedEnd(action.uid)),
+        this.store.select(selectFriendsPageNextOrder(action.uid)),
+      ]),
+
+      // se já está carregando ou já acabou, não faz nada
+      filter(([action, loading, reachedEnd]) => {
+        const uidOk = !!(action.uid ?? '').trim();
+        return uidOk && !loading && !reachedEnd;
+      }),
+
+      switchMap(([action, _loading, _reachedEnd, nextOrderValue]) => {
+        const afterEpoch = this.normalizeCursor(nextOrderValue); // ✅ number|null
+        const size = action.pageSize ?? 24;
+
+        return this.svc.listFriendsPage(action.uid, size, afterEpoch).pipe(
+          map(({ items, nextAfter, reachedEnd }) =>
+            P.loadFriendsPageSuccess({
+              uid: action.uid,
+              items,
+              nextOrderValue: this.normalizeCursor(nextAfter),
+              reachedEnd,
+              append: true,
+            })
           ),
-          switchMap(([loading, reachedEnd, nextOrderValue]) => {
-            if (loading || reachedEnd) return EMPTY;
-
-            const after = toAfterNumber(nextOrderValue);
-            const size = action.pageSize ?? 24;
-
-            return this.svc.listFriendsPage(action.uid, size, after).pipe(
-              map(({ items, nextAfter, reachedEnd }) =>
-                P.loadFriendsPageSuccess({
-                  uid: action.uid,
-                  items,
-                  nextOrderValue: nextAfter ?? null,
-                  reachedEnd,
-                  append: true, // append
-                })
-              ),
-              catchError((err) =>
-                of(P.loadFriendsPageFailure({ uid: action.uid, error: String(err?.message ?? err) }))
-              )
-            );
+          catchError((err) => {
+            this.report(err, { step: 'next', uid: action.uid, pageSize: size, afterEpoch });
+            return of(P.loadFriendsPageFailure({ uid: action.uid, error: String((err as any)?.message ?? err) }));
           })
-        )
-      )
+        );
+      })
     )
   );
 }
