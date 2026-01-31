@@ -7,7 +7,7 @@ import { from, map, catchError, of, switchMap } from 'rxjs';
 
 function isAdmin$() {
   const auth = inject(Auth);
-  const router = inject(Router);
+  const router = inject(Router); // está esmaecido
 
   // Observa usuário logado; força refresh do token para pegar claims atualizadas
   return user(auth).pipe(

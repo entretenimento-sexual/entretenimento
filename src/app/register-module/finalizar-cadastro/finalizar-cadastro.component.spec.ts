@@ -5,7 +5,6 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { of } from 'rxjs';
 import { FinalizarCadastroComponent } from './finalizar-cadastro.component';
 import { EmailVerificationService } from '../../core/services/autentication/register/email-verification.service';
-import { FirestoreService } from '../../core/services/data-handling/firestore.service';
 import { AuthService } from '../../core/services/autentication/auth.service';
 import { StorageService } from '../../core/services/image-handling/storage.service';
 import { IBGELocationService } from '../../core/services/general/api/ibge-location.service';
@@ -24,8 +23,7 @@ describe('FinalizarCadastroComponent', () => {
         { provide: EmailVerificationService, useValue: { updateEmailVerificationStatus: () => of(void 0) } },
         { provide: IBGELocationService, useValue: { getEstados: () => of([]), getMunicipios: () => of([]) } },
         { provide: FirestoreUserQueryService, useValue: { getUser: () => of({ uid: 'u1' }), updateUserInStateAndCache: () => { } } },
-        { provide: FirestoreService, useValue: { saveInitialUserData: () => Promise.resolve(void 0) } },
-        { provide: AuthService, useValue: { user$: of({ uid: 'u1' }), setCurrentUser: () => { }, getLoggedUserUID$: () => of('u1') } },
+                { provide: AuthService, useValue: { user$: of({ uid: 'u1' }), setCurrentUser: () => { }, getLoggedUserUID$: () => of('u1') } },
         { provide: StorageService, useValue: { uploadProfileAvatar: () => of(null) } },
       ],
       schemas: [NO_ERRORS_SCHEMA],

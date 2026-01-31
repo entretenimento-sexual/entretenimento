@@ -1,4 +1,6 @@
-// src/app/core/services/general/cache.service.ts
+// src\app\core\services\general\cache\cache.service.ts
+// Serviço de Cache em Memória com IndexedDB e Store (NgRx)
+// Não esquecer os comentários
 import { Injectable } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { Observable, of, switchMap, take } from 'rxjs';
@@ -97,7 +99,8 @@ export class CacheService {
     const changed = !prev || !this.deepEqual(prev.data, user);
 
     this.set(userKey, user, ttl);
-    this.set('currentUserUid', uid, ttl); // 🔥 HOT_KEY (mantém forma original do UID)
+    this.set('currentUserUid', uid); // HOT_KEY sem TTL
+    // // 🔥 HOT_KEY (mantém forma original do UID)
 
     if (changed) {
       this.store.dispatch(setCache({ key: userKey, value: user }));
@@ -301,7 +304,7 @@ export class CacheService {
 
   /** Monta chave de usuário com UID em lower-case (evita duplicidade por casing). */
   private userKey(uid: string): string {
-    return `user:${uid.trim().toLowerCase()}`;
+    return `user:${uid.trim()}`;
   }
 
   /** Verifica expiração. */
@@ -394,9 +397,13 @@ export class CacheService {
     const prev = this.cache.get(key);
     const changed = !prev || !this.deepEqual(prev.data, userData);
 
+    // ✅ atualiza memória + hotkeys, mas NÃO persiste em IndexedDB aqui
+    // ✅ user:{uid} pode ter TTL (opcional), mas HOT_KEYS não.
     this.set(key, userData, this.defaultTTL);
-    this.set('currentUser', userData, this.defaultTTL);          // 🔥 HOT_KEY
-    this.set('currentUserUid', userData.uid, this.defaultTTL);   // 🔥 HOT_KEY
+
+    // 🔥 HOT_KEYS: sem TTL -> expiration null (não fica “renovando” e gerando re-emissões)
+    this.set('currentUser', userData);
+    this.set('currentUserUid', userData.uid);
 
     if (changed) {
       this.store.dispatch(setCache({ key, value: userData }));
@@ -407,4 +414,4 @@ export class CacheService {
       this.log(`syncCurrentUserWithUid → ${key} + currentUser + currentUserUid (unchanged)`);
     }
   }
-}
+} // Linha 413

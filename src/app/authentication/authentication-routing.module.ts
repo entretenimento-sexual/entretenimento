@@ -16,11 +16,13 @@ const authRoutes: Routes = [
   // /login
   { path: '', component: LoginComponent },
 
-  // /login/progressive-signup (se ainda fizer sentido no seu fluxo)
-  { path: 'progressive-signup', component: ProgressiveSignupComponent },
+  { path: 'progressive-signup',
+    component: ProgressiveSignupComponent,
+    data: { allowAuthenticated: true } },
 
-  // /login/suggested-profiles
-  { path: 'suggested-profiles', component: SuggestedProfilesComponent },
+  { path: 'suggested-profiles',
+    component: SuggestedProfilesComponent, 
+    data: { allowAuthenticated: true } },
 ];
 
 @NgModule({

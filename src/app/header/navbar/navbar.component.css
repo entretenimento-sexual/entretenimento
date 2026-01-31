@@ -1,23 +1,23 @@
 /* src/app/header/navbar/navbar.component.css */
+
+/* Container geral do header */
 .navbar-with-links {
   display: flex;
   flex-direction: column;
   width: 100%;
   height: var(--header-height);
+  /* mantém seu layout original */
   background: var(--header-bg);
-  /* usa tokens */
   color: var(--header-fg);
 }
 
 /* Barra de navegação */
 .navbar {
   background: var(--header-bg);
-  /* antes: #333 */
   color: var(--header-fg);
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--surface-border);
-  /* separação sutil */
 }
 
 /* Container principal do nav (logo + menu) */
@@ -29,48 +29,77 @@
   width: 100%;
   padding: 0 5%;
   box-sizing: border-box;
+  gap: 14px;
+  /* evita “empurrões” estranhos quando o menu cresce */
 }
 
 /* Logo e botão de hambúrguer */
 .navbar-header {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
 }
 
-/* Menu principal */
+/* ✅ Menu principal (fix: garante que fique à direita) */
 .navbar-menu {
   list-style-type: none;
   margin: 0;
   padding: 0;
+
   display: flex;
   gap: 20px;
   align-items: center;
+
   flex-grow: 0;
+  flex-shrink: 0;
+
   justify-content: flex-end;
+  margin-left: auto;
+  /* ✅ esse é o “flutua à direita” clássico no flex */
 }
 
 /* Itens do menu */
 .navbar-item {
   flex-grow: 0;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  /* mantém tudo bem alinhado verticalmente */
 }
 
-/* Links do menu */
-.navbar-item a {
+/* ✅ Estilo unificado: serve para <a> e para <button class="navbar-link as-button"> */
+.navbar-item a.navbar-link,
+.navbar-item button.navbar-link {
   padding: 5px 10px;
   border-radius: 6px;
   font-size: 16px;
   transition: background-color .2s, transform .2s, color .2s;
-  color: var(--header-fg);  /* antes: white */
+
+  color: var(--header-fg);
   text-decoration: none;
+
   display: block;
+  /* mantém o comportamento original */
+  line-height: 1.1;
 }
 
-.navbar-item a:hover,
-.navbar-item a:focus-visible {
-  background-color: var(--header-hover-bg);  /* antes: #555 */
+/* Hover/focus */
+.navbar-item a.navbar-link:hover,
+.navbar-item a.navbar-link:focus-visible,
+.navbar-item button.navbar-link:hover,
+.navbar-item button.navbar-link:focus-visible {
+  background-color: var(--header-hover-bg);
   color: var(--header-fg);
   outline: none;
+}
+
+/* ✅ Reset do button para se comportar como link sem bagunçar layout */
+.navbar-link.as-button {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
 }
 
 /* Foto do usuário */
@@ -95,7 +124,6 @@
   border: none;
   font-size: 24px;
   color: var(--header-fg);
-  /* antes: white */
   display: none;
   cursor: pointer;
 }

@@ -1,4 +1,6 @@
 // src/app/dashboard/online-users/online-users.component.ts
+// Componente para exibir usuários online próximos com base na localização
+// Não esquecer os comentários explicativos e de debug
 import { Component, OnInit, input } from '@angular/core';
 import { CommonModule, AsyncPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -267,7 +269,7 @@ export class OnlineUsersComponent implements OnInit {
   }
 
   private compareUsersStable(a: IUserDados, b: IUserDados): number {
-    const rolePriority: Record<string, number> = { vip: 1, premium: 2, basico: 3, free: 4 };
+    const rolePriority: Record<string, number> = { vip: 1, premium: 2, basic: 3, free: 4 };
     const ra = rolePriority[(a.role || 'free').toLowerCase()] ?? 4;
     const rb = rolePriority[(b.role || 'free').toLowerCase()] ?? 4;
     if (ra !== rb) return ra - rb;
@@ -442,4 +444,5 @@ export class OnlineUsersComponent implements OnInit {
       this.globalErrorHandlerService.handleError(err);
     }
 }
-}
+} //Linha 447
+

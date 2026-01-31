@@ -1,4 +1,6 @@
 // src/app/core/services/data-handling/firestore-live-query.service.ts
+// Serviço para consultas em tempo real (live queries) no Firestore com cache e tratamento de erros
+// Não esquecer os comentários explicativos.
 import { Injectable } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
 import { collection, onSnapshot, query, QueryConstraint } from 'firebase/firestore';
@@ -69,7 +71,7 @@ export class FirestoreLiveQueryService {
       }
 
       // Monta a query dentro do defer (captura erros síncronos)
-      const colRef = collection(this.db as any, col);
+      const colRef = collection(this.db, col);
       const q = query(colRef, ...(constraints ?? []));
 
       return new Observable<T[]>((observer) => {

@@ -17,6 +17,7 @@ import {
   switchMap,
   take,
   tap,
+  pairwise,
 } from 'rxjs/operators';
 
 import { PresenceDomStreamsService } from './presence-dom-streams.service';
@@ -113,6 +114,35 @@ export class PresenceService {
       catchError((err) => {
         // Writer já faz routing centralizado, aqui só evitamos quebrar stream
         this.dbg('bootstrap$ erro (suprimido no stream)', err);
+        return EMPTY;
+      })
+    );
+
+    // 1.1) leader acquired: quando uma aba vira líder (false -> true), escreve estado correto
+    // - cobre o caso: aba reassume liderança enquanto já está hidden (sem visibilitychange)
+    const onLeaderAcquired$ = isLeader$.pipe(
+      startWith(false),
+      pairwise(),
+      filter(([prev, curr]) => !prev && curr),
+      tap(() => this.dbg('leader acquired', { uid: cleanUid })),
+      switchMap(() =>
+        visibility$.pipe(
+          take(1),
+          exhaustMap((vis) => {
+            const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+
+            if (offline) {
+              return this.writer.setOffline$(cleanUid, 'leader-acquired:navigator-offline');
+            }
+
+            return vis === 'hidden'
+              ? this.writer.setAway$(cleanUid)
+              : this.writer.setOnline$(cleanUid);
+          })
+        )
+      ),
+      catchError((err) => {
+        this.dbg('onLeaderAcquired$ erro (suprimido no stream)', err);
         return EMPTY;
       })
     );
@@ -219,6 +249,7 @@ export class PresenceService {
 
     this.zone.runOutsideAngular(() => {
       this.sub.add(bootstrap$.subscribe());
+      this.sub.add(onLeaderAcquired$.subscribe()); 
       this.sub.add(heartbeat$.subscribe());
       this.sub.add(onOnline$.subscribe());
       this.sub.add(onVisibility$.subscribe());
@@ -269,6 +300,7 @@ export class PresenceService {
 // ***** Sempre considerar que existe no projeto o user-presence.query.service.ts *****
 // ***** Sempre considerar que existe no projeto o user-discovery.query.service.ts
 // ***** Sempre considerar que existe o presence\presence-dom-streams.service.ts *****
+// src/app/core/services/presence/presence-orchestrator.service.ts
 // ***** Sempre considerar que existe o data-handling/firestore-user-write.service.ts *****
 // ***** Sempre considerar que existe o data-handling/firestore-user-query.service.ts *****
 // ***** Sempre considerar que existe o data-handling/queries/user-discovery.query.service.ts *****
@@ -291,5 +323,29 @@ export class PresenceService {
  * Erros:
  * - Presença não derruba a app; erros são silent e passam no GlobalErrorHandler.
  * =============================================================================
+ *
+ * 1) Gate “tipo plataforma grande”: 2 níveis (não 1)
+
+Nível 1 — Presence Gate (mínimo)
+
+ready === true + uid != null
+
+não depende de emailVerified
+
+Objetivo: presença “infra” (telemetria de sessão) e coisas neutras.
+
+Nível 2 — Realtime Features Gate (produto)
+
+ready === true + uid != null + emailVerified === true (e/ou profileCompleted)
+
+Objetivo: chat/discovery/online-users/listeners que expõem o usuário para outros.
+
+Isso elimina a contradição do log:
+
+OnlineUsersEffects canStart:false (nível 2)
+
+PresenceService START (nível 1)
+
+Isso é exatamente como plataformas grandes fazem: infra/telemetria não precisa ser travada por “verificação”.
  */
 

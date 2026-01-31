@@ -29,17 +29,19 @@ export class UsersReadRepository {
       doc(this.db, 'users', uid).withConverter(userConverter)
     );
   }
-
+  // getUser aqui, mas tem getUser$ no user.read-repository.service.ts e no user-repository.service.ts
   getUser$(uid: string): Observable<IUserDados | null> {
     return runInInjectionContext(this.injector, () => docData(this.userRef(uid))).pipe(
       map(v => (v ?? null) as IUserDados | null),
       catchError(err => this.firestoreError.handleFirestoreError(err))
     );
   }
-
+// OBS: usar com cautela (não cacheado, cada subscribe gera nova leitura)
+// para uso em fluxos controlados (ex: verificações pontuais)
+// Já tem um getUserOnce$ no firestore-user-query.service.ts, verificar se pode unificar lá
   getUserOnce$(uid: string): Observable<IUserDados | null> {
     return from(runInInjectionContext(this.injector, () => getDoc(this.userRef(uid)))).pipe(
-      map(snap => (snap.exists() ? snap.data()! : null)),
+      map(snap => (snap.exists() ? (snap.data() ?? null) : null)),
       catchError(err => this.firestoreError.handleFirestoreError(err))
     );
   }

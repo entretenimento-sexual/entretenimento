@@ -1,4 +1,7 @@
 // src\app\core\services\chat.service.ts
+// Serviço de Bate-Papo usando Firestore
+// Não esquecer os comentários
+// AuthService está sendo descontinuado, mas mantido aqui para compatibilidade (ajustar quando possível)
 import { Injectable } from '@angular/core';
 import { collection, addDoc, doc, Timestamp, setDoc, deleteDoc, orderBy, startAfter,
          onSnapshot, getDocs, where, query,
@@ -346,5 +349,5 @@ export class ChatService {
       }),
       catchError((error) => this.handleError('atualizar status da mensagem', error))
     );
-  }
+  } // Linha 352
 }

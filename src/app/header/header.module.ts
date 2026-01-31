@@ -1,4 +1,5 @@
 // src\app\header\header.module.ts
+// Não esqueça os comentários explicativos.
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';

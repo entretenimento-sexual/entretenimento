@@ -1,4 +1,6 @@
 // src/app/core/services/autentication/social-auth.service.ts
+// Serviço de autenticação social (Google Sign-In) usando Firebase Auth e Firestore, ainda não aplicado
+// Não esquecer os comentários
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
@@ -72,7 +74,7 @@ export class SocialAuthService {
                   lastLogin: now
                 })),
                 tap(userData => {
-                  if (!userData.nickname) this.router.navigate(['/finalizar-cadastro']);
+                  if (!userData.nickname) this.router.navigate(['/register/finalizar-cadastro']);
                   else this.router.navigate(['/dashboard/principal']);
                 })
               );
@@ -84,7 +86,7 @@ export class SocialAuthService {
                   map((): IUserDados => ({ ...existingUser, lastLogin: now })),
                   tap(() => {
                     if (!existingUser.nickname || !existingUser.gender) {
-                      this.router.navigate(['/finalizar-cadastro']);
+                      this.router.navigate(['/register/finalizar-cadastro']);
                     } else {
                       this.router.navigate(['/dashboard/principal']);
                     }

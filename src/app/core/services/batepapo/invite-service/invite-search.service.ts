@@ -1,104 +1,155 @@
 // src/app/core/services/batepapo/invite-search.service.ts
+// Serviço para buscar usuários elegíveis para convite em bate-papo
+// - Busca por nicknameLowerCase (prefix search)
+// - Permite filtros adicionais (QueryConstraint[])
+// - Filtra no client usuários já vinculados à sala (roomIds)
+// - Tratamento de erros centralizado (GlobalErrorHandlerService + ErrorNotificationService)
+// - Observable-first (evita try/catch “falso” e Promises na API pública)
+
 import { Injectable } from '@angular/core';
 import { FirestoreQueryService } from '../../data-handling/firestore-query.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
-import { QueryConstraint, where, collection, query, getDocs } from 'firebase/firestore';
-import { from, Observable, of } from 'rxjs';
-import { map, catchError, tap } from 'rxjs/operators';
-import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 
-@Injectable({
-  providedIn: 'root',
-})
+import {
+  QueryConstraint,
+  where,
+  collection,
+  query,
+  getDocs,
+  orderBy,
+  limit,
+} from '@angular/fire/firestore';
+
+import { Observable, of, defer } from 'rxjs';
+import { map, catchError, tap } from 'rxjs/operators';
+
+import { ErrorNotificationService } from '../../error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { environment } from 'src/environments/environment';
+
+@Injectable({ providedIn: 'root' })
 export class InviteSearchService {
   constructor(
     private firestoreQueryService: FirestoreQueryService,
-    private errorNotification: ErrorNotificationService
+    private notify: ErrorNotificationService,
+    private globalError: GlobalErrorHandlerService
   ) { }
 
+  /** Helper: log apenas em dev/staging */
+  private debugLog(message: string, payload?: unknown): void {
+    if (environment.enableDebugTools) {
+      console.debug('[InviteSearchService]', message, payload ?? '');
+    }
+  }
+
   /**
-   * Monta os filtros para consulta ao Firestore com base nos parâmetros fornecidos.
-   * @param searchTerm Termo de busca para filtragem por nickname.
-   * @param filters Filtros adicionais de consulta.
-   * @returns Uma lista de QueryConstraints para o Firestore.
+   * Monta QueryConstraints com base em:
+   * - searchTerm (prefix search em nicknameLowerCase)
+   * - filtros adicionais (expansível)
+   *
+   * Obs.: como usamos range (>= e <=) em nicknameLowerCase, adicionamos orderBy no mesmo campo
+   * para evitar comportamento inconsistente e alinhar com requisitos de query.
    */
   private buildQueryConstraints(
     searchTerm: string,
     filters: QueryConstraint[]
-  ): QueryConstraint[] {
-    const constraints = [...filters];
+  ): { constraints: QueryConstraint[]; needsOrderBy: boolean } {
+    const constraints = [...(filters ?? [])];
+    let needsOrderBy = false;
 
     if (searchTerm?.trim()) {
       const normalizedTerm = searchTerm.trim().toLowerCase();
       constraints.push(where('nicknameLowerCase', '>=', normalizedTerm));
       constraints.push(where('nicknameLowerCase', '<=', normalizedTerm + '\uf8ff'));
+      needsOrderBy = true;
     }
 
-    console.log('[InviteSearchService] Query Constraints:', constraints);
-    return constraints;
+    return { constraints, needsOrderBy };
   }
 
   /**
-   * Realiza a busca de usuários elegíveis para um convite.
-   * @param roomId ID da sala para evitar usuários já convidados.
-   * @param searchTerm Termo de busca para filtrar usuários pelo nickname.
-   * @param filters Filtros adicionais para a consulta.
-   * @returns Observable com a lista de usuários elegíveis.
+   * Realiza a busca de usuários elegíveis para convite.
+   * - NÃO exclui “já na sala” via Firestore porque não existe “not array-contains”.
+   * - Faz o filtro no client com base em roomIds.
+   *
+   * @param roomId ID da sala para evitar usuários já vinculados
+   * @param searchTerm termo opcional (prefix)
+   * @param filters filtros adicionais (expansível)
    */
   searchEligibleUsers(
     roomId: string,
     searchTerm: string = '',
     filters: QueryConstraint[] = []
   ): Observable<IUserDados[]> {
-    try {
-      const constraints = this.buildQueryConstraints(searchTerm, filters);
-      const usersRef = collection(this.firestoreQueryService.getFirestoreInstance(), 'users');
+    // defer captura throws síncronos (ex.: collectionName vazio, Firestore instance inválida, etc.)
+    return defer(() => {
+      const { constraints, needsOrderBy } = this.buildQueryConstraints(searchTerm, filters);
 
-      console.log('[InviteSearchService] Executando consulta ao Firestore com constraints:', constraints);
+      const db = this.firestoreQueryService.getFirestoreInstance();
+      const usersRef = collection(db, 'users');
 
-      return from(getDocs(query(usersRef, ...constraints))).pipe(
-        map((snapshot) => {
-          const users = snapshot.docs.map((doc) => {
-            const data = doc.data() as IUserDados;
-            console.log('[InviteSearchService] Usuário retornado:', data);
-            return data;
-          });
+      // Recomendação prática: limitar resultados para não puxar coleção inteira em buscas curtas
+      const q = needsOrderBy
+        ? query(usersRef, ...constraints, orderBy('nicknameLowerCase'), limit(40))
+        : query(usersRef, ...constraints, limit(40));
 
-          // Filtrar usuários já na sala
-          const filteredUsers = users.filter(
-            (user) => !user.roomIds || !user.roomIds.includes(roomId)
-          );
+      this.debugLog('Executando query', {
+        roomId,
+        searchTerm: searchTerm?.trim() ?? '',
+        constraintsCount: constraints.length,
+        ordered: needsOrderBy,
+      });
 
-          console.log('[InviteSearchService] Usuários elegíveis:', filteredUsers);
-          return filteredUsers;
-        }),
-        catchError((error) => {
-          console.log('[InviteSearchService] Erro ao buscar usuários:', error);
-          this.errorNotification.showError('Erro ao buscar usuários elegíveis.');
-          return of([]);
-        })
-      );
-    } catch (error) {
-      console.log('[InviteSearchService] Erro inesperado:', error);
-      this.errorNotification.showError('Erro inesperado ao realizar a busca.');
-      return of([]);
-    }
+      return getDocs(q);
+    }).pipe(
+      map((snapshot) => {
+        const users = snapshot.docs.map((d) => d.data() as IUserDados);
+
+        // Filtra “já na sala” no client
+        const eligible = users.filter((u) => !u.roomIds || !u.roomIds.includes(roomId));
+
+        this.debugLog('Usuários elegíveis', { count: eligible.length });
+        return eligible;
+      }),
+      catchError((err) => {
+        this.routeError(err, 'searchEligibleUsers', 'Erro ao buscar usuários elegíveis.');
+        return of([] as IUserDados[]);
+      })
+    );
   }
-
 
   /**
-   * Realiza a validação e expande os filtros de consulta para suportar novos casos de uso.
-   * @param filters Filtros adicionais que podem ser usados para customizações futuras.
+   * Valida/expande filtros para novos casos.
+   * Aqui não dá para usar instanceof(where) (where é função).
+   * Estratégia: “best effort” para detectar tipo e evitar filtros nulos.
    */
   validateAndExpandFilters(filters: QueryConstraint[]): QueryConstraint[] {
-    // Exemplo de validação e adição de filtros expansíveis
-    if (filters.some((filter) => filter instanceof where)) {
-      console.log('[InviteSearchService] Filtros personalizados validados:', filters);
-    } else {
-      console.log('[InviteSearchService] Nenhum filtro válido detectado. Adicionando padrões.');
-    }
+    const safe = (filters ?? []).filter(Boolean);
 
-    // Retorna os filtros após a validação/expansão
-    return filters;
+    // Detecta “where-like” (não depende de API pública estável)
+    const hasWhere = safe.some((f: any) => String(f?.type ?? '').toLowerCase() === 'where');
+
+    this.debugLog('validateAndExpandFilters', { count: safe.length, hasWhere });
+
+    // Aqui você pode adicionar defaults no futuro sem quebrar chamadas existentes.
+    return safe;
   }
-}
+
+  /**
+   * Centraliza roteamento de erro:
+   * - GlobalErrorHandlerService para log/telemetria
+   * - ErrorNotificationService para feedback da UI
+   */
+  private routeError(err: unknown, context: string, userMessage?: string): void {
+    const e = err instanceof Error ? err : new Error(`[InviteSearchService] ${context}`);
+    (e as any).silent = true;
+    (e as any).original = err;
+    (e as any).context = context;
+
+    this.globalError.handleError(e);
+
+    if (userMessage) {
+      this.notify.showError(userMessage);
+    }
+  }
+} // Linha 155

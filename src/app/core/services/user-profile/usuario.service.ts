@@ -1,4 +1,10 @@
 // src\app\core\services\usuario.service.ts
+// Serviço para gerenciar operações relacionadas ao usuário, como atualização de perfil e obtenção de usuários online.
+// Ferramentas de debug ajudam bastante
+// É assim que funcionam as grandes plataformas?
+// Compatibilizar o estado online do usuário com o presence.service e aproximar do funcionamento ideal
+// Não esquecer de descontinuar métodos duplicados em user-profile.service.ts
+// Não esquecer os comentários
 import { Injectable } from '@angular/core';
 import { Observable, catchError, from, of, throwError } from 'rxjs';
 import { IUserDados } from '../../interfaces/iuser-dados';
@@ -84,7 +90,7 @@ export class UsuarioService {
       })
     );
   }
-}//Linha122
+}//Linha87
 /* O que ele não deveria fazer
 
 ❌ Presença(isOnline / lastSeen) → isso é 100 % PresenceService.

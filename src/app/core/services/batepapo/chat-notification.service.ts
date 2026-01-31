@@ -1,4 +1,6 @@
-// C:\entretenimento\src\app\core\services\batepapo\chat-notification.service.ts
+// src/app/core/services/batepapo/chat-notification.service.ts
+// Serviço de Bate-Papo usando Firestore
+// Não esquecer os comentários
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, Subscription, from, of } from 'rxjs';
 import { catchError, map, mergeMap, reduce } from 'rxjs/operators';

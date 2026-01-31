@@ -1,4 +1,7 @@
 // src/app/authentication/auth-verification-handler/auth-verification-handler.component.ts
+// Não esqueça os comentários explicativos.
+// Componente para lidar com a verificação de e-mail e redefinição de senha via links enviados por e-mail.
+// Processa os parâmetros da URL, interage com serviços de autenticação e fornece feedback ao usuário.
 import { Component, OnInit, OnDestroy, NgZone } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';

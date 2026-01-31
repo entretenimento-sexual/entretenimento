@@ -2,13 +2,19 @@
 // EmailVerificationService: gerencia o fluxo de verificação de e-mail
 // Não esquecer os comentários
 import { Injectable } from '@angular/core';
-import { ActivatedRoute } from '@angular/router';
+import { Router } from '@angular/router';
 
 import { Auth } from '@angular/fire/auth';
-import { User, sendEmailVerification,  applyActionCode,
-         checkActionCode,  ActionCodeSettings } from 'firebase/auth';
+import {
+  User,
+  sendEmailVerification,
+  applyActionCode,
+  checkActionCode,
+  ActionCodeSettings
+} from 'firebase/auth';
 
 import {
+  Firestore,
   doc, setDoc, updateDoc, Timestamp,
   collection, getDocs, query, where
 } from '@angular/fire/firestore';
@@ -16,9 +22,11 @@ import {
 import { from, of, throwError, Observable } from 'rxjs';
 import { catchError, map, switchMap, tap, timeout } from 'rxjs/operators';
 
-import { FirestoreService } from '../../data-handling/legacy/firestore.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 import { environment } from 'src/environments/environment';
+import { FirestoreUserWriteService } from '../../data-handling/firestore-user-write.service';
+import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 
 export type VerifyEmailReason =
   | 'expired'
@@ -38,9 +46,12 @@ export class EmailVerificationService {
   private readonly NET_TIMEOUT_MS = 12000;
 
   constructor(
-    private firestoreService: FirestoreService,
-    private activatedRoute: ActivatedRoute,
-    private auth: Auth,
+    private readonly router: Router,
+    private readonly firestore: Firestore, // ✅ substitui FirestoreService legacy
+    private readonly userWrite: FirestoreUserWriteService,
+    private readonly globalError: GlobalErrorHandlerService,
+    private readonly notify: ErrorNotificationService,
+    private readonly auth: Auth,
   ) {
     // Ajuda o Firebase a enviar e-mails localizados
     try { this.auth.languageCode = 'pt-BR'; } catch { /* noop */ }
@@ -55,6 +66,8 @@ export class EmailVerificationService {
   }
 
   private isLocalHost(): boolean {
+    // SSR-safe
+    if (typeof location === 'undefined') return false;
     return /^(localhost|127\.0\.0\.1|::1)$/.test(location.hostname);
   }
 
@@ -189,25 +202,15 @@ export class EmailVerificationService {
     );
   }
 
-  /** Fallback: marca emailVerified pelo e-mail (sem depender de sessão) */
-  private updateEmailVerifiedByEmail(email: string): Observable<void> {
-    const fs = this.firestoreService.getFirestoreInstance();
-    const qref = query(collection(fs, 'users'), where('email', '==', email));
-    return from(getDocs(qref)).pipe(
-      switchMap((snap) => {
-        if (snap.empty) return throwError(() => new Error('Usuário não encontrado pelo e-mail.'));
-        const writes = snap.docs.map(d => updateDoc(d.ref, { emailVerified: true }));
-        return from(Promise.all(writes));
-      }),
-      map(() => void 0)
-    );
-  }
-
   /** Fluxo completo do handler (rota aberta pelo link do e-mail) */
   handleEmailVerification(): Observable<VerifyEmailResult> {
-    const qp = this.activatedRoute.snapshot.queryParamMap;
-    const mode = qp.get('mode');
-    const actionCode = qp.get('oobCode');
+    // ✅ Em service singleton, ActivatedRoute pode ser inconsistente.
+    // Preferimos Router.parseUrl(router.url) para ler query params atuais.
+    const tree = this.router.parseUrl(this.router.url || '');
+    const qp = tree?.queryParams ?? {};
+
+    const mode = (qp['mode'] as string | undefined) ?? null;
+    const actionCode = (qp['oobCode'] as string | undefined) ?? null;
 
     if (mode && mode !== 'verifyEmail') {
       // Evita processar outros modos por engano
@@ -224,7 +227,7 @@ export class EmailVerificationService {
 
         if (!u) {
           if (!emailFromCode) return of<VerifyEmailResult>({ ok: true, reason: 'not-logged-in' });
-          return this.updateEmailVerifiedByEmail(emailFromCode).pipe(
+          return this.userWrite.patchEmailVerifiedByEmail$(emailFromCode, true).pipe(
             map(() => ({ ok: true, firestoreUpdated: true } as VerifyEmailResult)),
             catchError(() => of({ ok: true, firestoreUpdated: false, reason: 'not-logged-in' } as VerifyEmailResult))
           );
@@ -257,33 +260,26 @@ export class EmailVerificationService {
 
   /** Atualiza o campo emailVerified no Firestore */
   updateEmailVerificationStatus(uid: string, status: boolean): Observable<void> {
-    const userRef = doc(this.firestoreService.getFirestoreInstance(), 'users', uid);
-    return from(updateDoc(userRef, { emailVerified: status })).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      tap(() => console.log(`[EmailVerificationService] Status atualizado: ${status}`)),
-      map(() => void 0),
-      catchError((error) => {
-        console.log('[EmailVerificationService] Falha ao atualizar status no Firestore:', error);
-        return throwError(() => new Error('Erro ao atualizar verificação no Firestore.'));
+    return this.userWrite.patchEmailVerified$(uid, status).pipe(
+      catchError((err) => {
+        // Ação explícita do usuário → pode ter feedback claro
+        this.notify.showError('Não foi possível atualizar a verificação agora. Tente novamente.');
+
+        // Log centralizado, sem duplicar toast (ver patch do GlobalErrorHandler abaixo)
+        const e = new Error('Falha ao atualizar emailVerified no Firestore.');
+        (e as any).skipUserNotification = true; // ✅ evita toast duplicado no GlobalErrorHandler
+        (e as any).original = err;
+        (e as any).context = 'email-verification.patchEmailVerified';
+        try { this.globalError.handleError(e); } catch { /* noop */ }
+
+        return throwError(() => err);
       })
     );
   }
 
   /** Salva/mescla dados após verificação (se necessário) */
   saveUserDataAfterEmailVerification(user: IUserDados): Observable<void> {
-    if (!user.uid) return throwError(() => new Error('UID do usuário não definido.'));
-    const data = { ...user, role: user.role || 'basico', createdAt: Timestamp.fromDate(new Date()) };
-    const userRef = doc(this.firestoreService.getFirestoreInstance(), 'users', user.uid);
-
-    return from(setDoc(userRef, data, { merge: true })).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      tap(() => console.log('[EmailVerificationService] Dados salvos após verificação.')),
-      map(() => void 0),
-      catchError((error) => {
-        console.log('[EmailVerificationService] Falha ao salvar dados:', error);
-        return throwError(() => new Error('Erro ao salvar dados do usuário.'));
-      })
-    );
+    return this.userWrite.saveUserDataAfterEmailVerification$(user);
   }
 
   /** UID do usuário autenticado */
@@ -296,6 +292,7 @@ export class EmailVerificationService {
   resendVerificationEmail(redirectUrl?: string): Observable<string> {
     const user = this.auth.currentUser;
     if (!user) return throwError(() => new Error('Nenhum usuário autenticado encontrado.'));
+
     return this.sendEmailVerification(user, redirectUrl).pipe(
       map(() => `E-mail reenviado para ${user.email}. Verifique sua caixa de entrada.`),
       catchError((error) => {
@@ -312,6 +309,9 @@ export class EmailVerificationService {
       default: return 'Erro ao verificar o e-mail.';
     }
   }
-}/* Linha315, precisa buscar redução do service buscando realocar
-    métodos daqui para outros serviços mais especializados, se houver.
-    auth.service.ts e firestore.service.ts estão sendo descontinuados */
+} // Linha 344
+/* Linha final:
+   - Redução: removemos ActivatedRoute e FirestoreService legacy.
+   - Recomendo realocar “writes por e-mail” e “setDoc pós-verificação”
+     para FirestoreUserWriteService (veja nota abaixo).
+*/

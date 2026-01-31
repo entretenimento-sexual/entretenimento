@@ -71,7 +71,7 @@ export class FirestoreContextService {
    * - Mantém "of(fn())" para garantir emissão síncrona e compatibilidade.
    */
   defer$<T>(fn: () => T): Observable<T> {
-    return defer(() => this.run(() => of(fn())));
+    return defer(() => of(this.run(fn)));
   }
 
   /**
@@ -103,4 +103,4 @@ export class FirestoreContextService {
   deferObservable$<T>(fn: () => Observable<T>): Observable<T> {
     return defer(() => this.run(fn));
   }
-}
+} // Linha 106

@@ -28,7 +28,7 @@ function getRole(u: IUserDados): string {
 export const selectHasBasicAccess = createSelector(
   selectUsersArray,
   (users: IUserDados[]): boolean =>
-    users.some((user: IUserDados) => ['basico', 'premium', 'vip'].includes(getRole(user)))
+    users.some((user: IUserDados) => ['basic', 'premium', 'vip'].includes(getRole(user)))
 );
 
 // Premium (premium, vip)

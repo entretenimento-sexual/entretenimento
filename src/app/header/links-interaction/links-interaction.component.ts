@@ -1,4 +1,8 @@
 // src/app/header/links-interaction/links-interaction.component.ts
+// Componente para interação com links no cabeçalho.
+// Inclui contadores de solicitações de amizade, mensagens não lidas e convites pendentes.
+// Gerencia upload de fotos e edição via modal.
+// Não esquecer os comentários explicativos.
 import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
@@ -13,10 +17,11 @@ import { selectInboundRequestsRichVM } from 'src/app/store/selectors/selectors.i
 import { Router, NavigationEnd } from '@angular/router';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 
-import { distinctUntilChanged, filter, map, take, startWith, tap } from 'rxjs/operators';
+import { distinctUntilChanged, filter, map, take, startWith, tap, shareReplay, auditTime } from 'rxjs/operators';
 import { Observable, Subscription, firstValueFrom, combineLatest } from 'rxjs';
 import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
 import { environment } from 'src/environments/environment';
+import { SidebarService } from 'src/app/core/services/sidebar.service';
 
 @Component({
   selector: 'app-links-interaction',
@@ -29,20 +34,34 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   private store = inject(Store<AppState>);
   private modalService = inject(NgbModal);
   private notificationService = inject(ChatNotificationService);
+  private sidebarService = inject(SidebarService);
 
   private router = inject(Router);
   private authSession = inject(AuthSessionService);
 
-  // Auth (fonte da verdade)
-  userId$: Observable<string | null> = this.authSession.authUser$.pipe(
-    map(u => u?.uid ?? null),
-    distinctUntilChanged()
+  sidebarOpen$ = this.sidebarService.isSidebarVisible$.pipe(
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  isLogged$: Observable<boolean> = this.authSession.authUser$.pipe(
-    map(Boolean),
-    distinctUntilChanged()
+  /**
+   * ✅ Fonte única e compartilhada do UID.
+   * Evita múltiplas subscriptions em authUser$ (que pode ter side-effects).
+   */
+  private readonly authUid$ = this.authSession.authUser$.pipe(
+    map(u => (u?.uid ?? '').trim() || null),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  userId$: Observable<string | null> = this.authUid$;
+
+  isLogged$: Observable<boolean> = this.authUid$.pipe(
+    map(uid => !!uid),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
 
   // Contadores
   pendingFriendReqCount$ = this.store.select(selectInboundRequestsCount);
@@ -75,32 +94,33 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
     distinctUntilChanged()
   );
 
-  // ✅ “pode ouvir realtime?” (só usuário verificado e fora do registro)
-  private canListen$ = combineLatest([this.authSession.authUser$, this.inReg$]).pipe(
-    map(([u, inReg]) => !!u && u.emailVerified === true && !inReg),
-    distinctUntilChanged()
+  // ✅ “pode ouvir realtime?” (por enquanto: apenas estar logado e fora do registro)
+  private canListen$ = combineLatest([this.isLogged$, this.inReg$]).pipe(
+    map(([logged, inReg]) => logged && !inReg),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
   );
 
   ngOnInit(): void {
-    // Auditoria: transição do gating + url + uid
-    this.sub.add(
-      combineLatest([this.userId$, this.canListen$, this.url$]).pipe(
-        tap(([uid, can, url]) => this.dbg('gate', { uid, can, url }))
-      ).subscribe()
-    );
-
-    // ✅ monitorUnreadMessages só quando pode
     this.sub.add(
       combineLatest([this.userId$, this.canListen$]).pipe(
-        map(([uid, can]) => ({ uid, can })),
-        distinctUntilChanged((a, b) => a.uid === b.uid && a.can === b.can),
-        tap(({ uid, can }) => {
-          if (!uid || !can) {
+        map(([uid, can]) => (uid && can) ? uid : null),
+        distinctUntilChanged(),
+        tap((uid) => {
+          if (!uid) {
             this.notificationService.stopUnreadMessagesMonitoring('gate-off');
             return;
           }
           this.notificationService.monitorUnreadMessages(uid);
         })
+      ).subscribe()
+    );
+
+    // ✅ Log com "rate limit" para não destruir o console
+    this.sub.add(
+      combineLatest([this.userId$, this.canListen$, this.url$]).pipe(
+        auditTime(250),
+        tap(([uid, can, url]) => this.dbg('gate', { uid, can, url }))
       ).subscribe()
     );
   }

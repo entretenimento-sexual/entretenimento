@@ -13,7 +13,7 @@ import {
   getDocs
 } from '@angular/fire/firestore';
 import { serverTimestamp } from 'firebase/firestore';
-import { Observable, of, from } from 'rxjs';
+import { Observable, of, from, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import type { User } from 'firebase/auth';
@@ -44,7 +44,13 @@ export class FirestoreUserWriteService {
 
         const payload = snap.exists()
           ? payloadBase
-          : { ...payloadBase, createdAt: serverTimestamp() };
+          : {
+            ...payloadBase,
+            createdAt: serverTimestamp(),
+            firstLogin: serverTimestamp(),
+            lastLogin: serverTimestamp(),
+            registrationDate: serverTimestamp(),
+          };
 
         return this.ctx.deferPromise$(() => setDoc(ref, payload as any, { merge: true })).pipe(
           map(() => void 0)
@@ -75,7 +81,11 @@ export class FirestoreUserWriteService {
     );
   }
 
-  patchEmailVerifiedByEmail$(email: string): Observable<void> {
+  /**
+   * Marca emailVerified = true buscando o usuário pelo e-mail.
+   * Útil quando o usuário não está logado no handler do link.
+   */
+  patchEmailVerifiedByEmail$(email: string, status: boolean = true): Observable<void> {
     const qref = this.ctx.run(() =>
       query(collection(this.db, 'users'), where('email', '==', email))
     );
@@ -83,9 +93,16 @@ export class FirestoreUserWriteService {
     return this.ctx.deferPromise$(() => getDocs(qref)).pipe(
       switchMap((snap) => {
         if (snap.empty) throw new Error('Usuário não encontrado pelo e-mail.');
-        return from(Promise.all(snap.docs.map(d => updateDoc(d.ref, { emailVerified: true } as any))));
+        return from(Promise.all(
+          snap.docs.map(d => updateDoc(d.ref, { emailVerified: status } as any))
+        ));
       }),
-      map(() => void 0)
+      map(() => void 0),
+      catchError((err) => {
+        // handler público → pode ser relevante; deixa o fluxo quebrar
+        this.safeHandle('[FirestoreUserWriteService] patchEmailVerifiedByEmail falhou.', err, { email }, { silent: false });
+        return throwError(() => err);
+      })
     );
   }
 
@@ -95,12 +112,66 @@ export class FirestoreUserWriteService {
     return this.ctx.deferPromise$(() => setDoc(ref, data as any, { merge: true })).pipe(map(() => void 0));
   }
 
-  private safeHandle(msg: string, original: unknown, meta?: Record<string, unknown>): void {
+  /**
+   * Salva/mescla dados após verificação (sem sobrescrever createdAt se já existir).
+   * Centraliza a regra fora do EmailVerificationService.
+   */
+  saveUserDataAfterEmailVerification$(user: IUserDados): Observable<void> {
+    if (!user?.uid) return throwError(() => new Error('UID do usuário não definido.'));
+
+    const ref = this.ctx.run(() => doc(this.db, 'users', user.uid));
+
+    return this.ctx.deferPromise$(() => getDoc(ref)).pipe(
+      switchMap((snap) => {
+        // evita sobrescrever createdAt vindo do client (se existir no objeto)
+        const anyUser: any = user as any;
+        const { createdAt, ...rest } = anyUser;
+
+        const payload: Record<string, unknown> = {
+          ...rest,
+          role: user.role || 'basic',
+          // opcionalmente reforça emailVerified no doc
+          emailVerified: true,
+        };
+
+        if (!snap.exists()) {
+          payload['createdAt'] = serverTimestamp();
+        }
+
+        return this.ctx.deferPromise$(() => setDoc(ref, payload as any, { merge: true })).pipe(
+          map(() => void 0)
+        );
+      }),
+      catchError((err) => {
+        this.safeHandle('[FirestoreUserWriteService] saveUserDataAfterEmailVerification falhou.', err, { uid: user.uid }, { silent: false });
+        return throwError(() => err);
+      })
+    );
+  }
+
+  /**
+   * Handler interno de erro com flags para não duplicar notificação.
+   * - silent=true: só loga, não notifica
+   * - silent=false: GlobalErrorHandler pode notificar (se não houver skipUserNotification)
+   */
+  private safeHandle(
+    msg: string,
+    original: unknown,
+    meta?: Record<string, unknown>,
+    opts?: { silent?: boolean }
+  ): void {
     try {
       const e = new Error(msg);
       (e as any).original = original;
       (e as any).meta = meta;
+
+      const silent = opts?.silent === true;
+      (e as any).silent = silent;
+
+      // se for silent, nunca notifica
+      if (silent) (e as any).skipUserNotification = true;
+
       this.globalErrorHandler.handleError(e);
-    } catch { }
+    } catch { /* noop */ }
   }
 }

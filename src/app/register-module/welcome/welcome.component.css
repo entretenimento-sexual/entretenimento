@@ -1,4 +1,5 @@
 /* src/app/authentication/register-module/welcome/welcome.component.css */
+
 /* ====== Container ====== */
 .welcome-container {
   max-width: 760px;
@@ -16,23 +17,29 @@
   margin-top: .25rem;
 }
 
-/* ====== Grid de conteúdo ====== */
+/* ====== Grid ====== */
 .welcome-content {
   display: grid;
   gap: 16px;
 }
 
-/* ====== Card base ====== */
+/* ====== Cards ====== */
 .welcome-card {
-  background: var(--background-color);
+  background: var(--surface-color);
   color: var(--text-color);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--box-shadow);
+  border: 1px solid var(--surface-border);
   padding: 16px;
-  transition: background-color .3s ease, color .3s ease, box-shadow .3s ease;
+  transition: background-color .3s ease, color .3s ease, box-shadow .3s ease, border-color .3s ease;
 }
 
-/* ====== Título + selo ====== */
+/* Botões dentro do welcome: dá “corpo” sem mexer no .btn global */
+.welcome-container .btn {
+  padding: 10px 14px;
+}
+
+/* ====== Título + badge ====== */
 .card-title {
   display: flex;
   align-items: center;
@@ -41,7 +48,7 @@
   font-size: 1.1rem;
 }
 
-/* ====== Badges de status ====== */
+/* ====== Badges ====== */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -88,7 +95,7 @@
   justify-content: flex-end;
 }
 
-/* ====== Detalhes opcionais ====== */
+/* ====== Detalhes (details/summary) ====== */
 .details-optional>summary {
   cursor: pointer;
   font-weight: 500;
@@ -100,6 +107,13 @@
   display: none;
 }
 
+/* foco visível no summary (mantém padrão global) */
+.details-optional>summary:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* ====== Onboarding grid ====== */
 .optional-grid {
   display: grid;
   gap: 12px;
@@ -117,35 +131,39 @@
   gap: .5rem;
 }
 
-/* ====== Cards especiais ====== */
+/* ====== Variantes ====== */
 .success-card {
   border-left: 4px solid var(--success-color);
 }
 
-/* Quando usamos a classe de alerta no card de sessão inválida */
-.welcome-card.alert-error {
-  background: #fee2e2;
-  color: #7f1d1d;
+.card-error {
   border-left: 4px solid var(--danger-color);
+  background: color-mix(in oklab, var(--danger-color) 10%, var(--surface-color));
 }
 
-/* ====== Banner robusto (harmoniza com .alert global) ====== */
-/* Seu global já define .alert, .alert-success, .alert-error, .alert-info.
-   Aqui adicionamos o 'warning' para manter paridade. */
+/* ====== Banner ====== */
+.welcome-alert {
+  margin-bottom: 16px;
+}
+
+.welcome-alert__title {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.welcome-alert__meta {
+  margin-top: 6px;
+  font-size: .85rem;
+  opacity: .85;
+}
+
+/* Paridade do warning (você já tem no global-components, aqui fica só garantia local) */
 .alert.alert-warning {
   background-color: var(--snackbar-warning);
-  color: white;
+  color: #fff;
 }
 
-/* Botões dentro do banner/alerta */
-.alert .actions {
-  margin-top: 8px;
-  display: flex;
-  gap: .5rem;
-  flex-wrap: wrap;
-}
-
-/* Bloco de detalhes técnicos (quando houver) */
+/* Detalhes técnicos */
 .tech-details {
   margin-top: 8px;
   white-space: pre-wrap;
@@ -154,6 +172,7 @@
   padding: 8px;
   border-radius: 8px;
   overflow: auto;
+  border: 1px solid color-mix(in oklab, var(--text-color) 12%, transparent);
 }
 
 /* ====== Responsivo ====== */
@@ -163,31 +182,32 @@
   }
 }
 
-/* ====== Dark mode tweaks ====== */
-:root.dark-mode .welcome-card {
-  background: var(--background-color);
-  color: var(--text-color);
+/* ====== Dark mode ====== */
+html.dark-mode .tech-details {
+  background: rgba(255, 255, 255, .06);
+  border-color: rgba(240, 246, 252, 0.12);
 }
 
-:root.dark-mode .welcome-card.alert-error {
-  background: rgba(198, 40, 40, .1);
-  color: #ffdcdc;
-  border-left-color: var(--danger-color);
-}
-
-:root.dark-mode .tech-details {
-  background: rgba(255, 255, 255, .05);
-}
-
-/* Mantém contraste dos badges no dark */
-:root.dark-mode .badge.ok {
+html.dark-mode .badge.ok {
   background: rgba(16, 185, 129, .12);
   color: #a7f3d0;
   border-color: rgba(16, 185, 129, .35);
 }
 
-:root.dark-mode .badge.warn {
+html.dark-mode .badge.warn {
   background: rgba(234, 88, 12, .12);
   color: #fdba74;
   border-color: rgba(234, 88, 12, .35);
+}
+
+/* ====== Alto contraste ====== */
+html.high-contrast .welcome-card {
+  box-shadow: none;
+  border: 2px solid currentColor;
+}
+
+html.high-contrast .badge {
+  background: transparent;
+  border-color: currentColor;
+  color: var(--text-color);
 }

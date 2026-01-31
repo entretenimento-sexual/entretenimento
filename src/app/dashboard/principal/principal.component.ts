@@ -20,8 +20,6 @@ import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.s
 
 import {
   selectFriendsCount,
-  selectFriendsLoading,
-  selectFriendsVM,
   selectInboundRequestsCount
 } from 'src/app/store/selectors/selectors.interactions/friend.selector';
 

@@ -1,4 +1,8 @@
 // src/app/layout/friend.management/friend-list-page/friend-list-page.component.ts
+// Não esqueça os comentários explicativos.
+// Página de listagem de amigos com filtros, ordenação e infinite scroll.
+// Usa store NgRx para gerenciar estado e paginação.
+// Permite filtrar por online, buscar por nome, ordenar por vários critérios.
 import { ChangeDetectionStrategy, Component, ElementRef, OnDestroy, OnInit, ViewChild,
          computed, inject, signal, } from '@angular/core';
 import { CommonModule } from '@angular/common';

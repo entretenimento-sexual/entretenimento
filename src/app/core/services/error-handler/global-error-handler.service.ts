@@ -1,11 +1,13 @@
 // src/app/core/services/error-handler/global-error-handler.service.ts
+// Serviço global de tratamento de erros
+// Intercepta erros, formata mensagens para o usuário e loga detalhes para o desenvolvedor
+// Não esquecer os comentários
+
 import { ErrorHandler, Injectable, Injector } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ErrorNotificationService } from './error-notification.service';
 
-@Injectable({
-  providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class GlobalErrorHandlerService implements ErrorHandler {
   constructor(private injector: Injector) { }
 
@@ -17,88 +19,101 @@ export class GlobalErrorHandlerService implements ErrorHandler {
   handleError(error: Error | HttpErrorResponse): void {
     const notifier = this.injector.get(ErrorNotificationService);
 
-    // 1. Loga o erro no console de forma detalhada para o desenvolvedor (SUPERVALORIZADO)
+    // 1) Log detalhado para dev (SUPERVALORIZADO)
     this.logError(error);
 
-    // 2. Formata a mensagem de erro para ser exibida ao usuário (SUPERVALORIZADO FEEDBACK)
-    // Mantemos o nome original do método 'formatErrorMessage'
+    // 2) Mensagem para usuário
     const userFacingMessage = this.formatErrorMessage(error);
 
-    // 3. Exibe a notificação de erro para o usuário através do ErrorNotificationService
-    notifier.showError(userFacingMessage);
+    // 3) Detalhes (para encaixar na assinatura showError(msg, details, ...))
+    const details = this.extractDetails(error);
 
-    // 4. Opcional: Encaminha erros críticos para serviços de logging externos
+    // ✅ Evita duplicar toasts quando algum handler já notificou
+    const skipUserNotification =
+      (error as any)?.skipUserNotification === true ||
+      (error as any)?.silent === true;
+
+    if (!skipUserNotification) {
+      // ✅ Corrige TS2554: showError exige 2-3 args no seu projeto
+      notifier.showError(userFacingMessage, details);
+    }
+
+    // 4) Opcional: monitoramento externo
     this.sendToExternalLoggingService(error);
   }
 
   /**
    * Formata a mensagem de erro baseada no tipo de erro, priorizando mensagens amigáveis para o usuário.
-   * Este método mantém o nome original 'formatErrorMessage'.
-   * @param error O erro original.
-   * @returns Uma string com a mensagem amigável para o usuário.
+   * Mantém o nome original 'formatErrorMessage'.
    */
   public formatErrorMessage(error: Error | HttpErrorResponse): string {
-    // Prioriza mensagens de erro que já são amigáveis ao usuário.
-    // Isso é crucial para erros que vêm de serviços como RegisterService,
-    // que já formatam a mensagem para o usuário antes de lançar o erro.
-    // A condição '!error.message.startsWith('[FirebaseError]'))' é um exemplo para evitar
-    // mensagens Firebase cruas, mas pode ser ajustada conforme a necessidade.
-    if (error.message && !error.message.startsWith('[FirebaseError]')) {
-      return error.message;
+    // Prioriza mensagens já amigáveis
+    if ((error as any)?.message && !(error as any)?.message.startsWith?.('[FirebaseError]')) {
+      return (error as any).message;
     }
 
     if (error instanceof HttpErrorResponse) {
       if (!navigator.onLine) {
         return 'Você está offline. Verifique sua conexão com a internet.';
       }
-      // Se houver uma mensagem de erro na resposta da API, use-a.
-      // Caso contrário, fornece uma mensagem genérica de erro de rede.
       return error.error?.message || `Erro de rede (${error.status}). Por favor, tente novamente.`;
-    } else if (error instanceof TypeError) {
-      // Mensagem mais amigável para erros de tipo, sugerindo uma ação ao usuário.
-      return `Ocorreu um problema de tipo na aplicação. Por favor, atualize a página e tente novamente.`;
-    } else if (error instanceof SyntaxError) {
-      // Mensagem mais amigável para erros de sintaxe.
-      return `Ocorreu um erro na aplicação. Por favor, tente novamente mais tarde.`;
-    } else {
-      // Mensagem genérica para outros erros não tratados explicitamente.
-      return 'Ocorreu um erro inesperado. Por favor, tente novamente mais tarde.';
     }
+
+    if (error instanceof TypeError) {
+      return 'Ocorreu um problema de tipo na aplicação. Por favor, atualize a página e tente novamente.';
+    }
+
+    if (error instanceof SyntaxError) {
+      return 'Ocorreu um erro na aplicação. Por favor, tente novamente mais tarde.';
+    }
+
+    return 'Ocorreu um erro inesperado. Por favor, tente novamente mais tarde.';
+  }
+
+  /**
+   * Extrai detalhes opcionais para exibir no toast/snackbar, sem “poluir” o usuário.
+   * Ajuda a satisfazer assinatura showError(msg, details).
+   */
+  private extractDetails(error: Error | HttpErrorResponse): string {
+    // padrão do seu ecossistema: handlers podem anexar detalhes/original/code
+    const anyErr: any = error as any;
+
+    if (typeof anyErr?.details === 'string' && anyErr.details.trim()) return anyErr.details;
+    if (typeof anyErr?.code === 'string' && anyErr.code.trim()) return anyErr.code;
+
+    if (error instanceof HttpErrorResponse) {
+      // tentar achar um detalhe útil
+      if (typeof error.error?.message === 'string' && error.error.message.trim()) return error.error.message;
+      if (typeof error.message === 'string' && error.message.trim()) return error.message;
+      return `HTTP ${error.status}`;
+    }
+
+    if (typeof anyErr?.original?.message === 'string' && anyErr.original.message.trim()) return anyErr.original.message;
+    if (typeof (error as any)?.message === 'string' && (error as any).message.trim()) return (error as any).message;
+
+    return ''; // mantém compatível com showError(msg, details)
   }
 
   /**
    * Loga o erro no console de forma detalhada para o desenvolvedor.
-   * Usa `console.error` para destacar a importância do log.
-   * @param error O erro a ser logado.
    */
   private logError(error: Error | HttpErrorResponse): void {
     console.log('Erro capturado pelo GlobalErrorHandler:', error);
-    // Integre aqui com um serviço de logging externo (opcional)
-    // Exemplo: const sentryService = this.injector.get(SentryService);
-    // sentryService.logError(error);
   }
 
   /**
-   * Encaminha erros considerados críticos para um serviço externo de monitoramento,
-   * como Sentry ou LogRocket.
-   * @param error O erro a ser avaliado e potencialmente enviado.
+   * Encaminha erros críticos para um serviço externo (Sentry/LogRocket).
    */
   private sendToExternalLoggingService(error: Error | HttpErrorResponse): void {
-    // Implemente a lógica para verificar se o erro é crítico antes de enviar.
     if (this.isCriticalError(error)) {
       console.log('Enviando erro crítico para serviço externo:', error);
-      // Exemplo: const loggingService = this.injector.get(ExternalLoggingService);
-      // loggingService.logError(error);
     }
   }
 
   /**
-   * Identifica se um erro é crítico, baseado em regras definidas pelo projeto.
-   * @param error O erro a ser verificado.
-   * @returns `true` se o erro for crítico, `false` caso contrário.
+   * Identifica se um erro é crítico.
    */
   private isCriticalError(error: Error | HttpErrorResponse): boolean {
-    // Exemplo de regra para erros críticos: status 500 em HTTP ou erros fundamentais do sistema.
     if (error instanceof HttpErrorResponse) {
       return error.status >= 500;
     }

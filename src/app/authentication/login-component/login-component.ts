@@ -2,9 +2,8 @@
 //Ainda não tem um Guard “anti-login quando já está logado”
 import { ChangeDetectionStrategy, ChangeDetectorRef,
          Component, DestroyRef, OnInit, inject, } from '@angular/core';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
-import { AuthOrchestratorService } from 'src/app/core/services/autentication/auth/auth-orchestrator.service';
 
 import { Observable, of } from 'rxjs';
 import { catchError, distinctUntilChanged, finalize, map, shareReplay, startWith, tap } from 'rxjs/operators';
@@ -14,6 +13,7 @@ import { EmailInputModalService } from 'src/app/core/services/autentication/emai
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
+import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
 
 @Component({
   selector: 'app-login-component',
@@ -42,8 +42,9 @@ export class LoginComponent implements OnInit {
 
   constructor(
     private readonly router: Router,
+    private readonly route: ActivatedRoute,
     private readonly notify: ErrorNotificationService,
-    private readonly authOrchestrator: AuthOrchestratorService,
+    private readonly logoutService: LogoutService,
 
     // modais / fluxos
     public readonly emailInputModalService: EmailInputModalService,
@@ -111,6 +112,15 @@ export class LoginComponent implements OnInit {
     this.cdr.markForCheck();
   }
 
+  private getRedirectTo(): string {
+    const raw = this.route.snapshot.queryParamMap.get('redirectTo');
+    // ✅ segurança básica anti open-redirect
+    if (!raw) return '/dashboard/principal';
+    if (!raw.startsWith('/')) return '/dashboard/principal';
+    if (raw.startsWith('//')) return '/dashboard/principal';
+    return raw;
+  }
+
   /**
    * ✅ Login reativo (sem persistência duplicada!)
    * - A persistência já é aplicada dentro do LoginService (via rememberMe).
@@ -140,6 +150,8 @@ export class LoginComponent implements OnInit {
 
     const email = (this.email?.value as string).trim();
     const password = this.password?.value as string;
+    const redirectTo = this.getRedirectTo();
+
 
     this.setBusyState(true);
 
@@ -151,9 +163,12 @@ export class LoginComponent implements OnInit {
           return;
         }
 
-        // 1) Perfil incompleto → fluxo de finalizar cadastro
+        // 1) Perfil incompleto → manda para finalizar-cadastro preservando redirectTo
         if (result.needsProfileCompletion) {
-          this.router.navigate(['/finalizar-cadastro']).catch(() => { });
+          this.router.navigate(['/register/finalizar-cadastro'], {
+            queryParams: { redirectTo },
+            replaceUrl: true,
+          }).catch(() => { });
           return;
         }
 
@@ -167,7 +182,7 @@ export class LoginComponent implements OnInit {
 
         // 3) Sucesso total → segue para a área logada
         this.setSuccess('Login realizado com sucesso!');
-        this.router.navigate(['/dashboard/principal']).catch(() => { });
+        this.router.navigateByUrl(redirectTo, { replaceUrl: true }).catch(() => { });
       }),
       catchError((err) => {
         /**
@@ -228,7 +243,7 @@ export class LoginComponent implements OnInit {
 
     this.setBusyState(true);
 
-    this.authOrchestrator.logout$().pipe(
+    this.logoutService.logout$().pipe(
       finalize(() => this.setBusyState(false)),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({

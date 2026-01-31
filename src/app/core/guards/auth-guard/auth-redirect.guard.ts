@@ -1,20 +1,19 @@
-// src/app/core/guards/auth-only.guard.ts
+// src\app\core\guards\auth-guard\auth-redirect.guard.ts
 // Não esqueça os comentáros explicativos sobre o propósito desse guard.
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { defer, from, map, of, catchError } from 'rxjs';
 
-export const authOnlyGuard: CanActivateFn = (_route, state) => {
+export const authRedirectGuard: CanActivateFn = (route, _state) => {
   const router = inject(Router);
   const auth = inject(Auth);
 
-  const toLogin = () =>
-    router.createUrlTree(['/login'], { queryParams: { redirectTo: state.url } });
+  const allowAuthenticated = !!route.data?.['allowAuthenticated'];
+  if (allowAuthenticated) return of(true);
 
-  // ✅ espera a restauração e decide com base em currentUser (sem authState)
   return defer(() => from((auth as any).authStateReady?.() ?? Promise.resolve())).pipe(
-    map(() => !!auth.currentUser ? true : toLogin()),
-    catchError(() => of(toLogin()))
+    map(() => (auth.currentUser ? router.createUrlTree(['/dashboard/principal']) : true)),
+    catchError(() => of(true))
   );
 };

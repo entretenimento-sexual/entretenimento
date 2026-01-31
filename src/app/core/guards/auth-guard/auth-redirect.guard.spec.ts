@@ -4,7 +4,7 @@ import { CanActivateFn } from '@angular/router';
 import { authRedirectGuard } from './auth-redirect.guard';
 
 describe('authRedirectGuard', () => {
-  const executeGuard: CanActivateFn = (...guardParameters) => 
+  const executeGuard: CanActivateFn = (...guardParameters) =>
       TestBed.runInInjectionContext(() => authRedirectGuard(...guardParameters));
 
   beforeEach(() => {

@@ -119,7 +119,7 @@ export class LoginService {
       emailVerified: !!u.emailVerified,
       isSubscriber: false,
       profileCompleted: false,
-      role: 'basico' as any,
+      role: 'basic' as any,
     } as IUserDados;
   }
 

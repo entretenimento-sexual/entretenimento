@@ -1,4 +1,6 @@
 // src/app/core/services/data-handling/converters/user.firestore-converter.ts
+// Conversor Firestore para documentos de usuário
+// Não esquecer os comentários
 import {
   FirestoreDataConverter, Timestamp, DocumentData, QueryDocumentSnapshot, SnapshotOptions
 } from 'firebase/firestore';
@@ -16,15 +18,14 @@ const toTs = (ms: number | null | undefined) =>
   ms != null ? Timestamp.fromMillis(ms) : null;
 
 export const userConverter: FirestoreDataConverter<IUserDados> = {
-  fromFirestore(snap: QueryDocumentSnapshot, options: SnapshotOptions): IUserDados {
+  fromFirestore(snap, options): IUserDados {
     const d: any = snap.data(options);
     const ms = (x: any) => toMillis(x) ?? null;
 
     return {
-      uid: snap.id,
       ...d,
+      uid: snap.id, // ✅ nunca é sobrescrito
 
-      // 🔁 TUDO como epoch (ms)
       lastLogin: ms(d.lastLogin) ?? 0,
       firstLogin: ms(d.firstLogin),
       createdAt: ms(d.createdAt),
@@ -35,7 +36,6 @@ export const userConverter: FirestoreDataConverter<IUserDados> = {
       lastOfflineAt: ms(d.lastOfflineAt),
       lastOnlineAt: ms(d.lastOnlineAt),
 
-      // ✅ NORMALIZA acceptedTerms
       ...(d.acceptedTerms ? {
         acceptedTerms: {
           accepted: !!d.acceptedTerms.accepted,
@@ -43,45 +43,57 @@ export const userConverter: FirestoreDataConverter<IUserDados> = {
         }
       } : {}),
 
-      // (opcional) histórico também normalizado, se existir
       ...(Array.isArray(d.nicknameHistory) ? {
         nicknameHistory: d.nicknameHistory.map((it: any) => ({
           nickname: it?.nickname ?? '',
           date: ms(it?.date),
         }))
       } : {}),
-
-    } as IUserDados; // TS: ok mesmo com campos extras
+    } as IUserDados;
   },
 
   toFirestore(u: IUserDados): DocumentData {
+    const {
+      lastLogin,
+      firstLogin,
+      createdAt,
+      subscriptionExpires,
+      lastSeen,
+      lastLocationAt,
+      registrationDate,
+      lastOfflineAt,
+      lastOnlineAt,
+      acceptedTerms,
+      nicknameHistory,
+      ...rest
+    } = u;
+
     return {
-      ...u,
+      ...rest,
 
-      // ↩️ converter de volta para Timestamp ao persistir
-      lastLogin: toTs(u.lastLogin),
-      firstLogin: toTs(u.firstLogin ?? null),
-      createdAt: toTs(u.createdAt ?? null),
-      subscriptionExpires: toTs(u.subscriptionExpires ?? null),
-      lastSeen: toTs(u.lastSeen ?? null),
-      lastLocationAt: toTs(u.lastLocationAt ?? null),
-      registrationDate: toTs(u.registrationDate ?? null),
-      lastOfflineAt: toTs(u.lastOfflineAt ?? null),
-      lastOnlineAt: toTs(u.lastOnlineAt ?? null),
+      ...(lastLogin > 0 ? { lastLogin: toTs(lastLogin) } : {}),
+      ...(firstLogin ? { firstLogin: toTs(firstLogin) } : {}),
+      ...(createdAt ? { createdAt: toTs(createdAt) } : {}),
+      ...(subscriptionExpires ? { subscriptionExpires: toTs(subscriptionExpires) } : {}),
+      ...(lastSeen ? { lastSeen: toTs(lastSeen) } : {}),
+      ...(lastLocationAt ? { lastLocationAt: toTs(lastLocationAt) } : {}),
+      ...(registrationDate ? { registrationDate: toTs(registrationDate) } : {}),
+      ...(lastOfflineAt ? { lastOfflineAt: toTs(lastOfflineAt) } : {}),
+      ...(lastOnlineAt ? { lastOnlineAt: toTs(lastOnlineAt) } : {}),
 
-      ...(u as any).acceptedTerms ? {
+      ...(acceptedTerms ? {
         acceptedTerms: {
-          accepted: !!(u as any).acceptedTerms.accepted,
-          date: toTs((u as any).acceptedTerms.date ?? null),
+          accepted: !!acceptedTerms.accepted,
+          date: toTs(acceptedTerms.date ?? null),
         }
-      } : {},
+      } : {}),
 
-      ...(Array.isArray((u as any).nicknameHistory) ? {
-        nicknameHistory: (u as any).nicknameHistory.map((it: any) => ({
+      ...(Array.isArray(nicknameHistory) ? {
+        nicknameHistory: nicknameHistory.map(it => ({
           nickname: it?.nickname ?? '',
           date: toTs(it?.date ?? null),
         }))
       } : {}),
     };
-  }
+  },
 };

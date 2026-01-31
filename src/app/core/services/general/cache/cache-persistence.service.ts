@@ -1,4 +1,8 @@
 //src\app\core\services\general\cache\cache-persistence.service.ts
+// Serviço para persistência de cache usando IndexedDB via idb-keyval
+// - API Observable-first (sem Promises na API pública)
+// - Métodos para set, get e delete
+// - Não esquecer os comentários explicativos.
 import { Injectable } from '@angular/core';
 import { set, get, del } from 'idb-keyval';
 import { from, Observable } from 'rxjs';

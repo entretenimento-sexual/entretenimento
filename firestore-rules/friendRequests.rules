@@ -1,0 +1,25 @@
+    // =========================================================================
+    // FRIEND REQUESTS
+    // =========================================================================
+    match /friendRequests/{reqId} {
+      allow read: if signedIn() &&
+        (resource.data.requesterUid == uid() ||
+         resource.data.targetUid    == uid());
+
+      allow create: if signedIn()
+        && request.resource.data.requesterUid == uid()
+        && request.resource.data.targetUid    != uid()
+        && request.resource.data.status       == 'pending'
+        && request.resource.data.createdAt    is timestamp;
+
+      allow update: if signedIn()
+        && resource.data.status == 'pending'
+        && request.resource.data.status in ['accepted','declined']
+        && uid() == resource.data.targetUid
+        && request.resource.data.respondedAt is timestamp
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status','respondedAt']);
+
+      allow delete: if signedIn()
+        && resource.data.status == 'pending'
+        && uid() == resource.data.requesterUid;
+    }

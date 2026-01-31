@@ -1,4 +1,10 @@
-// C:\entretenimento\firestore.rules
+// AUTO-GENERATED FILE. DO NOT EDIT.
+// Source: firestore-rules/*
+// Generated at: 2026-01-29T14:42:33.910Z
+
+// ===== _helpers.rules =====
+//firestore-rules\_helpers.rules
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -12,6 +18,10 @@ service cloud.firestore {
     function isNum(v) { return v is number; }
     function isBool(v) { return v is bool; }
     function isTs(v) { return v is timestamp; }
+
+    function hasClaim(k) { return signedIn() && (k in request.auth.token) && request.auth.token[k] == true; }
+    function isAdmin() { return hasClaim("admin"); }
+    function isModerator() { return hasClaim("moderator") || isAdmin(); }
 
     function optString(k) {
       return !(k in request.resource.data)
@@ -33,6 +43,7 @@ service cloud.firestore {
       return !(k in request.resource.data) || request.resource.data[k] is timestamp;
     }
 
+// ===== users.rules =====
     // =========================================================================
     // USERS (privado)
     // =========================================================================
@@ -51,25 +62,21 @@ service cloud.firestore {
       allow read, write: if isSelf(userId);
     }
 
+// ===== public_profiles.rules =====
     // =========================================================================
     // PUBLIC PROFILES (consultável / discovery)
-    // - Fonte do discovery (search/filtros)
-    // - NÃO contém dados privados (email, phone, etc.)
     // =========================================================================
     match /public_profiles/{userId} {
-      // Recomendação: exige login para ler perfis públicos (padrão do seu projeto)
+      // Exige login para ler perfis públicos (padrão do seu projeto)
       allow get, list: if signedIn();
-
-      // Se você quiser perfis públicos sem login (não recomendo no seu caso):
-      // allow get, list: if true;
 
       function allowedKeys() {
         return request.resource.data.keys().hasOnly([
           "uid",
           "nickname",
           "nicknameNormalized",
-          "avatarUrl",   // padrão recomendado (ou use photoURL, mas escolha 1)
-          "photoURL",    // opcional de compat (se você ainda usa isso)
+          "avatarUrl",
+          "photoURL",
           "municipio",
           "estado",
           "gender",
@@ -121,59 +128,62 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+// ===== presence.rules =====
     // =========================================================================
     // PRESENCE (efêmero / realtime)
     // =========================================================================
-match /presence/{presenceUid} {
-  allow read: if signedIn();
+    match /presence/{presenceUid} {
+      allow read: if signedIn();
 
-  allow create, update: if (
-    isSelf(presenceUid)
-    && request.resource.data.uid == uid()
-    && request.resource.data.keys().hasOnly([
-      "uid",
-      "presenceSessionId",
+      allow create, update: if (
+        isSelf(presenceUid)
+        && request.resource.data.uid == uid()
+        && request.resource.data.keys().hasOnly([
+          "uid",
+          "presenceSessionId",
 
-      "isOnline",
-      "presenceState",
+          "isOnline",
+          "presenceState",
 
-      "lastSeen",
-      "updatedAt",
+          "lastSeen",
+          "updatedAt",
 
-      "lastStateChangeAt",
-      "lastOnlineAt",
-      "lastOfflineAt",
+          "lastStateChangeAt",
+          "lastOnlineAt",
+          "lastOfflineAt",
 
-      "nickname",
-      "municipio",
-      "estado",
-      "photoURL",
-      "latitude",
-      "longitude"
-    ])
+          "nickname",
+          "municipio",
+          "estado",
+          "photoURL",
+          "latitude",
+          "longitude"
+        ])
 
-    && request.resource.data.presenceSessionId is string
+        && request.resource.data.presenceSessionId is string
 
-    && request.resource.data.isOnline is bool
-    && request.resource.data.presenceState in ["online","away","offline"]
+        && request.resource.data.isOnline is bool
+        && request.resource.data.presenceState in ["online","away","offline"]
 
-    && request.resource.data.lastSeen is timestamp
-    && optTimestamp("updatedAt")
+        && request.resource.data.lastSeen is timestamp
+        && optTimestamp("updatedAt")
 
-    && optTimestamp("lastStateChangeAt")
-    && optTimestamp("lastOnlineAt")
-    && optTimestamp("lastOfflineAt")
+        && optTimestamp("lastStateChangeAt")
+        && optTimestamp("lastOnlineAt")
+        && optTimestamp("lastOfflineAt")
 
-    && optString("nickname")
-    && optString("municipio")
-    && optString("estado")
-    && optString("photoURL")
-    && optNumberOrNull("latitude")
-    && optNumberOrNull("longitude")
-  );
-  allow delete: if false;
-}
+        && optString("nickname")
+        && optString("municipio")
+        && optString("estado")
+        && optString("photoURL")
+        && optNumberOrNull("latitude")
+        && optNumberOrNull("longitude")
+      );
 
+      allow delete: if false;
+    }
+
+// ===== friendRequests.rules =====
     // =========================================================================
     // FRIEND REQUESTS
     // =========================================================================
@@ -200,6 +210,7 @@ match /presence/{presenceUid} {
         && uid() == resource.data.requesterUid;
     }
 
+// ===== chats.rules =====
     // =========================================================================
     // CHATS
     // =========================================================================
@@ -264,6 +275,7 @@ match /presence/{presenceUid} {
       allow delete: if false;
     }
 
+// ===== rooms.rules =====
     // =========================================================================
     // ROOMS
     // =========================================================================
@@ -364,6 +376,7 @@ match /presence/{presenceUid} {
         && request.resource.data.status == "pending"
         && isTs(request.resource.data.sentAt)
         && isTs(request.resource.data.expiresAt)
+        && isTs(request.resource.data.expiresAt)
         && isStr(request.resource.data.roomName);
 
       allow update: if signedIn()
@@ -377,52 +390,122 @@ match /presence/{presenceUid} {
         && resource.data.senderId == uid();
     }
 
-        // =========================================================================
-        // PUBLIC INDEX (índice técnico)
-        // - nickname: leitura pública (sem login) para validação em /register
-        // - email: privado do dono
-        // =========================================================================
-        match /public_index/{docId} {
+// ===== public_index.rules =====
+    // =========================================================================
+    // PUBLIC INDEX (índice técnico)
+    // =========================================================================
+    match /public_index/{docId} {
 
-          function isNicknameDoc() { return docId.matches('^nickname:.+'); }
-          function isEmailDoc() { return docId.matches('^email:.+'); }
+      function isNicknameDoc() { return docId.matches('^nickname:.+'); }
+      function isEmailDoc() { return docId.matches('^email:.+'); }
 
-          // ✅ GET público para nickname (registro sem login)
-          // ✅ GET privado para email (somente dono logado)
-          allow get: if isNicknameDoc()
-            || (signedIn() && isEmailDoc() && resource.data.uid == uid());
+      // GET público para nickname (registro sem login)
+      // GET privado para email (somente dono logado)
+      allow get: if isNicknameDoc()
+        || (signedIn() && isEmailDoc() && resource.data.uid == uid());
 
-          allow list: if false;
+      allow list: if false;
 
-          function validDocId() {
-            return isNicknameDoc() || isEmailDoc();
-          }
+      function validDocId() {
+        return isNicknameDoc() || isEmailDoc();
+      }
 
-          function common() {
-            return signedIn()
-              && validDocId()
-              && request.resource.data.uid == uid()
-              && request.resource.data.type in ["nickname","email"]
-              && request.resource.data.value is string
-              && request.resource.data.createdAt is timestamp
-              && request.resource.data.lastChangedAt is timestamp;
-          }
+      function common() {
+        return signedIn()
+          && validDocId()
+          && request.resource.data.uid == uid()
+          && request.resource.data.type in ["nickname","email"]
+          && request.resource.data.value is string
+          && request.resource.data.createdAt is timestamp
+          && request.resource.data.lastChangedAt is timestamp;
+      }
 
-          // create-only (continua exigindo login — pq a criação ocorre após createUser)
-          allow create: if common()
-            && !exists(/databases/$(database)/documents/public_index/$(docId));
+      // create-only
+      allow create: if common()
+        && !exists(/databases/$(database)/documents/public_index/$(docId));
 
-          // nickname: update bloqueado | email: update permitido (se você quiser)
-          allow update: if signedIn()
-            && isEmailDoc()
-            && request.resource.data.uid == uid()
-            && request.resource.data.type == "email"
-            && request.resource.data.value is string
-            && request.resource.data.createdAt == resource.data.createdAt
-            && request.resource.data.lastChangedAt is timestamp;
+      // nickname: update bloqueado | email: update permitido
+      allow update: if signedIn()
+        && isEmailDoc()
+        && request.resource.data.uid == uid()
+        && request.resource.data.type == "email"
+        && request.resource.data.value is string
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.lastChangedAt is timestamp;
 
-          // delete: dono pode apagar (útil p/ troca controlada)
-          allow delete: if signedIn() && resource.data.uid == uid();
+      // delete: dono pode apagar
+      allow delete: if signedIn() && resource.data.uid == uid();
     }
+
+// ===== users_profile_socialLinks.rules =====
+//C:\entretenimento\firestore-rules\users_profile_socialLinks.rules
+
+    // =========================================================================
+    // USERS / profileData / socialLinks
+    //
+    // Ponto importante (padrão de plataforma grande):
+    // - Se algo pode ser "público por escolha", normalmente se replica um subset em
+    //   uma coleção pública (ex.: /public_profiles/{uid}) para simplificar regras.
+    //
+    // Aqui vai o DEFAULT seguro: privado (somente dono).
+    // Depois você expande para visibilidade/role sem explodir o ruleset.
+    // =========================================================================
+    match /users/{userId}/profileData/socialLinks {
+      allow get, create, update: if isSelf(userId);
+      allow list: if false;
+      allow delete: if false;
+    }
+
+// ===== public_social_links.rules =====
+// C:\entretenimento\firestore-rules\public_social_links.rules
+// =========================================================================
+// PUBLIC SOCIAL LINKS (espelho público)
+// - Contém SOMENTE o subset que o usuário escolheu tornar visível
+// - Escrita: somente dono
+// - Leitura: (aqui) exige login, alinhado ao seu padrão de /public_profiles
+// =========================================================================
+match /public_social_links/{userId} {
+
+  // Leitura: exige login (mantenha consistente com /public_profiles)
+  allow get, list: if signedIn();
+
+  // Se quiser permitir leitura sem login (não recomendo no seu caso):
+  // allow get, list: if true;
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
+      "sexlog","d4swing","buppe",
+      "updatedAt"
+    ]);
   }
-}//428 linhas
+
+  function validPublicSocialLinksPayload() {
+    return request.resource.data.uid == uid()
+      && allowedKeys()
+      && optString("facebook")
+      && optString("instagram")
+      && optString("twitter")
+      && optString("linkedin")
+      && optString("youtube")
+      && optString("tiktok")
+      && optString("snapchat")
+      && optString("sexlog")
+      && optString("d4swing")
+      && optString("buppe")
+      && optTimestamp("updatedAt");
+  }
+
+  allow create: if isSelf(userId) && validPublicSocialLinksPayload();
+  allow update: if isSelf(userId) && validPublicSocialLinksPayload();
+
+  // Se o usuário “despublicar”, apaga o espelho:
+  allow delete: if isSelf(userId);
+}
+
+// ===== _footer.rules =====
+//C:\entretenimento\firestore-rules\_footer.rules
+
+  }
+}

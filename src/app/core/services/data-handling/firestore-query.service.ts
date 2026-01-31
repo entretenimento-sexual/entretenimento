@@ -1,5 +1,10 @@
 // src/app/core/services/data-handling/firestore-query.service.ts
-import { Injectable } from '@angular/core';
+// Fonte única do Firestore (AngularFire).
+// Objetivo:
+// - Evitar mistura de imports (firebase/firestore vs @angular/fire/firestore)
+// - Parar de usar `as any` em doc(), collection(), query(), updateDoc(), etc.
+// - Manter API pública simples (getFirestoreInstance)
+import { inject, Injectable } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
 import { QueryConstraint, where } from 'firebase/firestore';
 import { Observable, of } from 'rxjs';
@@ -13,14 +18,19 @@ import { UserPresenceQueryService } from './queries/user-presence.query.service'
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreQueryService {
-  constructor(
-    private readonly db: Firestore,
-    private readonly cacheService: CacheService,
-    private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly read: FirestoreReadService,
-    private readonly presenceQuery: UserPresenceQueryService
-  ) { }
+  // ✅ Injection via field initializer (Angular 16+ / 19 ok)
+  private readonly db = inject(Firestore);
+  // Dependências de “app layer” (cache, query state, reads, presence)
+  private readonly cacheService = inject(CacheService);
+  private readonly firestoreUserQuery = inject(FirestoreUserQueryService);
+  private readonly read = inject(FirestoreReadService);
+  private readonly presenceQuery = inject(UserPresenceQueryService);
 
+
+  /**
+   * Retorna a instância do Firestore utilizada pelo AngularFire.
+   * Use esta em todo o projeto para construir refs/queries.
+   */
   getFirestoreInstance(): Firestore {
     return this.db;
   }

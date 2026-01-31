@@ -1,0 +1,60 @@
+// C:\entretenimento\firestore-rules\public_social_links.rules
+
+// =========================================================================
+// PUBLIC SOCIAL LINKS (espelho público)
+// - Somente subset publicado
+// - Escrita: somente dono
+// - Leitura: exige login (alinhado ao seu /public_profiles)
+// - Evita LIST (padrão anti-scraping)
+// =========================================================================
+match /public_social_links/{userId} {
+
+  // Leitura: consistente com /public_profiles
+  allow get: if signedIn();
+  allow list: if false;
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
+      "sexlog","d4swing","buppe",
+      "updatedAt"
+    ]);
+  }
+
+  function validPayload() {
+    return request.resource.data.uid == uid()
+      && allowedKeys()
+      && optString("facebook")
+      && optString("instagram")
+      && optString("twitter")
+      && optString("linkedin")
+      && optString("youtube")
+      && optString("tiktok")
+      && optString("snapchat")
+      && optString("sexlog")
+      && optString("d4swing")
+      && optString("buppe")
+      && optTimestamp("updatedAt");
+  }
+
+  // Create: dono + payload válido + updatedAt “do servidor”
+  allow create: if isSelf(userId)
+    && validPayload()
+    && request.resource.data.updatedAt == request.time;
+
+  // Update: dono + payload válido + uid imutável + updatedAt “do servidor”
+  allow update: if isSelf(userId)
+    && validPayload()
+    && request.resource.data.uid == resource.data.uid
+    && request.resource.data.updatedAt == request.time
+    && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
+      "sexlog","d4swing","buppe",
+      "updatedAt"
+    ]);
+
+  // Despublicar: dono apaga
+  allow delete: if isSelf(userId);
+}
+// =========================================================================

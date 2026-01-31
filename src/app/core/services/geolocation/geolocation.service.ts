@@ -208,7 +208,7 @@ export class GeolocationService {
     const base: Record<string, GeoPolicy> = {
       vip: { geohashLen: 9, maxDistanceKm: 100, decimals: 5 },
       premium: { geohashLen: 8, maxDistanceKm: 50, decimals: 4 },
-      basico: { geohashLen: 7, maxDistanceKm: 20, decimals: 3 },
+      basic: { geohashLen: 7, maxDistanceKm: 20, decimals: 3 },
       free: { geohashLen: 5, maxDistanceKm: 10, decimals: 2 },
     };
     const policy = base[r] || base['free']; // <- index access p/ noPropertyAccessFromIndexSignature

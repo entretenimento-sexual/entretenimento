@@ -1,4 +1,6 @@
 // src/app/core/services/batepapo/rooms/room-participants.service.ts
+// Serviço para gerenciar participantes de salas de bate-papo usando Firestore
+// Não esquecer os comentários
 import { Injectable, NgZone } from '@angular/core';
 import {
   Firestore,
@@ -320,4 +322,4 @@ export class RoomParticipantsService {
       catchError((err) => this.fail<IUserDados>('Erro ao buscar criador.', err))
     );
   }
-}
+} // Linha 323

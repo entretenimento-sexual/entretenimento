@@ -254,7 +254,7 @@ describe('GeolocationService', () => {
       const vip = service.getPolicyFor('vip', true);
       expect(vip).toEqual({ geohashLen: 9, maxDistanceKm: 100, decimals: 5 } as GeoPolicy);
 
-      const basicoUnverified = service.getPolicyFor('basico', false);
+      const basicoUnverified = service.getPolicyFor('basic', false);
       expect(basicoUnverified.geohashLen).toBeLessThanOrEqual(5);
       expect(basicoUnverified.maxDistanceKm).toBeLessThanOrEqual(20);
       expect(basicoUnverified.decimals).toBeLessThanOrEqual(2);

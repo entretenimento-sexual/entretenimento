@@ -1,4 +1,6 @@
 // src/app/core/services/autentication/TokenService.ts
+// Serviço para obter o token de autenticação atual do Firebase
+// Não esquecer os comentários
 import { Injectable } from '@angular/core';
 import { Auth, User, user, idToken } from '@angular/fire/auth';
 import { Observable, of } from 'rxjs';

@@ -2,10 +2,11 @@
 // Não esqueça dos comentários
 import { Injectable, DestroyRef, inject } from '@angular/core';
 import { QueryConstraint, Timestamp, where } from 'firebase/firestore';
-import { Observable, of, combineLatest, interval } from 'rxjs';
+import { Observable, of, combineLatest, interval, defer, from } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
+  filter,
   map,
   shareReplay,
   startWith,
@@ -170,7 +171,13 @@ export class UserPresenceQueryService {
           constraints,
           { idField: 'uid', useCache: true, cacheTTL: 60_000 }
         ).pipe(
-          catchError((err) => this.firestoreError.handleFirestoreError(err))
+          catchError((err) =>
+            this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
+              err,
+              [],
+              { silent: true, context: 'user-presence.liveGuardedQuery' }
+            )
+          )
         );
 
         const tickMs = opts?.recalcEveryMs ?? 0;
@@ -185,24 +192,49 @@ export class UserPresenceQueryService {
     );
   }
 
-  /**
-   * Guard “once”:
-   * - se uid=null => []
-   * - se uid=string => getDocumentsOnce
-   */
-  private onceGuardedQuery(constraints: QueryConstraint[]): Observable<IUserDados[]> {
-    return this.uid$.pipe(
-      take(1),
-      switchMap((uid) => {
-        if (!uid) return of([]);
+  private onceGuardedQuery(
+    constraints: QueryConstraint[],
+    opts?: { waitForAuth?: boolean; cacheTTL?: number }
+  ): Observable<IUserDados[]> {
+    const safeConstraints = constraints ?? [];
+    const waitForAuth = !!opts?.waitForAuth;
+    const cacheTTL = opts?.cacheTTL ?? 60_000;
 
-        return this.read.getDocumentsOnce<IUserDados>(
-          this.COL,
-          constraints,
-          { mapIdField: 'uid', useCache: true, cacheTTL: 60_000 }
-        ).pipe(
-          catchError((err) => this.firestoreError.handleFirestoreError(err))
-        );
+    /**
+     * Dois modos:
+     * - waitForAuth=false: “once agora” (se uid ainda null => [])
+     * - waitForAuth=true: “once quando logar” (espera uid virar string)
+     */
+    const uidOnce$ = waitForAuth
+      ? this.uid$.pipe(
+        filter((uid): uid is string => !!uid),
+        take(1)
+      )
+      : defer(() => from(this.authSession.whenReady())).pipe(
+        take(1),
+        switchMap(() => this.uid$.pipe(take(1)))
+      );
+
+    return uidOnce$.pipe(
+      switchMap((uid) => {
+        if (!uid) return of([] as IUserDados[]);
+
+        // Presence é efêmero: aqui a gente só busca docs da coleção "presence"
+        return this.read
+          .getDocumentsOnce<IUserDados>(
+            this.COL,
+            safeConstraints,
+            { idField: 'uid', useCache: true, cacheTTL }
+          )
+          .pipe(
+            catchError((err) =>
+              this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
+                err,
+                [],
+                { silent: true, context: 'user-presence.onceGuardedQuery' }
+              )
+            )
+          );
       })
     );
   }

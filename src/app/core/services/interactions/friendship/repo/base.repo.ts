@@ -1,4 +1,5 @@
 // src/app/core/services/interactions/friendship/repo/base.repo.ts
+// Não esquecer os comentários explicativos.
 import { EnvironmentInjector, runInInjectionContext } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
 import { Observable, defer, from, isObservable } from 'rxjs';

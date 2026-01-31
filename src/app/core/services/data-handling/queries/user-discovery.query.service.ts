@@ -1,8 +1,9 @@
 // src/app/core/services/data-handling/queries/user-discovery.query.service.ts
+// Serviço de consulta para descoberta de usuários no Firestore
 // Não esqueça os comentários
 import { Injectable, DestroyRef, inject } from '@angular/core';
-import { Observable, of } from 'rxjs';
-import { catchError, switchMap, map, distinctUntilChanged, shareReplay, take } from 'rxjs/operators';
+import { defer, from, Observable, of } from 'rxjs';
+import { catchError, switchMap, map, distinctUntilChanged, shareReplay, take, filter } from 'rxjs/operators';
 import { QueryConstraint, where } from 'firebase/firestore';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -110,34 +111,54 @@ export class UserDiscoveryQueryService {
   // Guards internos
   // --------------------------------------------------------------------------
 
-  /**
-   * Guard one-shot:
-   * - uid=null => []
-   * - uid=string => executa getDocumentsOnce
-   */
   private onceGuardedQuery(
     constraints: QueryConstraint[],
-    opts?: { cacheTTL?: number }
+    opts?: { waitForAuth?: boolean; cacheTTL?: number }
   ): Observable<IUserDados[]> {
     const safeConstraints = constraints ?? [];
+    const waitForAuth = !!opts?.waitForAuth;
+    const cacheTTL = opts?.cacheTTL ?? 60_000;
 
-    return this.uid$.pipe(
-      take(1),
+    /**
+     * Dois modos:
+     * - waitForAuth=false: “once agora” (se uid ainda null => [])
+     * - waitForAuth=true: “once quando logar” (espera uid virar string)
+     */
+    const uidOnce$ = waitForAuth
+      ? this.uid$.pipe(
+        filter((uid): uid is string => !!uid),
+        take(1)
+      )
+      : defer(() => from(this.authSession.whenReady())).pipe(
+        take(1),
+        switchMap(() => this.uid$.pipe(take(1)))
+      );
+
+    return uidOnce$.pipe(
       switchMap((uid) => {
         if (!uid) return of([] as IUserDados[]);
 
+        // Discovery: busca em "public_profiles" e normaliza para IUserDados
         return this.read
-          .getDocumentsOnce<any>(this.DISCOVERY_COL, safeConstraints, {
-            useCache: true,
-            cacheTTL: opts?.cacheTTL ?? 60_000,
-            mapIdField: 'uid',
-          })
+          .getDocumentsOnce<any>(
+            this.DISCOVERY_COL,
+            safeConstraints,
+            {
+              useCache: true,
+              cacheTTL,
+              mapIdField: 'uid',
+              requireAuth: true,
+            }
+          )
           .pipe(
             map((docs) => (docs ?? []).map((d) => this.toUserDadosFromPublicProfile(d))),
-            catchError((err) => {
-              this.firestoreError.handleFirestoreError(err);
-              return of([] as IUserDados[]);
-            })
+            catchError((err) =>
+              this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
+                err,
+                [],
+                { silent: true, context: 'user-discovery.onceGuardedQuery' }
+              )
+            )
           );
       })
     );
@@ -219,46 +240,283 @@ export class UserDiscoveryQueryService {
     );
   }
 } // 222 linhas
-/* PS C: \entretenimento\src\app\core\services\data - handling > tree / f
+/*
+PS C: \entretenimento\src\app\core > tree / f
+Listagem de caminhos de pasta para o volume Windows
+O número de série do volume é 1C9B - 11ED
 C:.
-│   firestore- query.service.spec.ts
-│   firestore- query.service.ts
-│   firestore- user - query.service.spec.ts
-│   firestore - user - query.service.ts
-│   firestore- user - write.service.ts
+├───enums
+│       valid - genders.enum.ts
+│       valid - preferences.enum.ts
 │
-├───converters
-│       friend - request.firestore - converter.ts
-│       user.firestore - converter.ts
+├───firebase
+│       firebase.tokens.ts
 │
-├───firestore
-│   ├───core
-│   │       firestore- context.service.ts
-│   │       firestore - live - query.service.ts
-│   │       firestore - read.service.ts
-│   │       firestore - write.service.ts
+├───guards
+│       admin.guard.ts
+│       auth - only.guard.ts
+│       auth - redirect.guard.spec.ts
+│       auth - redirect.guard.ts
+│       auth.guard.ts
+│       basic.guard.ts
+│       email - verified.guard.ts
+│       guest - only.guard.ts
+│       premium.guard.ts
+│       user.owner.guard.ts
+│       vip.guard.ts
+│
+├───interfaces
+│   │   geolocation.interface.ts
+│   │   icategoria - mapeamento.ts
+│   │   ierror.ts
+│   │   iuser - dados.ts
+│   │   iuser - registration - data.ts
+│   │   user - public.interface.ts
 │   │
-│   ├───repositories
-│   │       public- index.repository.ts
-│   │       public - profiles.repository.ts
-│   │       user - repository.service.ts
-│   │       users- read.repository.ts
+│   ├───friendship
+│   │       blocked - user.interface.ts
+│   │       friend - request.interface.ts
+│   │       friend.interface.ts
 │   │
-│   ├───state
-│   │       user-state - cache.service.ts
+│   ├───interfaces - chat
+│   │       chat.interface.ts
+│   │       community.interface.ts
+│   │       invite.interface.ts
+│   │       message.interface.ts
+│   │       room.interface.ts
 │   │
-│   └───validation
-│           firestore-validation.service.ts
+│   ├───interfaces - user - dados
+│   │       iuser - preferences.ts
+│   │       iuser - social - links.ts
+│   │
+│   └───logs
+│           iadming - log.ts
 │
-├───legacy
-│       firestore.service.spec.ts
-│       firestore.service.ts
+├───services
+│   │   sidebar.service.ts
+│   │
+│   ├───account - moderation
+│   │       admin - log.service.ts
+│   │       user - management.service.ts
+│   │       user - moderation.service.ts
+│   │
+│   ├───autentication
+│   │   │   auth.service.ts
+│   │   │   email - input - modal.service.ts
+│   │   │   login.service.spec.ts
+│   │   │   login.service.ts
+│   │   │   social - auth.service.spec.ts
+│   │   │   social - auth.service.ts
+│   │   │
+│   │   ├───auth
+│   │   │       access - control.service.ts
+│   │   │       auth - orchestrator.service.ts
+│   │   │       auth -return -url.service.ts
+│   │   │       auth - session.service.ts
+│   │   │       auth.facade.ts
+│   │   │       auth.types.ts
+│   │   │       current - user - store.service.ts
+│   │   │       logout.service.ts
+│   │   │
+│   │   └───register
+│   │           email - verification.service.md
+│   │           email - verification.service.ts
+│   │           pre - register.service.ts
+│   │           register.service.spec.ts
+│   │           register.service.ts
+│   │           registerServiceREADME.md
+│   │
+│   ├───batepapo
+│   │   │   chat - notification.service.ts
+│   │   │
+│   │   ├───chat - service
+│   │   │       chat.service.ts
+│   │   │
+│   │   ├───community - services
+│   │   │       community - members.service.spec.ts
+│   │   │       community - members.service.ts
+│   │   │       community - moderation.service.spec.ts
+│   │   │       community - moderation.service.ts
+│   │   │       community.service.spec.ts
+│   │   │       community.service.ts
+│   │   │
+│   │   ├───invite - service
+│   │   │       invite - search.service.ts
+│   │   │       invite.service.ts
+│   │   │
+│   │   └───room - services
+│   │           room - management.service.ts
+│   │           room - messages.service.ts
+│   │           room - participants.service.ts
+│   │           room - reports.service.ts
+│   │           room.service.spec.ts
+│   │           room.service.ts
+│   │           user - room - ids.service.ts
+│   │
+│   ├───data - handling
+│   │   │   firestore - query.service.spec.ts
+│   │   │   firestore - query.service.ts
+│   │   │   firestore - user - query.service.spec.ts
+│   │   │   firestore - user - query.service.ts
+│   │   │   firestore - user - write.service.ts
+│   │   │
+│   │   ├───converters
+│   │   │       friend - request.firestore - converter.ts
+│   │   │       user.firestore - converter.ts
+│   │   │
+│   │   ├───firestore
+│   │   │   ├───core
+│   │   │   │       firestore - context.service.ts
+│   │   │   │       firestore - live - query.service.ts
+│   │   │   │       firestore - read.service.ts
+│   │   │   │       firestore - write.service.ts
+│   │   │   │
+│   │   │   ├───repositories
+│   │   │   │       public - index.repository.ts
+│   │   │   │       public - profiles.repository.ts
+│   │   │   │       user - repository.service.ts
+│   │   │   │       users - read.repository.ts
+│   │   │   │
+│   │   │   ├───state
+│   │   │   │       user - state - cache.service.ts
+│   │   │   │
+│   │   │   └───validation
+│   │   │           firestore - validation.service.ts
+│   │   │
+│   │   ├───legacy
+│   │   │       firestore.service.spec.ts
+│   │   │       firestore.service.ts
+│   │   │
+│   │   ├───queries
+│   │   │       query - uid.service.spec.ts
+│   │   │       query - uid.service.ts
+│   │   │       user - discovery - presence.facade.ts
+│   │   │       user - discovery.query.service.ts
+│   │   │       user - presence.query.service.ts
+│   │   │
+│   │   └───suggestion
+│   ├───error - handler
+│   │       error - notification.service.spec.ts
+│   │       error - notification.service.ts
+│   │       firestore - error - handler.service.ts
+│   │       global - error - handler.service.ts
+│   │
+│   ├───filtering
+│   │   │   filter - engine.service.spec.ts
+│   │   │   filter - engine.service.ts
+│   │   │
+│   │   ├───filter - interfaces
+│   │   │       filter.interface.ts
+│   │   │
+│   │   └───filters
+│   │           activity - filter.service.spec.ts
+│   │           activity - filter.service.ts
+│   │           gender - filter.service.spec.ts
+│   │           gender - filter.service.ts
+│   │           near - profile - filter.service.spec.ts
+│   │           near - profile - filter.service.ts
+│   │           photo - filter.service.spec.ts
+│   │           photo - filter.service.ts
+│   │           preferences - filter.service.spec.ts
+│   │           preferences - filter.service.ts
+│   │           region - filter.service.spec.ts
+│   │           region - filter.service.ts
+│   │
+│   ├───general
+│   │   │   date - time.service.ts
+│   │   │   notification.service.ts
+│   │   │   validator.service.ts
+│   │   │
+│   │   ├───api
+│   │   │       ibge - location.service.spec.ts
+│   │   │       ibge - location.service.ts
+│   │   │
+│   │   └───cache
+│   │       │   cache - persistence.service.spec.ts
+│   │       │   cache - persistence.service.ts
+│   │       │   cache - state.service.spec.ts
+│   │       │   cache - state.service.ts
+│   │       │   cache - sync.service.spec.ts
+│   │       │   cache - sync.service.ts
+│   │       │   cache.service.spec.ts
+│   │       │   cache.service.ts
+│   │       │
+│   │       └───cache + store
+│   │               data - sync.service.ts
+│   │
+│   ├───geolocation
+│   │       distance - calculation.service.spec.ts
+│   │       distance - calculation.service.ts
+│   │       geolocation - tracking.service.ts
+│   │       geolocation.md
+│   │       geolocation.service.spec.ts
+│   │       geolocation.service.ts
+│   │       location - persistence.service.ts
+│   │       near - profile.service.spec.ts
+│   │       near - profile.service.ts
+│   │
+│   ├───image - handling
+│   │       photo - firestore.service.spec.ts
+│   │       photo - firestore.service.ts
+│   │       photo.service.spec.ts
+│   │       photo.service.ts
+│   │       storage.service.spec.ts
+│   │       storage.service.ts
+│   │
+│   ├───interactions
+│   │   └───friendship
+│   │       │   friendship.repo.ts
+│   │       │   friendship.service.ts
+│   │       │
+│   │       └───repo
+│   │               base.repo.ts
+│   │               blocks.repo.ts
+│   │               cooldown.repo.ts
+│   │               facade.repo.ts
+│   │               friends.repo.ts
+│   │               requests.repo.spec.ts
+│   │               requests.repo.ts
+│   │
+│   ├───preferences
+│   │       user - preferences.service.spec.ts
+│   │       user - preferences.service.ts
+│   │
+│   ├───presence
+│   │       presence - dom - streams.service.ts
+│   │       presence - leader - election.service.ts
+│   │       presence - orchestrator.service.ts
+│   │       presence - writer.service.ts
+│   │       presence.service.spec.ts
+│   │       presence.service.ts
+│   │
+│   ├───security
+│   │       file - scan.service.spec.ts
+│   │       file - scan.service.ts
+│   │
+│   ├───subscriptions
+│   │       payment.service.ts
+│   │       subscription.service.spec.ts
+│   │       subscription.service.ts
+│   │       webhook.service.ts
+│   │
+│   ├───user - profile
+│   │   │   user - profile.service.ts
+│   │   │   user - social - links.service.ts
+│   │   │   usuario.service.ts
+│   │   │
+│   │   └───recommendations
+│   │           suggestion.service.ts
+│   │
+│   └───util - service
+│           auth - debug.service.ts
+│           TokenService.ts
 │
-├───queries
-│       query-uid.service.spec.ts
-│       query-uid.service.ts
-│       user-discovery.query.service.ts
-│       user-presence.query.service.ts
+├───textos - globais
+│   └───info - cria - sala - bp
+│           info - cria - sala - bp.component.css
+│           info - cria - sala - bp.component.html
+│           info - cria - sala - bp.component.ts
 │
-└───suggestion
+└───utils
+nickname - utils.ts
  */

@@ -1,31 +1,30 @@
 // src/app/core/services/autentication/auth/auth-session.service.ts
 // Não esquecer os comentários
 import { Injectable } from '@angular/core';
-import { Observable, from, of } from 'rxjs';
+import { Observable, from, of, defer } from 'rxjs';
 import { catchError, distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
 import { Auth, authState, onAuthStateChanged, signOut, User } from '@angular/fire/auth';
-
-/**
- * =============================================================================
- * AUTH SESSION (Fonte de verdade)
- * - Responsável por expor o estado de autenticação do Firebase Auth (User | null).
- * - Exposição reativa: authUser$ e uid$ (shareReplay + distinctUntilChanged).
- * - NÃO conhece Router, Firestore, Presence, NgRx, nem UI/toast.
- * - NÃO tem efeitos colaterais automáticos (não start/stop em outros serviços).
- *
- * Contratos:
- * - uid$ é a única fonte confiável de UID.
- * - Métodos utilitários (signOut$, revalidateSession$, forceReload$) são ações
- *   explícitas, disparadas por quem orquestra a sessão.
- * =============================================================================
- */
+import { environment } from 'src/environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {
   readonly authUser$: Observable<User | null>;
   readonly uid$: Observable<string | null>;
 
-  private readyPromise?: Promise<void>;
+  /**
+   * Gate de bootstrap:
+   * - TRUE quando o Firebase Auth terminou de restaurar o estado inicial.
+   * - Evita “ready=true com uid=null transitório” e redirects prematuros.
+   */
+  readonly ready$: Observable<boolean>;
+
+  /** Conveniência: logado (após ready). */
+  readonly isAuthenticated$: Observable<boolean>;
+
+  // ✅ não opcional (evita TS2322)
+  private readyPromise: Promise<void> | null = null;
+
+  private readonly debug = !environment.production;
 
   constructor(private auth: Auth) {
     this.authUser$ = authState(this.auth).pipe(
@@ -37,50 +36,57 @@ export class AuthSessionService {
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
+    // Versão Observable do whenReady()
+    this.ready$ = defer(() => from(this.whenReady())).pipe(
+      map(() => true),
+      catchError(() => of(true)), // não trava app se der algo estranho
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+    this.isAuthenticated$ = this.authUser$.pipe(
+      map(u => !!u),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
 
+  private dbg(msg: string, extra?: unknown): void {
+    if (!this.debug) return;
+    // eslint-disable-next-line no-console
+    console.log(`[AuthSessionService] ${msg}`, extra ?? '');
+  }
+
+  /**
+   * whenReady():
+   * - Preferimos authStateReady() quando existir (mais correto).
+   * - Fallback para onAuthStateChanged apenas se authStateReady não existir.
+   */
   whenReady(): Promise<void> {
-    if (!this.readyPromise) {
-      this.readyPromise = new Promise(resolve => {
-        const unsubscribe = onAuthStateChanged(this.auth, (_user) => {
+    if (this.readyPromise) return this.readyPromise;
+
+    const authAny = this.auth as any;
+
+    const p = (typeof authAny?.authStateReady === 'function')
+      ? authAny.authStateReady()
+      : new Promise<void>((resolve) => {
+        const unsubscribe = onAuthStateChanged(this.auth, (user) => {
+          this.dbg('whenReady resolved (onAuthStateChanged)', { uid: user?.uid ?? null });
           resolve();
           unsubscribe();
         });
       });
-    }
+
+    this.readyPromise = Promise.resolve(p).then(() => {
+      this.dbg('whenReady resolved', { uid: this.auth.currentUser?.uid ?? null });
+    });
+
     return this.readyPromise;
   }
 
   signOut$() { return from(signOut(this.auth)); }
 
-  revalidateSession$() {
-    const u = this.auth.currentUser;
-    if (!u) return of(void 0);
-    return from(u.getIdToken(true)).pipe(
-      catchError(() => of(void 0))
-    );
-  }
-
-  //não fazer signOut, deixa o Orchestrator decidir
-    forceReload$() {
-      const u = this.auth.currentUser;
-      if (!u) return of(void 0);
-
-      return from(u.reload()).pipe(
-        map(() => void 0),
-        catchError((e) => of(void 0)) // ou: throwError(() => e) se você quiser tratar acima
-      );
-    }
-
-
   get currentAuthUser(): User | null {
     return this.auth.currentUser;
   }
 }
-
-/* AuthSession manda no UID
-CurrentUserStore manda no IUserDados
-qualquer UID fora disso vira derivado / compat
-Nunca esquecer de ferramentas de debug
-É assim que funcionam as grandes plataformas?*/
-

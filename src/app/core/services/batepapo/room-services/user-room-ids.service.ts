@@ -1,4 +1,6 @@
 // src/app/core/services/batepapo/room-services/user-room-ids.service.ts
+// Serviço para gerenciar IDs de salas associadas a usuários no Firestore
+// Não esquecer os comentários
 import { Injectable } from '@angular/core';
 import { Firestore, doc, updateDoc, arrayUnion, arrayRemove } from '@angular/fire/firestore';
 import { Observable, defer, of, firstValueFrom } from 'rxjs';

@@ -4,9 +4,9 @@ import { Injectable } from '@angular/core';
 import { CanActivate, Router, UrlTree, RouterStateSnapshot } from '@angular/router';
 import { combineLatest, of } from 'rxjs';
 import { filter, map, take } from 'rxjs/operators';
-import { AccessControlService } from '../services/autentication/auth/access-control.service';
-import { CurrentUserStoreService } from '../services/autentication/auth/current-user-store.service';
-import { ErrorNotificationService } from '../services/error-handler/error-notification.service';
+import { AccessControlService } from '../../services/autentication/auth/access-control.service';
+import { CurrentUserStoreService } from '../../services/autentication/auth/current-user-store.service';
+import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
 
 @Injectable({ providedIn: 'root' })
 export class PremiumGuard implements CanActivate {

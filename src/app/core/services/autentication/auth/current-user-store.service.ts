@@ -1,7 +1,9 @@
 // src/app/core/services/autentication/auth/current-user-store.service.ts
+// Serviço para gerenciar o estado do usuário atual (IUserDados)
+// Não esquecer os comentários
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
-import { distinctUntilChanged, map, take } from 'rxjs/operators';
+import { distinctUntilChanged, take } from 'rxjs/operators';
 import { IUserDados } from '@core/interfaces/iuser-dados';
 import { CacheService } from '@core/services/general/cache/cache.service';
 import { AuthSessionService } from './auth-session.service';
@@ -68,6 +70,17 @@ export class CurrentUserStoreService {
       ls.removeItem(this.keyUid);
     }
     this.cache.delete(this.keyUid);
+  }
+
+
+  /**
+   * AUTH READY (fonte: AuthSession)
+   * Propósito:
+   * - Indicar que o estado inicial do Firebase/Auth já foi resolvido.
+   * - Evitar guards decidirem "cedo demais" com uid=null transitório.
+   */
+  getAuthReady$(): Observable<boolean> {
+    return this.authSession.ready$;
   }
 
   restoreFromCache(): IUserDados | null {

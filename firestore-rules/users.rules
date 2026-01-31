@@ -1,0 +1,17 @@
+    // =========================================================================
+    // USERS (privado)
+    // =========================================================================
+    match /users/{userId} {
+      allow get, create, update: if isSelf(userId);
+      allow list: if false;
+      allow delete: if false;
+    }
+
+    match /users/{userId}/friends/{friendId} {
+      allow read, write: if isSelf(userId);
+    }
+
+    // ✅ ajuste o nome conforme seu app usa (blocks OU blocked)
+    match /users/{userId}/blocks/{targetId} {
+      allow read, write: if isSelf(userId);
+    }

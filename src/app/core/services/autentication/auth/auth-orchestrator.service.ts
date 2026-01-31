@@ -1,5 +1,5 @@
 // src/app/core/services/autentication/auth/auth-orchestrator.service.ts
-// Não esqueça os comentáros explicativos.
+// Não esqueça os comentários explicativos.
 // =============================================================================
 // AUTH ORCHESTRATOR (Efeitos colaterais e ciclo de vida)
 //
@@ -11,9 +11,14 @@
 // Regra de plataforma (conforme sua decisão):
 // ✅ O usuário só deve perder a sessão (signOut) por LOGOUT voluntário,
 //    EXCETO quando a própria sessão do Firebase Auth for tecnicamente inválida.
-//    (ex.: token inválido, user-disabled, user-not-found...)
 // - Em problemas de Firestore (doc missing / permission-denied / status) nós NÃO deslogamos.
 //   Em vez disso: "bloqueamos" a sessão do app e redirecionamos para /register/welcome.
+//
+// Observação de arquitetura (fonte única):
+// - AuthSessionService: verdade do Firebase Auth
+// - CurrentUserStoreService: verdade do usuário do app (perfil/role/etc.)
+// - AuthAppBlockService: verdade do "bloqueio do app" (sem logout)
+// - AuthOrchestratorService: só side-effects e coordenação (não deve virar “store”)
 // =============================================================================
 
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
@@ -39,6 +44,7 @@ import { doc, docSnapshots, Firestore } from '@angular/fire/firestore';
 import { AuthSessionService } from './auth-session.service';
 import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
 import { CurrentUserStoreService } from './current-user-store.service';
+import { AuthAppBlockService } from './auth-app-block.service';
 
 import { PresenceService } from '../../presence/presence.service';
 
@@ -51,27 +57,6 @@ import { LogoutService } from './logout.service';
 
 // ✅ tipos e helpers compartilhados
 import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.types';
-
-/**
- * =============================================================================
- * AUTH ORCHESTRATOR (Efeitos colaterais e ciclo de vida)
- * - Decide quando iniciar/parar watchers e rotinas da sessão (keepAlive, doc watch).
- * - Garante gating por contexto de app:
- *    - Não roda presença no fluxo de registro
- *    - Não roda presença enquanto emailVerified=false
- *
- * Regra da plataforma:
- * - Não deslogar por problemas de Firestore (doc missing / forbidden / status).
- *   Em vez disso, "bloqueia" o app e manda para /register/welcome (a sessão segue viva).
- * - Deslogar (signOut) apenas:
- *    1) logout$() voluntário
- *    2) sessão do Auth tecnicamente inválida (auth-invalid)
- *
- * Erros:
- * - Sempre passam pelo GlobalErrorHandlerService
- * - Feedback visual via ErrorNotificationService quando apropriado
- * =============================================================================
- */
 
 @Injectable({ providedIn: 'root' })
 export class AuthOrchestratorService {
@@ -105,14 +90,6 @@ export class AuthOrchestratorService {
   private presenceUid: string | null = null;
 
   /**
-   * ✅ “Bloqueio de sessão do APP” (não é logout!)
-   * - Quando setado, o usuário pode continuar autenticado no Firebase Auth,
-   *   mas o app impede acesso ao dashboard e redireciona para /register/welcome.
-   * - Só sai desse estado com logout voluntário (logout$()).
-   */
-  private blockedReason: TerminateReason | null = null;
-
-  /**
    * Feature flag (opcional):
    * - Se não existir no environment, default é TRUE (sua regra).
    *
@@ -134,7 +111,10 @@ export class AuthOrchestratorService {
 
     // ✅ centralizado
     private globalErrorHandler: GlobalErrorHandlerService,
-    private errorNotifier: ErrorNotificationService
+    private errorNotifier: ErrorNotificationService,
+
+    // ✅ fonte de verdade do “bloqueio do app”
+    private appBlock: AuthAppBlockService,
   ) { }
 
   // =========================================================
@@ -150,6 +130,7 @@ export class AuthOrchestratorService {
    * Importante:
    * - NÃO reinicia watchers/keepAlive em toda navegação.
    * - Só reseta estado de ciclo quando o UID muda (troca de usuário).
+   * - Bloqueio do app é lido do AuthAppBlockService (sem duplicar estado local).
    */
   start(): void {
     if (this.started) return;
@@ -163,12 +144,6 @@ export class AuthOrchestratorService {
       distinctUntilChanged()
     );
 
-    /**
-     * Observação:
-     * - authSession.authUser$ já é a base da sessão (verdade do “há usuário?”).
-     * - Não fazemos subscribe em auth.currentUser aqui diretamente,
-     *   porque o AuthSession já resolve o “ready” corretamente no seu pipeline.
-     */
     combineLatest([this.authSession.authUser$, url$])
       .pipe(
         // proteção SSR
@@ -185,10 +160,11 @@ export class AuthOrchestratorService {
             this.sessionUid = null;
 
             // limpa estado do app (não há mais usuário)
+            // (isso não conflita com LogoutService: aqui é “authUser=null”)
             this.currentUserStore.clear();
 
             // sem usuário, bloqueio não faz sentido
-            this.blockedReason = null;
+            this.appBlock.clear();
 
             // para side effects
             this.stopPresenceIfRunning();
@@ -213,6 +189,9 @@ export class AuthOrchestratorService {
           if (this.sessionUid !== u.uid) {
             this.sessionUid = u.uid;
 
+            // bloqueio não deve “vazar” entre usuários
+            this.appBlock.clear();
+
             // zera ciclo (somente quando muda usuário)
             this.sawUserDocOnce = false;
             this.freshUntil = 0;
@@ -236,6 +215,7 @@ export class AuthOrchestratorService {
           const createdAt = u.metadata?.creationTime
             ? new Date(u.metadata.creationTime).getTime()
             : now;
+
           const graceNewUser = createdAt + 30_000;
           const graceAnyLogin = now + 6_000;
           this.freshUntil = Math.max(this.freshUntil, graceNewUser, graceAnyLogin);
@@ -244,13 +224,14 @@ export class AuthOrchestratorService {
           // Se o app estiver “bloqueado”, NÃO liga watchers/presença/keepAlive
           // e mantém o usuário apenas no fluxo permitido (welcome).
           // =========================================================
-          if (this.blockedReason) {
+          const blockedReason = this.appBlock.snapshot;
+          if (blockedReason) {
             this.stopPresenceIfRunning();
             this.stopKeepAlive();
             this.stopWatchers();
 
             if (!this.inRegistrationFlow(url)) {
-              this.navigateToWelcome(this.blockedReason, true /* replaceUrl */);
+              this.navigateToWelcome(blockedReason, true /* replaceUrl */);
             }
             return of(null);
           }
@@ -293,7 +274,7 @@ export class AuthOrchestratorService {
   /**
    * reportSilent()
    * - Encaminha erros internos para o GlobalErrorHandlerService.
-   * - Marca como "silent" para não gerar UX agressiva quando não necessário.
+   * - Marca como "silent" para evitar UX agressiva em streams internos.
    */
   private reportSilent(err: any, context: any): void {
     try {
@@ -325,13 +306,14 @@ export class AuthOrchestratorService {
   // =========================================================
 
   private navigateToWelcome(reason: TerminateReason, replaceUrl = true): void {
-    // /register/welcome deve estar liberado para autenticado via guestOnlyGuard (data.allowAuthenticated)
-    this.router
-      .navigate(['/register/welcome'], {
-        queryParams: { reason, autocheck: '1' },
-        replaceUrl,
-      })
-      .catch(() => { });
+    const target = '/register/welcome';
+    // evita reentrância/loop de navegação
+    if ((this.router.url || '').startsWith(target)) return;
+
+    this.router.navigate([target], {
+      queryParams: { reason, autocheck: '1' },
+      replaceUrl,
+    }).catch(() => { });
   }
 
   /**
@@ -363,7 +345,6 @@ export class AuthOrchestratorService {
   /**
    * stopWatchers()
    * - Para watchers de forma idempotente e zera flags internas.
-   * - Mantém compat com seus métodos unwatchUserDoc/unwatchDeleted.
    */
   private stopWatchers(): void {
     this.unwatchUserDoc();
@@ -403,7 +384,7 @@ export class AuthOrchestratorService {
    * - Confirma no server (one-shot) se o doc realmente não existe.
    * - Usado como “segundo passo” para evitar agir cedo demais em race-condition.
    */
-  private confirmUserDocMissing$(uid: string, delayMs = 1200) {
+  private confirmUserDocMissing$(uid: string, delayMs = 1200): Observable<boolean> {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return of(false);
 
     return timer(delayMs).pipe(
@@ -425,7 +406,7 @@ export class AuthOrchestratorService {
   private async confirmAndSignOutIfMissing(
     uid: string,
     reason: Extract<TerminateReason, 'deleted' | 'doc-missing-confirmed'>
-  ) {
+  ): Promise<void> {
     const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
     if (!allowAct) return;
 
@@ -480,7 +461,6 @@ export class AuthOrchestratorService {
           !!data.deletedAt ||
           status === 'deleted';
 
-        // ✅ Em vez de signOut, bloqueia o app (sessão segue viva)
         if (suspended) {
           return this.voluntaryLogoutOnly
             ? this.blockAppSession('suspended')
@@ -500,7 +480,7 @@ export class AuthOrchestratorService {
         // sempre reporta (silent)
         this.reportSilent(err, { phase: 'watchUserDoc', uid, code });
 
-        // ✅ permission-denied: não deslogar; bloqueia app (evita “prisão” fora do registro)
+        // ✅ permission-denied: não deslogar; bloqueia app (fora do registro)
         if (code === 'permission-denied') {
           const url = this.router.url || '';
           if (this.inRegistrationFlow(url)) return;
@@ -597,6 +577,7 @@ export class AuthOrchestratorService {
                 code === 'auth/user-not-found' ||
                 code === 'auth/invalid-user-token'
               ) {
+                // delega hard signOut real + limpeza
                 this.logoutService.hardSignOutToWelcome('auth-invalid');
                 return of(null);
               }
@@ -654,7 +635,7 @@ export class AuthOrchestratorService {
   // =========================================================
   // ✅ SignOut inevitável (compat wrapper)
   // - Não “faz logout” por Firestore quando voluntaryLogoutOnly=true.
-  // - Serve apenas como fallback (quando voluntaryLogoutOnly=false) e para manter chamadas antigas.
+  // - Serve apenas como fallback (quando voluntaryLogoutOnly=false).
   // - Execução real fica no LogoutService.
   // =========================================================
   private hardSignOutToEntry(reason: TerminateReason): void {
@@ -675,11 +656,11 @@ export class AuthOrchestratorService {
       .pipe(
         take(1),
         finalize(() => {
-          // Delegação do signOut + navegação + limpeza/feedback
+          // delega signOut + navegação + limpeza (fonte de verdade)
           this.logoutService.hardSignOutToWelcome(reason);
 
-          // Nota: currentUserStore.clear() é responsabilidade do LogoutService
-          // (mantém o “contrato” e evita duplicação)
+          // bloqueio não deve sobreviver ao hard signOut
+          this.appBlock.clear();
 
           this.terminating = false;
         })
@@ -694,15 +675,18 @@ export class AuthOrchestratorService {
   /**
    * blockAppSession()
    * Bloqueia o APP mantendo a sessão autenticada.
+   * - Persiste o motivo no AuthAppBlockService (fonte de verdade única)
    * - Para watchers/presença/keepAlive (pra não gerar ruído)
    * - Redireciona para /register/welcome
-   * - Só sai do bloqueio via logout$() voluntário
+   *
+   * Obs.: hoje, só sai desse estado com logout (conforme sua regra).
    */
   private blockAppSession(reason: TerminateReason): void {
     if (this.terminating) return;
     this.terminating = true;
 
-    this.blockedReason = reason;
+    // ✅ fonte única do bloqueio
+    this.appBlock.set(reason);
 
     // para side-effects
     this.stopKeepAlive();
@@ -729,26 +713,11 @@ export class AuthOrchestratorService {
       )
       .subscribe();
   }
-} // Linha 732
+}
 
 /*
-  Nota sobre tamanho do arquivo:
-  - Ele está “grande” porque centraliza regras de ciclo de vida + presença + watchers.
-  - Próximo passo refatorar sem quebrar nomenclaturas:
-    1) Extrair “blockAppSession + navigation helpers” para um AuthSessionGateService
-    2) Extrair “watchUserDoc + watchUserDocDeleted” para um AuthUserDocWatchService
-    3) Manter este Orchestrator apenas coordenando start/stop
-
-    C:.
-    access-control.service.ts
-    auth-orchestrator.service.ts
-    auth-return-url.service.ts
-    auth-session.service.ts
-    auth.facade.ts
-    auth.types.ts
-    current-user-store.service.ts
-    logout.service.ts
-
-Não existem subpastas
-
+  AuthSessionService = verdade do Firebase Auth (authUser$, uid$, ready$)
+  CurrentUserStoreService = verdade do usuário do app (IUserDados / role / profileCompleted)
+  AuthAppBlockService = verdade do "bloqueio do app" (TerminateReason | null)
+  AuthOrchestratorService = efeitos colaterais (presence, watchers, keepAlive, navegação defensiva)
 */

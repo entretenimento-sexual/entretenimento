@@ -1,4 +1,6 @@
 // src/app/core/services/data-handling/firestore/core/firestore-read.service.ts
+// Serviço genérico de leitura do Firestore com tratamento de erros e compatibilidade
+// Não esquecer os comentários
 import { Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
@@ -358,4 +360,4 @@ export class FirestoreReadService {
       catchError(() => of([]))
     );
   }
-}
+} //Linha 363

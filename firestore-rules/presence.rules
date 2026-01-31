@@ -1,0 +1,53 @@
+    // =========================================================================
+    // PRESENCE (efêmero / realtime)
+    // =========================================================================
+    match /presence/{presenceUid} {
+      allow read: if signedIn();
+
+      allow create, update: if (
+        isSelf(presenceUid)
+        && request.resource.data.uid == uid()
+        && request.resource.data.keys().hasOnly([
+          "uid",
+          "presenceSessionId",
+
+          "isOnline",
+          "presenceState",
+
+          "lastSeen",
+          "updatedAt",
+
+          "lastStateChangeAt",
+          "lastOnlineAt",
+          "lastOfflineAt",
+
+          "nickname",
+          "municipio",
+          "estado",
+          "photoURL",
+          "latitude",
+          "longitude"
+        ])
+
+        && request.resource.data.presenceSessionId is string
+
+        && request.resource.data.isOnline is bool
+        && request.resource.data.presenceState in ["online","away","offline"]
+
+        && request.resource.data.lastSeen is timestamp
+        && optTimestamp("updatedAt")
+
+        && optTimestamp("lastStateChangeAt")
+        && optTimestamp("lastOnlineAt")
+        && optTimestamp("lastOfflineAt")
+
+        && optString("nickname")
+        && optString("municipio")
+        && optString("estado")
+        && optString("photoURL")
+        && optNumberOrNull("latitude")
+        && optNumberOrNull("longitude")
+      );
+
+      allow delete: if false;
+    }

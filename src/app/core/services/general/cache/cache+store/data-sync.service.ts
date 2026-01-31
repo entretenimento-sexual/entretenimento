@@ -1,4 +1,7 @@
 //src\app\core\services\general\cache\cache+store\data-sync.service.ts
+// Serviço para sincronização de dados entre Cache, Store e Firestore
+// Não esquecer os comentários
+// objetivo de descontinuar o DataSyncService
 import { Injectable } from '@angular/core';
 import { CacheService } from '../cache.service';
 import { Store } from '@ngrx/store';
@@ -7,11 +10,13 @@ import { Observable, of, switchMap, take, tap, catchError } from 'rxjs';
 import { GlobalErrorHandlerService } from '../../../error-handler/global-error-handler.service';
 import { FirestoreService } from '../../../data-handling/legacy/firestore.service';
 import { WithFieldValue, DocumentData, QueryConstraint } from 'firebase/firestore';
+import { environment } from 'src/environments/environment';
 
-@Injectable({
-  providedIn: 'root'
-})
+/** @deprecated Use QueryServices + CacheService ou NgRx Effects (realtime). */
+@Injectable({ providedIn: 'root' })
 export class DataSyncService {
+  private readonly debug = !environment.production;
+  private warn(msg: string) { if (this.debug) console.warn(`[DataSyncService][DEPRECATED] ${msg}`); }
 
   constructor(
     private cacheService: CacheService,
@@ -32,7 +37,7 @@ export class DataSyncService {
   ): Observable<T | T[]> {
     return this.cacheService.get<T | T[]>(cacheKey).pipe(
       switchMap(cachedData => {
-        if (cachedData) {
+        if (cachedData !== null && cachedData !== undefined) {
           console.log(`✅ [Cache] Dados encontrados no cache para ${cacheKey}:`, cachedData);
           return of(cachedData);
         }
@@ -40,7 +45,7 @@ export class DataSyncService {
         return this.store.select(storeSelector).pipe(
           take(1),
           switchMap(storeData => {
-            if (storeData) {
+            if (storeData !== null && storeData !== undefined) {
               console.log(`✅ [Store] Dados encontrados no Store para ${cacheKey}:`, storeData);
               this.cacheService.set(cacheKey, storeData, 300000);
               return of(storeData);

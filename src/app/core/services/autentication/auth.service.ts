@@ -55,7 +55,7 @@ export class AuthService {
       emailVerified: !!u.emailVerified,
       isSubscriber: false,
       profileCompleted: false,
-      role: 'basico' as any,
+      role: 'basic' as any,
     } as IUserDados;
   }
 
@@ -182,7 +182,7 @@ export class AuthService {
             this.clearCurrentUser();
             this.geoloc.stopTracking();
           }),
-          switchMap(() => from(this.router.navigate(['/login']))),
+          
           map(() => void 0)
         );
       }),

@@ -1,48 +1,83 @@
-//src\app\store\effects\effects.user\user.effects.ts
+// Efeitos relacionados a usuários, como carregar dados de usuários e observar mudanças em tempo real.
+// src/app/store/effects/effects.user/user.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import {
-  observeUserChanges, loadUsers, loadUsersSuccess, loadUsersFailure } from '../../actions/actions.user/user.actions';
+  observeUserChanges,
+  loadUsers,
+  loadUsersSuccess,
+  loadUsersFailure
+} from '../../actions/actions.user/user.actions';
+
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
-import { catchError, map, switchMap, of } from 'rxjs';
-import { Store, select } from '@ngrx/store';
-import { AppState } from '../../states/app.state';
-import { selectUserById } from '../../selectors/selectors.user/user.selectors';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { sanitizeUserForStore, sanitizeUsersForStore } from 'src/app/store/utils/user-store.serializer';
 
+import { EMPTY, of } from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  filter,
+  map,
+  switchMap,
+  tap,
+  finalize
+} from 'rxjs/operators';
+
+import { environment } from 'src/environments/environment';
+
 @Injectable()
 export class UserEffects {
+  private readonly debug = !environment.production;
+
+  private dbg(msg: string, extra?: unknown) {
+    if (!this.debug) return;
+    // eslint-disable-next-line no-console
+    console.log(`[UserEffects] ${msg}`, extra ?? '');
+  }
+
   constructor(
-    private actions$: Actions,
-    private firestoreQuery: FirestoreQueryService,
-    private firestoreUserQuery: FirestoreUserQueryService,
-    private store: Store<AppState>
+    private readonly actions$: Actions,
+    private readonly firestoreQuery: FirestoreQueryService,
+    private readonly firestoreUserQuery: FirestoreUserQueryService
   ) { }
 
+  /**
+   * ✅ Observa mudanças do usuário no Firestore (realtime) e projeta para o Store.
+   * - NÃO assina Store aqui (evita loop).
+   * - switchMap cancela o listener anterior se outro uid chegar.
+   */
   observeUserChanges$ = createEffect(() =>
     this.actions$.pipe(
       ofType(observeUserChanges),
-      switchMap(({ uid }) =>
-        this.store.pipe(
-          select(selectUserById(uid)),
-          switchMap(existingUser => {
-            if (existingUser) {
-              return of(loadUsersSuccess({ users: [sanitizeUserForStore(existingUser)] }));
-            }
+      map(({ uid }) => (uid ?? '').trim()),
+      filter(Boolean),
+      distinctUntilChanged(),
 
-            return this.firestoreUserQuery.getUser(uid).pipe(
-              map(user =>
-                user
-                  ? loadUsersSuccess({ users: [sanitizeUserForStore(user as IUserDados)] })
-                  : loadUsersFailure({ error: { message: `Usuário ${uid} não encontrado.` } })
-              ),
-              catchError(error =>
-                of(loadUsersFailure({ error: { message: error?.message || 'Erro desconhecido.' } }))
-              )
-            );
-          })
+      tap((uid) => this.dbg('observeUserChanges -> subscribe', { uid })),
+
+      switchMap((uid) =>
+        this.firestoreUserQuery.getUser(uid).pipe(
+          // ✅ evita dispatch repetido se o repo emitir o mesmo objeto / mesmos dados
+          distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+
+          tap(user => this.dbg('user snapshot', { uid, hasUser: !!user })),
+
+          map((user) => {
+            if (user) {
+              return loadUsersSuccess({ users: [sanitizeUserForStore(user as IUserDados)] });
+            }
+            return loadUsersFailure({ error: { message: `Usuário ${uid} não encontrado.` } });
+          }),
+
+          catchError((error) => {
+            this.dbg('observeUserChanges -> error', { uid, error });
+            return of(loadUsersFailure({ error: { message: error?.message || 'Erro desconhecido.' } }));
+          }),
+
+          finalize(() => this.dbg('observeUserChanges -> finalize', { uid }))
         )
       )
     )
@@ -53,10 +88,55 @@ export class UserEffects {
       ofType(loadUsers),
       switchMap(() =>
         this.firestoreQuery.getDocumentsByQuery<IUserDados>('users', []).pipe(
-          map(users => loadUsersSuccess({ users: sanitizeUsersForStore(users) })),
-          catchError(error => of(loadUsersFailure({ error: { message: error?.message || 'Erro desconhecido.' } })))
+          map((users) => loadUsersSuccess({ users: sanitizeUsersForStore(users) })),
+          catchError((error) =>
+            of(loadUsersFailure({ error: { message: error?.message || 'Erro desconhecido.' } }))
+          )
         )
       )
     )
   );
-}
+} // Linha 99
+// Fim do arquivo user.effects.ts
+/*
+PS C:\entretenimento\src\app\store\effects> tree /f
+Listagem de caminhos de pasta para o volume Windows
+O número de série do volume é 1C9B-11ED
+C:.
+│   cache.effects.ts
+│
+├───effects.chat
+│       chat.effects.ts
+│       invite.effects.ts
+│       room.effects.ts
+│
+├───effects.interactions
+│   ├───friends
+│   │       index.ts
+│   │       network.effects.ts
+│   │       pagination.effects.ts
+│   │       requests-crud.effects.ts
+│   │       requests-profiles.effects.ts
+│   │       requests-realtime.effects.ts
+│   │
+│   └───helpers
+│           effects-helpers.ts
+│
+├───effects.location
+│       location.effects.ts
+│       nearby-profiles.effects.spec.ts
+│       nearby-profiles.effects.ts
+│
+└───effects.user
+        auth-session-sync.effects.ts
+        auth-status-sync.effects.ts
+        auth.effects.ts
+        file.effects.ts
+        online-users.effects.ts
+        terms.effects.ts
+        user-preferences.effects.ts
+        user-role.effects.ts
+        user.effects.ts
+
+PS C:\entretenimento\src\app\store\effects>
+*/

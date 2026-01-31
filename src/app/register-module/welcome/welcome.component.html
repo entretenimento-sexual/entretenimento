@@ -2,49 +2,55 @@
 <div class="welcome-container">
   <header class="welcome-header">
     <h1>Confirme seu e-mail para começar</h1>
-    <p class="subtitle">
+    <p class="subtitle" id="welcome-subtitle">
       Enviamos um link de verificação para <strong>{{ email || 'seu e-mail' }}</strong>.
       Assim que você confirmar, liberamos todos os recursos.
     </p>
   </header>
 
-  <!-- Banner robusto (harmoniza com seus estilos globais .alert*) -->
-  <div *ngIf="banner as b" class="alert" [ngClass]="{
-         'alert-info': b.variant === 'info',
-         'alert-error': b.variant === 'error',
-         'alert-success': b.variant === 'success',
-         'alert-warning': b.variant === 'warn' || b.variant,
-       }" role="alert" aria-live="assertive" style="margin-bottom:16px;">
-    <strong style="display:block; margin-bottom:4px;">{{ b.title }}</strong>
-    <span>{{ b.message }}</span>
-    <div *ngIf="lastCheckedAt" style="margin-top:6px; font-size:.85rem; opacity:.8;">
+  <!-- Banner robusto (usa .alert global + sem inline styles) -->
+  <div *ngIf="banner as b" class="alert welcome-alert" [ngClass]="{
+      'alert-info': b.variant === 'info',
+      'alert-error': b.variant === 'error',
+      'alert-success': b.variant === 'success',
+      'alert-warning': b.variant === 'warn'
+    }" [attr.role]="(b.variant === 'error' || b.variant === 'warn') ? 'alert' : 'status'"
+    [attr.aria-live]="(b.variant === 'error' || b.variant === 'warn') ? 'assertive' : 'polite'" aria-atomic="true">
+    <strong class="welcome-alert__title">{{ b.title }}</strong>
+    <span class="welcome-alert__msg">{{ b.message }}</span>
+
+    <div *ngIf="lastCheckedAt" class="welcome-alert__meta">
       Última checagem: {{ lastCheckedAt | date:'shortTime' }}
     </div>
 
-    <div class="actions" style="margin-top:8px; display:flex; gap:.5rem; flex-wrap:wrap;">
+    <div class="actions">
       <button class="btn btn-secondary" (click)="checkNow()" [disabled]="busy" [attr.aria-busy]="busy">
         {{ busy ? 'Checando…' : 'Checar agora' }}
       </button>
+
       <button class="btn" (click)="resendVerificationEmail()" [disabled]="busy" [attr.aria-busy]="busy">
         {{ busy ? 'Reenviando…' : 'Reenviar e-mail' }}
       </button>
-      <button class="btn" (click)="openInbox()">Abrir seu e-mail</button>
-      <button class="btn" (click)="copyEmail()" [disabled]="!email">Copiar e-mail</button>
-      <button class="btn" (click)="toggleTech()">
+
+      <button class="btn btn-ghost" (click)="openInbox()">Abrir seu e-mail</button>
+      <button class="btn btn-ghost" (click)="copyEmail()" [disabled]="!email">Copiar e-mail</button>
+
+      <button class="btn btn-ghost" (click)="toggleTech()">
         {{ showTech ? 'Ocultar detalhes' : 'Mostrar detalhes técnicos' }}
       </button>
-      <button class="btn" (click)="reloadPage()">Recarregar</button>
-      <button class="btn" (click)="restartRegistration()">Refazer cadastro</button>
-      <button class="btn btn-primary" *ngIf="emailVerified" (click)="proceedToDashboard()">Ir para o painel</button>
+
+      <button class="btn btn-ghost" (click)="reloadPage()">Recarregar</button>
+      <button class="btn btn-ghost" (click)="restartRegistration()">Refazer cadastro</button>
+
+      <button class="btn btn-primary" *ngIf="emailVerified" (click)="proceedToDashboard()">
+        Ir para o painel
+      </button>
     </div>
 
-    <pre *ngIf="showTech && b.details"
-      style="margin-top:8px; white-space:pre-wrap; font-size:.85rem; background:rgba(0,0,0,.05); padding:8px; border-radius:8px; overflow:auto;">
-{{ b.details }}
-    </pre>
+    <pre *ngIf="showTech && b.details" class="tech-details">{{ b.details }}</pre>
   </div>
 
-  <main class="welcome-content">
+  <main class="welcome-content" [attr.aria-describedby]="'welcome-subtitle'">
     <section class="welcome-card">
       <h2 class="card-title">
         Status:
@@ -71,24 +77,27 @@
       </div>
     </section>
 
-    <!-- Onboarding opcional (colapsado) -->
+    <!-- Onboarding opcional -->
     <details class="welcome-card details-optional">
       <summary>Quero adiantar meu perfil (opcional)</summary>
 
       <div class="optional-grid">
         <div>
-          <label class="form-label">Identidade de gênero (opcional)</label>
-          <select class="input-field" [(ngModel)]="selectedGender" aria-label="Selecione seu gênero">
-            <option value="" disabled selected>Selecione seu gênero (opcional)</option>
+          <label class="form-label" for="genderSelect">Identidade de gênero (opcional)</label>
+          <select id="genderSelect" class="input-field" [(ngModel)]="selectedGender"
+            [ngModelOptions]="{ standalone: true }" aria-label="Selecione seu gênero">
+            <option value="" disabled>Selecione seu gênero (opcional)</option>
             <option *ngFor="let gender of validGenders" [value]="gender">{{ gender }}</option>
           </select>
         </div>
 
         <div>
-          <label class="form-label">O que você gostaria de encontrar? (opcional)</label>
-          <div class="checkbox-group">
+          <span class="form-label" id="prefsLabel">O que você gostaria de encontrar? (opcional)</span>
+
+          <div class="checkbox-group" role="group" aria-labelledby="prefsLabel">
             <label class="checkbox-item" *ngFor="let preference of validPreferences">
-              <input type="checkbox" [(ngModel)]="selectedPreferencesMap[preference]" />
+              <input type="checkbox" [(ngModel)]="selectedPreferencesMap[preference]"
+                [ngModelOptions]="{ standalone: true }" />
               {{ preference }}
             </label>
           </div>
@@ -103,7 +112,6 @@
       </div>
     </details>
 
-    <!-- Sucesso pós-verificação: CTA destacado, sem auto-redirect brusco -->
     <section *ngIf="emailVerified" class="welcome-card success-card">
       <h2 class="card-title">Tudo certo! 🎉</h2>
       <p>Seu e-mail está verificado. Você pode seguir para o painel quando quiser.</p>
@@ -111,18 +119,19 @@
         <button class="btn btn-primary" (click)="proceedToDashboard()">Ir para o painel</button>
       </div>
     </section>
+
+    <!-- Sessão inválida -->
+    <section *ngIf="sessionInvalid" class="welcome-card card-error" role="alert" aria-live="assertive"
+      aria-atomic="true">
+      <h2 class="card-title">Sessão encerrada</h2>
+      <p>Não conseguimos manter sua sessão ativa durante a verificação. Você pode tentar reconectar ou refazer o
+        cadastro.</p>
+      <div class="actions">
+        <button class="btn btn-secondary" (click)="checkNow()" [disabled]="busy" [attr.aria-busy]="busy">
+          Tentar reconectar
+        </button>
+        <button class="btn btn-primary" (click)="restartRegistration()">Refazer cadastro</button>
+      </div>
+    </section>
   </main>
 </div>
-
-<!-- Estado de sessão inválida (sem redirecionar para login) -->
-<section *ngIf="sessionInvalid" class="welcome-card alert-error" style="border-left:4px solid #c62828;">
-  <h2 class="card-title">Sessão encerrada</h2>
-  <p>Não conseguimos manter sua sessão ativa durante a verificação. Você pode tentar reconectar ou refazer o cadastro.
-  </p>
-  <div class="actions">
-    <button class="btn btn-secondary" (click)="checkNow()" [disabled]="busy" [attr.aria-busy]="busy">
-      Tentar reconectar
-    </button>
-    <button class="btn btn-primary" (click)="restartRegistration()">Refazer cadastro</button>
-  </div>
-</section>

@@ -1,0 +1,64 @@
+    // =========================================================================
+    // PUBLIC PROFILES (consultável / discovery)
+    // =========================================================================
+    match /public_profiles/{userId} {
+      // Exige login para ler perfis públicos (padrão do seu projeto)
+      allow get, list: if signedIn();
+
+      function allowedKeys() {
+        return request.resource.data.keys().hasOnly([
+          "uid",
+          "nickname",
+          "nicknameNormalized",
+          "avatarUrl",
+          "photoURL",
+          "municipio",
+          "estado",
+          "gender",
+          "orientation",
+          "role",
+          "latitude",
+          "longitude",
+          "geohash",
+          "createdAt",
+          "updatedAt"
+        ]);
+      }
+
+      function validPublicProfilePayload() {
+        return request.resource.data.uid == uid()
+          && allowedKeys()
+          && optString("nickname")
+          && optString("nicknameNormalized")
+          && optString("avatarUrl")
+          && optString("photoURL")
+          && optString("municipio")
+          && optString("estado")
+          && optString("gender")
+          && optString("orientation")
+          && optString("role")
+          && optNumberOrNull("latitude")
+          && optNumberOrNull("longitude")
+          && optString("geohash")
+          && optTimestamp("createdAt")
+          && optTimestamp("updatedAt");
+      }
+
+      allow create: if (
+        isSelf(userId)
+        && validPublicProfilePayload()
+        && isTs(request.resource.data.createdAt)
+        && isTs(request.resource.data.updatedAt)
+        && request.resource.data.role == "basic"
+      );
+
+      allow update: if (
+        isSelf(userId)
+        && validPublicProfilePayload()
+        && request.resource.data.createdAt == resource.data.createdAt
+        && isTs(request.resource.data.updatedAt)
+        && request.resource.data.role == resource.data.role
+      );
+
+      allow delete: if false;
+    }

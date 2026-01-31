@@ -108,7 +108,7 @@ export function authRestoreInitializer(auth: Auth) {
        * - Produção: todas as persistências (fallback automático do SDK).
        */
       const persistence = usingEmu
-        ? [browserSessionPersistence]
+        ? [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence]
         : [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence];
 
       let auth;

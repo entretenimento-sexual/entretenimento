@@ -20,7 +20,11 @@
     "emu": "npm run emu:pre && npm run emu:start",
     "emu:noui:start": "npx firebase emulators:start --only auth,firestore,storage,functions,pubsub,database --project entretenimento-sexual",
     "emu:noui": "npm run emu:pre && npm run preemu:start && npm run emu:noui:start",
-    "emulators:start:ui": "start http://127.0.0.1:4000"
+    "emulators:start:ui": "start http://127.0.0.1:4000",
+    "rules:build": "node firestore-rules/tools-rules/build-firestore-rules.mjs",
+    "rules:watch": "node firestore-rules/tools-rules/build-firestore-rules.mjs --watch",
+    "emulators": "npm run emu:pre && npm run rules:build && firebase emulators:start",
+    "deploy:rules": "npm run rules:build && firebase deploy --only firestore:rules"
   },
   "private": true,
   "dependencies": {
@@ -70,9 +74,9 @@
     "@eslint/js": "^9.39.2",
     "@ngrx/store": "^20.1.0",
     "@ngxs/store": "^20.0.2",
-    "@sentry/angular": "^10.32.1",
+    "@sentry/angular": "^10.35.0",
     "@types/estree": "^1.0.8",
-    "@types/jasmine": "^5.1.14",
+    "@types/jasmine": "^5.1.15",
     "@types/jest": "^29.5.14",
     "@types/jsdom": "^21.1.7",
     "@types/mocha": "^10.0.10",
@@ -99,9 +103,9 @@
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.52.0",
+    "typescript-eslint": "^8.53.1",
     "vite": "^7.3.1",
-    "webpack-dev-server": "^5.2.2"
+    "webpack-dev-server": "^5.2.3"
   },
   "overrides": {
     "core-js": "^3.23.3"

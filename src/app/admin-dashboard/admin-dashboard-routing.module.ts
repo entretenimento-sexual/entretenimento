@@ -4,7 +4,7 @@ import { RouterModule, Routes } from '@angular/router';
 import { AdminDashboardComponent } from './admin-dashboard.component';
 import { UserListComponent } from './user-list/user-list.component';
 import { UserDetailsComponent } from './user-details/user-details.component';
-import { adminCanActivateChild } from '../core/guards/admin.guard';
+import { adminCanActivateChild } from '../core/guards/access-guard/admin.guard';
 import { UserResolver } from './resolvers/user.resolver';
 
 const routes: Routes = [

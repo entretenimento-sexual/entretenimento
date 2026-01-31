@@ -15,7 +15,8 @@
         <i [class]="p.icon" aria-hidden="true"></i>
         <span class="sr-only">{{ p.label }}:</span>
         <span class="social-link-label">{{ p.label }}:</span>
-        <a *ngIf="normalizedLinks?.[p.key] as href" class="social-link-value" [href]="href" target="_blank"
+
+        <a *ngIf="normalizedLinks[p.key] as href" class="social-link-value" [href]="href" target="_blank"
           rel="noopener noreferrer" [attr.aria-label]="'Abrir ' + p.label + ' em nova aba'">
           {{ socialLinks?.[p.key] }}
           <i class="fas fa-external-link-alt" aria-hidden="true" style="margin-left:.35rem;"></i>
@@ -26,25 +27,25 @@
     <p class="no-links-info">Nenhuma rede social adicionada.</p>
     }
 
-    <!-- 🔧 Edição inline (só para o dono) -->
     @if (canEdit()) {
     <div class="inline-editor">
       <h4 class="inline-editor-title">Editar aqui mesmo</h4>
 
       <div class="edit-row" *ngFor="let p of socialMediaPlatforms; trackBy: trackByKey">
         <label class="edit-label" [for]="'social-'+p.key">{{ p.label }}</label>
+
         <input class="input-field edit-input" [id]="'social-'+p.key" [value]="socialLinks?.[p.key] || ''" #val
           placeholder="URL ou @handle" />
 
         <div class="edit-actions">
-          <button class="btn btn-primary" (click)="updateSocialLink(p.key, val.value)">Salvar</button>
-          <button class="btn btn-danger" [disabled]="!socialLinks?.[p.key]" (click)="removeLink(p.key)">Remover</button>
+          <button type="button" class="btn btn-primary" (click)="updateSocialLink(p.key, val.value)">Salvar</button>
+          <button type="button" class="btn btn-danger" [disabled]="!socialLinks?.[p.key]"
+            (click)="removeLink(p.key)">Remover</button>
         </div>
       </div>
     </div>
 
-    <!-- mantém atalho para a página dedicada -->
-    <button class="btn btn-secondary" (click)="goToEditSocialLinks()">
+    <button type="button" class="btn btn-secondary" (click)="goToEditSocialLinks()">
       Abrir página de edição
     </button>
     }

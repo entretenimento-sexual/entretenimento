@@ -1,10 +1,7 @@
 <!-- src/app/header/navbar/navbar.component.html -->
 <div class="navbar-with-links">
   <nav class="navbar" role="navigation" aria-label="Navegação principal">
-    <!-- Container principal do navbar -->
     <div class="navbar-container">
-
-      <!-- Seção da marca (logo) e toggle, ficará à esquerda -->
       <div class="navbar-header">
         <a routerLink="/" class="navbar-brand" routerLinkActive="active" #rlaHome="routerLinkActive"
           [attr.aria-current]="rlaHome.isActive ? 'page' : null">
@@ -12,15 +9,14 @@
           <span class="visually-hidden">Página inicial</span>
         </a>
 
+        <!-- aria-expanded idealmente deveria refletir um estado real (ex.: sidebar aberto) -->
         <button class="hamburger-btn" (click)="onToggleSidebar()" aria-label="Abrir menu lateral"
           aria-controls="app-sidebar" aria-expanded="false">
           &#9776;
         </button>
       </div>
 
-      <!-- Menu principal de links, ficará à direita -->
       <ul class="navbar-menu" role="menubar">
-        <!-- Links para usuários autenticados -->
         @if (isAuthenticated) {
         <li class="navbar-item" role="none">
           <a routerLink="/dashboard/principal" class="navbar-link" routerLinkActive="active"
@@ -30,12 +26,9 @@
           </a>
         </li>
 
-        <li class="navbar-item" role="none">
-          <a [routerLink]="['/perfil', userId]" class="navbar-link" routerLinkActive="active"
-            #rlaPerfil="routerLinkActive" [attr.aria-current]="rlaPerfil.isActive ? 'page' : null" role="menuitem">
-            Meu Perfil
-          </a>
-        </li>
+<!-- Quando alterei aqui funcionou corretamente. Não funciona e trava tudo-->
+<li class="navbar-item" role="none"> <a routerLink="/meu-perfil" class="navbar-link" role="menuitem"> Meu Perfil </a>
+</li>
 
         <li class="navbar-item" role="none">
           <a routerLink="/contato" class="navbar-link" routerLinkActive="active" #rlaContato="routerLinkActive"
@@ -44,14 +37,14 @@
           </a>
         </li>
 
+        <!-- ✅ Melhor acessibilidade: remove javascript:void(0) -->
         <li class="navbar-item" role="none">
-          <a href="javascript:void(0);" (click)="logout()" class="navbar-link" role="menuitem">
+          <button type="button" class="navbar-link as-button" (click)="logout()" role="menuitem">
             Sair
-          </a>
+          </button>
         </li>
         }
 
-        <!-- Link para planos (todos) -->
         <li class="navbar-item" role="none">
           <a routerLink="/subscription-plan" class="navbar-link" routerLinkActive="active" #rlaPlanos="routerLinkActive"
             [attr.aria-current]="rlaPlanos.isActive ? 'page' : null" role="menuitem">
@@ -59,7 +52,6 @@
           </a>
         </li>
 
-        <!-- Links para não autenticados -->
         @if (!isAuthenticated) {
         <li class="navbar-item" role="none">
           <a routerLink="/espiar" class="navbar-link" routerLinkActive="active" #rlaEspiar="routerLinkActive"
@@ -86,7 +78,6 @@
         </li>
         }
 
-        <!-- Exibe nickname/foto -->
         @if (isAuthenticated) {
         <li class="navbar-item user-info" role="none">
           @if (photoURL) {
@@ -97,7 +88,6 @@
         </li>
         }
 
-        <!-- Botão de alternância de tema -->
         <li class="navbar-item" role="none">
           <button class="dark-toggle" (click)="toggleDarkMode()" aria-label="Alternar entre claro e escuro"
             [attr.aria-pressed]="isDarkMode() ? 'true' : 'false'" role="menuitem">
@@ -105,7 +95,6 @@
           </button>
         </li>
 
-        <!-- ⭐ Botão Alto Contraste -->
         <li class="navbar-item" role="none">
           <button class="contrast-toggle" (click)="toggleHighContrast()"
             [attr.aria-pressed]="isHighContrast() ? 'true' : 'false'" aria-label="Alternar alto contraste"
@@ -117,11 +106,9 @@
     </div>
   </nav>
 
-  <!-- Links fixos ou dinâmicos adicionais -->
   <app-links-interaction id="app-sidebar"></app-links-interaction>
 </div>
 
-<!-- Banner visitante -->
 @if (isFree) {
 <app-guest-banner></app-guest-banner>
 }

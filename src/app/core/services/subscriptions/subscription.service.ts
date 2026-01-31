@@ -41,7 +41,7 @@ export class SubscriptionService {
     const normalizeRole = (r?: string): UserRole => {
       if (!r) return 'visitante';
       const low = r.toLowerCase();
-      if (low === 'basico' as any) return 'basic';
+      if (low === 'basic' as any) return 'basic';
       // se vier algo fora do previsto, caímos para 'visitante'
       return (hierarchy.includes(low as UserRole) ? (low as UserRole) : 'visitante');
     };

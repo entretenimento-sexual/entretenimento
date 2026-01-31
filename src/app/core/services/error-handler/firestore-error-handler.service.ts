@@ -1,4 +1,7 @@
 // src/app/core/services/error-handler/firestore-error-handler.service.ts
+// Não esqueça os comentários
+// Serviço para tratamento centralizado de erros do Firestore, com notificações e logging
+// notifica e depois chama o global, que pode notificar de novo (consertar)
 import { Injectable } from '@angular/core';
 import { FirebaseError } from 'firebase/app';
 import { Observable, EMPTY, of, throwError } from 'rxjs';
@@ -34,7 +37,7 @@ export class FirestoreErrorHandlerService {
     const n = this.normalize(error, opts);
 
     this.notifyIfNeeded(n, opts);
-    this.logError(n, error);
+    this.logError(n, error, opts); // ✅ repassa opts
 
     return throwError(() => error);
   }
@@ -52,7 +55,7 @@ export class FirestoreErrorHandlerService {
     const n = this.normalize(error, opts);
 
     this.notifyIfNeeded(n, opts);
-    this.logError(n, error);
+    this.logError(n, error, opts); // ✅ repassa opts
 
     return of(fallback);
   }
@@ -81,7 +84,7 @@ export class FirestoreErrorHandlerService {
     const n = this.normalize(error, opts);
 
     this.notifyIfNeeded(n, opts);
-    this.logError(n, error);
+    this.logError(n, error, opts); // ✅ repassa opts
 
     return EMPTY;
   }
@@ -94,7 +97,7 @@ export class FirestoreErrorHandlerService {
   report(error: any, opts?: FirestoreErrorHandlerOptions): void {
     const n = this.normalize(error, opts);
     this.notifyIfNeeded(n, opts);
-    this.logError(n, error);
+    this.logError(n, error, opts); // ✅ repassa opts
   }
 
   // ============================================================================
@@ -131,13 +134,31 @@ export class FirestoreErrorHandlerService {
   }
 
   private logError(n: NormalizedError, raw: any, opts?: FirestoreErrorHandlerOptions): void {
+    /**
+     * O FirestoreErrorHandler pode notificar o usuário (notifier.showError).
+     * Em seguida, encaminhamos para o GlobalErrorHandler apenas para log/observabilidade,
+     * mas marcamos `skipUserNotification` para evitar duplicação de snackbar.
+     */
     const e = new Error(n.userMessage);
+
     (e as any).code = n.code;
     (e as any).details = n.details;
     (e as any).original = raw;
+
+    // Contexto do ponto de falha (ex.: register-submit, presence-heartbeat, etc)
     (e as any).context = opts?.context;
+
+    // “silent” significa: não notificar usuário em lugar nenhum
     (e as any).silent = opts?.silent === true;
+
+    // Tag da feature para triagem
     (e as any).feature = 'firestore';
+
+    // Prefixo útil no console (não vai para UI)
+    (e as any).consolePrefix = n.consolePrefix;
+
+    // ✅ Evita que o GlobalErrorHandler dispare snackbar novamente
+    (e as any).skipUserNotification = true;
 
     this.globalErrorHandler.handleError(e);
   }

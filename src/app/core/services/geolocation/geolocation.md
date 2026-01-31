@@ -50,7 +50,7 @@ Paywall de precisão por “role”
 Role	geohashLen	maxDistanceKm	decimals
 vip	9	100	5
 premium	8	50	4
-basico	7	20	3
+basic	7	20	3
 free	5	10	2
 
 Se e-mail não verificado, aplique limites máximos: geohashLen ≤ 5, maxDistanceKm ≤ 20, decimals ≤ 2.

@@ -82,3 +82,10 @@ export class GuestBannerComponent implements OnInit {
     this.show.set(false);
   }
 }
+/*
+Estados do usuário e acesso às rotas em relação a perfil e verificação de e-mail.
+GUEST: não autenticado
+AUTHED + PROFILE_INCOMPLETE: logado, mas ainda não completou cadastro mínimo
+AUTHED + PROFILE_COMPLETE + UNVERIFIED: logado, cadastro ok, mas e-mail não verificado
+AUTHED + PROFILE_COMPLETE + VERIFIED: liberado total
+*/

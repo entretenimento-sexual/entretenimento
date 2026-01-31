@@ -1,4 +1,6 @@
 // src/app/core/services/near-profile.service.ts
+// Serviço para buscar perfis próximos usando geolocalização no Firestore
+// Não esquecer os comentários
 import { Injectable } from '@angular/core';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { collection, query, where, getDocs, startAt, limit } from '@firebase/firestore';

@@ -1,3 +1,10 @@
+// Serviço para gerenciar o perfil do usuário, incluindo obtenção e atualização de dados.
+// - Busca otimizada com cache
+// - Atualizações refletidas no Firestore e Store
+// - Métodos claros e documentados
+// - Tratamento de erros básico
+// - Observable-first para evitar Promises na API pública quando possível
+// - Não esquecer os comentários explicativos.
 // src/app/core/services/user-profile/user-profile.service.ts
 import { Injectable } from '@angular/core';
 import { IUserDados } from '../../interfaces/iuser-dados';
@@ -7,77 +14,118 @@ import { updateUserRole } from '../../../store/actions/actions.user/user-role.ac
 import { updateUserLocation } from '../../../store/actions/actions.location/location.actions';
 import { GeoCoordinates } from '../../interfaces/geolocation.interface';
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
-import { doc, updateDoc } from 'firebase/firestore';
-import { Observable, of } from 'rxjs';
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 
-@Injectable({
-  providedIn: 'root'
-})
+import { doc, updateDoc } from '@angular/fire/firestore';
+import { Observable, of, from, throwError, firstValueFrom } from 'rxjs';
+import { catchError, tap, map } from 'rxjs/operators';
+
+import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { ErrorNotificationService } from '../error-handler/error-notification.service';
+
+@Injectable({ providedIn: 'root' })
 export class UserProfileService {
-  private userCache: IUserDados | null = null;
+  // Se você não usa cache aqui, melhor remover para evitar ruído.
+  // private userCache: IUserDados | null = null;
 
   constructor(
     private firestoreQueryService: FirestoreQueryService,
     private firestoreUserQuery: FirestoreUserQueryService,
-    private store: Store<AppState>
+    private store: Store<AppState>,
+    private errorHandler: GlobalErrorHandlerService,
+    private notifier: ErrorNotificationService
   ) { }
 
   /**
-   * Obtém o perfil do usuário logado pelo UID, verificando primeiro no cache e, se não encontrado, busca no Firestore.
-   *
-   * @param uid O UID do usuário logado.
-   * @returns Uma Promise que resolve com os dados do usuário ou null se não encontrado.
+   * Obtém o perfil do usuário pelo UID.
+   * - Observable-first
+   * - Erro roteado e retorno null para não quebrar a UI (ajuste conforme sua UX)
    */
   getLoggedUserProfile(uid: string): Observable<IUserDados | null> {
-    console.log('Método getLoggedUserProfile foi chamado.');
+    if (!uid) return of(null);
 
-    if (!uid) {
-      console.log('UID inválido fornecido.');
-      return of(null);
-    }
-
-    return this.firestoreUserQuery.getUserWithObservable(uid);
+    return this.firestoreUserQuery.getUserWithObservable(uid).pipe(
+      catchError((err) => {
+        this.routeError(err, 'getLoggedUserProfile', 'Não foi possível carregar o perfil agora.');
+        return of(null);
+      })
+    );
   }
 
-  async updateUserRole(uid: string, newRole: string): Promise<void> {
-    console.log(`Atualizando papel do usuário ${uid} para: ${newRole}`);
-
+  /**
+   * Observable-first: atualiza role e sincroniza Store.
+   */
+  updateUserRole$(uid: string, newRole: string): Observable<void> {
     if (!uid || !newRole) {
-      console.log('UID ou novo papel inválido.');
-      throw new Error('UID ou novo papel inválido');
+      return throwError(() => new Error('[UserProfileService] UID ou novo papel inválido.'));
     }
 
-    try {
-      await updateDoc(doc(this.firestoreQueryService.getFirestoreInstance(), 'users', uid), { role: newRole });
-      console.log('Papel do usuário atualizado com sucesso no Firestore.');
-      this.store.dispatch(updateUserRole({ uid, newRole }));
-    } catch (error) {
-      console.log('Erro ao atualizar o papel do usuário:', error);
-      throw error;
-    }
+    const fs = this.firestoreQueryService.getFirestoreInstance();
+
+    return from(updateDoc(doc(fs, 'users', uid), { role: newRole })).pipe(
+      tap(() => this.store.dispatch(updateUserRole({ uid, newRole }))),
+      map(() => void 0),
+      catchError((err) => {
+        this.routeError(err, 'updateUserRole$', 'Não foi possível atualizar o papel do usuário.');
+        return throwError(() => err);
+      })
+    );
   }
 
 
-  async updateUserLocation(uid: string, location: GeoCoordinates, geohash: string): Promise<void> {
-    console.log(`Atualizando localização do usuário ${uid} para latitude: ${location.latitude}, longitude: ${location.longitude}`);
+  /**
+   * Mantido (compat): Promise wrapper do método Observable-first.
+   * Mantém a nomenclatura pública usada no projeto sem te prender a Promises.
+   */
+  async updateUserRole(uid: string, newRole: string): Promise<void> {
+    await firstValueFrom(this.updateUserRole$(uid, newRole));
+  }
 
+
+  // Observable-first: atualiza localização e sincroniza Store.
+  updateUserLocation$(uid: string, location: GeoCoordinates, geohash: string): Observable<void> {
     if (!uid || !location) {
-      console.log('UID do usuário ou localização inválidos.');
-      throw new Error('UID do usuário ou localização inválidos');
+      return throwError(() => new Error('[UserProfileService] UID do usuário ou localização inválidos.'));
     }
 
-    try {
-      await updateDoc(doc(this.firestoreQueryService.getFirestoreInstance(), 'users', uid), {
+    const fs = this.firestoreQueryService.getFirestoreInstance();
+
+    return from(
+      updateDoc(doc(fs, 'users', uid), {
         latitude: location.latitude,
         longitude: location.longitude,
-        geohash: geohash
-      });
-      console.log('Localização do usuário atualizada com sucesso no Firestore.');
-      this.store.dispatch(updateUserLocation({ uid, location }));
-    } catch (error) {
-      console.log('Erro ao atualizar a localização do usuário:', error);
-      throw error;
+        geohash,
+      })
+    ).pipe(
+      tap(() => this.store.dispatch(updateUserLocation({ uid, location }))),
+      map(() => void 0),
+      catchError((err) => {
+        this.routeError(err, 'updateUserLocation$', 'Não foi possível atualizar a localização agora.');
+        return throwError(() => err);
+      })
+    );
+  }
+
+  /**
+   * Mantido (compat): Promise wrapper do método Observable-first.
+   */
+  async updateUserLocation(uid: string, location: GeoCoordinates, geohash: string): Promise<void> {
+    await firstValueFrom(this.updateUserLocation$(uid, location, geohash));
+  }
+
+  // ----------------------------------------------------
+  // Erros centralizados
+  // ----------------------------------------------------
+  private routeError(err: unknown, context: string, userMessage?: string): void {
+    const e = err instanceof Error ? err : new Error(`[UserProfileService] ${context}`);
+    (e as any).silent = true;
+    (e as any).original = err;
+    (e as any).context = context;
+
+    this.errorHandler.handleError(e);
+
+    if (userMessage) {
+      this.notifier.showError(userMessage);
     }
   }
-}
+} // Linha 132

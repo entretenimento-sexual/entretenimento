@@ -1,4 +1,5 @@
 // src/app/core/services/sidebar.service.ts
+// Não esqueça os comentários explicativos.
 import { Injectable } from '@angular/core';
 import { BehaviorSubject } from 'rxjs';
 

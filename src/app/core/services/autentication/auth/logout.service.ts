@@ -11,13 +11,18 @@
 // - Logout voluntário: navega para /login.
 // - SignOut inevitável (Auth inválido): navega para /register/welcome?reason=auth-invalid.
 // - Erros: sempre roteados ao GlobalErrorHandlerService (silent) + feedback via ErrorNotificationService quando fizer sentido.
+//
+// Ajuste (AngularFire):
+// - `signOut()` do @angular/fire/auth precisa rodar dentro de Injection Context.
+// - Sem isso, o AngularFire avisa que pode haver bugs sutis de change-detection/hydration.
+// - Solução: `runInInjectionContext(envInjector, () => signOut(auth))`.
 // =============================================================================
 
-import { Injectable } from '@angular/core';
+import { Injectable, EnvironmentInjector, runInInjectionContext } from '@angular/core';
 import { Router } from '@angular/router';
 import { Auth, signOut } from '@angular/fire/auth';
 
-import { Observable, from, of } from 'rxjs';
+import { Observable, defer, from, of } from 'rxjs';
 import { catchError, defaultIfEmpty, finalize, map, switchMap, take } from 'rxjs/operators';
 
 import { PresenceService } from '@core/services/presence/presence.service';
@@ -43,6 +48,9 @@ export class LogoutService {
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
+
+    // Necessário para garantir Injection Context nas APIs do AngularFire
+    private readonly envInjector: EnvironmentInjector
   ) { }
 
   // ===========================================================================
@@ -54,7 +62,6 @@ export class LogoutService {
     this.running = true;
 
     // Para UX: logout voluntário normalmente não precisa toast de erro.
-    // Se você quiser um sucesso, dá pra usar showSuccess no notifier (se existir).
     return this.stopPresenceBestEffort$().pipe(
       switchMap(() => this.signOutBestEffort$()),
       finalize(() => {
@@ -81,9 +88,11 @@ export class LogoutService {
   private inRegistrationFlow(url: string): boolean {
     return isRegFlow(url);
   }
+
   // ===========================================================================
   // SignOut inevitável (apenas Auth inválido)
   // ===========================================================================
+
   hardSignOutToWelcome$(reason: TerminateReason = 'auth-invalid'): Observable<void> {
     if (this.running) return of(void 0);
     this.running = true;
@@ -140,7 +149,17 @@ export class LogoutService {
   }
 
   private signOutBestEffort$(): Observable<void> {
-    return from(signOut(this.auth)).pipe(
+    /**
+     * IMPORTANTE (AngularFire):
+     * - o `signOut()` de @angular/fire/auth precisa rodar dentro de Injection Context.
+     * - `runInInjectionContext` garante que o AngularFire consiga “amarrar” Zone/PendingTasks.
+     * - `defer` garante execução lazy (somente no subscribe), evitando side-effects antecipados.
+     */
+    return defer(() =>
+      from(
+        runInInjectionContext(this.envInjector, () => signOut(this.auth))
+      )
+    ).pipe(
       catchError((err) => {
         this.reportSilent(err, { phase: 'signOutBestEffort$' });
         return of(void 0);
@@ -172,4 +191,4 @@ export class LogoutService {
       this.globalErrorHandler.handleError(e);
     } catch { }
   }
-} // Linha 182
+} // Linha 194

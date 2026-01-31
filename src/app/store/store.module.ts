@@ -114,15 +114,14 @@ const metaReducers = environment.production ? [] : [
       NearbyProfilesEffects,
       LocationEffects,
 
-      // CACHE
-      CacheEffects,
+      // removido cache.effects.ts 
     ]),
 
     // 🔍 Devtools (apenas em dev) — com trace p/ facilitar debug
     StoreDevtoolsModule.instrument({
       maxAge: 50,
       logOnly: environment.production,
-      trace: true,
+      trace: false, // ativar quando precisar
       traceLimit: 25,
     }),
   ],

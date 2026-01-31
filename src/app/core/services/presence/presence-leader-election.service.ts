@@ -1,7 +1,9 @@
-//src\app\core\services\presence\presence-leader-election.service.ts
+// Serviço para eleição de líder entre múltiplas abas para presença do usuário
+// Não esquecer os comentários
+// src/app/core/services/presence/presence-leader-election.service.ts
 import { Injectable } from '@angular/core';
-import { Observable, interval, merge } from 'rxjs';
-import { distinctUntilChanged, filter, map, shareReplay, startWith } from 'rxjs/operators';
+import { Observable, merge, of, timer } from 'rxjs';
+import { distinctUntilChanged, filter, map, shareReplay } from 'rxjs/operators';
 
 type LeaderPayload = {
   tabId: string;
@@ -10,7 +12,6 @@ type LeaderPayload = {
 
 @Injectable({ providedIn: 'root' })
 export class PresenceLeaderElectionService {
-  // “produção-friendly”
   private static readonly LEADER_TTL_MS = 15_000;
   private static readonly LEADER_RENEW_MS = 5_000;
 
@@ -25,15 +26,20 @@ export class PresenceLeaderElectionService {
    * Stream reativo de liderança:
    * - tick tenta adquirir/renovar
    * - storage reage a mudanças em outras abas
-   * - shareReplay(refCount) garante parar interval quando ninguém usa
+   * - shareReplay(refCount) garante parar timer quando ninguém usa
    */
   createIsLeader$(uid: string, storage$: Observable<StorageEvent>): Observable<boolean> {
     const cleanUid = (uid ?? '').trim();
+
+    // ✅ micro-ajuste 1: uid vazio → não cria key “presence_leader:”
+    if (!cleanUid) return of(false);
+
     const key = this.buildLeaderKey(cleanUid);
     this.leaderKey = key;
 
-    const leaderTick$ = interval(PresenceLeaderElectionService.LEADER_RENEW_MS).pipe(
-      startWith(0),
+    // ✅ micro-ajuste 2: jitter reduz colisão entre abas abrindo juntas
+    const jitterMs = Math.floor(Math.random() * 350); // 0..349ms (suficiente p/ dessicronizar)
+    const leaderTick$ = timer(jitterMs, PresenceLeaderElectionService.LEADER_RENEW_MS).pipe(
       map(() => this.tryAcquireLeadership(cleanUid)),
       distinctUntilChanged()
     );
@@ -60,6 +66,7 @@ export class PresenceLeaderElectionService {
       if (!current) return false;
       return current.tabId === this.tabId && current.expiresAt > Date.now();
     } catch {
+      // padrão “fail-open” (mantém seu comportamento atual)
       return true;
     }
   }
@@ -102,6 +109,7 @@ export class PresenceLeaderElectionService {
 
       return false;
     } catch {
+      // padrão “fail-open”
       return true;
     }
   }
@@ -123,3 +131,11 @@ export class PresenceLeaderElectionService {
 // ***** Sempre considerar que existe o data-handling/queries/user-presence.query.service.ts *****
 // ***** Sempre considerar que existe o autentication/auth/current-user-store.service.ts *****
 // ***** Sempre considerar que existe o presence\presence.service.ts *****
+// src/app/core/services/presence/presence-orchestrator.service.ts
+
+/*
+Verificar necessidade de 3 micro-ajustes:
+uid vazio → createIsLeader$ devolve of(false) (evita key “presence_leader:”).
+jitter no interval (reduz colisão quando várias abas abrem ao mesmo tempo).
+isLeaderNow/tryAcquireLeadership retornando true em erro é “fail-open”; ok, mas se quiser “fail-safe”, troque para false. (Eu manteria seu padrão atual.)
+*/

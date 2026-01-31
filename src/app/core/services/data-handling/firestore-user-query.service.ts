@@ -1,4 +1,6 @@
 // src/app/core/services/data-handling/firestore-user-query.service.ts
+// Serviço para consultas de usuários no Firestore, com cache e tratamento de erros
+// Não esquecer os comentários e ferramentas de debug
 import { Injectable } from '@angular/core';
 import { firstValueFrom, Observable, of } from 'rxjs';
 import { catchError, map, shareReplay, switchMap, take, tap } from 'rxjs/operators';
@@ -99,17 +101,46 @@ export class FirestoreUserQueryService {
     );
   }
 
+  /**
+ * Snapshot determinístico para Guards e navegação crítica.
+ * Usa o pipeline completo (cache -> store -> firestore once).
+ */
+  getUserOnce$(uid: string): Observable<IUserDados | null> {
+    return this.fetchUser$(uid).pipe(
+      take(1),
+      catchError((err) =>
+        this.firestoreError.handleFirestoreErrorAndReturnNull<IUserDados>(err, {
+          silent: true,
+          context: 'auth-guard.getUserOnce$'
+        })
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
+ // "once direto do Firestore" sem cache/store
+getUserOnceFromFirestore$(uid: string): Observable < IUserDados | null > {
+  const id = (uid ?? '').trim();
+  if(!id) return of(null);
+  return this.usersReadRepo.getUserOnce$(id).pipe(take(1));
+}
+
   // =========================
   // Realtime stream
   // =========================
+  // getUser aqui é realtime (via store), mas tem getUser$ no user-repository.service.ts e no user-repository.service.ts
   getUser(uid: string): Observable<IUserDados | null> {
     const id = (uid ?? '').trim();
     if (!id) return of(null);
 
     return this.usersReadRepo.getUser$(id).pipe(
-      tap((user) => {
-        if (user) this.userStateCache.upsertUser(user);
-      })
+      tap((user) => { if (user) this.userStateCache.upsertUser(user); }),
+      catchError((err) =>
+        this.firestoreError.handleFirestoreErrorAndReturnNull<IUserDados>(err, {
+          context: 'FirestoreUserQueryService.getUser(realtime)',
+          silent: true
+        })
+      )
     );
   }
 
@@ -139,4 +170,35 @@ export class FirestoreUserQueryService {
     if (!id) return of(false);
     return this.usersReadRepo.watchUserDocDeleted$(id);
   }
-}//Linha142
+}//Linha169
+/*
+2) Garantir que FirestoreUserQueryService tenha um método realtime (observeUser$)
+Se o seu getUser(uid) já usa docData() e emite realtime, você pode reaproveitar e não criar método novo (só trocar a chamada no effect).
+Se getUser(uid) for “one-shot” (getDoc), adicione este método no mesmo service (sem arquivo novo):
+*/
+/*
+PS C:\entretenimento\src\app\core\services\data-handling\firestore> tree /f
+Listagem de caminhos de pasta para o volume Windows
+O número de série do volume é 1C9B-11ED
+C:.
+pasta firestore
+├───core
+│       firestore-context.service.ts
+│       firestore-live-query.service.ts
+│       firestore-read.service.ts
+│       firestore-write.service.ts
+│
+├───repositories
+│       public-index.repository.ts
+│       public-profiles.repository.ts
+│       user-repository.service.ts
+│       users-read.repository.ts
+│
+├───state
+│       user-state-cache.service.ts
+│
+└───validation
+        firestore-validation.service.ts
+
+PS C:\entretenimento\src\app\core\services\data-handling\firestore>
+*/

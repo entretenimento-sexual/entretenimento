@@ -1,0 +1,51 @@
+// C:\entretenimento\firestore-rules\users_profile_socialLinks.rules
+
+// =========================================================================
+// USERS / profileData / socialLinks (privado)
+// - Fonte de verdade
+// - Escrita: somente dono
+// - Leitura: somente dono (padrão). Moderador/admin opcional.
+// =========================================================================
+match /users/{userId}/profileData/socialLinks {
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
+      "sexlog","d4swing","buppe"
+      // Se você quiser versionar/controlar auditoria no futuro:
+      // ,"createdAt","updatedAt"
+    ]);
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && optString("facebook")
+      && optString("instagram")
+      && optString("twitter")
+      && optString("linkedin")
+      && optString("youtube")
+      && optString("tiktok")
+      && optString("snapchat")
+      && optString("sexlog")
+      && optString("d4swing")
+      && optString("buppe");
+      // Se usar timestamps:
+      // && optTimestamp("createdAt")
+      // && optTimestamp("updatedAt");
+  }
+
+  // Leitura: padrão “fechado”
+  allow get: if isSelf(userId);
+  // Se você realmente precisar (decisão de produto/risco):
+  // allow get: if isSelf(userId) || isModerator();
+
+  allow create: if isSelf(userId) && validPayload();
+  allow update: if isSelf(userId) && validPayload();
+
+  allow list: if false;
+
+  // Delete do doc privado: opcional. Se você não usa, pode manter false.
+  // allow delete: if isSelf(userId);
+  allow delete: if false;
+}
+// =========================================================================

@@ -2,7 +2,7 @@
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { PerfisProximosComponent } from './perfis-proximos/perfis-proximos.component';
-import { authGuard } from '../core/guards/auth.guard';
+import { authGuard } from '../core/guards/auth-guard/auth.guard';
 
 
 const routes: Routes = [

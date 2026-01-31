@@ -5,9 +5,10 @@ import { FeaturedProfilesComponent } from './featured-profiles/featured-profiles
 import { PrincipalComponent } from './principal/principal.component';
 import { ChatRoomsComponent } from '../chat-module/chat-rooms/chat-rooms.component';
 import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
-import { emailVerifiedGuard } from '../core/guards/email-verified.guard';
+import { emailVerifiedGuard } from '../core/guards/profile-guard/email-verified.guard';
 import { OnlineUsersComponent } from './online/online-users/online-users.component';
 import { OnlineUsersFullComponent } from './online/online-users-full/online-users-full.component';
+import { profileCompletedGuard } from '../core/guards/profile-guard/profile-completed.guard';
 
 const routes: Routes = [
   {
@@ -15,10 +16,16 @@ const routes: Routes = [
     component: DashboardLayoutComponent,
     canActivate: [], // (se quiser proteger, coloque o guard aqui)
     children: [
-      { path: 'principal', component: PrincipalComponent },
+      { path: 'principal',
+        component: PrincipalComponent,
+        canActivate: [profileCompletedGuard],
+        data: { allowProfileIncomplete: true }
+      },
 
       // mini/painel (se quiser manter)
-      { path: 'online-users', component: OnlineUsersComponent },
+      { path: 'online-users',
+        component: OnlineUsersComponent
+      },
 
       // ✅ página “cheia” para ver todos (recomendado usar um slug curto)
       { path: 'online', component: OnlineUsersFullComponent, canActivate: [emailVerifiedGuard] },

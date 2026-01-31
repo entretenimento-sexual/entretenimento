@@ -1,6 +1,5 @@
 // src/app/core/services/data-handling/queries/user-discovery-presence.facade.ts
 // Não esqueça os comentários
-
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { map, shareReplay, switchMap } from 'rxjs/operators';
@@ -46,11 +45,10 @@ export class UserDiscoveryPresenceFacade {
    */
   searchUsersWithPresence$(constraints: QueryConstraint[]): Observable<IUserDados[]> {
     return this.discovery.searchUsers(constraints ?? []).pipe(
-      switchMap((profiles) => {
+      switchMap((profiles: IUserDados[]) => {
         if (!profiles?.length) return of([] as IUserDados[]);
-
         return this.onlineUsers$.pipe(
-          map((online) => this.mergePresence(profiles, online))
+          map((online: IUserDados[]) => this.mergePresence(profiles, online))
         );
       }),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -66,9 +64,11 @@ export class UserDiscoveryPresenceFacade {
     municipio: string
   ): Observable<IUserDados[]> {
     return this.discovery.getProfilesByOrientationAndLocation(gender, orientation, municipio).pipe(
-      switchMap((profiles) => {
+      switchMap((profiles: IUserDados[]) => {
         if (!profiles?.length) return of([] as IUserDados[]);
-        return this.onlineUsers$.pipe(map((online) => this.mergePresence(profiles, online)));
+        return this.onlineUsers$.pipe(
+          map((online: IUserDados[]) => this.mergePresence(profiles, online))
+        );
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -79,9 +79,11 @@ export class UserDiscoveryPresenceFacade {
    */
   getAllUsersWithPresence$(): Observable<IUserDados[]> {
     return this.discovery.getAllUsers$().pipe(
-      switchMap((profiles) => {
+      switchMap((profiles: IUserDados[]) => {
         if (!profiles?.length) return of([] as IUserDados[]);
-        return this.onlineUsers$.pipe(map((online) => this.mergePresence(profiles, online)));
+        return this.onlineUsers$.pipe(
+          map((online: IUserDados[]) => this.mergePresence(profiles, online))
+        );
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -108,27 +110,23 @@ export class UserDiscoveryPresenceFacade {
       const pres = uid ? mapOnline.get(uid) : undefined;
 
       if (!pres) {
-        // offline (seguro)
         return {
           ...p,
           isOnline: false,
-          // lastSeen offline pode ficar null; UI pode tratar como "visto há algum tempo"
           lastSeen: p.lastSeen ?? null,
         } as IUserDados;
       }
 
-      // online (enriquecido)
       return {
         ...p,
         isOnline: true,
         lastSeen: (pres as any)?.lastSeen ?? p.lastSeen ?? null,
         lastOnlineAt: (pres as any)?.lastOnlineAt ?? p.lastOnlineAt ?? null,
         lastOfflineAt: (pres as any)?.lastOfflineAt ?? p.lastOfflineAt ?? null,
-        // opcional: se você usa presenceState na UI
         ...(typeof (pres as any)?.presenceState !== 'undefined'
           ? { presenceState: (pres as any).presenceState }
           : {}),
       } as IUserDados;
     });
   }
-}  // 134 linhas 
+} // 134 linhas

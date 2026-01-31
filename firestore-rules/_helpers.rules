@@ -1,0 +1,39 @@
+//firestore-rules\_helpers.rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ========= Helpers =========
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function isSelf(userId) { return signedIn() && uid() == userId; }
+
+    function isStr(v) { return v is string; }
+    function isNum(v) { return v is number; }
+    function isBool(v) { return v is bool; }
+    function isTs(v) { return v is timestamp; }
+
+    function hasClaim(k) { return signedIn() && (k in request.auth.token) && request.auth.token[k] == true; }
+    function isAdmin() { return hasClaim("admin"); }
+    function isModerator() { return hasClaim("moderator") || isAdmin(); }
+
+    function optString(k) {
+      return !(k in request.resource.data)
+        || request.resource.data[k] is string
+        || request.resource.data[k] == null;
+    }
+
+    function optNumberOrNull(k) {
+      return !(k in request.resource.data)
+        || request.resource.data[k] is number
+        || request.resource.data[k] == null;
+    }
+
+    function optBool(k) {
+      return !(k in request.resource.data) || request.resource.data[k] is bool;
+    }
+
+    function optTimestamp(k) {
+      return !(k in request.resource.data) || request.resource.data[k] is timestamp;
+    }
