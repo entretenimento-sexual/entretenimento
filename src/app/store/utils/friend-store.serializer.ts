@@ -6,7 +6,7 @@
 // =============================================================================
 
 import { environment } from 'src/environments/environment';
-import { toEpoch } from '../utils/epoch-utils';
+import { toEpoch } from '../../core/utils/epoch-utils';
 import type { FriendDoc, Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 
 const debug = !environment.production;

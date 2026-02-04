@@ -22,6 +22,7 @@ import { sanitizeUserForStore } from 'src/app/store/utils/user-store.serializer'
 import { Auth, authState, signOut, type User } from '@angular/fire/auth';
 import { PresenceService } from '../presence/presence.service';
 import { DateTimeService } from '../general/date-time.service';
+import { environment } from 'src/environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
@@ -150,6 +151,12 @@ export class AuthService {
     this.userSubject.next(null);
     localStorage.removeItem('currentUser');
     this.cachedUid$ = null;
+    
+    if (!environment.production) {
+      // eslint-disable-next-line no-console
+      console.trace('[AuthService] dispatch logoutSuccess (clearCurrentUser)');
+    }
+
     this.store.dispatch(logoutSuccess());
   }
 
@@ -182,7 +189,7 @@ export class AuthService {
             this.clearCurrentUser();
             this.geoloc.stopTracking();
           }),
-          
+
           map(() => void 0)
         );
       }),

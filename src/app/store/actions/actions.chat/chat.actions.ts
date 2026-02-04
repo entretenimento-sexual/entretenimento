@@ -1,4 +1,5 @@
 // src/app/store/actions/actions.chat/chat.actions.ts
+// Não esqueça os comentários
 import { createAction, props } from '@ngrx/store';
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
@@ -140,17 +141,47 @@ export const removeParticipantsFailure = createAction(
   props<{ error: string }>()
 );
 
+// =============================================================================
+// Realtime (start/stop)
+// =============================================================================
+
+export const watchChatsRequested = createAction(
+  '[Chat] Watch Chats Requested',
+  props<{ uid?: string }>()
+);
+
+export const watchChatsStopped = createAction('[Chat] Watch Chats Stopped');
+
+export const watchMessagesRequested = createAction(
+  '[Chat] Watch Messages Requested',
+  props<{ chatId: string }>()
+);
+
+export const watchMessagesStopped = createAction(
+  '[Chat] Watch Messages Stopped',
+  props<{ chatId: string }>()
+);
+
+// =============================================================================
+// Reset (logout / troca de conta / sessão perdida)
+// - Padrão de plataforma grande: evita “vazamento” de dados entre sessões.
+// =============================================================================
+export const resetChatState = createAction('[Chat] Reset Chat State');
+
 if (!environment.production) {
-console.log('Ações de Chat carregadas:', {
-  loadChats, loadChatsSuccess, loadChatsFailure,
-  createChat, createChatSuccess, createChatFailure,
-  updateChat, updateChatSuccess, updateChatFailure,
-  sendMessage, sendMessageSuccess, sendMessageFailure,
-  deleteChat, deleteChatSuccess, deleteChatFailure,
-  monitorChat, newMessageReceived, monitorChatFailure,
-  addMessage, addMessageSuccess, addMessageFailure,
-  deleteMessage, deleteMessageSuccess, deleteMessageFailure,
-  addParticipants, addParticipantsSuccess, addParticipantsFailure,
-  removeParticipants, removeParticipantsSuccess, removeParticipantsFailure,
-});
+  console.log('Ações de Chat carregadas:', {
+    loadChats, loadChatsSuccess, loadChatsFailure,
+    createChat, createChatSuccess, createChatFailure,
+    updateChat, updateChatSuccess, updateChatFailure,
+    sendMessage, sendMessageSuccess, sendMessageFailure,
+    deleteChat, deleteChatSuccess, deleteChatFailure,
+    monitorChat, newMessageReceived, monitorChatFailure,
+    addMessage, addMessageSuccess, addMessageFailure,
+    deleteMessage, deleteMessageSuccess, deleteMessageFailure,
+    addParticipants, addParticipantsSuccess, addParticipantsFailure,
+    removeParticipants, removeParticipantsSuccess, removeParticipantsFailure,
+    watchChatsRequested, watchChatsStopped,
+    watchMessagesRequested, watchMessagesStopped,
+    resetChatState,
+  });
 }

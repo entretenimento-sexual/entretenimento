@@ -50,13 +50,14 @@ export class PresenceOrchestratorService {
     this.started = true;
 
     // Gate de prontidão do AuthSession (mantém seu comportamento atual)
+    // Gate de prontidão do AuthSession
     const ready$ = defer(() => from(this.authSession.whenReady())).pipe(
       map(() => true),
       startWith(false),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // UID normalizado para "string | null"
+    // UID normalizado
     const uid$ = this.authSession.uid$.pipe(
       map((uid) => (uid ?? '').trim() || null),
       distinctUntilChanged(),
@@ -64,64 +65,24 @@ export class PresenceOrchestratorService {
     );
 
     /**
-     * Stream de storage events (multi-tab).
-     * Se você já tiver isso no presence-dom-streams.service.ts, prefira reutilizar de lá.
-     */
-    const storage$: Observable<StorageEvent> =
-      (typeof window !== 'undefined')
-        ? fromEvent<StorageEvent>(window, 'storage')
-        : of(); // SSR-safe
-
-    /**
-     * Stream de liderança por UID.
-     * - uid null => isLeader false
-     * - uid válido => leaderElection.createIsLeader$
-     */
-    const isLeader$ = uid$.pipe(
-      switchMap((uid) => {
-        if (!uid) return of(false);
-        return this.leaderElection.createIsLeader$(uid, storage$).pipe(
-          startWith(false)
-        );
-      }),
-      distinctUntilChanged(),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-    /**
-     * Nível final:
-     * - ready precisa ser true
-     * - uid precisa existir
-     * - precisa ser líder
+     * ✅ Gate nível 1:
+     * - ready === true
+     * - uid != null
      *
-     * Se perder liderança ou uid mudar: stop$() é chamado (best-effort).
+     * Aqui NÃO calcula isLeader$.
+     * Quem resolve multi-aba é o PresenceService.
      */
-    combineLatest([ready$, uid$, isLeader$]).pipe(
+    combineLatest([ready$, uid$]).pipe(
       filter(([ready]) => ready === true),
+      map(([, uid]) => uid),
+      distinctUntilChanged(),
+      tap((uid) => this.dbg('gate(level1) ->', { uid })),
 
-      tap(([_, uid, isLeader]) => this.dbg('gate(level2) ->', { uid, isLeader })),
-
-      switchMap(([_, uid, isLeader]) => {
-        // Sempre que não atender condições: parar presença
-        if (!uid || !isLeader) {
-          return this.safeStop$();
-        }
-
-        // Condição OK: start presença
-        // Se presence.start for void, encapsula em Observable para manter reatividade.
-        return this.safeStart$(uid).pipe(
-          // Enquanto líder, mantém stream vivo.
-          // Se sua PresenceService já mantém listeners internos, aqui pode emitir void e completar.
-          take(1),
-          switchMap(() => of(void 0)),
-          catchError((err) => {
-            this.globalError.handleError(err instanceof Error ? err : new Error('Presence start stream error'));
-            return of(void 0);
-          })
-        );
+      switchMap((uid) => {
+        if (!uid) return this.safeStop$();
+        return this.safeStart$(uid).pipe(take(1));
       }),
 
-      // Best-effort global: presença nunca derruba app
       catchError((err) => {
         this.globalError.handleError(err instanceof Error ? err : new Error('PresenceOrchestrator stream error'));
         return of(void 0);

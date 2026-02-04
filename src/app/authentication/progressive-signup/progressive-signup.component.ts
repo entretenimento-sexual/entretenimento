@@ -1,7 +1,9 @@
 // src\app\authentication\progressive-signup\progressive-signup.component.ts
+// Este componente é responsável por coletar as preferências do usuário durante o processo de registro progressivo.
+// Não esquecer comentários e ferramentas de debug para garantir que as preferências estão sendo coletadas e salvas corretamente.
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
+
 import { PreRegisterServiceService } from 'src/app/core/services/autentication/register/pre-register.service';
 
 @Component({
@@ -33,9 +35,8 @@ export class ProgressiveSignupComponent {
   ];
 
   constructor(
-    private router: Router,
-    private authService: AuthService,
-    private preRegisterService: PreRegisterServiceService
+        private router: Router,
+        private preRegisterService: PreRegisterServiceService
     ) { }
 
   // Função para capturar as mudanças nos checkboxes

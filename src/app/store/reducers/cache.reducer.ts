@@ -1,25 +1,30 @@
-//src\app\store\reducers\cache.reducer.ts
+// src/app/store/reducers/cache.reducer.ts
+// Não esqueça os comentários
 import { createReducer, on, Action } from '@ngrx/store';
 import { setCache, removeCache, clearCache } from '../actions/cache.actions';
 
-export interface CacheState {
-  [key: string]: any;
-}
+import { CacheState, initialCacheState } from '../states/cache.state';
 
-const initialState: CacheState = {};
-
+/**
+ * Reducer do cache
+ * - Mantém operações simples (set/remove/clear)
+ * - Sem side-effects (padrão NgRx)
+ */
 const _cacheReducer = createReducer(
-  initialState,
+  initialCacheState,
+
   on(setCache, (state, { key, value }) => ({
     ...state,
-    [key]: value
+    [key]: value,
   })),
+
   on(removeCache, (state, { key }) => {
     const newState = { ...state };
-    delete newState[key];
+    delete (newState as any)[key];
     return newState;
   }),
-  on(clearCache, () => ({})) // Reseta o cache
+
+  on(clearCache, () => initialCacheState) // ✅ reseta para o inicial exportado
 );
 
 export function cacheReducer(state: CacheState | undefined, action: Action) {

@@ -14,7 +14,7 @@ import { nearbyProfilesReducer } from '../reducers/reducers.location/nearby-prof
 
 import { cacheReducer } from '../reducers/cache.reducer';
 import { friendsPaginationReducer } from '../reducers/reducers.interactions/friends-pagination.reducer';
-import { friendsReducer } from '../reducers/reducers.interactions/friends.reduce';
+import { friendsReducer } from '../reducers/reducers.interactions/friends.reducer';
 
 export interface AppState {
   // USER DOMAIN

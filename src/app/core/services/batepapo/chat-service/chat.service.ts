@@ -1,353 +1,416 @@
-// src\app\core\services\chat.service.ts
-// Serviço de Bate-Papo usando Firestore
-// Não esquecer os comentários
-// AuthService está sendo descontinuado, mas mantido aqui para compatibilidade (ajustar quando possível)
-import { Injectable } from '@angular/core';
-import { collection, addDoc, doc, Timestamp, setDoc, deleteDoc, orderBy, startAfter,
-         onSnapshot, getDocs, where, query,
-         limit,
-         getDoc} from 'firebase/firestore';
-import { Observable, Subject, from, of, throwError } from 'rxjs';
-import { catchError, map, switchMap, takeUntil } from 'rxjs/operators';
-import { Store } from '@ngrx/store';
-import { IChat } from '../../../interfaces/interfaces-chat/chat.interface';
-import { Message } from '../../../interfaces/interfaces-chat/message.interface';
-import { addMessage,  createChat,  deleteChat as deleteChat, deleteMessage as deleteMessage,
-         updateChat } from 'src/app/store/actions/actions.chat/chat.actions';
-import { AppState } from 'src/app/store/states/app.state';
-import { ErrorNotificationService } from '../../error-handler/error-notification.service';
-import { AuthService } from '../../autentication/auth.service';
-import { FirestoreService } from '../../data-handling/legacy/firestore.service';
-import { FirestoreUserQueryService } from '../../data-handling/firestore-user-query.service';
-import { CacheService } from '../../general/cache/cache.service';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+// src/app/core/services/batepapo/chat-service/chat.service.ts
+// Serviço de Bate-Papo (domínio) usando Firestore
+// =============================================================================
+// OBJETIVO:
+// - Service de domínio: NÃO despacha NgRx, NÃO é dono da Store.
+// - Realtime → Store fica em Effects (watchChats$, watchMessages$).
+// - Gating de sessão continua aqui (ready/auth/block/emailVerified).
+// - Erros: globalError (silent) + notify só em validações de UX (ex: msg vazia).
+// =============================================================================
 
-@Injectable({
-  providedIn: 'root'
-})
-export class ChatService {
-    private destroy$ = new Subject<void>();
+import { Injectable, OnDestroy } from '@angular/core';
+import { Observable, Subject, combineLatest, of, throwError } from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  shareReplay,
+  switchMap,
+  take,
+  takeUntil,
+  tap,
+} from 'rxjs/operators';
 
-  constructor(private authService: AuthService,
-              private firestoreUserQuery: FirestoreUserQueryService,
-              private errorNotifier: ErrorNotificationService,
-              private cacheService: CacheService,
-              private firestoreService: FirestoreService,
-              private store: Store<AppState>
-            ) { }
+import { Timestamp } from 'firebase/firestore';
 
-  private handleError(action: string, error: any): Observable<never> {
-    this.errorNotifier.showError(`Erro ao ${action}.`);
-    console.log(`Erro ao ${action}:`, error);
-    return throwError(() => new Error(`Erro ao ${action}: ${error.message}`));
+import { IChat } from '@core/interfaces/interfaces-chat/chat.interface';
+import { Message } from '@core/interfaces/interfaces-chat/message.interface';
+
+import { CacheService } from '@core/services/general/cache/cache.service';
+
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { AuthAppBlockService } from '@core/services/autentication/auth/auth-app-block.service';
+
+import { ChatRepository } from '@core/services/data-handling/firestore/repositories/chat.repository';
+import { ChatMessagesRepository } from '@core/services/data-handling/firestore/repositories/chat-messages.repository';
+
+import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+
+// ✅ garanta que esse import aponta para o DONO real (o service que você ajustou pra ser owner do getUser$)
+
+
+import { ChatPolicyService } from './chat-policy.service';
+import { UserRepositoryService } from '../../data-handling/firestore/repositories/user-repository.service';
+
+@Injectable({ providedIn: 'root' })
+export class ChatService implements OnDestroy {
+  private readonly destroy$ = new Subject<void>();
+
+  constructor(
+    private readonly authSession: AuthSessionService,
+    private readonly appBlock: AuthAppBlockService,
+
+    private readonly cache: CacheService,
+    private readonly userRepo: UserRepositoryService,
+
+    private readonly policy: ChatPolicyService,
+    private readonly chatsRepo: ChatRepository,
+    private readonly msgsRepo: ChatMessagesRepository,
+
+    private readonly notify: ErrorNotificationService,
+    private readonly globalError: GlobalErrorHandlerService,
+  ) { }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
-  /** Método para obter ou criar ID do chat */
+  /**
+   * reportSilent:
+   * - Envia para GlobalErrorHandlerService com "silent=true"
+   * - Não exibe toast automaticamente (o Effect decide)
+   */
+  private reportSilent(action: string, err: unknown): Observable<never> {
+    const e = err instanceof Error ? err : new Error(`[ChatService] ${action}`);
+    (e as any).silent = true;
+    (e as any).original = err;
+    (e as any).context = { action };
+    this.globalError.handleError(e);
+    return throwError(() => e);
+  }
+
+  /**
+   * failUi:
+   * - Para validações UX (ex: mensagem vazia), mostra toast aqui
+   * - Marca uiShown=true para Effects evitarem toast duplicado
+   */
+  private failUi(action: string, userMsg: string, err: unknown): Observable<never> {
+    this.notify.showError(userMsg);
+    const e = err instanceof Error ? err : new Error(String(err));
+    (e as any).uiShown = true;
+    return this.reportSilent(action, e);
+  }
+
+  /**
+   * canListen$:
+   * - Regras “cliente” para habilitar listeners.
+   * - A decisão final sempre deve ser reforçada em Rules/CF.
+   */
+  private readonly canListen$ = combineLatest([
+    this.authSession.ready$,
+    this.authSession.authUser$,
+    this.appBlock.reason$,
+  ]).pipe(
+    map(([ready, user, blocked]) => {
+      if (!ready) return false;
+      if (!user?.uid) return false;
+      if (blocked) return false;
+      if (user.emailVerified !== true) return false;
+      return true;
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  private requireUidOnce$(): Observable<string> {
+    return combineLatest([this.authSession.ready$, this.authSession.uid$, this.appBlock.reason$]).pipe(
+      take(1),
+      switchMap(([ready, uid, blocked]) => {
+        if (!ready) return this.reportSilent('requireUidOnce$ - not ready', new Error('Sessão não pronta'));
+        if (blocked) return this.reportSilent('requireUidOnce$ - blocked', new Error('App bloqueado'));
+        if (!uid) return this.reportSilent('requireUidOnce$ - no uid', new Error('Não autenticado'));
+        return of(uid);
+      })
+    );
+  }
+
+  // ===========================================================================
+  // CHAT ID
+  // ===========================================================================
   getOrCreateChatId(participants: string[]): Observable<string> {
-    const participantsKey = participants.sort().join('_');
+    const ids = Array.from(new Set((participants ?? []).map(x => (x ?? '').toString().trim()).filter(Boolean)));
+    if (ids.length < 2) {
+      return this.failUi('getOrCreateChatId', 'Não foi possível iniciar o chat.', new Error('Participantes inválidos'));
+    }
 
-    return this.cacheService.get<string>(`chatId:${participantsKey}`).pipe(
-      switchMap(cachedChatId => {
-        if (cachedChatId) {
-          return of(cachedChatId);
-        }
+    const participantsKey = [...ids].sort().join('_');
+    const cacheKey = `chatId:${participantsKey}`;
 
-        const db = this.firestoreService.getFirestoreInstance();
-        const chatsRef = collection(db, 'chats');
-        const chatQuery = query(chatsRef, where('participantsKey', '==', participantsKey));
+    return this.cache.get<string>(cacheKey).pipe(
+      take(1),
+      switchMap(cached => {
+        if (cached) return of(cached);
 
-        return from(getDocs(chatQuery)).pipe(
-          switchMap((querySnapshot) => {
-            if (!querySnapshot.empty) {
-              const existingChatId = querySnapshot.docs[0].id;
-              this.cacheService.set(`chatId:${participantsKey}`, existingChatId);
-              return of(existingChatId);
-            } else {
-              return this.createChat(participants).pipe(
-                map(newChatId => {
-                  this.cacheService.set(`chatId:${participantsKey}`, newChatId);
-                  return newChatId;
-                })
-              );
+        return this.chatsRepo.findChatIdByParticipantsKey$(participantsKey).pipe(
+          switchMap(existingId => {
+            if (existingId) {
+              this.cache.set(cacheKey, existingId);
+              return of(existingId);
             }
+            return this.createChat(ids).pipe(
+              tap(newId => this.cache.set(cacheKey, newId))
+            );
           })
         );
       }),
-      catchError(error => this.handleError('buscar ou criar chat', error))
+      catchError(err => this.reportSilent('getOrCreateChatId', err))
     );
   }
 
-  /** Criação de novo chat */
+  // ===========================================================================
+  // CRUD Chat (sem dispatch NgRx)
+  // ===========================================================================
   createChat(participants: string[]): Observable<string> {
-    const chatData: IChat = { participants, participantsKey: participants.sort().join('_'), timestamp: Timestamp.now() };
-    const db = this.firestoreService.getFirestoreInstance();
-    return from(addDoc(collection(db, 'chats'), chatData)).pipe(
-      map(chatDocRef => {
-        this.store.dispatch(createChat({ chat: { ...chatData, id: chatDocRef.id } }));
-        return chatDocRef.id;
-      }),
-      catchError(error => this.handleError('criar chat', error))
+    const ids = Array.from(new Set((participants ?? []).map(x => (x ?? '').toString().trim()).filter(Boolean)));
+    if (ids.length < 2) {
+      return this.failUi('createChat', 'Não foi possível criar o chat agora.', new Error('Participantes inválidos'));
+    }
+
+    const participantsKey = [...ids].sort().join('_');
+
+    return this.chatsRepo.createChat$(ids, participantsKey).pipe(
+      catchError(err => this.reportSilent('createChat', err))
     );
   }
 
-  /** Buscar e persistir detalhes do outro participante */
-  fetchAndPersistParticipantDetails(chatId: string, participantUid: string): Observable<any> {
-    const db = this.firestoreService.getFirestoreInstance();
-    const userDocRef = doc(db, 'users', participantUid);
+  updateChat(chatId: string, updateData: Partial<IChat>): Observable<string> {
+    const id = (chatId ?? '').toString().trim();
+    if (!id) return this.reportSilent('updateChat', new Error('chatId inválido'));
 
-    return from(getDoc(userDocRef)).pipe(
-      switchMap(userDoc => {
-        if (userDoc.exists()) {
-          const userDetails = userDoc.data() as IUserDados;
-          return this.updateChat(chatId, { otherParticipantDetails: userDetails }).pipe(
-            map(() => userDetails)
-          );
-        } else {
-          return this.handleError('buscar detalhes do participante', new Error('Usuário não encontrado.'));
-        }
-      }),
-      catchError(error => this.handleError('buscar detalhes do participante', error))
+    return this.chatsRepo.updateChat$(id, updateData).pipe(
+      map(() => id),
+      catchError(err => this.reportSilent('updateChat', err))
     );
   }
 
-  /** Atualizar detalhes do participante se necessário */
+  deleteChat(chatId: string): Observable<void> {
+    const id = (chatId ?? '').toString().trim();
+    if (!id) return this.reportSilent('deleteChat', new Error('chatId inválido'));
+
+    return this.chatsRepo.deleteChat$(id).pipe(
+      catchError(err => this.reportSilent('deleteChat', err))
+    );
+  }
+
+  deleteMessage(chatId: string, messageId: string): Observable<void> {
+    const cid = (chatId ?? '').toString().trim();
+    const mid = (messageId ?? '').toString().trim();
+    if (!cid || !mid) return this.reportSilent('deleteMessage', new Error('ids inválidos'));
+
+    return this.msgsRepo.deleteMessage$(cid, mid).pipe(
+      catchError(err => this.reportSilent('deleteMessage', err))
+    );
+  }
+
+  // ===========================================================================
+  // Participant details (usa o DONO do getUser$)
+  // ===========================================================================
+  fetchAndPersistParticipantDetails(chatId: string, participantUid: string): Observable<IChat | null> {
+    const uid = (participantUid ?? '').toString().trim();
+    const cid = (chatId ?? '').toString().trim();
+    if (!uid || !cid) return of(null);
+
+    return this.userRepo.getUser$(uid).pipe(
+      take(1),
+      switchMap(user => {
+        if (!user) return of(null);
+        return this.updateChat(cid, { otherParticipantDetails: user } as any).pipe(
+          map(() => null)
+        );
+      }),
+      catchError(err => this.reportSilent('fetchAndPersistParticipantDetails', err))
+    );
+  }
+
   refreshParticipantDetailsIfNeeded(chatId: string): void {
-    this.cacheService.get<IChat>(`chat:${chatId}`).pipe(
+    const cid = (chatId ?? '').toString().trim();
+    if (!cid) return;
+
+    this.cache.get<IChat>(`chat:${cid}`).pipe(
+      take(1),
       switchMap(chat => {
-        if (chat && !chat.otherParticipantDetails) {
-          const otherParticipantUid = chat.participants.find(uid => uid !== this.authService.currentUser?.uid);
-          if (otherParticipantUid) {
-            return this.fetchAndPersistParticipantDetails(chatId, otherParticipantUid);
-          }
-        }
-        return of(null);
-      })
+        if (!chat || (chat as any).otherParticipantDetails) return of(null);
+
+        return this.requireUidOnce$().pipe(
+          switchMap(loggedUid => {
+            const otherUid = chat.participants?.find(u => u !== loggedUid);
+            return otherUid ? this.fetchAndPersistParticipantDetails(cid, otherUid) : of(null);
+          })
+        );
+      }),
+      catchError(() => of(null))
     ).subscribe();
   }
 
-  /** Envio de mensagens no chat */
+  // ===========================================================================
+  // Mensagens (sem dispatch NgRx)
+  // ===========================================================================
   sendMessage(chatId: string, message: Message, senderId: string): Observable<string> {
-    // Verifica se o conteúdo da mensagem é válido
-    if (!message.content || !message.content.trim()) {
-      return this.handleError('enviar mensagem',
-                  new Error('O conteúdo da mensagem não pode ser vazio.'));
+    const cid = (chatId ?? '').toString().trim();
+    if (!cid) return this.reportSilent('sendMessage', new Error('chatId inválido'));
+
+    const content = (message?.content ?? '').toString().trim();
+    if (!content) {
+      return this.failUi('sendMessage', 'A mensagem não pode ser vazia.', new Error('Mensagem vazia'));
     }
 
-    // Verifica se o senderId é válido
-    if (!senderId) {
-      return this.handleError('enviar mensagem', new Error('ID do remetente inválido.'));
-    }
-
-    // Busca os dados do usuário para adicionar o nickname e validações
-    return this.firestoreUserQuery.getUser(senderId).pipe(
-      switchMap(user => {
-        if (!user) {
-          return this.handleError('enviar mensagem', new Error('Usuário não encontrado.'));
+    return this.requireUidOnce$().pipe(
+      switchMap(loggedUid => {
+        if (!senderId || senderId !== loggedUid) {
+          return this.failUi('sendMessage', 'Não foi possível enviar a mensagem.', new Error('senderId divergente'));
         }
 
-        // Atribui o nickname ao campo da mensagem
-        message.nickname = user.nickname || 'Anônimo';
-        message.senderId = senderId;
+        return this.policy.canSendMessage$(content).pipe(
+          take(1),
+          switchMap(decision => {
+            if (!decision.canSend) {
+              return this.failUi(
+                'sendMessage.policy',
+                decision.reason || 'Você não pode enviar mensagens agora.',
+                new Error(decision.reason || 'blocked')
+              );
+            }
 
-        // ✅ timestamp “oficial” do seu app
-        message.timestamp = Timestamp.now();
+            return this.userRepo.getUser$(senderId).pipe(
+              take(1),
+              switchMap(user => {
+                if (!user) {
+                  return this.failUi('sendMessage.user', 'Não foi possível enviar a mensagem.', new Error('Usuário não encontrado'));
+                }
 
-        // ✅ compat para rules (opcional)
-        (message as any).senderUid = senderId;
-        (message as any).createdAt = message.timestamp;
+                const now = Timestamp.now();
 
-        message.status = 'sent';
+                const msgToSend: Message = {
+                  ...message,
+                  content,
+                  senderId,
+                  nickname: (user as any).nickname || 'Anônimo',
+                  timestamp: now,
+                  status: 'sent',
+                };
 
-        // Referência para a coleção de mensagens dentro do chat
-        const db = this.firestoreService.getFirestoreInstance();
-        const messagesRef = collection(db, `chats/${chatId}/messages`);
+                // compat/auditoria
+                (msgToSend as any).senderUid = senderId;
+                (msgToSend as any).createdAt = now;
 
-        // Adiciona a mensagem ao Firestore
-        return from(addDoc(messagesRef, message)).pipe(
-          switchMap(messageRef => {
-            // Atualiza o campo lastMessage no chat com a nova mensagem
-            const chatUpdate: Partial<IChat> = {
-              lastMessage: {
-                content: message.content,
-                nickname: message.nickname,
-                senderId: message.senderId,
-                timestamp: message.timestamp
-              }
-            };
+                return this.msgsRepo.addMessage$(cid, msgToSend).pipe(
+                  switchMap(messageId => {
+                    const chatPatch: Partial<IChat> = {
+                      lastMessage: {
+                        content: msgToSend.content,
+                        nickname: msgToSend.nickname,
+                        senderId: msgToSend.senderId,
+                        timestamp: msgToSend.timestamp,
+                      } as any
+                    };
 
-            return from(this.updateChat(chatId, chatUpdate)).pipe(
-              map(() => {
-                this.store.dispatch(addMessage({ chatId, message }));
-
-                // Atualiza o status da mensagem para 'delivered' após envio bem-sucedido
-                return messageRef.id;
+                    return this.updateChat(cid, chatPatch).pipe(
+                      map(() => messageId)
+                    );
+                  })
+                );
               })
             );
           })
         );
       }),
-      catchError(error => this.handleError('enviar mensagem', error))
+      catchError(err => this.reportSilent('sendMessage', err))
     );
   }
 
-  /** Carrega chats do usuário autenticado */
-  getChats(userId: string, lastChatTimestamp?: Timestamp): Observable<IChat[]> {
-    const cacheKey = `chats:${userId}`;
-
-    return this.cacheService.get<IChat[]>(cacheKey).pipe(
-      switchMap(cachedChats => {
-        // Se houver chats no cache e não houver scroll para buscar mais, retorna o cache
-        if (cachedChats && cachedChats.length > 0 && !lastChatTimestamp) {
-          console.log(`[CacheService] Chats carregados do cache para ${userId}`);
-          return of(cachedChats);
-        }
-
-        console.log(`[Firestore] Buscando chats para ${userId}...`);
-
-        const db = this.firestoreService.getFirestoreInstance();
-        const chatsRef = collection(db, 'chats');
-
-        let chatQuery = query(
-          chatsRef,
-          where('participants', 'array-contains', userId),
-          orderBy('timestamp', 'desc'),
-          limit(10)
-        );
-
-        if (lastChatTimestamp) {
-          chatQuery = query(
-            chatsRef,
-            where('participants', 'array-contains', userId),
-            orderBy('timestamp', 'desc'),
-            startAfter(lastChatTimestamp),
-            limit(10)
-          );
-        }
-
-        return new Observable<IChat[]>(observer => {
-          const unsubscribe = onSnapshot(chatQuery, async snapshot => {
-            const newChats = snapshot.docs.map(doc => ({
-              id: doc.id,
-              ...doc.data() as IChat
-            }));
-
-            // Atualiza o cache evitando duplicatas
-            const updatedChats = (cachedChats || []).concat(
-              newChats.filter(chat =>
-                !(cachedChats || []).some(cachedChat => cachedChat.id === chat.id)
-              )
-            );
-
-            this.cacheService.set(cacheKey, updatedChats);
-            console.log(`[CacheService] Chats armazenados no cache para ${userId}`);
-
-            observer.next(updatedChats);
-          }, error => observer.error(error));
-
-          return () => unsubscribe();
-        });
-      }),
-      catchError(error => this.handleError('buscar chats', error))
-    );
-  }
-
-
-  /** Atualização de um chat específico */
-  updateChat(chatId: string, updateData: Partial<IChat>): Observable<string> {
-    const db = this.firestoreService.getFirestoreInstance();
-    const chatDocRef = doc(db, 'chats', chatId);
-    return from(setDoc(chatDocRef, updateData, { merge: true })).pipe(
-      map(() => {
-        this.store.dispatch(updateChat({ chatId, updateData }));
-        return chatId;
-      }),
-      catchError(error => this.handleError('atualizar chat', error))
-    );
-  }
-
-
-  /** Deletar chat */
-  deleteChat(chatId: string): Observable<void> {
-    const db = this.firestoreService.getFirestoreInstance();
-    return from(deleteDoc(doc(db, 'chats', chatId))).pipe(
-      map(() => {
-        this.store.dispatch(deleteChat({ chatId }));
-      }),
-      catchError(error => this.handleError('deletar chat', error))
-    );
-  }
-
-  /** Deletar mensagem específica */
-  deleteMessage(chatId: string, messageId: string): Observable<void> {
-    const db = this.firestoreService.getFirestoreInstance();
-    const messageDocRef = doc(db, `chats/${chatId}/messages`, messageId);
-    return from(deleteDoc(messageDocRef)).pipe(
-      map(() => {
-        this.store.dispatch(deleteMessage({ chatId, messageId }));
-      }),
-      catchError(error => this.handleError('deletar mensagem', error))
-    );
-  }
-
-  /** Busca de mensagens com carregamento incremental */
   getMessages(chatId: string, lastMessageTimestamp?: Timestamp): Observable<Message[]> {
-    const db = this.firestoreService.getFirestoreInstance();
-    const messagesRef = collection(db, `chats/${chatId}/messages`);
-    let messageQuery = query(messagesRef, orderBy('timestamp', 'desc'), limit(20));
-
-    if (lastMessageTimestamp) {
-      messageQuery = query(messagesRef, orderBy('timestamp', 'desc'), startAfter(lastMessageTimestamp), limit(20));
-    }
-
-    return from(getDocs(messageQuery)).pipe(
-      map(snapshot =>
-        snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Message)).reverse() // Inverte para exibir na ordem correta
-      ),
-      catchError(error => this.handleError('buscar mensagens', error))
+    const cid = (chatId ?? '').toString().trim();
+    if (!cid) return of([]);
+    return this.msgsRepo.getMessagesPageOnce$(cid, lastMessageTimestamp, 20).pipe(
+      catchError(err => this.reportSilent('getMessages', err))
     );
   }
 
-
-  // Adiciona o método monitorChat
+  /**
+   * monitorChat:
+   * - Agora é SOMENTE stream realtime (sem delivered aqui).
+   * - delivered/read vira side-effect no Effect (dispatch:false).
+   */
   monitorChat(chatId: string): Observable<Message[]> {
-    const db = this.firestoreService.getFirestoreInstance();
-    const messagesRef = collection(db, `chats/${chatId}/messages`);
-    const orderedQuery = query(messagesRef, orderBy('timestamp', 'asc'));
+    const cid = (chatId ?? '').toString().trim();
+    if (!cid) return of([]);
 
-    return new Observable<Message[]>(observer => {
-      const messagesMap = new Map<string, Message>(); // Map para evitar duplicatas
-
-      const unsubscribe = onSnapshot(orderedQuery, snapshot => {
-        snapshot.docChanges().forEach(async change => {
-          const updatedMessage = { id: change.doc.id, ...change.doc.data() } as Message;
-
-          if (change.type === 'added' || change.type === 'modified') {
-            messagesMap.set(updatedMessage.id!, updatedMessage); // Atualiza ou adiciona a mensagem
-
-            const currentUserUid = this.authService.currentUser?.uid;
-            if (updatedMessage.status === 'sent' && updatedMessage.senderId !== currentUserUid) {
-              await this.updateMessageStatus(chatId, updatedMessage.id!, 'delivered');
-            }
-          }
-        });
-
-        observer.next(Array.from(messagesMap.values()));
-      });
-
-      return () => unsubscribe();
-    }).pipe(takeUntil(this.destroy$));
+    return this.canListen$.pipe(
+      switchMap(canListen => {
+        if (!canListen) return of([] as Message[]);
+        return this.msgsRepo.watchMessages$(cid, 200);
+      }),
+      catchError(err => this.reportSilent('monitorChat', err))
+    );
   }
-
 
   updateMessageStatus(chatId: string, messageId: string, status: 'sent' | 'delivered' | 'read'): Observable<void> {
-    const db = this.firestoreService.getFirestoreInstance();
-    const messageDocRef = doc(db, `chats/${chatId}/messages`, messageId);
+    const cid = (chatId ?? '').toString().trim();
+    const mid = (messageId ?? '').toString().trim();
+    if (!cid || !mid) return this.reportSilent('updateMessageStatus', new Error('ids inválidos'));
 
-    return from(setDoc(messageDocRef, { status }, { merge: true })).pipe(
-      map(() => {
-        console.log(`Mensagem ${messageId} atualizada para o status: ${status}`);
-      }),
-      catchError((error) => this.handleError('atualizar status da mensagem', error))
+    return this.msgsRepo.updateMessageStatus$(cid, mid, status).pipe(
+      catchError(err => this.reportSilent('updateMessageStatus', err))
     );
-  } // Linha 352
+  }
+
+  // ===========================================================================
+  // Realtime Chats (para Effects)
+  // ===========================================================================
+  /**
+   * watchChats$(uid):
+   * - Stream realtime das conversas do usuário.
+   * - NÃO usa cache “stale” (diferente do getChats()).
+   * - Effects controla start/stop (takeUntil).
+   */
+  watchChats$(uid: string, limit = 10): Observable<IChat[]> {
+    const id = (uid ?? '').toString().trim();
+    if (!id) return of([]);
+
+    return this.canListen$.pipe(
+      switchMap(canListen => {
+        if (!canListen) return of([] as IChat[]);
+        return this.chatsRepo.watchChats$(id, limit);
+      }),
+      catchError(err => this.reportSilent('watchChats$', err))
+    );
+  }
+
+  /**
+   * getChats:
+   * - Mantido por compat.
+   * - Pode devolver cache e/ou paginação.
+   * - Para realtime em Store, prefira watchChats$ nos Effects.
+   */
+  getChats(userId: string, lastChatTimestamp?: Timestamp): Observable<IChat[]> {
+    const uid = (userId ?? '').toString().trim();
+    if (!uid) return of([]);
+
+    const cacheKey = `chats:${uid}`;
+
+    return this.cache.get<IChat[]>(cacheKey).pipe(
+      take(1),
+      switchMap(cached => {
+        if (!lastChatTimestamp && cached?.length) return of(cached);
+
+        return this.canListen$.pipe(
+          take(1),
+          switchMap(canListen => {
+            if (!lastChatTimestamp && canListen) {
+              return this.chatsRepo.watchChats$(uid, 10).pipe(
+                tap(list => this.cache.set(cacheKey, list))
+              );
+            }
+
+            return this.chatsRepo.getChatsPageOnce$(uid, lastChatTimestamp, 10).pipe(
+              tap(list => this.cache.set(cacheKey, list))
+            );
+          })
+        );
+      }),
+      catchError(err => this.reportSilent('getChats', err))
+    );
+  }
 }

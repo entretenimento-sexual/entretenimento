@@ -249,7 +249,7 @@ export class PresenceService {
 
     this.zone.runOutsideAngular(() => {
       this.sub.add(bootstrap$.subscribe());
-      this.sub.add(onLeaderAcquired$.subscribe()); 
+      this.sub.add(onLeaderAcquired$.subscribe());
       this.sub.add(heartbeat$.subscribe());
       this.sub.add(onOnline$.subscribe());
       this.sub.add(onVisibility$.subscribe());
@@ -259,6 +259,8 @@ export class PresenceService {
   }
 
   stop$(): Observable<void> {
+    if (!this.activeUid) return of(void 0);
+
     const uid = this.activeUid;
     const key = this.leaderKey;
 

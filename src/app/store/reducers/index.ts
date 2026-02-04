@@ -1,48 +1,41 @@
 // src/app/store/reducers/index.ts
+// Root reducer map do app.
+// Mantém a arquitetura compreensível:
+// - keys vêm de STORE_FEATURE
+// - reducers vêm dos índices por domínio
 import { ActionReducerMap } from '@ngrx/store';
 import { AppState } from '../states/app.state';
 
-import { authReducer } from './reducers.user/auth.reducer';
-import { userReducer } from './reducers.user/user.reducer';
-import { termsReducer } from './reducers.user/terms.reducer';
-import { fileReducer } from './reducers.user/file.reducer';
-import { userPreferencesReducer } from './reducers.user/user-preferences.reducer';
-
-import { chatReducer } from './reducers.chat/chat.reducer';
-import { inviteReducer } from './reducers.chat/invite.reducer';
-import { roomReducer } from './reducers.chat/room.reducer';
-
-import { locationReducer } from './reducers.location/location.reducer';
-import { nearbyProfilesReducer } from './reducers.location/nearby-profiles.reducer';
+import { STORE_FEATURE } from './feature-keys';
 
 import { cacheReducer } from './cache.reducer';
-// ✅ imports de paginação de amigos
-import { friendsPaginationReducer } from './reducers.interactions/friends-pagination.reducer';
-import { friendsReducer } from './reducers.interactions/friends.reduce';
+
+import { chatReducers } from './reducers.chat';
+import { userReducers } from './reducers.user';
+import { locationReducers } from './reducers.location';
+import { interactionsReducers } from './reducers.interactions';
 
 export const reducers: ActionReducerMap<AppState> = {
   // USER DOMAIN
-  auth: authReducer,
-  user: userReducer,
-  terms: termsReducer,
-  file: fileReducer,
-  userPreferences: userPreferencesReducer,
-
-  // LOCATION DOMAIN
-  location: locationReducer,
-  nearbyProfiles: nearbyProfilesReducer,
+  [STORE_FEATURE.auth]: userReducers.auth,
+  [STORE_FEATURE.user]: userReducers.user,
+  [STORE_FEATURE.terms]: userReducers.terms,
+  [STORE_FEATURE.file]: userReducers.file,
+  [STORE_FEATURE.userPreferences]: userReducers.userPreferences,
 
   // CHAT DOMAIN
-  chat: chatReducer,
-  invite: inviteReducer,
-  room: roomReducer,
+  [STORE_FEATURE.chat]: chatReducers.chat,
+  [STORE_FEATURE.invite]: chatReducers.invite,
+  [STORE_FEATURE.room]: chatReducers.room,
+
+  // LOCATION DOMAIN
+  [STORE_FEATURE.location]: locationReducers.location,
+  [STORE_FEATURE.nearbyProfiles]: locationReducers.nearbyProfiles,
+
+  // INTERACTIONS DOMAIN
+  [STORE_FEATURE.friendsPages]: interactionsReducers.friendsPages,
+  [STORE_FEATURE.interactionsFriends]: interactionsReducers.interactions_friends,
 
   // CACHE
-  cache: cacheReducer,
-
-  // ✅ FRIENDS (root, já que carrega no boot)
-  interactions_friends: friendsReducer,
-
-  // ✅ PAGINAÇÃO DE AMIGOS (root slice simples)
-  friendsPages: friendsPaginationReducer,
+  [STORE_FEATURE.cache]: cacheReducer,
 };

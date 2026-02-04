@@ -1,4 +1,6 @@
 // src/app/chat-module/chat-list/chat-list.component.ts
+// Este componente é responsável por exibir a lista de conversas (chats 1:1 e salas) do usuário, permitindo que ele selecione uma conversa para abrir, crie novas salas, convide usuários para salas existentes e gerencie suas conversas. Ele se integra com os serviços de autenticação, chat, sala e notificações para fornecer uma experiência de bate-papo completa.
+// Não esquecer de incluir comentários explicativos e ferramentas de debug para garantir que a funcionalidade de chat esteja funcionando corretamente e que os dados do usuário sejam carregados e exibidos como esperado.
 import { Component, EventEmitter, OnDestroy, OnInit, Output } from '@angular/core';
 import { Router } from '@angular/router';
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';

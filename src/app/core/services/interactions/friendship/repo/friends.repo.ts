@@ -11,7 +11,7 @@ import { Observable, map } from 'rxjs';
 import { CollectionReference, DocumentData, DocumentSnapshot, Timestamp } from 'firebase/firestore';
 import { environment } from 'src/environments/environment';
 import { sanitizeFriendForStore } from 'src/app/store/utils/friend-store.serializer';
-import { toEpoch } from '../../../../../store/utils/epoch-utils';
+import { toEpoch } from '../../../../utils/epoch-utils';
 
 @Injectable({ providedIn: 'root' })
 export class FriendsRepo extends FirestoreRepoBase {

@@ -127,12 +127,4 @@ export class PublicProfilesRepository {
     return String(code).includes('not-found') || String(code).includes('NOT_FOUND');
   }
 } //130 linhas
-/* C:.
-  src\app\core\services\data-handling\firestore\repositories
-  public-index.repository.ts
-  public-profiles.repository.ts
-  user-repository.service.ts
-  users-read.repository.ts
-  Não existem subpastas
- */
 

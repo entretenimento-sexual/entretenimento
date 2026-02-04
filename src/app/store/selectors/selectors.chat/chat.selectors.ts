@@ -1,4 +1,5 @@
 // src/app/store/selectors/selectors.chat/chat.selectors.ts
+// Não esqueça os comentários
 import { createSelector, createFeatureSelector } from '@ngrx/store';
 import { ChatState } from '../../states/states.chat/chat.state';
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';

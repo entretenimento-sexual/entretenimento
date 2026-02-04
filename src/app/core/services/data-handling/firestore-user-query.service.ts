@@ -1,38 +1,37 @@
 // src/app/core/services/data-handling/firestore-user-query.service.ts
-// Serviço para consultas de usuários no Firestore, com cache e tratamento de erros
-// Não esquecer os comentários e ferramentas de debug
-import { Injectable } from '@angular/core';
-import { firstValueFrom, Observable, of } from 'rxjs';
-import { catchError, map, shareReplay, switchMap, take, tap } from 'rxjs/operators';
-import { Store } from '@ngrx/store';
+// Adapter/compat layer.
+// Objetivo: delegar para o DONO (UserRepositoryService) e marcar aliases como @deprecated.
+// Mantém métodos usados no projeto, mas evita duplicar regra de cache/store/firestore.
 
-import { AppState } from 'src/app/store/states/app.state';
-import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.user/user-profile.selectors';
+import { Injectable } from '@angular/core';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
 
-import { CacheService } from '../general/cache/cache.service';
 import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
 
 import { UsersReadRepository } from './firestore/repositories/users-read.repository';
 import { UserStateCacheService } from './firestore/state/user-state-cache.service';
+import { UserRepositoryService } from './firestore/repositories/user-repository.service';
 
 export type UserPublic = { uid: string; nickname?: string; avatarUrl?: string };
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreUserQueryService {
   constructor(
-    private readonly cache: CacheService,
-    private readonly store: Store<AppState>,
     private readonly firestoreError: FirestoreErrorHandlerService,
     private readonly usersReadRepo: UsersReadRepository,
-    private readonly userStateCache: UserStateCacheService
+    private readonly userStateCache: UserStateCacheService,
+
+    // ✅ DONO oficial do "pegar usuário"
+    private readonly userRepo: UserRepositoryService
   ) { }
 
-  // =========================
-  // Public map (batch)
-  // =========================
+  // ============================================================
+  // Public map (batch) - pode migrar para UserRepositoryService depois
+  // ============================================================
   getUsersPublicMap$(uids: string[]): Observable<Record<string, UserPublic>> {
     const ids = Array.from(new Set((uids ?? []).filter(Boolean).map(x => String(x).trim()).filter(Boolean)));
     if (!ids.length) return of({});
@@ -50,7 +49,7 @@ export class FirestoreUserQueryService {
             avatarUrl: (u as any)?.photoURL ?? (u as any)?.avatarUrl ?? (u as any)?.imageUrl ?? undefined,
           };
 
-          // ✅ padroniza: store + cache via serviço dedicado
+          // padroniza: store + cache via serviço dedicado
           this.userStateCache.upsertUser(u);
         }
 
@@ -63,142 +62,94 @@ export class FirestoreUserQueryService {
     );
   }
 
-  // =========================
+  // ============================================================
   // Exists (server)
-  // =========================
+  // ============================================================
   async checkUserExistsFromServer(uid: string): Promise<boolean> {
-    const id = (uid ?? '').trim();
-    if (!id) return false;
-    return this.usersReadRepo.checkUserExistsFromServer(id);
+    return this.userRepo.checkUserExistsFromServer(uid);
   }
 
-  // =========================
-  // Cache -> Store -> Firestore(once)
-  // =========================
-  private fetchUser$(uid: string): Observable<IUserDados | null> {
-    const id = (uid ?? '').trim();
-    if (!id) return of(null);
-
-    return this.cache.get<IUserDados>(`user:${id}`).pipe(
-      switchMap((cached) => {
-        if (cached) return of(cached);
-
-        return this.store.select(selectUserProfileDataByUid(id)).pipe(
-          take(1),
-          switchMap((fromStore) => {
-            if (fromStore) return of(fromStore);
-
-            return this.usersReadRepo.getUserOnce$(id).pipe(
-              tap((user) => {
-                if (user) this.userStateCache.upsertUser(user);
-              })
-            );
-          })
-        );
-      }),
-      shareReplay(1),
-      catchError((err) => this.firestoreError.handleFirestoreError(err))
-    );
+  // ============================================================
+  // DONO oficial: snapshot determinístico
+  // ============================================================
+  /**
+   * @deprecated Use UserRepositoryService.getUser$
+   */
+  getUserOnce$(uid: string): Observable<IUserDados | null> {
+    return this.userRepo.getUser$(uid);
   }
 
   /**
- * Snapshot determinístico para Guards e navegação crítica.
- * Usa o pipeline completo (cache -> store -> firestore once).
- */
-  getUserOnce$(uid: string): Observable<IUserDados | null> {
-    return this.fetchUser$(uid).pipe(
-      take(1),
-      catchError((err) =>
-        this.firestoreError.handleFirestoreErrorAndReturnNull<IUserDados>(err, {
-          silent: true,
-          context: 'auth-guard.getUserOnce$'
-        })
-      ),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
+   * Mantém nome "getUser$" para chamadas antigas que esperam "$".
+   * (semântica: snapshot determinístico)
+   */
+  getUser$(uid: string): Observable<IUserDados | null> {
+    return this.userRepo.getUser$(uid);
   }
 
- // "once direto do Firestore" sem cache/store
-getUserOnceFromFirestore$(uid: string): Observable < IUserDados | null > {
-  const id = (uid ?? '').trim();
-  if(!id) return of(null);
-  return this.usersReadRepo.getUserOnce$(id).pipe(take(1));
-}
+  /**
+   * @deprecated Use UserRepositoryService.getUserById$ (alias do getUser$)
+   */
+  getUserById$(uid: string): Observable<IUserDados | null> {
+    return this.userRepo.getUserById$(uid);
+  }
 
-  // =========================
-  // Realtime stream
-  // =========================
-  // getUser aqui é realtime (via store), mas tem getUser$ no user-repository.service.ts e no user-repository.service.ts
+  /**
+   * @deprecated Use UserRepositoryService.getUserById (alias do getUser$)
+   */
+  getUserById(uid: string): Observable<IUserDados | null> {
+    return this.userRepo.getUserById(uid);
+  }
+
+  // ============================================================
+  // DONO oficial: realtime
+  // ============================================================
+  /**
+   * @deprecated Use UserRepositoryService.watchUser$
+   * Mantém o nome getUser(uid) que existia como realtime.
+   */
   getUser(uid: string): Observable<IUserDados | null> {
-    const id = (uid ?? '').trim();
-    if (!id) return of(null);
-
-    return this.usersReadRepo.getUser$(id).pipe(
-      tap((user) => { if (user) this.userStateCache.upsertUser(user); }),
-      catchError((err) =>
-        this.firestoreError.handleFirestoreErrorAndReturnNull<IUserDados>(err, {
-          context: 'FirestoreUserQueryService.getUser(realtime)',
-          silent: true
-        })
-      )
-    );
+    return this.userRepo.watchUser$(uid);
   }
 
-  async getUserData(uid: string): Promise<IUserDados | null> {
-    // ✅ agora usa o pipeline completo (cache -> store -> firestore once)
-    return await firstValueFrom(this.fetchUser$(uid).pipe(take(1)));
+  /**
+   * Alias explícito (realtime) para reduzir ambiguidade em chamadas novas.
+   */
+  observeUser$(uid: string): Observable<IUserDados | null> {
+    return this.userRepo.watchUser$(uid);
   }
 
+  /**
+   * @deprecated Use getUser(uid) ou observeUser$(uid)
+   */
   getUserWithObservable(uid: string): Observable<IUserDados | null> {
     return this.getUser(uid);
   }
 
-  getUserById(uid: string): Observable<IUserDados | null> {
-    return this.getUser(uid);
+  // ============================================================
+  // One-shot direto do Firestore (sem cache/store) - útil em casos pontuais
+  // ============================================================
+  getUserOnceFromFirestore$(uid: string): Observable<IUserDados | null> {
+    const id = (uid ?? '').trim();
+    if (!id) return of(null);
+    return this.usersReadRepo.getUserOnce$(id);
   }
 
+  // ============================================================
+  // Cache/Store helpers (delegam para o DONO)
+  // ============================================================
   invalidateUserCache(uid: string): void {
-    this.userStateCache.invalidate(uid);
+    this.userRepo.invalidateUserCache(uid);
   }
 
   updateUserInStateAndCache<T extends IUserRegistrationData | IUserDados>(uid: string, updatedData: T): void {
-    this.userStateCache.updateUserInStateAndCache(uid, updatedData);
+    this.userRepo.updateUserInStateAndCache(uid, updatedData);
   }
 
+  // ============================================================
+  // Deleted watcher (mantém)
+  // ============================================================
   watchUserDocDeleted$(uid: string): Observable<boolean> {
-    const id = (uid ?? '').trim();
-    if (!id) return of(false);
-    return this.usersReadRepo.watchUserDocDeleted$(id);
+    return this.userRepo.watchUserDocDeleted$(uid);
   }
-}//Linha169
-/*
-2) Garantir que FirestoreUserQueryService tenha um método realtime (observeUser$)
-Se o seu getUser(uid) já usa docData() e emite realtime, você pode reaproveitar e não criar método novo (só trocar a chamada no effect).
-Se getUser(uid) for “one-shot” (getDoc), adicione este método no mesmo service (sem arquivo novo):
-*/
-/*
-PS C:\entretenimento\src\app\core\services\data-handling\firestore> tree /f
-Listagem de caminhos de pasta para o volume Windows
-O número de série do volume é 1C9B-11ED
-C:.
-pasta firestore
-├───core
-│       firestore-context.service.ts
-│       firestore-live-query.service.ts
-│       firestore-read.service.ts
-│       firestore-write.service.ts
-│
-├───repositories
-│       public-index.repository.ts
-│       public-profiles.repository.ts
-│       user-repository.service.ts
-│       users-read.repository.ts
-│
-├───state
-│       user-state-cache.service.ts
-│
-└───validation
-        firestore-validation.service.ts
-
-PS C:\entretenimento\src\app\core\services\data-handling\firestore>
-*/
+}

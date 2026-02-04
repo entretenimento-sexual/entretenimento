@@ -1,4 +1,5 @@
-// src/app/store/effects/auth.effects.ts
+// src\app\store\effects\effects.user\auth.effects.ts
+// Não esqueça os comentários
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { LoginService } from 'src/app/core/services/autentication/login.service';

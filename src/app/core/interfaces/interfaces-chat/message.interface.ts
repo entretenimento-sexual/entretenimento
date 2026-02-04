@@ -1,4 +1,5 @@
 // src/app/core/interfaces/interfaces-chat/message.interface.ts
+// Não esqueça os comentários
 import { Timestamp } from 'firebase/firestore';
 
 export interface Message {

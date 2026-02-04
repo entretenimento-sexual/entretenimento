@@ -1,6 +1,6 @@
 //src\app\store\utils\user-store.serializer.ts
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { toEpoch } from '../utils/epoch-utils';
+import { toEpoch } from '../../core/utils/epoch-utils';
 
 export { toEpoch };
 

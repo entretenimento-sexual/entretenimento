@@ -12,9 +12,11 @@ import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { CacheService } from '../general/cache/cache.service';
-import { FirestoreUserQueryService } from './firestore-user-query.service';
 import { FirestoreReadService } from './firestore/core/firestore-read.service';
 import { UserPresenceQueryService } from './queries/user-presence.query.service';
+import { AppState } from 'src/app/store/states/app.state';
+import { Store } from '@ngrx/store';
+import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.user/user-profile.selectors';
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreQueryService {
@@ -22,9 +24,9 @@ export class FirestoreQueryService {
   private readonly db = inject(Firestore);
   // Dependências de “app layer” (cache, query state, reads, presence)
   private readonly cacheService = inject(CacheService);
-  private readonly firestoreUserQuery = inject(FirestoreUserQueryService);
   private readonly read = inject(FirestoreReadService);
   private readonly presenceQuery = inject(UserPresenceQueryService);
+  private readonly store = inject(Store<AppState>);
 
 
   /**
@@ -156,7 +158,13 @@ export class FirestoreQueryService {
    * Nome histórico, mas útil: pega do “state layer” de userQuery
    */
   getUserFromState(uid: string): Observable<IUserDados | null> {
-    return this.firestoreUserQuery.getUserWithObservable(uid);
+    const id = (uid ?? '').toString().trim();
+    if (!id) return of(null);
+
+    return this.store.select(selectUserProfileDataByUid(id)).pipe(
+      take(1),
+      catchError(() => of(null))
+    );
   }
 
   searchUsers(constraints: QueryConstraint[]): Observable<IUserDados[]> {
