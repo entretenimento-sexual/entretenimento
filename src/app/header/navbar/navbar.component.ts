@@ -1,6 +1,9 @@
 // src/app/header/navbar/navbar.component.ts
 // Buscar padronizar no que for possível em "uid"
 // Não esqueça os comentários explicativos.
+// TODO(STATE): Criar canShowLinksInteraction$ (fonte: AuthSession.ready$ + AuthSession.uid$ + URL atual).
+// - Objetivo: não renderizar <app-links-interaction> quando uid=null ou em rotas públicas.
+// - Padrão “plataforma grande”: o componente nem deve existir nessas rotas.
 
 import {
   Component,

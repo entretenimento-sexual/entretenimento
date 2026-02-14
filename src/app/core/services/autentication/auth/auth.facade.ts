@@ -1,4 +1,9 @@
 //src\app\core\services\autentication\auth\auth.facade.ts
+// Não esqueça os comentários explicativos sobre os métodos sobre o propósito desse serviço.
+// - Este serviço atua como uma fachada para as operações de autenticação, centralizando a lógica de registro, verificação de email e logout.
+// - Ele utiliza outros serviços especializados para realizar as operações, e expõe métodos que retornam Observables para facilitar a integração com componentes e outros serviços.
+// - O AuthFacade também gerencia um estado de carregamento para indicar quando uma operação de autenticação está em andamento, permitindo que os componentes exibam feedback visual adequado.
+// Visando sempre semelhança com outros componentes e boas práticas de Angular e as grandes plataformas.
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';

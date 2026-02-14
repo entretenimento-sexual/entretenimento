@@ -6,6 +6,7 @@
 // - Escrita: somente dono
 // - Leitura: exige login (alinhado ao seu /public_profiles)
 // - Evita LIST (padrão anti-scraping)
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
 // =========================================================================
 match /public_social_links/{userId} {
 

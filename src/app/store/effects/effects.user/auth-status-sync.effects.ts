@@ -114,32 +114,6 @@ export class AuthStatusSyncEffects {
   // ===========================================================================
 
   /**
-   * ✅ Ao sair (logoutSuccess): encerra watchers + reseta estado do chat.
-   * - Ordem importa:
-   *   1) watchChatsStopped(): manda o “sinal” pros streams encerrarem
-   *   2) resetChatState(): limpa store para evitar vazamento entre usuários
-   */
-  resetChatOnLogout$ = createEffect(() =>
-    this.actions$.pipe(
-      ofType(logoutSuccess),
-      concatMap(() => {
-        if (!environment.production) {
-          // eslint-disable-next-line no-console
-          console.log('[AUTH][SYNC_EFFECT] logoutSuccess -> stop chat watchers + reset chat state');
-        }
-        return of(
-          ChatActions.watchChatsStopped(),
-          ChatActions.resetChatState()
-        );
-      }),
-      catchError((err) => {
-        this.reportSilent(err, { phase: 'resetChatOnLogout$' });
-        return EMPTY;
-      })
-    )
-  );
-
-  /**
    * ✅ Sessão perdida/expirada (uid: algo -> null): encerra watchers + reseta chat.
    * - Garante limpeza mesmo quando não houve logout explícito.
    */
@@ -155,10 +129,7 @@ export class AuthStatusSyncEffects {
           // eslint-disable-next-line no-console
           console.log('[AUTH][SYNC_EFFECT] session ended (uid -> null) -> stop chat watchers + reset chat state');
         }
-        return of(
-          ChatActions.watchChatsStopped(),
-          ChatActions.resetChatState()
-        );
+        return of(ChatActions.watchChatsStopped());
       }),
       catchError((err) => {
         this.reportSilent(err, { phase: 'resetChatOnSessionLost$' });

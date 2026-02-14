@@ -10,7 +10,7 @@ import {
   loadOnlineUsersSuccess,
   setFilteredOnlineUsers,
   setCurrentUser,
-  clearCurrentUser,
+  clearCurrentUser, //clearCurrentUser está definido mas não usado
   addUserToState,
 } from '../../actions/actions.user/user.actions';
 import { sanitizeUserForStore } from 'src/app/store/utils/user-store.serializer';

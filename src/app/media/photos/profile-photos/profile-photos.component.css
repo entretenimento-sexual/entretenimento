@@ -1,0 +1,115 @@
+/* src/app/media/photos/profile-photos/profile-photos.component.css */
+/* MVP: layout limpo e responsivo. Ajuste depois com seu design system global. */
+
+.photos-page {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.photos-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.photos-title h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  opacity: 0.8;
+  font-size: 0.95rem;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.btn-secondary {
+  opacity: 0.9;
+}
+
+.empty-state {
+  border-radius: 14px;
+  padding: 18px;
+  opacity: 0.9;
+}
+
+.photos-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.photo-card {
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  border-radius: 14px;
+  overflow: hidden;
+  background: transparent;
+}
+
+.photo {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  display: block;
+}
+
+.blocked {
+  border-radius: 14px;
+  padding: 16px;
+  opacity: 0.9;
+}
+
+/* Responsivo */
+@media (max-width: 900px) {
+  .photos-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .photo {
+    height: 200px;
+  }
+}
+
+@media (max-width: 650px) {
+  .photos-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .photos-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .photo {
+    height: 180px;
+  }
+}
+
+@media (max-width: 380px) {
+  .photos-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .photo {
+    height: 210px;
+  }
+}

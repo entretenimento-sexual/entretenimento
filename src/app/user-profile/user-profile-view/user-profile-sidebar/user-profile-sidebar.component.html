@@ -1,46 +1,67 @@
 <!-- src/app/user-profile/user-profile-view/user-profile-sidebar/user-profile-sidebar.component.html -->
-<aside class="sidebar" [ngClass]="{'visible': isSidebarVisible}">
+@let usuario = (usuario$ | async);
+@let uid = (currentUid$ | async);
+@let isOwn = (isOwnProfile$ | async);
+
+<aside class="sidebar" [class.visible]="isSidebarVisible === SidebarState.OPEN" aria-label="Navegação do perfil">
+
   <header class="profile-header">
-    <img [src]="(usuario$ | async)?.photoURL || 'assets/imagem-padrao.webp'"
-      [alt]="(usuario$ | async)?.nickname || 'Foto do perfil'" class="profile-picture" loading="lazy"
-      referrerpolicy="no-referrer" />
+    <img [src]="usuario?.photoURL || 'assets/imagem-padrao.webp'" [alt]="usuario?.nickname || 'Foto do perfil'"
+      class="profile-picture" loading="lazy" referrerpolicy="no-referrer" />
   </header>
 
-  <p class="user-nickname"><strong>{{ (usuario$ | async)?.nickname || 'Meu perfil' }}</strong></p>
+  <p class="user-nickname">
+    <strong>{{ usuario?.nickname || 'Meu perfil' }}</strong>
+  </p>
 
   <nav class="profile-nav">
-    @if (!(isOwnProfile$ | async)) {
-    <a [routerLink]="['/perfil', uid]">
+    @if (uid) {
+
+    <!-- Se em algum momento você voltar a suportar “perfil de terceiros” aqui,
+           o link “Meu perfil” faz sentido quando NÃO for o próprio. -->
+    @if (!isOwn) {
+    <a [routerLink]="['/perfil', uid]" (click)="closeSidebar()">
       <i class="fas fa-user"></i>Meu perfil
     </a>
     }
 
-    <a [routerLink]="['/layout/perfis-proximos']">
+    <a [routerLink]="['/layout/perfis-proximos']" (click)="closeSidebar()">
       <i class="fas fa-map-marker-alt"></i>Perfis próximos
     </a>
 
-    <a [routerLink]="['/perfil', uid, 'fotos']">
+    <a [routerLink]="['/perfil', uid, 'fotos']" (click)="closeSidebar()">
       <i class="fas fa-images"></i>Minhas fotos
     </a>
 
-    <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']">
+    <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']" (click)="closeSidebar()">
       <i class="fas fa-cogs"></i>Minhas preferências
     </a>
 
-    <a [routerLink]="['/amigos']">
+    <a [routerLink]="['/amigos']" (click)="closeSidebar()">
       <i class="fas fa-users"></i>Meus amigos
     </a>
 
-    <a [routerLink]="['/favoritos']">
+    <a [routerLink]="['/favoritos']" (click)="closeSidebar()">
       <i class="fas fa-star"></i>Meus favoritos
     </a>
 
-    <a [routerLink]="['/chat', uid]">
+    <!-- Recomendo apontar para /chat (lista/layout) ao invés de /chat/:uid,
+           mas eu ajusto 100% quando você colar o routes-share.txt -->
+    <a [routerLink]="['/chat']" (click)="closeSidebar()">
       <i class="fas fa-comments"></i>Bate-papo
     </a>
 
-    <a (click)="createRoomIfSubscriber()" style="cursor: pointer;">
+    <!-- Ação como botão (melhor acessibilidade do que <a> com click) -->
+    <button mat-button type="button" (click)="createRoomIfSubscriber()">
       <i class="fas fa-door-open"></i>Criar sala
+    </button>
+
+    } @else {
+
+    <a [routerLink]="['/login']" (click)="closeSidebar()">
+      <i class="fas fa-sign-in-alt"></i>Entrar
     </a>
+
+    }
   </nav>
 </aside>

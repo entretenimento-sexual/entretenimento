@@ -1,4 +1,6 @@
 // src/app/core/services/autentication/user-management.service.ts
+// Serviço para gerenciamento de usuários (admin)
+// Não esquecer os comentários e ferramentas de debug para facilitar a manutenção futura
 import { Injectable } from '@angular/core';
 import { FirestoreService } from '../data-handling/legacy/firestore.service';
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
@@ -8,10 +10,12 @@ import { FirestoreUserQueryService } from '../data-handling/firestore-user-query
 import { Observable, of, throwError, from } from 'rxjs';
 import { concatMap, catchError, map } from 'rxjs/operators';
 import { IUserDados } from '../../interfaces/iuser-dados';
+import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
 
 @Injectable({ providedIn: 'root' })
 export class UserManagementService {
   constructor(
+    private readonly write: FirestoreWriteService,
     private firestoreService: FirestoreService,
     private firestoreQuery: FirestoreQueryService,
     private auth: Auth,
@@ -64,7 +68,9 @@ export class UserManagementService {
 
   /** Mantém consistência com o nome usado no registro (acceptedTerms). */
   confirmTermsOfService(uid: string): Observable<void> {
-    return this.firestoreService.updateDocument('users', uid, { acceptedTerms: true });
+    return this.write.updateDocument('users', uid, {
+      acceptedTerms: { accepted: true, date: Date.now() }
+    }, { context: 'UserManagementService.confirmTermsOfService' });
   }
 
   getAllUsers(): Observable<IUserDados[]> {

@@ -1,7 +1,9 @@
 // src/app/core/services/util-service/router-diagnostics.service.ts
-// Serviço para diagnóstico avançado do roteador Angular.
-// Fornece logging detalhado, monitoramento de taxa de eventos e tratamento centralizado de erros de navegação.
-// Não esquecer os comentários explicativos.
+// Diagnóstico avançado do Router:
+// - taxa de eventos (dev-only)
+// - log detalhado (dev-only)
+// - detecção real de loop de navegação (redirect/cancel repetitivo)
+// - roteamento centralizado de erros (GlobalErrorHandler) + notificação com throttle
 import { DestroyRef, Injectable, inject, isDevMode } from '@angular/core';
 import {
   Router,
@@ -16,7 +18,7 @@ import {
   ResolveEnd,
 } from '@angular/router';
 import { filter, map, pairwise, scan, share, startWith, tap, auditTime, catchError } from 'rxjs/operators';
-import { EMPTY } from 'rxjs';
+import { EMPTY, Subscription } from 'rxjs';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
@@ -24,15 +26,17 @@ import { ErrorNotificationService } from '@core/services/error-handler/error-not
 @Injectable({ providedIn: 'root' })
 export class RouterDiagnosticsService {
   private readonly destroyRef = inject(DestroyRef);
-
-  // Debug apenas em dev
   private readonly debug = isDevMode();
 
-  // Throttle simples p/ não spammar UX em loops de cancel/error
   private lastNotifyAt = 0;
-
-  // ✅ garante que start() rode apenas uma vez
   private started = false;
+
+  // =========================
+  // Loop detector state
+  // =========================
+  private redirectCancelWindow: number[] = []; // timestamps
+  private readonly LOOP_WINDOW_MS = 3000;      // janela curta
+  private readonly LOOP_THRESHOLD = 6;         // 6 cancels em 3s é forte sinal de loop
 
   constructor(
     private readonly router: Router,
@@ -40,24 +44,18 @@ export class RouterDiagnosticsService {
     private readonly notify: ErrorNotificationService
   ) { }
 
-  /**
-   * ✅ Inicialização explícita (idempotente).
-   * Chame isso no AppComponent (ou via APP_INITIALIZER) para garantir que o serviço esteja ativo.
-   */
   public start(): void {
     if (this.started) return;
     this.started = true;
     this.startInternal();
   }
 
-  /** Log “controlado” (não quebra build e evita ruído em produção) */
   private dbg(msg: string, extra?: unknown): void {
     if (!this.debug) return;
     // eslint-disable-next-line no-console
     console.log(`[RouterDiagnostics] ${msg}`, extra ?? '');
   }
 
-  /** Loop principal (streams do Router + tratamento centralizado de falhas). */
   private startInternal(): void {
     const relevant$ = this.router.events.pipe(
       filter(e =>
@@ -74,7 +72,7 @@ export class RouterDiagnosticsService {
       share()
     );
 
-    // 1) Taxa de eventos por segundo (somente debug)
+    // 1) Taxa de eventos por segundo (dev-only)
     if (this.debug) {
       const subRate = relevant$.pipe(
         map(() => 1),
@@ -93,7 +91,7 @@ export class RouterDiagnosticsService {
       this.destroyRef.onDestroy(() => subRate.unsubscribe());
     }
 
-    // 2) Log detalhado de eventos (somente debug)
+    // 2) Log detalhado (dev-only)
     if (this.debug) {
       const subLog = relevant$.pipe(
         tap((e: any) => {
@@ -109,7 +107,7 @@ export class RouterDiagnosticsService {
       this.destroyRef.onDestroy(() => subLog.unsubscribe());
     }
 
-    // 3) Tratamento de cancel/error (sempre ativo)
+    // 3) Detector de falhas/cancelamentos relevantes (sempre ativo)
     const subErrors = relevant$.pipe(
       filter(e => e instanceof NavigationCancel || e instanceof NavigationError),
       tap((e: any) => this.handleNavigationFailure(e))
@@ -119,50 +117,76 @@ export class RouterDiagnosticsService {
   }
 
   private handleNavigationFailure(e: NavigationCancel | NavigationError): void {
-    // NavigationCancel pode ser fluxo normal (redirect de guard)
     if (e instanceof NavigationCancel) {
       const reason = String((e as any).reason ?? '');
-      // eslint-disable-next-line no-console
-      console.log('[ROUTER][CANCEL]', {
-        id: e.id,
-        url: e.url,
-        reason: (e as any).reason,
-        code: (e as any).code,
-      });
+      const isRedirect = reason.includes('Redirecting to');
 
-      // Redirect é esperado — não notificar como erro
-      if (reason.includes('Redirecting to')) return;
+      // Redirect isolado é normal.
+      // O que importa é REDIRECT EM LOOP (muitos em janela curta).
+      if (isRedirect) {
+        this.bumpRedirectCancelLoopCounter();
+        return;
+      }
+
+      // Cancel “não redirect” pode ser sinal de problema (guard/resolve).
+      // Mantém log (dev) e reporta como silent para não spammar.
+      this.reportSilent('NavigationCancel (non-redirect)', e);
+      return;
     }
 
-    // NavigationError
+    // NavigationError sempre é relevante
     if (e instanceof NavigationError) {
-      // eslint-disable-next-line no-console
-      console.log('[ROUTER][ERROR]', { id: e.id, url: e.url, error: e.error });
-    }
-
-    // Centraliza no handler global
-    const err = (e as any)?.error ?? e;
-    try {
-      (this.geh as any)?.handleError?.(err, 'RouterDiagnostics');
-    } catch {
-      try {
-        this.geh.handleError(err instanceof Error ? err : new Error('RouterDiagnostics: navigation failure'));
-      } catch { /* noop */ }
-    }
-
-    // Notificação com throttle (UX)
-    const now = Date.now();
-    if (now - this.lastNotifyAt > 10_000) {
-      this.lastNotifyAt = now;
-      this.notify.showError('Falha de navegação detectada. Veja o console.');
+      this.reportNotSilent('NavigationError', e?.error ?? e);
+      this.notifyThrottled('Falha de navegação detectada. Veja o console.');
+      return;
     }
   }
-} // Linha 160
-/*
-C:.
-    auth-debug.service.ts
-    router-diagnostics.service.ts
-    TokenService.ts
 
-Não existem subpastas
-*/
+  /**
+   * Detector real de loop:
+   * - Conta NavigationCancel por redirect em uma janela curta.
+   * - Se ultrapassar limiar, reporta e notifica 1x.
+   */
+  private bumpRedirectCancelLoopCounter(): void {
+    const now = Date.now();
+    this.redirectCancelWindow.push(now);
+
+    // Mantém somente eventos dentro da janela
+    this.redirectCancelWindow = this.redirectCancelWindow.filter(t => (now - t) <= this.LOOP_WINDOW_MS);
+
+    if (this.redirectCancelWindow.length >= this.LOOP_THRESHOLD) {
+      const err = new Error(
+        `Possível loop de redirect: ${this.redirectCancelWindow.length} cancels em ${this.LOOP_WINDOW_MS}ms`
+      );
+      (err as any).context = { threshold: this.LOOP_THRESHOLD, windowMs: this.LOOP_WINDOW_MS };
+
+      // Isso NÃO é "contorno": é detecção objetiva de bug.
+      this.reportNotSilent('RedirectLoopSuspected', err);
+      this.notifyThrottled('Loop de navegação suspeito detectado. Verifique guards/redirects.');
+
+      // Zera para não notificar em avalanche
+      this.redirectCancelWindow = [];
+    }
+  }
+
+  private reportSilent(context: string, err: unknown): void {
+    const e = err instanceof Error ? err : new Error(String(err));
+    (e as any).silent = true;
+    (e as any).context = context;
+    try { this.geh.handleError(e); } catch { }
+  }
+
+  private reportNotSilent(context: string, err: unknown): void {
+    const e = err instanceof Error ? err : new Error(String(err));
+    (e as any).silent = false;
+    (e as any).context = context;
+    try { this.geh.handleError(e); } catch { }
+  }
+
+  private notifyThrottled(msg: string): void {
+    const now = Date.now();
+    if (now - this.lastNotifyAt < 10_000) return;
+    this.lastNotifyAt = now;
+    this.notify.showError(msg);
+  }
+}

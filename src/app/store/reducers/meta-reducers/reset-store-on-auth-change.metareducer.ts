@@ -1,5 +1,5 @@
 // src/app/store/reducers/meta-reducers/reset-store-on-auth-change.metareducer.ts
-// Não esqueça os comentários
+// Não esqueça os comentários e ferramentas de debug
 import { type ActionReducer, type MetaReducer } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { STORE_FEATURE } from '../feature-keys';
@@ -52,12 +52,13 @@ export const resetStoreOnAuthChangeMetaReducer: MetaReducer<AppState> =
     return (state, action) => {
       const nextState = reducer(state, action);
 
-      if (action.type === logout.type || action.type === logoutSuccess.type) {
+      if (action.type === logoutSuccess.type) {
         return resetUserScopedSlices(nextState);
       }
-
+      // Verifica mudança de UID na authSessionChanged
+      // lebrar sempre da padronização em uid para usuários, o identificador canônico.
       if (action.type === authSessionChanged.type) {
-        const prevUid = (state as any)?.[STORE_FEATURE.auth]?.uid ?? null;
+        const prevUid = (state as any)?.[STORE_FEATURE.auth]?.userId ?? null; // ✅ era .uid
         const nextUid = (action as any)?.uid ?? null;
 
         if (prevUid !== nextUid) {

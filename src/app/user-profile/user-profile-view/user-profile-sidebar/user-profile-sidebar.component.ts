@@ -1,19 +1,18 @@
 // src/app/user-profile/user-profile-view/user-profile-sidebar/user-profile-sidebar.component.ts
-import { Component, DestroyRef, OnInit, OnDestroy, inject } from '@angular/core';
+// Não esqueça os comentários explicativos e ferramentas de debug.
+import { Component, DestroyRef, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule, ActivatedRoute } from '@angular/router';
+import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 
-import { BehaviorSubject, Observable, combineLatest, of } from 'rxjs';
-import { distinctUntilChanged, map, switchMap, take, tap } from 'rxjs/operators';
+import { Observable, of, EMPTY, combineLatest } from 'rxjs';
+import { distinctUntilChanged, map, switchMap, take, tap, catchError } from 'rxjs/operators';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
-
-// 🔄 Nova base (substitui o antigo Service de auth)
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 
@@ -28,87 +27,106 @@ enum SidebarState { CLOSED, OPEN }
   styleUrls: ['./user-profile-sidebar.component.css'],
   imports: [CommonModule, RouterModule, MatButtonModule],
 })
-export class UserProfileSidebarComponent implements OnInit, OnDestroy {
+export class UserProfileSidebarComponent implements OnInit {
   // ===== Injeções
   private readonly destroyRef = inject(DestroyRef);
-  private readonly route = inject(ActivatedRoute);
   private readonly currentUserStore = inject(CurrentUserStoreService);
-  private readonly session = inject(AuthSessionService);
+  private readonly session = inject(AuthSessionService); // Mantido: útil p/ debug e evolução do gate
   private readonly firestoreUserQuery = inject(FirestoreUserQueryService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly roomManagement = inject(RoomManagementService);
   private readonly dialog = inject(MatDialog);
 
-  // ===== UI state
-  public isSidebarVisible = SidebarState.CLOSED;
+  // ===== Debug (simples e controlado)
+  // Dica: se você já tem um "DebugService", dá pra centralizar isso depois.
+  private readonly DEBUG = true;
+  private debug(msg: string, data?: unknown): void {
+    if (!this.DEBUG) return;
+    // eslint-disable-next-line no-console
+    console.debug(`[UserProfileSidebar] ${msg}`, data ?? '');
+  }
 
-  // ===== Streams base
+  // ===== UI state
+  public readonly SidebarState = SidebarState;
+  public isSidebarVisible: SidebarState = SidebarState.CLOSED;
+
   /** UID do usuário logado */
   readonly currentUid$ = this.currentUserStore.user$.pipe(
     map(u => u?.uid ?? null),
-    distinctUntilChanged()
+    distinctUntilChanged(),
+    tap(uid => this.debug('currentUid$', uid))
   );
 
   /** Dados do usuário logado (para foto/nickname da lateral) */
   readonly usuario$: Observable<IUserDados | null> = this.currentUid$.pipe(
-    switchMap(uid => (uid ? this.firestoreUserQuery.getUser(uid) : of(null)))
+    switchMap(uid => (uid ? this.firestoreUserQuery.getUser(uid) : of(null))),
+    tap(user => this.debug('usuario$', { hasUser: !!user, uid: user?.uid }))
   );
 
-  /** UID do perfil em visualização (= param 'id' da rota) */
-  readonly viewedUid$ = this.route.paramMap.pipe(
-    map(p => p.get('id')),
-    distinctUntilChanged()
-  );
+  /**
+   * UID do perfil em visualização:
+   * - Você pode trocar isso para ActivatedRoute paramMap quando quiser voltar ao modo “perfil de terceiros”.
+   * - Por enquanto, este sidebar fica com comportamento “meu perfil” mais estável.
+   */
+  readonly viewedUid$ = this.currentUid$.pipe(distinctUntilChanged());
 
-  /** Está no próprio perfil? (para esconder o link “Meu perfil”) */
+  /** Está no próprio perfil? (baseado em UID logado vs UID em visualização) */
   readonly isOwnProfile$ = combineLatest([this.currentUid$, this.viewedUid$]).pipe(
     map(([cur, viewed]) => !!cur && !!viewed && cur === viewed),
-    distinctUntilChanged()
+    distinctUntilChanged(),
+    tap(isOwn => this.debug('isOwnProfile$', isOwn))
   );
 
-  /** UID atual em memória (para bindings não assíncronos de routerLink) */
-  private _uidSnapshot$ = new BehaviorSubject<string | null>(null);
-  get uid(): string | null { return this._uidSnapshot$.value; }
-
   ngOnInit(): void {
-    // espelha o UID atual para facilitar links no template
-    this.currentUid$.pipe(take(1)).subscribe(uid => this._uidSnapshot$.next(uid));
+    // Apenas para marcar o ciclo do componente no console.
+    this.debug('init');
   }
 
-  ngOnDestroy(): void {
-    // Nada a limpar manualmente — usamos pipes finitos / async no template.
+  /** Alterna sidebar (útil p/ mobile). */
+  toggleSidebar(): void {
+    this.isSidebarVisible =
+      this.isSidebarVisible === SidebarState.OPEN ? SidebarState.CLOSED : SidebarState.OPEN;
+  }
+
+  /** Fecha sidebar (útil após clique em links no mobile). */
+  closeSidebar(): void {
+    this.isSidebarVisible = SidebarState.CLOSED;
   }
 
   /** Cria sala caso assinante; caso não seja, abre diálogo de upsell */
   createRoomIfSubscriber(): void {
-    this.currentUserStore.user$.pipe(take(1)).subscribe(user => {
-      const isSubscriber =
-        !!user?.isSubscriber || ['premium', 'vip'].includes((user as any)?.role ?? '');
+    this.currentUserStore.user$.pipe(
+      take(1),
+      switchMap(user => {
+        if (!user?.uid) {
+          this.errorNotifier.showError('Faça login para criar uma sala.');
+          return EMPTY;
+        }
 
-      if (!user?.uid) {
-        this.errorNotifier.showError('Faça login para criar uma sala.');
-        return;
-      }
-      if (!isSubscriber) {
-        this.openDialog();
-        return;
-      }
+        const isSubscriber =
+          !!user.isSubscriber || ['premium', 'vip'].includes((user as any)?.role ?? '');
 
-      const roomDetails = {
-        roomName: 'Minha nova sala',
-        description: 'Bem-vindo(a)!',
-        isPrivate: true,
-      };
+        if (!isSubscriber) {
+          this.openDialog();
+          return EMPTY;
+        }
 
-      this.roomManagement.createRoom(roomDetails, user.uid).subscribe({
-        next: () => {
-          // (Opcional) navegar/confirmar
-          // this.router.navigate(['/chat', roomId]);
-          this.errorNotifier.showSuccess('Sala criada com sucesso!');
-        },
-        error: (err) => this.errorNotifier.showError(err),
-      });
-    });
+        const roomDetails = {
+          roomName: 'Minha nova sala',
+          description: 'Bem-vindo(a)!',
+          isPrivate: true,
+        };
+
+        // Mantém o fluxo reativo + tratamento centralizado via ErrorNotificationService.
+        return this.roomManagement.createRoom(roomDetails, user.uid).pipe(
+          tap(() => this.errorNotifier.showSuccess('Sala criada com sucesso!')),
+          catchError((err) => {
+            this.errorNotifier.showError(err);
+            return EMPTY;
+          })
+        );
+      })
+    ).subscribe();
   }
 
   /** Upsell: convite à assinatura */
@@ -117,7 +135,6 @@ export class UserProfileSidebarComponent implements OnInit, OnDestroy {
       data: {
         title: 'Assinatura necessária',
         message: 'Assine para criar salas exclusivas e desbloquear recursos premium.',
-        // (Opcional) botões extras podem ser tratados dentro do dialog.
       },
     });
   }

@@ -2,10 +2,10 @@
 // Serviço global de tratamento de erros
 // Intercepta erros, formata mensagens para o usuário e loga detalhes para o desenvolvedor
 // Não esquecer os comentários
-
 import { ErrorHandler, Injectable, Injector } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ErrorNotificationService } from './error-notification.service';
+import { environment } from 'src/environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class GlobalErrorHandlerService implements ErrorHandler {
@@ -40,6 +40,14 @@ export class GlobalErrorHandlerService implements ErrorHandler {
 
     // 4) Opcional: monitoramento externo
     this.sendToExternalLoggingService(error);
+
+    if (!environment.production && environment.enableDebugTools) {
+      const original = (error as any)?.original;
+      const meta = (error as any)?.meta;
+
+      if (original) console.error('[GlobalErrorHandler] original error →', original);
+      if (meta) console.warn('[GlobalErrorHandler] meta →', meta);
+    }
   }
 
   /**

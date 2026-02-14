@@ -1,5 +1,7 @@
+    //firestore-rules\chats.rules
     // =========================================================================
     // CHATS
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
     // =========================================================================
     match /chats/{chatId} {
       function isChatParticipant() {
@@ -13,7 +15,8 @@
         && request.resource.data.participants is list
         && request.resource.data.participants.size() >= 2
         && isTs(request.resource.data.timestamp)
-        && (!('participantsKey' in request.resource.data) || isStr(request.resource.data.participantsKey));
+        && (!request.resource.data.keys().hasAny(["participantsKey"]) || isStr(request.resource.data.participantsKey));
+
 
       allow update: if isChatParticipant()
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
@@ -37,7 +40,7 @@
       }
 
       function messageHasTime() {
-        return (("timestamp" in request.resource.data) && isTs(request.resource.data.timestamp))
+        return ((request.resource.data.keys().hasAny(["timestamp"])) && isTs(request.resource.data.timestamp))
           || (("createdAt" in request.resource.data) && isTs(request.resource.data.createdAt));
       }
 

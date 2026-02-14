@@ -1,9 +1,10 @@
 // src/app/core/services/data-handling/firestore/core/firestore-write.service.ts
-
+// Serviço centralizado para escrita no Firestore, com tratamento de erros e contexto
+// Não esquecer os comentários e ferramentas de debug para facilitar a manutenção futura
+//  Observação: Este serviço é focado apenas em operações de escrita (add, set, update, delete, increment) e deve ser usado por outros serviços/repositórios para garantir consistência e tratamento de erros centralizado. Para leitura, use o FirestoreReadService.
 import { Injectable } from '@angular/core';
 import { Observable, defer, from } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
-
 import {
   Firestore,
   collection,
@@ -109,7 +110,20 @@ export class FirestoreWriteService {
       if (!col) throw new Error('collectionName inválido.');
       if (!id) throw new Error('docId inválido.');
 
-      return defer(() => from(setDoc(doc(this.db, col, id), data, { merge }))).pipe(
+      return defer(() => {
+        // ✅ aqui é o melhor lugar: roda só quando for escrever de fato
+        if (
+          environment.enableDebugTools &&
+          !environment.production &&
+          col === 'users' &&
+          merge === true
+        ) {
+          console.warn('[WRITE users merge:true]', { docId: id, context });
+          console.trace();
+        }
+
+        return from(setDoc(doc(this.db, col, id), data, { merge }));
+      }).pipe(
         map(() => void 0),
         catchError((err) => this.firestoreError.handleFirestoreError(err, { context, silent }))
       );

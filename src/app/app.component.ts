@@ -11,6 +11,7 @@ import { AuthDebugService } from './core/services/util-service/auth-debug.servic
 import { environment } from 'src/environments/environment';
 import { PresenceOrchestratorService } from './core/services/presence/presence-orchestrator.service';
 import { RouterDiagnosticsService } from './core/services/util-service/router-diagnostics.service';
+import { getApps } from 'firebase/app';
 
 @Component({
   selector: 'app-root',
@@ -31,7 +32,7 @@ export class AppComponent implements OnInit {
     private orchestrator: AuthOrchestratorService,
     private presenceOrchestrator: PresenceOrchestratorService,
     private authDebug: AuthDebugService,
-    private readonly _routerDiag: RouterDiagnosticsService, 
+    private readonly _routerDiag: RouterDiagnosticsService,
   ) { }
 
   ngOnInit(): void {
@@ -40,6 +41,11 @@ export class AppComponent implements OnInit {
 
     if (!environment.production) {
       this.authDebug.start();
+    }
+
+    if (!environment.production) {
+      const apps = getApps();
+      console.log('[FIREBASE] apps count =', apps.length, apps.map(a => a.name));
     }
 
     // ✅ inicia watchers de sessão/doc
@@ -63,4 +69,4 @@ export class AppComponent implements OnInit {
         }
       });
   }
-} // Linha 65
+} // Linha 72

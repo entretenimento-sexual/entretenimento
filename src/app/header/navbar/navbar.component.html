@@ -105,6 +105,10 @@
       </ul>
     </div>
   </nav>
+<!-- TODO(UX/ARCH): Separar header público x privado.
+  // - LinksInteraction NÃO deve ser instanciado em /login e /register (layout público).
+  // - Preferir *ngIf no template do header ou layouts separados (PublicLayout/PrivateLayout).
+  // - Mesmo ocultando, manter gating interno no LinksInteraction (defesa em profundidade). -->
 
   <app-links-interaction id="app-sidebar"></app-links-interaction>
 </div>

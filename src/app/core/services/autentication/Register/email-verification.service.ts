@@ -13,11 +13,7 @@ import {
   ActionCodeSettings
 } from 'firebase/auth';
 
-import {
-  Firestore,
-  doc, setDoc, updateDoc, Timestamp,
-  collection, getDocs, query, where
-} from '@angular/fire/firestore';
+import { Firestore, } from '@angular/fire/firestore';
 
 import { from, of, throwError, Observable } from 'rxjs';
 import { catchError, map, switchMap, tap, timeout } from 'rxjs/operators';

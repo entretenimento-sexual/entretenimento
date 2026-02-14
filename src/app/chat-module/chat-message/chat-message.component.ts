@@ -1,4 +1,8 @@
 // src\app\chat-module\chat-message\chat-message.component.ts
+// Não esqueça os comentários explicativos .
+//  - Este componente é responsável por exibir uma única mensagem de chat, incluindo o nome do remetente, o conteúdo da mensagem e o status (enviada, entregue, lida).
+//  - Ele também permite que o usuário exclua a mensagem, se for o remetente.
+//  - O componente utiliza serviços para obter informações do usuário e gerenciar mensagens de chat, e implementa boas práticas de gerenciamento de subscrições para evitar vazamentos de memória.
 import { Component, OnInit, OnDestroy, input } from '@angular/core';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { AuthService } from 'src/app/core/services/autentication/auth.service';
@@ -98,3 +102,34 @@ export class ChatMessageComponent implements OnInit, OnDestroy {
     }
   }
 }
+/*
+auth.service.ts está sendo descuntinuado.
+C:.
+│   auth.service.ts
+│   email-input-modal.service.ts
+│   login.service.spec.ts
+│   login.service.ts
+│   social-auth.service.spec.ts
+│   social-auth.service.ts
+│
+├───auth
+│       access-control.service.ts
+│       auth-app-block.service.ts
+│       auth-orchestrator.service.ts
+│       auth-return-url.service.ts
+│       auth-session.service.ts
+│       auth.facade.ts
+│       auth.types.ts
+│       current-user-store.service.ts
+│       logout.service.ts
+│
+└───register
+        email-verification.service.md
+        email-verification.service.ts
+        pre-register.service.ts
+        register.service.spec.ts
+        register.service.ts
+        registerServiceREADME.md
+
+PS C:\entretenimento\src\app\core\services\autentication>
+*/

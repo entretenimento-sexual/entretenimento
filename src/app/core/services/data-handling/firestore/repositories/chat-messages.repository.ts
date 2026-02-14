@@ -1,6 +1,5 @@
 // src/app/core/services/data-handling/firestore/repositories/chat-messages.repository.ts
 // Não esqueça os comentários
-
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { from, Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';

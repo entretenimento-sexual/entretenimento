@@ -1,4 +1,5 @@
 // src/app/core/services/batepapo/room-services/room.service.ts
+// Não esqueça os comentários e ferramentas de debug
 import { Injectable } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
 import { collection, query, where, onSnapshot, getDocs, doc } from 'firebase/firestore';

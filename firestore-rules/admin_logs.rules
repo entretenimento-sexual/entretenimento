@@ -1,0 +1,27 @@
+// firestore-rules/admin_logs.rules
+// =========================================================================
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
+// ADMIN LOGS (auditoria / staff)
+// - Somente staff (admin/moderator) pode criar
+// - Leitura: restrita (get) para staff
+// - Sem list (anti-enumeração)
+// - Sem update/delete (log imutável)
+// - timestamp obrigatório via serverTimestamp() => request.time
+// =========================================================================
+match /admin_logs/{logId} {
+  function isAdminActor() { return isAdmin(); }
+
+  allow get: if isAdminActor();
+  allow list: if isAdminActor();
+
+  allow create: if isAdminActor()
+    && request.resource.data.keys().hasOnly([
+      "adminUid","action","targetUserUid","details","timestamp"
+    ])
+    && request.resource.data.adminUid == uid()
+    && request.resource.data.action is string
+    && request.resource.data.targetUserUid is string
+    && request.resource.data.timestamp == request.time; // força server time
+
+  allow update, delete: if false;
+}

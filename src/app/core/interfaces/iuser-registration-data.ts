@@ -1,9 +1,14 @@
 // src/app/core/interfaces/iuser-registration-data.ts
+import { IUserDados } from "./iuser-dados";
+
 export interface IUserRegistrationData {
   uid?: string;                 // preenchido depois do registro, se precisar
   email: string;
   nickname: string;
   photoURL?: string;
+
+  // ✅ role inicial (opcional, mas permite o RegisterService definir no persist)
+  role?: IUserDados['role']; // 'visitante' | 'free' | 'basic' | 'premium' | 'vip'
 
   emailVerified: boolean;
   isSubscriber: boolean;
@@ -28,3 +33,4 @@ export interface IUserRegistrationData {
 
   profileCompleted?: boolean;
 }
+// lembrar sempre da padronização em uid para usuários, o identificador canônico.

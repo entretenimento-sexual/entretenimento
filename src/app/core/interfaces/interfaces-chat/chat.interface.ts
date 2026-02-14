@@ -13,3 +13,4 @@ export interface IChat {
   isRoom?: false;               // ajuda em type-narrowing (discriminador opcional)
   roomName?: never;             // evita engano em IChat
 }
+// lembrar sempre da padronização em uid para usuários, o identificador canônico.

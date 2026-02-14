@@ -1,4 +1,5 @@
 // src\app\user-profile\user-profile-view\user-profile-preferences\user-profile-preferences.component.ts
+// Não esqueça os comentários explicativos e ferramentas de debug.
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit, input } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';

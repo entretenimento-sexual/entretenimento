@@ -1,9 +1,9 @@
-// Efeitos relacionados a usuários, como carregar dados de usuários e observar mudanças em tempo real.
 // src/app/store/effects/effects.user/user.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import {
   observeUserChanges,
+  stopObserveUserChanges, // ✅ novo
   loadUsers,
   loadUsersSuccess,
   loadUsersFailure
@@ -11,11 +11,12 @@ import {
 
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { sanitizeUserForStore, sanitizeUsersForStore } from 'src/app/store/utils/user-store.serializer';
 
-import { EMPTY, of } from 'rxjs';
+import { EMPTY, of, merge } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -23,7 +24,8 @@ import {
   map,
   switchMap,
   tap,
-  finalize
+  finalize,
+  takeUntil
 } from 'rxjs/operators';
 
 import { environment } from 'src/environments/environment';
@@ -41,16 +43,19 @@ export class UserEffects {
   constructor(
     private readonly actions$: Actions,
     private readonly firestoreQuery: FirestoreQueryService,
-    private readonly firestoreUserQuery: FirestoreUserQueryService
+    private readonly firestoreUserQuery: FirestoreUserQueryService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService, // ✅ centraliza erro
   ) { }
 
   /**
    * ✅ Observa mudanças do usuário no Firestore (realtime) e projeta para o Store.
-   * - NÃO assina Store aqui (evita loop).
    * - switchMap cancela o listener anterior se outro uid chegar.
+   * - takeUntil(stopObserveUserChanges) garante cancelamento explícito no logout.
    */
-  observeUserChanges$ = createEffect(() =>
-    this.actions$.pipe(
+  observeUserChanges$ = createEffect(() => {
+    const stop$ = this.actions$.pipe(ofType(stopObserveUserChanges));
+
+    return this.actions$.pipe(
       ofType(observeUserChanges),
       map(({ uid }) => (uid ?? '').trim()),
       filter(Boolean),
@@ -60,7 +65,9 @@ export class UserEffects {
 
       switchMap((uid) =>
         this.firestoreUserQuery.getUser(uid).pipe(
-          // ✅ evita dispatch repetido se o repo emitir o mesmo objeto / mesmos dados
+          takeUntil(stop$), // ✅ STOP mata o listener
+
+          // evita dispatch repetido se repo emitir o mesmo payload
           distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
 
           tap(user => this.dbg('user snapshot', { uid, hasUser: !!user })),
@@ -73,6 +80,14 @@ export class UserEffects {
           }),
 
           catchError((error) => {
+            // ✅ roteia pro handler global (silent para não “duplicar” UI)
+            const e = error instanceof Error ? error : new Error('UserEffects.observeUserChanges$ error');
+            (e as any).silent = true;
+            (e as any).context = 'observeUserChanges$';
+            (e as any).uid = uid;
+            (e as any).original = error;
+            this.globalErrorHandler.handleError(e);
+
             this.dbg('observeUserChanges -> error', { uid, error });
             return of(loadUsersFailure({ error: { message: error?.message || 'Erro desconhecido.' } }));
           }),
@@ -80,8 +95,8 @@ export class UserEffects {
           finalize(() => this.dbg('observeUserChanges -> finalize', { uid }))
         )
       )
-    )
-  );
+    );
+  });
 
   loadUsers$ = createEffect(() =>
     this.actions$.pipe(
@@ -96,4 +111,5 @@ export class UserEffects {
       )
     )
   );
-} // Linha 99
+} // Linha 114
+

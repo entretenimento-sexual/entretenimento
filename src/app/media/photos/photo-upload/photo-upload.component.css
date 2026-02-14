@@ -1,0 +1,107 @@
+/* src/app/media/photos/photo-upload/photo-upload.component.css */
+
+.upload-page {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.upload-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  opacity: 0.8;
+}
+
+.card {
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.file-label {
+  display: inline-block;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+input[type="file"] {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.preview {
+  border-radius: 14px;
+  overflow: hidden;
+  margin: 10px 0 12px;
+}
+
+.preview img {
+  width: 100%;
+  height: auto;
+  max-height: 420px;
+  object-fit: contain;
+  display: block;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.btn {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.progress {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.bar {
+  height: 100%;
+  width: 0%;
+}
+
+.pct {
+  display: inline-block;
+  margin-top: 8px;
+  opacity: 0.8;
+}
+
+.blocked {
+  border-radius: 14px;
+  padding: 16px;
+  opacity: 0.9;
+}
+
+.hint,
+.done {
+  opacity: 0.85;
+  margin: 10px 0 0;
+}
+
+@media (max-width: 650px) {
+  .upload-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

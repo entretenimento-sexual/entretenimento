@@ -1,0 +1,53 @@
+// firestore-rules/preferences.rules
+// =========================================================================
+// PREFERENCES
+// - Preferências do usuário (privado)
+// - Regra segura: só o dono lê/escreve
+// - Usa helpers já definidos em _helpers.rules: signedIn(), uid(), isSelf()
+// =========================================================================
+
+match /preferences/{userId} {
+  allow get: if isSelf(userId);
+  allow list: if false;              // evita enumeração
+
+  allow create, update: if isSelf(userId);
+  allow delete: if false;
+}
+
+match /users/{userId}/preferences/{docId} {
+  allow get, list: if isSelf(userId); // aqui list faz sentido (vários docs do dono)
+  allow create, update: if isSelf(userId);
+  allow delete: if false;
+}
+
+// não esquecer de ajustar o build-firestore-rules.mjs para incluir este arquivo
+// não esquecer de testar as regras com o emulador ou no console do Firebase
+// não esquecer de documentar as preferências usadas no app (ex: README ou wiki)
+// não esquecer de tratar erros de permissão no app (ex: exibir mensagem amigável)
+// não esquecer de validar os dados no app antes de gravar no Firestore
+// não esquecer de considerar criptografia se houver dados sensíveis nas preferências
+// não esquecer de revisar as regras periodicamente conforme o app evolui
+// não esquecer de monitorar acessos negados no Firebase Console (logs de segurança)
+// não esquecer de ajustar índices compostos se usar consultas complexas nas preferências
+// não esquecer de otimizar o tamanho dos documentos de preferências para evitar custos excessivos
+// não esquecer de considerar limites de taxa do Firestore se o app tiver muitos usuários
+// não esquecer de usar cache local no app para melhorar performance ao ler preferências
+// não esquecer de tratar migrações de preferências se o esquema mudar no futuro
+// não esquecer de comunicar aos usuários sobre como suas preferências são armazenadas e usadas
+// não esquecer de seguir as melhores práticas de segurança do Firebase Firestore
+// não esquecer de testar com diferentes níveis de autenticação (usuário, admin, etc.
+// não esquecer de usar o Firebase Emulator Suite para testes locais
+// não esquecer de revisar as regras com a equipe de segurança se aplicável
+// não esquecer de versionar as regras se o Firebase suportar no futuro
+// não esquecer de documentar qualquer dependência entre preferências e outras partes do app
+// não esquecer de considerar o uso de funções do Firebase para lógica complexa relacionada a preferências
+// não esquecer de validar o tamanho máximo dos documentos de preferências
+// não esquecer de considerar a privacidade dos dados conforme leis aplicáveis (ex: GDPR, LGPD)
+// não esquecer de definir quais campos são obrigatórios ou opcionais nas preferências
+// não esquecer de fefinir padrões para preferências não definidas pelos usuários
+// não esquecer de considerar a internacionalização se o app for multilíngue
+// não esquecer de revisar o uso de preferências no app para evitar acessos desnecessários
+// não esquecer de definir o que pode ser acessado anonimamente, se aplicável
+// não esquecer o que deve ser diponibilizado apenas para usuários autenticados
+// não esquecer de considerar o uso de claims personalizados se houver níveis diferentes de acesso
+// não esquecer de definir as preferencias do usuário que só podem ser acessadas por ele mesmo ou administradores

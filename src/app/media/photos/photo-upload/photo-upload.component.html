@@ -1,0 +1,61 @@
+<!-- src/app/media/photos/photo-upload/photo-upload.component.html -->
+@let ownerUid = (ownerUid$ | async);
+@let canUpload = (canUpload$ | async);
+@let policy = (policyResult$ | async);
+@let preview = (previewUrl$ | async);
+@let phase = (phase$ | async);
+@let progress = (progress$ | async);
+
+<section class="upload-page" aria-label="Envio de foto do perfil">
+  <header class="upload-header">
+    <div>
+      <h2>Adicionar foto</h2>
+      <p class="subtitle">MVP: envio simulado (sem Firestore/Storage ainda).</p>
+    </div>
+
+    <button type="button" class="btn" (click)="backToPhotos(ownerUid || '')" aria-label="Voltar para minhas fotos">
+      Voltar
+    </button>
+  </header>
+
+  @if (!canUpload) {
+  <div class="blocked" role="status" aria-live="polite">
+    <strong>Acesso negado.</strong>
+    <p class="subtitle">
+      @if (policy?.reason === 'NOT_AUTHENTICATED') { Faça login para enviar fotos. }
+      @else if (policy?.reason === 'NOT_OWNER') { Você só pode enviar fotos do seu próprio perfil. }
+      @else { Ação bloqueada por política. }
+    </p>
+  </div>
+  } @else {
+  <div class="card">
+    <label class="file-label" for="fileInput">Selecionar imagem</label>
+    <input id="fileInput" type="file" accept="image/*" (change)="onFileSelected($event)" />
+
+    @if (preview) {
+    <div class="preview" aria-label="Pré-visualização da imagem selecionada">
+      <img [src]="preview" alt="Pré-visualização da foto" />
+    </div>
+    } @else {
+    <p class="hint">Nenhum arquivo selecionado.</p>
+    }
+
+    <div class="actions">
+      <button type="button" class="btn" (click)="startUpload()" [disabled]="phase !== 'READY'">
+        Enviar (simulado)
+      </button>
+    </div>
+
+    @if (phase === 'UPLOADING') {
+    <div class="progress" role="status" aria-live="polite">
+      <div class="bar" [style.width.%]="progress"></div>
+      <span class="pct">{{ progress }}%</span>
+    </div>
+    }
+
+    @if (phase === 'DONE') {
+    <p class="done" role="status" aria-live="polite">Concluído. (simulado)</p>
+    }
+  </div>
+  }
+</section>

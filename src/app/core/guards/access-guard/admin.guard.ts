@@ -1,30 +1,55 @@
-// src/app/core/guards/admin.guard.ts
-// Não esqueça os comentáros explicativos sobre o propósito desse guard.
+// src/app/core/guards/access-guard/admin.guard.ts
+// Guard de acesso: permite rota apenas para usuários com claim de admin.
+//
+// PONTOS IMPORTANTES:
+// 1) NÃO usar getIdTokenResult(true) aqui.
+//    - "true" força refresh do token e pode gerar loop (securetoken + onIdTokenChanged).
+// 2) take(1) garante que o guard conclui rapidamente (não fica "vivo").
+// 3) Falha segura: se der erro, retorna false e redireciona.
 import { inject } from '@angular/core';
-import { CanMatchFn, CanActivateChildFn, Router, UrlTree } from '@angular/router';
+import { CanActivateChildFn, CanMatchFn, Router } from '@angular/router';
 import { Auth, user } from '@angular/fire/auth';
-import { from, map, catchError, of, switchMap } from 'rxjs';
+import { from, of } from 'rxjs';
+import { catchError, map, switchMap, take } from 'rxjs/operators';
+import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+
+// Type do Firebase SDK (tem .claims)
+import type { IdTokenResult, User as FirebaseUser } from 'firebase/auth';
 
 function isAdmin$() {
   const auth = inject(Auth);
-  const router = inject(Router); // está esmaecido
+  const geh = inject(GlobalErrorHandlerService);
 
-  // Observa usuário logado; força refresh do token para pegar claims atualizadas
   return user(auth).pipe(
-    switchMap(u => u ? from(u.getIdTokenResult(true)) : of(null)),
-    map(res => {
-      const claims: any = res?.claims || {};
-      const ok = !!claims.admin
+    take(1), // ✅ o guard precisa ser "one-shot"
+    switchMap((u: FirebaseUser | null) => {
+      if (!u) return of<IdTokenResult | null>(null);
+
+      // ✅ sem force refresh
+      return from(u.getIdTokenResult()).pipe(
+        catchError((e) => {
+          try { geh.handleError(e); } catch { }
+          return of<IdTokenResult | null>(null);
+        })
+      );
+    }),
+    map((res) => {
+      const claims = (res?.claims ?? {}) as any;
+
+      return !!claims.admin
         || claims.role === 'admin'
         || (Array.isArray(claims.roles) && claims.roles.includes('admin'));
-      return ok;
     }),
-    catchError(() => of(false))
+    catchError((e) => {
+      // Guard não deve quebrar a navegação; registra e falha seguro
+      try { geh.handleError(e); } catch { }
+      return of(false);
+    })
   );
 }
 
 export const adminCanMatch: CanMatchFn = () =>
-  isAdmin$().pipe(map(ok => ok ? true : inject(Router).createUrlTree(['/dashboard'])));
+  isAdmin$().pipe(map((ok) => ok ? true : inject(Router).createUrlTree(['/dashboard'])));
 
 export const adminCanActivateChild: CanActivateChildFn = () =>
-  isAdmin$().pipe(map(ok => ok ? true : inject(Router).createUrlTree(['/dashboard'])));
+  isAdmin$().pipe(map((ok) => ok ? true : inject(Router).createUrlTree(['/dashboard'])));

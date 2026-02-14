@@ -1,7 +1,7 @@
 // src/app/core/services/sidebar.service.ts
 // Não esqueça os comentários explicativos.
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, distinctUntilChanged } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -9,7 +9,9 @@ import { BehaviorSubject } from 'rxjs';
 export class SidebarService {
 
   private _isSidebarVisible: BehaviorSubject<boolean> = new BehaviorSubject<boolean>(false);
-  public readonly isSidebarVisible$ = this._isSidebarVisible.asObservable();
+  public readonly isSidebarVisible$ = this._isSidebarVisible.asObservable().pipe(
+    distinctUntilChanged()
+  );
 
   constructor() { }
 

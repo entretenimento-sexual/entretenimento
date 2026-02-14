@@ -1,6 +1,6 @@
 // src/app/core/services/data-handling/converters/user.firestore-converter.ts
 // Conversor Firestore para documentos de usuário
-// Não esquecer os comentários
+// Não esquecer os comentários e ferramentas de debug para facilitar a manutenção futura
 import {
   FirestoreDataConverter, Timestamp, DocumentData, QueryDocumentSnapshot, SnapshotOptions
 } from 'firebase/firestore';

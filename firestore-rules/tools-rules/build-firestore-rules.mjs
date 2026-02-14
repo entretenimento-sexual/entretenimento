@@ -1,6 +1,12 @@
 // C:\entretenimento\firestore-rules\tools-rules\build-firestore-rules.mjs
+// Script para construir o arquivo firestore.rules a partir de partes modulares.
+// Não esquecer commentários explicativos, especialmente sobre a estrutura de pastas e a ordem de concatenação.'
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Build previsível:
@@ -10,7 +16,8 @@ import path from "node:path";
  * - Verifica balanceamento simples de chaves no final
  */
 
-const root = process.cwd();
+// raiz do projeto (tools-rules -> firestore-rules -> raiz)
+const root = path.resolve(__dirname, "..", "..");
 const srcDir = path.join(root, "firestore-rules");
 const outFile = path.join(root, "firestore.rules");
 
@@ -25,6 +32,8 @@ const parts = [
   "public_index.rules",
   "users_profile_socialLinks.rules",
   "public_social_links.rules",
+  "preferences.rules",
+  "admin_logs.rules",
   "_footer.rules",
 ];
 

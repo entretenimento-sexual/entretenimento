@@ -8,6 +8,7 @@ import { Auth } from '@angular/fire/auth';
 import { Firestore } from '@angular/fire/firestore';
 
 import { arrayUnion, doc, runTransaction, Timestamp, } from 'firebase/firestore';
+import { NicknameUtils } from '@core/utils/nickname-utils';
 
 import { FirestoreReadService } from '../core/firestore-read.service';
 import { FirestoreWriteService } from '../core/firestore-write.service';
@@ -39,8 +40,13 @@ export class PublicIndexRepository {
   // --------------------------------------------------------------------------
 
   private normalizeNickname(nickname: string): string {
-    return (nickname ?? '').trim().toLowerCase();
+    /**
+     * Normalização para KEY/índice.
+     * Mantemos aqui o método (nomenclatura original), mas a regra fica centralizada.
+     */
+    return NicknameUtils.normalizarApelidoParaIndice(nickname);
   }
+
 
   private nicknameDocId(normalizedNickname: string): string {
     return `nickname:${normalizedNickname}`;
@@ -254,7 +260,7 @@ export class PublicIndexRepository {
       })
     );
   }
-} //248 linhas
+} //263 linhas
 
 /*
 - Usuário digita o apelido (principal + complemento) no /register.
@@ -265,4 +271,11 @@ public_index / nickname:<normalized>.
   * strict (submit): força getDocFromServer. Se falhar, propaga erro (não assume “livre”).
 - Se o doc existe ⇒ retorna true ⇒ o form marca erro apelidoEmUso e bloqueia o cadastro.
 - Mesmo assim, a proteção final é a transaction do registro: ela tenta tx.get(indexRef) e, se existir, aborta (garantia anti-duplicidade no backend).
+*/
+
+/*
+Observação importante (não é do patch, mas impacta rules)
+No PublicIndexRepository, você usa Timestamp.now() em createdAt/lastChangedAt.
+Se suas rules realmente exigem serverTimestamp() == request.time, isso vai negar writes fora do RegisterService (que usa serverTimestamp()).
+Quando formos mexer nessa parte (update nickname), o ajuste correto é trocar esses Timestamp.now() por serverTimestamp() (e, se precisar, adequar o tipo/serialização no seu FirestoreWriteService).
 */

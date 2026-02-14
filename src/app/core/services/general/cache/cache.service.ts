@@ -1,9 +1,25 @@
-// src\app\core\services\general\cache\cache.service.ts
+// src/app/core/services/general/cache/cache.service.ts
 // Serviço de Cache em Memória com IndexedDB e Store (NgRx)
-// Não esquecer os comentários
+// - Memória = rápida, pode expirar (TTL)
+// - IndexedDB = persistência (assíncrona)
+// - Store = fallback/compat (não é fonte primária de persistência)
+//
+// Observação importante:
+// - delete() é idempotente. "não existia" NÃO é falha.
+// - Reidratação via IndexedDB/Store aplica TTL na memória para evitar crescimento infinito.
+// - HOT_KEYS são espelhadas no localStorage para leitura síncrona no bootstrap.
+//
+// PATCH (2026):
+// - get() agora coalesce requests simultâneas (inFlight) por key => reduz logs e I/O.
+// - HOT_KEYS por default NÃO persistem em IndexedDB (já estão no localStorage).
+// - Logs de chaves "barulhentas" podem ser suprimidos (ex.: validation:*), com toggle.
+
 import { Injectable } from '@angular/core';
 import { Store } from '@ngrx/store';
-import { Observable, of, switchMap, take } from 'rxjs';
+import {
+  Observable, of, switchMap, take, defer,
+  catchError, finalize, map, shareReplay
+} from 'rxjs';
 
 import { AppState } from 'src/app/store/states/app.state';
 import { setCache } from 'src/app/store/actions/cache.actions';
@@ -12,10 +28,9 @@ import { selectCacheItem } from 'src/app/store/selectors/cache.selectors';
 import { CachePersistenceService } from './cache-persistence.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 
-/**
- * Item interno do cache em memória.
- * - `expiration = null` significa sem expiração (até limpar memória).
- */
+import { environment } from 'src/environments/environment';
+import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+
 interface CacheItem<T> {
   data: T;
   expiration: number | null;
@@ -29,19 +44,40 @@ export class CacheService {
   /** Cache em memória (rápido e efêmero) */
   private cache: Map<string, CacheItem<any>> = new Map();
 
-  /** TTL default (5 min) para itens que você quiser expirar */
+  /** TTL default (5 min) para itens de memória (quando aplicável) */
   private readonly defaultTTL = 300_000;
 
   /**
    * Controle de verbosidade:
-   * - Coloque `false` em produção ou proteja via environment.
-   * - Ex.: importar `environment` e usar `!environment.production`.
+   * - Em produção: false
+   * - Em dev: true (mas pode suprimir chaves barulhentas)
    */
-  private readonly verbose = true;
+  private readonly verbose = !environment.production;
+
+  /**
+   * Quando true, loga deletes "noop" (chave não existia em memória).
+   * Útil só para diagnósticos bem específicos.
+   */
+  private readonly logNoopDeletes = false;
+
+  /**
+   * Coalescing de leituras:
+   * - Evita 2+ gets simultâneos para a mesma key baterem no IndexedDB/Store.
+   * - Cada key fica "em voo" até completar e então sai do Map (finalize).
+   */
+  private readonly inFlightGets = new Map<string, Observable<any>>();
+
+  /**
+   * Suprime logs de chaves muito frequentes (ex.: validation:*).
+   * Você pode habilitar logs dessas chaves via:
+   *   localStorage.setItem('CACHE_LOG_NOISY_KEYS', '1')
+   */
+  private readonly noisyPrefixes: ReadonlyArray<string> = ['validation:'];
 
   constructor(
     private store: Store<AppState>,
     private cachePersistence: CachePersistenceService, // IndexedDB
+    private globalErrorHandler: GlobalErrorHandlerService,
   ) {
     this.log('Serviço inicializado.');
   }
@@ -53,31 +89,34 @@ export class CacheService {
   /**
    * Adiciona/atualiza um item no cache (idempotente).
    * - Memória (imediato)
-   * - IndexedDB (assíncrono)
-   * - (Opcional) localStorage para HOT_KEYS (leitura síncrona com getSync)
+   * - IndexedDB (assíncrono, se persist=true)
+   * - localStorage (somente HOT_KEYS)
    *
-   * Idempotência: se os dados **e** a expiração não mudarem, a operação é "noop"
-   * (evita spam de log e escrita redundante em IndexedDB/localStorage).
+   * Idempotência:
+   * - Se valor e expiração não mudam, não faz nada.
    */
   set<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
     const normalizedKey = this.normalizeKey(key);
     const expiration = ttl ? Date.now() + ttl : null;
-    const persist = opts?.persist ?? true;
+
+    // PATCH: HOT_KEYS por default NÃO persistem em IndexedDB (já vão p/ localStorage)
+    const persist = opts?.persist ?? !HOT_KEYS.has(normalizedKey);
 
     const prev = this.cache.get(normalizedKey);
     const sameData = prev ? this.deepEqual(prev.data, data) : false;
     const sameExp = prev ? prev.expiration === expiration : false;
 
-    if (sameData && sameExp) {
-      // this.log(`set (noop) → "${normalizedKey}"`);
-      return;
-    }
+    if (sameData && sameExp) return;
 
-    this.log(`set → "${normalizedKey}"`, { expiration });
     this.cache.set(normalizedKey, { data, expiration });
+    this.logKey(normalizedKey, `set → "${normalizedKey}"`, { expiration, persist });
 
     if (persist) {
-      this.cachePersistence.setPersistent(normalizedKey, data).subscribe(() => { });
+      // Persistência é best-effort (não quebra UX se falhar).
+      this.cachePersistence.setPersistent(normalizedKey, data).subscribe({
+        next: () => { },
+        error: (err) => this.safeHandle(err, `CacheService.setPersistent("${normalizedKey}")`)
+      });
     }
 
     if (HOT_KEYS.has(normalizedKey)) {
@@ -86,59 +125,61 @@ export class CacheService {
   }
 
   /**
-   * API semântica para armazenar usuário atual (escolha usar **esta** OU `syncCurrentUserWithUid`).
-   * - Grava `user:{uid}` (uid normalizado para lower-case na **chave**)
-   * - Atualiza `currentUserUid` (mantém o UID como veio)
-   * - Dispara Store (NgRx) apenas se houve mudança
+   * API semântica para armazenar usuário atual (use esta OU syncCurrentUserWithUid).
+   * - user:{uid} (chave estável)
+   * - currentUserUid (HOT_KEY)
    *
-   * ⚠️ Recomenda-se **não** chamar `syncCurrentUserWithUid` no mesmo fluxo para evitar duplicidades.
+   * Obs.: UID é identificador canônico; NÃO aplicamos lower-case no UID.
    */
   setUser(uid: string, user: IUserDados, ttl: number = this.defaultTTL): void {
     const userKey = this.userKey(uid);
     const prev = this.cache.get(userKey);
     const changed = !prev || !this.deepEqual(prev.data, user);
 
-    this.set(userKey, user, ttl);
-    this.set('currentUserUid', uid); // HOT_KEY sem TTL
-    // // 🔥 HOT_KEY (mantém forma original do UID)
+    // user:{uid} pode persistir
+    this.set(userKey, user, ttl, { persist: true });
+
+    // HOT_KEY sem TTL e sem persist (default do set já faz isso)
+    this.set('currentUserUid', uid);
 
     if (changed) {
       this.store.dispatch(setCache({ key: userKey, value: user }));
       this.store.dispatch(setCache({ key: 'currentUserUid', value: uid }));
-      this.log(`setUser → ${userKey} + currentUserUid (store dispatch)`);
+      this.logKey(userKey, `setUser → ${userKey} + currentUserUid (store dispatch)`);
     } else {
-      this.log(`setUser → ${userKey} + currentUserUid (unchanged)`);
+      this.logKey(userKey, `setUser → ${userKey} + currentUserUid (unchanged)`);
     }
   }
 
   /**
-   * Atualiza um item já existente (mantém/renova TTL).
-   * Idempotente: se o valor não mudou e a expiração é a mesma, não persiste novamente.
+   * Atualiza item existente (mantém/renova TTL).
+   * Idempotente: se valor e expiração são iguais, não persiste.
    */
   update<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
     const normalizedKey = this.normalizeKey(key);
-    const persist = opts?.persist ?? true;
 
-    if (!this.cache.has(normalizedKey)) {
-      this.log(`update → chave inexistente: "${normalizedKey}"`);
+    // PATCH: HOT_KEYS por default NÃO persistem
+    const persist = opts?.persist ?? !HOT_KEYS.has(normalizedKey);
+
+    const current = this.cache.get(normalizedKey);
+    if (!current) {
+      this.logKey(normalizedKey, `update → chave inexistente: "${normalizedKey}"`);
       return;
     }
 
-    const newExpiration = ttl
-      ? Date.now() + ttl
-      : this.cache.get(normalizedKey)!.expiration;
-
-    const prev = this.cache.get(normalizedKey)!;
-    const sameData = this.deepEqual(prev.data, data);
-    const sameExp = prev.expiration === newExpiration;
-
+    const newExpiration = ttl ? Date.now() + ttl : current.expiration;
+    const sameData = this.deepEqual(current.data, data);
+    const sameExp = current.expiration === newExpiration;
     if (sameData && sameExp) return;
 
     this.cache.set(normalizedKey, { data, expiration: newExpiration });
-    this.log(`update → "${normalizedKey}"`, { expiration: newExpiration });
+    this.logKey(normalizedKey, `update → "${normalizedKey}"`, { expiration: newExpiration, persist });
 
     if (persist) {
-      this.cachePersistence.setPersistent(normalizedKey, data).subscribe(() => { });
+      this.cachePersistence.setPersistent(normalizedKey, data).subscribe({
+        next: () => { },
+        error: (err) => this.safeHandle(err, `CacheService.update.setPersistent("${normalizedKey}")`)
+      });
     }
 
     if (HOT_KEYS.has(normalizedKey)) {
@@ -151,72 +192,86 @@ export class CacheService {
   // ===========================================================================
 
   /**
-   * API principal de leitura: retorna um Observable que tenta, **nesta ordem**:
-   * 1) Memória
-   * 2) IndexedDB
-   * 3) Store (NgRx)
+   * Leitura principal (Observable):
+   * 1) Memória (respeita TTL)
+   * 2) IndexedDB (rehidrata memória com TTL, exceto HOT_KEYS)
+   * 3) Store (rehidrata memória com TTL, exceto HOT_KEYS)
    *
-   * Obs.: Não busca Firestore aqui – este serviço é só de cache.
+   * PATCH:
+   * - Coalesce in-flight: múltiplas chamadas simultâneas para a mesma key compartilham 1 pipeline.
    */
   get<T>(key: string): Observable<T | null> {
     const normalizedKey = this.normalizeKey(key);
-    this.log(`get → "${normalizedKey}"`);
+    this.logKey(normalizedKey, `get → "${normalizedKey}"`);
 
-    // 1) Memória
+    // 1) Memória (aplica expiração)
     const mem = this.cache.get(normalizedKey);
-    if (mem && !this.isExpired(mem.expiration)) {
-      return of(mem.data as T);
+    if (mem) {
+      if (this.isExpired(mem.expiration)) {
+        this.cache.delete(normalizedKey);
+      } else {
+        return of(mem.data as T);
+      }
     }
 
-    // 2) IndexedDB
-    return this.cachePersistence.getPersistent<T>(normalizedKey).pipe(
-      switchMap((persist) => {
-        if (persist !== null && persist !== undefined) {
-          // Reidrata memória e espelho (se hot key)
-          this.cache.set(normalizedKey, { data: persist, expiration: null });
-          if (HOT_KEYS.has(normalizedKey)) {
-            this.mirrorHotKeyToLocalStorage(normalizedKey, persist);
-          }
-          return of(persist);
+    // Coalesce: se já existe request em voo, devolve o mesmo Observable
+    const inflight = this.inFlightGets.get(normalizedKey);
+    if (inflight) return inflight as Observable<T | null>;
+
+    // Helper: reidrata com TTL na memória (evita crescer infinito).
+    const rehydrateMemory = (k: string, value: any): void => {
+      const expiration = HOT_KEYS.has(k) ? null : (Date.now() + this.defaultTTL);
+      this.cache.set(k, { data: value, expiration });
+      if (HOT_KEYS.has(k)) this.mirrorHotKeyToLocalStorage(k, value);
+    };
+
+    const req$ = defer(() => this.cachePersistence.getPersistent<T>(normalizedKey)).pipe(
+      switchMap((persisted) => {
+        // 2) IndexedDB
+        if (persisted !== null && persisted !== undefined) {
+          rehydrateMemory(normalizedKey, persisted);
+          return of(persisted);
         }
 
-        this.log('get → não achou no IndexedDB, consultando Store...');
         // 3) Store (NgRx)
         return this.store.select(selectCacheItem(normalizedKey)).pipe(
           take(1),
-          switchMap((storeData) => {
+          map((storeData) => {
             if (storeData !== undefined && storeData !== null) {
-              this.cache.set(normalizedKey, { data: storeData, expiration: null });
-              if (HOT_KEYS.has(normalizedKey)) {
-                this.mirrorHotKeyToLocalStorage(normalizedKey, storeData);
-              }
-              return of(storeData as T);
+              rehydrateMemory(normalizedKey, storeData);
+              return storeData as T;
             }
-            // Nada encontrado – cabe ao chamador decidir se vai ao Firestore.
-            return of(null);
+            return null;
           })
         );
-      })
+      }),
+      catchError((err) => {
+        this.safeHandle(err, `CacheService.get("${normalizedKey}")`);
+        return of(null);
+      }),
+      finalize(() => {
+        // remove do in-flight (mesmo em erro)
+        this.inFlightGets.delete(normalizedKey);
+      }),
+      // shareReplay garante que chamadas simultâneas compartilham o mesmo resultado
+      shareReplay({ bufferSize: 1, refCount: true })
     );
+
+    this.inFlightGets.set(normalizedKey, req$);
+    return req$;
   }
 
   /**
-   * Leitura **síncrona** (só para casos críticos de bootstrap):
-   * - Tenta memória
-   * - Fallback localStorage (espelho apenas para HOT_KEYS)
-   *
-   * Obs.: IndexedDB é assíncrono e **não** é usado aqui.
+   * Leitura síncrona (bootstrap):
+   * - memória
+   * - localStorage (somente HOT_KEYS, espelhadas)
    */
   getSync<T>(key: string): T | null {
     const normalizedKey = this.normalizeKey(key);
 
-    // Memória
     const mem = this.cache.get(normalizedKey);
-    if (mem && !this.isExpired(mem.expiration)) {
-      return mem.data as T;
-    }
+    if (mem && !this.isExpired(mem.expiration)) return mem.data as T;
 
-    // localStorage (espelho para HOT_KEYS)
     try {
       const raw = localStorage.getItem(normalizedKey);
       if (!raw) return null;
@@ -230,7 +285,6 @@ export class CacheService {
   // EXISTENCE / LIFECYCLE
   // ===========================================================================
 
-  /** Verifica existência e validade (memória). */
   has(key: string): boolean {
     const normalizedKey = this.normalizeKey(key);
     const cached = this.cache.get(normalizedKey);
@@ -244,33 +298,40 @@ export class CacheService {
   }
 
   /**
-   * Remove um item do cache:
+   * Remove item:
    * - Memória
-   * - IndexedDB
-   * - localStorage (se for HOT_KEY)
+   * - IndexedDB (best-effort)
+   * - localStorage (se HOT_KEY)
+   *
+   * Importante:
+   * - "não existia em memória" é normal e NÃO deve parecer erro.
+   * - Ainda assim removemos do IndexedDB, porque pode existir lá.
    */
   delete(key: string): void {
     const normalizedKey = this.normalizeKey(key);
-    const existed = this.cache.delete(normalizedKey);
+    const existedInMemory = this.cache.delete(normalizedKey);
 
-    // remove do IndexedDB
-    this.cachePersistence.deletePersistent(normalizedKey).subscribe(() => { });
+    this.cachePersistence.deletePersistent(normalizedKey).subscribe({
+      next: () => { },
+      error: (err) => this.safeHandle(err, `CacheService.deletePersistent("${normalizedKey}")`)
+    });
 
-    // remove espelho localStorage se hot key
     if (HOT_KEYS.has(normalizedKey)) {
       try { localStorage.removeItem(normalizedKey); } catch { }
     }
 
-    this.log(`delete → "${normalizedKey}" (${existed ? 'ok' : 'não existia'})`);
+    if (existedInMemory) {
+      this.logKey(normalizedKey, `delete → "${normalizedKey}" (ok)`);
+    } else if (this.logNoopDeletes) {
+      this.logKey(normalizedKey, `delete → "${normalizedKey}" (noop)`);
+    }
   }
 
-  /** Limpa somente memória (rápido). */
   clear(): void {
     this.cache.clear();
     this.log('clear → memória limpa.');
   }
 
-  /** Remove itens expirados (memória). */
   removeExpired(): void {
     const now = Date.now();
     const expiredKeys = Array.from(this.cache.entries())
@@ -278,12 +339,9 @@ export class CacheService {
       .map(([k]) => k);
 
     expiredKeys.forEach((k) => this.cache.delete(k));
-    if (expiredKeys.length) {
-      this.log(`removeExpired → ${expiredKeys.length} itens removidos.`);
-    }
+    if (expiredKeys.length) this.log(`removeExpired → ${expiredKeys.length} itens removidos.`);
   }
 
-  /** Habilita limpeza automática de expirados (memória). */
   enableAutoCleanup(interval = 60_000): () => void {
     this.log(`AutoCleanup ON (${interval}ms).`);
     const id = setInterval(() => this.removeExpired(), interval);
@@ -297,50 +355,64 @@ export class CacheService {
   // UTILITÁRIOS
   // ===========================================================================
 
-  /** Normaliza chaves para consistência (trim). */
   private normalizeKey(key: string): string {
-    return key.trim();
+    return (key ?? '').toString().trim();
   }
 
-  /** Monta chave de usuário com UID em lower-case (evita duplicidade por casing). */
   private userKey(uid: string): string {
-    return `user:${uid.trim()}`;
+    return `user:${(uid ?? '').toString().trim()}`;
   }
 
-  /** Verifica expiração. */
   private isExpired(expiration: number | null): boolean {
     return expiration !== null && Date.now() > expiration;
   }
 
-  /** Comparação rasa via JSON (suficiente para dados plain). */
   private deepEqual(a: any, b: any): boolean {
     if (a === b) return true;
-    try {
-      return JSON.stringify(a) === JSON.stringify(b);
-    } catch {
-      // Fallback caso haja referência circular (não esperado aqui)
-      return false;
-    }
+    try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
   }
 
-  /** Espelha HOT_KEYS em localStorage (uso exclusivo para chaves do conjunto HOT_KEYS). */
   private mirrorHotKeyToLocalStorage(key: string, data: any): void {
-    try {
-      localStorage.setItem(key, JSON.stringify(data));
-    } catch {
-      // silencioso (privacy mode / quotas / etc.)
-    }
+    try { localStorage.setItem(key, JSON.stringify(data)); } catch { }
   }
 
-  /** Log condicional. */
+  /**
+   * Logs:
+   * - verbose controla se loga em dev
+   * - chaves barulhentas (validation:*) são suprimidas por padrão
+   */
   private log(message: string, extra?: any): void {
     if (!this.verbose) return;
-    if (extra !== undefined) {
-      // eslint-disable-next-line no-console
-      console.log(`[CacheService] ${message}`, extra);
-    } else {
-      // eslint-disable-next-line no-console
-      console.log(`[CacheService] ${message}`);
+    // eslint-disable-next-line no-console
+    extra !== undefined ? console.log(`[CacheService] ${message}`, extra) : console.log(`[CacheService] ${message}`);
+  }
+
+  private logKey(key: string, message: string, extra?: any): void {
+    if (!this.verbose) return;
+
+    // Suprime keys barulhentas, a menos que o toggle esteja ligado
+    const allowNoisy = this.isNoisyLoggingEnabled();
+    const isNoisy = this.noisyPrefixes.some((p) => key.startsWith(p));
+    if (isNoisy && !allowNoisy) return;
+
+    this.log(message, extra);
+  }
+
+  private isNoisyLoggingEnabled(): boolean {
+    try { return localStorage.getItem('CACHE_LOG_NOISY_KEYS') === '1'; } catch { return false; }
+  }
+
+  /**
+   * Routing centralizado (best-effort):
+   * - não quebra fluxo de cache por falhas de persistência
+   * - registra no handler global (se você quiser silenciar totalmente, comente esta chamada)
+   */
+  private safeHandle(err: unknown, context: string): void {
+    try {
+      const e = err instanceof Error ? err : new Error(String(err ?? 'unknown error'));
+      this.globalErrorHandler.handleError(new Error(`[${context}] ${e.message}`));
+    } catch {
+      // último fallback: não deixa estourar dentro do CacheService
     }
   }
 
@@ -348,60 +420,43 @@ export class CacheService {
   // Conveniências
   // ===========================================================================
 
-  /**
-   * Marca um item como "não encontrado" por um TTL curto (mitiga re-buscas consecutivas).
-   * Padrão de plataformas grandes para evitar DDoS interno em endpoints.
-   */
   markAsNotFound(key: string, ttl = 30_000): void {
-    this.set(`notFound:${this.normalizeKey(key)}`, true, ttl);
+    this.set(`notFound:${this.normalizeKey(key)}`, true, ttl, { persist: false });
   }
 
-  /** Testa se um item está marcado como "não encontrado". */
   isNotFound(key: string): boolean {
     return this.has(`notFound:${this.normalizeKey(key)}`);
   }
 
-  /** Lista as chaves atuais em memória (debug). */
   keys(): string[] {
     return Array.from(this.cache.keys());
   }
 
-  /** Quantidade de itens em memória (debug). */
   size(): number {
     return this.cache.size;
   }
 
-  /** Loga estado interno (debug). */
   debug(): void {
-    this.log('DEBUG', {
-      size: this.size(),
-      keys: this.keys(),
-    });
+    this.log('DEBUG', { size: this.size(), keys: this.keys() });
   }
 
-  // ===========================================================================
-  // Bootstrap helpers (use um OU outro, não os dois)
-  // ===========================================================================
-
   /**
-   * Sincroniza dados do usuário com UID (usado em bootstraps/refresh).
-   * - `user:{uid}` (lower-case na chave)
-   * - `currentUser` (espelho HOT_KEY)
-   * - `currentUserUid` (HOT_KEY → espelho em localStorage)
+   * Semeadura completa para bootstrap/refresh.
+   * - user:{uid} (TTL + IndexedDB)
+   * - currentUser (HOT_KEY localStorage)
+   * - currentUserUid (HOT_KEY localStorage)
    *
-   * ⚠️ Use esta função para "semeadura" completa em bootstraps/refresh.
-   * ⚠️ Evite chamar junto com `setUser` no mesmo fluxo.
+   * Obs.: Evite chamar junto de setUser no mesmo fluxo.
    */
   syncCurrentUserWithUid(userData: IUserDados): void {
     const key = this.userKey(userData.uid);
     const prev = this.cache.get(key);
     const changed = !prev || !this.deepEqual(prev.data, userData);
 
-    // ✅ atualiza memória + hotkeys, mas NÃO persiste em IndexedDB aqui
-    // ✅ user:{uid} pode ter TTL (opcional), mas HOT_KEYS não.
-    this.set(key, userData, this.defaultTTL);
+    // user:{uid} persiste
+    this.set(key, userData, this.defaultTTL, { persist: true });
 
-    // 🔥 HOT_KEYS: sem TTL -> expiration null (não fica “renovando” e gerando re-emissões)
+    // HOT_KEYS sem TTL e sem persist (default)
     this.set('currentUser', userData);
     this.set('currentUserUid', userData.uid);
 
@@ -409,9 +464,9 @@ export class CacheService {
       this.store.dispatch(setCache({ key, value: userData }));
       this.store.dispatch(setCache({ key: 'currentUser', value: userData }));
       this.store.dispatch(setCache({ key: 'currentUserUid', value: userData.uid }));
-      this.log(`syncCurrentUserWithUid → ${key} + currentUser + currentUserUid (store dispatch)`);
+      this.logKey(key, `syncCurrentUserWithUid → ${key} + currentUser + currentUserUid (store dispatch)`);
     } else {
-      this.log(`syncCurrentUserWithUid → ${key} + currentUser + currentUserUid (unchanged)`);
+      this.logKey(key, `syncCurrentUserWithUid → ${key} + currentUser + currentUserUid (unchanged)`);
     }
   }
-} // Linha 413
+}

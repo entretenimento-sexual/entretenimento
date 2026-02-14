@@ -1,7 +1,13 @@
 <!-- src\app\dashboard\principal\principal.component.html -->
 <div class="principal-container">
   <section class="welcome-section">
-    <h1>Bem-vindo de volta, {{ (currentUser$ | async)?.nickname }}!</h1>
+    <h1>
+      @if ((currentUserStatus$ | async) === 'ready') {
+      Bem-vindo de volta, {{ (currentUser$ | async)?.nickname }}!
+      } @else {
+      Bem-vindo de volta!
+      }
+    </h1>
     <p>Aqui estão algumas informações importantes para você hoje.</p>
     <p>Você recebeu ' tantas novas mensagens '</p>
     <p>Você recebeu '{{ pendingRequestsCount$ | async }}' novas solicitações de amizade</p>

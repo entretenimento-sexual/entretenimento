@@ -1,4 +1,5 @@
 // src/app/core/services/batepapo/invite.service.ts
+// Não esqueça os comentários explicativos e ferramentas de debug.
 import { Injectable } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
 import {

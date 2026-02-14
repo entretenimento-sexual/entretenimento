@@ -1,4 +1,8 @@
-//src\app\shared\pipes\time-ago.pipe.ts
+//src\app\shared\pipes\time-ago.pipe.
+// Pipe "time ago": exibe tempo decorrido de forma legível (ex: "há 5 minutos").
+// - Atualiza a cada 60s para manter a informação relevante.
+// - Usa ChangeDetectorRef para marcar para check quando atualizar.
+// - Usa NgZone para rodar o timer fora do Angular e evitar detecção desnecessária.
 import { ChangeDetectorRef, NgZone, OnDestroy, Pipe, PipeTransform } from '@angular/core';
 import { DateTimeService } from 'src/app/core/services/general/date-time.service';
 

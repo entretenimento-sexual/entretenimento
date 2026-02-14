@@ -1,53 +1,142 @@
-    // =========================================================================
-    // PRESENCE (efêmero / realtime)
-    // =========================================================================
-    match /presence/{presenceUid} {
-      allow read: if signedIn();
+// firestore-rules/presence.rules
+// =========================================================================
+// PRESENCE (efêmero / realtime)
+//
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
+// ✅ Depende dos helpers globais em _helpers.rules:
+//    - signedIn(), uid(), isSelf()
+//    - isTs() (timestamp real OU serverTimestamp() == request.time)
+//    - optString(), optNumberOrNull(), optTimestamp() (com guarda keys().hasAny)
+// =========================================================================
+//
+// Problema que este arquivo corrige:
+// - Evita "evaluation error ... Property X is undefined on object"
+//   quando campos opcionais NÃO estão presentes no payload.
+//
+// Estratégia:
+// - NUNCA acessar request.resource.data.campo diretamente sem garantir que existe,
+//   quando o campo pode estar ausente em updates.
+// - Para campos obrigatórios, usamos helpers req*() que checam keys().hasAny()
+//   antes de ler request.resource.data[field].
+// =========================================================================
 
-      allow create, update: if (
-        isSelf(presenceUid)
-        && request.resource.data.uid == uid()
-        && request.resource.data.keys().hasOnly([
-          "uid",
-          "presenceSessionId",
+match /presence/{presenceUid} {
+  // Leitura: exige login (evita scraping e mantém o canal "presence" fechado)
+  allow read: if signedIn();
 
-          "isOnline",
-          "presenceState",
+  // -------------------------------------------------------------------------
+  // Helpers locais SAFE (blindam access a request.resource.data[field])
+  // -------------------------------------------------------------------------
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
 
-          "lastSeen",
-          "updatedAt",
+  // Campo obrigatório: string
+  function reqString(field) {
+    return hasField(field) && request.resource.data[field] is string;
+  }
 
-          "lastStateChangeAt",
-          "lastOnlineAt",
-          "lastOfflineAt",
+  // Campo obrigatório: bool
+  function reqBool(field) {
+    return hasField(field) && request.resource.data[field] is bool;
+  }
 
-          "nickname",
-          "municipio",
-          "estado",
-          "photoURL",
-          "latitude",
-          "longitude"
-        ])
+  // Campo obrigatório: timestamp (aceita timestamp real OU serverTimestamp() => request.time)
+  function reqTimestamp(field) {
+    return hasField(field) && isTs(request.resource.data[field]);
+  }
 
-        && request.resource.data.presenceSessionId is string
+  // Campo obrigatório: enum string
+  function reqEnum(field, allowed) {
+    return hasField(field)
+      && request.resource.data[field] is string
+      && request.resource.data[field] in allowed;
+  }
 
-        && request.resource.data.isOnline is bool
-        && request.resource.data.presenceState in ["online","away","offline"]
+  // -------------------------------------------------------------------------
+  // Schema / whitelist rígida
+  // - Bloqueia qualquer campo fora do conjunto permitido
+  // -------------------------------------------------------------------------
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "presenceSessionId",
 
-        && request.resource.data.lastSeen is timestamp
-        && optTimestamp("updatedAt")
+      "isOnline",
+      "presenceState",
 
-        && optTimestamp("lastStateChangeAt")
-        && optTimestamp("lastOnlineAt")
-        && optTimestamp("lastOfflineAt")
+      "lastSeen",
+      "updatedAt",
 
-        && optString("nickname")
-        && optString("municipio")
-        && optString("estado")
-        && optString("photoURL")
-        && optNumberOrNull("latitude")
-        && optNumberOrNull("longitude")
-      );
+      "lastStateChangeAt",
+      "lastOnlineAt",
+      "lastOfflineAt",
 
-      allow delete: if false;
-    }
+      "nickname",
+      "municipio",
+      "estado",
+      "photoURL",
+      "latitude",
+      "longitude"
+    ]);
+  }
+
+  // -------------------------------------------------------------------------
+  // Validação do payload FINAL (create/update)
+  //
+  // Observação:
+  // - Em update, request.resource.data representa o documento FINAL (merge aplicado).
+  // - Como seu writer pode fazer update parcial, estes req*() garantem
+  //   que a regra não tenta ler undefined e também que o doc final fica íntegro.
+  // -------------------------------------------------------------------------
+  function validPresencePayload() {
+    return allowedKeys()
+
+      // Dono do doc
+      && reqString("uid")
+      && request.resource.data["uid"] == uid()
+
+      // Identificador de sessão/aba (obrigatório)
+      && reqString("presenceSessionId")
+
+      // Estado (obrigatório)
+      && reqBool("isOnline")
+      && reqEnum("presenceState", ["online","away","offline"])
+
+      // Telemetria base (obrigatório)
+      // - lastSeen deve ser timestamp (writer usa serverTimestamp)
+      && reqTimestamp("lastSeen")
+
+      // updatedAt: opcional por schema, mas aqui tratamos como "deve ser ts quando presente".
+      // Se você quiser FORÇAR sempre serverTimestamp em todo write:
+      // - troque por: reqTimestamp("updatedAt") && request.resource.data["updatedAt"] == request.time
+      && optTimestamp("updatedAt")
+
+      // Stamps opcionais (podem estar ausentes em heartbeats/public patches)
+      && optTimestamp("lastStateChangeAt")
+      && optTimestamp("lastOnlineAt")
+      && optTimestamp("lastOfflineAt")
+
+      // Campos públicos opcionais
+      && optString("nickname")
+      && optString("municipio")
+      && optString("estado")
+      && optString("photoURL")
+      && optNumberOrNull("latitude")
+      && optNumberOrNull("longitude");
+  }
+
+  // -------------------------------------------------------------------------
+  // CREATE / UPDATE
+  //
+  // - Somente o próprio usuário escreve.
+  // - Payload precisa ser válido.
+  // -------------------------------------------------------------------------
+  allow create, update: if (
+    isSelf(presenceUid)
+    && validPresencePayload()
+  );
+
+  // Delete bloqueado
+  allow delete: if false;
+}

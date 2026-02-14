@@ -1,39 +1,87 @@
-//firestore-rules\_helpers.rules
+// firestore-rules/_helpers.rules
+//
+// Objetivo:
+// - Centralizar helpers de autenticação/claims/tipos realmente usados
+// - Evitar warnings do compiler (ex.: "k in map")
+// - Padronizar timestamps aceitando:
+//   (1) timestamp real (v is timestamp)
+//   (2) serverTimestamp() -> nas rules equivale a request.time
+//
+// Observação:
+// - Para forçar “somente serverTimestamp()” em um campo específico,
+//   use: request.resource.data.campo == request.time
+//  ========================================================================
+// Importante: este arquivo abre service e match /databases/... e não fecha —
+// o fechamento continua no seu _footer.rules
+// =========================================================================
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ========= Helpers =========
+    // =========================================================================
+    // Auth helpers
+    // =========================================================================
     function signedIn() { return request.auth != null; }
     function uid() { return request.auth.uid; }
     function isSelf(userId) { return signedIn() && uid() == userId; }
 
+    // =========================================================================
+    // Type helper (usado em chats/rooms/messages)
+    // =========================================================================
     function isStr(v) { return v is string; }
-    function isNum(v) { return v is number; }
-    function isBool(v) { return v is bool; }
-    function isTs(v) { return v is timestamp; }
 
-    function hasClaim(k) { return signedIn() && (k in request.auth.token) && request.auth.token[k] == true; }
+    // =========================================================================
+    // Timestamp helpers (timestamp real OU serverTimestamp() == request.time)
+    // =========================================================================
+    // serverTimestamp() (sentinel) chega nas rules como "request.time"
+    function isServerTime(v) { return v == request.time; }
+
+    // Aceita timestamp real ou serverTimestamp() (request.time)
+    function isTs(v) { return (v is timestamp) || isServerTime(v); }
+
+    // =========================================================================
+    // Claims helpers (usado em users.rules / admin_logs.rules)
+    // =========================================================================
+    // Evita "(k in request.auth.token)" para não disparar warning
+    function hasClaim(k) { return signedIn() && request.auth.token[k] == true; }
     function isAdmin() { return hasClaim("admin"); }
-    function isModerator() { return hasClaim("moderator") || isAdmin(); }
 
-    function optString(k) {
-      return !(k in request.resource.data)
-        || request.resource.data[k] is string
-        || request.resource.data[k] == null;
-    }
+    // =========================================================================
+    // Optional fields helpers (campos opcionais)
+    // Regra:
+    // - ausente OU null => ok
+    // - se existe => precisa ser do tipo esperado
+    //
+    // OBS:
+    // - request.resource.data[k] == null cobre "ausente" e "explicitamente null"
+    // =========================================================================
+// =========================================================================
+// Optional fields helpers (campos opcionais)
+// IMPORTANTE:
+// - Para chave dinâmica (map[k]), Firestore Rules pode lançar evaluation error
+//   quando a key não existe. Então: checar keys().hasAny([k]) antes.
+// =========================================================================
+function hasReqField(k) {
+  return request.resource.data.keys().hasAny([k]);
+}
 
-    function optNumberOrNull(k) {
-      return !(k in request.resource.data)
-        || request.resource.data[k] is number
-        || request.resource.data[k] == null;
-    }
+function optString(k) {
+  return !hasReqField(k)
+    || request.resource.data[k] == null
+    || request.resource.data[k] is string;
+}
 
-    function optBool(k) {
-      return !(k in request.resource.data) || request.resource.data[k] is bool;
-    }
+function optNumberOrNull(k) {
+  return !hasReqField(k)
+    || request.resource.data[k] == null
+    || request.resource.data[k] is number;
+}
 
-    function optTimestamp(k) {
-      return !(k in request.resource.data) || request.resource.data[k] is timestamp;
-    }
+// ✅ aceita timestamp real OU serverTimestamp()
+function optTimestamp(k) {
+  return !hasReqField(k)
+    || request.resource.data[k] == null
+    || isTs(request.resource.data[k]);
+}
+    // (os demais matches/arquivos entram abaixo via build)

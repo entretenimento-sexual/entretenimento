@@ -18,9 +18,13 @@
 //   3) profileUid existir
 // - switchMap cancela listener anterior quando uid muda.
 // - Estado do template é atualizado apenas por tap() (efeitos controlados).
+//
+// PATCH (NG0203):
+// - toObservable() NÃO pode ser usado em ngOnInit().
+// - Movemos toObservable(this.uid) para um field initializer com Injector.
 // =============================================================================
 
-import { Component, OnDestroy, OnInit, input, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, input, inject, Injector } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatExpansionModule } from '@angular/material/expansion';
@@ -68,6 +72,25 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
 
   // --- lifecycle ---
   private readonly destroy$ = new Subject<void>();
+
+  /**
+   * Injector necessário para garantir injection context no toObservable().
+   * (resolve NG0203 ao evitar chamar toObservable() dentro do ngOnInit)
+   */
+  private readonly injector = inject(Injector);
+
+  /**
+   * UID do perfil exibido (normalizado).
+   *
+   * IMPORTANTE:
+   * - toObservable() precisa rodar em injection context → field initializer é OK.
+   * - shareReplay(refCount) garante estabilidade se houver múltiplos consumers.
+   */
+  private readonly profileUid$ = toObservable(this.uid, { injector: this.injector }).pipe(
+    map(v => (v ?? null) ? String(v).trim() : null),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   /**
    * Snapshot do uid logado para decisões síncronas (canEdit()).
@@ -121,15 +144,8 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
       .subscribe(this.loggedUid$);
 
     // =========================================================
-    // 2) Reage a mudanças do input uid() e observa links (realtime)
+    // 2) Observa links (realtime) reagindo a mudanças do uid()
     // =========================================================
-
-    // UID do perfil exibido (normalizado)
-    const profileUid$ = toObservable(this.uid).pipe(
-      map(v => (v ?? null) ? String(v).trim() : null),
-      distinctUntilChanged(),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
 
     // UID autenticado (apenas string), evita reprocessar por mudanças no objeto User
     const authUid$ = this.session.authUser$.pipe(
@@ -139,7 +155,7 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    combineLatest([profileUid$, this.session.ready$, authUid$])
+    combineLatest([this.profileUid$, this.session.ready$, authUid$])
       .pipe(
         switchMap(([profileUid, ready, authUid]) => {
           // Sem uid -> limpa estado e não faz nada

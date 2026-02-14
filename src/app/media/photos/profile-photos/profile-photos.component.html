@@ -1,0 +1,51 @@
+<!-- src/app/media/photos/profile-photos/profile-photos.component.html -->
+@let ownerUid = (ownerUid$ | async);
+@let canView = (canView$ | async);
+@let policy = (policyResult$ | async);
+
+<section class="photos-page" aria-label="Galeria de fotos do perfil">
+  <header class="photos-header">
+    <div class="photos-title">
+      <h2>Minhas fotos</h2>
+      <p class="subtitle">MVP: galeria + policy + viewer + upload (simulado).</p>
+    </div>
+
+    @if (ownerUid) {
+    <div class="actions">
+      <button type="button" class="btn" (click)="openUpload(ownerUid)" aria-label="Adicionar nova foto">
+        + Adicionar foto
+      </button>
+    </div>
+    }
+  </header>
+
+  @if (!canView) {
+  <div class="blocked" role="status" aria-live="polite">
+    <strong>Acesso negado.</strong>
+    <p class="subtitle">
+      @if (policy?.reason === 'NOT_AUTHENTICATED') { Faça login para ver suas fotos. }
+      @else if (policy?.reason === 'NOT_OWNER') { Você só pode ver fotos do seu próprio perfil (por enquanto). }
+      @else { Bloqueado por política. }
+    </p>
+  </div>
+  } @else {
+  @if (isEmpty$ | async) {
+  <div class="empty-state" role="status" aria-live="polite">
+    <p>Nenhuma foto ainda.</p>
+    <button type="button" class="btn btn-secondary" (click)="openUpload(ownerUid || '')">
+      Fazer upload
+    </button>
+  </div>
+  } @else {
+  <div class="photos-grid" role="list" aria-label="Lista de fotos">
+    @for (item of (photos$ | async); track item.id) {
+    <button type="button" class="photo-card" role="listitem" (click)="openPhoto(item.id)"
+      [attr.aria-label]="'Abrir foto ' + (item.alt || item.id)">
+      <img class="photo" [src]="item.url" [alt]="item.alt || 'Foto do perfil'" loading="lazy"
+        referrerpolicy="no-referrer" />
+    </button>
+    }
+  </div>
+  }
+  }
+</section>

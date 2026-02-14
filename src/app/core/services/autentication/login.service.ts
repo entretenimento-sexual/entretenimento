@@ -31,7 +31,7 @@ import { CurrentUserStoreService } from './auth/current-user-store.service';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 import { FirestoreUserWriteService } from '../data-handling/firestore-user-write.service';
 
-export interface LoginResult {
+export interface LoginResult { // Não sei pq tá LoginResult
   success: boolean;
   emailVerified?: boolean;
   user?: IUserDados;

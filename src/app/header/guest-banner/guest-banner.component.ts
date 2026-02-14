@@ -1,4 +1,8 @@
 // src/app/header/guest-banner/guest-banner.component.ts
+// Banner para visitantes e usuários com e-mail não verificado.
+// - Exibe mensagens e ações específicas para cada caso.
+// - Permite reenvio de e-mail de verificação e confirmação manual.
+// - Opção de "soneca" para esconder o banner por 24h.
 import { Component, OnInit, signal } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { Observable, firstValueFrom } from 'rxjs';
@@ -88,4 +92,35 @@ GUEST: não autenticado
 AUTHED + PROFILE_INCOMPLETE: logado, mas ainda não completou cadastro mínimo
 AUTHED + PROFILE_COMPLETE + UNVERIFIED: logado, cadastro ok, mas e-mail não verificado
 AUTHED + PROFILE_COMPLETE + VERIFIED: liberado total
+*/
+/*
+auth.service.ts está sendo descuntinuado.
+C:.
+│   auth.service.ts
+│   email-input-modal.service.ts
+│   login.service.spec.ts
+│   login.service.ts
+│   social-auth.service.spec.ts
+│   social-auth.service.ts
+│
+├───auth
+│       access-control.service.ts
+│       auth-app-block.service.ts
+│       auth-orchestrator.service.ts
+│       auth-return-url.service.ts
+│       auth-session.service.ts
+│       auth.facade.ts
+│       auth.types.ts
+│       current-user-store.service.ts
+│       logout.service.ts
+│
+└───register
+        email-verification.service.md
+        email-verification.service.ts
+        pre-register.service.ts
+        register.service.spec.ts
+        register.service.ts
+        registerServiceREADME.md
+
+PS C:\entretenimento\src\app\core\services\autentication>
 */

@@ -8,3 +8,4 @@ export interface Community {
   privacy?: 'public' | 'private'; // Controle de entrada
   members?: string[]; // IDs dos membros
 }
+// lembrar sempre da padronização em uid para usuários, o identificador canônico.

@@ -1,4 +1,4 @@
 //C:\entretenimento\firestore-rules\_footer.rules
-
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
   }
 }

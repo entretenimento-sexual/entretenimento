@@ -28,3 +28,4 @@ export interface UserPublic {
   longitude?: number;
   geohash?: string;
 }
+// lembrar sempre da padronização em uid para usuários, o identificador canônico.

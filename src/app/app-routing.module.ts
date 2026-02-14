@@ -113,6 +113,12 @@ const routes: Routes = [
      import('./perfil-debug.component').then(c => c.PerfilDebugComponent),
   },
 
+  {
+    path: '',
+    loadChildren: () =>
+      import('./media/media.routes').then(m => m.MEDIA_ROUTES),
+  },
+
   { path: '**',
     redirectTo: 'dashboard/principal' },
 ];

@@ -1,35 +1,50 @@
 // src/app/user-profile/user-profile-view/user-profile-view.component.ts
-// Componente para exibir o perfil do usuário, incluindo informações pessoais, links sociais e preferências.
-// Utiliza o estado global da aplicação para obter dados do usuário e gerenciar a visibilidade da sidebar.
-// lógica para diferenciar entre o perfil do usuário logado e outros perfis.
-// Não esqueça os comentários explicativos.
-// Posicionar melhor esse componente na hierarquia da aplicação se necessário.
-// Explicar pq não tem construtor.
+// Objetivo: exibir perfil do usuário SEM depender de fontes paralelas.
+// - UID “quem sou eu”: vem do AUTH (store -> selectCurrentUserUid)
+// - Perfil “dados do usuário”: vem do usersMap (store -> selectUserByIdOrNull / selectCurrentUser)
+// - Listener do usuário atual (users/{uid}) é controlado por AuthSessionSyncEffects.
+// - Este componente NÃO inicia observeUserChanges() para não cancelar listener do usuário atual via switchMap.
+
 import { Component, OnInit, OnDestroy, DestroyRef, inject } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { Observable, of, combineLatest } from 'rxjs';
-import { auditTime, catchError, distinctUntilChanged, filter, map, scan, shareReplay, switchMap, tap } from 'rxjs/operators';
+import {
+  auditTime,
+  catchError,
+  distinctUntilChanged,
+  filter,
+  map,
+  scan,
+  shareReplay,
+  switchMap,
+  tap,
+} from 'rxjs/operators';
 import { Store } from '@ngrx/store';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AppState } from 'src/app/store/states/app.state';
-import { selectUserById } from 'src/app/store/selectors/selectors.user/user.selectors';
-import { observeUserChanges } from 'src/app/store/actions/actions.user/user.actions';
+
+// ✅ agora usamos a “fonte única” do auth/store
+import {
+  selectCurrentUserUid,
+  selectUserByIdOrNull,
+  selectCurrentUserStatus,
+  type CurrentUserStatus,
+} from 'src/app/store/selectors/selectors.user/user.selectors';
 
 import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { SidebarService } from 'src/app/core/services/sidebar.service';
 
-// 🔄 Nova base de sessão/usuário (substitui anterior):
-import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+
 import { SocialLinksAccordionComponent } from './user-social-links-accordion/user-social-links-accordion.component';
 import { UserProfilePreferencesComponent } from './user-profile-preferences/user-profile-preferences.component';
 import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
 import { UserProfileSidebarComponent } from './user-profile-sidebar/user-profile-sidebar.component';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { environment } from 'src/environments/environment';
 
 enum SidebarState { CLOSED, OPEN }
@@ -54,53 +69,65 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly store = inject<Store<AppState>>(Store as any);
   private readonly sidebarService = inject(SidebarService);
-  private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly destroyRef = inject(DestroyRef);
 
-  public isSidebarVisible = SidebarState.CLOSED;
-  public uid: string | null = null;
-  public currentUser: IUserDados | null = null;
-  // Stream do usuário exibido (por uid efetivo)
-  public usuario$: Observable<IUserDados | null> = of(null);
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly errorNotification = inject(ErrorNotificationService);
+
+  public isSidebarVisible = SidebarState.CLOSED;
+
+  /** UID efetivo do perfil exibido (routeUid ?? authUid) */
+  public uid: string | null = null;
+
+  /** UID do usuário logado (AUTH) — usado p/ isOwner */
+  private authUid: string | null = null;
+
+  /** Status útil p/ debug e UX (boot/signed_out/loading_profile/ready) */
+  public status$: Observable<CurrentUserStatus> = this.store.select(selectCurrentUserStatus);
+
+  /** Stream do usuário exibido */
+  public usuario$: Observable<IUserDados | null> = of(null);
 
   private dbg(...args: any[]) {
     if (!environment.production) console.log('[UserProfileView]', ...args);
   }
 
   ngOnInit(): void {
-    const loggedUser$ = this.currentUserStore.user$.pipe(
-      tap(u => (this.currentUser = u ?? null)),
-      // ✅ evita recomputar combineLatest se o uid não mudou
-      map(u => u?.uid ?? null),
+    // ---------------------------------------------------------------------
+    // AUTH UID (fonte única)
+    // ---------------------------------------------------------------------
+    const authUid$ = this.store.select(selectCurrentUserUid).pipe(
+      tap(uid => (this.authUid = uid ?? null)),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+    // ---------------------------------------------------------------------
+    // UID vindo da rota (se existir /perfil/:uid, etc.)
+    // ---------------------------------------------------------------------
     const routeUid$ = this.route.paramMap.pipe(
-      map(p => p.get('uid') ?? p.get('id')),
+      map(p => (p.get('uid') ?? p.get('id'))?.trim() || null),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    const effectiveUid$ = combineLatest([routeUid$, loggedUser$]).pipe(
-      map(([rid, loggedUid]) => rid ?? loggedUid ?? null),
+    // ---------------------------------------------------------------------
+    // UID efetivo: routeUid (se existir) senão authUid
+    // ---------------------------------------------------------------------
+    const effectiveUid$ = combineLatest([routeUid$, authUid$]).pipe(
+      map(([rid, auid]) => rid ?? auid ?? null),
       distinctUntilChanged(),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-    // ✅ side-effect separado (dispatch idempotente), não acoplado ao template
-    effectiveUid$.pipe(
       tap(uid => (this.uid = uid)),
-      filter((uid): uid is string => !!uid),
-      tap(uid => this.store.dispatch(observeUserChanges({ uid }))),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe();
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
-    // ✅ stream "puro" para o template
+    // ---------------------------------------------------------------------
+    // Stream puro do usuário para o template:
+    // - NUNCA usa fallback (para não mascarar bugs)
+    // - Se uid existe e usuário não existe no map, template recebe null (loading)
+    // ---------------------------------------------------------------------
     this.usuario$ = effectiveUid$.pipe(
-      switchMap(uid => (uid ? this.store.select(selectUserById(uid)) : of(null))),
+      switchMap(uid => (uid ? this.store.select(selectUserByIdOrNull(uid)) : of(null))),
       tap(user => {
         if (user) {
           this.isSidebarVisible = user.isSidebarOpen ? SidebarState.OPEN : SidebarState.CLOSED;
@@ -108,40 +135,54 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
       }),
       catchError(err => {
         this.globalError.handleError(err instanceof Error ? err : new Error('Erro ao carregar perfil'));
-        // ✅ usa o método que existe
-        this.errorNotification.showError('Não foi possível carregar seu perfil no momento.', String(err?.message ?? ''));
+        this.errorNotification.showError(
+          'Não foi possível carregar seu perfil no momento.',
+          String((err as any)?.message ?? '')
+        );
         return of(null);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
     // Sidebar global (ok)
-    this.sidebarService.isSidebarVisible$.pipe(
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe(isVisible => {
-      this.isSidebarVisible = isVisible ? SidebarState.OPEN : SidebarState.CLOSED;
-    });
+    this.sidebarService.isSidebarVisible$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(isVisible => {
+        this.isSidebarVisible = isVisible ? SidebarState.OPEN : SidebarState.CLOSED;
+      });
 
-    // -------------------------
-    // LOGS DE DIAGNÓSTICO (DEV) – alta fidelidade e pouco ruído
-    // Remova depois que fechar o bug.
-    // -------------------------
-    effectiveUid$.pipe(
-      auditTime(500),
-      tap(uid => this.dbg('effectiveUid$', uid)),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe();
+    // ---------------------------------------------------------------------
+    // Debug de alta fidelidade (DEV)
+    // ---------------------------------------------------------------------
+    effectiveUid$
+      .pipe(
+        auditTime(500),
+        tap(uid => this.dbg('effectiveUid$', uid)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
 
-    this.usuario$.pipe(
-      filter(Boolean),
-      scan((acc) => acc + 1, 0),
-      auditTime(1000),
-      tap(count => this.dbg('usuario$ emits/sec', count)),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe();
+    this.status$
+      .pipe(
+        auditTime(500),
+        tap(s => this.dbg('currentUserStatus$', s)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+
+    this.usuario$
+      .pipe(
+        filter(Boolean),
+        scan((acc) => acc + 1, 0),
+        auditTime(1000),
+        tap(count => this.dbg('usuario$ emits/sec', count)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   // ===== Helpers de template =====
+
   objectKeys(obj: any): string[] {
     if (!obj) return [];
     return Object.keys(obj).filter(key => obj[key] && obj[key].value);
@@ -174,88 +215,12 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Dono do perfil = uid exibido igual ao uid do AUTH */
   isOnOwnProfile(): boolean {
-    return !!this.currentUser?.uid && this.currentUser.uid === this.uid;
+    return !!this.authUid && this.authUid === this.uid;
   }
 
   ngOnDestroy(): void {
-    // subscriptions automáticas já foram simplificadas; nada extra aqui.
+    // takeUntilDestroyed já faz o cleanup
   }
-} // Linha 151
-/*
-PS C:\entretenimento\src\app\user-profile> tree /f
-Listagem de caminhos de pasta para o volume Windows
-O número de série do volume é 1C9B-11ED
-C:.
-│   user-profile-routing.module.ts
-│   user-profile.module.ts
-│
-├───user-photo-manager
-│       user-photo-manager.component.css
-│       user-photo-manager.component.html
-│       user-photo-manager.component.spec.ts
-│       user-photo-manager.component.ts
-│
-├───user-profile-edit
-│   ├───edit-preferences
-│   │       edit-profile-preferences.component.css
-│   │       edit-profile-preferences.component.html
-│   │       edit-profile-preferences.component.spec.ts
-│   │       edit-profile-preferences.component.ts
-│   │
-│   ├───edit-profile-social-links
-│   │       edit-profile-social-links.component.css
-│   │       edit-profile-social-links.component.html
-│   │       edit-profile-social-links.component.spec.ts
-│   │       edit-profile-social-links.component.ts
-│   │
-│   ├───edit-region
-│   │       edit-profile-region.component.css
-│   │       edit-profile-region.component.html
-│   │       edit-profile-region.component.spec.ts
-│   │       edit-profile-region.component.ts
-│   │
-│   ├───edit-user-profile
-│   │       edit-user-profile.component.css
-│   │       edit-user-profile.component.html
-│   │       edit-user-profile.component.spec.ts
-│   │       edit-user-profile.component.ts
-│   │
-│   └───user-privacy-settings
-│           user-privacy-settings.component.css
-│           user-privacy-settings.component.html
-│           user-privacy-settings.component.spec.ts
-│           user-privacy-settings.component.ts
-│
-└───user-profile-view
-    │   user-profile-view.component.css
-    │   user-profile-view.component.html
-    │   user-profile-view.component.spec.ts
-    │   user-profile-view.component.ts
-    │
-    ├───user-activity-feed
-    │       user-activity-feed.component.css
-    │       user-activity-feed.component.html
-    │       user-activity-feed.component.spec.ts
-    │       user-activity-feed.component.ts
-    │
-    ├───user-profile-preferences
-    │       user-profile-preferences.component.css
-    │       user-profile-preferences.component.html
-    │       user-profile-preferences.component.spec.ts
-    │       user-profile-preferences.component.ts
-    │
-    ├───user-profile-sidebar
-    │       user-profile-sidebar.component.css
-    │       user-profile-sidebar.component.html
-    │       user-profile-sidebar.component.spec.ts
-    │       user-profile-sidebar.component.ts
-    │
-    └───user-social-links-accordion
-            user-social-links-accordion.component.css
-            user-social-links-accordion.component.html
-            user-social-links-accordion.component.spec.ts
-            user-social-links-accordion.component.ts
-
-PS C:\entretenimento\src\app\user-profile>
-*/
+}

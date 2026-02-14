@@ -1,187 +1,490 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-01-29T14:42:33.910Z
+// Generated at: 2026-02-12T23:17:40.169Z
 
 // ===== _helpers.rules =====
-//firestore-rules\_helpers.rules
+// firestore-rules/_helpers.rules
+//
+// Objetivo:
+// - Centralizar helpers de autenticação/claims/tipos realmente usados
+// - Evitar warnings do compiler (ex.: "k in map")
+// - Padronizar timestamps aceitando:
+//   (1) timestamp real (v is timestamp)
+//   (2) serverTimestamp() -> nas rules equivale a request.time
+//
+// Observação:
+// - Para forçar “somente serverTimestamp()” em um campo específico,
+//   use: request.resource.data.campo == request.time
+//  ========================================================================
+// Importante: este arquivo abre service e match /databases/... e não fecha —
+// o fechamento continua no seu _footer.rules
+// =========================================================================
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ========= Helpers =========
+    // =========================================================================
+    // Auth helpers
+    // =========================================================================
     function signedIn() { return request.auth != null; }
     function uid() { return request.auth.uid; }
     function isSelf(userId) { return signedIn() && uid() == userId; }
 
+    // =========================================================================
+    // Type helper (usado em chats/rooms/messages)
+    // =========================================================================
     function isStr(v) { return v is string; }
-    function isNum(v) { return v is number; }
-    function isBool(v) { return v is bool; }
-    function isTs(v) { return v is timestamp; }
 
-    function hasClaim(k) { return signedIn() && (k in request.auth.token) && request.auth.token[k] == true; }
+    // =========================================================================
+    // Timestamp helpers (timestamp real OU serverTimestamp() == request.time)
+    // =========================================================================
+    // serverTimestamp() (sentinel) chega nas rules como "request.time"
+    function isServerTime(v) { return v == request.time; }
+
+    // Aceita timestamp real ou serverTimestamp() (request.time)
+    function isTs(v) { return (v is timestamp) || isServerTime(v); }
+
+    // =========================================================================
+    // Claims helpers (usado em users.rules / admin_logs.rules)
+    // =========================================================================
+    // Evita "(k in request.auth.token)" para não disparar warning
+    function hasClaim(k) { return signedIn() && request.auth.token[k] == true; }
     function isAdmin() { return hasClaim("admin"); }
-    function isModerator() { return hasClaim("moderator") || isAdmin(); }
 
-    function optString(k) {
-      return !(k in request.resource.data)
-        || request.resource.data[k] is string
-        || request.resource.data[k] == null;
-    }
+    // =========================================================================
+    // Optional fields helpers (campos opcionais)
+    // Regra:
+    // - ausente OU null => ok
+    // - se existe => precisa ser do tipo esperado
+    //
+    // OBS:
+    // - request.resource.data[k] == null cobre "ausente" e "explicitamente null"
+    // =========================================================================
+// =========================================================================
+// Optional fields helpers (campos opcionais)
+// IMPORTANTE:
+// - Para chave dinâmica (map[k]), Firestore Rules pode lançar evaluation error
+//   quando a key não existe. Então: checar keys().hasAny([k]) antes.
+// =========================================================================
+function hasReqField(k) {
+  return request.resource.data.keys().hasAny([k]);
+}
 
-    function optNumberOrNull(k) {
-      return !(k in request.resource.data)
-        || request.resource.data[k] is number
-        || request.resource.data[k] == null;
-    }
+function optString(k) {
+  return !hasReqField(k)
+    || request.resource.data[k] == null
+    || request.resource.data[k] is string;
+}
 
-    function optBool(k) {
-      return !(k in request.resource.data) || request.resource.data[k] is bool;
-    }
+function optNumberOrNull(k) {
+  return !hasReqField(k)
+    || request.resource.data[k] == null
+    || request.resource.data[k] is number;
+}
 
-    function optTimestamp(k) {
-      return !(k in request.resource.data) || request.resource.data[k] is timestamp;
-    }
+// ✅ aceita timestamp real OU serverTimestamp()
+function optTimestamp(k) {
+  return !hasReqField(k)
+    || request.resource.data[k] == null
+    || isTs(request.resource.data[k]);
+}
+    // (os demais matches/arquivos entram abaixo via build)
 
 // ===== users.rules =====
-    // =========================================================================
-    // USERS (privado)
-    // =========================================================================
-    match /users/{userId} {
-      allow get, create, update: if isSelf(userId);
-      allow list: if false;
-      allow delete: if false;
-    }
+// firestore-rules/users.rules
+// =========================================================================
+// USERS (privado)
+// - Self: pode atualizar perfil, mas NÃO pode alterar campos de moderação
+// - Admin (claim admin): pode alterar campos de moderação
+// =========================================================================
+match /users/{userId} {
 
-    match /users/{userId}/friends/{friendId} {
-      allow read, write: if isSelf(userId);
-    }
+  // Fallback opcional (fase inicial):
+  // function isAdminEmail() { return signedIn() && request.auth.token.email == "alexseves@gmail.com"; }
+  // function isAdminActor() { return isAdmin() || isAdminEmail(); }
 
-    // ✅ ajuste o nome conforme seu app usa (blocks OU blocked)
-    match /users/{userId}/blocks/{targetId} {
-      allow read, write: if isSelf(userId);
-    }
+  function isAdminActor() { return isAdmin(); }
+
+  // Bloqueia alterações sensíveis pelo próprio usuário
+function selfChangingSensitiveKeys() {
+  return request.resource.data.diff(resource.data).changedKeys().hasAny([
+    "role",
+    "tier",
+    "isSubscriber",
+    "accountLocked",
+    "suspended",
+    "suspensionReason",
+    "suspendedAt",
+    "accountStatus",
+    "moderatedBy",
+    "moderatedAt",
+    "lastStatusChangeAt",
+    "roles",
+    "permissions",
+    "entitlements"
+  ]);
+}
+
+  // Admin só pode mexer em um conjunto pequeno (moderação)
+  function adminModerationOnly() {
+    return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      "accountLocked",
+      "suspended",
+      "suspensionReason",
+      "suspendedAt",
+      "accountStatus",
+      "moderatedBy",
+      "moderatedAt",
+      "lastStatusChangeAt"
+    ]);
+  }
+
+  allow get: if isSelf(userId) || isAdminActor();
+  allow list: if false;
+
+  allow create: if isSelf(userId);
+
+  allow update: if
+    (isSelf(userId) && !selfChangingSensitiveKeys())
+    || (isAdminActor() && adminModerationOnly());
+
+  allow delete: if false;
+}
+// ===================================================================
 
 // ===== public_profiles.rules =====
-    // =========================================================================
-    // PUBLIC PROFILES (consultável / discovery)
-    // =========================================================================
-    match /public_profiles/{userId} {
-      // Exige login para ler perfis públicos (padrão do seu projeto)
-      allow get, list: if signedIn();
+// firestore-rules/public_profiles.rules
+// =========================================================================
+// PUBLIC PROFILES (consultável / discovery)
+//
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
+// ✅ Depende dos helpers globais em _helpers.rules:
+//    - signedIn(), uid(), isSelf()
+//    - optTimestamp()  (se você mantém esse helper global)
+// =========================================================================
 
-      function allowedKeys() {
-        return request.resource.data.keys().hasOnly([
-          "uid",
-          "nickname",
-          "nicknameNormalized",
-          "avatarUrl",
-          "photoURL",
-          "municipio",
-          "estado",
-          "gender",
-          "orientation",
-          "role",
-          "latitude",
-          "longitude",
-          "geohash",
-          "createdAt",
-          "updatedAt"
-        ]);
-      }
+match /public_profiles/{userId} {
+  // Leitura: exige login (evita scraping público).
+  // Obs.: para queries (where/orderBy) o Firestore usa "list".
+  allow get, list: if signedIn();
 
-      function validPublicProfilePayload() {
-        return request.resource.data.uid == uid()
-          && allowedKeys()
-          && optString("nickname")
-          && optString("nicknameNormalized")
-          && optString("avatarUrl")
-          && optString("photoURL")
-          && optString("municipio")
-          && optString("estado")
-          && optString("gender")
-          && optString("orientation")
-          && optString("role")
-          && optNumberOrNull("latitude")
-          && optNumberOrNull("longitude")
-          && optString("geohash")
-          && optTimestamp("createdAt")
-          && optTimestamp("updatedAt");
-      }
+  // -----------------------------------------------------------------------
+  // Helpers locais (SAFE)
+  // - Evita evaluation error quando campo opcional está ausente (undefined)
+  // - Usa keys().hasAny([field]) antes de acessar request.resource.data[field]
+  // -----------------------------------------------------------------------
 
-      allow create: if (
-        isSelf(userId)
-        && validPublicProfilePayload()
-        && isTs(request.resource.data.createdAt)
-        && isTs(request.resource.data.updatedAt)
-        && request.resource.data.role == "basic"
-      );
+  // Existe no payload?
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
 
-      allow update: if (
-        isSelf(userId)
-        && validPublicProfilePayload()
-        && request.resource.data.createdAt == resource.data.createdAt
-        && isTs(request.resource.data.updatedAt)
-        && request.resource.data.role == resource.data.role
-      );
+  // Retorna valor ou null (se ausente)
+  function fieldOrNull(field) {
+    return hasField(field) ? request.resource.data[field] : null;
+  }
 
-      allow delete: if false;
-    }
+  // String opcional, com range de tamanho
+  function optStringSized(field, min, max) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+          && request.resource.data[field].size() >= min
+          && request.resource.data[field].size() <= max);
+  }
+
+  // URL opcional: validação básica (http/https) + tamanho máximo
+  function optUrl(field, maxLen) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+          && request.resource.data[field].size() <= maxLen
+          && request.resource.data[field].matches('^https?://.*'));
+  }
+
+  // Number opcional, com range
+  function optNumberInRange(field, min, max) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is number
+          && request.resource.data[field] >= min
+          && request.resource.data[field] <= max);
+  }
+
+  // Geohash opcional (base32), tamanho 5..12
+  function optGeohash(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+          && request.resource.data[field]
+            .matches('^[0123456789bcdefghjkmnpqrstuvwxyz]{5,12}$'));
+  }
+
+  // nickname e nicknameNormalized coerentes
+  function nicknameCoherent() {
+    let nick = fieldOrNull("nickname");
+    let norm = fieldOrNull("nicknameNormalized");
+    return (nick == null && norm == null) || (nick != null && norm != null);
+  }
+
+  // geo: ou os 3 null/ausentes, ou os 3 preenchidos
+  function geoCoherent() {
+    let lat = fieldOrNull("latitude");
+    let lng = fieldOrNull("longitude");
+    let gh  = fieldOrNull("geohash");
+    return (lat == null && lng == null && gh == null)
+      || (lat != null && lng != null && gh != null);
+  }
+
+  // -----------------------------------------------------------------------
+  // Whitelist rígida: nenhum campo fora do schema
+  // -----------------------------------------------------------------------
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "nickname",
+      "nicknameNormalized",
+      "avatarUrl",
+      "photoURL",
+      "municipio",
+      "estado",
+      "gender",
+      "orientation",
+      "role",
+      "latitude",
+      "longitude",
+      "geohash",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  // -----------------------------------------------------------------------
+  // Validação do payload FINAL (create/update)
+  // Em update: request.resource.data já é o documento final (merge aplicado).
+  // -----------------------------------------------------------------------
+  function validPublicProfilePayload() {
+    return allowedKeys()
+
+      // uid do documento deve ser o usuário autenticado
+      && (request.resource.data.uid is string)
+      && request.resource.data.uid == uid()
+
+      // timestamps: tipo (o "server time" é forçado no allow create/update)
+      && optTimestamp("createdAt")
+      && optTimestamp("updatedAt")
+
+      // nickname + normalized coerentes
+      && nicknameCoherent()
+      && optStringSized("nickname", 3, 40)
+       && (
+        !hasField("nicknameNormalized")
+        || request.resource.data.nicknameNormalized == null
+        || (
+          request.resource.data.nicknameNormalized is string
+          && request.resource.data.nicknameNormalized
+            .matches('^[a-z0-9._-]{3,40}$')
+        )
+      )
+
+      // URLs (opcionais)
+      && optUrl("avatarUrl", 1024)
+      && optUrl("photoURL", 1024)
+
+      // geo (opcional) + coerência + ranges
+      && geoCoherent()
+      && optNumberInRange("latitude", -90, 90)
+      && optNumberInRange("longitude", -180, 180)
+      && optGeohash("geohash")
+
+      // campos textuais opcionais
+      && optStringSized("municipio", 1, 80)
+      && optStringSized("estado", 1, 40)
+      && optStringSized("gender", 1, 40)
+      && optStringSized("orientation", 1, 40)
+
+      // role: criação força "basic" e update impede mudança
+      && optStringSized("role", 3, 20);
+  }
+
+  // -----------------------------------------------------------------------
+  // CREATE
+  // - somente dono
+  // - createdAt/updatedAt obrigatoriamente serverTimestamp() => request.time
+  // - role inicial obrigatoriamente "basic"
+  // -----------------------------------------------------------------------
+  allow create: if (
+    isSelf(userId)
+    && validPublicProfilePayload()
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.updatedAt == request.time
+    && request.resource.data.role == "basic"
+  );
+
+  // -----------------------------------------------------------------------
+  // UPDATE
+  // - somente dono
+  // - uid e createdAt imutáveis
+  // - updatedAt obrigatoriamente serverTimestamp() => request.time
+  // - role imutável (anti auto-elevação)
+  // -----------------------------------------------------------------------
+  allow update: if (
+    isSelf(userId)
+    && validPublicProfilePayload()
+    && request.resource.data.uid == resource.data.uid
+    && request.resource.data.createdAt == resource.data.createdAt
+    && request.resource.data.updatedAt == request.time
+    && request.resource.data.role == resource.data.role
+  );
+
+  // Delete bloqueado
+  allow delete: if false;
+}
 
 // ===== presence.rules =====
-    // =========================================================================
-    // PRESENCE (efêmero / realtime)
-    // =========================================================================
-    match /presence/{presenceUid} {
-      allow read: if signedIn();
+// firestore-rules/presence.rules
+// =========================================================================
+// PRESENCE (efêmero / realtime)
+//
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
+// ✅ Depende dos helpers globais em _helpers.rules:
+//    - signedIn(), uid(), isSelf()
+//    - isTs() (timestamp real OU serverTimestamp() == request.time)
+//    - optString(), optNumberOrNull(), optTimestamp() (com guarda keys().hasAny)
+// =========================================================================
+//
+// Problema que este arquivo corrige:
+// - Evita "evaluation error ... Property X is undefined on object"
+//   quando campos opcionais NÃO estão presentes no payload.
+//
+// Estratégia:
+// - NUNCA acessar request.resource.data.campo diretamente sem garantir que existe,
+//   quando o campo pode estar ausente em updates.
+// - Para campos obrigatórios, usamos helpers req*() que checam keys().hasAny()
+//   antes de ler request.resource.data[field].
+// =========================================================================
 
-      allow create, update: if (
-        isSelf(presenceUid)
-        && request.resource.data.uid == uid()
-        && request.resource.data.keys().hasOnly([
-          "uid",
-          "presenceSessionId",
+match /presence/{presenceUid} {
+  // Leitura: exige login (evita scraping e mantém o canal "presence" fechado)
+  allow read: if signedIn();
 
-          "isOnline",
-          "presenceState",
+  // -------------------------------------------------------------------------
+  // Helpers locais SAFE (blindam access a request.resource.data[field])
+  // -------------------------------------------------------------------------
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
 
-          "lastSeen",
-          "updatedAt",
+  // Campo obrigatório: string
+  function reqString(field) {
+    return hasField(field) && request.resource.data[field] is string;
+  }
 
-          "lastStateChangeAt",
-          "lastOnlineAt",
-          "lastOfflineAt",
+  // Campo obrigatório: bool
+  function reqBool(field) {
+    return hasField(field) && request.resource.data[field] is bool;
+  }
 
-          "nickname",
-          "municipio",
-          "estado",
-          "photoURL",
-          "latitude",
-          "longitude"
-        ])
+  // Campo obrigatório: timestamp (aceita timestamp real OU serverTimestamp() => request.time)
+  function reqTimestamp(field) {
+    return hasField(field) && isTs(request.resource.data[field]);
+  }
 
-        && request.resource.data.presenceSessionId is string
+  // Campo obrigatório: enum string
+  function reqEnum(field, allowed) {
+    return hasField(field)
+      && request.resource.data[field] is string
+      && request.resource.data[field] in allowed;
+  }
 
-        && request.resource.data.isOnline is bool
-        && request.resource.data.presenceState in ["online","away","offline"]
+  // -------------------------------------------------------------------------
+  // Schema / whitelist rígida
+  // - Bloqueia qualquer campo fora do conjunto permitido
+  // -------------------------------------------------------------------------
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "presenceSessionId",
 
-        && request.resource.data.lastSeen is timestamp
-        && optTimestamp("updatedAt")
+      "isOnline",
+      "presenceState",
 
-        && optTimestamp("lastStateChangeAt")
-        && optTimestamp("lastOnlineAt")
-        && optTimestamp("lastOfflineAt")
+      "lastSeen",
+      "updatedAt",
 
-        && optString("nickname")
-        && optString("municipio")
-        && optString("estado")
-        && optString("photoURL")
-        && optNumberOrNull("latitude")
-        && optNumberOrNull("longitude")
-      );
+      "lastStateChangeAt",
+      "lastOnlineAt",
+      "lastOfflineAt",
 
-      allow delete: if false;
-    }
+      "nickname",
+      "municipio",
+      "estado",
+      "photoURL",
+      "latitude",
+      "longitude"
+    ]);
+  }
+
+  // -------------------------------------------------------------------------
+  // Validação do payload FINAL (create/update)
+  //
+  // Observação:
+  // - Em update, request.resource.data representa o documento FINAL (merge aplicado).
+  // - Como seu writer pode fazer update parcial, estes req*() garantem
+  //   que a regra não tenta ler undefined e também que o doc final fica íntegro.
+  // -------------------------------------------------------------------------
+  function validPresencePayload() {
+    return allowedKeys()
+
+      // Dono do doc
+      && reqString("uid")
+      && request.resource.data["uid"] == uid()
+
+      // Identificador de sessão/aba (obrigatório)
+      && reqString("presenceSessionId")
+
+      // Estado (obrigatório)
+      && reqBool("isOnline")
+      && reqEnum("presenceState", ["online","away","offline"])
+
+      // Telemetria base (obrigatório)
+      // - lastSeen deve ser timestamp (writer usa serverTimestamp)
+      && reqTimestamp("lastSeen")
+
+      // updatedAt: opcional por schema, mas aqui tratamos como "deve ser ts quando presente".
+      // Se você quiser FORÇAR sempre serverTimestamp em todo write:
+      // - troque por: reqTimestamp("updatedAt") && request.resource.data["updatedAt"] == request.time
+      && optTimestamp("updatedAt")
+
+      // Stamps opcionais (podem estar ausentes em heartbeats/public patches)
+      && optTimestamp("lastStateChangeAt")
+      && optTimestamp("lastOnlineAt")
+      && optTimestamp("lastOfflineAt")
+
+      // Campos públicos opcionais
+      && optString("nickname")
+      && optString("municipio")
+      && optString("estado")
+      && optString("photoURL")
+      && optNumberOrNull("latitude")
+      && optNumberOrNull("longitude");
+  }
+
+  // -------------------------------------------------------------------------
+  // CREATE / UPDATE
+  //
+  // - Somente o próprio usuário escreve.
+  // - Payload precisa ser válido.
+  // -------------------------------------------------------------------------
+  allow create, update: if (
+    isSelf(presenceUid)
+    && validPresencePayload()
+  );
+
+  // Delete bloqueado
+  allow delete: if false;
+}
 
 // ===== friendRequests.rules =====
     // =========================================================================
@@ -211,8 +514,10 @@ service cloud.firestore {
     }
 
 // ===== chats.rules =====
+    //firestore-rules\chats.rules
     // =========================================================================
     // CHATS
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
     // =========================================================================
     match /chats/{chatId} {
       function isChatParticipant() {
@@ -226,7 +531,8 @@ service cloud.firestore {
         && request.resource.data.participants is list
         && request.resource.data.participants.size() >= 2
         && isTs(request.resource.data.timestamp)
-        && (!('participantsKey' in request.resource.data) || isStr(request.resource.data.participantsKey));
+        && (!request.resource.data.keys().hasAny(["participantsKey"]) || isStr(request.resource.data.participantsKey));
+
 
       allow update: if isChatParticipant()
         && request.resource.data.diff(resource.data).changedKeys().hasOnly([
@@ -250,7 +556,7 @@ service cloud.firestore {
       }
 
       function messageHasTime() {
-        return (("timestamp" in request.resource.data) && isTs(request.resource.data.timestamp))
+        return ((request.resource.data.keys().hasAny(["timestamp"])) && isTs(request.resource.data.timestamp))
           || (("createdAt" in request.resource.data) && isTs(request.resource.data.createdAt));
       }
 
@@ -391,86 +697,117 @@ service cloud.firestore {
     }
 
 // ===== public_index.rules =====
+    //C:\entretenimento\firestore-rules\public_index.rules
     // =========================================================================
     // PUBLIC INDEX (índice técnico)
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
     // =========================================================================
-    match /public_index/{docId} {
+match /public_index/{docId} {
+  function isNicknameDoc() { return docId.matches('^nickname:.+'); }
+  function isEmailDoc() { return docId.matches('^email:.+'); }
 
-      function isNicknameDoc() { return docId.matches('^nickname:.+'); }
-      function isEmailDoc() { return docId.matches('^email:.+'); }
+  allow get: if isNicknameDoc()
+    || (signedIn() && isEmailDoc() && resource.data.uid == uid());
 
-      // GET público para nickname (registro sem login)
-      // GET privado para email (somente dono logado)
-      allow get: if isNicknameDoc()
-        || (signedIn() && isEmailDoc() && resource.data.uid == uid());
+  allow list: if false;
 
-      allow list: if false;
+  function validDocId() { return isNicknameDoc() || isEmailDoc(); }
 
-      function validDocId() {
-        return isNicknameDoc() || isEmailDoc();
-      }
+  function common() {
+    return signedIn()
+      && validDocId()
+      && request.resource.data.uid == uid()
+      && request.resource.data.type in ["nickname","email"]
+      && request.resource.data.value is string
+      // ✅ serverTimestamp obrigatório
+      && request.resource.data.createdAt == request.time
+      && request.resource.data.lastChangedAt == request.time;
+  }
 
-      function common() {
-        return signedIn()
-          && validDocId()
-          && request.resource.data.uid == uid()
-          && request.resource.data.type in ["nickname","email"]
-          && request.resource.data.value is string
-          && request.resource.data.createdAt is timestamp
-          && request.resource.data.lastChangedAt is timestamp;
-      }
+  allow create: if common()
+    && !exists(/databases/$(database)/documents/public_index/$(docId));
 
-      // create-only
-      allow create: if common()
-        && !exists(/databases/$(database)/documents/public_index/$(docId));
+  allow update: if signedIn()
+    && isEmailDoc()
+    && request.resource.data.uid == uid()
+    && request.resource.data.type == "email"
+    && request.resource.data.value is string
+    && request.resource.data.createdAt == resource.data.createdAt
+    // ✅ serverTimestamp obrigatório no update
+    && request.resource.data.lastChangedAt == request.time;
 
-      // nickname: update bloqueado | email: update permitido
-      allow update: if signedIn()
-        && isEmailDoc()
-        && request.resource.data.uid == uid()
-        && request.resource.data.type == "email"
-        && request.resource.data.value is string
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.lastChangedAt is timestamp;
-
-      // delete: dono pode apagar
-      allow delete: if signedIn() && resource.data.uid == uid();
-    }
+  allow delete: if signedIn() && resource.data.uid == uid();
+}
 
 // ===== users_profile_socialLinks.rules =====
-//C:\entretenimento\firestore-rules\users_profile_socialLinks.rules
+// C:\entretenimento\firestore-rules\users_profile_socialLinks.rules
 
-    // =========================================================================
-    // USERS / profileData / socialLinks
-    //
-    // Ponto importante (padrão de plataforma grande):
-    // - Se algo pode ser "público por escolha", normalmente se replica um subset em
-    //   uma coleção pública (ex.: /public_profiles/{uid}) para simplificar regras.
-    //
-    // Aqui vai o DEFAULT seguro: privado (somente dono).
-    // Depois você expande para visibilidade/role sem explodir o ruleset.
-    // =========================================================================
-    match /users/{userId}/profileData/socialLinks {
-      allow get, create, update: if isSelf(userId);
-      allow list: if false;
-      allow delete: if false;
-    }
+// =========================================================================
+// USERS / profileData / socialLinks (privado)
+// - Fonte de verdade
+// - Escrita: somente dono
+// - Leitura: somente dono (padrão). Moderador/admin opcional.
+// =========================================================================
+match /users/{userId}/profileData/socialLinks {
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
+      "sexlog","d4swing","buppe"
+      // Se você quiser versionar/controlar auditoria no futuro:
+      // ,"createdAt","updatedAt"
+    ]);
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && optString("facebook")
+      && optString("instagram")
+      && optString("twitter")
+      && optString("linkedin")
+      && optString("youtube")
+      && optString("tiktok")
+      && optString("snapchat")
+      && optString("sexlog")
+      && optString("d4swing")
+      && optString("buppe");
+      // Se usar timestamps:
+      // && optTimestamp("createdAt")
+      // && optTimestamp("updatedAt");
+  }
+
+  // Leitura: padrão “fechado”
+  allow get: if isSelf(userId);
+  // Se você realmente precisar (decisão de produto/risco):
+  // allow get: if isSelf(userId) || isModerator();
+
+  allow create: if isSelf(userId) && validPayload();
+  allow update: if isSelf(userId) && validPayload();
+
+  allow list: if false;
+
+  // Delete do doc privado: opcional. Se você não usa, pode manter false.
+  // allow delete: if isSelf(userId);
+  allow delete: if false;
+}
+// =========================================================================
 
 // ===== public_social_links.rules =====
 // C:\entretenimento\firestore-rules\public_social_links.rules
+
 // =========================================================================
 // PUBLIC SOCIAL LINKS (espelho público)
-// - Contém SOMENTE o subset que o usuário escolheu tornar visível
+// - Somente subset publicado
 // - Escrita: somente dono
-// - Leitura: (aqui) exige login, alinhado ao seu padrão de /public_profiles
+// - Leitura: exige login (alinhado ao seu /public_profiles)
+// - Evita LIST (padrão anti-scraping)
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
 // =========================================================================
 match /public_social_links/{userId} {
 
-  // Leitura: exige login (mantenha consistente com /public_profiles)
-  allow get, list: if signedIn();
-
-  // Se quiser permitir leitura sem login (não recomendo no seu caso):
-  // allow get, list: if true;
+  // Leitura: consistente com /public_profiles
+  allow get: if signedIn();
+  allow list: if false;
 
   function allowedKeys() {
     return request.resource.data.keys().hasOnly([
@@ -481,7 +818,7 @@ match /public_social_links/{userId} {
     ]);
   }
 
-  function validPublicSocialLinksPayload() {
+  function validPayload() {
     return request.resource.data.uid == uid()
       && allowedKeys()
       && optString("facebook")
@@ -497,15 +834,113 @@ match /public_social_links/{userId} {
       && optTimestamp("updatedAt");
   }
 
-  allow create: if isSelf(userId) && validPublicSocialLinksPayload();
-  allow update: if isSelf(userId) && validPublicSocialLinksPayload();
+  // Create: dono + payload válido + updatedAt “do servidor”
+  allow create: if isSelf(userId)
+    && validPayload()
+    && request.resource.data.updatedAt == request.time;
 
-  // Se o usuário “despublicar”, apaga o espelho:
+  // Update: dono + payload válido + uid imutável + updatedAt “do servidor”
+  allow update: if isSelf(userId)
+    && validPayload()
+    && request.resource.data.uid == resource.data.uid
+    && request.resource.data.updatedAt == request.time
+    && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
+      "sexlog","d4swing","buppe",
+      "updatedAt"
+    ]);
+
+  // Despublicar: dono apaga
   allow delete: if isSelf(userId);
+}
+// =========================================================================
+
+// ===== preferences.rules =====
+// firestore-rules/preferences.rules
+// =========================================================================
+// PREFERENCES
+// - Preferências do usuário (privado)
+// - Regra segura: só o dono lê/escreve
+// - Usa helpers já definidos em _helpers.rules: signedIn(), uid(), isSelf()
+// =========================================================================
+
+match /preferences/{userId} {
+  allow get: if isSelf(userId);
+  allow list: if false;              // evita enumeração
+
+  allow create, update: if isSelf(userId);
+  allow delete: if false;
+}
+
+match /users/{userId}/preferences/{docId} {
+  allow get, list: if isSelf(userId); // aqui list faz sentido (vários docs do dono)
+  allow create, update: if isSelf(userId);
+  allow delete: if false;
+}
+
+// não esquecer de ajustar o build-firestore-rules.mjs para incluir este arquivo
+// não esquecer de testar as regras com o emulador ou no console do Firebase
+// não esquecer de documentar as preferências usadas no app (ex: README ou wiki)
+// não esquecer de tratar erros de permissão no app (ex: exibir mensagem amigável)
+// não esquecer de validar os dados no app antes de gravar no Firestore
+// não esquecer de considerar criptografia se houver dados sensíveis nas preferências
+// não esquecer de revisar as regras periodicamente conforme o app evolui
+// não esquecer de monitorar acessos negados no Firebase Console (logs de segurança)
+// não esquecer de ajustar índices compostos se usar consultas complexas nas preferências
+// não esquecer de otimizar o tamanho dos documentos de preferências para evitar custos excessivos
+// não esquecer de considerar limites de taxa do Firestore se o app tiver muitos usuários
+// não esquecer de usar cache local no app para melhorar performance ao ler preferências
+// não esquecer de tratar migrações de preferências se o esquema mudar no futuro
+// não esquecer de comunicar aos usuários sobre como suas preferências são armazenadas e usadas
+// não esquecer de seguir as melhores práticas de segurança do Firebase Firestore
+// não esquecer de testar com diferentes níveis de autenticação (usuário, admin, etc.
+// não esquecer de usar o Firebase Emulator Suite para testes locais
+// não esquecer de revisar as regras com a equipe de segurança se aplicável
+// não esquecer de versionar as regras se o Firebase suportar no futuro
+// não esquecer de documentar qualquer dependência entre preferências e outras partes do app
+// não esquecer de considerar o uso de funções do Firebase para lógica complexa relacionada a preferências
+// não esquecer de validar o tamanho máximo dos documentos de preferências
+// não esquecer de considerar a privacidade dos dados conforme leis aplicáveis (ex: GDPR, LGPD)
+// não esquecer de definir quais campos são obrigatórios ou opcionais nas preferências
+// não esquecer de fefinir padrões para preferências não definidas pelos usuários
+// não esquecer de considerar a internacionalização se o app for multilíngue
+// não esquecer de revisar o uso de preferências no app para evitar acessos desnecessários
+// não esquecer de definir o que pode ser acessado anonimamente, se aplicável
+// não esquecer o que deve ser diponibilizado apenas para usuários autenticados
+// não esquecer de considerar o uso de claims personalizados se houver níveis diferentes de acesso
+// não esquecer de definir as preferencias do usuário que só podem ser acessadas por ele mesmo ou administradores
+
+// ===== admin_logs.rules =====
+// firestore-rules/admin_logs.rules
+// =========================================================================
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
+// ADMIN LOGS (auditoria / staff)
+// - Somente staff (admin/moderator) pode criar
+// - Leitura: restrita (get) para staff
+// - Sem list (anti-enumeração)
+// - Sem update/delete (log imutável)
+// - timestamp obrigatório via serverTimestamp() => request.time
+// =========================================================================
+match /admin_logs/{logId} {
+  function isAdminActor() { return isAdmin(); }
+
+  allow get: if isAdminActor();
+  allow list: if isAdminActor();
+
+  allow create: if isAdminActor()
+    && request.resource.data.keys().hasOnly([
+      "adminUid","action","targetUserUid","details","timestamp"
+    ])
+    && request.resource.data.adminUid == uid()
+    && request.resource.data.action is string
+    && request.resource.data.targetUserUid is string
+    && request.resource.data.timestamp == request.time; // força server time
+
+  allow update, delete: if false;
 }
 
 // ===== _footer.rules =====
 //C:\entretenimento\firestore-rules\_footer.rules
-
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
   }
 }

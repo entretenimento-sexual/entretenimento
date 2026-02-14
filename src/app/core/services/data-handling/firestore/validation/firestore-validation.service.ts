@@ -9,6 +9,7 @@ import { FirestoreErrorHandlerService } from '../../../error-handler/firestore-e
 
 // AngularFire Firestore (GET 1x)
 import { Firestore, doc, getDocFromServer, getDoc, getDocFromCache } from '@angular/fire/firestore';
+import { NicknameUtils } from '@core/utils/nickname-utils';
 
 type Mode = 'soft' | 'strict';
 type Source = 'default' | 'server' | 'cache';
@@ -83,12 +84,13 @@ export class FirestoreValidationService {
   // ---------------------------------------------------------------------------
 
   private normalizeNickname(input: string): string {
-    // mínimo e direto: trim + lower
-    // (se você quiser, depois pode padronizar espaços: .replace(/\s+/g, ' '))
-    return (input ?? '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
+    /**
+     * Este normalizeNickname é "normalização para ÍNDICE", porque:
+     * - ele alimenta docId = `nickname:${normalized}`
+     * - portanto precisa ser compatível com rules (sem espaços).
+     * centralizado no utils/nickname-utils para garantir consistência com regras de validação e geração de índices.
+     */
+    return NicknameUtils.normalizarApelidoParaIndice(input);
   }
 
   /**

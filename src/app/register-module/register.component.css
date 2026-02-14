@@ -4,7 +4,7 @@
    RegisterComponent styles (scoped)
    - Harmonizado com tokens globais
    - Tooltip sobreposto (sem empurrar layout)
-   - Banner e preview mais "produto"
+   - Badge warn + pending evidentes
    ================================ */
 
 :host {
@@ -49,18 +49,17 @@
 }
 
 /* ====== Banner (premium) ====== */
-/* OBS: mantém suas classes .alert-* globais, mas melhora a "embalagem" só aqui */
 .form-container .alert {
   padding: 12px 14px;
   border-radius: 12px;
   margin-bottom: 16px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, .12);
-  border: 1px solid rgba(255, 255, 255, .18);
+  border: 1px solid color-mix(in oklab, var(--surface-border) 70%, transparent);
 }
 
-:host-context(.dark-mode) .form-container .alert {
+:host-context(html.dark-mode) .form-container .alert {
   box-shadow: 0 12px 30px rgba(0, 0, 0, .35);
-  border-color: rgba(255, 255, 255, .14);
+  border-color: color-mix(in oklab, var(--surface-border) 85%, transparent);
 }
 
 .form-container .alert strong {
@@ -75,8 +74,7 @@
   border-radius: 10px;
 }
 
-/* Botões: o seu .btn global não tem padding.
-   Aqui resolve localmente (sem mexer no resto do app). */
+/* Botões: o .btn global não tem padding; resolve localmente */
 .form-container .btn {
   padding: 10px 14px;
   min-height: 42px;
@@ -100,6 +98,7 @@
   height: 42px;
   padding: 10px 12px;
   margin-bottom: 0;
+  /* remove margin do global-forms */
   border-radius: 10px;
   border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
   background: var(--input-background, #fff);
@@ -107,16 +106,16 @@
   transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
 }
 
-/* Mantém coerência com o global-focus, sem “guerra” de sombras */
+/* Mantém coerência com o foco global, sem “guerra” de sombras */
 .input-field:focus {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 22%, transparent);
   outline: none;
 }
 
+/* espaço do botão “olho” (aplica nos wrappers que tiverem) */
 .input-wrapper .input-field {
   padding-right: 44px;
-  /* espaço do olho */
 }
 
 .toggle-input {
@@ -205,6 +204,13 @@
   border-color: color-mix(in oklab, var(--danger-color) 28%, transparent);
 }
 
+/* >>> NOVO: badge WARN (unverified) */
+.badge.warn {
+  background: color-mix(in oklab, var(--snackbar-warning) 16%, transparent);
+  color: color-mix(in oklab, var(--text-color) 92%, transparent);
+  border-color: color-mix(in oklab, var(--snackbar-warning) 34%, transparent);
+}
+
 /* ====== Inline spinner ====== */
 .inline-spinner {
   width: 14px;
@@ -237,16 +243,17 @@
   color: var(--danger-color);
 }
 
-/* ====== Preview do apelido completo (premium) ====== */
-/* (no HTML revisado, o small tem id="apelidoPreview") */
-#apelidoPreview {
+/* ====== Preview do apelido completo (sem id; só estrutura) ======
+   No HTML revisado, o preview é o <small class="field-hint"> direto dentro de .nickname-field,
+   depois do .hint-row. Esse seletor pega só esse preview (não o help lá dentro). */
+.nickname-field>.field-hint {
   display: block;
   margin-top: .55rem;
   font-size: .9rem;
   color: color-mix(in oklab, var(--text-color) 78%, transparent);
 }
 
-#apelidoPreview strong {
+.nickname-field>.field-hint strong {
   display: inline-flex;
   align-items: center;
   gap: .35rem;
@@ -260,8 +267,10 @@
 }
 
 /* ====== Tooltip de erro SOBREPOSTO (não empurra layout) ====== */
-/* Importante: por UX mobile, não bloqueia clique/toque nos próximos campos */
 .form-container .tooltip-error {
+  /* usa variável p/ setinha bater com o fundo */
+  --tt-bg: color-mix(in oklab, var(--danger-color) 16%, var(--tooltip-background));
+
   position: absolute;
   left: 0;
   top: calc(100% + 6px);
@@ -275,12 +284,15 @@
   border-radius: .5rem;
   font-size: .9rem;
 
-  background: color-mix(in oklab, var(--danger-color) 16%, var(--tooltip-background));
+  background: var(--tt-bg);
   border: 1px solid color-mix(in oklab, var(--danger-color) 50%, transparent);
   color: #fff;
 
   box-shadow: var(--box-shadow);
   animation: fadeIn .2s ease;
+
+  /* evita bloquear clique em elementos abaixo (principalmente no mobile) */
+  pointer-events: none;
 }
 
 /* setinha */
@@ -293,7 +305,7 @@
   height: 0;
   border-left: 7px solid transparent;
   border-right: 7px solid transparent;
-  border-bottom: 7px solid color-mix(in oklab, var(--tooltip-background) 94%, black 6%);
+  border-bottom: 7px solid var(--tt-bg);
 }
 
 /* ====== Aceite de termos ====== */
@@ -303,6 +315,10 @@
   gap: 10px;
   margin: 14px 0 10px;
   color: var(--text-color);
+}
+
+.form-checkbox input[type="checkbox"] {
+  accent-color: var(--primary-color);
 }
 
 /* ====== CTA “Já tem conta?” ====== */
@@ -386,7 +402,7 @@
   }
 }
 
-/* Em telas bem pequenas, tooltip ocupa largura total e não “some” fora */
+/* telas bem pequenas */
 @media (max-width: 380px) {
   .form-container .tooltip-error {
     font-size: .88rem;

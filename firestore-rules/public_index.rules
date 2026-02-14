@@ -1,45 +1,41 @@
+    //C:\entretenimento\firestore-rules\public_index.rules
     // =========================================================================
     // PUBLIC INDEX (índice técnico)
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
     // =========================================================================
-    match /public_index/{docId} {
+match /public_index/{docId} {
+  function isNicknameDoc() { return docId.matches('^nickname:.+'); }
+  function isEmailDoc() { return docId.matches('^email:.+'); }
 
-      function isNicknameDoc() { return docId.matches('^nickname:.+'); }
-      function isEmailDoc() { return docId.matches('^email:.+'); }
+  allow get: if isNicknameDoc()
+    || (signedIn() && isEmailDoc() && resource.data.uid == uid());
 
-      // GET público para nickname (registro sem login)
-      // GET privado para email (somente dono logado)
-      allow get: if isNicknameDoc()
-        || (signedIn() && isEmailDoc() && resource.data.uid == uid());
+  allow list: if false;
 
-      allow list: if false;
+  function validDocId() { return isNicknameDoc() || isEmailDoc(); }
 
-      function validDocId() {
-        return isNicknameDoc() || isEmailDoc();
-      }
+  function common() {
+    return signedIn()
+      && validDocId()
+      && request.resource.data.uid == uid()
+      && request.resource.data.type in ["nickname","email"]
+      && request.resource.data.value is string
+      // ✅ serverTimestamp obrigatório
+      && request.resource.data.createdAt == request.time
+      && request.resource.data.lastChangedAt == request.time;
+  }
 
-      function common() {
-        return signedIn()
-          && validDocId()
-          && request.resource.data.uid == uid()
-          && request.resource.data.type in ["nickname","email"]
-          && request.resource.data.value is string
-          && request.resource.data.createdAt is timestamp
-          && request.resource.data.lastChangedAt is timestamp;
-      }
+  allow create: if common()
+    && !exists(/databases/$(database)/documents/public_index/$(docId));
 
-      // create-only
-      allow create: if common()
-        && !exists(/databases/$(database)/documents/public_index/$(docId));
+  allow update: if signedIn()
+    && isEmailDoc()
+    && request.resource.data.uid == uid()
+    && request.resource.data.type == "email"
+    && request.resource.data.value is string
+    && request.resource.data.createdAt == resource.data.createdAt
+    // ✅ serverTimestamp obrigatório no update
+    && request.resource.data.lastChangedAt == request.time;
 
-      // nickname: update bloqueado | email: update permitido
-      allow update: if signedIn()
-        && isEmailDoc()
-        && request.resource.data.uid == uid()
-        && request.resource.data.type == "email"
-        && request.resource.data.value is string
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.lastChangedAt is timestamp;
-
-      // delete: dono pode apagar
-      allow delete: if signedIn() && resource.data.uid == uid();
-    }
+  allow delete: if signedIn() && resource.data.uid == uid();
+}

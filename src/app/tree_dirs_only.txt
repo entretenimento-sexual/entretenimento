@@ -1,0 +1,12 @@
+﻿admin-dashboard
+authentication
+chat-module
+dashboard
+footer
+header
+layout
+photo-editor
+register-module
+shared
+subscriptions
+user-profile

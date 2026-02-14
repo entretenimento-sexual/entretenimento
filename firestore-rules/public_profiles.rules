@@ -1,64 +1,187 @@
-    // =========================================================================
-    // PUBLIC PROFILES (consultável / discovery)
-    // =========================================================================
-    match /public_profiles/{userId} {
-      // Exige login para ler perfis públicos (padrão do seu projeto)
-      allow get, list: if signedIn();
+// firestore-rules/public_profiles.rules
+// =========================================================================
+// PUBLIC PROFILES (consultável / discovery)
+//
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
+// ✅ Depende dos helpers globais em _helpers.rules:
+//    - signedIn(), uid(), isSelf()
+//    - optTimestamp()  (se você mantém esse helper global)
+// =========================================================================
 
-      function allowedKeys() {
-        return request.resource.data.keys().hasOnly([
-          "uid",
-          "nickname",
-          "nicknameNormalized",
-          "avatarUrl",
-          "photoURL",
-          "municipio",
-          "estado",
-          "gender",
-          "orientation",
-          "role",
-          "latitude",
-          "longitude",
-          "geohash",
-          "createdAt",
-          "updatedAt"
-        ]);
-      }
+match /public_profiles/{userId} {
+  // Leitura: exige login (evita scraping público).
+  // Obs.: para queries (where/orderBy) o Firestore usa "list".
+  allow get, list: if signedIn();
 
-      function validPublicProfilePayload() {
-        return request.resource.data.uid == uid()
-          && allowedKeys()
-          && optString("nickname")
-          && optString("nicknameNormalized")
-          && optString("avatarUrl")
-          && optString("photoURL")
-          && optString("municipio")
-          && optString("estado")
-          && optString("gender")
-          && optString("orientation")
-          && optString("role")
-          && optNumberOrNull("latitude")
-          && optNumberOrNull("longitude")
-          && optString("geohash")
-          && optTimestamp("createdAt")
-          && optTimestamp("updatedAt");
-      }
+  // -----------------------------------------------------------------------
+  // Helpers locais (SAFE)
+  // - Evita evaluation error quando campo opcional está ausente (undefined)
+  // - Usa keys().hasAny([field]) antes de acessar request.resource.data[field]
+  // -----------------------------------------------------------------------
 
-      allow create: if (
-        isSelf(userId)
-        && validPublicProfilePayload()
-        && isTs(request.resource.data.createdAt)
-        && isTs(request.resource.data.updatedAt)
-        && request.resource.data.role == "basic"
-      );
+  // Existe no payload?
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
 
-      allow update: if (
-        isSelf(userId)
-        && validPublicProfilePayload()
-        && request.resource.data.createdAt == resource.data.createdAt
-        && isTs(request.resource.data.updatedAt)
-        && request.resource.data.role == resource.data.role
-      );
+  // Retorna valor ou null (se ausente)
+  function fieldOrNull(field) {
+    return hasField(field) ? request.resource.data[field] : null;
+  }
 
-      allow delete: if false;
-    }
+  // String opcional, com range de tamanho
+  function optStringSized(field, min, max) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+          && request.resource.data[field].size() >= min
+          && request.resource.data[field].size() <= max);
+  }
+
+  // URL opcional: validação básica (http/https) + tamanho máximo
+  function optUrl(field, maxLen) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+          && request.resource.data[field].size() <= maxLen
+          && request.resource.data[field].matches('^https?://.*'));
+  }
+
+  // Number opcional, com range
+  function optNumberInRange(field, min, max) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is number
+          && request.resource.data[field] >= min
+          && request.resource.data[field] <= max);
+  }
+
+  // Geohash opcional (base32), tamanho 5..12
+  function optGeohash(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+          && request.resource.data[field]
+            .matches('^[0123456789bcdefghjkmnpqrstuvwxyz]{5,12}$'));
+  }
+
+  // nickname e nicknameNormalized coerentes
+  function nicknameCoherent() {
+    let nick = fieldOrNull("nickname");
+    let norm = fieldOrNull("nicknameNormalized");
+    return (nick == null && norm == null) || (nick != null && norm != null);
+  }
+
+  // geo: ou os 3 null/ausentes, ou os 3 preenchidos
+  function geoCoherent() {
+    let lat = fieldOrNull("latitude");
+    let lng = fieldOrNull("longitude");
+    let gh  = fieldOrNull("geohash");
+    return (lat == null && lng == null && gh == null)
+      || (lat != null && lng != null && gh != null);
+  }
+
+  // -----------------------------------------------------------------------
+  // Whitelist rígida: nenhum campo fora do schema
+  // -----------------------------------------------------------------------
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "nickname",
+      "nicknameNormalized",
+      "avatarUrl",
+      "photoURL",
+      "municipio",
+      "estado",
+      "gender",
+      "orientation",
+      "role",
+      "latitude",
+      "longitude",
+      "geohash",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  // -----------------------------------------------------------------------
+  // Validação do payload FINAL (create/update)
+  // Em update: request.resource.data já é o documento final (merge aplicado).
+  // -----------------------------------------------------------------------
+  function validPublicProfilePayload() {
+    return allowedKeys()
+
+      // uid do documento deve ser o usuário autenticado
+      && (request.resource.data.uid is string)
+      && request.resource.data.uid == uid()
+
+      // timestamps: tipo (o "server time" é forçado no allow create/update)
+      && optTimestamp("createdAt")
+      && optTimestamp("updatedAt")
+
+      // nickname + normalized coerentes
+      && nicknameCoherent()
+      && optStringSized("nickname", 3, 40)
+       && (
+        !hasField("nicknameNormalized")
+        || request.resource.data.nicknameNormalized == null
+        || (
+          request.resource.data.nicknameNormalized is string
+          && request.resource.data.nicknameNormalized
+            .matches('^[a-z0-9._-]{3,40}$')
+        )
+      )
+
+      // URLs (opcionais)
+      && optUrl("avatarUrl", 1024)
+      && optUrl("photoURL", 1024)
+
+      // geo (opcional) + coerência + ranges
+      && geoCoherent()
+      && optNumberInRange("latitude", -90, 90)
+      && optNumberInRange("longitude", -180, 180)
+      && optGeohash("geohash")
+
+      // campos textuais opcionais
+      && optStringSized("municipio", 1, 80)
+      && optStringSized("estado", 1, 40)
+      && optStringSized("gender", 1, 40)
+      && optStringSized("orientation", 1, 40)
+
+      // role: criação força "basic" e update impede mudança
+      && optStringSized("role", 3, 20);
+  }
+
+  // -----------------------------------------------------------------------
+  // CREATE
+  // - somente dono
+  // - createdAt/updatedAt obrigatoriamente serverTimestamp() => request.time
+  // - role inicial obrigatoriamente "basic"
+  // -----------------------------------------------------------------------
+  allow create: if (
+    isSelf(userId)
+    && validPublicProfilePayload()
+    && request.resource.data.createdAt == request.time
+    && request.resource.data.updatedAt == request.time
+    && request.resource.data.role == "basic"
+  );
+
+  // -----------------------------------------------------------------------
+  // UPDATE
+  // - somente dono
+  // - uid e createdAt imutáveis
+  // - updatedAt obrigatoriamente serverTimestamp() => request.time
+  // - role imutável (anti auto-elevação)
+  // -----------------------------------------------------------------------
+  allow update: if (
+    isSelf(userId)
+    && validPublicProfilePayload()
+    && request.resource.data.uid == resource.data.uid
+    && request.resource.data.createdAt == resource.data.createdAt
+    && request.resource.data.updatedAt == request.time
+    && request.resource.data.role == resource.data.role
+  );
+
+  // Delete bloqueado
+  allow delete: if false;
+}

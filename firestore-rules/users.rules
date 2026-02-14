@@ -1,17 +1,60 @@
-    // =========================================================================
-    // USERS (privado)
-    // =========================================================================
-    match /users/{userId} {
-      allow get, create, update: if isSelf(userId);
-      allow list: if false;
-      allow delete: if false;
-    }
+// firestore-rules/users.rules
+// =========================================================================
+// USERS (privado)
+// - Self: pode atualizar perfil, mas NÃO pode alterar campos de moderação
+// - Admin (claim admin): pode alterar campos de moderação
+// =========================================================================
+match /users/{userId} {
 
-    match /users/{userId}/friends/{friendId} {
-      allow read, write: if isSelf(userId);
-    }
+  // Fallback opcional (fase inicial):
+  // function isAdminEmail() { return signedIn() && request.auth.token.email == "alexseves@gmail.com"; }
+  // function isAdminActor() { return isAdmin() || isAdminEmail(); }
 
-    // ✅ ajuste o nome conforme seu app usa (blocks OU blocked)
-    match /users/{userId}/blocks/{targetId} {
-      allow read, write: if isSelf(userId);
-    }
+  function isAdminActor() { return isAdmin(); }
+
+  // Bloqueia alterações sensíveis pelo próprio usuário
+function selfChangingSensitiveKeys() {
+  return request.resource.data.diff(resource.data).changedKeys().hasAny([
+    "role",
+    "tier",
+    "isSubscriber",
+    "accountLocked",
+    "suspended",
+    "suspensionReason",
+    "suspendedAt",
+    "accountStatus",
+    "moderatedBy",
+    "moderatedAt",
+    "lastStatusChangeAt",
+    "roles",
+    "permissions",
+    "entitlements"
+  ]);
+}
+
+  // Admin só pode mexer em um conjunto pequeno (moderação)
+  function adminModerationOnly() {
+    return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      "accountLocked",
+      "suspended",
+      "suspensionReason",
+      "suspendedAt",
+      "accountStatus",
+      "moderatedBy",
+      "moderatedAt",
+      "lastStatusChangeAt"
+    ]);
+  }
+
+  allow get: if isSelf(userId) || isAdminActor();
+  allow list: if false;
+
+  allow create: if isSelf(userId);
+
+  allow update: if
+    (isSelf(userId) && !selfChangingSensitiveKeys())
+    || (isAdminActor() && adminModerationOnly());
+
+  allow delete: if false;
+}
+// ===================================================================

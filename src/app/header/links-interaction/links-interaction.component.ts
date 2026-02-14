@@ -3,6 +3,7 @@
 // Inclui contadores de solicitações de amizade, mensagens não lidas e convites pendentes.
 // Gerencia upload de fotos e edição via modal.
 // Não esquecer os comentários explicativos.
+// Visando sempre semelhança com outros componentes e boas práticas de Angular e as grandes plataformas.
 import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
@@ -48,6 +49,9 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
    * ✅ Fonte única e compartilhada do UID.
    * Evita múltiplas subscriptions em authUser$ (que pode ter side-effects).
    */
+  // TODO(AUTH SOURCE OF TRUTH): Trocar authSession.authUser$ por AuthSession.uid$ (e ready$).
+  // - Motivo: AuthSession é dono do UID (fonte canônica).
+  // - Evita decisões “cedo demais” no cold start (ready=false).
   private readonly authUid$ = this.authSession.authUser$.pipe(
     map(u => (u?.uid ?? '').trim() || null),
     distinctUntilChanged(),
@@ -95,6 +99,9 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   );
 
   // ✅ “pode ouvir realtime?” (por enquanto: apenas estar logado e fora do registro)
+  // TODO(GATING): Expandir canListen$ para incluir emailVerified$ (se notificações exigirem verificação).
+  // - Sugestão: logged && verified && !inRegistrationFlow
+  // - Mantém coerência com guards e impede listeners antes do “estado liberado”.
   private canListen$ = combineLatest([this.isLogged$, this.inReg$]).pipe(
     map(([logged, inReg]) => logged && !inReg),
     distinctUntilChanged(),
@@ -129,6 +136,9 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
     this.sub.unsubscribe();
     this.notificationService.stopUnreadMessagesMonitoring('destroy');
   }
+
+  // TODO(ROBUSTNESS): Ajustar firstValueFrom para filtrar direto por (uid && canListen===true),
+  // evitando “pegar uid e depois bloquear por can=false”.
 
   // Ações do mini-menu
   async refreshInboundOnOpen() {

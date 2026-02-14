@@ -55,7 +55,7 @@ export interface IUserDados {
   lastLocationAt?: number | null;
   registrationDate?: number | null;
 }
-
+// lembrar sempre da padronização em uid para usuários, o identificador canônico.
 /* C:.
 │   geolocation.interface.ts
 │   icategoria - mapeamento.ts

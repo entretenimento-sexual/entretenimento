@@ -1,5 +1,5 @@
 // src/app/core/services/autentication/auth/auth-session.service.ts
-// Não esquecer os comentários
+// Não esquecer os comentários explicativos sobre o propósito do serviço.
 import { Injectable } from '@angular/core';
 import { Observable, from, of, defer } from 'rxjs';
 import { catchError, distinctUntilChanged, map, shareReplay } from 'rxjs/operators';

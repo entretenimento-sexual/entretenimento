@@ -1,0 +1,32 @@
+<!-- src/app/media/photos/photo-viewer/photo-viewer.component.html -->
+<section class="viewer" aria-label="Visualizador de foto">
+  <header class="viewer-header">
+    <div class="viewer-title" aria-live="polite">
+      <strong>Foto</strong>
+      <span class="counter">{{ index + 1 }}/{{ data.items.length }}</span>
+    </div>
+
+    <button type="button" class="btn icon" (click)="close()" aria-label="Fechar visualizador">
+      ✕
+    </button>
+  </header>
+
+  <div class="viewer-body">
+    @if (current) {
+    <img class="viewer-img" [src]="current.url" [alt]="current.alt || 'Foto do perfil'" loading="eager"
+      referrerpolicy="no-referrer" />
+    } @else {
+    <p class="empty">Nenhuma foto para exibir.</p>
+    }
+  </div>
+
+  <footer class="viewer-footer" aria-label="Controles do visualizador">
+    <button type="button" class="btn" (click)="prev()" [disabled]="!hasPrev" aria-label="Foto anterior">
+      ← Anterior
+    </button>
+
+    <button type="button" class="btn" (click)="next()" [disabled]="!hasNext" aria-label="Próxima foto">
+      Próxima →
+    </button>
+  </footer>
+</section>

@@ -28,3 +28,4 @@ export interface RoomCreationConfirmation {
   action: 'created' | 'updated';
   room: IRoom;
 }
+// lembrar sempre da padronização em uid para usuários, o identificador canônico.
