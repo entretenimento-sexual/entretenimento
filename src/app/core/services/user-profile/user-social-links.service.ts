@@ -26,7 +26,7 @@ import {
   deleteField,
   serverTimestamp,
   docSnapshots,
-  type Firestore,
+  Firestore,
 } from '@angular/fire/firestore';
 
 import type { User } from 'firebase/auth';
@@ -45,7 +45,6 @@ import {
 } from 'rxjs/operators';
 
 import { IUserSocialLinks } from '../../interfaces/interfaces-user-dados/iuser-social-links';
-import { FirestoreService } from '../data-handling/legacy/firestore.service';
 import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
 import { CacheService } from '../general/cache/cache.service';
 
@@ -86,8 +85,6 @@ type CacheState<T> =
 
 @Injectable({ providedIn: 'root' })
 export class UserSocialLinksService {
-  private readonly db: Firestore;
-
   // TTL lógico do cache (não depende do TTL do CacheService).
   private readonly cacheTtlMs = 10 * 60 * 1000; // 10 min
 
@@ -102,15 +99,13 @@ export class UserSocialLinksService {
   private readonly inFlightWatches = new Map<string, Observable<IUserSocialLinks | null>>();
 
   constructor(
-    private readonly firestoreService: FirestoreService,
+    private readonly db: Firestore,
     private readonly firestoreCtx: FirestoreContextService,
     private readonly cache: CacheService,
     private readonly session: AuthSessionService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly notifier: ErrorNotificationService,
-  ) {
-    this.db = this.firestoreService.getFirestoreInstance();
-  }
+  ) {}
 
   // =============================================================================
   // API PÚBLICA

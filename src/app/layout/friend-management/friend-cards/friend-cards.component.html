@@ -1,0 +1,46 @@
+<!-- src/app/layout/friend-management/friend-cards/friend-cards.component.html -->
+<div class="friend-list friend-cards" data-debug="friend-cards-v4" [class.compact]="displayMode() === 'dashboard'"
+  [class.full]="displayMode() === 'full'" role="region" aria-labelledby="friends-heading"
+  [attr.aria-busy]="isLoading() ? 'true' : null">
+  <!-- Headline só para leitores de tela -->
+  <h4 id="friends-heading" class="sr-only">Lista de Amigos</h4>
+
+  <!-- Loading: NÃO renderiza grid enquanto carrega -->
+  @if (isLoading()) {
+  <div class="state state--loading" role="status" aria-live="polite">
+    <mat-spinner diameter="28"></mat-spinner>
+    <span class="state__text">Carregando amigos…</span>
+    <span class="sr-only">Carregando lista de amigos</span>
+  </div>
+  } @else {
+  @if (visibleUsers$ | async; as friends) {
+  @if (friends.length === 0) {
+  <div class="state state--empty" role="status" aria-live="polite">
+    <p class="state__title">Nenhum amigo encontrado.</p>
+    <p class="state__subtitle">Quando você tiver amigos, eles aparecerão aqui.</p>
+  </div>
+  } @else {
+  <div class="friend-cards-grid" role="list">
+    @for (u of friends; track trackByUid($index, u)) {
+    <div class="friend-cards-item" role="listitem">
+      <app-user-card [user]="u" [distanciaKm]="u.distanciaKm ?? null"></app-user-card>
+    </div>
+    }
+  </div>
+  }
+  } @else {
+  <!-- fallback defensivo (geralmente não aparece) -->
+  <div class="state state--loading" role="status" aria-live="polite">
+    <mat-spinner diameter="22"></mat-spinner>
+    <span class="state__text">Carregando…</span>
+  </div>
+  }
+  }
+
+  <!-- Fim da lista: aparece se o pai sinalizar fim de paginação -->
+  @if (reachedEnd()) {
+  <div class="state state--end" role="status" aria-live="polite">
+    <span class="state__text">Você chegou ao fim.</span>
+  </div>
+  }
+</div>

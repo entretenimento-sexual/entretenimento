@@ -90,27 +90,6 @@ export class PresenceOrchestratorService {
 
       takeUntilDestroyed(this.destroyRef),
     ).subscribe();
-
-    /**
-     * Cleanup adicional (recomendado):
-     * - ao fechar aba, tenta parar presença e liberar liderança.
-     * Se você já tem isso no presence-dom-streams.service.ts, mova para lá.
-     */
-    if (typeof window !== 'undefined') {
-      merge(
-        fromEvent(window, 'beforeunload'),
-        fromEvent(window, 'pagehide')
-      ).pipe(
-        take(1),
-        tap(() => {
-          // best-effort sync
-          try { this.leaderElection.releaseLeadership(); } catch { }
-          // best-effort async
-          this.safeStop$().pipe(take(1)).subscribe();
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      ).subscribe();
-    }
   }
 
   // ===========================================================================
@@ -154,4 +133,4 @@ export class PresenceOrchestratorService {
     // eslint-disable-next-line no-console
     console.log(`[PresenceOrchestrator] ${msg}`, extra ?? '');
   }
-} //Linha 196
+} //Linha 136 - fim do PresenceOrchestratorService

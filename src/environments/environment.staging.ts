@@ -3,11 +3,15 @@
 // - Sem emuladores
 // - Debug tools ligadas
 // - Flags mais rígidas
+import type { AppEnvironment } from './environment.model';
 
-export const environment = {
+export const environment: AppEnvironment = {
+
   production: false,
   stage: true,
   env: 'staging',
+  useEmulators: false,
+  emulators: undefined,
 
   firebase: {
     apiKey: 'AIzaSyBt_wLXonmSTqUDruH6ZAlHsA8QvITKdKQ',
@@ -26,9 +30,6 @@ export const environment = {
 
   virusTotalApiKey: '',
 
-  // staging: sem emuladores
-  emulators: undefined,
-
   appCheck: {
     enabled: true,
     provider: 'reCaptchaV3',
@@ -43,4 +44,4 @@ export const environment = {
 
   friendsPageSize: 24,
   dashboardFriendsLimit: 12,
-} as const;
+};

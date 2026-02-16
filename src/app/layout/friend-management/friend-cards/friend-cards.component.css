@@ -1,0 +1,145 @@
+/* src/app/layout/friend-management/friend-cards/friend-cards.component.css
+   ----------------------------------------------------------------------------
+   Objetivo:
+   - Grid responsivo mobile-first
+   - Visual clean e com bom contraste usando tokens globais
+   - Espaçamentos confortáveis para toque
+   - Sem estilos globais que vazem para fora do componente
+   ----------------------------------------------------------------------------
+*/
+
+/* Container do componente */
+.friend-cards {
+  width: 100%;
+}
+
+/* Ajustes por modo de exibição:
+   - compact: dashboard (cards mais "apertados")
+   - full: página dedicada (grid mais amplo)
+*/
+.friend-list.compact {
+  padding: 0;
+}
+
+.friend-list.full {
+  padding: 0;
+}
+
+/* Grid principal (mobile-first):
+   - 1 coluna no mobile
+   - 2+ colunas conforme largura
+*/
+.friend-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  /* mobile: 1 coluna */
+  gap: 12px;
+  /* espaço confortável para toque */
+  align-items: stretch;
+}
+
+/* Wrapper do item: ajuda a manter consistência e permite ajustes futuros */
+.friend-cards-item {
+  min-width: 0;
+  /* evita overflow em grids */
+}
+
+/* Estados (loading/empty/end) */
+.state {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  padding: 14px 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--surface-border);
+  background: var(--surface-color);
+  color: var(--text-color);
+  box-shadow: var(--box-shadow);
+}
+
+/* Estado de loading: mais “leve” */
+.state--loading {
+  box-shadow: none;
+  /* deixa o spinner respirar */
+  background: color-mix(in oklab, var(--surface-color) 85%, transparent);
+}
+
+/* Estado vazio: comunica sem pesar */
+.state--empty {
+  border-style: dashed;
+  background: color-mix(in oklab, var(--surface-color) 80%, transparent);
+}
+
+/* Estado fim: discreto */
+.state--end {
+  margin-top: 10px;
+  box-shadow: none;
+  background: transparent;
+  border: 1px dashed var(--surface-border);
+}
+
+/* Tipografia dos estados */
+.state__text {
+  opacity: 0.9;
+}
+
+.state__title {
+  font-weight: 600;
+  margin: 0;
+}
+
+.state__subtitle {
+  margin: 0;
+  opacity: 0.9;
+  font-size: 0.95rem;
+  text-align: center;
+  max-width: 46ch;
+}
+
+/* ============================================================
+   Breakpoints (responsividade real)
+   ============================================================ */
+
+/* >= 420px: começa a permitir 2 colunas se couber */
+@media (min-width: 420px) {
+  .friend-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* >= 700px: 3 colunas no modo full (se houver espaço) */
+@media (min-width: 700px) {
+  .friend-list.full .friend-cards-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  /* dashboard pode continuar em 2 colunas para não “apertar” o layout */
+  .friend-list.compact .friend-cards-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* >= 1024px: 4 colunas no modo full (página) */
+@media (min-width: 1024px) {
+  .friend-list.full .friend-cards-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+/* ============================================================
+   Acessibilidade / movimento reduzido
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .state {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+/* Preciso de css super responsivo e já pensando na versão mobile.
+O layout deve ser clean e fácil de usar, com botões grandes e espaçados para facilitar o toque.
+Cores suaves e contrastantes para destacar as ações principais.
+Além disso, o design deve se adaptar bem a diferentes tamanhos de tela,
+garantindo uma boa experiência tanto em desktop quanto em dispositivos móveis.
+Não esqueça de incluir comentários explicativos no código CSS para facilitar a manutenção futura. */

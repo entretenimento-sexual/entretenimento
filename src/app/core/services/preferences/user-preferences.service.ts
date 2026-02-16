@@ -25,10 +25,9 @@
 // - preferences:{uid}      -> payload IUserPreferences
 // - preferences:{uid}:meta -> { cachedAt: number }
 // =============================================================================
-
 import { Injectable } from '@angular/core';
 import {
-  type Firestore,
+  Firestore,
   collection,
   doc,
   getDocs,
@@ -50,7 +49,6 @@ import {
 } from 'rxjs/operators';
 
 import { IUserPreferences } from '../../interfaces/interfaces-user-dados/iuser-preferences';
-import { FirestoreService } from '../data-handling/legacy/firestore.service';
 import { CacheService } from '../general/cache/cache.service';
 
 import { Store } from '@ngrx/store';
@@ -76,9 +74,7 @@ type CacheState<T> =
 
 @Injectable({ providedIn: 'root' })
 export class UserPreferencesService {
-  private readonly db: Firestore;
-
-  /**
+    /**
    * TTL do cache local de preferências.
    * Ajuste conforme seu produto:
    * - Preferências mudam pouco -> TTL maior
@@ -102,15 +98,13 @@ export class UserPreferencesService {
   private readonly inFlightReads = new Map<string, Observable<IUserPreferences>>();
 
   constructor(
-    private readonly firestoreService: FirestoreService,
+    private readonly db: Firestore,
     private readonly cacheService: CacheService,
     private readonly store: Store<AppState>,
     private readonly errorHandler: GlobalErrorHandlerService,
     private readonly notifier: ErrorNotificationService,
     private readonly firestoreCtx: FirestoreContextService,
-  ) {
-    this.db = this.firestoreService.getFirestoreInstance();
-  }
+  ) {  }
 
   // =============================================================================
   // API PÚBLICA

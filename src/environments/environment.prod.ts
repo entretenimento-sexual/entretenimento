@@ -4,10 +4,14 @@
 // - Políticas rígidas
 // - Debug tools desligadas
 
-export const environment = {
+import { AppEnvironment } from "./environment.model";
+
+export const environment: AppEnvironment = {
   production: true,
   stage: false,
-  env: 'production',
+  env: 'prod',
+  useEmulators: false,
+  emulators: undefined,
 
   firebase: {
     apiKey: 'AIzaSyAtk-mc6oVZOqu9u7_2KIpk570q8O8Jrl0',
@@ -25,7 +29,6 @@ export const environment = {
 
   virusTotalApiKey: '',
 
-  emulators: undefined,
   integrations: {
     virusTotal: {
       enabled: false,   // ⬅️ deixe off até decidir usar proxy + chave no backend
@@ -48,4 +51,4 @@ export const environment = {
 
   friendsPageSize: 24,
   dashboardFriendsLimit: 12,
-} as const;
+};

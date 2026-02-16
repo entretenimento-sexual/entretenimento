@@ -20,6 +20,7 @@ import { UserPublic } from 'src/app/core/interfaces/user-public.interface';
 import { FirestoreReadService } from '../firestore/core/firestore-read.service';
 import { FirestoreErrorHandlerService } from '@core/services/error-handler/firestore-error-handler.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { toEpoch } from 'src/app/core/utils/epoch-utils';
 
 /**
  * ============================================================================
@@ -66,7 +67,22 @@ export class UserPresenceQueryService {
    * - shareReplay(refCount): compartilha entre múltiplos subscribers sem duplicar onSnapshot
    */
   private readonly uid$ = this.authSession.uid$.pipe(
+    map((v: any) => (typeof v === 'string' ? v : v?.uid ?? null)),
+    map((uid: string | null) => (uid ?? '').trim() || null),
     distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+  private readonly ready$ = defer(() => from(this.authSession.whenReady())).pipe(
+    map(() => true),
+    startWith(false),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  private readonly onlineUsersLive$ = this.liveGuardedQuery(
+    [where('isOnline', '==', true)],
+    { recalcEveryMs: UserPresenceQueryService.RECALC_TICK_MS }
+  ).pipe(
+    map((list) => this.filterEffectiveOnline(list, UserPresenceQueryService.ONLINE_WINDOW_MS)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -96,17 +112,10 @@ export class UserPresenceQueryService {
 
   /** Converte lastSeen (Timestamp | number | Date | etc) para epoch(ms) */
   private toLastSeenMs(u: any): number {
-    const t = u?.lastSeen;
-    if (!t) return 0;
-    if (typeof t === 'number') return t;
-    if (t instanceof Date) return t.getTime();
-    if (t instanceof Timestamp) return t.toMillis();
-    if (typeof t?.toMillis === 'function') return t.toMillis();
-    if (typeof t?.toDate === 'function') {
-      const d = t.toDate();
-      if (d instanceof Date) return d.getTime();
-    }
-    const d = new Date(t);
+    const ms = toEpoch(u?.lastSeen);
+    if (ms != null) return ms;
+
+    const d = new Date(u?.lastSeen);
     return isNaN(d.getTime()) ? 0 : d.getTime();
   }
 
@@ -162,9 +171,9 @@ export class UserPresenceQueryService {
     constraints: QueryConstraint[],
     opts?: { recalcEveryMs?: number }
   ): Observable<IUserDados[]> {
-    return this.uid$.pipe(
-      switchMap((uid) => {
-        if (!uid) return of([]);
+    return combineLatest([this.ready$, this.uid$]).pipe(
+      switchMap(([ready, uid]) => {
+        if (!ready || !uid) return of([]);
 
         const live$ = this.read.getDocumentsLive<IUserDados>(
           this.COL,
@@ -183,11 +192,8 @@ export class UserPresenceQueryService {
         const tickMs = opts?.recalcEveryMs ?? 0;
         if (!tickMs) return live$;
 
-        // ✅ reemite a "lista atual" periodicamente, mesmo sem mudança no snapshot
-        return combineLatest([
-          live$,
-          interval(tickMs).pipe(startWith(0)),
-        ]).pipe(map(([list]) => list ?? []));
+        return combineLatest([live$, interval(tickMs).pipe(startWith(0))])
+          .pipe(map(([list]) => list ?? []));
       })
     );
   }
@@ -251,13 +257,7 @@ export class UserPresenceQueryService {
    * - lastSeen é o que realmente expira “online” quando não há mais heartbeats
    */
   getOnlineUsers$(): Observable<IUserDados[]> {
-    return this.liveGuardedQuery(
-      [where('isOnline', '==', true)],
-      { recalcEveryMs: UserPresenceQueryService.RECALC_TICK_MS }
-    ).pipe(
-      map((list) => this.filterEffectiveOnline(list, UserPresenceQueryService.ONLINE_WINDOW_MS)),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
+    return this.onlineUsersLive$;
   }
 
   /** One-shot: usuários online (mesma regra do realtime, mas sem recálculo periódico) */

@@ -1,0 +1,120 @@
+<!-- src/app/layout/friend-management/friend-actions/friend-actions.component.html -->
+@if (user.uid) {
+<section class="friend-actions" aria-live="polite"
+  [attr.aria-busy]="((isSending$ | async) || (friendsLoading$ | async)) ? 'true' : null">
+  <!-- Cabeçalho / contexto -->
+  <header class="friend-actions__header">
+    <p class="friend-actions__title">
+      Ações de amizade
+    </p>
+
+    <p class="friend-actions__subtitle">
+      Para: <strong>{{ user.nickname || 'Usuário' }}</strong>
+    </p>
+  </header>
+
+  <!-- Feedback de status (sem depender só de toast) -->
+  <div class="friend-actions__status" aria-live="polite">
+    @if (isSending$ | async) {
+    <div class="status-row">
+      <mat-spinner diameter="18"></mat-spinner>
+      <span>Enviando solicitação…</span>
+    </div>
+    }
+  </div>
+
+  <!-- Formulário: enviar solicitação -->
+  <form class="friend-actions__form" [formGroup]="form" (ngSubmit)="send()">
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>UID do amigo</mat-label>
+
+      <input matInput type="text" formControlName="friendUid" autocomplete="off" inputmode="text"
+        aria-label="UID do amigo" aria-describedby="friendUidHelp friendUidError" />
+
+      <mat-hint id="friendUidHelp">
+        Cole o UID exatamente como fornecido pelo usuário.
+      </mat-hint>
+
+      @if (form.get('friendUid')?.touched && form.get('friendUid')?.invalid) {
+      <mat-error id="friendUidError" role="alert">
+        Informe um UID válido (mín. 6 e máx. 64 caracteres).
+      </mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Mensagem curta (opcional)</mat-label>
+
+      <input matInput type="text" formControlName="message" maxlength="140" aria-label="Mensagem curta"
+        aria-describedby="messageHelp" />
+
+      <mat-hint id="messageHelp" align="start">
+        Evite quebras de linha.
+      </mat-hint>
+
+      <mat-hint align="end">
+        {{ form.get('message')?.value?.length || 0 }}/140
+      </mat-hint>
+    </mat-form-field>
+
+    <button class="full-width" mat-raised-button color="primary" type="submit"
+      [disabled]="(isSending$ | async) || form.invalid">
+      Enviar solicitação
+    </button>
+  </form>
+
+  <!-- Conteúdo: pedidos + amigos + bloqueados -->
+  <div class="friend-actions__sections">
+    <section class="friend-actions__section" aria-label="Solicitações recebidas">
+      <app-friend-requests></app-friend-requests>
+    </section>
+
+    <section class="friend-actions__section" aria-label="Lista de amigos">
+      <div class="friend-actions__sectionHeader">
+        <h3 class="friend-actions__sectionTitle">Seus amigos</h3>
+      </div>
+
+      @if (friendsLoading$ | async) {
+      <div class="friends-loading" aria-live="polite">
+        <mat-spinner diameter="22"></mat-spinner>
+        <span class="muted">Carregando amigos…</span>
+        <span class="sr-only">Carregando lista de amigos</span>
+      </div>
+      } @else {
+      @if (friendsItems$ | async; as friends) {
+      @if (friends.length === 0) {
+      <div class="empty-state" role="status">
+        <p class="empty-title">Nenhum amigo encontrado.</p>
+        <p class="empty-subtitle">
+          Quando você tiver amigos, eles aparecerão aqui.
+        </p>
+      </div>
+      } @else {
+      <!-- ✅ grid só aparece quando não está carregando -->
+      <app-friend-cards [items]="friends" [isLoading]="false" [limit]="6" [displayMode]="'dashboard'"
+        [sortBy]="'online'" [filters]="{ onlyOnline: true }"></app-friend-cards>
+      }
+      } @else {
+      <!-- fallback defensivo -->
+      <div class="empty-state" role="status">
+        <p class="empty-title">Nenhum dado disponível.</p>
+      </div>
+      }
+      }
+    </section>
+
+    <section class="friend-actions__section" aria-label="Usuários bloqueados">
+      <app-friend-blocked [user]="user"></app-friend-blocked>
+    </section>
+  </div>
+</section>
+} @else {
+<!-- Placeholder: evita “tela vazia” no cold start -->
+<section class="friend-actions friend-actions--placeholder" aria-live="polite" aria-busy="true">
+  <div class="friends-loading">
+    <mat-spinner diameter="24"></mat-spinner>
+    <span class="muted">Carregando sua sessão…</span>
+    <span class="sr-only">Carregando dados do usuário</span>
+  </div>
+</section>
+}

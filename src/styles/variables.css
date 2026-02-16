@@ -4,11 +4,43 @@
    - Claro = html
    - Escuro = html.dark-mode
    - Alto contraste = html.high-contrast (pode combinar com .dark-mode)
+   - Funciona para telas gigantes e mobile. 
    ----------------------------------------------------------------------------
 */
 :root {
   --bs-body-bg: var(--background-color);
   --bs-body-color: var(--text-color);
+    /* largura de conteúdo (desktop gigante continua bonito sem esticar demais) */
+      --content-max: 1120px;
+      /* padrão */
+      --content-wide: 1360px;
+      /* páginas mais “largas” (dashboards/listas) */
+      --content-ultrawide: 1600px;
+      /* telas gigantes (opcional) */
+
+      /* gutter fluido: respiro no mobile e proporcional no desktop */
+      --gutter: clamp(12px, 3vw, 28px);
+
+      /* escala de espaçamento (mobile-first e consistente) */
+      --space-1: clamp(4px, 0.6vw, 8px);
+      --space-2: clamp(8px, 1.2vw, 12px);
+      --space-3: clamp(12px, 1.8vw, 16px);
+      --space-4: clamp(16px, 2.4vw, 24px);
+      --space-5: clamp(24px, 3.2vw, 40px);
+
+      /* alvos de toque (já pensando em app/mobile) */
+      --tap-target: 44px;
+      --tap-target-sm: 40px;
+
+      /* tipografia base (sem “explodir” em telas grandes nem ficar miúda no mobile) */
+      --font-size-base: clamp(15px, 0.35vw + 14px, 16px);
+      --line-height-base: 1.5;
+
+      /* safe-area (iOS/app webview) */
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
 }
 
 /* ============================== */

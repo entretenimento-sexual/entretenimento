@@ -9,14 +9,13 @@ import { catchError, map } from 'rxjs/operators';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { IUserRegistrationData } from '../../interfaces/iuser-registration-data';
+import { UserPublic } from '@core/interfaces/user-public.interface';
 
 import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
 
 import { UsersReadRepository } from './firestore/repositories/users-read.repository';
 import { UserStateCacheService } from './firestore/state/user-state-cache.service';
 import { UserRepositoryService } from './firestore/repositories/user-repository.service';
-
-export type UserPublic = { uid: string; nickname?: string; avatarUrl?: string };
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreUserQueryService {

@@ -108,8 +108,19 @@ export class FirestoreUserWriteService {
 
   /** substitui saveInitialUserData do legacy */
   saveInitialUserData$(uid: string, data: IUserRegistrationData): Observable<void> {
-    const ref = this.ctx.run(() => doc(this.db, 'users', uid));
-    return this.ctx.deferPromise$(() => setDoc(ref, data as any, { merge: true })).pipe(map(() => void 0));
+    const safeUid = (uid ?? '').trim();
+    if (!safeUid) return throwError(() => new Error('[FirestoreUserWriteService] UID inválido.'));
+
+    const ref = this.ctx.run(() => doc(this.db, 'users', safeUid));
+
+    return this.ctx.deferPromise$(() => setDoc(ref, data as any, { merge: true })).pipe(
+      map(() => void 0),
+      catchError((err) => {
+        // aqui eu marco silent pra não duplicar notificação se o caller já notifica
+        this.safeHandle('[FirestoreUserWriteService] saveInitialUserData$ falhou.', err, { uid: safeUid }, { silent: true });
+        return throwError(() => err);
+      })
+    );
   }
 
   /**

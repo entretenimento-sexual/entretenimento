@@ -1,6 +1,7 @@
 // src/app/core/services/image-handling/photo-firestore.service.ts
+// Não esquercer comentários e ferramentas de debug
 import { Injectable } from '@angular/core';
-import { collection, getFirestore, doc, setDoc, deleteDoc, increment, updateDoc, onSnapshot, getDocs } from '@firebase/firestore';
+import { collection, getFirestore, doc, setDoc, deleteDoc, updateDoc, onSnapshot, getDocs } from '@firebase/firestore';
 import { Observable } from 'rxjs';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 import { StorageService } from './storage.service';

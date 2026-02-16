@@ -16,7 +16,6 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
 import { toObservable } from '@angular/core/rxjs-interop';
-import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { RouterModule } from '@angular/router';
 import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
 import { AppState } from 'src/app/store/states/app.state';
@@ -67,6 +66,12 @@ export class OnlineUsersComponent implements OnInit {
   userLocation: { latitude: number; longitude: number } | null = null;
   uiDistanceKm?: number;
   policyMaxDistanceKm = 20;
+
+  private readonly onlineRaw$ = this.store.select(selectOnlineUsers).pipe(
+    map((users) => Array.isArray(users) ? (users as IUserDados[]) : []),
+    distinctUntilChanged((a, b) => a === b), // cheap ref check (NgRx geralmente preserva ref quando não muda)
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   private readonly LS_ALWAYS_ALLOW = 'geo:alwaysAllow';
   private readonly LS_LAST_COORDS = 'geo:lastCoords';
@@ -196,33 +201,24 @@ export class OnlineUsersComponent implements OnInit {
 
   /** Após termos posição do usuário, montamos os streams de listagem/contagem. */
   private setupStreamsAfterLocation(currentUser: IUserDados): void {
-    const onlineRaw$ = this.store.select(selectOnlineUsers).pipe(
-      map((users) => Array.isArray(users) ? (users as IUserDados[]) : []),
-      // (opcional) shareReplay se você reutilizar isso em mais de um lugar dentro do componente
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
     const uiTick$ = interval(OnlineUsersComponent.UI_REFRESH_MS).pipe(startWith(0));
     const km$ = this.dist$.pipe(startWith(this.uiDistanceKm ?? this.policyMaxDistanceKm));
 
-    this.onlineUsers$ = combineLatest([km$, uiTick$, onlineRaw$]).pipe(
+    this.onlineUsers$ = combineLatest([km$, uiTick$, this.onlineRaw$]).pipe(
       map(([km, _tick, users]) => {
-        this.log('[OnlineUsers] bruto (Firestore):', users?.length, users?.map(u => u.uid));
         const cap = Math.min(km ?? this.policyMaxDistanceKm, this.policyMaxDistanceKm);
 
         const filteredByPrefs = this.applyUserPreferences(users, currentUser);
         const processed = this.processOnlineUsers(filteredByPrefs, currentUser.uid, cap);
 
-        this.log('[OnlineUsers] exibindo:', processed.length, 'capKm:', cap);
         return processed;
       }),
       catchError(err => {
         this.handleGeoError(err);
         return of([] as IUserWithDistance[]);
-      })
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
     );
-
-    // contador do que está realmente na tela
     this.count$ = this.onlineUsers$.pipe(map(list => list.length), startWith(0));
   }
 

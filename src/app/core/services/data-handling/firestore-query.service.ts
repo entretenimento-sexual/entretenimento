@@ -28,7 +28,6 @@ export class FirestoreQueryService {
   private readonly presenceQuery = inject(UserPresenceQueryService);
   private readonly store = inject(Store<AppState>);
 
-
   /**
    * Retorna a instância do Firestore utilizada pelo AngularFire.
    * Use esta em todo o projeto para construir refs/queries.
@@ -185,3 +184,13 @@ Compatibilizar o estado online do usuário com o presence.service e aproximar do
 deixar explícito que é Firebase/AngularFire e o que é NgRx, evitando misturar responsabilidades
 */
 
+/*
+Separação “Firebase/AngularFire vs NgRx” (responsabilidade)
+FirestoreQueryService
+
+Ele ainda injeta Store e expõe getUserFromState(). Isso mistura camadas (query firebase vs query de state). Em plataformas grandes, normalmente seria:
+FirestoreQueryService / UserPresenceQueryService: somente Firebase
+UserStateQueryService (ou “selectors facade”): somente NgRx
+componentes: consomem selectors/facades
+Se você quiser manter compat por enquanto, deixe o método, mas marque explicitamente como STATE-only (e planeje mover).
+*/

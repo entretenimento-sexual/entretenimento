@@ -1,0 +1,26 @@
+<!-- src\app\layout\friend-management\friend-list\friend-list.component.html -->
+<div class="friend-list" [class.compact]="displayMode() === 'dashboard'" [class.full]="displayMode() === 'full'"
+  data-debug="friend-list-new">
+  @if (isLoading()) {
+  <div class="loading" role="status" aria-live="polite">
+    <mat-spinner diameter="28"></mat-spinner>
+    <span class="sr-only">Carregando…</span>
+  </div>
+  } @else {
+  @if (visibleUsers$ | async; as users) {
+  @if (users.length > 0) {
+  <div class="friend-cards-grid">
+    @for (u of users; track u.uid) {
+    <app-user-card [user]="u" [distanciaKm]="u.distanceKm ?? null"></app-user-card>
+    }
+  </div>
+  } @else {
+  <p>Nenhum amigo encontrado.</p>
+  }
+  }
+  }
+
+  @if (reachedEnd() && !isLoading()) {
+  <div class="end">Você chegou ao fim.</div>
+  }
+</div>

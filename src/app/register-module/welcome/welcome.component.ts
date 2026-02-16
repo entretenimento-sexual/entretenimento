@@ -25,9 +25,11 @@ import { Firestore } from '@angular/fire/firestore';
 
 // Firebase modular APIs (escuta e escrita direta)
 import type { User } from 'firebase/auth';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth';
 import type { DocumentReference, Unsubscribe } from 'firebase/firestore';
 import { doc, getDoc, onSnapshot, setDoc, Timestamp } from 'firebase/firestore';
+import { EmulatorEmailVerifyDevService } from 'src/app/core/services/autentication/register/emulator-email-verify-dev.service';
+import { environment } from 'src/environments/environment';
 
 type UiBannerVariant = 'info' | 'warn' | 'error' | 'success';
 type UiBanner = {
@@ -71,6 +73,7 @@ export class WelcomeComponent implements OnInit {
   //      INJEÇÕES / VIDA
   // =========================
   private readonly destroyRef = inject(DestroyRef);
+  readonly isDevEmu = environment.useEmulators && environment.env === 'dev-emu';
 
   constructor(
     private readonly emailVerificationService: EmailVerificationService,
@@ -81,8 +84,31 @@ export class WelcomeComponent implements OnInit {
 
     // ✅ erro centralizado / feedback global
     private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly notify: ErrorNotificationService
+    private readonly notify: ErrorNotificationService,
+    private readonly emulatorEmailVerifyDev: EmulatorEmailVerifyDevService,
   ) { }
+
+  markVerifiedDev(): void {
+    if (!this.isDevEmu || this.busy) return;
+
+    this.busy = true;
+
+    this.emulatorEmailVerifyDev.markVerifiedInEmulator$().pipe(
+      take(1),
+      finalize(() => { this.busy = false; }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: () => {
+        // reaproveita seu fluxo normal de sync/reload
+        this.setBanner('success', 'DEV: marcado como verificado no emulador', 'O Auth Emulator UI deve refletir o status.');
+        this.checkNow();
+      },
+      error: (err) => {
+        // o service já notificou; aqui só mantém banner coerente
+        this.setBanner('error', 'DEV: não foi possível marcar no emulador', 'Veja console/logs para detalhes.', err);
+      }
+    });
+  }
 
   // =========================
   //      STREAMS BASE

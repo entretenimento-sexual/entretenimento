@@ -1,16 +1,28 @@
 // src/app/core/services/batepapo/chat-notification.service.ts
 // Serviço de Bate-Papo usando Firestore
 // Não esquecer os comentários
+
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, Subscription, from, of } from 'rxjs';
 import { catchError, map, mergeMap, reduce } from 'rxjs/operators';
-import { collection, query, where, onSnapshot, getDocs, setDoc } from '@firebase/firestore';
 
-import { FirestoreService } from '../data-handling/legacy/firestore.service';
+// ✅ Injeta a instância correta via AngularFire
+import { Firestore } from '@angular/fire/firestore';
+
+// ✅ Use o pacote público "firebase/firestore" (evite @firebase/*)
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  getDocs,
+  writeBatch,
+  type QuerySnapshot,
+  type DocumentData,
+} from 'firebase/firestore';
+
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
-
-type QuerySnapshotLike = { docs: Array<{ id: string }> };
 
 @Injectable({ providedIn: 'root' })
 export class ChatNotificationService {
@@ -27,9 +39,9 @@ export class ChatNotificationService {
   private runToken = 0;
 
   constructor(
-    private firestoreService: FirestoreService,
-    private globalErrorHandler: GlobalErrorHandlerService,
-    private errorNotifier: ErrorNotificationService
+    private readonly db: Firestore,
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly errorNotifier: ErrorNotificationService
   ) { }
 
   private dbg(tag: string, data?: any): void {
@@ -72,39 +84,48 @@ export class ChatNotificationService {
 
   /** Monitora mensagens não lidas (idempotente + sem listener pendurado) */
   monitorUnreadMessages(userId: string): void {
-    if (!userId) return;
+    const uid = (userId ?? '').trim();
+    if (!uid) return;
 
     // idempotente: se já está ouvindo o mesmo uid, não duplica
-    if (this.currentUid === userId && this.unsubChats) {
-      this.dbg('MONITOR SKIP (same uid)', { userId });
+    if (this.currentUid === uid && this.unsubChats) {
+      this.dbg('MONITOR SKIP (same uid)', { uid });
       return;
     }
 
     this.stopUnreadMessagesMonitoring();
-    this.currentUid = userId;
+    this.currentUid = uid;
 
-    const db: any = this.firestoreService.getFirestoreInstance();
-    const chatsRef = collection(db, 'chats');
-    const userChatsQuery = query(chatsRef, where('participants', 'array-contains', userId));
+    let userChatsQuery;
+    try {
+      const chatsRef = collection(this.db, 'chats');
+      userChatsQuery = query(chatsRef, where('participants', 'array-contains', uid));
+    } catch (err) {
+      this.handleRealtimeError('Erro ao iniciar monitoramento', err, 'monitorUnreadMessages:initQuery');
+      return;
+    }
 
     const token = ++this.runToken;
-    this.dbg('MONITOR START', { userId, token });
+    this.dbg('MONITOR START', { uid, token });
 
     this.unsubChats = onSnapshot(
       userChatsQuery,
-      (snapshot: any) => {
+      (snapshot: QuerySnapshot<DocumentData>) => {
         if (token !== this.runToken) return;
-        this.recountUnreadFromSnapshot(snapshot as QuerySnapshotLike, userId, token);
+        this.recountUnreadFromSnapshot(snapshot, uid, token);
       },
       (err) => {
         if (token !== this.runToken) return;
-        this.handleRealtimeError('Erro ao monitorar chats', err);
+        this.handleRealtimeError('Erro ao monitorar chats', err, 'monitorUnreadMessages:onSnapshot');
       }
     );
   }
 
-  private recountUnreadFromSnapshot(snapshot: QuerySnapshotLike, userId: string, token: number): void {
-    const db: any = this.firestoreService.getFirestoreInstance();
+  private recountUnreadFromSnapshot(
+    snapshot: QuerySnapshot<DocumentData>,
+    userId: string,
+    token: number
+  ): void {
     const chatIds: string[] = (snapshot?.docs ?? []).map(d => String(d.id));
 
     this.dbg('SNAPSHOT', { token, chats: chatIds.length });
@@ -119,12 +140,11 @@ export class ChatNotificationService {
       this.recountSub = null;
     }
 
-    // ✅ evita o inferno do forkJoin typing + controla concorrência
     this.recountSub = from(chatIds).pipe(
-      mergeMap((chatId) => this.countUnreadForChat$(db, chatId, userId), 6),
+      mergeMap((chatId) => this.countUnreadForChat$(chatId, userId), 6),
       reduce((acc: number, n: number) => acc + n, 0),
       catchError((err) => {
-        this.handleRealtimeError('Erro ao calcular mensagens não lidas', err);
+        this.handleRealtimeError('Erro ao calcular mensagens não lidas', err, 'recountUnreadFromSnapshot');
         return of(0);
       })
     ).subscribe((total) => {
@@ -134,18 +154,24 @@ export class ChatNotificationService {
     });
   }
 
-  private countUnreadForChat$(db: any, chatId: string, userId: string): Observable<number> {
-    const messagesRef = collection(db, `chats/${chatId}/messages`);
-    const unreadMessagesQuery = query(
-      messagesRef,
-      where('status', '==', 'sent'),
-      where('senderId', '!=', userId)
-    );
+  private countUnreadForChat$(chatId: string, userId: string): Observable<number> {
+    let unreadMessagesQuery;
+    try {
+      const messagesRef = collection(this.db, `chats/${chatId}/messages`);
+      unreadMessagesQuery = query(
+        messagesRef,
+        where('status', '==', 'sent'),
+        where('senderId', '!=', userId)
+      );
+    } catch (err) {
+      this.handleRealtimeError('Erro ao montar query de não lidas', err, 'countUnreadForChat$:buildQuery');
+      return of(0);
+    }
 
     return from(getDocs(unreadMessagesQuery)).pipe(
       map(snap => snap.size),
       catchError(err => {
-        this.handleRealtimeError('Erro ao ler mensagens não lidas', err);
+        this.handleRealtimeError('Erro ao ler mensagens não lidas', err, 'countUnreadForChat$:getDocs');
         return of(0);
       })
     );
@@ -153,29 +179,57 @@ export class ChatNotificationService {
 
   /** Reseta mensagens não lidas para um chat específico */
   resetUnreadMessagesForChat(chatId: string): void {
-    const db: any = this.firestoreService.getFirestoreInstance();
-    const messagesRef = collection(db, `chats/${chatId}/messages`);
+    const id = (chatId ?? '').trim();
+    if (!id) return;
 
-    getDocs(query(messagesRef, where('status', '==', 'sent')))
-      .then((snapshot) =>
-        Promise.all(snapshot.docs.map((d: any) => setDoc(d.ref, { status: 'read' }, { merge: true })))
-      )
-      .then(() => {
-        if (this.currentUid) this.refreshUnreadCountOnce(this.currentUid);
+    let qSent;
+    try {
+      const messagesRef = collection(this.db, `chats/${id}/messages`);
+      qSent = query(messagesRef, where('status', '==', 'sent'));
+    } catch (err) {
+      this.handleRealtimeError('Erro ao preparar reset de mensagens', err, 'resetUnreadMessagesForChat:buildQuery');
+      return;
+    }
+
+    // Mantém assinatura void, mas usa fluxo Rx internamente
+    from(getDocs(qSent)).pipe(
+      mergeMap((snap) => {
+        // batch (melhor que Promise.all / setDoc individual)
+        const batch = writeBatch(this.db);
+
+        for (const d of snap.docs) {
+          batch.update(d.ref, { status: 'read' });
+        }
+
+        return from(batch.commit());
+      }),
+      catchError((err) => {
+        this.handleRealtimeError('Erro ao resetar mensagens', err, 'resetUnreadMessagesForChat:commit');
+        return of(void 0);
       })
-      .catch((err) => this.handleRealtimeError('Erro ao resetar mensagens', err));
+    ).subscribe(() => {
+      if (this.currentUid) this.refreshUnreadCountOnce(this.currentUid);
+    });
   }
 
   private refreshUnreadCountOnce(userId: string): void {
-    const db: any = this.firestoreService.getFirestoreInstance();
-    const chatsRef = collection(db, 'chats');
-    const userChatsQuery = query(chatsRef, where('participants', 'array-contains', userId));
+    const uid = (userId ?? '').trim();
+    if (!uid) return;
+
+    let userChatsQuery;
+    try {
+      const chatsRef = collection(this.db, 'chats');
+      userChatsQuery = query(chatsRef, where('participants', 'array-contains', uid));
+    } catch (err) {
+      this.handleRealtimeError('Erro ao atualizar contagem de não lidas', err, 'refreshUnreadCountOnce:buildQuery');
+      return;
+    }
 
     const token = ++this.runToken;
 
     getDocs(userChatsQuery)
-      .then((snapshot: any) => this.recountUnreadFromSnapshot(snapshot as QuerySnapshotLike, userId, token))
-      .catch((err) => this.handleRealtimeError('Erro ao atualizar contagem de não lidas', err));
+      .then((snapshot) => this.recountUnreadFromSnapshot(snapshot as any, uid, token))
+      .catch((err) => this.handleRealtimeError('Erro ao atualizar contagem de não lidas', err, 'refreshUnreadCountOnce:getDocs'));
   }
 
   updatePendingInvites(count: number): void {
@@ -203,8 +257,26 @@ export class ChatNotificationService {
   resetUnreadMessages(): void { this.unreadMessagesCount.next(0); }
   resetPendingInvites(): void { this.pendingInvitesCount.next(0); }
 
-  private handleRealtimeError(userMessage: string, err: any): void {
-    this.globalErrorHandler.handleError(err);
+  // -----------------------------------------------------------------------------
+  // Erros (centralizados)
+  // -----------------------------------------------------------------------------
+  private handleRealtimeError(userMessage: string, err: any, context?: string): void {
+    const wrapped = this.wrapError(err, context ?? 'ChatNotificationService');
+
+    // evita duplicidade se o GlobalErrorHandler também notifica
+    try { this.globalErrorHandler.handleError(wrapped); } catch { }
+
+    // notificação explícita (sua escolha aqui)
     this.errorNotifier.showError(userMessage);
+  }
+
+  private wrapError(err: unknown, context: string): Error {
+    const e = err instanceof Error ? err : new Error(String(err ?? 'unknown error'));
+    (e as any).silent = true;
+    (e as any).skipUserNotification = true;
+    (e as any).feature = 'chat-notification';
+    (e as any).context = context;
+    (e as any).original = err;
+    return e;
   }
 }

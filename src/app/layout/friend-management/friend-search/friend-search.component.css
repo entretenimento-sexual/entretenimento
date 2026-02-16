@@ -1,0 +1,27 @@
+/* src\app\layout\friend-management\friend-search\friend-search.component.css */
+.friend-search {
+  max-width: 400px;
+  margin: auto;
+  text-align: center;
+}
+
+mat-form-field {
+  width: 100%;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid #ddd;
+}
+
+button {
+  font-size: 14px;
+}

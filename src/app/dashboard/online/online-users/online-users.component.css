@@ -1,41 +1,86 @@
-/* src\app\dashboard\online-users\online-users.component.css */
+/* src/app/dashboard/online-users/online-users.component.css
+  ----------------------------------------------------------------------------
+  ONLINE USERS (Dashboard) — UI touch-first e responsiva
+  - Clean, alto contraste compatível
+  - Alvos de toque >= 44px
+  - Grid fluido e consistente com tokens globais
+  ---------------------------------------------------------------------------- */
+
+:host {
+  display: block;
+  /* Ajustes finos locais (não afetam global) */
+  --local-gap: 12px;
+  --local-card-radius: 14px;
+
+  /* Slider */
+  --range-track-height: 6px;
+  --range-thumb-size: 18px;
+}
+
+/* Evita conflito com .container do Bootstrap:
+   use no HTML: <div class="ui-container online-users"> ... */
+.online-users {
+  display: block;
+}
+
+/* Título */
 .online-users-title {
-  margin-bottom: 1rem;
+  font-size: var(--ui-h2, 1.25rem);
+  letter-spacing: .2px;
+  margin-bottom: .75rem;
 }
 
-/* Container */
-.container {
-  padding: 24px;
-  margin-bottom: 3%;
-}
-
-/* Texto auxiliar que respeita tema (em vez de .text-muted/.form-text) */
+/* Texto auxiliar (respeita tema) */
 .help-text {
-  font-size: .9rem;
+  font-size: .92rem;
+  line-height: 1.35;
   color: color-mix(in oklab, var(--text-color) 70%, transparent);
-  margin: .25rem 0 0;
 }
 
-/* Cabeçalho do card de controle */
+/* ===========================
+   Card de controle (Raio)
+   =========================== */
+.control-card {
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--local-card-radius);
+  box-shadow: var(--box-shadow);
+}
+
+html.high-contrast .control-card {
+  box-shadow: none !important;
+  border: 3px solid var(--text-color) !important;
+  background: var(--background-color) !important;
+}
+
+/* Cabeçalho do card */
 .card-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: .5rem;
+  gap: .75rem;
 }
 
 .head-actions {
-  display: flex;
+  display: inline-flex;
   gap: .5rem;
+  align-items: center;
 }
 
-/* Botões compactos (ghost) */
+/* Botões ghost com touch target */
 .icon-btn {
+  min-height: var(--ui-touch, 44px);
+  min-width: var(--ui-touch, 44px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+
   background: transparent;
   border: 1px solid var(--surface-border);
   color: var(--text-color);
-  border-radius: 10px;
-  padding: 6px 10px;
+  border-radius: 12px;
+  padding: 0 12px;
   line-height: 1;
 }
 
@@ -48,6 +93,7 @@
   outline-offset: var(--focus-offset);
 }
 
+/* “Ver todos” — texto some em telas pequenas */
 .hide-xs {
   display: none;
 }
@@ -58,52 +104,27 @@
   }
 }
 
-/* Grid de cards — 1 por linha em phones */
-.profiles-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-
-@media (min-width: 576px) {
-  .profiles-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 768px) {
-  .profiles-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 992px) {
-  .profiles-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-/* Slider + stepper */
-:host {
-  --range-track-height: 4px;
-  --range-thumb-size: 16px;
-}
-
+/* ===========================
+   Slider + stepper (touch)
+   =========================== */
 .range-toolbar {
   display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: .5rem;
+  grid-template-columns: var(--ui-touch, 44px) 1fr var(--ui-touch, 44px);
+  gap: .6rem;
   align-items: center;
+  margin-top: .75rem;
 }
 
+/* Botão de step */
 .step-btn {
-  inline-size: 34px;
-  block-size: 34px;
-  border-radius: 8px;
+  inline-size: var(--ui-touch, 44px);
+  block-size: var(--ui-touch, 44px);
+  border-radius: 12px;
   border: 1px solid var(--surface-border);
   background: transparent;
   color: var(--text-color);
-  font-weight: 700;
+  font-weight: 800;
+  font-size: 1.05rem;
   line-height: 1;
 }
 
@@ -116,7 +137,13 @@
   outline-offset: var(--focus-offset);
 }
 
-/* slider base */
+/* Wrapper do range e bolha */
+.range-wrap {
+  position: relative;
+  padding-inline: 2px;
+}
+
+/* Range base (usa global-forms, mas reforça aqui) */
 .enhanced-range {
   inline-size: 100%;
   block-size: var(--range-track-height);
@@ -130,7 +157,7 @@
   outline-offset: var(--focus-offset);
 }
 
-/* trilhos */
+/* Trilhos */
 .enhanced-range::-webkit-slider-runnable-track {
   block-size: var(--range-track-height);
   background: transparent;
@@ -144,12 +171,12 @@
   border-radius: var(--radius-sm);
 }
 
-/* polegar */
+/* Polegar */
 .enhanced-range::-webkit-slider-thumb {
   appearance: none;
   inline-size: var(--range-thumb-size);
   block-size: var(--range-thumb-size);
-  border-radius: 50%;
+  border-radius: 9999px;
   background: var(--primary-color);
   box-shadow: var(--range-thumb-shadow);
   margin-top: calc((var(--range-track-height) - var(--range-thumb-size)) / 2);
@@ -164,46 +191,87 @@
   inline-size: var(--range-thumb-size);
   block-size: var(--range-thumb-size);
   border: none;
-  border-radius: 50%;
+  border-radius: 9999px;
   background: var(--primary-color);
   box-shadow: var(--range-thumb-shadow);
 }
 
-/* bolha com valor */
-.range-wrap {
-  position: relative;
-  padding-inline: 2px;
-}
-
+/* Bolha com valor */
 .range-bubble {
   position: absolute;
-  top: -30px;
+  top: -34px;
   transform: translateX(-50%);
-  padding: 3px 6px;
-  border-radius: 6px;
-  font-size: .78rem;
+  padding: 4px 8px;
+  border-radius: 10px;
+  font-size: .8rem;
+
   background: var(--surface-color);
   color: var(--text-color);
   border: 1px solid var(--surface-border);
+
   white-space: nowrap;
   pointer-events: none;
 }
 
 html.dark-mode .range-bubble {
-  background: var(--modal-background);
+  background: color-mix(in oklab, var(--surface-color) 85%, black 15%);
 }
 
-/* legenda */
+/* Legenda */
 .range-legend {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: .85rem;
+  gap: .75rem;
+
+  font-size: .9rem;
   color: color-mix(in oklab, var(--text-color) 70%, transparent);
-  margin-top: .35rem;
+  margin-top: .5rem;
 }
 
-/* Acessibilidade / alto contraste */
+/* ===========================
+   Grid de cards
+   =========================== */
+/* ===========================
+   Grid de cards (fluido)
+   - Cresce sozinho em telas grandes
+   - Mantém 1 coluna no mobile
+   =========================== */
+:host {
+  --card-min: 260px;
+  /* ajuste fino: 260~320 conforme o card real */
+}
+
+.profiles-grid {
+  display: grid;
+  gap: var(--local-gap);
+  margin-top: .75rem;
+
+  grid-template-columns:
+      repeat(auto-fit,
+      minmax(min(var(--card-min), 100%), 1fr));
+}
+
+/* Breakpoints (touch-first) */
+@media (min-width: 520px) {
+  .profiles-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 820px) {
+  .profiles-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .profiles-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Foco em cards */
 app-user-card:focus-within,
 app-user-card:focus-visible {
   outline: var(--focus-ring);
@@ -211,19 +279,34 @@ app-user-card:focus-visible {
   border-radius: var(--radius-md);
 }
 
-:root.high-contrast .card {
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-  border: 3px solid var(--text-color) !important;
-  box-shadow: none !important;
+/* ===========================
+   Ultra small screens (<= 350px)
+   - reduz paddings e evita overflow
+   =========================== */
+@media (max-width: 350px) {
+  :host {
+    --range-thumb-size: 16px;
+    --range-track-height: 6px;
+  }
+
+  .icon-btn {
+    padding: 0 10px;
+  }
+
+  .range-bubble {
+    font-size: .78rem;
+    padding: 3px 7px;
+  }
 }
 
-:root.high-contrast .enhanced-range {
+/* Alto contraste: slider reforçado */
+html.high-contrast .enhanced-range {
   background: var(--range-track-color) !important;
 }
 
-:root.high-contrast .enhanced-range::-webkit-slider-thumb,
-:root.high-contrast .enhanced-range::-moz-range-thumb {
+html.high-contrast .enhanced-range::-webkit-slider-thumb,
+html.high-contrast .enhanced-range::-moz-range-thumb {
   background: var(--background-color) !important;
   outline: 3px solid var(--text-color) !important;
+  box-shadow: none !important;
 }

@@ -4,7 +4,6 @@
 // - /login -> somente login (e fluxos adjacentes como recuperação).
 // - Registro fica em /register (fora daqui), evitando /login/register.
 // - Handler de verificação fica no AppRouting (rota global), evitando /login/post-verification/action.
-
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
@@ -21,7 +20,7 @@ const authRoutes: Routes = [
     data: { allowAuthenticated: true } },
 
   { path: 'suggested-profiles',
-    component: SuggestedProfilesComponent, 
+    component: SuggestedProfilesComponent,
     data: { allowAuthenticated: true } },
 ];
 

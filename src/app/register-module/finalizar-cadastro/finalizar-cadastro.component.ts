@@ -4,7 +4,7 @@
 // src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.ts
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { of } from 'rxjs';
+import { of, EMPTY } from 'rxjs';
 import { catchError, finalize, map, switchMap, take, tap } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -134,15 +134,22 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   onEstadoChange(): void {
-    if (!this.selectedEstado) { this.municipios = []; return; }
+    if (!this.selectedEstado) {
+      this.municipios = [];
+      this.selectedMunicipio = '';
+      this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
+      return;
+    }
 
-    this.ibgeLocationService.getMunicipios(this.selectedEstado).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (municipios) => { this.municipios = municipios; },
-      error: (err) => {
-        this.globalErrorHandler.handleError(err);
-        this.errorNotification.showError('Erro ao carregar municípios.');
-      },
-    });
+    this.ibgeLocationService.getMunicipios(this.selectedEstado)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (municipios) => { this.municipios = municipios; },
+        error: (err) => {
+          this.globalErrorHandler.handleError(err);
+          this.errorNotification.showError('Erro ao carregar municípios.');
+        },
+      });
   }
 
   private getRedirectToAfterCompletion(uid: string): string {
@@ -153,24 +160,36 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   onSubmit(): void {
+    // Mantém UI coerente: botão desabilita e mensagens ficam claras
+    this.isLoading = true;
+
     this.currentUserStore.getLoggedUserUID$().pipe(
       take(1),
+
+      // 1) validações e montagem do contexto (sempre retorna Observable)
       switchMap((uid) => {
         if (!uid) {
           const msg = 'Erro: UID do usuário não encontrado.';
           this.message = msg;
           this.errorNotification.showError(msg);
-          return of(null);
+          // ✅ Early-exit sem emissão (evita cair no next de sucesso)
+          return EMPTY;
         }
 
-        if (!this.gender || !this.selectedEstado || !this.selectedMunicipio) {
-          const msg = 'Por favor, preencha todos os campos obrigatórios.';
+        // ✅ marca obrigatórios (tooltip aparece se faltar)
+        this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
+        this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
+        this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
+
+        if (this.isFieldInvalid('gender') || this.isFieldInvalid('estado') || this.isFieldInvalid('municipio')) {
+          const msg = 'Por favor, preencha os campos obrigatórios.';
           this.message = msg;
           this.errorNotification.showError(msg);
-          return of(null);
+          // ✅ Early-exit sem emissão
+          return EMPTY;
         }
 
-        // ✅ pega o status real do Auth
+        // 2) pega status real do Auth + user atual do Firestore
         return this.emailVerificationService.reloadCurrentUser().pipe(
           take(1),
           switchMap((authVerified) =>
@@ -181,12 +200,13 @@ export class FinalizarCadastroComponent implements OnInit {
           )
         );
       }),
-      switchMap((ctx) => {
-        if (!ctx) return of(void 0);
 
+      // 2) salva dados e (opcional) upload do avatar
+      switchMap((ctx) => {
         const { uid, existingUserData, authVerified } = ctx;
 
         if (!existingUserData) {
+          // cai no catchError
           throw new Error('Dados do usuário não encontrados.');
         }
 
@@ -197,7 +217,7 @@ export class FinalizarCadastroComponent implements OnInit {
           email: existingUserData.email || '',
           nickname: existingUserData.nickname || '',
 
-          // ✅ verdade do Auth, sem “forçar”
+          // ✅ verdade do Auth
           emailVerified: authVerified === true,
 
           isSubscriber: !!existingUserData.isSubscriber,
@@ -213,30 +233,35 @@ export class FinalizarCadastroComponent implements OnInit {
 
           acceptedTerms: existingUserData.acceptedTerms ?? { accepted: true, date: now },
 
-          // ✅ aqui sim: finalização do perfil
+          // ✅ finalização do perfil (mínimo sem foto)
           profileCompleted: true,
         };
 
         return this.firestoreUserWrite.saveInitialUserData$(uid, updatedUserData).pipe(
-          switchMap(() => this.avatarFile
-            ? this.storageService.uploadProfileAvatar(this.avatarFile, uid)
-            : of(null)
+          // Avatar é opcional: se não existir, não faz nada
+          switchMap(() =>
+            this.avatarFile
+              ? this.storageService.uploadProfileAvatar(this.avatarFile, uid)
+              : of(null)
           ),
           tap(() => {
-            // ✅ mantém store/cache coerente com a navegação e guards
+            // ✅ mantém store/cache coerente com guards/efeitos
             this.currentUserStore.set(updatedUserData as any);
           }),
           map(() => void 0)
         );
       }),
+
       finalize(() => (this.isLoading = false)),
       takeUntilDestroyed(this.destroyRef),
+
+      // ✅ IMPORTANTE: não emitir nada aqui, senão cai no next e mostra “sucesso”
       catchError((err) => {
         this.globalErrorHandler.handleError(err);
         const msg = 'Ocorreu um erro ao finalizar o cadastro. Tente novamente.';
         this.message = msg;
         this.errorNotification.showError(msg);
-        return of(void 0);
+        return EMPTY;
       })
     ).subscribe({
       next: () => {
@@ -278,8 +303,10 @@ export class FinalizarCadastroComponent implements OnInit {
     }, 5000);
   }
 
-  checkFieldValidity(field: string, value: unknown): void {
-    this.formErrors[field] = value ? '' : `O campo ${field} é obrigatório.`;
+  checkFieldValidity(field: string, value: unknown, label?: string): void {
+    const nice = label || field;
+    const empty = value === null || value === undefined || String(value).trim() === '';
+    this.formErrors[field] = empty ? `O campo "${nice}" é obrigatório.` : '';
   }
 
   isFieldInvalid(field: string): boolean {

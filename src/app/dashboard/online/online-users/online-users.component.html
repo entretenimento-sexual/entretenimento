@@ -1,5 +1,5 @@
 <!-- src/app/dashboard/online-users/online-users.component.html -->
-<div class="container mt-3" [attr.aria-busy]="loading ? 'true' : 'false'">
+<div class="ui-container online-users mt-3" [attr.aria-busy]="loading ? 'true' : 'false'">
   <h2 class="online-users-title mb-3">Perfis Online</h2>
 
   @let u = (currentUser() ?? (currentUserStore.user$ | async));
@@ -37,7 +37,7 @@
   } @else {
 
   <!-- Card de controle -->
-  <div class="card mb-3" aria-labelledby="distControlTitleOnline">
+  <div class="card mb-3 control-card" aria-labelledby="distControlTitleOnline">
     <div class="card-body">
       <div class="card-head">
         <h3 class="h6 m-0" id="distControlTitleOnline">Raio de busca</h3>
@@ -96,8 +96,8 @@
     @if (users.length === 0) {
     <p class="help-text">Nenhum usuário online dentro do raio atual.</p>
     } @else {
-    @for (u of users; track u.uid) {
-    <app-user-card [user]="u" [distanciaKm]="u.distanciaKm ?? null"></app-user-card>
+    @for (user of users; track user.uid) {
+    <app-user-card [user]="user" [distanciaKm]="user.distanciaKm ?? null"></app-user-card>
     }
     }
     } @else {

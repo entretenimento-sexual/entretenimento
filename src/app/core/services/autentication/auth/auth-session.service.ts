@@ -2,7 +2,7 @@
 // Não esquecer os comentários explicativos sobre o propósito do serviço.
 import { Injectable } from '@angular/core';
 import { Observable, from, of, defer } from 'rxjs';
-import { catchError, distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, map, shareReplay, startWith } from 'rxjs/operators';
 import { Auth, authState, onAuthStateChanged, signOut, User } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
 
@@ -40,7 +40,11 @@ export class AuthSessionService {
     // Versão Observable do whenReady()
     this.ready$ = defer(() => from(this.whenReady())).pipe(
       map(() => true),
-      catchError(() => of(true)), // não trava app se der algo estranho
+      startWith(false),
+      catchError((err) => {
+        this.dbg('ready$ error', err);
+        return of(true);
+      }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 

@@ -50,7 +50,7 @@ const routes: Routes = [
   {
     path: 'friends',
     loadChildren: () =>
-      import('./layout/friend.management/friend.management.module')
+      import('./layout/friend-management/friend-management.module')
         .then(m => m.FriendManagementModule),
     //canActivate: [authGuard, emailVerifiedGuard],
   },

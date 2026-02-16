@@ -1,18 +1,23 @@
-// src/app/core/services/near-profile.service.ts
+// src/app/core/services/geolocation/near-profile.service.ts
 // Serviço para buscar perfis próximos usando geolocalização no Firestore
-// Não esquecer os comentários
+// Não esquecer os comentários e ferramentas de debug para facilitar a manutenção futura
 import { Injectable } from '@angular/core';
 import { IUserDados } from '../../interfaces/iuser-dados';
+
+// ✅ mantém @firebase/firestore porque seu setup-jest já mocka esse módulo
 import { collection, query, where, getDocs, startAt, limit } from '@firebase/firestore';
-import { FirestoreService } from '../data-handling/legacy/firestore.service';
+
+// ✅ Injeta Firestore diretamente (remove FirestoreService legacy)
+import { Firestore } from '@angular/fire/firestore';
+
 import { geohashQueryBounds } from 'geofire-common';
 import { DistanceCalculationService } from './distance-calculation.service';
 
 @Injectable({ providedIn: 'root' })
 export class NearbyProfilesService {
   constructor(
-    private firestoreService: FirestoreService,
-    private distanceCalculationService: DistanceCalculationService
+    private readonly db: Firestore,
+    private readonly distanceCalculationService: DistanceCalculationService
   ) { }
 
   async getProfilesNearLocation(
@@ -22,42 +27,56 @@ export class NearbyProfilesService {
     userUid: string,
     startAfterDoc?: any
   ): Promise<IUserDados[]> {
-    const db = this.firestoreService.getFirestoreInstance();
     try {
       const bounds = geohashQueryBounds([latitude, longitude], maxDistanceKm * 1000);
+
       const promises = bounds.map((b) => {
         let q = query(
-          collection(db, 'users'),
+          collection(this.db as any, 'users'),
           where('geohash', '>=', b[0]),
           where('geohash', '<=', b[1]),
           limit(50)
         );
-        if (startAfterDoc) q = query(q, startAt(startAfterDoc));
-        return getDocs(q);
+
+        // mantém exatamente sua lógica atual (apesar do nome startAfterDoc)
+        if (startAfterDoc) q = query(q as any, startAt(startAfterDoc));
+
+        return getDocs(q as any);
       });
 
       const snapshots = await Promise.all(promises);
       const profiles: IUserDados[] = [];
 
-      for (const snap of snapshots) {
-        for (const doc of snap.docs) {
-          const profile = doc.data() as IUserDados;
-          if (profile.uid !== userUid) {
-            if (typeof profile.latitude === 'number' && typeof profile.longitude === 'number') {
-              const distanceInKm = this.distanceCalculationService.calculateDistanceInKm(
-                profile.latitude, profile.longitude, latitude, longitude, maxDistanceKm
-              );
-              if (distanceInKm !== null) {
-                profile.distanciaKm = distanceInKm;
-                profiles.push(profile);
-              }
-            }
+      for (const snap of snapshots as any[]) {
+        for (const d of snap.docs ?? []) {
+          const profile = d.data() as IUserDados;
+
+          // filtra o próprio usuário
+          if (profile.uid === userUid) continue;
+
+          // valida coords numéricos
+          if (typeof profile.latitude !== 'number' || typeof profile.longitude !== 'number') continue;
+
+          const distanceInKm = this.distanceCalculationService.calculateDistanceInKm(
+            profile.latitude,
+            profile.longitude,
+            latitude,
+            longitude,
+            maxDistanceKm
+          );
+
+          if (distanceInKm !== null) {
+            profile.distanciaKm = distanceInKm;
+            profiles.push(profile);
           }
         }
       }
 
       return profiles;
     } catch (error) {
+      // mantém o comportamento de “não quebrar UX”
+      // (se quiser, trocamos por GlobalErrorHandler + silent/skipUserNotification depois)
+      // eslint-disable-next-line no-console
       console.log('Erro ao buscar perfis próximos:', error);
       return [];
     }

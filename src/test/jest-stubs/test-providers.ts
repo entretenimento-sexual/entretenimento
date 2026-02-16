@@ -1,4 +1,7 @@
 // src/test/jest-stubs/test-providers.ts
+// Provedores de dependências para testes unitários com Jest
+// Inclui stubs para tokens do AngularFire e serviços do app
+// Não esquecer de manter os comentários e ferramentas de debug para facilitar a manutenção futura
 import { Provider } from '@angular/core';
 import { of } from 'rxjs';
 
@@ -8,12 +11,11 @@ import { Storage } from '@angular/fire/storage';
 import { Functions } from '@angular/fire/functions';
 
 // Imports dos seus serviços...
-import { FirestoreService } from '../../app/core/services/data-handling/firestore.service';
+import { FirestoreService } from '../../app/core/services/data-handling/legacy/firestore.service';
 import { FirestoreUserQueryService } from '../../app/core/services/data-handling/firestore-user-query.service';
 import { AuthService } from '../../app/core/services/autentication/auth.service';
 import { ChatService } from '../../app/core/services/batepapo/chat-service/chat.service';
 import { UserPreferencesService } from '../../app/core/services/preferences/user-preferences.service';
-import { DataSyncService } from '../../app/core/services/general/cache/cache+store/data-sync.service';
 import { StorageService } from '../../app/core/services/image-handling/storage.service';
 import { PhotoFirestoreService } from '../../app/core/services/image-handling/photo-firestore.service';
 import { SubscriptionService } from '../../app/core/services/subscriptions/subscription.service';
@@ -50,13 +52,15 @@ export const appServiceStubs: Provider[] = [
   { provide: ChatService, useValue: { monitorChat: jest.fn(() => of([])), updateMessageStatus: jest.fn() } },
 
   { provide: UserPreferencesService, useValue: {} },
-  { provide: DataSyncService, useValue: {} },
-  { provide: FriendshipService, useValue: {
+
+  {
+    provide: FriendshipService, useValue: {
       searchUsers: jest.fn(() => of([])),
       blockUser: jest.fn(() => of(void 0)),
       // adicione métodos usados nos componentes sob teste, se necessário
     }
   },
+
   { provide: StorageService, useValue: {} },
   { provide: PhotoFirestoreService, useValue: {} },
   { provide: SubscriptionService, useValue: {} },

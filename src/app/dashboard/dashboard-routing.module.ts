@@ -36,7 +36,7 @@ const routes: Routes = [
         path: 'friends/list',
         canActivate: [emailVerifiedGuard],
         loadComponent: () =>
-          import('src/app/layout/friend.management/friend-list-page/friend-list-page.component')
+          import('src/app/layout/friend-management/friend-list-page/friend-list-page.component')
             .then(m => m.FriendListPageComponent)
       },
       { path: 'friends', redirectTo: 'friends/list', pathMatch: 'full' },

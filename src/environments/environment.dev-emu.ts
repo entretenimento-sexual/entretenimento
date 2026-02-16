@@ -1,6 +1,8 @@
 //src\environments\environment.dev-emu.ts
 // Dev 100% emulado
-export const environment = {
+import type { AppEnvironment } from './environment.model';
+
+export const environment: AppEnvironment = {
   production: false,
   stage: false,
   env: 'dev-emu',
@@ -52,4 +54,4 @@ export const environment = {
 
   friendsPageSize: 24,
   dashboardFriendsLimit: 12,
-} as const;
+};

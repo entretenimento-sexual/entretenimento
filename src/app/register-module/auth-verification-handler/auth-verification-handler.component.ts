@@ -9,7 +9,7 @@ import { FormsModule } from '@angular/forms';
 
 import { EmailVerificationService, VerifyEmailResult } from 'src/app/core/services/autentication/register/email-verification.service';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
-import { FirestoreService } from 'src/app/core/services/data-handling/legacy/firestore.service';
+
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
@@ -22,6 +22,7 @@ import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registratio
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { DateTimeService } from 'src/app/core/services/general/date-time.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service'; // ✅ novo
+import { FirestoreUserWriteService } from 'src/app/core/services/data-handling/firestore-user-write.service';
 
 type HandlerMode = 'verifyEmail' | 'resetPassword' | '';
 
@@ -76,7 +77,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
     private emailVerificationService: EmailVerificationService,
     private loginService: LoginService,
-    private firestoreService: FirestoreService,
+    private firestoreUserWrite: FirestoreUserWriteService,
     private firestoreUserQuery: FirestoreUserQueryService,
     private globalErrorHandlerService: GlobalErrorHandlerService,
     private emailInputModalService: EmailInputModalService,
@@ -290,7 +291,10 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
               throw new Error('Dados do usuário não encontrados no Firestore.');
             }
 
-            const firstLoginDate = this.dateTime.convertToDate(existingUserData.firstLogin ?? new Date());
+            // Normaliza firstLogin para Date (evita variações number/Timestamp/Date)
+            const firstLoginDate = this.dateTime.convertToDate(
+              existingUserData.firstLogin ?? Date.now()
+            );
 
             const userData: IUserRegistrationData = {
               uid,
@@ -299,7 +303,9 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
               emailVerified: true,
               isSubscriber: existingUserData.isSubscriber || false,
 
-              firstLogin: existingUserData.firstLogin ?? Date.now(),
+              // ✅ agora vai como Date (o teste espera isso)
+              firstLogin: firstLoginDate as any,
+
               registrationDate: existingUserData.registrationDate ?? Date.now(),
 
               gender: this.gender,
@@ -312,7 +318,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
               profileCompleted: existingUserData.profileCompleted ?? false,
             };
 
-            return this.firestoreService.saveInitialUserData(uid, userData).pipe(
+            return this.firestoreUserWrite.saveInitialUserData$(uid, userData).pipe(
               tap(() => this.firestoreUserQuery.updateUserInStateAndCache(uid, userData))
             );
           })

@@ -1,9 +1,13 @@
 // src/environments/environment.ts
 // Dev usando recursos reais (Cloud)
-export const environment = {
+import type { AppEnvironment } from './environment.model';
+
+export const environment: AppEnvironment = {
   production: false,
   stage: false,
   env: 'dev-real',
+  useEmulators: false,
+  emulators: undefined,
 
   firebase: {
     apiKey: 'AIzaSyAtk-mc6oVZOqu9u7_2KIpk570q8O8Jrl0',
@@ -18,9 +22,6 @@ export const environment = {
 
   apiEndpoint: 'http://localhost:3000',
   enableDebugTools: true,
-
-  useEmulators: false,
-  emulators: undefined,
 
   appCheck: {
     enabled: false,
@@ -47,4 +48,4 @@ export const environment = {
 
   friendsPageSize: 24,
   dashboardFriendsLimit: 12,
-} as const;
+};

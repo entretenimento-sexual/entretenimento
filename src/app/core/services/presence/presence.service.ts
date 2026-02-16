@@ -331,17 +331,13 @@ export class PresenceService {
 Nível 1 — Presence Gate (mínimo)
 
 ready === true + uid != null
-
 não depende de emailVerified
-
 Objetivo: presença “infra” (telemetria de sessão) e coisas neutras.
 
 Nível 2 — Realtime Features Gate (produto)
 
 ready === true + uid != null + emailVerified === true (e/ou profileCompleted)
-
 Objetivo: chat/discovery/online-users/listeners que expõem o usuário para outros.
-
 Isso elimina a contradição do log:
 
 OnlineUsersEffects canStart:false (nível 2)

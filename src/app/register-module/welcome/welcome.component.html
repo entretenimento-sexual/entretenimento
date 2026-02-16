@@ -68,6 +68,9 @@
         <button class="btn btn-primary" (click)="checkNow()" [disabled]="busy" [attr.aria-busy]="busy">
           {{ busy ? 'Checando…' : 'Já verifiquei — checar agora' }}
         </button>
+        <button *ngIf="isDevEmu" class="btn btn-ghost" (click)="markVerifiedDev()" [disabled]="busy" [attr.aria-busy]="busy">
+          DEV: marcar como verificado (emulator)
+        </button>
         <button class="btn btn-secondary" (click)="resendVerificationEmail()" [disabled]="busy" [attr.aria-busy]="busy">
           {{ busy ? 'Reenviando…' : 'Reenviar e-mail' }}
         </button>

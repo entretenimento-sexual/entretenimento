@@ -104,7 +104,7 @@ export const loadRequesterProfiles = createAction(
 
 export const loadRequesterProfilesSuccess = createAction(
   '[Friends] Load requester profiles success',
-  props<{ map: Record<string, { uid: string; nickname?: string; avatarUrl?: string }> }>()
+  props<{ map: Record<string, UserPublic> }>()
 );
 
 export const loadRequesterProfilesFailure = createAction(

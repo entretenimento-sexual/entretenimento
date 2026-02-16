@@ -2,8 +2,6 @@
 import { userReducer } from './user.reducer';
 import { initialUserState } from '../../states/states.user/user.state';
 import { IUserDados } from '../../../core/interfaces/iuser-dados';
-import { Timestamp } from 'firebase/firestore';
-
 import { addUserToState, loadUsers, loadUsersSuccess, loadUsersFailure,
         loadOnlineUsersSuccess, updateUserOnlineStatus, setFilteredOnlineUsers,
         setCurrentUser, clearCurrentUser } from '../../actions/actions.user/user.actions';

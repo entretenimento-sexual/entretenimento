@@ -1,141 +1,377 @@
-/* src\app\authentication\finalizar-cadastro\finalizar-cadastro.component.css */
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap');
+/* src/app/authentication/finalizar-cadastro/finalizar-cadastro.component.css
+   ----------------------------------------------------------------------------
+   Finalizar Cadastro (mobile-first)
+   Objetivos:
+   - Layout clean, consistente com tokens globais (variables.css)
+   - Acessível (focus-visible, alvos de toque)
+   - Responsivo real (desktop → 350px)
+   - Sem “pulos” de layout desnecessários
+   ----------------------------------------------------------------------------
+*/
 
+/* Evita dependência de @import de fontes aqui.
+   Sua plataforma já define família em variables.css/global-layout.css. */
+:host {
+  display: block;
+}
+
+/* ----------------------------------------------------------------------------
+   1) Layout base (centralizado, mas respeitando telas pequenas)
+   - Usa dvh/svh para evitar bugs de 100vh no mobile (barra do navegador).
+   - Usa gutters e safe-area definidos no seu design system.
+---------------------------------------------------------------------------- */
 .auth-container {
+  min-height: 100svh;
+  /* fallback mobile mais estável */
+  min-height: 100dvh;
+  /* browsers modernos */
   display: flex;
-  justify-content: center;
   align-items: center;
-  height: 100vh;
-  background-color: var(--background-color);
-  font-family: var(--font-family-primary);
+  justify-content: center;
+
+  padding:
+    calc(var(--space-4, 24px) + var(--safe-top, 0px)) var(--gutter, 16px) calc(var(--space-5, 40px) + var(--safe-bottom, 0px));
+
+  background: var(--background-color);
   color: var(--text-color);
-  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* ----------------------------------------------------------------------------
+   2) Card do formulário (superfície)
+   - Usa surface tokens para diferenciar do fundo em light/dark.
+---------------------------------------------------------------------------- */
 .form-container {
-  background-color: var(--background-color);
+  width: min(100%, 560px);
+  background: var(--surface-color);
   color: var(--text-color);
-  padding: 30px;
-  border-radius: 12px;
+
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg, 12px);
   box-shadow: var(--box-shadow);
-  width: 100%;
-  max-width: 500px;
-  text-align: center;
-  transition: background-color 0.3s ease, color 0.3s ease;
+
+  padding: clamp(18px, 3vw, 28px);
+  text-align: left;
+  /* leitura melhor; headings podem ser centralizados */
 }
 
-h1 {
+/* Tipografia do topo */
+.form-container h1 {
+  margin: 0 0 var(--space-2, 12px);
+  font-size: clamp(1.2rem, 1rem + 0.8vw, 1.65rem);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
   text-align: center;
-  margin-bottom: 20px;
-  font-size: 1.5rem;
-  color: var(--text-color);
 }
 
+.form-container h3 {
+  margin: var(--space-3, 16px) 0 var(--space-2, 12px);
+  font-size: 1.05rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.form-container p {
+  margin: 0 0 var(--space-2, 12px);
+  color: color-mix(in oklab, var(--text-color) 82%, transparent);
+  text-align: center;
+}
+
+/* Separação visual leve entre blocos (opcional) */
+.form-container>form {
+  margin-top: var(--space-3, 16px);
+}
+
+/* ----------------------------------------------------------------------------
+   3) Form (grid com gap)
+   - Remove a dependência de margin-bottom nos inputs para não duplicar espaço.
+---------------------------------------------------------------------------- */
+form {
+  display: grid;
+  gap: var(--space-2, 12px);
+}
+
+/* Labels com boa legibilidade e respiro */
 label {
   display: block;
-  font-weight: bold;
-  margin-top: 10px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-top: var(--space-1, 8px);
   color: var(--text-color);
 }
 
+/* ----------------------------------------------------------------------------
+   4) Campos (touch targets + contraste + foco)
+---------------------------------------------------------------------------- */
 select,
 .input-field,
 input[type="file"] {
   width: 100%;
-  margin-top: 5px;
-  margin-bottom: 10px;
-  border: 1px solid #ced4da;
-  border-radius: 8px;
+  min-height: var(--tap-target, 44px);
+  /* alvo de toque */
+  padding: 10px 12px;
+
+  border: 1px solid color-mix(in oklab, var(--text-color) 18%, transparent);
+  border-radius: var(--radius-md, 8px);
+
   font-size: 1rem;
-  background-color: var(--input-background);
+  line-height: 1.25;
+
+  background: var(--input-background);
   color: var(--text-color);
-  transition: border-color 0.3s ease, box-shadow 0.2s ease;
+
+  /* remove margens antigas para o gap do form controlar tudo */
+  margin: 0;
+
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+/* Foco: mantém seu padrão, mas deixa consistente com tokens */
+select:focus,
 .input-field:focus,
-select:focus {
+input[type="file"]:focus {
   border-color: var(--primary-color);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
   outline: none;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary-color) 30%, transparent);
 }
 
+/* Estados inválidos: aproveita ngModel/ngForm (ng-touched) */
+.input-field.ng-invalid.ng-touched,
+select.ng-invalid.ng-touched {
+  border-color: var(--danger-color);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--danger-color) 25%, transparent);
+}
+
+/* ----------------------------------------------------------------------------
+   5) Mensagens (corrige seu ngClass atual no <p class="alert">)
+   - Seu template aplica "alert" + "error-message" / "success-message"
+   - Então damos aparência de alerta de verdade aqui.
+---------------------------------------------------------------------------- */
+.alert {
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 12px;
+  margin: 0 0 var(--space-2, 12px);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+/* Quando o <p class="alert"> receber error-message/success-message via ngClass */
+.alert.error-message {
+  background: var(--danger-color);
+  color: #fff;
+  border: 1px solid color-mix(in oklab, #fff 20%, transparent);
+}
+
+.alert.success-message {
+  background: var(--success-color);
+  color: #fff;
+  border: 1px solid color-mix(in oklab, #fff 20%, transparent);
+}
+
+/* Upload message já usa .alert.alert-warning (global), mas garantimos espaçamento */
+.alert.alert-warning {
+  margin-top: var(--space-2, 12px);
+}
+
+/* Erro de campo (abaixo do campo) */
+form .error-message {
+  margin-top: -6px;
+  margin-bottom: 6px;
+
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--danger-color);
+
+  /* “pill” sutil sem poluir */
+  background: color-mix(in oklab, var(--danger-color) 10%, transparent);
+  border: 1px solid color-mix(in oklab, var(--danger-color) 20%, transparent);
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+
+/* ----------------------------------------------------------------------------
+   6) Botões (touch-friendly + estados)
+---------------------------------------------------------------------------- */
 .btn-submit {
   width: 100%;
-  background-color: var(--primary-color);
-  color: white;
-  padding: 10px;
+  min-height: var(--tap-target, 44px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+
+  padding: 12px 14px;
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-md, 8px);
+
+  background: var(--primary-color);
+  color: #fff;
+
+  font-size: 1rem;
+  font-weight: 700;
+
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.2s ease, transform 0.15s ease, opacity 0.2s ease;
 }
 
 .btn-submit:hover {
-  background-color: var(--primary-hover);
+  background: var(--primary-hover);
+  transform: translateY(-1px);
 }
 
-.error-message {
-  color: var(--danger-color);
-  margin-top: -10px;
-  font-size: 0.9rem;
+.btn-submit:active {
+  transform: translateY(0);
 }
 
-.success-message {
-  color: var(--success-color);
+/* Disabled: sem “pular” visualmente */
+.btn-submit[disabled] {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
 }
 
+/* ----------------------------------------------------------------------------
+   7) Progress bar (visual clean)
+---------------------------------------------------------------------------- */
 .progress-custom {
-  background-color: #e9ecef;
-  border-radius: 8px;
-  margin-bottom: 15px;
+  width: 100%;
+  background: color-mix(in oklab, var(--text-color) 10%, transparent);
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 4px;
 }
 
 .progress-bar-custom {
-  background-color: var(--primary-color);
-  height: 20px;
-  border-radius: 8px;
-  transition: width 0.3s ease;
-  color: white;
+  height: 18px;
+  width: 0%;
   display: flex;
   align-items: center;
   justify-content: center;
+
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+
+  background: var(--primary-color);
+  transition: width 0.25s ease;
 }
 
-.spinner {
-  color: var(--primary-color);
-  font-size: 1.2rem;
-  font-weight: bold;
-  margin-top: 10px;
+/* ----------------------------------------------------------------------------
+   Tooltip de erro (sobreposto) – não altera layout
+   - Usa sua classe global .tooltip-error, mas define posicionamento ideal aqui.
+---------------------------------------------------------------------------- */
+.form-field {
+  position: relative;
+  /* âncora do tooltip */
 }
 
-.modal-overlay {
-  position: fixed;
-  top: 0;
+/* Indicador de obrigatório */
+.req {
+  color: var(--danger-color);
+  font-weight: 800;
+  margin-left: 4px;
+}
+
+/* Hint discreto (texto auxiliar) */
+.field-hint {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+}
+
+/* Tooltip: abaixo do campo, com seta, e wrap no mobile */
+.form-field .tooltip-error {
+  position: absolute;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.75);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
+  right: 0;
+  top: calc(100% + 6px);
 
-.modal-content {
-  background-color: var(--modal-background);
-  color: var(--text-color);
-  padding: 25px;
-  border-radius: 16px;
-  width: 100%;
-  max-width: 450px;
+  z-index: 50;
+  white-space: normal;
+  /* quebra linha */
+  max-width: 100%;
+
+  padding: 8px 10px;
+  border-radius: 10px;
+
+  /* mantém seu token global de tooltip */
+  background: var(--tooltip-background);
+  color: #fff;
+
+  border: 1px solid color-mix(in oklab, #fff 18%, transparent);
   box-shadow: var(--box-shadow);
-  text-align: center;
-  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-.modal-actions {
-  margin-top: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* Setinha do tooltip */
+.form-field .tooltip-error::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: 14px;
+
+  width: 0;
+  height: 0;
+
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 7px solid var(--tooltip-background);
+}
+
+/* Em telas pequenas, evita tooltip “tampando” demais o form */
+@media (max-width: 420px) {
+  .form-field .tooltip-error {
+    font-size: 0.9rem;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   8) Ajustes de responsividade real (inclui 350px)
+---------------------------------------------------------------------------- */
+@media (max-width: 520px) {
+  .auth-container {
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+
+  .form-container {
+    width: 100%;
+    border-radius: var(--radius-md, 10px);
+    padding: clamp(16px, 4vw, 22px);
+  }
+
+  .form-container h1 {
+    font-size: 1.25rem;
+  }
+}
+
+@media (max-width: 350px) {
+  .form-container {
+    padding: 14px;
+  }
+
+  select,
+  .input-field,
+  input[type="file"],
+  .btn-submit {
+    font-size: 0.95rem;
+  }
+
+  form .error-message {
+    font-size: 0.85rem;
+    padding: 6px 8px;
+  }
+}
+
+/* ----------------------------------------------------------------------------
+   9) Preferência do usuário (movimento reduzido)
+---------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+
+  .btn-submit,
+  select,
+  .input-field,
+  .progress-bar-custom {
+    transition: none !important;
+  }
 }

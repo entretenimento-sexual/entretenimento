@@ -1,6 +1,0 @@
-﻿O argumento '.\tools\print-tree.ps1' para o parâmetro -File não existe. Forneça o caminho para um arquivo '.ps1' existente como um argumento para o parâmetro -File.
-O Windows PowerShell
-Copyright (C) Microsoft Corporation. Todos os direitos reservados.
-
-Instale o PowerShell mais recente para obter novos recursos e aprimoramentos! https://aka.ms/PSWindows
-

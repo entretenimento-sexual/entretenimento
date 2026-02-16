@@ -2,7 +2,9 @@
 import { TestBed } from '@angular/core/testing';
 import { NearbyProfilesService } from './near-profile.service';
 import { DistanceCalculationService } from './distance-calculation.service';
-import { FirestoreService } from '../data-handling/firestore.service';
+
+// ✅ agora o service injeta Firestore direto
+import { Firestore } from '@angular/fire/firestore';
 
 // ⛳️ usamos o mock global de @firebase/firestore definido no setup-jest,
 // mas este arquivo garante que existam as funções startAt/limit que o serviço usa.
@@ -23,18 +25,9 @@ jest.mock('geofire-common', () => {
 const { geohashQueryBounds } = jest.requireMock('geofire-common');
 
 // ---- Stubs de dependências injetadas ---------------------------------------
-class FirestoreServiceStub {
-  getFirestoreInstance() {
-    return {}; // o mock de @firebase/firestore ignora este valor
-  }
-}
-
 class DistanceCalculationServiceStub {
-  // decide quem entra na resposta
   calculateDistanceInKm = jest.fn(
-    (lat1: number, lon1: number, lat2: number, lon2: number, maxKm?: number) => {
-      // se o doc tiver latitude 10 devolvemos 5km, se 20 devolvemos null (fora do raio),
-      // qualquer outro número devolve 1km
+    (lat1: number, _lon1: number, _lat2: number, _lon2: number, _maxKm?: number) => {
       if (lat1 === 10) return 5;
       if (lat1 === 20) return null;
       return 1;
@@ -61,10 +54,14 @@ describe('NearbyProfilesService', () => {
     TestBed.configureTestingModule({
       providers: [
         NearbyProfilesService,
-        { provide: FirestoreService, useClass: FirestoreServiceStub },
+
+        // ✅ fornece token do Firestore para DI
+        { provide: Firestore, useValue: {} as any },
+
         { provide: DistanceCalculationService, useClass: DistanceCalculationServiceStub },
       ],
     });
+
     service = TestBed.inject(NearbyProfilesService);
   });
 
@@ -73,11 +70,10 @@ describe('NearbyProfilesService', () => {
   }
 
   it('retorna perfis válidos (filtra próprio usuário e fora do raio)', async () => {
-    // prepara docs: um é do próprio usuário, outro dentro do raio, outro fora do raio
     const docs = [
-      makeDoc({ uid: 'meu-uid', latitude: 0, longitude: 0 }), // deve ser filtrado
-      makeDoc({ uid: 'A', latitude: 10, longitude: 10 }),     // entra (5km)
-      makeDoc({ uid: 'B', latitude: 20, longitude: 20 }),     // fora do raio (null)
+      makeDoc({ uid: 'meu-uid', latitude: 0, longitude: 0 }),
+      makeDoc({ uid: 'A', latitude: 10, longitude: 10 }),
+      makeDoc({ uid: 'B', latitude: 20, longitude: 20 }),
     ];
 
     fsMock.getDocs.mockResolvedValueOnce({ docs });
@@ -85,7 +81,7 @@ describe('NearbyProfilesService', () => {
     const result = await service.getProfilesNearLocation(1, 1, 50, 'meu-uid');
 
     expect(geohashQueryBounds).toHaveBeenCalledWith([1, 1], 50 * 1000);
-    expect(fsMock.collection).toHaveBeenCalled(); // consulta feita
+    expect(fsMock.collection).toHaveBeenCalled();
     expect(result.length).toBe(1);
     expect(result[0].uid).toBe('A');
     expect(result[0].distanciaKm).toBe(5);
@@ -110,7 +106,7 @@ describe('NearbyProfilesService', () => {
 
     const result = await service.getProfilesNearLocation(1, 1, 50, 'meu-uid');
 
-    expect(result).toEqual([]); // nenhum entra
+    expect(result).toEqual([]);
   });
 
   it('retorna array vazio em caso de erro de consulta', async () => {

@@ -5,7 +5,6 @@
 // - /register -> form de registro
 // - /register/welcome -> onboarding/verificação
 // - /register/verify -> handler interno opcional (se você quiser manter)
-
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
