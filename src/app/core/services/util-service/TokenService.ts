@@ -1,4 +1,4 @@
-// src/app/core/services/autentication/TokenService.ts
+// src\app\core\services\util-service\tokenService.ts
 // Serviço para obter o token de autenticação atual do Firebase
 // Não esquecer os comentários
 import { Injectable } from '@angular/core';

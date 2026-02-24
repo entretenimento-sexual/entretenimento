@@ -1,30 +1,28 @@
 // src/app/core/services/data-handling/converters/user.firestore-converter.ts
-// Conversor Firestore para documentos de usuário
-// Não esquecer os comentários e ferramentas de debug para facilitar a manutenção futura
+// Este arquivo define o userConverter, que é um FirestoreDataConverter para a interface IUserDados.
+// Ele é responsável por converter os dados do Firestore para IUserDados e vice-versa,
+// garantindo que os campos de data sejam corretamente convertidos para epoch (ms) e
+// para Timestamp do Firestore.
+// O userConverter deve ser usado sempre que interagir com documentos de usuário no Firestore,
+// seja para leitura (get) ou escrita (set/update), para garantir consistência e evitar erros de tipo.
+// Ele também lida com campos opcionais e históricos, como acceptedTerms e nicknameHistory,
+// garantindo que sejam convertidos corretamente mesmo quando ausentes ou em formatos variados.
+// Lembre-se de manter a lógica de conversão centralizada aqui, para evitar duplicação e inconsistências em outras partes do código.
 import {
-  FirestoreDataConverter, Timestamp, DocumentData, QueryDocumentSnapshot, SnapshotOptions
+  FirestoreDataConverter, DocumentData, QueryDocumentSnapshot, SnapshotOptions
 } from 'firebase/firestore';
 import { IUserDados } from '../../../interfaces/iuser-dados';
-
-const toMillis = (v: any): number | null => {
-  if (v == null) return null;
-  if (typeof v === 'number') return v;
-  if (v instanceof Date) return v.getTime();
-  if (typeof v === 'object' && typeof v.toMillis === 'function') return v.toMillis();
-  return null;
-};
-
-const toTs = (ms: number | null | undefined) =>
-  ms != null ? Timestamp.fromMillis(ms) : null;
+import { toEpoch, toTimestamp } from 'src/app/core/utils/epoch-utils';
 
 export const userConverter: FirestoreDataConverter<IUserDados> = {
-  fromFirestore(snap, options): IUserDados {
+  fromFirestore(snap: QueryDocumentSnapshot, options: SnapshotOptions): IUserDados {
     const d: any = snap.data(options);
-    const ms = (x: any) => toMillis(x) ?? null;
+
+    const ms = (x: any) => toEpoch(x) ?? null;
 
     return {
       ...d,
-      uid: snap.id, // ✅ nunca é sobrescrito
+      uid: snap.id,
 
       lastLogin: ms(d.lastLogin) ?? 0,
       firstLogin: ms(d.firstLogin),
@@ -37,10 +35,7 @@ export const userConverter: FirestoreDataConverter<IUserDados> = {
       lastOnlineAt: ms(d.lastOnlineAt),
 
       ...(d.acceptedTerms ? {
-        acceptedTerms: {
-          accepted: !!d.acceptedTerms.accepted,
-          date: ms(d.acceptedTerms.date),
-        }
+        acceptedTerms: { accepted: !!d.acceptedTerms.accepted, date: ms(d.acceptedTerms.date) }
       } : {}),
 
       ...(Array.isArray(d.nicknameHistory) ? {
@@ -68,32 +63,35 @@ export const userConverter: FirestoreDataConverter<IUserDados> = {
       ...rest
     } = u;
 
+    const ts = (v: any) => toTimestamp(v);
+
     return {
       ...rest,
 
-      ...(lastLogin > 0 ? { lastLogin: toTs(lastLogin) } : {}),
-      ...(firstLogin ? { firstLogin: toTs(firstLogin) } : {}),
-      ...(createdAt ? { createdAt: toTs(createdAt) } : {}),
-      ...(subscriptionExpires ? { subscriptionExpires: toTs(subscriptionExpires) } : {}),
-      ...(lastSeen ? { lastSeen: toTs(lastSeen) } : {}),
-      ...(lastLocationAt ? { lastLocationAt: toTs(lastLocationAt) } : {}),
-      ...(registrationDate ? { registrationDate: toTs(registrationDate) } : {}),
-      ...(lastOfflineAt ? { lastOfflineAt: toTs(lastOfflineAt) } : {}),
-      ...(lastOnlineAt ? { lastOnlineAt: toTs(lastOnlineAt) } : {}),
+      ...(lastLogin > 0 ? { lastLogin: ts(lastLogin) } : {}),
+      ...(firstLogin ? { firstLogin: ts(firstLogin) } : {}),
+      ...(createdAt ? { createdAt: ts(createdAt) } : {}),
+      ...(subscriptionExpires ? { subscriptionExpires: ts(subscriptionExpires) } : {}),
+      ...(lastSeen ? { lastSeen: ts(lastSeen) } : {}),
+      ...(lastLocationAt ? { lastLocationAt: ts(lastLocationAt) } : {}),
+      ...(registrationDate ? { registrationDate: ts(registrationDate) } : {}),
+      ...(lastOfflineAt ? { lastOfflineAt: ts(lastOfflineAt) } : {}),
+      ...(lastOnlineAt ? { lastOnlineAt: ts(lastOnlineAt) } : {}),
 
       ...(acceptedTerms ? {
-        acceptedTerms: {
-          accepted: !!acceptedTerms.accepted,
-          date: toTs(acceptedTerms.date ?? null),
-        }
+        acceptedTerms: { accepted: !!acceptedTerms.accepted, date: ts(acceptedTerms.date ?? null) }
       } : {}),
 
       ...(Array.isArray(nicknameHistory) ? {
         nicknameHistory: nicknameHistory.map(it => ({
           nickname: it?.nickname ?? '',
-          date: toTs(it?.date ?? null),
+          date: ts(it?.date ?? null),
         }))
       } : {}),
     };
   },
-};
+}; // Linha 84 - fim do user.firestore-converter..
+// O userConverter é o ponto central para garantir que a leitura e escrita de IUserDados no Firestore
+// seja consistente, especialmente em relação aos campos de data/epoch.
+// Ele deve ser usado sempre que interagir com documentos de usuário no Firestore,
+// seja para leitura (get) ou escrita (set/update).

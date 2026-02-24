@@ -88,26 +88,74 @@ export class WelcomeComponent implements OnInit {
     private readonly emulatorEmailVerifyDev: EmulatorEmailVerifyDevService,
   ) { }
 
+  // dentro do WelcomeComponent
   markVerifiedDev(): void {
     if (!this.isDevEmu || this.busy) return;
 
     this.busy = true;
 
-    this.emulatorEmailVerifyDev.markVerifiedInEmulator$().pipe(
+    this.emulatorEmailVerifyDev.markVerifiedInEmulatorDebug$().pipe(
       take(1),
+
+      // depois disso, força o fluxo normal de sync Auth->Firestore
+      switchMap((dbg) =>
+        this.reloadAndSync$().pipe(
+          take(1),
+          map((syncedOk) => ({ dbg, syncedOk }))
+        )
+      ),
+
+      tap(({ dbg, syncedOk }) => {
+        // detalhes técnicos (copiáveis)
+        const details = {
+          traceId: dbg.traceId,
+          okAuth: dbg.after.emailVerified,
+          okSync: syncedOk,
+          uid: dbg.uid,
+          email: dbg.email,
+          listOob: dbg.listOob,
+          apply: dbg.apply,
+          note: dbg.note,
+        };
+
+        if (dbg.after.emailVerified) {
+          this.setBanner(
+            'success',
+            `DEV OK (trace: ${dbg.traceId})`,
+            syncedOk
+              ? 'E-mail verificado no Auth Emulator e sincronizado no app.'
+              : 'E-mail verificado no Auth Emulator, mas falhou ao sincronizar Firestore (veja detalhes).',
+            details
+          );
+        } else {
+          this.setBanner(
+            'warn',
+            `DEV NÃO verificou (trace: ${dbg.traceId})`,
+            dbg.note ?? 'Não foi possível obter/aplicar o oobCode. Veja detalhes.',
+            details
+          );
+
+          // se não verificou, mantém o polling tentando (opcional)
+          this.restartPolling();
+        }
+      }),
+
+      catchError((err) => {
+        const traceId = (err as any)?.traceId;
+        const payload = (err as any)?.emuPayload;
+
+        this.setBanner(
+          'error',
+          `DEV erro${traceId ? ` (trace: ${traceId})` : ''}`,
+          'Veja detalhes técnicos / Network.',
+          payload ?? err
+        );
+        return of(void 0);
+      }),
+
       finalize(() => { this.busy = false; }),
       takeUntilDestroyed(this.destroyRef)
-    ).subscribe({
-      next: () => {
-        // reaproveita seu fluxo normal de sync/reload
-        this.setBanner('success', 'DEV: marcado como verificado no emulador', 'O Auth Emulator UI deve refletir o status.');
-        this.checkNow();
-      },
-      error: (err) => {
-        // o service já notificou; aqui só mantém banner coerente
-        this.setBanner('error', 'DEV: não foi possível marcar no emulador', 'Veja console/logs para detalhes.', err);
-      }
-    });
+    ).subscribe();
   }
 
   // =========================
@@ -292,55 +340,108 @@ export class WelcomeComponent implements OnInit {
     const u = this.auth.currentUser;
     if (!u) return of(false);
 
-    // 1) reload pode falhar por rede; não deve “quebrar” o fluxo
-    return from(u.reload()).pipe(
-      catchError(() => of(void 0)),
+    const traceId = `wel_sync_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 6)}`;
+    const DBG = (window as any)?.DBG ?? (() => { });
 
-      // 2) re-sync dos estados locais após reload
+    DBG('[Welcome.reloadAndSync$] start', { traceId, uid: u.uid });
+
+    return from(u.reload()).pipe(
+      catchError((err) => {
+        DBG('[Welcome.reloadAndSync$] user.reload():fail', { traceId, err });
+        // reload falhar não deve quebrar o fluxo
+        return of(void 0);
+      }),
+
       map(() => {
         const cu = this.auth.currentUser;
+
         this.emailVerified = !!cu?.emailVerified;
         this.email = cu?.email ?? null;
         this.lastCheckedAt = new Date();
+
+        DBG('[Welcome.reloadAndSync$] after reload', {
+          traceId,
+          uid: cu?.uid ?? null,
+          emailVerified: !!cu?.emailVerified,
+        });
+
         return cu;
       }),
 
-      // 3) se verificado no Auth, garante espelhamento no Firestore (idempotente)
       switchMap((cu) => {
         if (!cu) return of(false);
 
-        if (cu.emailVerified) {
-          return this.emailVerificationService.updateEmailVerificationStatus(cu.uid, true).pipe(
-            take(1),
+        // Se ainda não está verificado no Auth → tenta fallback Firestore
+        if (!cu.emailVerified) {
+          return from(getDoc(doc(this.db, 'users', cu.uid))).pipe(
+            map((snap) => {
+              const fsVerified = snap.exists() && (snap.data() as any)?.emailVerified === true;
+              DBG('[Welcome.reloadAndSync$] fs fallback', { traceId, fsVerified });
+
+              if (fsVerified) {
+                this.emailVerified = true;
+                this.setBanner('success', 'E-mail verificado (sincronizado)', 'Você já pode seguir para o painel.');
+                return true;
+              }
+              return false;
+            }),
             catchError((err) => {
-              // idempotente: se falhar, não impede o usuário de seguir
-              this.reportError('WelcomeComponent.updateEmailVerificationStatus', err, true);
-              return of(void 0);
-            }),
-            tap(() => {
-              this.setBanner('success', 'E-mail verificado com sucesso!', 'Você já pode seguir para o painel.');
-            }),
-            map(() => true)
+              DBG('[Welcome.reloadAndSync$] fs fallback:fail', { traceId, err });
+              return of(false);
+            })
           );
         }
 
-        // 4) fallback: Firestore já marcou como verificado (ex.: handler externo)
-        return from(getDoc(doc(this.db, 'users', cu.uid))).pipe(
-          map((snap) => {
-            const fsVerified = snap.exists() && (snap.data() as any)?.emailVerified === true;
-            if (fsVerified) {
-              this.emailVerified = true;
-              this.setBanner('success', 'E-mail verificado (sincronizado)', 'Você já pode seguir para o painel.');
-              return true;
-            }
-            return false;
+        // ✅ Auth está verificado → agora o que manda é o CLAIM do token (rules)
+        return from(cu.getIdTokenResult(true)).pipe(
+          map((res) => {
+            const claimVerified = res?.claims?.['email_verified'] === true;
+            DBG('[Welcome.reloadAndSync$] token claims', {
+              traceId,
+              emailVerified: true,
+              claimVerified,
+            });
+            return claimVerified;
           }),
-          catchError(() => of(false))
+
+          switchMap((claimVerified) => {
+            if (!claimVerified) {
+              // Não tenta Firestore ainda → evitar PERMISSION_DENIED
+              this.setBanner(
+                'info',
+                'Verificação propagando…',
+                'Auth já marcou como verificado, mas o token ainda não atualizou. Aguarde alguns segundos e tente novamente.'
+              );
+              return of(false);
+            }
+
+            DBG('[Welcome.reloadAndSync$] fs update:attempt', { traceId, uid: cu.uid });
+
+            return this.emailVerificationService.updateEmailVerificationStatus(cu.uid, true).pipe(
+              take(1),
+              tap(() => DBG('[Welcome.reloadAndSync$] fs update:ok', { traceId })),
+
+              catchError((err) => {
+                DBG('[Welcome.reloadAndSync$] fs update:fail', { traceId, err });
+                this.reportError('WelcomeComponent.updateEmailVerificationStatus', err, true);
+                // aqui você escolhe: retornar false (para continuar polling) é melhor
+                return of(false as any);
+              }),
+
+              map((v: any) => {
+                // se veio boolean false do catch acima, mantém false
+                if (v === false) return false;
+
+                this.setBanner('success', 'E-mail verificado com sucesso!', 'Você já pode seguir para o painel.');
+                return true;
+              })
+            );
+          })
         );
       }),
 
-      // 5) nunca propague erro para o polling (polling deve ser resiliente)
       catchError((err) => {
+        DBG('[Welcome.reloadAndSync$] fatal', { traceId, err });
         this.setBanner('error', 'Erro ao verificar e-mail', 'Tente novamente em instantes.', err);
         this.reportError('WelcomeComponent.reloadAndSync$', err);
         return of(false);
@@ -483,6 +584,9 @@ export class WelcomeComponent implements OnInit {
   private startPolling(): void {
     if (this.pollingSub) return;
 
+    const DBG = (window as any)?.DBG ?? (() => { });
+    const maxTries = this.isDevEmu ? 30 : 8; // emulador pode demorar a propagar claim
+
     this.pollTries = 0;
 
     this.pollingSub = interval(4000).pipe(
@@ -491,8 +595,20 @@ export class WelcomeComponent implements OnInit {
       tap((ok) => {
         this.pollTries++;
 
-        if (ok || this.pollTries >= 8) {
+        DBG('[Welcome.poll]', { try: this.pollTries, ok });
+
+        if (ok) {
           this.stopPolling();
+          return;
+        }
+
+        if (this.pollTries >= maxTries) {
+          this.stopPolling();
+          this.setBanner(
+            'warn',
+            'Tempo esgotado',
+            'Não conseguimos sincronizar a verificação a tempo. Clique em “Checar agora” em alguns segundos.'
+          );
         }
       }),
       takeUntilDestroyed(this.destroyRef)

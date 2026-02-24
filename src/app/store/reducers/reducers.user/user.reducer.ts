@@ -12,6 +12,8 @@ import {
   setCurrentUser,
   clearCurrentUser, //clearCurrentUser está definido mas não usado
   addUserToState,
+  startOnlineUsersListener,
+  stopOnlineUsersListener,
 } from '../../actions/actions.user/user.actions';
 import { sanitizeUserForStore } from 'src/app/store/utils/user-store.serializer';
 import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.actions';
@@ -153,6 +155,28 @@ export const userReducer = createReducer(
     users: upsertUser(state.users, user),
   })),
 
+  // ✅ Fonte única de cleanup do produto OnlineUsers
+  on(stopOnlineUsersListener, (state) => ({
+    ...state,
+    onlineUsers: [],
+    filteredUsers: [],
+  })),
+
+  // (Opcional) start não precisa mudar estado; só útil se você quiser flag depois.
+  // on(startOnlineUsersListener, (state) => state),
+
+  // ✅ clearCurrentUser agora existe de verdade (antes estava “definido mas não usado”)
+  on(clearCurrentUser, (state) => {
+    const uidToRemove = state.currentUser?.uid ?? null;
+    return {
+      ...state,
+      currentUser: null,
+      onlineUsers: removeByUid(state.onlineUsers, uidToRemove),
+      // filteredUsers pode ser limpo também (UI não deve manter filtro sem current user)
+      filteredUsers: [],
+    };
+  }),
+
   on(logoutSuccess, (state) => {
     const uidToRemove = state.currentUser?.uid ?? null;
     return {
@@ -161,4 +185,4 @@ export const userReducer = createReducer(
       onlineUsers: removeByUid(state.onlineUsers, uidToRemove),
     };
   })
-);//Linha 170
+);//Linha 170, fim do userReducer

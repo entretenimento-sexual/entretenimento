@@ -1,47 +1,83 @@
 // src/app/core/services/data-handling/queries/user-discovery-presence.facade.ts
-// Não esqueça os comentários
+// Não esqueça os comentários e ferramentas de debug
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { map, shareReplay, switchMap } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, map, shareReplay, switchMap, tap } from 'rxjs/operators';
 import { QueryConstraint } from 'firebase/firestore';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
 import { UserDiscoveryQueryService } from './user-discovery.query.service';
 import { UserPresenceQueryService } from './user-presence.query.service';
 
+// ✅ Gate canônico (política central)
+import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
+
+// ✅ Erro centralizado (padrão do projeto)
+import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
+import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+
+import { environment } from 'src/environments/environment';
+
 /**
  * =============================================================================
  * DISCOVERY + PRESENCE FACADE (Read composition)
  * - Junta resultado de discovery (public_profiles) com status online (presence).
- * - NÃO abre listener por usuário (evita N listeners).
- * - Reusa o listener único de presença (getOnlineUsers$) via shareReplay.
- * - Não inventa UID: os serviços internos já têm guard por sessão.
  *
- * Estratégia (plataforma grande):
- * - public_profiles: dados públicos e consultáveis por filtros
- * - presence: estado efêmero (online/lastSeen)
- * - UI recebe lista já “enriquecida” com isOnline/lastSeen quando disponível
+ * Correção “plataforma grande”:
+ * - NÃO abre listener de presença se o produto NÃO permitir (gate canônico).
+ * - Gate único: AccessControlService.canRunOnlineUsers$ (política/capacidades).
+ *
+ * Motivação:
+ * - Evita query/list de /presence no fluxo /register e em usuários não verificados.
+ * - Evita custo/ruído e reduz risco de UX confusa (ex.: tentar mostrar online antes do ok).
  * =============================================================================
  */
 @Injectable({ providedIn: 'root' })
 export class UserDiscoveryPresenceFacade {
+  private readonly debug = !environment.production;
+  private lastNotifyAt = 0;
+
   /**
-   * Listener único compartilhado:
-   * - se não houver sessão, o próprio service retorna [] (guard)
+   * Listener único compartilhado (agora GATED):
+   * - gate=false -> emite [] e NÃO cria listener
+   * - gate=true  -> assina getOnlineUsers$ (realtime)
    */
-  private readonly onlineUsers$ = this.presence.getOnlineUsers$().pipe(
+  private readonly onlineUsers$ = this.access.canRunOnlineUsers$.pipe(
+    distinctUntilChanged(),
+    tap((can) => this.dbg('gate(onlineUsers$) ->', { can })),
+
+    switchMap((can) => {
+      if (!can) return of([] as IUserDados[]);
+      return this.presence.getOnlineUsers$();
+    }),
+
+    // Safety net: presença é best-effort. Se falhar, degrada para [].
+    catchError((err) => {
+      this.reportSilent(err, 'UserDiscoveryPresenceFacade.onlineUsers$');
+      // opcional: UX leve (com throttle)
+      this.notifyOnce('Falha ao obter status online. Exibindo lista sem presença.');
+      return of([] as IUserDados[]);
+    }),
+
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
   constructor(
     private readonly discovery: UserDiscoveryQueryService,
-    private readonly presence: UserPresenceQueryService
+    private readonly presence: UserPresenceQueryService,
+
+    // ✅ gate canônico
+    private readonly access: AccessControlService,
+
+    // ✅ erro central
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly errorNotifier: ErrorNotificationService
   ) { }
 
   /**
    * API principal:
-   * - faz discovery one-shot (cacheado)
-   * - combina com stream de online (realtime)
+   * - discovery one-shot (cacheado)
+   * - combina com presença (realtime, gated)
    */
   searchUsersWithPresence$(constraints: QueryConstraint[]): Observable<IUserDados[]> {
     return this.discovery.searchUsers(constraints ?? []).pipe(
@@ -97,6 +133,9 @@ export class UserDiscoveryPresenceFacade {
    * Regras do merge:
    * - Perfil público (public_profiles) é “verdade” para nickname/município/foto/etc.
    * - Presença só contribui com isOnline/lastSeen/presenceState/lastOnlineAt/lastOfflineAt.
+   *
+   * Nota:
+   * - Quando gate=false, onlineUsers$ emite [] e todo mundo vira isOnline=false.
    */
   private mergePresence(profiles: IUserDados[], onlineList: IUserDados[]): IUserDados[] {
     const mapOnline = new Map<string, IUserDados>();
@@ -129,4 +168,34 @@ export class UserDiscoveryPresenceFacade {
       } as IUserDados;
     });
   }
-} // 134 linhas
+
+  // --------------------------------------------------------------------------
+  // Debug + erro centralizado
+  // --------------------------------------------------------------------------
+
+  private dbg(msg: string, extra?: unknown): void {
+    if (!this.debug) return;
+    // eslint-disable-next-line no-console
+    console.log(`[UserDiscoveryPresenceFacade] ${msg}`, extra ?? '');
+  }
+
+  private reportSilent(err: unknown, context: string): void {
+    try {
+      const e = err instanceof Error ? err : new Error(context);
+      (e as any).silent = true;
+      (e as any).context = context;
+      (e as any).original = err;
+      this.globalErrorHandler.handleError(e);
+    } catch {
+      // noop
+    }
+  }
+
+  private notifyOnce(msg: string): void {
+    const now = Date.now();
+    if (now - this.lastNotifyAt > 15_000) {
+      this.lastNotifyAt = now;
+      this.errorNotifier.showError(msg);
+    }
+  }
+} // linha 201, fim do UserDiscoveryPresenceFacade

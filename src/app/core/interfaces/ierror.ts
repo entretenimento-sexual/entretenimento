@@ -10,3 +10,5 @@ export interface IError {
   stack?: string;
   timestamp?: string;                      // ISO
 }
+// lembrar sempre da padronização em uid para usuários, o identificador canônico.
+// CurrentUserStoreService como fonte canônica do IUserDados (perfil/hidratação).

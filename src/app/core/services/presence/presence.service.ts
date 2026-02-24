@@ -1,4 +1,10 @@
 // src/app/core/services/presence/presence.service.ts
+// Serviço de presença do usuário
+// - Escreve presença no Firestore (online/away/offline, lastSeen)
+// - Multi-aba: só 1 aba (líder) mantém presença ativa, evita “falso offline”
+// - Escuta eventos de DOM (visibility, online/offline, unload) e traduz em writes
+// - Erros são best-effort (não derrubam app; logados no GlobalErrorHandler)
+// Não esquecer os comentários explicativos, especialmente sobre a lógica de multi-aba e a relação com o PresenceOrchestratorService. Isso ajuda a contextualizar as decisões de design e a evitar confusões futuras sobre onde e como o status online deve ser controlado e lido.
 // Não esquecer comentários e ferramentas de debug
 import { Injectable, NgZone } from '@angular/core';
 import { EMPTY, Observable, Subscription, combineLatest, interval, merge, of } from 'rxjs';

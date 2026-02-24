@@ -1,4 +1,5 @@
 // src/app/core/services/presence/presence-writer.service.ts
+// Não esquecer dos comentários explicativos e ferramentas de debug
 import { Injectable } from '@angular/core';
 import {
   Firestore,
@@ -180,7 +181,21 @@ export class PresenceWriterService {
             opts.mode === 'public'
               ? {
                 uid: cleanUid,
+                presenceSessionId: this.tabId,
+
+                // cria como OFFLINE (não “declara” online)
+                presenceState: 'offline',
+                ...(PresenceWriterService.KEEP_ISONLINE_COMPAT ? { isOnline: false } : {}),
+
+                // telemetria mínima para satisfazer schema
+                lastSeen: afServerTimestamp(),
                 updatedAt: afServerTimestamp(),
+
+                // opcional: carimba primeiro estado como offline
+                lastStateChangeAt: afServerTimestamp(),
+                lastOfflineAt: afServerTimestamp(),
+
+                // campos públicos do patch
                 ...extra,
               }
               : {
@@ -272,4 +287,4 @@ export class PresenceWriterService {
       return `tab_${Math.random().toString(36).slice(2)}_${Date.now()}`;
     }
   }
-} // Linha 266
+} // Linha 276

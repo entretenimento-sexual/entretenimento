@@ -1,4 +1,4 @@
-// src/app/dashboard/online-users-full/online-users-full.component.ts
+// src\app\dashboard\online\online-users-full\online-users-full.component.ts
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';

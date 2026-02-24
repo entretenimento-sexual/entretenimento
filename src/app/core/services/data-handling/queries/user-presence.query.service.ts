@@ -1,5 +1,5 @@
 // src/app/core/services/data-handling/queries/user-presence.query.service.ts
-// Não esqueça dos comentários
+// Não esqueça dos comentários e ferramentas de debug
 import { Injectable, DestroyRef, inject } from '@angular/core';
 import { QueryConstraint, Timestamp, where } from 'firebase/firestore';
 import { Observable, of, combineLatest, interval, defer, from } from 'rxjs';

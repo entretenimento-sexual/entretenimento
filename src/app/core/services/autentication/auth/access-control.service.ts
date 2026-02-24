@@ -6,17 +6,29 @@
 //   (1) AuthSessionService (verdade do Firebase Auth: uid, emailVerified, ready$)
 //   (2) CurrentUserStoreService (verdade do app: role, profileCompleted, etc.)
 //   (3) AuthAppBlockService (verdade do bloqueio do app: TerminateReason | null)
+//   (4) Router (estado de navegação e rotas “sensíveis” para gating)
 // - Expor Observables simples para Guards e UI gating (menu, listeners realtime, writes).
 // - Manter métodos existentes (hasAtLeast$, hasAny$) para não quebrar o projeto.
-// - Erros: sempre roteados para GlobalErrorHandlerService e ErrorNotificationService,
+// - Erros: roteados para GlobalErrorHandlerService e ErrorNotificationService,
 //   com degradação segura (nunca liberar acesso em caso de erro).
-
 import { Injectable, inject } from '@angular/core';
+import { NavigationEnd, Router } from '@angular/router';
 import { Observable, combineLatest, of } from 'rxjs';
-import { catchError, distinctUntilChanged, filter, map, shareReplay, startWith } from 'rxjs/operators';
+import {
+  catchError,
+  distinctUntilChanged,
+  filter,
+  map,
+  shareReplay,
+  startWith,
+  take,
+} from 'rxjs/operators';
 
 import type { IUserDados } from '../../../interfaces/iuser-dados';
 import type { TerminateReason } from './auth.types';
+
+// ✅ helper canônico do projeto (evita regex duplicada em effects/serviços)
+import { inRegistrationFlow as isRegistrationFlow } from './auth.types';
 
 import { AuthSessionService } from './auth-session.service';
 import { CurrentUserStoreService } from './current-user-store.service';
@@ -27,16 +39,6 @@ import { ErrorNotificationService } from '../../error-handler/error-notification
 
 export type UserRole = IUserDados['role'];
 
-/**
- * Estado consolidado de acesso (mínimo e suficiente para guiar UX + Guards):
- * - GUEST: sem sessão
- * - AUTHED_PROFILE_INCOMPLETE: autenticado, mas perfil não finalizado no app
- * - AUTHED_PROFILE_COMPLETE_UNVERIFIED: perfil ok, mas e-mail ainda não verificado
- * - AUTHED_PROFILE_COMPLETE_VERIFIED: perfil ok + e-mail verificado (base para liberar core)
- *
- * Observação:
- * - O bloqueio do app (AuthAppBlockService) atua “por cima” desse estado.
- */
 export type AccessState =
   | 'GUEST'
   | 'AUTHED_PROFILE_INCOMPLETE'
@@ -57,6 +59,11 @@ const ROLE_RANK: Record<string, number> = {
 
 @Injectable({ providedIn: 'root' })
 export class AccessControlService {
+  // ---------------------------------------------------------------------------
+  // DI (fields primeiro: tudo que os streams vão usar já existe)
+  // ---------------------------------------------------------------------------
+  private readonly router = inject(Router);
+
   private readonly session = inject(AuthSessionService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly appBlock = inject(AuthAppBlockService);
@@ -67,9 +74,9 @@ export class AccessControlService {
   // Evita spam de notificação por falhas em streams (singleton)
   private _lastNotifyAt = 0;
 
-  // ---------------------------------------------
-  // Helpers (segurança e compatibilidade)
-  // ---------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Helpers (perfil mínimo / roles / erros)
+  // ---------------------------------------------------------------------------
 
   private safeRank(role: unknown): number {
     const key = (role ?? 'visitante') as string;
@@ -81,37 +88,85 @@ export class AccessControlService {
     return (ROLE_RANK[key] != null ? key : 'visitante') as UserRole;
   }
 
+  /** Fallback conservador de “perfil mínimo” (produto). */
+  private hasMinProfileFields(anyU: any): boolean {
+    return (
+      typeof anyU?.gender === 'string' && anyU.gender.trim() !== '' &&
+      typeof anyU?.estado === 'string' && anyU.estado.trim() !== '' &&
+      typeof anyU?.municipio === 'string' && anyU.municipio.trim() !== ''
+    );
+  }
+
   /**
-   * Roteia erro para o handler global com tipo seguro (evita TS2345 de unknown).
-   * E dispara uma notificação genérica com throttle.
+   * Roteia erro para o handler global e notifica com throttle.
+   * Importante: fallback SEMPRE restritivo (false, null, 'GUEST', etc.)
    */
   private handleStreamError<T>(context: string, fallback: T): (err: unknown) => Observable<T> {
     return (err: unknown) => {
-      // Normaliza unknown -> Error (para compat com o GlobalErrorHandlerService)
       const e = err instanceof Error ? err : new Error(`AccessControlService stream error: ${context}`);
-      (e as any).silent = true;       // reduz ruído de UX (stream interno)
+      (e as any).silent = true;
       (e as any).original = err;
       (e as any).context = context;
 
       this.globalError.handleError(e);
 
-      // Feedback controlado (não spamma)
       const now = Date.now();
       if (now - this._lastNotifyAt > 15_000) {
         this._lastNotifyAt = now;
         this.notify.showError('Falha ao validar acesso. Tente novamente.');
       }
 
-      // Degrada com segurança (fallback restritivo)
       return of(fallback);
     };
   }
 
-  // ---------------------------------------------
-  // Streams base (Auth + AppUser + Block)
-  // ---------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Router signals (gate canônico de rota)
+  // ---------------------------------------------------------------------------
 
-  /** Sessão pronta? (Auth restaurado) — evita decisões prematuras em guards/UI */
+  /** URL atual (replay) */
+  /** URL atual (replay) — agora CRUA (com query/hash se vierem) */
+  readonly currentUrl$: Observable<string> = this.router.events.pipe(
+    filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+    map((e) => (e.urlAfterRedirects || e.url || '/')),
+    startWith(this.router.url || '/'),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('currentUrl$', this.router.url || '/'))
+  );
+
+  /** Router pronto após 1º NavigationEnd */
+  readonly routerReady$: Observable<boolean> = this.router.events.pipe(
+    filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+    take(1),
+    map(() => true),
+    startWith(false),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('routerReady$', false))
+  );
+
+  /** Está em fluxo sensível (registro/verificação/finalização/login)? */
+  readonly inRegistrationFlow$: Observable<boolean> = combineLatest([
+    this.routerReady$,
+    this.currentUrl$,
+  ]).pipe(
+    map(([routerReady, url]) => {
+      if (!routerReady) return true; // seguro: bloqueia até estabilizar
+      if (isRegistrationFlow(url)) return true;
+      if (/^\/login(\/|$)/.test(url)) return true;
+      return false;
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('inRegistrationFlow$', true))
+  );
+
+  // ---------------------------------------------------------------------------
+  // Streams base (Auth + AppUser + Block) — precisam vir ANTES das derivações
+  // ---------------------------------------------------------------------------
+
+  /** Sessão pronta? (Auth restaurado) — evita decisões prematuras */
   readonly ready$: Observable<boolean> = this.session.ready$.pipe(
     startWith(false),
     distinctUntilChanged(),
@@ -150,14 +205,14 @@ export class AccessControlService {
     catchError(this.handleStreamError('appUser$', undefined))
   );
 
-  /** Motivo do bloqueio do app (fonte única: AuthAppBlockService) */
+  /** Motivo do bloqueio do app (fonte única) */
   readonly blockedReason$: Observable<TerminateReason | null> = this.appBlock.reason$.pipe(
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('blockedReason$', null))
   );
 
-  /** True quando o app está bloqueado (sem logout) */
+  /** True quando o app está bloqueado */
   readonly isBlocked$: Observable<boolean> = this.blockedReason$.pipe(
     map(r => !!r),
     distinctUntilChanged(),
@@ -165,9 +220,9 @@ export class AccessControlService {
     catchError(this.handleStreamError('isBlocked$', false))
   );
 
-  // ---------------------------------------------
-  // Derivações de sessão e verificação
-  // ---------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Derivações de sessão / verificação / perfil
+  // ---------------------------------------------------------------------------
 
   /** Está autenticado? (considera ready$ para evitar “piscar”) */
   readonly isAuthenticated$: Observable<boolean> = combineLatest([this.ready$, this.authUid$]).pipe(
@@ -189,7 +244,7 @@ export class AccessControlService {
   readonly profileCompleted$: Observable<boolean> = combineLatest([this.isAuthenticated$, this.appUser$]).pipe(
     map(([isAuth, u]) => {
       if (!isAuth) return false;
-      if (u === undefined) return false; // carregando => seguro (nega)
+      if (u === undefined || u === null) return false; // carregando / sem user => nega
       return (u as any)?.profileCompleted === true;
     }),
     distinctUntilChanged(),
@@ -197,9 +252,31 @@ export class AccessControlService {
     catchError(this.handleStreamError('profileCompleted$', false))
   );
 
-  // ---------------------------------------------
+  /**
+   * Perfil “elegível” (produto):
+   * - profileCompleted === true
+   *   OU fallback defensivo por campos mínimos.
+   *
+   * Conservador: se não dá pra provar, bloqueia.
+   */
+  readonly profileEligible$: Observable<boolean> = combineLatest([this.isAuthenticated$, this.appUser$]).pipe(
+    map(([isAuth, u]) => {
+      if (!isAuth) return false;
+      if (u === undefined || u === null) return false;
+
+      const anyU = u as any;
+      if (anyU?.profileCompleted === true) return true;
+
+      return this.hasMinProfileFields(anyU);
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('profileEligible$', false))
+  );
+
+  // ---------------------------------------------------------------------------
   // Estado consolidado (máquina de estados “base”)
-  // ---------------------------------------------
+  // ---------------------------------------------------------------------------
 
   readonly state$: Observable<AccessState> = combineLatest([
     this.isAuthenticated$,
@@ -217,16 +294,97 @@ export class AccessControlService {
     catchError(this.handleStreamError('state$', 'GUEST' as AccessState))
   );
 
-  // ---------------------------------------------
-  // Capacidades de alto nível (Guards e UI)
-  // ---------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Gates canônicos (padrão “plataforma grande”)
+  // ---------------------------------------------------------------------------
 
   /**
-   * Pode entrar no “core” do app (dashboard/chat/invites/etc.)?
-   * Regra:
-   * - precisa estar VERIFIED no estado base
-   * - e NÃO pode estar bloqueado pelo Orchestrator (AuthAppBlockService)
+   * Gate base de execução do app (decisões UI/guards/listeners):
+   * - routerReady evita decisões prematuras
+   * - isBlocked derruba gates “por cima”
    */
+  readonly canRunApp$ = combineLatest([this.routerReady$, this.isBlocked$]).pipe(
+    map(([routerReady, blocked]) => routerReady === true && blocked === false),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunApp$', false))
+  );
+
+  /**
+   * Gate infra realtime (nível 1.5):
+   * - watchers “infra” (ex.: keepAlive baixo custo, caches, etc.)
+   * - não depende de profileCompleted
+   * - bloqueia em rotas sensíveis (registro/login) pra evitar custo/ruído
+   */
+  readonly canRunInfraRealtime$ = combineLatest([
+    this.canRunApp$,
+    this.ready$,
+    this.authUid$,
+    this.inRegistrationFlow$,
+  ]).pipe(
+    map(([canRunApp, ready, uid, inReg]) => canRunApp && ready && !!uid && inReg === false),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunInfraRealtime$', false))
+  );
+
+  /**
+   * Gate PRESENÇA (infra) — OPÇÃO A
+   * - Presence NÃO roda em rotas sensíveis (/register e /login)
+   * - Não exige emailVerified/profileEligible
+   *
+   * Implementação:
+   * - Alias do gate infra (fonte única)
+   */
+  readonly canRunPresence$ = this.canRunInfraRealtime$;
+
+  /**
+   * Gate produto realtime (nível 2):
+   * - features que expõem/consomem dados sensíveis: discovery/online-users/etc.
+   * - exige email verificado + perfil elegível + fora do fluxo sensível
+   */
+  readonly canRunProductRealtime$ = combineLatest([
+    this.canRunInfraRealtime$,
+    this.emailVerified$,
+    this.profileEligible$,
+  ]).pipe(
+    map(([infraOk, emailOk, profileEligible]) => infraOk === true && emailOk === true && profileEligible === true),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunProductRealtime$', false))
+  );
+
+  /**
+   * Gate específico OnlineUsers (produto / discovery):
+   * - Usa gate de produto (nível 2)
+   * - Anti mismatch: appUser.uid precisa bater com authUid
+   *   (evita “restore” estranho enquanto o appUser ainda não hidratou corretamente)
+   */
+  readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
+    this.canRunProductRealtime$,
+    this.authUid$,
+    this.appUser$,
+  ]).pipe(
+    map(([canRunProduct, uid, appUser]) => {
+      if (!canRunProduct) return false;
+      if (!uid) return false;
+      if (appUser === undefined || appUser === null) return false;
+
+      const appUid = (appUser as any)?.uid;
+      if (typeof appUid === 'string' && appUid && appUid !== uid) return false;
+
+      return true;
+    }),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunOnlineUsers$', false))
+  );
+
+  // ---------------------------------------------------------------------------
+  // Capacidades de alto nível (Guards e UI) — compatibilidade
+  // ---------------------------------------------------------------------------
+
+  /** Pode entrar no “core” do app (dashboard/chat/etc.)? */
   readonly canEnterCore$: Observable<boolean> = combineLatest([this.state$, this.isBlocked$]).pipe(
     map(([s, blocked]) => s === 'AUTHED_PROFILE_COMPLETE_VERIFIED' && !blocked),
     distinctUntilChanged(),
@@ -235,20 +393,16 @@ export class AccessControlService {
   );
 
   /**
-   * Pode ligar listeners realtime (onSnapshot/collectionData) sem risco?
-   * Recomendação: use exatamente o mesmo gating do core.
+   * Compat: “pode ligar listeners realtime?”
+   * Versão segura: aponta para o gate de produto (nível 2).
    */
-  readonly canListenRealtime$: Observable<boolean> = this.canEnterCore$.pipe(
+  readonly canListenRealtime$: Observable<boolean> = this.canRunProductRealtime$.pipe(
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('canListenRealtime$', false))
   );
 
-  /**
-   * Pode acessar telas do fluxo pós-auth (/register/welcome, /finalizar-cadastro, etc.)?
-   * - Acesso permitido para autenticados, mas bloqueio do app impede “seguir adiante”
-   *   sem passar pelo fluxo de correção (navegação do Orchestrator).
-   */
+  /** Pode acessar etapas pós-auth (register/welcome/finalizar) sem estar bloqueado? */
   readonly canEnterRegistrationSteps$: Observable<boolean> = combineLatest([this.isAuthenticated$, this.isBlocked$]).pipe(
     map(([isAuth, blocked]) => !!isAuth && !blocked),
     distinctUntilChanged(),
@@ -256,15 +410,14 @@ export class AccessControlService {
     catchError(this.handleStreamError('canEnterRegistrationSteps$', false))
   );
 
-  // ---------------------------------------------
+  // ---------------------------------------------------------------------------
   // Role gating (mantendo compatibilidade)
-  // ---------------------------------------------
+  // ---------------------------------------------------------------------------
 
   /**
    * Role do app:
    * - espera a resolução inicial (ignora 'undefined')
    * - emite 'visitante' se null
-   * Mantém a mesma semântica do seu serviço atual (para não quebrar o projeto).
    */
   private readonly role$: Observable<UserRole> = this.appUser$.pipe(
     filter(u => u !== undefined),
@@ -274,7 +427,6 @@ export class AccessControlService {
     catchError(this.handleStreamError('role$', 'visitante' as UserRole))
   );
 
-  /** Mantido: “tem no mínimo tal role?” */
   hasAtLeast$(min: UserRole): Observable<boolean> {
     return this.role$.pipe(
       map(r => this.safeRank(r) >= this.safeRank(min)),
@@ -283,7 +435,6 @@ export class AccessControlService {
     );
   }
 
-  /** Mantido: “tem qualquer uma dessas roles?” */
   hasAny$(allowed: UserRole[]): Observable<boolean> {
     const allowedSet = new Set((allowed ?? []).map(a => String(a)));
     return this.role$.pipe(
@@ -293,11 +444,11 @@ export class AccessControlService {
     );
   }
 
-  // ---------------------------------------------
+  // ---------------------------------------------------------------------------
   // Conveniências úteis (opcionais)
-  // ---------------------------------------------
+  // ---------------------------------------------------------------------------
 
-  /** Visitante ou plano free (útil para banners/upsell) */
+  /** Visitante ou plano free */
   readonly isFree$: Observable<boolean> = combineLatest([this.isAuthenticated$, this.role$]).pipe(
     map(([isAuth, role]) => !isAuth || role === 'free' || role === 'visitante'),
     distinctUntilChanged(),
@@ -305,7 +456,7 @@ export class AccessControlService {
     catchError(this.handleStreamError('isFree$', true))
   );
 
-  /** Assinante (exemplo simples; ajuste conforme sua política real) */
+  /** Assinante (ajuste conforme sua política real) */
   readonly isSubscriber$: Observable<boolean> = this.role$.pipe(
     map(role => ['premium', 'vip'].includes(String(role))),
     distinctUntilChanged(),
@@ -313,13 +464,3 @@ export class AccessControlService {
     catchError(this.handleStreamError('isSubscriber$', false))
   );
 }
-
-/*
-  Fonte única (sem duplicação de “verdade”):
-
-  - AuthSessionService = verdade do Firebase Auth (authUser$, uid$, ready$)
-  - CurrentUserStoreService = verdade do usuário do app (IUserDados / role / profileCompleted)
-  - AuthAppBlockService = verdade do “bloqueio do app” (TerminateReason | null)
-  - AuthOrchestratorService = efeitos colaterais (presence, watchers, keepAlive, navegação defensiva)
-  - AccessControlService = políticas/capacidades (canEnterCore$, canListenRealtime$, gating por role)
-*/

@@ -9,7 +9,6 @@ import { BehaviorSubject, Observable, firstValueFrom, combineLatest, interval, o
 import { map, startWith, filter, take, distinctUntilChanged, shareReplay, catchError } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { GeolocationService, GeolocationError, GeolocationErrorCode } from 'src/app/core/services/geolocation/geolocation.service';
 import { DistanceCalculationService } from 'src/app/core/services/geolocation/distance-calculation.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -20,7 +19,9 @@ import { RouterModule } from '@angular/router';
 import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
 import { AppState } from 'src/app/store/states/app.state';
 import { Store } from '@ngrx/store';
-import { selectOnlineUsers } from 'src/app/store/selectors/selectors.user/user.selectors';
+import { selectCurrentUser, selectCurrentUserStatus } from 'src/app/store/selectors/selectors.user/user.selectors';
+import { selectGlobalOnlineUsers } from 'src/app/store/selectors/selectors.user/online.selectors';
+import { toEpochOrZero } from 'src/app/core/utils/epoch-utils';
 
 type PermissionState = 'granted' | 'prompt' | 'denied';
 type IUserWithDistance = IUserDados & { distanciaKm?: number };
@@ -67,7 +68,7 @@ export class OnlineUsersComponent implements OnInit {
   uiDistanceKm?: number;
   policyMaxDistanceKm = 20;
 
-  private readonly onlineRaw$ = this.store.select(selectOnlineUsers).pipe(
+  private readonly onlineRaw$ = this.store.select(selectGlobalOnlineUsers).pipe(
     map((users) => Array.isArray(users) ? (users as IUserDados[]) : []),
     distinctUntilChanged((a, b) => a === b), // cheap ref check (NgRx geralmente preserva ref quando não muda)
     shareReplay({ bufferSize: 1, refCount: true })
@@ -75,11 +76,11 @@ export class OnlineUsersComponent implements OnInit {
 
   private readonly LS_ALWAYS_ALLOW = 'geo:alwaysAllow';
   private readonly LS_LAST_COORDS = 'geo:lastCoords';
-
-  private currentUserResolved$!: Observable<IUserDados | null>;
+  readonly currentUserStatus$ = this.store.select(selectCurrentUserStatus);
+  readonly currentUserResolved$!: Observable<IUserDados | null>;
+  private readonly currentUserFromStore$ = this.store.select(selectCurrentUser).pipe(startWith(undefined as any));
 
   constructor(
-    protected readonly currentUserStore: CurrentUserStoreService,
     private readonly geolocationService: GeolocationService,
     private readonly distanceService: DistanceCalculationService,
     private readonly errorNotificationService: ErrorNotificationService,
@@ -89,10 +90,10 @@ export class OnlineUsersComponent implements OnInit {
   ) {
     // Unifica Input + Store (fallback)
     this.currentUserResolved$ = combineLatest([
-      toObservable(this.currentUser),                                // undefined | null | user
-      this.currentUserStore.user$.pipe(startWith(undefined as any))  // undefined inicialmente
+      toObservable(this.currentUser),
+      this.currentUserFromStore$,
     ]).pipe(
-      map(([fromInput, fromService]) => (fromInput !== undefined ? fromInput : fromService)),
+      map(([fromInput, fromStore]) => (fromInput !== undefined ? fromInput : fromStore)),
       filter((u): u is IUserDados | null => u !== undefined),
       distinctUntilChanged((a, b) => shallowUserEqual(a, b)),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -282,14 +283,7 @@ export class OnlineUsersComponent implements OnInit {
   }
 
   private isRecent(lastSeen: unknown, nowMs: number, windowMs: number): boolean {
-    let ms = 0;
-    if (typeof lastSeen === 'number') {
-      ms = lastSeen;
-    } else if (lastSeen && typeof lastSeen === 'object') {
-      const obj = lastSeen as any;
-      if (typeof obj.toMillis === 'function') ms = obj.toMillis();
-      else if (typeof obj.seconds === 'number') ms = obj.seconds * 1000;
-    }
+    const ms = toEpochOrZero(lastSeen as any);
     return ms > 0 && (nowMs - ms) <= windowMs;
   }
 
@@ -440,5 +434,5 @@ export class OnlineUsersComponent implements OnInit {
       this.globalErrorHandlerService.handleError(err);
     }
 }
-} //Linha 447
+} //Linha 437 - Fim
 

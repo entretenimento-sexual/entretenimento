@@ -38,7 +38,7 @@ import {
   switchMap,
   take,
 } from 'rxjs/operators';
-
+import type { User } from 'firebase/auth';
 import { doc, docSnapshots, Firestore } from '@angular/fire/firestore';
 
 import { AuthSessionService } from './auth-session.service';
@@ -57,6 +57,9 @@ import { LogoutService } from './logout.service';
 
 // ✅ tipos e helpers compartilhados
 import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.types';
+import { FirestoreUserWriteService } from '../../data-handling/firestore-user-write.service';
+import { GeolocationTrackingService } from '../../geolocation/geolocation-tracking.service';
+import { UserRepositoryService } from '../../data-handling/firestore/repositories/user-repository.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthOrchestratorService {
@@ -89,6 +92,10 @@ export class AuthOrchestratorService {
   // ✅ presence guard
   private presenceUid: string | null = null;
 
+  // ✅ Post-login effects (1x por UID)
+  private postLoginUid: string | null = null;
+  private postLoginSub: Subscription | null = null;
+
   /**
    * Feature flag (opcional):
    * - Se não existir no environment, default é TRUE (sua regra).
@@ -103,6 +110,7 @@ export class AuthOrchestratorService {
     private authSession: AuthSessionService,
     private userQuery: FirestoreUserQueryService,
     private currentUserStore: CurrentUserStoreService,
+    private userRepo: UserRepositoryService,
     private router: Router,
     private db: Firestore,
     private injector: Injector,
@@ -112,6 +120,8 @@ export class AuthOrchestratorService {
     // ✅ centralizado
     private globalErrorHandler: GlobalErrorHandlerService,
     private errorNotifier: ErrorNotificationService,
+    private userWrite: FirestoreUserWriteService,
+    private geoloc: GeolocationTrackingService,
 
     // ✅ fonte de verdade do “bloqueio do app”
     private appBlock: AuthAppBlockService,
@@ -146,11 +156,9 @@ export class AuthOrchestratorService {
 
     combineLatest([this.authSession.authUser$, url$])
       .pipe(
-        // proteção SSR
         filter(() => typeof window !== 'undefined' && typeof document !== 'undefined'),
 
         switchMap(([u, url]) => {
-          // Evita concorrência durante navegações críticas/terminações
           if (this.terminating) return of(null);
 
           // =========================================================
@@ -158,20 +166,16 @@ export class AuthOrchestratorService {
           // =========================================================
           if (!u) {
             this.sessionUid = null;
-
-            // limpa estado do app (não há mais usuário)
-            // (isso não conflita com LogoutService: aqui é “authUser=null”)
             this.currentUserStore.clear();
-
-            // sem usuário, bloqueio não faz sentido
             this.appBlock.clear();
 
-            // para side effects
             this.stopPresenceIfRunning();
             this.stopKeepAlive();
             this.stopWatchers();
 
-            // zera ciclo
+            // ✅ reset post-login effects
+            this.stopPostLoginEffects();
+
             this.sawUserDocOnce = false;
             this.freshUntil = 0;
 
@@ -188,11 +192,11 @@ export class AuthOrchestratorService {
           // =========================================================
           if (this.sessionUid !== u.uid) {
             this.sessionUid = u.uid;
-
-            // bloqueio não deve “vazar” entre usuários
             this.appBlock.clear();
 
-            // zera ciclo (somente quando muda usuário)
+            // ✅ reset post-login effects ao trocar UID
+            this.stopPostLoginEffects();
+
             this.sawUserDocOnce = false;
             this.freshUntil = 0;
 
@@ -201,10 +205,8 @@ export class AuthOrchestratorService {
               this.missingDocProbe = undefined;
             }
 
-            // reinicia guardas locais de side-effects
             this.stopPresenceIfRunning();
             this.stopWatchers();
-            // keepAlive pode continuar (startKeepAlive é idempotente)
           }
 
           // =========================================================
@@ -223,6 +225,7 @@ export class AuthOrchestratorService {
           // =========================================================
           // Se o app estiver “bloqueado”, NÃO liga watchers/presença/keepAlive
           // e mantém o usuário apenas no fluxo permitido (welcome).
+          // App bloqueado: não liga nada
           // =========================================================
           const blockedReason = this.appBlock.snapshot;
           if (blockedReason) {
@@ -230,41 +233,86 @@ export class AuthOrchestratorService {
             this.stopKeepAlive();
             this.stopWatchers();
 
+            // ✅ também interrompe post-login effects
+            this.stopPostLoginEffects();
+
             if (!this.inRegistrationFlow(url)) {
-              this.navigateToWelcome(blockedReason, true /* replaceUrl */);
+              this.navigateToWelcome(blockedReason, true);
             }
             return of(null);
           }
 
-          // =========================================================
-          // Gating por rota e e-mail verificado
-          // =========================================================
           const inReg = this.inRegistrationFlow(url);
           const unverified = u.emailVerified !== true;
 
-          // ✅ keepAlive pode rodar mesmo no registro (idempotente)
-          // (ele só faz reload; não dispara signOut exceto em auth-invalid)
           this.startKeepAlive();
 
-          // ✅ “app mode”: fora do registro e com e-mail verificado
           const shouldRunAppMode = !inReg && !unverified;
 
-          // ✅ presença idempotente
           this.syncPresence(u.uid, shouldRunAppMode);
-
-          // ✅ watchers idempotente (evita churn em toda navegação)
           this.syncWatchers(u.uid, shouldRunAppMode);
+
+          // ✅ NOVO: seed/geo 1x por UID quando entrar em app mode
+          this.syncPostLoginEffects(u, shouldRunAppMode);
 
           return of(null);
         }),
 
         catchError((err) => {
-          // Orquestrador nunca deve derrubar a app
           this.reportSilent(err, { phase: 'start.pipeline' });
           return of(null);
         })
       )
       .subscribe();
+  }
+
+  // =========================================================
+  // ✅ Post-login effects (seed + lastLogin + geo)
+  // =========================================================
+
+  private stopPostLoginEffects(): void {
+    this.postLoginSub?.unsubscribe();
+    this.postLoginSub = null;
+    this.postLoginUid = null;
+  }
+
+  private syncPostLoginEffects(authUser: User, shouldRun: boolean): void {
+    if (!shouldRun) return;
+
+    if (this.postLoginUid === authUser.uid) return;
+
+    this.stopPostLoginEffects();
+    this.postLoginUid = authUser.uid;
+
+    this.postLoginSub = this.runPostLoginEffects$(authUser)
+      .pipe(take(1))
+      .subscribe({ next: () => { }, error: () => { } });
+  }
+
+  private runPostLoginEffects$(authUser: User) {
+    // Tudo best-effort: não derruba app mode.
+    return this.userWrite.ensureUserDoc$(authUser, {
+      nickname: authUser.displayName ?? null,
+    }).pipe(
+      switchMap(() => this.userWrite.patchLastLogin$(authUser.uid)),
+      switchMap(() => this.autoStartGeolocationBestEffort$(authUser.uid)),
+      catchError((err) => {
+        this.reportSilent(err, { phase: 'postLogin.effects', uid: authUser.uid });
+        return of(void 0);
+      }),
+      map(() => void 0)
+    );
+  }
+
+  private autoStartGeolocationBestEffort$(uid: string) {
+    return from(this.geoloc.autoStartTracking(uid)).pipe(
+      catchError((err) => {
+        // sem toast aqui (geoloc já faz throttle quando precisa)
+        this.reportSilent(err, { phase: 'geolocation.autoStartTracking', uid });
+        return of(void 0);
+      }),
+      map(() => void 0)
+    );
   }
 
   // =========================================================
@@ -375,29 +423,6 @@ export class AuthOrchestratorService {
     this.watchersUid = uid;
   }
 
-  // =========================================================
-  // “Doc missing” confirmação (server)
-  // =========================================================
-
-  /**
-   * confirmUserDocMissing$()
-   * - Confirma no server (one-shot) se o doc realmente não existe.
-   * - Usado como “segundo passo” para evitar agir cedo demais em race-condition.
-   */
-  private confirmUserDocMissing$(uid: string, delayMs = 1200): Observable<boolean> {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) return of(false);
-
-    return timer(delayMs).pipe(
-      switchMap(() => from(this.userQuery.checkUserExistsFromServer(uid))),
-      map((exists) => !exists),
-      catchError((err) => {
-        this.reportSilent(err, { phase: 'confirmUserDocMissing', uid });
-        return of(false);
-      }),
-      take(1)
-    );
-  }
-
   /**
    * Mantém a nomenclatura (compat) mas muda o comportamento:
    * - Antes: confirmava e dava signOut.
@@ -410,7 +435,7 @@ export class AuthOrchestratorService {
     const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
     if (!allowAct) return;
 
-    const stillMissing = await firstValueFrom(this.confirmUserDocMissing$(uid));
+    const stillMissing = await firstValueFrom(this.userRepo.confirmUserDocMissing$(uid));
     if (!stillMissing) return;
 
     // ✅ regra: não deslogar por Firestore
@@ -418,7 +443,6 @@ export class AuthOrchestratorService {
       this.blockAppSession(reason);
       return;
     }
-
     // fallback (se algum dia você desligar a regra)
     this.hardSignOutToEntry(reason);
   }
@@ -713,11 +737,19 @@ export class AuthOrchestratorService {
       )
       .subscribe();
   }
-}
+} // Fim do AuthOrchestratorService com 740 linhas, efetuar migrações de partes com menos
+ // afeição com a orquestração para services mais especificos
 
 /*
   AuthSessionService = verdade do Firebase Auth (authUser$, uid$, ready$)
   CurrentUserStoreService = verdade do usuário do app (IUserDados / role / profileCompleted)
   AuthAppBlockService = verdade do "bloqueio do app" (TerminateReason | null)
   AuthOrchestratorService = efeitos colaterais (presence, watchers, keepAlive, navegação defensiva)
+*/
+/*
+src/app/core/services/autentication/auth/auth-session.service.ts
+src/app/core/services/autentication/auth/current-user-store.service.ts
+src/app/core/services/autentication/auth/auth-orchestrator.service.ts
+src/app/core/services/autentication/auth/auth.facade.ts
+src/app/core/services/autentication/auth/logout.service.ts
 */

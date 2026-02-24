@@ -302,3 +302,10 @@ export class CurrentUserStoreService {
  *
  * “Qualquer UID fora disso” deve ser visto como compat/derivado.
  */
+/*
+src/app/core/services/autentication/auth/auth-session.service.ts
+src/app/core/services/autentication/auth/current-user-store.service.ts
+src/app/core/services/autentication/auth/auth-orchestrator.service.ts
+src/app/core/services/autentication/auth/auth.facade.ts
+src/app/core/services/autentication/auth/logout.service.ts
+*/

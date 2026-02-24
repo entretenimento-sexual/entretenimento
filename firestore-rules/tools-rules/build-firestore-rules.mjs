@@ -33,6 +33,7 @@ const parts = [
   "users_profile_socialLinks.rules",
   "public_social_links.rules",
   "preferences.rules",
+  "users_friends.rules",
   "admin_logs.rules",
   "_footer.rules",
 ];

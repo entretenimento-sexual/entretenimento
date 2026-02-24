@@ -1,6 +1,8 @@
 // src/app/core/services/autentication/login.service.ts
-import { Injectable, NgZone } from '@angular/core';
-import { Observable, of, from, iif, defer, firstValueFrom } from 'rxjs';
+// LoginService: autenticação + construção do estado mínimo (SEM side-effects de sessão)
+// Side-effects (seed/lastLogin/geoloc/presence/watchers/keepAlive) ficam no AuthOrchestrator.
+import { Injectable } from '@angular/core';
+import { Observable, of, from, defer, firstValueFrom } from 'rxjs';
 import { catchError, map, switchMap, timeout, retry, take } from 'rxjs/operators';
 
 import {
@@ -18,20 +20,16 @@ import {
 } from 'firebase/auth';
 
 import { Auth } from '@angular/fire/auth';
-import { Firestore, doc, setDoc, serverTimestamp } from '@angular/fire/firestore';
 
-import { GeolocationTrackingService } from '../geolocation/geolocation-tracking.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
-import { EmailVerificationService } from './register/email-verification.service';
 import { environment } from 'src/environments/environment';
 import { CurrentUserStoreService } from './auth/current-user-store.service';
 
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
-import { FirestoreUserWriteService } from '../data-handling/firestore-user-write.service';
 
-export interface LoginResult { // Não sei pq tá LoginResult
+export interface LoginResult {
   success: boolean;
   emailVerified?: boolean;
   user?: IUserDados;
@@ -46,15 +44,10 @@ export class LoginService {
 
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly userWrite: FirestoreUserWriteService, // mantido (mesmo que aqui não use)
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly geoloc: GeolocationTrackingService,
-    private readonly emailVerificationService: EmailVerificationService,
     private readonly auth: Auth,
-    private readonly firestore: Firestore,
-    private readonly ctx: FirestoreContextService,
-    private readonly zone: NgZone
+    private readonly ctx: FirestoreContextService
   ) { }
 
   /** Emulador ligado? */
@@ -69,43 +62,55 @@ export class LoginService {
   setSessionPersistence$(
     modeOrPersistence: 'local' | 'session' | 'none' | Persistence
   ): Observable<void> {
-    const persistence = this.resolvePersistence(modeOrPersistence);
+    const requested = this.resolvePersistence(modeOrPersistence);
 
-    return this.ctx.deferPromise$(() => setPersistence(this.auth, persistence)).pipe(
-      map(() => void 0),
-      catchError((err) => {
-        // fallback seguro
-        return this.ctx.deferPromise$(() => setPersistence(this.auth, inMemoryPersistence)).pipe(
-          map(() => void 0),
-          catchError((err2) => {
-            try {
-              const e = new Error('[LoginService] setPersistence falhou (fallback incluso).');
-              (e as any).original = err;
-              (e as any).fallback = err2;
-              this.globalErrorHandler.handleError(e);
-            } catch { }
-            return of(void 0);
-          })
-        );
-      })
+    const trySet$ = (p: Persistence) =>
+      this.ctx.deferPromise$(() => setPersistence(this.auth, p)).pipe(map(() => void 0));
+
+    const fallback1 =
+      requested === browserLocalPersistence ? browserSessionPersistence : inMemoryPersistence;
+
+    return trySet$(requested).pipe(
+      catchError(() =>
+        trySet$(fallback1).pipe(
+          catchError((err2) =>
+            trySet$(inMemoryPersistence).pipe(
+              catchError((err3) => {
+                // Observabilidade apenas (não derruba UX)
+                try {
+                  const e = new Error('[LoginService] setPersistence falhou (todos fallbacks falharam).');
+                  (e as any).requested = requested;
+                  (e as any).fallback1 = fallback1;
+                  (e as any).fallback2 = inMemoryPersistence;
+                  (e as any).fallbackError = err2;
+                  (e as any).finalError = err3;
+                  (e as any).silent = true;
+                  (e as any).skipUserNotification = true;
+                  this.globalErrorHandler.handleError(e);
+                } catch { }
+                return of(void 0);
+              })
+            )
+          )
+        )
+      )
     );
   }
 
   private resolvePersistence(input: 'local' | 'session' | 'none' | Persistence): Persistence {
-    // ✅ em emulador: não insistir em local/session
-    if (this.isAuthEmuActive()) return inMemoryPersistence;
+    if (typeof input !== 'string') return input;
 
-    if (typeof input === 'string') {
-      switch (input) {
-        case 'local':
-          return browserLocalPersistence;
-        case 'session':
-          return browserSessionPersistence;
-        case 'none':
-          return inMemoryPersistence;
-      }
+    // ✅ emulador: evita "local" para reduzir estado fantasma
+    if (this.isAuthEmuActive()) {
+      if (input === 'none') return inMemoryPersistence;
+      return browserSessionPersistence;
     }
-    return input;
+
+    switch (input) {
+      case 'local': return browserLocalPersistence;
+      case 'session': return browserSessionPersistence;
+      case 'none': return inMemoryPersistence;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -128,102 +133,25 @@ export class LoginService {
     return !u?.nickname || !(u as any)?.gender;
   }
 
-  private syncEmailVerifiedIfNeeded$(
-    uid: string,
-    nowVerified: boolean,
-    userData: IUserDados
-  ): Observable<IUserDados> {
-    if (!nowVerified || userData.emailVerified === true) return of(userData);
-
-    return this.emailVerificationService.updateEmailVerificationStatus(uid, true).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      catchError((e) => {
-        try {
-          const err = new Error('[LoginService] syncEmailVerified falhou (ignorado).');
-          (err as any).original = e;
-          (err as any).uid = uid;
-          this.globalErrorHandler.handleError(err);
-        } catch { }
-        // continua o fluxo
-        return of(void 0);
-      }),
-      map(() => {
-        const patched = { ...userData, emailVerified: true } as IUserDados;
-        this.currentUserStore.set(patched);
-        return patched;
-      })
-    );
-  }
-
   // ---------------------------------------------------------------------------
-  // Firestore seeds (evita loop: agora são "one-shot")
-  // ---------------------------------------------------------------------------
-  private ensureUserDoc$(authUser: User, data: IUserDados): Observable<void> {
-    const uid = authUser.uid;
-    const ref = this.ctx.run(() => doc(this.firestore, `users/${uid}`));
-
-    // ✅ payload mínimo e estável (evita regravar campos demais)
-    const payload: Partial<IUserDados> & Record<string, any> = {
-      uid,
-      email: data.email ?? authUser.email ?? '',
-      nickname: data.nickname ?? authUser.displayName ?? '',
-      emailVerified: !!authUser.emailVerified,
-      // createdAt só se for a primeira vez? não dá pra condicionar sem ler.
-      // Mantemos fora para não "carimbar" toda vez.
-    };
-
-    return this.ctx.deferPromise$(() => setDoc(ref, payload, { merge: true })).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      catchError((e) => {
-        try {
-          const err = new Error('[LoginService] ensureUserDoc$ falhou (ignorado).');
-          (err as any).uid = uid;
-          (err as any).original = e;
-          this.globalErrorHandler.handleError(err);
-        } catch { }
-        return of(void 0);
-      }),
-      map(() => void 0)
-    );
-  }
-
-  private patchLastLogin$(uid: string): Observable<void> {
-    const ref = this.ctx.run(() => doc(this.firestore, `users/${uid}`));
-
-    return this.ctx.deferPromise$(() =>
-      setDoc(ref, { lastLogin: this.ctx.run(() => serverTimestamp()) }, { merge: true })
-    ).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      catchError((e) => {
-        try {
-          const err = new Error('[LoginService] patchLastLogin$ falhou (ignorado).');
-          (err as any).uid = uid;
-          (err as any).original = e;
-          this.globalErrorHandler.handleError(err);
-        } catch { }
-        return of(void 0);
-      }),
-      map(() => void 0)
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Login
+  // Login (SEM side-effects de seed/geo; isso roda no AuthOrchestrator)
   // ---------------------------------------------------------------------------
   login$(email: string, password: string, rememberMe?: boolean): Observable<LoginResult> {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       return of({ success: false, code: 'offline', message: 'Sem conexão com a internet.' });
     }
 
-    return iif(
-      () => typeof rememberMe === 'boolean',
-      this.setSessionPersistence$(rememberMe ? 'local' : 'session'),
-      of(void 0)
-    ).pipe(
+    const mode: 'local' | 'session' =
+      (typeof rememberMe === 'boolean')
+        ? (rememberMe ? 'local' : 'session')
+        : (this.isAuthEmuActive() ? 'session' : 'local');
+
+    return defer(() => this.setSessionPersistence$(mode)).pipe(
+      timeout({ each: this.NET_TIMEOUT_MS }),
+
       switchMap(() => defer(() => from(signInWithEmailAndPassword(this.auth, email, password)))),
       timeout({ each: this.NET_TIMEOUT_MS }),
 
-      // 🔁 garante refresh do emailVerified
       switchMap(({ user }) =>
         defer(() => from(user.reload())).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
@@ -232,21 +160,19 @@ export class LoginService {
       ),
 
       switchMap((refreshed) => {
-        if (!refreshed) {
-          return of({
-            success: false,
-            code: 'auth/no-user',
-            message: 'Não foi possível autenticar agora.',
-          });
+        if (!refreshed?.uid) {
+          return of({ success: false, code: 'auth/no-user', message: 'Não foi possível autenticar agora.' });
         }
 
-        return this.firestoreUserQuery.getUser(refreshed.uid).pipe(
+        // ✅ one-shot/snapshot determinístico (evita listener realtime no login)
+        return this.firestoreUserQuery.getUser$(refreshed.uid).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
           retry({ count: 2, delay: 200 }),
-          take(1), // ✅ mata loop de stream vivo aqui
+          take(1),
 
-          switchMap((userData) => {
-            const base: IUserDados = (userData as IUserDados | null | undefined) ?? this.minimalFromAuth(refreshed);
+          // ✅ aqui era o seu TS2345: com map retornamos LoginResult (não void)
+          map((userData) => {
+            const base = (userData as IUserDados | null | undefined) ?? this.minimalFromAuth(refreshed);
 
             const effectiveUser: IUserDados = {
               ...base,
@@ -255,38 +181,15 @@ export class LoginService {
               emailVerified: !!refreshed.emailVerified,
             } as IUserDados;
 
-            // armazena o usuário "como está" imediatamente
+            // Estado do app (fonte: CurrentUserStore)
             this.currentUserStore.set(effectiveUser);
 
-            // ✅ seed mínimo + lastLogin
-            const seed$ = this.ensureUserDoc$(refreshed, effectiveUser).pipe(
-              switchMap(() => this.patchLastLogin$(refreshed.uid)),
-              map(() => void 0)
-            );
-
-            // ✅ tracking só quando estiver “liberado”
-            // (reduz muito spam de writes durante login de conta não verificada)
-            const canStartTracking = !!refreshed.emailVerified && !this.needsProfileCompletion(effectiveUser);
-
-            if (canStartTracking) {
-              this.zone.runOutsideAngular(() => {
-                defer(() => Promise.resolve(this.geoloc.autoStartTracking(refreshed.uid)))
-                  .pipe(catchError(() => of(void 0)))
-                  .subscribe();
-              });
-            }
-
-            return seed$.pipe(
-              switchMap((): Observable<IUserDados> =>
-                this.syncEmailVerifiedIfNeeded$(refreshed.uid, !!refreshed.emailVerified, effectiveUser)
-              ),
-              map((finalUser: IUserDados) => ({
-                success: true,
-                emailVerified: !!refreshed.emailVerified,
-                user: finalUser,
-                needsProfileCompletion: this.needsProfileCompletion(finalUser),
-              }))
-            );
+            return {
+              success: true,
+              emailVerified: !!refreshed.emailVerified,
+              user: effectiveUser,
+              needsProfileCompletion: this.needsProfileCompletion(effectiveUser),
+            } as LoginResult;
           })
         );
       }),
@@ -294,27 +197,17 @@ export class LoginService {
       catchError((err) => {
         const mapped = this.mapAuthError(err);
 
+        // Observabilidade sem duplicar toast (o componente já mostra)
         try {
           const e = new Error(mapped.message);
           (e as any).code = mapped.code;
           (e as any).original = err;
+          (e as any).skipUserNotification = true;
+          (e as any).context = 'LoginService.login$';
           this.globalErrorHandler.handleError(e);
         } catch { }
 
         return of({ success: false, code: mapped.code, message: mapped.message });
-      })
-    );
-  }
-
-  requestGeolocationOnce$(): Observable<boolean> {
-    return defer(() => this.geoloc.requestPermissionOnce()).pipe(
-      map((state) => {
-        const uid = this.auth.currentUser?.uid;
-        if (uid && state === 'granted') {
-          this.geoloc.startTracking(uid);
-          return true;
-        }
-        return false;
       })
     );
   }
@@ -418,6 +311,4 @@ export class LoginService {
 
     return { code, message };
   }
-} /* Já tem 421 linhas, considerar refatorar em partes menores ou
-buscar realocar métodos para outros serviços mais especializados, mesmo
-que tenha que criar novos */
+}

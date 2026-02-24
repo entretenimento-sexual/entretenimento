@@ -1,4 +1,5 @@
 // src/app/core/services/security/file-scan.service.ts
+// Não esquecer comentários e ferramentas de debug
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { environment } from 'src/environments/environment';

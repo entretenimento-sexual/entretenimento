@@ -1,6 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-02-15T11:55:04.678Z
+// Generated at: 2026-02-23T23:10:37.636Z
 
 // ===== _helpers.rules =====
 // firestore-rules/_helpers.rules
@@ -97,34 +97,47 @@ function optTimestamp(k) {
 // USERS (privado)
 // - Self: pode atualizar perfil, mas NÃO pode alterar campos de moderação
 // - Admin (claim admin): pode alterar campos de moderação
+//
+// Correção crítica incluída:
+// - Garante que users/{uid}.emailVerified (se existir no payload) sempre reflita
+//   o token do Auth (request.auth.token.email_verified).
+// - Evita spoof (usuário setar emailVerified=true no doc antes de verificar).
 // =========================================================================
-match /users/{userId} {
 
-  // Fallback opcional (fase inicial):
-  // function isAdminEmail() { return signedIn() && request.auth.token.email == "alexseves@gmail.com"; }
-  // function isAdminActor() { return isAdmin() || isAdminEmail(); }
+match /users/{userId} {
 
   function isAdminActor() { return isAdmin(); }
 
+  // Helper SAFE
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  // emailVerified, quando presente no payload final, deve bater com o token
+  function emailVerifiedMatchesToken() {
+    return !hasField("emailVerified")
+      || request.resource.data.emailVerified == (request.auth.token.email_verified == true);
+  }
+
   // Bloqueia alterações sensíveis pelo próprio usuário
-function selfChangingSensitiveKeys() {
-  return request.resource.data.diff(resource.data).changedKeys().hasAny([
-    "role",
-    "tier",
-    "isSubscriber",
-    "accountLocked",
-    "suspended",
-    "suspensionReason",
-    "suspendedAt",
-    "accountStatus",
-    "moderatedBy",
-    "moderatedAt",
-    "lastStatusChangeAt",
-    "roles",
-    "permissions",
-    "entitlements"
-  ]);
-}
+  function selfChangingSensitiveKeys() {
+    return request.resource.data.diff(resource.data).changedKeys().hasAny([
+      "role",
+      "tier",
+      "isSubscriber",
+      "accountLocked",
+      "suspended",
+      "suspensionReason",
+      "suspendedAt",
+      "accountStatus",
+      "moderatedBy",
+      "moderatedAt",
+      "lastStatusChangeAt",
+      "roles",
+      "permissions",
+      "entitlements"
+    ]);
+  }
 
   // Admin só pode mexer em um conjunto pequeno (moderação)
   function adminModerationOnly() {
@@ -143,15 +156,23 @@ function selfChangingSensitiveKeys() {
   allow get: if isSelf(userId) || isAdminActor();
   allow list: if false;
 
-  allow create: if isSelf(userId);
+  // Create:
+  // - dono cria seu doc
+  // - se emailVerified vier, precisa refletir token
+  allow create: if isSelf(userId) && emailVerifiedMatchesToken();
 
+  // Update:
+  // - self: não muda campos sensíveis + emailVerified coerente com token
+  // - admin: apenas moderação (mantém sua política)
   allow update: if
-    (isSelf(userId) && !selfChangingSensitiveKeys())
+    (isSelf(userId) && !selfChangingSensitiveKeys() && emailVerifiedMatchesToken())
     || (isAdminActor() && adminModerationOnly());
 
   allow delete: if false;
 }
-// ===================================================================
+// ================================================================
+                        // FIM DO USERS.RULES
+// ================================================================
 
 // ===== public_profiles.rules =====
 // firestore-rules/public_profiles.rules
@@ -347,61 +368,64 @@ match /public_profiles/{userId} {
 // =========================================================================
 // PRESENCE (efêmero / realtime)
 //
-// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
-// ✅ Depende dos helpers globais em _helpers.rules:
-//    - signedIn(), uid(), isSelf()
-//    - isTs() (timestamp real OU serverTimestamp() == request.time)
-//    - optString(), optNumberOrNull(), optTimestamp() (com guarda keys().hasAny)
-// =========================================================================
+// Objetivo (custo/benefício):
+// - Bloquear LIST/QUERY de presença para requesters NÃO verificados.
+// - Manter GET do próprio doc permitido (debug/telemetria do dono).
 //
-// Problema que este arquivo corrige:
-// - Evita "evaluation error ... Property X is undefined on object"
-//   quando campos opcionais NÃO estão presentes no payload.
-//
-// Estratégia:
-// - NUNCA acessar request.resource.data.campo diretamente sem garantir que existe,
-//   quando o campo pode estar ausente em updates.
-// - Para campos obrigatórios, usamos helpers req*() que checam keys().hasAny()
-//   antes de ler request.resource.data[field].
+// Por que NÃO validar "targetEligible" aqui?
+// - Para list/query seria necessário cross-document get() por doc retornado,
+//   o que torna as rules pesadas e propensas a limite/custo.
+// - A elegibilidade do ALVO fica no app (AccessControlService) por enquanto.
 // =========================================================================
 
 match /presence/{presenceUid} {
-  // Leitura: exige login (evita scraping e mantém o canal "presence" fechado)
-  allow read: if signedIn();
+
+  // Requester precisa ter email verificado no token do Auth
+  function requesterEmailVerified() {
+    return signedIn() && request.auth.token.email_verified == true;
+  }
 
   // -------------------------------------------------------------------------
-  // Helpers locais SAFE (blindam access a request.resource.data[field])
+  // READ
+  // -------------------------------------------------------------------------
+
+  // GET:
+  // - dono pode ler o próprio doc (mesmo não verificado) para debug/telemetria
+  // - terceiros: apenas se requester verificado
+  allow get: if signedIn() && (
+    isSelf(presenceUid) || requesterEmailVerified()
+  );
+
+  // LIST/QUERY:
+  // - apenas requesters verificados podem consultar presença
+  allow list: if requesterEmailVerified();
+
+  // -------------------------------------------------------------------------
+  // Helpers SAFE (writes)
   // -------------------------------------------------------------------------
   function hasField(field) {
     return request.resource.data.keys().hasAny([field]);
   }
 
-  // Campo obrigatório: string
   function reqString(field) {
     return hasField(field) && request.resource.data[field] is string;
   }
 
-  // Campo obrigatório: bool
   function reqBool(field) {
     return hasField(field) && request.resource.data[field] is bool;
   }
 
-  // Campo obrigatório: timestamp (aceita timestamp real OU serverTimestamp() => request.time)
   function reqTimestamp(field) {
     return hasField(field) && isTs(request.resource.data[field]);
   }
 
-  // Campo obrigatório: enum string
   function reqEnum(field, allowed) {
     return hasField(field)
       && request.resource.data[field] is string
       && request.resource.data[field] in allowed;
   }
 
-  // -------------------------------------------------------------------------
-  // Schema / whitelist rígida
-  // - Bloqueia qualquer campo fora do conjunto permitido
-  // -------------------------------------------------------------------------
+  // Whitelist rígida
   function allowedKeys() {
     return request.resource.data.keys().hasOnly([
       "uid",
@@ -426,43 +450,31 @@ match /presence/{presenceUid} {
     ]);
   }
 
-  // -------------------------------------------------------------------------
-  // Validação do payload FINAL (create/update)
-  //
-  // Observação:
-  // - Em update, request.resource.data representa o documento FINAL (merge aplicado).
-  // - Como seu writer pode fazer update parcial, estes req*() garantem
-  //   que a regra não tenta ler undefined e também que o doc final fica íntegro.
-  // -------------------------------------------------------------------------
+  // Documento final precisa estar íntegro
   function validPresencePayload() {
     return allowedKeys()
 
-      // Dono do doc
+      // dono
       && reqString("uid")
-      && request.resource.data["uid"] == uid()
+      && request.resource.data.uid == uid()
 
-      // Identificador de sessão/aba (obrigatório)
+      // sessão/aba
       && reqString("presenceSessionId")
 
-      // Estado (obrigatório)
+      // estado
       && reqBool("isOnline")
-      && reqEnum("presenceState", ["online","away","offline"])
+      && reqEnum("presenceState", ["online", "away", "offline"])
 
-      // Telemetria base (obrigatório)
-      // - lastSeen deve ser timestamp (writer usa serverTimestamp)
+      // telemetria base
       && reqTimestamp("lastSeen")
 
-      // updatedAt: opcional por schema, mas aqui tratamos como "deve ser ts quando presente".
-      // Se você quiser FORÇAR sempre serverTimestamp em todo write:
-      // - troque por: reqTimestamp("updatedAt") && request.resource.data["updatedAt"] == request.time
+      // demais timestamps opcionais
       && optTimestamp("updatedAt")
-
-      // Stamps opcionais (podem estar ausentes em heartbeats/public patches)
       && optTimestamp("lastStateChangeAt")
       && optTimestamp("lastOnlineAt")
       && optTimestamp("lastOfflineAt")
 
-      // Campos públicos opcionais
+      // campos públicos opcionais
       && optString("nickname")
       && optString("municipio")
       && optString("estado")
@@ -472,19 +484,18 @@ match /presence/{presenceUid} {
   }
 
   // -------------------------------------------------------------------------
-  // CREATE / UPDATE
-  //
-  // - Somente o próprio usuário escreve.
-  // - Payload precisa ser válido.
+  // WRITE
   // -------------------------------------------------------------------------
   allow create, update: if (
     isSelf(presenceUid)
     && validPresencePayload()
   );
 
-  // Delete bloqueado
   allow delete: if false;
 }
+// ================================================================
+                        // FIM DO PRESENCE.RULES
+// ================================================================
 
 // ===== friendRequests.rules =====
     // =========================================================================
@@ -909,6 +920,18 @@ match /users/{userId}/preferences/{docId} {
 // não esquecer o que deve ser diponibilizado apenas para usuários autenticados
 // não esquecer de considerar o uso de claims personalizados se houver níveis diferentes de acesso
 // não esquecer de definir as preferencias do usuário que só podem ser acessadas por ele mesmo ou administradores
+
+// ===== users_friends.rules =====
+//==============================================================================
+// Regras de segurança do Firestore para a coleção de amigos dos usuários.
+//==============================================================================
+match /users/{userId}/friends/{friendUid} {
+  // List/query da lista de amigos
+  allow get, list: if isSelf(userId);
+
+  // MVP: o dono mantém seu índice
+  allow create, update, delete: if isSelf(userId);
+}
 
 // ===== admin_logs.rules =====
 // firestore-rules/admin_logs.rules

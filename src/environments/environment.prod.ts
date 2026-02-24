@@ -27,8 +27,6 @@ export const environment: AppEnvironment = {
   apiEndpoint: 'https://api.seuprojeto.com',
   enableDebugTools: false,
 
-  virusTotalApiKey: '',
-
   integrations: {
     virusTotal: {
       enabled: false,   // ⬅️ deixe off até decidir usar proxy + chave no backend

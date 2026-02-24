@@ -13,7 +13,6 @@
 // - A sincronização “real” de sessão com Store deve ser feita por AuthSessionSyncEffects
 //   (authSessionChanged). Este serviço só mantém compat com chamadas antigas.
 // =============================================================================
-
 import { Injectable, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 

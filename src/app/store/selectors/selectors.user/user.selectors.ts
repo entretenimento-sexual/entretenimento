@@ -3,7 +3,6 @@
 // - UID: sempre vem do AUTH (selectAuthUid)
 // - Perfil: sempre vem do usersMap (state.user.users)
 // - selectCurrentUser passa a ser DERIVADO (padrão plataformas grandes)
-
 import { createSelector, MemoizedSelector } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { IUserState } from '../../states/states.user/user.state';

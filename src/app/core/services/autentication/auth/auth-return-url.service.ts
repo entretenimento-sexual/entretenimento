@@ -10,7 +10,6 @@
 // - Só armazena URLs internas e "úteis" (não armazena /login, /register, handlers de verificação etc.)
 // - Persiste em localStorage (sobrevive refresh).
 // - Limpa ao deslogar (evita “vazar” destino de sessão anterior).
-
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
@@ -140,4 +139,11 @@ export class AuthReturnUrlService {
       return null;
     }
   }
-} //143 linhas
+} //142 linhas
+/*
+src/app/core/services/autentication/auth/auth-session.service.ts
+src/app/core/services/autentication/auth/current-user-store.service.ts
+src/app/core/services/autentication/auth/auth-orchestrator.service.ts
+src/app/core/services/autentication/auth/auth.facade.ts
+src/app/core/services/autentication/auth/logout.service.ts
+*/

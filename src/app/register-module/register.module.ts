@@ -1,4 +1,7 @@
 // src/app/register-module/register.module.ts
+// Sessão de registro de usuário, que só é perdida por vontade do usuário, e não por erros ou falhas técnicas. O fluxo é o seguinte:
+// - ✅ fluxo completo: registro -> email verification -> finalizar cadastro -> welcome
+// - ✅ navegação forçada para etapas necessárias (ex: não pode acessar welcome sem finalizar cadastro)
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ReactiveFormsModule, FormsModule } from '@angular/forms';

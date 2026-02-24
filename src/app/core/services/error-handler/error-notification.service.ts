@@ -1,4 +1,5 @@
 // src\app\core\services\error-handler\error-notification.service.ts
+// Não esquecer comentários explicativos e ferramentas de debug
 import { Injectable } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
@@ -116,4 +117,16 @@ export class ErrorNotificationService {
     };
     types[type]?.();
   }
-}
+} // Linha 120 - Fim do ErrorNotificationService
+/*
+src/app/core/services/error-handler/global-error-handler.service.ts
+→ fallback “última linha” (erros não tratados)
+
+src/app/core/services/error-handler/error-notification.service.ts
+→ único ponto para notificar usuário (toast/snackbar/modal)
+
+src/app/core/services/error-handler/firestore-error-handler.service.ts
+→ padronizar erro do Firebase/Firestore (mapear codes, contextos)
+
+Regra prática: em qualquer service com Observable, faça catchError(err => this.firestoreErrorHandler.handle$(...) ) e deixe o notifier centralizar UX.
+*/

@@ -1,32 +1,73 @@
-<!-- src/app/dashboard/online-users/online-users.component.html -->
+<!-- src/app/dashboard/online-users/online-users.component.html
+================================================================================
+ONLINE USERS (DASHBOARD)
+--------------------------------------------------------------------------------
+Objetivo do template:
+- Renderizar estados de sessão (boot/signed_out/ready) de forma previsível
+- Evitar dependências legadas (ex: currentUserStore.user$) — fonte atual: NgRx
+- Exigir gesto do usuário para pedir geolocalização (UX + privacidade)
+- Manter acessibilidade: aria-live, aria-busy, labels e textos de apoio
+================================================================================
+-->
+
 <div class="ui-container online-users mt-3" [attr.aria-busy]="loading ? 'true' : 'false'">
   <h2 class="online-users-title mb-3">Perfis Online</h2>
 
-  @let u = (currentUser() ?? (currentUserStore.user$ | async));
+  <!--
+    Estado da sessão:
+    - 'boot' / 'loading_profile'  => ainda carregando a sessão/perfil
+    - 'signed_out'               => usuário deslogado
+    - 'ready'                    => usuário logado com doc disponível no usersMap
+  -->
+  @if (currentUserStatus$ | async; as st) {
 
-  @if (u === undefined) {
+  <!-- ======================== BOOT / LOADING PROFILE ======================== -->
+  @if (st === 'boot' || st === 'loading_profile') {
   <div class="alert alert-secondary" role="status" aria-live="polite">
     Carregando sessão…
   </div>
-  } @else if (u === null) {
+  }
+
+  <!-- ======================== SIGNED OUT ======================== -->
+  @else if (st === 'signed_out') {
   <div class="alert alert-secondary" role="status" aria-live="polite">
     Entre na sua conta para ver e filtrar perfis online perto de você.
   </div>
+  }
+
+  <!-- ======================== READY (logado) ======================== -->
+  @else {
+
+  <!--
+        Resolvendo usuário atual:
+        - prioridade: input currentUser()
+        - fallback: store selectCurrentUser
+        Obs: currentUserResolved$ pode emitir null em casos raros de corrida;
+        tratamos defensivamente.
+      -->
+  @if (currentUserResolved$ | async; as u) {
+
+  @if (!u) {
+  <div class="alert alert-secondary" role="status" aria-live="polite">
+    Carregando perfil…
+  </div>
   } @else {
 
-  @if (!u?.emailVerified) {
+  <!-- Aviso de privacidade/limites para não verificados -->
+  @if (!u.emailVerified) {
   <div class="alert alert-warning" role="status" aria-live="polite">
     Sua conta não verificada limita a precisão e o raio de busca para proteger sua privacidade.
   </div>
   }
 
+  <!-- ======================== SEM LOCALIZAÇÃO ======================== -->
   @if (!userLocation) {
   <div class="alert alert-info" role="status" aria-live="polite">
     Ative sua localização para priorizar perfis online próximos a você.
   </div>
 
-  <button type="button" class="btn btn-primary mb-3" (click)="enableLocation()" [disabled]="loading || !u?.uid"
-    [attr.aria-busy]="loading ? 'true' : 'false'" [attr.aria-disabled]="(loading || !u?.uid) ? 'true' : 'false'"
+  <button type="button" class="btn btn-primary mb-3" (click)="enableLocation()" [disabled]="loading || !u.uid"
+    [attr.aria-busy]="loading ? 'true' : 'false'" [attr.aria-disabled]="(loading || !u.uid) ? 'true' : 'false'"
     aria-describedby="onlineLocHelp">
     {{ loading ? 'Obtendo sua localização...' : 'Ativar localização' }}
   </button>
@@ -34,9 +75,12 @@
   <p id="onlineLocHelp" class="help-text">
     Só pedimos sua posição após um clique seu. Precisão e raio variam conforme seu plano e verificação.
   </p>
-  } @else {
+  }
 
-  <!-- Card de controle -->
+  <!-- ======================== COM LOCALIZAÇÃO ======================== -->
+  @else {
+
+  <!-- Card de controle do raio -->
   <div class="card mb-3 control-card" aria-labelledby="distControlTitleOnline">
     <div class="card-body">
       <div class="card-head">
@@ -44,14 +88,15 @@
 
         <div class="head-actions">
           <!-- Ver todos -->
-          <a class="btn btn-ghost icon-btn" routerLink="/online" aria-label="Ver todos os usuários">
+          <a class="btn btn-ghost icon-btn" [routerLink]="['/dashboard','online']"
+            aria-label="Ver todos os usuários online">
             <i class="fas fa-users" aria-hidden="true"></i>
             <span class="hide-xs">Ver todos</span>
           </a>
 
-          <!-- Atualizar posição (ícone mais apropriado) -->
-          <button type="button" class="btn btn-ghost icon-btn" (click)="enableLocation()"
-            [disabled]="loading || !u?.uid" [attr.aria-busy]="loading ? 'true' : 'false'"
+          <!-- Atualizar posição -->
+          <button type="button" class="btn btn-ghost icon-btn" (click)="enableLocation()" [disabled]="loading || !u.uid"
+            [attr.aria-busy]="loading ? 'true' : 'false'" [attr.aria-disabled]="(loading || !u.uid) ? 'true' : 'false'"
             aria-label="Atualizar minha posição" title="Atualizar minha posição">
             <i class="fas fa-location-crosshairs" aria-hidden="true"></i>
           </button>
@@ -67,7 +112,11 @@
             (ngModelChange)="onDistanceChange($event)" [min]="1" [max]="policyMaxDistanceKm" [step]="1"
             [style.background]="getRangeTrackBackground(uiDistanceKm)" aria-label="Raio de busca em quilômetros"
             list="km-ticks" />
-          <output class="range-bubble" [style.left.%]="getRangeThumbPercent(uiDistanceKm)">
+
+          <!-- Bubble: output acessível -->
+          <output class="range-bubble" [attr.aria-live]="'polite'"
+            [attr.aria-label]="'Raio atual: ' + (uiDistanceKm ?? policyMaxDistanceKm) + ' quilômetros'"
+            [style.left.%]="getRangeThumbPercent(uiDistanceKm)">
             {{ uiDistanceKm ?? policyMaxDistanceKm }} km
           </output>
         </div>
@@ -75,6 +124,7 @@
         <button class="step-btn" type="button" (click)="stepRange(1)" aria-label="Aumentar raio">+</button>
       </div>
 
+      <!-- Ticks: simples e opcional (se você quiser manter) -->
       <datalist id="km-ticks">
         <option *ngFor="let t of [1,5,10,15,20,25,30,40,50]" [value]="t"></option>
       </datalist>
@@ -90,25 +140,66 @@
     </div>
   </div>
 
-  <!-- Grid de cards -->
-  <div class="profiles-grid mt-2">
-    @if (onlineUsers$ | async; as users) {
-    @if (users.length === 0) {
-    <p class="help-text">Nenhum usuário online dentro do raio atual.</p>
-    } @else {
-    @for (user of users; track user.uid) {
-    <app-user-card [user]="user" [distanciaKm]="user.distanciaKm ?? null"></app-user-card>
-    }
-    }
-    } @else {
-    <p class="help-text">Carregando usuários online…</p>
+  <!-- Header leve: contagem e feedback -->
+  <div class="d-flex align-items-center justify-content-between mb-2">
+    <p class="help-text m-0" aria-live="polite">
+      @if (count$ | async; as c) {
+      {{ c }} {{ c === 1 ? 'perfil online' : 'perfis online' }} no raio atual.
+      } @else {
+      Carregando contagem…
+      }
+    </p>
+
+    <!-- Estado de loading pequeno (sem poluir) -->
+    @if (loading) {
+    <span class="help-text" role="status" aria-live="polite">Atualizando…</span>
     }
   </div>
-  }
-  }
+
+  <!-- Grid de cards -->
+  <div class="profiles-grid mt-2" role="list" aria-label="Lista de perfis online">
+    @if (onlineUsers$ | async; as users) {
+
+    @if (users.length === 0) {
+    <p class="help-text" role="status" aria-live="polite">
+      Nenhum usuário online dentro do raio atual.
+    </p>
+    } @else {
+    @for (user of users; track user.uid) {
+    <!--
+                      Nota: o user-card recebe distanciaKm (null quando não calculada)
+                      Mantenha o componente responsável por acessibilidade do card em si.
+                    -->
+    <app-user-card role="listitem" [user]="user" [distanciaKm]="user.distanciaKm ?? null"></app-user-card>
+    }
+    }
+
+    } @else {
+    <p class="help-text" role="status" aria-live="polite">Carregando usuários online…</p>
+    }
+  </div>
+
+  <!-- CTA final -->
   <div class="mt-3 d-flex justify-content-end">
     <a class="btn btn-secondary" [routerLink]="['/dashboard','online']">
       Ver todos os online
     </a>
   </div>
+  }
+
+  }
+  } @else {
+  <!-- Fallback raro: AsyncPipe ainda não emitiu -->
+  <div class="alert alert-secondary" role="status" aria-live="polite">
+    Carregando perfil…
+  </div>
+  }
+  }
+  } @else {
+  <!-- Fallback raro: selector ainda não emitiu -->
+  <div class="alert alert-secondary" role="status" aria-live="polite">
+    Carregando sessão…
+  </div>
+  }
+
 </div>

@@ -28,7 +28,14 @@ export const environment: AppEnvironment = {
   apiEndpoint: 'https://api.staging.seuprojeto.com',
   enableDebugTools: true,
 
-  virusTotalApiKey: '',
+  integrations: {
+    virusTotal: {
+      enabled: false,
+      apiKey: undefined,
+      useProxy: true,
+      region: 'us-central1',
+    }
+  },
 
   appCheck: {
     enabled: true,

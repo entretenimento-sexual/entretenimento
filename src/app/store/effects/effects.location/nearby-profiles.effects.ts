@@ -1,4 +1,5 @@
 // src/app/store/effects/effects.location/nearby-profiles.effects.ts
+// Não esquecer dos comentários explicativos e ferramentas de debug
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Store } from '@ngrx/store';

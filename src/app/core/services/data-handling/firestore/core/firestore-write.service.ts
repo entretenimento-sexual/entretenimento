@@ -51,6 +51,7 @@ export class FirestoreWriteService {
   ): Observable<T> {
     return defer(() => {
       try {
+        // ✅ tudo que criar refs/chamar APIs AngularFire deve acontecer dentro do ctx.run
         return this.ctx.run(factory);
       } catch (err) {
         return this.firestoreError.handleFirestoreError(err, { context, silent });
@@ -80,12 +81,11 @@ export class FirestoreWriteService {
     return this.inCtx$(() => {
       if (!col) throw new Error('collectionName inválido.');
 
-      // ✅ defer garante que qualquer throw daqui (collection/doc/setDoc) seja capturado
-      return defer(() => {
-        const colRef = collection(this.db, col);
-        const newRef = doc(colRef); // id auto
-        return from(setDoc(newRef, data));
-      }).pipe(
+      // ✅ sem defer interno: doc/collection/setDoc acontecem dentro do Injection Context
+      const colRef = collection(this.db, col);
+      const newRef = doc(colRef);
+
+      return from(setDoc(newRef, data)).pipe(
         map(() => void 0),
         catchError((err) => this.firestoreError.handleFirestoreError(err, { context, silent }))
       );
@@ -110,20 +110,17 @@ export class FirestoreWriteService {
       if (!col) throw new Error('collectionName inválido.');
       if (!id) throw new Error('docId inválido.');
 
-      return defer(() => {
-        // ✅ aqui é o melhor lugar: roda só quando for escrever de fato
-        if (
-          environment.enableDebugTools &&
-          !environment.production &&
-          col === 'users' &&
-          merge === true
-        ) {
-          console.warn('[WRITE users merge:true]', { docId: id, context });
-          console.trace();
-        }
+      if (
+        environment.enableDebugTools &&
+        !environment.production &&
+        col === 'users' &&
+        merge === true
+      ) {
+        console.warn('[WRITE users merge:true]', { docId: id, context });
+        console.trace();
+      }
 
-        return from(setDoc(doc(this.db, col, id), data, { merge }));
-      }).pipe(
+      return from(setDoc(doc(this.db, col, id), data, { merge })).pipe(
         map(() => void 0),
         catchError((err) => this.firestoreError.handleFirestoreError(err, { context, silent }))
       );
@@ -148,7 +145,7 @@ export class FirestoreWriteService {
       if (!id) throw new Error('docId inválido.');
       if (!data || typeof data !== 'object') throw new Error('data inválido para updateDocument.');
 
-      return defer(() => from(updateDoc(doc(this.db, col, id), data))).pipe(
+      return from(updateDoc(doc(this.db, col, id), data)).pipe(
         map(() => void 0),
         catchError((err) => this.firestoreError.handleFirestoreError(err, { context, silent }))
       );
@@ -171,7 +168,7 @@ export class FirestoreWriteService {
       if (!col) throw new Error('collectionName inválido.');
       if (!id) throw new Error('docId inválido.');
 
-      return defer(() => from(deleteDoc(doc(this.db, col, id)))).pipe(
+      return from(deleteDoc(doc(this.db, col, id))).pipe(
         map(() => void 0),
         catchError((err) => this.firestoreError.handleFirestoreError(err, { context, silent }))
       );
@@ -199,12 +196,10 @@ export class FirestoreWriteService {
       if (!field) throw new Error('fieldName inválido.');
       if (typeof incBy !== 'number' || Number.isNaN(incBy)) throw new Error('incBy inválido.');
 
-      return defer(() =>
-        from(updateDoc(doc(this.db, col, id), { [field]: increment(incBy) }))
-      ).pipe(
+      return from(updateDoc(doc(this.db, col, id), { [field]: increment(incBy) })).pipe(
         map(() => void 0),
         catchError((err) => this.firestoreError.handleFirestoreError(err, { context, silent }))
       );
     }, context, silent);
   }
-}//Linha 196
+} //Linha 208, Fim do firestore-write.service.ts

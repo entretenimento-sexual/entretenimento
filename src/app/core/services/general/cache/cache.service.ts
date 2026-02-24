@@ -13,7 +13,6 @@
 // - get() agora coalesce requests simultâneas (inFlight) por key => reduz logs e I/O.
 // - HOT_KEYS por default NÃO persistem em IndexedDB (já estão no localStorage).
 // - Logs de chaves "barulhentas" podem ser suprimidos (ex.: validation:*), com toggle.
-
 import { Injectable } from '@angular/core';
 import { Store } from '@ngrx/store';
 import {

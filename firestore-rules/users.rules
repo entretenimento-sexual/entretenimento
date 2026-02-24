@@ -3,34 +3,47 @@
 // USERS (privado)
 // - Self: pode atualizar perfil, mas NÃO pode alterar campos de moderação
 // - Admin (claim admin): pode alterar campos de moderação
+//
+// Correção crítica incluída:
+// - Garante que users/{uid}.emailVerified (se existir no payload) sempre reflita
+//   o token do Auth (request.auth.token.email_verified).
+// - Evita spoof (usuário setar emailVerified=true no doc antes de verificar).
 // =========================================================================
-match /users/{userId} {
 
-  // Fallback opcional (fase inicial):
-  // function isAdminEmail() { return signedIn() && request.auth.token.email == "alexseves@gmail.com"; }
-  // function isAdminActor() { return isAdmin() || isAdminEmail(); }
+match /users/{userId} {
 
   function isAdminActor() { return isAdmin(); }
 
+  // Helper SAFE
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  // emailVerified, quando presente no payload final, deve bater com o token
+  function emailVerifiedMatchesToken() {
+    return !hasField("emailVerified")
+      || request.resource.data.emailVerified == (request.auth.token.email_verified == true);
+  }
+
   // Bloqueia alterações sensíveis pelo próprio usuário
-function selfChangingSensitiveKeys() {
-  return request.resource.data.diff(resource.data).changedKeys().hasAny([
-    "role",
-    "tier",
-    "isSubscriber",
-    "accountLocked",
-    "suspended",
-    "suspensionReason",
-    "suspendedAt",
-    "accountStatus",
-    "moderatedBy",
-    "moderatedAt",
-    "lastStatusChangeAt",
-    "roles",
-    "permissions",
-    "entitlements"
-  ]);
-}
+  function selfChangingSensitiveKeys() {
+    return request.resource.data.diff(resource.data).changedKeys().hasAny([
+      "role",
+      "tier",
+      "isSubscriber",
+      "accountLocked",
+      "suspended",
+      "suspensionReason",
+      "suspendedAt",
+      "accountStatus",
+      "moderatedBy",
+      "moderatedAt",
+      "lastStatusChangeAt",
+      "roles",
+      "permissions",
+      "entitlements"
+    ]);
+  }
 
   // Admin só pode mexer em um conjunto pequeno (moderação)
   function adminModerationOnly() {
@@ -49,12 +62,20 @@ function selfChangingSensitiveKeys() {
   allow get: if isSelf(userId) || isAdminActor();
   allow list: if false;
 
-  allow create: if isSelf(userId);
+  // Create:
+  // - dono cria seu doc
+  // - se emailVerified vier, precisa refletir token
+  allow create: if isSelf(userId) && emailVerifiedMatchesToken();
 
+  // Update:
+  // - self: não muda campos sensíveis + emailVerified coerente com token
+  // - admin: apenas moderação (mantém sua política)
   allow update: if
-    (isSelf(userId) && !selfChangingSensitiveKeys())
+    (isSelf(userId) && !selfChangingSensitiveKeys() && emailVerifiedMatchesToken())
     || (isAdminActor() && adminModerationOnly());
 
   allow delete: if false;
 }
-// ===================================================================
+// ================================================================
+                        // FIM DO USERS.RULES
+// ================================================================

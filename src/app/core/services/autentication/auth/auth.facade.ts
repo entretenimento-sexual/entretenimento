@@ -99,3 +99,10 @@ Gating na header (LinksInteraction)
 O canListen$ com emailVerified === true + fora do fluxo de registro evita exatamente
 os 400 (Bad Request) / listeners indevidos antes do usuário estar pronto.
  */
+/*
+src/app/core/services/autentication/auth/auth-session.service.ts
+src/app/core/services/autentication/auth/current-user-store.service.ts
+src/app/core/services/autentication/auth/auth-orchestrator.service.ts
+src/app/core/services/autentication/auth/auth.facade.ts
+src/app/core/services/autentication/auth/logout.service.ts
+*/

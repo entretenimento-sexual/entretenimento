@@ -7,8 +7,8 @@
 // - Erros passam pelo FirestoreErrorHandlerService (que deve rotear para GlobalErrorHandlerService + ErrorNotificationService conforme sua política).
 // - Evita dependência em FirestoreUserQueryService (remove ciclo).
 import { Injectable } from '@angular/core';
-import { firstValueFrom, Observable, of } from 'rxjs';
-import { catchError, finalize, shareReplay, switchMap, take, tap } from 'rxjs/operators';
+import { firstValueFrom, from, Observable, of, timer } from 'rxjs';
+import { catchError, finalize, map, shareReplay, switchMap, take, tap } from 'rxjs/operators';
 
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
@@ -184,6 +184,40 @@ export class UserRepositoryService {
     // best-effort (não derruba fluxo)
     return this.write.updateDocument('users', id, { lastLogin: fsServerTimestamp() }).pipe(
       catchError(() => of(void 0))
+    );
+  }
+
+  /**
+ * confirmUserDocMissing$(uid, delayMs)
+ * Confirma no SERVER (one-shot) se o doc /users/{uid} realmente NÃO existe.
+ *
+ * Por que aqui (Repository)?
+ * - É leitura/validação de existência (camada de dados), não orquestração.
+ * - Evita duplicar lógica em effects/orchestrators.
+ *
+ * Regras:
+ * - Se offline, retorna false (conservador).
+ * - Em erro, reporta via FirestoreErrorHandlerService e retorna false (conservador).
+ */
+  confirmUserDocMissing$(uid: string, delayMs = 1200): Observable<boolean> {
+    const id = this.norm(uid);
+    if (!id) return of(false);
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return of(false);
+    }
+
+    return timer(delayMs).pipe(
+      switchMap(() => from(this.checkUserExistsFromServer(id))),
+      map((exists) => !exists),
+      catchError((err) =>
+        this.firestoreError.handleFirestoreErrorAndReturn<boolean>(
+          err,
+          false,
+          { silent: true, context: 'UserRepositoryService.confirmUserDocMissing$' }
+        )
+      ),
+      take(1)
     );
   }
 

@@ -1,0 +1,1176 @@
+﻿Listagem de caminhos de pasta para o volume Windows
+O n·mero de sÚrie do volume Ú 1C9B-11ED
+C:\ENTRETENIMENTO\SRC
+|   favicon.ico
+|   index.html
+|   main.ts
+|   styles.css
+|   
++---app
+|   |   app-routing.module.ts
+|   |   app.component.css
+|   |   app.component.html
+|   |   app.component.spec.ts
+|   |   app.component.ts
+|   |   app.module.ts
+|   |   perfil-debug.component.ts
+|   |   
+|   +---admin-dashboard
+|   |   |   admin-dashboard-routing.module.ts
+|   |   |   admin-dashboard.component.css
+|   |   |   admin-dashboard.component.html
+|   |   |   admin-dashboard.component.spec.ts
+|   |   |   admin-dashboard.component.ts
+|   |   |   admin-dashboard.module.ts
+|   |   |   admin-material.module.ts
+|   |   |   
+|   |   +---admin-link
+|   |   |       admin-link.component.ts
+|   |   |       
+|   |   +---resolvers
+|   |   |       user.resolver.ts
+|   |   |       
+|   |   +---shared
+|   |   |   \---confirm-dialog
+|   |   |           confirm-dialog.component.ts
+|   |   |           
+|   |   +---user-details
+|   |   |       user-details.component.css
+|   |   |       user-details.component.html
+|   |   |       user-details.component.spec.ts
+|   |   |       user-details.component.ts
+|   |   |       
+|   |   \---user-list
+|   |           user-list.component.css
+|   |           user-list.component.html
+|   |           user-list.component.spec.ts
+|   |           user-list.component.ts
+|   |           
+|   +---authentication
+|   |   |   authentication-routing.module.ts
+|   |   |   authentication.module.ts
+|   |   |   authentication.README.md
+|   |   |   
+|   |   +---email-input-modal
+|   |   |       email-input-modal.component.css
+|   |   |       email-input-modal.component.html
+|   |   |       email-input-modal.component.spec.ts
+|   |   |       email-input-modal.component.ts
+|   |   |       
+|   |   +---login-component
+|   |   |       login-component.css
+|   |   |       login-component.html
+|   |   |       login-component.ts
+|   |   |       logout-fluxo.md
+|   |   |       
+|   |   +---progressive-signup
+|   |   |       progressive-signup.component.css
+|   |   |       progressive-signup.component.html
+|   |   |       progressive-signup.component.spec.ts
+|   |   |       progressive-signup.component.ts
+|   |   |       
+|   |   \---suggested-profiles
+|   |           suggested-profiles.component.css
+|   |           suggested-profiles.component.html
+|   |           suggested-profiles.component.spec.ts
+|   |           suggested-profiles.component.ts
+|   |           
+|   +---chat-module
+|   |   |   chat-module-routing.module.ts
+|   |   |   chat-module.ts
+|   |   |   
+|   |   +---chat-list
+|   |   |       chat-list.component.css
+|   |   |       chat-list.component.html
+|   |   |       chat-list.component.spec.ts
+|   |   |       chat-list.component.ts
+|   |   |       
+|   |   +---chat-message
+|   |   |       chat-message.component.css
+|   |   |       chat-message.component.html
+|   |   |       chat-message.component.spec.ts
+|   |   |       chat-message.component.ts
+|   |   |       
+|   |   +---chat-messages-list
+|   |   |       chat-messages-list.component.css
+|   |   |       chat-messages-list.component.html
+|   |   |       chat-messages-list.component.spec.ts
+|   |   |       chat-messages-list.component.ts
+|   |   |       
+|   |   +---chat-module-layout
+|   |   |       chat-module-layout.component.css
+|   |   |       chat-module-layout.component.html
+|   |   |       chat-module-layout.component.spec.ts
+|   |   |       chat-module-layout.component.ts
+|   |   |       
+|   |   +---chat-rooms
+|   |   |       chat-rooms.component.css
+|   |   |       chat-rooms.component.html
+|   |   |       chat-rooms.component.spec.ts
+|   |   |       chat-rooms.component.ts
+|   |   |       
+|   |   +---chat-window
+|   |   |       chat-window.component.css
+|   |   |       chat-window.component.html
+|   |   |       chat-window.component.spec.ts
+|   |   |       chat-window.component.ts
+|   |   |       
+|   |   +---communities
+|   |   |       communities-routing.module.ts
+|   |   |       communities.module.ts
+|   |   |       
+|   |   +---invite-list
+|   |   |       invite-list.component.css
+|   |   |       invite-list.component.html
+|   |   |       invite-list.component.spec.ts
+|   |   |       invite-list.component.ts
+|   |   |       
+|   |   +---modals
+|   |   |   +---base-modal
+|   |   |   |       base-modal.component.css
+|   |   |   |       base-modal.component.html
+|   |   |   |       base-modal.component.spec.ts
+|   |   |   |       base-modal.component.ts
+|   |   |   |       
+|   |   |   +---create-room-modal
+|   |   |   |       create-room-modal.component.css
+|   |   |   |       create-room-modal.component.html
+|   |   |   |       create-room-modal.component.spec.ts
+|   |   |   |       create-room-modal.component.ts
+|   |   |   |       
+|   |   |   +---invite-user-modal
+|   |   |   |       invite-user-modal.component.css
+|   |   |   |       invite-user-modal.component.html
+|   |   |   |       invite-user-modal.component.spec.ts
+|   |   |   |       invite-user-modal.component.ts
+|   |   |   |       
+|   |   |   \---room-create-confirm-modal
+|   |   |           room-creation-confirmation-modal.component.css
+|   |   |           room-creation-confirmation-modal.component.html
+|   |   |           room-creation-confirmation-modal.component.spec.ts
+|   |   |           room-creation-confirmation-modal.component.ts
+|   |   |           
+|   |   \---rooms
+|   |       |   rooms-routing.module.ts
+|   |       |   rooms.module.ts
+|   |       |   
+|   |       +---room-creation
+|   |       |       room-creation.component.css
+|   |       |       room-creation.component.html
+|   |       |       room-creation.component.spec.ts
+|   |       |       room-creation.component.ts
+|   |       |       
+|   |       +---room-details
+|   |       |       room-details.component.css
+|   |       |       room-details.component.html
+|   |       |       room-details.component.spec.ts
+|   |       |       room-details.component.ts
+|   |       |       
+|   |       +---room-interaction
+|   |       |       room-interaction.component.css
+|   |       |       room-interaction.component.html
+|   |       |       room-interaction.component.spec.ts
+|   |       |       room-interaction.component.ts
+|   |       |       
+|   |       \---room-list
+|   |               room-list.component.css
+|   |               room-list.component.html
+|   |               room-list.component.spec.ts
+|   |               room-list.component.ts
+|   |               
+|   +---core
+|   |   +---enums
+|   |   |       valid-genders.enum.ts
+|   |   |       valid-preferences.enum.ts
+|   |   |       
+|   |   +---firebase
+|   |   |       firebase.tokens.ts
+|   |   |       
+|   |   +---guards
+|   |   |   +---access-guard
+|   |   |   |       admin.guard.ts
+|   |   |   |       basic.guard.ts
+|   |   |   |       premium.guard.ts
+|   |   |   |       role.guard.ts
+|   |   |   |       vip.guard.ts
+|   |   |   |       
+|   |   |   +---auth-guard
+|   |   |   |       auth-only.guard.ts
+|   |   |   |       auth-redirect.guard.spec.ts
+|   |   |   |       auth-redirect.guard.ts
+|   |   |   |       auth.guard.ts
+|   |   |   |       guest-only.guard.ts
+|   |   |   |       
+|   |   |   +---ownership-guard
+|   |   |   |       user.owner.guard.ts
+|   |   |   |       
+|   |   |   +---profile-guard
+|   |   |   |       email-verified.guard.ts
+|   |   |   |       profile-completed.guard.ts
+|   |   |   |       
+|   |   |   \---_shared-guard
+|   |   |           guard-utils.ts
+|   |   |           
+|   |   +---interfaces
+|   |   |   |   geolocation.interface.ts
+|   |   |   |   icategoria-mapeamento.ts
+|   |   |   |   ierror.ts
+|   |   |   |   iuser-dados.ts
+|   |   |   |   iuser-registration-data.ts
+|   |   |   |   user-public.interface.ts
+|   |   |   |   
+|   |   |   +---friendship
+|   |   |   |       blocked-user.interface.ts
+|   |   |   |       friend-request.interface.ts
+|   |   |   |       friend.interface.ts
+|   |   |   |       
+|   |   |   +---interfaces-chat
+|   |   |   |       chat.interface.ts
+|   |   |   |       community.interface.ts
+|   |   |   |       invite.interface.ts
+|   |   |   |       message.interface.ts
+|   |   |   |       room.interface.ts
+|   |   |   |       user-access-control.interface.ts
+|   |   |   |       
+|   |   |   +---interfaces-user-dados
+|   |   |   |       iuser-preferences.ts
+|   |   |   |       iuser-social-links.ts
+|   |   |   |       user-access-control.interface.ts
+|   |   |   |       
+|   |   |   +---logs
+|   |   |   |       iadming-log.ts
+|   |   |   |       
+|   |   |   \---media
+|   |   |           i-media-item.ts
+|   |   |           i-photo-item.ts
+|   |   |           i-video-item.ts
+|   |   |           
+|   |   +---services
+|   |   |   |   sidebar.service.ts
+|   |   |   |   
+|   |   |   +---account-moderation
+|   |   |   |       admin-log.service.ts
+|   |   |   |       user-management.service.ts
+|   |   |   |       user-moderation.service.ts
+|   |   |   |       
+|   |   |   +---autentication
+|   |   |   |   |   auth.service.ts
+|   |   |   |   |   email-input-modal.service.ts
+|   |   |   |   |   login.service.spec.ts
+|   |   |   |   |   login.service.ts
+|   |   |   |   |   social-auth.service.spec.ts
+|   |   |   |   |   social-auth.service.ts
+|   |   |   |   |   
+|   |   |   |   +---auth
+|   |   |   |   |       access-control.service.ts
+|   |   |   |   |       auth-app-block.service.ts
+|   |   |   |   |       auth-orchestrator.service.ts
+|   |   |   |   |       auth-return-url.service.ts
+|   |   |   |   |       auth-session.service.ts
+|   |   |   |   |       auth.facade.ts
+|   |   |   |   |       auth.types.ts
+|   |   |   |   |       current-user-store.service.ts
+|   |   |   |   |       logout.service.ts
+|   |   |   |   |       
+|   |   |   |   \---register
+|   |   |   |           email-verification.service.md
+|   |   |   |           email-verification.service.ts
+|   |   |   |           emulator-email-verify-dev.service.ts
+|   |   |   |           pre-register.service.ts
+|   |   |   |           register.service.spec.ts
+|   |   |   |           register.service.ts
+|   |   |   |           registerServiceREADME.md
+|   |   |   |           
+|   |   |   +---batepapo
+|   |   |   |   |   chat-notification.service.ts
+|   |   |   |   |   
+|   |   |   |   +---chat-service
+|   |   |   |   |       chat-policy.service.ts
+|   |   |   |   |       chat.service.ts
+|   |   |   |   |       
+|   |   |   |   +---community-services
+|   |   |   |   |       community-members.service.spec.ts
+|   |   |   |   |       community-members.service.ts
+|   |   |   |   |       community-moderation.service.spec.ts
+|   |   |   |   |       community-moderation.service.ts
+|   |   |   |   |       community.service.spec.ts
+|   |   |   |   |       community.service.ts
+|   |   |   |   |       
+|   |   |   |   +---invite-service
+|   |   |   |   |       invite-search.service.ts
+|   |   |   |   |       invite.service.ts
+|   |   |   |   |       
+|   |   |   |   \---room-services
+|   |   |   |           room-management.service.ts
+|   |   |   |           room-messages.service.ts
+|   |   |   |           room-participants.service.ts
+|   |   |   |           room-reports.service.ts
+|   |   |   |           room.service.spec.ts
+|   |   |   |           room.service.ts
+|   |   |   |           user-room-ids.service.ts
+|   |   |   |           
+|   |   |   +---data-handling
+|   |   |   |   |   firestore-query.service.spec.ts
+|   |   |   |   |   firestore-query.service.ts
+|   |   |   |   |   firestore-user-query.service.spec.ts
+|   |   |   |   |   firestore-user-query.service.ts
+|   |   |   |   |   firestore-user-write.service.ts
+|   |   |   |   |   
+|   |   |   |   +---converters
+|   |   |   |   |       friend-request.firestore-converter.ts
+|   |   |   |   |       user.firestore-converter.ts
+|   |   |   |   |       
+|   |   |   |   +---firestore
+|   |   |   |   |   +---core
+|   |   |   |   |   |       firestore-context.service.ts
+|   |   |   |   |   |       firestore-live-query.service.ts
+|   |   |   |   |   |       firestore-read.service.ts
+|   |   |   |   |   |       firestore-write.service.ts
+|   |   |   |   |   |       
+|   |   |   |   |   +---repositories
+|   |   |   |   |   |       chat-messages.repository.ts
+|   |   |   |   |   |       chat.repository.ts
+|   |   |   |   |   |       public-index.repository.ts
+|   |   |   |   |   |       public-profiles.repository.ts
+|   |   |   |   |   |       user-repository.service.ts
+|   |   |   |   |   |       users-read.repository.ts
+|   |   |   |   |   |       
+|   |   |   |   |   +---state
+|   |   |   |   |   |       user-state-cache.service.ts
+|   |   |   |   |   |       
+|   |   |   |   |   \---validation
+|   |   |   |   |           firestore-validation.service.ts
+|   |   |   |   |           
+|   |   |   |   +---legacy
+|   |   |   |   |       firestore.service.spec.ts
+|   |   |   |   |       firestore.service.ts
+|   |   |   |   |       
+|   |   |   |   +---queries
+|   |   |   |   |       query-uid.service.spec.ts
+|   |   |   |   |       query-uid.service.ts
+|   |   |   |   |       user-discovery-presence.facade.ts
+|   |   |   |   |       user-discovery.query.service.ts
+|   |   |   |   |       user-presence.query.service.ts
+|   |   |   |   |       
+|   |   |   |   \---suggestion
+|   |   |   +---error-handler
+|   |   |   |       error-notification.service.spec.ts
+|   |   |   |       error-notification.service.ts
+|   |   |   |       firestore-error-handler.service.ts
+|   |   |   |       global-error-handler.service.ts
+|   |   |   |       
+|   |   |   +---filtering
+|   |   |   |   |   filter-engine.service.spec.ts
+|   |   |   |   |   filter-engine.service.ts
+|   |   |   |   |   
+|   |   |   |   +---filter-interfaces
+|   |   |   |   |       filter.interface.ts
+|   |   |   |   |       
+|   |   |   |   \---filters
+|   |   |   |           activity-filter.service.spec.ts
+|   |   |   |           activity-filter.service.ts
+|   |   |   |           gender-filter.service.spec.ts
+|   |   |   |           gender-filter.service.ts
+|   |   |   |           near-profile-filter.service.spec.ts
+|   |   |   |           near-profile-filter.service.ts
+|   |   |   |           photo-filter.service.spec.ts
+|   |   |   |           photo-filter.service.ts
+|   |   |   |           preferences-filter.service.spec.ts
+|   |   |   |           preferences-filter.service.ts
+|   |   |   |           region-filter.service.spec.ts
+|   |   |   |           region-filter.service.ts
+|   |   |   |           
+|   |   |   +---general
+|   |   |   |   |   date-time.service.ts
+|   |   |   |   |   notification.service.ts
+|   |   |   |   |   validator.service.ts
+|   |   |   |   |   
+|   |   |   |   +---api
+|   |   |   |   |       ibge-location.service.spec.ts
+|   |   |   |   |       ibge-location.service.ts
+|   |   |   |   |       
+|   |   |   |   \---cache
+|   |   |   |       |   cache-persistence.service.spec.ts
+|   |   |   |       |   cache-persistence.service.ts
+|   |   |   |       |   cache-state.service.spec.ts
+|   |   |   |       |   cache-state.service.ts
+|   |   |   |       |   cache-sync.service.spec.ts
+|   |   |   |       |   cache-sync.service.ts
+|   |   |   |       |   cache.service.spec.ts
+|   |   |   |       |   cache.service.ts
+|   |   |   |       |   
+|   |   |   |       \---cache+store
+|   |   |   +---geolocation
+|   |   |   |       distance-calculation.service.spec.ts
+|   |   |   |       distance-calculation.service.ts
+|   |   |   |       geolocation-tracking.service.ts
+|   |   |   |       geolocation.md
+|   |   |   |       geolocation.service.spec.ts
+|   |   |   |       geolocation.service.ts
+|   |   |   |       location-persistence.service.ts
+|   |   |   |       near-profile.service.spec.ts
+|   |   |   |       near-profile.service.ts
+|   |   |   |       
+|   |   |   +---image-handling
+|   |   |   |       photo-firestore.service.spec.ts
+|   |   |   |       photo-firestore.service.ts
+|   |   |   |       photo.service.spec.ts
+|   |   |   |       photo.service.ts
+|   |   |   |       storage.service.spec.ts
+|   |   |   |       storage.service.ts
+|   |   |   |       
+|   |   |   +---interactions
+|   |   |   |   \---friendship
+|   |   |   |       |   friendship.repo.ts
+|   |   |   |       |   friendship.service.ts
+|   |   |   |       |   
+|   |   |   |       \---repo
+|   |   |   |               base.repo.ts
+|   |   |   |               blocks.repo.ts
+|   |   |   |               cooldown.repo.ts
+|   |   |   |               facade.repo.ts
+|   |   |   |               friends.repo.ts
+|   |   |   |               requests.repo.spec.ts
+|   |   |   |               requests.repo.ts
+|   |   |   |               
+|   |   |   +---media
+|   |   |   |       media-command.service.ts
+|   |   |   |       media-comments.service.ts
+|   |   |   |       media-policy.service.ts
+|   |   |   |       media-query.service.ts
+|   |   |   |       media-reactions.service.ts
+|   |   |   |       
+|   |   |   +---preferences
+|   |   |   |       user-preferences.service.spec.ts
+|   |   |   |       user-preferences.service.ts
+|   |   |   |       
+|   |   |   +---presence
+|   |   |   |       presence-dom-streams.service.ts
+|   |   |   |       presence-leader-election.service.ts
+|   |   |   |       presence-orchestrator.service.ts
+|   |   |   |       presence-writer.service.ts
+|   |   |   |       presence.service.spec.ts
+|   |   |   |       presence.service.ts
+|   |   |   |       
+|   |   |   +---security
+|   |   |   |       file-scan.service.spec.ts
+|   |   |   |       file-scan.service.ts
+|   |   |   |       
+|   |   |   +---subscriptions
+|   |   |   |       payment.service.ts
+|   |   |   |       subscription.service.spec.ts
+|   |   |   |       subscription.service.ts
+|   |   |   |       webhook.service.ts
+|   |   |   |       
+|   |   |   +---user-profile
+|   |   |   |   |   user-profile.service.ts
+|   |   |   |   |   user-social-links.service.ts
+|   |   |   |   |   usuario.service.ts
+|   |   |   |   |   
+|   |   |   |   \---recommendations
+|   |   |   |           suggestion.service.ts
+|   |   |   |           
+|   |   |   \---util-service
+|   |   |           auth-debug.service.ts
+|   |   |           router-diagnostics.service.ts
+|   |   |           TokenService.ts
+|   |   |           
+|   |   +---textos-globais
+|   |   |   \---info-cria-sala-bp
+|   |   |           info-cria-sala-bp.component.css
+|   |   |           info-cria-sala-bp.component.html
+|   |   |           info-cria-sala-bp.component.ts
+|   |   |           
+|   |   \---utils
+|   |           epoch-utils.ts
+|   |           nickname-utils.ts
+|   |           
+|   +---dashboard
+|   |   |   dashboard-routing.module.ts
+|   |   |   dashboard.module.ts
+|   |   |   
+|   |   +---dashboard-layout
+|   |   |       dashboard-layout.component.css
+|   |   |       dashboard-layout.component.html
+|   |   |       dashboard-layout.component.ts
+|   |   |       
+|   |   +---featured-profiles
+|   |   |       featured-profiles.component.css
+|   |   |       featured-profiles.component.html
+|   |   |       featured-profiles.component.spec.ts
+|   |   |       featured-profiles.component.ts
+|   |   |       
+|   |   +---latest-photos
+|   |   |       latest-photos.component.css
+|   |   |       latest-photos.component.html
+|   |   |       latest-photos.component.spec.ts
+|   |   |       latest-photos.component.ts
+|   |   |       
+|   |   +---online
+|   |   |   +---online-users
+|   |   |   |       online-users.component.css
+|   |   |   |       online-users.component.html
+|   |   |   |       online-users.component.spec.ts
+|   |   |   |       online-users.component.ts
+|   |   |   |       
+|   |   |   \---online-users-full
+|   |   |           online-users-full.component.css
+|   |   |           online-users-full.component.html
+|   |   |           online-users-full.component.spec.ts
+|   |   |           online-users-full.component.ts
+|   |   |           
+|   |   +---principal
+|   |   |       principal.component.css
+|   |   |       principal.component.html
+|   |   |       principal.component.spec.ts
+|   |   |       principal.component.ts
+|   |   |       
+|   |   +---public-chat-room
+|   |   |       public-chat-room.component.css
+|   |   |       public-chat-room.component.html
+|   |   |       public-chat-room.component.spec.ts
+|   |   |       public-chat-room.component.ts
+|   |   |       
+|   |   \---suggested-profiles
+|   |           suggested-profiles.component.css
+|   |           suggested-profiles.component.html
+|   |           suggested-profiles.component.spec.ts
+|   |           suggested-profiles.component.ts
+|   |           
+|   +---footer
+|   |   |   footer-routing.module.ts
+|   |   |   footer-shared.css
+|   |   |   footer.module.ts
+|   |   |   
+|   |   +---contact-footer
+|   |   |       contact-footer.component.css
+|   |   |       contact-footer.component.html
+|   |   |       contact-footer.component.spec.ts
+|   |   |       contact-footer.component.ts
+|   |   |       
+|   |   +---copyright-footer
+|   |   |       copyright-footer.component.css
+|   |   |       copyright-footer.component.html
+|   |   |       copyright-footer.component.spec.ts
+|   |   |       copyright-footer.component.ts
+|   |   |       
+|   |   +---footer
+|   |   |       footer.component.css
+|   |   |       footer.component.html
+|   |   |       footer.component.spec.ts
+|   |   |       footer.component.ts
+|   |   |       
+|   |   +---legal-footer
+|   |   |   |   legal-footer.component.css
+|   |   |   |   legal-footer.component.html
+|   |   |   |   legal-footer.component.spec.ts
+|   |   |   |   legal-footer.component.ts
+|   |   |   |   
+|   |   |   +---politica-de-cookies
+|   |   |   |       politica-de-cookies.component.css
+|   |   |   |       politica-de-cookies.component.html
+|   |   |   |       politica-de-cookies.component.spec.ts
+|   |   |   |       politica-de-cookies.component.ts
+|   |   |   |       
+|   |   |   +---politica-de-privacidade
+|   |   |   |       politica-de-privacidade.component.css
+|   |   |   |       politica-de-privacidade.component.html
+|   |   |   |       politica-de-privacidade.component.spec.ts
+|   |   |   |       politica-de-privacidade.component.ts
+|   |   |   |       
+|   |   |   \---termos-e-condicoes
+|   |   |           termos-e-condicoes.component.css
+|   |   |           termos-e-condicoes.component.html
+|   |   |           termos-e-condicoes.component.spec.ts
+|   |   |           termos-e-condicoes.component.ts
+|   |   |           
+|   |   +---navigation-footer
+|   |   |       navigation-footer.component.css
+|   |   |       navigation-footer.component.html
+|   |   |       navigation-footer.component.spec.ts
+|   |   |       navigation-footer.component.ts
+|   |   |       
+|   |   \---social-footer
+|   |           social-footer.component.css
+|   |           social-footer.component.html
+|   |           social-footer.component.spec.ts
+|   |           social-footer.component.ts
+|   |           
+|   +---header
+|   |   |   header.module.ts
+|   |   |   
+|   |   +---guest-banner
+|   |   |       guest-banner.component.css
+|   |   |       guest-banner.component.html
+|   |   |       guest-banner.component.spec.ts
+|   |   |       guest-banner.component.ts
+|   |   |       
+|   |   +---links-interaction
+|   |   |       links-interaction.component.css
+|   |   |       links-interaction.component.html
+|   |   |       links-interaction.component.spec.ts
+|   |   |       links-interaction.component.ts
+|   |   |       
+|   |   +---logo
+|   |   |       logo.component.css
+|   |   |       logo.component.html
+|   |   |       logo.component.spec.ts
+|   |   |       logo.component.ts
+|   |   |       
+|   |   \---navbar
+|   |           navbar.component.css
+|   |           navbar.component.html
+|   |           navbar.component.spec.ts
+|   |           navbar.component.ts
+|   |           
+|   +---layout
+|   |   |   layout-profile-exibe.css
+|   |   |   layout-routing.module.ts
+|   |   |   layout.module.ts
+|   |   |   
+|   |   +---friend-management
+|   |   |   |   friend-management-routing.module.ts
+|   |   |   |   friend-management.module.ts
+|   |   |   |   
+|   |   |   +---friend-actions
+|   |   |   |       friend-actions.component.css
+|   |   |   |       friend-actions.component.html
+|   |   |   |       friend-actions.component.spec.ts
+|   |   |   |       friend-actions.component.ts
+|   |   |   |       
+|   |   |   +---friend-blocked
+|   |   |   |       friend-blocked.component.css
+|   |   |   |       friend-blocked.component.html
+|   |   |   |       friend-blocked.component.spec.ts
+|   |   |   |       friend-blocked.component.ts
+|   |   |   |       
+|   |   |   +---friend-cards
+|   |   |   |       friend-cards.component.css
+|   |   |   |       friend-cards.component.html
+|   |   |   |       friend-cards.component.ts
+|   |   |   |       
+|   |   |   +---friend-list
+|   |   |   |       friend-list.component.css
+|   |   |   |       friend-list.component.html
+|   |   |   |       friend-list.component.spec.ts
+|   |   |   |       friend-list.component.ts
+|   |   |   |       
+|   |   |   +---friend-list-page
+|   |   |   |       friend-list-page.component.css
+|   |   |   |       friend-list-page.component.html
+|   |   |   |       friend-list-page.component.spec.ts
+|   |   |   |       friend-list-page.component.ts
+|   |   |   |       
+|   |   |   +---friend-requests
+|   |   |   |       friend-requests.component.css
+|   |   |   |       friend-requests.component.html
+|   |   |   |       friend-requests.component.spec.ts
+|   |   |   |       friend-requests.component.ts
+|   |   |   |       
+|   |   |   +---friend-search
+|   |   |   |       friend-search.component.css
+|   |   |   |       friend-search.component.html
+|   |   |   |       friend-search.component.spec.ts
+|   |   |   |       friend-search.component.ts
+|   |   |   |       
+|   |   |   \---friend-settings
+|   |   |           friend-settings.component.css
+|   |   |           friend-settings.component.html
+|   |   |           friend-settings.component.spec.ts
+|   |   |           friend-settings.component.ts
+|   |   |           
+|   |   +---other-user-profile-view
+|   |   |       other-user-profile-view.component.css
+|   |   |       other-user-profile-view.component.html
+|   |   |       other-user-profile-view.component.spec.ts
+|   |   |       other-user-profile-view.component.ts
+|   |   |       
+|   |   +---perfis-proximos
+|   |   |       perfis-proximos.component.css
+|   |   |       perfis-proximos.component.html
+|   |   |       perfis-proximos.component.spec.ts
+|   |   |       perfis-proximos.component.ts
+|   |   |       
+|   |   \---profile-list
+|   |           profile-list.component.css
+|   |           profile-list.component.html
+|   |           profile-list.component.spec.ts
+|   |           profile-list.component.ts
+|   |           
+|   +---media
+|   |   |   media.routes.ts
+|   |   |   
+|   |   +---photos
+|   |   |   |   photos.routes.ts
+|   |   |   |   
+|   |   |   +---photo-upload
+|   |   |   |       photo-upload.component.css
+|   |   |   |       photo-upload.component.html
+|   |   |   |       photo-upload.component.ts
+|   |   |   |       
+|   |   |   +---photo-viewer
+|   |   |   |       photo-viewer.component.css
+|   |   |   |       photo-viewer.component.html
+|   |   |   |       photo-viewer.component.ts
+|   |   |   |       
+|   |   |   \---profile-photos
+|   |   |           profile-photos.component.css
+|   |   |           profile-photos.component.html
+|   |   |           profile-photos.component.ts
+|   |   |           
+|   |   +---shared
+|   |   |   +---components
+|   |   |   +---guards
+|   |   |   \---utils
+|   |   \---videos
+|   |       |   videos.routes.ts
+|   |       |   
+|   |       +---profile-videos
+|   |       +---video-upload
+|   |       \---video-viewer
+|   +---photo-editor
+|   |   |   photo-editor-routing.module.ts
+|   |   |   photo-editor.module.ts
+|   |   |   
+|   |   \---photo-editor
+|   |           photo-editor.component.css
+|   |           photo-editor.component.html
+|   |           photo-editor.component.spec.ts
+|   |           photo-editor.component.ts
+|   |           
+|   +---register-module
+|   |   |   register-routing.module.spec.ts
+|   |   |   register-routing.module.ts
+|   |   |   register.component.css
+|   |   |   register.component.html
+|   |   |   register.component.spec.ts
+|   |   |   register.component.ts
+|   |   |   register.module.spec.ts
+|   |   |   register.module.ts
+|   |   |   
+|   |   +---auth-verification-handler
+|   |   |       auth-verification-handler.component.css
+|   |   |       auth-verification-handler.component.html
+|   |   |       auth-verification-handler.component.spec.ts
+|   |   |       auth-verification-handler.component.ts
+|   |   |       
+|   |   +---finalizar-cadastro
+|   |   |       finalizar-cadastro.component.css
+|   |   |       finalizar-cadastro.component.html
+|   |   |       finalizar-cadastro.component.spec.ts
+|   |   |       finalizar-cadastro.component.ts
+|   |   |       
+|   |   \---welcome
+|   |           welcome.component.css
+|   |           welcome.component.html
+|   |           welcome.component.spec.ts
+|   |           welcome.component.ts
+|   |           
+|   +---shared
+|   |   |   shared-material.module.ts
+|   |   |   shared.module.ts
+|   |   |   
+|   |   +---components-globais
+|   |   |   +---confirmacao-dialog
+|   |   |   |       confirmacao-dialog.component.css
+|   |   |   |       confirmacao-dialog.component.html
+|   |   |   |       confirmacao-dialog.component.spec.ts
+|   |   |   |       confirmacao-dialog.component.ts
+|   |   |   |       
+|   |   |   +---generic-modal
+|   |   |   |       generic-modal.component.css
+|   |   |   |       generic-modal.component.html
+|   |   |   |       generic-modal.component.spec.ts
+|   |   |   |       generic-modal.component.ts
+|   |   |   |       
+|   |   |   +---modal-mensagem
+|   |   |   |       modal-mensagem.component.css
+|   |   |   |       modal-mensagem.component.html
+|   |   |   |       modal-mensagem.component.spec.ts
+|   |   |   |       modal-mensagem.component.ts
+|   |   |   |       
+|   |   |   +---texto-dialog
+|   |   |   |       texto-dialog.component.css
+|   |   |   |       texto-dialog.component.html
+|   |   |   |       texto-dialog.component.spec.ts
+|   |   |   |       texto-dialog.component.ts
+|   |   |   |       
+|   |   |   +---upload-photo
+|   |   |   |       upload-photo.component.css
+|   |   |   |       upload-photo.component.html
+|   |   |   |       upload-photo.component.spec.ts
+|   |   |   |       upload-photo.component.ts
+|   |   |   |       
+|   |   |   \---user-card
+|   |   |       +---base-user-card
+|   |   |       |       base-user-card.component.css
+|   |   |       |       base-user-card.component.html
+|   |   |       |       base-user-card.component.spec.ts
+|   |   |       |       base-user-card.component.ts
+|   |   |       |       
+|   |   |       +---chat-user-card
+|   |   |       |       chat-user-card.component.css
+|   |   |       |       chat-user-card.component.html
+|   |   |       |       chat-user-card.component.spec.ts
+|   |   |       |       chat-user-card.component.ts
+|   |   |       |       
+|   |   |       +---compact-user-card
+|   |   |       |       compact-user-card.component.css
+|   |   |       |       compact-user-card.component.html
+|   |   |       |       compact-user-card.component.spec.ts
+|   |   |       |       compact-user-card.component.ts
+|   |   |       |       
+|   |   |       +---detailed-user-card
+|   |   |       |       detailed-user-card.component.css
+|   |   |       |       detailed-user-card.component.html
+|   |   |       |       detailed-user-card.component.spec.ts
+|   |   |       |       detailed-user-card.component.ts
+|   |   |       |       
+|   |   |       +---grid-user-card
+|   |   |       +---modal-user-card
+|   |   |       |       modal-user-card.component.css
+|   |   |       |       modal-user-card.component.html
+|   |   |       |       modal-user-card.component.spec.ts
+|   |   |       |       modal-user-card.component.ts
+|   |   |       |       
+|   |   |       \---send-request-dialog
+|   |   |               send-request-dialog.component.css
+|   |   |               send-request-dialog.component.html
+|   |   |               send-request-dialog.component.ts
+|   |   |               
+|   |   +---location-cta
+|   |   |       location-cta.component.css
+|   |   |       location-cta.component.html
+|   |   |       location-cta.component.spec.ts
+|   |   |       location-cta.component.ts
+|   |   |       
+|   |   +---pagination
+|   |   |       page.constants.ts
+|   |   |       page.types.ts
+|   |   |       
+|   |   +---pipes
+|   |   |       capitalize.pipe.ts
+|   |   |       date-format.pipe.spec.ts
+|   |   |       date-format.pipe.ts
+|   |   |       register-error-message.pipe.spec.ts
+|   |   |       register-error-message.pipe.ts
+|   |   |       time-ago.pipe.ts
+|   |   |       
+|   |   \---user-card
+|   |           user-card.component.css
+|   |           user-card.component.html
+|   |           user-card.component.spec.ts
+|   |           user-card.component.ts
+|   |           
+|   +---store
+|   |   |   store.module.ts
+|   |   |   
+|   |   +---actions
+|   |   |   |   cache.actions.ts
+|   |   |   |   
+|   |   |   +---actions.chat
+|   |   |   |       chat.actions.ts
+|   |   |   |       invite.actions.ts
+|   |   |   |       room.actions.ts
+|   |   |   |       
+|   |   |   +---actions.interactions
+|   |   |   |   |   actions.friends.ts
+|   |   |   |   |   
+|   |   |   |   \---friends
+|   |   |   |           friends-blocks.actions.ts
+|   |   |   |           friends-list.actions.ts
+|   |   |   |           friends-misc.actions.ts
+|   |   |   |           friends-pagination.actions.ts
+|   |   |   |           friends-realtime.actions.ts
+|   |   |   |           friends-requests.actions.ts
+|   |   |   |           index.ts
+|   |   |   |           
+|   |   |   +---actions.location
+|   |   |   |       location.actions.ts
+|   |   |   |       nearby-profiles.actions.spec.ts
+|   |   |   |       nearby-profiles.actions.ts
+|   |   |   |       
+|   |   |   \---actions.user
+|   |   |           auth.actions.ts
+|   |   |           file.actions.ts
+|   |   |           terms.actions.ts
+|   |   |           user-preferences.actions.ts
+|   |   |           user-role.actions.ts
+|   |   |           user.actions.ts
+|   |   |           
+|   |   +---effects
+|   |   |   |   cache.effects.ts
+|   |   |   |   
+|   |   |   +---effects.chat
+|   |   |   |       chat.effects.ts
+|   |   |   |       invite.effects.ts
+|   |   |   |       room.effects.ts
+|   |   |   |       
+|   |   |   +---effects.interactions
+|   |   |   |   +---friends
+|   |   |   |   |       index.ts
+|   |   |   |   |       network.effects.ts
+|   |   |   |   |       pagination-selectors-cache-cleanup.effects.ts
+|   |   |   |   |       pagination.effects.ts
+|   |   |   |   |       requests-crud.effects.ts
+|   |   |   |   |       requests-profiles.effects.ts
+|   |   |   |   |       requests-realtime.effects.ts
+|   |   |   |   |       
+|   |   |   |   \---helpers
+|   |   |   |           effects-helpers.ts
+|   |   |   |           
+|   |   |   +---effects.location
+|   |   |   |       location.effects.ts
+|   |   |   |       nearby-profiles.effects.spec.ts
+|   |   |   |       nearby-profiles.effects.ts
+|   |   |   |       
+|   |   |   \---effects.user
+|   |   |           auth-session-sync.effects.ts
+|   |   |           auth-status-sync.effects.ts
+|   |   |           auth.effects.ts
+|   |   |           file.effects.ts
+|   |   |           online-users.effects.ts
+|   |   |           terms.effects.ts
+|   |   |           user-preferences.effects.ts
+|   |   |           user-role.effects.ts
+|   |   |           user.effects.ts
+|   |   |           
+|   |   +---reducers
+|   |   |   |   cache.reducer.ts
+|   |   |   |   feature-keys.ts
+|   |   |   |   index.ts
+|   |   |   |   
+|   |   |   +---meta-reducers
+|   |   |   |       index.ts
+|   |   |   |       reset-store-on-auth-change.metareducer.ts
+|   |   |   |       
+|   |   |   +---reducers.chat
+|   |   |   |       chat.reducer.ts
+|   |   |   |       index.ts
+|   |   |   |       invite.reducer.ts
+|   |   |   |       room.reducer.ts
+|   |   |   |       
+|   |   |   +---reducers.interactions
+|   |   |   |       friends-pagination.reducer.ts
+|   |   |   |       friends.reducer.ts
+|   |   |   |       index.ts
+|   |   |   |       
+|   |   |   +---reducers.location
+|   |   |   |       index.ts
+|   |   |   |       location.reducer.spec.ts
+|   |   |   |       location.reducer.ts
+|   |   |   |       nearby-profiles.reducer.spec.ts
+|   |   |   |       nearby-profiles.reducer.ts
+|   |   |   |       
+|   |   |   \---reducers.user
+|   |   |           auth.reducer.ts
+|   |   |           file.reducer.ts
+|   |   |           index.ts
+|   |   |           terms.reducer.ts
+|   |   |           user-preferences.reducer.ts
+|   |   |           user.reducer.spec.ts
+|   |   |           user.reducer.ts
+|   |   |           
+|   |   +---selectors
+|   |   |   |   cache.selectors.ts
+|   |   |   |   
+|   |   |   +---selectors.chat
+|   |   |   |       chat.selectors.ts
+|   |   |   |       invite.selectors.ts
+|   |   |   |       room.selectors.ts
+|   |   |   |       
+|   |   |   +---selectors.interactions
+|   |   |   |   |   friend.selector.ts
+|   |   |   |   |   
+|   |   |   |   \---friends
+|   |   |   |       |   blocked.selectors.ts
+|   |   |   |       |   busy.selectors.ts
+|   |   |   |       |   feature.ts
+|   |   |   |       |   friends.selectors.ts
+|   |   |   |       |   inbound.selectors.ts
+|   |   |   |       |   index.ts
+|   |   |   |       |   outbound.selectors.ts
+|   |   |   |       |   pagination.selectors.ts
+|   |   |   |       |   search.selectors.ts
+|   |   |   |       |   vm.selectors.ts
+|   |   |   |       |   
+|   |   |   |       \---vm-selectors
+|   |   |   |               all.rich.ts
+|   |   |   |               inbound.rich.ts
+|   |   |   |               index.ts
+|   |   |   |               outbound.rich.ts
+|   |   |   |               vm.utils.ts
+|   |   |   |               
+|   |   |   +---selectors.location
+|   |   |   |       location.selectors.spec.ts
+|   |   |   |       location.selectors.ts
+|   |   |   |       nearby-profiles.selectors.ts
+|   |   |   |       
+|   |   |   \---selectors.user
+|   |   |           access.selectors.ts
+|   |   |           auth.selectors.ts
+|   |   |           file.selectors.ts
+|   |   |           online.selectors.ts
+|   |   |           terms.selectors.ts
+|   |   |           user-preferences.selectors.ts
+|   |   |           user-profile.selectors.ts
+|   |   |           user.selectors.ts
+|   |   |           
+|   |   +---states
+|   |   |   |   app.state.ts
+|   |   |   |   cache.state.ts
+|   |   |   |   
+|   |   |   +---states.chat
+|   |   |   |       chat.state.ts
+|   |   |   |       invite.state.ts
+|   |   |   |       room.state.ts
+|   |   |   |       
+|   |   |   +---states.interactions
+|   |   |   |       friends-pagination.state.ts
+|   |   |   |       friends.state.ts
+|   |   |   |       
+|   |   |   +---states.location
+|   |   |   |       location.state.ts
+|   |   |   |       nearby-profiles.state.ts
+|   |   |   |       
+|   |   |   \---states.user
+|   |   |           auth.models.ts
+|   |   |           auth.state.ts
+|   |   |           file.state.ts
+|   |   |           terms.state.ts
+|   |   |           user-preferences.state.ts
+|   |   |           user.state.ts
+|   |   |           
+|   |   \---utils
+|   |           friend-store.serializer.ts
+|   |           user-store.serializer.ts
+|   |           
+|   +---subscriptions
+|   |   \---subscription-plan
+|   |           subscription-plan.component.css
+|   |           subscription-plan.component.html
+|   |           subscription-plan.component.spec.ts
+|   |           subscription-plan.component.ts
+|   |           
+|   \---user-profile
+|       |   user-profile-routing.module.ts
+|       |   user-profile.module.ts
+|       |   
+|       +---user-photo-manager
+|       |       user-photo-manager.component.css
+|       |       user-photo-manager.component.html
+|       |       user-photo-manager.component.spec.ts
+|       |       user-photo-manager.component.ts
+|       |       
+|       +---user-profile-edit
+|       |   +---edit-preferences
+|       |   |       edit-profile-preferences.component.css
+|       |   |       edit-profile-preferences.component.html
+|       |   |       edit-profile-preferences.component.spec.ts
+|       |   |       edit-profile-preferences.component.ts
+|       |   |       
+|       |   +---edit-profile-social-links
+|       |   |       edit-profile-social-links.component.css
+|       |   |       edit-profile-social-links.component.html
+|       |   |       edit-profile-social-links.component.spec.ts
+|       |   |       edit-profile-social-links.component.ts
+|       |   |       
+|       |   +---edit-region
+|       |   |       edit-profile-region.component.css
+|       |   |       edit-profile-region.component.html
+|       |   |       edit-profile-region.component.spec.ts
+|       |   |       edit-profile-region.component.ts
+|       |   |       
+|       |   +---edit-user-profile
+|       |   |       edit-user-profile.component.css
+|       |   |       edit-user-profile.component.html
+|       |   |       edit-user-profile.component.spec.ts
+|       |   |       edit-user-profile.component.ts
+|       |   |       
+|       |   \---user-privacy-settings
+|       |           user-privacy-settings.component.css
+|       |           user-privacy-settings.component.html
+|       |           user-privacy-settings.component.spec.ts
+|       |           user-privacy-settings.component.ts
+|       |           
+|       \---user-profile-view
+|           |   user-profile-view.component.css
+|           |   user-profile-view.component.html
+|           |   user-profile-view.component.spec.ts
+|           |   user-profile-view.component.ts
+|           |   
+|           +---user-activity-feed
+|           |       user-activity-feed.component.css
+|           |       user-activity-feed.component.html
+|           |       user-activity-feed.component.spec.ts
+|           |       user-activity-feed.component.ts
+|           |       
+|           +---user-profile-preferences
+|           |       user-profile-preferences.component.css
+|           |       user-profile-preferences.component.html
+|           |       user-profile-preferences.component.spec.ts
+|           |       user-profile-preferences.component.ts
+|           |       
+|           +---user-profile-sidebar
+|           |       user-profile-sidebar.component.css
+|           |       user-profile-sidebar.component.html
+|           |       user-profile-sidebar.component.spec.ts
+|           |       user-profile-sidebar.component.ts
+|           |       
+|           \---user-social-links-accordion
+|                   user-social-links-accordion.component.css
+|                   user-social-links-accordion.component.html
+|                   user-social-links-accordion.component.spec.ts
+|                   user-social-links-accordion.component.ts
+|                   
++---assets
+|   |   .gitkeep
+|   |   2023-11-04_125234-removebg-preview.png
+|   |   circle-cursor.png
+|   |   FastStoneEditor1-removebg-preview.png
+|   |   icons8-paint-brush-50.png
+|   |   imagem-padrao.webp
+|   |   logo sem fundo.jpg
+|   |   logo_sem_fundo-removebg-preview.png
+|   |   o_fofoqueiro.jpg
+|   |   SexoLimete.png
+|   |   
+|   \---css
+|       +---fontawesome
+|       |   |   all.css
+|       |   |   
+|       |   \---webfonts
+|       |           fa-regular-400.woff2
+|       |           fa-v4compatibility.ttf
+|       |           fa-v4compatibility.woff2
+|       |           
+|       \---pintura
+|           \---pintura
+|                   pintura.css
+|                   pintura.module.css
+|                   
++---environments
+|       environment.dev-emu.ts
+|       environment.md
+|       environment.model.ts
+|       environment.prod.ts
+|       environment.staging.ts
+|       environment.ts
+|       
++---styles
+|       angular-material-bridge.css
+|       global-animations.css
+|       global-components.css
+|       global-forms.css
+|       global-layout.css
+|       reset.css
+|       variables.css
+|       
+\---test
+    |   setup-jest.ts
+    |   
+    \---jest-stubs
+            angular-pintura.stub.ts
+            pintura.stub.ts
+            test-providers.ts
+            

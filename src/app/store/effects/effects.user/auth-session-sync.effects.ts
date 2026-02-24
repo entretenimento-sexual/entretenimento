@@ -1,7 +1,6 @@
 // src/app/store/effects/effects.user/auth-session-sync.effects.ts
 // Não esqueça os comentários
 // Ferramentas de debug podem ser úteis aqui, pois lidam com a sincronização entre o estado real da sessão (AuthSession) e o estado do Store.
-
 import { Injectable } from '@angular/core';
 import { createEffect } from '@ngrx/effects';
 import { of, combineLatest } from 'rxjs';

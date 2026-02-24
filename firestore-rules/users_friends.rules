@@ -1,0 +1,10 @@
+//==============================================================================
+// Regras de segurança do Firestore para a coleção de amigos dos usuários.
+//==============================================================================
+match /users/{userId}/friends/{friendUid} {
+  // List/query da lista de amigos
+  allow get, list: if isSelf(userId);
+
+  // MVP: o dono mantém seu índice
+  allow create, update, delete: if isSelf(userId);
+}

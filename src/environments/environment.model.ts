@@ -11,6 +11,38 @@ export type EmulatorsConfig = Partial<{
   database: EmulatorEndpoint;
 }>;
 
+// ---------------------------
+// AppCheck
+// ---------------------------
+export interface AppCheckConfig {
+  enabled: boolean;
+  provider?: string;
+  siteKey?: string;
+}
+
+// ---------------------------
+// Integrations
+// ---------------------------
+export interface VirusTotalIntegrationConfig {
+  enabled: boolean;
+  apiKey?: string;
+  useProxy?: boolean;
+  region?: string;
+}
+
+export interface IntegrationsConfig {
+  virusTotal?: VirusTotalIntegrationConfig;
+}
+
+// ---------------------------
+// Features flags
+// ---------------------------
+export interface FeaturesConfig {
+  enforceEmailVerified?: boolean;
+  showGuestBanner?: boolean;
+  restrictedRoutesWhenUnverified?: string[];
+}
+
 export interface AppEnvironment {
   production: boolean;
   stage: boolean;
@@ -24,7 +56,6 @@ export interface AppEnvironment {
     appId: string;
     messagingSenderId: string;
 
-    // opcionais (produção/dev-real podem ter)
     databaseURL?: string;
     measurementId?: string;
   };
@@ -36,5 +67,12 @@ export interface AppEnvironment {
   useEmulators: boolean;
   emulators?: EmulatorsConfig;
 
-  [key: string]: any;
+  // ✅ tipados (param de TS4111)
+  integrations?: IntegrationsConfig;
+  features?: FeaturesConfig;
+  appCheck?: AppCheckConfig;
+
+  // ✅ usados nos seus envs
+  friendsPageSize?: number;
+  dashboardFriendsLimit?: number;
 }

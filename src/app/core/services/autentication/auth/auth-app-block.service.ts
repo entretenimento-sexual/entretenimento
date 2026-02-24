@@ -26,3 +26,10 @@ export class AuthAppBlockService {
     this._reason$.next(null);
   }
 }
+/*
+src/app/core/services/autentication/auth/auth-session.service.ts
+src/app/core/services/autentication/auth/current-user-store.service.ts
+src/app/core/services/autentication/auth/auth-orchestrator.service.ts
+src/app/core/services/autentication/auth/auth.facade.ts
+src/app/core/services/autentication/auth/logout.service.ts
+*/

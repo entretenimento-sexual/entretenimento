@@ -1,6 +1,8 @@
 // src/app/store/store.module.ts
-// Não esqueça os comentários
-
+// Não esqueça os comentários explicativos sobre a configuração do StoreModule, EffectsModule e StoreDevtoolsModule, especialmente sobre os meta-reducers e runtime checks. Isso ajuda a contextualizar as escolhas feitas e a orientar futuros desenvolvedores que possam trabalhar nesse código.
+// - O StoreModule é configurado com os reducers e meta-reducers, garantindo a imutabilidade e serializabilidade do estado e das ações.
+// - O EffectsModule registra todos os efeitos relacionados a usuários, chat, interações e localização, centralizando a lógica de efeitos colaterais da aplicação.
+// - O StoreDevtoolsModule é incluído apenas em ambiente de desenvolvimento para facilitar o debug do estado e das ações.
 import { NgModule } from '@angular/core';
 import { StoreModule, ActionReducer } from '@ngrx/store';
 import { EffectsModule } from '@ngrx/effects';
@@ -35,7 +37,8 @@ import { FriendsNetworkEffects } from './effects/effects.interactions/friends/ne
 import { FriendsRequestsProfilesEffects } from './effects/effects.interactions/friends/requests-profiles.effects';
 import { FriendsRequestsRealtimeEffects } from './effects/effects.interactions/friends/requests-realtime.effects';
 import { FriendsPaginationEffects } from './effects/effects.interactions/friends/pagination.effects';
-
+import { FriendsPaginationSelectorsCacheCleanupEffects } from
+  './effects/effects.interactions/friends/pagination-selectors-cache-cleanup.effects';
 // EFFECTS - LOCATION
 import { NearbyProfilesEffects } from './effects/effects.location/nearby-profiles.effects';
 import { LocationEffects } from './effects/effects.location/location.effects';
@@ -124,7 +127,7 @@ const metaReducers = environment.production
       FriendsRequestsRealtimeEffects,
       FriendsRequestsProfilesEffects,
       FriendsPaginationEffects,
-
+      FriendsPaginationSelectorsCacheCleanupEffects,
       // LOCATION
       NearbyProfilesEffects,
       LocationEffects,

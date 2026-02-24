@@ -4,7 +4,6 @@
 // - Store NÃO pode carregar Timestamp (não serializável)
 // - Convertemos Timestamp/Date => epoch number via toEpoch()
 // =============================================================================
-
 import { environment } from 'src/environments/environment';
 import { toEpoch } from '../../core/utils/epoch-utils';
 import type { FriendDoc, Friend } from 'src/app/core/interfaces/friendship/friend.interface';
