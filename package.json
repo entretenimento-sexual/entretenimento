@@ -24,7 +24,9 @@
     "rules:build": "node firestore-rules/tools-rules/build-firestore-rules.mjs",
     "rules:watch": "node firestore-rules/tools-rules/build-firestore-rules.mjs --watch",
     "emulators": "npm run emu:pre && npm run rules:build && firebase emulators:start",
-    "deploy:rules": "npm run rules:build && firebase deploy --only firestore:rules"
+    "deploy:rules": "npm run rules:build && firebase deploy --only firestore:rules",
+    "audit:prod": "npm audit --omit=dev",
+    "audit:all": "npm audit"
   },
   "private": true,
   "dependencies": {
