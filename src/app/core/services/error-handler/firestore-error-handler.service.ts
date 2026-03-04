@@ -29,6 +29,29 @@ export class FirestoreErrorHandlerService {
               private globalErrorHandler: GlobalErrorHandlerService
               ) { }
 
+  private tagRawError(raw: any, n: NormalizedError, opts?: FirestoreErrorHandlerOptions): void {
+    try {
+      if (!raw || typeof raw !== 'object') return;
+
+      // “silent” significa: não notificar usuário em nenhum lugar
+      (raw as any).silent = opts?.silent === true;
+
+      // evita duplicar snackbar/toast no GlobalErrorHandler quando o erro vazar
+      (raw as any).skipUserNotification = true;
+
+      // contexto/feature ajudam debug
+      (raw as any).context = opts?.context;
+      (raw as any).feature = 'firestore';
+      (raw as any).consolePrefix = n.consolePrefix;
+
+      // opcional: padroniza detalhes/código também no raw
+      if (!(raw as any).code && n.code) (raw as any).code = n.code;
+      if (!(raw as any).details && n.details) (raw as any).details = n.details;
+    } catch {
+      // noop
+    }
+  }
+
   // ============================================================================
   // 1) MODO “FALHA” (mantém seu comportamento atual)
   // - Use quando você QUER que o fluxo quebre (ex.: submit/commit crítico)
@@ -37,7 +60,10 @@ export class FirestoreErrorHandlerService {
     const n = this.normalize(error, opts);
 
     this.notifyIfNeeded(n, opts);
-    this.logError(n, error, opts); // ✅ repassa opts
+    this.logError(n, error, opts);
+
+    // ✅ CRÍTICO: marca o erro original para evitar toast duplicado caso ele vaze
+    this.tagRawError(error, n, opts);
 
     return throwError(() => error);
   }
@@ -47,15 +73,14 @@ export class FirestoreErrorHandlerService {
   // - Use quando você NÃO quer derrubar o stream
   // - Ideal pra realtime/presença/listagens/VM selectors via effects
   // ============================================================================
-  handleFirestoreErrorAndReturn<T>(
-    error: any,
-    fallback: T,
-    opts?: FirestoreErrorHandlerOptions
-  ): Observable<T> {
+  handleFirestoreErrorAndReturn<T>(error: any, fallback: T, opts?: FirestoreErrorHandlerOptions): Observable<T> {
     const n = this.normalize(error, opts);
 
     this.notifyIfNeeded(n, opts);
-    this.logError(n, error, opts); // ✅ repassa opts
+    this.logError(n, error, opts);
+
+    // (não é obrigatório, mas ajuda consistência se alguém logar “raw” depois)
+    this.tagRawError(error, n, opts);
 
     return of(fallback);
   }
@@ -77,17 +102,17 @@ export class FirestoreErrorHandlerService {
   }
 
   /** Atalho: completa sem emitir (quando UI não precisa nem de fallback) */
-  handleFirestoreErrorAndComplete<T>(
-    error: any,
-    opts?: FirestoreErrorHandlerOptions
-  ): Observable<T> {
+  handleFirestoreErrorAndComplete<T>(error: any, opts?: FirestoreErrorHandlerOptions): Observable<T> {
     const n = this.normalize(error, opts);
 
     this.notifyIfNeeded(n, opts);
-    this.logError(n, error, opts); // ✅ repassa opts
+    this.logError(n, error, opts);
+
+    this.tagRawError(error, n, opts);
 
     return EMPTY;
   }
+
 
   // ============================================================================
   // 3) MODO “SIDE-EFFECT ONLY” (mais genérico ainda)
@@ -97,7 +122,9 @@ export class FirestoreErrorHandlerService {
   report(error: any, opts?: FirestoreErrorHandlerOptions): void {
     const n = this.normalize(error, opts);
     this.notifyIfNeeded(n, opts);
-    this.logError(n, error, opts); // ✅ repassa opts
+    this.logError(n, error, opts);
+
+    this.tagRawError(error, n, opts);
   }
 
   // ============================================================================

@@ -1,7 +1,9 @@
-// src\app\user-profile\user-profile-routing.module.ts
+// src/app/user-profile/user-profile-routing.module.ts
 // Módulo de roteamento para o perfil do usuário.
-// Buscar padronização em uid ao invés de id, se possível.
-// Não esqueça os comentários explicativos.
+// ✅ Padronização: usamos :uid como canônico.
+// ✅ Compatibilidade: mantemos rotas antigas com :id apontando para o MESMO componente.
+// (Evita redirectTo com parâmetro — que é fácil de errar e costuma gerar debug ruim.)
+
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
@@ -14,30 +16,50 @@ import { UserOwnerGuard } from '../core/guards/ownership-guard/user.owner.guard'
 import { emailVerifiedGuard } from '../core/guards/profile-guard/email-verified.guard';
 
 const routes: Routes = [
-  // ✅ /perfil  → abre o próprio perfil (sem :id)
-  // Importante: isso elimina a rota inválida e usa seu fallback atual no componente.
+  // ✅ /perfil  → abre o próprio perfil
   { path: '', component: UserProfileViewComponent, pathMatch: 'full' },
 
-  // ✅ /perfil/:uid → qualquer perfil (inclusive outros)
+  // ✅ /perfil/:uid → qualquer perfil
   { path: ':uid', component: UserProfileViewComponent },
 
-  // ✅ editar: primeiro checa dono (segurança), depois checa verificação (feature gate)
+  // ===========================================================================
+  // ✅ ROTAS CANÔNICAS (NOVAS) — param padronizado: :uid
+  // ===========================================================================
+  {
+    path: ':uid/editar-dados-pessoais',
+    component: EditUserProfileComponent,
+    // canActivate: [UserOwnerGuard, emailVerifiedGuard],
+  },
+  {
+    path: ':uid/edit-profile-preferences',
+    component: EditProfilePreferencesComponent,
+    // canActivate: [UserOwnerGuard, emailVerifiedGuard],
+  },
+  {
+    path: ':uid/edit-profile-social-links',
+    component: EditProfileSocialLinksComponent,
+    // canActivate: [UserOwnerGuard, emailVerifiedGuard],
+  },
+
+  // ===========================================================================
+  // ✅ COMPAT (LEGADO) — mantém links antigos funcionando
+  // - Evita redirectTo com params.
+  // - Quando quiser “apertar” o sistema, dá pra remover depois.
+  // ===========================================================================
   {
     path: ':id/editar-dados-pessoais',
     component: EditUserProfileComponent,
-    // canActivate: [UserOwnerGuard, emailVerifiedGuard]
+    // canActivate: [UserOwnerGuard, emailVerifiedGuard],
   },
-
   {
     path: ':id/edit-profile-preferences',
     component: EditProfilePreferencesComponent,
-    // canActivate: [UserOwnerGuard, emailVerifiedGuard]
+    // canActivate: [UserOwnerGuard, emailVerifiedGuard],
   },
-
   {
     path: ':id/edit-profile-social-links',
     component: EditProfileSocialLinksComponent,
-    // canActivate: [UserOwnerGuard, emailVerifiedGuard]
+    // canActivate: [UserOwnerGuard, emailVerifiedGuard],
   },
 ];
 
@@ -46,11 +68,3 @@ const routes: Routes = [
   exports: [RouterModule],
 })
 export class UserProfileRoutingModule { }
-
-/*
-Estados do usuário e acesso às rotas em relação a perfil e verificação de e-mail.
-GUEST: não autenticado
-AUTHED + PROFILE_INCOMPLETE: logado, mas ainda não completou cadastro mínimo
-AUTHED + PROFILE_COMPLETE + UNVERIFIED: logado, cadastro ok, mas e-mail não verificado
-AUTHED + PROFILE_COMPLETE + VERIFIED: liberado total
-*/

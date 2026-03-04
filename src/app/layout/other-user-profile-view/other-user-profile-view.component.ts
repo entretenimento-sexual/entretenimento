@@ -45,7 +45,7 @@ export class OtherUserProfileViewComponent implements OnInit {
   ) { }
 
   ngOnInit() {
-    this.uid = this.route.snapshot.paramMap.get('id');
+    this.uid = (this.route.snapshot.paramMap.get('uid') ?? this.route.snapshot.paramMap.get('id'))?.trim() ?? null;
 
     if (!this.uid) {
       this.reportError('UID não encontrado na rota.', { routeParams: this.route.snapshot.params });

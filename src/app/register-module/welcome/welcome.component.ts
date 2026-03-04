@@ -27,7 +27,7 @@ import { Firestore } from '@angular/fire/firestore';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { DocumentReference, Unsubscribe } from 'firebase/firestore';
-import { doc, getDoc, onSnapshot, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, Timestamp } from 'firebase/firestore';
 import { EmulatorEmailVerifyDevService } from 'src/app/core/services/autentication/register/emulator-email-verify-dev.service';
 import { environment } from 'src/environments/environment';
 
@@ -535,7 +535,7 @@ export class WelcomeComponent implements OnInit {
     const uid = u?.uid;
 
     if (!uid) {
-      this.setBanner('warn', 'Sessão não encontrada', 'Sua sessão não está ativa. Reabra o fluxo de cadastro.');
+      this.setBanner('warn', 'Sessão não encontrada', 'Sua sessão não está ativa.');
       this.sessionInvalid = true;
       return;
     }
@@ -546,22 +546,22 @@ export class WelcomeComponent implements OnInit {
 
     this.savingOptional = true;
 
-    from(setDoc(
-      doc(this.db, 'user_profile', uid),
-      {
-        gender: this.selectedGender || null,
-        preferences: selectedPreferences,
-        updatedAt: Timestamp.now()
-      },
-      { merge: true }
-    )).pipe(
+    const ref = doc(this.db as any, 'users', uid, 'preferences', 'onboarding');
+
+    const payload = {
+      gender: this.selectedGender || null,
+      preferences: selectedPreferences,
+      updatedAt: serverTimestamp(), // opcional (suas preferences.rules não exigem, mas é melhor)
+    };
+
+    from(setDoc(ref, payload as any, { merge: true })).pipe(
       take(1),
       tap(() => {
-        this.setBanner('success', 'Preferências salvas', 'Tudo certo! Você pode continuar quando quiser.');
+        this.setBanner('success', 'Preferências salvas', 'Tudo certo!');
         this.notify.showSuccess('Preferências salvas.');
       }),
       catchError((err) => {
-        this.setBanner('error', 'Não foi possível salvar suas preferências agora', 'Tente novamente em instantes.', err);
+        this.setBanner('error', 'Não foi possível salvar agora', 'Tente novamente.', err);
         this.reportError('WelcomeComponent.saveOptionalProfile', err);
         return EMPTY;
       }),

@@ -1,11 +1,13 @@
-// firestore-rules/_helpers.rules
-//
+// ===================================================================
+//              firestore-rules/_helpers.rules
+// ===================================================================
 // Objetivo:
 // - Centralizar helpers de autenticação/claims/tipos realmente usados
 // - Evitar warnings do compiler (ex.: "k in map")
 // - Padronizar timestamps aceitando:
 //   (1) timestamp real (v is timestamp)
 //   (2) serverTimestamp() -> nas rules equivale a request.time
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 //
 // Observação:
 // - Para forçar “somente serverTimestamp()” em um campo específico,
@@ -44,9 +46,13 @@ service cloud.firestore {
     // Claims helpers (usado em users.rules / admin_logs.rules)
     // =========================================================================
     // Evita "(k in request.auth.token)" para não disparar warning
-    function hasClaim(k) { return signedIn() && request.auth.token[k] == true; }
-    function isAdmin() { return hasClaim("admin"); }
+    function hasClaim(k) {
+      return signedIn()
+        && request.auth.token.keys().hasAny([k])
+        && request.auth.token[k] == true;
+    }
 
+    function isAdmin() { return hasClaim("admin"); }
     // =========================================================================
     // Optional fields helpers (campos opcionais)
     // Regra:
@@ -85,3 +91,6 @@ function optTimestamp(k) {
     || isTs(request.resource.data[k]);
 }
     // (os demais matches/arquivos entram abaixo via build)
+// ===================================================================
+//             Fim do firestore-rules/_helpers.rules
+// ===================================================================

@@ -7,7 +7,7 @@ import { catchError, map, switchMap, take } from 'rxjs/operators';
 import { Auth } from '@angular/fire/auth';
 import { Firestore } from '@angular/fire/firestore';
 
-import { arrayUnion, doc, runTransaction, Timestamp, } from 'firebase/firestore';
+import { arrayUnion, doc, runTransaction, serverTimestamp, Timestamp, } from 'firebase/firestore';
 import { NicknameUtils } from '@core/utils/nickname-utils';
 
 import { FirestoreReadService } from '../core/firestore-read.service';
@@ -81,16 +81,17 @@ export class PublicIndexRepository {
     }
 
     const docId = this.nicknameDocId(normalized);
+
     const data = {
       type: 'nickname',
       value: normalized,
       uid: user.uid,
-      createdAt: Timestamp.now(),
-      lastChangedAt: Timestamp.now(),
+      // ✅ rules exigem request.time
+      createdAt: serverTimestamp(),
+      lastChangedAt: serverTimestamp(),
     };
 
-    // ✅ create-only via rules (update bloqueado)
-    return this.write.setDocument('public_index', docId, data).pipe(
+    return this.write.setDocument('public_index', docId, data as any).pipe(
       catchError((err) => this.mapNicknameCreateOnlyError(err, docId))
     );
   }
@@ -137,18 +138,15 @@ export class PublicIndexRepository {
 
     return this.ctx.deferPromise$(() =>
       runTransaction(this.db as any, async (tx) => {
-        // refs
         const newIndexRef = doc(this.db as any, 'public_index', newDocId);
         const oldIndexRef = oldDocId ? doc(this.db as any, 'public_index', oldDocId) : null;
 
         const userRef = doc(this.db as any, 'users', user.uid);
         const publicProfileRef = doc(this.db as any, 'public_profiles', user.uid);
 
-        // 1) novo índice já existe?
         const newIdxSnap = await tx.get(newIndexRef);
-        if (newIdxSnap.exists()) {
-          throw this.domainError('Apelido já está em uso.', 'nickname/in-use');
-        }
+        if (newIdxSnap.exists()) throw this.domainError('Apelido já está em uso.', 'nickname/in-use');
+
 
         // 2) se houver oldDocId, valida propriedade (best-effort)
         if (oldIndexRef) {
@@ -164,70 +162,55 @@ export class PublicIndexRepository {
           // se não existir, seguimos: isso cobre contas antigas sem índice ou inconsistência histórica
         }
 
-        // 3) cria novo índice (create-only)
+        // 3) cria novo índice (create-only) ✅ serverTimestamp
         tx.set(newIndexRef, {
           type: 'nickname',
           value: newN,
           uid: user.uid,
-          createdAt: nowTs,
-          lastChangedAt: nowTs,
+          createdAt: serverTimestamp(),
+          lastChangedAt: serverTimestamp(),
         });
 
         // 4) atualiza users/{uid}
         // - nickname: formato “display”
         // - nicknameNormalized: útil p/ busca e consistência (opcional)
         // - nicknameHistory: auditoria leve (opcional)
-        tx.set(
-          userRef,
-          {
-            nickname: (newNickname ?? '').trim(),
-            nicknameNormalized: newN,
-            nicknameUpdatedAt: nowMs,
-            nicknameHistory: arrayUnion({ nickname: newN, date: nowMs }),
-          },
-          { merge: true }
-        );
+        tx.set(userRef, {
+          nickname: (newNickname ?? '').trim(),
+          nicknameNormalized: newN,
+          nicknameUpdatedAt: nowMs,
+          nicknameHistory: arrayUnion({ nickname: newN, date: nowMs }),
+        }, { merge: true });
 
         // 5) upsert em public_profiles/{uid}
         const profileSnap = await tx.get(publicProfileRef);
+
         if (!profileSnap.exists()) {
-          // create: cria doc público mínimo (você pode enriquecer depois)
           tx.set(publicProfileRef, {
             uid: user.uid,
             nickname: (newNickname ?? '').trim(),
             nicknameNormalized: newN,
-            createdAt: nowTs,
-            updatedAt: nowTs,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            role: 'basic', // sua rule exige role coerente e imutável
           });
         } else {
-          // update: não altera createdAt
-          tx.set(
-            publicProfileRef,
-            {
-              nickname: (newNickname ?? '').trim(),
-              nicknameNormalized: newN,
-              updatedAt: nowTs,
-            },
-            { merge: true }
-          );
+          tx.set(publicProfileRef, {
+            nickname: (newNickname ?? '').trim(),
+            nicknameNormalized: newN,
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
         }
 
-        // 6) apaga índice antigo (se existir)
         if (oldIndexRef) {
           const oldIdxSnap2 = await tx.get(oldIndexRef);
-          if (oldIdxSnap2.exists()) {
-            tx.delete(oldIndexRef);
-          }
+          if (oldIdxSnap2.exists()) tx.delete(oldIndexRef);
         }
       })
     ).pipe(
       map(() => void 0),
       catchError((err: any) => {
-        // erros de domínio seguem pra UI
-        if (err?.code === 'nickname/in-use' || err?.code?.startsWith?.('nickname/')) {
-          return throwError(() => err);
-        }
-        // o resto vai pro handler central
+        if (err?.code?.startsWith?.('nickname/')) return throwError(() => err);
         return this.firestoreError.handleFirestoreError(err);
       })
     );

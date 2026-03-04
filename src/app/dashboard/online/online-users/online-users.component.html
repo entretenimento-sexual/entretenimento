@@ -1,5 +1,5 @@
 <!-- src/app/dashboard/online-users/online-users.component.html
-================================================================================
+===========================================================================
 ONLINE USERS (DASHBOARD)
 --------------------------------------------------------------------------------
 Objetivo do template:
@@ -7,9 +7,7 @@ Objetivo do template:
 - Evitar dependências legadas (ex: currentUserStore.user$) — fonte atual: NgRx
 - Exigir gesto do usuário para pedir geolocalização (UX + privacidade)
 - Manter acessibilidade: aria-live, aria-busy, labels e textos de apoio
-================================================================================
--->
-
+===========================================================================   -->
 <div class="ui-container online-users mt-3" [attr.aria-busy]="loading ? 'true' : 'false'">
   <h2 class="online-users-title mb-3">Perfis Online</h2>
 
@@ -88,7 +86,7 @@ Objetivo do template:
 
         <div class="head-actions">
           <!-- Ver todos -->
-          <a class="btn btn-ghost icon-btn" [routerLink]="['/dashboard','online']"
+          <a class="btn btn-ghost icon-btn" [routerLink]="['/dashboard','online-users']"
             aria-label="Ver todos os usuários online">
             <i class="fas fa-users" aria-hidden="true"></i>
             <span class="hide-xs">Ver todos</span>
@@ -181,7 +179,7 @@ Objetivo do template:
 
   <!-- CTA final -->
   <div class="mt-3 d-flex justify-content-end">
-    <a class="btn btn-secondary" [routerLink]="['/dashboard','online']">
+    <a class="btn btn-secondary" [routerLink]="['/dashboard','online-users']">
       Ver todos os online
     </a>
   </div>

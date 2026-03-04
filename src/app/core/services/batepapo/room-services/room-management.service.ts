@@ -2,15 +2,20 @@
 import { Inject, Injectable } from '@angular/core';
 import {Firestore, collection, addDoc, updateDoc, deleteDoc, doc
         } from '@angular/fire/firestore';
-import { Observable } from 'rxjs';
+import { serverTimestamp } from 'firebase/firestore';
+import { catchError, defer, from, map, Observable, throwError } from 'rxjs';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { IRoom } from 'src/app/core/interfaces/interfaces-chat/room.interface';
+import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 
 @Injectable({ providedIn: 'root' })
 export class RoomManagementService {
 
-  constructor(@Inject(Firestore) private db: Firestore,
-              private errorNotifier: ErrorNotificationService) {}
+  constructor(
+    @Inject(Firestore) private db: Firestore,
+    private globalError: GlobalErrorHandlerService,
+    private notify: ErrorNotificationService
+  ) { }
 
   /**
    * Cria uma nova sala.
@@ -19,35 +24,40 @@ export class RoomManagementService {
    * @returns Observable com a sala criada (IRoom).
    */
   createRoom(roomDetails: Partial<IRoom>, creatorId: string): Observable<IRoom> {
-    const participants = Array.from(new Set([creatorId, ...(roomDetails.participants ?? [])]));
+    return defer(() => {
+      const uid = (creatorId ?? '').trim();
+      if (!uid) return throwError(() => new Error('creatorId inválido.'));
 
-    // Monta o payload que será persistido (sem o id)
-    const roomData: Omit<IRoom, 'id'> = {
-      roomName: roomDetails.roomName ?? 'Sala sem nome',
-      createdBy: creatorId,
-      participants,
-      creationTime: new Date(),
-      description: roomDetails.description,
-      expirationDate: roomDetails.expirationDate,
-      maxParticipants: roomDetails.maxParticipants,
-      isPrivate: roomDetails.isPrivate,
-      roomType: roomDetails.roomType,
-      lastActivity: new Date(),
-      visibility: roomDetails.visibility,
-      lastMessage: roomDetails.lastMessage,
-      isRoom: true,
-    };
+      const participants = Array.from(new Set([uid, ...(roomDetails.participants ?? [])]));
 
-    return new Observable<IRoom>((observer) => {
-      addDoc(collection(this.db, 'rooms'), roomData as any)
-        .then((docRef) => {
-          observer.next({ id: docRef.id, ...roomData });
-          observer.complete();
+      const roomData: any = {
+        roomName: roomDetails.roomName ?? 'Sala sem nome',
+        createdBy: uid,
+        participants,
+        creationTime: serverTimestamp(),
+        lastActivity: serverTimestamp(),
+        description: roomDetails.description ?? null,
+        expirationDate: roomDetails.expirationDate ?? null,
+        maxParticipants: roomDetails.maxParticipants ?? null,
+        isPrivate: roomDetails.isPrivate ?? null,
+        roomType: roomDetails.roomType ?? null,
+        visibility: roomDetails.visibility ?? null,
+        isRoom: true,
+      };
+
+      return from(addDoc(collection(this.db, 'rooms'), roomData)).pipe(
+        map((docRef) => ({ id: docRef.id, ...roomData } as IRoom)),
+        catchError((err) => {
+          // centralizado
+          try {
+            const e = new Error('[RoomManagementService.createRoom] falhou');
+            (e as any).original = err;
+            this.globalError.handleError(e);
+          } catch { }
+          this.notify.showError('Erro ao criar sala.');
+          return throwError(() => err);
         })
-        .catch((error) => {
-          this.errorNotifier.showError('Erro ao criar sala.');
-          observer.error(error);
-        });
+      );
     });
   }
 
@@ -61,7 +71,7 @@ export class RoomManagementService {
       const roomRef = doc(this.db, 'rooms', roomId);
       await updateDoc(roomRef, { ...roomDetails, lastActivity: new Date() } as any);
     } catch (error) {
-      this.errorNotifier.showError('Erro ao atualizar sala.');
+      this.notify.showError('Erro ao atualizar sala.');
       throw error;
     }
   }
@@ -75,7 +85,7 @@ export class RoomManagementService {
       const roomRef = doc(this.db, 'rooms', roomId);
       await deleteDoc(roomRef);
     } catch (error) {
-      this.errorNotifier.showError('Erro ao deletar sala.');
+      this.notify.showError('Erro ao deletar sala.');
       throw error;
     }
   }

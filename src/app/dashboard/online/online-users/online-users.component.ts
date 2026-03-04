@@ -1,12 +1,12 @@
 // src/app/dashboard/online-users/online-users.component.ts
 // Componente para exibir usuários online próximos com base na localização
 // Não esquecer os comentários explicativos e de debug
-import { Component, OnInit, input } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, input } from '@angular/core';
 import { CommonModule, AsyncPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
-import { BehaviorSubject, Observable, firstValueFrom, combineLatest, interval, of } from 'rxjs';
-import { map, startWith, filter, take, distinctUntilChanged, shareReplay, catchError } from 'rxjs/operators';
+import { BehaviorSubject, Observable, firstValueFrom, combineLatest, interval, of, EMPTY, defer, from } from 'rxjs';
+import { map, startWith, filter, take, distinctUntilChanged, shareReplay, catchError, tap, switchMap } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { GeolocationService, GeolocationError, GeolocationErrorCode } from 'src/app/core/services/geolocation/geolocation.service';
@@ -14,7 +14,7 @@ import { DistanceCalculationService } from 'src/app/core/services/geolocation/di
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
-import { toObservable } from '@angular/core/rxjs-interop';
+import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { RouterModule } from '@angular/router';
 import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
 import { AppState } from 'src/app/store/states/app.state';
@@ -22,6 +22,7 @@ import { Store } from '@ngrx/store';
 import { selectCurrentUser, selectCurrentUserStatus } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { selectGlobalOnlineUsers } from 'src/app/store/selectors/selectors.user/online.selectors';
 import { toEpochOrZero } from 'src/app/core/utils/epoch-utils';
+import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 
 type PermissionState = 'granted' | 'prompt' | 'denied';
 type IUserWithDistance = IUserDados & { distanciaKm?: number };
@@ -79,6 +80,7 @@ export class OnlineUsersComponent implements OnInit {
   readonly currentUserStatus$ = this.store.select(selectCurrentUserStatus);
   readonly currentUserResolved$!: Observable<IUserDados | null>;
   private readonly currentUserFromStore$ = this.store.select(selectCurrentUser).pipe(startWith(undefined as any));
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private readonly geolocationService: GeolocationService,
@@ -87,6 +89,7 @@ export class OnlineUsersComponent implements OnInit {
     private readonly globalErrorHandlerService: GlobalErrorHandlerService,
     private readonly geoTracking: GeolocationTrackingService,
     private readonly store: Store<AppState>,
+    private readonly access: AccessControlService,
   ) {
     // Unifica Input + Store (fallback)
     this.currentUserResolved$ = combineLatest([
@@ -98,16 +101,83 @@ export class OnlineUsersComponent implements OnInit {
       distinctUntilChanged((a, b) => shallowUserEqual(a, b)),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
+    this.gate$ = combineLatest([
+      this.canRunOnlineUsers$,
+      this.authUid$,
+      this.currentUserResolved$,
+    ]).pipe(
+      map(([can, uid, user]) => {
+        const userUid = (user as any)?.uid ? String((user as any).uid).trim() : null;
+
+        const canStart = can === true && !!uid && !!userUid && userUid === uid;
+
+        return { canStart, uid, user: canStart ? (user as IUserDados) : null };
+      }),
+      distinctUntilChanged((a, b) => a.canStart === b.canStart && a.uid === b.uid),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+    this.destroyRef.onDestroy(() => {
+      this.geoTracking.stopTracking();
+    });
   }
 
+  // evita auto-enable repetido por uid (spam de toast / re-run)
+  private autoEnableUid: string | null = null;
+
+  private readonly authUid$ = this.access.authUid$.pipe(
+    map((uid) => (uid ?? '').trim() || null),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  private readonly canRunOnlineUsers$ = this.access.canRunOnlineUsers$.pipe(
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  private readonly gate$: Observable<{ canStart: boolean; uid: string | null; user: IUserDados | null }>;
+
   ngOnInit(): void {
-    // Espera ter usuário com UID antes de tentar auto-ativar
-    this.currentUserResolved$
-      .pipe(filter((u): u is IUserDados => !!u?.uid), take(1))
-      .subscribe({
-        next: (user) => this.tryAutoEnableLocation(user),
-        error: (err) => this.handleGeoError(err)
-      });
+    this.gate$
+      .pipe(
+        tap((g) => this.log('gate', { canStart: g.canStart, uid: g.uid })),
+
+        switchMap((g) => {
+          // ✅ Gate caiu: STOP determinístico
+          if (!g.canStart || !g.uid || !g.user) {
+            this.autoEnableUid = null;
+            this.geoTracking.stopTracking();
+
+            // opcional: limpar UI/streams para não “parecer” ativo
+            this.userLocation = null;
+            this.uiDistanceKm = undefined;
+            this.policyMaxDistanceKm = 20;
+            this.dist$.next(null);
+
+            this.onlineUsers$ = of([] as IUserWithDistance[]);
+            this.count$ = of(0);
+
+            return EMPTY;
+          }
+
+          // ✅ evita re-run por mesmo uid
+          if (this.autoEnableUid === g.uid) return EMPTY;
+          this.autoEnableUid = g.uid;
+
+          // ✅ auto-enable (sem prompt) agora respeita policy
+          return defer(() => from(this.tryAutoEnableLocation(g.user))).pipe(
+            catchError((err) => {
+              this.handleGeoError(err);
+              return EMPTY;
+            })
+          );
+        }),
+
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   // ================= Ações =================
@@ -118,6 +188,27 @@ export class OnlineUsersComponent implements OnInit {
    * não barra antes do prompt nativo.
    */
   async enableLocation(): Promise<void> {
+    const [can, emailOk, profileOk] = await firstValueFrom(
+      combineLatest([
+        this.access.canRunOnlineUsers$,
+        this.access.emailVerified$,
+        this.access.profileEligible$,
+      ]).pipe(take(1))
+    );
+
+    if (!can) {
+      if (!emailOk) {
+        this.errorNotificationService.showError('Verifique seu e-mail para usar usuários online.');
+        return;
+      }
+      if (!profileOk) {
+        this.errorNotificationService.showError('Complete seu perfil (gênero/estado/município) para usar usuários online.');
+        return;
+      }
+      this.errorNotificationService.showError('Acesso a usuários online indisponível no momento.');
+      return;
+    }
+
     await this.enableLocationInternal({ requireUserGesture: false, silent: false });
   }
 
@@ -416,23 +507,44 @@ export class OnlineUsersComponent implements OnInit {
 
     if (err instanceof GeolocationError) {
       switch (err.code) {
-        case GeolocationErrorCode.UNSUPPORTED: msg = 'Seu navegador não suporta geolocalização.'; break;
-        case GeolocationErrorCode.INSECURE_CONTEXT: msg = 'Ative HTTPS (ou use localhost) para permitir a geolocalização.'; break;
-        case GeolocationErrorCode.PERMISSION_DENIED: msg = 'Permissão de localização negada.'; break;
+        case GeolocationErrorCode.UNSUPPORTED:
+          msg = 'Seu navegador não suporta geolocalização.'; break;
+        case GeolocationErrorCode.INSECURE_CONTEXT:
+          msg = 'Ative HTTPS (ou use localhost) para permitir a geolocalização.'; break;
+        case GeolocationErrorCode.PERMISSION_DENIED:
+          msg = 'Permissão de localização negada.'; break;
         case GeolocationErrorCode.USER_GESTURE_REQUIRED:
-          msg = 'Clique em “Ativar localização” para continuar.'; isGestureOnly = true; break;
-        case GeolocationErrorCode.POSITION_UNAVAILABLE: msg = 'Posição atual indisponível.'; break;
-        case GeolocationErrorCode.TIMEOUT: msg = 'Tempo esgotado ao tentar localizar você.'; break;
-        default: msg = 'Ocorreu um erro desconhecido ao obter localização.';
+          msg = 'Clique em “Ativar localização” para continuar.';
+          isGestureOnly = true;
+          break;
+        case GeolocationErrorCode.POSITION_UNAVAILABLE:
+          msg = 'Posição atual indisponível.'; break;
+        case GeolocationErrorCode.TIMEOUT:
+          msg = 'Tempo esgotado ao tentar localizar você.'; break;
+        default:
+          msg = 'Ocorreu um erro desconhecido ao obter localização.';
       }
     } else if (err instanceof Error) {
       msg = err.message || msg;
     }
 
+    // 1) UI primeiro (fonte única de UX aqui)
     this.errorNotificationService.showError(msg);
-    if (!isGestureOnly && err instanceof Error) {
-      this.globalErrorHandlerService.handleError(err);
-    }
-}
-} //Linha 437 - Fim
 
+    // 2) Observabilidade (sem duplicar toast)
+    if (!isGestureOnly) {
+      const e = err instanceof Error ? err : new Error(msg);
+
+      (e as any).context = 'OnlineUsersComponent.handleGeoError';
+      (e as any).original = err;
+
+      // ✅ evita toast duplicado no GlobalErrorHandler
+      (e as any).skipUserNotification = true;
+
+      this.globalErrorHandlerService.handleError(e);
+    }
+  }
+} //Linha 547, fim do OnlineUsersComponent
+// observar se todos os métodos aqui deveriam estar aqui, se não é o caso verificar redistribuição
+// para aquivo mais especializado e evitar que o componente fique inchado demais (Single Responsibility Principle),
+// E se for compensatório criar aquivos especializados e chamá-los aqui, para manter a organização e legibilidade do código.

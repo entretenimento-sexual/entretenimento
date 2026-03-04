@@ -10,7 +10,6 @@
 // - Erro rico vai para GlobalErrorHandlerService (não para Store)
 // - Store recebe IError serializável via toStoreError()
 // =============================================================================
-
 import { inject, Injectable } from '@angular/core';
 
 import { Actions, createEffect, ofType } from '@ngrx/effects';
@@ -91,16 +90,35 @@ export class OnlineUsersEffects {
   // ---------------------------------------------------------------------------
   // canRunOnlineUsers$: política completa (inclui rota/registro/emailVerified/etc.)
   // authUid$: uid canônico (AuthSession manda no UID)
+  // - Debug mostra o valor bruto e o tipo.
+  // - distinctUntilChanged inclui canRun (e não só canStart/uid).
   private readonly gate$ = combineLatest([
     this.access.canRunOnlineUsers$,
     this.access.authUid$,
   ]).pipe(
-    map(([canRun, uid]) => ({
-      canStart: canRun === true && !!uid,
-      uid: uid ?? null,
-      canRun,
+    tap(([canRunRaw, uid]) => this.dbg('gate sources', {
+      canRunRaw,
+      canRunRawType: typeof canRunRaw,
+      uid,
     })),
-    distinctUntilChanged((a, b) => a.canStart === b.canStart && a.uid === b.uid),
+
+    map(([canRunRaw, uid]) => {
+      const canRun = canRunRaw === true; // mantém a política “estrita”
+      const cleanUid = (uid ?? '').trim() || null;
+
+      return {
+        canStart: canRun && !!cleanUid,
+        uid: cleanUid,
+        canRun,
+      };
+    }),
+
+    distinctUntilChanged((a, b) =>
+      a.canStart === b.canStart &&
+      a.uid === b.uid &&
+      a.canRun === b.canRun
+    ),
+
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -305,4 +323,7 @@ export class OnlineUsersEffects {
   private isVoluntaryInvisible(_anyUser: any): boolean {
     return false;
   }
-}
+} // Linha 307, fim do OnlineUsersEffects
+// - Regras de exposição: derivar um “eligível para aparecer no online” (filterUsersEligibleForExposure) a partir dos dados do usuário (emailVerified, profileCompleted, campos mínimos, etc.) e do produto (regras de negócio).
+// - Evitar lógica de exposição no template (ex.: *ngIf) para manter a UI simples e rápida.
+// - Manter o filtro de exposição consistente entre o listener realtime e o one-shot (DRY).

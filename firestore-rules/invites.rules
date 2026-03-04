@@ -1,0 +1,125 @@
+// ================================================================
+//                INVITES.RULES (coleção raiz)
+// - Read: sender ou receiver
+// - Create: sender cria pending
+// - Update:
+//   - receiver aceita/recusa
+//   - sender pode expirar (opcional)
+// - Delete: sender pode apagar enquanto pending (opcional)
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// firestore-rules/invites.rules
+// ================================================================
+match /invites/{inviteId} {
+
+  function isSender() {
+    return signedIn() && resource.data.senderId == uid();
+  }
+
+  function isReceiver() {
+    return signedIn() && resource.data.receiverId == uid();
+  }
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      // v2
+      "type",
+      "targetId",
+      "targetName",
+
+      // canônico
+      "senderId",
+      "receiverId",
+      "status",
+      "sentAt",
+      "expiresAt",
+
+      // audit
+      "respondedAt",
+      "updatedAt",
+
+      // legacy (room)
+      "roomId",
+      "roomName"
+    ]);
+  }
+
+  function isV2() {
+    return hasField("type") && hasField("targetId");
+  }
+
+  function validCreateV2() {
+    return allowedKeys()
+      && request.resource.data.senderId == uid()
+      && request.resource.data.receiverId is string
+      && request.resource.data.receiverId != uid()
+      && request.resource.data.type in ["room", "community", "friend"]
+      && request.resource.data.targetId is string
+      && request.resource.data.status == "pending"
+      && isTs(request.resource.data.sentAt)
+      && isTs(request.resource.data.expiresAt)
+      // audit opcional no create (recomendado)
+      && (!hasField("updatedAt") || request.resource.data.updatedAt == request.time)
+      && (!hasField("respondedAt") || request.resource.data.respondedAt == null);
+  }
+
+  function validCreateLegacyRoom() {
+    // mantém compat para payload antigo (se ainda existir)
+    return allowedKeys()
+      && request.resource.data.senderId == uid()
+      && request.resource.data.receiverId is string
+      && request.resource.data.receiverId != uid()
+      && request.resource.data.roomId is string
+      && request.resource.data.status == "pending"
+      && isTs(request.resource.data.sentAt)
+      && isTs(request.resource.data.expiresAt)
+      && (!hasField("updatedAt") || request.resource.data.updatedAt == request.time)
+      && (!hasField("respondedAt") || request.resource.data.respondedAt == null);
+  }
+
+  // READ
+  allow get: if signedIn() && (isSender() || isReceiver());
+
+  // ✅ necessário para inbox (query). Segurança real continua no get/read por doc.
+  allow list: if signedIn() && (isSender() || isReceiver());
+
+  // CREATE
+  allow create: if signedIn() && (validCreateV2() || validCreateLegacyRoom());
+
+  // UPDATE (status machine + audit)
+  allow update: if signedIn()
+    && resource.data.status == "pending"
+    && request.resource.data.status != resource.data.status
+    && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      "status",
+      "respondedAt",
+      "updatedAt"
+    ])
+    && (
+      // receiver aceita/declina
+      (isReceiver()
+        && request.resource.data.status in ["accepted", "declined"]
+        && request.resource.data.respondedAt == request.time
+        && request.resource.data.updatedAt == request.time
+      )
+      ||
+      // sender expira/cancela
+      (isSender()
+        && request.resource.data.status in ["expired", "canceled"]
+        && request.resource.data.updatedAt == request.time
+        && (!("respondedAt" in request.resource.data) || request.resource.data.respondedAt == resource.data.respondedAt)
+      )
+      ||
+      // admin (se quiser manter)
+      (isAdmin() == true)
+    );
+
+  // DELETE (mantém seu MVP)
+  allow delete: if signedIn() && isSender() && resource.data.status == "pending";
+}
+// ================================================================
+//                        FIM DO INVITES.RULES
+// ================================================================

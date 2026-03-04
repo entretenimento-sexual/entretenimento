@@ -1,8 +1,8 @@
-    //firestore-rules\chats.rules
-    // =========================================================================
+    // =======================================================================
     // CHATS
-    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
-    // =========================================================================
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+    // firestore-rules\chats.rules
+    // =======================================================================
     match /chats/{chatId} {
       function isChatParticipant() {
         return signedIn() && (uid() in resource.data.participants);

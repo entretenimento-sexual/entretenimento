@@ -1,5 +1,9 @@
     // =========================================================================
-    // FRIEND REQUESTS
+    // FRIEND.REQUESTS.RULES
+    // - Solicitações de amizade (privado)
+    // - Regras:
+    //  - Leitura: somente envolvidos (requester ou target)
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
     // =========================================================================
     match /friendRequests/{reqId} {
       allow read: if signedIn() &&
@@ -23,3 +27,6 @@
         && resource.data.status == 'pending'
         && uid() == resource.data.requesterUid;
     }
+// ====================================================================
+//                        FIM DO FRIEND.REQUESTS.RULES
+// ====================================================================

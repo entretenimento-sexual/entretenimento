@@ -61,7 +61,9 @@ export const selectGlobalOnlineCount = createSelector(
  AuthSession manda no UID
 /*CurrentUserStore manda no IUserDados
 qualquer UID fora disso vira derivado / compat
-//logout() do auth.service.ts que está sendo descontinuado
+//logout() tem service especifico e só limpa sessão (AuthSession), não mexe no estado do perfil (CurrentUserStore) para evitar "flash de guest" e manter dados degradados quando possível
+//observeUserChanges() é controlado por AuthSessionSyncEffects, que é acionado por mudanças no UID da sessão (login/logout/token expirou) e mantém o perfil do usuário atual atualizado em tempo real, sem precisar ser chamado diretamente por componentes ou outros efeitos.
+//O estado online do usuário é controlado exclusivamente pelo PresenceService e refletido no Firestore, e o selector selectGlobalOnlineUsers lê esse estado diretamente do Firestore, sem tentar "simular" online/offline com base em outros dados (ex: usersMap).
 // ainda está sendo usado em alguns lugares e precisa ser migrado.
 Ferramentas de debug ajudam bastante
 É assim que funcionam as grandes plataformas?

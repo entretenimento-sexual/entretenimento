@@ -27,12 +27,21 @@
         </li>
 
 <!-- Quando alterei aqui funcionou corretamente. Não funciona e trava tudo-->
-<li class="navbar-item" role="none"> <a routerLink="/meu-perfil" class="navbar-link" role="menuitem"> Meu Perfil </a>
-</li>
+        <li class="navbar-item" role="none">
+          <a class="navbar-link"
+              role="menuitem"
+              [routerLink]="myProfileLink"
+              (click)="onMyProfileLinkClick($event)">
+                Meu Perfil
+          </a>
+        </li>
 
         <li class="navbar-item" role="none">
-          <a routerLink="/contato" class="navbar-link" routerLinkActive="active" #rlaContato="routerLinkActive"
-            [attr.aria-current]="rlaContato.isActive ? 'page' : null" role="menuitem">
+          <a routerLink="/contato"
+              class="navbar-link"
+              routerLinkActive="active"
+              #rlaContato="routerLinkActive"
+              [attr.aria-current]="rlaContato.isActive ? 'page' : null" role="menuitem">
             Contato
           </a>
         </li>

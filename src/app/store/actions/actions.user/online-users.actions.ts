@@ -6,7 +6,6 @@
 // - Separar ações de Online Users do user.actions.ts (migração gradual).
 // - Manter type strings idênticas às atuais (compat total com reducer/effects).
 // =============================================================================
-
 import { createAction, props } from '@ngrx/store';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IError } from 'src/app/core/interfaces/ierror';

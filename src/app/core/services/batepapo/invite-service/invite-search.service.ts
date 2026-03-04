@@ -5,7 +5,9 @@
 // - Filtra no client usuários já vinculados à sala (roomIds)
 // - Tratamento de erros centralizado (GlobalErrorHandlerService + ErrorNotificationService)
 // - Observable-first (evita try/catch “falso” e Promises na API pública)
-
+// - Ferramentas de debug para facilitar manutenção futura (log condicional por ambiente)
+// Observação: este serviço é focado apenas em busca de usuários para convite. Para criação/envio de convites, use o InviteService.
+// Não esqueça de manter os comentários explicativos
 import { Injectable } from '@angular/core';
 import { FirestoreQueryService } from '../../data-handling/firestore-query.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
@@ -21,11 +23,12 @@ import {
 } from '@angular/fire/firestore';
 
 import { Observable, of, defer } from 'rxjs';
-import { map, catchError, tap } from 'rxjs/operators';
+import { map, catchError } from 'rxjs/operators';
 
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { environment } from 'src/environments/environment';
+
 
 @Injectable({ providedIn: 'root' })
 export class InviteSearchService {
@@ -152,4 +155,17 @@ export class InviteSearchService {
       this.notify.showError(userMessage);
     }
   }
-} // Linha 155
+
+  private requireUid(userId: string): string {
+    const uid = (userId ?? '').trim();
+    if (!uid) throw new Error('UID ausente para consulta de convites.');
+    return uid;
+  }
+} // Linha 164, fim InviteSearchService
+/*
+- InviteSearchService é responsável por buscar usuários elegíveis para convite em bate-papo, com suporte a prefix search e filtros adicionais.
+- Para criação/envio de convites, use o InviteService.
+- Ele utiliza ferramentas de debug para facilitar manutenção futura e centraliza o tratamento de erros.
+- A busca é feita via QueryConstraints, e o filtro de “já na sala” é aplicado no client devido às limitações de query do Firestore.
+- O serviço é projetado para ser resiliente e fornecer feedback adequado em caso de falhas.
+*/

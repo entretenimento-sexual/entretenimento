@@ -1,0 +1,70 @@
+// firestore-rules/users_blocks.rules
+// =========================================================================
+// USERS / blocks (privado) + events (auditoria)
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// =========================================================================
+
+match /users/{ownerUid}/blocks/{targetUid} {
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "isBlocked",
+      "blockedAt",
+      "unblockedAt",
+      "reason",
+      "actorUid",
+      "updatedAt"
+    ]);
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && request.resource.data.uid == targetUid
+      && request.resource.data.actorUid == ownerUid
+      && reqBoolOrOpt("isBlocked")
+      && optTimestamp("blockedAt")
+      && optTimestamp("unblockedAt")
+      && optString("reason")
+      && optTimestamp("updatedAt");
+  }
+
+  function reqBoolOrOpt(field) {
+    return !hasField(field) || request.resource.data[field] is bool;
+  }
+
+  allow get, list: if isSelf(ownerUid);
+  allow create, update, delete: if isSelf(ownerUid) && validPayload();
+
+  // -----------------------------------------------------------------------
+  // events
+  // -----------------------------------------------------------------------
+  match /events/{eventId} {
+    function allowedEventKeys() {
+      return request.resource.data.keys().hasOnly([
+        "type",
+        "actorUid",
+        "targetUid",
+        "reason",
+        "createdAt"
+      ]);
+    }
+
+    function validEventPayload() {
+      return allowedEventKeys()
+        && request.resource.data.actorUid == ownerUid
+        && request.resource.data.targetUid == targetUid
+        && request.resource.data.type in ["block","unblock"]
+        && optString("reason")
+        && isTs(request.resource.data.createdAt);
+    }
+
+    allow get, list: if isSelf(ownerUid);
+    allow create: if isSelf(ownerUid) && validEventPayload();
+    allow update, delete: if false;
+  }
+}

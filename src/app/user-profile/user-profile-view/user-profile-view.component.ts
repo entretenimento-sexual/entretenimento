@@ -4,7 +4,8 @@
 // - Perfil “dados do usuário”: vem do usersMap (store -> selectUserByIdOrNull / selectCurrentUser)
 // - Listener do usuário atual (users/{uid}) é controlado por AuthSessionSyncEffects.
 // - Este componente NÃO inicia observeUserChanges() para não cancelar listener do usuário atual via switchMap.
-
+// Não há “flash de guest” porque a sessão é a fonte única do uid e o perfil só é exibido quando o uid está disponível e bate com o perfil do store.
+// O sidebar é controlado por um estado local (SidebarState) e pela SidebarService (que é a fonte única do estado do sidebar global).
 import { Component, OnInit, OnDestroy, DestroyRef, inject } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -223,4 +224,6 @@ export class UserProfileViewComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     // takeUntilDestroyed já faz o cleanup
   }
-}
+} // Linha 227, fim UserProfileViewComponent
+// Não esquecer comentários explicativos sobre o propósito do componente,
+// fontes de dados e decisões de design.

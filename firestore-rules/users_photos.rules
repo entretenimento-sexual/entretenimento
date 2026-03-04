@@ -1,0 +1,79 @@
+// ===============================================================
+// USERS / photos + imageStates + comments
+// - MVP seguro: somente o dono lê/escreve
+// - Sem scraping, sem enumeração
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// firestore-rules/users_photos.rules
+// ===============================================================
+match /users/{userId}/photos/{photoId} {
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "id",
+      "url",
+      "fileName",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  function validPhotoPayload() {
+    return allowedKeys()
+      && (!hasField("id") || request.resource.data.id is string)
+      && (!hasField("url") || request.resource.data.url is string)
+      && (!hasField("fileName") || request.resource.data.fileName is string)
+      && optTimestamp("createdAt")
+      && optTimestamp("updatedAt");
+  }
+
+  allow get, list: if isSelf(userId);
+
+  allow create: if isSelf(userId) && validPhotoPayload();
+  allow update: if isSelf(userId) && validPhotoPayload();
+  allow delete: if isSelf(userId);
+
+  // -----------------------------------------------------------------------
+  // comments (subcollection) — MVP: só dono
+  // -----------------------------------------------------------------------
+  match /comments/{commentId} {
+    function allowedCommentKeys() {
+      return request.resource.data.keys().hasOnly(["comment", "date"]);
+    }
+
+    function validCommentPayload() {
+      return allowedCommentKeys()
+        && request.resource.data.comment is string
+        && optTimestamp("date");
+    }
+
+    allow get, list: if isSelf(userId);
+    allow create: if isSelf(userId) && validCommentPayload();
+    allow update, delete: if false;
+  }
+}
+
+// -------------------------------------------------------------------------
+// imageStates (subcollection) — MVP: só dono
+// -------------------------------------------------------------------------
+match /users/{userId}/imageStates/{stateId} {
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly(["imageState", "createdAt"]);
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && request.resource.data.imageState is string
+      && optTimestamp("createdAt");
+  }
+
+  allow get, list: if isSelf(userId);
+  allow create: if isSelf(userId) && validPayload();
+  allow update, delete: if false;
+}
+// ===============================================================
+//                   FIM DO PHOTOS + IMAGESTATES
+// ===============================================================

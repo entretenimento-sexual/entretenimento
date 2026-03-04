@@ -1,46 +1,210 @@
-/* src/app/header/guest-banner/guest-banner.component.css */
+/* src/app/header/guest-banner/guest-banner.component.css
+   ============================================================================
+   GUEST BANNER (Visitante / E-mail não verificado)
+   Objetivo:
+   - UI limpa, responsiva e touch-friendly.
+   - Usa design tokens globais (variables.css) para funcionar em light/dark/HC.
+   - Evita layout quebrar em telas pequenas (<= 350px).
+   - Mantém foco visível (a11y) e aria-live no HTML já cobre mensagens.
+   ============================================================================ */
+
+/* Host: garante bloco e evita “colapsos” */
+:host {
+  display: block;
+}
+
+/* ============================================================================
+   Base do banner (default = aviso/atenção)
+   - Use tokens: surface/background/border/typography
+   - Deixe o banner com aspecto de “callout” de plataforma grande
+   ============================================================================ */
 .guest-banner {
-  background: #fff3cd;
-  color: #664d03;
-  border: 1px solid #ffecb5;
-  border-left: 4px solid #f59f00;
-  padding: 10px 12px;
-  margin: 0;
-  font-size: 14px;
+  /* Layout */
+  display: grid;
+  grid-template-columns: 1fr auto;
+  /* texto + ações */
+  align-items: center;
+  gap: var(--space-2, 12px);
+
+  /* Espaçamento */
+  padding: var(--space-2, 12px) var(--gutter, 16px);
+
+  /* Aparência */
+  background: color-mix(in oklab, var(--snackbar-warning) 14%, var(--surface-color));
+  border: 1px solid color-mix(in oklab, var(--snackbar-warning) 26%, var(--surface-border));
+  border-left: 4px solid var(--snackbar-warning);
+
+  /* Texto */
+  color: var(--text-color);
+  font-size: 0.95rem;
+  line-height: 1.35;
+
+  /* Não “pula” com textos longos */
+  min-width: 0;
 }
 
-.guest-banner .actions {
-  display: inline-flex;
-  gap: 8px;
-  margin-left: 12px;
+/* Título/ênfase */
+.guest-banner strong {
+  font-weight: 700;
 }
 
-.guest-banner button {
-  padding: 4px 10px;
-  border: 1px solid #e6b900;
-  background: #ffe69c;
-  cursor: pointer;
-  border-radius: 4px;
-}
-
-.guest-banner button:disabled {
-  opacity: .6;
-  cursor: not-allowed;
-}
-
-.guest-banner button.link {
-  background: transparent;
-  border: none;
+/* Links no banner: mantém affordance e contraste */
+.guest-banner a {
   text-decoration: underline;
-  color: inherit;
+  text-underline-offset: 2px;
+  color: var(--primary-color);
+}
+
+.guest-banner a:hover {
+  color: var(--primary-hover);
+}
+
+/* ============================================================================
+   Ações
+   - Botões com altura mínima de toque (tap target)
+   - Flex wrap para não quebrar no mobile
+   ============================================================================ */
+.guest-banner .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1, 8px);
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+/* Botões do banner (sem depender de .btn global, mas compatível com ele) */
+.guest-banner .actions button {
+  /* Tap target */
+  min-height: var(--tap-target, 44px);
+
+  /* Espaçamento */
+  padding: 0 var(--space-3, 16px);
+
+  /* Visual */
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid color-mix(in oklab, var(--primary-color) 20%, var(--surface-border));
+  background: color-mix(in oklab, var(--primary-color) 92%, black 8%);
+  color: #fff;
+
+  /* UX */
+  cursor: pointer;
+  transition: transform 0.12s ease, background-color 0.12s ease, border-color 0.12s ease;
+  white-space: nowrap;
+}
+
+/* Hover/active */
+.guest-banner .actions button:hover {
+  background: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.guest-banner .actions button:active {
+  transform: translateY(0);
+}
+
+/* Foco visível (além do global, mantém robusto dentro do encapsulamento) */
+.guest-banner .actions button:focus-visible,
+.guest-banner a:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* Disabled */
+.guest-banner .actions button[disabled] {
+  opacity: 0.72;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Botão “link” (Lembrar depois) */
+.guest-banner .actions button.link {
+  background: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--surface-border);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding-inline: 10px;
+  /* menor, mas mantém tap target pela altura */
+}
+
+.guest-banner .actions button.link:hover {
+  background: var(--header-hover-bg);
+  transform: none;
+}
+
+/* ============================================================================
+   Mensagens de status (ok/err)
+   - Formato compacto, legível e sem “gritar”
+   ============================================================================ */
+.guest-banner p.ok,
+.guest-banner p.err {
+  grid-column: 1 / -1;
+  /* ocupa toda a largura abaixo */
+  margin-top: var(--space-1, 8px);
+  font-size: 0.92rem;
 }
 
 .guest-banner p.ok {
-  color: #0f5132;
-  margin: 6px 0 0;
+  color: color-mix(in oklab, var(--snackbar-success) 85%, var(--text-color));
 }
 
 .guest-banner p.err {
-  color: #842029;
-  margin: 6px 0 0;
+  color: color-mix(in oklab, var(--snackbar-error) 85%, var(--text-color));
+}
+
+/* ============================================================================
+   Responsividade
+   ============================================================================ */
+
+/* Em telas menores: empilha ações abaixo do texto */
+@media (max-width: 720px) {
+  .guest-banner {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .guest-banner .actions {
+    justify-content: flex-start;
+  }
+}
+
+/* Em telas MUITO pequenas (ex.: 350px): botões podem virar “largura total” */
+@media (max-width: 380px) {
+  .guest-banner .actions {
+    gap: var(--space-2, 12px);
+  }
+
+  .guest-banner .actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* O “link” também vira full-width para ficar fácil de tocar */
+  .guest-banner .actions button.link {
+    width: 100%;
+  }
+}
+
+/* ============================================================================
+   Alto contraste (reforço)
+   - Seus estilos globais já fazem muito, aqui é só um “polish”
+   ============================================================================ */
+html.high-contrast .guest-banner {
+  border: 3px solid currentColor;
+  border-left-width: 6px;
+  background: var(--background-color);
+}
+
+html.high-contrast .guest-banner .actions button.link {
+  border: 2px solid currentColor;
+}
+
+/* ============================================================================
+   Preferências do usuário: reduzir movimento
+   ============================================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .guest-banner .actions button {
+    transition: none !important;
+  }
 }

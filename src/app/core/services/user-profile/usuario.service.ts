@@ -1,100 +1,103 @@
-// src\app\core\services\usuario.service.ts
-// Serviço para gerenciar operações relacionadas ao usuário, como atualização de perfil e obtenção de usuários online.
-// Ferramentas de debug ajudam bastante
-// É assim que funcionam as grandes plataformas?
-// Compatibilizar o estado online do usuário com o presence.service e aproximar do funcionamento ideal
-// Não esquecer de descontinuar métodos duplicados em user-profile.service.ts
-// Não esquecer os comentários
+// src/app/core/services/usuario.service.ts
+// Serviço para gerenciar operações relacionadas ao usuário.
+// - Este service está com ideia de ser descontinuado (ok), mas enquanto existir,
+//   deve manter compat com Effects/fluxos antigos.
+// - Escritas sempre via FirestoreWriteService (context + erro centralizado).
 import { Injectable } from '@angular/core';
-import { Observable, catchError, from, of, throwError } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
+import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
 import { IUserDados } from '../../interfaces/iuser-dados';
-import { User } from 'firebase/auth';
-import { UserProfileService } from './user-profile.service';
-import { Store } from '@ngrx/store';
-import { AppState } from 'src/app/store/states/app.state';
-import { FirestoreQueryService } from '../data-handling/firestore-query.service';
-import { EmailVerificationService } from '../autentication/register/email-verification.service';
-import { Firestore } from '@angular/fire/firestore';
 
-@Injectable({
-  providedIn: 'root'
-})
-
+@Injectable({ providedIn: 'root' })
 export class UsuarioService {
+  constructor(
+    private readonly write: FirestoreWriteService,
+  ) { }
 
-  constructor(private afs: Firestore,
-              private firestoreQuery: FirestoreQueryService,
-              private userProfile: UserProfileService,
-              private emailVerificationService: EmailVerificationService,
-              private store: Store<AppState>) { }
+  /**
+   * Atualiza APENAS campos “editáveis pelo usuário” no doc users/{uid}.
+   * Evita permission-denied por rules (role/isSubscriber/tier/moderação etc).
+   */
+  atualizarUsuario(uid: string, dados: Partial<IUserDados>): Observable<void> {
+    const safeUid = (uid ?? '').trim();
+    if (!safeUid) {
+      // ✅ não dar throw síncrono (mantém tudo no fluxo Rx)
+      return throwError(() => new Error('UID inválido em atualizarUsuario().'));
+    }
 
-  // Método para mapear um usuário do Firebase (User) para o formato da interface IUserDados
-  private mapUserToUserDados(user: User | null): IUserDados | null {//está esmaecido
-    if (!user) return null;
+    // ✅ whitelist de campos que o usuário pode editar
+    const patch: Partial<IUserDados> = {
+      nickname: dados.nickname ?? undefined,
+      estado: dados.estado ?? undefined,
+      municipio: dados.municipio ?? undefined,
+      gender: dados.gender ?? undefined,
+      orientation: dados.orientation ?? undefined,
+      partner1Orientation: dados.partner1Orientation ?? undefined,
+      partner2Orientation: dados.partner2Orientation ?? undefined,
+      descricao: dados.descricao ?? undefined,
+      photoURL: dados.photoURL ?? undefined,
 
-    const now = Date.now();
-
-    return {
-      uid: user.uid,
-      email: user.email,
-      nickname: null,
-      photoURL: user.photoURL || null,
-      role: 'basic',
-      lastLogin: now,
-      firstLogin: now,
-      descricao: '',
-      isSubscriber: false,
-      socialLinks: {
-        facebook: '',
-        instagram: '',
-        buupe: ''
-      }
-
+      // se você realmente mantém isso no users doc:
+      preferences: dados.preferences ?? undefined,
+      isSidebarOpen: dados.isSidebarOpen ?? undefined,
     };
-  }
 
-  // Obtém usuários online por região específica (município)
-  public getOnlineUsersByRegion(municipio: string): Observable<IUserDados[]> {
-    return this.firestoreQuery.getOnlineUsersByRegion(municipio);
+    // Remove undefined para não “mexer” em campos sem necessidade
+    Object.keys(patch).forEach((k) => {
+      const key = k as keyof typeof patch;
+      if (patch[key] === undefined) delete patch[key];
+    });
+
+    return this.write.updateDocument('users', safeUid, patch, {
+      context: 'UsuarioService.atualizarUsuario',
+      silent: false,
+    });
   }
 
   /**
- * @deprecated Presença é controlada exclusivamente por PresenceService (AuthOrchestratorService).
- * Remover usos e confiar no pipeline de presença.
- */
-  updateUserOnlineStatus(_uid: string, _isOnline: boolean, _syncStore = true): Observable<void> {
-    // Não escrever em Firestore aqui — writer único é PresenceService.
-    return of(void 0);
-  }
-
-  // Atualiza o papel (role) de um usuário no Firestore
+   * ✅ COMPAT com NgRx Effects existentes.
+   *
+   * Atualiza role no doc users/{uid}.
+   * IMPORTANTE: com suas rules atuais, isso tende a dar permission-denied.
+   * (role está bloqueado tanto para self quanto para admin).
+   */
   updateUserRole(uid: string, newRole: string): Observable<void> {
-    return from(this.userProfile.updateUserRole(uid, newRole)).pipe(
-      catchError((error) => {
-        console.log('Erro ao atualizar role do usuário:', error);
-        return throwError(() => error);
-      })
-    );
-  }
+    const safeUid = (uid ?? '').trim();
+    const safeRole = (newRole ?? '').trim();
 
-  // Atualiza os dados de um usuário específico no Firestore
-  atualizarUsuario(uid: string, dados: Partial<IUserDados>): Observable<void> {
-    const isSubscriber = dados.role && dados.role !== 'free' ? true : false;
-    const dadosAtualizados = { ...dados, isSubscriber };
-    return from(
-      this.emailVerificationService.saveUserDataAfterEmailVerification({ uid, ...dadosAtualizados } as IUserDados)
-    ).pipe(
-      catchError((error) => {
-        console.log('Erro ao atualizar usuário:', error);
-        throw error;
-      })
-    );
+    if (!safeUid) {
+      return throwError(() => new Error('UID inválido em updateUserRole().'));
+    }
+    if (!safeRole) {
+      return throwError(() => new Error('newRole inválido em updateUserRole().'));
+    }
+
+    // (Opcional) hardening: restringe valores aceitos
+    // Se você quiser manter totalmente livre, remova este bloco.
+    const allowed = new Set<IUserDados['role']>(['visitante', 'free', 'basic', 'premium', 'vip']);
+    if (!allowed.has(safeRole as any)) {
+      return throwError(() => new Error(`Role inválida: ${safeRole}`));
+    }
+
+    return this.write.updateDocument('users', safeUid, { role: safeRole } as any, {
+      context: 'UsuarioService.updateUserRole',
+      silent: false,
+    });
   }
-}//Linha87
+} //Linha 87, fim UsuarioService
+// Não esquecer comentários explicativos sobre o propósito do serviço, decisões de design e relação com outros serviços (ex: UserProfileService, PresenceService etc).
+// *** ATENÇÃO *** Estou com ideia de descontinuar esse service
 /* O que ele não deveria fazer
-
 ❌ Presença(isOnline / lastSeen) → isso é 100 % PresenceService.
 ❌ Query de online users → isso é UserPresenceQueryService.
 ❌ Gerenciar vínculos de chat(roomIds) → isso é chat - domain.
 ❌ Depender do EmailVerificationService para update genérico → acoplamento perigoso.
-Com ideia de descontinuar esse service*/
+*/
+/*
+Atenção importante (produto / rules): com as regras que você colou (users.rules),
+ninguém consegue alterar role (nem self, nem admin), porque:
+- self é bloqueado por selfChangingSensitiveKeys() (inclui "role")
+- admin é limitado por adminModerationOnly() (não inclui "role")
+Então: isso vai compilar, mas vai dar permission-denied em runtime até você decidir a política
+(ex.: role via backend/claims, ou liberar role para admin em rules, etc.).
+*/

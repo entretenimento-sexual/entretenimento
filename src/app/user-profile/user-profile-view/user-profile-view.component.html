@@ -1,69 +1,190 @@
-<!-- src\app\user-profile\user-profile-view\user-profile-view.component.html -->
-<div class="profile-container container-fluid">
-  <app-user-profile-sidebar></app-user-profile-sidebar> <!-- Sidebar para navegação -->
+<!-- src/app/user-profile/user-profile-view/user-profile-view.component.html -->
+<div class="profile-page">
+  <app-user-profile-sidebar></app-user-profile-sidebar>
 
-  <!-- Dados pessoais -->
-  <main class="">
-    <div class="">
+  <main class="profile-main" aria-label="Perfil do usuário">
+    <div class="profile-shell container-wide">
       @if ((usuario$ | async); as usuario) {
-        <div [class.hidden]="!usuario">
-          <!-- Informações do próprio usuário -->
-          <div class="user-details">
-            <h3 class="category-title">Meus dados de perfil</h3>
-            @if (usuario && isCouple(usuario.gender)) {
-              Somos o casal {{ usuario.nickname }}
-              <p>{{ getCoupleDescription(usuario.gender, usuario.partner1Orientation, usuario.partner2Orientation) }}</p>
-            } @else {
-              @if (usuario?.nickname) {
-                <p>Sou {{ usuario.nickname }}</p>
+      @if (usuario) {
+      <section class="profile-card" aria-label="Dados do perfil">
+        <header class="profile-header">
+          <div class="profile-title">
+            <h2 class="category-title">Meus dados de perfil</h2>
+
+            @if (usuario.nickname) {
+            <p class="profile-lead">
+              @if (isCouple(usuario.gender)) {
+              <span>Somos o casal <strong>{{ usuario.nickname }}</strong></span>
+              } @else {
+              <span>Sou <strong>{{ usuario.nickname }}</strong></span>
               }
-              <p>{{ usuario.gender | capitalize }} {{ usuario.orientation }}</p>
+            </p>
             }
-            <p>{{ usuario.municipio }}, {{ usuario.estado }}</p>
-            <p>Perfil criado em: {{ usuario?.firstLogin | dateFormat: 'date' }}</p>
-            <!-- Seção de Sobre Mim e Redes Sociais -->
-            <div class="category-container">
-              <h3 class="category-title">Sobre Mim</h3>
-              <p>{{ usuario.descricao }}</p>
-            </div>
-            <div class="category-container">
-              <h3 class="category-title">Redes Sociais</h3>
-              @if (usuario?.socialLinks?.instagram) {
-                <p>Instagram: {{ usuario.socialLinks?.instagram }}</p>
-              }
-              @if (usuario?.socialLinks?.facebook) {
-                <p>Facebook: {{ usuario.socialLinks?.facebook }}</p>
-              }
-              @if (usuario?.socialLinks?.buupe) {
-                <p>buupe: {{ usuario.socialLinks?.buupe }}</p>
-              }
-            </div>
-            <!-- Botões de Edição -->
-            <div class="button-group">
-              <a [routerLink]="['/perfil', uid, 'editar-dados-pessoais']" class="btn btn-secondary btn-voltar">Editar
-              Dados Pessoais</a>
-              <a [routerLink]="['/perfil', uid, 'edit-profile-preferences']" class="btn btn-secondary btn-voltar">Editar
-              Preferências</a>
-            </div>
           </div>
-          <!-- Novo componente para gerenciamento de fotos -->
-          <app-user-photo-manager></app-user-photo-manager>
+
+          <div class="profile-actions" role="group" aria-label="Ações do perfil">
+            <a class="btn btn-secondary" [routerLink]="['/perfil', uid, 'editar-dados-pessoais']"
+              aria-label="Editar dados pessoais">
+              Editar dados pessoais
+            </a>
+
+            <a class="btn btn-secondary" [routerLink]="['/perfil', uid, 'edit-profile-preferences']"
+              aria-label="Editar preferências">
+              Editar preferências
+            </a>
+
+            <a class="btn btn-secondary" [routerLink]="['/perfil', uid, 'edit-profile-social-links']"
+              aria-label="Editar redes sociais">
+              Editar redes sociais
+            </a>
+          </div>
+        </header>
+
+        <div class="profile-grid">
+          <div class="profile-block">
+            <h3 class="block-title">Identidade</h3>
+
+            @if (usuario && isCouple(usuario.gender)) {
+            <p class="muted">
+              {{ getCoupleDescription(usuario.gender, usuario.partner1Orientation, usuario.partner2Orientation) }}
+            </p>
+            } @else {
+            <p class="muted">
+              {{ usuario.gender | capitalize }} {{ usuario.orientation }}
+            </p>
+            }
+
+            <p class="muted">
+              {{ usuario.municipio }}, {{ usuario.estado }}
+            </p>
+
+            <p class="muted">
+              Perfil criado em:
+              <span>{{ usuario.firstLogin | dateFormat: 'date' }}</span>
+            </p>
+          </div>
+
+          <div class="profile-block">
+            <h3 class="block-title">Sobre mim</h3>
+            <p class="profile-text">
+              {{ usuario.descricao || 'Sem descrição por enquanto.' }}
+            </p>
+          </div>
+
+          <div class="profile-block">
+            <h3 class="block-title">Redes sociais</h3>
+
+            @if (usuario.socialLinks) {
+            <ul class="links-list" role="list">
+              @if (usuario.socialLinks.instagram) {
+              <li class="links-item">
+                <span class="links-label">Instagram</span>
+                <span class="links-value">{{ usuario.socialLinks.instagram }}</span>
+              </li>
+              }
+
+              @if (usuario.socialLinks.facebook) {
+              <li class="links-item">
+                <span class="links-label">Facebook</span>
+                <span class="links-value">{{ usuario.socialLinks.facebook }}</span>
+              </li>
+              }
+
+              @if (usuario.socialLinks.hotvips) {
+              <li class="links-item">
+                <span class="links-label">Hotvips</span>
+                <span class="links-value">{{ usuario.socialLinks.hotvips }}</span>
+              </li>
+              }
+
+              @if (usuario.socialLinks.sexlog) {
+              <li class="links-item">
+                <span class="links-label">Sexlog</span>
+                <span class="links-value">{{ usuario.socialLinks.sexlog }}</span>
+              </li>
+              }
+
+              @if (usuario.socialLinks.d4swing) {
+              <li class="links-item">
+                <span class="links-label">D4Swing</span>
+                <span class="links-value">{{ usuario.socialLinks.d4swing }}</span>
+              </li>
+              }
+
+              @if (usuario.socialLinks.privacy) {
+              <li class="links-item">
+                <span class="links-label">Privacy</span>
+                <span class="links-value">{{ usuario.socialLinks.privacy }}</span>
+              </li>
+              }
+
+              @if (usuario.socialLinks.onlyfans) {
+              <li class="links-item">
+                <span class="links-label">OnlyFans</span>
+                <span class="links-value">{{ usuario.socialLinks.onlyfans }}</span>
+              </li>
+              }
+
+              @if (usuario.socialLinks.fansly) {
+              <li class="links-item">
+                <span class="links-label">Fansly</span>
+                <span class="links-value">{{ usuario.socialLinks.fansly }}</span>
+              </li>
+              }
+
+              @if (usuario.socialLinks.linktree) {
+              <li class="links-item">
+                <span class="links-label">Linktree</span>
+                <span class="links-value">{{ usuario.socialLinks.linktree }}</span>
+              </li>
+              }
+            </ul>
+
+            @if (
+            !usuario.socialLinks.instagram &&
+            !usuario.socialLinks.facebook &&
+            !usuario.socialLinks.hotvips &&
+            !usuario.socialLinks.sexlog &&
+            !usuario.socialLinks.d4swing &&
+            !usuario.socialLinks.privacy &&
+            !usuario.socialLinks.onlyfans &&
+            !usuario.socialLinks.fansly &&
+            !usuario.socialLinks.linktree
+            ) {
+            <p class="muted">Nenhuma rede social adicionada.</p>
+            }
+            } @else {
+            <p class="muted">Nenhuma rede social adicionada.</p>
+            }
+          </div>
         </div>
+      </section>
+
+      <section class="profile-card" aria-label="Fotos do perfil">
+        <header class="profile-header">
+          <h3 class="block-title">Minhas fotos</h3>
+        </header>
+        <app-user-photo-manager></app-user-photo-manager>
+      </section>
       } @else {
-        <p>Carregando...</p>
+      <section class="profile-card" aria-label="Carregando perfil">
+        <p class="muted">Carregando...</p>
+      </section>
+      }
+      } @else {
+      <section class="profile-card" aria-label="Carregando perfil">
+        <p class="muted">Carregando...</p>
+      </section>
       }
 
-      <app-user-profile-preferences
-        [uid]="uid">
-      </app-user-profile-preferences>
-      <app-social-links-accordion
-        [uid]="uid"
-        [isOwner]="isOnOwnProfile()">
-      </app-social-links-accordion>
+      <!-- Componentes já existentes (mantidos) -->
+      <section class="profile-card" aria-label="Preferências do usuário">
+        <app-user-profile-preferences [uid]="uid"></app-user-profile-preferences>
+      </section>
+
+      <section class="profile-card" aria-label="Links sociais do usuário">
+        <app-social-links-accordion [uid]="uid" [isOwner]="isOnOwnProfile()"></app-social-links-accordion>
+      </section>
     </div>
   </main>
 </div>
-
-
-
-

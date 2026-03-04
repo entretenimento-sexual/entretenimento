@@ -25,7 +25,7 @@ export class EditProfileSocialLinksComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     // Obtém UID da rota
-    this.uid = this.route.snapshot.paramMap.get('id');
+    this.uid = (this.route.snapshot.paramMap.get('uid') ?? this.route.snapshot.paramMap.get('id') ?? '').trim();
     if (!this.uid) {
       // Se não tiver UID, podemos redirecionar ou exibir erro
       console.log('Nenhum UID encontrado na rota.');

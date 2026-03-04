@@ -1,0 +1,41 @@
+// firestore-rules/communities.rules
+// =========================================================================
+// COMMUNITIES (MVP)
+// - Read: signedIn (produto normalmente precisa discovery)
+// - Write: apenas creator (createdBy == uid)
+// - Sem list pública: aqui deixei list liberado p/ signedIn (ajuste se quiser anti-scraping)
+//✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// =========================================================================
+
+match /communities/{communityId} {
+
+  function isOwner() {
+    return signedIn()
+      && resource.data.keys().hasAny(["createdBy"])
+      && resource.data.createdBy == uid();
+  }
+
+  function allowedKeys() {
+    // MVP: não travar demais para não quebrar seu addDoc atual
+    // mas ainda evita keys absurdas caso você queira.
+    // Se quiser schema rígido depois, a gente endurece.
+    return true;
+  }
+
+  allow get, list: if signedIn();
+
+  allow create: if signedIn()
+    && request.resource.data.keys().hasAny(["createdBy"])
+    && request.resource.data.createdBy == uid()
+    && allowedKeys();
+
+  allow update: if isOwner()
+  && request.resource.data.keys().hasAny(["createdBy"])
+  && request.resource.data.createdBy == resource.data.createdBy
+  && allowedKeys();
+
+  allow delete: if false;
+}
+// ================================================================
+                        // FIM DO COMMUNITIES.RULES
+// ================================================================

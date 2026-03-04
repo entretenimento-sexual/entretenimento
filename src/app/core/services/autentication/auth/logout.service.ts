@@ -191,4 +191,5 @@ export class LogoutService {
       this.globalErrorHandler.handleError(e);
     } catch { }
   }
-} // Linha 194
+} // Linha 194, fim do LogoutService
+

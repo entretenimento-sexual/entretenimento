@@ -1,44 +1,92 @@
-// src/app/core/services/batepapo/invite.service.ts
+// src\app\core\services\batepapo\invite-service\invite.service.ts
 // Não esqueça os comentários explicativos e ferramentas de debug.
 import { Injectable } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
 import {
   collection, doc, getDocs, query, where, runTransaction,
-  updateDoc, addDoc, Timestamp, setDoc, deleteDoc
+  updateDoc, addDoc, Timestamp, setDoc, deleteDoc, serverTimestamp
 } from 'firebase/firestore';
-import { Observable, from, throwError, forkJoin } from 'rxjs';
+import { Observable, from, throwError, forkJoin, defer } from 'rxjs';
 import { map, catchError, switchMap, tap } from 'rxjs/operators';
+
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { FirestoreQueryService } from '../../data-handling/firestore-query.service';
 import { DistanceCalculationService } from '../../geolocation/distance-calculation.service';
+import { InviteDocId } from 'src/app/core/utils/invite-utils';
 
 @Injectable({ providedIn: 'root' })
 export class InviteService {
   constructor(
-    private db: Firestore, // ⬅️ injeta Firestore
+    private db: Firestore,
     private errorNotifier: ErrorNotificationService,
+    private globalError: GlobalErrorHandlerService,
     private firestoreQuery: FirestoreQueryService,
     private distanceService: DistanceCalculationService
   ) { }
 
+  private report(err: unknown, context: Record<string, unknown>): void {
+    try {
+      const e = new Error('[InviteService] operação falhou');
+      (e as any).feature = 'invites';
+      (e as any).original = err;
+      (e as any).context = context;
+      (e as any).skipUserNotification = true;
+      this.globalError.handleError(e);
+    } catch { }
+  }
+
+  /** ✅ RECOMENDADO: cria/atualiza por docId determinístico (anti-duplicação) */
+  createInvite(inviteData: Invite): Observable<void> {
+    return defer(() => {
+      const type = inviteData.type ?? 'room';
+      if (type !== 'room') {
+        return throwError(() => new Error('InviteService.createInvite: type ainda não suportado neste fluxo.'));
+      }
+
+      const targetId = (inviteData.targetId || inviteData.roomId || '').trim();
+      const receiverId = (inviteData.receiverId || '').trim();
+
+      if (!targetId || !receiverId) {
+        return throwError(() => new Error('Dados inválidos para convite de sala.'));
+      }
+
+      const id = InviteDocId.room(targetId, receiverId);
+      const ref = doc(this.db as any, 'invites', id);
+
+      const payload: Invite = {
+        ...inviteData,
+
+        type: 'room',
+        targetId,
+        targetName: inviteData.targetName ?? inviteData.roomName ?? '',
+
+        // legacy (compat)
+        roomId: targetId,
+        roomName: inviteData.roomName ?? inviteData.targetName ?? '',
+
+        updatedAt: serverTimestamp() as any,
+      };
+
+      return from(setDoc(ref as any, payload as any, { merge: false })).pipe(map(() => void 0));
+    }).pipe(
+      catchError(err => {
+        this.report(err, { op: 'createInvite' });
+        this.errorNotifier.showError('Erro ao criar convite.');
+        return throwError(() => err);
+      })
+    );
+  }
+
+  /** Mantive, mas para ROOM prefira createInvite() */
   sendInvite(invite: Invite): Observable<void> {
     const invitesCollection = collection(this.db, 'invites');
     return from(addDoc(invitesCollection, invite)).pipe(
       map(() => void 0),
       catchError(error => {
-        this.errorNotifier.showError('Erro ao enviar convite.');
-        return throwError(() => error);
-      })
-    );
-  }
-
-  sendInviteToRoom(roomId: string, inviteData: Invite): Observable<void> {
-    const inviteRef = doc(collection(this.db, `rooms/${roomId}/invites`));
-    return from(setDoc(inviteRef, inviteData)).pipe(
-      map(() => void 0),
-      catchError(error => {
+        this.report(error, { op: 'sendInvite' });
         this.errorNotifier.showError('Erro ao enviar convite.');
         return throwError(() => error);
       })
@@ -69,9 +117,16 @@ export class InviteService {
       switchMap(nearbyUsers => {
         const now = Timestamp.fromDate(new Date());
         const expires = Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+
         const tasks = nearbyUsers.map(user =>
           this.createInvite({
-            roomId, roomName,
+            type: 'room',
+            targetId: roomId,
+            targetName: roomName,
+
+            roomId,      // legacy
+            roomName,    // legacy
+
             receiverId: user.uid,
             senderId: inviter.uid,
             status: 'pending',
@@ -79,48 +134,47 @@ export class InviteService {
             expiresAt: expires,
           })
         );
+
         return forkJoin(tasks).pipe(map(() => void 0));
       }),
       tap(() => console.log('Convites enviados com sucesso.')),
       catchError(error => {
+        this.report(error, { op: 'sendInvitesToNearbyUsers', roomId });
         this.errorNotifier.showError('Erro ao enviar convites.');
         return throwError(() => error);
       })
     );
   }
 
-  createInvite(inviteData: Invite): Observable<void> {
-    if (!inviteData.roomName?.trim()) {
-      this.errorNotifier.showError('O nome da sala é obrigatório.');
-      return throwError(() => new Error('Nome da sala é obrigatório.'));
-    }
-    return from(addDoc(collection(this.db, 'invites'), { ...inviteData })).pipe(
-      map(() => void 0),
-      catchError(error => {
-        this.errorNotifier.showError('Erro ao criar convite.');
-        return throwError(() => error);
-      })
-    );
-  }
-
-  updateInviteStatus(inviteId: string, status: 'accepted' | 'declined'): Observable<void> {
+  /** ✅ responder convite (rules exigem respondedAt/updatedAt) */
+  updateInviteStatus(inviteId: string, status: 'accepted' | 'declined' | 'expired' | 'canceled'): Observable<void> {
     const inviteRef = doc(this.db, `invites/${inviteId}`);
-    return from(updateDoc(inviteRef, { status })).pipe(
+    const patch: any = {
+      status,
+      updatedAt: serverTimestamp(),
+    };
+
+    if (status === 'accepted' || status === 'declined') {
+      patch.respondedAt = serverTimestamp();
+    }
+
+    return from(updateDoc(inviteRef, patch)).pipe(
       map(() => void 0),
       catchError(error => {
+        this.report(error, { op: 'updateInviteStatus', inviteId, status });
         this.errorNotifier.showError('Erro ao atualizar status do convite.');
         return throwError(() => error);
       })
     );
   }
 
+  /** inbox simples (sem realtime). Se quiser realtime, faço no InviteSearchService. */
   getInvites(userId: string): Observable<Invite[]> {
     const invitesQuery = query(collection(this.db, 'invites'), where('receiverId', '==', userId));
     return from(getDocs(invitesQuery)).pipe(
-      map(snapshot =>
-        snapshot.docs.map(d => ({ id: d.id, ...(d.data() as Invite) })) // 👈 agora vem o id
-      ),
+      map(snapshot => snapshot.docs.map(d => ({ id: d.id, ...(d.data() as Invite) }))),
       catchError(error => {
+        this.report(error, { op: 'getInvites', userId });
         this.errorNotifier.showError('Erro ao carregar convites.');
         return throwError(() => error);
       })
@@ -173,4 +227,51 @@ export class InviteService {
       })
     );
   }
-}
+
+  /**
+ * ✅ Mantém compat com o ChatListComponent (nomenclatura existente)
+ * Recomendado: gravar SEMPRE em /invites (coleção raiz) via createInvite() (docId determinístico).
+ */
+  sendInviteToRoom(roomId: string, inviteData: Invite): Observable<void> {
+    return defer(() => {
+      const rid = (roomId ?? '').trim();
+      if (!rid) return throwError(() => new Error('roomId ausente para convite.'));
+
+      const receiverId = (inviteData.receiverId ?? '').trim();
+      const senderId = (inviteData.senderId ?? '').trim();
+      if (!receiverId || !senderId) {
+        return throwError(() => new Error('senderId/receiverId ausentes para convite.'));
+      }
+
+      // garante base mínima (v2 + legacy) e deixa o createInvite() fechar o payload
+      const payload: Invite = {
+        ...inviteData,
+
+        // v2 (preferencial)
+        type: 'room',
+        targetId: (inviteData.targetId ?? inviteData.roomId ?? rid).trim(),
+        targetName: inviteData.targetName ?? inviteData.roomName ?? '',
+
+        // legacy (compat)
+        roomId: rid,
+        roomName: inviteData.roomName ?? inviteData.targetName ?? '',
+
+        // defaults defensivos (se caller não passou)
+        status: inviteData.status ?? 'pending',
+        sentAt: inviteData.sentAt ?? Timestamp.fromDate(new Date()),
+        expiresAt:
+          inviteData.expiresAt ??
+          Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+      };
+
+      return this.createInvite(payload);
+    }).pipe(
+      catchError((err) => {
+        this.report(err, { op: 'sendInviteToRoom', roomId });
+        this.errorNotifier.showError('Erro ao enviar convite.');
+        return throwError(() => err);
+      })
+    );
+  }
+} // Linha 276, fim InviteService
+

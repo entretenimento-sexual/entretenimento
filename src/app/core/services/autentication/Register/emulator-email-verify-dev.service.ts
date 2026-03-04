@@ -1,4 +1,7 @@
 // src/app/core/services/autentication/register/emulator-email-verify-dev.service.ts
+// DEV-ONLY: serviço para marcar e-mails como verificados diretamente no Auth Emulator, sem precisar clicar no link de verificação.
+// Útil para acelerar testes de fluxo de registro e evitar ter que lidar com envio/recebimento de e-mails no ambiente de desenvolvimento local.
+// ⚠️ IMPORTANTE: este serviço é DEV-ONLY e NÃO deve ser usado em produção. Ele depende de endpoints específicos do Auth Emulator e pode causar inconsistências se usado fora do contexto pretendido.
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Auth } from '@angular/fire/auth';
@@ -195,10 +198,14 @@ export class EmulatorEmailVerifyDevService {
           );
         }),
 
-        // 3) reload + valida
+        // 3) reload + token refresh + valida
         switchMap(({ out }) =>
           from(user.reload()).pipe(
             timeout({ each: this.NET_TIMEOUT_MS }),
+
+            // ✅ força renovar claims/token (importante p/ rules + streams)
+            switchMap(() => from(user.getIdToken(true))),
+
             map(() => {
               const cu = this.auth.currentUser;
               const verified = !!cu?.emailVerified;
@@ -207,17 +214,16 @@ export class EmulatorEmailVerifyDevService {
                 ...out,
                 after: { emailVerified: verified },
                 ok: verified === true,
-                note: verified ? out.note : (out.note ?? 'Aplicou oobCode, mas emailVerified ainda não refletiu após reload.'),
+                note: verified ? out.note : (out.note ?? 'Aplicou oobCode, mas emailVerified ainda não refletiu após reload + token refresh.'),
               };
 
-              this.dbg(traceId, 'user.reload():ok', { emailVerified: verified });
+              this.dbg(traceId, 'user.reload()+getIdToken(true):ok', { emailVerified: verified });
               this.dbg(traceId, 'done', { ok: out2.ok, note: out2.note });
 
               return out2;
             })
           )
         ),
-
         catchError((err) => {
           this.routeError(err, 'EmulatorEmailVerifyDevService.markVerifiedInEmulatorDebug$');
           this.notifyOnce('Falha ao marcar e-mail como verificado no emulador.');
@@ -279,4 +285,5 @@ export class EmulatorEmailVerifyDevService {
     } catch { /* noop */ }
     return err;
   }
-}// linha 282
+}// linha 285, fim EmulatorEmailVerifyDevService
+// Não esquecer comentários explicativos sobre o propósito do serviço, de seus métodos e avisos de uso.

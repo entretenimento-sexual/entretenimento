@@ -92,6 +92,65 @@ export class FirestoreWriteService {
     }, context, silent);
   }
 
+  // ---------------------------------------------------------------------------
+  // DEBUG CONTROL (users writes)
+  // ---------------------------------------------------------------------------
+
+  private readonly USERS_TRACE_SENSITIVE_KEYS = new Set<string>([
+    'role',
+    'tier',
+    'isSubscriber',
+    'accountLocked',
+    'accountStatus',
+    'suspended',
+    'suspensionReason',
+    'suspendedAt',
+    'moderatedBy',
+    'moderatedAt',
+    'lastStatusChangeAt',
+    'emailVerified',
+    'permissions',
+    'entitlements',
+  ]);
+
+  private readonly USERS_TRACE_CONTEXT_DENY = [
+    /^GeolocationTrackingService\./,
+    /^PresenceService\./,
+    /^PresenceOrchestratorService\./,
+    /^UserStateCacheService\./,
+    /^CacheService\./,
+  ];
+
+  private shouldTraceUsersWrite(
+    kind: 'update' | 'set',
+    col: string,
+    context: string,
+    silent: boolean,
+    dataKeys: string[],
+    merge?: boolean
+  ): boolean {
+    if (!environment.enableDebugTools || environment.production) return false;
+    if (silent === true) return false; // ✅ “best-effort” não polui console
+    if (col !== 'users') return false;
+
+    const ctx = (context ?? '').trim();
+    const keys = dataKeys ?? [];
+
+    // ✅ se mexe em chave sensível, sempre traça (mesmo se contexto “deny”)
+    const touchesSensitive = keys.some((k) => this.USERS_TRACE_SENSITIVE_KEYS.has(k));
+    if (touchesSensitive) return true;
+
+    // ✅ updates/sets rotineiros (geo/cache/presence) não precisam de trace
+    const deniedByContext = this.USERS_TRACE_CONTEXT_DENY.some((rx) => rx.test(ctx));
+    if (deniedByContext) return false;
+
+    // ✅ no set merge:true você pode querer manter (normalmente é “perigoso”)
+    if (kind === 'set' && merge === true) return true;
+
+    // default: não traça
+    return false;
+  }
+
   setDocument<T extends WithFieldValue<DocumentData>>(
     collectionName: string,
     docId: string,
@@ -110,13 +169,9 @@ export class FirestoreWriteService {
       if (!col) throw new Error('collectionName inválido.');
       if (!id) throw new Error('docId inválido.');
 
-      if (
-        environment.enableDebugTools &&
-        !environment.production &&
-        col === 'users' &&
-        merge === true
-      ) {
-        console.warn('[WRITE users merge:true]', { docId: id, context });
+      const dataKeys = Object.keys((data as any) ?? {});
+      if (this.shouldTraceUsersWrite('set', col, context, silent, dataKeys, merge)) {
+        console.warn('[WRITE users set]', { docId: id, context, merge, dataKeys });
         console.trace();
       }
 
@@ -144,6 +199,12 @@ export class FirestoreWriteService {
       if (!col) throw new Error('collectionName inválido.');
       if (!id) throw new Error('docId inválido.');
       if (!data || typeof data !== 'object') throw new Error('data inválido para updateDocument.');
+
+      const dataKeys = Object.keys(data ?? {});
+      if (this.shouldTraceUsersWrite('update', col, context, silent, dataKeys)) {
+        console.warn('[WRITE users update]', { docId: id, context, dataKeys });
+        console.trace();
+      }
 
       return from(updateDoc(doc(this.db, col, id), data)).pipe(
         map(() => void 0),
@@ -202,4 +263,8 @@ export class FirestoreWriteService {
       );
     }, context, silent);
   }
-} //Linha 208, Fim do firestore-write.service.ts
+} //Linha 276, Fim do firestore-write.service.ts
+// - O FirestoreWriteService é um serviço centralizado para operações de escrita no Firestore,
+// incluindo add, set, update, delete e increment. Ele utiliza um método inCtx$ para garantir que todas as operações sejam executadas dentro do contexto de injeção do Angular,
+// permitindo o tratamento centralizado de erros através do FirestoreErrorHandlerService.
+// O serviço também inclui ferramentas de debug para rastrear operações sensíveis na coleção "users", com base em chaves específicas e contextos de chamada.

@@ -1,0 +1,47 @@
+// firestore-rules/rooms_participants.rules
+// =========================================================================
+// ROOMS / participants (subcollection)
+// - Read: apenas participantes (fonte de verdade continua sendo rooms/{roomId}.participants)
+// - Write: o próprio usuário pode criar/atualizar o seu doc (MVP), sem depender do array
+//   (isso evita negação em transações onde room update + participant set rodam juntos).
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// =========================================================================
+
+match /rooms/{roomId}/participants/{userId} {
+
+  function roomExists() {
+    return exists(/databases/$(database)/documents/rooms/$(roomId));
+  }
+
+  function isRoomParticipantRequester() {
+    return signedIn()
+      && roomExists()
+      && (uid() in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "joinedAt",
+      "removedAt",
+      "removed"
+    ]);
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && request.resource.data.uid == uid()
+      // joinedAt/removedAt: você usa Date.now() (number). Aceita number (MVP).
+      && (!request.resource.data.keys().hasAny(["joinedAt"]) || request.resource.data.joinedAt is number)
+      && (!request.resource.data.keys().hasAny(["removedAt"]) || request.resource.data.removedAt is number)
+      && (!request.resource.data.keys().hasAny(["removed"])  || request.resource.data.removed is bool);
+  }
+
+  // Read somente para participantes reais do room (anti-scraping)
+  allow get, list: if isRoomParticipantRequester();
+
+  // Write: somente dono do doc
+  allow create, update: if isSelf(userId) && roomExists() && validPayload();
+
+  allow delete: if false;
+}

@@ -107,9 +107,16 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
     { key: 'youtube', label: 'YouTube', icon: 'fab fa-youtube' },
     { key: 'tiktok', label: 'TikTok', icon: 'fab fa-tiktok' },
     { key: 'snapchat', label: 'Snapchat', icon: 'fab fa-snapchat-ghost' },
+
     { key: 'sexlog', label: 'Sexlog', icon: 'fas fa-link' },
     { key: 'd4swing', label: 'D4', icon: 'fas fa-link' },
-    { key: 'buppe', label: 'Buppe', icon: 'fas fa-link' },
+
+    // ✅ novo + sugestões
+    { key: 'hotvips', label: 'Hotvips', icon: 'fas fa-link' },
+    { key: 'privacy', label: 'Privacy', icon: 'fas fa-link' },
+    { key: 'onlyfans', label: 'OnlyFans', icon: 'fas fa-link' },
+    { key: 'fansly', label: 'Fansly', icon: 'fas fa-link' },
+    { key: 'linktree', label: 'Linktree', icon: 'fas fa-link' },
   ];
 
   // injeções
@@ -374,10 +381,18 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
           ? ensureHttps(value)
           : `https://snapchat.com/add/${cleanHandle(value)}`;
 
+      case 'hotvips':
+        // sem assumir padrão de @handle no site; só garante https
+        return ensureHttps(value);
+
       // “outros”: apenas garante https
-      case 'sexlog':
       case 'd4swing':
-      case 'buppe':
+      case 'hotvips':
+      case 'privacy':
+      case 'onlyfans':
+      case 'fansly':
+      case 'linktree':
+
       default:
         return ensureHttps(value);
     }

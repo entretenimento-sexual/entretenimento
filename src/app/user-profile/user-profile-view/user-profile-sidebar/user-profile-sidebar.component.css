@@ -1,13 +1,29 @@
-/* src/app/user-profile/user-profile-view/user-profile-sidebar/user-profile-sidebar.component.css */
+/* src/app/user-profile/user-profile-view/user-profile-sidebar/user-profile-sidebar.component.css
+   ============================================================================
+   USER PROFILE SIDEBAR
+   - Padronizado para ficar “irmão” do Dashboard sidebar
+   - Links e botões no mesmo padrão (inclui <button mat-button>)
+   - Espaçamento consistente ícone/texto (coluna fixa pro ícone)
+   - Suporta dark / light / high-contrast via tokens globais
+   ============================================================================
+*/
 
+:host {
+  display: block;
+}
+
+/* Card do sidebar */
 .sidebar {
   flex: 1;
-  padding: 20px;
-  margin-right: 20px;
+  padding: var(--space-3, 16px);
+  margin-right: var(--space-3, 16px);
+
   background-color: var(--surface-color);
   color: var(--text-color);
+
   border-radius: 15px;
   box-shadow: var(--box-shadow);
+
   transition: transform .3s ease, box-shadow .3s ease, background-color .3s ease, color .3s ease;
 }
 
@@ -16,16 +32,19 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, .2);
 }
 
+/* Header */
 .profile-header {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-2, 12px);
 }
 
 .profile-picture {
   width: 120px;
   height: 120px;
   border-radius: 9999px;
+
   object-fit: cover;
+
   border: 3px solid color-mix(in oklab, var(--text-color) 25%, transparent);
   box-shadow: var(--box-shadow);
   background: var(--surface-color);
@@ -36,46 +55,143 @@
   color: var(--secondary-color);
   font-family: var(--font-family-primary);
   font-size: 1.1rem;
-  margin: 10px 0 16px;
+  margin: 10px 0 var(--space-2, 12px);
 }
 
+/* Nav */
 .profile-nav {
   display: flex;
   flex-direction: column;
   gap: .5rem;
 }
 
-.profile-nav a {
+/* ============================================================================
+   Itens de navegação
+   - Aplica o MESMO visual em <a> e <button mat-button>
+   - Corrige espaçamento mínimo entre ícone/texto
+   ============================================================================
+*/
+.profile-nav a,
+.profile-nav button {
   display: flex;
   align-items: center;
+
+  /* ✅ espaçamento consistente entre ícone e texto */
   gap: .6rem;
+
   width: 100%;
+  min-height: var(--tap-target, 44px);
+
   color: var(--text-color);
+  text-decoration: none;
+
   background-color: color-mix(in oklab, var(--primary-color) 6%, transparent);
   padding: 10px 12px;
+
   border-radius: 10px;
-  transition: background-color .2s ease, color .2s ease, transform .05s ease;
+
+  /* evita “colapso” em textos longos */
+  min-width: 0;
+
+  transition: background-color .2s ease, color .2s ease, transform .05s ease, border-color .2s ease;
 }
 
-.profile-nav a:hover {
+/* Botão: reset pra não “quebrar” com estilos de browser/Material */
+.profile-nav button {
+  appearance: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+/* Se o Angular Material aplicar classe, garante que não vire inline */
+.profile-nav button.mat-mdc-button,
+.profile-nav button.mat-mdc-button-base {
+  justify-content: flex-start;
+  padding: 10px 12px;
+  /* mantém igual ao <a> */
+  border-radius: 10px;
+}
+
+/* Ícones: coluna fixa => não cola no texto e não desalinha */
+.profile-nav a i,
+.profile-nav button i {
+  color: var(--primary-color);
+  inline-size: 22px;
+  /* ✅ “coluna” do ícone */
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+/* Hover */
+.profile-nav a:hover,
+.profile-nav button:hover {
   background: color-mix(in oklab, var(--primary-color) 14%, transparent);
   transform: translateY(-1px);
 }
 
-.profile-nav i {
-  color: var(--primary-color);
+/* Foco visível (A11y) */
+.profile-nav a:focus-visible,
+.profile-nav button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
+/* Active (se você usar routerLinkActive="active") */
+.profile-nav a.active {
+  background: color-mix(in oklab, var(--primary-color) 18%, transparent);
+  box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+/* ============================================================================
+   Mobile
+   ============================================================================
+*/
 @media (max-width: 600px) {
   .sidebar {
-    padding: 16px;
+    padding: var(--space-3, 16px);
     margin-right: 0;
     border-radius: 12px;
     box-shadow: none;
   }
 
-  .profile-nav a {
+  .profile-picture {
+    width: 104px;
+    height: 104px;
+  }
+
+  .profile-nav a,
+  .profile-nav button {
     padding: 10px;
     font-size: .95rem;
+
+    /* evita “pulo” no mobile */
+    transform: none;
   }
+
+  .profile-nav a:hover,
+  .profile-nav button:hover {
+    transform: none;
+  }
+}
+
+/* ============================================================================
+   Alto contraste: não depender de color-mix para indicar estado
+   ============================================================================
+*/
+html.high-contrast .profile-nav a,
+html.high-contrast .profile-nav button {
+  background: transparent !important;
+  border: 2px solid transparent;
+}
+
+html.high-contrast .profile-nav a:hover,
+html.high-contrast .profile-nav button:hover {
+  border-color: currentColor;
+}
+
+html.high-contrast .profile-nav a.active {
+  border-color: currentColor;
+  box-shadow: inset 3px 0 0 currentColor;
 }

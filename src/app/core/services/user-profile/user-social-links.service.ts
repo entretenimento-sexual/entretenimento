@@ -428,7 +428,10 @@ export class UserSocialLinksService {
   private toPublicPayload(links: IUserSocialLinks): Partial<IUserSocialLinks> {
     const allowed = [
       'facebook', 'instagram', 'twitter', 'linkedin', 'youtube', 'tiktok', 'snapchat',
-      'sexlog', 'd4swing', 'buppe'
+      'sexlog', 'd4swing',
+
+      // ✅ novo + sugestões
+      'hotvips', 'privacy', 'onlyfans', 'fansly', 'linktree',
     ] as const;
 
     const out: any = {};

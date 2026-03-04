@@ -10,6 +10,7 @@
 // - Para list/query seria necessário cross-document get() por doc retornado,
 //   o que torna as rules pesadas e propensas a limite/custo.
 // - A elegibilidade do ALVO fica no app (AccessControlService) por enquanto.
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // =========================================================================
 
 match /presence/{presenceUid} {

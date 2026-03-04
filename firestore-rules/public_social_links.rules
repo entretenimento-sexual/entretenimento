@@ -1,16 +1,14 @@
-// C:\entretenimento\firestore-rules\public_social_links.rules
-
-// =========================================================================
+// ===============================================================
 // PUBLIC SOCIAL LINKS (espelho público)
 // - Somente subset publicado
 // - Escrita: somente dono
 // - Leitura: exige login (alinhado ao seu /public_profiles)
 // - Evita LIST (padrão anti-scraping)
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
-// =========================================================================
+// C:\entretenimento\firestore-rules\public_social_links.rules
+// ===============================================================
 match /public_social_links/{userId} {
 
-  // Leitura: consistente com /public_profiles
   allow get: if signedIn();
   allow list: if false;
 
@@ -18,7 +16,15 @@ match /public_social_links/{userId} {
     return request.resource.data.keys().hasOnly([
       "uid",
       "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
-      "sexlog","d4swing","buppe",
+      "sexlog","d4swing",
+
+      // ✅ novo + sugestões
+      "hotvips",
+      "privacy",
+      "onlyfans",
+      "fansly",
+      "linktree",
+
       "updatedAt"
     ]);
   }
@@ -35,27 +41,41 @@ match /public_social_links/{userId} {
       && optString("snapchat")
       && optString("sexlog")
       && optString("d4swing")
-      && optString("buppe")
+
+      // ✅ novo + sugestões
+      && optString("hotvips")
+      && optString("privacy")
+      && optString("onlyfans")
+      && optString("fansly")
+      && optString("linktree")
+
       && optTimestamp("updatedAt");
   }
 
-  // Create: dono + payload válido + updatedAt “do servidor”
   allow create: if isSelf(userId)
     && validPayload()
     && request.resource.data.updatedAt == request.time;
 
-  // Update: dono + payload válido + uid imutável + updatedAt “do servidor”
   allow update: if isSelf(userId)
     && validPayload()
     && request.resource.data.uid == resource.data.uid
     && request.resource.data.updatedAt == request.time
     && request.resource.data.diff(resource.data).changedKeys().hasOnly([
       "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
-      "sexlog","d4swing","buppe",
+      "sexlog","d4swing",
+
+      // ✅ novo + sugestões
+      "hotvips",
+      "privacy",
+      "onlyfans",
+      "fansly",
+      "linktree",
+
       "updatedAt"
     ]);
 
-  // Despublicar: dono apaga
   allow delete: if isSelf(userId);
 }
-// =========================================================================
+// ===============================================================
+                   // FIM PUBLIC SOCIAL LINKS
+// ===============================================================

@@ -15,6 +15,7 @@ import { NicknameUtils } from '@core/utils/nickname-utils';
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 const FACEBOOK_REGEX = /^https?:\/\/www\.facebook\.com\/.+$/;
 const INSTAGRAM_REGEX = /^https:\/\/www\.instagram\.com\/.+$/;
+// trocar pra hotvips 
 const BUUPE_REGEX = /^https:\/\/www\.buupe\.com\/.+$/;
 
 // Obs.: Estas constantes existiam, mas você hoje usa regex gerada dentro do passwordValidator.
@@ -190,7 +191,9 @@ export class ValidatorService {
     };
   }
 
-  /** Validação de URL do Buupe. */
+  /** Validação de URL do B.uupe.
+   *trocar pra hotvips depois que tiver o domínio e regras definidas.
+  */
   public static buupeValidator(): ValidatorFn {
     return (control: AbstractControl): { [key: string]: any } | null => {
       const buupeUrl = control.value;

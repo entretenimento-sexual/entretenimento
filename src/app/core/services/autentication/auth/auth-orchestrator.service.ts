@@ -4,7 +4,7 @@
 // AUTH ORCHESTRATOR (Efeitos colaterais e ciclo de vida)
 //
 // Objetivo principal deste service:
-// - Orquestrar “o que roda quando a sessão existe” (presence, watchers, keepAlive).
+// - Orquestrar “o que roda quando a sessão existe” (watchers, keepAlive, bloqueio, navegação defensiva).
 // - Garantir que listeners NÃO iniciem no registro e NÃO iniciem para emailVerified=false.
 // - Centralizar encerramento de sessão *quando inevitável* (auth inválido).
 //
@@ -45,8 +45,6 @@ import { AuthSessionService } from './auth-session.service';
 import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
 import { CurrentUserStoreService } from './current-user-store.service';
 import { AuthAppBlockService } from './auth-app-block.service';
-
-import { PresenceService } from '../../presence/presence.service';
 
 // ✅ central error routing
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -89,9 +87,6 @@ export class AuthOrchestratorService {
 
   private started = false;
 
-  // ✅ presence guard
-  private presenceUid: string | null = null;
-
   // ✅ Post-login effects (1x por UID)
   private postLoginUid: string | null = null;
   private postLoginSub: Subscription | null = null;
@@ -114,7 +109,6 @@ export class AuthOrchestratorService {
     private router: Router,
     private db: Firestore,
     private injector: Injector,
-    private presence: PresenceService,
     private logoutService: LogoutService,
 
     // ✅ centralizado
@@ -168,8 +162,6 @@ export class AuthOrchestratorService {
             this.sessionUid = null;
             this.currentUserStore.clear();
             this.appBlock.clear();
-
-            this.stopPresenceIfRunning();
             this.stopKeepAlive();
             this.stopWatchers();
 
@@ -205,8 +197,7 @@ export class AuthOrchestratorService {
               this.missingDocProbe = undefined;
             }
 
-            this.stopPresenceIfRunning();
-            this.stopWatchers();
+               this.stopWatchers();
           }
 
           // =========================================================
@@ -229,7 +220,6 @@ export class AuthOrchestratorService {
           // =========================================================
           const blockedReason = this.appBlock.snapshot;
           if (blockedReason) {
-            this.stopPresenceIfRunning();
             this.stopKeepAlive();
             this.stopWatchers();
 
@@ -249,7 +239,6 @@ export class AuthOrchestratorService {
 
           const shouldRunAppMode = !inReg && !unverified;
 
-          this.syncPresence(u.uid, shouldRunAppMode);
           this.syncWatchers(u.uid, shouldRunAppMode);
 
           // ✅ NOVO: seed/geo 1x por UID quando entrar em app mode
@@ -362,24 +351,6 @@ export class AuthOrchestratorService {
       queryParams: { reason, autocheck: '1' },
       replaceUrl,
     }).catch(() => { });
-  }
-
-  /**
-   * syncPresence()
-   * - Liga/desliga presence de forma idempotente.
-   * - Evita "start" repetido quando já está rodando para o mesmo uid.
-   */
-  private syncPresence(uid: string, shouldRun: boolean): void {
-    if (!shouldRun) {
-      this.stopPresenceIfRunning();
-      return;
-    }
-
-    if (this.presenceUid === uid) return;
-
-    this.stopPresenceIfRunning();
-    this.presence.start(uid);
-    this.presenceUid = uid;
   }
 
   private inRegistrationFlow(url: string): boolean {
@@ -626,37 +597,6 @@ export class AuthOrchestratorService {
   }
 
   // =========================================================
-  // Presence stop helpers (mantendo compat)
-  // =========================================================
-
-  /**
-   * stopPresenceIfRunning$()
-   * - Para presença best-effort (não deve derrubar o fluxo).
-   * - Retorna Observable<void> para permitir composição reativa.
-   */
-  private stopPresenceIfRunning$(): Observable<void> {
-    if (!this.presenceUid) return of(void 0);
-
-    // marca como parado aqui pra evitar reentrância
-    this.presenceUid = null;
-
-    return this.presence.stop$().pipe(
-      take(1),
-      defaultIfEmpty(void 0),
-      catchError((err) => {
-        this.reportSilent(err, { phase: 'presence.stop$' });
-        return of(void 0);
-      })
-    );
-  }
-
-  private stopPresenceIfRunning(): void {
-    this.stopPresenceIfRunning$()
-      .pipe(take(1))
-      .subscribe({ next: () => { }, error: () => { } });
-  }
-
-  // =========================================================
   // ✅ SignOut inevitável (compat wrapper)
   // - Não “faz logout” por Firestore quando voluntaryLogoutOnly=true.
   // - Serve apenas como fallback (quando voluntaryLogoutOnly=false).
@@ -675,21 +615,16 @@ export class AuthOrchestratorService {
       this.missingDocProbe = undefined;
     }
 
-    // Presence best-effort e delega o signOut “real”
-    this.stopPresenceIfRunning$()
-      .pipe(
-        take(1),
-        finalize(() => {
-          // delega signOut + navegação + limpeza (fonte de verdade)
-          this.logoutService.hardSignOutToWelcome(reason);
+    try {
+      // ✅ delega signOut + navegação + limpeza (fonte de verdade)
+      this.logoutService.hardSignOutToWelcome(reason);
 
-          // bloqueio não deve sobreviver ao hard signOut
-          this.appBlock.clear();
-
-          this.terminating = false;
-        })
-      )
-      .subscribe({ next: () => { }, error: () => { this.terminating = false; } });
+      // bloqueio não deve sobreviver ao hard signOut
+      this.appBlock.clear();
+    } finally {
+      // IMPORTANTÍSSIMO: não pode ficar true pra sempre (senão “mata” o pipeline do start()).
+      this.terminating = false;
+    }
   }
 
   // =========================================================
@@ -705,39 +640,34 @@ export class AuthOrchestratorService {
    *
    * Obs.: hoje, só sai desse estado com logout (conforme sua regra).
    */
+  // =========================================================
+  // ✅ “Bloqueio do app” sem logout (regra principal)
+  // =========================================================
   private blockAppSession(reason: TerminateReason): void {
     if (this.terminating) return;
     this.terminating = true;
 
-    // ✅ fonte única do bloqueio
-    this.appBlock.set(reason);
+    try {
+      // ✅ fonte única do bloqueio
+      this.appBlock.set(reason);
 
-    // para side-effects
-    this.stopKeepAlive();
-    this.stopWatchers();
+      // para side-effects
+      this.stopKeepAlive();
+      this.stopWatchers();
 
-    if (this.missingDocProbe) {
-      clearTimeout(this.missingDocProbe);
-      this.missingDocProbe = undefined;
+      if (this.missingDocProbe) {
+        clearTimeout(this.missingDocProbe);
+        this.missingDocProbe = undefined;
+      }
+
+      // ✅ feedback não sensível + redireciona para fluxo permitido
+      this.notifyAppBlocked(reason);
+      this.navigateToWelcome(reason, true);
+    } finally {
+      this.terminating = false;
     }
-
-    // presence é best-effort
-    this.stopPresenceIfRunning$()
-      .pipe(
-        take(1),
-        finalize(() => {
-          // feedback não sensível
-          this.notifyAppBlocked(reason);
-
-          // manda para rota permitida para autenticado (fluxo de correção)
-          this.navigateToWelcome(reason, true);
-
-          this.terminating = false;
-        })
-      )
-      .subscribe();
   }
-} // Fim do AuthOrchestratorService com 740 linhas, efetuar migrações de partes com menos
+} // Fim do AuthOrchestratorService com 670 linhas, efetuar migrações de partes com menos
  // afeição com a orquestração para services mais especificos
 
 /*
@@ -752,4 +682,15 @@ src/app/core/services/autentication/auth/current-user-store.service.ts
 src/app/core/services/autentication/auth/auth-orchestrator.service.ts
 src/app/core/services/autentication/auth/auth.facade.ts
 src/app/core/services/autentication/auth/logout.service.ts
+*/
+/*
+Sobre o LogoutService parar presença
+
+O LogoutService ainda chama presence.stop$().
+Voluntário: você quer escrever offline/lastSeen antes de sair (melhor consistência).
+Hard signOut: idem.
+Mesmo que o PresenceOrchestrator também faça STOP ao cair o gate, o PresenceService.stop$() é idempotente (segunda chamada tende a não escrever nada porque activeUid já foi limpo).
+
+manter como está para garantir o offline antes do signOut.
+
 */

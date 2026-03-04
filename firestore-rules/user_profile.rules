@@ -1,0 +1,11 @@
+// firestore-rules/user_profile.rules
+// =========================================================================
+// USER_PROFILE (raiz) — privado, MVP
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// =========================================================================
+
+match /user_profile/{userId} {
+  allow get, list: if isSelf(userId);
+  allow create, update: if isSelf(userId);
+  allow delete: if false;
+}

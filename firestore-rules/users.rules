@@ -1,3 +1,4 @@
+// =========================================================================
 // firestore-rules/users.rules
 // =========================================================================
 // USERS (privado)
@@ -8,24 +9,21 @@
 // - Garante que users/{uid}.emailVerified (se existir no payload) sempre reflita
 //   o token do Auth (request.auth.token.email_verified).
 // - Evita spoof (usuário setar emailVerified=true no doc antes de verificar).
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // =========================================================================
-
 match /users/{userId} {
 
   function isAdminActor() { return isAdmin(); }
 
-  // Helper SAFE
   function hasField(field) {
     return request.resource.data.keys().hasAny([field]);
   }
 
-  // emailVerified, quando presente no payload final, deve bater com o token
   function emailVerifiedMatchesToken() {
     return !hasField("emailVerified")
       || request.resource.data.emailVerified == (request.auth.token.email_verified == true);
   }
 
-  // Bloqueia alterações sensíveis pelo próprio usuário
   function selfChangingSensitiveKeys() {
     return request.resource.data.diff(resource.data).changedKeys().hasAny([
       "role",
@@ -45,7 +43,6 @@ match /users/{userId} {
     ]);
   }
 
-  // Admin só pode mexer em um conjunto pequeno (moderação)
   function adminModerationOnly() {
     return request.resource.data.diff(resource.data).changedKeys().hasOnly([
       "accountLocked",
@@ -59,17 +56,22 @@ match /users/{userId} {
     ]);
   }
 
+  function createDefaultsOk() {
+    return request.resource.data.keys().hasAny(["uid"])
+      && request.resource.data.uid == uid()
+      && (!hasField("role") || request.resource.data.role == "basic")
+      && (!hasField("isSubscriber") || request.resource.data.isSubscriber == false)
+      && (!hasField("tier") || request.resource.data.tier == "basic");
+  }
+
   allow get: if isSelf(userId) || isAdminActor();
   allow list: if false;
 
-  // Create:
-  // - dono cria seu doc
-  // - se emailVerified vier, precisa refletir token
-  allow create: if isSelf(userId) && emailVerifiedMatchesToken();
+  // ✅ UM ÚNICO create (com defaults travados)
+  allow create: if isSelf(userId)
+    && emailVerifiedMatchesToken()
+    && createDefaultsOk();
 
-  // Update:
-  // - self: não muda campos sensíveis + emailVerified coerente com token
-  // - admin: apenas moderação (mantém sua política)
   allow update: if
     (isSelf(userId) && !selfChangingSensitiveKeys() && emailVerifiedMatchesToken())
     || (isAdminActor() && adminModerationOnly());

@@ -1,6 +1,5 @@
 // src/app/core/services/data-handling/firestore/repositories/users-read.repository.ts
 // Não esqueça os comentários
-
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { from, Observable, of } from 'rxjs';
 import { catchError, finalize, map, shareReplay } from 'rxjs/operators';

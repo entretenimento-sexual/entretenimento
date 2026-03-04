@@ -1,9 +1,13 @@
-// firestore-rules/preferences.rules
 // =========================================================================
-// PREFERENCES
+// PREFERENCES.RULES
 // - Preferências do usuário (privado)
 // - Regra segura: só o dono lê/escreve
 // - Usa helpers já definidos em _helpers.rules: signedIn(), uid(), isSelf()
+// firestore-rules/preferences.rules
+// Observação importante:
+// - Evita LIST/QUERY para não expor preferências de outros usuários
+// - Se precisar de list/query, considere criar uma coleção separada com regras específicas
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // =========================================================================
 
 match /preferences/{userId} {
@@ -19,7 +23,9 @@ match /users/{userId}/preferences/{docId} {
   allow create, update: if isSelf(userId);
   allow delete: if false;
 }
-
+// =========================================================================
+//                        FIM DO PREFERENCES.RULES
+// =========================================================================
 // não esquecer de ajustar o build-firestore-rules.mjs para incluir este arquivo
 // não esquecer de testar as regras com o emulador ou no console do Firebase
 // não esquecer de documentar as preferências usadas no app (ex: README ou wiki)

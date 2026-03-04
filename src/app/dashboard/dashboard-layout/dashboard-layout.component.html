@@ -1,16 +1,65 @@
-<!-- src\app\dashboard\dashboard-layout\dashboard-layout.component.html -->
+<!-- src/app/dashboard/dashboard-layout/dashboard-layout.component.html -->
+
+<!-- Skip link: melhora muito navegação por teclado/leitores -->
+<a class="sr-only" href="#dashboard-main">
+  Pular para o conteúdo principal
+</a>
+
 <div class="dashboard-container">
-  <nav class="dashboard-sidebar">
-    <ul>
-      <li><a routerLink="/dashboard/principal">Principal</a></li>
-      <li><a routerLink="/dashboard/online-users">Usuários Online</a></li>
-      <li><a routerLink="/dashboard/featured-profiles">Perfis em Destaque</a></li>
-      <li><a routerLink="/dashboard/chat-rooms">Salas de Chat</a></li>
-      <!-- ✅ NOVO -->
-      <li><a routerLink="/dashboard/friends/list">Amigos</a></li>
+  <!-- Sidebar / Bottom-nav -->
+  <nav class="dashboard-sidebar" aria-label="Menu do dashboard">
+    <ul role="list">
+      <li>
+        <a routerLink="/dashboard/principal" routerLinkActive="active" #rlaPrincipal="routerLinkActive"
+          [attr.aria-current]="rlaPrincipal.isActive ? 'page' : null" aria-label="Abrir página Principal">
+          <!-- Ícone opcional (Font Awesome) -->
+          <i class="fa-solid fa-house" aria-hidden="true"></i>
+          <span class="sr-only">Principal</span>
+          <!-- Texto “visível” (se quiser, pode trocar por span normal e remover sr-only) -->
+          <span aria-hidden="true">Principal</span>
+        </a>
+      </li>
+
+      <li>
+        <a routerLink="/dashboard/online-users" routerLinkActive="active" #rlaOnline="routerLinkActive"
+          [attr.aria-current]="rlaOnline.isActive ? 'page' : null" aria-label="Abrir página Usuários Online">
+          <i class="fa-solid fa-signal" aria-hidden="true"></i>
+          <span class="sr-only">Usuários Online</span>
+          <span aria-hidden="true">Online</span>
+        </a>
+      </li>
+
+      <li>
+        <a routerLink="/dashboard/featured-profiles" routerLinkActive="active" #rlaFeatured="routerLinkActive"
+          [attr.aria-current]="rlaFeatured.isActive ? 'page' : null" aria-label="Abrir página Perfis em Destaque">
+          <i class="fa-solid fa-star" aria-hidden="true"></i>
+          <span class="sr-only">Perfis em Destaque</span>
+          <span aria-hidden="true">Destaque</span>
+        </a>
+      </li>
+
+      <li>
+        <a routerLink="/dashboard/chat-rooms" routerLinkActive="active" #rlaRooms="routerLinkActive"
+          [attr.aria-current]="rlaRooms.isActive ? 'page' : null" aria-label="Abrir página Salas de Chat">
+          <i class="fa-solid fa-comments" aria-hidden="true"></i>
+          <span class="sr-only">Salas de Chat</span>
+          <span aria-hidden="true">Salas</span>
+        </a>
+      </li>
+
+      <li>
+        <a routerLink="/dashboard/friends/list" routerLinkActive="active" #rlaFriends="routerLinkActive"
+          [attr.aria-current]="rlaFriends.isActive ? 'page' : null" aria-label="Abrir página Amigos">
+          <i class="fa-solid fa-user-group" aria-hidden="true"></i>
+          <span class="sr-only">Amigos</span>
+          <span aria-hidden="true">Amigos</span>
+        </a>
+      </li>
     </ul>
   </nav>
-  <main class="dashboard-content">
+
+  <!-- Conteúdo -->
+  <main id="dashboard-main" class="dashboard-content" role="main" tabindex="-1" aria-label="Conteúdo do dashboard">
     <router-outlet></router-outlet>
   </main>
 </div>

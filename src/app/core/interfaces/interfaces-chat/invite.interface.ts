@@ -1,16 +1,32 @@
 // src\app\core\interfaces\interfaces-chat\invite.interface.ts
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, FieldValue } from 'firebase/firestore';
+
+export type InviteType = 'room' | 'community' | 'friend';
+export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired' | 'canceled';
+
 export interface Invite {
   id?: string;
-  roomId: string;
+
+  // ✅ v2 (recomendado)
+  type?: InviteType;
+  targetId?: string;
+  targetName?: string;
+
+  // canônico
   senderId: string;
   receiverId: string;
-  roomName: string;
-  status: 'pending' | 'accepted' | 'declined';
+  status: InviteStatus;
   sentAt: Timestamp;
   expiresAt: Timestamp;
+
+  // audit
+  respondedAt?: Timestamp | FieldValue | null;
+  updatedAt?: Timestamp | FieldValue;
+
+  // legacy (opcional)
+  roomId?: string;
+  roomName?: string;
 }
-// lembrar sempre da padronização em uid para usuários, o identificador canônico.
 // lembrar sempre da padronização em uid para usuários, o identificador canônico.
 // AUTH ORCHESTRATOR SERVICE (Efeitos colaterais e ciclo de vida)
 //

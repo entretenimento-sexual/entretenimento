@@ -1,8 +1,8 @@
-    //C:\entretenimento\firestore-rules\public_index.rules
-    // =========================================================================
+    // =======================================================================
     // PUBLIC INDEX (índice técnico)
-    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
-    // =========================================================================
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+    // entretenimento\firestore-rules\public_index.rules
+    // =======================================================================
 match /public_index/{docId} {
   function isNicknameDoc() { return docId.matches('^nickname:.+'); }
   function isEmailDoc() { return docId.matches('^email:.+'); }

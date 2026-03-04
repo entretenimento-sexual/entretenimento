@@ -1,125 +1,195 @@
-/* src\app\user-profile\user-profile-view\user-profile-view.component.css */
-h1,
-h2,
-h3 {
-  margin-bottom: 0.5em;
-}
+/* src/app/user-profile/user-profile-view/user-profile-view.component.css */
+/*
+  UserProfileView (Página /perfil)
+  - Mobile-first
+  - Usa tokens globais (variables.css)
+  - Evita 80vw / offsets manuais
+  - Cards com espaçamento confortável para toque (tap target)
+*/
 
-.profile-container {
-  max-width: 80vw;
+.profile-page {
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-  margin: auto;
-  padding: 22px 0;
-  /* Adiciona um espaçamento no topo e no rodapé */
+  width: 100%;
+  min-height: calc(100dvh - var(--header-height, 100px));
+  background: var(--background-color);
+  color: var(--text-color);
 }
 
-.profile-content {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+.profile-main {
+  flex: 1;
+  width: 100%;
 }
 
-.user-preferences {
+/* “Shell” centralizado, aproveita seus containers globais */
+.profile-shell {
+  padding-block: var(--space-4, 24px);
   display: flex;
   flex-direction: column;
-  /* Organiza as caixas de categoria em coluna */
+  gap: var(--space-3, 16px);
 }
 
-.category-item,
-p {
-  color: var(--text-color);
-  /* Usando variável de cor global */
-  font-size: 16px;
-  line-height: 1.5;
-  /* Melhor legibilidade */
-  padding: 5px 0;
-  /* Espaçamento entre itens */
+/* Card base */
+.profile-card {
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg, 12px);
+  box-shadow: var(--box-shadow);
+  padding: var(--space-4, 24px);
 }
 
-.user-nickname {
-  text-align: center;
-  margin-top: -10px;
-  margin-left: -52px;
-  color: var(--secondary-color);  /* Usando a cor global */
-  font-family: var(--font-family-primary);
-  width: 250px;
-}
-
-.tag {
-  display: inline-block;
-  background-color: #f0f0f0;
-  border-radius: 15px;
-  padding: 5px 10px;
-  margin: 2px;
-  font-size: 14px;
-}
-
-.content {
-  flex: 2;
+/* Header do card: título + ações */
+.profile-header {
   display: flex;
-  flex-direction: row;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3, 16px);
+  margin-bottom: var(--space-3, 16px);
+}
+
+.profile-title {
+  min-width: 0;
+}
+
+.category-title {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+
+.profile-lead {
+  margin-top: var(--space-2, 12px);
+  color: color-mix(in oklab, var(--text-color) 85%, transparent);
+}
+
+/* Botões em grupo (desktop) */
+.profile-actions {
+  display: flex;
   flex-wrap: wrap;
-  padding-left: 20px;
+  gap: var(--space-2, 12px);
+  justify-content: flex-end;
 }
 
-.user-profile-summary {
-  font-family: var(--font-family-primary);
-  /* Variável global */
-  color: var(--secondary-color);
-  line-height: 1.6;
-  margin-bottom: 1.1em;
+.profile-actions .btn {
+  min-height: var(--tap-target, 44px);
+  padding: 10px 14px;
+  border-radius: var(--radius-md, 8px);
+  line-height: 1.1;
 }
 
-.user-profile-summary p,
-.user-details p {
-  word-wrap: break-word;
-  overflow-wrap: break-word;
-  margin-right: 20px;
-  margin-bottom: 1px;
+/* Grid interno do card */
+.profile-grid {
+  display: grid;
+  gap: var(--space-3, 16px);
+  grid-template-columns: 1fr;
 }
 
-/* Animações refinadas para sidebar */
-@keyframes fadeInLeft {
-  from {
-    transform: translateX(-200%);
+.profile-block {
+  padding: var(--space-3, 16px);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md, 8px);
+  background: color-mix(in oklab, var(--surface-color) 92%, transparent);
+}
+
+.block-title {
+  margin: 0 0 var(--space-2, 12px);
+  font-size: 1.05rem;
+  line-height: 1.2;
+}
+
+.profile-text {
+  margin: 0;
+  line-height: 1.55;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.muted {
+  margin: 0;
+  padding: 4px 0;
+  opacity: 0.9;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Lista de redes sociais */
+.links-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.links-item {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 10px;
+  align-items: start;
+
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--surface-border);
+  background: var(--input-background);
+}
+
+.links-label {
+  font-weight: 600;
+}
+
+.links-value {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  opacity: 0.95;
+}
+
+/* ==========================================================
+   Responsividade
+   ========================================================== */
+
+/* Tablet+ */
+@media (min-width: 768px) {
+  .profile-grid {
+    grid-template-columns: 1fr 1fr;
   }
 
-  to {
-    transform: translateX(0);
+  .links-item {
+    grid-template-columns: 140px 1fr;
   }
 }
 
-@keyframes fadeOutLeft {
-  from {
-    transform: translateX(0);
-  }
-
-  to {
-    transform: translateX(-200%);
+/* Desktop */
+@media (min-width: 1100px) {
+  .profile-grid {
+    grid-template-columns: 1fr 1fr 1fr;
   }
 }
 
-/* Responsividade */
-@media only screen and (max-width: 600px) {
-  .profile-container {
+/* Mobile muito pequeno (até 350px) */
+@media (max-width: 350px) {
+  .profile-card {
+    padding: var(--space-3, 16px);
+  }
+
+  .profile-header {
     flex-direction: column;
-    padding: 5px;
+    align-items: stretch;
   }
 
-  .sidebar:not(.visible) {
-    display: none;
-    animation: fadeOutLeft 0.5s ease-in-out forwards;
+  .profile-actions {
+    justify-content: flex-start;
   }
 
-  .sidebar.visible {
-    display: block;
-    animation: fadeInLeft 0.5s ease-in-out forwards;
-    width: 60%;
+  .links-item {
+    grid-template-columns: 1fr;
   }
 
-  .content {
-    padding-left: 0;
+  .links-label {
+    opacity: 0.9;
+  }
+}
+
+/* Preferência: movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  .profile-card {
+    transition: none !important;
   }
 }

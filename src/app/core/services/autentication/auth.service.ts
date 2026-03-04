@@ -40,7 +40,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { PresenceService } from 'src/app/core/services/presence/presence.service';
 import { UsuarioService } from 'src/app/core/services/user-profile/usuario.service';
 
-import { Auth, signOut } from '@angular/fire/auth';
+import { Auth } from '@angular/fire/auth';
 
 // ✅ NOVA ARCH (fonte da verdade)
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
@@ -66,16 +66,10 @@ export class AuthService implements OnDestroy {
   private cachedUid$: Observable<string | null> | null = null;
 
   constructor(
-    // (opcional) alguns fluxos antigos navegam após logout
-    private readonly router: Router,
-
     private readonly store: Store<AppState>,
     private readonly cache: CacheService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly presence: PresenceService,
-    private readonly usuarioService: UsuarioService,
-    private readonly auth: Auth,
-
     // ✅ nova fonte de verdade
     private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
@@ -162,59 +156,6 @@ export class AuthService implements OnDestroy {
     } catch (err) {
       this.reportSilent('setCurrentUser', err);
     }
-  }
-
-  // ===========================================================================
-  // Logout (compat)
-  // ===========================================================================
-  /**
-   * Compat: logout em Observable<void>.
-   * - Não faz “clearCurrentUser()” direto para evitar dupla limpeza/dispatch.
-   * - Confia na mudança do AuthSession (uid -> null) para disparar limpeza uma vez.
-   * - Se algo falhar, faz fallback local para não travar o usuário.
-   */
-  logout(): Observable<void> {
-    return this.getLoggedUserUID$().pipe(
-      take(1),
-      switchMap((uid) => {
-        // Best-effort: para presença e tenta marcar offline (legado)
-        this.presence.stop();
-
-        const offline$ = uid
-          ? this.usuarioService.updateUserOnlineStatus(uid, false).pipe(
-            take(1),
-            catchError((err) => {
-              this.reportSilent('logout.updateUserOnlineStatus(false)', err);
-              return of(void 0);
-            })
-          )
-          : of(void 0);
-
-        return offline$.pipe(
-          switchMap(() =>
-            from(signOut(this.auth)).pipe(
-              catchError((err) => {
-                // Mesmo se o signOut falhar, não deixa o usuário “preso” localmente
-                this.reportSilent('logout.signOut', err);
-                this.forceLocalClearOnce('logout.signOut failed');
-                return of(void 0);
-              })
-            )
-          ),
-          tap(() => {
-            // Navegação é opcional (mantenha se o legado espera isso)
-            // Evite navegações duplicadas: o Router guard/effects podem fazer isso também.
-            this.router.navigate(['/login'], { replaceUrl: true }).catch(() => { });
-          }),
-          map(() => void 0)
-        );
-      }),
-      catchError((err) => {
-        this.reportSilent('logout', err);
-        this.forceLocalClearOnce('logout catchError');
-        return of(void 0);
-      })
-    );
   }
 
   // ===========================================================================
@@ -351,27 +292,6 @@ export class AuthService implements OnDestroy {
       // cache pode falhar dependendo do storage (não explode UI)
       this.reportSilent('clearLocalState.cache.delete', err);
     }
-  }
-
-  /**
-   * Fallback quando algo crítico falha e não dá para esperar o AuthSession emitir null.
-   * Importante: NÃO dispara logoutSuccess aqui. Isso é controlado por onUidChanged.
-   * Para evitar duplo “dispatch”, forçamos lastUid=null também.
-   */
-  private forceLocalClearOnce(reason: string): void {
-    this.dbg('forceLocalClearOnce', { reason });
-
-    // Se já estamos “deslogados” localmente, não repete
-    if (this.lastUid === null && this.userSubject.value === null) return;
-
-    // força estado local coerente
-    this.lastUid = null;
-    this.clearLocalState();
-
-    // Mantém compat com watchers antigos, mas de forma controlada:
-    // só dispara se a store ainda estiver em estado “logado” por legado.
-    // (Se isso ainda gerar duplicidade, remova e migre watchers para authSessionChanged)
-    this.store.dispatch(logoutSuccess());
   }
 
   private reportSilent(context: string, err: unknown): void {

@@ -8,17 +8,22 @@ import {
   loadUsers,
   loadUsersSuccess,
   loadUsersFailure,
+  setCurrentUser,
+  clearCurrentUser,
+  addUserToState,
 } from '../../actions/actions.user/user.actions';
 
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { sanitizeUserForStore, sanitizeUsersForStore } from 'src/app/store/utils/user-store.serializer';
 import { toStoreError } from 'src/app/store/utils/store-error.serializer';
 
-import { of } from 'rxjs';
+import { from, merge, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -26,7 +31,6 @@ import {
   finalize,
   map,
   switchMap,
-  takeUntil,
   tap,
 } from 'rxjs/operators';
 
@@ -46,41 +50,75 @@ export class UserEffects {
     private readonly actions$: Actions,
     private readonly firestoreQuery: FirestoreQueryService,
     private readonly firestoreUserQuery: FirestoreUserQueryService,
+    private readonly currentUserStore: CurrentUserStoreService,
     private readonly globalErrorHandler: GlobalErrorHandlerService
   ) { }
 
   observeUserChanges$ = createEffect(() => {
-    const stop$ = this.actions$.pipe(ofType(stopObserveUserChanges));
-
-    return this.actions$.pipe(
+    // Driver único: START (uid) ou STOP (null)
+    const start$ = this.actions$.pipe(
       ofType(observeUserChanges),
-      map(({ uid }) => (uid ?? '').trim()),
-      filter(Boolean),
+      map(({ uid }) => (uid ?? '').trim() || null),
+      filter((uid): uid is string => !!uid)
+    );
+
+    const stop$ = this.actions$.pipe(
+      ofType(stopObserveUserChanges),
+      map(() => null as string | null)
+    );
+
+    return merge(start$, stop$).pipe(
       distinctUntilChanged(),
+      tap((uid) => this.dbg('observeUserChanges driver', { uid })),
 
-      tap((uid) => this.dbg('observeUserChanges -> subscribe', { uid })),
+      switchMap((uid) => {
+        // STOP: limpa fontes do perfil (service + store)
+        if (!uid) {
+          this.currentUserStore.clear();
+          return of(clearCurrentUser());
+        }
 
-      switchMap((uid) =>
-        this.firestoreUserQuery.getUser(uid).pipe(
-          takeUntil(stop$),
+        // Best-effort: tenta restaurar rápido do cache (se existir)
+        try { this.currentUserStore.restoreFromCache(); } catch { /* noop */ }
 
-          distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+        this.dbg('observeUserChanges -> subscribe', { uid });
+
+        return this.firestoreUserQuery.getUser(uid).pipe(
+          // evita spam de dispatch; mantém seu padrão atual
+          distinctUntilChanged((a, b) => {
+            try { return JSON.stringify(a) === JSON.stringify(b); } catch { return a === b; }
+          }),
 
           tap((user) => this.dbg('user snapshot', { uid, hasUser: !!user })),
 
-          map((user) => {
-            if (user) {
-              return loadUsersSuccess({ users: [sanitizeUserForStore(user as IUserDados)] });
+          switchMap((user) => {
+            if (!user) {
+              // doc ausente → limpa perfil (service + store) e registra erro serializável
+              this.currentUserStore.clear();
+
+              return from([
+                clearCurrentUser(),
+                loadUsersFailure({
+                  error: toStoreError(
+                    null,
+                    `Usuário ${uid} não encontrado.`,
+                    'UserEffects.observeUserChanges$',
+                    { uid }
+                  ),
+                }),
+              ]);
             }
 
-            return loadUsersFailure({
-              error: toStoreError(
-                null,
-                `Usuário ${uid} não encontrado.`,
-                'UserEffects.observeUserChanges$',
-                { uid }
-              ),
-            });
+            const safeUser = sanitizeUserForStore(user as IUserDados);
+
+            // ✅ Fonte do PERFIL do app (AccessControl + Sidebar dependem disso)
+            this.currentUserStore.set(safeUser);
+
+            // ✅ NgRx: currentUser e (opcional) entities/lista
+            return from([
+              setCurrentUser({ user: safeUser }),
+              addUserToState({ user: safeUser }),
+            ]);
           }),
 
           catchError((err) => {
@@ -92,6 +130,9 @@ export class UserEffects {
             this.globalErrorHandler.handleError(e);
 
             this.dbg('observeUserChanges -> error', { uid, err });
+
+            // Em erro: NÃO limpa sessão; apenas degrada estado do perfil
+            this.currentUserStore.clear();
 
             return of(
               loadUsersFailure({
@@ -106,8 +147,8 @@ export class UserEffects {
           }),
 
           finalize(() => this.dbg('observeUserChanges -> finalize', { uid }))
-        )
-      )
+        );
+      })
     );
   });
 
@@ -128,4 +169,11 @@ export class UserEffects {
       )
     )
   );
-}
+} // Linha 172, fim UserEffects
+/*
+- UserEffects é responsável por observar mudanças no perfil do usuário atual (users/{uid}) e carregar listas de usuários.
+- Ele é acionado por ações específicas (ex.: observeUserChanges, loadUsers) e interage com os serviços de consulta do Firestore para obter os dados.
+- O estado do perfil do usuário é mantido no CurrentUserStoreService, que é a fonte de verdade para o perfil do app.
+- O NgRx é usado para refletir esse estado no store global, mas o serviço é o dono real dos dados do perfil.
+- O efeito observeUserChanges$ é projetado para ser resiliente: ele tenta restaurar do cache, lida com erros sem quebrar a sessão, e mantém logs detalhados para debug.
+*/

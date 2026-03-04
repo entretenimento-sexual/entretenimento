@@ -166,7 +166,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
     // -----------------------------
     // ROOMS (gated realtime)
     // -----------------------------
-    this.rooms$ = combineLatest([this.access.canListenRealtime$, this.authSession.uid$]).pipe(
+    this.rooms$ = combineLatest([this.access.canRunChatRealtime$, this.authSession.uid$]).pipe(
       switchMap(([canListen, uid]) => {
         if (!canListen || !uid) return of([] as IRoom[]);
 

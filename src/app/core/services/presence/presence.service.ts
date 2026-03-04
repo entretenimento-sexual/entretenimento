@@ -291,8 +291,7 @@ export class PresenceService {
 
     return markOffline$.pipe(
       finalize(() => {
-        // release liderança (idempotente e safe)
-        if (wasLeader && key) {
+            if (key) {
           this.dbg('STOP$: releaseLeadership()', { key });
           this.leader.releaseLeadership(key);
         }
@@ -304,7 +303,7 @@ export class PresenceService {
   stop(): void {
     this.stop$().pipe(take(1)).subscribe({ next: () => { }, error: () => { } });
   }
-} // 268 linhas, parece estar no limite.
+} // 307 linhas, fim do PresenceService.
 // ***** Sempre considerar que existe no projeto o user-presence.query.service.ts *****
 // ***** Sempre considerar que existe no projeto o user-discovery.query.service.ts
 // ***** Sempre considerar que existe o presence\presence-dom-streams.service.ts *****

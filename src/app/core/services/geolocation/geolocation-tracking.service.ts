@@ -7,7 +7,7 @@
 // Não esquecer os comentários e ferramentas de debug para facilitar a manutenção futura
 import { Injectable, NgZone } from '@angular/core';
 import { EMPTY } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { catchError, take } from 'rxjs/operators';
 
 import { GeoCoordinates } from '../../interfaces/geolocation.interface';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
@@ -167,7 +167,9 @@ export class GeolocationTrackingService {
           this.lastCoords = curr;
           this.writeCache(curr); // snapshot local sempre
 
-          this.persistLocation$(uid, latitude, longitude, accuracy).subscribe();
+          this.persistLocation$(uid, latitude, longitude, accuracy)
+          .pipe(take(1))
+          .subscribe();
         },
         (err) => {
           if (err.code === err.PERMISSION_DENIED) {
@@ -222,8 +224,20 @@ export class GeolocationTrackingService {
   }
 
   private handleWriteError(err: unknown): void {
-    try { this.globalError.handleError(err as any); } catch { }
+    // Observabilidade sem UX duplicada (best-effort)
+    try {
+      const e = err instanceof Error ? err : new Error('Falha ao persistir localização.');
+      (e as any).context = 'GeolocationTrackingService.persistLocation$';
+      (e as any).original = err;
 
+      // ✅ best-effort: não notifica usuário no global
+      (e as any).silent = true;
+      (e as any).skipUserNotification = true;
+
+      this.globalError.handleError(e);
+    } catch { /* no-op */ }
+
+    // UX leve com throttle
     const now = Date.now();
     if (now - this.lastNotifyAt > this.notifyThrottleMs) {
       this.lastNotifyAt = now;
@@ -261,4 +275,5 @@ export class GeolocationTrackingService {
       // sem Permissions API: ok
     }
   }
-}
+} // Linha 278, fim do GeolocationTrackingService
+

@@ -16,9 +16,10 @@
 // - Durante /register o usuário ainda não está “habilitado” no app.
 // - Evita writes de presença prematuros e ruído (permission-denied / logs / custo).
 // =============================================================================
+// src/app/core/services/presence/presence-orchestrator.service.ts
 
 import { DestroyRef, Injectable, inject } from '@angular/core';
-import { combineLatest, defer, of } from 'rxjs';
+import { defer, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -42,10 +43,7 @@ export class PresenceOrchestratorService {
   private readonly destroyRef = inject(DestroyRef);
   private readonly debug = !environment.production;
 
-  /** Evita start duplicado (idempotência) */
   private started = false;
-
-  /** Throttle de notificação (evita spam em streams) */
   private lastNotifyAt = 0;
 
   constructor(
@@ -55,66 +53,49 @@ export class PresenceOrchestratorService {
     private readonly notify: ErrorNotificationService,
   ) { }
 
-  /**
-   * Inicia o orquestrador de presença.
-   * - Idempotente: chamar várias vezes não duplica streams.
-   * - Ideal: chamar 1 vez no AppComponent (ou num bootstrap service).
-   */
   start(): void {
     if (this.started) return;
     this.started = true;
 
-    /**
-     * ✅ Gate canônico (fonte única):
-     * OPÇÃO A:
-     * - canRunInfraRealtime$ já considera:
-     *   - canRunApp$ (routerReady + !blocked)
-     *   - ready (Auth restaurado)
-     *   - uid presente
-     *   - fora do fluxo sensível (/register e /login)
-     *
-     * Resultado:
-     * - Se gate=false => STOP (cleanup)
-     * - Se gate=true  => START
-     */
+    // ✅ Gate canônico (fonte única)
     const can$ = this.access.canRunPresence$.pipe(
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
     /**
-     * ✅ UID canônico (AuthSession manda no UID).
-     * Observação:
-     * - mesmo que can$ já garanta uid presente, mantemos uid$ aqui
-     *   para tornar STOP determinístico em edge-cases (race/transição).
+     * ✅ UID canônico com normalização
+     * - aqui é o trecho que você perguntou: this.access.authUid$.pipe(...)
      */
-    const uid$ = this.access.authUid$.pipe(
+    const authUid$ = this.access.authUid$.pipe(
       map((uid) => (uid ?? '').trim() || null),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
     /**
-     * Gate final reage a QUALQUER mudança em (can, uid):
-     * - can=false ou uid=null => STOP
-     * - can=true  e uid!=null => START
+     * ✅ DRIVER EXTERNO = authUid$
+     * - Qualquer troca de UID cancela o inner stream imediatamente.
+     * - can$ continua sendo a fonte única do “modo app”.
+     * - Resultado final: uid desejado (string) ou null
      */
-    const gate$ = combineLatest([can$, uid$]).pipe(
-      map(([can, uid]) => ({ canStart: can === true && !!uid, uid })),
-      distinctUntilChanged((a, b) => a.canStart === b.canStart && a.uid === b.uid),
+    const desiredUid$ = authUid$.pipe(
+      switchMap((uid) =>
+        can$.pipe(
+          map((can) => (can === true && !!uid ? uid : null)),
+          distinctUntilChanged()
+        )
+      ),
+      distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    gate$
+    desiredUid$
       .pipe(
-        tap((g) => this.dbg('gate(presence) ->', g)),
+        tap((uid) => this.dbg('desiredUid(presence) ->', { uid })),
 
-        switchMap(({ canStart, uid }) => {
-          if (!canStart || !uid) {
-            // STOP sempre best-effort
-            return this.safeStop$().pipe(take(1));
-          }
-          // START sempre best-effort
+        switchMap((uid) => {
+          if (!uid) return this.safeStop$().pipe(take(1));
           return this.safeStart$(uid).pipe(take(1));
         }),
 
@@ -129,7 +110,7 @@ export class PresenceOrchestratorService {
   }
 
   // ---------------------------------------------------------------------------
-  // Helpers seguros (Observable-first)
+  // Helpers seguros
   // ---------------------------------------------------------------------------
 
   private safeStart$(uid: string) {
@@ -147,7 +128,6 @@ export class PresenceOrchestratorService {
   private safeStop$() {
     return defer(() => {
       try {
-        // stop$ já é Observable no seu design
         return this.presence.stop$().pipe(
           catchError((err) => {
             this.handleStreamError(err, 'PresenceOrchestrator stop error');
@@ -167,13 +147,12 @@ export class PresenceOrchestratorService {
 
   private handleStreamError(err: unknown, context: string): void {
     const e = err instanceof Error ? err : new Error(context);
-    (e as any).silent = true; // stream interno; reduz ruído de UX no handler global
+    (e as any).silent = true;
     (e as any).original = err;
     (e as any).context = context;
 
     this.globalError.handleError(e);
 
-    // Notificação opcional e controlada (sem spam)
     const now = Date.now();
     if (now - this.lastNotifyAt > 20_000) {
       this.lastNotifyAt = now;
@@ -188,5 +167,7 @@ export class PresenceOrchestratorService {
     // eslint-disable-next-line no-console
     console.log(`[PresenceOrchestrator] ${msg}`, extra ?? '');
   }
-} // linha 191, fim do PresenceOrchestratorService
+}// linha 170, fim do PresenceOrchestratorService
+// - O PresenceOrchestratorService é responsável por iniciar e parar o PresenceService de forma idempotente, reagindo a mudanças no estado de acesso do usuário (canRunPresence$ e authUid$). Ele também centraliza o tratamento de erros e notificação para falhas relacionadas à presença.
+// - Ele deve ser iniciado preferencialmente no AppComponent para garantir que a presença seja gerenciada durante todo o ciclo de vida do app, mas pode ser chamado em outros lugares desde que seja garantido que start() seja chamado apenas uma vez.
 

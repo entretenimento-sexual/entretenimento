@@ -1,16 +1,18 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-02-23T23:10:37.636Z
+// Generated at: 2026-03-01T13:31:32.011Z
 
 // ===== _helpers.rules =====
-// firestore-rules/_helpers.rules
-//
+// ===================================================================
+//              firestore-rules/_helpers.rules
+// ===================================================================
 // Objetivo:
 // - Centralizar helpers de autenticação/claims/tipos realmente usados
 // - Evitar warnings do compiler (ex.: "k in map")
 // - Padronizar timestamps aceitando:
 //   (1) timestamp real (v is timestamp)
 //   (2) serverTimestamp() -> nas rules equivale a request.time
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 //
 // Observação:
 // - Para forçar “somente serverTimestamp()” em um campo específico,
@@ -49,9 +51,13 @@ service cloud.firestore {
     // Claims helpers (usado em users.rules / admin_logs.rules)
     // =========================================================================
     // Evita "(k in request.auth.token)" para não disparar warning
-    function hasClaim(k) { return signedIn() && request.auth.token[k] == true; }
-    function isAdmin() { return hasClaim("admin"); }
+    function hasClaim(k) {
+      return signedIn()
+        && request.auth.token.keys().hasAny([k])
+        && request.auth.token[k] == true;
+    }
 
+    function isAdmin() { return hasClaim("admin"); }
     // =========================================================================
     // Optional fields helpers (campos opcionais)
     // Regra:
@@ -90,8 +96,12 @@ function optTimestamp(k) {
     || isTs(request.resource.data[k]);
 }
     // (os demais matches/arquivos entram abaixo via build)
+// ===================================================================
+//             Fim do firestore-rules/_helpers.rules
+// ===================================================================
 
 // ===== users.rules =====
+// =========================================================================
 // firestore-rules/users.rules
 // =========================================================================
 // USERS (privado)
@@ -102,24 +112,21 @@ function optTimestamp(k) {
 // - Garante que users/{uid}.emailVerified (se existir no payload) sempre reflita
 //   o token do Auth (request.auth.token.email_verified).
 // - Evita spoof (usuário setar emailVerified=true no doc antes de verificar).
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // =========================================================================
-
 match /users/{userId} {
 
   function isAdminActor() { return isAdmin(); }
 
-  // Helper SAFE
   function hasField(field) {
     return request.resource.data.keys().hasAny([field]);
   }
 
-  // emailVerified, quando presente no payload final, deve bater com o token
   function emailVerifiedMatchesToken() {
     return !hasField("emailVerified")
       || request.resource.data.emailVerified == (request.auth.token.email_verified == true);
   }
 
-  // Bloqueia alterações sensíveis pelo próprio usuário
   function selfChangingSensitiveKeys() {
     return request.resource.data.diff(resource.data).changedKeys().hasAny([
       "role",
@@ -139,7 +146,6 @@ match /users/{userId} {
     ]);
   }
 
-  // Admin só pode mexer em um conjunto pequeno (moderação)
   function adminModerationOnly() {
     return request.resource.data.diff(resource.data).changedKeys().hasOnly([
       "accountLocked",
@@ -153,17 +159,22 @@ match /users/{userId} {
     ]);
   }
 
+  function createDefaultsOk() {
+    return request.resource.data.keys().hasAny(["uid"])
+      && request.resource.data.uid == uid()
+      && (!hasField("role") || request.resource.data.role == "basic")
+      && (!hasField("isSubscriber") || request.resource.data.isSubscriber == false)
+      && (!hasField("tier") || request.resource.data.tier == "basic");
+  }
+
   allow get: if isSelf(userId) || isAdminActor();
   allow list: if false;
 
-  // Create:
-  // - dono cria seu doc
-  // - se emailVerified vier, precisa refletir token
-  allow create: if isSelf(userId) && emailVerifiedMatchesToken();
+  // ✅ UM ÚNICO create (com defaults travados)
+  allow create: if isSelf(userId)
+    && emailVerifiedMatchesToken()
+    && createDefaultsOk();
 
-  // Update:
-  // - self: não muda campos sensíveis + emailVerified coerente com token
-  // - admin: apenas moderação (mantém sua política)
   allow update: if
     (isSelf(userId) && !selfChangingSensitiveKeys() && emailVerifiedMatchesToken())
     || (isAdminActor() && adminModerationOnly());
@@ -376,6 +387,7 @@ match /public_profiles/{userId} {
 // - Para list/query seria necessário cross-document get() por doc retornado,
 //   o que torna as rules pesadas e propensas a limite/custo.
 // - A elegibilidade do ALVO fica no app (AccessControlService) por enquanto.
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // =========================================================================
 
 match /presence/{presenceUid} {
@@ -499,7 +511,11 @@ match /presence/{presenceUid} {
 
 // ===== friendRequests.rules =====
     // =========================================================================
-    // FRIEND REQUESTS
+    // FRIEND.REQUESTS.RULES
+    // - Solicitações de amizade (privado)
+    // - Regras:
+    //  - Leitura: somente envolvidos (requester ou target)
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
     // =========================================================================
     match /friendRequests/{reqId} {
       allow read: if signedIn() &&
@@ -523,13 +539,58 @@ match /presence/{presenceUid} {
         && resource.data.status == 'pending'
         && uid() == resource.data.requesterUid;
     }
+// ====================================================================
+//                        FIM DO FRIEND.REQUESTS.RULES
+// ====================================================================
+
+// ===== friends_root.rules =====
+// firestore-rules/friends_root.rules
+// =========================================================================
+// FRIENDS (coleção raiz) — se você usar friends/{key}
+// - Read: somente envolvidos
+// - Write: somente envolvidos (MVP)
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// =========================================================================
+
+match /friends/{friendId} {
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function participantsFrom(data) {
+    return (data.keys().hasAny(["participants"]) && data.participants is list)
+      ? data.participants
+      : [];
+  }
+
+  function isParticipantData(data) {
+    let parts = participantsFrom(data);
+    return signedIn() && (uid() in parts);
+  }
+
+  allow get: if signedIn() && isParticipantData(resource.data);
+  allow list: if false;
+
+  allow create: if signedIn()
+    && hasField("participants")
+    && request.resource.data.participants is list
+    && request.resource.data.participants.size() == 2
+    && (uid() in request.resource.data.participants);
+
+  allow update: if signedIn()
+    && isParticipantData(resource.data)
+    && isParticipantData(request.resource.data);
+
+  allow delete: if false;
+}
 
 // ===== chats.rules =====
-    //firestore-rules\chats.rules
-    // =========================================================================
+    // =======================================================================
     // CHATS
-    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
-    // =========================================================================
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+    // firestore-rules\chats.rules
+    // =======================================================================
     match /chats/{chatId} {
       function isChatParticipant() {
         return signedIn() && (uid() in resource.data.participants);
@@ -593,126 +654,199 @@ match /presence/{presenceUid} {
     }
 
 // ===== rooms.rules =====
-    // =========================================================================
-    // ROOMS
-    // =========================================================================
-    match /rooms/{roomId} {
-      function isRoomParticipant() {
-        return signedIn() && (uid() in resource.data.participants);
-      }
-      function isRoomOwner() {
-        return signedIn() && resource.data.createdBy == uid();
-      }
+// ================================================================
+                       // ROOMS.RULES
+    // - Coleção raiz: rooms/{roomId}
+    // - Subcollections: messages, invites, participants
+    // - Read: somente participantes (anti-scraping)
+    // - Write: somente participantes, mas só owner pode mudar participantes e detalhes do room (
+    //   isso evita negação em transações onde room update + participant set rodam juntos, e mantém controle de quem pode mudar o que).
+    // - Messages: somente participantes, mas só pode criar mensagens com senderId == uid,
+    //   e só pode atualizar status de mensagens recebidas (não pode mudar mensagens que enviou).
+    // - Invites: somente envolvidos (sender ou receiver), com regras específicas de quem pode criar/atualizar/deletar.
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+    // firestore-rules\rooms.rules
+// ================================================================
+match /rooms/{roomId} {
+  function isRoomParticipant() {
+    return signedIn() && (uid() in resource.data.participants);
+  }
 
-      allow read: if isRoomParticipant();
+  function isRoomOwner() {
+    return signedIn() && resource.data.createdBy == uid();
+  }
 
-      allow create: if signedIn()
-        && request.resource.data.createdBy == uid()
-        && request.resource.data.participants is list
-        && (uid() in request.resource.data.participants)
-        && isStr(request.resource.data.roomName)
-        && ("creationTime" in request.resource.data) && isTs(request.resource.data.creationTime);
+  function isLegacyRoomPayload() {
+  return !hasField("type") && !hasField("targetId");
+}
 
-      allow update: if isRoomParticipant()
-        && (
-          (isRoomOwner()
-            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-              "roomName",
-              "description",
-              "expirationDate",
-              "maxParticipants",
-              "isPrivate",
-              "roomType",
-              "visibility",
-              "participants",
-              "lastActivity",
-              "lastMessage"
-            ])
-          )
-          ||
-          (!isRoomOwner()
-            && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-              "lastActivity",
-              "lastMessage"
-            ])
-          )
-        );
+function validCreateLegacyRoom() {
+  return isLegacyRoomPayload()
+    && allowedKeys()
+    && request.resource.data.senderId == uid()
+    && request.resource.data.receiverId is string
+    && request.resource.data.receiverId != uid()
+    && request.resource.data.roomId is string
+    && request.resource.data.status == "pending"
+    && isTs(request.resource.data.sentAt)
+    && isTs(request.resource.data.expiresAt)
+    && (!hasField("updatedAt") || request.resource.data.updatedAt == request.time)
+    && (!hasField("respondedAt") || request.resource.data.respondedAt == null);
+}
 
-      allow delete: if false;
-    }
+  // ------------------------------------------------------------
+  // JOIN BY INVITE (root invites)
+  // DocId: invites/room:<roomId>:to:<uid>
+  // ------------------------------------------------------------
+  function joinInviteId() {
+    return "room:" + roomId + ":to:" + uid();
+  }
 
-    match /rooms/{roomId}/messages/{messageId} {
-      function isRoomParticipantByRoom() {
-        return signedIn()
-          && (uid() in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants);
-      }
+  function hasPendingJoinInvite() {
+    let invPath = /databases/$(database)/documents/invites/$(joinInviteId());
+    return exists(invPath)
+      && get(invPath).data.status == "pending"
+      && get(invPath).data.receiverId == uid()
+      && (
+        // compat: v2 (targetId) OU legacy (roomId)
+        (("targetId" in get(invPath).data) && get(invPath).data.targetId == roomId)
+        || (("roomId" in get(invPath).data) && get(invPath).data.roomId == roomId)
+      )
+      && get(invPath).data.expiresAt > request.time;
+  }
 
-      function senderIsMeCreate() {
-        return (request.resource.data.senderId == uid())
-          || (("senderUid" in request.resource.data) && request.resource.data.senderUid == uid());
-      }
+  function isJoinUpdateShape() {
+    // não é participante ainda
+    return signedIn()
+      && !(uid() in resource.data.participants)
 
-      function messageHasTime() {
-        return (("timestamp" in request.resource.data) && isTs(request.resource.data.timestamp))
-          || (("createdAt" in request.resource.data) && isTs(request.resource.data.createdAt));
-      }
+      // só pode mudar participants + lastActivity
+      && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+        "participants",
+        "lastActivity"
+      ])
 
-      allow read: if isRoomParticipantByRoom();
+      // participants: list
+      && (request.resource.data.participants is list)
+      && (resource.data.participants is list)
 
-      allow create: if isRoomParticipantByRoom()
-        && senderIsMeCreate()
-        && isStr(request.resource.data.content) && request.resource.data.content.size() > 0
-        && isStr(request.resource.data.nickname)
-        && messageHasTime()
-        && (!("status" in request.resource.data) || request.resource.data.status == "sent");
+      // adiciona a si mesmo
+      && (uid() in request.resource.data.participants)
+      && !(uid() in resource.data.participants)
 
-      allow update: if isRoomParticipantByRoom()
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status"])
-        && request.resource.data.status in ["delivered","read"]
-        && (
-          (("senderId" in resource.data) && resource.data.senderId != uid())
-          ||
-          (("senderUid" in resource.data) && resource.data.senderUid != uid())
-        );
+      // só cresce +1 e preserva todos os antigos
+      && request.resource.data.participants.size() == resource.data.participants.size() + 1
+      && request.resource.data.participants.hasAll(resource.data.participants)
 
-      allow delete: if false;
-    }
+      // força serverTimestamp em lastActivity
+      && request.resource.data.lastActivity == request.time;
+  }
 
-    match /rooms/{roomId}/invites/{inviteId} {
-      function canSeeInvite() {
-        return signedIn()
-          && (resource.data.senderId == uid() || resource.data.receiverId == uid());
-      }
+  allow read: if isRoomParticipant();
 
-      allow read: if canSeeInvite();
+  allow create: if signedIn()
+    && request.resource.data.createdBy == uid()
+    && request.resource.data.participants is list
+    && (uid() in request.resource.data.participants)
+    && isStr(request.resource.data.roomName)
+    && ("creationTime" in request.resource.data) && isTs(request.resource.data.creationTime);
 
-      allow create: if signedIn()
-        && request.resource.data.senderId == uid()
-        && request.resource.data.roomId == roomId
-        && request.resource.data.receiverId != uid()
-        && request.resource.data.status == "pending"
-        && isTs(request.resource.data.sentAt)
-        && isTs(request.resource.data.expiresAt)
-        && isTs(request.resource.data.expiresAt)
-        && isStr(request.resource.data.roomName);
+  // ✅ update normal (seu comportamento atual) OU join-by-invite
+  allow update: if
+    (
+      isRoomParticipant()
+      && (
+        (isRoomOwner()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "roomName",
+            "description",
+            "expirationDate",
+            "maxParticipants",
+            "isPrivate",
+            "roomType",
+            "visibility",
+            "participants",
+            "lastActivity",
+            "lastMessage"
+          ])
+        )
+        ||
+        (!isRoomOwner()
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            "lastActivity",
+            "lastMessage"
+          ])
+        )
+      )
+    )
+    ||
+    (
+      // join controlado
+      hasPendingJoinInvite()
+      && isJoinUpdateShape()
+    );
 
-      allow update: if signedIn()
-        && resource.data.status == "pending"
-        && resource.data.receiverId == uid()
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["status"])
-        && request.resource.data.status in ["accepted","declined"];
+  allow delete: if false;
+}
+// ================================================================
+//                        FIM DO ROOMS.RULES
+// ================================================================
 
-      allow delete: if signedIn()
-        && resource.data.status == "pending"
-        && resource.data.senderId == uid();
-    }
+// ===== rooms_participants.rules =====
+// firestore-rules/rooms_participants.rules
+// =========================================================================
+// ROOMS / participants (subcollection)
+// - Read: apenas participantes (fonte de verdade continua sendo rooms/{roomId}.participants)
+// - Write: o próprio usuário pode criar/atualizar o seu doc (MVP), sem depender do array
+//   (isso evita negação em transações onde room update + participant set rodam juntos).
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// =========================================================================
+
+match /rooms/{roomId}/participants/{userId} {
+
+  function roomExists() {
+    return exists(/databases/$(database)/documents/rooms/$(roomId));
+  }
+
+  function isRoomParticipantRequester() {
+    return signedIn()
+      && roomExists()
+      && (uid() in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "joinedAt",
+      "removedAt",
+      "removed"
+    ]);
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && request.resource.data.uid == uid()
+      // joinedAt/removedAt: você usa Date.now() (number). Aceita number (MVP).
+      && (!request.resource.data.keys().hasAny(["joinedAt"]) || request.resource.data.joinedAt is number)
+      && (!request.resource.data.keys().hasAny(["removedAt"]) || request.resource.data.removedAt is number)
+      && (!request.resource.data.keys().hasAny(["removed"])  || request.resource.data.removed is bool);
+  }
+
+  // Read somente para participantes reais do room (anti-scraping)
+  allow get, list: if isRoomParticipantRequester();
+
+  // Write: somente dono do doc
+  allow create, update: if isSelf(userId) && roomExists() && validPayload();
+
+  allow delete: if false;
+}
 
 // ===== public_index.rules =====
-    //C:\entretenimento\firestore-rules\public_index.rules
-    // =========================================================================
+    // =======================================================================
     // PUBLIC INDEX (índice técnico)
-    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
-    // =========================================================================
+    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+    // entretenimento\firestore-rules\public_index.rules
+    // =======================================================================
 match /public_index/{docId} {
   function isNicknameDoc() { return docId.matches('^nickname:.+'); }
   function isEmailDoc() { return docId.matches('^email:.+'); }
@@ -752,21 +886,26 @@ match /public_index/{docId} {
 
 // ===== users_profile_socialLinks.rules =====
 // C:\entretenimento\firestore-rules\users_profile_socialLinks.rules
-
 // =========================================================================
 // USERS / profileData / socialLinks (privado)
 // - Fonte de verdade
 // - Escrita: somente dono
 // - Leitura: somente dono (padrão). Moderador/admin opcional.
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // =========================================================================
 match /users/{userId}/profileData/socialLinks {
 
   function allowedKeys() {
     return request.resource.data.keys().hasOnly([
       "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
-      "sexlog","d4swing","buppe"
-      // Se você quiser versionar/controlar auditoria no futuro:
-      // ,"createdAt","updatedAt"
+      "sexlog","d4swing",
+
+      // ✅ novo + sugestões
+      "hotvips",
+      "privacy",
+      "onlyfans",
+      "fansly",
+      "linktree"
     ]);
   }
 
@@ -781,32 +920,26 @@ match /users/{userId}/profileData/socialLinks {
       && optString("snapchat")
       && optString("sexlog")
       && optString("d4swing")
-      && optString("buppe");
-      // Se usar timestamps:
-      // && optTimestamp("createdAt")
-      // && optTimestamp("updatedAt");
+
+      // ✅ novo + sugestões
+      && optString("hotvips")
+      && optString("privacy")
+      && optString("onlyfans")
+      && optString("fansly")
+      && optString("linktree");
   }
 
-  // Leitura: padrão “fechado”
   allow get: if isSelf(userId);
-  // Se você realmente precisar (decisão de produto/risco):
-  // allow get: if isSelf(userId) || isModerator();
-
   allow create: if isSelf(userId) && validPayload();
   allow update: if isSelf(userId) && validPayload();
-
   allow list: if false;
-
-  // Delete do doc privado: opcional. Se você não usa, pode manter false.
-  // allow delete: if isSelf(userId);
   allow delete: if false;
 }
-// =========================================================================
+// ===============================================================
 
 // ===== public_social_links.rules =====
 // C:\entretenimento\firestore-rules\public_social_links.rules
-
-// =========================================================================
+// ===============================================================
 // PUBLIC SOCIAL LINKS (espelho público)
 // - Somente subset publicado
 // - Escrita: somente dono
@@ -816,7 +949,6 @@ match /users/{userId}/profileData/socialLinks {
 // =========================================================================
 match /public_social_links/{userId} {
 
-  // Leitura: consistente com /public_profiles
   allow get: if signedIn();
   allow list: if false;
 
@@ -824,7 +956,15 @@ match /public_social_links/{userId} {
     return request.resource.data.keys().hasOnly([
       "uid",
       "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
-      "sexlog","d4swing","buppe",
+      "sexlog","d4swing",
+
+      // ✅ novo + sugestões
+      "hotvips",
+      "privacy",
+      "onlyfans",
+      "fansly",
+      "linktree",
+
       "updatedAt"
     ]);
   }
@@ -841,38 +981,56 @@ match /public_social_links/{userId} {
       && optString("snapchat")
       && optString("sexlog")
       && optString("d4swing")
-      && optString("buppe")
+
+      // ✅ novo + sugestões
+      && optString("hotvips")
+      && optString("privacy")
+      && optString("onlyfans")
+      && optString("fansly")
+      && optString("linktree")
+
       && optTimestamp("updatedAt");
   }
 
-  // Create: dono + payload válido + updatedAt “do servidor”
   allow create: if isSelf(userId)
     && validPayload()
     && request.resource.data.updatedAt == request.time;
 
-  // Update: dono + payload válido + uid imutável + updatedAt “do servidor”
   allow update: if isSelf(userId)
     && validPayload()
     && request.resource.data.uid == resource.data.uid
     && request.resource.data.updatedAt == request.time
     && request.resource.data.diff(resource.data).changedKeys().hasOnly([
       "facebook","instagram","twitter","linkedin","youtube","tiktok","snapchat",
-      "sexlog","d4swing","buppe",
+      "sexlog","d4swing",
+
+      // ✅ novo + sugestões
+      "hotvips",
+      "privacy",
+      "onlyfans",
+      "fansly",
+      "linktree",
+
       "updatedAt"
     ]);
 
-  // Despublicar: dono apaga
   allow delete: if isSelf(userId);
 }
-// =========================================================================
+// ===============================================================
+                   // FIM PUBLIC SOCIAL LINKS
+// ===============================================================
 
 // ===== preferences.rules =====
-// firestore-rules/preferences.rules
-// =========================================================================
-// PREFERENCES
+// ===============================================================
+// PREFERENCES.RULES
 // - Preferências do usuário (privado)
 // - Regra segura: só o dono lê/escreve
 // - Usa helpers já definidos em _helpers.rules: signedIn(), uid(), isSelf()
+// firestore-rules/preferences.rules
+// Observação importante:
+// - Evita LIST/QUERY para não expor preferências de outros usuários
+// - Se precisar de list/query, considere criar uma coleção separada com regras específicas
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // =========================================================================
 
 match /preferences/{userId} {
@@ -888,7 +1046,9 @@ match /users/{userId}/preferences/{docId} {
   allow create, update: if isSelf(userId);
   allow delete: if false;
 }
-
+// =========================================================================
+//                        FIM DO PREFERENCES.RULES
+// =========================================================================
 // não esquecer de ajustar o build-firestore-rules.mjs para incluir este arquivo
 // não esquecer de testar as regras com o emulador ou no console do Firebase
 // não esquecer de documentar as preferências usadas no app (ex: README ou wiki)
@@ -924,6 +1084,7 @@ match /users/{userId}/preferences/{docId} {
 // ===== users_friends.rules =====
 //==============================================================================
 // Regras de segurança do Firestore para a coleção de amigos dos usuários.
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 //==============================================================================
 match /users/{userId}/friends/{friendUid} {
   // List/query da lista de amigos
@@ -932,6 +1093,340 @@ match /users/{userId}/friends/{friendUid} {
   // MVP: o dono mantém seu índice
   allow create, update, delete: if isSelf(userId);
 }
+
+// ===== user_profile.rules =====
+// firestore-rules/user_profile.rules
+// =========================================================================
+// USER_PROFILE (raiz) — privado, MVP
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// =========================================================================
+
+match /user_profile/{userId} {
+  allow get, list: if isSelf(userId);
+  allow create, update: if isSelf(userId);
+  allow delete: if false;
+}
+
+// ===== users_photos.rules =====
+// firestore-rules/users_photos.rules
+// =========================================================================
+// USERS / photos + imageStates + comments
+// - MVP seguro: somente o dono lê/escreve
+// - Sem scraping, sem enumeração
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// =========================================================================
+
+match /users/{userId}/photos/{photoId} {
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "id",
+      "url",
+      "fileName",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  function validPhotoPayload() {
+    return allowedKeys()
+      && (!hasField("id") || request.resource.data.id is string)
+      && (!hasField("url") || request.resource.data.url is string)
+      && (!hasField("fileName") || request.resource.data.fileName is string)
+      && optTimestamp("createdAt")
+      && optTimestamp("updatedAt");
+  }
+
+  allow get, list: if isSelf(userId);
+
+  allow create: if isSelf(userId) && validPhotoPayload();
+  allow update: if isSelf(userId) && validPhotoPayload();
+  allow delete: if isSelf(userId);
+
+  // -----------------------------------------------------------------------
+  // comments (subcollection) — MVP: só dono
+  // -----------------------------------------------------------------------
+  match /comments/{commentId} {
+    function allowedCommentKeys() {
+      return request.resource.data.keys().hasOnly(["comment", "date"]);
+    }
+
+    function validCommentPayload() {
+      return allowedCommentKeys()
+        && request.resource.data.comment is string
+        && optTimestamp("date");
+    }
+
+    allow get, list: if isSelf(userId);
+    allow create: if isSelf(userId) && validCommentPayload();
+    allow update, delete: if false;
+  }
+}
+
+// -------------------------------------------------------------------------
+// imageStates (subcollection) — MVP: só dono
+// -------------------------------------------------------------------------
+match /users/{userId}/imageStates/{stateId} {
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly(["imageState", "createdAt"]);
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && request.resource.data.imageState is string
+      && optTimestamp("createdAt");
+  }
+
+  allow get, list: if isSelf(userId);
+  allow create: if isSelf(userId) && validPayload();
+  allow update, delete: if false;
+}
+
+// ===== users_blocks.rules =====
+// firestore-rules/users_blocks.rules
+// =========================================================================
+// USERS / blocks (privado) + events (auditoria)
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// =========================================================================
+
+match /users/{ownerUid}/blocks/{targetUid} {
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "uid",
+      "isBlocked",
+      "blockedAt",
+      "unblockedAt",
+      "reason",
+      "actorUid",
+      "updatedAt"
+    ]);
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && request.resource.data.uid == targetUid
+      && request.resource.data.actorUid == ownerUid
+      && reqBoolOrOpt("isBlocked")
+      && optTimestamp("blockedAt")
+      && optTimestamp("unblockedAt")
+      && optString("reason")
+      && optTimestamp("updatedAt");
+  }
+
+  function reqBoolOrOpt(field) {
+    return !hasField(field) || request.resource.data[field] is bool;
+  }
+
+  allow get, list: if isSelf(ownerUid);
+  allow create, update, delete: if isSelf(ownerUid) && validPayload();
+
+  // -----------------------------------------------------------------------
+  // events
+  // -----------------------------------------------------------------------
+  match /events/{eventId} {
+    function allowedEventKeys() {
+      return request.resource.data.keys().hasOnly([
+        "type",
+        "actorUid",
+        "targetUid",
+        "reason",
+        "createdAt"
+      ]);
+    }
+
+    function validEventPayload() {
+      return allowedEventKeys()
+        && request.resource.data.actorUid == ownerUid
+        && request.resource.data.targetUid == targetUid
+        && request.resource.data.type in ["block","unblock"]
+        && optString("reason")
+        && isTs(request.resource.data.createdAt);
+    }
+
+    allow get, list: if isSelf(ownerUid);
+    allow create: if isSelf(ownerUid) && validEventPayload();
+    allow update, delete: if false;
+  }
+}
+
+// ===== communities.rules =====
+// firestore-rules/communities.rules
+// =========================================================================
+// COMMUNITIES (MVP)
+// - Read: signedIn (produto normalmente precisa discovery)
+// - Write: apenas creator (createdBy == uid)
+// - Sem list pública: aqui deixei list liberado p/ signedIn (ajuste se quiser anti-scraping)
+//✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// =========================================================================
+
+match /communities/{communityId} {
+
+  function isOwner() {
+    return signedIn()
+      && resource.data.keys().hasAny(["createdBy"])
+      && resource.data.createdBy == uid();
+  }
+
+  function allowedKeys() {
+    // MVP: não travar demais para não quebrar seu addDoc atual
+    // mas ainda evita keys absurdas caso você queira.
+    // Se quiser schema rígido depois, a gente endurece.
+    return true;
+  }
+
+  allow get, list: if signedIn();
+
+  allow create: if signedIn()
+    && request.resource.data.keys().hasAny(["createdBy"])
+    && request.resource.data.createdBy == uid()
+    && allowedKeys();
+
+  allow update: if isOwner()
+  && request.resource.data.keys().hasAny(["createdBy"])
+  && request.resource.data.createdBy == resource.data.createdBy
+  && allowedKeys();
+
+  allow delete: if false;
+}
+// ================================================================
+                        // FIM DO COMMUNITIES.RULES
+// ================================================================
+
+// ===== invites.rules =====
+// ================================================================
+//                INVITES.RULES (coleção raiz)
+// - Read: sender ou receiver
+// - Create: sender cria pending
+// - Update:
+//   - receiver aceita/recusa
+//   - sender pode expirar (opcional)
+// - Delete: sender pode apagar enquanto pending (opcional)
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// firestore-rules/invites.rules
+// ================================================================
+match /invites/{inviteId} {
+
+  function isSender() {
+    return signedIn() && resource.data.senderId == uid();
+  }
+
+  function isReceiver() {
+    return signedIn() && resource.data.receiverId == uid();
+  }
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      // v2
+      "type",
+      "targetId",
+      "targetName",
+
+      // canônico
+      "senderId",
+      "receiverId",
+      "status",
+      "sentAt",
+      "expiresAt",
+
+      // audit
+      "respondedAt",
+      "updatedAt",
+
+      // legacy (room)
+      "roomId",
+      "roomName"
+    ]);
+  }
+
+  function isV2() {
+    return hasField("type") && hasField("targetId");
+  }
+
+  function validCreateV2() {
+    return allowedKeys()
+      && request.resource.data.senderId == uid()
+      && request.resource.data.receiverId is string
+      && request.resource.data.receiverId != uid()
+      && request.resource.data.type in ["room", "community", "friend"]
+      && request.resource.data.targetId is string
+      && request.resource.data.status == "pending"
+      && isTs(request.resource.data.sentAt)
+      && isTs(request.resource.data.expiresAt)
+      // audit opcional no create (recomendado)
+      && (!hasField("updatedAt") || request.resource.data.updatedAt == request.time)
+      && (!hasField("respondedAt") || request.resource.data.respondedAt == null);
+  }
+
+  function validCreateLegacyRoom() {
+    // mantém compat para payload antigo (se ainda existir)
+    return allowedKeys()
+      && request.resource.data.senderId == uid()
+      && request.resource.data.receiverId is string
+      && request.resource.data.receiverId != uid()
+      && request.resource.data.roomId is string
+      && request.resource.data.status == "pending"
+      && isTs(request.resource.data.sentAt)
+      && isTs(request.resource.data.expiresAt)
+      && (!hasField("updatedAt") || request.resource.data.updatedAt == request.time)
+      && (!hasField("respondedAt") || request.resource.data.respondedAt == null);
+  }
+
+  // READ
+  allow get: if signedIn() && (isSender() || isReceiver());
+
+  // ✅ necessário para inbox (query). Segurança real continua no get/read por doc.
+  allow list: if signedIn() && (isSender() || isReceiver());
+
+  // CREATE
+  allow create: if signedIn() && (validCreateV2() || validCreateLegacyRoom());
+
+  // UPDATE (status machine + audit)
+  allow update: if signedIn()
+    && resource.data.status == "pending"
+    && request.resource.data.status != resource.data.status
+    && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      "status",
+      "respondedAt",
+      "updatedAt"
+    ])
+    && (
+      // receiver aceita/declina
+      (isReceiver()
+        && request.resource.data.status in ["accepted", "declined"]
+        && request.resource.data.respondedAt == request.time
+        && request.resource.data.updatedAt == request.time
+      )
+      ||
+      // sender expira/cancela
+      (isSender()
+        && request.resource.data.status in ["expired", "canceled"]
+        && request.resource.data.updatedAt == request.time
+        && (!("respondedAt" in request.resource.data) || request.resource.data.respondedAt == resource.data.respondedAt)
+      )
+      ||
+      // admin (se quiser manter)
+      (isAdmin() == true)
+    );
+
+  // DELETE (mantém seu MVP)
+  allow delete: if signedIn() && isSender() && resource.data.status == "pending";
+}
+// ================================================================
+//                        FIM DO INVITES.RULES
+// ================================================================
 
 // ===== admin_logs.rules =====
 // firestore-rules/admin_logs.rules
@@ -963,7 +1458,17 @@ match /admin_logs/{logId} {
 }
 
 // ===== _footer.rules =====
+// ================================================================
+//                            _FOOTER.RULES
 //C:\entretenimento\firestore-rules\_footer.rules
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
+// Este arquivo é o "rodapé" das regras do Firestore. Ele é importado no final do arquivo principal de regras (ex: firestore.rules) para garantir que as regras sejam fechadas corretamente
+// ================================================================
   }
 }
+// ================================================================
+//                             FIM DO _FOOTER.RULES
+//                            FIM DO FIRESTORE RULES
+// Final do arquivo de regras do Firestore. Se precisar de novas regras,
+// crie um novo arquivo .rules e importe aqui.
+// =================================================================

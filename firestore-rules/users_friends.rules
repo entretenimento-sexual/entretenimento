@@ -1,5 +1,6 @@
 //==============================================================================
 // Regras de segurança do Firestore para a coleção de amigos dos usuários.
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 //==============================================================================
 match /users/{userId}/friends/{friendUid} {
   // List/query da lista de amigos

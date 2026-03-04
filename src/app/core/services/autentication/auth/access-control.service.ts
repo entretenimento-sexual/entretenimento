@@ -22,6 +22,7 @@ import {
   shareReplay,
   startWith,
   take,
+  tap,
 } from 'rxjs/operators';
 
 import type { IUserDados } from '../../../interfaces/iuser-dados';
@@ -36,6 +37,7 @@ import { AuthAppBlockService } from './auth-app-block.service';
 
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
+import { environment } from 'src/environments/environment';
 
 export type UserRole = IUserDados['role'];
 
@@ -74,6 +76,22 @@ export class AccessControlService {
   // Evita spam de notificação por falhas em streams (singleton)
   private _lastNotifyAt = 0;
 
+  private readonly debug = !environment.production;
+  private dbg(msg: string, extra?: unknown): void {
+    if (!this.debug) return;
+    // eslint-disable-next-line no-console
+    console.log(`[AccessControl] ${msg}`, extra ?? '');
+  }
+
+  private stripQueryAndHash(url: string): string {
+    const raw = (url ?? '/').trim() || '/';
+    const q = raw.indexOf('?');
+    const h = raw.indexOf('#');
+    const cut = Math.min(q === -1 ? raw.length : q, h === -1 ? raw.length : h);
+    const path = raw.slice(0, cut);
+    return path || '/';
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers (perfil mínimo / roles / erros)
   // ---------------------------------------------------------------------------
@@ -90,10 +108,15 @@ export class AccessControlService {
 
   /** Fallback conservador de “perfil mínimo” (produto). */
   private hasMinProfileFields(anyU: any): boolean {
+    // Aceita aliases comuns (não muda regra, só evita mismatch de naming)
+    const gender = (anyU?.gender ?? anyU?.genero ?? anyU?.sexo) as unknown;
+    const estado = (anyU?.estado ?? anyU?.state) as unknown;
+    const municipio = (anyU?.municipio ?? anyU?.cidade ?? anyU?.city) as unknown;
+
     return (
-      typeof anyU?.gender === 'string' && anyU.gender.trim() !== '' &&
-      typeof anyU?.estado === 'string' && anyU.estado.trim() !== '' &&
-      typeof anyU?.municipio === 'string' && anyU.municipio.trim() !== ''
+      typeof gender === 'string' && gender.trim() !== '' &&
+      typeof estado === 'string' && estado.trim() !== '' &&
+      typeof municipio === 'string' && municipio.trim() !== ''
     );
   }
 
@@ -123,8 +146,6 @@ export class AccessControlService {
   // ---------------------------------------------------------------------------
   // Router signals (gate canônico de rota)
   // ---------------------------------------------------------------------------
-
-  /** URL atual (replay) */
   /** URL atual (replay) — agora CRUA (com query/hash se vierem) */
   readonly currentUrl$: Observable<string> = this.router.events.pipe(
     filter((e): e is NavigationEnd => e instanceof NavigationEnd),
@@ -146,15 +167,24 @@ export class AccessControlService {
     catchError(this.handleStreamError('routerReady$', false))
   );
 
-  /** Está em fluxo sensível (registro/verificação/finalização/login)? */
-  readonly inRegistrationFlow$: Observable<boolean> = combineLatest([
-    this.routerReady$,
-    this.currentUrl$,
-  ]).pipe(
-    map(([routerReady, url]) => {
-      if (!routerReady) return true; // seguro: bloqueia até estabilizar
-      if (isRegistrationFlow(url)) return true;
-      if (/^\/login(\/|$)/.test(url)) return true;
+  // 1) URL canônica APÓS NavigationEnd (path-only)
+  private readonly navPath$: Observable<string> = this.router.events.pipe(
+    filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+    map((e) => this.stripQueryAndHash(e.urlAfterRedirects || e.url || '/')),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('navPath$', this.stripQueryAndHash(this.router.url || '/')))
+  );
+
+  // 2) Fluxo sensível (registro/login) — sem race
+  readonly inRegistrationFlow$: Observable<boolean> = this.navPath$.pipe(
+    // seguro: até 1º NavigationEnd, bloqueia
+    startWith('__BOOT__'),
+    map((path) => {
+      if (path === '__BOOT__') return true;
+
+      if (isRegistrationFlow(path)) return true;
+      if (/^\/login(\/|$)/.test(path)) return true;
       return false;
     }),
     distinctUntilChanged(),
@@ -265,10 +295,21 @@ export class AccessControlService {
       if (u === undefined || u === null) return false;
 
       const anyU = u as any;
-      if (anyU?.profileCompleted === true) return true;
 
+      if (!environment.production) {
+        this.dbg('profileEligible inputs', {
+          uid: anyU?.uid,
+          profileCompleted: anyU?.profileCompleted,
+          gender: anyU?.gender,
+          estado: anyU?.estado,
+          municipio: anyU?.municipio,
+        });
+      }
+
+      if (anyU?.profileCompleted === true) return true;
       return this.hasMinProfileFields(anyU);
     }),
+    tap(v => this.dbg('profileEligible$', v)),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('profileEligible$', false))
@@ -328,6 +369,16 @@ export class AccessControlService {
     catchError(this.handleStreamError('canRunInfraRealtime$', false))
   );
 
+  readonly canRunChatRealtime$ = combineLatest([
+    this.canRunInfraRealtime$,
+    this.emailVerified$,
+  ]).pipe(
+    map(([infraOk, emailOk]) => infraOk && emailOk),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunChatRealtime$', false))
+  );
+
   /**
    * Gate PRESENÇA (infra) — OPÇÃO A
    * - Presence NÃO roda em rotas sensíveis (/register e /login)
@@ -349,6 +400,7 @@ export class AccessControlService {
     this.profileEligible$,
   ]).pipe(
     map(([infraOk, emailOk, profileEligible]) => infraOk === true && emailOk === true && profileEligible === true),
+    tap(v => this.dbg('canRunProductRealtime$', v)),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('canRunProductRealtime$', false))
@@ -362,10 +414,15 @@ export class AccessControlService {
    */
   readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
     this.canRunProductRealtime$,
+    this.canRunInfraRealtime$,
+    this.emailVerified$,
+    this.profileEligible$,
     this.authUid$,
     this.appUser$,
+    this.currentUrl$,
+    this.inRegistrationFlow$,
   ]).pipe(
-    map(([canRunProduct, uid, appUser]) => {
+    map(([canRunProduct, infraOk, emailOk, profileEligible, uid, appUser, url, inReg]) => {
       if (!canRunProduct) return false;
       if (!uid) return false;
       if (appUser === undefined || appUser === null) return false;
@@ -374,6 +431,16 @@ export class AccessControlService {
       if (typeof appUid === 'string' && appUid && appUid !== uid) return false;
 
       return true;
+    }),
+    tap((can) => {
+      // loga o “porquê” a cada mudança (ou no primeiro replay)
+      // (pega o último snapshot dos streams acima)
+      this.dbg('canRunOnlineUsers$', {
+        can,
+        url: this.router.url,
+        // não dá pra “reler” aqui sem re-combinar, então deixo o essencial:
+        note: 'Se can=false, veja os logs de canRunProductRealtime/profileEligible/appUser no console.',
+      });
     }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
@@ -463,4 +530,5 @@ export class AccessControlService {
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('isSubscriber$', false))
   );
-}
+} // linha 533, final do AccessControlService
+// Não esquecer comentários explicativos sobre o propósito do serviço, de seus métodos e avisos de uso.

@@ -1,0 +1,40 @@
+// firestore-rules/friends_root.rules
+// =========================================================================
+// FRIENDS (coleção raiz) — se você usar friends/{key}
+// - Read: somente envolvidos
+// - Write: somente envolvidos (MVP)
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// =========================================================================
+
+match /friends/{friendId} {
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function participantsFrom(data) {
+    return (data.keys().hasAny(["participants"]) && data.participants is list)
+      ? data.participants
+      : [];
+  }
+
+  function isParticipantData(data) {
+    let parts = participantsFrom(data);
+    return signedIn() && (uid() in parts);
+  }
+
+  allow get: if signedIn() && isParticipantData(resource.data);
+  allow list: if false;
+
+  allow create: if signedIn()
+    && hasField("participants")
+    && request.resource.data.participants is list
+    && request.resource.data.participants.size() == 2
+    && (uid() in request.resource.data.participants);
+
+  allow update: if signedIn()
+    && isParticipantData(resource.data)
+    && isParticipantData(request.resource.data);
+
+  allow delete: if false;
+}
