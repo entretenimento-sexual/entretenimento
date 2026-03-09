@@ -1,48 +1,82 @@
-// src\app\chat-module\chat-window\chat-window.component.ts
+// src/app/chat-module/chat-window/chat-window.component.ts
+// Componente responsável por enviar mensagens no chat atual.
+// Ajustes desta versão:
+// - usa CurrentUserStoreService como fonte do usuário do app
+// - mantém sendMessage()
+// - evita subscribe solto
+// - usa tratamento de erro com feedback ao usuário
 import { Component } from '@angular/core';
 import { Timestamp } from '@firebase/firestore';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
+import { of } from 'rxjs';
+import { catchError, switchMap, take } from 'rxjs/operators';
+
 import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
 @Component({
-    selector: 'app-chat-window',
-    templateUrl: './chat-window.component.html',
-    styleUrls: ['./chat-window.component.css'],
-    standalone: false
+  selector: 'app-chat-window',
+  templateUrl: './chat-window.component.html',
+  styleUrls: ['./chat-window.component.css'],
+  standalone: false
 })
 export class ChatWindowComponent {
   messages: Message[] = [];
-  messageContent = ''; // Adicione essa linha para representar o conteúdo da mensagem a ser enviada
+  messageContent = '';
 
-    constructor(private chatService: ChatService,
-                private authService: AuthService) { }
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly currentUserStore: CurrentUserStoreService,
+    private readonly errorNotifier: ErrorNotificationService
+  ) { }
 
-  // Adicione esse método que será chamado quando o botão "Enviar" for pressionado:
-  sendMessage() {
-    if (this.messageContent.trim()) {
-      // Substituindo currentUser pelo observable correto
-      this.authService.user$.subscribe((currentUser: IUserDados | null) => {
-        const userId = currentUser?.uid;
-        const nickname = currentUser?.nickname || 'Usuário'; // Adicionando o nickname
-        if (!userId) {
-          console.log("Usuário não autenticado");
-          return;
-        }
+  /**
+   * Envia a mensagem digitada pelo usuário autenticado.
+   * - Usa o CurrentUserStoreService como fonte do perfil atual.
+   * - Evita subscribe permanente.
+   * - Mantém nomenclatura original do método.
+   */
+  sendMessage(): void {
+    const content = this.messageContent.trim();
 
-        const newMessage = {
-          content: this.messageContent.trim(),
-          senderId: userId,
-          nickname: nickname, // Adicionando a propriedade 'nickname' ao objeto Message
-          timestamp: Timestamp.fromDate(new Date())
-        };
-
-        this.messages.push(newMessage);
-        this.messageContent = '';
-        console.log("Mensagem enviada pelo usuário:", newMessage);
-        this.chatService.sendMessage('chatId', newMessage, userId);
-      });
+    if (!content) {
+      return;
     }
+
+    this.currentUserStore.user$
+      .pipe(
+        take(1),
+        switchMap((currentUser) => {
+          if (!currentUser?.uid) {
+            this.errorNotifier.showWarning('Usuário não autenticado.');
+            return of(null);
+          }
+
+          const newMessage: Message = {
+            content,
+            senderId: currentUser.uid,
+            nickname: currentUser.nickname || 'Usuário',
+            timestamp: Timestamp.fromDate(new Date()),
+          };
+
+          this.messages = [...this.messages, newMessage];
+          this.messageContent = '';
+
+          return this.chatService.sendMessage('chatId', newMessage, currentUser.uid).pipe(
+            catchError((error) => {
+              this.errorNotifier.showError('Erro ao enviar mensagem.');
+              console.log('Erro ao enviar mensagem:', error);
+              return of(null);
+            })
+          );
+        }),
+        catchError((error) => {
+          this.errorNotifier.showError('Erro ao obter dados do usuário.');
+          console.log('Erro ao obter usuário atual:', error);
+          return of(null);
+        })
+      )
+      .subscribe();
   }
 }

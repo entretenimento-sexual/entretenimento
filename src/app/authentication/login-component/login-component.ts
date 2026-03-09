@@ -1,5 +1,6 @@
 // src/app/authentication/login-component/login-component.ts
 //Ainda não tem um Guard “anti-login quando já está logado”
+// Não esquecer ferramentas de debug, comentários explicativos e manter as boas práticas.
 import { ChangeDetectionStrategy, ChangeDetectorRef,
          Component, DestroyRef, OnInit, inject, } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';

@@ -1,22 +1,53 @@
-// firestore-rules/rooms_participants.rules
-// =========================================================================
+// ==================================================================
 // ROOMS / participants (subcollection)
-// - Read: apenas participantes (fonte de verdade continua sendo rooms/{roomId}.participants)
-// - Write: o próprio usuário pode criar/atualizar o seu doc (MVP), sem depender do array
-//   (isso evita negação em transações onde room update + participant set rodam juntos).
+// - Read: participantes reais da sala OU owner da sala
+// - Write:
+//   - o próprio usuário pode criar/atualizar seu doc
+//   - o owner da sala também pode criar/atualizar docs de participantes
+// - Mantém a fonte de verdade principal em rooms/{roomId}.participants
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
-// =========================================================================
-
+// firestore-rules/rooms_participants.rules
+// ==================================================================
 match /rooms/{roomId}/participants/{userId} {
 
+  function roomPath() {
+    return /databases/$(database)/documents/rooms/$(roomId);
+  }
+
   function roomExists() {
-    return exists(/databases/$(database)/documents/rooms/$(roomId));
+    return exists(roomPath());
+  }
+
+  function roomData() {
+    return get(roomPath()).data;
+  }
+
+  function roomParticipants() {
+    return roomData().participants is list ? roomData().participants : [];
+  }
+
+  function isRoomOwnerRequester() {
+    return signedIn()
+      && roomExists()
+      && roomData().createdBy == uid();
   }
 
   function isRoomParticipantRequester() {
     return signedIn()
       && roomExists()
-      && (uid() in get(/databases/$(database)/documents/rooms/$(roomId)).data.participants);
+      && (uid() in roomParticipants());
+  }
+
+  function canReadParticipantDocs() {
+    return isRoomParticipantRequester() || isRoomOwnerRequester();
+  }
+
+  function canWriteParticipantDoc() {
+    return isSelf(userId) || isRoomOwnerRequester();
+  }
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
   }
 
   function allowedKeys() {
@@ -28,20 +59,36 @@ match /rooms/{roomId}/participants/{userId} {
     ]);
   }
 
-  function validPayload() {
-    return allowedKeys()
-      && request.resource.data.uid == uid()
-      // joinedAt/removedAt: você usa Date.now() (number). Aceita number (MVP).
-      && (!request.resource.data.keys().hasAny(["joinedAt"]) || request.resource.data.joinedAt is number)
-      && (!request.resource.data.keys().hasAny(["removedAt"]) || request.resource.data.removedAt is number)
-      && (!request.resource.data.keys().hasAny(["removed"])  || request.resource.data.removed is bool);
+  function optBool(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is bool;
   }
 
-  // Read somente para participantes reais do room (anti-scraping)
-  allow get, list: if isRoomParticipantRequester();
+  function optNumberOrTimestamp(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is number
+      || isTs(request.resource.data[field]);
+  }
 
-  // Write: somente dono do doc
-  allow create, update: if isSelf(userId) && roomExists() && validPayload();
+  function validPayload() {
+    return allowedKeys()
+      && request.resource.data.uid == userId
+      && optNumberOrTimestamp("joinedAt")
+      && optNumberOrTimestamp("removedAt")
+      && optBool("removed");
+  }
+
+  allow get, list: if canReadParticipantDocs();
+
+  allow create, update: if
+    roomExists()
+    && canWriteParticipantDoc()
+    && validPayload();
 
   allow delete: if false;
 }
+// ================================================================
+//               FIM DO ROOMS_PARTICIPANTS.RULES
+// ================================================================

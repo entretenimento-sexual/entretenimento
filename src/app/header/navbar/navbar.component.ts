@@ -4,7 +4,6 @@
 // TODO(STATE): Criar canShowLinksInteraction$ (fonte: AuthSession.ready$ + AuthSession.uid$ + URL atual).
 // - Objetivo: não renderizar <app-links-interaction> quando uid=null ou em rotas públicas.
 // - Padrão “plataforma grande”: o componente nem deve existir nessas rotas.
-
 import {
   Component,
   DestroyRef,
@@ -33,12 +32,11 @@ import {
   tap
 } from 'rxjs/operators';
 
-import { combineLatest, Observable, of } from 'rxjs';
+import { combineLatest, Observable } from 'rxjs';
 
 import { SidebarService } from 'src/app/core/services/sidebar.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 import { Auth, user as afUser } from '@angular/fire/auth';
@@ -47,6 +45,7 @@ import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
+import { inRegistrationFlow as isRegistrationFlow } from 'src/app/core/services/autentication/auth/auth.types';
 
 @Component({
   selector: 'app-navbar',
@@ -57,9 +56,6 @@ import { LogoutService } from 'src/app/core/services/autentication/auth/logout.s
 export class NavbarComponent implements OnInit, OnDestroy {
   // ===========================================================================
   // Estado exposto ao template
-  // - Mantido como no seu código (imperativo), mas o abastecimento vem de vm$.
-  // - Em “plataformas grandes”, preferem expor vm$ e usar async pipe para reduzir
-  //   mutabilidade. Aqui preservo seu padrão atual.
   // ===========================================================================
 
   public isAuthenticated = false;
@@ -74,33 +70,29 @@ export class NavbarComponent implements OnInit, OnDestroy {
    */
   public userId = '';
 
-  public isLoginPage = false;
-
   // Mostra banner/upsell ao visitante e plano free
   public isFree = false;
 
+  /**
+   * UI route flags
+   * - isLoginPage: mantém compat com o template atual.
+   * - isPublicAuthRoute: cobre /login, /register e handlers de auth.
+   * - canShowLinksInteraction / canShowGuestBanner: evitam instanciar componentes
+   *   em rotas públicas ou sem usuário autenticado.
+   */
+  public isLoginPage = false;
+  public isPublicAuthRoute = false;
+  public canShowLinksInteraction = false;
+  public canShowGuestBanner = false;
+
   // ===========================================================================
-  // === Tema/Acessibilidade ===
-  // - Funciona no Navbar, mas em “plataformas grandes” normalmente vai para um
-  //   ThemeService global (app shell) porque é estado transversal do app.
+  // Tema / acessibilidade
   // ===========================================================================
 
   private _isDarkModeActive = false;
   private _isHighContrastActive = false;
 
-  /**
-   * isDarkMode()
-   * - O que faz: getter para o template renderizar o ícone/estado.
-   * - Deve permanecer no navbar? Pode, mas idealmente o estado deveria vir
-   *   de um ThemeService (single source of truth de UI global).
-   */
   isDarkMode(): boolean { return this._isDarkModeActive; }
-
-  /**
-   * isHighContrast()
-   * - O que faz: getter para o template renderizar texto/estado.
-   * - Mesmo comentário do isDarkMode().
-   */
   isHighContrast(): boolean { return this._isHighContrastActive; }
 
   private prefersDarkMql?: MediaQueryList;
@@ -111,96 +103,56 @@ export class NavbarComponent implements OnInit, OnDestroy {
   // ===========================================================================
 
   /**
-   * auth (AngularFire Auth)
-   * - Neste Navbar, não deve ser usado como fonte de UID.
-   * - Mantido porque você pediu para não remover métodos (authState$),
-   *   mas o UID canônico vem do AuthSessionService.uid$.
-   * - Em “plataformas grandes”, o Navbar NÃO depende direto de Auth.
+   * Auth do AngularFire:
+   * - mantido apenas para debug/comparação via authState$()
+   * - não é a fonte canônica de uid neste componente
    */
   private readonly auth = inject(Auth);
 
   private readonly injector = inject(Injector);
   private readonly router = inject(Router);
   private readonly sidebarService = inject(SidebarService);
-
-  /**
-   * AuthSessionService (FONTE ÚNICA DO UID)
-   * - Dono do UID e do “ready gate” para evitar estados transitórios.
-   */
   private readonly session = inject(AuthSessionService);
-
-  /**
-   * CurrentUserStoreService (FONTE DO PERFIL)
-   * - Dono do IUserDados (nickname, photoURL, role, etc).
-   * - Pode emitir undefined (não hidratou), null (deslogado), ou objeto (logado).
-   */
   private readonly currentUserStore = inject(CurrentUserStoreService);
-
-  /**
-   * ErrorNotificationService
-   * - Notificação ao usuário (toast/snack).
-   * - Em “plataformas grandes”: notifica aqui; logging/telemetria vai para
-   *   handler central (GlobalErrorHandler) ou observability layer.
-   */
   private readonly notify = inject(ErrorNotificationService);
-
   private readonly destroyRef = inject(DestroyRef);
   private readonly logoutService = inject(LogoutService);
 
   // ===========================================================================
-  // Debug/Observabilidade
+  // Debug / observabilidade
   // ===========================================================================
 
   /**
-   * Debug do Navbar (liga/desliga sem mexer em código):
-   * - Para ligar:  localStorage.setItem('debug.navbar', '1') e recarregue
-   * - Para desligar: localStorage.removeItem('debug.navbar')
+   * Debug do Navbar:
+   * localStorage.setItem('debug.navbar', '1')
    */
   private readonly debugNavbar = localStorage.getItem('debug.navbar') === '1';
-
-  /**
-   * Sequência para ordenar logs (causalidade / “quem veio primeiro”).
-   * Em depuração de auth, a ordem é quase sempre o ponto crítico.
-   */
   private _logSeq = 0;
 
-  /**
-   * logNavbar()
-   * - O que faz: log padronizado e facilmente filtrável no console.
-   * - Deve permanecer no navbar? Sim, como ferramenta local de debug.
-   * - Evolução ideal: usar logger central (com níveis) + correlação de sessão.
-   */
   private logNavbar(tag: string, payload?: unknown): void {
     if (!this.debugNavbar) return;
+
     const seq = ++this._logSeq;
     const ts = new Date().toISOString();
+
     // eslint-disable-next-line no-console
     console.debug(`[NAVBAR][${seq}][${ts}] ${tag}`, payload ?? '');
   }
 
-  /**
-   * getRouteParamIdSnapshot()
-   * - O que faz: lê :id do nó mais profundo do snapshot atual.
-   * - Deve permanecer no navbar? NÃO como regra.
-   *   Isso é diagnóstico/telemetria; em apps grandes vira RouterDiagnosticsService.
-   * - Mantido por compatibilidade e porque você usa nos logs.
-   */
   private getRouteParamIdSnapshot(): string | null {
     let node = this.router.routerState.snapshot.root;
     while (node.firstChild) node = node.firstChild;
     return (node.params?.['id'] as string) ?? null;
   }
 
-   // ===========================================================================
-  // ===== Streams base (LEGADO/DEBUG vs CANÔNICO) =====
+  // ===========================================================================
+  // Streams base
   // ===========================================================================
 
   /**
-   * authState$()
-   * - O que faz: stream de User do AngularFire Auth (direto).
-   * - Deve permanecer no navbar? Idealmente NÃO.
-   * - Importante: NÃO é fonte de UID aqui. UID canônico vem do AuthSessionService.
-   * - Mantido para debug/comparação (detectar divergências).
+   * Stream direto do AngularFire Auth:
+   * - mantido só para debug/comparação
+   * - não deve governar uid da UI
    */
   private authState$(): Observable<User | null> {
     return runInInjectionContext(this.injector, () => afUser(this.auth)).pipe(
@@ -210,10 +162,11 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * appUser$()
-   * - O que faz: stream do perfil (IUserDados) vindo do store.
-   * - Deve permanecer no navbar? Sim, porque o navbar precisa de nickname/foto/role.
-   * - Nota: esse stream NÃO deve decidir UID.
+   * Stream do perfil do usuário no domínio do app.
+   * Pode emitir:
+   * - undefined: ainda não hidratou
+   * - null: deslogado
+   * - IUserDados: logado e hidratado
    */
   private appUser$(): Observable<IUserDados | null | undefined> {
     return this.currentUserStore.user$.pipe(
@@ -223,63 +176,90 @@ export class NavbarComponent implements OnInit, OnDestroy {
   }
 
   // ===========================================================================
+  // Helpers de rota / visibilidade
+  // ===========================================================================
+
+  private isLoginRoute(url: string | null | undefined): boolean {
+    const path = (url ?? '').split('?')[0].split('#')[0];
+    return /^\/login(\/|$)/.test(path);
+  }
+
+  /**
+   * Regras atuais do header:
+   * - LinksInteraction só quando autenticado e fora das rotas públicas de auth.
+   * - GuestBanner idem.
+   *
+   * Obs.:
+   * O GuestBanner ainda faz sua própria validação interna.
+   * Aqui só evitamos instanciar o componente quando já sabemos que não faz sentido.
+   */
+private recomputeHeaderVisibility(): void {
+  const hasAuthenticatedUser = this.isAuthenticated && !!this.userId;
+  const canShow = hasAuthenticatedUser && !this.isPublicAuthRoute;
+
+  this.canShowLinksInteraction = canShow;
+  this.canShowGuestBanner = canShow;
+}
+
+private syncRouteUiFlags(url: string | null | undefined): void {
+  const normalizedUrl = url ?? '';
+  this.isLoginPage = this.isLoginRoute(normalizedUrl);
+  this.isPublicAuthRoute = this.isLoginPage || isRegistrationFlow(normalizedUrl);
+  this.recomputeHeaderVisibility();
+}
+
+  // ===========================================================================
   // Lifecycle
   // ===========================================================================
 
-  /**
-   * ngOnInit()
-   * - O que faz: cria vm$ reativo e assina uma única vez para abastecer o template.
-   * - Ajuste principal: UID vem exclusivamente de AuthSessionService.uid$ (fonte única).
-   * - Em plataformas grandes:
-   *   - vm$ seria exposto e consumido no template com async pipe.
-   *   - watchers de debug seriam ativados só no modo debug (como abaixo).
-   */
   ngOnInit(): void {
-    // ----- Fonte ÚNICA para UID (canônica)
-    // startWith usando session.currentAuthUser é aceitável porque continua “dentro”
-    // da sessão. Não use this.auth.currentUser como fonte aqui.
+    // sincroniza estado inicial da rota antes de qualquer render
+    this.syncRouteUiFlags(this.router.url);
+
+    // -------------------------------------------------------------------------
+    // Fonte única de uid
+    // -------------------------------------------------------------------------
     const uid$ = this.session.uid$.pipe(
       startWith(this.session.currentAuthUser?.uid ?? null),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // ----- Gating de bootstrap: evita flicker/transientes antes do Auth restaurar.
+    // -------------------------------------------------------------------------
+    // Bootstrap gate do auth
+    // -------------------------------------------------------------------------
     const ready$ = this.session.ready$.pipe(
       startWith(false),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // ----- Auth state (boolean) vindo do próprio AuthSessionService
-    // Em apps grandes, normalmente “isAuthenticated” só é considerado após ready.
+    // -------------------------------------------------------------------------
+    // Estado autenticado, respeitando o ready gate
+    // -------------------------------------------------------------------------
     const isAuthenticated$ = combineLatest([ready$, this.session.isAuthenticated$]).pipe(
-      map(([ready, isAuth]) => (ready ? isAuth : false)),
+      map(([ready, isAuth]) => ready ? isAuth : false),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // ----- Perfil (domínio) vindo do CurrentUserStoreService
+    // -------------------------------------------------------------------------
+    // Perfil do app e authUser de fallback visual
+    // -------------------------------------------------------------------------
     const appUser$ = this.appUser$();
 
-    // ----- Dados básicos do authUser (ainda dentro do AuthSessionService)
-    // Usado somente como fallback visual (nickname/foto) enquanto o perfil não hidrata.
     const authUser$ = this.session.authUser$.pipe(
       startWith(this.session.currentAuthUser ?? null),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // =========================================================================
-    // ViewModel do Navbar
-    // - UID: SEMPRE do uid$
-    // - nickname/photo/role: prefere appUser; fallback no authUser
-    // - isFree: derivado de role/isAuthenticated
-    // =========================================================================
+    // -------------------------------------------------------------------------
+    // ViewModel do navbar
+    // -------------------------------------------------------------------------
     const vm$ = combineLatest([ready$, uid$, isAuthenticated$, appUser$, authUser$]).pipe(
       map(([ready, uid, isAuth, appUser, authUser]) => {
         const safeUid = uid ?? '';
 
-        // Fallbacks visuais (não determinam UID)
         const fallbackNickname =
           authUser?.displayName ??
           (authUser?.email ? authUser.email.split('@')[0] : '');
@@ -289,7 +269,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
         const nickname = appUser?.nickname ?? fallbackNickname ?? '';
         const photoURL = (appUser as any)?.photoURL ?? fallbackPhoto ?? '';
 
-        // Regra de plano (exatamente como antes, mas com fontes mais consistentes)
         const role = (appUser as any)?.role ?? (isAuth ? 'basic' : 'visitante');
         const isFree = !isAuth || role === 'free';
 
@@ -301,7 +280,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
           photoURL,
           isFree,
 
-          // Debug fields
+          // debug
           __auth_uid_snapshot: this.session.currentAuthUser?.uid ?? null,
           __store_uid: (appUser as any)?.uid ?? null,
           __route_id_snapshot: this.getRouteParamIdSnapshot(),
@@ -331,121 +310,121 @@ export class NavbarComponent implements OnInit, OnDestroy {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // Assinatura única (estado imperativo do componente)
-    vm$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(vm => {
-      const prevUid = this.userId;
+    // -------------------------------------------------------------------------
+    // Assinatura única de estado imperativo
+    // -------------------------------------------------------------------------
+vm$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(vm => {
+  const prevUid = this.userId;
 
-      this.isAuthenticated = vm.isAuthenticated;
-      this.nickname = vm.nickname;
-      this.photoURL = vm.photoURL;
+  this.isAuthenticated = vm.isAuthenticated;
+  this.nickname = vm.nickname;
+  this.photoURL = vm.photoURL;
+  this.userId = vm.uid;
+  this.isFree = vm.isFree;
 
-      // ✅ userId recebe UID (fonte única: session.uid$)
-      this.userId = vm.uid;
+  this.recomputeHeaderVisibility();
 
-      this.isFree = vm.isFree;
+  this.logNavbar('STATE applied', {
+    prevUid,
+    nextUid: this.userId,
+    isAuthenticated: this.isAuthenticated,
+    isPublicAuthRoute: this.isPublicAuthRoute,
+    canShowLinksInteraction: this.canShowLinksInteraction,
+    canShowGuestBanner: this.canShowGuestBanner,
+    url: this.router.url
+  });
+});
 
-      this.logNavbar('STATE applied', {
-        prevUid,
-        nextUid: this.userId,
-        isAuthenticated: this.isAuthenticated,
-        url: this.router.url
-      });
-    });
-
-    // =========================================================================
-    // Debug watchers (somente quando debugNavbar está ligado)
-    // - Isso evita custo/ruído em produção.
-    // - Aqui você consegue comparar “fonte única (session.uid$)” vs store vs auth.
-    // =========================================================================
+    // -------------------------------------------------------------------------
+    // Debug watchers
+    // -------------------------------------------------------------------------
     if (this.debugNavbar) {
-      uid$.pipe(
-        tap(uid => this.logNavbar('session.uid$ (SOURCE OF TRUTH)', { uid, url: this.router.url })),
-        takeUntilDestroyed(this.destroyRef)
-      ).subscribe();
+      uid$
+        .pipe(
+          tap(uid => this.logNavbar('session.uid$ (SOURCE OF TRUTH)', { uid, url: this.router.url })),
+          takeUntilDestroyed(this.destroyRef)
+        )
+        .subscribe();
 
-      this.session.ready$.pipe(
-        distinctUntilChanged(),
-        tap(ready => this.logNavbar('session.ready$', { ready, url: this.router.url })),
-        takeUntilDestroyed(this.destroyRef)
-      ).subscribe();
+      this.session.ready$
+        .pipe(
+          distinctUntilChanged(),
+          tap(ready => this.logNavbar('session.ready$', { ready, url: this.router.url })),
+          takeUntilDestroyed(this.destroyRef)
+        )
+        .subscribe();
 
-      this.currentUserStore.user$.pipe(
-        map(u => (u as any)?.uid ?? null),
-        distinctUntilChanged(),
-        tap(uid => this.logNavbar('store.user$.uid (DOMAIN)', { uid, url: this.router.url })),
-        takeUntilDestroyed(this.destroyRef)
-      ).subscribe();
+      this.currentUserStore.user$
+        .pipe(
+          map(u => (u as any)?.uid ?? null),
+          distinctUntilChanged(),
+          tap(uid => this.logNavbar('store.user$.uid (DOMAIN)', { uid, url: this.router.url })),
+          takeUntilDestroyed(this.destroyRef)
+        )
+        .subscribe();
 
-      // Mantido: comparação com AngularFire authState$ (debug)
-      this.authState$().pipe(
-        map(u => u?.uid ?? null),
-        distinctUntilChanged(),
-        tap(uid => this.logNavbar('firebase.authState$ (DEBUG)', { uid, url: this.router.url })),
-        takeUntilDestroyed(this.destroyRef)
-      ).subscribe();
+      this.authState$()
+        .pipe(
+          map(u => u?.uid ?? null),
+          distinctUntilChanged(),
+          tap(uid => this.logNavbar('firebase.authState$ (DEBUG)', { uid, url: this.router.url })),
+          takeUntilDestroyed(this.destroyRef)
+        )
+        .subscribe();
 
-      // Router events para correlacionar timing
-      this.router.events.pipe(
-        filter(e =>
-          e instanceof NavigationStart ||
-          e instanceof NavigationEnd ||
-          e instanceof NavigationCancel ||
-          e instanceof NavigationError
-        ),
-        tap((e: any) => {
-          this.logNavbar('router.event', {
-            type: e.constructor?.name,
-            url: e.url,
-            reason: (e as any).reason,
-            code: (e as any).code,
-            navbar_uid_now: this.userId,
-            session_uid_snapshot: this.session.currentAuthUser?.uid ?? null
-          });
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      ).subscribe();
+      this.router.events
+        .pipe(
+          filter(e =>
+            e instanceof NavigationStart ||
+            e instanceof NavigationEnd ||
+            e instanceof NavigationCancel ||
+            e instanceof NavigationError
+          ),
+          tap((e: any) => {
+            this.logNavbar('router.event', {
+              type: e.constructor?.name,
+              url: e.url,
+              reason: (e as any).reason,
+              code: (e as any).code,
+              navbar_uid_now: this.userId,
+              session_uid_snapshot: this.session.currentAuthUser?.uid ?? null
+            });
+          }),
+          takeUntilDestroyed(this.destroyRef)
+        )
+        .subscribe();
     }
 
-    // =========================================================================
-    // Route watcher (isLoginPage)
-    // - O que faz: marca se a rota atual é /login para controlar UI.
-    // - Deve permanecer no navbar? Sim, é decisão puramente de UI do header.
-    // - Evolução: derivar de um stream (isLoginPage$) e usar async.
-    // =========================================================================
-    this.router.events.pipe(
-      filter(e => e instanceof NavigationEnd),
-      startWith({} as NavigationEnd),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe(() => {
-      this.isLoginPage = this.router.url === '/login';
-    });
+    // -------------------------------------------------------------------------
+    // Watcher de rota para flags de UI
+    // -------------------------------------------------------------------------
+    this.router.events
+      .pipe(
+        filter(e => e instanceof NavigationEnd),
+        startWith(null),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => {
+        this.syncRouteUiFlags(this.router.url);
+      });
 
-    // =========================================================================
-    // Tema/Contraste
-    // - Mantido aqui por ora, mas esse bloco tende a crescer; considere ThemeService.
-    // =========================================================================
+    // -------------------------------------------------------------------------
+    // Tema / contraste
+    // -------------------------------------------------------------------------
     this.initializeThemes();
     this.bindSystemPrefersDark();
   }
 
-  /**
-   * ngOnDestroy()
-   * - O que faz: remove listener do matchMedia para evitar leak.
-   * - Deve permanecer no navbar? Sim (se o listener é registrado aqui).
-   * - Evolução: mover para ThemeService, então o navbar não cuidaria disso.
-   */
   ngOnDestroy(): void {
     if (this.prefersDarkMql && this.prefersDarkListener) {
       this.prefersDarkMql.removeEventListener('change', this.prefersDarkListener);
     }
   }
 
-  /**
-   * onMyProfileClick()
-   * - O que faz: loga o estado no clique (diagnóstico).
-   * - Deve permanecer no navbar? Pode, mas só como debug.
-   * - Observação: UID exibido aqui é o do Navbar (derivado do session.uid$).
-   */
+  // ===========================================================================
+  // Ações / debug
+  // ===========================================================================
+
   onMyProfileClick(): void {
     this.logNavbar('CLICK Meu Perfil', {
       navbar_uid: this.userId,
@@ -455,29 +434,24 @@ export class NavbarComponent implements OnInit, OnDestroy {
     });
   }
 
-  // =========================
-  //    THEME STATE MACHINE
-  // =========================
+  // ===========================================================================
+  // Theme state machine
+  // ===========================================================================
 
-  /**
-   * initializeThemes()
-   * - O que faz: restaura preferências persistidas + sincroniza DOM.
-   * - Deve permanecer no navbar? Funciona, mas em escala é ThemeService.
-   */
   private initializeThemes(): void {
     const root = document.documentElement;
 
-    const persistedTheme = localStorage.getItem('theme');          // 'dark' | 'light' | null
-    const persistedHc = localStorage.getItem('high-contrast');     // '1' | '0' | null
+    const persistedTheme = localStorage.getItem('theme');
+    const persistedHc = localStorage.getItem('high-contrast');
 
     if (persistedTheme === 'dark') this._isDarkModeActive = true;
     if (persistedTheme === 'light') this._isDarkModeActive = false;
     if (persistedHc === '1') this._isHighContrastActive = true;
 
-    // fallback inicial pelo DOM, se nada persistido
     if (persistedTheme == null) {
       this._isDarkModeActive = root.classList.contains('dark-mode');
     }
+
     if (persistedHc == null) {
       this._isHighContrastActive = root.classList.contains('high-contrast');
     }
@@ -485,17 +459,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.applyThemeStates(false);
   }
 
-  /**
-   * bindSystemPrefersDark()
-   * - O que faz: segue o tema do SO apenas se o usuário não “fixou” tema.
-   * - Deve permanecer no navbar? Funciona, mas ideal é ThemeService.
-   */
   private bindSystemPrefersDark(): void {
     const userChose = localStorage.getItem('theme') !== null;
     if (userChose) return;
 
     try {
       this.prefersDarkMql = window.matchMedia?.('(prefers-color-scheme: dark)');
+
       if (this.prefersDarkMql) {
         this._isDarkModeActive = !!this.prefersDarkMql.matches;
         this.applyThemeStates(false);
@@ -508,15 +478,10 @@ export class NavbarComponent implements OnInit, OnDestroy {
         this.prefersDarkMql.addEventListener('change', this.prefersDarkListener);
       }
     } catch {
-      // ambiente sem matchMedia – ignora silenciosamente
+      // ambiente sem matchMedia
     }
   }
 
-  /**
-   * applyThemeStates()
-   * - O que faz: aplica classes/atributos no <html> e persiste preferências.
-   * - Deve permanecer no navbar? Pode, mas é global; em escala, ThemeService.
-   */
   private applyThemeStates(persist: boolean = true): void {
     const root = document.documentElement;
 
@@ -533,31 +498,16 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
   }
 
-  /**
-   * toggleDarkMode()
-   * - O que faz: alterna tema e aplica/persiste.
-   * - Deve permanecer no navbar? Sim enquanto o tema for controlado aqui.
-   */
   toggleDarkMode(): void {
     this._isDarkModeActive = !this._isDarkModeActive;
     this.applyThemeStates(true);
   }
 
-  /**
-   * toggleHighContrast()
-   * - O que faz: alterna alto contraste e aplica/persiste.
-   * - Deve permanecer no navbar? Sim enquanto o controle estiver aqui.
-   */
   toggleHighContrast(): void {
     this._isHighContrastActive = !this._isHighContrastActive;
     this.applyThemeStates(true);
   }
 
-  /**
-   * resetAppearance()
-   * - O que faz: reseta para claro + HC off, atualiza DOM sem repersistir “duplicado”.
-   * - Deve permanecer no navbar? Pode, mas em escala vira ação do ThemeService.
-   */
   resetAppearance(): void {
     localStorage.setItem('theme', 'light');
     localStorage.setItem('high-contrast', '0');
@@ -567,19 +517,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.applyThemeStates(false);
   }
 
-  /**
-   * goToMyProfile()
-   * - O que faz: navega para o perfil do usuário logado.
-   * - Ajuste principal: usa a fonte única de UID (this.userId abastecido por session.uid$).
-   * - Deve permanecer no navbar? Sim, é ação típica do header.
-   * - Evolução: o template deveria chamar este método (evitar /meu-perfil “mágico”),
-   *   para sempre cair em /perfil/:uid de forma canônica.
-   */
+  // ===========================================================================
+  // Navegação / ações
+  // ===========================================================================
+
   goToMyProfile(ev?: Event): void {
     ev?.preventDefault();
 
-    // Fonte única: userId é o UID que veio do AuthSessionService.uid$
-    // Fallback somente para tolerância (não como regra): snapshot do session.currentAuthUser.
     const uid = this.userId || this.session.currentAuthUser?.uid || '';
 
     if (!uid) {
@@ -593,29 +537,17 @@ export class NavbarComponent implements OnInit, OnDestroy {
     });
   }
 
-  /**
-   * onToggleSidebar()
-   * - O que faz: delega para SidebarService.
-   * - Deve permanecer no navbar? Sim (ação de UI do header).
-   */
   onToggleSidebar(): void {
     this.sidebarService.toggleSidebar();
   }
 
-  // Link canônico do “Meu Perfil” (sempre SPA, sem hard reload).
-  // Mantém a fonte única (uid -> userId) e não depende de href.
   get myProfileLink(): any[] {
     const uid = this.userId || this.session.currentAuthUser?.uid || '';
     return uid ? ['/perfil', uid] : ['/perfil'];
   }
 
-  /**
-   * Debug “no link” (direto no clique).
-   * - Não chama navigate() aqui para evitar dupla navegação (routerLink já navega).
-   * - Loga teclas/modo de clique para você diferenciar SPA vs hard reload.
-   */
   onMyProfileLinkClick(ev: MouseEvent): void {
-    this.onMyProfileClick(); // mantém seu log atual
+    this.onMyProfileClick();
 
     this.logNavbar('CLICK Meu Perfil (link)', {
       button: ev.button,
@@ -629,14 +561,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     });
   }
 
-  /**
-   * logout()
-   * - O que faz: dispara logout via LogoutService e notifica o usuário.
-   * - Deve permanecer no navbar? Sim, é ação típica do header.
-   * - Observação de “plataformas grandes”:
-   *   - notificação aqui ok;
-   *   - logging/erro idealmente vai para handler central (GlobalErrorHandler/telemetria).
-   */
   logout(): void {
     this.logoutService.logout$().pipe(
       take(1),
@@ -644,7 +568,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     ).subscribe({
       next: () => {
         this.notify.showSuccess('Você saiu da sua conta.');
-        // Não navegue aqui: o Orchestrator já navega pra /login
       },
       error: (error) => {
         this.logNavbar('logout error', { error });
@@ -654,4 +577,4 @@ export class NavbarComponent implements OnInit, OnDestroy {
       }
     });
   }
-} // Linha 627 - devo buscar redução de tarefas aqui
+}

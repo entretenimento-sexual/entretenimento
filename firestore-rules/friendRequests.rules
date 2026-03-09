@@ -4,6 +4,7 @@
     // - Regras:
     //  - Leitura: somente envolvidos (requester ou target)
     // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+    // uso de helpers globais
     // =========================================================================
     match /friendRequests/{reqId} {
       allow read: if signedIn() &&

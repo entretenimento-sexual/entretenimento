@@ -4,7 +4,7 @@
 // Ajustes (estilo grandes plataformas):
 // - Fonte de verdade reativa (Observables + shareReplay).
 // - Gating de realtime via AccessControlService.canListenRealtime$ (evita listeners sem permissão).
-// - Elimina AuthService: usa AuthSessionService (uid/auth), CurrentUserStoreService (perfil/role).
+// Usa AuthSessionService (uid/auth), CurrentUserStoreService (perfil/role).
 // - Erros roteados para GlobalErrorHandlerService + ErrorNotificationService.
 // - “Thread ativa” única: switchMap em seleção cancela monitor anterior automaticamente.
 // - Read receipts com auditTime (evita escrita a cada emissão).
@@ -14,7 +14,6 @@
 //   Se ainda estiver retornando só d.data(), read receipts não funcionam (não há messageId).
 // - Se você implementou roomMessages.markDeliveredAsRead$ (recomendado), o componente usa.
 //   Se não implementou ainda, existe fallback best-effort (menos eficiente).
-
 import {
   Component,
   DestroyRef,
@@ -66,7 +65,7 @@ import { CreateRoomModalComponent } from '../modals/create-room-modal/create-roo
 
 import { Timestamp } from '@firebase/firestore';
 
-// ✅ NOVA ARCH (substitui AuthService)
+// ✅ NOVA ARCH
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
@@ -303,7 +302,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // Resolve uid + perfil (role) sem AuthService
+    // Resolve uid + perfil (role)
     combineLatest([
       this.authSession.uid$.pipe(take(1)),
       this.currentUserStore.user$.pipe(

@@ -2,7 +2,6 @@
 // - Padroniza retorno com idField
 // - Stream passivo não deve “derrubar UX” nem spammar toast
 // - Helpers reutilizáveis (markDeliveredAsRead$) para remover duplicação no componente
-
 import { Injectable } from '@angular/core';
 import {
   Firestore,

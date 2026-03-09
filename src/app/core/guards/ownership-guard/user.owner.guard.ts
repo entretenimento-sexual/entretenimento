@@ -1,6 +1,5 @@
 // src/app/core/guards/user.owner.guard.ts
 // Guard: garante que apenas o dono acesse /perfil/:id.
-// - Não depende de AuthService legado. excluir totalmente o AuthService
 // - Não exige emailVerified (perfil próprio deve abrir; gating fica por feature/UI).
 import { Injectable, inject } from '@angular/core';
 import { ActivatedRouteSnapshot, CanActivate, Router, RouterStateSnapshot, UrlTree } from '@angular/router';

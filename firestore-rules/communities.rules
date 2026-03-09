@@ -5,6 +5,7 @@
 // - Write: apenas creator (createdBy == uid)
 // - Sem list pública: aqui deixei list liberado p/ signedIn (ajuste se quiser anti-scraping)
 //✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// uso de helpers globais
 // =========================================================================
 
 match /communities/{communityId} {

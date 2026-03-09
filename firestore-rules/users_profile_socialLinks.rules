@@ -5,6 +5,7 @@
 // - Escrita: somente dono
 // - Leitura: somente dono (padrão). Moderador/admin opcional.
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// uso de helpers globais
 // C:\entretenimento\firestore-rules\users_profile_socialLinks.rules
 // ===============================================================
 match /users/{userId}/profileData/socialLinks {

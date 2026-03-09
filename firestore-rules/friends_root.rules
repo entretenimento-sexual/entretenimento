@@ -4,6 +4,7 @@
 // - Read: somente envolvidos
 // - Write: somente envolvidos (MVP)
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// uso de helpers globais
 // =========================================================================
 
 match /friends/{friendId} {

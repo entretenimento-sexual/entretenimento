@@ -8,7 +8,6 @@
 // - Adiciona skeleton de ACL: tier + roles + permissions + entitlements + accountStatus.
 // - Não faz logout (LogoutService cuida disso).
 // =============================================================================
-
 import { Injectable, EnvironmentInjector, runInInjectionContext } from '@angular/core';
 import { Router } from '@angular/router';
 

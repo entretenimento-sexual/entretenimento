@@ -1,29 +1,27 @@
-//src\app\core\services\batepapo\room-services\room-invite-flow.service.ts
-// Serviço específico para fluxo de convite em salas de bate-papo
-// - Foco em aceitar/recusar convites de sala (Invite.type === 'room')
-// - Validações de segurança e integridade (ex: só destinatário pode aceitar/recusar, status pendente, etc.)
-// -  Transações para garantir consistência (atualização de sala + invite)
-// - Tratamento de erros centralizado (GlobalErrorHandlerService + ErrorNotificationService)
-// - Observable-first (evita try/catch “falso” e Promises na API pública)
-// Observação: este serviço é específico para o fluxo de convite de SALA. Para criação de convites, use o InviteService (que pode ser mais genérico e suportar outros tipos no futuro).
-// Lembre-se de seguir a padronização de uid para usuários, o identificador canônico.
-// AUTH ORCHESTRATOR SERVICE (Efeitos colaterais e ciclo de vida)
-// Objetivo principal deste service:
-// - Orquestrar “o que roda quando a sessão existe” (presence, watchers, keepAlive).
-// - Garantir que listeners NÃO iniciem no registro e NÃO iniciem para emailVerified=false.
-// - Centralizar encerramento de sessão *quando inevitável* (auth inválido).
-// Regra de plataforma (conforme sua decisão):
-// ✅ O usuário só deve perder a sessão (signOut) por LOGOUT voluntário,
-//    EXCETO quando a própria sessão do Firebase Auth for tecnicamente inválida.
-// - Em problemas de Firestore (doc missing / permission-denied / status) nós NÃO deslogamos.
-//   Em vez disso: "bloqueamos" a sessão do app e redirecionamos para /register/welcome.
-// Observação de arquitetura (fonte única):
-// - AuthSessionService: verdade do Firebase Auth
-// - CurrentUserStoreService: verdade do usuário do app (perfil/role/etc.)
-// - AuthAppBlockService: verdade do "bloqueio do app" (sem logout)
-// - AuthOrchestratorService: só side-effects e coordenação (não deve virar “store”)
-// Não esquecer de ferramentas de debug
-// Não esquecer dos comentários explicativos, para contextualizar a lógica e as decisões de design, especialmente em relação à presença online e à integração com o PresenceService. Isso ajuda a evitar confusões futuras sobre onde e como o status online deve ser controlado e lido, e reforça a ideia de que o estado online é derivado do Firestore, sem "simulações" em outros lugares (ex: Auth).'
+// src/app/core/services/batepapo/room-services/room-invite-flow.service.ts
+// Serviço específico para fluxo de convite em salas de bate-papo.
+//
+// Objetivos:
+// - Aceitar/recusar convites de sala (Invite.type === 'room').
+// - Validar integridade do convite (destinatário, status, target da sala).
+// - Garantir consistência transacional entre:
+//   (1) invite
+//   (2) rooms/{roomId}
+//   (3) rooms/{roomId}/participants/{uid}
+// - Sincronizar users/{uid}.roomIds após aceite.
+//
+// Regras importantes:
+// - O ator autenticado vem SEMPRE de AuthSessionService.
+// - O contrato do inviteId para sala é canônico:
+//   room:<roomId>:to:<receiverUid>
+// - Esse contrato precisa bater com rooms.rules.
+//
+// Observação:
+// - O update em userRoomIds fica fora da transação principal.
+// - Portanto, ainda é um pós-passo best-effort.
+// - Se no futuro você quiser atomicidade total, o ideal é migrar o write de roomIds
+//   para uma camada/repository que participe da mesma transação.
+
 import { Injectable } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
@@ -34,147 +32,264 @@ import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { UserRoomIdsService } from './user-room-ids.service';
 
 @Injectable({ providedIn: 'root' })
 export class RoomInviteFlowService {
   constructor(
-    private db: Firestore,
-    private authSession: AuthSessionService,
-    private notify: ErrorNotificationService,
-    private globalError: GlobalErrorHandlerService
+    private readonly db: Firestore,
+    private readonly authSession: AuthSessionService,
+    private readonly userRoomIds: UserRoomIdsService,
+    private readonly notify: ErrorNotificationService,
+    private readonly globalError: GlobalErrorHandlerService
   ) { }
+
+  // ---------------------------------------------------------------------------
+  // Utils
+  // ---------------------------------------------------------------------------
+
+  private norm(v: string | null | undefined): string {
+    return (v ?? '').trim();
+  }
+
+  /**
+   * ID canônico de convite de sala.
+   * Este formato precisa bater com rooms.rules (joinInviteId()).
+   */
+  private buildCanonicalInviteId(roomId: string, receiverUid: string): string {
+    return `room:${roomId}:to:${receiverUid}`;
+  }
 
   private report(err: unknown, context: Record<string, unknown>): void {
     try {
-      const e = new Error('[RoomInviteFlow] operação falhou');
+      const e = err instanceof Error ? err : new Error('[RoomInviteFlow] operação falhou');
       (e as any).feature = 'room-invites';
       (e as any).original = err;
       (e as any).context = context;
       (e as any).skipUserNotification = true;
       this.globalError.handleError(e);
-    } catch { }
+    } catch {
+      // noop
+    }
   }
 
-  acceptRoomInvite$(inviteId: string): Observable<void> {
+  private fail<T>(
+    userMessage: string,
+    err: unknown,
+    context: Record<string, unknown>
+  ): Observable<T> {
+    this.notify.showError(userMessage);
+    this.report(err, context);
+    return throwError(() => err);
+  }
+
+  /**
+   * Resolve o ator autenticado a partir da sessão.
+   * Evita confiar em UID vindo da UI para ações sensíveis.
+   */
+  private withActorUid$<T>(operation: (actorUid: string) => Observable<T>): Observable<T> {
     return this.authSession.uid$.pipe(
       take(1),
       switchMap((uid) => {
-        const actorUid = (uid ?? '').trim();
-        if (!actorUid) return throwError(() => new Error('Sessão inválida para aceitar convite.'));
-        return this.acceptRoomInviteForUid$(inviteId, actorUid);
+        const actorUid = this.norm(uid);
+
+        if (!actorUid) {
+          return this.fail<T>(
+            'Sessão inválida para processar o convite.',
+            new Error('No authenticated actor'),
+            { op: 'withActorUid$' }
+          );
+        }
+
+        return operation(actorUid);
       })
     );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Accept
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Aceita um convite de sala.
+   *
+   * Contrato importante:
+   * - inviteId deve ser o docId canônico: room:<roomId>:to:<uid>
+   * - se o doc existir mas o id não respeitar o padrão esperado, o fluxo falha.
+   */
+  acceptRoomInvite$(inviteId: string): Observable<void> {
+    const iid = this.norm(inviteId);
+
+    if (!iid) {
+      return this.fail<void>(
+        'Convite inválido.',
+        new Error('inviteId vazio'),
+        { op: 'acceptRoomInvite$', inviteId }
+      );
+    }
+
+    return this.withActorUid$((actorUid) => this.acceptRoomInviteForUid$(iid, actorUid));
   }
 
   private acceptRoomInviteForUid$(inviteId: string, actorUid: string): Observable<void> {
     return defer(() => {
       const invRef = doc(this.db as any, 'invites', inviteId);
 
-      return from(runTransaction(this.db as any, async (tx) => {
-        const invSnap = await tx.get(invRef);
-        if (!invSnap.exists()) throw new Error('Convite não encontrado.');
+      return from(
+        runTransaction(this.db as any, async (tx) => {
+          const invSnap = await tx.get(invRef);
+          if (!invSnap.exists()) throw new Error('Convite não encontrado.');
 
-        const inv = invSnap.data() as Invite;
+          const inv = invSnap.data() as Invite;
 
-        if (inv.receiverId !== actorUid) throw new Error('Você não é o destinatário deste convite.');
-        if ((inv.type ?? 'room') !== 'room') throw new Error('Convite não é do tipo ROOM.');
-        if (inv.status !== 'pending') throw new Error('Convite não está pendente.');
+          if (this.norm(inv.receiverId) !== actorUid) {
+            throw new Error('Você não é o destinatário deste convite.');
+          }
 
-        const roomId = (inv.targetId || inv.roomId || '').trim();
-        if (!roomId) throw new Error('Convite sem targetId/roomId.');
+          if ((inv.type ?? 'room') !== 'room') {
+            throw new Error('Convite não é do tipo ROOM.');
+          }
 
-        const roomRef = doc(this.db as any, 'rooms', roomId);
-        const roomSnap = await tx.get(roomRef);
-        if (!roomSnap.exists()) throw new Error('Sala não encontrada.');
+          if (inv.status !== 'pending') {
+            throw new Error('Convite não está pendente.');
+          }
 
-        const roomData: any = roomSnap.data();
-        const current: string[] = Array.isArray(roomData.participants) ? roomData.participants : [];
+          const roomId = this.norm(inv.targetId || inv.roomId);
+          if (!roomId) {
+            throw new Error('Convite sem targetId/roomId.');
+          }
 
-        // idempotência básica: se já estiver na sala, só marca invite como aceito
-        const alreadyIn = current.includes(actorUid);
+          const expectedInviteId = this.buildCanonicalInviteId(roomId, actorUid);
+          if (inviteId !== expectedInviteId) {
+            throw new Error(`InviteId fora do padrão canônico esperado: ${expectedInviteId}`);
+          }
 
-        if (!alreadyIn) {
-          const next = [...current, actorUid];
+          const roomRef = doc(this.db as any, 'rooms', roomId);
+          const participantRef = doc(this.db as any, 'rooms', roomId, 'participants', actorUid);
 
-          tx.update(roomRef as any, {
-            participants: next,
-            lastActivity: serverTimestamp(),
+          const roomSnap = await tx.get(roomRef);
+          if (!roomSnap.exists()) throw new Error('Sala não encontrada.');
+
+          const roomData: any = roomSnap.data() ?? {};
+          const currentParticipants: string[] = Array.isArray(roomData.participants)
+            ? roomData.participants
+            : [];
+
+          const alreadyInRoom = currentParticipants.includes(actorUid);
+
+          if (!alreadyInRoom) {
+            tx.update(roomRef as any, {
+              participants: [...currentParticipants, actorUid],
+              lastActivity: serverTimestamp(),
+            });
+          }
+
+          tx.set(
+            participantRef as any,
+            {
+              uid: actorUid,
+              joinedAt: Date.now(),
+              removedAt: null,
+              removed: false,
+            },
+            { merge: true } as any
+          );
+
+          tx.update(invRef as any, {
+            status: 'accepted',
+            respondedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
           });
 
-          // opcional (mas útil): subdoc de participant
-          const participantRef = doc(this.db as any, 'rooms', roomId, 'participants', actorUid);
-          tx.set(participantRef as any, {
-            uid: actorUid,
-            joinedAt: Date.now(),
-            removed: false,
-          }, { merge: true } as any);
-        }
-
-        tx.update(invRef as any, {
-          status: 'accepted',
-          respondedAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      })).pipe(map(() => void 0));
+          return roomId;
+        })
+      );
     }).pipe(
-      catchError(err => {
-        this.report(err, { op: 'acceptRoomInvite$', inviteId });
-        this.notify.showError('Erro ao aceitar convite.');
-        return throwError(() => err);
-      })
+      switchMap((roomId: string) =>
+        this.userRoomIds.addRoomId$(actorUid, roomId).pipe(
+          map(() => void 0)
+        )
+      ),
+      catchError((err) =>
+        this.fail<void>(
+          'Erro ao aceitar convite.',
+          err,
+          { op: 'acceptRoomInviteForUid$', inviteId, actorUid }
+        )
+      )
     );
   }
 
-  declineRoomInvite$(inviteId: string): Observable<void> {
-    return this.authSession.uid$.pipe(
-      take(1),
-      switchMap((uid) => {
-        const actorUid = (uid ?? '').trim();
-        if (!actorUid) return throwError(() => new Error('Sessão inválida para recusar convite.'));
+  // ---------------------------------------------------------------------------
+  // Decline
+  // ---------------------------------------------------------------------------
 
-        return defer(() =>
-          from(runTransaction(this.db as any, async (tx) => {
-            const invRef = doc(this.db as any, 'invites', inviteId);
+  /**
+   * Recusa um convite de sala.
+   *
+   * Também valida o contrato canônico do inviteId para manter consistência
+   * arquitetural com rooms.rules, mesmo que aqui não haja update no room.
+   */
+  declineRoomInvite$(inviteId: string): Observable<void> {
+    const iid = this.norm(inviteId);
+
+    if (!iid) {
+      return this.fail<void>(
+        'Convite inválido.',
+        new Error('inviteId vazio'),
+        { op: 'declineRoomInvite$', inviteId }
+      );
+    }
+
+    return this.withActorUid$((actorUid) =>
+      defer(() => {
+        const invRef = doc(this.db as any, 'invites', iid);
+
+        return from(
+          runTransaction(this.db as any, async (tx) => {
             const invSnap = await tx.get(invRef);
             if (!invSnap.exists()) throw new Error('Convite não encontrado.');
 
             const inv = invSnap.data() as Invite;
 
-            if (inv.receiverId !== actorUid) throw new Error('Você não é o destinatário deste convite.');
-            if (inv.status !== 'pending') throw new Error('Convite não está pendente.');
+            if (this.norm(inv.receiverId) !== actorUid) {
+              throw new Error('Você não é o destinatário deste convite.');
+            }
+
+            if ((inv.type ?? 'room') !== 'room') {
+              throw new Error('Convite não é do tipo ROOM.');
+            }
+
+            if (inv.status !== 'pending') {
+              throw new Error('Convite não está pendente.');
+            }
+
+            const roomId = this.norm(inv.targetId || inv.roomId);
+            if (!roomId) {
+              throw new Error('Convite sem targetId/roomId.');
+            }
+
+            const expectedInviteId = this.buildCanonicalInviteId(roomId, actorUid);
+            if (iid !== expectedInviteId) {
+              throw new Error(`InviteId fora do padrão canônico esperado: ${expectedInviteId}`);
+            }
 
             tx.update(invRef as any, {
               status: 'declined',
               respondedAt: serverTimestamp(),
               updatedAt: serverTimestamp(),
             });
-          }))
+          })
         ).pipe(map(() => void 0));
-      }),
-      catchError(err => {
-        this.report(err, { op: 'declineRoomInvite$', inviteId });
-        this.notify.showError('Erro ao recusar convite.');
-        return throwError(() => err);
-      })
+      }).pipe(
+        catchError((err) =>
+          this.fail<void>(
+            'Erro ao recusar convite.',
+            err,
+            { op: 'declineRoomInvite$', inviteId: iid, actorUid }
+          )
+        )
+      )
     );
   }
-}
-// lembrar sempre da padronização em uid para usuários, o identificador canônico.
-// AUTH ORCHESTRATOR SERVICE (Efeitos colaterais e ciclo de vida)
-//
-// Objetivo principal deste service:
-// - Orquestrar “o que roda quando a sessão existe” (presence, watchers, keepAlive).
-// - Garantir que listeners NÃO iniciem no registro e NÃO iniciem para emailVerified=false.
-// - Centralizar encerramento de sessão *quando inevitável* (auth inválido).
-//
-// Regra de plataforma (conforme sua decisão):
-// ✅ O usuário só deve perder a sessão (signOut) por LOGOUT voluntário,
-//    EXCETO quando a própria sessão do Firebase Auth for tecnicamente inválida.
-// - Em problemas de Firestore (doc missing / permission-denied / status) nós NÃO deslogamos.
-//   Em vez disso: "bloqueamos" a sessão do app e redirecionamos para /register/welcome.
-//
-// Observação de arquitetura (fonte única):
-// - AuthSessionService: verdade do Firebase Auth
-// - CurrentUserStoreService: verdade do usuário do app (perfil/role/etc.)
-// - AuthAppBlockService: verdade do "bloqueio do app" (sem logout)
-// - AuthOrchestratorService: só side-effects e coordenação (não deve virar “store”)
+} // Linha 295, fim do room-invite-flow.service.ts

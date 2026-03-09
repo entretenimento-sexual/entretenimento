@@ -1,104 +1,114 @@
 // ================================================================
-                       // ROOMS.RULES
-    // - Coleção raiz: rooms/{roomId}
-    // - Subcollections: messages, invites, participants
-    // - Read: somente participantes (anti-scraping)
-    // - Write: somente participantes, mas só owner pode mudar participantes e detalhes do room (
-    //   isso evita negação em transações onde room update + participant set rodam juntos, e mantém controle de quem pode mudar o que).
-    // - Messages: somente participantes, mas só pode criar mensagens com senderId == uid,
-    //   e só pode atualizar status de mensagens recebidas (não pode mudar mensagens que enviou).
-    // - Invites: somente envolvidos (sender ou receiver), com regras específicas de quem pode criar/atualizar/deletar.
-    // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
-    // firestore-rules\rooms.rules
+// ROOMS.RULES
+// - Coleção raiz: rooms/{roomId}
+// - Read: participantes ou owner
+// - Update normal:
+//   - owner pode alterar detalhes do room e participants
+//   - participante comum só altera lastActivity/lastMessage
+// - Join controlado por convite:
+//   - exige invite root com docId canônico room:<roomId>:to:<uid>
+//   - status pending
+//   - receiverId == uid()
+//   - targetId/roomId apontando para a própria sala
+//   - expiresAt > request.time
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// uso de helpers globais
+// firestore-rules/rooms.rules
 // ================================================================
+
 match /rooms/{roomId} {
+  function participantsFrom(data) {
+    return (data.keys().hasAny(["participants"]) && data.participants is list)
+      ? data.participants
+      : [];
+  }
+
   function isRoomParticipant() {
-    return signedIn() && (uid() in resource.data.participants);
+    return signedIn() && (uid() in participantsFrom(resource.data));
   }
 
   function isRoomOwner() {
-    return signedIn() && resource.data.createdBy == uid();
+    return signedIn()
+      && resource.data.keys().hasAny(["createdBy"])
+      && resource.data.createdBy == uid();
   }
-
-  function isLegacyRoomPayload() {
-  return !hasField("type") && !hasField("targetId");
-}
-
-function validCreateLegacyRoom() {
-  return isLegacyRoomPayload()
-    && allowedKeys()
-    && request.resource.data.senderId == uid()
-    && request.resource.data.receiverId is string
-    && request.resource.data.receiverId != uid()
-    && request.resource.data.roomId is string
-    && request.resource.data.status == "pending"
-    && isTs(request.resource.data.sentAt)
-    && isTs(request.resource.data.expiresAt)
-    && (!hasField("updatedAt") || request.resource.data.updatedAt == request.time)
-    && (!hasField("respondedAt") || request.resource.data.respondedAt == null);
-}
 
   // ------------------------------------------------------------
   // JOIN BY INVITE (root invites)
-  // DocId: invites/room:<roomId>:to:<uid>
+  // DocId canônico: invites/room:<roomId>:to:<uid>
   // ------------------------------------------------------------
   function joinInviteId() {
     return "room:" + roomId + ":to:" + uid();
   }
 
+  function joinInvitePath() {
+    return /databases/$(database)/documents/invites/$(joinInviteId());
+  }
+
+  function joinInviteExists() {
+    return exists(joinInvitePath());
+  }
+
+  function joinInviteData() {
+    return get(joinInvitePath()).data;
+  }
+
+  function joinInviteIsRoomType() {
+    return !joinInviteData().keys().hasAny(["type"])
+      || joinInviteData().type == "room";
+  }
+
+  function joinInviteTargetsThisRoom() {
+    return (
+      (joinInviteData().keys().hasAny(["targetId"]) && joinInviteData().targetId == roomId)
+      || (joinInviteData().keys().hasAny(["roomId"]) && joinInviteData().roomId == roomId)
+    );
+  }
+
   function hasPendingJoinInvite() {
-    let invPath = /databases/$(database)/documents/invites/$(joinInviteId());
-    return exists(invPath)
-      && get(invPath).data.status == "pending"
-      && get(invPath).data.receiverId == uid()
-      && (
-        // compat: v2 (targetId) OU legacy (roomId)
-        (("targetId" in get(invPath).data) && get(invPath).data.targetId == roomId)
-        || (("roomId" in get(invPath).data) && get(invPath).data.roomId == roomId)
-      )
-      && get(invPath).data.expiresAt > request.time;
+    return signedIn()
+      && joinInviteExists()
+      && joinInviteData().status == "pending"
+      && joinInviteData().receiverId == uid()
+      && joinInviteIsRoomType()
+      && joinInviteTargetsThisRoom()
+      && joinInviteData().expiresAt > request.time;
   }
 
   function isJoinUpdateShape() {
-    // não é participante ainda
-    return signedIn()
-      && !(uid() in resource.data.participants)
+    let oldParticipants = participantsFrom(resource.data);
 
-      // só pode mudar participants + lastActivity
+    return signedIn()
+      && !(uid() in oldParticipants)
       && request.resource.data.diff(resource.data).changedKeys().hasOnly([
         "participants",
         "lastActivity"
       ])
-
-      // participants: list
       && (request.resource.data.participants is list)
-      && (resource.data.participants is list)
-
-      // adiciona a si mesmo
       && (uid() in request.resource.data.participants)
-      && !(uid() in resource.data.participants)
-
-      // só cresce +1 e preserva todos os antigos
-      && request.resource.data.participants.size() == resource.data.participants.size() + 1
-      && request.resource.data.participants.hasAll(resource.data.participants)
-
-      // força serverTimestamp em lastActivity
+      && request.resource.data.participants.size() == oldParticipants.size() + 1
+      && request.resource.data.participants.hasAll(oldParticipants)
       && request.resource.data.lastActivity == request.time;
   }
 
-  allow read: if isRoomParticipant();
+  allow read: if isRoomParticipant() || isRoomOwner();
 
   allow create: if signedIn()
+    && request.resource.data.keys().hasAll([
+      "createdBy",
+      "participants",
+      "roomName",
+      "creationTime"
+    ])
     && request.resource.data.createdBy == uid()
     && request.resource.data.participants is list
     && (uid() in request.resource.data.participants)
     && isStr(request.resource.data.roomName)
-    && ("creationTime" in request.resource.data) && isTs(request.resource.data.creationTime);
+    && isTs(request.resource.data.creationTime);
 
-  // ✅ update normal (seu comportamento atual) OU join-by-invite
   allow update: if
     (
-      isRoomParticipant()
+      (isRoomParticipant() || isRoomOwner())
       && (
         (isRoomOwner()
           && request.resource.data.diff(resource.data).changedKeys().hasOnly([
@@ -125,7 +135,6 @@ function validCreateLegacyRoom() {
     )
     ||
     (
-      // join controlado
       hasPendingJoinInvite()
       && isJoinUpdateShape()
     );

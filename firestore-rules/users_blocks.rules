@@ -1,7 +1,8 @@
-// firestore-rules/users_blocks.rules
 // =========================================================================
 // USERS / blocks (privado) + events (auditoria)
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// uso de helpers globais
+// firestore-rules/users_blocks.rules
 // =========================================================================
 
 match /users/{ownerUid}/blocks/{targetUid} {

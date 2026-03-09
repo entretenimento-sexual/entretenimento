@@ -1,14 +1,31 @@
-// src\app\chat-module\chat-rooms\chat-rooms.component.ts
-import { Component, EventEmitter, OnInit, Output } from '@angular/core';
+// src/app/chat-module/chat-rooms/chat-rooms.component.ts
+// Componente responsável por listar salas do usuário e abrir o fluxo de criação.
+// Ajustes desta versão:
+// - usa AuthSessionService como fonte canônica de UID
+// - usa CurrentUserStoreService como fonte do perfil do app
+// - evita subscribe solto sem teardown
+// - centraliza tratamento de erro com GlobalErrorHandlerService + ErrorNotificationService
+// - mantém nomenclaturas públicas já usadas no template e em outros componentes
+import { Component, DestroyRef, EventEmitter, OnInit, Output, inject } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
+import { combineLatest, from, of } from 'rxjs';
+import { catchError, distinctUntilChanged, filter, map, switchMap, take, tap } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { InfoCriaSalaBpComponent } from 'src/app/core/textos-globais/info-cria-sala-bp/info-cria-sala-bp.component';
+
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+
 import { SubscriptionService } from 'src/app/core/services/subscriptions/subscription.service';
-import { RoomCreationConfirmationModalComponent } from '../modals/room-create-confirm-modal/room-creation-confirmation-modal.component';
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
+
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+
+import { InfoCriaSalaBpComponent } from 'src/app/core/textos-globais/info-cria-sala-bp/info-cria-sala-bp.component';
+import { RoomCreationConfirmationModalComponent } from '../modals/room-create-confirm-modal/room-creation-confirmation-modal.component';
 import { CreateRoomModalComponent } from '../modals/create-room-modal/create-room-modal.component';
 
 @Component({
@@ -19,122 +36,196 @@ import { CreateRoomModalComponent } from '../modals/create-room-modal/create-roo
 })
 export class ChatRoomsComponent implements OnInit {
   @Output() roomSelected = new EventEmitter<string>();
-  chatRooms: any[] = []; // Lista de salas de bate-papo
-  currentUser: IUserDados | null = null; // Usuário autenticado
+
+  chatRooms: any[] = [];
+  currentUser: IUserDados | null = null;
+
+  private readonly destroyRef = inject(DestroyRef);
 
   constructor(
-    private authService: AuthService,
-    private subscriptionService: SubscriptionService,
-    private roomService: RoomService,
-    private roomManagement: RoomManagementService,
-    private errorNotifier: ErrorNotificationService,
-    public dialog: MatDialog
+    private readonly authSession: AuthSessionService,
+    private readonly currentUserStore: CurrentUserStoreService,
+    private readonly subscriptionService: SubscriptionService,
+    private readonly roomService: RoomService,
+    private readonly roomManagement: RoomManagementService,
+    private readonly errorNotifier: ErrorNotificationService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    public readonly dialog: MatDialog
   ) { }
 
   ngOnInit(): void {
-    // Assina o observable do usuário atual para obter o usuário autenticado
-    this.authService.user$.subscribe(
-      (user) => {
-        this.currentUser = user;
-        if (user?.uid) {
-          this.loadUserRooms(user.uid);
+    /**
+     * Fluxo central:
+     * - authSession.uid$ = fonte canônica da sessão
+     * - currentUserStore.user$ = fonte canônica do perfil do app
+     *
+     * Regras:
+     * - uid null -> limpa estado local
+     * - uid válido -> sincroniza currentUser e carrega salas
+     */
+    combineLatest([
+      this.authSession.uid$,
+      this.currentUserStore.user$
+    ]).pipe(
+      map(([uid, user]) => ({
+        uid: (uid ?? '').trim() || null,
+        user,
+      })),
+      distinctUntilChanged((a, b) =>
+        a.uid === b.uid &&
+        (a.user as any)?.uid === (b.user as any)?.uid &&
+        (a.user as any)?.role === (b.user as any)?.role &&
+        (a.user as any)?.isSubscriber === (b.user as any)?.isSubscriber
+      ),
+      tap(({ uid, user }) => {
+        if (!uid) {
+          this.currentUser = null;
+          this.chatRooms = [];
+          return;
         }
-      },
-      (error) => {
-        this.errorNotifier.showError('Erro ao carregar informações do usuário.');
-      }
-    );
-  }
 
-  /**
-   * Carrega as salas do usuário autenticado.
-   * @param userId ID do usuário.
-   */
-  loadUserRooms(userId: string): void {
-    this.roomService.getUserRooms(userId).subscribe(
-      (rooms) => {
-        this.chatRooms = rooms;
-        console.log('Salas carregadas:', this.chatRooms);
-      },
-      (error) => {
-        this.errorNotifier.showError('Erro ao carregar salas.');
-        console.log('Erro ao buscar salas:', error);
-      }
-    );
+        if (user === null) {
+          this.currentUser = null;
+          this.chatRooms = [];
+          return;
+        }
+
+        if (user && user !== undefined) {
+          this.currentUser = user as IUserDados;
+        }
+      }),
+      filter(({ uid }) => !!uid),
+      switchMap(({ uid }) =>
+        this.roomService.getUserRooms(uid!).pipe(
+          tap((rooms) => {
+            this.chatRooms = rooms ?? [];
+          }),
+          catchError((error) => {
+            this.chatRooms = [];
+            this.handleError(error, 'Erro ao carregar salas.');
+            return of([]);
+          })
+        )
+      ),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   /**
    * Seleciona uma sala para interação.
-   * @param roomId ID da sala selecionada.
+   * Mantém a nomenclatura original.
    */
   selectRoom(roomId: string): void {
-    console.log(`Sala selecionada: ${roomId}`);
-    this.roomSelected.emit(roomId);
+    const rid = (roomId ?? '').trim();
+    if (!rid) return;
+
+    this.roomSelected.emit(rid);
   }
 
   /**
    * Abre o modal para criar uma sala.
+   *
+   * Regras:
+   * - sem usuário -> warning
+   * - perfil ainda não hidratado (undefined) -> info
+   * - limite atingido -> info
+   * - usuário sem permissão -> prompt de assinatura
+   * - permitido -> abre modal de criação
    */
   openCreateRoomModal(): void {
-    if (!this.currentUser) {
+    const snapshot = this.currentUserStore.getSnapshot();
+
+    if (snapshot === undefined) {
+      this.errorNotifier.showInfo('Aguarde o carregamento do seu perfil para criar uma sala.');
+      return;
+    }
+
+    if (!snapshot?.uid) {
       this.errorNotifier.showWarning('Você precisa estar logado para criar uma sala.');
       return;
     }
 
-    const creatorId = this.currentUser.uid;
+    this.currentUser = snapshot;
 
-    this.roomService.countUserRooms(creatorId).then((roomCount) => {
-      const MAX_ROOMS_ALLOWED = 1;
+    const creatorId = snapshot.uid;
 
-      if (roomCount >= MAX_ROOMS_ALLOWED) {
-        this.errorNotifier.showInfo('Você já atingiu o limite de salas criadas.');
-        return;
-      }
+    from(this.roomService.countUserRooms(creatorId)).pipe(
+      take(1),
+      switchMap((roomCount) => {
+        const MAX_ROOMS_ALLOWED = 1;
 
-      if (this.currentUser?.isSubscriber || ['premium', 'vip'].includes(this.currentUser?.role || '')) {
+        if (roomCount >= MAX_ROOMS_ALLOWED) {
+          this.errorNotifier.showInfo('Você já atingiu o limite de salas criadas.');
+          return of(null);
+        }
+
+        const canCreateRoom =
+          snapshot.isSubscriber === true ||
+          ['premium', 'vip'].includes(snapshot.role || '');
+
+        if (!canCreateRoom) {
+          this.subscriptionService.promptSubscription({
+            title: 'Permissão necessária',
+            message: 'Você precisa ser assinante ou ter um perfil premium/vip para criar salas.',
+          });
+          return of(null);
+        }
+
         const dialogRef = this.dialog.open(CreateRoomModalComponent, {
           width: '60vw',
         });
 
-        // Aguarda o fechamento do modal antes de abrir outro
-        dialogRef.afterClosed().subscribe((result: { success?: boolean; roomId?: string; roomName?: string; action?: 'created' | 'updated'; error?: string, roomDetails?: any }) => {
-          if (result?.success && result.roomDetails) {
-            this.roomManagement.createRoom(result.roomDetails, creatorId).subscribe({
-              next: (response: any) => {
-                // Garantindo que o tipo da resposta seja tratado como esperado
-                if (response && typeof response === 'object') {
-                  this.openRoomCreationConfirmationModal(
-                    response.roomId,
-                    false,
-                    1,
-                    response.roomName,
-                    response.action
-                  );
-                }
-              },
-              error: (error) => this.errorNotifier.showError(error),
-            });
-          } else if (result?.error) {
-            this.errorNotifier.showError(result.error);
-          }
-        });
+        return dialogRef.afterClosed().pipe(
+          take(1),
+          switchMap((result: {
+            success?: boolean;
+            roomId?: string;
+            roomName?: string;
+            action?: 'created' | 'updated';
+            error?: string;
+            roomDetails?: any;
+          } | null) => {
+            if (!result) return of(null);
 
-      } else {
-        this.subscriptionService.promptSubscription({
-          title: 'Permissão necessária',
-          message: 'Você precisa ser assinante ou ter um perfil premium/vip para criar salas.',
-        });
-      }
-    });
+            if (result.error) {
+              this.errorNotifier.showError(result.error);
+              return of(null);
+            }
+
+            if (!result.success || !result.roomDetails) {
+              return of(null);
+            }
+
+            return this.roomManagement.createRoom(result.roomDetails, creatorId).pipe(
+              tap((response: any) => {
+                if (!response || typeof response !== 'object') return;
+
+                this.openRoomCreationConfirmationModal(
+                  response.id ?? response.roomId ?? '',
+                  false,
+                  roomCount + 1,
+                  response.roomName ?? result.roomName ?? 'Sala',
+                  (result.action ?? 'created')
+                );
+              }),
+              catchError((error) => {
+                this.handleError(error, 'Erro ao criar sala.');
+                return of(null);
+              })
+            );
+          })
+        );
+      }),
+      catchError((error) => {
+        this.handleError(error, 'Erro ao verificar limite de salas.');
+        return of(null);
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
   }
 
   /**
    * Abre o modal de confirmação após criar/atualizar uma sala.
-   * @param roomId ID da sala criada.
-   * @param exceededLimit Se o limite foi excedido.
-   * @param roomCount Contagem de salas do usuário.
-   * @param roomName Nome da sala.
-   * @param action Ação realizada (criada/atualizada).
    */
   private openRoomCreationConfirmationModal(
     roomId: string,
@@ -144,18 +235,47 @@ export class ChatRoomsComponent implements OnInit {
     action: 'created' | 'updated'
   ): void {
     this.dialog.open(RoomCreationConfirmationModalComponent, {
-      data: { roomId, exceededLimit, roomCount, roomName, action },
+      data: {
+        roomId,
+        exceededLimit,
+        roomCount,
+        roomName,
+        action,
+      },
     });
   }
 
   /**
    * Abre um modal com informações adicionais sobre a criação de salas.
-   * @param event Evento de clique.
    */
   openInfoCriaSalaBpModal(event: Event): void {
     event.preventDefault();
+
     this.dialog.open(InfoCriaSalaBpComponent, {
       width: '50vw',
     });
+  }
+
+  /**
+   * Tratamento central de erro:
+   * - feedback amigável ao usuário
+   * - roteamento para o GlobalErrorHandler
+   */
+  private handleError(error: unknown, userMessage: string): void {
+    try {
+      this.errorNotifier.showError(userMessage);
+    } catch {
+      // noop
+    }
+
+    try {
+      const e = error instanceof Error ? error : new Error(userMessage);
+      (e as any).context = 'ChatRoomsComponent';
+      (e as any).skipUserNotification = true;
+      (e as any).original = error;
+      this.globalErrorHandler.handleError(e);
+    } catch {
+      // noop
+    }
   }
 }

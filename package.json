@@ -17,14 +17,16 @@
     "emu:pre": "kill-port 4000 4400 4500 9099 8080 5001 8087 9000 9199 9150 || exit 0",
     "preemu:start": "npm run emu:pre && npm run functions:build",
     "emu:start": "set \"JAVA_HOME=C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\"&& set \"PATH=C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\\bin;%PATH%\"&& npx firebase emulators:start --only auth,firestore,storage,functions,pubsub,database,ui --project entretenimento-sexual",
-    "emu": "npm run emu:pre && npm run rules:build && npm run emu:start",
     "emu:noui:start": "set \"JAVA_HOME=C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\"&& set \"PATH=C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\\bin;%PATH%\"&& npx firebase emulators:start --only auth,firestore,storage,functions,pubsub,database --project entretenimento-sexual",
+    "emu": "npm run emu:pre && npm run rules:build && npm run emu:start",
     "emu:noui": "npm run emu:pre && npm run preemu:start && npm run emu:noui:start",
     "emulators:start:ui": "start http://127.0.0.1:4000",
     "rules:build": "node firestore-rules/tools-rules/build-firestore-rules.mjs",
+    "rules:check": "node firestore-rules/tools-rules/check-braces.mjs",
+    "deploy:rules": "npm run rules:build && npm run rules:check && firebase deploy --only firestore:rules",
+    "deploy:rules:project": "npm run rules:build && npm run rules:check && firebase deploy --only firestore:rules --project entretenimento-sexual",
     "rules:watch": "node firestore-rules/tools-rules/build-firestore-rules.mjs --watch",
     "emulators": "npm run emu:pre && npm run rules:build && set \"JAVA_HOME=C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\"&& set \"PATH=C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot\\bin;%PATH%\"&& firebase emulators:start",
-    "deploy:rules": "npm run rules:build && firebase deploy --only firestore:rules",
     "audit:prod": "npm audit --omit=dev",
     "audit:all": "npm audit"
   },
@@ -110,6 +112,7 @@
     "webpack-dev-server": "^5.2.3"
   },
   "overrides": {
-    "core-js": "^3.23.3"
-  }
+  "core-js": "^3.23.3",
+  "serialize-javascript": "7.0.4"
+}
 }

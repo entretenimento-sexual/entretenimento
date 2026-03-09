@@ -316,6 +316,6 @@ export class FinalizarCadastroComponent implements OnInit {
   goToSubscription(): void { this.router.navigate(['/subscription-plan']); }
   continueWithoutSubscription(): void { this.router.navigate(['/dashboard/principal']); }
 }
- /* 281 linhas, o firestoreService e o authService estão sendo descontinuados,
+ /* 281 linhas, o firestoreService sendo descontinuados,
    buscar realocar métodos para outros serviços mais especializados.
    */

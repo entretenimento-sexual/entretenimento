@@ -3,6 +3,7 @@
 // - MVP seguro: somente o dono lê/escreve
 // - Sem scraping, sem enumeração
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// uso de helpers globais
 // firestore-rules/users_photos.rules
 // ===============================================================
 match /users/{userId}/photos/{photoId} {

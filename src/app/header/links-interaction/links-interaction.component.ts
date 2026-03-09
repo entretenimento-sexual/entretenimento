@@ -1,29 +1,34 @@
 // src/app/header/links-interaction/links-interaction.component.ts
 // Componente para interação com links no cabeçalho.
-// ✅ Padrão “plataforma grande” (simplificado): ESTE componente governa start/stop dos listeners
-//   - Gate: auth ready + logged + fora do fluxo de registro
-//   - Centraliza: unread-messages + friend-requests realtime
-//   - Evita: múltiplos starts vindos de telas (ex.: FriendRequestsComponent)
+//
+// Padrão adotado:
+// - Este componente governa start/stop dos listeners do header.
+// - A decisão de gate NÃO é recalculada localmente.
+// - A fonte única de verdade é o AccessControlService.
 //
 // Observações:
-// - Observable-first (nada de “async solto” para governança)
-// - Erros: centralizados via GlobalErrorHandlerService + ErrorNotificationService
-// - Mantém nomenclaturas públicas usadas no template (refreshInboundOnOpen/accept/decline/block etc)
+// - Observable-first.
+// - Mantém nomenclaturas públicas usadas no template.
+// - Erros centralizados em GlobalErrorHandlerService + ErrorNotificationService.
 
-import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, DestroyRef, inject } from '@angular/core';
-import { Router, NavigationEnd } from '@angular/router';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnDestroy,
+  OnInit,
+  inject,
+} from '@angular/core';
 import { Store } from '@ngrx/store';
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 
-import { Observable, combineLatest, defer, from, of } from 'rxjs';
+import { Observable, combineLatest, firstValueFrom, of } from 'rxjs';
 import {
   auditTime,
   catchError,
   distinctUntilChanged,
-  filter,
   map,
   shareReplay,
-  startWith,
   take,
   tap,
 } from 'rxjs/operators';
@@ -37,6 +42,7 @@ import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-ed
 
 import { SidebarService } from 'src/app/core/services/sidebar.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { ChatNotificationService } from 'src/app/core/services/batepapo/chat-notification.service';
 
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -63,10 +69,9 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   private readonly notificationService = inject(ChatNotificationService);
   private readonly sidebarService = inject(SidebarService);
 
-  private readonly router = inject(Router);
   private readonly authSession = inject(AuthSessionService);
+  private readonly accessControl = inject(AccessControlService);
 
-  // ✅ Centralização de erros (governança + side-effects não devem “derrubar” UI)
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly errorNotifier = inject(ErrorNotificationService);
 
@@ -74,7 +79,7 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   // UI
   // ===========================================================================
 
-  sidebarOpen$ = this.sidebarService.isSidebarVisible$.pipe(
+  readonly sidebarOpen$ = this.sidebarService.isSidebarVisible$.pipe(
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -84,18 +89,7 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   // ===========================================================================
 
   /**
-   * ✅ Gate de prontidão do AuthSession
-   * - Evita iniciar listeners no cold start quando o Auth ainda está “restaurando”.
-   */
-  private readonly authReady$ = defer(() => from(this.authSession.whenReady())).pipe(
-    map(() => true),
-    startWith(false),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  /**
-   * ✅ Fonte canônica de UID: AuthSession.uid$
-   * (Evita múltiplas subscriptions em authUser$ e decisões cedo demais.)
+   * UID canônico para template e governança.
    */
   private readonly authUid$ = this.authSession.uid$.pipe(
     map((uid) => (uid ?? '').trim() || null),
@@ -103,82 +97,59 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  /** Exposto ao template */
-  userId$: Observable<string | null> = this.authUid$;
+  /**
+   * Exposto ao template.
+   */
+  readonly userId$: Observable<string | null> = this.authUid$;
 
-  /** Exposto ao template */
-  isLogged$: Observable<boolean> = this.authUid$.pipe(
+  /**
+   * Mantém compat visual atual:
+   * - se houver uid, mostra os links.
+   *
+   * Se depois você quiser esconder o bloco inteiro durante /register,
+   * a mudança deve ser feita aqui, e não no gate de listeners.
+   */
+  readonly isLogged$: Observable<boolean> = this.authUid$.pipe(
     map((uid) => !!uid),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  // ===========================================================================
-  // Roteamento (gate “fora do registro”)
-  // ===========================================================================
-
-  /** ✅ mesmo regex do Orchestrator (mantém coerência global) */
-  private inRegistrationFlow(url: string): boolean {
-    return /^\/(register(\/|$)|__\/auth\/action|post-verification\/action)/.test(url || '');
-  }
-
-  private readonly url$ = this.router.events.pipe(
-    filter((e): e is NavigationEnd => e instanceof NavigationEnd),
-    map((e) => e.urlAfterRedirects || e.url),
-    startWith(this.router.url || ''),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  private readonly inReg$ = this.url$.pipe(
-    map((url) => this.inRegistrationFlow(url)),
+  /**
+   * Fonte única para governança de realtime:
+   * - usa o gate centralizado do AccessControlService
+   * - evita race no boot
+   * - evita divergência entre componente e arquitetura
+   */
+  private readonly realtimeUid$ = combineLatest([
+    this.authUid$,
+    this.accessControl.canListenRealtime$,
+  ]).pipe(
+    map(([uid, can]) => (uid && can ? uid : null)),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
   /**
-   * ✅ Pode iniciar realtime?
-   * - authReady === true
-   * - uid != null (logged)
-   * - fora do registro
+   * UID atualmente ativo nos listeners do header.
+   * Serve para transições idempotentes de stop/start.
    */
-  private readonly canListen$ = combineLatest([this.authReady$, this.authUid$, this.inReg$]).pipe(
-    map(([ready, uid, inReg]) => ready === true && !!uid && inReg === false),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  /**
-   * ✅ UID efetivo para governança de listeners.
-   * - Quando gate fecha, vira null → stop geral.
-   * - Quando gate abre, vira uid → start geral.
-   */
-  private readonly realtimeUid$ = combineLatest([this.authUid$, this.canListen$]).pipe(
-    map(([uid, can]) => (uid && can) ? uid : null),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  /** Guarda o UID “ativo” para fazer stop/start limpo em mudança de conta. */
   private activeUid: string | null = null;
 
   // ===========================================================================
   // Store selectors (template)
   // ===========================================================================
 
-  // Contadores
-  pendingFriendReqCount$ = this.store.select(selectInboundRequestsCount);
-  unreadMessagesCount$ = this.notificationService.unreadMessagesCount$;
-  pendingInvitesCount$ = this.notificationService.pendingInvitesCount$;
-
-  // Mini-inbox
-  inboundRequestsVM$ = this.store.select(selectInboundRequestsRichVM);
+  readonly pendingFriendReqCount$ = this.store.select(selectInboundRequestsCount);
+  readonly unreadMessagesCount$ = this.notificationService.unreadMessagesCount$;
+  readonly pendingInvitesCount$ = this.notificationService.pendingInvitesCount$;
+  readonly inboundRequestsVM$ = this.store.select(selectInboundRequestsRichVM);
 
   // ===========================================================================
   // Debug
   // ===========================================================================
 
-  private dbg(...args: any[]) {
+  private dbg(...args: unknown[]): void {
     if (!environment.production) {
       // eslint-disable-next-line no-console
       console.log('[LinksInteraction]', ...args);
@@ -191,9 +162,7 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     /**
-     * ✅ Governança central de listeners (start/stop)
-     * - Um único lugar toma a decisão
-     * - Telas não iniciam listeners (somente consomem state)
+     * Governança central de listeners do header.
      */
     this.realtimeUid$
       .pipe(
@@ -207,19 +176,26 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
       .subscribe();
 
     /**
-     * ✅ Log com rate-limit para não “matar” console
+     * Log de diagnóstico alinhado à fonte central.
      */
-    combineLatest([this.authUid$, this.authReady$, this.inReg$, this.canListen$, this.url$])
+    combineLatest([
+      this.authUid$,
+      this.accessControl.ready$,
+      this.accessControl.inRegistrationFlow$,
+      this.accessControl.canListenRealtime$,
+      this.accessControl.currentUrl$,
+    ])
       .pipe(
         auditTime(250),
-        tap(([uid, ready, inReg, can, url]) => this.dbg('gate', { uid, ready, inReg, can, url })),
+        tap(([uid, ready, inReg, can, url]) =>
+          this.dbg('gate', { uid, ready, inReg, can, url })
+        ),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
   }
 
   ngOnDestroy(): void {
-    // Garantia extra: stop geral no destroy (mesmo se o gate já tiver fechado).
     this.safeStopAll('destroy');
   }
 
@@ -228,27 +204,29 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   // ===========================================================================
 
   /**
-   * Aplica transição do gate com idempotência e limpeza.
-   * - uid === null: stop tudo
-   * - uid !== null: garante start tudo (se mudou de UID, stop do anterior antes)
+   * Aplica transição do gate com idempotência.
+   * - uid === null -> stop
+   * - uid !== null -> start
    */
   private applyRealtimeGate(uid: string | null): void {
-    // Gate fechou
     if (!uid) {
-      if (this.activeUid) this.dbg('gate-off -> stopping (activeUid existed)', this.activeUid);
+      if (this.activeUid) {
+        this.dbg('gate-off -> stopping (activeUid existed)', this.activeUid);
+      }
+
       this.activeUid = null;
       this.safeStopAll('gate-off');
       return;
     }
 
-    // Gate abriu (ou trocou UID)
     if (this.activeUid && this.activeUid !== uid) {
       this.dbg('uid-change -> stopping previous', { from: this.activeUid, to: uid });
       this.safeStopAll('uid-change');
     }
 
-    // Se já está ativo com esse uid, não faz nada (idempotente)
-    if (this.activeUid === uid) return;
+    if (this.activeUid === uid) {
+      return;
+    }
 
     this.activeUid = uid;
     this.dbg('gate-on -> starting realtime', { uid });
@@ -257,20 +235,16 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   }
 
   private safeStartAll(uid: string): void {
-    // unread messages
     try {
       this.notificationService.monitorUnreadMessages(uid);
     } catch (err) {
       this.handleError(err, 'Falha ao iniciar monitoramento de mensagens.');
     }
 
-    // friend requests (load + realtime)
     try {
-      // “load” ajuda a preencher rápido no open (e evita depender só do realtime)
       this.store.dispatch(A.loadInboundRequests({ uid }));
       this.store.dispatch(A.loadOutboundRequests({ uid }));
 
-      // listeners realtime
       this.store.dispatch(RT.startInboundRequestsListener({ uid }));
       this.store.dispatch(RT.startOutboundRequestsListener({ uid }));
     } catch (err) {
@@ -279,14 +253,12 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   }
 
   private safeStopAll(reason: string): void {
-    // unread messages
     try {
       this.notificationService.stopUnreadMessagesMonitoring(reason);
     } catch (err) {
       this.handleError(err, 'Falha ao parar monitoramento de mensagens.');
     }
 
-    // friend requests listeners
     try {
       this.store.dispatch(RT.stopInboundRequestsListener());
       this.store.dispatch(RT.stopOutboundRequestsListener());
@@ -296,16 +268,16 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   }
 
   // ===========================================================================
-  // Mini-menu actions (sempre respeitam o gate)
+  // Mini-menu actions
   // ===========================================================================
 
   /**
-   * Ao abrir o menu, “puxa” inbound para garantir estado fresco.
-   * - Usa realtimeUid$ para garantir gate aberto (logged+ready+fora do registro).
+   * Ao abrir o menu, recarrega inbound se o gate estiver aberto.
    */
   async refreshInboundOnOpen(): Promise<void> {
     const uid = await this.getRealtimeUidOnce();
     if (!uid) return;
+
     this.store.dispatch(A.loadInboundRequests({ uid }));
   }
 
@@ -323,7 +295,6 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   }
 
   decline(req: { id: string }): void {
-    // decline não precisa de uid no payload atual
     this.store.dispatch(A.declineFriendRequest({ requestId: req.id }));
   }
 
@@ -336,14 +307,11 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   }
 
   /**
-   * ✅ Helper: pega 1x o UID já “gateado” (ou null).
-   * - Evita padrão frágil “pega uid e depois descobre que gate fechou”.
+   * Obtém uma vez o UID já validado pelo gate.
    */
   private async getRealtimeUidOnce(): Promise<string | null> {
     try {
-      const uid = await (await import('rxjs')).firstValueFrom(
-        this.realtimeUid$.pipe(take(1))
-      );
+      const uid = await firstValueFrom(this.realtimeUid$.pipe(take(1)));
       return uid ?? null;
     } catch (err) {
       this.handleError(err, 'Falha ao obter UID para ação.');
@@ -359,7 +327,6 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
     try {
       const modalRef = this.modalService.open(UploadPhotoComponent, { size: 'lg' });
 
-      // EventEmitter é Observable-like: podemos limitar a 1 evento.
       modalRef.componentInstance.photoSelected
         .pipe(take(1))
         .subscribe({
@@ -381,19 +348,21 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   }
 
   // ===========================================================================
-  // Error handling (centralizado)
+  // Error handling
   // ===========================================================================
 
   private handleError(err: unknown, userMsg: string): void {
-    // UX: toast amigável
     try {
       this.errorNotifier.showError(userMsg);
     } catch {
-      // best-effort (não derruba)
+      // best-effort
     }
 
-    // Diagnóstico: global handler
-    const e = err instanceof Error ? err : new Error(typeof err === 'string' ? err : 'Unknown error');
+    const e =
+      err instanceof Error
+        ? err
+        : new Error(typeof err === 'string' ? err : 'Unknown error');
+
     try {
       this.globalError.handleError(e);
     } catch {
@@ -402,4 +371,4 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
 
     this.dbg('error', { userMsg, err: e });
   }
-} // Linha 405 - Fim do LinksInteractionComponent
+} // Linha 374, fim do links-interaction.component.ts

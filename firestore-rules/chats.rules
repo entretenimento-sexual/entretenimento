@@ -1,6 +1,7 @@
     // =======================================================================
     // CHATS
     // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+    // uso de helpers globais
     // firestore-rules\chats.rules
     // =======================================================================
     match /chats/{chatId} {

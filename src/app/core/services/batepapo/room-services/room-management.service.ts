@@ -1,4 +1,5 @@
 // src/app/core/services/batepapo/room-services/room-management.service.ts
+// Não esquecer de comentários explicativos e ferramentas de debug
 import { Inject, Injectable } from '@angular/core';
 import {Firestore, collection, addDoc, updateDoc, deleteDoc, doc
         } from '@angular/fire/firestore';

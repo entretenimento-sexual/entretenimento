@@ -1,14 +1,14 @@
-// ================================================================
+// ===============================================================
 //                            _FOOTER.RULES
 //C:\entretenimento\firestore-rules\_footer.rules
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
 // Este arquivo é o "rodapé" das regras do Firestore. Ele é importado no final do arquivo principal de regras (ex: firestore.rules) para garantir que as regras sejam fechadas corretamente
-// ================================================================
+// ===============================================================
   }
 }
-// ================================================================
+// ===============================================================
 //                             FIM DO _FOOTER.RULES
 //                            FIM DO FIRESTORE RULES
 // Final do arquivo de regras do Firestore. Se precisar de novas regras,
 // crie um novo arquivo .rules e importe aqui.
-// =================================================================
+// ================================================================

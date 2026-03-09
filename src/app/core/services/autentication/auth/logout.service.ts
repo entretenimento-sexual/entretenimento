@@ -17,13 +17,12 @@
 // - Sem isso, o AngularFire avisa que pode haver bugs sutis de change-detection/hydration.
 // - Solução: `runInInjectionContext(envInjector, () => signOut(auth))`.
 // =============================================================================
-
 import { Injectable, EnvironmentInjector, runInInjectionContext } from '@angular/core';
 import { Router } from '@angular/router';
 import { Auth, signOut } from '@angular/fire/auth';
 
-import { Observable, defer, from, of } from 'rxjs';
-import { catchError, defaultIfEmpty, finalize, map, switchMap, take } from 'rxjs/operators';
+import { Observable, defer, from, of, throwError } from 'rxjs';
+import { catchError, defaultIfEmpty, finalize, map, switchMap, take, tap } from 'rxjs/operators';
 
 import { PresenceService } from '@core/services/presence/presence.service';
 import { CurrentUserStoreService } from './current-user-store.service';
@@ -37,8 +36,6 @@ import { environment } from 'src/environments/environment';
 @Injectable({ providedIn: 'root' })
 export class LogoutService {
   private readonly debug = !environment.production;
-
-  // evita reentrância: dois cliques rápidos, múltiplos gatilhos de UI, etc.
   private running = false;
 
   constructor(
@@ -48,35 +45,27 @@ export class LogoutService {
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
-
-    // Necessário para garantir Injection Context nas APIs do AngularFire
     private readonly envInjector: EnvironmentInjector
   ) { }
-
-  // ===========================================================================
-  // Logout voluntário (único “logout normal”)
-  // ===========================================================================
 
   logout$(): Observable<void> {
     if (this.running) return of(void 0);
     this.running = true;
 
-    // Para UX: logout voluntário normalmente não precisa toast de erro.
     return this.stopPresenceBestEffort$().pipe(
-      switchMap(() => this.signOutBestEffort$()),
-      finalize(() => {
-        // indissociável: limpar estado do app sempre que tentamos sair
+      switchMap(() => this.signOutStrict$()),
+      tap(() => {
+        // limpa somente após signOut real
         this.currentUserStore.clear();
       }),
       switchMap(() => this.navigateBestEffort$('/login')),
-      finalize(() => {
-        this.running = false;
-      }),
       map(() => void 0),
       catchError((err) => {
         this.reportSilent(err, { phase: 'logout$' });
+        return throwError(() => err);
+      }),
+      finalize(() => {
         this.running = false;
-        return of(void 0);
       })
     );
   }
@@ -89,10 +78,6 @@ export class LogoutService {
     return isRegFlow(url);
   }
 
-  // ===========================================================================
-  // SignOut inevitável (apenas Auth inválido)
-  // ===========================================================================
-
   hardSignOutToWelcome$(reason: TerminateReason = 'auth-invalid'): Observable<void> {
     if (this.running) return of(void 0);
     this.running = true;
@@ -104,7 +89,7 @@ export class LogoutService {
 
     return this.stopPresenceBestEffort$().pipe(
       switchMap(() => this.signOutBestEffort$()),
-      finalize(() => this.currentUserStore.clear()),
+      tap(() => this.currentUserStore.clear()),
       switchMap(() =>
         from(
           this.router.navigate(['/register/welcome'], {
@@ -119,11 +104,12 @@ export class LogoutService {
           map(() => void 0)
         )
       ),
-      finalize(() => { this.running = false; }),
       catchError((err) => {
         this.reportSilent(err, { phase: 'hardSignOutToWelcome$', reason });
-        this.running = false;
         return of(void 0);
+      }),
+      finalize(() => {
+        this.running = false;
       })
     );
   }
@@ -132,12 +118,7 @@ export class LogoutService {
     this.hardSignOutToWelcome$(reason).pipe(take(1)).subscribe({ next: () => { }, error: () => { } });
   }
 
-  // ===========================================================================
-  // Internals (best-effort)
-  // ===========================================================================
-
   private stopPresenceBestEffort$(): Observable<void> {
-    // PresenceService já é defensivo: se não estiver ativo, retorna void 0.
     return this.presence.stop$().pipe(
       take(1),
       defaultIfEmpty(void 0),
@@ -148,13 +129,25 @@ export class LogoutService {
     );
   }
 
+  /**
+   * Logout voluntário precisa de signOut estrito.
+   * Se falhar, não devemos limpar store nem fingir que saiu.
+   */
+  private signOutStrict$(): Observable<void> {
+    return defer(() =>
+      from(
+        runInInjectionContext(this.envInjector, () => signOut(this.auth))
+      )
+    ).pipe(
+      map(() => void 0)
+    );
+  }
+
+  /**
+   * Hard signout pode continuar best-effort.
+   * Serve para cenários de sessão inválida.
+   */
   private signOutBestEffort$(): Observable<void> {
-    /**
-     * IMPORTANTE (AngularFire):
-     * - o `signOut()` de @angular/fire/auth precisa rodar dentro de Injection Context.
-     * - `runInInjectionContext` garante que o AngularFire consiga “amarrar” Zone/PendingTasks.
-     * - `defer` garante execução lazy (somente no subscribe), evitando side-effects antecipados.
-     */
     return defer(() =>
       from(
         runInInjectionContext(this.envInjector, () => signOut(this.auth))
@@ -181,9 +174,9 @@ export class LogoutService {
   private reportSilent(err: any, context: any): void {
     try {
       if (this.debug) {
-        // eslint-disable-next-line no-console
         console.log('[LogoutService]', context, err);
       }
+
       const e = new Error('[LogoutService] internal error');
       (e as any).silent = true;
       (e as any).original = err;
@@ -191,5 +184,5 @@ export class LogoutService {
       this.globalErrorHandler.handleError(e);
     } catch { }
   }
-} // Linha 194, fim do LogoutService
+} // Linha 187, fim do LogoutService
 

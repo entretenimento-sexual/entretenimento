@@ -1,18 +1,48 @@
 // src/app/chat-module/invite-user-modal/invite-user-modal.component.ts
-import { Component, OnInit, Inject } from '@angular/core';
+// Modal para convidar usuários para uma sala.
+//
+// Ajustes desta versão:
+// - usa AuthSessionService como fonte canônica do UID
+// - usa CurrentUserStoreService como fonte do perfil/role
+// - corrige filtro por uid (antes estava usando Observable dentro do where)
+// - corrige listener de busca (Subject<void> + distinctUntilChanged travava novas buscas)
+// - mantém nomes públicos do componente
+// - centraliza tratamento de erro
+
+import { Component, DestroyRef, Inject, OnInit, inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged, first } from 'rxjs/operators';
-import { Timestamp, where } from 'firebase/firestore';
-import { InviteSearchService } from 'src/app/core/services/batepapo/invite-service/invite-search.service';
-import { AuthService } from 'src/app/core/services/autentication/auth.service';
-import { IBGELocationService } from 'src/app/core/services/general/api/ibge-location.service';
-import { ValidGenders } from 'src/app/core/enums/valid-genders.enum';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
-import { BaseModalComponent } from '../base-modal/base-modal.component';
+
+import { from, of, Subject } from 'rxjs';
+import {
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  finalize,
+  map,
+  switchMap,
+  take,
+  tap,
+} from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
+import { Timestamp, where, type QueryConstraint } from 'firebase/firestore';
+
+import { InviteSearchService } from 'src/app/core/services/batepapo/invite-service/invite-search.service';
 import { InviteService } from 'src/app/core/services/batepapo/invite-service/invite.service';
 import { RegionFilterService } from 'src/app/core/services/filtering/filters/region-filter.service';
+import { IBGELocationService } from 'src/app/core/services/general/api/ibge-location.service';
+
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+
+import { ValidGenders } from 'src/app/core/enums/valid-genders.enum';
+import { BaseModalComponent } from '../base-modal/base-modal.component';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 @Component({
   selector: 'app-invite-user-modal',
@@ -22,73 +52,171 @@ import { RegionFilterService } from 'src/app/core/services/filtering/filters/reg
   imports: [CommonModule, FormsModule, ReactiveFormsModule, BaseModalComponent],
 })
 export class InviteUserModalComponent implements OnInit {
+  private readonly destroyRef = inject(DestroyRef);
+
   availableUsers: { id: string; nickname: string; selected: boolean; photoURL?: string }[] = [];
-  searchTerm: string = '';
+  searchTerm = '';
   selectedGender?: string;
   selectedRegion: { uf?: string; city?: string } = {};
   availableStates: string[] = [];
   availableCities: string[] = [];
   availableGenders = Object.values(ValidGenders);
-  isLoading: boolean = false;
+  isLoading = false;
   defaultAvatar = 'assets/images/default-avatar.png';
-  private searchSubject: Subject<void> = new Subject<void>();
+
+  /**
+   * Fonte local do uid autenticado.
+   * - vem do AuthSessionService
+   */
+  private currentUserUid: string | null = null;
+
+  /**
+   * Fonte local da role do usuário.
+   * - vem do CurrentUserStoreService
+   */
+  private currentUserRole: IUserDados['role'] = 'visitante';
+
+  /**
+   * Chave de busca serializada.
+   * - evita o bug do Subject<void> com distinctUntilChanged
+   */
+  private readonly searchSubject = new Subject<string>();
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: { roomId: string; roomName: string },
     public dialogRef: MatDialogRef<InviteUserModalComponent>,
-    private authService: AuthService,
-    private ibgeLocationService: IBGELocationService,
-    private inviteSearchService: InviteSearchService,
-    private inviteService: InviteService,
-    private regionFilter: RegionFilterService
+    private readonly authSession: AuthSessionService,
+    private readonly currentUserStore: CurrentUserStoreService,
+    private readonly ibgeLocationService: IBGELocationService,
+    private readonly inviteSearchService: InviteSearchService,
+    private readonly inviteService: InviteService,
+    private readonly regionFilter: RegionFilterService,
+    private readonly globalError: GlobalErrorHandlerService,
+    private readonly errorNotifier: ErrorNotificationService,
   ) { }
 
   ngOnInit(): void {
+    this.observeSessionAndProfile();
     this.setupSearchListener();
     this.loadInitialData();
   }
 
+  /**
+   * Observa UID autenticado e perfil do app.
+   */
+  private observeSessionAndProfile(): void {
+    this.authSession.uid$
+      .pipe(
+        map((uid) => (uid ?? '').trim() || null),
+        distinctUntilChanged(),
+        tap((uid) => {
+          this.currentUserUid = uid;
+        }),
+        catchError((error) => {
+          this.reportError(
+            'Erro ao observar sessão do usuário.',
+            error,
+            { op: 'observeSessionAndProfile.uid' },
+            false
+          );
+          this.currentUserUid = null;
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+
+    this.currentUserStore.user$
+      .pipe(
+        tap((user) => {
+          this.currentUserRole = user?.role ?? 'visitante';
+        }),
+        catchError((error) => {
+          this.reportError(
+            'Erro ao observar perfil do usuário.',
+            error,
+            { op: 'observeSessionAndProfile.user' },
+            false
+          );
+          this.currentUserRole = 'visitante';
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
   setupSearchListener(): void {
-    this.searchSubject.pipe(debounceTime(300), distinctUntilChanged()).subscribe(() => this.loadUsers());
+    this.searchSubject
+      .pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        tap(() => this.loadUsers()),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   loadInitialData(): void {
-    this.ibgeLocationService.getEstados().subscribe({
-      next: (states: any[]) => {
-        this.availableStates = states.map((state) => state.sigla);
-      },
-      error: (err: any) => console.log('Erro ao carregar estados:', err),
-    });
+    this.ibgeLocationService.getEstados()
+      .pipe(
+        tap((states: any[]) => {
+          this.availableStates = states.map((state) => state.sigla);
+        }),
+        catchError((error) => {
+          this.reportError(
+            'Erro ao carregar estados.',
+            error,
+            { op: 'loadInitialData.getEstados' }
+          );
+          this.availableStates = [];
+          return of([]);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
 
-    // Busca a região do usuário logado no Firestore
-    this.authService.getLoggedUserUID$().pipe(first()).subscribe({
-      next: (uid) => {
-        if (uid) {
-          this.regionFilter.getUserRegion(uid).subscribe({
-            next: (region) => {
-              if (region) {
-                this.selectedRegion = {
-                  uf: region.uf,
-                  city: region.city,
-                };
-                this.loadUsers(); // Carrega usuários após obter a região
-                this.onRegionChange(); // Atualiza cidades com base na UF selecionada
-              }
-            },
-            error: (err) => console.log('Erro ao buscar região do usuário no Firestore:', err),
-          });
-        } else {
-          console.log('UID não encontrado. Não foi possível carregar a região.');
-        }
-      },
-      error: (err) => console.log('Erro ao obter UID do usuário:', err),
-    });
+    this.authSession.uid$
+      .pipe(
+        take(1),
+        switchMap((uid) => {
+          const authUid = (uid ?? '').trim();
+          if (!authUid) {
+            this.loadUsers();
+            return of(null);
+          }
+
+          return this.regionFilter.getUserRegion(authUid).pipe(
+            catchError((error) => {
+              this.reportError(
+                'Erro ao buscar região do usuário.',
+                error,
+                { op: 'loadInitialData.getUserRegion', uid: authUid },
+                false
+              );
+              return of(null);
+            })
+          );
+        }),
+        tap((region) => {
+          if (region) {
+            this.selectedRegion = {
+              uf: region.uf,
+              city: region.city,
+            };
+
+            this.onRegionChange();
+          }
+
+          this.loadUsers();
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   isRegionFieldEditable(): boolean {
-    const userRole = this.authService.currentUser?.role || 'visitante';
-    // Permite edição apenas para papéis diferentes de 'visitante' e 'free'
-    return !['visitante', 'free'].includes(userRole);
+    return !['visitante', 'free'].includes(this.currentUserRole || 'visitante');
   }
 
   onRegionChange(): void {
@@ -97,59 +225,99 @@ export class InviteUserModalComponent implements OnInit {
       return;
     }
 
-    this.ibgeLocationService.getMunicipios(this.selectedRegion.uf).subscribe({
-      next: (cities) => {
-        this.availableCities = cities.map((city: any) => city.nome);
-        if (!this.availableCities.includes(this.selectedRegion.city || '')) {
-          this.selectedRegion.city = '';
-        }
-      },
-      error: (err) => console.log('Erro ao carregar municípios:', err),
-    });
+    this.ibgeLocationService.getMunicipios(this.selectedRegion.uf)
+      .pipe(
+        tap((cities) => {
+          this.availableCities = cities.map((city: any) => city.nome);
+
+          if (!this.availableCities.includes(this.selectedRegion.city || '')) {
+            this.selectedRegion.city = '';
+          }
+        }),
+        catchError((error) => {
+          this.reportError(
+            'Erro ao carregar municípios.',
+            error,
+            { op: 'onRegionChange', uf: this.selectedRegion.uf },
+            false
+          );
+          this.availableCities = [];
+          return of([]);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   onFilterChange(): void {
-    this.searchSubject.next();
+    this.searchSubject.next(this.buildSearchKey());
   }
 
   loadUsers(): void {
     this.isLoading = true;
 
-    const filters = [];
-    const currentUserId = this.authService.getLoggedUserUID$();
+    const filters: QueryConstraint[] = [];
+    const currentUserId = this.currentUserUid;
 
     if (this.selectedGender) {
       filters.push(where('gender', '==', this.selectedGender));
     }
+
     if (this.selectedRegion.uf) {
       filters.push(where('estado', '==', this.selectedRegion.uf));
     }
+
     if (this.selectedRegion.city) {
       filters.push(where('municipio', '==', this.selectedRegion.city));
     }
+
     if (this.searchTerm.trim()) {
       const searchTerm = this.searchTerm.trim().toLowerCase();
       filters.push(where('nicknameLowerCase', '>=', searchTerm));
       filters.push(where('nicknameLowerCase', '<=', searchTerm + '\uf8ff'));
     }
+
+    /**
+     * Exclui o próprio usuário da busca.
+     * Aqui precisa ser string, não Observable.
+     */
     if (currentUserId) {
-      filters.push(where('uid', '!=', currentUserId)); // Exclui o próprio usuário
+      filters.push(where('uid', '!=', currentUserId));
     }
 
-    this.inviteSearchService.searchEligibleUsers(this.data.roomId, this.searchTerm, filters).subscribe({
-      next: (users: any[]) => {
-        this.availableUsers = users.map((user) => ({
-          id: user.uid,
-          nickname: user.nickname || 'Sem apelido',
-          selected: false,
-          photoURL: user.photoURL || this.defaultAvatar,
-        }));
-      },
-      error: (err: any) => console.log('Erro ao buscar usuários:', err),
-      complete: () => (this.isLoading = false),
-    });
+    this.inviteSearchService.searchEligibleUsers(this.data.roomId, this.searchTerm, filters)
+      .pipe(
+        tap((users: any[]) => {
+          this.availableUsers = users.map((user) => ({
+            id: user.uid,
+            nickname: user.nickname || 'Sem apelido',
+            selected: false,
+            photoURL: user.photoURL || this.defaultAvatar,
+          }));
+        }),
+        catchError((error) => {
+          this.reportError(
+            'Erro ao buscar usuários elegíveis.',
+            error,
+            {
+              op: 'loadUsers',
+              roomId: this.data.roomId,
+              selectedGender: this.selectedGender,
+              selectedRegion: this.selectedRegion,
+              searchTerm: this.searchTerm,
+              currentUserId,
+            }
+          );
+          this.availableUsers = [];
+          return of([]);
+        }),
+        finalize(() => {
+          this.isLoading = false;
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
-
 
   toggleUserSelection(user: { selected: boolean }): void {
     user.selected = !user.selected;
@@ -160,68 +328,98 @@ export class InviteUserModalComponent implements OnInit {
   }
 
   confirmSelection(): void {
-    this.authService.getLoggedUserUID$().pipe(first()).subscribe({
-      next: (senderId) => {
-        if (!senderId) {
-          console.log('Erro: Usuário não autenticado.');
-          return; // Finaliza o fluxo se o UID não estiver disponível
-        }
+    const senderId = this.currentUserUid;
 
-        // Obtém os IDs dos usuários selecionados
-        const selectedUserIds = this.availableUsers
-          .filter((user) => user.selected)
-          .map((user) => user.id);
+    if (!senderId) {
+      this.errorNotifier.showError('Erro: usuário não autenticado.');
+      return;
+    }
 
-        // Envia convites para cada usuário selecionado
-        selectedUserIds.forEach((receiverId) => {
+    const selectedUserIds = this.availableUsers
+      .filter((user) => user.selected)
+      .map((user) => user.id);
+
+    if (!selectedUserIds.length) {
+      this.errorNotifier.showWarning('Selecione pelo menos um usuário para enviar convite.');
+      return;
+    }
+
+    from(selectedUserIds)
+      .pipe(
+        switchMap((receiverId) =>
           this.inviteService.createInvite({
             roomId: this.data.roomId,
             roomName: this.data.roomName,
             receiverId,
-            senderId, // Agora é uma string válida
+            senderId,
             status: 'pending',
             sentAt: Timestamp.fromDate(new Date()),
             expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-          }).subscribe({
-            next: () => console.log(`Convite enviado com sucesso para ${receiverId}.`),
-            error: (err) => console.log('Erro ao enviar convite:', err),
-          });
-        });
+          }).pipe(
+            tap(() => console.log(`Convite enviado com sucesso para ${receiverId}.`))
+          )
+        ),
+        catchError((error) => {
+          this.reportError(
+            'Erro ao enviar convite.',
+            error,
+            {
+              op: 'confirmSelection',
+              roomId: this.data.roomId,
+              senderId,
+              selectedUserIds,
+            }
+          );
+          return of(null);
+        }),
+        finalize(() => {
+          this.dialogRef.close(selectedUserIds);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
 
-        this.dialogRef.close(selectedUserIds); // Fecha o modal após envio
-      },
-      error: (err) => console.log('Erro ao obter UID do usuário:', err),
+  /**
+   * Gera uma chave estável para debounce + distinctUntilChanged.
+   */
+  private buildSearchKey(): string {
+    return JSON.stringify({
+      searchTerm: this.searchTerm.trim().toLowerCase(),
+      selectedGender: this.selectedGender ?? null,
+      uf: this.selectedRegion.uf ?? null,
+      city: this.selectedRegion.city ?? null,
     });
   }
-}
-/*
-auth.service.ts está sendo descuntinuado.
-C:.
-│   auth.service.ts
-│   email-input-modal.service.ts
-│   login.service.spec.ts
-│   login.service.ts
-│   social-auth.service.spec.ts
-│   social-auth.service.ts
-│
-├───auth
-│       access-control.service.ts
-│       auth-app-block.service.ts
-│       auth-orchestrator.service.ts
-│       auth-return-url.service.ts
-│       auth-session.service.ts
-│       auth.facade.ts
-│       auth.types.ts
-│       current-user-store.service.ts
-│       logout.service.ts
-│
-└───register
-        email-verification.service.md
-        email-verification.service.ts
-        pre-register.service.ts
-        register.service.spec.ts
-        register.service.ts
-        registerServiceREADME.md
 
-PS C:\entretenimento\src\app\core\services\autentication>
-*/
+  /**
+   * Tratamento centralizado de erro.
+   */
+  private reportError(
+    userMessage: string,
+    error: unknown,
+    context?: Record<string, unknown>,
+    notifyUser = true
+  ): void {
+    if (notifyUser) {
+      try {
+        this.errorNotifier.showError(userMessage);
+      } catch {
+        // noop
+      }
+    }
+
+    try {
+      const err = error instanceof Error ? error : new Error(userMessage);
+      (err as any).original = error;
+      (err as any).context = {
+        scope: 'InviteUserModalComponent',
+        ...(context ?? {}),
+      };
+      (err as any).skipUserNotification = true;
+      this.globalError.handleError(err);
+    } catch {
+      // noop
+    }
+  }
+} // Linha 426

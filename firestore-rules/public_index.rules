@@ -1,6 +1,7 @@
     // =======================================================================
     // PUBLIC INDEX (índice técnico)
     // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+    // uso de helpers globais
     // entretenimento\firestore-rules\public_index.rules
     // =======================================================================
 match /public_index/{docId} {

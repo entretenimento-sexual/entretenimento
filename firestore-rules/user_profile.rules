@@ -2,6 +2,7 @@
 // =========================================================================
 // USER_PROFILE (raiz) — privado, MVP
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// uso de helpers globais
 // =========================================================================
 
 match /user_profile/{userId} {

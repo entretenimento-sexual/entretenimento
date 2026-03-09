@@ -1,4 +1,5 @@
 // src\app\core\services\filtering\filters\region-filter.service.ts
+// Não esquecer dos comentários explicativos e ferrementas de debug
 import { Injectable } from '@angular/core';
 import { catchError, from, map, Observable, of } from 'rxjs';
 import { collection, doc, getDoc, getDocs, query, QueryConstraint, QueryDocumentSnapshot, where } from 'firebase/firestore';
@@ -103,4 +104,5 @@ export class RegionFilterService {
       map((municipios) => municipios.some((municipio) => municipio.nome.toLowerCase() === city.toLowerCase()))
     );
   }
-}
+} // Linha 107, fim do RegionFilterService
+// - FirestoreService está sendo descontinuado -> usa FirestoreWriteService

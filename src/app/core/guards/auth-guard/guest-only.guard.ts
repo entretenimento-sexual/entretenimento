@@ -1,9 +1,7 @@
 // src/app/core/guards/auth-guard/guest-only.guard.ts
-// Guard de acesso: permite rota apenas para usuários NÃO autenticados (visitantes).
-// Boas práticas:
-// - One-shot: take(1) (conclui rápido)
-// - Fail-safe: catchError -> redireciona com segurança e registra no GlobalErrorHandler
-// - Permite rotas específicas para autenticados via data.allowAuthenticated ou data.guestAllowAuthenticatedPaths
+// Guard de visitante:
+// - permite /login e /register apenas para quem NÃO está autenticado
+// - redireciona autenticado conforme estado real da conta
 import { inject } from '@angular/core';
 import {
   ActivatedRouteSnapshot,
@@ -13,112 +11,162 @@ import {
   Router,
   RouterStateSnapshot,
   UrlSegment,
-  UrlTree,
   GuardResult,
 } from '@angular/router';
-import { defer, of, type Observable } from 'rxjs';
-import { catchError, filter, map, switchMap, take } from 'rxjs/operators';
+import { combineLatest, of } from 'rxjs';
+import { catchError, filter, map, take } from 'rxjs/operators';
 
-import { GlobalErrorHandlerService } from '../../services/error-handler/global-error-handler.service';
+import { AccessControlService } from '../../services/autentication/auth/access-control.service';
 import { AuthReturnUrlService } from '../../services/autentication/auth/auth-return-url.service';
-import { AuthSessionService } from '../../services/autentication/auth/auth-session.service';
-import { environment } from 'src/environments/environment';
+import { GlobalErrorHandlerService } from '../../services/error-handler/global-error-handler.service';
+import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
 
 function routeOrChildrenAllowAuthenticated(route: ActivatedRouteSnapshot): boolean {
   if (route.data?.['allowAuthenticated'] === true) return true;
+
   for (const child of route.children ?? []) {
     if (routeOrChildrenAllowAuthenticated(child)) return true;
   }
+
   return false;
 }
 
 function canMatchAllowsAuthenticated(route: Route, segments: UrlSegment[]): boolean {
   const allow = (route.data?.['guestAllowAuthenticatedPaths'] as string[] | undefined) ?? [];
   if (!allow.length) return false;
-  const sub = segments?.[1]?.path ?? '';
-  return !!sub && allow.includes(sub);
+
+  const subPath = segments?.[1]?.path ?? '';
+  return !!subPath && allow.includes(subPath);
 }
 
 function decideGuestAccess$(
-  params: {
-    attemptedUrl: string;
-    allowAuthenticatedHere: boolean;
-    redirectToParam: string | null;
-  }
-): Observable<GuardResult> {
+  attemptedUrl: string,
+  allowAuthenticatedHere: boolean,
+  redirectToParam: string | null
+) {
   const router = inject(Router);
-  const geh = inject(GlobalErrorHandlerService);
+  const access = inject(AccessControlService);
   const returnUrl = inject(AuthReturnUrlService);
-  const session = inject(AuthSessionService);
+  const globalError = inject(GlobalErrorHandlerService);
+  const notify = inject(ErrorNotificationService);
 
-  const enforceVerified = !!environment?.features?.enforceEmailVerified;
+  return combineLatest([
+    access.ready$,
+    access.authUid$,
+    access.appUser$,
+    access.blockedReason$,
+    access.emailVerified$,
+  ]).pipe(
+    /**
+     * Só decide quando:
+     * - auth ficou ready
+     * - se NÃO há uid -> visitante, pode decidir já
+     * - se HÁ uid -> espera o appUser hidratar e bater com o mesmo uid
+     *
+     * Isso elimina a race:
+     * - uid antigo + appUser null após clear() não dispara redirect indevido
+     */
+    filter(([ready, authUid, appUser]) => {
+      if (!ready) return false;
 
-  const toAuthedDestination = () => {
-    const target = returnUrl.resolveAuthedRedirect(params.redirectToParam, '/dashboard/principal');
-    return router.parseUrl(target);
-  };
+      if (!authUid) {
+        return true;
+      }
 
-  const toWelcome = () =>
-    router.createUrlTree(['/register/welcome'], {
-      queryParams: { autocheck: '1', redirectTo: params.redirectToParam || '/dashboard/principal' },
-    });
+      if (appUser === undefined || appUser === null) {
+        return false;
+      }
 
-  // Espera o AuthSession ficar pronto e pega snapshot do usuário (1x)
-  return session.ready$.pipe(
-    filter(Boolean),
+      const appUid = (appUser as any)?.uid ?? null;
+      return appUid === authUid;
+    }),
     take(1),
-    switchMap(() => session.authUser$.pipe(take(1))),
-    map((user) => {
+    map(([_, authUid, appUser, blockedReason, emailVerified]): GuardResult => {
       // visitante -> pode entrar em /login e /register
-      if (!user) return true;
+      if (!authUid) {
+        return true;
+      }
 
-      // rota explicitamente permitida (ex.: /register/welcome)
-      if (params.allowAuthenticatedHere) return true;
+      // rota explicitamente permitida para autenticado
+      if (allowAuthenticatedHere) {
+        return true;
+      }
 
-      // se exige verificação e ainda não está verificado -> manda pro welcome
-      if (enforceVerified && user.emailVerified !== true) return toWelcome();
+      const redirectTo = returnUrl.resolveAuthedRedirect(
+        redirectToParam,
+        '/dashboard/principal'
+      );
 
-      // autenticado normal -> manda pro último destino útil
-      return toAuthedDestination();
+      // bloqueio do app tem precedência
+      if (blockedReason) {
+        return router.createUrlTree(
+          ['/register/welcome'],
+          {
+            queryParams: {
+              reason: blockedReason,
+              autocheck: '1',
+              redirectTo,
+            },
+          }
+        );
+      }
+
+      const profileCompleted = (appUser as any)?.profileCompleted === true;
+
+      if (!profileCompleted) {
+        return router.createUrlTree(
+          ['/register/finalizar-cadastro'],
+          { queryParams: { redirectTo } }
+        );
+      }
+
+      if (!emailVerified) {
+        return router.createUrlTree(
+          ['/register/welcome'],
+          {
+            queryParams: {
+              autocheck: '1',
+              redirectTo,
+            },
+          }
+        );
+      }
+
+      return router.parseUrl(redirectTo);
     }),
     catchError((err) => {
       try {
         (err as any).silent = true;
-        (err as any).feature = 'auth-guard';
-        (err as any).context = { attemptedUrl: params.attemptedUrl, guard: 'guest-only' };
-      } catch { }
-      geh.handleError(err);
+        (err as any).context = {
+          guard: 'guest-only',
+          attemptedUrl,
+        };
+        globalError.handleError(err);
+      } catch {}
 
-      // fail-open (evita lock-out)
+      notify.showError('Falha ao validar acesso.');
       return of(true);
     })
   );
 }
 
-// CanActivate
 export const guestOnlyCanActivate: CanActivateFn = (
   route: ActivatedRouteSnapshot,
   state: RouterStateSnapshot
 ) => {
-  const redirectToParam = route.queryParamMap.get('redirectTo');
-  const allowAuthenticatedHere = routeOrChildrenAllowAuthenticated(route);
-
-  return decideGuestAccess$({
-    attemptedUrl: state.url,
-    allowAuthenticatedHere,
-    redirectToParam,
-  });
+  return decideGuestAccess$(
+    state.url,
+    routeOrChildrenAllowAuthenticated(route),
+    route.queryParamMap.get('redirectTo')
+  );
 };
 
-// CanMatch
 export const guestOnlyCanMatch: CanMatchFn = (route: Route, segments: UrlSegment[]) => {
   const attemptedUrl = '/' + (segments ?? []).map(s => s.path).filter(Boolean).join('/');
-  const allowAuthenticatedHere = canMatchAllowsAuthenticated(route, segments);
 
-  return decideGuestAccess$({
+  return decideGuestAccess$(
     attemptedUrl,
-    allowAuthenticatedHere,
-    redirectToParam: null,
-  });
-}; // Linha 123
-// Não esqueça os comentários explicativos sobre o propósito desse guard e boas práticas.
+    canMatchAllowsAuthenticated(route, segments),
+    null
+  );
+}; // Linha 172, fim do guest-only.guard.ts

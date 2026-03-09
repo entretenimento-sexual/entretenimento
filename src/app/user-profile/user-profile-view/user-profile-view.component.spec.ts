@@ -62,7 +62,7 @@ describe('UserProfileViewComponent', () => {
         provideMockStore({ initialState }),
         { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: 'test-uid' })) } },
 
-        // ===== DI realocados para nova base (sem AuthService)
+        // ===== DI realocados para nova base
         { provide: CurrentUserStoreService, useClass: MockCurrentUserStoreService },
         { provide: AuthSessionService, useClass: MockAuthSessionService },
         { provide: SidebarService, useClass: MockSidebarService },

@@ -3,6 +3,7 @@
 // PUBLIC PROFILES (consultável / discovery)
 //
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
+// uso de helpers globais
 // ✅ Depende dos helpers globais em _helpers.rules:
 //    - signedIn(), uid(), isSelf()
 //    - optTimestamp()  (se você mantém esse helper global)

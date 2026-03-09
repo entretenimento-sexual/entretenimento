@@ -23,7 +23,6 @@
 // - toObservable() NÃO pode ser usado em ngOnInit().
 // - Movemos toObservable(this.uid) para um field initializer com Injector.
 // =============================================================================
-
 import { Component, OnDestroy, OnInit, input, inject, Injector } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
@@ -112,7 +111,7 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
     { key: 'd4swing', label: 'D4', icon: 'fas fa-link' },
 
     // ✅ novo + sugestões
-    { key: 'hotvips', label: 'Hotvips', icon: 'fas fa-link' },
+   // { key: 'hotvips', label: 'Hotvips', icon: 'fas fa-link' },
     { key: 'privacy', label: 'Privacy', icon: 'fas fa-link' },
     { key: 'onlyfans', label: 'OnlyFans', icon: 'fas fa-link' },
     { key: 'fansly', label: 'Fansly', icon: 'fas fa-link' },
@@ -381,13 +380,12 @@ export class SocialLinksAccordionComponent implements OnInit, OnDestroy {
           ? ensureHttps(value)
           : `https://snapchat.com/add/${cleanHandle(value)}`;
 
-      case 'hotvips':
+      //case 'hotvips':
         // sem assumir padrão de @handle no site; só garante https
-        return ensureHttps(value);
+       // return ensureHttps(value);
 
       // “outros”: apenas garante https
       case 'd4swing':
-      case 'hotvips':
       case 'privacy':
       case 'onlyfans':
       case 'fansly':

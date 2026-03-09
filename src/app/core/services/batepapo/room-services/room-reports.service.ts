@@ -1,4 +1,5 @@
 // src/app/core/services/batepapo/rooms/room-reports.service.ts
+// Não esqueça is comentários explicativos e ferramentas de debug
 import { Injectable } from '@angular/core';
 import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -32,4 +33,4 @@ export class RoomReportsService {
       throw error;
     }
   }
-}
+} // Linha 36, fim do RoomReportService

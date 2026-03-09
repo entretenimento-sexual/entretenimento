@@ -1,6 +1,7 @@
 //==============================================================================
 // Regras de segurança do Firestore para a coleção de amigos dos usuários.
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// uso de helpers globais
 //==============================================================================
 match /users/{userId}/friends/{friendUid} {
   // List/query da lista de amigos
@@ -9,3 +10,6 @@ match /users/{userId}/friends/{friendUid} {
   // MVP: o dono mantém seu índice
   allow create, update, delete: if isSelf(userId);
 }
+// ==============================================================
+//                 FIM DO USERS_FRIENDS.RULES
+// ==============================================================

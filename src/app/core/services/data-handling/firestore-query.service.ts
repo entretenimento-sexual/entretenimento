@@ -176,7 +176,6 @@ tudo no projeto deve rodar redondo em dev, staging, prod e emu.
  AuthSession manda no UID
 /*CurrentUserStore manda no IUserDados
 qualquer UID fora disso vira derivado / compat
-//logout() do auth.service.ts que está sendo descontinuado
 // ainda está sendo usado em alguns lugares e precisa ser migrado.
 Ferramentas de debug ajudam bastante
 É assim que funcionam as grandes plataformas?

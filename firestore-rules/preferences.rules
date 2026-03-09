@@ -8,6 +8,7 @@
 // - Evita LIST/QUERY para não expor preferências de outros usuários
 // - Se precisar de list/query, considere criar uma coleção separada com regras específicas
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// uso de helpers globais
 // =========================================================================
 
 match /preferences/{userId} {

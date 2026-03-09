@@ -8,7 +8,6 @@
 // - No avatar/photoURL at signup
 // - Clean debug (traceId) controlled by environment.enableDebugTools
 // =============================================================================
-
 import { Injectable } from '@angular/core';
 import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, tap, timeout, take } from 'rxjs/operators';

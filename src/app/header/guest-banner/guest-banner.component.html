@@ -1,40 +1,31 @@
 <!-- src/app/header/guest-banner/guest-banner.component.html -->
-
 <ng-container *ngIf="show()">
-  <!-- VISITANTE -->
-  <div class="guest-banner" *ngIf="(user$ | async) === null; else authed" role="region"
-    aria-label="Aviso para visitantes">
-    <span>Você está navegando como visitante.</span>
-    <a routerLink="/login">Entrar</a>
-    <span>ou</span>
-    <a routerLink="/register">Criar conta</a>.
-  </div>
+  <ng-container *ngIf="(user$ | async) as u">
+    <div
+      class="guest-banner"
+      *ngIf="isUnverified(u)"
+      role="region"
+      aria-label="Aviso de verificação de e-mail"
+      [attr.aria-busy]="isSending()"
+    >
+      <strong>Confirme seu e-mail para liberar todos os recursos.</strong>
 
-  <!-- AUTENTICADO -->
-  <ng-template #authed>
-    <ng-container *ngIf="(user$ | async) as u">
-      <!-- NÃO VERIFICADO -->
-      <div class="guest-banner" *ngIf="isUnverified(u)" role="region" aria-label="Aviso de verificação de e-mail"
-        [attr.aria-busy]="isSending()">
-        <strong>Confirme seu e-mail para liberar todos os recursos.</strong>
+      <div class="actions" role="group" aria-label="Ações de verificação">
+        <button type="button" (click)="resend()" [disabled]="isSending()">
+          Reenviar e-mail
+        </button>
 
-        <div class="actions" role="group" aria-label="Ações de verificação">
-          <button type="button" (click)="resend()" [disabled]="isSending()">
-            Reenviar e-mail
-          </button>
+        <button type="button" (click)="iAlreadyVerified()" [disabled]="isSending()">
+          Já verifiquei
+        </button>
 
-          <button type="button" (click)="iAlreadyVerified()" [disabled]="isSending()">
-            Já verifiquei
-          </button>
-
-          <button type="button" class="link" (click)="snoozeOneDay()" [disabled]="isSending()">
-            Lembrar depois
-          </button>
-        </div>
-
-        <p class="ok" *ngIf="info()" aria-live="polite">{{ info() }}</p>
-        <p class="err" *ngIf="error()" aria-live="assertive">{{ error() }}</p>
+        <button type="button" class="link" (click)="snoozeOneDay()" [disabled]="isSending()">
+          Lembrar depois
+        </button>
       </div>
-    </ng-container>
-  </ng-template>
+
+      <p class="ok" *ngIf="info()" aria-live="polite">{{ info() }}</p>
+      <p class="err" *ngIf="error()" aria-live="assertive">{{ error() }}</p>
+    </div>
+  </ng-container>
 </ng-container>

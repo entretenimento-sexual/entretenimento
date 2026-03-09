@@ -1,6 +1,4 @@
-// =========================================================================
-// firestore-rules/users.rules
-// =========================================================================
+// ==============================================================
 // USERS (privado)
 // - Self: pode atualizar perfil, mas NÃO pode alterar campos de moderação
 // - Admin (claim admin): pode alterar campos de moderação
@@ -10,7 +8,9 @@
 //   o token do Auth (request.auth.token.email_verified).
 // - Evita spoof (usuário setar emailVerified=true no doc antes de verificar).
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
-// =========================================================================
+// uso de helpers globais
+// firestore-rules/users.rules
+// ==============================================================
 match /users/{userId} {
 
   function isAdminActor() { return isAdmin(); }

@@ -24,7 +24,6 @@ import { SharedMaterialModule } from "src/app/shared/shared-material.module";
   exports: [
     NavbarComponent,
     LogoComponent,
-    GuestBannerComponent
   ]
 })
 export class HeaderModule { }

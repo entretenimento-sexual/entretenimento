@@ -1,10 +1,8 @@
 // src/app/header/guest-banner/guest-banner.component.ts
-// Banner para visitantes e usuários com e-mail não verificado.
-// - Visitante: CTA de login/cadastro.
-// - Autenticado não verificado: ações de reenviar e “já verifiquei”.
+// Banner somente para usuários autenticados com e-mail ainda não verificado.
+// - Não exibe CTA para visitante.
 // - “Soneca” por 24h via localStorage.
-// - Observable-first (sem firstValueFrom).
-// - Remove AuthService (descontinuado).
+// - Observable-first.
 // - Força refresh do token ao confirmar verificação para atualizar claim email_verified.
 
 import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
@@ -33,46 +31,38 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 export class GuestBannerComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
-  // Firebase Auth (não é o AuthService legado)
   private readonly auth = inject(Auth);
-
   private readonly store = inject<Store<AppState>>(Store as any);
   private readonly email = inject(EmailVerificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
 
   readonly user$: Observable<IUserDados | null> = this.store.select(selectCurrentUser).pipe(
+    map((user) => user ?? null),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  // UI state (signals)
-  readonly show = signal<boolean>(true);
+  readonly show = signal<boolean>(false);
   readonly isSending = signal<boolean>(false);
   readonly info = signal<string | null>(null);
   readonly error = signal<string | null>(null);
 
   ngOnInit(): void {
-    // Snooze (guard)
-    const snoozeRaw = this.safeLocalStorageGet(SNOOZE_KEY);
-    const snoozeUntil = snoozeRaw ? Number(snoozeRaw) : 0;
-
-    if (Number.isFinite(snoozeUntil) && snoozeUntil > Date.now()) {
-      this.show.set(false);
-    }
-
-    // Se o usuário ficar verificado, não deixe um banner “vazio” renderizando
     this.user$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((u) => {
-        if (u?.uid && u.emailVerified === true) {
+        if (!u?.uid) {
           this.show.set(false);
-          // opcional: limpa snooze quando a verificação está OK
-          this.safeLocalStorageRemove(SNOOZE_KEY);
+          return;
         }
-      });
-  }
 
-  isVisitor(u: IUserDados | null): boolean {
-    return !u || !u.uid;
+        if (u.emailVerified === true) {
+          this.show.set(false);
+          this.safeLocalStorageRemove(SNOOZE_KEY);
+          return;
+        }
+
+        this.show.set(!this.hasActiveSnooze());
+      });
   }
 
   isUnverified(u: IUserDados | null): boolean {
@@ -104,11 +94,6 @@ export class GuestBannerComponent implements OnInit {
     this.error.set(null);
     this.info.set(null);
 
-    // Fluxo:
-    // 1) reload do currentUser (atualiza user.emailVerified no client)
-    // 2) força refresh do token (atualiza claim email_verified)
-    // 3) (best-effort) atualiza doc users/{uid}.emailVerified via service (se você ainda usa esse espelho)
-    // 4) fecha banner e deixa a app seguir (sem location.reload)
     this.email.reloadCurrentUser()
       .pipe(
         take(1),
@@ -120,11 +105,9 @@ export class GuestBannerComponent implements OnInit {
             switchMap((uid) => {
               if (!uid) return of(true);
 
-              // best-effort: se rules bloquearem, não derruba UX
               return this.email.updateEmailVerificationStatus(uid, true).pipe(
                 map(() => true),
                 catchError((err) => {
-                  // esperado se token ainda não refletiu; como já demos refresh, tende a passar
                   this.report(err, 'GuestBannerComponent.updateEmailVerificationStatus', true);
                   return of(true);
                 })
@@ -159,10 +142,6 @@ export class GuestBannerComponent implements OnInit {
     this.show.set(false);
   }
 
-  // ----------------------------------------------------------------------------
-  // Internals
-  // ----------------------------------------------------------------------------
-
   private forceRefreshIdToken$(): Observable<void> {
     return defer(() => {
       const u = this.auth.currentUser;
@@ -171,16 +150,22 @@ export class GuestBannerComponent implements OnInit {
     });
   }
 
+  private hasActiveSnooze(): boolean {
+    const snoozeRaw = this.safeLocalStorageGet(SNOOZE_KEY);
+    const snoozeUntil = snoozeRaw ? Number(snoozeRaw) : 0;
+    return Number.isFinite(snoozeUntil) && snoozeUntil > Date.now();
+  }
+
   private report(err: unknown, context: string, silent = true): void {
     try {
       const e = err instanceof Error ? err : new Error(String(err ?? 'unknown error'));
       (e as any).silent = silent;
-      (e as any).skipUserNotification = true; // banner já mostra mensagem inline
+      (e as any).skipUserNotification = true;
       (e as any).context = context;
       (e as any).feature = 'guest-banner';
       (e as any).original = err;
       this.globalError.handleError(e);
-    } catch { }
+    } catch {}
   }
 
   private pickMessage(err: any, fallback: string): string {
@@ -194,10 +179,10 @@ export class GuestBannerComponent implements OnInit {
   }
 
   private safeLocalStorageSet(key: string, value: string): void {
-    try { localStorage.setItem(key, value); } catch { }
+    try { localStorage.setItem(key, value); } catch {}
   }
 
   private safeLocalStorageRemove(key: string): void {
-    try { localStorage.removeItem(key); } catch { }
+    try { localStorage.removeItem(key); } catch {}
   }
 }

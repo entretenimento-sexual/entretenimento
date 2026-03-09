@@ -1,4 +1,5 @@
 // src/app/layout/other-user-profile-view/other-user-profile-view.component.ts
+// Não esquecer dos comentários explicativos e ferramentas de debug
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
