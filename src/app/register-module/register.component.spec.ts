@@ -6,23 +6,27 @@ import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { of } from 'rxjs';
 import { expect as jestExpect } from '@jest/globals';
+import { Auth } from '@angular/fire/auth';
+
 import { RegisterComponent } from './register.component';
-import { FirestoreValidationService } from '../core/services/data-handling/firestore-validation.service';
+import { FirestoreValidationService } from '../core/services/data-handling/firestore/validation/firestore-validation.service';
 import { RegisterService } from '../core/services/autentication/register/register.service';
 import { EmailVerificationService } from '../core/services/autentication/register/email-verification.service';
 import { ErrorNotificationService } from '../core/services/error-handler/error-notification.service';
-import { Auth } from '@angular/fire/auth'; // 👈 prover Auth
 
 // Mocks simples
 class MockFirestoreValidationService {
   checkIfNicknameExists = jest.fn().mockReturnValue(of(false));
 }
+
 class MockRegisterService {
   registerUser = jest.fn().mockReturnValue(of(void 0));
 }
+
 class MockEmailVerificationService {
   resendVerificationEmail = jest.fn().mockReturnValue(of(void 0));
 }
+
 class MockErrorNotificationService {
   showError = jest.fn();
 }
@@ -38,14 +42,13 @@ describe('RegisterComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [RegisterComponent], // NÃO é standalone
+      declarations: [RegisterComponent],
       imports: [ReactiveFormsModule, RouterTestingModule],
       providers: [
         { provide: FirestoreValidationService, useClass: MockFirestoreValidationService },
         { provide: RegisterService, useClass: MockRegisterService },
         { provide: EmailVerificationService, useClass: MockEmailVerificationService },
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },
-        // 👇 garante que waitForAuthUserOnce resolva imediatamente
         { provide: Auth, useValue: { currentUser: { uid: 'u-test' } } },
       ],
       schemas: [NO_ERRORS_SCHEMA],
@@ -54,12 +57,12 @@ describe('RegisterComponent', () => {
     fixture = TestBed.createComponent(RegisterComponent);
     component = fixture.componentInstance;
 
-    registerService = TestBed.inject(RegisterService) as any;
-    emailVerification = TestBed.inject(EmailVerificationService) as any;
-    errorNotification = TestBed.inject(ErrorNotificationService) as any;
+    registerService = TestBed.inject(RegisterService) as unknown as MockRegisterService;
+    emailVerification = TestBed.inject(EmailVerificationService) as unknown as MockEmailVerificationService;
+    errorNotification = TestBed.inject(ErrorNotificationService) as unknown as MockErrorNotificationService;
     router = TestBed.inject(Router);
 
-    jest.spyOn(router, 'navigate').mockResolvedValue(true as any);
+    jest.spyOn(router, 'navigate').mockResolvedValue(true);
 
     fixture.detectChanges();
   });
@@ -86,7 +89,6 @@ describe('RegisterComponent', () => {
 
     component.onSubmit();
 
-    // aguarda microtasks do await waitForAuthUserOnce + navigate
     await fixture.whenStable();
 
     expect(registerService.registerUser).toHaveBeenCalledWith(

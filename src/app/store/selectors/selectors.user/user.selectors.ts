@@ -1,9 +1,15 @@
 // src/app/store/selectors/selectors.user/user.selectors.ts
 // Objetivo: fonte única e previsível para “usuário atual”.
 // - UID: sempre vem do AUTH (selectAuthUid)
-// - Perfil: sempre vem do usersMap (state.user.users)
-// - selectCurrentUser passa a ser DERIVADO (padrão plataformas grandes)
-import { createSelector, MemoizedSelector } from '@ngrx/store';
+// - Perfil ATUAL: vem do espelho currentUser do slice user
+// - usersMap continua sendo útil para listas e lookups genéricos
+//
+// Ajuste importante deste patch:
+// - NÃO derivar o currentUser oficial a partir do usersMap
+// - isso evita ressuscitar perfil stale quando o currentUser foi marcado
+//   como indisponível no ciclo atual
+
+import { createSelector } from '@ngrx/store';
 import { AppState } from '../../states/app.state';
 import { IUserState } from '../../states/states.user/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -13,78 +19,146 @@ export const selectUserState = (state: AppState): IUserState => state.user;
 
 export const selectUsersMap = createSelector(
   selectUserState,
-  (state) => state.users ?? {}
+  (state): Record<string, IUserDados> => state.users ?? {}
 );
 
-/** ✅ UID uniforme: sempre vem do AUTH */
-export const selectCurrentUserUid: MemoizedSelector<AppState, string | null> = createSelector(
+/** UID uniforme: sempre vem do AUTH */
+export const selectCurrentUserUid = createSelector(
   selectAuthUid,
   (uid) => uid
 );
 
 /**
- * ✅ FONTE ÚNICA (RECOMENDADO):
- * Usuário atual = usersMap[authUid]
- *
- * Por que isso resolve seu problema:
- * - Elimina divergência entre CurrentUserStoreService x state.currentUser
- * - Evita “Bem-vindo, !” quando o doc já está no map mas currentUser não foi setado
- * - Facilita debug: se uid existe e map não tem, o problema é listener/regras/firestore (não “store desatualizado”)
- */
-export const selectCurrentUser = createSelector(
-  selectCurrentUserUid,
-  selectUsersMap,
-  (uid, map): IUserDados | null => (uid ? (map[uid] ?? null) : null)
-);
-
-/**
- * (Opcional) Se você ainda quer inspecionar o campo legado state.currentUser durante migração:
- * NÃO use para UI — apenas debug/telemetria.
+ * Espelho legado/oficial do current user dentro do slice user.
+ * Aqui ele deixa de ser apenas "legado" e passa a ser a base segura
+ * para o current user no NgRx.
  */
 export const selectCurrentUserLegacy = createSelector(
   selectUserState,
-  (s): IUserDados | null => s.currentUser ?? null
+  (state): IUserDados | null => state.currentUser ?? null
+);
+
+/**
+ * Flags explícitas do ciclo do current user.
+ */
+export const selectCurrentUserLoading = createSelector(
+  selectUserState,
+  (state) => state.currentUserLoading === true
+);
+
+export const selectCurrentUserHydrated = createSelector(
+  selectUserState,
+  (state) => state.currentUserHydrated === true
+);
+
+/**
+ * FONTE OFICIAL DO PERFIL ATUAL NO STORE:
+ * - auth define QUEM é o usuário atual (uid)
+ * - o slice user.currentUser define QUAL perfil do ciclo atual está válido
+ *
+ * Regras:
+ * - sem ready -> null
+ * - sem uid -> null
+ * - durante loading -> preserva o currentUser apenas se ele corresponder ao uid atual
+ * - se o ciclo ainda não foi hidratado -> null
+ * - se o currentUser não bater com o uid atual -> null
+ */
+export const selectCurrentUser = createSelector(
+  selectAuthReady,
+  selectCurrentUserUid,
+  selectCurrentUserLegacy,
+  selectCurrentUserLoading,
+  selectCurrentUserHydrated,
+  (ready, uid, currentUser, loading, hydrated): IUserDados | null => {
+    if (!ready) return null;
+    if (!uid) return null;
+
+    if (loading) {
+      return currentUser?.uid === uid ? currentUser : null;
+    }
+
+    if (!hydrated) {
+      return null;
+    }
+
+    if (currentUser?.uid !== uid) {
+      return null;
+    }
+
+    return currentUser;
+  }
 );
 
 export const selectAllUsers = createSelector(
   selectUsersMap,
-  (map) => Object.values(map)
+  (map) => Object.values(map ?? {})
 );
 
-/** ✅ fonte oficial do online: state.onlineUsers (query/presence) */
+/** Fonte oficial do online: state.onlineUsers */
 export const selectOnlineUsers = createSelector(
   selectUserState,
-  (s) => s.onlineUsers ?? []
+  (state) => state.onlineUsers ?? []
 );
 
 export const selectAllOnlineUsers = selectOnlineUsers;
 
-/** ✅ recomendado: null quando não existe */
 export const selectUserByIdOrNull = (uid: string) =>
-  createSelector(selectUsersMap, (map) => map[uid] ?? null);
+  createSelector(selectUsersMap, (map) => {
+    const safeUid = (uid ?? '').trim();
+    if (!safeUid) return null;
+    return map[safeUid] ?? null;
+  });
 
 /**
- * ✅ Selector de STATUS (debug e UX):
- * - undefined (ou “boot”): auth ainda não está pronto
- * - null (ou “signed_out”): ready=true e uid=null
- * - “loading_profile”: uid existe mas usersMap ainda não tem doc
- * - “ready”: uid existe e doc existe
+ * Status do current user.
+ *
+ * boot:
+ * - auth ainda não terminou bootstrap
+ *
+ * signed_out:
+ * - auth pronto e uid nulo
+ *
+ * loading_profile:
+ * - auth pronto, uid existe, e users/{uid} ainda está em hidratação
+ *   ou o store ainda não concluiu o ciclo atual
+ *
+ * unavailable:
+ * - o ciclo concluiu, mas não há perfil válido disponível
+ *
+ * ready:
+ * - uid existe e perfil atual está hidratado/disponível
  */
-export type CurrentUserStatus = 'boot' | 'signed_out' | 'loading_profile' | 'ready';
+export type CurrentUserStatus =
+  | 'boot'
+  | 'signed_out'
+  | 'loading_profile'
+  | 'unavailable'
+  | 'ready';
 
 export const selectCurrentUserStatus = createSelector(
   selectAuthReady,
   selectCurrentUserUid,
-  selectUsersMap,
-  (ready, uid, map): CurrentUserStatus => {
+  selectCurrentUser,
+  selectCurrentUserLoading,
+  selectCurrentUserHydrated,
+  (ready, uid, currentUser, loading, hydrated): CurrentUserStatus => {
     if (!ready) return 'boot';
     if (!uid) return 'signed_out';
-    return map[uid] ? 'ready' : 'loading_profile';
+    if (loading || !hydrated) return 'loading_profile';
+    if (!currentUser || currentUser.uid !== uid) return 'unavailable';
+    return 'ready';
   }
 );
 
-export const selectUserLoading = createSelector(selectUserState, (state) => state.loading);
-export const selectUserError = createSelector(selectUserState, (state) => state.error);
+export const selectUserLoading = createSelector(
+  selectUserState,
+  (state) => state.loading
+);
+
+export const selectUserError = createSelector(
+  selectUserState,
+  (state) => state.error
+);
 
 export const selectHasRequiredFields = createSelector(
   selectCurrentUser,

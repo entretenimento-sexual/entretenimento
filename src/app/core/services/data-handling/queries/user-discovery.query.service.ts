@@ -2,9 +2,17 @@
 // Serviço de consulta para descoberta de usuários no Firestore
 // Não esqueça os comentários
 import { Injectable, DestroyRef, inject } from '@angular/core';
-import { defer, from, Observable, of } from 'rxjs';
-import { catchError, switchMap, map, distinctUntilChanged, shareReplay, take, filter } from 'rxjs/operators';
-import { QueryConstraint, where } from 'firebase/firestore';
+import { defer, from, Observable, of, forkJoin } from 'rxjs';
+import {
+  catchError,
+  switchMap,
+  map,
+  distinctUntilChanged,
+  shareReplay,
+  take,
+  filter,
+} from 'rxjs/operators';
+import { QueryConstraint, where, documentId } from 'firebase/firestore';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
@@ -23,27 +31,24 @@ import { AuthSessionService } from '@core/services/autentication/auth/auth-sessi
  * - NÃO abre leitura sem sessão (evita rules/400 em boot deslogado).
  * - Erros: FirestoreErrorHandlerService (caminho central de observabilidade).
  *
- * Arquitetura de "plataforma grande":
+ * Arquitetura:
  * - Discovery NÃO lê de `users` (dados privados).
- * - Discovery lê de um "perfil público consultável": `public_profiles/{uid}`.
- * - `public_index` fica restrito a índices técnicos (ex.: nickname único),
- *   NÃO é fonte de discovery.
+ * - Discovery lê de `public_profiles/{uid}`.
  * =============================================================================
  */
 @Injectable({ providedIn: 'root' })
 export class UserDiscoveryQueryService {
   private readonly destroyRef = inject(DestroyRef);
 
-  /**
-   * Fonte oficial do discovery:
-   * - perfil público consultável por filtros
-   */
   private readonly DISCOVERY_COL = 'public_profiles';
 
   /**
-   * UID (sessão) – guard de segurança/robustez:
-   * - se uid=null: retornamos [] e não fazemos read
+   * Lote conservador.
+   * Firestore aceita `in` com mais folga hoje, mas manter 10 aqui reduz risco
+   * operacional e simplifica evolução futura.
    */
+  private static readonly UID_BATCH_SIZE = 10;
+
   private readonly uid$ = this.authSession.uid$.pipe(
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -55,17 +60,11 @@ export class UserDiscoveryQueryService {
     private readonly firestoreError: FirestoreErrorHandlerService,
     private readonly authSession: AuthSessionService
   ) {
-    /**
-     * Higiene:
-     * - ao deslogar, você pode optar por limpar caches de discovery
-     *   (evita “vazar” resultado de usuário anterior em singleton root).
-     */
     this.uid$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((uid) => {
         if (!uid) {
-          // se seu CacheService tiver namespace/clearByPrefix, aqui seria o lugar.
-          // this.cache.clearByPrefix?.('discovery:');
+          // Se depois você implementar clearByPrefix('discovery:'), este é o lugar.
         }
       });
   }
@@ -74,11 +73,6 @@ export class UserDiscoveryQueryService {
   // Helpers de compatibilidade (IUserDados)
   // --------------------------------------------------------------------------
 
-  /**
-   * Normaliza o doc do public_profiles para o formato compatível com IUserDados.
-   * - Discovery não é presence: aqui não definimos status online como verdade.
-   * - isOnline/lastSeen ficam como fallback (depois a Facade combina com presence).
-   */
   private toUserDadosFromPublicProfile(raw: any): IUserDados {
     const uid = (raw?.uid ?? '').toString().trim();
 
@@ -104,7 +98,35 @@ export class UserDiscoveryQueryService {
       latitude: raw?.latitude ?? null,
       longitude: raw?.longitude ?? null,
       geohash: raw?.geohash ?? null,
+
+      // Campos úteis para regra de exposição
+      emailVerified: raw?.emailVerified ?? null,
+      profileCompleted: raw?.profileCompleted ?? null,
     } as unknown as IUserDados;
+  }
+
+  private normalizeUidList(uids: string[] | null | undefined): string[] {
+    const seen = new Set<string>();
+    const out: string[] = [];
+
+    for (const raw of uids ?? []) {
+      const uid = (raw ?? '').trim();
+      if (!uid) continue;
+      if (seen.has(uid)) continue;
+      seen.add(uid);
+      out.push(uid);
+    }
+
+    return out;
+  }
+
+  private chunk<T>(list: T[], size: number): T[][] {
+    if (!list.length || size <= 0) return [];
+    const out: T[][] = [];
+    for (let i = 0; i < list.length; i += size) {
+      out.push(list.slice(i, i + size));
+    }
+    return out;
   }
 
   // --------------------------------------------------------------------------
@@ -119,26 +141,20 @@ export class UserDiscoveryQueryService {
     const waitForAuth = !!opts?.waitForAuth;
     const cacheTTL = opts?.cacheTTL ?? 60_000;
 
-    /**
-     * Dois modos:
-     * - waitForAuth=false: “once agora” (se uid ainda null => [])
-     * - waitForAuth=true: “once quando logar” (espera uid virar string)
-     */
     const uidOnce$ = waitForAuth
       ? this.uid$.pipe(
-        filter((uid): uid is string => !!uid),
-        take(1)
-      )
+          filter((uid): uid is string => !!uid),
+          take(1)
+        )
       : defer(() => from(this.authSession.whenReady())).pipe(
-        take(1),
-        switchMap(() => this.uid$.pipe(take(1)))
-      );
+          take(1),
+          switchMap(() => this.uid$.pipe(take(1)))
+        );
 
     return uidOnce$.pipe(
       switchMap((uid) => {
         if (!uid) return of([] as IUserDados[]);
 
-        // Discovery: busca em "public_profiles" e normaliza para IUserDados
         return this.read
           .getDocumentsOnce<any>(
             this.DISCOVERY_COL,
@@ -168,20 +184,10 @@ export class UserDiscoveryQueryService {
   // API pública (mantém nomenclaturas originais)
   // --------------------------------------------------------------------------
 
-  /**
-   * One-shot genérico: discovery/search por constraints
-   * - Não pagina ainda (pode evoluir com limit/orderBy/startsWith)
-   * - Focado em reuso por outros serviços/facades
-   */
   searchUsers(constraints: QueryConstraint[]): Observable<IUserDados[]> {
     return this.onceGuardedQuery(constraints ?? [], { cacheTTL: 60_000 });
   }
 
-  /**
-   * Caso clássico de discovery: filtros “fixos”
-   * Observação:
-   * - se seus campos forem normalizados (lowercase/trim) no Firestore, normalize aqui também
-   */
   getProfilesByOrientationAndLocation(
     gender: string,
     orientation: string,
@@ -200,10 +206,88 @@ export class UserDiscoveryQueryService {
   }
 
   /**
-   * Lista geral (com cache) — útil pra painéis/admin/dev
-   * ⚠️ Em produção, normalmente isso fica restrito por role/rules (admin),
-   * e quase sempre precisa paginação.
+   * Resolve perfis públicos por UID.
+   *
+   * Uso principal:
+   * - presence => lista de UIDs online
+   * - discovery => materializa cards públicos consultáveis
+   *
+   * Estratégia:
+   * - normaliza/deduplica UIDs
+   * - consulta em lotes conservadores
+   * - cacheia por conjunto de UIDs para amortecer reemissões do presence
    */
+  getProfilesByUids$(
+    uids: string[] | null | undefined,
+    opts?: { cacheTTL?: number }
+  ): Observable<IUserDados[]> {
+    const normalized = this.normalizeUidList(uids);
+    if (!normalized.length) return of([] as IUserDados[]);
+
+    const sorted = [...normalized].sort();
+    const cacheTTL = opts?.cacheTTL ?? 30_000;
+    const cacheKey = `discovery:public_profiles:uids:${sorted.join(',')}`;
+
+    return this.uid$.pipe(
+      take(1),
+      switchMap((uid) => {
+        if (!uid) return of([] as IUserDados[]);
+
+        return this.cache.get<IUserDados[]>(cacheKey).pipe(
+          switchMap((cached) => {
+            if (Array.isArray(cached) && cached.length) {
+              return of(cached);
+            }
+
+            const batches = this.chunk(sorted, UserDiscoveryQueryService.UID_BATCH_SIZE);
+
+            const reads$ = batches.map((batch) =>
+              this.onceGuardedQuery(
+                [where(documentId(), 'in', batch)],
+                { cacheTTL }
+              )
+            );
+
+            return forkJoin(reads$).pipe(
+              map((parts) => parts.flat()),
+              map((profiles) => {
+                const byUid = new Map<string, IUserDados>();
+                for (const p of profiles ?? []) {
+                  const uid = (p?.uid ?? '').trim();
+                  if (!uid) continue;
+                  byUid.set(uid, p);
+                }
+
+                return sorted
+                  .map((uid) => byUid.get(uid) ?? null)
+                  .filter((p): p is IUserDados => !!p);
+              }),
+              map((profiles) => {
+                this.cache.set(cacheKey, profiles, cacheTTL);
+                return profiles;
+              }),
+              catchError((err) =>
+                this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
+                  err,
+                  [],
+                  { silent: true, context: 'user-discovery.getProfilesByUids$' }
+                )
+              )
+            );
+          }),
+          catchError((err) =>
+            this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
+              err,
+              [],
+              { silent: true, context: 'user-discovery.getProfilesByUids$.cache' }
+            )
+          )
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
   getAllUsers$(): Observable<IUserDados[]> {
     const cacheKey = 'discovery:public_profiles:all';
 
@@ -239,4 +323,4 @@ export class UserDiscoveryQueryService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
-} // 222 linhas
+} // Linha 326, fim do user-discovery.query.service.ts

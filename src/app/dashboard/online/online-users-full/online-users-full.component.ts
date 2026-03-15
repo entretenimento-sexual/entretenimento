@@ -1,4 +1,5 @@
 // src\app\dashboard\online\online-users-full\online-users-full.component.ts
+// Não esquecer comentários explicativos e ferramentas de debug
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';

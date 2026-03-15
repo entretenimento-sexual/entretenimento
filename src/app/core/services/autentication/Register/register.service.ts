@@ -186,39 +186,46 @@ export class RegisterService {
    * - Aguarda onIdTokenChanged entregar o UID esperado
    * - timeout + take(1) para não deixar listener vivo
    */
-  private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): Observable<void> {
-    if (this.auth.currentUser?.uid === expectedUid) return of(void 0);
+private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): Observable<void> {
+  const refresh$ = from(
+    this.auth.currentUser?.getIdToken(true) ?? Promise.resolve('')
+  ).pipe(
+    timeout({ each: this.NET_TIMEOUT_MS }),
+    catchError((err) => {
+      this.safeHandle('[RegisterService] getIdToken(true) falhou (warn).', err, {
+        traceId,
+        expectedUid,
+      });
+      return of('');
+    })
+  );
 
-    const refresh$ = from(this.auth.currentUser?.getIdToken(true) ?? Promise.resolve('')).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      catchError((err) => {
-        // não bloqueia o fluxo: ainda tentamos aguardar o evento
-        this.safeHandle('[RegisterService] getIdToken(true) falhou (warn).', err, { traceId, expectedUid });
-        return of('');
-      })
+  const tokenChanged$ = new Observable<void>((subscriber) => {
+    const unsub = onIdTokenChanged(
+      this.auth,
+      (user: User | null) => {
+        if (user?.uid === expectedUid) {
+          subscriber.next();
+          subscriber.complete();
+        }
+      },
+      (err: unknown) => subscriber.error(err)
     );
 
-    const tokenChanged$ = new Observable<void>((subscriber) => {
-      const unsub = onIdTokenChanged(
-        this.auth,
-        (user: User | null) => {
-          if (user?.uid === expectedUid) {
-            subscriber.next();
-            subscriber.complete();
-          }
-        },
-        (err: unknown) => subscriber.error(err)
-      );
-      return () => unsub();
-    }).pipe(take(1));
+    return () => unsub();
+  }).pipe(
+    take(1),
+    timeout({ each: this.NET_TIMEOUT_MS })
+  );
 
-    return refresh$.pipe(
-      switchMap(() => tokenChanged$),
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      map(() => void 0),
-      catchError((err) => this.handleRegisterError(err, 'Sincronização Auth/Firestore', traceId))
-    );
-  }
+  return refresh$.pipe(
+    switchMap(() => tokenChanged$),
+    map(() => void 0),
+    catchError((err) =>
+      this.handleRegisterError(err, 'Sincronização Auth/Firestore', traceId)
+    )
+  );
+}
 
   private validateUserData(user: IUserRegistrationData, traceId: string): Observable<void> {
     const nickname = (user.nickname ?? '').trim();
@@ -593,4 +600,8 @@ export class RegisterService {
     if (!u || !d) return e;
     return `${u.slice(0, 2)}***@${d}`;
   }
-}
+} // Linha 603, fim do register.service
+// Verificar migrações de responsabilidades para o:
+// 1 - auth-route-context.service.ts, e;
+// 2 - auth-user-document-watch.service.ts, e;
+// 3 - auth-session-monitor.service.ts.

@@ -1,4 +1,13 @@
 // src/app/store/effects/effects.user/user.effects.ts
+// Considera a arquitetura completa do projeto:
+// - AuthSessionService = fonte da sessão
+// - CurrentUserStoreService = runtime tri-state do current user
+// - NgRx = espelho global / serializável
+//
+// Ajuste principal deste patch:
+// - não transformar o primeiro snapshot vazio em "indisponível" imediatamente
+// - manter undefined (hidratação em andamento) durante uma pequena janela de confirmação
+// - se o usuário chegar antes, o switchMap cancela o timer automaticamente
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 
@@ -11,6 +20,8 @@ import {
   setCurrentUser,
   clearCurrentUser,
   addUserToState,
+  setCurrentUserUnavailable,
+  setCurrentUserHydrationError,
 } from '../../actions/actions.user/user.actions';
 
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
@@ -20,10 +31,13 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { sanitizeUserForStore, sanitizeUsersForStore } from 'src/app/store/utils/user-store.serializer';
+import {
+  sanitizeUserForStore,
+  sanitizeUsersForStore,
+} from 'src/app/store/utils/user-store.serializer';
 import { toStoreError } from 'src/app/store/utils/store-error.serializer';
 
-import { from, merge, of } from 'rxjs';
+import { from, merge, of, timer } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -40,7 +54,20 @@ import { environment } from 'src/environments/environment';
 export class UserEffects {
   private readonly debug = !environment.production;
 
-  private dbg(msg: string, extra?: unknown) {
+  /**
+   * Janela curta para confirmar ausência real do doc.
+   *
+   * Motivo:
+   * - evita "hasUser:false -> setUnavailable() -> hasUser:true" durante bootstrap
+   * - mantém o runtime em undefined enquanto o primeiro snapshot estabiliza
+   *
+   * Observação:
+   * - se o usuário chegar antes desse prazo, o switchMap cancela este timer
+   * - isso mantém o fluxo 100% reativo, sem setTimeout imperativo espalhado
+   */
+  private readonly UNAVAILABLE_CONFIRM_DELAY_MS = 450;
+
+  private dbg(msg: string, extra?: unknown): void {
     if (!this.debug) return;
     // eslint-disable-next-line no-console
     console.log(`[UserEffects] ${msg}`, extra ?? '');
@@ -52,10 +79,38 @@ export class UserEffects {
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly globalErrorHandler: GlobalErrorHandlerService
-  ) { }
+  ) {}
 
+  private safeJsonEqual(a: unknown, b: unknown): boolean {
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return a === b;
+    }
+  }
+
+  private buildUnavailableAction(uid: string) {
+    return setCurrentUserUnavailable({
+      error: toStoreError(
+        null,
+        `Usuário ${uid} não encontrado.`,
+        'UserEffects.observeUserChanges$',
+        { uid }
+      ),
+    });
+  }
+
+  /**
+   * Observa o documento users/{uid}.
+   *
+   * Regras:
+   * - UID vem do bridge AuthSession -> NgRx
+   * - STOP limpa runtime e store global
+   * - START tenta restore rápido do cache compatível
+   * - doc ausente não vira unavailable imediatamente; primeiro passa por uma janela curta de confirmação
+   * - erro de stream => hydration error (não derruba sessão)
+   */
   observeUserChanges$ = createEffect(() => {
-    // Driver único: START (uid) ou STOP (null)
     const start$ = this.actions$.pipe(
       ofType(observeUserChanges),
       map(({ uid }) => (uid ?? '').trim() || null),
@@ -72,70 +127,108 @@ export class UserEffects {
       tap((uid) => this.dbg('observeUserChanges driver', { uid })),
 
       switchMap((uid) => {
-        // STOP: limpa fontes do perfil (service + store)
         if (!uid) {
           this.currentUserStore.clear();
           return of(clearCurrentUser());
         }
 
-        // Best-effort: tenta restaurar rápido do cache (se existir)
-        try { this.currentUserStore.restoreFromCache(); } catch { /* noop */ }
+        /**
+         * Ao iniciar um novo UID:
+         * - marca runtime como "hidratação em andamento"
+         * - tenta restore rápido do cache compatível
+         *
+         * Importante:
+         * - mesmo que restore não ache nada, ainda não concluímos "indisponível"
+         * - essa conclusão fica para a janela curta de confirmação abaixo
+         */
+        this.currentUserStore.markUnhydrated();
 
-        this.dbg('observeUserChanges -> subscribe', { uid });
+        try {
+          this.currentUserStore.restoreFromCacheForUid(uid);
+        } catch {
+          // noop
+        }
+
+        this.dbg('observeUserChanges -> subscribe', {
+          uid,
+          runtimeSnapshot: this.currentUserStore.getSnapshot(),
+        });
 
         return this.firestoreUserQuery.getUser(uid).pipe(
-          // evita spam de dispatch; mantém seu padrão atual
-          distinctUntilChanged((a, b) => {
-            try { return JSON.stringify(a) === JSON.stringify(b); } catch { return a === b; }
-          }),
+          distinctUntilChanged((a, b) => this.safeJsonEqual(a, b)),
 
-          tap((user) => this.dbg('user snapshot', { uid, hasUser: !!user })),
+          tap((user) =>
+            this.dbg('user snapshot', {
+              uid,
+              hasUser: !!user,
+              kind: user ? 'user' : 'empty',
+            })
+          ),
 
           switchMap((user) => {
-            if (!user) {
-              // doc ausente → limpa perfil (service + store) e registra erro serializável
-              this.currentUserStore.clear();
+            /**
+             * Snapshot válido:
+             * - normaliza
+             * - atualiza runtime store
+             * - atualiza NgRx
+             */
+            if (user) {
+              const safeUser = sanitizeUserForStore(user as IUserDados);
+
+              this.currentUserStore.set(safeUser);
 
               return from([
-                clearCurrentUser(),
-                loadUsersFailure({
-                  error: toStoreError(
-                    null,
-                    `Usuário ${uid} não encontrado.`,
-                    'UserEffects.observeUserChanges$',
-                    { uid }
-                  ),
-                }),
+                setCurrentUser({ user: safeUser }),
+                addUserToState({ user: safeUser }),
               ]);
             }
 
-            const safeUser = sanitizeUserForStore(user as IUserDados);
+            /**
+             * Snapshot vazio:
+             * - NÃO concluímos indisponibilidade imediatamente
+             * - aguardamos uma pequena janela
+             * - se um user real chegar antes, este timer é cancelado pelo switchMap
+             */
+            return timer(this.UNAVAILABLE_CONFIRM_DELAY_MS).pipe(
+              tap(() => {
+                this.dbg('user snapshot -> confirmed unavailable', {
+                  uid,
+                  delayMs: this.UNAVAILABLE_CONFIRM_DELAY_MS,
+                });
 
-            // ✅ Fonte do PERFIL do app (AccessControl + Sidebar dependem disso)
-            this.currentUserStore.set(safeUser);
-
-            // ✅ NgRx: currentUser e (opcional) entities/lista
-            return from([
-              setCurrentUser({ user: safeUser }),
-              addUserToState({ user: safeUser }),
-            ]);
+                this.currentUserStore.setUnavailable();
+              }),
+              map(() => this.buildUnavailableAction(uid))
+            );
           }),
 
           catchError((err) => {
-            const e = err instanceof Error ? err : new Error('UserEffects.observeUserChanges$ error');
-            (e as any).silent = true;
-            (e as any).context = 'UserEffects.observeUserChanges$';
-            (e as any).uid = uid;
-            (e as any).original = err;
-            this.globalErrorHandler.handleError(e);
+            const error =
+              err instanceof Error
+                ? err
+                : new Error('UserEffects.observeUserChanges$ error');
 
+            (error as any).silent = true;
+            (error as any).skipUserNotification = true;
+            (error as any).context = 'UserEffects.observeUserChanges$';
+            (error as any).uid = uid;
+            (error as any).original = err;
+
+            this.globalErrorHandler.handleError(error);
             this.dbg('observeUserChanges -> error', { uid, err });
 
-            // Em erro: NÃO limpa sessão; apenas degrada estado do perfil
-            this.currentUserStore.clear();
-
+            /**
+             * Em erro de hidratação:
+             * - não derrubamos a sessão
+             * - não forçamos unavailable imediatamente
+             * - apenas marcamos erro serializável no store
+             *
+             * Motivo:
+             * - indisponibilidade e erro de stream são estados diferentes
+             * - erro transitório não deve apagar runtime válido sem necessidade
+             */
             return of(
-              loadUsersFailure({
+              setCurrentUserHydrationError({
                 error: toStoreError(
                   err,
                   'Erro desconhecido ao observar usuário.',
@@ -146,22 +239,34 @@ export class UserEffects {
             );
           }),
 
-          finalize(() => this.dbg('observeUserChanges -> finalize', { uid }))
+          finalize(() =>
+            this.dbg('observeUserChanges -> finalize', { uid })
+          )
         );
       })
     );
   });
 
+  /**
+   * Lista geral de usuários.
+   * Separada do fluxo do currentUser.
+   */
   loadUsers$ = createEffect(() =>
     this.actions$.pipe(
       ofType(loadUsers),
       switchMap(() =>
         this.firestoreQuery.getDocumentsByQuery<IUserDados>('users', []).pipe(
-          map((users) => loadUsersSuccess({ users: sanitizeUsersForStore(users) })),
+          map((users) =>
+            loadUsersSuccess({ users: sanitizeUsersForStore(users) })
+          ),
           catchError((err) =>
             of(
               loadUsersFailure({
-                error: toStoreError(err, 'Falha ao carregar usuários.', 'UserEffects.loadUsers$'),
+                error: toStoreError(
+                  err,
+                  'Falha ao carregar usuários.',
+                  'UserEffects.loadUsers$'
+                ),
               })
             )
           )
@@ -169,11 +274,4 @@ export class UserEffects {
       )
     )
   );
-} // Linha 172, fim UserEffects
-/*
-- UserEffects é responsável por observar mudanças no perfil do usuário atual (users/{uid}) e carregar listas de usuários.
-- Ele é acionado por ações específicas (ex.: observeUserChanges, loadUsers) e interage com os serviços de consulta do Firestore para obter os dados.
-- O estado do perfil do usuário é mantido no CurrentUserStoreService, que é a fonte de verdade para o perfil do app.
-- O NgRx é usado para refletir esse estado no store global, mas o serviço é o dono real dos dados do perfil.
-- O efeito observeUserChanges$ é projetado para ser resiliente: ele tenta restaurar do cache, lida com erros sem quebrar a sessão, e mantém logs detalhados para debug.
-*/
+} // Linha 277, fim do user.effects.ts

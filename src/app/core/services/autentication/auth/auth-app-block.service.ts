@@ -33,3 +33,7 @@ src/app/core/services/autentication/auth/auth-orchestrator.service.ts
 src/app/core/services/autentication/auth/auth.facade.ts
 src/app/core/services/autentication/auth/logout.service.ts
 */
+// Verificar migrações de responsabilidades para o:
+// 1 - auth-route-context.service.ts, e;
+// 2 - auth-user-document-watch.service.ts, e;
+// 3 - auth-session-monitor.service.ts.

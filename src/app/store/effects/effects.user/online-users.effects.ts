@@ -2,13 +2,11 @@
 // =============================================================================
 // EFEITOS: ONLINE USERS (produto / discovery)
 //
-// Regras "plataformas grandes":
-// - Gate ÚNICO: AccessControlService (política/capacidades)
-// - Effect orquestra start/stop determinístico (1 listener ativo no máximo)
-// - Cancelamento por gate (switchMap)
-// - Store recebe SOMENTE payload serializável (runtimeChecks ON)
-// - Erro rico vai para GlobalErrorHandlerService (não para Store)
-// - Store recebe IError serializável via toStoreError()
+// Regras:
+// - Gate ÚNICO: AccessControlService
+// - onlineUsers = espelho da coleção presence
+// - usersMap = perfis públicos materializados via discovery
+// - join final fica nos selectors
 // =============================================================================
 import { inject, Injectable } from '@angular/core';
 
@@ -16,7 +14,7 @@ import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { concatLatestFrom } from '@ngrx/operators';
 import { Store } from '@ngrx/store';
 
-import { combineLatest, merge, of } from 'rxjs';
+import { combineLatest, from, merge, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -33,19 +31,16 @@ import { AppState } from '../../states/app.state';
 import { IUserDados } from '@core/interfaces/iuser-dados';
 import { IError } from '@core/interfaces/ierror';
 
-import { sanitizeUsersForStore } from 'src/app/store/utils/user-store.serializer';
+import { sanitizeUserForStore, sanitizeUsersForStore } from 'src/app/store/utils/user-store.serializer';
 import { toStoreError } from 'src/app/store/utils/store-error.serializer';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
-// ✅ Query correta de presença (READ)
 import { UserPresenceQueryService } from '@core/services/data-handling/queries/user-presence.query.service';
-
-// ✅ Gate canônico do produto
+import { UserDiscoveryQueryService } from '@core/services/data-handling/queries/user-discovery.query.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 
-// ✅ Actions EXISTENTES (não cria online-users.actions.ts)
 import {
   loadOnlineUsers,
   loadOnlineUsersSuccess,
@@ -56,17 +51,17 @@ import {
   setCurrentUser,
   clearCurrentUser,
   updateUserInState,
+  addUserToState,
 } from '../../actions/actions.user/user.actions';
 
-// ✅ Selectors existentes
 import {
   selectCurrentUser,
-  selectOnlineUsers,
+  selectUsersMap,
 } from '../../selectors/selectors.user/user.selectors';
+import {
+  selectGlobalOnlineUsers,
+} from '../../selectors/selectors.user/online.selectors';
 
-// -----------------------------------------------------------------------------
-// Helpers simples (serializáveis)
-// -----------------------------------------------------------------------------
 const norm = (v?: string | null) => (v ?? '').trim().toLowerCase();
 
 @Injectable()
@@ -75,23 +70,15 @@ export class OnlineUsersEffects {
   private readonly store = inject(Store<AppState>);
 
   private readonly presenceQuery = inject(UserPresenceQueryService);
+  private readonly discoveryQuery = inject(UserDiscoveryQueryService);
   private readonly access = inject(AccessControlService);
 
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
   private readonly errorNotifier = inject(ErrorNotificationService);
 
   private readonly debug = !environment.production;
-
-  // throttle de notificação (evita spam quando stream falha/retry)
   private lastNotifyAt = 0;
 
-  // ---------------------------------------------------------------------------
-  // Gate consolidado (fonte única)
-  // ---------------------------------------------------------------------------
-  // canRunOnlineUsers$: política completa (inclui rota/registro/emailVerified/etc.)
-  // authUid$: uid canônico (AuthSession manda no UID)
-  // - Debug mostra o valor bruto e o tipo.
-  // - distinctUntilChanged inclui canRun (e não só canStart/uid).
   private readonly gate$ = combineLatest([
     this.access.canRunOnlineUsers$,
     this.access.authUid$,
@@ -103,7 +90,7 @@ export class OnlineUsersEffects {
     })),
 
     map(([canRunRaw, uid]) => {
-      const canRun = canRunRaw === true; // mantém a política “estrita”
+      const canRun = canRunRaw === true;
       const cleanUid = (uid ?? '').trim() || null;
 
       return {
@@ -122,9 +109,6 @@ export class OnlineUsersEffects {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  // ---------------------------------------------------------------------------
-  // Debug / Notificação
-  // ---------------------------------------------------------------------------
   private dbg(msg: string, extra?: unknown) {
     if (!this.debug) return;
     // eslint-disable-next-line no-console
@@ -139,11 +123,6 @@ export class OnlineUsersEffects {
     }
   }
 
-  /**
-   * Erro:
-   * - Store recebe IError serializável (toStoreError)
-   * - GlobalErrorHandler recebe erro rico (original/context/extra)
-   */
   private reportEffectError(
     err: unknown,
     fallbackMsg: string,
@@ -164,6 +143,84 @@ export class OnlineUsersEffects {
     return storeErr;
   }
 
+  /**
+   * Presença é efêmera:
+   * - deduplica
+   * - remove self
+   * - não tenta decidir elegibilidade final aqui
+   */
+  private normalizePresenceUsers(
+    users: IUserDados[] | null | undefined,
+    currentUid: string | null
+  ): IUserDados[] {
+    const list: IUserDados[] = Array.isArray(users) ? users : [];
+    const seen = new Set<string>();
+
+    return list.filter((u) => {
+      const uid = (u as any)?.uid;
+      if (typeof uid !== 'string' || !uid.trim()) return false;
+
+      const cleanUid = uid.trim();
+
+      if (currentUid && cleanUid === currentUid) return false;
+      if (seen.has(cleanUid)) return false;
+
+      seen.add(cleanUid);
+      return true;
+    });
+  }
+
+private safeJsonEqual(a: unknown, b: unknown): boolean {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return a === b;
+  }
+}
+
+private shouldUpsertProfile(
+  current: IUserDados | null | undefined,
+  incoming: IUserDados | null | undefined
+): boolean {
+  if (!incoming?.uid) return false;
+  if (!current) return true;
+  return !this.safeJsonEqual(current, incoming);
+}
+
+  /**
+   * Materializa perfis públicos no usersMap.
+   * onlineUsers permanece separado.
+   */
+private hydrateProfilesForOnlineUsers$(
+  presenceUsers: IUserDados[],
+  currentUid: string | null
+) {
+  const normalizedPresence = this.normalizePresenceUsers(presenceUsers, currentUid);
+  const uids = normalizedPresence.map((u) => (u.uid ?? '').trim()).filter(Boolean);
+
+  if (!uids.length) {
+    return of(loadOnlineUsersSuccess({ users: [] }));
+  }
+
+  return this.discoveryQuery.getProfilesByUids$(uids).pipe(
+    concatLatestFrom(() => this.store.select(selectUsersMap)),
+    switchMap(([profiles, usersMap]) => {
+      const profileActions = profiles
+        .map((p) => sanitizeUserForStore(p))
+        .filter((p) => !!p?.uid)
+        .filter((profile) => this.shouldUpsertProfile(usersMap?.[profile.uid], profile))
+        .map((profile) => addUserToState({ user: profile }));
+
+      return from([
+        ...profileActions,
+        loadOnlineUsersSuccess({
+          users: sanitizeUsersForStore(normalizedPresence),
+        }),
+      ]);
+    })
+  );
+}
+
   // =============================================================================
   // 1) DRIVER ÚNICO (gate → start/stop + listener realtime)
   // =============================================================================
@@ -172,7 +229,6 @@ export class OnlineUsersEffects {
       tap((g) => this.dbg('gate → state', g)),
 
       switchMap((gate) => {
-        // Gate caiu: cleanup central via reducer
         if (!gate.canStart) {
           this.dbg('gate=false → STOP (reducer cleanup)');
           return of(stopOnlineUsersListener());
@@ -181,14 +237,12 @@ export class OnlineUsersEffects {
         this.dbg('gate=true → START listener', { uid: gate.uid });
 
         return merge(
-          // marcador (telemetria/estado futuro)
           of(startOnlineUsersListener()),
 
-          // ✅ stream realtime (fonte de verdade): presence query
           this.presenceQuery.getOnlineUsers$().pipe(
-            map((users) => this.filterUsersEligibleForExposure(users, gate.uid)),
-            map((users) => sanitizeUsersForStore(users)),
-            map((users) => loadOnlineUsersSuccess({ users })),
+            switchMap((presenceUsers) =>
+              this.hydrateProfilesForOnlineUsers$(presenceUsers, gate.uid)
+            ),
 
             finalize(() => this.dbg('realtime listener FINALIZE (unsub)')),
 
@@ -228,9 +282,9 @@ export class OnlineUsersEffects {
         this.dbg('once START', { uid: gate.uid });
 
         return this.presenceQuery.getOnlineUsersOnce$().pipe(
-          map((users) => this.filterUsersEligibleForExposure(users, gate.uid)),
-          map((users) => sanitizeUsersForStore(users)),
-          map((users) => loadOnlineUsersSuccess({ users })),
+          switchMap((presenceUsers) =>
+            this.hydrateProfilesForOnlineUsers$(presenceUsers, gate.uid)
+          ),
 
           catchError((err) => {
             const storeErr = this.reportEffectError(
@@ -254,7 +308,7 @@ export class OnlineUsersEffects {
       ofType(loadOnlineUsersSuccess, setCurrentUser, clearCurrentUser, updateUserInState),
 
       concatLatestFrom(() => [
-        this.store.select(selectOnlineUsers),
+        this.store.select(selectGlobalOnlineUsers),
         this.store.select(selectCurrentUser),
       ]),
 
@@ -281,49 +335,4 @@ export class OnlineUsersEffects {
       })
     )
   );
-
-  // =============================================================================
-  // Regras do produto: “exposição” (quem aparece no online)
-  // =============================================================================
-  private filterUsersEligibleForExposure(
-    users: IUserDados[] | null | undefined,
-    currentUid: string | null
-  ): IUserDados[] {
-    const list: IUserDados[] = Array.isArray(users) ? users : [];
-
-    return list.filter((u) => {
-      const anyU = u as any;
-
-      const uid = typeof anyU?.uid === 'string' ? anyU.uid : '';
-      if (!uid) return false;
-
-      // remove self
-      if (currentUid && uid === currentUid) return false;
-
-      // produto: exige emailVerified no doc exposto
-      if (anyU?.emailVerified !== true) return false;
-
-      // produto: perfil mínimo (preferencial profileCompleted)
-      const profileCompleted = anyU?.profileCompleted === true;
-
-      const hasMinFields =
-        typeof anyU?.gender === 'string' && anyU.gender.trim() !== '' &&
-        typeof anyU?.estado === 'string' && anyU.estado.trim() !== '' &&
-        typeof anyU?.municipio === 'string' && anyU.municipio.trim() !== '';
-
-      if (!(profileCompleted || hasMinFields)) return false;
-
-      // futuro: opt-out de aparecer
-      if (this.isVoluntaryInvisible(anyU)) return false;
-
-      return true;
-    });
-  }
-
-  private isVoluntaryInvisible(_anyUser: any): boolean {
-    return false;
-  }
-} // Linha 307, fim do OnlineUsersEffects
-// - Regras de exposição: derivar um “eligível para aparecer no online” (filterUsersEligibleForExposure) a partir dos dados do usuário (emailVerified, profileCompleted, campos mínimos, etc.) e do produto (regras de negócio).
-// - Evitar lógica de exposição no template (ex.: *ngIf) para manter a UI simples e rápida.
-// - Manter o filtro de exposição consistente entre o listener realtime e o one-shot (DRY).
+} // Linha 318, fim do OnlineUsersEffects

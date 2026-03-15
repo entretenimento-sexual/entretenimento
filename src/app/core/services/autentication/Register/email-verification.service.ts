@@ -311,3 +311,7 @@ export class EmailVerificationService {
    - Recomendo realocar “writes por e-mail” e “setDoc pós-verificação”
      para FirestoreUserWriteService (veja nota abaixo).
 */
+// Verificar migrações de responsabilidades para o:
+// 1 - auth-route-context.service.ts, e;
+// 2 - auth-user-document-watch.service.ts, e;
+// 3 - auth-session-monitor.service.ts.

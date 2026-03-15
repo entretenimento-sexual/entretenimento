@@ -1,4 +1,5 @@
 // src/app/core/services/geolocation/ibge-location.service.ts
+// Não esquecer dos comentários explicativos, ferramentas de debug e das boas práticas
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';

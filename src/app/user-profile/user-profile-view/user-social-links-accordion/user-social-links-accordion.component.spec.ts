@@ -2,11 +2,11 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { RouterTestingModule } from '@angular/router/testing';
-import { of, BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 
 import { SocialLinksAccordionComponent } from './user-social-links-accordion.component';
 
-// 🔁 IMPORTS RELATIVOS (a partir da pasta deste spec)
+// IMPORTS RELATIVOS
 import { UserSocialLinksService } from '../../../core/services/user-profile/user-social-links.service';
 import { CurrentUserStoreService } from '../../../core/services/autentication/auth/current-user-store.service';
 import { AuthSessionService } from '../../../core/services/autentication/auth/auth-session.service';
@@ -22,7 +22,21 @@ class MockCurrentUserStoreService {
   user$ = new BehaviorSubject<any | null | undefined>({ uid: 'u1' });
 }
 
-class MockAuthSessionService { }
+class MockAuthSessionService {
+  private readonly authUserSubject = new BehaviorSubject<any | null>({ uid: 'u1' });
+  private readonly uidSubject = new BehaviorSubject<string | null>('u1');
+
+  authUser$ = this.authUserSubject.asObservable();
+  uid$ = this.uidSubject.asObservable();
+  currentAuthUser: { uid: string } | null = { uid: 'u1' };
+
+  setAuthUser(user: { uid: string } | null): void {
+    this.currentAuthUser = user;
+    this.authUserSubject.next(user);
+    this.uidSubject.next(user?.uid ?? null);
+  }
+}
+
 class MockErrorNotificationService {
   showSuccess = jest.fn();
   showError = jest.fn();
@@ -31,8 +45,10 @@ class MockErrorNotificationService {
 describe('SocialLinksAccordionComponent', () => {
   let component: SocialLinksAccordionComponent;
   let fixture: ComponentFixture<SocialLinksAccordionComponent>;
+
   let linksSvc: MockUserSocialLinksService;
   let notify: MockErrorNotificationService;
+  let authSession: MockAuthSessionService;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -52,8 +68,11 @@ describe('SocialLinksAccordionComponent', () => {
     fixture = TestBed.createComponent(SocialLinksAccordionComponent);
     component = fixture.componentInstance;
 
-    linksSvc = TestBed.inject(UserSocialLinksService) as any;
-    notify = TestBed.inject(ErrorNotificationService) as any;
+    linksSvc = TestBed.inject(UserSocialLinksService) as unknown as MockUserSocialLinksService;
+    notify = TestBed.inject(ErrorNotificationService) as unknown as MockErrorNotificationService;
+    authSession = TestBed.inject(AuthSessionService) as unknown as MockAuthSessionService;
+
+    authSession.setAuthUser({ uid: 'u1' });
 
     fixture.componentRef.setInput('uid', 'u1');
     fixture.componentRef.setInput('isOwner', false);
@@ -72,26 +91,36 @@ describe('SocialLinksAccordionComponent', () => {
   });
 
   it('permite update quando uid logado === uid do perfil', () => {
+    authSession.setAuthUser({ uid: 'u1' });
+    fixture.componentRef.setInput('uid', 'u1');
+    fixture.detectChanges();
+
     component.updateSocialLink('instagram', '@novo');
+
     expect(linksSvc.saveSocialLinks).toHaveBeenCalled();
     expect(notify.showSuccess).toHaveBeenCalled();
   });
 
   it('bloqueia update quando não pode editar', () => {
+    authSession.setAuthUser({ uid: 'u1' });
     fixture.componentRef.setInput('uid', 'u2');
     fixture.detectChanges();
 
     linksSvc.saveSocialLinks.mockClear();
+
     component.updateSocialLink('instagram', 'alguem');
+
     expect(linksSvc.saveSocialLinks).not.toHaveBeenCalled();
     expect(notify.showError).toHaveBeenCalled();
   });
 
   it('remove link quando pode editar', () => {
+    authSession.setAuthUser({ uid: 'u1' });
     fixture.componentRef.setInput('uid', 'u1');
     fixture.detectChanges();
 
     component.removeLink('instagram');
+
     expect(linksSvc.removeLink).toHaveBeenCalledWith('u1', 'instagram');
     expect(notify.showSuccess).toHaveBeenCalled();
   });

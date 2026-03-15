@@ -1,53 +1,54 @@
 // src/app/store/selectors/user/user-profile.selectors.ts
 import { createSelector } from '@ngrx/store';
-import { AppState } from '../../states/app.state';
-import { IUserState } from '../../states/states.user/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
-// Seleciona o estado do usuário
-export const selectUserState = (state: AppState): IUserState => state.user;
+import { selectCurrentUser, selectUsersMap } from '../selectors.user/user.selectors';
 
-// Seleciona os dados principais do perfil do usuário autenticado
+/**
+ * Perfil atual derivado da fonte unificada:
+ * - UID vem do auth
+ * - perfil vem do usersMap
+ *
+ * Não usar state.currentUser como fonte principal.
+ */
 export const selectUserProfileData = createSelector(
-  selectUserState,
-  (state: IUserState): Partial<IUserDados> | null => {
-    const { currentUser } = state;
-    if (currentUser) {
-      return {
-        uid: currentUser.uid,
-        emailVerified: currentUser.emailVerified,
-        latitude: currentUser.latitude,
-        firstLogin: currentUser.firstLogin,
-        createdAt: currentUser.createdAt || currentUser.firstLogin,
-        // Adicione outros campos essenciais conforme necessário
-      };
-    }
-    return null;
+  selectCurrentUser,
+  (user: IUserDados | null): Partial<IUserDados> | null => {
+    if (!user) return null;
+
+    return {
+      uid: user.uid,
+      emailVerified: user.emailVerified,
+      latitude: user.latitude,
+      firstLogin: user.firstLogin,
+      createdAt: user.createdAt || user.firstLogin,
+    };
   }
 );
 
-// Novo seletor para obter dados de um usuário pelo UID
-export const selectUserProfileDataByUid = (uid: string) => createSelector(
-  selectUserState,
-  (state: IUserState): IUserDados | null => {
-    if (state && state.users && state.users[uid]) {
-      console.log(`Usuário com UID ${uid} encontrado no estado.`);
-      return state.users[uid];
-    } else {
-      console.log(`Usuário com UID ${uid} não encontrado no estado.`);
-      return null;
-    }
-  }
-);
+/**
+ * Busca perfil por UID no mapa de usuários.
+ * Selector puro, sem logs.
+ */
+export const selectUserProfileDataByUid = (uid: string) =>
+  createSelector(selectUsersMap, (usersMap): IUserDados | null => {
+    const safeUid = (uid ?? '').trim();
+    if (!safeUid) return null;
+    return usersMap[safeUid] ?? null;
+  });
 
-// Seleciona o UID do usuário autenticado
+/**
+ * UID do perfil atual derivado do selector principal.
+ */
 export const selectUserUID = createSelector(
-  selectUserProfileData,
-  (profile) => profile?.uid || null
+  selectCurrentUser,
+  (user) => user?.uid ?? null
 );
 
-// Seleciona se o e-mail do usuário está verificado
+/**
+ * Estado de verificação do e-mail do perfil atual.
+ */
 export const selectUserEmailVerified = createSelector(
-  selectUserProfileData,
-  (profile) => profile?.emailVerified || false
+  selectCurrentUser,
+  (user) => user?.emailVerified === true
 );

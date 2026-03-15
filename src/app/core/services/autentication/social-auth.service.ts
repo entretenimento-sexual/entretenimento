@@ -314,3 +314,7 @@ export class SocialAuthService {
     } catch { }
   }
 }
+// Verificar migrações de responsabilidades para o:
+// 1 - auth-route-context.service.ts, e;
+// 2 - auth-user-document-watch.service.ts, e;
+// 3 - auth-session-monitor.service.ts.

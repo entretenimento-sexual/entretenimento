@@ -1,248 +1,207 @@
 // src/app/core/services/autentication/auth/auth-orchestrator.service.ts
-// Não esqueça os comentários explicativos.
 // =============================================================================
 // AUTH ORCHESTRATOR (Efeitos colaterais e ciclo de vida)
 //
 // Objetivo principal deste service:
-// - Orquestrar “o que roda quando a sessão existe” (watchers, keepAlive, bloqueio, navegação defensiva).
-// - Garantir que listeners NÃO iniciem no registro e NÃO iniciem para emailVerified=false.
-// - Centralizar encerramento de sessão *quando inevitável* (auth inválido).
+// - Orquestrar o que roda quando a sessão existe (watchers, bloqueio,
+//   navegação defensiva e side-effects pós-login).
+// - Garantir que listeners de infraestrutura não iniciem no registro e não
+//   iniciem para emailVerified=false.
+// - Centralizar encerramento de sessão apenas quando inevitável.
 //
-// Regra de plataforma (conforme sua decisão):
-// ✅ O usuário só deve perder a sessão (signOut) por LOGOUT voluntário,
-//    EXCETO quando a própria sessão do Firebase Auth for tecnicamente inválida.
-// - Em problemas de Firestore (doc missing / permission-denied / status) nós NÃO deslogamos.
-//   Em vez disso: "bloqueamos" a sessão do app e redirecionamos para /register/welcome.
+// Fonte única:
+// - AuthSessionService = sessão Firebase/Auth
+// - CurrentUserStoreService = perfil runtime do app
+// - AuthAppBlockService = bloqueio do app
+// - AuthRouteContextService = contexto canônico de rota/auth-flow
+// - AuthUserDocumentWatchService = observação do users/{uid}
+// - AuthSessionMonitorService = monitor técnico da sessão
+// - AuthPostLoginEffectsService = efeitos pós-login
+// - AuthOrchestratorService = coordenação de side-effects
 //
-// Observação de arquitetura (fonte única):
-// - AuthSessionService: verdade do Firebase Auth
-// - CurrentUserStoreService: verdade do usuário do app (perfil/role/etc.)
-// - AuthAppBlockService: verdade do "bloqueio do app" (sem logout)
-// - AuthOrchestratorService: só side-effects e coordenação (não deve virar “store”)
+// Observação arquitetural:
+// - O listener do perfil users/{uid} NÃO é responsabilidade deste service.
+//   Ele permanece no fluxo oficial AuthSessionSyncEffects + UserEffects.
+// - Aqui ficam apenas side-effects de ciclo de vida.
+// - O contexto de rota entra como snapshot atômico via routeContext.context$.
 // =============================================================================
 
-import { Injectable, Injector, runInInjectionContext } from '@angular/core';
-import { NavigationEnd, Router } from '@angular/router';
+import { Injectable } from '@angular/core';
+import { Router } from '@angular/router';
 
-import { combineLatest, firstValueFrom, from, Observable, of, Subscription, timer } from 'rxjs';
+import { combineLatest, firstValueFrom, of, Subscription } from 'rxjs';
 import {
   catchError,
-  defaultIfEmpty,
   distinctUntilChanged,
-  exhaustMap,
   filter,
-  finalize,
   map,
-  scan,
-  startWith,
   switchMap,
   take,
+  tap,
 } from 'rxjs/operators';
+
 import type { User } from 'firebase/auth';
-import { doc, docSnapshots, Firestore } from '@angular/fire/firestore';
 
 import { AuthSessionService } from './auth-session.service';
-import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
+import { AuthRouteContextService } from './auth-route-context.service';
+import {
+  AuthUserDocumentWatchService,
+  type AuthUserDocumentWatchEvent,
+} from './auth-user-document-watch.service';
+import { AuthSessionMonitorService } from './auth-session-monitor.service';
+import { AuthPostLoginEffectsService } from './auth-post-login-effects.service';
 import { CurrentUserStoreService } from './current-user-store.service';
 import { AuthAppBlockService } from './auth-app-block.service';
 
-// ✅ central error routing
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
 import { environment } from 'src/environments/environment';
 import { LogoutService } from './logout.service';
 
-// ✅ tipos e helpers compartilhados
 import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.types';
-import { FirestoreUserWriteService } from '../../data-handling/firestore-user-write.service';
-import { GeolocationTrackingService } from '../../geolocation/geolocation-tracking.service';
 import { UserRepositoryService } from '../../data-handling/firestore/repositories/user-repository.service';
+
+type OrchestratorContext = {
+  ready: boolean;
+  routerReady: boolean;
+  authUser: User | null;
+  uid: string | null;
+  url: string;
+  navPath: string | null;
+  inReg: boolean;
+  unverified: boolean;
+  blockedReason: TerminateReason | null;
+};
 
 @Injectable({ providedIn: 'root' })
 export class AuthOrchestratorService {
-  // ✅ keepAlive RxJS (substitui setInterval)
-  private keepAliveSub: Subscription | null = null;
+  private userDocWatchSub: Subscription | null = null;
+  private postLoginSub: Subscription | null = null;
 
-  // Watchers de Firestore (doc principal + “deleted flag”)
-  private docSub: Subscription | null = null;
-  private deletedSub: Subscription | null = null;
-
-  // ✅ controle idempotente de watchers (evita reiniciar em toda navegação)
   private watchersUid: string | null = null;
   private watchersOn = false;
 
-  // ✅ UID atual da sessão do ciclo (para resetar só quando o user muda)
   private sessionUid: string | null = null;
+  private postLoginUid: string | null = null;
 
-  // Evita reentrância (ex.: múltiplos gatilhos simultâneos)
   private terminating = false;
-
-  // Grace time para não agir cedo demais no boot / pós-login
   private freshUntil = 0;
   private sawUserDocOnce = false;
-
-  // Se existir, mantemos pra compat com sua estrutura
-  private missingDocProbe?: any;
-
   private started = false;
 
-  // ✅ Post-login effects (1x por UID)
-  private postLoginUid: string | null = null;
-  private postLoginSub: Subscription | null = null;
+  private missingDocProbeId: ReturnType<typeof setTimeout> | null = null;
+  private readonly debug = !environment.production;
 
   /**
-   * Feature flag (opcional):
-   * - Se não existir no environment, default é TRUE (sua regra).
+   * true:
+   * - bloqueia o app e mantém a sessão autenticada quando o problema é de domínio
    *
-   * Sugestão de env (opcional):
-   * features: { logoutOnlyVoluntary: true, ... }
+   * false:
+   * - força hard signOut também nesses cenários
    */
   private readonly voluntaryLogoutOnly =
     (environment as any)?.features?.logoutOnlyVoluntary !== false;
 
   constructor(
-    private authSession: AuthSessionService,
-    private userQuery: FirestoreUserQueryService,
-    private currentUserStore: CurrentUserStoreService,
-    private userRepo: UserRepositoryService,
-    private router: Router,
-    private db: Firestore,
-    private injector: Injector,
-    private logoutService: LogoutService,
+    private readonly authSession: AuthSessionService,
+    private readonly routeContext: AuthRouteContextService,
+    private readonly userDocumentWatch: AuthUserDocumentWatchService,
+    private readonly sessionMonitor: AuthSessionMonitorService,
+    private readonly postLoginEffects: AuthPostLoginEffectsService,
+    private readonly currentUserStore: CurrentUserStoreService,
+    private readonly userRepo: UserRepositoryService,
+    private readonly router: Router,
+    private readonly logoutService: LogoutService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly errorNotifier: ErrorNotificationService,
+    private readonly appBlock: AuthAppBlockService,
+  ) {}
 
-    // ✅ centralizado
-    private globalErrorHandler: GlobalErrorHandlerService,
-    private errorNotifier: ErrorNotificationService,
-    private userWrite: FirestoreUserWriteService,
-    private geoloc: GeolocationTrackingService,
-
-    // ✅ fonte de verdade do “bloqueio do app”
-    private appBlock: AuthAppBlockService,
-  ) { }
-
-  // =========================================================
-  // Lifecycle
-  // =========================================================
+  private dbg(message: string, extra?: unknown): void {
+    if (!this.debug) return;
+    // eslint-disable-next-line no-console
+    console.log(`[AuthOrchestrator] ${message}`, extra ?? '');
+  }
 
   /**
-   * start()
-   * - Liga o “orquestrador” uma única vez.
-   * - Usa authSession.authUser$ como fonte de verdade (User | null).
-   * - Usa url$ para gating (registro vs app).
-   *
-   * Importante:
-   * - NÃO reinicia watchers/keepAlive em toda navegação.
-   * - Só reseta estado de ciclo quando o UID muda (troca de usuário).
-   * - Bloqueio do app é lido do AuthAppBlockService (sem duplicar estado local).
+   * Liga o orquestrador uma única vez.
    */
   start(): void {
     if (this.started) return;
     this.started = true;
 
-    // URL stream: ajuda a decidir gating (registro vs app)
-    const url$ = this.router.events.pipe(
-      filter((e): e is NavigationEnd => e instanceof NavigationEnd),
-      map((e) => e.urlAfterRedirects || e.url),
-      startWith(this.router.url || ''),
-      distinctUntilChanged()
-    );
-
-    combineLatest([this.authSession.authUser$, url$])
+    combineLatest([
+      this.authSession.ready$,
+      this.authSession.authUser$,
+      this.appBlock.reason$,
+      this.routeContext.context$,
+    ])
       .pipe(
         filter(() => typeof window !== 'undefined' && typeof document !== 'undefined'),
 
-        switchMap(([u, url]) => {
+        map(([ready, authUser, blockedReason, routeCtx]): OrchestratorContext => {
+          const uid = authUser?.uid ?? null;
+
+          return {
+            ready,
+            routerReady: routeCtx.routerReady,
+            authUser,
+            uid,
+            url: routeCtx.currentUrl,
+            navPath: routeCtx.navPath,
+            inReg: routeCtx.inRegistrationFlow,
+            unverified: authUser ? authUser.emailVerified !== true : false,
+            blockedReason,
+          };
+        }),
+
+        distinctUntilChanged((prev, curr) => this.isSameContext(prev, curr)),
+
+        tap((ctx) => {
+          this.dbg('context', {
+            ready: ctx.ready,
+            routerReady: ctx.routerReady,
+            uid: ctx.uid,
+            url: ctx.url,
+            navPath: ctx.navPath,
+            inReg: ctx.inReg,
+            unverified: ctx.unverified,
+            blockedReason: ctx.blockedReason,
+          });
+        }),
+
+        switchMap((ctx) => {
           if (this.terminating) return of(null);
+          if (!ctx.ready) return of(null);
+          if (!ctx.routerReady) return of(null);
 
-          // =========================================================
-          // Sem user: encerra efeitos colaterais e limpa estado do app
-          // =========================================================
-          if (!u) {
-            this.sessionUid = null;
-            this.currentUserStore.clear();
-            this.appBlock.clear();
-            this.stopKeepAlive();
-            this.stopWatchers();
+          if (!ctx.authUser || !ctx.uid) {
+            this.handleNoAuthUser();
+            return of(null);
+          }
 
-            // ✅ reset post-login effects
-            this.stopPostLoginEffects();
+          if (this.sessionUid !== ctx.uid) {
+            this.handleUidChange(ctx.uid);
+          }
 
-            this.sawUserDocOnce = false;
-            this.freshUntil = 0;
+          this.refreshGraceWindow(ctx.authUser);
 
-            if (this.missingDocProbe) {
-              clearTimeout(this.missingDocProbe);
-              this.missingDocProbe = undefined;
+          if (ctx.blockedReason) {
+            this.stopRuntimeSideEffects();
+
+            if (!ctx.inReg) {
+              this.navigateToWelcome(ctx.blockedReason, true);
             }
 
             return of(null);
           }
 
-          // =========================================================
-          // Troca de usuário: reseta apenas 1x por UID
-          // =========================================================
-          if (this.sessionUid !== u.uid) {
-            this.sessionUid = u.uid;
-            this.appBlock.clear();
+          const shouldRunAppMode = !ctx.inReg && !ctx.unverified;
 
-            // ✅ reset post-login effects ao trocar UID
-            this.stopPostLoginEffects();
-
-            this.sawUserDocOnce = false;
-            this.freshUntil = 0;
-
-            if (this.missingDocProbe) {
-              clearTimeout(this.missingDocProbe);
-              this.missingDocProbe = undefined;
-            }
-
-               this.stopWatchers();
-          }
-
-          // =========================================================
-          // Grace time (evita agir cedo demais no boot / pós-login)
-          // - Atualiza por "max" para não ficar encurtando/alongando sem querer
-          // =========================================================
-          const now = Date.now();
-          const createdAt = u.metadata?.creationTime
-            ? new Date(u.metadata.creationTime).getTime()
-            : now;
-
-          const graceNewUser = createdAt + 30_000;
-          const graceAnyLogin = now + 6_000;
-          this.freshUntil = Math.max(this.freshUntil, graceNewUser, graceAnyLogin);
-
-          // =========================================================
-          // Se o app estiver “bloqueado”, NÃO liga watchers/presença/keepAlive
-          // e mantém o usuário apenas no fluxo permitido (welcome).
-          // App bloqueado: não liga nada
-          // =========================================================
-          const blockedReason = this.appBlock.snapshot;
-          if (blockedReason) {
-            this.stopKeepAlive();
-            this.stopWatchers();
-
-            // ✅ também interrompe post-login effects
-            this.stopPostLoginEffects();
-
-            if (!this.inRegistrationFlow(url)) {
-              this.navigateToWelcome(blockedReason, true);
-            }
-            return of(null);
-          }
-
-          const inReg = this.inRegistrationFlow(url);
-          const unverified = u.emailVerified !== true;
-
-          this.startKeepAlive();
-
-          const shouldRunAppMode = !inReg && !unverified;
-
-          this.syncWatchers(u.uid, shouldRunAppMode);
-
-          // ✅ NOVO: seed/geo 1x por UID quando entrar em app mode
-          this.syncPostLoginEffects(u, shouldRunAppMode);
+          this.sessionMonitor.start();
+          this.syncWatchers(ctx.uid, shouldRunAppMode);
+          this.syncPostLoginEffects(ctx.authUser, shouldRunAppMode);
 
           return of(null);
         }),
@@ -255,9 +214,119 @@ export class AuthOrchestratorService {
       .subscribe();
   }
 
-  // =========================================================
-  // ✅ Post-login effects (seed + lastLogin + geo)
-  // =========================================================
+  private isSameContext(prev: OrchestratorContext, curr: OrchestratorContext): boolean {
+    if (prev.ready !== curr.ready) return false;
+    if (prev.routerReady !== curr.routerReady) return false;
+
+    if (!curr.ready) return true;
+    if (!curr.routerReady) return true;
+
+    if (prev.uid !== curr.uid) return false;
+    if (prev.blockedReason !== curr.blockedReason) return false;
+
+    if (!curr.uid) return true;
+
+    return (
+      prev.url === curr.url &&
+      prev.navPath === curr.navPath &&
+      prev.inReg === curr.inReg &&
+      prev.unverified === curr.unverified
+    );
+  }
+
+  private handleNoAuthUser(): void {
+    this.sessionUid = null;
+    this.currentUserStore.clear();
+    this.appBlock.clear();
+    this.stopRuntimeSideEffects();
+    this.resetTransientSessionState();
+
+    this.dbg('handleNoAuthUser()');
+  }
+
+  private handleUidChange(uid: string): void {
+    this.sessionUid = uid;
+    this.appBlock.clear();
+    this.currentUserStore.markUnhydrated();
+    this.stopPostLoginEffects();
+    this.stopWatchers();
+    this.resetTransientSessionState();
+
+    this.dbg('handleUidChange()', { uid });
+  }
+
+  private resetTransientSessionState(): void {
+    this.sawUserDocOnce = false;
+    this.freshUntil = 0;
+    this.clearMissingDocProbe();
+  }
+
+  private stopRuntimeSideEffects(): void {
+    this.sessionMonitor.stop();
+    this.stopWatchers();
+    this.stopPostLoginEffects();
+  }
+
+  private refreshGraceWindow(authUser: User): void {
+    const now = Date.now();
+    const createdAt = authUser.metadata?.creationTime
+      ? new Date(authUser.metadata.creationTime).getTime()
+      : now;
+
+    const graceNewUser = createdAt + 30_000;
+    const graceAnyLogin = now + 6_000;
+
+    this.freshUntil = Math.max(this.freshUntil, graceNewUser, graceAnyLogin);
+  }
+
+  private clearMissingDocProbe(): void {
+    if (!this.missingDocProbeId) return;
+    clearTimeout(this.missingDocProbeId);
+    this.missingDocProbeId = null;
+  }
+
+  private scheduleMissingDocConfirm(
+    uid: string,
+    reason: Extract<TerminateReason, 'deleted' | 'doc-missing-confirmed'>
+  ): void {
+    this.clearMissingDocProbe();
+
+    const delay = Math.max(this.freshUntil - Date.now(), 0) + 150;
+
+    this.missingDocProbeId = setTimeout(() => {
+      this.missingDocProbeId = null;
+
+      this.confirmAndSignOutIfMissing(uid, reason).catch((err) => {
+        this.reportSilent(err, {
+          phase: 'missingDocProbe',
+          uid,
+          reason,
+        });
+      });
+    }, delay);
+  }
+
+  private async confirmAndSignOutIfMissing(
+    uid: string,
+    reason: Extract<TerminateReason, 'deleted' | 'doc-missing-confirmed'>
+  ): Promise<void> {
+    const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
+
+    if (!allowAct) {
+      this.scheduleMissingDocConfirm(uid, reason);
+      return;
+    }
+
+    const stillMissing = await firstValueFrom(this.userRepo.confirmUserDocMissing$(uid));
+    if (!stillMissing) return;
+
+    if (this.voluntaryLogoutOnly) {
+      this.blockAppSession(reason);
+      return;
+    }
+
+    this.hardSignOutToEntry(reason);
+  }
 
   private stopPostLoginEffects(): void {
     this.postLoginSub?.unsubscribe();
@@ -266,118 +335,82 @@ export class AuthOrchestratorService {
   }
 
   private syncPostLoginEffects(authUser: User, shouldRun: boolean): void {
-    if (!shouldRun) return;
+    if (!shouldRun) {
+      if (this.postLoginSub) {
+        this.stopPostLoginEffects();
+      }
+      return;
+    }
 
     if (this.postLoginUid === authUser.uid) return;
 
     this.stopPostLoginEffects();
     this.postLoginUid = authUser.uid;
 
-    this.postLoginSub = this.runPostLoginEffects$(authUser)
+    this.postLoginSub = this.postLoginEffects
+      .run$(authUser)
       .pipe(take(1))
-      .subscribe({ next: () => { }, error: () => { } });
+      .subscribe({
+        next: () => {
+          this.postLoginSub = null;
+        },
+        error: () => {
+          this.postLoginSub = null;
+        },
+        complete: () => {
+          this.postLoginSub = null;
+        },
+      });
   }
 
-  private runPostLoginEffects$(authUser: User) {
-    // Tudo best-effort: não derruba app mode.
-    return this.userWrite.ensureUserDoc$(authUser, {
-      nickname: authUser.displayName ?? null,
-    }).pipe(
-      switchMap(() => this.userWrite.patchLastLogin$(authUser.uid)),
-      switchMap(() => this.autoStartGeolocationBestEffort$(authUser.uid)),
-      catchError((err) => {
-        this.reportSilent(err, { phase: 'postLogin.effects', uid: authUser.uid });
-        return of(void 0);
-      }),
-      map(() => void 0)
-    );
-  }
-
-  private autoStartGeolocationBestEffort$(uid: string) {
-    return from(this.geoloc.autoStartTracking(uid)).pipe(
-      catchError((err) => {
-        // sem toast aqui (geoloc já faz throttle quando precisa)
-        this.reportSilent(err, { phase: 'geolocation.autoStartTracking', uid });
-        return of(void 0);
-      }),
-      map(() => void 0)
-    );
-  }
-
-  // =========================================================
-  // Error routing (central)
-  // =========================================================
-
-  /**
-   * reportSilent()
-   * - Encaminha erros internos para o GlobalErrorHandlerService.
-   * - Marca como "silent" para evitar UX agressiva em streams internos.
-   */
-  private reportSilent(err: any, context: any): void {
+  private reportSilent(err: unknown, context: Record<string, unknown>): void {
     try {
-      const e = new Error('[AuthOrchestrator] internal error');
-      (e as any).silent = true;
-      (e as any).original = err;
-      (e as any).context = context;
-      this.globalErrorHandler.handleError(e);
+      const error = new Error('[AuthOrchestrator] internal error');
+      (error as any).silent = true;
+      (error as any).skipUserNotification = true;
+      (error as any).original = err;
+      (error as any).context = context;
+      this.globalErrorHandler.handleError(error);
     } catch {
       // noop
     }
   }
 
-  /**
-   * ✅ Notificação “privacy friendly”
-   * Importante: não diz “sessão encerrada” quando NÃO há signOut.
-   */
   private notifyAppBlocked(reason: TerminateReason): void {
     const url = this.router.url || '';
-    if (this.inRegistrationFlow(url)) return;
+    if (this.isRegistrationFlowUrl(url)) return;
 
-    // Mensagem curta e genérica (evita detalhes sensíveis)
-    this.errorNotifier.showError('Sua conta precisa de atenção. Finalize as etapas para continuar.');
+    this.errorNotifier.showError(
+      'Sua conta precisa de atenção. Finalize as etapas para continuar.'
+    );
+
     this.reportSilent(new Error('App session blocked'), { reason });
   }
 
-  // =========================================================
-  // Navigation helpers
-  // =========================================================
-
   private navigateToWelcome(reason: TerminateReason, replaceUrl = true): void {
     const target = '/register/welcome';
-    // evita reentrância/loop de navegação
+
     if ((this.router.url || '').startsWith(target)) return;
 
-    this.router.navigate([target], {
-      queryParams: { reason, autocheck: '1' },
-      replaceUrl,
-    }).catch(() => { });
+    this.router
+      .navigate([target], {
+        queryParams: { reason, autocheck: '1' },
+        replaceUrl,
+      })
+      .catch(() => {});
   }
 
-  private inRegistrationFlow(url: string): boolean {
+  private isRegistrationFlowUrl(url: string): boolean {
     return isRegFlow(url);
   }
 
-  // =========================================================
-  // Watchers coordinator (evita restart em toda navegação)
-  // =========================================================
-
-  /**
-   * stopWatchers()
-   * - Para watchers de forma idempotente e zera flags internas.
-   */
   private stopWatchers(): void {
-    this.unwatchUserDoc();
-    this.unwatchDeleted();
+    this.userDocWatchSub?.unsubscribe();
+    this.userDocWatchSub = null;
     this.watchersOn = false;
     this.watchersUid = null;
   }
 
-  /**
-   * syncWatchers()
-   * - Liga/desliga watchers sem “churn” em toda navegação.
-   * - Se já estiver ligado para o mesmo uid, não faz nada.
-   * - Se precisar mudar uid ou ligar pela primeira vez, recria subscriptions.
-   */
   private syncWatchers(uid: string, shouldRun: boolean): void {
     if (!shouldRun) {
       if (this.watchersOn) this.stopWatchers();
@@ -386,311 +419,139 @@ export class AuthOrchestratorService {
 
     if (this.watchersOn && this.watchersUid === uid) return;
 
-    // troca de uid ou primeira vez: reinicia de forma controlada
     this.stopWatchers();
-    this.watchUserDoc(uid);
-    this.watchUserDocDeleted(uid);
+    this.startUserDocumentWatch(uid);
+
     this.watchersOn = true;
     this.watchersUid = uid;
+
+    this.dbg('syncWatchers()', { uid, shouldRun });
   }
 
-  /**
-   * Mantém a nomenclatura (compat) mas muda o comportamento:
-   * - Antes: confirmava e dava signOut.
-   * - Agora: confirmando ausência, BLOQUEIA o app (não desloga).
-   */
-  private async confirmAndSignOutIfMissing(
-    uid: string,
-    reason: Extract<TerminateReason, 'deleted' | 'doc-missing-confirmed'>
-  ): Promise<void> {
-    const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
-    if (!allowAct) return;
-
-    const stillMissing = await firstValueFrom(this.userRepo.confirmUserDocMissing$(uid));
-    if (!stillMissing) return;
-
-    // ✅ regra: não deslogar por Firestore
-    if (this.voluntaryLogoutOnly) {
-      this.blockAppSession(reason);
-      return;
-    }
-    // fallback (se algum dia você desligar a regra)
-    this.hardSignOutToEntry(reason);
-  }
-
-  // =========================================================
-  // Watchers (Firestore)
-  // =========================================================
-
-  /**
-   * watchUserDoc()
-   * - Observa o doc principal do usuário em /users/{uid}
-   * - Responsável por detectar flags/estado (suspended/deleted) e aplicar regra:
-   *   - voluntaryLogoutOnly=true -> bloqueia o app (sem signOut)
-   *   - voluntaryLogoutOnly=false -> fallback: signOut
-   */
-  private watchUserDoc(uid: string): void {
-    const ref = runInInjectionContext(this.injector, () => doc(this.db, 'users', uid));
-
-    this.docSub = runInInjectionContext(this.injector, () => docSnapshots(ref)).subscribe({
-      next: (snap) => {
-        if (!snap.exists()) {
-          // doc ausente: confirma via server e aplica regra
-          this.confirmAndSignOutIfMissing(uid, 'doc-missing-confirmed');
-          return;
-        }
-
-        this.sawUserDocOnce = true;
-
-        const data: any = snap.data() || {};
-        const status = (data.status || data.moderation?.status || '').toString().toLowerCase();
-
-        const suspended =
-          data.isSuspended === true ||
-          data.isBanned === true ||
-          status === 'suspended' ||
-          status === 'banned';
-
-        const deletedByUser =
-          data.isDeleted === true ||
-          !!data.deletedAt ||
-          status === 'deleted';
-
-        if (suspended) {
-          return this.voluntaryLogoutOnly
-            ? this.blockAppSession('suspended')
-            : this.hardSignOutToEntry('suspended');
-        }
-
-        if (deletedByUser) {
-          return this.voluntaryLogoutOnly
-            ? this.blockAppSession('deleted')
-            : this.hardSignOutToEntry('deleted');
-        }
-      },
-
-      error: (err: any) => {
-        const code = (err?.code || '').toString();
-
-        // sempre reporta (silent)
-        this.reportSilent(err, { phase: 'watchUserDoc', uid, code });
-
-        // ✅ permission-denied: não deslogar; bloqueia app (fora do registro)
-        if (code === 'permission-denied') {
-          const url = this.router.url || '';
-          if (this.inRegistrationFlow(url)) return;
-
-          const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
-          if (!allowAct) return;
-
-          return this.voluntaryLogoutOnly
-            ? this.blockAppSession('forbidden')
-            : this.hardSignOutToEntry('forbidden');
-        }
+  private startUserDocumentWatch(uid: string): void {
+    this.userDocWatchSub = this.userDocumentWatch.watch$(uid).subscribe({
+      next: (event) => this.handleUserDocumentWatchEvent(event),
+      error: (err) => {
+        this.reportSilent(err, {
+          phase: 'userDocumentWatch.subscribe',
+          uid,
+        });
       },
     });
   }
 
-  private unwatchUserDoc(): void {
-    if (this.docSub) {
-      this.docSub.unsubscribe();
-      this.docSub = null;
+  private handleUserDocumentWatchEvent(event: AuthUserDocumentWatchEvent): void {
+    switch (event.type) {
+      case 'exists': {
+        this.clearMissingDocProbe();
+        this.sawUserDocOnce = true;
+        return;
+      }
+
+      case 'missing': {
+        this.confirmAndSignOutIfMissing(event.uid, 'doc-missing-confirmed').catch((err) => {
+          this.reportSilent(err, {
+            phase: 'userDocumentWatch.missing',
+            uid: event.uid,
+          });
+        });
+        return;
+      }
+
+      case 'suspended': {
+        if (this.voluntaryLogoutOnly) {
+          this.blockAppSession('suspended');
+          return;
+        }
+
+        this.hardSignOutToEntry('suspended');
+        return;
+      }
+
+      case 'deleted': {
+        if (event.source === 'deleted-flag') {
+          this.confirmAndSignOutIfMissing(event.uid, 'deleted').catch((err) => {
+            this.reportSilent(err, {
+              phase: 'userDocumentWatch.deletedFlag',
+              uid: event.uid,
+            });
+          });
+          return;
+        }
+
+        if (this.voluntaryLogoutOnly) {
+          this.blockAppSession('deleted');
+          return;
+        }
+
+        this.hardSignOutToEntry('deleted');
+        return;
+      }
+
+      case 'forbidden': {
+        this.reportSilent(event.error, {
+          phase: 'userDocumentWatch.forbidden',
+          uid: event.uid,
+          source: event.source,
+          code: event.code,
+        });
+
+        const url = this.router.url || '';
+        if (this.isRegistrationFlowUrl(url)) return;
+
+        const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
+        if (!allowAct) return;
+
+        if (this.voluntaryLogoutOnly) {
+          this.blockAppSession('forbidden');
+          return;
+        }
+
+        this.hardSignOutToEntry('forbidden');
+        return;
+      }
+
+      case 'error': {
+        this.reportSilent(event.error, {
+          phase: 'userDocumentWatch.error',
+          uid: event.uid,
+          source: event.source,
+          code: event.code,
+        });
+        return;
+      }
     }
   }
 
-  /**
-   * watchUserDocDeleted()
-   * - Observa um stream mais “leve” (do seu userQuery) para detectar “deleted flag”.
-   * - Ao disparar, confirma no server e aplica a regra (bloqueio vs signOut fallback).
-   */
-  private watchUserDocDeleted(uid: string): void {
-    this.deletedSub = this.userQuery
-      .watchUserDocDeleted$(uid)
-      .pipe(
-        scan(
-          (state, deleted) => {
-            if (state.fired) return state;
-
-            const allowAct = this.sawUserDocOnce || Date.now() > this.freshUntil;
-            const shouldFire = deleted && allowAct;
-
-            return { fired: shouldFire || state.fired };
-          },
-          { fired: false as boolean }
-        ),
-        take(1)
-      )
-      .subscribe({
-        next: () => {
-          // confirma via server e aplica regra
-          this.confirmAndSignOutIfMissing(uid, 'deleted');
-        },
-        error: (err) => {
-          this.reportSilent(err, { phase: 'watchUserDocDeleted', uid });
-        },
-      });
-  }
-
-  private unwatchDeleted(): void {
-    if (this.deletedSub) {
-      this.deletedSub.unsubscribe();
-      this.deletedSub = null;
-    }
-  }
-
-  // =========================================================
-  // ✅ KeepAlive RxJS (mantendo nomes start/stop)
-  // =========================================================
-
-  /**
-   * startKeepAlive()
-   * - Mantém a sessão “quente” e detecta invalidação técnica do Auth.
-   * - Único caso de signOut inevitável: Auth diz que o token/user é inválido.
-   */
-  private startKeepAlive(): void {
-    if (this.keepAliveSub) return;
-
-    // 10 min
-    this.keepAliveSub = timer(600_000, 600_000)
-      .pipe(
-        exhaustMap(() => {
-          const u = this.authSession.currentAuthUser; // ✅ sem injetar Auth no Orchestrator
-          if (!u) return of(null);
-
-          return from(u.reload()).pipe(
-            map(() => null),
-            catchError((e: any) => {
-              const code = e?.code || '';
-
-              /**
-               * ✅ ÚNICO caso onde signOut é inevitável:
-               * o Firebase Auth diz que a sessão é inválida/expirada/desabilitada.
-               */
-              if (
-                code === 'auth/user-token-expired' ||
-                code === 'auth/user-disabled' ||
-                code === 'auth/user-not-found' ||
-                code === 'auth/invalid-user-token'
-              ) {
-                // delega hard signOut real + limpeza
-                this.logoutService.hardSignOutToWelcome('auth-invalid');
-                return of(null);
-              }
-
-              // não fatal: só observabilidade
-              this.reportSilent(e, { phase: 'keepAlive.reload' });
-              return of(null);
-            })
-          );
-        }),
-        catchError((err) => {
-          this.reportSilent(err, { phase: 'keepAlive.pipeline' });
-          return of(null);
-        })
-      )
-      .subscribe();
-  }
-
-  private stopKeepAlive(): void {
-    this.keepAliveSub?.unsubscribe();
-    this.keepAliveSub = null;
-  }
-
-  // =========================================================
-  // ✅ SignOut inevitável (compat wrapper)
-  // - Não “faz logout” por Firestore quando voluntaryLogoutOnly=true.
-  // - Serve apenas como fallback (quando voluntaryLogoutOnly=false).
-  // - Execução real fica no LogoutService.
-  // =========================================================
   private hardSignOutToEntry(reason: TerminateReason): void {
     if (this.terminating) return;
     this.terminating = true;
 
-    // Para efeitos colaterais locais (evita ruído durante signOut)
-    this.stopKeepAlive();
-    this.stopWatchers();
-
-    if (this.missingDocProbe) {
-      clearTimeout(this.missingDocProbe);
-      this.missingDocProbe = undefined;
-    }
-
     try {
-      // ✅ delega signOut + navegação + limpeza (fonte de verdade)
-      this.logoutService.hardSignOutToWelcome(reason);
+      this.stopRuntimeSideEffects();
+      this.clearMissingDocProbe();
 
-      // bloqueio não deve sobreviver ao hard signOut
+      this.logoutService.hardSignOutToWelcome(reason);
       this.appBlock.clear();
     } finally {
-      // IMPORTANTÍSSIMO: não pode ficar true pra sempre (senão “mata” o pipeline do start()).
       this.terminating = false;
     }
   }
 
-  // =========================================================
-  // ✅ “Bloqueio do app” sem logout (regra principal)
-  // =========================================================
-
-  /**
-   * blockAppSession()
-   * Bloqueia o APP mantendo a sessão autenticada.
-   * - Persiste o motivo no AuthAppBlockService (fonte de verdade única)
-   * - Para watchers/presença/keepAlive (pra não gerar ruído)
-   * - Redireciona para /register/welcome
-   *
-   * Obs.: hoje, só sai desse estado com logout (conforme sua regra).
-   */
-  // =========================================================
-  // ✅ “Bloqueio do app” sem logout (regra principal)
-  // =========================================================
   private blockAppSession(reason: TerminateReason): void {
     if (this.terminating) return;
     this.terminating = true;
 
     try {
-      // ✅ fonte única do bloqueio
       this.appBlock.set(reason);
+      this.currentUserStore.setUnavailable();
+      this.stopRuntimeSideEffects();
+      this.clearMissingDocProbe();
 
-      // para side-effects
-      this.stopKeepAlive();
-      this.stopWatchers();
-
-      if (this.missingDocProbe) {
-        clearTimeout(this.missingDocProbe);
-        this.missingDocProbe = undefined;
-      }
-
-      // ✅ feedback não sensível + redireciona para fluxo permitido
       this.notifyAppBlocked(reason);
       this.navigateToWelcome(reason, true);
     } finally {
       this.terminating = false;
     }
   }
-} // Fim do AuthOrchestratorService com 670 linhas, efetuar migrações de partes com menos
- // afeição com a orquestração para services mais especificos
-
-/*
-  AuthSessionService = verdade do Firebase Auth (authUser$, uid$, ready$)
-  CurrentUserStoreService = verdade do usuário do app (IUserDados / role / profileCompleted)
-  AuthAppBlockService = verdade do "bloqueio do app" (TerminateReason | null)
-  AuthOrchestratorService = efeitos colaterais (presence, watchers, keepAlive, navegação defensiva)
-*/
-/*
-src/app/core/services/autentication/auth/auth-session.service.ts
-src/app/core/services/autentication/auth/current-user-store.service.ts
-src/app/core/services/autentication/auth/auth-orchestrator.service.ts
-src/app/core/services/autentication/auth/auth.facade.ts
-src/app/core/services/autentication/auth/logout.service.ts
-*/
-/*
-Sobre o LogoutService parar presença
-
-O LogoutService ainda chama presence.stop$().
-Voluntário: você quer escrever offline/lastSeen antes de sair (melhor consistência).
-Hard signOut: idem.
-Mesmo que o PresenceOrchestrator também faça STOP ao cair o gate, o PresenceService.stop$() é idempotente (segunda chamada tende a não escrever nada porque activeUid já foi limpo).
-
-manter como está para garantir o offline antes do signOut.
-
-*/
+} // fim do auth-orchestrator.service.ts, linha 557

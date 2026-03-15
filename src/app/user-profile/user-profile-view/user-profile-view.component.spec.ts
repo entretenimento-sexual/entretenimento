@@ -6,7 +6,7 @@ import { RouterTestingModule } from '@angular/router/testing';
 
 import { UserProfileViewComponent } from './user-profile-view.component';
 
-// ✅ imports RELATIVOS (sem aliases)
+// imports relativos
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { SidebarService } from '../../core/services/sidebar.service';
@@ -18,56 +18,116 @@ import { RoomManagementService } from '../../core/services/batepapo/room-service
 import { provideMockStore } from '@ngrx/store/testing';
 
 // ====== STUBS ======
+
 class MockCurrentUserStoreService {
-  // Emite um usuário logado mínimo
-  user$ = new BehaviorSubject<any>({ uid: 'test-uid', role: 'premium', isSubscriber: true });
+  user$ = new BehaviorSubject<any | null | undefined>({
+    uid: 'test-uid',
+    role: 'premium',
+    isSubscriber: true,
+  });
 }
+
 class MockAuthSessionService {
+  private readonly authUserSubject = new BehaviorSubject<any | null>({
+    uid: 'test-uid',
+    email: 'alex@example.com',
+    emailVerified: true,
+  });
+
+  private readonly uidSubject = new BehaviorSubject<string | null>('test-uid');
+
+  authUser$ = this.authUserSubject.asObservable();
+  uid$ = this.uidSubject.asObservable();
+  currentAuthUser: { uid: string; email?: string; emailVerified?: boolean } | null = {
+    uid: 'test-uid',
+    email: 'alex@example.com',
+    emailVerified: true,
+  };
+
   signOut$ = jest.fn(() => of(void 0));
+
+  setAuthUser(user: { uid: string; email?: string; emailVerified?: boolean } | null): void {
+    this.currentAuthUser = user;
+    this.authUserSubject.next(user);
+    this.uidSubject.next(user?.uid ?? null);
+  }
 }
+
 class MockSidebarService {
   isSidebarVisible$ = new BehaviorSubject<boolean>(false);
 }
+
 class MockUserSocialLinksService {
   getSocialLinks = jest.fn(() => of(null));
+  saveSocialLinks = jest.fn(() => of(void 0));
+  removeLink = jest.fn(() => of(void 0));
 }
+
 class MockFirestoreUserQueryService {
-  getUser = jest.fn(() => of({ uid: 'test-uid', nickname: 'Alex', photoURL: '' }));
+  getUser = jest.fn(() =>
+    of({
+      uid: 'test-uid',
+      nickname: 'Alex',
+      photoURL: '',
+    })
+  );
+
+  getUserWithObservable = jest.fn(() =>
+    of({
+      uid: 'test-uid',
+      nickname: 'Alex',
+      photoURL: '',
+    })
+  );
 }
+
 class MockErrorNotificationService {
   showError = jest.fn();
   showSuccess = jest.fn();
 }
+
 class MockRoomManagementService {
   createRoom = jest.fn(() => of({ id: 'room-1' }));
 }
 
 describe('UserProfileViewComponent', () => {
   let fixture: ComponentFixture<UserProfileViewComponent>;
+  let component: UserProfileViewComponent;
 
-  // Estado mínimo para o MockStore; o selector selectUserById não será exercitado aqui,
-  // mas mantemos uma estrutura segura.
   const initialState = {
-    users: { users: { 'test-uid': { uid: 'test-uid', isSidebarOpen: false } } },
-    friends: { friends: [], requests: [] },
+    users: {
+      users: {
+        'test-uid': {
+          uid: 'test-uid',
+          isSidebarOpen: false,
+        },
+      },
+    },
+    friends: {
+      friends: [],
+      requests: [],
+    },
   } as any;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [
-        UserProfileViewComponent,     // standalone
+        UserProfileViewComponent,
         RouterTestingModule.withRoutes([]),
       ],
       providers: [
         provideMockStore({ initialState }),
-        { provide: ActivatedRoute, useValue: { paramMap: of(convertToParamMap({ id: 'test-uid' })) } },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            paramMap: of(convertToParamMap({ id: 'test-uid' })),
+          },
+        },
 
-        // ===== DI realocados para nova base
         { provide: CurrentUserStoreService, useClass: MockCurrentUserStoreService },
         { provide: AuthSessionService, useClass: MockAuthSessionService },
         { provide: SidebarService, useClass: MockSidebarService },
 
-        // ===== serviços usados por filhos standalone
         { provide: UserSocialLinksService, useClass: MockUserSocialLinksService },
         { provide: FirestoreUserQueryService, useClass: MockFirestoreUserQueryService },
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },
@@ -76,10 +136,12 @@ describe('UserProfileViewComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(UserProfileViewComponent);
+    component = fixture.componentInstance;
+
     fixture.detectChanges();
   });
 
   it('should create', () => {
-    expect(fixture.componentInstance).toBeTruthy();
+    expect(component).toBeTruthy();
   });
 });

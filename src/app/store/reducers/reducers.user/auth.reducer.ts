@@ -9,15 +9,15 @@ import { AuthState, //Está esmaecido
 export const authReducer = createReducer(
   initialAuthState,
 
-  on(authSessionChanged, (state, { uid, emailVerified }) => ({
-    ...state,
-    ready: true,
-    isAuthenticated: !!uid,
-    userId: uid,
-    emailVerified,
-    loading: false,
-    error: null,
-  })),
+on(authSessionChanged, (state, { uid, emailVerified }) => ({
+  ...state,
+  ready: true,
+  isAuthenticated: !!uid,
+  userId: uid,
+  emailVerified: !!uid && emailVerified === true,
+  loading: false,
+  error: null,
+})),
 
   on(loginStart, (state) => ({
     ...state,

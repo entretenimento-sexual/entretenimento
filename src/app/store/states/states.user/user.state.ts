@@ -1,29 +1,62 @@
-// src/app/store/states/user.state.ts
+//src\app\store\states\states.user\user.state.ts
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
-export interface IUserState {  /**   * Lista completa de usuários armazenados no estado.   */
-  users: { [uid: string]: IUserDados }; // Transformado para objeto indexado por UID
+export interface IUserState {
+  /**
+   * Entidades indexadas por UID.
+   * Mantemos esse shape para compatibilidade com o restante do projeto.
+   */
+  users: { [uid: string]: IUserDados };
+
+  /**
+   * Espelho do current user no NgRx.
+   * A fonte de verdade do runtime continua sendo o CurrentUserStoreService.
+   */
   currentUser: IUserDados | null;
-  onlineUsers: IUserDados[];  // Lista de usuários online separada
-  filteredUsers: IUserDados[];  /**Indicador de carregamento.*/
+
+  /**
+   * Flags explícitas do ciclo de hidratação do current user.
+   *
+   * currentUserHydrated:
+   * - false => ainda não conseguimos afirmar que o perfil do app está resolvido
+   * - true  => o store já concluiu uma decisão sobre o current user
+   *
+   * currentUserLoading:
+   * - true  => observação/hidratação do users/{uid} em andamento
+   * - false => ciclo atual parado ou concluído
+   */
+  currentUserHydrated: boolean;
+  currentUserLoading: boolean;
+
+  /**
+   * Presença/listas derivadas.
+   * Online users continuam vindo do fluxo oficial de presença/query.
+   */
+  onlineUsers: IUserDados[];
+  filteredUsers: IUserDados[];
+
+  /**
+   * Loading da lista geral de usuários.
+   * Não misturar com currentUserLoading.
+   */
   loading: boolean;
-   //Armazena qualquer erro que ocorra durante a operação relacionada aos usuários.
-   //Pode ser utilizado para exibir mensagens de erro na interface do usuário.
-  error: any;
+
+  /**
+   * Último erro serializado relevante ao domínio user.
+   */
+  error: unknown | null;
 }
 
-export const initialUserState: IUserState = {  /**Inicialmente, a lista de usuários está vazia.*/
-  users: {}, // Inicialmente, objeto vazio
+export const initialUserState: IUserState = {
+  users: {},
   currentUser: null,
-  onlineUsers: [], /**Inicialmente, a lista de usuários filtrados também está vazia.*/
-  filteredUsers: [],  /**   * O carregamento não está em progresso inicialmente.   */
-  loading: false,  /**Não há erros inicialmente.*/
+
+  currentUserHydrated: false,
+  currentUserLoading: false,
+
+  onlineUsers: [],
+  filteredUsers: [],
+
+  loading: false,
   error: null,
 };
-/*CurrentUserStore manda no IUserDados
-qualquer UID fora disso vira derivado / compat
-// ainda está sendo usado em alguns lugares e precisa ser migrado.
-Ferramentas de debug ajudam bastante
-É assim que funcionam as grandes plataformas?
-Compatibilizar o estado online do usuário com o presence.service e aproximar do funcionamento ideal
-*/

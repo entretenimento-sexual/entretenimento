@@ -10,11 +10,91 @@ import { selectUsersMap, selectOnlineUsers } from './user.selectors';
 import { selectAuthUid } from './auth.selectors';
 
 /**
- * Fonte de verdade:
- * - "online" deriva do PresenceService/Firestore (selectOnlineUsers).
- * - Este selector NÃO deve inferir online via usersMap nem injetar isOnline=true.
- * - Faz apenas o "join" para obter dados completos quando disponíveis.
+ * Observação arquitetural:
+ * - onlineUsers = coleção presence (efêmera)
+ * - usersMap = perfis persistentes
+ * - este selector faz o JOIN entre as duas camadas
+ *
+ * Regra:
+ * - nunca inferir "online" fora do fluxo de presença
+ * - nunca usar onlineUsers para sobrescrever o usersMap no reducer
  */
+
+function mergeProfileWithPresence(
+  profile: IUserDados | null | undefined,
+  presence: IUserDados | null | undefined
+): IUserDados | null {
+  if (!profile && !presence) return null;
+  if (!profile) return presence ?? null;
+  if (!presence) return profile ?? null;
+
+  return {
+    ...profile,
+    ...presence,
+
+    // uid canônico preservado
+    uid: presence.uid || profile.uid,
+
+    // prioridade explícita para campos de presença
+    isOnline: (presence as any)?.isOnline ?? (profile as any)?.isOnline,
+    lastSeen: (presence as any)?.lastSeen ?? (profile as any)?.lastSeen,
+    lastOnlineAt: (presence as any)?.lastOnlineAt ?? (profile as any)?.lastOnlineAt,
+    lastOfflineAt: (presence as any)?.lastOfflineAt ?? (profile as any)?.lastOfflineAt,
+    lastStateChangeAt:
+      (presence as any)?.lastStateChangeAt ?? (profile as any)?.lastStateChangeAt,
+    presenceState:
+      (presence as any)?.presenceState ?? (profile as any)?.presenceState,
+  } as IUserDados;
+}
+
+/**
+ * Regra de exposição do produto:
+ * - preferimos o perfil persistente quando ele existir
+ * - se não houver perfil persistente, não “inventamos” elegibilidade premium/profile
+ * - isso evita expor usuários com base apenas em doc efêmero de presença
+ */
+function canExposeUser(
+  merged: IUserDados | null | undefined,
+  profile: IUserDados | null | undefined
+): boolean {
+  if (!merged?.uid) return false;
+
+  const anyMerged = merged as any;
+  const anyProfile = profile as any;
+
+  // opt-out futuro
+  if (anyMerged?.hideFromOnline === true) return false;
+
+  // se temos perfil persistente, aplicamos regra mais rica
+  if (profile) {
+    const profileCompleted = anyProfile?.profileCompleted === true;
+
+    const hasMinFields =
+      typeof anyProfile?.gender === 'string' &&
+      anyProfile.gender.trim() !== '' &&
+      typeof anyProfile?.estado === 'string' &&
+      anyProfile.estado.trim() !== '' &&
+      typeof anyProfile?.municipio === 'string' &&
+      anyProfile.municipio.trim() !== '';
+
+    // quando explicitamente false, não expõe
+    if (anyProfile?.emailVerified === false) return false;
+
+    return profileCompleted || hasMinFields;
+  }
+
+  /**
+   * Fallback sem perfil persistente:
+   * - aceitamos apenas presença com dados mínimos de exibição
+   * - isso evita cards “fantasma” só com uid
+   */
+  const hasDisplayData =
+    (typeof anyMerged?.nickname === 'string' && anyMerged.nickname.trim() !== '') ||
+    (typeof anyMerged?.photoURL === 'string' && anyMerged.photoURL.trim() !== '');
+
+  return hasDisplayData;
+}
+
 export const selectGlobalOnlineUsers = createSelector(
   selectOnlineUsers,
   selectUsersMap,
@@ -24,24 +104,20 @@ export const selectGlobalOnlineUsers = createSelector(
     const seen = new Set<string>();
     const out: IUserDados[] = [];
 
-    for (const item of list) {
-      const uid = item?.uid;
+    for (const presenceItem of list) {
+      const uid = presenceItem?.uid;
       if (!uid) continue;
       if (uid === meUid) continue;
 
-      // se vier duplicado do backend/store, evita duplicar no VM
       if (seen.has(uid)) continue;
       seen.add(uid);
 
-      // prioridade: dados completos do usersMap
-      const full = usersMap?.[uid];
-      if (full?.uid) {
-        out.push(full);
-        continue;
-      }
+      const profile = usersMap?.[uid] ?? null;
+      const merged = mergeProfileWithPresence(profile, presenceItem);
 
-      // fallback: mantém o item da presença (não é "injeção", é dado do Firestore)
-      out.push(item as IUserDados);
+      if (!canExposeUser(merged, profile)) continue;
+
+      out.push(merged as IUserDados);
     }
 
     return out;

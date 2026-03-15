@@ -1,9 +1,9 @@
 // src/app/header/navbar/navbar.component.spec.ts
 import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
-import { Router, NavigationEnd } from '@angular/router';
+import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
-import { of, BehaviorSubject, Subject } from 'rxjs';
+import { BehaviorSubject, of } from 'rxjs';
 
 import { NavbarComponent } from './navbar.component';
 import { Auth } from '@angular/fire/auth';
@@ -18,11 +18,24 @@ class MockSidebarService {
 }
 
 class MockAuthSessionService {
+  private readonly uidSubject = new BehaviorSubject<string | null>(null);
+
+  // o componente usa this.session.uid$.pipe(...)
+  uid$ = this.uidSubject.asObservable();
+
+  // o componente usa startWith(this.session.currentAuthUser?.uid ?? null)
+  currentAuthUser: { uid: string } | null = null;
+
   signOut$ = jest.fn(() => of(void 0));
+
+  setUid(uid: string | null): void {
+    this.currentAuthUser = uid ? { uid } : null;
+    this.uidSubject.next(uid);
+  }
 }
 
 class MockCurrentUserStoreService {
-  // o componente consome user$ (pode emitir `undefined` inicialmente)
+  // o componente consome user$
   user$ = new BehaviorSubject<any | null | undefined>(undefined);
 }
 
@@ -36,11 +49,15 @@ describe('NavbarComponent', () => {
   let fixture: ComponentFixture<NavbarComponent>;
   let router: Router;
 
-  // Auth do AngularFire (apenas currentUser usado no startWith)
-  const mockAuth: Partial<Auth> = { currentUser: null } as any;
+  let session: MockAuthSessionService;
+  let sidebar: MockSidebarService;
+  let notify: MockErrorNotificationService;
+
+  const mockAuth: Partial<Auth> = {
+    currentUser: null,
+  } as any;
 
   beforeEach(async () => {
-    // limpamos efeitos de tema persistidos entre testes
     localStorage.clear();
     document.documentElement.classList.remove('dark-mode', 'high-contrast');
     document.documentElement.removeAttribute('data-theme');
@@ -56,11 +73,14 @@ describe('NavbarComponent', () => {
         { provide: CurrentUserStoreService, useClass: MockCurrentUserStoreService },
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },
       ],
-      // evita erros com <app-logo>, <app-links-interaction>, etc.
       schemas: [NO_ERRORS_SCHEMA],
     }).compileComponents();
 
     router = TestBed.inject(Router);
+    session = TestBed.inject(AuthSessionService) as unknown as MockAuthSessionService;
+    sidebar = TestBed.inject(SidebarService) as unknown as MockSidebarService;
+    notify = TestBed.inject(ErrorNotificationService) as unknown as MockErrorNotificationService;
+
     fixture = TestBed.createComponent(NavbarComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
@@ -71,30 +91,22 @@ describe('NavbarComponent', () => {
   });
 
   it('deve alternar o sidebar ao chamar onToggleSidebar()', () => {
-    const sidebar = TestBed.inject(SidebarService) as unknown as MockSidebarService;
     component.onToggleSidebar();
     expect(sidebar.toggleSidebar).toHaveBeenCalled();
   });
 
-  it('deve marcar isLoginPage=true após navegar para /login', fakeAsync(async () => {
-    await TestBed.inject(Router).navigateByUrl('/'); // inicial
+  it('deve marcar isLoginPage=true após navegar para /login', fakeAsync(() => {
+    router.navigateByUrl('/login');
+    tick();
     fixture.detectChanges();
 
-    await router.navigateByUrl('/login');
-    tick(); // processa NavigationEnd
-    fixture.detectChanges();
-
-    expect(component.isLoginPage).toBeTrue();
+    expect(component.isLoginPage).toBe(true);
   }));
 
   it('logout: deve chamar signOut$, notificar sucesso e navegar para /login', fakeAsync(() => {
-    const session = TestBed.inject(AuthSessionService) as unknown as MockAuthSessionService;
-    const notify = TestBed.inject(ErrorNotificationService) as unknown as MockErrorNotificationService;
-
-    // espiamos a navegação para garantir replaceUrl:true
     const navSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true as any);
 
-    component.logout(); // signOut$ -> next -> notify.showSuccess -> navigate('/login')
+    component.logout();
     tick();
     fixture.detectChanges();
 
@@ -104,21 +116,26 @@ describe('NavbarComponent', () => {
   }));
 
   it('toggleDarkMode / toggleHighContrast / resetAppearance devem refletir no <html>', () => {
-    // dark
     component.toggleDarkMode();
-    expect(document.documentElement.classList.contains('dark-mode')).toBeTrue();
+    expect(document.documentElement.classList.contains('dark-mode')).toBe(true);
     expect(localStorage.getItem('theme')).toBe('dark');
 
-    // high-contrast
     component.toggleHighContrast();
-    expect(document.documentElement.classList.contains('high-contrast')).toBeTrue();
+    expect(document.documentElement.classList.contains('high-contrast')).toBe(true);
     expect(localStorage.getItem('high-contrast')).toBe('1');
 
-    // reset
     component.resetAppearance();
-    expect(document.documentElement.classList.contains('dark-mode')).toBeFalse();
-    expect(document.documentElement.classList.contains('high-contrast')).toBeFalse();
+    expect(document.documentElement.classList.contains('dark-mode')).toBe(false);
+    expect(document.documentElement.classList.contains('high-contrast')).toBe(false);
     expect(localStorage.getItem('theme')).toBe('light');
     expect(localStorage.getItem('high-contrast')).toBe('0');
   });
+
+  it('deve suportar uid autenticado vindo do AuthSessionService', fakeAsync(() => {
+    session.setUid('uid-123');
+    tick();
+    fixture.detectChanges();
+
+    expect(session.currentAuthUser?.uid).toBe('uid-123');
+  }));
 });

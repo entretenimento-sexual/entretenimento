@@ -311,4 +311,8 @@ export class LoginService {
 
     return { code, message };
   }
-}
+} // Linha 314, fim do login.service
+// Verificar migrações de responsabilidades para o:
+// 1 - auth-route-context.service.ts, e;
+// 2 - auth-user-document-watch.service.ts, e;
+// 3 - auth-session-monitor.service.ts.

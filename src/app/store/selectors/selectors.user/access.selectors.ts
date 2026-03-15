@@ -1,46 +1,40 @@
 // src/app/store/selectors/selectors.user/access.selectors.ts
 import { createSelector } from '@ngrx/store';
-import { AppState } from '../../states/app.state';
-import { IUserState } from '../../states/states.user/user.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { selectCurrentUser } from './user.selectors';
 
-// Base: pega o slice "user"
-export const selectUserState = (state: AppState): IUserState => state.user;
+/**
+ * Ajuste arquitetural importante:
+ * - acesso NÃO deve ser calculado a partir de "qualquer usuário do mapa"
+ * - acesso deve refletir apenas o usuário autenticado atual
+ */
 
-// Normaliza o "users" para sempre ser um array de IUserDados
-export const selectUsersArray = createSelector(
-  selectUserState,
-  (state: IUserState): IUserDados[] => {
-    const src = (state as any)?.users;
-    if (Array.isArray(src)) return src as IUserDados[];
-    if (src && typeof src === 'object') return Object.values(src as Record<string, IUserDados>);
-    return [];
-  }
-);
-
-// helper para ler a role com segurança
-function getRole(u: IUserDados): string {
-  // ajuste aqui se sua role vier de outro lugar (ex: u.access.role)
+function getRole(u: IUserDados | null): string {
   return (u as any)?.role ?? '';
 }
 
-// Básico (básico, premium, vip)
+export const selectCurrentUserRole = createSelector(
+  selectCurrentUser,
+  (user) => getRole(user)
+);
+
+// Básico (basic, premium, vip)
 export const selectHasBasicAccess = createSelector(
-  selectUsersArray,
-  (users: IUserDados[]): boolean =>
-    users.some((user: IUserDados) => ['basic', 'premium', 'vip'].includes(getRole(user)))
+  selectCurrentUserRole,
+  (role: string): boolean =>
+    ['basic', 'premium', 'vip'].includes(role)
 );
 
 // Premium (premium, vip)
 export const selectHasPremiumAccess = createSelector(
-  selectUsersArray,
-  (users: IUserDados[]): boolean =>
-    users.some((user: IUserDados) => ['premium', 'vip'].includes(getRole(user)))
+  selectCurrentUserRole,
+  (role: string): boolean =>
+    ['premium', 'vip'].includes(role)
 );
 
 // VIP
 export const selectHasVipAccess = createSelector(
-  selectUsersArray,
-  (users: IUserDados[]): boolean =>
-    users.some((user: IUserDados) => getRole(user) === 'vip')
+  selectCurrentUserRole,
+  (role: string): boolean =>
+    role === 'vip'
 );

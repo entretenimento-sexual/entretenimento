@@ -8,7 +8,6 @@
 // - corrige listener de busca (Subject<void> + distinctUntilChanged travava novas buscas)
 // - mantém nomes públicos do componente
 // - centraliza tratamento de erro
-
 import { Component, DestroyRef, Inject, OnInit, inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { CommonModule } from '@angular/common';
@@ -17,6 +16,7 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { from, of, Subject } from 'rxjs';
 import {
   catchError,
+  concatMap,
   debounceTime,
   distinctUntilChanged,
   finalize,
@@ -29,20 +29,20 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { Timestamp, where, type QueryConstraint } from 'firebase/firestore';
 
-import { InviteSearchService } from 'src/app/core/services/batepapo/invite-service/invite-search.service';
-import { InviteService } from 'src/app/core/services/batepapo/invite-service/invite.service';
-import { RegionFilterService } from 'src/app/core/services/filtering/filters/region-filter.service';
-import { IBGELocationService } from 'src/app/core/services/general/api/ibge-location.service';
+import { InviteSearchService } from '../../../core/services/batepapo/invite-service/invite-search.service';
+import { InviteService } from '../../../core/services/batepapo/invite-service/invite.service';
+import { RegionFilterService } from '../../../core/services/filtering/filters/region-filter.service';
+import { IBGELocationService } from '../../../core/services/general/api/ibge-location.service';
 
-import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { AuthSessionService } from '../../../core/services/autentication/auth/auth-session.service';
+import { CurrentUserStoreService } from '../../../core/services/autentication/auth/current-user-store.service';
 
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
+import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 
-import { ValidGenders } from 'src/app/core/enums/valid-genders.enum';
+import { ValidGenders } from '../../../core/enums/valid-genders.enum';
 import { BaseModalComponent } from '../base-modal/base-modal.component';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { IUserDados } from '../../../core/interfaces/iuser-dados';
 
 @Component({
   selector: 'app-invite-user-modal',
@@ -64,22 +64,8 @@ export class InviteUserModalComponent implements OnInit {
   isLoading = false;
   defaultAvatar = 'assets/images/default-avatar.png';
 
-  /**
-   * Fonte local do uid autenticado.
-   * - vem do AuthSessionService
-   */
   private currentUserUid: string | null = null;
-
-  /**
-   * Fonte local da role do usuário.
-   * - vem do CurrentUserStoreService
-   */
   private currentUserRole: IUserDados['role'] = 'visitante';
-
-  /**
-   * Chave de busca serializada.
-   * - evita o bug do Subject<void> com distinctUntilChanged
-   */
   private readonly searchSubject = new Subject<string>();
 
   constructor(
@@ -93,7 +79,7 @@ export class InviteUserModalComponent implements OnInit {
     private readonly regionFilter: RegionFilterService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
-  ) { }
+  ) {}
 
   ngOnInit(): void {
     this.observeSessionAndProfile();
@@ -101,13 +87,10 @@ export class InviteUserModalComponent implements OnInit {
     this.loadInitialData();
   }
 
-  /**
-   * Observa UID autenticado e perfil do app.
-   */
   private observeSessionAndProfile(): void {
     this.authSession.uid$
       .pipe(
-        map((uid) => (uid ?? '').trim() || null),
+        map((uid: string | null) => (uid ?? '').trim() || null),
         distinctUntilChanged(),
         tap((uid) => {
           this.currentUserUid = uid;
@@ -128,7 +111,7 @@ export class InviteUserModalComponent implements OnInit {
 
     this.currentUserStore.user$
       .pipe(
-        tap((user) => {
+        tap((user: IUserDados | null | undefined) => {
           this.currentUserRole = user?.role ?? 'visitante';
         }),
         catchError((error) => {
@@ -160,7 +143,7 @@ export class InviteUserModalComponent implements OnInit {
   loadInitialData(): void {
     this.ibgeLocationService.getEstados()
       .pipe(
-        tap((states: any[]) => {
+        tap((states: Array<{ sigla: string }>) => {
           this.availableStates = states.map((state) => state.sigla);
         }),
         catchError((error) => {
@@ -179,7 +162,7 @@ export class InviteUserModalComponent implements OnInit {
     this.authSession.uid$
       .pipe(
         take(1),
-        switchMap((uid) => {
+        switchMap((uid: string | null) => {
           const authUid = (uid ?? '').trim();
           if (!authUid) {
             this.loadUsers();
@@ -198,7 +181,7 @@ export class InviteUserModalComponent implements OnInit {
             })
           );
         }),
-        tap((region) => {
+        tap((region: { uf?: string; city?: string } | null) => {
           if (region) {
             this.selectedRegion = {
               uf: region.uf,
@@ -227,8 +210,8 @@ export class InviteUserModalComponent implements OnInit {
 
     this.ibgeLocationService.getMunicipios(this.selectedRegion.uf)
       .pipe(
-        tap((cities) => {
-          this.availableCities = cities.map((city: any) => city.nome);
+        tap((cities: Array<{ nome: string }>) => {
+          this.availableCities = cities.map((city) => city.nome);
 
           if (!this.availableCities.includes(this.selectedRegion.city || '')) {
             this.selectedRegion.city = '';
@@ -277,10 +260,6 @@ export class InviteUserModalComponent implements OnInit {
       filters.push(where('nicknameLowerCase', '<=', searchTerm + '\uf8ff'));
     }
 
-    /**
-     * Exclui o próprio usuário da busca.
-     * Aqui precisa ser string, não Observable.
-     */
     if (currentUserId) {
       filters.push(where('uid', '!=', currentUserId));
     }
@@ -346,7 +325,7 @@ export class InviteUserModalComponent implements OnInit {
 
     from(selectedUserIds)
       .pipe(
-        switchMap((receiverId) =>
+        concatMap((receiverId) =>
           this.inviteService.createInvite({
             roomId: this.data.roomId,
             roomName: this.data.roomName,
@@ -355,9 +334,7 @@ export class InviteUserModalComponent implements OnInit {
             status: 'pending',
             sentAt: Timestamp.fromDate(new Date()),
             expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-          }).pipe(
-            tap(() => console.log(`Convite enviado com sucesso para ${receiverId}.`))
-          )
+          })
         ),
         catchError((error) => {
           this.reportError(
@@ -380,9 +357,6 @@ export class InviteUserModalComponent implements OnInit {
       .subscribe();
   }
 
-  /**
-   * Gera uma chave estável para debounce + distinctUntilChanged.
-   */
   private buildSearchKey(): string {
     return JSON.stringify({
       searchTerm: this.searchTerm.trim().toLowerCase(),
@@ -392,9 +366,6 @@ export class InviteUserModalComponent implements OnInit {
     });
   }
 
-  /**
-   * Tratamento centralizado de erro.
-   */
   private reportError(
     userMessage: string,
     error: unknown,
@@ -404,9 +375,7 @@ export class InviteUserModalComponent implements OnInit {
     if (notifyUser) {
       try {
         this.errorNotifier.showError(userMessage);
-      } catch {
-        // noop
-      }
+      } catch {}
     }
 
     try {
@@ -418,8 +387,6 @@ export class InviteUserModalComponent implements OnInit {
       };
       (err as any).skipUserNotification = true;
       this.globalError.handleError(err);
-    } catch {
-      // noop
-    }
+    } catch {}
   }
-} // Linha 426
+}// Linha 426

@@ -1,75 +1,53 @@
 // src/app/core/services/autentication/auth/current-user-store.service.ts
 // Serviço para gerenciar o estado do usuário atual (IUserDados)
-// - “Source of truth” da SESSÃO: AuthSessionService (uid$, ready$, emailVerified$)
-// - “Source of truth” do PERFIL (domínio): CurrentUserStoreService (user$ tri-state)
 //
-// Objetivo (padrão “plataformas grandes”):
-// - Separar sessão (Auth) de perfil (Firestore/IUserDados).
-// - Evitar decisões prematuras no bootstrap (cold start/refresh).
-// - Evitar “purge” indevido de cache antes do Firebase resolver o UID.
-// - Manter compatibilidade com chaves legadas (currentUser/currentUserUid) sem criar dependência disso.
+// Source of truth:
+// - Sessão/Auth/UID: AuthSessionService
+// - Perfil do app (runtime): CurrentUserStoreService
 //
-// NÃO faz:
-// - NÃO consulta Firestore diretamente (isso é do FirestoreUserQueryService / repositories).
+// Tri-state:
+// - undefined: hidratação em andamento / ainda não resolvido
+// - null: perfil indisponível no runtime atual
+// - IUserDados: perfil carregado
 //
-// Debug:
-// - Logs controlados por environment (dev only).
-
+// Observação:
+// - Este serviço NÃO consulta Firestore.
+// - Ele só mantém o runtime do perfil e faz bootstrap compatível por HOT_KEYS.
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, of } from 'rxjs';
-import { distinctUntilChanged, map, take } from 'rxjs/operators';
+import { Auth } from '@angular/fire/auth';
+import { BehaviorSubject, Observable } from 'rxjs';
+import { distinctUntilChanged, filter, map, take } from 'rxjs/operators';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
 import { CacheService } from '@core/services/general/cache/cache.service';
 import { AuthSessionService } from './auth-session.service';
-import { Auth } from '@angular/fire/auth';
 import { environment } from 'src/environments/environment';
 
 type UserTriState = IUserDados | null | undefined;
 
 @Injectable({ providedIn: 'root' })
 export class CurrentUserStoreService {
-  // ---------------------------------------------------------------------------
-  // Keys (compat)
-  // ---------------------------------------------------------------------------
-  // Mantemos estas chaves porque sua plataforma já usa:
-  // - CacheService (HOT_KEYS) espelha em localStorage e serve para bootstrap síncrono.
-  // - Alguns fluxos antigos podem ler currentUserUid.
   private readonly keyUser = 'currentUser';
   private readonly keyUid = 'currentUserUid';
 
-  // ---------------------------------------------------------------------------
-  // State (tri-state)
-  // ---------------------------------------------------------------------------
-  // undefined: ainda não hidratou (bootstrap)
-  // null: deslogado (sessão nula resolvida)
-  // IUserDados: logado e perfil hidratado
   private readonly userSubject = new BehaviorSubject<UserTriState>(undefined);
   readonly user$: Observable<UserTriState> = this.userSubject.asObservable();
 
-  // ---------------------------------------------------------------------------
-  // Debug helpers
-  // ---------------------------------------------------------------------------
   private readonly debug = !environment.production;
 
   constructor(
     private readonly cache: CacheService,
     private readonly authSession: AuthSessionService,
-    private readonly auth: Auth, // usado apenas para snapshot/restore defensivo
-  ) { }
+    private readonly auth: Auth,
+  ) {}
 
   // ---------------------------------------------------------------------------
-  // Public API — Perfil (IUserDados)
+  // Perfil runtime
   // ---------------------------------------------------------------------------
 
   /**
    * set()
-   * - Atualiza o estado do perfil (IUserDados) em memória (BehaviorSubject)
-   * - Mantém “compat keys” (currentUser/currentUserUid) para bootstrap rápido
-   * - Não persiste em IndexedDB por padrão (estado “vivo” de sessão)
-   *
-   * Quando chamar:
-   * - Depois de buscar IUserDados no Firestore (ou cache) com uid já conhecido.
+   * - runtime resolvido com perfil válido
    */
   set(user: IUserDados): void {
     if (!user?.uid) return;
@@ -79,52 +57,80 @@ export class CurrentUserStoreService {
 
     this.userSubject.next(user);
 
-    // ✅ centraliza o write: CacheService espelha HOT_KEYS no localStorage
-    // e mantém memória (além de permitir persist=false).
+    /**
+     * Compat hot keys:
+     * - leitura síncrona no bootstrap
+     * - não são fonte primária do perfil
+     */
     this.cache.set(this.keyUser, user, undefined, { persist: false });
     this.cache.set(this.keyUid, user.uid, undefined, { persist: false });
 
     this.dbg('set(user)', { uid: user.uid });
   }
 
-  /**
-   * patch()
-   * - Atualiza parcialmente o currentUser (sem “perder” campos já presentes).
-   * - Útil quando chegam atualizações incrementais (ex.: isOnline, avatarUrl, etc.).
-   */
   patch(partial: Partial<IUserDados>): void {
-    const cur = this.userSubject.value;
-    if (!cur || cur === null) return;
+    const current = this.userSubject.value;
+    if (!current || current === null) return;
 
-    const next: IUserDados = { ...cur, ...partial } as IUserDados;
+    const next = { ...current, ...partial } as IUserDados;
     if (!next?.uid) return;
-
-    if (this.safeJsonEqual(cur, next)) return;
+    if (this.safeJsonEqual(current, next)) return;
 
     this.userSubject.next(next);
     this.cache.set(this.keyUser, next, undefined, { persist: false });
-
-    // se patch trouxer uid (não deveria mudar), garantimos compat
     this.cache.set(this.keyUid, next.uid, undefined, { persist: false });
 
-    this.dbg('patch(user)', { uid: next.uid, keys: Object.keys(partial ?? {}) });
+    this.dbg('patch(user)', {
+      uid: next.uid,
+      keys: Object.keys(partial ?? {}),
+    });
+  }
+
+  /**
+   * setUnavailable()
+   * - sessão pode continuar existindo
+   * - mas o perfil do app ficou indisponível neste ciclo
+   *
+   * Importante:
+   * - não é logout
+   * - não deve manter currentUser stale no HOT_KEY
+   * - uid compatível pode continuar existindo se a sessão auth ainda existir
+   */
+  setUnavailable(): void {
+    const current = this.userSubject.value;
+    if (current !== null) {
+      this.userSubject.next(null);
+    }
+
+    this.cache.delete(this.keyUser);
+
+    const authUid =
+      this.authSession.currentAuthUser?.uid ??
+      this.auth.currentUser?.uid ??
+      null;
+
+    if (authUid) {
+      this.cache.set(this.keyUid, authUid, undefined, { persist: false });
+    } else {
+      this.cache.delete(this.keyUid);
+    }
+
+    this.dbg('setUnavailable()', { authUid });
   }
 
   /**
    * clear()
-   * - Marca como deslogado (null)
-   * - Remove compat keys
-   *
-   * Quando chamar:
-   * - Logout
-   * - Sessão encerrada (uid -> null) detectada no orquestrador/effects
+   * - estado resolvido sem usuário
+   * - usado em logout / sessão nula confirmada
    */
   clear(): void {
-    if (this.userSubject.value === null) return;
+    if (this.userSubject.value === null) {
+      this.cache.delete(this.keyUser);
+      this.cache.delete(this.keyUid);
+      return;
+    }
 
     this.userSubject.next(null);
-
-    // remove localStorage (HOT_KEYS) + memória + IndexedDB best-effort
     this.cache.delete(this.keyUser);
     this.cache.delete(this.keyUid);
 
@@ -133,10 +139,8 @@ export class CurrentUserStoreService {
 
   /**
    * markUnhydrated()
-   * - Volta o estado para undefined (ex.: antes de iniciar uma hidratação nova)
-   * - Útil em “troca de conta” quando você quer bloquear UI até re-hidratar.
-   *
-   * Observação: não mexe em cache — isso é intencional.
+   * - estado transitório
+   * - usado quando há UID, mas o perfil ainda está sendo resolvido
    */
   markUnhydrated(): void {
     if (this.userSubject.value === undefined) return;
@@ -144,128 +148,137 @@ export class CurrentUserStoreService {
     this.dbg('markUnhydrated()');
   }
 
-  /**
-   * getSnapshot()
-   * - Retorna o valor atual do tri-state (sem Observable).
-   */
   getSnapshot(): UserTriState {
     return this.userSubject.value;
   }
 
   /**
-   * isHydratedOnce$()
-   * - Emite 1x quando sair do estado “undefined”.
-   * - Útil para componentes que precisam esperar hidratação, mas não querem “ready” de auth.
+   * Emite apenas quando a hidratação realmente saiu de undefined.
    */
   isHydratedOnce$(): Observable<boolean> {
     return this.user$.pipe(
-      map(v => v !== undefined),
+      map((value) => value !== undefined),
       distinctUntilChanged(),
+      filter((hydrated) => hydrated === true),
       take(1)
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Public API — Sessão (AuthSession)
-  // ---------------------------------------------------------------------------
-
   /**
-   * AUTH READY (fonte: AuthSession)
-   * - Indica que o Firebase/Auth já resolveu o estado inicial (cold start).
-   * - Guards e bootstraps devem aguardar ready=true antes de decidir.
+   * Conveniência:
+   * - true quando o runtime já saiu do estado "undefined"
    */
-  getAuthReady$(): Observable<boolean> {
-    return this.authSession.ready$.pipe(distinctUntilChanged());
-  }
-
-  /**
-   * UID (fonte: AuthSession)
-   * - Esta é a fonte de verdade para uid.
-   */
-  getLoggedUserUID$(): Observable<string | null> {
-    return this.authSession.uid$.pipe(distinctUntilChanged());
-  }
-
-  /**
-   * Snapshot do UID
-   * - Preferência:
-   *   1) auth.currentUser.uid (quando já disponível)
-   *   2) local cache (HOT_KEY)
-   *   3) userSubject (perfil hidratado)
-   */
-  getLoggedUserUIDSnapshot(): string | null {
-    return (
-      this.auth.currentUser?.uid ??
-      this.cache.getSync<string>(this.keyUid) ??
-      (this.userSubject.value && this.userSubject.value !== null ? this.userSubject.value.uid : null) ??
-      null
+  isResolved$(): Observable<boolean> {
+    return this.user$.pipe(
+      map((value) => value !== undefined),
+      distinctUntilChanged()
     );
   }
 
   /**
-   * getLoggedUserUIDOnce$()
-   * - Snapshot reativo 1x (útil em effects/guards para “decidir”).
+   * Conveniência:
+   * - true quando há perfil disponível
    */
+  hasProfile$(): Observable<boolean> {
+    return this.user$.pipe(
+      map((value) => value !== undefined && value !== null),
+      distinctUntilChanged()
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sessão/Auth
+  // ---------------------------------------------------------------------------
+
+  getAuthReady$(): Observable<boolean> {
+    return this.authSession.ready$.pipe(distinctUntilChanged());
+  }
+
+  getLoggedUserUID$(): Observable<string | null> {
+    return this.authSession.uid$.pipe(distinctUntilChanged());
+  }
+
+  getLoggedUserUIDSnapshot(): string | null {
+    return (
+      this.auth.currentUser?.uid ??
+      this.cache.getSync<string>(this.keyUid) ??
+      (this.userSubject.value && this.userSubject.value !== null
+        ? this.userSubject.value.uid
+        : null) ??
+      null
+    );
+  }
+
   getLoggedUserUIDOnce$(): Observable<string | null> {
     return this.getLoggedUserUID$().pipe(take(1));
   }
 
   // ---------------------------------------------------------------------------
-  // Restore (compat) — corrigido para não “purge cedo”
+  // Restore compatível
   // ---------------------------------------------------------------------------
 
   /**
-   * restoreFromCache()
-   * - Restaura o currentUser do cache (HOT_KEY) SOMENTE se:
-   *   - authUid existe (Auth já resolveu) e
-   *   - cached.uid === authUid
-   *
-   * Importante:
-   * - Se authUid ainda não existe (bootstrap), NÃO apaga nada.
-   * - Só faz purge quando existe authUid e há divergência (stale cross-user).
-   *
-   * Quando chamar:
-   * - Depois de ready=true (ex.: no bootstrap orchestrator/effect).
+   * Compat:
+   * usa o uid já resolvido do auth, quando existir.
    */
   restoreFromCache(): IUserDados | null {
-    const authUid = this.auth.currentUser?.uid ?? null;
+    const uid =
+      this.authSession.currentAuthUser?.uid ??
+      this.auth.currentUser?.uid ??
+      null;
 
-    // ✅ não decida/purge sem authUid: evita apagar cache durante bootstrap
+    return this.restoreFromCacheForUid(uid);
+  }
+
+  /**
+   * Restaura currentUser do cache compatível apenas se o uid bater.
+   * Não purge sem UID resolvido.
+   */
+  restoreFromCacheForUid(uid: string | null | undefined): IUserDados | null {
+    const authUid = (uid ?? '').trim();
     if (!authUid) {
-      this.dbg('restoreFromCache() -> skip (no authUid yet)');
+      this.dbg('restoreFromCacheForUid() -> skip (no uid)');
       return null;
     }
 
     const cached = this.cache.getSync<IUserDados>(this.keyUser);
 
     if (cached?.uid && cached.uid === authUid) {
-      this.userSubject.next(cached);
+      const current = this.userSubject.value;
+      if (!(current && current !== null && this.safeJsonEqual(current, cached))) {
+        this.userSubject.next(cached);
+      }
+
       this.cache.set(this.keyUid, authUid, undefined, { persist: false });
-      this.dbg('restoreFromCache() -> restored', { uid: authUid });
+      this.dbg('restoreFromCacheForUid() -> restored', { uid: authUid });
       return cached;
     }
 
-    // stale: existe cache mas pertence a outro uid → purge
+    /**
+     * Cache stale de outro usuário.
+     * Limpamos só as HOT_KEYS compatíveis.
+     */
     if (cached?.uid && cached.uid !== authUid) {
       this.cache.delete(this.keyUser);
       this.cache.delete(this.keyUid);
-      this.dbg('restoreFromCache() -> purged stale cache', { cachedUid: cached.uid, authUid });
+      this.dbg('restoreFromCacheForUid() -> purged stale cache', {
+        cachedUid: cached.uid,
+        authUid,
+      });
     } else {
-      this.dbg('restoreFromCache() -> nothing to restore', { authUid });
+      this.dbg('restoreFromCacheForUid() -> nothing to restore', { authUid });
     }
 
     return null;
   }
 
   /**
-   * restoreFromCacheWhenReady$()
-   * - Conveniência para bootstrap:
-   *   aguarda ready=true e tenta restore 1x.
-   *
-   * Útil para chamar no AppComponent/initializer/orchestrator.
+   * Conveniência para bootstrap:
+   * espera ready=true antes de tentar restore.
    */
   restoreFromCacheWhenReady$(): Observable<IUserDados | null> {
     return this.getAuthReady$().pipe(
+      filter((ready) => ready === true),
       take(1),
       map(() => this.restoreFromCache())
     );
@@ -288,24 +301,8 @@ export class CurrentUserStoreService {
     // eslint-disable-next-line no-console
     console.log(`[CurrentUserStore] ${message}`, extra ?? '');
   }
-}
-
-/**
- * Resumo mental (padrão “plataforma grande”):
- *
- * - AuthSessionService: manda no UID/ready/emailVerified (sessão)
- * - CurrentUserStoreService: manda no IUserDados (perfil)
- * - FirestoreUserQueryService (ou repo): busca IUserDados por uid
- * - Effects/Orchestrator: liga as coisas:
- *    - quando uid muda, tenta restore -> se não tiver, busca Firestore -> set()
- *    - quando uid vira null, clear()
- *
- * “Qualquer UID fora disso” deve ser visto como compat/derivado.
- */
-/*
-src/app/core/services/autentication/auth/auth-session.service.ts
-src/app/core/services/autentication/auth/current-user-store.service.ts
-src/app/core/services/autentication/auth/auth-orchestrator.service.ts
-src/app/core/services/autentication/auth/auth.facade.ts
-src/app/core/services/autentication/auth/logout.service.ts
-*/
+} // Linha 304, fim do current-user-store.service.ts
+// Verificar migrações de responsabilidades para o:
+// 1 - auth-route-context.service.ts, e;
+// 2 - auth-user-document-watch.service.ts, e;
+// 3 - auth-session-monitor.service.ts.
