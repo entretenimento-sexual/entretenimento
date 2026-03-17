@@ -2,19 +2,33 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
-    "types": ["jest", "node"],
+    "types": [
+      "jest",
+      "node"
+    ],
     "emitDecoratorMetadata": false,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
-      "src/*": ["src/*"],
-      "@app/*": ["src/app/*"],
-      "@core/*": ["src/app/core/*"],
-      "@shared/*": ["src/app/shared/*"],
-      "@env/*": ["src/environments/*"],
-      "@store/*": ["src/app/store/*"]
-    },
-    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+      "src/*": [
+        "src/*"
+      ],
+      "@app/*": [
+        "src/app/*"
+      ],
+      "@core/*": [
+        "src/app/core/*"
+      ],
+      "@shared/*": [
+        "src/app/shared/*"
+      ],
+      "@env/*": [
+        "src/environments/*"
+      ],
+      "@store/*": [
+        "src/app/store/*"
+      ]
+    }
   },
   "files": ["src/test/setup-jest.ts", "src/polyfills.ts"],
   "include": [

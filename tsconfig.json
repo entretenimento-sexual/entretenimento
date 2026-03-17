@@ -30,9 +30,7 @@
     "target": "ES2022",
     "module": "ES2022",
     "useDefineForClassFields": false,
-    "skipLibCheck": true,
-
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],   // ← IMPORTANTE
+    "skipLibCheck": true, // ← IMPORTANTE
 
     "types": []
   },
