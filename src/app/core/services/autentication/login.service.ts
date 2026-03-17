@@ -1,20 +1,45 @@
 // src/app/core/services/autentication/login.service.ts
-// LoginService: autenticação + construção do estado mínimo (SEM side-effects de sessão)
-// Side-effects (seed/lastLogin/geoloc/presence/watchers/keepAlive) ficam no AuthOrchestrator.
+// =============================================================================
+// LoginService
+//
+// Responsabilidade deste service:
+// - autenticar via Firebase Auth
+// - definir persistência da sessão
+// - montar um estado mínimo do usuário autenticado
+// - hidratar CurrentUserStoreService de forma leve
+//
+// NÃO é responsabilidade deste service:
+// - seed de sessão
+// - watchers
+// - presence
+// - keepAlive
+// - geolocalização
+// - pós-login de domínio
+//
+// Tudo isso continua no AuthOrchestrator / serviços correlatos.
+// =============================================================================
+
 import { Injectable } from '@angular/core';
-import { Observable, of, from, defer, firstValueFrom } from 'rxjs';
-import { catchError, map, switchMap, timeout, retry, take } from 'rxjs/operators';
+import { Observable, defer, firstValueFrom, of } from 'rxjs';
+import {
+  catchError,
+  map,
+  retry,
+  switchMap,
+  take,
+  timeout,
+} from 'rxjs/operators';
 
 import {
-  signInWithEmailAndPassword,
-  sendPasswordResetEmail as sendPasswordResetEmailFn,
-  confirmPasswordReset,
-  setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
-  inMemoryPersistence,
+  confirmPasswordReset,
   EmailAuthProvider,
+  inMemoryPersistence,
   reauthenticateWithCredential,
+  sendPasswordResetEmail as sendPasswordResetEmailFn,
+  setPersistence,
+  signInWithEmailAndPassword,
   type Persistence,
   type User,
 } from 'firebase/auth';
@@ -26,7 +51,6 @@ import { GlobalErrorHandlerService } from '../error-handler/global-error-handler
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 import { environment } from 'src/environments/environment';
 import { CurrentUserStoreService } from './auth/current-user-store.service';
-
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 
 export interface LoginResult {
@@ -38,9 +62,13 @@ export interface LoginResult {
   needsProfileCompletion?: boolean;
 }
 
+type SessionMode = 'local' | 'session' | 'none';
+type EmuPersistMode = 'memory' | 'session';
+
 @Injectable({ providedIn: 'root' })
 export class LoginService {
   private readonly NET_TIMEOUT_MS = 12_000;
+  private readonly EMU_AUTH_PERSIST_KEY = '__EMU_AUTH_PERSIST__';
 
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
@@ -48,166 +76,481 @@ export class LoginService {
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly auth: Auth,
     private readonly ctx: FirestoreContextService
-  ) { }
+  ) {}
 
-  /** Emulador ligado? */
-  private isAuthEmuActive(): boolean {
-    const cfg: any = environment as any;
-    return !environment.production && !!cfg?.emulators?.auth?.host && !!cfg?.emulators?.auth?.port;
+  // ---------------------------------------------------------------------------
+  // Ambiente / debug
+  // ---------------------------------------------------------------------------
+
+  private isBrowser(): boolean {
+    return typeof window !== 'undefined';
+  }
+
+  private debugEnabled(): boolean {
+    return (
+      !environment.production &&
+      !!environment.enableDebugTools &&
+      this.isBrowser() &&
+      (window as any).__DBG_ON__ === true
+    );
+  }
+
+  private dbg(message: string, extra?: unknown): void {
+    if (!this.debugEnabled()) return;
+
+    try {
+      (window as any)?.DBG?.(`[LoginService] ${message}`, extra ?? '');
+    } catch {
+      // noop
+    }
+  }
+
+  private warn(message: string, extra?: unknown): void {
+    if (!this.debugEnabled()) return;
+
+    try {
+      (window as any)?.DBG?.(`[LoginService][WARN] ${message}`, extra ?? '');
+    } catch {
+      // noop
+    }
+  }
+
+  private safeEmail(email: string | null | undefined): string {
+    const e = (email ?? '').trim();
+    if (!e) return '';
+
+    const [user, domain] = e.split('@');
+    if (!user || !domain) return e;
+
+    return `${user.slice(0, 2)}***@${domain}`;
+  }
+
+  private persistenceLabel(p: Persistence): string {
+    if (p === browserLocalPersistence) return 'local';
+    if (p === browserSessionPersistence) return 'session';
+    if (p === inMemoryPersistence) return 'memory';
+    return 'custom';
+  }
+
+  private reportSilent(
+    message: string,
+    original: unknown,
+    extra?: Record<string, unknown>
+  ): void {
+    try {
+      const e = new Error(message);
+      (e as any).silent = true;
+      (e as any).skipUserNotification = true;
+      (e as any).original = original;
+      (e as any).context = 'LoginService';
+      (e as any).extra = extra;
+
+      this.globalErrorHandler.handleError(e);
+    } catch {
+      // noop
+    }
   }
 
   // ---------------------------------------------------------------------------
-  // Persistência
+  // Emulator / persistência
   // ---------------------------------------------------------------------------
+
+  /**
+   * Auth Emulator ativo?
+   *
+   * Mantém a checagem compatível com o seu environment atual:
+   * - exige dev
+   * - exige useEmulators=true
+   * - exige host/port do auth
+   */
+  private isAuthEmuActive(): boolean {
+    const cfg: any = environment as any;
+
+    return (
+      !environment.production &&
+      cfg?.useEmulators === true &&
+      !!cfg?.emulators?.auth?.host &&
+      !!cfg?.emulators?.auth?.port
+    );
+  }
+
+  /**
+   * Lê o modo de persistência do Auth Emulator.
+   *
+   * Deve ficar coerente com:
+   * - src/main.ts
+   * - src/app/app.module.ts
+   *
+   * Default:
+   * - memory
+   *
+   * Motivo:
+   * - reduz sessão fantasma quando o emulator é resetado.
+   */
+  private getEmuPersistMode(): EmuPersistMode {
+    if (!this.isBrowser()) return 'memory';
+
+    const raw = (localStorage.getItem(this.EMU_AUTH_PERSIST_KEY) || '')
+      .trim()
+      .toLowerCase();
+
+    return raw === 'session' ? 'session' : 'memory';
+  }
+
+  /**
+   * Resolve a persistência final.
+   *
+   * Regras:
+   * - Cloud/prod:
+   *   - respeita local/session/none
+   * - Emulator:
+   *   - ignora "local"
+   *   - usa a convenção global do projeto:
+   *     - session -> browserSessionPersistence
+   *     - memory  -> inMemoryPersistence
+   */
+  private resolvePersistence(
+    input: SessionMode | Persistence
+  ): Persistence {
+    if (typeof input !== 'string') return input;
+
+    if (this.isAuthEmuActive()) {
+      return this.getEmuPersistMode() === 'session'
+        ? browserSessionPersistence
+        : inMemoryPersistence;
+    }
+
+    switch (input) {
+      case 'local':
+        return browserLocalPersistence;
+
+      case 'session':
+        return browserSessionPersistence;
+
+      case 'none':
+        return inMemoryPersistence;
+    }
+  }
+
+  /**
+   * Define persistência de forma resiliente.
+   *
+   * Estratégia:
+   * - tenta a persistência desejada
+   * - se falhar, tenta um fallback
+   * - por fim tenta memory
+   *
+   * Importante:
+   * - falha aqui não deve derrubar a UX inteira
+   * - o erro é observado pelo GlobalErrorHandler
+   */
   setSessionPersistence$(
-    modeOrPersistence: 'local' | 'session' | 'none' | Persistence
+    modeOrPersistence: SessionMode | Persistence
   ): Observable<void> {
     const requested = this.resolvePersistence(modeOrPersistence);
 
     const trySet$ = (p: Persistence) =>
-      this.ctx.deferPromise$(() => setPersistence(this.auth, p)).pipe(map(() => void 0));
+      this.ctx.deferPromise$(() => setPersistence(this.auth, p)).pipe(
+        timeout({ each: this.NET_TIMEOUT_MS }),
+        map(() => void 0)
+      );
 
     const fallback1 =
-      requested === browserLocalPersistence ? browserSessionPersistence : inMemoryPersistence;
+      requested === browserLocalPersistence
+        ? browserSessionPersistence
+        : inMemoryPersistence;
+
+    this.dbg('setSessionPersistence:start', {
+      usingEmu: this.isAuthEmuActive(),
+      requested: this.persistenceLabel(requested),
+      fallback1: this.persistenceLabel(fallback1),
+    });
 
     return trySet$(requested).pipe(
-      catchError(() =>
-        trySet$(fallback1).pipe(
-          catchError((err2) =>
-            trySet$(inMemoryPersistence).pipe(
+      map(() => {
+        this.dbg('setSessionPersistence:ok', {
+          resolved: this.persistenceLabel(requested),
+        });
+        return void 0;
+      }),
+
+      catchError((err1) => {
+        this.warn('setSessionPersistence:fallback1', {
+          requested: this.persistenceLabel(requested),
+          fallback1: this.persistenceLabel(fallback1),
+          err1,
+        });
+
+        return trySet$(fallback1).pipe(
+          map(() => {
+            this.dbg('setSessionPersistence:ok:fallback1', {
+              resolved: this.persistenceLabel(fallback1),
+            });
+            return void 0;
+          }),
+
+          catchError((err2) => {
+            this.warn('setSessionPersistence:fallback2', {
+              requested: this.persistenceLabel(requested),
+              fallback1: this.persistenceLabel(fallback1),
+              fallback2: this.persistenceLabel(inMemoryPersistence),
+              err2,
+            });
+
+            return trySet$(inMemoryPersistence).pipe(
+              map(() => {
+                this.dbg('setSessionPersistence:ok:fallback2', {
+                  resolved: this.persistenceLabel(inMemoryPersistence),
+                });
+                return void 0;
+              }),
+
               catchError((err3) => {
-                // Observabilidade apenas (não derruba UX)
-                try {
-                  const e = new Error('[LoginService] setPersistence falhou (todos fallbacks falharam).');
-                  (e as any).requested = requested;
-                  (e as any).fallback1 = fallback1;
-                  (e as any).fallback2 = inMemoryPersistence;
-                  (e as any).fallbackError = err2;
-                  (e as any).finalError = err3;
-                  (e as any).silent = true;
-                  (e as any).skipUserNotification = true;
-                  this.globalErrorHandler.handleError(e);
-                } catch { }
+                this.reportSilent(
+                  '[LoginService] setPersistence falhou em todas as tentativas.',
+                  err3,
+                  {
+                    requested: this.persistenceLabel(requested),
+                    fallback1: this.persistenceLabel(fallback1),
+                    fallback2: this.persistenceLabel(inMemoryPersistence),
+                    err1,
+                    err2,
+                    err3,
+                  }
+                );
+
+                // Não bloqueia o fluxo inteiro.
                 return of(void 0);
               })
-            )
-          )
-        )
-      )
+            );
+          })
+        );
+      })
     );
-  }
-
-  private resolvePersistence(input: 'local' | 'session' | 'none' | Persistence): Persistence {
-    if (typeof input !== 'string') return input;
-
-    // ✅ emulador: evita "local" para reduzir estado fantasma
-    if (this.isAuthEmuActive()) {
-      if (input === 'none') return inMemoryPersistence;
-      return browserSessionPersistence;
-    }
-
-    switch (input) {
-      case 'local': return browserLocalPersistence;
-      case 'session': return browserSessionPersistence;
-      case 'none': return inMemoryPersistence;
-    }
   }
 
   // ---------------------------------------------------------------------------
   // Model helpers
   // ---------------------------------------------------------------------------
-  private minimalFromAuth(u: User): IUserDados {
+
+  /**
+   * Estado mínimo derivado do Firebase Auth.
+   *
+   * Usado como fallback quando:
+   * - users/{uid} ainda não chegou
+   * - leitura do Firestore falha
+   * - o doc ainda está propagando
+   */
+  private minimalFromAuth(user: User): IUserDados {
     return {
-      uid: u.uid,
-      email: u.email ?? '',
-      nickname: u.displayName ?? (u.email ? u.email.split('@')[0] : 'Usuário'),
-      emailVerified: !!u.emailVerified,
+      uid: user.uid,
+      email: user.email ?? '',
+      nickname: user.displayName ?? (user.email ? user.email.split('@')[0] : 'Usuário'),
+      emailVerified: !!user.emailVerified,
       isSubscriber: false,
       profileCompleted: false,
       role: 'basic' as any,
     } as IUserDados;
   }
 
-  private needsProfileCompletion(u: IUserDados): boolean {
-    if (typeof (u as any)?.profileCompleted === 'boolean') return !(u as any).profileCompleted;
-    return !u?.nickname || !(u as any)?.gender;
+  /**
+   * Regras mínimas de completude.
+   *
+   * Mantém o comportamento atual:
+   * - se profileCompleted vier explícito, ele manda
+   * - senão, inferimos por nickname/gender
+   */
+  private needsProfileCompletion(user: IUserDados): boolean {
+    if (typeof (user as any)?.profileCompleted === 'boolean') {
+      return !(user as any).profileCompleted;
+    }
+
+    return !user?.nickname || !(user as any)?.gender;
+  }
+
+  /**
+   * Monta o usuário efetivo combinando:
+   * - snapshot do Firestore (quando disponível)
+   * - dados do Auth como fonte mais confiável para uid/email/emailVerified
+   */
+  private buildEffectiveUser(
+    authUser: User,
+    firestoreUser: IUserDados | null | undefined
+  ): IUserDados {
+    const base = firestoreUser ?? this.minimalFromAuth(authUser);
+
+    return {
+      ...base,
+      uid: authUser.uid,
+      email: authUser.email ?? base.email,
+      emailVerified: !!authUser.emailVerified,
+    } as IUserDados;
+  }
+
+  /**
+   * Faz um snapshot único do users/{uid} após login.
+   *
+   * Importante:
+   * - não abre listener realtime aqui
+   * - falha de Firestore NÃO derruba o login
+   * - se o doc ainda não existir no primeiro instante, retry curto ajuda
+   */
+  private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
+    if (!authUser?.uid) {
+      return of({
+        success: false,
+        code: 'auth/no-user',
+        message: 'Não foi possível autenticar agora.',
+      });
+    }
+
+    return this.firestoreUserQuery.getUser$(authUser.uid).pipe(
+      timeout({ each: this.NET_TIMEOUT_MS }),
+      retry({ count: 2, delay: 200 }),
+      take(1),
+
+      catchError((err) => {
+        this.reportSilent(
+          '[LoginService] Falha ao ler users/{uid} após login. Seguindo com fallback do Auth.',
+          err,
+          { uid: authUser.uid }
+        );
+
+        return of(null);
+      }),
+
+      map((firestoreUser) => {
+        const effectiveUser = this.buildEffectiveUser(
+          authUser,
+          firestoreUser as IUserDados | null | undefined
+        );
+
+        // Estado mínimo do app. Side-effects maiores ficam fora deste service.
+        this.currentUserStore.set(effectiveUser);
+
+        return {
+          success: true,
+          emailVerified: !!authUser.emailVerified,
+          user: effectiveUser,
+          needsProfileCompletion: this.needsProfileCompletion(effectiveUser),
+        } as LoginResult;
+      })
+    );
   }
 
   // ---------------------------------------------------------------------------
-  // Login (SEM side-effects de seed/geo; isso roda no AuthOrchestrator)
+  // Login
   // ---------------------------------------------------------------------------
-  login$(email: string, password: string, rememberMe?: boolean): Observable<LoginResult> {
-    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      return of({ success: false, code: 'offline', message: 'Sem conexão com a internet.' });
+
+  /**
+   * Login principal.
+   *
+   * Fluxo:
+   * 1) define persistência
+   * 2) autentica no Firebase Auth
+   * 3) tenta snapshot único do users/{uid}
+   * 4) se Firestore falhar, usa fallback do Auth
+   *
+   * Observação:
+   * - não chamamos user.reload() logo após signIn
+   * - o objeto retornado pelo signIn já é suficiente para este momento
+   * - isso reduz ruído e round-trips desnecessários
+   */
+  login$(
+    email: string,
+    password: string,
+    rememberMe?: boolean
+  ): Observable<LoginResult> {
+    const safeEmail = (email ?? '').trim();
+    const safePassword = password ?? '';
+
+    if (!safeEmail || !safePassword) {
+      return of({
+        success: false,
+        code: 'validation/invalid-input',
+        message: 'Informe e-mail e senha.',
+      });
     }
 
-    const mode: 'local' | 'session' =
-      (typeof rememberMe === 'boolean')
-        ? (rememberMe ? 'local' : 'session')
-        : (this.isAuthEmuActive() ? 'session' : 'local');
+    /**
+     * Se estiver em emulator local, navigator.onLine=false não é motivo suficiente
+     * para abortar, porque localhost ainda pode estar acessível.
+     *
+     * Já em cloud, offline real deve abortar cedo.
+     */
+    if (
+      !this.isAuthEmuActive() &&
+      typeof navigator !== 'undefined' &&
+      navigator.onLine === false
+    ) {
+      return of({
+        success: false,
+        code: 'offline',
+        message: 'Sem conexão com a internet.',
+      });
+    }
 
-    return defer(() => this.setSessionPersistence$(mode)).pipe(
+    /**
+     * Cloud:
+     * - rememberMe=true  -> local
+     * - rememberMe=false -> session
+     * - undefined        -> local
+     *
+     * Emulator:
+     * - respeitamos a convenção global (memory/session)
+     * - local não é usado
+     */
+    const requestedMode: SessionMode =
+      typeof rememberMe === 'boolean'
+        ? rememberMe
+          ? 'local'
+          : 'session'
+        : this.isAuthEmuActive()
+          ? this.getEmuPersistMode() === 'session'
+            ? 'session'
+            : 'none'
+          : 'local';
+
+    this.dbg('login:start', {
+      email: this.safeEmail(safeEmail),
+      rememberMe: typeof rememberMe === 'boolean' ? rememberMe : 'default',
+      requestedMode,
+      usingEmu: this.isAuthEmuActive(),
+      emuPersistMode: this.isAuthEmuActive() ? this.getEmuPersistMode() : 'cloud',
+    });
+
+    return this.setSessionPersistence$(requestedMode).pipe(
       timeout({ each: this.NET_TIMEOUT_MS }),
 
-      switchMap(() => defer(() => from(signInWithEmailAndPassword(this.auth, email, password)))),
-      timeout({ each: this.NET_TIMEOUT_MS }),
-
-      switchMap(({ user }) =>
-        defer(() => from(user.reload())).pipe(
-          timeout({ each: this.NET_TIMEOUT_MS }),
-          map(() => user as User)
-        )
+      switchMap(() =>
+        this.ctx.deferPromise$(() =>
+          signInWithEmailAndPassword(this.auth, safeEmail, safePassword)
+        ).pipe(timeout({ each: this.NET_TIMEOUT_MS }))
       ),
 
-      switchMap((refreshed) => {
-        if (!refreshed?.uid) {
-          return of({ success: false, code: 'auth/no-user', message: 'Não foi possível autenticar agora.' });
-        }
+      switchMap(({ user }) => {
+        this.dbg('login:signIn:ok', {
+          uid: user?.uid ?? null,
+          emailVerified: !!user?.emailVerified,
+        });
 
-        // ✅ one-shot/snapshot determinístico (evita listener realtime no login)
-        return this.firestoreUserQuery.getUser$(refreshed.uid).pipe(
-          timeout({ each: this.NET_TIMEOUT_MS }),
-          retry({ count: 2, delay: 200 }),
-          take(1),
-
-          // ✅ aqui era o seu TS2345: com map retornamos LoginResult (não void)
-          map((userData) => {
-            const base = (userData as IUserDados | null | undefined) ?? this.minimalFromAuth(refreshed);
-
-            const effectiveUser: IUserDados = {
-              ...base,
-              uid: refreshed.uid,
-              email: refreshed.email ?? base.email,
-              emailVerified: !!refreshed.emailVerified,
-            } as IUserDados;
-
-            // Estado do app (fonte: CurrentUserStore)
-            this.currentUserStore.set(effectiveUser);
-
-            return {
-              success: true,
-              emailVerified: !!refreshed.emailVerified,
-              user: effectiveUser,
-              needsProfileCompletion: this.needsProfileCompletion(effectiveUser),
-            } as LoginResult;
-          })
-        );
+        return this.loadEffectiveUserAfterLogin$(user);
       }),
 
       catchError((err) => {
         const mapped = this.mapAuthError(err);
 
-        // Observabilidade sem duplicar toast (o componente já mostra)
-        try {
-          const e = new Error(mapped.message);
-          (e as any).code = mapped.code;
-          (e as any).original = err;
-          (e as any).skipUserNotification = true;
-          (e as any).context = 'LoginService.login$';
-          this.globalErrorHandler.handleError(e);
-        } catch { }
+        this.reportSilent(mapped.message, err, {
+          code: mapped.code,
+          service: 'LoginService.login$',
+          email: this.safeEmail(safeEmail),
+        });
 
-        return of({ success: false, code: mapped.code, message: mapped.message });
+        return of({
+          success: false,
+          code: mapped.code,
+          message: mapped.message,
+        });
       })
     );
   }
@@ -215,51 +558,105 @@ export class LoginService {
   // ---------------------------------------------------------------------------
   // Reset / Confirm / Reauth
   // ---------------------------------------------------------------------------
+
   sendPasswordReset$(email: string): Observable<void> {
-    return defer(() => from(sendPasswordResetEmailFn(this.auth, email))).pipe(map(() => void 0));
+    return this.ctx.deferPromise$(() =>
+      sendPasswordResetEmailFn(this.auth, (email ?? '').trim())
+    ).pipe(
+      timeout({ each: this.NET_TIMEOUT_MS }),
+      map(() => void 0)
+    );
   }
+
   sendPasswordResetEmail$(email: string): Observable<void> {
     return this.sendPasswordReset$(email);
   }
-  confirmPasswordReset$(oobCode: string, newPassword: string): Observable<void> {
-    return defer(() => from(confirmPasswordReset(this.auth, oobCode, newPassword))).pipe(map(() => void 0));
+
+  confirmPasswordReset$(
+    oobCode: string,
+    newPassword: string
+  ): Observable<void> {
+    return this.ctx.deferPromise$(() =>
+      confirmPasswordReset(this.auth, oobCode, newPassword)
+    ).pipe(
+      timeout({ each: this.NET_TIMEOUT_MS }),
+      map(() => void 0)
+    );
   }
+
   reauthenticateUser$(password: string): Observable<void> {
     const user = this.auth.currentUser;
-    if (!user?.email) return of(void 0);
+
+    if (!user?.email) {
+      return of(void 0);
+    }
 
     const credential = EmailAuthProvider.credential(user.email, password);
-    return defer(() => from(reauthenticateWithCredential(user, credential))).pipe(map(() => void 0));
+
+    return this.ctx.deferPromise$(() =>
+      reauthenticateWithCredential(user, credential)
+    ).pipe(
+      timeout({ each: this.NET_TIMEOUT_MS }),
+      map(() => void 0)
+    );
   }
 
   // ---------------------------------------------------------------------------
   // Wrappers Promise
   // ---------------------------------------------------------------------------
-  setSessionPersistence(p: 'local' | 'session' | 'none' | Persistence): Promise<void> {
-    return firstValueFrom(this.setSessionPersistence$(p));
+
+  setSessionPersistence(
+    persistence: SessionMode | Persistence
+  ): Promise<void> {
+    return firstValueFrom(this.setSessionPersistence$(persistence));
   }
-  login(email: string, password: string, rememberMe?: boolean): Promise<LoginResult> {
+
+  login(
+    email: string,
+    password: string,
+    rememberMe?: boolean
+  ): Promise<LoginResult> {
     return firstValueFrom(this.login$(email, password, rememberMe));
   }
+
   sendPasswordReset(email: string): Promise<void> {
     return firstValueFrom(this.sendPasswordReset$(email));
   }
+
   sendPasswordResetEmail(email: string): Promise<void> {
     return this.sendPasswordReset(email);
   }
-  confirmPasswordReset(oobCode: string, newPassword: string): Promise<void> {
+
+  confirmPasswordReset(
+    oobCode: string,
+    newPassword: string
+  ): Promise<void> {
     return firstValueFrom(this.confirmPasswordReset$(oobCode, newPassword));
   }
+
   reauthenticateUser(password: string): Promise<void> {
     return firstValueFrom(this.reauthenticateUser$(password));
   }
 
   // ---------------------------------------------------------------------------
-  // Erros Auth
+  // Mapeamento de erros Auth
   // ---------------------------------------------------------------------------
-  private mapAuthError(error: any): { code?: string; message: string } {
+
+  /**
+   * Converte erros técnicos em mensagem de UX.
+   *
+   * Observação:
+   * - mantive "user-not-found" separado, porque seu fluxo atual já usa isso
+   * - se quiser endurecer privacidade depois, dá para unificar com credenciais inválidas
+   */
+  private mapAuthError(
+    error: any
+  ): { code?: string; message: string } {
     if (error?.name === 'TimeoutError') {
-      return { code: 'timeout', message: 'Tempo de resposta excedido. Tente novamente.' };
+      return {
+        code: 'timeout',
+        message: 'Tempo de resposta excedido. Tente novamente.',
+      };
     }
 
     const code = error?.code as string | undefined;
@@ -293,13 +690,20 @@ export class LoginService {
 
       case 'auth/network-request-failed': {
         const cfg: any = environment as any;
-        const usingAuthEmu = !environment.production && !!cfg?.emulators?.auth?.host && !!cfg?.emulators?.auth?.port;
+        const usingAuthEmu =
+          !environment.production &&
+          cfg?.useEmulators === true &&
+          !!cfg?.emulators?.auth?.host &&
+          !!cfg?.emulators?.auth?.port;
 
         if (usingAuthEmu) {
           const { host, port } = cfg.emulators.auth;
-          message = `Falha de conexão ao autenticar. Se usa emulador, verifique o Auth Emulator em http://${host}:${port}.`;
+          message =
+            `Falha de conexão ao autenticar. ` +
+            `Se você está em dev-emu, verifique o Auth Emulator em http://${host}:${port}.`;
         } else {
-          message = 'Falha de conexão ao autenticar. Verifique sua internet e tente novamente.';
+          message =
+            'Falha de conexão ao autenticar. Verifique sua internet e tente novamente.';
         }
         break;
       }
@@ -311,8 +715,9 @@ export class LoginService {
 
     return { code, message };
   }
-} // Linha 314, fim do login.service
-// Verificar migrações de responsabilidades para o:
-// 1 - auth-route-context.service.ts, e;
-// 2 - auth-user-document-watch.service.ts, e;
-// 3 - auth-session-monitor.service.ts.
+} // fim do login.service.ts, que tá com 718 linhas
+// Verificar migrações de responsabilidades para:
+// 1 - auth-route-context.service.ts
+// 2 - auth-user-document-watch.service.ts
+// 3 - auth-session-monitor.service.ts
+// 4 - ou qualquer função daqui pra service mais especifico

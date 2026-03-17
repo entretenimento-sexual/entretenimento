@@ -1,147 +1,315 @@
 // src/app/app.module.ts
-// Não esqueça os comentáros explicativos e ferramentas de debug no src/main.ts, que são parte essencial da experiência de desenvolvimento! 🚀
-import { NgModule, ErrorHandler, LOCALE_ID, APP_INITIALIZER } from '@angular/core';
+// =============================================================================
+// APP MODULE
+//
+// Responsabilidades centrais deste módulo:
+// - bootstrap global da aplicação Angular
+// - configuração do Firebase / AngularFire
+// - conexão com emuladores em dev-emu
+// - restauração defensiva da sessão Auth antes da aplicação decidir rotas/guards
+// - providers globais de erro, i18n e módulos-base
+//
+// Observação arquitetural:
+// - O src/main.ts continua sendo a camada de bootstrap + debug global.
+// - Este AppModule apenas consome as convenções definidas lá,
+//   especialmente a chave de persistência do Auth Emulator.
+// =============================================================================
+
+import {
+  APP_INITIALIZER,
+  ErrorHandler,
+  LOCALE_ID,
+  NgModule,
+} from '@angular/core';
+
+import { registerLocaleData } from '@angular/common';
+import localePt from '@angular/common/locales/pt';
+
 import { BrowserModule } from '@angular/platform-browser';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { HttpClientModule } from '@angular/common/http';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBarModule } from '@angular/material/snack-bar';
+
+import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 
 import { AppComponent } from './app.component';
 import { AppRoutingModule } from './app-routing.module';
 import { HeaderModule } from './header/header.module';
 import { FooterModule } from './footer/footer.module';
 import { PhotoEditorModule } from './photo-editor/photo-editor.module';
-
-import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 import { AppStoreModule } from './store/store.module';
 
 import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from './core/services/error-handler/error-notification.service';
 import { environment } from '../environments/environment';
 
+// =============================================================================
 // AngularFire
-import { provideFirebaseApp, initializeApp, getApp } from '@angular/fire/app';
-import { provideAuth, connectAuthEmulator, Auth } from '@angular/fire/auth';
-import { provideFirestore, connectFirestoreEmulator } from '@angular/fire/firestore';
-import { provideDatabase } from '@angular/fire/database';
-
-// Firebase Web SDK (Auth)
+// =============================================================================
+import { provideFirebaseApp } from '@angular/fire/app';
 import {
-  getAuth,
-  initializeAuth,
-  indexedDBLocalPersistence,
+  Auth,
+  connectAuthEmulator,
+  provideAuth,
+} from '@angular/fire/auth';
+import {
+  connectFirestoreEmulator,
+  provideFirestore,
+} from '@angular/fire/firestore';
+import { provideDatabase } from '@angular/fire/database';
+import { provideStorage } from '@angular/fire/storage';
+
+// =============================================================================
+// Firebase Web SDK
+// =============================================================================
+import { getApp, initializeApp } from 'firebase/app';
+
+import {
   browserLocalPersistence,
-  browserSessionPersistence,
-  inMemoryPersistence,
   browserPopupRedirectResolver,
-  signOut,
+  browserSessionPersistence,
+  getAuth,
+  indexedDBLocalPersistence,
+  initializeAuth,
+  inMemoryPersistence,
   setPersistence,
+  signOut,
 } from 'firebase/auth';
 
-// Firebase Web SDK (Firestore)
-import { initializeFirestore } from 'firebase/firestore';
+import {
+  getFirestore,
+  initializeFirestore,
+} from 'firebase/firestore';
 
-// RTDB & Storage
-import { getDatabase, connectDatabaseEmulator } from 'firebase/database';
-import { provideStorage, connectStorageEmulator } from '@angular/fire/storage';
-import { getStorage } from 'firebase/storage';
+import {
+  connectDatabaseEmulator,
+  getDatabase,
+} from 'firebase/database';
 
-// i18n
-import { registerLocaleData } from '@angular/common';
-import localePt from '@angular/common/locales/pt';
-registerLocaleData(localePt, 'pt-BR');
+import {
+  connectStorageEmulator,
+  getStorage,
+} from 'firebase/storage';
 
-// Standalone
+// =============================================================================
+// Standalone imports
+// =============================================================================
 import { AdminLinkComponent } from './admin-dashboard/admin-link/admin-link.component';
 
+// =============================================================================
+// Locale
+// =============================================================================
+registerLocaleData(localePt, 'pt-BR');
+
+// =============================================================================
+// Constantes compartilhadas com src/main.ts
+// =============================================================================
+
+/**
+ * Chave usada para controlar o modo de persistência do Auth Emulator.
+ *
+ * Valores válidos:
+ * - "memory"
+ * - "session"
+ *
+ * Importante:
+ * - deve permanecer sincronizada com src/main.ts
+ */
 const EMU_AUTH_PERSIST_KEY = '__EMU_AUTH_PERSIST__';
-// valores: 'memory' | 'session'
 
 type EmuPersistMode = 'memory' | 'session';
 
-/**
- * ✅ Helper único para evitar divergência entre initializer e provider.
- * - Default: 'session' (não cai no refresh).
- * - Use 'memory' apenas quando você quiser “anti-ghost” após reset do emulador.
- */
-function getEmuPersistMode(): EmuPersistMode {
-  if (typeof window === 'undefined') return 'session';
-  const v = (localStorage.getItem(EMU_AUTH_PERSIST_KEY) || '').toLowerCase();
-  return v === 'memory' ? 'memory' : 'session';
+// =============================================================================
+// Helpers utilitários
+// =============================================================================
+
+function isBrowser(): boolean {
+  return typeof window !== 'undefined';
 }
 
 /**
- * ✅ APP_INITIALIZER: segura o bootstrap “lógico” até o Firebase Auth restaurar a sessão.
+ * Log mínimo, respeitando o helper DBG definido no main.ts.
+ * Não quebra o bootstrap se o DBG não existir.
+ */
+function safeDbg(message: string, extra?: unknown): void {
+  try {
+    if (!isBrowser()) return;
+    (window as any)?.DBG?.(message, extra ?? '');
+  } catch {
+    // noop
+  }
+}
+
+function isUsingEmulators(): boolean {
+  const cfg: any = environment;
+  return !environment.production && cfg?.useEmulators === true;
+}
+
+function hasEmulatorTarget(kind: 'auth' | 'firestore' | 'database' | 'storage'): boolean {
+  const cfg: any = environment;
+  return !!cfg?.emulators?.[kind]?.host && !!cfg?.emulators?.[kind]?.port;
+}
+
+function isUsingAuthEmulator(): boolean {
+  return isUsingEmulators() && hasEmulatorTarget('auth');
+}
+
+function isUsingFirestoreEmulator(): boolean {
+  return isUsingEmulators() && hasEmulatorTarget('firestore');
+}
+
+function isUsingDatabaseEmulator(): boolean {
+  return isUsingEmulators() && hasEmulatorTarget('database');
+}
+
+function isUsingStorageEmulator(): boolean {
+  return isUsingEmulators() && hasEmulatorTarget('storage');
+}
+
+/**
+ * Helper único para evitar divergência entre initializer e provider.
+ *
+ * REGRA DO PROJETO:
+ * - a sessão deve sobreviver ao refresh em qualquer ambiente
+ * - no emulator, o default é "session"
+ * - "memory" existe apenas como ferramenta manual de troubleshooting
+ *
+ * Isso mantém o comportamento esperado de grandes plataformas:
+ * - usuário autenticado não “cai” no refresh
+ * - a restauração da sessão continua previsível
+ */
+function getEmuPersistMode(): EmuPersistMode {
+  if (!isBrowser()) return 'session';
+
+  const raw = (localStorage.getItem(EMU_AUTH_PERSIST_KEY) || '')
+    .trim()
+    .toLowerCase();
+
+  return raw === 'memory' ? 'memory' : 'session';
+}
+
+/**
+ * Conecta o Auth Emulator apenas uma vez.
+ * Isso evita ruído em HMR / re-bootstrap.
+ */
+function connectAuthEmulatorOnce(auth: Auth, url: string): void {
+  const marker = '__authEmulatorConnected__';
+
+  if ((auth as any)[marker] === true) return;
+
+  connectAuthEmulator(auth, url, { disableWarnings: true });
+  (auth as any)[marker] = true;
+}
+
+/**
+ * Marca defensiva para Firestore Emulator.
+ */
+function connectFirestoreEmulatorOnce(db: any, host: string, port: number): void {
+  const marker = '__firestoreEmulatorConnected__';
+
+  if ((db as any)[marker] === true) return;
+
+  connectFirestoreEmulator(db, host, port);
+  (db as any)[marker] = true;
+}
+
+/**
+ * Marca defensiva para RTDB Emulator.
+ */
+function connectDatabaseEmulatorOnce(db: any, host: string, port: number): void {
+  const marker = '__databaseEmulatorConnected__';
+
+  if ((db as any)[marker] === true) return;
+
+  connectDatabaseEmulator(db, host, port);
+  (db as any)[marker] = true;
+}
+
+/**
+ * Marca defensiva para Storage Emulator.
+ */
+function connectStorageEmulatorOnce(storage: any, host: string, port: number): void {
+  const marker = '__storageEmulatorConnected__';
+
+  if ((storage as any)[marker] === true) return;
+
+  connectStorageEmulator(storage, host, port);
+  (storage as any)[marker] = true;
+}
+
+// =============================================================================
+// APP_INITIALIZER
+// =============================================================================
+
+/**
+ * Segura o bootstrap lógico da aplicação até o Firebase Auth resolver
+ * a restauração da sessão atual.
  *
  * Por que isso importa?
- * - Sem isso, guards/Router podem rodar com auth.currentUser=null no boot (flash),
- *   causando redirecionamentos errados (/login) mesmo com usuário “logado” na persistência.
+ * - evita flash de auth.currentUser = null no boot
+ * - evita guards e router decidirem cedo demais
+ * - reduz redirect indevido para /login em refresh/cold start
  *
- * Além disso, no Auth Emulator:
- * - Em 'session': mantemos sessão entre refresh (bom pra dev).
- * - Em 'memory': não deve restaurar; se aparecer currentUser, é “fantasma” -> signOut.
+ * Regras:
+ * - fora do emulator: apenas aguardamos authStateReady()
+ * - no emulator:
+ *   - session: mantemos a sessão e validamos via reload()
+ *   - memory: não restaura por definição; se houver currentUser, tratamos como ghost
  */
-export function authRestoreInitializer(auth: Auth, geh: GlobalErrorHandlerService) {
-  return async () => {
+export function authRestoreInitializer(
+  auth: Auth,
+  geh: GlobalErrorHandlerService
+) {
+  return async (): Promise<void> => {
     try {
       await ((auth as any).authStateReady?.() ?? Promise.resolve());
 
-      const cfg: any = environment;
-      const usingEmu =
-        !environment.production &&
-        cfg?.useEmulators &&
-        cfg?.emulators?.auth?.host &&
-        cfg?.emulators?.auth?.port;
+      const usingEmu = isUsingAuthEmulator();
+      const persistMode = usingEmu ? getEmuPersistMode() : 'cloud';
 
-      // Log mínimo (aparece só se DBG estiver ligado no main.ts)
-      try {
-        (window as any)?.DBG?.('[AUTH][INIT] authStateReady()', {
-          usingEmu,
-          env: environment.env,
-          persistMode: usingEmu ? getEmuPersistMode() : 'cloud',
-          currentUserUid: auth.currentUser?.uid ?? null,
-        });
-      } catch { /* noop */ }
+      safeDbg('[AUTH][INIT] authStateReady()', {
+        env: environment.env,
+        usingEmu,
+        persistMode,
+        currentUserUid: auth.currentUser?.uid ?? null,
+      });
 
+      // Fora do emulator, basta esperar o restore natural do SDK.
       if (!usingEmu) return;
 
-      const persistMode = getEmuPersistMode();
+      const currentUser = auth.currentUser;
 
-      // ✅ Se estamos em "memory", não faz sentido restaurar nada do storage.
-      // Se aparecer currentUser aqui, é “fantasma” => limpa logo (evita lookup 400).
-      if (persistMode === 'memory' && auth.currentUser) {
-        try {
-          (window as any)?.DBG?.('[AUTH][INIT] memory-mode ghost -> signOut()', {
-            uid: auth.currentUser?.uid ?? null,
-          });
-        } catch { /* noop */ }
+      // Em "memory", não esperamos restore persistido.
+      // Se houver usuário aqui, tratamos como sessão fantasma.
+      if (persistMode === 'memory' && currentUser) {
+        safeDbg('[AUTH][INIT] memory-mode ghost -> signOut()', {
+          uid: currentUser.uid,
+        });
 
         await signOut(auth);
         return;
       }
 
-      const u = auth.currentUser;
-      if (!u) return;
+      if (!currentUser) return;
 
-      // ✅ Em 'session': valida via reload.
-      // Se o emulador não reconhecer, faz signOut.
+      // Em "session", validamos a sessão restaurada contra o emulator.
       try {
-        await u.reload();
+        await currentUser.reload();
 
-        try {
-          (window as any)?.DBG?.('[AUTH][INIT] reload ok', {
-            uid: u.uid,
-            emailVerified: !!u.emailVerified,
-          });
-        } catch { /* noop */ }
+        safeDbg('[AUTH][INIT] reload ok', {
+          uid: currentUser.uid,
+          emailVerified: currentUser.emailVerified === true,
+        });
       } catch (e: any) {
         const code = String(e?.code || '');
 
-        try {
-          (window as any)?.DBG?.('[AUTH][INIT] reload failed', { code, e });
-        } catch { /* noop */ }
+        safeDbg('[AUTH][INIT] reload failed', {
+          uid: currentUser.uid,
+          code,
+        });
 
         if (
           code === 'auth/user-not-found' ||
@@ -153,21 +321,27 @@ export function authRestoreInitializer(auth: Auth, geh: GlobalErrorHandlerServic
         }
       }
     } catch (err) {
-      // Centralizado
       geh.handleError(err as any);
     }
   };
 }
 
+// =============================================================================
+// Module
+// =============================================================================
+
 @NgModule({
   declarations: [AppComponent],
+
   imports: [
     BrowserModule,
     AppRoutingModule,
+
     FormsModule,
     ReactiveFormsModule,
     HttpClientModule,
     BrowserAnimationsModule,
+
     MatDialogModule,
     MatSnackBarModule,
 
@@ -176,154 +350,187 @@ export function authRestoreInitializer(auth: Auth, geh: GlobalErrorHandlerServic
     PhotoEditorModule,
 
     AppStoreModule,
-    ...(environment.production ? [] : [StoreDevtoolsModule.instrument({ maxAge: 25, trace: true })]),
 
-    // standalone
+    ...(environment.production
+      ? []
+      : [StoreDevtoolsModule.instrument({ maxAge: 25, trace: true })]),
+
+    // Standalone import
     AdminLinkComponent,
   ],
+
   providers: [
-    // 🔥 Firebase App
+    // =========================================================================
+    // Firebase App
+    // =========================================================================
     provideFirebaseApp(() => initializeApp(environment.firebase)),
 
-    // ✅ Garante restore antes do app decidir rotas/guards
+    // =========================================================================
+    // APP_INITIALIZER
+    // Garante que o Auth seja resolvido antes do app decidir navegação crítica
+    // =========================================================================
     {
       provide: APP_INITIALIZER,
       useFactory: authRestoreInitializer,
       deps: [Auth, GlobalErrorHandlerService],
-      multi: true
+      multi: true,
     },
 
-    // 🔐 Auth
-    // - dev-emu: default = session (não cai no refresh)
-    // - prod: persistência completa (IndexedDB -> local -> session)
+    // =========================================================================
+    // Auth
+    //
+    // Estratégia:
+    // - emulator: default = session (mantém sessão no refresh)
+    // - cloud/prod: persistência forte
+    //
+    // Ordem de persistência fora do emulator:
+    // - IndexedDB
+    // - localStorage
+    // - sessionStorage
+    // =========================================================================
     provideAuth(() => {
       const app = getApp();
-      const cfg: any = environment;
-
-      const usingEmu =
-        !environment.production &&
-        cfg?.useEmulators &&
-        cfg?.emulators?.auth?.host &&
-        cfg?.emulators?.auth?.port;
-
+      const usingEmu = isUsingAuthEmulator();
       const emuMode = usingEmu ? getEmuPersistMode() : 'session';
 
-      // ✅ Emulador:
-      // - session: mantém sessão no refresh (recomendado)
-      // - memory: anti-ghost (cai no refresh por definição)
       const emuPersistence =
-        emuMode === 'memory' ? inMemoryPersistence : browserSessionPersistence;
+        emuMode === 'memory'
+          ? inMemoryPersistence
+          : browserSessionPersistence;
 
       const persistence = usingEmu
         ? [emuPersistence]
-        : [indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence];
+        : [
+            indexedDBLocalPersistence,
+            browserLocalPersistence,
+            browserSessionPersistence,
+          ];
 
-      let auth;
+      let auth: Auth;
+
       try {
         auth = initializeAuth(app, {
           persistence,
           popupRedirectResolver: browserPopupRedirectResolver,
         });
       } catch {
-        // Já inicializado (HMR / re-bootstrap / etc.)
+        // HMR / rebootstrap / já inicializado
         auth = getAuth(app);
 
-        // ✅ best-effort: reforça persistência se caiu no catch
-        // (setPersistence é async; não bloqueia bootstrap)
-        if (usingEmu) {
-          setPersistence(auth, emuPersistence).catch(() => { /* noop */ });
-        }
+        // Reforço best-effort da persistência.
+        // Não bloqueia bootstrap.
+        const fallbackPersistence = usingEmu
+          ? emuPersistence
+          : browserLocalPersistence;
+
+        setPersistence(auth, fallbackPersistence).catch(() => {
+          // noop
+        });
       }
 
       if (usingEmu) {
+        const cfg: any = environment;
         const url = `http://${cfg.emulators.auth.host}:${cfg.emulators.auth.port}`;
-        connectAuthEmulator(auth, url, { disableWarnings: true });
 
-        // ping best-effort (não bloqueia)
-        try { fetch(url, { mode: 'no-cors' }).catch(() => { }); } catch { }
+        connectAuthEmulatorOnce(auth, url);
+
+        // Ping best-effort, útil em ambiente local.
+        try {
+          fetch(url, { mode: 'no-cors' }).catch(() => {
+            // noop
+          });
+        } catch {
+          // noop
+        }
       }
 
-      // Log mínimo (aparece só se DBG estiver ligado)
-      try {
-        (window as any)?.DBG?.('[AUTH][PROVIDE] configured', {
-          usingEmu,
-          env: environment.env,
-          emuMode: usingEmu ? emuMode : 'cloud',
-        });
-      } catch { /* noop */ }
+      safeDbg('[AUTH][PROVIDE] configured', {
+        env: environment.env,
+        usingEmu,
+        emuMode: usingEmu ? emuMode : 'cloud',
+      });
 
       return auth;
     }),
 
-    // 🗄️ Firestore (long-polling + emulador)
+    // =========================================================================
+    // Firestore
+    //
+    // Estratégia:
+    // - long polling em dev melhora robustez em ambientes locais/restritivos
+    // - fallback para getFirestore em HMR/rebootstrap
+    // =========================================================================
     provideFirestore(() => {
       const app = getApp();
 
-      const db = initializeFirestore(app, {
-        experimentalForceLongPolling: true,
-        useFetchStreams: false,
-        ignoreUndefinedProperties: true,
-      } as any);
+      let db: any;
 
-      const cfg: any = environment;
-      const usingEmu =
-        !environment.production &&
-        cfg?.useEmulators &&
-        cfg?.emulators?.firestore?.host &&
-        cfg?.emulators?.firestore?.port;
+      try {
+        db = initializeFirestore(app, {
+          experimentalForceLongPolling: true,
+          useFetchStreams: false,
+          ignoreUndefinedProperties: true,
+        } as any);
+      } catch {
+        db = getFirestore(app);
+      }
 
-      if (usingEmu) {
-        connectFirestoreEmulator(db, cfg.emulators.firestore.host, cfg.emulators.firestore.port);
+      if (isUsingFirestoreEmulator()) {
+        const cfg: any = environment;
+        connectFirestoreEmulatorOnce(
+          db,
+          cfg.emulators.firestore.host,
+          cfg.emulators.firestore.port
+        );
       }
 
       return db;
     }),
 
-    // 💾 RTDB & Storage
+    // =========================================================================
+    // Realtime Database
+    // =========================================================================
     provideDatabase(() => {
       const db = getDatabase(getApp());
 
-      const cfg: any = environment;
-      const usingEmu =
-        !environment.production &&
-        cfg?.useEmulators &&
-        cfg?.emulators?.database?.host &&
-        cfg?.emulators?.database?.port;
-
-      if (usingEmu) {
-        connectDatabaseEmulator(db, cfg.emulators.database.host, cfg.emulators.database.port);
+      if (isUsingDatabaseEmulator()) {
+        const cfg: any = environment;
+        connectDatabaseEmulatorOnce(
+          db,
+          cfg.emulators.database.host,
+          cfg.emulators.database.port
+        );
       }
 
       return db;
     }),
 
+    // =========================================================================
+    // Storage
+    // =========================================================================
     provideStorage(() => {
       const storage = getStorage(getApp());
 
-      const cfg: any = environment;
-      const usingEmu =
-        !environment.production &&
-        cfg?.useEmulators &&
-        cfg?.emulators?.storage?.host &&
-        cfg?.emulators?.storage?.port;
-
-      if (usingEmu) {
-        connectStorageEmulator(storage, cfg.emulators.storage.host, cfg.emulators.storage.port);
+      if (isUsingStorageEmulator()) {
+        const cfg: any = environment;
+        connectStorageEmulatorOnce(
+          storage,
+          cfg.emulators.storage.host,
+          cfg.emulators.storage.port
+        );
       }
 
       return storage;
     }),
 
-    // Erros & i18n
+    // =========================================================================
+    // Erro global / notificação / locale
+    // =========================================================================
     { provide: ErrorHandler, useClass: GlobalErrorHandlerService },
     ErrorNotificationService,
     { provide: LOCALE_ID, useValue: 'pt-BR' },
   ],
+
   bootstrap: [AppComponent],
 })
-export class AppModule { }
-// - Derivar um estado único de acesso a partir de:
-//   (1) AuthSessionService (verdade do Firebase Auth: uid, emailVerified, ready$)
-//   (2) CurrentUserStoreService (verdade do app: role, profileCompleted, etc.)
-//   (3) AuthAppBlockService (verdade do bloqueio do app: TerminateReason | null)
-//   (4) Router (estado de navegação e rotas “sensíveis” para gating)
+export class AppModule {}

@@ -3,7 +3,6 @@ import { NgModule } from '@angular/core';
 import { NoPreloading, RouterModule, Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth-guard/auth.guard';
-import { emailVerifiedGuard } from './core/guards/profile-guard/email-verified.guard';
 import { guestOnlyCanActivate, guestOnlyCanMatch } from './core/guards/auth-guard/guest-only.guard';
 import { adminCanMatch } from './core/guards/access-guard/admin.guard';
 
@@ -11,9 +10,6 @@ import { ProfileListComponent } from './layout/profile-list/profile-list.compone
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 
 const routes: Routes = [
-  // ===========================================================================
-  // Entrada padrão
-  // ===========================================================================
   {
     path: '',
     redirectTo: 'login',
@@ -28,6 +24,11 @@ const routes: Routes = [
     redirectTo: 'dashboard/principal',
     pathMatch: 'full',
   },
+  {
+  path: 'amigos',
+  redirectTo: 'friends',
+  pathMatch: 'full',
+},
   {
     path: 'meu-perfil',
     redirectTo: 'perfil',
@@ -72,7 +73,11 @@ const routes: Routes = [
   {
     path: 'chat',
     loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule),
-    canActivate: [authGuard, emailVerifiedGuard],
+    canActivate: [authGuard],
+    data: {
+      requireVerified: true,
+      requireProfileCompleted: true,
+    },
   },
 
   {
@@ -80,21 +85,49 @@ const routes: Routes = [
     loadChildren: () =>
       import('./layout/friend-management/friend-management.module')
         .then(m => m.FriendManagementModule),
-    canActivate: [authGuard, emailVerifiedGuard],
+    canActivate: [authGuard],
+    data: {
+      requireVerified: true,
+      requireProfileCompleted: true,
+    },
   },
 
   {
     path: 'admin-dashboard',
     loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule),
     canMatch: [adminCanMatch],
-    canActivate: [authGuard, emailVerifiedGuard],
+    canActivate: [authGuard],
+    data: {
+      requireVerified: true,
+      requireProfileCompleted: true,
+    },
+  },
+
+  {
+    path: 'profile-list',
+    component: ProfileListComponent,
+    canActivate: [authGuard],
+    data: {
+      requireVerified: true,
+      requireProfileCompleted: true,
+    },
+  },
+
+  {
+    path: 'subscription-plan',
+    component: SubscriptionPlanComponent,
+    canActivate: [authGuard],
+  },
+
+  {
+    path: 'perfil-debug/:id',
+    loadComponent: () =>
+      import('./perfil-debug.component').then(c => c.PerfilDebugComponent),
+    canActivate: [authGuard],
   },
 
   // ===========================================================================
   // Fluxo guest / auth pages
-  // IMPORTANTE:
-  // - /login e /register NÃO podem ficar sem guestOnly guard
-  // - senão o usuário autenticado consegue abrir tela guest
   // ===========================================================================
   {
     path: 'register',
@@ -119,7 +152,7 @@ const routes: Routes = [
   },
 
   // ===========================================================================
-  // Handlers de ação de auth / verificação
+  // Handlers globais de ação/verificação de auth
   // ===========================================================================
   {
     path: 'post-verification/action',
@@ -138,28 +171,6 @@ const routes: Routes = [
   },
 
   // ===========================================================================
-  // Páginas avulsas
-  // ===========================================================================
-  {
-    path: 'profile-list',
-    component: ProfileListComponent,
-    canActivate: [authGuard, emailVerifiedGuard],
-  },
-
-  {
-    path: 'subscription-plan',
-    component: SubscriptionPlanComponent,
-    canActivate: [authGuard],
-  },
-
-  {
-    path: 'perfil-debug/:id',
-    loadComponent: () =>
-      import('./perfil-debug.component').then(c => c.PerfilDebugComponent),
-    canActivate: [authGuard],
-  },
-
-  // ===========================================================================
   // Rotas de mídia
   // ===========================================================================
   {
@@ -168,9 +179,6 @@ const routes: Routes = [
       import('./media/media.routes').then(m => m.MEDIA_ROUTES),
   },
 
-  // ===========================================================================
-  // Fallback
-  // ===========================================================================
   {
     path: '**',
     redirectTo: 'login',

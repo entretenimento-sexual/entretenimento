@@ -1,4 +1,9 @@
-//src\app\chat-module\rooms\rooms-routing.module.ts
+// src/app/chat-module/rooms/rooms-routing.module.ts
+// Rotas das salas.
+//
+// Se este módulo estiver montado dentro de uma rota pai já protegida
+// (por exemplo /chat/rooms), não precisa repetir guards aqui.
+
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { RoomListComponent } from './room-list/room-list.component';

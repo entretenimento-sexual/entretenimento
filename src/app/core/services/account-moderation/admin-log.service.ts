@@ -14,7 +14,6 @@
 // - O campo adminUid passado por parâmetro NÃO é confiável por si só.
 //   Usamos o UID canônico do Auth (quando disponível) e só mantemos o parâmetro por compat.
 // =============================================================================
-
 import { Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import { Observable, of, throwError } from 'rxjs';
@@ -112,7 +111,7 @@ export class AdminLogService {
   private resolveActorUid(passedAdminUid?: string): string | null {
     const current = this.auth.currentUser?.uid ?? null;
 
-    // Se houver mismatch, usa o canônico do Auth e só loga warning em debug.
+      // Se houver mismatch, usa o canônico do Auth e só loga warning em debug.
     if (this.debug && passedAdminUid && current && passedAdminUid !== current) {
       // eslint-disable-next-line no-console
       console.warn('[AdminLogService] adminUid param != auth uid. Usando auth uid.', {
@@ -120,8 +119,7 @@ export class AdminLogService {
         current,
       });
     }
-
-    return current ?? passedAdminUid ?? null;
+    return current;
   }
 
   private domainError(message: string, code: string): DomainError {

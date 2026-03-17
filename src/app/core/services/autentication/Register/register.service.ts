@@ -42,7 +42,6 @@ import { ValidatorService } from '../../general/validator.service';
 import { FirebaseError } from 'firebase/app';
 import { environment } from 'src/environments/environment';
 
-import { CurrentUserStoreService } from '../auth/current-user-store.service';
 import { CacheService } from '../../general/cache/cache.service';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 import { NicknameUtils } from '@core/utils/nickname-utils';
@@ -56,6 +55,7 @@ type SignupContext = {
 @Injectable({ providedIn: 'root' })
 export class RegisterService {
   private readonly NET_TIMEOUT_MS = 12_000;
+  private readonly HOT_KEY_CURRENT_USER_UID = 'currentUserUid';
 
   // public_profiles.rules (nicknameNormalized):
   private readonly NICKNAME_NORM_RE = /^[a-z0-9._-]{3,40}$/;
@@ -64,7 +64,6 @@ export class RegisterService {
     private readonly emailVerificationService: EmailVerificationService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly firestoreValidation: FirestoreValidationService,
-    private readonly currentUserStore: CurrentUserStoreService,
     private readonly cache: CacheService,
     private readonly auth: Auth,
     private readonly db: Firestore,
@@ -75,7 +74,11 @@ export class RegisterService {
     const traceId = this.makeTraceId();
 
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      return this.handleRegisterError(new Error('Sem conexão com a internet. Verifique e tente novamente.'), 'Rede', traceId);
+      return this.handleRegisterError(
+        new Error('Sem conexão com a internet. Verifique e tente novamente.'),
+        'Rede',
+        traceId
+      );
     }
 
     this.devDebug(traceId, 'registerUser:start', {
@@ -101,14 +104,17 @@ export class RegisterService {
       switchMap((cred) =>
         this.persistUserAndIndexAtomic(cred.user.uid, userData, traceId).pipe(
           map((): SignupContext => ({ cred, warns: [], traceId })),
-          // rollback best-effort se Firestore falhar
           catchError((err) =>
             this.deleteUserOnFailure(cred.user.uid).pipe(
               catchError((delErr) => {
-                this.safeHandle('[RegisterService] Falha ao rollback do Auth após erro no Firestore.', delErr, {
-                  traceId,
-                  uid: cred.user.uid,
-                });
+                this.safeHandle(
+                  '[RegisterService] Falha ao rollback do Auth após erro no Firestore.',
+                  delErr,
+                  {
+                    traceId,
+                    uid: cred.user.uid,
+                  }
+                );
                 return of(void 0);
               }),
               switchMap(() => throwError(() => err))
@@ -149,10 +155,17 @@ export class RegisterService {
         )
       ),
 
-      // 6) seed local state
+      /**
+       * 6) Seed compat mínimo
+       *
+       * Importante:
+       * - NÃO escrevemos mais no CurrentUserStore aqui.
+       * - O runtime do perfil continua sendo responsabilidade do fluxo oficial:
+       *   AuthSessionSyncEffects + UserEffects + CurrentUserStoreService.
+       * - Mantemos apenas HOT_KEY mínima de UID para compatibilidade de bootstrap.
+       */
       tap((ctx2) => {
         const { user } = ctx2.cred;
-        const now = Date.now();
 
         this.seedLocalStateAfterSignup(user.uid, {
           uid: user.uid,
@@ -162,9 +175,9 @@ export class RegisterService {
           emailVerified: false,
           isSubscriber: false,
           profileCompleted: false,
-          registrationDate: now,
-          firstLogin: now,
-          acceptedTerms: { accepted: true, date: now },
+          registrationDate: Date.now(),
+          firstLogin: Date.now(),
+          acceptedTerms: { accepted: true, date: Date.now() },
         });
 
         if (!environment.production && ctx2.warns.length) {
@@ -186,61 +199,73 @@ export class RegisterService {
    * - Aguarda onIdTokenChanged entregar o UID esperado
    * - timeout + take(1) para não deixar listener vivo
    */
-private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): Observable<void> {
-  const refresh$ = from(
-    this.auth.currentUser?.getIdToken(true) ?? Promise.resolve('')
-  ).pipe(
-    timeout({ each: this.NET_TIMEOUT_MS }),
-    catchError((err) => {
-      this.safeHandle('[RegisterService] getIdToken(true) falhou (warn).', err, {
-        traceId,
-        expectedUid,
-      });
-      return of('');
-    })
-  );
-
-  const tokenChanged$ = new Observable<void>((subscriber) => {
-    const unsub = onIdTokenChanged(
-      this.auth,
-      (user: User | null) => {
-        if (user?.uid === expectedUid) {
-          subscriber.next();
-          subscriber.complete();
-        }
-      },
-      (err: unknown) => subscriber.error(err)
+  private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): Observable<void> {
+    const refresh$ = from(
+      this.auth.currentUser?.getIdToken(true) ?? Promise.resolve('')
+    ).pipe(
+      timeout({ each: this.NET_TIMEOUT_MS }),
+      catchError((err) => {
+        this.safeHandle('[RegisterService] getIdToken(true) falhou (warn).', err, {
+          traceId,
+          expectedUid,
+        });
+        return of('');
+      })
     );
 
-    return () => unsub();
-  }).pipe(
-    take(1),
-    timeout({ each: this.NET_TIMEOUT_MS })
-  );
+    const tokenChanged$ = new Observable<void>((subscriber) => {
+      const unsub = onIdTokenChanged(
+        this.auth,
+        (user: User | null) => {
+          if (user?.uid === expectedUid) {
+            subscriber.next();
+            subscriber.complete();
+          }
+        },
+        (err: unknown) => subscriber.error(err)
+      );
 
-  return refresh$.pipe(
-    switchMap(() => tokenChanged$),
-    map(() => void 0),
-    catchError((err) =>
-      this.handleRegisterError(err, 'Sincronização Auth/Firestore', traceId)
-    )
-  );
-}
+      return () => unsub();
+    }).pipe(
+      take(1),
+      timeout({ each: this.NET_TIMEOUT_MS })
+    );
+
+    return refresh$.pipe(
+      switchMap(() => tokenChanged$),
+      map(() => void 0),
+      catchError((err) =>
+        this.handleRegisterError(err, 'Sincronização Auth/Firestore', traceId)
+      )
+    );
+  }
 
   private validateUserData(user: IUserRegistrationData, traceId: string): Observable<void> {
     const nickname = (user.nickname ?? '').trim();
     const email = (user.email ?? '').trim();
 
     if (!user?.acceptedTerms?.accepted) {
-      return this.handleRegisterError(new Error('Você precisa aceitar os Termos de Uso para continuar.'), 'Validação', traceId);
+      return this.handleRegisterError(
+        new Error('Você precisa aceitar os Termos de Uso para continuar.'),
+        'Validação',
+        traceId
+      );
     }
 
     if (nickname.length < 4 || nickname.length > 24) {
-      return this.handleRegisterError(new Error('Apelido deve ter entre 4 e 24 caracteres.'), 'Validação', traceId);
+      return this.handleRegisterError(
+        new Error('Apelido deve ter entre 4 e 24 caracteres.'),
+        'Validação',
+        traceId
+      );
     }
 
     if (!this.isValidEmailFormat(email)) {
-      return this.handleRegisterError(new Error('Formato de e-mail inválido.'), 'Validação', traceId);
+      return this.handleRegisterError(
+        new Error('Formato de e-mail inválido.'),
+        'Validação',
+        traceId
+      );
     }
 
     // garante compat com public_profiles.rules (nicknameNormalized regex)
@@ -258,7 +283,13 @@ private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): 
 
     return this.firestoreValidation.checkIfNicknameExists(nickname).pipe(
       switchMap((exists) => {
-        if (exists) return this.handleRegisterError(new Error('Apelido já está em uso.'), 'Validação', traceId);
+        if (exists) {
+          return this.handleRegisterError(
+            new Error('Apelido já está em uso.'),
+            'Validação',
+            traceId
+          );
+        }
         return this.checkIfEmailExists(email, traceId);
       })
     );
@@ -329,8 +360,6 @@ private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): 
         }
 
         // 2) users/{uid}
-        // Obs.: users.rules não tem whitelist por enquanto.
-        // Aqui você já “trava” alguns campos sensíveis (role/isSubscriber) no create, o que é esperado.
         tx.set(userRef, {
           uid,
           email: (userData.email ?? '').trim(),
@@ -345,7 +374,6 @@ private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): 
             date: serverTimestamp(),
           },
 
-          // timestamps do sistema (mais auditável)
           createdAt: serverTimestamp(),
           registrationDate: serverTimestamp(),
           firstLogin: serverTimestamp(),
@@ -356,7 +384,6 @@ private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): 
         }, { merge: true });
 
         // 3) public_index/nickname:...
-        // ✅ RULES: createdAt/lastChangedAt MUST be serverTimestamp() => request.time
         tx.set(indexRef, {
           uid,
           type: 'nickname',
@@ -366,7 +393,6 @@ private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): 
         });
 
         // 4) public_profiles/{uid}
-        // ✅ RULES: allowedKeys() estrita + createdAt/updatedAt MUST be serverTimestamp() + role basic
         tx.set(publicProfileRef, {
           uid,
           nickname,
@@ -374,31 +400,30 @@ private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): 
           role: 'basic',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          // avatarUrl/photoURL ausentes nesta fase (ok: null/ausente passa nas rules)
         });
       })
     ).pipe(
       map(() => void 0),
       tap(() => this.devDebug(traceId, 'persist:tx:ok', { uid })),
-        catchError((err: any) => {
-          const fb = {
-            name: err?.name,
-            code: err?.code,
-            message: err?.message,
-            customData: err?.customData,
-          };
+      catchError((err: any) => {
+        const fb = {
+          name: err?.name,
+          code: err?.code,
+          message: err?.message,
+          customData: err?.customData,
+        };
 
-          this.safeHandle('[RegisterService] persistUserAndIndexAtomic falhou.', err, {
-            traceId,
-            uid,
-            nickname,
-            normalized,
-            authUid: this.auth.currentUser?.uid ?? null,
-            firebaseError: fb,
-          });
+        this.safeHandle('[RegisterService] persistUserAndIndexAtomic falhou.', err, {
+          traceId,
+          uid,
+          nickname,
+          normalized,
+          authUid: this.auth.currentUser?.uid ?? null,
+          firebaseError: fb,
+        });
 
-          return throwError(() => err);
-        })
+        return throwError(() => err);
+      })
     );
   }
 
@@ -479,27 +504,26 @@ private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): 
     return of(void 0);
   }
 
-  private seedLocalStateAfterSignup(uid: string, data: Partial<IUserRegistrationData>): void {
-    const now = Date.now();
+  /**
+   * Seed compat mínimo pós-signup.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - Foi removida a escrita do runtime do perfil via CurrentUserStoreService.
+   * - Foi removido o sync completo de currentUser em cache.
+   *
+   * Motivo:
+   * - evitar duplicidade com o fluxo oficial de hidratação do usuário;
+   * - impedir competição de snapshots no runtime;
+   * - reduzir ruído de logs e estados transitórios.
+   *
+   * Mantemos apenas a HOT_KEY de UID para compatibilidade com bootstraps legados
+   * que precisem de leitura síncrona defensiva.
+   */
+  private seedLocalStateAfterSignup(uid: string, _data: Partial<IUserRegistrationData>): void {
+    const safeUid = (uid ?? '').trim();
+    if (!safeUid) return;
 
-    const snapshot: Partial<IUserRegistrationData> = {
-      uid,
-      email: data.email || '',
-      nickname: data.nickname || '',
-      role: data.role ?? 'basic',
-      emailVerified: !!data.emailVerified,
-      isSubscriber: !!data.isSubscriber,
-      profileCompleted: !!data.profileCompleted,
-      firstLogin: typeof data.firstLogin === 'number' ? data.firstLogin : now,
-      registrationDate: typeof data.registrationDate === 'number' ? data.registrationDate : now,
-      acceptedTerms: {
-        accepted: !!data.acceptedTerms?.accepted,
-        date: data.acceptedTerms?.date ?? now,
-      },
-    };
-
-    this.currentUserStore.set(snapshot as any);
-    this.cache.syncCurrentUserWithUid(snapshot as any);
+    this.cache.set(this.HOT_KEY_CURRENT_USER_UID, safeUid, undefined, { persist: false });
   }
 
   private handleRegisterError(error: any, context: string, traceId: string): Observable<never> {
@@ -518,7 +542,6 @@ private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): 
 
     if (error instanceof FirebaseError) {
       switch (error.code) {
-        // segurança: não expõe existência
         case 'auth/email-already-in-use':
           return 'Se existir uma conta com este e-mail, você receberá instruções para recuperar o acesso.';
         case 'auth/weak-password':
@@ -561,16 +584,16 @@ private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): 
   // ----------------------------------------------------------------------------
   private normalizeNickname(nickname: string): string {
     /**
-  * Centralização:
-  * - DISPLAY pode conter espaço (ex.: "João Oficial")
-  * - Índice (public_index docId / nicknameNormalized) NÃO pode conter espaço
-  * - Portanto, convertemos espaços para "_" e removemos diacríticos para gerar a KEY.
-  *
-  * Isso evita divergência entre:
-  * - validação do register
-  * - checagem de unicidade em public_index
-  * - persistência em transaction
-  */
+     * Centralização:
+     * - DISPLAY pode conter espaço (ex.: "João Oficial")
+     * - Índice (public_index docId / nicknameNormalized) NÃO pode conter espaço
+     * - Portanto, convertemos espaços para "_" e removemos diacríticos para gerar a KEY.
+     *
+     * Isso evita divergência entre:
+     * - validação do register
+     * - checagem de unicidade em public_index
+     * - persistência em transaction
+     */
     return NicknameUtils.normalizarApelidoParaIndice(nickname);
   }
 
@@ -600,8 +623,4 @@ private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): 
     if (!u || !d) return e;
     return `${u.slice(0, 2)}***@${d}`;
   }
-} // Linha 603, fim do register.service
-// Verificar migrações de responsabilidades para o:
-// 1 - auth-route-context.service.ts, e;
-// 2 - auth-user-document-watch.service.ts, e;
-// 3 - auth-session-monitor.service.ts.
+} // linha 626

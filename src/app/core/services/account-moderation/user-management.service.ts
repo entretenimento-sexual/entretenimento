@@ -1,7 +1,6 @@
 // src/app/core/services/autentication/user-management.service.ts
 // Serviço para gerenciamento de usuários (admin)
 // Não esquecer os comentários e ferramentas de debug para facilitar a manutenção futura
-
 import { Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import { deleteUser } from 'firebase/auth';

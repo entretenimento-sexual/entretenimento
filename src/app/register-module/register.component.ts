@@ -269,53 +269,55 @@ export class RegisterComponent {
       .subscribe();
   }
 
-  private runNicknameAvailabilityCheck$(mode: 'soft' | 'strict'): Observable<void> {
-    // Se ainda nem dá para validar (sync), não chama rede
-    if (this.hasBlockingNicknameSyncErrors() || this.hasBlockingComplementSyncErrors()) {
-      this.nicknameCheckState.set('idle');
-      this.clearApelidoEmUsoError();
-      return of(void 0);
-    }
-
-    // Se o formGroup acusa apelido completo inválido, também não chama rede
-    if (this.form.hasError('invalidFullNickname')) {
-      this.nicknameCheckState.set('idle');
-      this.clearApelidoEmUsoError();
-      return of(void 0);
-    }
-
-    const fullNick = (this.apelidoCompleto() || '').trim();
-    if (!fullNick) {
-      this.nicknameCheckState.set('idle');
-      this.clearApelidoEmUsoError();
-      return of(void 0);
-    }
-
-    this.nicknameCheckState.set('checking');
-
-    return this.validatorService.checkIfNicknameExists(fullNick, { mode }).pipe(
-      tap((exists: boolean) => {
-        if (exists) {
-          this.setApelidoEmUsoError();
-          this.nicknameCheckState.set('taken');
-        } else {
-          this.clearApelidoEmUsoError();
-          this.nicknameCheckState.set('available');
-        }
-      }),
-      map(() => void 0),
-      catchError((err) => {
-        // Soft: não “quebra” UX por falha de rede/permissão — apenas marca como não verificado
-        this.dbg('nickname check error', err);
-        this.nicknameCheckState.set('unverified');
-        this.clearApelidoEmUsoError();
-        return of(void 0);
-      }),
-      finalize(() => {
-        // Mantém estado available/taken/unverified para UI; não volta para idle automaticamente
-      })
-    );
+private runNicknameAvailabilityCheck$(mode: 'soft' | 'strict'): Observable<void> {
+  if (this.hasBlockingNicknameSyncErrors() || this.hasBlockingComplementSyncErrors()) {
+    this.nicknameCheckState.set('idle');
+    this.clearApelidoEmUsoError();
+    return of(void 0);
   }
+
+  if (this.form.hasError('invalidFullNickname')) {
+    this.nicknameCheckState.set('idle');
+    this.clearApelidoEmUsoError();
+    return of(void 0);
+  }
+
+  const fullNick = (this.apelidoCompleto() || '').trim();
+  if (!fullNick) {
+    this.nicknameCheckState.set('idle');
+    this.clearApelidoEmUsoError();
+    return of(void 0);
+  }
+
+  this.nicknameCheckState.set('checking');
+
+  return this.validatorService.checkIfNicknameExists(fullNick, { mode }).pipe(
+    tap((exists: boolean) => {
+      if (exists) {
+        this.setApelidoEmUsoError();
+        this.nicknameCheckState.set('taken');
+      } else {
+        this.clearApelidoEmUsoError();
+        this.nicknameCheckState.set('available');
+      }
+    }),
+    map(() => void 0),
+    catchError((err) => {
+      this.dbg('nickname check error', err);
+      this.nicknameCheckState.set('unverified');
+      this.clearApelidoEmUsoError();
+
+      if (mode === 'strict') {
+        return throwError(() => ({
+          code: 'nickname-check-failed',
+          message: 'Não foi possível validar o apelido agora.',
+          original: err,
+        }));
+      }
+      return of(void 0);
+    })
+  );
+}
 
   // ---------------- Auth wait ----------------
   private waitForAuthUserOnce(timeoutMs = 6000): Promise<User> {
@@ -539,6 +541,17 @@ export class RegisterComponent {
             return;
           }
 
+          if (code === 'nickname-check-failed') {
+            this.setBanner(
+              'warn',
+              'Não foi possível validar o apelido',
+              'Tente novamente em instantes antes de concluir o cadastro.',
+              err
+            );
+            this.errorNotification.showError('Não foi possível validar o apelido agora.');
+            return;
+          }
+
           if (code === 'auth/too-many-requests') {
             this.setBanner('warn', 'Muitas tentativas', 'Aguarde alguns minutos e tente novamente.', err);
             return;
@@ -552,6 +565,7 @@ export class RegisterComponent {
             setTimeout(() => document.getElementById('apelidoPrincipal')?.focus());
             return;
           }
+
 
           this.setBanner(
             'error',

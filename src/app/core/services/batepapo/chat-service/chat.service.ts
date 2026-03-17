@@ -7,7 +7,6 @@
 // - Gating de sessão continua aqui (ready/auth/block/emailVerified).
 // - Erros: globalError (silent) + notify só em validações de UX (ex: msg vazia).
 // =============================================================================
-
 import { Injectable, OnDestroy } from '@angular/core';
 import { Observable, Subject, combineLatest, of, throwError } from 'rxjs';
 import {

@@ -1,5 +1,4 @@
-/* src\styles\global-forms.css */
-/* global-forms.css */
+/* src/styles/global-forms.css */
 .input-field {
   width: 100%;
   padding: 7px;
@@ -17,110 +16,15 @@
   outline: none;
 }
 
+.input-field.ng-invalid.ng-touched {
+  border-color: var(--danger-color);
+}
+
 .form-label {
   font-size: 1rem;
   color: var(--text-color);
   margin-bottom: 8px;
   display: block;
-}
-
-.input-field.ng-invalid.ng-touched {
-  border-color: var(--danger-color);
-}
-
-/* === Range Acessível (Chrome/Safari/Edge) === */
-input[type="range"],
-.form-range {
-  -webkit-appearance: none;
-  appearance: none;
-  height: var(--range-track-height);
-  background: transparent;
-  width: 100%;
-}
-
-/* trilho */
-input[type="range"]::-webkit-slider-runnable-track,
-.form-range::-webkit-slider-runnable-track {
-  height: var(--range-track-height);
-  background-color: var(--range-track-color);
-  border-radius: var(--radius-sm);
-}
-
-/* polegar */
-input[type="range"]::-webkit-slider-thumb,
-.form-range::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: var(--range-thumb-size);
-  height: var(--range-thumb-size);
-  border-radius: 50%;
-  background: var(--primary-color);
-  box-shadow: var(--range-thumb-shadow);
-  margin-top: calc((var(--range-track-height) - var(--range-thumb-size)) / 2);
-  transition: transform .1s ease;
-}
-
-/* foco visível */
-input[type="range"]:focus-visible,
-.form-range:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
-}
-
-/* interação */
-input[type="range"]::-webkit-slider-thumb:hover,
-.form-range::-webkit-slider-thumb:hover {
-  transform: scale(1.05);
-}
-
-/* === Firefox === */
-input[type="range"]::-moz-range-track,
-.form-range::-moz-range-track {
-  height: var(--range-track-height);
-  background-color: var(--range-track-color);
-  border: none;
-  border-radius: var(--radius-sm);
-}
-
-input[type="range"]::-moz-range-thumb,
-.form-range::-moz-range-thumb {
-  width: var(--range-thumb-size);
-  height: var(--range-thumb-size);
-  border-radius: 50%;
-  border: none;
-  background: var(--primary-color);
-  box-shadow: var(--range-thumb-shadow);
-}
-
-/* foco visível no Firefox */
-input[type="range"]:focus-visible::-moz-range-thumb,
-.form-range:focus-visible::-moz-range-thumb {
-  outline: var(--focus-ring);
-}
-
-.toggle-input {
-  position: absolute;
-  right: 10px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: none;
-  border: none;
-  color: #999;
-  cursor: pointer;
-}
-
-.tooltip-error {
-  position: absolute;
-  background-color: var(--tooltip-background);
-  color: #fff;
-  padding: 5px 10px;
-  border-radius: 6px;
-  font-size: 0.875rem;
-  z-index: 1000;
-  margin-top: 4px;
-  box-shadow: var(--box-shadow);
-  animation: fadeIn 0.3s ease;
-  white-space: nowrap;
 }
 
 .form-field {
@@ -131,13 +35,13 @@ input[type="range"]:focus-visible::-moz-range-thumb,
   width: 100%;
   max-width: 450px;
   padding: 25px;
+  margin: auto;
   background-color: var(--background-color);
   color: var(--text-color);
   border-radius: 12px;
   box-shadow: var(--box-shadow);
   text-align: center;
   transition: background-color 0.3s ease, color 0.3s ease;
-  margin: auto;
 }
 
 .form-header {
@@ -150,13 +54,23 @@ input[type="range"]:focus-visible::-moz-range-thumb,
 .form-checkbox {
   display: flex;
   align-items: flex-start;
-  margin: 20px 0;
   gap: 10px;
+  margin: 20px 0;
   color: var(--text-color);
 }
 
 .form-checkbox input[type="checkbox"]:checked {
   accent-color: var(--primary-color);
+}
+
+.auth-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  min-height: 70vh;
+  background-color: var(--background-color);
+  font-family: var(--font-family-primary);
 }
 
 .login-link,
@@ -179,17 +93,92 @@ input[type="range"]:focus-visible::-moz-range-thumb,
   color: var(--primary-hover);
 }
 
-.auth-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-direction: column;
-  min-height: 70vh;
-  background-color: var(--background-color);
-  font-family: var(--font-family-primary);
+.toggle-input {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
 }
 
-/* Inputs com borda nítida (HC) */
+.tooltip-error {
+  position: absolute;
+  z-index: 1000;
+  margin-top: 4px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background-color: var(--tooltip-background);
+  color: #fff;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  box-shadow: var(--box-shadow);
+  animation: fadeIn 0.3s ease;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Range acessível                                                            */
+/* -------------------------------------------------------------------------- */
+:is(input[type="range"], .form-range) {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: var(--range-track-height);
+  background: transparent;
+}
+
+:is(input[type="range"], .form-range)::-webkit-slider-runnable-track {
+  height: var(--range-track-height);
+  background-color: var(--range-track-color);
+  border-radius: var(--radius-sm);
+}
+
+:is(input[type="range"], .form-range)::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--range-thumb-size);
+  height: var(--range-thumb-size);
+  margin-top: calc((var(--range-track-height) - var(--range-thumb-size)) / 2);
+  border-radius: 50%;
+  background: var(--primary-color);
+  box-shadow: var(--range-thumb-shadow);
+  transition: transform 0.1s ease;
+}
+
+:is(input[type="range"], .form-range):focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+:is(input[type="range"], .form-range)::-webkit-slider-thumb:hover {
+  transform: scale(1.05);
+}
+
+:is(input[type="range"], .form-range)::-moz-range-track {
+  height: var(--range-track-height);
+  background-color: var(--range-track-color);
+  border: none;
+  border-radius: var(--radius-sm);
+}
+
+:is(input[type="range"], .form-range)::-moz-range-thumb {
+  width: var(--range-thumb-size);
+  height: var(--range-thumb-size);
+  border: none;
+  border-radius: 50%;
+  background: var(--primary-color);
+  box-shadow: var(--range-thumb-shadow);
+}
+
+:is(input[type="range"], .form-range):focus-visible::-moz-range-thumb {
+  outline: var(--focus-ring);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Alto contraste                                                             */
+/* -------------------------------------------------------------------------- */
 html.high-contrast .input-field {
   background: var(--background-color);
   color: var(--text-color);
@@ -202,45 +191,33 @@ html.high-contrast .input-field:focus-visible {
   box-shadow: none;
 }
 
-/* Slider (Chrome/Edge/Safari) em HC */
-html.high-contrast input[type="range"],
-html.high-contrast .form-range {
+html.high-contrast :is(input[type="range"], .form-range) {
   height: var(--range-track-height);
 }
 
-html.high-contrast input[type="range"]::-webkit-slider-runnable-track,
-html.high-contrast .form-range::-webkit-slider-runnable-track {
-  background: var(--range-track-color);
+html.high-contrast :is(input[type="range"], .form-range)::-webkit-slider-runnable-track,
+html.high-contrast :is(input[type="range"], .form-range)::-moz-range-track {
   height: 4px;
+  background: var(--range-track-color);
 }
 
-html.high-contrast input[type="range"]::-webkit-slider-thumb,
-html.high-contrast .form-range::-webkit-slider-thumb {
-  background: var(--background-color);
-  border: 3px solid var(--text-color);
+html.high-contrast :is(input[type="range"], .form-range)::-webkit-slider-thumb {
   width: var(--range-thumb-size);
   height: var(--range-thumb-size);
   margin-top: calc((4px - var(--range-thumb-size)) / 2);
-  box-shadow: none;
-}
-
-/* Slider (Firefox) em HC */
-html.high-contrast input[type="range"]::-moz-range-track,
-html.high-contrast .form-range::-moz-range-track {
-  background: var(--range-track-color);
-  height: 4px;
-}
-
-html.high-contrast input[type="range"]::-moz-range-thumb,
-html.high-contrast .form-range::-moz-range-thumb {
   background: var(--background-color);
   border: 3px solid var(--text-color);
-  width: var(--range-thumb-size);
-  height: var(--range-thumb-size);
   box-shadow: none;
 }
 
-/* Tooltips e snackbars com contraste alto */
+html.high-contrast :is(input[type="range"], .form-range)::-moz-range-thumb {
+  width: var(--range-thumb-size);
+  height: var(--range-thumb-size);
+  background: var(--background-color);
+  border: 3px solid var(--text-color);
+  box-shadow: none;
+}
+
 html.high-contrast .tooltip-error,
 html.high-contrast .success-snackbar,
 html.high-contrast .error-snackbar,
@@ -249,90 +226,4 @@ html.high-contrast .warning-snackbar {
   color: #000 !important;
   background: #ff0 !important;
   border: 3px solid #000 !important;
-}
-/* ========================= */
-/*  Angular Material – global */
-/* ========================= */
-
-/* --- <mat-form-field appearance="outline"> (Buscar / Ordenar por) --- */
-.mat-mdc-form-field {
-  /* borda: normal/hover/foco */
-  --mdc-outlined-text-field-outline-color: var(--surface-border);
-  --mdc-outlined-text-field-hover-outline-color: var(--surface-border);
-  --mdc-outlined-text-field-focus-outline-color: var(--primary-color);
-
-  /* cores de label/input/caret */
-  --mdc-outlined-text-field-label-text-color: color-mix(in oklab, var(--text-color) 70%, transparent);
-  --mdc-outlined-text-field-input-text-color: var(--text-color);
-  --mdc-outlined-text-field-caret-color: var(--primary-color);
-
-  /* fundo do campo (respeita claro/escuro) */
-  background: var(--input-background);
-}
-
-/* fallback direto na outline (quando variáveis MDC não bastam) */
-.mdc-notched-outline__leading,
-.mdc-notched-outline__notch,
-.mdc-notched-outline__trailing {
-  border-color: var(--surface-border) !important;
-}
-
-.mdc-text-field--focused .mdc-notched-outline__leading,
-.mdc-text-field--focused .mdc-notched-outline__notch,
-.mdc-text-field--focused .mdc-notched-outline__trailing {
-  border-color: var(--primary-color) !important;
-}
-
-/* label e placeholder visíveis no dark */
-.mat-mdc-form-field mat-label {
-  color: var(--text-color) !important;
-}
-
-.mat-mdc-input-element {
-  color: var(--text-color) !important;
-}
-
-.mat-mdc-input-element::placeholder {
-  color: color-mix(in oklab, var(--text-color) 55%, transparent);
-}
-
-/* --- <mat-select> trigger (“Ordenar por”) --- */
-.mat-mdc-select {
-  --mat-select-enabled-trigger-text-color: var(--text-color);
-  --mat-select-focused-trigger-text-color: var(--text-color);
-}
-
-.mat-mdc-select-trigger,
-.mat-mdc-select-value,
-.mat-mdc-select-arrow {
-  color: var(--text-color) !important;
-  /* texto + chevron */
-}
-
-/* --- <mat-slide-toggle> (“Só online”) --- */
-.mat-mdc-slide-toggle .mdc-form-field {
-  color: var(--text-color) !important;
-}
-
-/* Trilho e handle no estado selecionado (escuro/claridade corretos) */
-.mat-mdc-slide-toggle {
-  --mdc-switch-selected-track-color: color-mix(in oklab, var(--primary-color) 50%, transparent);
-  --mdc-switch-selected-handle-color: var(--primary-color);
-  --mdc-switch-selected-icon-color: #fff;
-  --mdc-switch-unselected-track-color: var(--surface-border);
-  --mdc-switch-unselected-handle-color: var(--text-color);
-}
-
-/* --- Chips de métricas (X amigos/online/pedidos/bloqueados) --- */
-.mat-mdc-chip,
-.mat-mdc-chip .mdc-evolution-chip__text-label,
-.mat-mdc-chip .mat-mdc-chip-action-label,
-mat-chip,
-mat-chip .mdc-evolution-chip__text-label {
-  color: var(--text-color) !important;
-}
-
-mat-chip mat-icon,
-.mat-mdc-chip mat-icon {
-  color: var(--text-color) !important;
 }

@@ -1,7 +1,9 @@
-/* src\styles\angular-material-bridge.css */
+/* src/styles/angular-material-bridge.css */
 /* ============ Angular Material Overrides (globais) ============ */
 
-/* mat-form-field (outline) – bordas, label, input, fundo */
+/* -------------------------------------------------------------------------- */
+/* Base: mat-form-field (outline)                                             */
+/* -------------------------------------------------------------------------- */
 .mat-mdc-form-field {
   --mdc-outlined-text-field-outline-color: var(--surface-border);
   --mdc-outlined-text-field-hover-outline-color: var(--surface-border);
@@ -26,10 +28,7 @@
   border-color: var(--primary-color) !important;
 }
 
-.mat-mdc-form-field mat-label {
-  color: var(--text-color) !important;
-}
-
+.mat-mdc-form-field mat-label,
 .mat-mdc-input-element {
   color: var(--text-color) !important;
 }
@@ -38,7 +37,9 @@
   color: color-mix(in oklab, var(--text-color) 55%, transparent);
 }
 
-/* mat-select trigger (texto + chevron) */
+/* -------------------------------------------------------------------------- */
+/* mat-select                                                                 */
+/* -------------------------------------------------------------------------- */
 .mat-mdc-select {
   --mat-select-enabled-trigger-text-color: var(--text-color);
   --mat-select-focused-trigger-text-color: var(--text-color);
@@ -50,7 +51,6 @@
   color: var(--text-color) !important;
 }
 
-/* mat-select panel (overlay) – opções como “Recentes/Online/…” */
 .cdk-overlay-container .mat-mdc-select-panel,
 .cdk-overlay-pane .mat-mdc-select-panel {
   background: var(--surface-color) !important;
@@ -73,7 +73,9 @@
   background: color-mix(in oklab, var(--primary-color) 24%, transparent) !important;
 }
 
-/* slide-toggle (“Só online”) – rótulo e estados */
+/* -------------------------------------------------------------------------- */
+/* mat-slide-toggle                                                           */
+/* -------------------------------------------------------------------------- */
 .mat-mdc-slide-toggle .mdc-form-field {
   color: var(--text-color) !important;
 }
@@ -86,21 +88,22 @@
   --mdc-switch-unselected-handle-color: var(--text-color);
 }
 
-/* chips das métricas (X amigos / online / pedidos / bloqueados) */
+/* -------------------------------------------------------------------------- */
+/* mat-chip                                                                   */
+/* -------------------------------------------------------------------------- */
 .mat-mdc-chip,
 .mat-mdc-chip .mdc-evolution-chip__text-label,
 .mat-mdc-chip .mat-mdc-chip-action-label,
 mat-chip,
-mat-chip .mdc-evolution-chip__text-label {
-  color: var(--text-color) !important;
-}
-
+mat-chip .mdc-evolution-chip__text-label,
 mat-chip mat-icon,
 .mat-mdc-chip mat-icon {
   color: var(--text-color) !important;
 }
 
-/* Painel do menu (overlay) com classe aplicada via `class="menu-requests-panel"` */
+/* -------------------------------------------------------------------------- */
+/* Menu requests panel                                                        */
+/* -------------------------------------------------------------------------- */
 .cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel {
   min-width: 360px;
   max-width: 420px;
@@ -114,20 +117,19 @@ mat-chip mat-icon,
 
 .cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel .mat-mdc-menu-content {
   padding: 8px 8px 10px;
-  font-size: .95rem;
+  font-size: 0.95rem;
   line-height: 1.25;
   max-height: min(70vh, 440px);
   overflow: auto;
 }
 
-/* Seus itens custom dentro do menu */
 .menu-requests-panel .req {
   display: grid;
   grid-template-columns: 36px 1fr;
-  gap: .65rem;
+  gap: 0.65rem;
   align-items: start;
-  padding: .5rem;
-  border-radius: .5rem;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
 }
 
 .menu-requests-panel .req:hover {
@@ -157,15 +159,15 @@ mat-chip mat-icon,
 }
 
 .menu-requests-panel .msg {
-  font-size: .875rem;
-  opacity: .9;
+  font-size: 0.875rem;
+  opacity: 0.9;
   margin-top: 2px;
 }
 
 .menu-requests-panel .acts {
   display: inline-flex;
-  gap: .25rem;
-  margin-top: .35rem;
+  gap: 0.25rem;
+  margin-top: 0.35rem;
 }
 
 .menu-requests-panel .acts button mat-icon {
@@ -173,11 +175,12 @@ mat-chip mat-icon,
 }
 
 html.dark-mode .cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel {
-  box-shadow: 0 8px 28px rgba(0, 0, 0, .5);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
 }
 
-/* ultima alteração em 18OUT2025, se der ruim excluir daqui pra baixo que tá trank */
-/* Tabs – contraste e foco */
+/* -------------------------------------------------------------------------- */
+/* Tabs                                                                       */
+/* -------------------------------------------------------------------------- */
 .mat-mdc-tab .mdc-tab__text-label {
   color: var(--text-color) !important;
 }
@@ -199,10 +202,18 @@ html.dark-mode .cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel {
   outline-offset: var(--focus-offset);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Send request dialog                                                        */
+/* -------------------------------------------------------------------------- */
+.cdk-overlay-pane.send-request-dialog-panel {
+  --mat-sys-surface: var(--surface-color);
+  --mat-sys-on-surface: var(--text-color);
+  --mat-sys-primary: var(--primary-color);
+  --mat-sys-on-primary: #fff;
+  --mat-button-text-label-text-color: var(--primary-color);
+}
 
-/* ==== ESCOPO: só o seu diálogo (via panelClass) ==== */
 .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-dialog-container {
-  /* força tokens do dialog neste container */
   --mat-dialog-container-color: var(--surface-color) !important;
   --mat-dialog-subhead-color: var(--text-color) !important;
   --mat-dialog-supporting-text-color: color-mix(in oklab, var(--text-color) 75%, transparent) !important;
@@ -210,7 +221,6 @@ html.dark-mode .cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel {
   color: var(--text-color) !important;
 }
 
-/* conteúdo, divider e ícones seguem o tema */
 .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-dialog-content,
 .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-dialog-actions {
   background: var(--surface-color) !important;
@@ -221,11 +231,14 @@ html.dark-mode .cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel {
   border-top-color: var(--surface-border) !important;
 }
 
-.cdk-overlay-pane.send-request-dialog-panel mat-icon {
+.cdk-overlay-pane.send-request-dialog-panel mat-icon,
+.cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field mat-label,
+.cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element,
+.cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-icon-suffix,
+.cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-icon-prefix {
   color: var(--text-color) !important;
 }
 
-/* Form field (appearance="fill") – LIGHT */
 .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field.mat-mdc-form-field-appearance-fill {
   --mdc-filled-text-field-container-color: var(--input-background) !important;
   --mdc-filled-text-field-input-text-color: var(--text-color) !important;
@@ -237,37 +250,23 @@ html.dark-mode .cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel {
   --mat-form-field-subscript-text-color: color-mix(in oklab, var(--text-color) 70%, transparent) !important;
 }
 
-/* Label, input, placeholder, hints */
-.cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field mat-label,
-.cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element,
-.cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-icon-suffix,
-.cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-icon-prefix {
-  color: var(--text-color) !important;
-}
-
 .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element::placeholder {
   color: color-mix(in oklab, var(--text-color) 55%, transparent) !important;
 }
 
-/* “Ctrl/⌘ + Enter para enviar” e “0/200” */
 .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-subscript-wrapper,
 .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-hint-wrapper {
   color: color-mix(in oklab, var(--text-color) 75%, transparent) !important;
 }
 
-/* Botões herdarem seu tema */
-.cdk-overlay-pane.send-request-dialog-panel {
-  --mat-sys-surface: var(--surface-color);
-  --mat-sys-on-surface: var(--text-color);
-  --mat-sys-primary: var(--primary-color);
-  --mat-sys-on-primary: #fff;
-  --mat-button-text-label-text-color: var(--primary-color);
+/* -------------------------------------------------------------------------- */
+/* Send request dialog - dark mode                                            */
+/* -------------------------------------------------------------------------- */
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel {
+  --mdc-theme-surface: var(--surface-color) !important;
 }
 
-/* ==== DARK: inversão explícita no MESMO container ==== */
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-dialog-container,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-dialog-container,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-dialog-container {
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-dialog-container {
   --mat-dialog-container-color: color-mix(in oklab, var(--surface-color) 90%, black 10%) !important;
   --mat-dialog-subhead-color: var(--text-color) !important;
   --mat-dialog-supporting-text-color: color-mix(in oklab, var(--text-color) 90%, transparent) !important;
@@ -275,10 +274,7 @@ body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-dialog-container,
   color: var(--text-color) !important;
 }
 
-/* Form field em DARK (texto do textarea claro e legível) */
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field.mat-mdc-form-field-appearance-fill,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field.mat-mdc-form-field-appearance-fill,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field.mat-mdc-form-field-appearance-fill {
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field.mat-mdc-form-field-appearance-fill {
   --mdc-filled-text-field-container-color: var(--input-background) !important;
   --mdc-filled-text-field-input-text-color: var(--text-color) !important;
   --mdc-filled-text-field-label-text-color: color-mix(in oklab, var(--text-color) 85%, transparent) !important;
@@ -289,84 +285,36 @@ body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field.mat-md
   --mat-form-field-subscript-text-color: color-mix(in oklab, var(--text-color) 90%, transparent) !important;
 }
 
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field mat-label,
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element,
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-icon-suffix,
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-icon-prefix,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field mat-label,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element {
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element,
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field mat-label,
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-icon-suffix,
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-icon-prefix {
   color: var(--text-color) !important;
 }
 
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element::placeholder,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element::placeholder,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element::placeholder {
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element::placeholder {
   color: color-mix(in oklab, var(--text-color) 72%, transparent) !important;
 }
 
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-subscript-wrapper,
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-hint-wrapper {
-  color: var(--text-color) !important;
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-subscript-wrapper,
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-hint-wrapper {
+  color: color-mix(in oklab, var(--text-color) 90%, transparent) !important;
 }
 
-/* ======================= */
-/*  DARK FIX – TEXTAREA    */
-/*  Força fundo do wrapper */
-/* ======================= */
-
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel,
-body.dark .cdk-overlay-pane.send-request-dialog-panel,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel {
-  /* garante que o “surface” do dialog não caia no branco */
-  --mdc-theme-surface: var(--surface-color) !important;
-}
-
-/* wrapper do filled (é ele que fica branco por fallback) */
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-text-field-wrapper.mdc-text-field.mdc-text-field--filled,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-text-field-wrapper.mdc-text-field.mdc-text-field--filled,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-text-field-wrapper.mdc-text-field.mdc-text-field--filled {
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-text-field-wrapper.mdc-text-field.mdc-text-field--filled {
   background-color: var(--input-background) !important;
-  /* ex.: #161b22 no seu tema */
   color: var(--text-color) !important;
   border-radius: 12px;
-  /* opcional: casa com o card */
 }
 
-/* overlay de foco da filled (aquela “película” por cima) */
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-focus-overlay,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-focus-overlay,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-focus-overlay {
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field .mat-mdc-form-field-focus-overlay {
   background-color: transparent !important;
 }
 
-/* linha de foco/ativo no filled */
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mdc-line-ripple,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mdc-line-ripple,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel .mdc-line-ripple {
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mdc-line-ripple {
   border-color: var(--primary-color) !important;
 }
 
-/* texto digitado e placeholder (fica legível no fundo escuro) */
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element {
-  color: var(--text-color) !important;
+:is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element {
   caret-color: var(--primary-color) !important;
-}
-
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element::placeholder,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element::placeholder,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element::placeholder {
-  color: color-mix(in oklab, var(--text-color) 72%, transparent) !important;
-}
-
-/* hints (“Ctrl/⌘ + Enter…” e “0/200”) no dark */
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-subscript-wrapper,
-html.dark-mode .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-hint-wrapper,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-subscript-wrapper,
-body.dark .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-hint-wrapper,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-subscript-wrapper,
-[data-theme="dark"] .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-form-field-hint-wrapper {
-  color: color-mix(in oklab, var(--text-color) 90%, transparent) !important;
 }

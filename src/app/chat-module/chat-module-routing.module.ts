@@ -1,14 +1,21 @@
-//src\app\chat-module\chat-module-routing.module.ts
+// src/app/chat-module/chat-module-routing.module.ts
+// Rotas do chat direto.
+//
+// Observação:
+// - a proteção principal já acontece no AppRouting em /chat
+// - lá exigimos:
+//   - auth
+//   - email verified
+//   - profile completed
+
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 import { ChatModuleLayoutComponent } from './chat-module-layout/chat-module-layout.component';
-import { authGuard } from '../core/guards/auth-guard/auth.guard';
 
 const routes: Routes = [
   {
     path: ':userId',
     component: ChatModuleLayoutComponent,
-    canActivate: [authGuard],
   },
 ];
 

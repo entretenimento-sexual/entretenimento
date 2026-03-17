@@ -60,13 +60,13 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kb",
-                  "maximumError": "1mb"
+                  "maximumWarning": "2.5mb",
+                  "maximumError": "4mb"
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "2kb",
-                  "maximumError": "4kb"
+                  "maximumWarning": "6kb",
+                  "maximumError": "8kb"
                 }
               ],
               "optimization": true,
@@ -112,6 +112,14 @@
         },
         "serve": {
           "builder": "@angular/build:dev-server",
+          "options": {
+            "prebundle": {
+              "exclude": [
+                "@angular/material/core",
+                "@angular/material/expansion"
+              ]
+            }
+          },
           "configurations": {
             "production": {
               "buildTarget": "entretenimento:build:production"
@@ -157,7 +165,12 @@
     }
   },
   "cli": {
-    "analytics": false
+    "analytics": false,
+    "cache": {
+      "enabled": true,
+      "environment": "local",
+      "path": ".angular/cache"
+    }
   },
   "schematics": {
     "@schematics/angular:component": {

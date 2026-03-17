@@ -2,7 +2,6 @@
 // Limpa caches de selectors quando a sessão encerra (logout / uid null).
 // - dispatch:false (efeito “side-effect only”)
 // - Mantém meta-reducers puros.
-
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { tap } from 'rxjs/operators';

@@ -1,5 +1,5 @@
 // src/app/core/services/autentication/auth/auth-user-document-watch.service.ts
-// =============================================================================
+// =================================================================
 // AUTH USER DOCUMENT WATCH SERVICE
 //
 // Responsabilidade única:
@@ -24,8 +24,7 @@
 // - Retorna Observable de eventos
 // - Não faz side-effects de autenticação diretamente
 // - Erros são convertidos em eventos para o orquestrador decidir
-// =============================================================================
-
+// =================================================================
 import { Injectable, Injector, runInInjectionContext } from '@angular/core';
 import { Firestore, doc, docSnapshots } from '@angular/fire/firestore';
 
@@ -246,14 +245,17 @@ export class AuthUserDocumentWatchService {
       .toLowerCase();
   }
 
-  private isSuspended(data: Record<string, unknown>, status: string): boolean {
-    return (
-      (data as any)?.isSuspended === true ||
-      (data as any)?.isBanned === true ||
-      status === 'suspended' ||
-      status === 'banned'
-    );
-  }
+private isSuspended(data: Record<string, unknown>, status: string): boolean {
+  return (
+    (data as any)?.isSuspended === true ||
+    (data as any)?.isBanned === true ||
+    (data as any)?.accountLocked === true ||
+    (data as any)?.accountStatus === 'locked' ||
+    status === 'suspended' ||
+    status === 'banned' ||
+    status === 'locked'
+  );
+}
 
   private isDeleted(data: Record<string, unknown>, status: string): boolean {
     return (

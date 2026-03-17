@@ -197,12 +197,7 @@ export class AuthOrchestratorService {
             return of(null);
           }
 
-          const shouldRunAppMode = !ctx.inReg && !ctx.unverified;
-
-          this.sessionMonitor.start();
-          this.syncWatchers(ctx.uid, shouldRunAppMode);
-          this.syncPostLoginEffects(ctx.authUser, shouldRunAppMode);
-
+          this.syncAppModeInfra(ctx);
           return of(null);
         }),
 
@@ -234,6 +229,44 @@ export class AuthOrchestratorService {
     );
   }
 
+  private shouldRunAppMode(ctx: OrchestratorContext): boolean {
+    return !!ctx.uid && !!ctx.authUser && !ctx.inReg && !ctx.unverified && !ctx.blockedReason;
+  }
+
+  /**
+   * Sincroniza toda a infraestrutura que só deve existir em "app-mode".
+   *
+   * Regras:
+   * - NÃO roda no fluxo de registro;
+   * - NÃO roda para emailVerified=false;
+   * - para tudo quando sair de app-mode.
+   */
+  private syncAppModeInfra(ctx: OrchestratorContext): void {
+    if (!ctx.uid || !ctx.authUser) {
+      this.stopRuntimeSideEffects();
+      return;
+    }
+
+    const shouldRun = this.shouldRunAppMode(ctx);
+
+    if (shouldRun) {
+      this.sessionMonitor.start();
+    } else {
+      this.sessionMonitor.stop();
+    }
+
+    this.syncWatchers(ctx.uid, shouldRun);
+    this.syncPostLoginEffects(ctx.authUser, shouldRun);
+
+    this.dbg('syncAppModeInfra()', {
+      uid: ctx.uid,
+      shouldRun,
+      inReg: ctx.inReg,
+      unverified: ctx.unverified,
+      blockedReason: ctx.blockedReason,
+    });
+  }
+
   private handleNoAuthUser(): void {
     this.sessionUid = null;
     this.currentUserStore.clear();
@@ -247,7 +280,6 @@ export class AuthOrchestratorService {
   private handleUidChange(uid: string): void {
     this.sessionUid = uid;
     this.appBlock.clear();
-    this.currentUserStore.markUnhydrated();
     this.stopPostLoginEffects();
     this.stopWatchers();
     this.resetTransientSessionState();
@@ -554,4 +586,4 @@ export class AuthOrchestratorService {
       this.terminating = false;
     }
   }
-} // fim do auth-orchestrator.service.ts, linha 557
+}// linha 590

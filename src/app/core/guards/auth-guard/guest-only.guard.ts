@@ -1,17 +1,27 @@
 // src/app/core/guards/auth-guard/guest-only.guard.ts
-// Guard de visitante:
-// - permite /login e /register apenas para quem NÃO está autenticado
-// - redireciona autenticado conforme estado real da conta
+// Guard de visitante / fluxo híbrido de autenticação.
+//
+// Objetivo:
+// - permitir /login e /register para visitantes
+// - impedir que usuário autenticado "caia" em telas guest erradas
+// - permitir APENAS as etapas corretas do fluxo autenticado:
+//   - /register/finalizar-cadastro quando perfil incompleto
+//   - /register/welcome e /register/verify quando e-mail não verificado
+//
+// Importante:
+// - não liberar allowAuthenticated "cego"
+// - a decisão depende do estado real do usuário
+
 import { inject } from '@angular/core';
 import {
   ActivatedRouteSnapshot,
   CanActivateFn,
   CanMatchFn,
+  GuardResult,
   Route,
   Router,
   RouterStateSnapshot,
   UrlSegment,
-  GuardResult,
 } from '@angular/router';
 import { combineLatest, of } from 'rxjs';
 import { catchError, filter, map, take } from 'rxjs/operators';
@@ -20,6 +30,12 @@ import { AccessControlService } from '../../services/autentication/auth/access-c
 import { AuthReturnUrlService } from '../../services/autentication/auth/auth-return-url.service';
 import { GlobalErrorHandlerService } from '../../services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
+import {
+  buildFinalizeRedirectTree,
+  buildRedirectTree,
+  buildWelcomeRedirectTree,
+  guardLog,
+} from '../_shared-guard/guard-utils';
 
 function routeOrChildrenAllowAuthenticated(route: ActivatedRouteSnapshot): boolean {
   if (route.data?.['allowAuthenticated'] === true) return true;
@@ -39,6 +55,15 @@ function canMatchAllowsAuthenticated(route: Route, segments: UrlSegment[]): bool
   return !!subPath && allow.includes(subPath);
 }
 
+function isRegisterWelcomePath(url: string): boolean {
+  const clean = url.split('?')[0];
+  return clean === '/register/welcome' || clean === '/register/verify';
+}
+
+function isRegisterFinalizePath(url: string): boolean {
+  return url.split('?')[0] === '/register/finalizar-cadastro';
+}
+
 function decideGuestAccess$(
   attemptedUrl: string,
   allowAuthenticatedHere: boolean,
@@ -50,6 +75,9 @@ function decideGuestAccess$(
   const globalError = inject(GlobalErrorHandlerService);
   const notify = inject(ErrorNotificationService);
 
+  const tryingWelcome = isRegisterWelcomePath(attemptedUrl);
+  const tryingFinalize = isRegisterFinalizePath(attemptedUrl);
+
   return combineLatest([
     access.ready$,
     access.authUid$,
@@ -57,79 +85,78 @@ function decideGuestAccess$(
     access.blockedReason$,
     access.emailVerified$,
   ]).pipe(
-    /**
-     * Só decide quando:
-     * - auth ficou ready
-     * - se NÃO há uid -> visitante, pode decidir já
-     * - se HÁ uid -> espera o appUser hidratar e bater com o mesmo uid
-     *
-     * Isso elimina a race:
-     * - uid antigo + appUser null após clear() não dispara redirect indevido
-     */
     filter(([ready, authUid, appUser]) => {
       if (!ready) return false;
 
-      if (!authUid) {
-        return true;
-      }
+      // visitante: pode decidir já
+      if (!authUid) return true;
 
-      if (appUser === undefined || appUser === null) {
-        return false;
-      }
-
-      const appUid = (appUser as any)?.uid ?? null;
-      return appUid === authUid;
+      // autenticado: espera hidratar
+      return appUser !== undefined;
     }),
     take(1),
     map(([_, authUid, appUser, blockedReason, emailVerified]): GuardResult => {
-      // visitante -> pode entrar em /login e /register
-      if (!authUid) {
-        return true;
-      }
-
-      // rota explicitamente permitida para autenticado
-      if (allowAuthenticatedHere) {
-        return true;
-      }
-
+      const profileCompleted = (appUser as any)?.profileCompleted === true;
       const redirectTo = returnUrl.resolveAuthedRedirect(
         redirectToParam,
         '/dashboard/principal'
       );
 
-      // bloqueio do app tem precedência
+      guardLog(
+        'guest',
+        'attemptedUrl:', attemptedUrl,
+        'uid:', authUid,
+        'allowAuthenticatedHere:', allowAuthenticatedHere,
+        'blockedReason:', blockedReason,
+        'profileCompleted:', profileCompleted,
+        'emailVerified:', emailVerified
+      );
+
+      // -----------------------------------------------------------------------
+      // VISITANTE
+      // -----------------------------------------------------------------------
+      if (!authUid) {
+        // Etapas internas do fluxo autenticado não devem abrir para guest
+        if (tryingWelcome || tryingFinalize) {
+          return buildRedirectTree(router, '/register');
+        }
+
+        return true;
+      }
+
+      // -----------------------------------------------------------------------
+      // AUTENTICADO
+      // -----------------------------------------------------------------------
+
+      // 1) bloqueio do app -> welcome
       if (blockedReason) {
-        return router.createUrlTree(
-          ['/register/welcome'],
-          {
-            queryParams: {
-              reason: blockedReason,
-              autocheck: '1',
-              redirectTo,
-            },
-          }
-        );
+        return tryingWelcome
+          ? true
+          : buildWelcomeRedirectTree(router, redirectTo, { reason: blockedReason });
       }
 
-      const profileCompleted = (appUser as any)?.profileCompleted === true;
-
+      // 2) perfil incompleto -> finalizar-cadastro
       if (!profileCompleted) {
-        return router.createUrlTree(
-          ['/register/finalizar-cadastro'],
-          { queryParams: { redirectTo } }
-        );
+        return tryingFinalize
+          ? true
+          : buildFinalizeRedirectTree(router, redirectTo, {
+              reason: 'profile_incomplete',
+            });
       }
 
-      if (!emailVerified) {
-        return router.createUrlTree(
-          ['/register/welcome'],
-          {
-            queryParams: {
-              autocheck: '1',
-              redirectTo,
-            },
-          }
-        );
+      // 3) perfil completo, mas e-mail não verificado -> welcome
+      if (emailVerified !== true) {
+        return tryingWelcome
+          ? true
+          : buildWelcomeRedirectTree(router, redirectTo, {
+              reason: 'email_unverified',
+            });
+      }
+
+      // 4) autenticado, completo e verificado
+      // Só permanece em páginas guest se a rota explicitamente aceitar
+      if (allowAuthenticatedHere) {
+        return true;
       }
 
       return router.parseUrl(redirectTo);
@@ -145,7 +172,7 @@ function decideGuestAccess$(
       } catch {}
 
       notify.showError('Falha ao validar acesso.');
-      return of(true);
+      return of(buildRedirectTree(router, '/login', attemptedUrl, { reason: 'guest_guard_error' }));
     })
   );
 }
@@ -169,4 +196,4 @@ export const guestOnlyCanMatch: CanMatchFn = (route: Route, segments: UrlSegment
     canMatchAllowsAuthenticated(route, segments),
     null
   );
-}; // Linha 172, fim do guest-only.guard.ts
+};

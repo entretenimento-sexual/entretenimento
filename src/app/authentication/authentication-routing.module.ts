@@ -1,9 +1,15 @@
 // src/app/authentication/authentication-routing.module.ts
 // Rotas do módulo de autenticação (lazy em /login).
-// Boas práticas (padrão grandes plataformas):
-// - /login -> somente login (e fluxos adjacentes como recuperação).
-// - Registro fica em /register (fora daqui), evitando /login/register.
-// - Handler de verificação fica no AppRouting (rota global), evitando /login/post-verification/action.
+//
+// Boas práticas:
+// - /login -> login e fluxos diretamente ligados à autenticação
+// - /register fica fora daqui, em /register
+// - handlers globais de verificação ficam no AppRouting
+//
+// Observação:
+// - a permissão para autenticado nessas rotas específicas é resolvida
+//   pelo guestOnly guard no AppRouting + data.allowAuthenticated aqui
+
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
@@ -12,20 +18,26 @@ import { ProgressiveSignupComponent } from './progressive-signup/progressive-sig
 import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
 
 const authRoutes: Routes = [
-  // /login
-  { path: '', component: LoginComponent },
+  {
+    path: '',
+    component: LoginComponent,
+  },
 
-  { path: 'progressive-signup',
+  {
+    path: 'progressive-signup',
     component: ProgressiveSignupComponent,
-    data: { allowAuthenticated: true } },
+    data: { allowAuthenticated: true },
+  },
 
-  { path: 'suggested-profiles',
+  {
+    path: 'suggested-profiles',
     component: SuggestedProfilesComponent,
-    data: { allowAuthenticated: true } },
+    data: { allowAuthenticated: true },
+  },
 ];
 
 @NgModule({
   imports: [RouterModule.forChild(authRoutes)],
   exports: [RouterModule],
 })
-export class AuthenticationRoutingModule { }
+export class AuthenticationRoutingModule {}

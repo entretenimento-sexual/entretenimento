@@ -1,50 +1,117 @@
 // src/app/dashboard/dashboard-routing.module.ts
+// Rotas internas do dashboard.
+//
+// Convenção adotada:
+// - o módulo /dashboard exige autenticação no AppRouting
+// - rotas internas mais sensíveis usam authGuard com data:
+//   - requireVerified
+//   - requireProfileCompleted
+//
+// Isso deixa o fluxo previsível e evita espalhar guards diferentes em cada tela.
+
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
+
 import { FeaturedProfilesComponent } from './featured-profiles/featured-profiles.component';
 import { PrincipalComponent } from './principal/principal.component';
 import { ChatRoomsComponent } from '../chat-module/chat-rooms/chat-rooms.component';
 import { DashboardLayoutComponent } from './dashboard-layout/dashboard-layout.component';
-import { emailVerifiedGuard } from '../core/guards/profile-guard/email-verified.guard';
 import { OnlineUsersComponent } from './online/online-users/online-users.component';
 import { OnlineUsersFullComponent } from './online/online-users-full/online-users-full.component';
-import { profileCompletedGuard } from '../core/guards/profile-guard/profile-completed.guard';
+
+import { authGuard } from '../core/guards/auth-guard/auth.guard';
 
 const routes: Routes = [
   {
     path: '',
     component: DashboardLayoutComponent,
-    canActivate: [], // (se quiser proteger, coloque o guard aqui)
     children: [
-      { path: 'principal',
+      /**
+       * Dashboard principal:
+       * - exige apenas autenticação
+       * - útil como hub inicial
+       * - não força verified/profileComplete aqui
+       */
+      {
+        path: 'principal',
         component: PrincipalComponent,
-        canActivate: [profileCompletedGuard],
-        data: { allowProfileIncomplete: true }
       },
 
-      // mini/painel (se quiser manter)
-      { path: 'online-users',
-        component: OnlineUsersComponent
+      /**
+       * Painel compacto de online:
+       * - continua dentro do dashboard
+       * - se quiser endurecer depois, basta ligar flags
+       */
+      {
+        path: 'online-users',
+        component: OnlineUsersComponent,
       },
 
-      // ✅ página “cheia” para ver todos (recomendado usar um slug curto)
-      { path: 'online', component: OnlineUsersFullComponent, canActivate: [emailVerifiedGuard] },
+      /**
+       * Discovery / listagem ampla:
+       * - exige e-mail verificado
+       * - exige perfil completo
+       */
+      {
+        path: 'online',
+        component: OnlineUsersFullComponent,
+        canActivate: [authGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
 
-      { path: 'featured-profiles', component: FeaturedProfilesComponent, canActivate: [emailVerifiedGuard] },
-      { path: 'chat-rooms', component: ChatRoomsComponent, canActivate: [emailVerifiedGuard] },
+      {
+        path: 'featured-profiles',
+        component: FeaturedProfilesComponent,
+        canActivate: [authGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
+
+      {
+        path: 'chat-rooms',
+        component: ChatRoomsComponent,
+        canActivate: [authGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
+
       {
         path: 'friends/list',
-        canActivate: [emailVerifiedGuard],
+        canActivate: [authGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
         loadComponent: () =>
           import('src/app/layout/friend-management/friend-list-page/friend-list-page.component')
             .then(m => m.FriendListPageComponent)
       },
-      { path: 'friends', redirectTo: 'friends/list', pathMatch: 'full' },
 
-      { path: '', redirectTo: 'principal', pathMatch: 'full' },
+      {
+        path: 'friends',
+        redirectTo: 'friends/list',
+        pathMatch: 'full',
+      },
+
+      {
+        path: '',
+        redirectTo: 'principal',
+        pathMatch: 'full',
+      },
     ]
   },
-  { path: '**', redirectTo: 'principal' }
+
+  {
+    path: '**',
+    redirectTo: 'principal',
+  }
 ];
 
 @NgModule({

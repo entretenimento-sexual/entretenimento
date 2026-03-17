@@ -39,11 +39,14 @@ export class FriendsRequestsRealtimeEffects {
     )
   );
 
-  stopOnSessionNull$ = createEffect(() =>
-    this.actions$.pipe(
-      ofType(authSessionChanged),
-      filter(({ uid }) => !uid),
-      map(() => RT.stopInboundRequestsListener())
-    )
-  );
+stopOnSessionNull$ = createEffect(() =>
+  this.actions$.pipe(
+    ofType(authSessionChanged),
+    filter(({ uid }) => !uid),
+    switchMap(() => of(
+      RT.stopInboundRequestsListener(),
+      RT.stopOutboundRequestsListener(),
+    ))
+  )
+);
 }
