@@ -14,16 +14,17 @@
           <span class="visually-hidden">Página inicial</span>
         </a>
 
-        <!-- Sem aria-expanded fixo: se não reflete o estado real, é melhor não declarar -->
-        <button
-          type="button"
-          class="hamburger-btn"
-          (click)="onToggleSidebar()"
-          aria-label="Abrir menu lateral"
-          aria-controls="app-sidebar"
-        >
-          &#9776;
-        </button>
+        @if (!isPublicAuthRoute) {
+          <button
+            type="button"
+            class="hamburger-btn"
+            (click)="onToggleSidebar()"
+            aria-label="Abrir menu lateral"
+            aria-controls="app-sidebar"
+          >
+            &#9776;
+          </button>
+        }
       </div>
 
       <ul class="navbar-menu" role="menubar">
@@ -54,19 +55,6 @@
           </li>
 
           <li class="navbar-item" role="none">
-            <a
-              routerLink="/contato"
-              class="navbar-link"
-              routerLinkActive="active"
-              #rlaContato="routerLinkActive"
-              [attr.aria-current]="rlaContato.isActive ? 'page' : null"
-              role="menuitem"
-            >
-              Contato
-            </a>
-          </li>
-
-          <li class="navbar-item" role="none">
             <button
               type="button"
               class="navbar-link as-button"
@@ -92,20 +80,6 @@
         </li>
 
         @if (!isAuthenticated) {
-          <li class="navbar-item" role="none">
-            <a
-              routerLink="/espiar"
-              class="navbar-link"
-              routerLinkActive="active"
-              #rlaEspiar="routerLinkActive"
-              [attr.aria-current]="rlaEspiar.isActive ? 'page' : null"
-              title="Acesso limitado ao site"
-              role="menuitem"
-            >
-              Espiar
-            </a>
-          </li>
-
           @if (!isLoginPage) {
             <li class="navbar-item" role="none">
               <a
@@ -114,7 +88,6 @@
                 routerLinkActive="active"
                 #rlaLogin="routerLinkActive"
                 [attr.aria-current]="rlaLogin.isActive ? 'page' : null"
-                title="Já tem conta? Faça login"
                 role="menuitem"
               >
                 Logar
@@ -129,7 +102,6 @@
               routerLinkActive="active"
               #rlaRegister="routerLinkActive"
               [attr.aria-current]="rlaRegister.isActive ? 'page' : null"
-              title="Clique aqui para criar uma conta"
               role="menuitem"
             >
               Cadastre-se
@@ -188,11 +160,6 @@
       </ul>
     </div>
   </nav>
-
-  <!-- Mantido conservador: usa somente o estado atual já existente -->
-   @if (canShowLinksInteraction) {
-    <app-links-interaction id="app-sidebar"></app-links-interaction>
-  }
 </div>
 
 @if (canShowGuestBanner) {

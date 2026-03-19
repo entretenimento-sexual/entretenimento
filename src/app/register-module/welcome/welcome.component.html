@@ -8,14 +8,19 @@
     </p>
   </header>
 
-  <!-- Banner robusto (usa .alert global + sem inline styles) -->
-  <div *ngIf="banner as b" class="alert welcome-alert" [ngClass]="{
+  <div
+    *ngIf="banner as b"
+    class="alert welcome-alert"
+    [ngClass]="{
       'alert-info': b.variant === 'info',
       'alert-error': b.variant === 'error',
       'alert-success': b.variant === 'success',
       'alert-warning': b.variant === 'warn'
-    }" [attr.role]="(b.variant === 'error' || b.variant === 'warn') ? 'alert' : 'status'"
-    [attr.aria-live]="(b.variant === 'error' || b.variant === 'warn') ? 'assertive' : 'polite'" aria-atomic="true">
+    }"
+    [attr.role]="(b.variant === 'error' || b.variant === 'warn') ? 'alert' : 'status'"
+    [attr.aria-live]="(b.variant === 'error' || b.variant === 'warn') ? 'assertive' : 'polite'"
+    aria-atomic="true"
+  >
     <strong class="welcome-alert__title">{{ b.title }}</strong>
     <span class="welcome-alert__msg">{{ b.message }}</span>
 
@@ -24,12 +29,22 @@
     </div>
 
     <div class="actions">
-      <button class="btn btn-secondary" (click)="checkNow()" [disabled]="busy" [attr.aria-busy]="busy">
-        {{ busy ? 'Checando…' : 'Checar agora' }}
+      <button
+        class="btn btn-secondary"
+        (click)="checkNow()"
+        [disabled]="busy"
+        [attr.aria-busy]="checkingVerification"
+      >
+        {{ checkingVerification ? 'Checando…' : 'Checar agora' }}
       </button>
 
-      <button class="btn" (click)="resendVerificationEmail()" [disabled]="busy" [attr.aria-busy]="busy">
-        {{ busy ? 'Reenviando…' : 'Reenviar e-mail' }}
+      <button
+        class="btn"
+        (click)="resendVerificationEmail()"
+        [disabled]="busy"
+        [attr.aria-busy]="resendingVerificationEmail"
+      >
+        {{ resendingVerificationEmail ? 'Reenviando…' : 'Reenviar e-mail' }}
       </button>
 
       <button class="btn btn-ghost" (click)="openInbox()">Abrir seu e-mail</button>
@@ -65,30 +80,53 @@
       </ol>
 
       <div class="actions">
-        <button class="btn btn-primary" (click)="checkNow()" [disabled]="busy" [attr.aria-busy]="busy">
-          {{ busy ? 'Checando…' : 'Já verifiquei — checar agora' }}
+        <button
+          class="btn btn-primary"
+          (click)="checkNow()"
+          [disabled]="busy"
+          [attr.aria-busy]="checkingVerification"
+        >
+          {{ checkingVerification ? 'Checando…' : 'Já verifiquei — checar agora' }}
         </button>
-        <button *ngIf="isDevEmu" class="btn btn-ghost" (click)="markVerifiedDev()" [disabled]="busy" [attr.aria-busy]="busy">
-          DEV: marcar como verificado (emulator)
+
+        <button
+          *ngIf="isDevEmu"
+          class="btn btn-ghost"
+          (click)="markVerifiedDev()"
+          [disabled]="busy"
+          [attr.aria-busy]="markingVerifiedDev"
+        >
+          {{ markingVerifiedDev ? 'Marcando…' : 'DEV: marcar como verificado (emulator)' }}
         </button>
-        <button class="btn btn-secondary" (click)="resendVerificationEmail()" [disabled]="busy" [attr.aria-busy]="busy">
-          {{ busy ? 'Reenviando…' : 'Reenviar e-mail' }}
+
+        <button
+          class="btn btn-secondary"
+          (click)="resendVerificationEmail()"
+          [disabled]="busy"
+          [attr.aria-busy]="resendingVerificationEmail"
+        >
+          {{ resendingVerificationEmail ? 'Reenviando…' : 'Reenviar e-mail' }}
         </button>
+
         <button class="btn" (click)="proceedToDashboard()" [disabled]="busy || !emailVerified">
           Ir para o painel
         </button>
       </div>
     </section>
 
-    <!-- Onboarding opcional -->
     <details class="welcome-card details-optional">
       <summary>Quero adiantar meu perfil (opcional)</summary>
 
       <div class="optional-grid">
         <div>
           <label class="form-label" for="genderSelect">Identidade de gênero (opcional)</label>
-          <select id="genderSelect" class="input-field" [(ngModel)]="selectedGender"
-            [ngModelOptions]="{ standalone: true }" aria-label="Selecione seu gênero">
+          <select
+            id="genderSelect"
+            class="input-field"
+            [(ngModel)]="selectedGender"
+            [ngModelOptions]="{ standalone: true }"
+            aria-label="Selecione seu gênero"
+          >
             <option value="" disabled>Selecione seu gênero (opcional)</option>
             <option *ngFor="let gender of validGenders" [value]="gender">{{ gender }}</option>
           </select>
@@ -99,8 +137,11 @@
 
           <div class="checkbox-group" role="group" aria-labelledby="prefsLabel">
             <label class="checkbox-item" *ngFor="let preference of validPreferences">
-              <input type="checkbox" [(ngModel)]="selectedPreferencesMap[preference]"
-                [ngModelOptions]="{ standalone: true }" />
+              <input
+                type="checkbox"
+                [(ngModel)]="selectedPreferencesMap[preference]"
+                [ngModelOptions]="{ standalone: true }"
+              />
               {{ preference }}
             </label>
           </div>
@@ -108,8 +149,12 @@
       </div>
 
       <div class="actions right">
-        <button class="btn btn-primary" (click)="saveOptionalProfile()" [disabled]="savingOptional || busy"
-          [attr.aria-busy]="savingOptional">
+        <button
+          class="btn btn-primary"
+          (click)="saveOptionalProfile()"
+          [disabled]="savingOptional || busy"
+          [attr.aria-busy]="savingOptional"
+        >
           {{ savingOptional ? 'Salvando…' : 'Salvar preferências' }}
         </button>
       </div>
@@ -123,15 +168,26 @@
       </div>
     </section>
 
-    <!-- Sessão inválida -->
-    <section *ngIf="sessionInvalid" class="welcome-card card-error" role="alert" aria-live="assertive"
-      aria-atomic="true">
+    <section
+      *ngIf="sessionInvalid"
+      class="welcome-card card-error"
+      role="alert"
+      aria-live="assertive"
+      aria-atomic="true"
+    >
       <h2 class="card-title">Sessão encerrada</h2>
-      <p>Não conseguimos manter sua sessão ativa durante a verificação. Você pode tentar reconectar ou refazer o
-        cadastro.</p>
+      <p>
+        Não conseguimos manter sua sessão ativa durante a verificação. Você pode tentar reconectar ou refazer o
+        cadastro.
+      </p>
       <div class="actions">
-        <button class="btn btn-secondary" (click)="checkNow()" [disabled]="busy" [attr.aria-busy]="busy">
-          Tentar reconectar
+        <button
+          class="btn btn-secondary"
+          (click)="checkNow()"
+          [disabled]="busy"
+          [attr.aria-busy]="checkingVerification"
+        >
+          {{ checkingVerification ? 'Reconectando…' : 'Tentar reconectar' }}
         </button>
         <button class="btn btn-primary" (click)="restartRegistration()">Refazer cadastro</button>
       </div>

@@ -40,7 +40,7 @@ import { environment } from 'src/environments/environment';
 import { UploadPhotoComponent } from 'src/app/shared/components-globais/upload-photo/upload-photo.component';
 import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
 
-import { SidebarService } from 'src/app/core/services/sidebar.service';
+import { SidebarService } from 'src/app/core/services/navigation/sidebar.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { ChatNotificationService } from 'src/app/core/services/batepapo/chat-notification.service';

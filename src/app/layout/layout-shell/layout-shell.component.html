@@ -1,0 +1,31 @@
+<!-- src/app/layout/layout-shell/layout-shell.component.html -->
+<div
+  class="auth-shell"
+  *ngIf="vm$ | async as vm"
+  [attr.data-shell-mode]="vm.shellMode"
+>
+  <app-navbar></app-navbar>
+
+  <div class="auth-shell__body">
+    <app-universal-sidebar
+      *ngIf="vm.showSidebar"
+      [vm]="vm.sidebar"
+      [user]="vm.sidebarUser"
+      (toggleRequested)="onToggleSidebar()"
+      (collapseRequested)="onToggleCollapse()"
+    ></app-universal-sidebar>
+
+    <div
+      class="auth-shell__content-area"
+      [class.auth-shell__content-area--collapsed]="vm.showSidebar && !vm.sidebar.isMobile && vm.sidebar.isCollapsed"
+      [class.auth-shell__content-area--full]="!vm.showSidebar"
+    >
+      <main
+        class="auth-shell__content"
+        [attr.aria-hidden]="vm.showSidebar && vm.sidebar.isMobile && vm.sidebar.isOpen ? 'true' : null"
+      >
+        <router-outlet></router-outlet>
+      </main>
+    </div>
+  </div>
+</div>

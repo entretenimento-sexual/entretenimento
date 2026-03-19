@@ -1,108 +1,61 @@
 <!-- src/app/user-profile/user-profile-view/user-profile-sidebar/user-profile-sidebar.component.html -->
 @let vm = (vm$ | async);
+@let navItems = (navItems$ | async);
 
-<aside class="sidebar" [class.visible]="isSidebarVisible === SidebarState.OPEN" aria-label="Navegação do perfil">
-  <header class="profile-header">
+<aside
+  class="profile-context-card"
+  aria-label="Resumo e ações do perfil"
+>
+  <header class="profile-context-card__header">
     <img
       [src]="vm?.usuario?.photoURL || 'assets/imagem-padrao.webp'"
       [alt]="vm?.usuario?.nickname || 'Foto do perfil'"
-      class="profile-picture"
+      class="profile-context-card__picture"
       loading="lazy"
       decoding="async"
       referrerpolicy="no-referrer"
     />
+
+    <div class="profile-context-card__identity">
+      <h2 class="profile-context-card__title">
+        {{ vm?.usuario?.nickname || 'Meu perfil' }}
+      </h2>
+
+      <p class="profile-context-card__subtitle">
+        @if (vm?.isOwnProfileRoute) {
+          Atalhos do seu perfil
+        } @else {
+          Ações disponíveis neste perfil
+        }
+      </p>
+    </div>
   </header>
 
-  <p class="user-nickname">
-    <strong>{{ vm?.usuario?.nickname || 'Meu perfil' }}</strong>
-  </p>
-
-  <nav class="profile-nav" aria-label="Ações do perfil">
+  <nav class="profile-context-card__nav" aria-label="Ações do perfil">
     @if (vm?.uid) {
 
-      @if (!vm?.isOwnProfile) {
+      @for (item of navItems ?? []; track item.id) {
         <a
-          [routerLink]="['/perfil', vm?.uid]"
-          (click)="closeSidebar()"
+          class="profile-context-card__action"
+          [routerLink]="item.routerLink"
           routerLinkActive="active"
-          #rlaProfile="routerLinkActive"
-          [attr.aria-current]="rlaProfile.isActive ? 'page' : null"
+          [routerLinkActiveOptions]="{ exact: item.activeExact ?? false }"
+          #rlaItem="routerLinkActive"
+          [attr.aria-current]="rlaItem.isActive ? 'page' : null"
+          [attr.aria-label]="item.ariaLabel || item.label"
+          (click)="closeSidebar()"
         >
-          <i class="fas fa-user" aria-hidden="true"></i>
-          <span class="label">Meu perfil</span>
+          @if (item.iconClass) {
+            <i [class]="item.iconClass" aria-hidden="true"></i>
+          }
+          <span class="label">{{ item.label }}</span>
         </a>
       }
-
-      <a
-        [routerLink]="['/layout/perfis-proximos']"
-        (click)="closeSidebar()"
-        routerLinkActive="active"
-        #rlaNear="routerLinkActive"
-        [attr.aria-current]="rlaNear.isActive ? 'page' : null"
-      >
-        <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
-        <span class="label">Perfis próximos</span>
-      </a>
-
-      <a
-        [routerLink]="['/perfil', vm?.uid, 'fotos']"
-        (click)="closeSidebar()"
-        routerLinkActive="active"
-        #rlaPhotos="routerLinkActive"
-        [attr.aria-current]="rlaPhotos.isActive ? 'page' : null"
-      >
-        <i class="fas fa-images" aria-hidden="true"></i>
-        <span class="label">Minhas fotos</span>
-      </a>
-
-      <a
-        [routerLink]="['/perfil', vm?.uid, 'edit-profile-preferences']"
-        (click)="closeSidebar()"
-        routerLinkActive="active"
-        #rlaPrefs="routerLinkActive"
-        [attr.aria-current]="rlaPrefs.isActive ? 'page' : null"
-      >
-        <i class="fas fa-cogs" aria-hidden="true"></i>
-        <span class="label">Minhas preferências</span>
-      </a>
-
-      <a
-        [routerLink]="['/friends', 'list']"
-        (click)="closeSidebar()"
-        routerLinkActive="active"
-        [routerLinkActiveOptions]="{ exact: false }"
-        #rlaFriends="routerLinkActive"
-        [attr.aria-current]="rlaFriends.isActive ? 'page' : null"
-      >
-        <i class="fas fa-users" aria-hidden="true"></i>
-        <span class="label">Meus amigos</span>
-      </a>
-
-      <a
-        [routerLink]="['/favoritos']"
-        (click)="closeSidebar()"
-        routerLinkActive="active"
-        #rlaFavs="routerLinkActive"
-        [attr.aria-current]="rlaFavs.isActive ? 'page' : null"
-      >
-        <i class="fas fa-star" aria-hidden="true"></i>
-        <span class="label">Meus favoritos</span>
-      </a>
-
-      <a
-        [routerLink]="['/chat']"
-        (click)="closeSidebar()"
-        routerLinkActive="active"
-        #rlaChat="routerLinkActive"
-        [attr.aria-current]="rlaChat.isActive ? 'page' : null"
-      >
-        <i class="fas fa-comments" aria-hidden="true"></i>
-        <span class="label">Bate-papo</span>
-      </a>
 
       <button
         mat-button
         type="button"
+        class="profile-context-card__action profile-context-card__action--button"
         (click)="createRoomIfSubscriber()"
         aria-label="Criar sala de chat"
       >
@@ -113,11 +66,12 @@
     } @else {
 
       <a
+        class="profile-context-card__action"
         [routerLink]="['/login']"
-        (click)="closeSidebar()"
         routerLinkActive="active"
         #rlaLogin="routerLinkActive"
         [attr.aria-current]="rlaLogin.isActive ? 'page' : null"
+        (click)="closeSidebar()"
       >
         <i class="fas fa-sign-in-alt" aria-hidden="true"></i>
         <span class="label">Entrar</span>

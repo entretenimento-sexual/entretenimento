@@ -1,13 +1,31 @@
 // src/app/authentication/register-module/welcome/welcome.component.ts
-// Componente de boas-vindas pós-cadastro com verificação de e-mail
-// Não esquecer os comentários
+// Componente de boas-vindas pós-cadastro com verificação de e-mail.
+//
+// Ajustes desta revisão:
+// - evita polling desnecessário quando o usuário já está verificado
+// - separa estados assíncronos para não travar toda a UI com um único "busy"
+// - garante timeout nas ações críticas
+// - mantém comentários, reatividade e tratamento centralizado de erros
+// - corrige o fluxo DEV para continuar sincronizando quando o Auth já verificou,
+//   mas o token/Firestore ainda não refletiram totalmente
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 
 import { Observable, Subscription, EMPTY, from, interval, of } from 'rxjs';
-
-import { catchError, distinctUntilChanged, exhaustMap, finalize, map, shareReplay,
-         startWith, switchMap, take, tap } from 'rxjs/operators';
+import {
+  catchError,
+  distinctUntilChanged,
+  exhaustMap,
+  finalize,
+  map,
+  shareReplay,
+  startWith,
+  switchMap,
+  take,
+  tap,
+  timeout,
+  filter,
+} from 'rxjs/operators';
 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -15,23 +33,22 @@ import { EmailVerificationService } from 'src/app/core/services/autentication/re
 import { ValidGenders } from 'src/app/core/enums/valid-genders.enum';
 import { ValidPreferences } from 'src/app/core/enums/valid-preferences.enum';
 
-// ✅ Centralização de erro/feedback (padrão do projeto)
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
-// ✅ AngularFire (instâncias únicas do app.module)
 import { Auth } from '@angular/fire/auth';
 import { Firestore } from '@angular/fire/firestore';
 
-// Firebase modular APIs (escuta e escrita direta)
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { DocumentReference, Unsubscribe } from 'firebase/firestore';
-import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+
 import { EmulatorEmailVerifyDevService } from 'src/app/core/services/autentication/register/emulator-email-verify-dev.service';
 import { environment } from 'src/environments/environment';
 
 type UiBannerVariant = 'info' | 'warn' | 'error' | 'success';
+
 type UiBanner = {
   variant: UiBannerVariant;
   title: string;
@@ -43,37 +60,48 @@ type UiBanner = {
   selector: 'app-welcome',
   templateUrl: './welcome.component.html',
   styleUrls: ['./welcome.component.css'],
-  standalone: false
+  standalone: false,
 })
 export class WelcomeComponent implements OnInit {
   // =========================
   //         ESTADOS
   // =========================
-  busy = false;
+  checkingVerification = false;
+  resendingVerificationEmail = false;
+  markingVerifiedDev = false;
   savingOptional = false;
   sessionInvalid = false;
 
-  // banner local (UX visível no componente)
   banner: UiBanner | null = null;
   showTech = false;
 
-  // status da verificação
   emailVerified = false;
   email: string | null = null;
   lastCheckedAt: Date | null = null;
 
-  // onboarding opcional
   validGenders = Object.values(ValidGenders);
   validPreferences = Object.values(ValidPreferences);
 
   selectedGender = '';
   selectedPreferencesMap: Record<string, boolean> = {};
 
-  // =========================
-  //      INJEÇÕES / VIDA
-  // =========================
   private readonly destroyRef = inject(DestroyRef);
   readonly isDevEmu = environment.useEmulators && environment.env === 'dev-emu';
+
+  private readonly ACTION_TIMEOUT_MS = 15_000;
+
+  /**
+   * Getter agregado mantido para facilitar desabilitação geral da UI,
+   * sem perder a granularidade dos estados específicos.
+   */
+  get busy(): boolean {
+    return (
+      this.checkingVerification ||
+      this.resendingVerificationEmail ||
+      this.markingVerifiedDev ||
+      this.savingOptional
+    );
+  }
 
   constructor(
     private readonly emailVerificationService: EmailVerificationService,
@@ -81,91 +109,104 @@ export class WelcomeComponent implements OnInit {
     private readonly route: ActivatedRoute,
     private readonly auth: Auth,
     private readonly db: Firestore,
-
-    // ✅ erro centralizado / feedback global
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly notify: ErrorNotificationService,
-    private readonly emulatorEmailVerifyDev: EmulatorEmailVerifyDevService,
-  ) { }
+    private readonly emulatorEmailVerifyDev: EmulatorEmailVerifyDevService
+  ) {}
 
-  // dentro do WelcomeComponent
+  /**
+   * Acelera o fluxo em dev-emu sem depender do clique no e-mail real.
+   *
+   * Regra importante:
+   * - se o Auth já refletiu emailVerified=true, mas a sincronização ainda não concluiu,
+   *   mantemos/reiniciamos o polling para terminar a propagação corretamente.
+   */
   markVerifiedDev(): void {
-    if (!this.isDevEmu || this.busy) return;
+    if (
+      !this.isDevEmu ||
+      this.markingVerifiedDev ||
+      this.checkingVerification ||
+      this.resendingVerificationEmail
+    ) {
+      return;
+    }
 
-    this.busy = true;
+    this.stopPolling();
+    this.markingVerifiedDev = true;
 
-    this.emulatorEmailVerifyDev.markVerifiedInEmulatorDebug$().pipe(
-      take(1),
+    this.emulatorEmailVerifyDev
+      .markVerifiedInEmulatorDebug$()
+      .pipe(
+        take(1),
+        switchMap((dbg) =>
+          this.reloadAndSync$().pipe(
+            take(1),
+            map((syncedOk) => ({ dbg, syncedOk }))
+          )
+        ),
+        tap(({ dbg, syncedOk }) => {
+          const details = {
+            traceId: dbg.traceId,
+            okAuth: dbg.after.emailVerified,
+            okSync: syncedOk,
+            uid: dbg.uid,
+            email: dbg.email,
+            listOob: dbg.listOob,
+            apply: dbg.apply,
+            note: dbg.note,
+          };
 
-      // depois disso, força o fluxo normal de sync Auth->Firestore
-      switchMap((dbg) =>
-        this.reloadAndSync$().pipe(
-          take(1),
-          map((syncedOk) => ({ dbg, syncedOk }))
-        )
-      ),
+          if (dbg.after.emailVerified && syncedOk) {
+            this.setBanner(
+              'success',
+              `DEV OK (trace: ${dbg.traceId})`,
+              'E-mail verificado no Auth Emulator e sincronizado no app.',
+              details
+            );
+            return;
+          }
 
-      tap(({ dbg, syncedOk }) => {
-        // detalhes técnicos (copiáveis)
-        const details = {
-          traceId: dbg.traceId,
-          okAuth: dbg.after.emailVerified,
-          okSync: syncedOk,
-          uid: dbg.uid,
-          email: dbg.email,
-          listOob: dbg.listOob,
-          apply: dbg.apply,
-          note: dbg.note,
-        };
+          if (dbg.after.emailVerified && !syncedOk) {
+            this.setBanner(
+              'info',
+              `DEV parcial (trace: ${dbg.traceId})`,
+              'O Auth Emulator já marcou o e-mail como verificado, mas a sincronização final ainda está propagando.',
+              details
+            );
+            this.restartPolling();
+            return;
+          }
 
-        if (dbg.after.emailVerified) {
-          this.setBanner(
-            'success',
-            `DEV OK (trace: ${dbg.traceId})`,
-            syncedOk
-              ? 'E-mail verificado no Auth Emulator e sincronizado no app.'
-              : 'E-mail verificado no Auth Emulator, mas falhou ao sincronizar Firestore (veja detalhes).',
-            details
-          );
-        } else {
           this.setBanner(
             'warn',
-            `DEV NÃO verificou (trace: ${dbg.traceId})`,
-            dbg.note ?? 'Não foi possível obter/aplicar o oobCode. Veja detalhes.',
+            `DEV não verificou (trace: ${dbg.traceId})`,
+            dbg.note ?? 'Não foi possível aplicar a verificação no emulador.',
             details
           );
-
-          // se não verificou, mantém o polling tentando (opcional)
           this.restartPolling();
-        }
-      }),
+        }),
+        catchError((err) => {
+          const traceId = (err as any)?.traceId;
+          const payload = (err as any)?.emuPayload;
 
-      catchError((err) => {
-        const traceId = (err as any)?.traceId;
-        const payload = (err as any)?.emuPayload;
-
-        this.setBanner(
-          'error',
-          `DEV erro${traceId ? ` (trace: ${traceId})` : ''}`,
-          'Veja detalhes técnicos / Network.',
-          payload ?? err
-        );
-        return of(void 0);
-      }),
-
-      finalize(() => { this.busy = false; }),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe();
+          this.setBanner(
+            'error',
+            `DEV erro${traceId ? ` (trace: ${traceId})` : ''}`,
+            'Falha ao marcar como verificado no emulador.',
+            payload ?? err
+          );
+          return of(void 0);
+        }),
+        finalize(() => {
+          this.markingVerifiedDev = false;
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
-
-  // =========================
-  //      STREAMS BASE
-  // =========================
 
   /**
    * Observable reativo do estado do Firebase Auth.
-   * - Evita depender de callbacks
-   * - Facilita cleanup com takeUntilDestroyed
    */
   private authState$(): Observable<User | null> {
     return new Observable<User | null>((sub) => {
@@ -174,18 +215,21 @@ export class WelcomeComponent implements OnInit {
         (u) => sub.next(u),
         (err) => sub.error(err)
       );
+
       return { unsubscribe: unsub };
     }).pipe(
       startWith(this.auth.currentUser ?? null),
-      // reduz re-render desnecessário: troca real de uid/estado de verificação
-      distinctUntilChanged((a, b) => (a?.uid ?? null) === (b?.uid ?? null) && !!a?.emailVerified === !!b?.emailVerified),
+      distinctUntilChanged(
+        (a, b) =>
+          (a?.uid ?? null) === (b?.uid ?? null) &&
+          !!a?.emailVerified === !!b?.emailVerified
+      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
   /**
-   * Observable de existência de documento (watch).
-   * Mantém a UX "conta removida durante o cadastro" em tempo real.
+   * Observable de existência do documento do usuário.
    */
   private docExists$(ref: DocumentReference): Observable<boolean> {
     return new Observable<boolean>((sub) => {
@@ -194,164 +238,155 @@ export class WelcomeComponent implements OnInit {
         (snap) => sub.next(snap.exists()),
         (err) => sub.error(err)
       );
+
       return { unsubscribe: unsub };
     }).pipe(distinctUntilChanged());
   }
 
-  // =========================
-  //        LIFECYCLE
-  // =========================
   private userDocSub: Subscription | null = null;
 
   ngOnInit(): void {
-    const autoCheck = this.route.snapshot.queryParamMap.get('autocheck') === '1';
-
-    // garante cleanup de qualquer polling ativo ao destruir
-    this.destroyRef.onDestroy(() => this.stopPolling());
-
-    this.authState$().pipe(
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe({
-      next: (u) => {
-        // 1) Sem sessão
-        if (!u) {
-          this.email = null;
-          this.emailVerified = false;
-          this.sessionInvalid = true;
-
-          this.setBanner(
-            'warn',
-            'Sessão não encontrada',
-            'Não encontramos uma sessão ativa. Você pode tentar reconectar, recarregar a página ou refazer o cadastro.'
-          );
-
-          // se não há usuário, não faz sentido manter watchers/polling
-          this.userDocSub?.unsubscribe();
-          this.userDocSub = null;
-          this.stopPolling();
-          return;
-        }
-
-        // 2) Sessão ok → sincroniza estado básico
-        this.sessionInvalid = false;
-        this.email = u.email ?? null;
-        this.emailVerified = !!u.emailVerified;
-
-        // 3) Watch do doc do usuário (se sumir durante o fluxo, encerra sessão)
-        const ref = doc(this.db, 'users', u.uid);
-        this.userDocSub?.unsubscribe();
-        this.userDocSub = this.docExists$(ref as unknown as DocumentReference).pipe(
-          takeUntilDestroyed(this.destroyRef)
-        ).subscribe({
-          next: (exists) => {
-            if (!exists) {
-              this.setBanner('warn', 'Conta indisponível', 'Sua conta precisa de atenção. Você pode sair e refazer o cadastro.');
-              this.sessionInvalid = true; // bloqueia ações
-              this.stopPolling();
-
-              // ✅ NÃO fazer signOut automático aqui.
-              // Deixe um botão "Sair" chamar seu LogoutService/logout voluntário.
-              return;
-            }
-          },
-          error: (err) => {
-            // aqui vale registrar tecnicamente, mas não precisa “quebrar” a tela
-            this.reportError('WelcomeComponent.userDocWatcher', err, true);
-          }
-        });
-
-        // 4) Se pedido por querystring OU se ainda não verificado, inicia polling
-        if (autoCheck || !this.emailVerified) this.startPolling();
-      },
-
-      error: (err) => {
-        this.sessionInvalid = true;
-        this.setBanner('error', 'Erro ao ler sessão', 'Tente recarregar a página.', err);
-        this.reportError('WelcomeComponent.authState$', err);
-      }
+    this.destroyRef.onDestroy(() => {
+      this.stopPolling();
+      this.userDocSub?.unsubscribe();
+      this.userDocSub = null;
     });
+
+    this.authState$()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (u) => {
+          if (!u) {
+            this.email = null;
+            this.emailVerified = false;
+            this.sessionInvalid = true;
+
+            this.setBanner(
+              'warn',
+              'Sessão não encontrada',
+              'Não encontramos uma sessão ativa. Recarregue a página ou refaça o cadastro.'
+            );
+
+            this.userDocSub?.unsubscribe();
+            this.userDocSub = null;
+            this.stopPolling();
+            return;
+          }
+
+          this.sessionInvalid = false;
+          this.email = u.email ?? null;
+          this.emailVerified = !!u.emailVerified;
+
+          const ref = doc(this.db, 'users', u.uid);
+
+          this.userDocSub?.unsubscribe();
+          this.userDocSub = this.docExists$(ref as unknown as DocumentReference)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: (exists) => {
+                if (!exists) {
+                  this.setBanner(
+                    'warn',
+                    'Conta indisponível',
+                    'Sua conta precisa de atenção. Você pode sair e refazer o cadastro.'
+                  );
+                  this.sessionInvalid = true;
+                  this.stopPolling();
+                }
+              },
+              error: (err) => {
+                this.reportError('WelcomeComponent.userDocWatcher', err, true);
+              },
+            });
+
+          if (this.emailVerified) {
+            this.stopPolling();
+            return;
+          }
+
+          if (!this.sessionInvalid) {
+            this.startPolling();
+          }
+        },
+        error: (err) => {
+          this.sessionInvalid = true;
+          this.setBanner('error', 'Erro ao ler sessão', 'Tente recarregar a página.', err);
+          this.reportError('WelcomeComponent.authState$', err);
+        },
+      });
   }
 
-  // =========================
-  //    BANNER HELPERS (UX)
-  // =========================
-  private setBanner(variant: UiBannerVariant, title: string, message: string, details?: any): void {
-    let det: string | undefined = undefined;
+  private setBanner(
+    variant: UiBannerVariant,
+    title: string,
+    message: string,
+    details?: unknown
+  ): void {
+    let det: string | undefined;
 
-    // detalhes são opcionais e só aparecem se o usuário clicar (técnico)
     if (details !== undefined) {
-      try { det = typeof details === 'string' ? details : JSON.stringify(details, null, 2); }
-      catch { det = String(details); }
+      try {
+        det = typeof details === 'string' ? details : JSON.stringify(details, null, 2);
+      } catch {
+        det = String(details);
+      }
     }
 
     this.banner = { variant, title, message, details: det };
     this.showTech = false;
   }
 
-  toggleTech(): void { this.showTech = !this.showTech; }
+  toggleTech(): void {
+    this.showTech = !this.showTech;
+  }
 
   copyDetails(): void {
     const det = this.banner?.details;
     if (!det || !navigator?.clipboard) return;
-    navigator.clipboard.writeText(det).catch(() => { });
+
+    navigator.clipboard.writeText(det).catch(() => {});
   }
 
-  // CTA: reabrir fluxo de cadastro (sem login)
   restartRegistration(): void {
     this.router.navigate(['/register'], { replaceUrl: true });
   }
 
-  // =========================
-  //   ERRO CENTRALIZADO
-  // =========================
-  /**
-   * Padrão do projeto:
-   * - registra no handler global (logs/telemetria)
-   * - opcionalmente mostra toast (sem duplicar a UX do banner, quando não necessário)
-   */
   private reportError(origin: string, err: unknown, silentToast: boolean = false): void {
     try {
-      // se seu handler tiver assinatura diferente, ajuste aqui (ponto único)
       (this.globalErrorHandler as any)?.handleError?.(err, origin);
       (this.globalErrorHandler as any)?.capture?.(err, origin);
     } catch {
-      // fallback silencioso
+      // noop
     }
 
     if (!silentToast) {
       this.notify.showError('Ocorreu um erro. Tente novamente.');
     }
 
-    // útil para debug local durante dev
-    // (não remove: ajuda a rastrear rapidamente no console)
     // eslint-disable-next-line no-console
     console.error(`[${origin}]`, err);
   }
 
-  // =========================
-  //  VERIFICAÇÃO DE E-MAIL
-  // =========================
-
   /**
-   * Faz reload do usuário (Auth) e tenta sincronizar emailVerified (Auth → Firestore).
-   * Retorna Observable<boolean> para ser usado pelo polling e pelo botão "Verificar agora".
+   * Faz reload do usuário e tenta sincronizar emailVerified.
    */
   private reloadAndSync$(): Observable<boolean> {
     const u = this.auth.currentUser;
     if (!u) return of(false);
 
-    const traceId = `wel_sync_${Date.now().toString(16)}_${Math.random().toString(16).slice(2, 6)}`;
-    const DBG = (window as any)?.DBG ?? (() => { });
+    const traceId = `wel_sync_${Date.now().toString(16)}_${Math.random()
+      .toString(16)
+      .slice(2, 6)}`;
+    const DBG = (window as any)?.DBG ?? (() => {});
 
     DBG('[Welcome.reloadAndSync$] start', { traceId, uid: u.uid });
 
     return from(u.reload()).pipe(
+      timeout({ first: this.ACTION_TIMEOUT_MS }),
       catchError((err) => {
         DBG('[Welcome.reloadAndSync$] user.reload():fail', { traceId, err });
-        // reload falhar não deve quebrar o fluxo
         return of(void 0);
       }),
-
       map(() => {
         const cu = this.auth.currentUser;
 
@@ -367,22 +402,28 @@ export class WelcomeComponent implements OnInit {
 
         return cu;
       }),
-
       switchMap((cu) => {
         if (!cu) return of(false);
 
-        // Se ainda não está verificado no Auth → tenta fallback Firestore
         if (!cu.emailVerified) {
           return from(getDoc(doc(this.db, 'users', cu.uid))).pipe(
+            timeout({ first: this.ACTION_TIMEOUT_MS }),
             map((snap) => {
-              const fsVerified = snap.exists() && (snap.data() as any)?.emailVerified === true;
+              const fsVerified =
+                snap.exists() && (snap.data() as any)?.emailVerified === true;
+
               DBG('[Welcome.reloadAndSync$] fs fallback', { traceId, fsVerified });
 
               if (fsVerified) {
                 this.emailVerified = true;
-                this.setBanner('success', 'E-mail verificado (sincronizado)', 'Você já pode seguir para o painel.');
+                this.setBanner(
+                  'success',
+                  'E-mail verificado (sincronizado)',
+                  'Você já pode seguir para o painel.'
+                );
                 return true;
               }
+
               return false;
             }),
             catchError((err) => {
@@ -392,144 +433,193 @@ export class WelcomeComponent implements OnInit {
           );
         }
 
-        // ✅ Auth está verificado → agora o que manda é o CLAIM do token (rules)
         return from(cu.getIdTokenResult(true)).pipe(
+          timeout({ first: this.ACTION_TIMEOUT_MS }),
           map((res) => {
             const claimVerified = res?.claims?.['email_verified'] === true;
+
             DBG('[Welcome.reloadAndSync$] token claims', {
               traceId,
               emailVerified: true,
               claimVerified,
             });
+
             return claimVerified;
           }),
-
           switchMap((claimVerified) => {
             if (!claimVerified) {
-              // Não tenta Firestore ainda → evitar PERMISSION_DENIED
               this.setBanner(
                 'info',
                 'Verificação propagando…',
-                'Auth já marcou como verificado, mas o token ainda não atualizou. Aguarde alguns segundos e tente novamente.'
+                'O Auth já marcou como verificado, mas o token ainda não atualizou. Aguarde alguns segundos e tente novamente.'
               );
               return of(false);
             }
 
-            DBG('[Welcome.reloadAndSync$] fs update:attempt', { traceId, uid: cu.uid });
+            DBG('[Welcome.reloadAndSync$] fs update:attempt', {
+              traceId,
+              uid: cu.uid,
+            });
 
             return this.emailVerificationService.updateEmailVerificationStatus(cu.uid, true).pipe(
               take(1),
               tap(() => DBG('[Welcome.reloadAndSync$] fs update:ok', { traceId })),
-
               catchError((err) => {
                 DBG('[Welcome.reloadAndSync$] fs update:fail', { traceId, err });
                 this.reportError('WelcomeComponent.updateEmailVerificationStatus', err, true);
-                // aqui você escolhe: retornar false (para continuar polling) é melhor
                 return of(false as any);
               }),
-
               map((v: any) => {
-                // se veio boolean false do catch acima, mantém false
                 if (v === false) return false;
 
-                this.setBanner('success', 'E-mail verificado com sucesso!', 'Você já pode seguir para o painel.');
+                this.setBanner(
+                  'success',
+                  'E-mail verificado com sucesso!',
+                  'Você já pode seguir para o painel.'
+                );
                 return true;
               })
             );
           })
         );
       }),
-
       catchError((err) => {
         DBG('[Welcome.reloadAndSync$] fatal', { traceId, err });
-        this.setBanner('error', 'Erro ao verificar e-mail', 'Tente novamente em instantes.', err);
+        this.setBanner(
+          'error',
+          'Erro ao verificar e-mail',
+          'Tente novamente em instantes.',
+          err
+        );
         this.reportError('WelcomeComponent.reloadAndSync$', err);
         return of(false);
       })
     );
   }
 
-  /**
-   * Clique do usuário: tentativa imediata de verificação (sem aguardar polling).
-   */
   checkNow(): void {
-    if (this.busy) return;
-
-    this.busy = true;
-    this.reloadAndSync$().pipe(
-      take(1),
-      tap((ok) => {
-        if (!ok) {
-          this.setBanner(
-            'info',
-            'Ainda não encontramos a verificação',
-            'Tente novamente em alguns segundos. Se preferir, reenvie o e-mail.'
-          );
-          this.restartPolling();
-        }
-      }),
-      finalize(() => { this.busy = false; }),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe();
-  }
-
-  /**
-   * Reenvia o e-mail e reinicia o polling.
-   * ⚠️ finalize garante que busy volta ao normal mesmo em erro.
-   */
-  resendVerificationEmail(): void {
-    if (this.busy) return;
-
-    this.busy = true;
-
-    this.emailVerificationService.resendVerificationEmail().pipe(
-      tap(() => this.restartPolling()),
-      take(1),
-      finalize(() => { this.busy = false; }),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe({
-      next: (msg) => {
-        this.setBanner('info', 'E-mail reenviado', msg || 'Confira sua caixa de entrada e spam.');
-      },
-      error: (err: any) => {
-        const code = err?.code || '';
-
-        if (code === 'auth/too-many-requests') {
-          this.setBanner('warn', 'Muitas tentativas', 'Aguarde alguns minutos e tente novamente.', err);
-        } else if (code === 'auth/quota-exceeded') {
-          this.setBanner('warn', 'Limite de envio atingido', 'Tente novamente mais tarde.', err);
-        } else {
-          this.setBanner('error', 'Erro ao reenviar o e-mail', 'Tente novamente em instantes.', err);
-        }
-
-        // registra e mostra toast (erro de ação do usuário → merece toast)
-        this.reportError('WelcomeComponent.resendVerificationEmail', err);
-      }
-    });
-  }
-
-  /**
-   * Avança para o painel.
-   * Mantém a rota de fallback e evita "quebrar" o usuário em caso de erro.
-   */
-  proceedToDashboard(): void {
-    if (!this.emailVerified) {
-      this.setBanner('warn', 'E-mail ainda não verificado', 'Verifique seu e-mail antes de continuar.');
+    if (
+      this.checkingVerification ||
+      this.resendingVerificationEmail ||
+      this.markingVerifiedDev
+    ) {
       return;
     }
 
-    const redirectTo = this.route.snapshot.queryParamMap.get('redirectTo') || '/dashboard/principal';
+    this.stopPolling();
+    this.checkingVerification = true;
 
-    this.router.navigateByUrl(redirectTo).then((ok) => {
-      if (!ok) this.router.navigate(['/dashboard/principal']);
-    }).catch(() => {
-      this.router.navigate(['/dashboard/principal']);
-    });
+    this.reloadAndSync$()
+      .pipe(
+        take(1),
+        tap((ok) => {
+          if (!ok) {
+            this.setBanner(
+              'info',
+              'Ainda não encontramos a verificação',
+              'Tente novamente em alguns segundos. Se preferir, reenvie o e-mail.'
+            );
+            this.restartPolling();
+          }
+        }),
+        finalize(() => {
+          this.checkingVerification = false;
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
-  // =========================
-  //    ONBOARDING OPCIONAL
-  // =========================
+  resendVerificationEmail(): void {
+    if (
+      this.resendingVerificationEmail ||
+      this.checkingVerification ||
+      this.markingVerifiedDev
+    ) {
+      return;
+    }
+
+    this.stopPolling();
+    this.resendingVerificationEmail = true;
+
+    this.emailVerificationService
+      .resendVerificationEmail()
+      .pipe(
+        take(1),
+        timeout({ first: this.ACTION_TIMEOUT_MS }),
+        tap((msg) => {
+          this.setBanner(
+            'info',
+            'E-mail reenviado',
+            msg || 'Confira sua caixa de entrada e spam.'
+          );
+
+          if (!this.emailVerified && !this.sessionInvalid) {
+            this.restartPolling();
+          }
+        }),
+        catchError((err: any) => {
+          const code = err?.code || '';
+
+          if (code === 'auth/too-many-requests') {
+            this.setBanner(
+              'warn',
+              'Muitas tentativas',
+              'Aguarde alguns minutos e tente novamente.',
+              err
+            );
+          } else if (code === 'auth/quota-exceeded') {
+            this.setBanner(
+              'warn',
+              'Limite de envio atingido',
+              'Tente novamente mais tarde.',
+              err
+            );
+          } else {
+            this.setBanner(
+              'error',
+              'Erro ao reenviar o e-mail',
+              'Tente novamente em instantes.',
+              err
+            );
+          }
+
+          this.reportError('WelcomeComponent.resendVerificationEmail', err);
+          return EMPTY;
+        }),
+        finalize(() => {
+          this.resendingVerificationEmail = false;
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
+  proceedToDashboard(): void {
+    if (!this.emailVerified) {
+      this.setBanner(
+        'warn',
+        'E-mail ainda não verificado',
+        'Verifique seu e-mail antes de continuar.'
+      );
+      return;
+    }
+
+    const redirectTo =
+      this.route.snapshot.queryParamMap.get('redirectTo') || '/dashboard/principal';
+
+    this.router
+      .navigateByUrl(redirectTo)
+      .then((ok) => {
+        if (!ok) {
+          this.router.navigate(['/dashboard/principal']);
+        }
+      })
+      .catch(() => {
+        this.router.navigate(['/dashboard/principal']);
+      });
+  }
+
   saveOptionalProfile(): void {
     const u = this.auth.currentUser;
     const uid = u?.uid;
@@ -551,68 +641,77 @@ export class WelcomeComponent implements OnInit {
     const payload = {
       gender: this.selectedGender || null,
       preferences: selectedPreferences,
-      updatedAt: serverTimestamp(), // opcional (suas preferences.rules não exigem, mas é melhor)
+      updatedAt: serverTimestamp(),
     };
 
-    from(setDoc(ref, payload as any, { merge: true })).pipe(
-      take(1),
-      tap(() => {
-        this.setBanner('success', 'Preferências salvas', 'Tudo certo!');
-        this.notify.showSuccess('Preferências salvas.');
-      }),
-      catchError((err) => {
-        this.setBanner('error', 'Não foi possível salvar agora', 'Tente novamente.', err);
-        this.reportError('WelcomeComponent.saveOptionalProfile', err);
-        return EMPTY;
-      }),
-      finalize(() => { this.savingOptional = false; }),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe();
+    from(setDoc(ref, payload as any, { merge: true }))
+      .pipe(
+        take(1),
+        timeout({ first: this.ACTION_TIMEOUT_MS }),
+        tap(() => {
+          this.setBanner('success', 'Preferências salvas', 'Tudo certo!');
+          this.notify.showSuccess('Preferências salvas.');
+        }),
+        catchError((err) => {
+          this.setBanner('error', 'Não foi possível salvar agora', 'Tente novamente.', err);
+          this.reportError('WelcomeComponent.saveOptionalProfile', err);
+          return EMPTY;
+        }),
+        finalize(() => {
+          this.savingOptional = false;
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
-  // =========================
-  //         POLLING
-  // =========================
   private pollingSub: Subscription | null = null;
   private pollTries = 0;
 
-  /**
-   * Polling reativo:
-   * - interval + exhaustMap evita concorrência (se uma verificação atrasar, não empilha)
-   * - para automaticamente após sucesso ou limite de tentativas
-   */
   private startPolling(): void {
-    if (this.pollingSub) return;
+    if (this.pollingSub || this.emailVerified || this.sessionInvalid) {
+      return;
+    }
 
-    const DBG = (window as any)?.DBG ?? (() => { });
-    const maxTries = this.isDevEmu ? 30 : 8; // emulador pode demorar a propagar claim
+    const DBG = (window as any)?.DBG ?? (() => {});
+    const maxTries = this.isDevEmu ? 30 : 8;
 
     this.pollTries = 0;
 
-    this.pollingSub = interval(4000).pipe(
-      startWith(0),
-      exhaustMap(() => this.reloadAndSync$().pipe(take(1))),
-      tap((ok) => {
-        this.pollTries++;
+    this.pollingSub = interval(4000)
+      .pipe(
+        startWith(0),
+        filter(
+          () =>
+            !this.checkingVerification &&
+            !this.resendingVerificationEmail &&
+            !this.markingVerifiedDev &&
+            !this.sessionInvalid &&
+            !this.emailVerified
+        ),
+        exhaustMap(() => this.reloadAndSync$().pipe(take(1))),
+        tap((ok) => {
+          this.pollTries++;
 
-        DBG('[Welcome.poll]', { try: this.pollTries, ok });
+          DBG('[Welcome.poll]', { try: this.pollTries, ok });
 
-        if (ok) {
-          this.stopPolling();
-          return;
-        }
+          if (ok) {
+            this.stopPolling();
+            return;
+          }
 
-        if (this.pollTries >= maxTries) {
-          this.stopPolling();
-          this.setBanner(
-            'warn',
-            'Tempo esgotado',
-            'Não conseguimos sincronizar a verificação a tempo. Clique em “Checar agora” em alguns segundos.'
-          );
-        }
-      }),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe();
+          if (this.pollTries >= maxTries) {
+            this.stopPolling();
+            this.setBanner(
+              'warn',
+              'Tempo esgotado',
+              'Não conseguimos sincronizar a verificação a tempo. Clique em “Checar agora” em alguns segundos.'
+            );
+          }
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   private stopPolling(): void {
@@ -625,9 +724,6 @@ export class WelcomeComponent implements OnInit {
     this.startPolling();
   }
 
-  // =========================
-  //        UTILIDADES
-  // =========================
   reloadPage(): void {
     window.location.reload();
   }
@@ -648,23 +744,17 @@ export class WelcomeComponent implements OnInit {
       'uol.com.br': 'https://email.uol.com.br/',
       'bol.com.br': 'https://email.bol.uol.com.br/',
       'terra.com.br': 'https://mail.terra.com.br/',
-      'ig.com.br': 'https://email.ig.com.br/'
+      'ig.com.br': 'https://email.ig.com.br',
     };
 
     const url = map[domain] || 'about:blank';
-    if (url !== 'about:blank') window.open(url, '_blank', 'noopener,noreferrer');
+    if (url !== 'about:blank') {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
   }
 
   copyEmail(): void {
     if (!this.email || !navigator?.clipboard) return;
-    navigator.clipboard.writeText(this.email).catch(() => { });
+    navigator.clipboard.writeText(this.email).catch(() => {});
   }
-} // 518 linhas
-
-/*
-Estados do usuário e acesso às rotas em relação a perfil e verificação de e-mail.
-GUEST: não autenticado
-AUTHED + PROFILE_INCOMPLETE: logado, mas ainda não completou cadastro mínimo
-AUTHED + PROFILE_COMPLETE + UNVERIFIED: logado, cadastro ok, mas e-mail não verificado
-AUTHED + PROFILE_COMPLETE + VERIFIED: liberado total
-*/
+} // Linha 760

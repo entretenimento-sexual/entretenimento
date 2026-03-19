@@ -8,7 +8,6 @@
 //
 // route.data.allowAuthenticated = true
 // - bypass explícito quando uma rota guest pode aceitar autenticado
-
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { combineLatest, of } from 'rxjs';
@@ -52,7 +51,6 @@ export const authRedirectGuard: CanActivateFn = (route, _state) => {
     take(1),
 
     map(([_, authUid, appUser, blockedReason, emailVerified]) => {
-      // Visitante de verdade -> pode entrar na rota guest
       if (!authUid) {
         guardLog('auth-redirect', 'guest -> allow');
         return true;
@@ -80,14 +78,18 @@ export const authRedirectGuard: CanActivateFn = (route, _state) => {
         });
       }
 
-      // Perfil ainda incompleto -> finalizar cadastro
-      if (!profileCompleted) {
-        return buildFinalizeRedirectTree(router, redirectTo);
+      // E-mail ainda não verificado -> welcome
+      if (!emailVerified) {
+        return buildWelcomeRedirectTree(router, redirectTo, {
+          reason: 'email_unverified',
+        });
       }
 
-      // Perfil completo, mas e-mail ainda não verificado -> welcome
-      if (!emailVerified) {
-        return buildWelcomeRedirectTree(router, redirectTo);
+      // Perfil ainda incompleto -> finalizar cadastro
+      if (!profileCompleted) {
+        return buildFinalizeRedirectTree(router, redirectTo, {
+          reason: 'profile_incomplete',
+        });
       }
 
       // Conta liberada -> segue para destino final

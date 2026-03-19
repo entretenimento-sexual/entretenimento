@@ -586,4 +586,4 @@ export class AuthOrchestratorService {
       this.terminating = false;
     }
   }
-}// linha 590
+}// linha 590, fim do auth-orchestrator.service.ts

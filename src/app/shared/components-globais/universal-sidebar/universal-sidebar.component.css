@@ -1,0 +1,375 @@
+/* src/app/shared/components-globais/universal-sidebar/universal-sidebar.component.css */
+/*
+  Sidebar universal.
+  Objetivos desta versão:
+  - respeitar a navbar global
+  - suportar header com avatar do usuário autenticado
+  - funcionar bem em desktop, mobile e telas grandes
+  - melhorar acessibilidade no modo colapsado
+  - melhorar UX mobile com backdrop
+  - manter foco visível e alvos de toque confortáveis
+*/
+
+:host {
+  display: block;
+}
+
+/* ==========================================================================
+   Backdrop mobile
+   ========================================================================== */
+.universal-sidebar__backdrop {
+  position: fixed;
+  top: var(--header-height, 100px);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 89;
+  border: 0;
+  background: rgba(0, 0, 0, 0.38);
+  cursor: pointer;
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+.universal-sidebar {
+  position: fixed;
+  top: var(--header-height, 100px);
+  left: 0;
+  z-index: 90;
+
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+
+  width: clamp(272px, 18vw, 320px);
+  height: calc(100dvh - var(--header-height, 100px));
+  padding: 1rem 0.75rem max(1rem, var(--safe-bottom, 0px));
+
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+
+  background: var(--surface-color);
+  border-right: 1px solid var(--surface-border);
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+
+  transition:
+    transform 220ms ease,
+    width 220ms ease,
+    box-shadow 220ms ease,
+    background-color 220ms ease,
+    border-color 220ms ease;
+}
+
+.universal-sidebar--collapsed {
+  width: clamp(84px, 6vw, 96px);
+}
+
+.universal-sidebar--mobile {
+  width: min(86vw, 320px);
+  transform: translateX(-100%);
+  box-shadow: var(--box-shadow);
+}
+
+.universal-sidebar--mobile.universal-sidebar--open {
+  transform: translateX(0);
+}
+
+/* ==========================================================================
+   Top actions
+   ========================================================================== */
+.universal-sidebar__top {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.15rem;
+}
+
+.universal-sidebar__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: var(--tap-target-sm, 40px);
+  min-height: var(--tap-target-sm, 40px);
+
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  cursor: pointer;
+
+  background: var(--input-background);
+  color: var(--text-color);
+
+  transition:
+    background-color 160ms ease,
+    transform 160ms ease,
+    border-color 160ms ease;
+}
+
+.universal-sidebar__action:hover,
+.universal-sidebar__action:focus-visible {
+  background: var(--header-hover-bg);
+}
+
+.universal-sidebar__action:active {
+  transform: scale(0.98);
+}
+
+/* ==========================================================================
+   User header
+   ========================================================================== */
+.universal-sidebar__profile {
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--surface-border) 80%, transparent);
+}
+
+.universal-sidebar__profile-link {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 64px;
+  padding: 0.65rem;
+  border-radius: 14px;
+  color: var(--text-color);
+  text-decoration: none;
+  transition:
+    background-color 180ms ease,
+    transform 180ms ease;
+}
+
+.universal-sidebar__profile-link:hover,
+.universal-sidebar__profile-link:focus-visible {
+  background: var(--header-hover-bg);
+}
+
+.universal-sidebar__profile-link--static {
+  cursor: default;
+}
+
+.universal-sidebar__avatar {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  object-fit: cover;
+  border-radius: 999px;
+  border: 1px solid var(--surface-border);
+  background: var(--input-background);
+}
+
+.universal-sidebar__profile-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.universal-sidebar__profile-name {
+  display: block;
+  font-size: 0.98rem;
+  line-height: 1.2;
+  color: var(--text-color);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.universal-sidebar__profile-subtitle {
+  display: block;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ==========================================================================
+   Nav sections
+   ========================================================================== */
+.universal-sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.universal-sidebar__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.universal-sidebar__title {
+  margin: 0;
+  padding: 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+}
+
+.universal-sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.universal-sidebar__item {
+  display: block;
+}
+
+/* ==========================================================================
+   Links
+   ========================================================================== */
+.universal-sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+
+  min-height: var(--tap-target, 44px);
+  padding: 0.75rem 0.9rem;
+
+  text-decoration: none;
+  border-radius: 14px;
+  color: var(--text-color);
+
+  transition:
+    background-color 180ms ease,
+    transform 180ms ease,
+    color 180ms ease;
+}
+
+.universal-sidebar__link:hover,
+.universal-sidebar__link:focus-visible {
+  background: var(--header-hover-bg);
+  outline: none;
+}
+
+.universal-sidebar__link:active {
+  transform: scale(0.99);
+}
+
+.universal-sidebar__link--active {
+  background: color-mix(in oklab, var(--primary-color) 22%, transparent);
+  color: var(--text-color);
+}
+
+.universal-sidebar__link--disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.universal-sidebar__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 28px;
+  min-width: 28px;
+
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.universal-sidebar__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
+   Collapsed desktop
+   ========================================================================== */
+.universal-sidebar--collapsed .universal-sidebar__profile-link {
+  justify-content: center;
+  padding-inline: 0.4rem;
+}
+
+.universal-sidebar--collapsed .universal-sidebar__link {
+  justify-content: center;
+  padding-inline: 0.4rem;
+}
+
+.universal-sidebar--collapsed .universal-sidebar__icon {
+  width: 32px;
+  min-width: 32px;
+  font-size: 1.45rem;
+}
+
+/* ==========================================================================
+   Mobile
+   ========================================================================== */
+@media (max-width: 991.98px) {
+  .universal-sidebar {
+    border-right: 1px solid var(--surface-border);
+    box-shadow: var(--box-shadow);
+  }
+}
+
+/* ==========================================================================
+   Telas muito pequenas
+   ========================================================================== */
+@media (max-width: 350px) {
+  .universal-sidebar--mobile {
+    width: 92vw;
+  }
+
+  .universal-sidebar__profile-link,
+  .universal-sidebar__link {
+    padding-inline: 0.7rem;
+  }
+
+  .universal-sidebar__avatar {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+  }
+}
+
+/* ==========================================================================
+   Movimento reduzido
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .universal-sidebar,
+  .universal-sidebar__link,
+  .universal-sidebar__profile-link,
+  .universal-sidebar__action {
+    transition: none !important;
+  }
+}
+
+/* ==========================================================================
+   Alto contraste
+   ========================================================================== */
+html.high-contrast .universal-sidebar {
+  border-right: 2px solid currentColor;
+  box-shadow: none;
+}
+
+html.high-contrast .universal-sidebar__action,
+html.high-contrast .universal-sidebar__link,
+html.high-contrast .universal-sidebar__profile-link {
+  border: 1px solid transparent;
+}
+
+html.high-contrast .universal-sidebar__link:hover,
+html.high-contrast .universal-sidebar__link:focus-visible,
+html.high-contrast .universal-sidebar__profile-link:hover,
+html.high-contrast .universal-sidebar__profile-link:focus-visible,
+html.high-contrast .universal-sidebar__action:hover,
+html.high-contrast .universal-sidebar__action:focus-visible {
+  border-color: currentColor;
+  background: transparent !important;
+}
+
+html.high-contrast .universal-sidebar__link--active {
+  border-color: currentColor;
+  box-shadow: inset 3px 0 0 currentColor;
+}
+
+html.high-contrast .universal-sidebar__avatar {
+  border: 2px solid currentColor;
+}

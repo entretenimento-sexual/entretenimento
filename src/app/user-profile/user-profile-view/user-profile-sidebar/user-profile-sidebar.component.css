@@ -1,197 +1,266 @@
 /* src/app/user-profile/user-profile-view/user-profile-sidebar/user-profile-sidebar.component.css
    ============================================================================
-   USER PROFILE SIDEBAR
-   - Padronizado para ficar “irmão” do Dashboard sidebar
-   - Links e botões no mesmo padrão (inclui <button mat-button>)
-   - Espaçamento consistente ícone/texto (coluna fixa pro ícone)
-   - Suporta dark / light / high-contrast via tokens globais
-   ============================================================================
-*/
+   USER PROFILE CONTEXT CARD
+   - não é mais drawer/sidebar estrutural
+   - agora é card contextual do perfil
+   - alinhado aos tokens globais do projeto
+   - mobile-first, sem competir com o sidebar universal do shell
+   ============================================================================ */
 
 :host {
   display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
 }
 
-/* Card do sidebar */
-.sidebar {
-  flex: 1;
+.profile-context-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 16px);
+
+  inline-size: 100%;
+  min-inline-size: 0;
+
   padding: var(--space-3, 16px);
-  margin-right: var(--space-3, 16px);
 
   background-color: var(--surface-color);
   color: var(--text-color);
 
-  border-radius: 15px;
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
   box-shadow: var(--box-shadow);
 
-  transition: transform .3s ease, box-shadow .3s ease, background-color .3s ease, color .3s ease;
+  transition:
+    background-color 0.25s ease,
+    color 0.25s ease,
+    border-color 0.25s ease,
+    box-shadow 0.25s ease;
 }
 
-.sidebar.visible {
-  transform: translateX(0);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .2);
-}
-
-/* Header */
-.profile-header {
-  text-align: center;
-  margin-bottom: var(--space-2, 12px);
-}
-
-.profile-picture {
-  width: 120px;
-  height: 120px;
-  border-radius: 9999px;
-
-  object-fit: cover;
-
-  border: 3px solid color-mix(in oklab, var(--text-color) 25%, transparent);
-  box-shadow: var(--box-shadow);
-  background: var(--surface-color);
-}
-
-.user-nickname {
-  text-align: center;
-  color: var(--secondary-color);
-  font-family: var(--font-family-primary);
-  font-size: 1.1rem;
-  margin: 10px 0 var(--space-2, 12px);
-}
-
-/* Nav */
-.profile-nav {
+.profile-context-card__header {
   display: flex;
   flex-direction: column;
-  gap: .5rem;
+  align-items: center;
+  gap: 0.85rem;
+  text-align: center;
 }
 
-/* ============================================================================
-   Itens de navegação
-   - Aplica o MESMO visual em <a> e <button mat-button>
-   - Corrige espaçamento mínimo entre ícone/texto
-   ============================================================================
-*/
-.profile-nav a,
-.profile-nav button {
+.profile-context-card__picture {
+  inline-size: clamp(96px, 18vw, 120px);
+  block-size: clamp(96px, 18vw, 120px);
+  border-radius: 9999px;
+  object-fit: cover;
+  background: var(--surface-color);
+  border: 3px solid color-mix(in oklab, var(--text-color) 20%, transparent);
+  box-shadow: var(--box-shadow);
+}
+
+.profile-context-card__identity {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-inline-size: 0;
+}
+
+.profile-context-card__title {
+  margin: 0;
+  font-size: clamp(1.05rem, 0.45vw + 1rem, 1.2rem);
+  line-height: 1.2;
+  color: var(--text-color);
+  word-break: break-word;
+}
+
+.profile-context-card__subtitle {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+}
+
+.profile-context-card__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-context-card__action,
+.profile-context-card__nav button {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+  gap: 0.65rem;
 
-  /* ✅ espaçamento consistente entre ícone e texto */
-  gap: .6rem;
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: var(--tap-target, 44px);
 
-  width: 100%;
-  min-height: var(--tap-target, 44px);
+  padding: 10px 12px;
+  border-radius: 10px;
 
   color: var(--text-color);
   text-decoration: none;
-
   background-color: color-mix(in oklab, var(--primary-color) 6%, transparent);
-  padding: 10px 12px;
+  border: 1px solid transparent;
 
-  border-radius: 10px;
-
-  /* evita “colapso” em textos longos */
-  min-width: 0;
-
-  transition: background-color .2s ease, color .2s ease, transform .05s ease, border-color .2s ease;
-}
-
-/* Botão: reset pra não “quebrar” com estilos de browser/Material */
-.profile-nav button {
-  appearance: none;
-  border: none;
-  cursor: pointer;
   font: inherit;
   text-align: left;
+
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.15s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
-/* Se o Angular Material aplicar classe, garante que não vire inline */
-.profile-nav button.mat-mdc-button,
-.profile-nav button.mat-mdc-button-base {
+.profile-context-card__nav button {
+  appearance: none;
+  cursor: pointer;
+}
+
+.profile-context-card__nav button.mat-mdc-button,
+.profile-context-card__nav button.mat-mdc-button-base,
+.profile-context-card__nav .mat-mdc-button,
+.profile-context-card__nav .mat-mdc-button-base {
+  display: flex;
+  align-items: center;
   justify-content: flex-start;
+  inline-size: 100%;
+  min-block-size: var(--tap-target, 44px);
   padding: 10px 12px;
-  /* mantém igual ao <a> */
+  margin: 0;
   border-radius: 10px;
+  text-transform: none;
+  line-height: 1.2;
 }
 
-/* Ícones: coluna fixa => não cola no texto e não desalinha */
-.profile-nav a i,
-.profile-nav button i {
+.profile-context-card__nav button .mdc-button__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  inline-size: 100%;
+}
+
+.profile-context-card__action i,
+.profile-context-card__nav button i {
   color: var(--primary-color);
   inline-size: 22px;
-  /* ✅ “coluna” do ícone */
+  min-inline-size: 22px;
   text-align: center;
   flex: 0 0 auto;
 }
 
-/* Hover */
-.profile-nav a:hover,
-.profile-nav button:hover {
+.profile-context-card__action .label,
+.profile-context-card__nav button .label {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.profile-context-card__action:hover,
+.profile-context-card__nav button:hover {
   background: color-mix(in oklab, var(--primary-color) 14%, transparent);
   transform: translateY(-1px);
 }
 
-/* Foco visível (A11y) */
-.profile-nav a:focus-visible,
-.profile-nav button:focus-visible {
+.profile-context-card__action.active {
+  background: color-mix(in oklab, var(--primary-color) 18%, transparent);
+  border-color: color-mix(in oklab, var(--primary-color) 22%, transparent);
+  box-shadow: inset 3px 0 0 var(--primary-color);
+}
+
+.profile-context-card__action:focus-visible,
+.profile-context-card__nav button:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
 
-/* Active (se você usar routerLinkActive="active") */
-.profile-nav a.active {
-  background: color-mix(in oklab, var(--primary-color) 18%, transparent);
-  box-shadow: inset 3px 0 0 var(--primary-color);
-}
-
-/* ============================================================================
-   Mobile
-   ============================================================================
-*/
-@media (max-width: 600px) {
-  .sidebar {
-    padding: var(--space-3, 16px);
-    margin-right: 0;
-    border-radius: 12px;
-    box-shadow: none;
+/* Mobile/tablet: continua em fluxo normal */
+@media (max-width: 1023.98px) {
+  .profile-context-card {
+    position: static;
+    margin: 0;
   }
 
-  .profile-picture {
-    width: 104px;
-    height: 104px;
+  .profile-context-card__picture {
+    inline-size: clamp(90px, 24vw, 108px);
+    block-size: clamp(90px, 24vw, 108px);
   }
 
-  .profile-nav a,
-  .profile-nav button {
-    padding: 10px;
-    font-size: .95rem;
-
-    /* evita “pulo” no mobile */
+  .profile-context-card__action,
+  .profile-context-card__nav button {
+    font-size: 0.95rem;
     transform: none;
   }
 
-  .profile-nav a:hover,
-  .profile-nav button:hover {
+  .profile-context-card__action:hover,
+  .profile-context-card__nav button:hover {
     transform: none;
   }
 }
 
-/* ============================================================================
-   Alto contraste: não depender de color-mix para indicar estado
-   ============================================================================
-*/
-html.high-contrast .profile-nav a,
-html.high-contrast .profile-nav button {
+/* Desktop: card acompanha a rolagem sem virar sidebar estrutural */
+@media (min-width: 1024px) {
+  .profile-context-card {
+    position: sticky;
+    top: calc(var(--header-height, 100px) + var(--space-3, 16px));
+    align-self: start;
+    max-block-size: calc(100dvh - var(--header-height, 100px) - var(--space-4, 24px));
+    overflow: auto;
+  }
+}
+
+@media (min-width: 1600px) {
+  .profile-context-card {
+    max-inline-size: 26rem;
+  }
+
+  .profile-context-card__action,
+  .profile-context-card__nav button {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 350px) {
+  .profile-context-card {
+    padding: 12px;
+    border-radius: 14px;
+  }
+
+  .profile-context-card__action,
+  .profile-context-card__nav button {
+    padding-inline: 10px;
+    gap: 0.5rem;
+  }
+
+  .profile-context-card__action i,
+  .profile-context-card__nav button i {
+    inline-size: 20px;
+    min-inline-size: 20px;
+  }
+}
+
+html.high-contrast .profile-context-card {
+  border: 2px solid currentColor;
+  box-shadow: none;
+}
+
+html.high-contrast .profile-context-card__picture {
+  border-color: currentColor;
+  box-shadow: none;
+}
+
+html.high-contrast .profile-context-card__action,
+html.high-contrast .profile-context-card__nav button {
   background: transparent !important;
-  border: 2px solid transparent;
+  border: 2px solid transparent !important;
 }
 
-html.high-contrast .profile-nav a:hover,
-html.high-contrast .profile-nav button:hover {
-  border-color: currentColor;
+html.high-contrast .profile-context-card__action:hover,
+html.high-contrast .profile-context-card__nav button:hover {
+  border-color: currentColor !important;
 }
 
-html.high-contrast .profile-nav a.active {
-  border-color: currentColor;
-  box-shadow: inset 3px 0 0 currentColor;
+html.high-contrast .profile-context-card__action.active {
+  border-color: currentColor !important;
+  box-shadow: inset 3px 0 0 currentColor !important;
 }

@@ -1,4 +1,4 @@
-// src\app\shared\shared\shared.module.ts
+// src/app/shared/shared.module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -7,19 +7,15 @@ import { MatDialogModule } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
-import { MatSnackBarModule } from '@angular/material/snack-bar'; // 👈 novo
+import { MatSnackBarModule } from '@angular/material/snack-bar';
 
-// Pipes e componentes já existentes
-import { DateFormatPipe } from './pipes/date-format.pipe';
-import { CapitalizePipe } from './pipes/capitalize.pipe';
 import { ModalMensagemComponent } from './components-globais/modal-mensagem/modal-mensagem.component';
 import { TextoDialogComponent } from './components-globais/texto-dialog/texto-dialog.component';
 import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { UploadPhotoComponent } from './components-globais/upload-photo/upload-photo.component';
-import { AngularPinturaModule } from '@pqina/angular-pintura';
 
-// 👇 importe o CTA (ajuste o caminho se o seu tiver pasta duplicada)
-import { LocationCtaComponent } from './location-cta/location-cta.component';
+import { AngularPinturaModule } from '@pqina/angular-pintura';
+import { UniversalSidebarComponent } from './components-globais/universal-sidebar/universal-sidebar.component';
 
 @NgModule({
   declarations: [
@@ -27,7 +23,7 @@ import { LocationCtaComponent } from './location-cta/location-cta.component';
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
     UploadPhotoComponent,
-   ],
+  ],
   imports: [
     CommonModule,
     FormsModule,
@@ -36,15 +32,16 @@ import { LocationCtaComponent } from './location-cta/location-cta.component';
     MatFormFieldModule,
     MatInputModule,
     MatButtonModule,
-    MatSnackBarModule,               // 👈 novo
+    MatSnackBarModule,
     AngularPinturaModule,
+    UniversalSidebarComponent,
   ],
   exports: [
+    UniversalSidebarComponent,
     ModalMensagemComponent,
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
     UploadPhotoComponent,
-
   ]
 })
-export class SharedModule { }
+export class SharedModule {}

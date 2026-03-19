@@ -1,7 +1,2 @@
-<!-- src\app\app.component.html -->
-<app-navbar></app-navbar>
-<div class="router-outlet-container">
 <router-outlet></router-outlet>
-<app-footer></app-footer>
-</div>
-<app-admin-link />
+<app-footer *ngIf="showFooter$ | async"></app-footer>

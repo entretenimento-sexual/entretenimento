@@ -1,17 +1,4 @@
 // src/app/core/guards/auth-guard/guest-only.guard.ts
-// Guard de visitante / fluxo híbrido de autenticação.
-//
-// Objetivo:
-// - permitir /login e /register para visitantes
-// - impedir que usuário autenticado "caia" em telas guest erradas
-// - permitir APENAS as etapas corretas do fluxo autenticado:
-//   - /register/finalizar-cadastro quando perfil incompleto
-//   - /register/welcome e /register/verify quando e-mail não verificado
-//
-// Importante:
-// - não liberar allowAuthenticated "cego"
-// - a decisão depende do estado real do usuário
-
 import { inject } from '@angular/core';
 import {
   ActivatedRouteSnapshot,
@@ -116,7 +103,6 @@ function decideGuestAccess$(
       // VISITANTE
       // -----------------------------------------------------------------------
       if (!authUid) {
-        // Etapas internas do fluxo autenticado não devem abrir para guest
         if (tryingWelcome || tryingFinalize) {
           return buildRedirectTree(router, '/register');
         }
@@ -135,16 +121,7 @@ function decideGuestAccess$(
           : buildWelcomeRedirectTree(router, redirectTo, { reason: blockedReason });
       }
 
-      // 2) perfil incompleto -> finalizar-cadastro
-      if (!profileCompleted) {
-        return tryingFinalize
-          ? true
-          : buildFinalizeRedirectTree(router, redirectTo, {
-              reason: 'profile_incomplete',
-            });
-      }
-
-      // 3) perfil completo, mas e-mail não verificado -> welcome
+      // 2) e-mail não verificado -> welcome
       if (emailVerified !== true) {
         return tryingWelcome
           ? true
@@ -153,8 +130,16 @@ function decideGuestAccess$(
             });
       }
 
+      // 3) perfil incompleto -> finalizar-cadastro
+      if (!profileCompleted) {
+        return tryingFinalize
+          ? true
+          : buildFinalizeRedirectTree(router, redirectTo, {
+              reason: 'profile_incomplete',
+            });
+      }
+
       // 4) autenticado, completo e verificado
-      // Só permanece em páginas guest se a rota explicitamente aceitar
       if (allowAuthenticatedHere) {
         return true;
       }

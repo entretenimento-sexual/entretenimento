@@ -2,13 +2,12 @@
 /*
   UserProfileView (Página /perfil)
   - Mobile-first
-  - Usa tokens globais (variables.css)
-  - Evita 80vw / offsets manuais
-  - Cards com espaçamento confortável para toque (tap target)
+  - Usa tokens globais
+  - Sem sidebar local duplicado
+  - O sidebar estrutural pertence ao LayoutShellComponent
 */
 
 .profile-page {
-  display: flex;
   width: 100%;
   min-height: calc(100dvh - var(--header-height, 100px));
   background: var(--background-color);
@@ -16,11 +15,10 @@
 }
 
 .profile-main {
-  flex: 1;
   width: 100%;
+  min-width: 0;
 }
 
-/* “Shell” centralizado, aproveita seus containers globais */
 .profile-shell {
   padding-block: var(--space-4, 24px);
   display: flex;
@@ -28,7 +26,6 @@
   gap: var(--space-3, 16px);
 }
 
-/* Card base */
 .profile-card {
   background: var(--surface-color);
   border: 1px solid var(--surface-border);
@@ -37,7 +34,6 @@
   padding: var(--space-4, 24px);
 }
 
-/* Header do card: título + ações */
 .profile-header {
   display: flex;
   align-items: flex-start;
@@ -61,7 +57,6 @@
   color: color-mix(in oklab, var(--text-color) 85%, transparent);
 }
 
-/* Botões em grupo (desktop) */
 .profile-actions {
   display: flex;
   flex-wrap: wrap;
@@ -76,7 +71,6 @@
   line-height: 1.1;
 }
 
-/* Grid interno do card */
 .profile-grid {
   display: grid;
   gap: var(--space-3, 16px);
@@ -111,7 +105,6 @@
   overflow-wrap: anywhere;
 }
 
-/* Lista de redes sociais */
 .links-list {
   display: grid;
   gap: 10px;
@@ -124,7 +117,6 @@
   grid-template-columns: 120px 1fr;
   gap: 10px;
   align-items: start;
-
   padding: 10px 12px;
   border-radius: var(--radius-md, 8px);
   border: 1px solid var(--surface-border);
@@ -141,11 +133,6 @@
   opacity: 0.95;
 }
 
-/* ==========================================================
-   Responsividade
-   ========================================================== */
-
-/* Tablet+ */
 @media (min-width: 768px) {
   .profile-grid {
     grid-template-columns: 1fr 1fr;
@@ -156,14 +143,12 @@
   }
 }
 
-/* Desktop */
 @media (min-width: 1100px) {
   .profile-grid {
     grid-template-columns: 1fr 1fr 1fr;
   }
 }
 
-/* Mobile muito pequeno (até 350px) */
 @media (max-width: 350px) {
   .profile-card {
     padding: var(--space-3, 16px);
@@ -187,9 +172,13 @@
   }
 }
 
-/* Preferência: movimento reduzido */
 @media (prefers-reduced-motion: reduce) {
   .profile-card {
     transition: none !important;
   }
 }
+/* Considerar sempre futuras versões .apk, mobile,
+Tentativa de inspiração no melhor das grandes plataformas e a super, ultra, mega, responsividade.
+De forma que considere das menores e diversas telas de smartphones,
+diversos tipos de monitores, de notebook, e telas gigantes de televisões monitores,
+tanto em retrato ou paisagem. */

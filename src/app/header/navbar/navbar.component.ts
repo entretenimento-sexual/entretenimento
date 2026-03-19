@@ -34,7 +34,7 @@ import {
 
 import { combineLatest, Observable } from 'rxjs';
 
-import { SidebarService } from 'src/app/core/services/sidebar.service';
+import { SidebarService } from 'src/app/core/services/navigation/sidebar.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';

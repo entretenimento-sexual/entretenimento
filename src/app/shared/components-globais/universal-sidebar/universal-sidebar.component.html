@@ -1,0 +1,181 @@
+<!-- src/app/shared/components-globais/universal-sidebar/universal-sidebar.component.html -->
+
+<button
+  *ngIf="vm.isMobile && vm.isOpen"
+  type="button"
+  class="universal-sidebar__backdrop"
+  aria-label="Fechar navegação lateral"
+  (click)="onBackdropClick()"
+></button>
+
+<aside
+  id="app-sidebar"
+  class="universal-sidebar"
+  [class.universal-sidebar--mobile]="vm.isMobile"
+  [class.universal-sidebar--open]="vm.isOpen"
+  [class.universal-sidebar--collapsed]="!vm.isMobile && vm.isCollapsed"
+  [attr.aria-hidden]="vm.isMobile && !vm.isOpen ? 'true' : null"
+  aria-label="Navegação principal"
+>
+  <div class="universal-sidebar__top">
+    <button
+      *ngIf="vm.isMobile"
+      type="button"
+      class="universal-sidebar__action"
+      aria-label="Fechar menu lateral"
+      aria-controls="app-sidebar"
+      (click)="toggleRequested.emit()"
+    >
+      <span aria-hidden="true">✕</span>
+    </button>
+
+    <button
+      *ngIf="!vm.isMobile"
+      type="button"
+      class="universal-sidebar__action"
+      [attr.aria-label]="vm.isCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'"
+      [attr.aria-pressed]="vm.isCollapsed ? 'true' : 'false'"
+      aria-controls="app-sidebar"
+      (click)="collapseRequested.emit()"
+    >
+      <span aria-hidden="true">{{ vm.isCollapsed ? '⟫' : '⟪' }}</span>
+    </button>
+  </div>
+
+  <ng-container *ngIf="user as sidebarUser">
+    <div class="universal-sidebar__profile">
+      <ng-container *ngIf="sidebarUser.profileRoute; else staticProfile">
+        <a
+          class="universal-sidebar__profile-link"
+          [routerLink]="sidebarUser.profileRoute"
+          [attr.aria-label]="'Abrir perfil de ' + sidebarUser.displayName"
+          [attr.title]="vm.isCollapsed && !vm.isMobile ? sidebarUser.displayName : null"
+          (click)="onItemActivated()"
+        >
+          <img
+            class="universal-sidebar__avatar"
+            [src]="avatarSrc"
+            [alt]="'Foto de ' + sidebarUser.displayName"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
+          />
+
+          <div
+            class="universal-sidebar__profile-meta"
+            *ngIf="shouldShowExpandedContent"
+          >
+            <strong class="universal-sidebar__profile-name">
+              {{ sidebarUser.displayName }}
+            </strong>
+
+            <span
+              class="universal-sidebar__profile-subtitle"
+              *ngIf="userSecondaryText"
+            >
+              {{ userSecondaryText }}
+            </span>
+          </div>
+        </a>
+      </ng-container>
+
+      <ng-template #staticProfile>
+        <div
+          class="universal-sidebar__profile-link universal-sidebar__profile-link--static"
+          [attr.title]="vm.isCollapsed && !vm.isMobile ? sidebarUser.displayName : null"
+        >
+          <img
+            class="universal-sidebar__avatar"
+            [src]="avatarSrc"
+            [alt]="'Foto de ' + sidebarUser.displayName"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
+          />
+
+          <div
+            class="universal-sidebar__profile-meta"
+            *ngIf="shouldShowExpandedContent"
+          >
+            <strong class="universal-sidebar__profile-name">
+              {{ sidebarUser.displayName }}
+            </strong>
+
+            <span
+              class="universal-sidebar__profile-subtitle"
+              *ngIf="userSecondaryText"
+            >
+              {{ userSecondaryText }}
+            </span>
+          </div>
+        </div>
+      </ng-template>
+    </div>
+  </ng-container>
+
+  <nav class="universal-sidebar__nav" aria-label="Seções da aplicação">
+    <section
+      class="universal-sidebar__section"
+      *ngFor="let section of vm.sections; trackBy: trackSection"
+    >
+      <h2
+        class="universal-sidebar__title"
+        *ngIf="shouldShowExpandedContent"
+      >
+        {{ section.title }}
+      </h2>
+
+      <ul class="universal-sidebar__list">
+        <li
+          class="universal-sidebar__item"
+          *ngFor="let item of section.items; trackBy: trackItem"
+        >
+          <ng-container *ngIf="!item.disabled; else disabledItem">
+            <a
+              class="universal-sidebar__link"
+              [routerLink]="item.route"
+              routerLinkActive="universal-sidebar__link--active"
+              [routerLinkActiveOptions]="{ exact: item.exact ?? false }"
+              #rla="routerLinkActive"
+              [attr.aria-label]="item.ariaLabel || item.label"
+              [attr.aria-current]="rla.isActive ? 'page' : null"
+              [attr.title]="vm.isCollapsed && !vm.isMobile ? item.label : null"
+              (click)="onItemActivated()"
+            >
+              <span class="universal-sidebar__icon" aria-hidden="true">
+                {{ item.icon || '•' }}
+              </span>
+
+              <span
+                class="universal-sidebar__label"
+                *ngIf="shouldShowExpandedContent"
+              >
+                {{ item.label }}
+              </span>
+            </a>
+          </ng-container>
+
+          <ng-template #disabledItem>
+            <span
+              class="universal-sidebar__link universal-sidebar__link--disabled"
+              aria-disabled="true"
+              [attr.aria-label]="item.ariaLabel || item.label"
+              [attr.title]="vm.isCollapsed && !vm.isMobile ? item.label : null"
+            >
+              <span class="universal-sidebar__icon" aria-hidden="true">
+                {{ item.icon || '•' }}
+              </span>
+
+              <span
+                class="universal-sidebar__label"
+                *ngIf="shouldShowExpandedContent"
+              >
+                {{ item.label }}
+              </span>
+            </span>
+          </ng-template>
+        </li>
+      </ul>
+    </section>
+  </nav>
+</aside>

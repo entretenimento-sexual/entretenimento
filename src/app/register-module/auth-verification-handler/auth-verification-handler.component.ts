@@ -16,8 +16,8 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { EmailInputModalComponent } from 'src/app/authentication/email-input-modal/email-input-modal.component';
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 
-import { Subject, firstValueFrom } from 'rxjs';
-import { take, takeUntil, switchMap, tap } from 'rxjs/operators';
+import { EMPTY, Subject, firstValueFrom } from 'rxjs';
+import { take, takeUntil, switchMap, tap, finalize, catchError, timeout } from 'rxjs/operators';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { DateTimeService } from 'src/app/core/services/general/date-time.service';
@@ -178,24 +178,33 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       });
   }
 
-  resendVerificationEmail(): void {
-    this.isLoading = true;
-    this.emailVerificationService
-      .resendVerificationEmail()
-      .pipe(take(1), takeUntil(this.ngUnsubscribe))
-      .subscribe({
-        next: (txt) => {
-          this.message = txt || 'E-mail reenviado. Verifique sua caixa de entrada e spam.';
-          this.verifyOk = false;
-          this.showResendVerifyCTA = false;
-        },
-        error: (err) => {
-          this.message = 'Falha ao reenviar o e-mail de verificação.';
-          this.globalErrorHandlerService.handleError(err);
-        },
-        complete: () => (this.isLoading = false),
-      });
-  }
+resendVerificationEmail(): void {
+  if (this.isLoading) return;
+
+  this.isLoading = true;
+
+  this.emailVerificationService
+    .resendVerificationEmail()
+    .pipe(
+      take(1),
+      timeout({ first: 15000 }),
+      tap((txt) => {
+        this.message = txt || 'E-mail reenviado. Verifique sua caixa de entrada e spam.';
+        this.verifyOk = false;
+        this.showResendVerifyCTA = false;
+      }),
+      catchError((err) => {
+        this.message = 'Falha ao reenviar o e-mail de verificação.';
+        this.globalErrorHandlerService.handleError(err);
+        return EMPTY;
+      }),
+      finalize(() => {
+        this.isLoading = false;
+      }),
+      takeUntil(this.ngUnsubscribe)
+    )
+    .subscribe();
+}
 
   goToLogin(): void {
     this.router.navigate(['/login']);

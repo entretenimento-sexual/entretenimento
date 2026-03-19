@@ -4,7 +4,6 @@
 // - Expor mudanças relevantes do ciclo Auth (AngularFire + SDK nativo + AuthSession + NgRx)
 // - Evitar ruído: logs somente quando há mudança real e/ou com rate-limit.
 // - Trace pesado (getIdToken/getIdTokenResult + stack) é OPT-IN via localStorage.
-
 import {
   Injectable,
   EnvironmentInjector,
