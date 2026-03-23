@@ -17,7 +17,6 @@
 // - O contexto de rota vem inteiro do AuthRouteContextService.
 // - AuthSession manda na sessão.
 // - CurrentUserStore manda no runtime do perfil do app.
-
 import { Injectable, inject } from '@angular/core';
 import { Observable, combineLatest, of } from 'rxjs';
 import {
@@ -48,7 +47,10 @@ export type AccessState =
   | 'GUEST'
   | 'AUTHED_PROFILE_INCOMPLETE'
   | 'AUTHED_PROFILE_COMPLETE_UNVERIFIED'
-  | 'AUTHED_PROFILE_COMPLETE_VERIFIED';
+  | 'AUTHED_PROFILE_COMPLETE_VERIFIED'
+  | 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_PENDING'
+  | 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_BLOCKED'
+  | 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_OK';
 
 const ROLE_RANK: Record<string, number> = {
   visitante: 0,

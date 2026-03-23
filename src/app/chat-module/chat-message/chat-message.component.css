@@ -1,68 +1,77 @@
 /* src\app\chat-module\chat-message\chat-message.component.css */
 .chat-message {
   margin: 8px 0;
-    padding: 5px 20px;
-    border-radius: 10px;
-    width: 100%;   
-    position: relative;
-    display: flex;
-    flex-direction: column;
+  padding: 10px 14px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: min(100%, 720px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  gap: 6px;
 }
+
 .message-sent {
   background-color: #fee4ec;
   align-self: flex-end;
   text-align: right;
-  padding: 10px;
   margin-left: auto;
-  border-radius: 10px;
 }
 
 .message-received {
   background-color: #f0f0f0;
   align-self: flex-start;
   text-align: left;
-  padding: 10px;
-  margin-right: auto;  /* Força a mensagem para a esquerda */
-  border-radius: 10px;
+  margin-right: auto;
 }
 
-/* Header que contém nome do sender + botão excluir */
 .message-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
 }
 
-/* Conteúdo principal da mensagem */
+.message-sender {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
 .message-content {
-  margin: 5px 0;
-  line-height: 1.3;
+  margin: 0;
+  line-height: 1.45;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
-/* Rodapé (hora e status) */
 .message-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .message-time {
-  font-size: 10px;
+  margin: 0;
+  font-size: 0.75rem;
   color: #666;
 }
 
 .message-status {
-  font-size: 10px;
+  margin: 0;
+  font-size: 0.75rem;
   color: #888;
   text-align: right;
-  min-width: 36px;  /* Para dar espaço ao pseudo-elemento */
+  min-width: 36px;
 }
 
-/* Pseudo-elementos para status. Mais visíveis com cor e font-size maior */
 .message-status.sent::before {
   content: '✓';
   color: #888;
-  font-size: 1.2em;
+  font-size: 1.1em;
   font-weight: 600;
   margin-right: 2px;
 }
@@ -70,35 +79,48 @@
 .message-status.delivered::before {
   content: '✓✓';
   color: #888;
-  font-size: 1.2em;
+  font-size: 1.1em;
   font-weight: 600;
   margin-right: 2px;
 }
 
 .message-status.read::before {
   content: '✓✓';
-  color: #d1005c;  /* tom mais vibrante p/ “Lida” (tema adulto) */
-  font-size: 1.2em;
+  color: #d1005c;
+  font-size: 1.1em;
   font-weight: 600;
   margin-right: 2px;
 }
 
-/* Botão de excluir */
 .message-delete-btn {
   background: none;
   border: none;
-  color: #d1005c;  /* cor forte, combinando com “tema adulto” */
+  color: #d1005c;
   cursor: pointer;
-  font-size: 1.1em;
-  opacity: 0.7;
-  transition: opacity 0.2s;
+  font-size: 1rem;
+  opacity: 0.75;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  margin-left: 8px;
+  flex: 0 0 auto;
 }
 
 .message-delete-btn:hover {
   opacity: 1;
+  transform: scale(1.05);
 }
 
-/* Opcional: se quiser alinhar a lixeira à direita da bolha */
-.message-delete-btn {
-  margin-left: 8px;
+@media (max-width: 640px) {
+  .chat-message {
+    padding: 10px 12px;
+    max-width: 100%;
+  }
+
+  .message-footer {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .message-sent .message-footer {
+    align-items: flex-end;
+  }
 }

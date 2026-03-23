@@ -1,49 +1,152 @@
 <!-- src\app\chat-module\chat-list\chat-list.component.html -->
-<div>
-  <!-- Exibição de Salas -->
-  @if (rooms$ | async; as rooms) {
-    <div class="chat-list-container">
-      @for (room of rooms; track room) {
-        <div class="room-item"
-          (click)="selectRoom(room.id)"
-          [ngClass]="{ 'selected': selectedChatId === room.id }">
-          <div class="room-item">
-            <span class="room-name">{{ room.roomName }}</span>
-            <!-- Botões de gerenciamento para o dono da sala -->
-            @if (isOwner(room)) {
-              <div class="room-management-buttons">
-                <button class="button" (click)="deleteRoom(room.id, $event); $event.stopPropagation()">Excluir Sala</button>
-                <button class="button" (click)="sendInvite(room.id, $event); $event.stopPropagation()">Enviar Convite</button>
-                <button class="button" (click)="editRoom(room.id, $event); $event.stopPropagation()">Editar Sala</button>
+<div class="chat-list-shell">
+  <section
+    class="chat-list-section chat-list-section--direct"
+    aria-labelledby="direct-chats-title"
+  >
+    <div class="chat-list-section__header">
+      <div>
+        <h2 id="direct-chats-title" class="chat-list-section__title">
+          Conversas diretas
+        </h2>
+        <p class="chat-list-section__subtitle">
+          Prioridade atual da plataforma
+        </p>
+      </div>
+    </div>
+
+    @if (regularChats$ | async; as directChats) {
+      @if (directChats.length > 0) {
+        <div class="chat-list-container">
+          @for (chat of directChats; track chat.id ?? $index) {
+            <button
+              type="button"
+              class="chat-item"
+              (click)="selectChat(chat.id)"
+              [ngClass]="{ 'selected': selectedChatId === chat.id }"
+              [attr.aria-pressed]="selectedChatId === chat.id"
+            >
+              <img
+                class="chat-user-photo"
+                [src]="getOptimizedPhotoURL(chat.otherParticipantDetails?.photoURL) || 'assets/imagem-padrao.webp'"
+                [alt]="'Foto de ' + (chat.otherParticipantDetails?.nickname || 'usuário')"
+                loading="lazy"
+              />
+
+              <div class="chat-item__content">
+                <p class="chat-item__name">
+                  {{ chat.otherParticipantDetails?.nickname || 'Usuário' }}
+                </p>
+
+                <p class="chat-item__meta">
+                  {{ chat.lastMessage?.content || 'Nenhuma mensagem recente.' }}
+                </p>
               </div>
-            }
-          </div>
-          <hr> <!-- Linha de separação entre salas e para separar do próximo chat/room -->
+            </button>
+          }
+        </div>
+      } @else {
+        <div class="chat-list-empty" role="status" aria-live="polite">
+          <p class="chat-list-empty__title">Nenhuma conversa direta ainda.</p>
+          <p class="chat-list-empty__text">
+            Quando houver interação entre dois perfis, ela aparecerá aqui.
+          </p>
         </div>
       }
+    }
+  </section>
+
+  <section
+    class="chat-list-section chat-list-section--rooms"
+    aria-labelledby="rooms-title"
+  >
+    <div class="chat-list-section__header">
+      <div>
+        <h2 id="rooms-title" class="chat-list-section__title">Salas</h2>
+        <p class="chat-list-section__subtitle">
+          Compat temporária, mantida em segundo plano
+        </p>
+      </div>
+    </div>
+
+    @if (rooms$ | async; as rooms) {
+      @if (rooms.length > 0) {
+        <div class="chat-list-container">
+          @for (room of rooms; track room.id) {
+            <article
+              class="room-item"
+              [ngClass]="{ 'selected': selectedChatId === room.id }"
+            >
+              <button
+                type="button"
+                class="room-item__main"
+                (click)="selectRoom(room.id)"
+                [attr.aria-pressed]="selectedChatId === room.id"
+              >
+                <div class="room-item__content">
+                  <span class="room-name">{{ room.roomName }}</span>
+
+                  <span class="room-item__meta">
+                    {{ room.description || 'Sala ativa para interação em grupo.' }}
+                  </span>
+                </div>
+              </button>
+
+              @if (isOwner(room)) {
+                <div class="room-management-buttons">
+                  <button
+                    type="button"
+                    class="btn btn-ghost room-action-btn"
+                    (click)="editRoom(room.id, $event)"
+                  >
+                    Editar
+                  </button>
+
+                  <button
+                    type="button"
+                    class="btn btn-ghost room-action-btn"
+                    (click)="sendInvite(room.id, $event)"
+                  >
+                    Convidar
+                  </button>
+
+                  <button
+                    type="button"
+                    class="btn btn-ghost room-action-btn room-action-btn--danger"
+                    (click)="deleteRoom(room.id, $event)"
+                  >
+                    Excluir
+                  </button>
+                </div>
+              }
+            </article>
+          }
+        </div>
+      } @else {
+        <div
+          class="chat-list-empty chat-list-empty--secondary"
+          role="status"
+          aria-live="polite"
+        >
+          <p class="chat-list-empty__title">Nenhuma sala disponível.</p>
+          <p class="chat-list-empty__text">
+            As salas continuam suportadas, mas ficam em segundo plano nesta fase.
+          </p>
+        </div>
+      }
+    }
+  </section>
+
+  @if (rooms.length === 0 && regularChats.length === 0) {
+    <div
+      class="chat-list-empty chat-list-empty--global"
+      role="status"
+      aria-live="polite"
+    >
+      <p class="chat-list-empty__title">Você ainda não possui chats ou salas.</p>
+      <p class="chat-list-empty__text">
+        Assim que surgirem interações, elas aparecerão nesta lista.
+      </p>
     </div>
   }
-
-  <!-- Exibição de Chats Regulares -->
-  @if (regularChats.length > 0) {
-    <div class="chat-list-container">
-      @for (chat of regularChats; track chat) {
-        <div class="chat-item"
-          (click)="selectChat(chat.id)"
-          [ngClass]="{ 'selected': selectedChatId === chat.id }">
-          <img
-            [src]="getOptimizedPhotoURL(chat.otherParticipantDetails?.photoURL) || 'assets/imagem-padrao.webp'"
-            alt="Foto do Usuário" loading="lazy" class="chat-user-photo">
-            <p>{{ chat.otherParticipantDetails?.nickname }}</p>
-          </div>
-        }
-      </div>
-    }
-
-    <!-- Mensagem caso não existam chats ou salas -->
-    @if (rooms.length === 0 && regularChats.length === 0) {
-      <div>
-        <p>Você ainda não possui chats ou salas.</p>
-      </div>
-    }
-  </div>
+</div>

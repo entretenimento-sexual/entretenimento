@@ -1,14 +1,18 @@
-<!-- src\app\chat-module\chat-messages-list\chat-messages-list.component.html -->
+<!-- src/app/chat-module/chat-messages-list/chat-messages-list.component.html -->
 <div class="messages-container" #messagesContainer>
-  @if (messages.length > 0) {
-    @for (message of messages; track message) {
-      <app-chat-message
-        [message]="message"
-        [chatId]="chatId()">
-      </app-chat-message>
+  @if (type(); as safeType) {
+    @if (messages.length > 0) {
+      @for (message of messages; track message.id ?? $index) {
+        <app-chat-message
+          [message]="message"
+          [chatId]="chatId()"
+          [type]="safeType">
+        </app-chat-message>
+      }
+    } @else {
+      <p>Nenhuma mensagem para exibir</p>
     }
   } @else {
-    <p>Nenhuma mensagem para exibir</p>
+    <p>Selecione um chat ou uma sala.</p>
   }
 </div>
-

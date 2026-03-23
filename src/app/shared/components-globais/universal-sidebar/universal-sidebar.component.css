@@ -9,7 +9,6 @@
   - melhorar UX mobile com backdrop
   - manter foco visível e alvos de toque confortáveis
 */
-
 :host {
   display: block;
 }

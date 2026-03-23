@@ -1,27 +1,41 @@
-<!-- src\app\chat-module\chat-message\chat-message.component.html -->
-<div class="chat-message"
-    [ngClass]="{'message-sent': isMessageSent(),
-                'message-received': !isMessageSent()}">
-
+<div
+  class="chat-message"
+  [ngClass]="{
+    'message-sent': isMessageSent(),
+    'message-received': !isMessageSent(),
+    'message-room': isRoomMessage(),
+    'message-direct': isDirectChat()
+  }"
+  [attr.aria-label]="getAriaLabel()"
+>
   <div class="message-header">
     <p class="message-sender">{{ senderName }}</p>
 
-    <!-- Ícone de deletar: só exibe se a mensagem é do usuário atual, por exemplo -->
-    @if (isMessageSent()) {
-      <button class="message-delete-btn" (click)="deleteThisMessage()"
-        title="Excluir esta mensagem" aria-label="Excluir esta mensagem">
-        <i class="fas fa-trash"></i>
+    @if (canDeleteMessage()) {
+      <button
+        class="message-delete-btn"
+        (click)="deleteThisMessage()"
+        [attr.title]="getDeleteAriaLabel()"
+        [attr.aria-label]="getDeleteAriaLabel()"
+        type="button"
+      >
+        <i class="fas fa-trash" aria-hidden="true"></i>
       </button>
     }
-
-    <p class="message-content">{{ message().content }}</p>
-
-    <div class="message-footer">
-      <p class="message-time">
-        {{ isMessageSent() ? 'Enviado em' : 'Recebido em' }}
-        {{ message().timestamp.toDate() | date:'short' }}
-      </p>
-      <!-- Status com pseudo-elemento '::before' -->
-      <p class="message-status" [ngClass]="message().status">{{ getStatusText() }}</p>
-    </div>
   </div>
+
+  <p class="message-content">{{ message().content }}</p>
+
+  <div class="message-footer">
+    <p class="message-time">
+      {{ isMessageSent() ? 'Enviado em' : 'Recebido em' }}
+      {{ message().timestamp.toDate() | date:'short' }}
+    </p>
+
+    @if (isDirectChat() && getStatusText()) {
+      <p class="message-status" [ngClass]="message().status">
+        {{ getStatusText() }}
+      </p>
+    }
+  </div>
+</div>

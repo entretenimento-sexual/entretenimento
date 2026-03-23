@@ -1,4 +1,5 @@
 // src/app/core/services/autentication/auth/auth-app-block.service.ts
+// Não esquecer comentários explicativos e ferramentas de debug
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { distinctUntilChanged, shareReplay } from 'rxjs/operators';

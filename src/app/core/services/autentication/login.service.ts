@@ -1,5 +1,5 @@
 // src/app/core/services/autentication/login.service.ts
-// =============================================================================
+// ===============================================================
 // LoginService
 //
 // Responsabilidade deste service:
@@ -17,7 +17,7 @@
 // - pós-login de domínio
 //
 // Tudo isso continua no AuthOrchestrator / serviços correlatos.
-// =============================================================================
+// ===============================================================
 
 import { Injectable } from '@angular/core';
 import { Observable, defer, firstValueFrom, of } from 'rxjs';
@@ -72,15 +72,14 @@ export class LoginService {
 
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly currentUserStore: CurrentUserStoreService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly auth: Auth,
     private readonly ctx: FirestoreContextService
   ) {}
 
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------
   // Ambiente / debug
-  // ---------------------------------------------------------------------------
+  // ----------------------------------------------------------
 
   private isBrowser(): boolean {
     return typeof window !== 'undefined';
@@ -395,52 +394,47 @@ export class LoginService {
    * - falha de Firestore NÃO derruba o login
    * - se o doc ainda não existir no primeiro instante, retry curto ajuda
    */
-  private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
-    if (!authUser?.uid) {
-      return of({
-        success: false,
-        code: 'auth/no-user',
-        message: 'Não foi possível autenticar agora.',
-      });
-    }
-
-    return this.firestoreUserQuery.getUser$(authUser.uid).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      retry({ count: 2, delay: 200 }),
-      take(1),
-
-      catchError((err) => {
-        this.reportSilent(
-          '[LoginService] Falha ao ler users/{uid} após login. Seguindo com fallback do Auth.',
-          err,
-          { uid: authUser.uid }
-        );
-
-        return of(null);
-      }),
-
-      map((firestoreUser) => {
-        const effectiveUser = this.buildEffectiveUser(
-          authUser,
-          firestoreUser as IUserDados | null | undefined
-        );
-
-        // Estado mínimo do app. Side-effects maiores ficam fora deste service.
-        this.currentUserStore.set(effectiveUser);
-
-        return {
-          success: true,
-          emailVerified: !!authUser.emailVerified,
-          user: effectiveUser,
-          needsProfileCompletion: this.needsProfileCompletion(effectiveUser),
-        } as LoginResult;
-      })
-    );
+private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
+  if (!authUser?.uid) {
+    return of({
+      success: false,
+      code: 'auth/no-user',
+      message: 'Não foi possível autenticar agora.',
+    });
   }
 
-  // ---------------------------------------------------------------------------
+  return this.firestoreUserQuery.getUser$(authUser.uid).pipe(
+    timeout({ each: this.NET_TIMEOUT_MS }),
+    retry({ count: 2, delay: 200 }),
+    take(1),
+    catchError((err) => {
+      this.reportSilent(
+        '[LoginService] Falha ao ler users/{uid} após login. Seguindo com fallback do Auth.',
+        err,
+        { uid: authUser.uid }
+      );
+
+      return of(null);
+    }),
+    map((firestoreUser) => {
+      const effectiveUser = this.buildEffectiveUser(
+        authUser,
+        firestoreUser as IUserDados | null | undefined
+      );
+
+      return {
+        success: true,
+        emailVerified: !!authUser.emailVerified,
+        user: effectiveUser,
+        needsProfileCompletion: this.needsProfileCompletion(effectiveUser),
+      } as LoginResult;
+    })
+  );
+}
+
+  // --------------------------------------------------------------------
   // Login
-  // ---------------------------------------------------------------------------
+  // --------------------------------------------------------------------
 
   /**
    * Login principal.
@@ -601,9 +595,9 @@ export class LoginService {
     );
   }
 
-  // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------
   // Wrappers Promise
-  // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------
 
   setSessionPersistence(
     persistence: SessionMode | Persistence
@@ -638,9 +632,9 @@ export class LoginService {
     return firstValueFrom(this.reauthenticateUser$(password));
   }
 
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------
   // Mapeamento de erros Auth
-  // ---------------------------------------------------------------------------
+  // -------------------------------------------------------------
 
   /**
    * Converte erros técnicos em mensagem de UX.

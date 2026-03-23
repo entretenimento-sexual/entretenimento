@@ -1,320 +1,772 @@
 // src/app/core/services/autentication/social-auth.service.ts
 // =============================================================================
-// SOCIAL AUTH SERVICE (Google Sign-In) — Firebase Auth + Firestore
+// SOCIAL AUTH SERVICE (Google Sign-In) — Auth + Firestore
 //
-// Padrão “plataforma grande” (preparado para evolução):
-// - Auth prova identidade; Firestore guarda estado de conta.
-// - Mantém compat: `role` (IUserDados.role) = tier do produto.
-// - Adiciona skeleton de ACL: tier + roles + permissions + entitlements + accountStatus.
-// - Não faz logout (LogoutService cuida disso).
+// Responsabilidade deste service:
+// - autenticar via Google no Firebase Auth
+// - ler o users/{uid} no Firestore (server-first)
+// - criar seed mínima para novo usuário
+// - atualizar campos operacionais seguros do usuário existente
+// - devolver um resultado ESTRUTURADO para a camada chamadora decidir:
+//   - rota
+//   - feedback visual
+//   - próximas ações
+//
+// NÃO é responsabilidade deste service:
+// - navegar
+// - hidratar CurrentUserStoreService
+// - atualizar cache/store manualmente
+// - iniciar watchers
+// - executar logout
+//
+// Observação arquitetural:
+// - Sessão continua sendo verdade do AuthSessionService
+// - Runtime de perfil continua sendo verdade do fluxo oficial do projeto
+// - Este service apenas autentica + persiste + devolve resultado
 // =============================================================================
-import { Injectable, EnvironmentInjector, runInInjectionContext } from '@angular/core';
-import { Router } from '@angular/router';
+
+import {
+  EnvironmentInjector,
+  Injectable,
+  runInInjectionContext,
+} from '@angular/core';
 
 import { Auth } from '@angular/fire/auth';
-import { GoogleAuthProvider, signInWithPopup, type User as FirebaseUser } from 'firebase/auth';
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  type User as FirebaseUser,
+  type UserCredential,
+} from 'firebase/auth';
 
 import { Observable, defer, of } from 'rxjs';
-import { catchError, map, switchMap, take, tap } from 'rxjs/operators';
+import {
+  catchError,
+  map,
+  switchMap,
+  take,
+  tap,
+} from 'rxjs/operators';
 
 import { FirestoreReadService } from '../data-handling/firestore/core/firestore-read.service';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
-import { UserRepositoryService } from '../data-handling/firestore/repositories/user-repository.service';
-
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../error-handler/error-notification.service';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
-
 import { toEpochOrZero } from 'src/app/core/utils/epoch-utils';
 import { environment } from 'src/environments/environment';
-import { AccountStatus, DEFAULT_ACCESS_CONTROL, IUserAccessControl, Tier } from '../../interfaces/interfaces-user-dados/user-access-control.interface';
+import {
+  AccountStatus,
+  DEFAULT_ACCESS_CONTROL,
+  IUserAccessControl,
+  Tier,
+} from '../../interfaces/interfaces-user-dados/user-access-control.interface';
 
 // -----------------------------------------------------------------------------
-// UserDoc = doc real de users/{uid} no Firestore (mais amplo que IUserRegistrationData)
-// -> aqui nasce o fix do TS: lastLogin existe nesse tipo, sem mexer no IUserRegistrationData.
+// Tipos públicos de resultado
 // -----------------------------------------------------------------------------
-type UserDoc = IUserRegistrationData & {
-  // Operacionais (não são “registro”, mas existem no doc real)
+
+export type SocialAuthBlockReason = 'deleted' | 'suspended' | 'locked';
+
+export type SocialAuthOutcome =
+  | 'profile-ready'
+  | 'profile-incomplete'
+  | 'blocked'
+  | 'cancelled'
+  | 'error';
+
+export type SocialAuthNextRoute =
+  | '/dashboard/principal'
+  | '/register/finalizar-cadastro'
+  | '/login';
+
+export interface SocialAuthResult {
+  success: boolean;
+  outcome: SocialAuthOutcome;
+  isNewUser: boolean;
+  emailVerified: boolean;
+  user: IUserDados | null;
+  nextRoute: SocialAuthNextRoute | null;
+  blockedReason?: SocialAuthBlockReason;
+  code?: string;
+  message?: string;
+}
+
+// -----------------------------------------------------------------------------
+// Documento real de users/{uid}
+// - Mantido amplo o suficiente para evolução futura
+// - Sem misturar responsabilidade de runtime/cache aqui
+//
+// IMPORTANTE:
+// - photoURL aqui fica alinhado ao contrato de IUserRegistrationData:
+//   string | undefined
+// - null só deve existir no mapper de saída para IUserDados, se necessário
+// -----------------------------------------------------------------------------
+
+type SocialAuthUserDoc = IUserRegistrationData & {
+  uid: string;
+  email: string;
+  nickname: string;
+  photoURL?: string;
+
+  emailVerified: boolean;
+  profileCompleted: boolean;
+  isSubscriber: boolean;
+
+  /**
+   * O projeto atual ainda consome role em vários pontos.
+   * Mantemos o espelho porque remover isso agora quebraria a integração.
+   * O canônico futuro continua sendo tier.
+   */
+  role?: IUserDados['role'];
+  tier?: Tier;
+
+  firstLogin?: number | null;
+  registrationDate?: number | null;
   lastLogin?: number | null;
   createdAt?: number | null;
   updatedAtMs?: number | null;
 
-  // ACL skeleton (evolução “plataforma grande”)
-  tier?: Tier;                     // canônico futuro (monetização)
-  roles?: string[];                // staff roles (futuro: custom claims)
-  permissions?: string[];          // permissões granulares
-  entitlements?: string[];         // direitos de produto/feature flags
-  accountStatus?: AccountStatus;   // enforcement/moderação
+  roles?: string[];
+  permissions?: string[];
+  entitlements?: string[];
+  accountStatus?: AccountStatus;
 
-  // Compat legado
   suspended?: boolean;
   accountLocked?: boolean;
+
+  authProviders?: string[];
+  lastProvider?: string;
 };
 
 @Injectable({ providedIn: 'root' })
 export class SocialAuthService {
-  private readonly debug = !!environment.enableDebugTools;
+  private readonly debug = !environment.production && !!environment.enableDebugTools;
 
   constructor(
     private readonly auth: Auth,
     private readonly read: FirestoreReadService,
     private readonly write: FirestoreWriteService,
-    private readonly userRepo: UserRepositoryService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly errorNotifier: ErrorNotificationService,
-    private readonly router: Router,
     private readonly envInjector: EnvironmentInjector
-  ) { }
+  ) {}
 
   // ===========================================================================
-  // Google Login (Observable-first)
+  // API pública
   // ===========================================================================
-  googleLogin(): Observable<IUserDados | null> {
-    const provider = new GoogleAuthProvider();
 
-    // UX “padrão big tech”: força escolha de conta
-    provider.setCustomParameters({ prompt: 'select_account' });
+  /**
+   * Fluxo principal de login com Google.
+   *
+   * Saída:
+   * - devolve um resultado estruturado
+   * - NÃO navega
+   * - NÃO atualiza store/cache manualmente
+   */
+  googleLogin(): Observable<SocialAuthResult> {
+    const provider = this.buildGoogleProvider();
 
     return this.signInWithPopupInCtx$(provider).pipe(
-      switchMap((cred) => {
-        const fu = cred?.user;
-        if (!fu) return of(null);
+      switchMap((credential) => this.bootstrapUserAfterAuth$(credential)),
+      catchError((err) => of(this.handleGoogleLoginError(err)))
+    );
+  }
 
-        const nowMs = Date.now();
-        return this.bootstrapUserAfterAuth$(fu, nowMs);
-      }),
-      catchError((err) => {
-        this.handleAuthPopupError(err);
-        return of(null);
+  // ===========================================================================
+  // Auth popup
+  // ===========================================================================
+
+  private buildGoogleProvider(): GoogleAuthProvider {
+    const provider = new GoogleAuthProvider();
+
+    /**
+     * UX mais previsível:
+     * - força escolha explícita de conta
+     */
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    return provider;
+  }
+
+  private signInWithPopupInCtx$(
+    provider: GoogleAuthProvider
+  ): Observable<UserCredential> {
+    return defer(() =>
+      runInInjectionContext(this.envInjector, () => signInWithPopup(this.auth, provider))
+    ).pipe(
+      tap((credential) => {
+        this.dbg('signInWithPopup:ok', {
+          uid: credential?.user?.uid ?? null,
+          providerId: credential?.providerId ?? 'google.com',
+        });
       })
     );
   }
 
   // ===========================================================================
-  // Internals
+  // Bootstrap pós-auth
   // ===========================================================================
 
-  private signInWithPopupInCtx$(provider: GoogleAuthProvider): Observable<any> {
-    // AngularFire/Firebase Auth: rodar dentro do Injection Context
-    return defer(() =>
-      runInInjectionContext(this.envInjector, () => signInWithPopup(this.auth, provider))
-    );
+  private bootstrapUserAfterAuth$(
+    credential: UserCredential
+  ): Observable<SocialAuthResult> {
+    const authUser = credential?.user;
+
+    if (!authUser?.uid) {
+      return of(
+        this.makeErrorResult({
+          code: 'social-auth/no-user',
+          message: 'Não foi possível concluir a autenticação com Google.',
+        })
+      );
+    }
+
+    const nowMs = Date.now();
+
+    /**
+     * Server-first:
+     * - evita cache stale no momento do login
+     */
+    return this.read
+      .getDocument<SocialAuthUserDoc>('users', authUser.uid, { source: 'server' })
+      .pipe(
+        take(1),
+        switchMap((doc) => {
+          if (doc) {
+            return this.handleExistingUserLogin$(doc, authUser, nowMs);
+          }
+
+          return this.handleNewUserLogin$(authUser, nowMs);
+        }),
+        catchError((err) => {
+          this.reportSilent(err, {
+            phase: 'bootstrapUserAfterAuth',
+            uid: authUser.uid,
+          });
+
+          return of(
+            this.makeErrorResult({
+              code: 'social-auth/bootstrap-failed',
+              message: 'Não foi possível preparar sua conta agora.',
+            })
+          );
+        })
+      );
   }
 
-  private bootstrapUserAfterAuth$(fu: FirebaseUser, nowMs: number): Observable<IUserDados | null> {
-    const uid = fu.uid;
+  // ===========================================================================
+  // Novo usuário
+  // ===========================================================================
 
-    // Login: use server snapshot para evitar cache stale
-    return this.read.getDocument<UserDoc>('users', uid, { source: 'server' }).pipe(
-      take(1),
-      switchMap((doc) => (doc ? this.onExistingUserLogin$(doc, fu, nowMs) : this.onNewUserLogin$(fu, nowMs)))
-    );
+  private handleNewUserLogin$(
+    authUser: FirebaseUser,
+    nowMs: number
+  ): Observable<SocialAuthResult> {
+    const seed = this.buildNewUserSeed(authUser, nowMs);
+    const payload: Record<string, unknown> = { ...seed };
+
+    return this.write
+      .setDocument('users', authUser.uid, payload, {
+        /**
+         * merge=true deixa o fluxo idempotente e mais tolerante a retry,
+         * sem exigir sobrescrita cega.
+         */
+        merge: true,
+        context: 'SocialAuthService.handleNewUserLogin',
+      })
+      .pipe(
+        map(() => {
+          const user = this.mapToUserDados(seed, nowMs);
+
+          return this.makeSuccessResult({
+            outcome: 'profile-incomplete',
+            isNewUser: true,
+            emailVerified: !!authUser.emailVerified,
+            user,
+            nextRoute: '/register/finalizar-cadastro',
+            message: 'Conta criada com Google. Finalize seu cadastro para continuar.',
+          });
+        }),
+        tap((result) => {
+          this.dbg('handleNewUserLogin:done', {
+            uid: authUser.uid,
+            outcome: result.outcome,
+            nextRoute: result.nextRoute,
+          });
+        }),
+        catchError((err) => {
+          this.reportSilent(err, {
+            phase: 'handleNewUserLogin',
+            uid: authUser.uid,
+          });
+
+          return of(
+            this.makeErrorResult({
+              code: 'social-auth/new-user-write-failed',
+              message: 'Não foi possível concluir a criação da conta com Google.',
+            })
+          );
+        })
+      );
   }
 
-  // --------------------------------------------------------------------------
-  // Novo usuário via Google: cria seed mínimo + ACL skeleton (sem quebrar compat)
-  // --------------------------------------------------------------------------
-  private onNewUserLogin$(fu: FirebaseUser, nowMs: number): Observable<IUserDados> {
-    const uid = fu.uid;
-
-    // Seu baseline: basic
+  private buildNewUserSeed(
+    authUser: FirebaseUser,
+    nowMs: number
+  ): SocialAuthUserDoc {
     const acl: IUserAccessControl = {
       ...DEFAULT_ACCESS_CONTROL,
       tier: 'basic',
     };
 
-    // Seed compat com IUserRegistrationData + campos operacionais/ACL
-    const seed: Partial<UserDoc> = {
-      uid,
-      email: fu.email || '',
+    const providerIds = this.extractProviderIds(authUser);
+
+    return {
+      uid: authUser.uid,
+      email: authUser.email ?? '',
       nickname: '',
-      photoURL: fu.photoURL || undefined,
+      photoURL: this.normalizePhotoUrl(authUser.photoURL),
 
-      // compat: role = tier (produto)
-      role: acl.tier,
-
-      emailVerified: !!fu.emailVerified,
+      emailVerified: !!authUser.emailVerified,
       isSubscriber: false,
+      profileCompleted: false,
+
+      /**
+       * Mantido porque o contrato atual do app ainda consome role.
+       * O canônico futuro é tier.
+       */
+      role: 'basic',
+      tier: acl.tier,
 
       firstLogin: nowMs,
       registrationDate: nowMs,
       lastLogin: nowMs,
+      createdAt: nowMs,
+      updatedAtMs: nowMs,
 
-      acceptedTerms: { accepted: false, date: nowMs },
-      profileCompleted: false,
+      acceptedTerms: {
+        accepted: false,
+        date: nowMs,
+      },
 
-      // ACL skeleton (futuro)
-      tier: acl.tier,
-      roles: acl.roles,
-      permissions: acl.permissions,
-      entitlements: acl.entitlements,
-      accountStatus: acl.accountStatus,
+      roles: Array.isArray(acl.roles) ? acl.roles : ['user'],
+      permissions: Array.isArray(acl.permissions) ? acl.permissions : [],
+      entitlements: Array.isArray(acl.entitlements) ? acl.entitlements : [],
+      accountStatus: acl.accountStatus ?? 'active',
 
-      // enforcement compat
       suspended: false,
       accountLocked: false,
 
-      updatedAtMs: nowMs,
-      createdAt: nowMs,
+      authProviders: providerIds,
+      lastProvider: 'google.com',
     };
-
-    return this.write.setDocument('users', uid, seed as any, {
-      merge: true,
-      context: 'SocialAuthService.onNewUserLogin'
-    }).pipe(
-      tap(() => this.userRepo.updateUserInStateAndCache(uid, seed as any)),
-      map(() => this.mapToUserDados(seed as any, nowMs)),
-      tap(() => this.router.navigate(['/register/finalizar-cadastro'])),
-      catchError((err) => {
-        this.reportError(err, { phase: 'onNewUserLogin', uid });
-        return of(null as any);
-      })
-    );
   }
 
-  // --------------------------------------------------------------------------
-  // Usuário existente: patch de lastLogin + espelhos úteis + normalização ACL
-  // --------------------------------------------------------------------------
-  private onExistingUserLogin$(existing: UserDoc, fu: FirebaseUser, nowMs: number): Observable<IUserDados> {
-    const uid = fu.uid;
+  // ===========================================================================
+  // Usuário existente
+  // ===========================================================================
 
-    const status: AccountStatus =
-      (existing.accountStatus as any) ??
-      (existing.suspended ? 'suspended' : 'active');
+  private handleExistingUserLogin$(
+    existing: SocialAuthUserDoc,
+    authUser: FirebaseUser,
+    nowMs: number
+  ): Observable<SocialAuthResult> {
+    const status = this.resolveAccountStatus(existing);
 
     if (status === 'deleted') {
-      this.errorNotifier.showError('Conta indisponível. Entre em contato com o suporte.');
-      return of(this.mapToUserDados(existing, nowMs)).pipe(
-        tap(() => this.router.navigate(['/login'], { replaceUrl: true }))
+      return of(
+        this.makeBlockedResult({
+          reason: 'deleted',
+          user: this.mapToUserDados(existing, nowMs),
+          message: 'Conta indisponível. Entre em contato com o suporte.',
+        })
       );
     }
 
-    if (status === 'suspended' || status === 'locked' || existing.accountLocked) {
-      this.errorNotifier.showError('Sua conta está temporariamente restrita.');
-      return of(this.mapToUserDados(existing, nowMs)).pipe(
-        tap(() => this.router.navigate(['/login'], { replaceUrl: true }))
+    if (status === 'suspended') {
+      return of(
+        this.makeBlockedResult({
+          reason: 'suspended',
+          user: this.mapToUserDados(existing, nowMs),
+          message: 'Sua conta está suspensa temporariamente.',
+        })
       );
     }
 
-    // Normaliza tier/role (compat) para evitar docs antigos sem role
-    const tier = this.normalizeTier((existing as any).tier ?? existing.role ?? 'basic');
+    if (status === 'locked') {
+      return of(
+        this.makeBlockedResult({
+          reason: 'locked',
+          user: this.mapToUserDados(existing, nowMs),
+          message: 'Sua conta está bloqueada temporariamente.',
+        })
+      );
+    }
 
-    const patch: Partial<UserDoc> = {
+    const patch = this.buildExistingUserPatch(existing, authUser, nowMs);
+    const payload: Record<string, unknown> = { ...patch };
+
+    return this.write
+      .updateDocument('users', authUser.uid, payload, {
+        context: 'SocialAuthService.handleExistingUserLogin',
+      })
+      .pipe(
+        map(() => {
+          const merged = { ...existing, ...patch } as SocialAuthUserDoc;
+          const user = this.mapToUserDados(merged, nowMs);
+          const needsFinish = this.needsProfileCompletion(merged);
+
+          return this.makeSuccessResult({
+            outcome: needsFinish ? 'profile-incomplete' : 'profile-ready',
+            isNewUser: false,
+            emailVerified: !!authUser.emailVerified,
+            user,
+            nextRoute: needsFinish
+              ? '/register/finalizar-cadastro'
+              : '/dashboard/principal',
+            message: needsFinish
+              ? 'Login com Google concluído. Finalize seu cadastro para continuar.'
+              : 'Login com Google concluído com sucesso.',
+          });
+        }),
+        tap((result) => {
+          this.dbg('handleExistingUserLogin:done', {
+            uid: authUser.uid,
+            outcome: result.outcome,
+            nextRoute: result.nextRoute,
+          });
+        }),
+        catchError((err) => {
+          this.reportSilent(err, {
+            phase: 'handleExistingUserLogin',
+            uid: authUser.uid,
+          });
+
+          return of(
+            this.makeErrorResult({
+              code: 'social-auth/existing-user-update-failed',
+              message: 'Não foi possível atualizar os dados da conta agora.',
+            })
+          );
+        })
+      );
+  }
+
+  private buildExistingUserPatch(
+    existing: SocialAuthUserDoc,
+    authUser: FirebaseUser,
+    nowMs: number
+  ): Partial<SocialAuthUserDoc> {
+    const tier = this.normalizeTier(existing.tier ?? existing.role ?? 'basic');
+    const providerIds = this.mergeProviderIds(existing.authProviders, authUser);
+
+    return {
       lastLogin: nowMs,
       updatedAtMs: nowMs,
 
-      // espelhos úteis do Auth
-      emailVerified: !!fu.emailVerified,
-      photoURL: fu.photoURL || existing.photoURL || undefined,
+      emailVerified: !!authUser.emailVerified,
+      photoURL:
+        this.normalizePhotoUrl(authUser.photoURL) ??
+        this.normalizePhotoUrl(existing.photoURL),
 
-      // compat + canônico
-      role: this.isTierRole(existing.role) ? existing.role : tier,
-      tier: (existing as any).tier ?? tier,
+      /**
+       * Mantido para o contrato atual do projeto.
+       * Quando o app migrar totalmente para tier, esse espelho pode sair.
+       */
+      role: this.normalizeRole(existing.role ?? tier),
+      tier,
 
-      // skeleton ACL (garante arrays não nulos)
-      roles: Array.isArray((existing as any).roles) && (existing as any).roles.length ? (existing as any).roles : ['user'],
-      permissions: Array.isArray((existing as any).permissions) ? (existing as any).permissions : [],
-      entitlements: Array.isArray((existing as any).entitlements) ? (existing as any).entitlements : [],
-      accountStatus: (existing as any).accountStatus ?? 'active',
+      roles:
+        Array.isArray(existing.roles) && existing.roles.length > 0
+          ? existing.roles
+          : ['user'],
+
+      permissions: Array.isArray(existing.permissions)
+        ? existing.permissions
+        : [],
+
+      entitlements: Array.isArray(existing.entitlements)
+        ? existing.entitlements
+        : [],
+
+      accountStatus: this.resolveAccountStatus(existing),
+      authProviders: providerIds,
+      lastProvider: 'google.com',
     };
-
-    return this.write.updateDocument('users', uid, patch as any, {
-      context: 'SocialAuthService.onExistingUserLogin'
-    }).pipe(
-      tap(() => this.userRepo.updateUserInStateAndCache(uid, { ...existing, ...patch } as any)),
-      map(() => this.mapToUserDados({ ...existing, ...patch } as any, nowMs)),
-      tap(() => {
-        const needsFinish = !existing.nickname || !existing.gender || existing.profileCompleted === false;
-        if (needsFinish) this.router.navigate(['/register/finalizar-cadastro']);
-        else this.router.navigate(['/dashboard/principal']);
-      }),
-      catchError((err) => {
-        this.reportError(err, { phase: 'onExistingUserLogin', uid });
-        return of(null as any);
-      })
-    );
   }
 
   // ===========================================================================
-  // Tier helpers (role atual do app = tier)
+  // Regras
   // ===========================================================================
 
-  private isTierRole(v: any): v is IUserDados['role'] {
-    return v === 'visitante' || v === 'free' || v === 'basic' || v === 'premium' || v === 'vip';
+  private needsProfileCompletion(user: Partial<SocialAuthUserDoc>): boolean {
+    if (typeof user.profileCompleted === 'boolean') {
+      return user.profileCompleted !== true;
+    }
+
+    return !user.nickname || !(user as Partial<IUserDados>)?.gender;
   }
 
-  private normalizeTier(v: any): Tier {
-    return (v === 'free' || v === 'basic' || v === 'premium' || v === 'vip') ? v : 'basic';
+  private resolveAccountStatus(user: Partial<SocialAuthUserDoc>): AccountStatus {
+    const raw = String(user.accountStatus ?? '').trim().toLowerCase();
+
+    if (raw === 'deleted') return 'deleted';
+    if (raw === 'suspended') return 'suspended';
+    if (raw === 'locked') return 'locked';
+
+    if (user.suspended === true) return 'suspended';
+    if (user.accountLocked === true) return 'locked';
+
+    return 'active';
+  }
+
+  private normalizeTier(value: unknown): Tier {
+    return value === 'free' ||
+      value === 'basic' ||
+      value === 'premium' ||
+      value === 'vip'
+      ? value
+      : 'basic';
+  }
+
+  private normalizeRole(value: unknown): IUserDados['role'] {
+    return value === 'visitante' ||
+      value === 'free' ||
+      value === 'basic' ||
+      value === 'premium' ||
+      value === 'vip'
+      ? value
+      : 'basic';
+  }
+
+  /**
+   * Normaliza photoURL para o boundary do Firestore.
+   *
+   * Regra:
+   * - documento usa string | undefined
+   * - null não entra no payload persistido
+   */
+  private normalizePhotoUrl(value: string | null | undefined): string | undefined {
+    const clean = (value ?? '').trim();
+    return clean ? clean : undefined;
+  }
+
+  private extractProviderIds(authUser: FirebaseUser): string[] {
+    const providers = Array.isArray(authUser.providerData)
+      ? authUser.providerData
+          .map((item) => String(item?.providerId ?? '').trim())
+          .filter(Boolean)
+      : [];
+
+    return Array.from(new Set(providers.length ? providers : ['google.com']));
+  }
+
+  private mergeProviderIds(
+    existingProviders: string[] | undefined,
+    authUser: FirebaseUser
+  ): string[] {
+    const merged = [
+      ...(Array.isArray(existingProviders) ? existingProviders : []),
+      ...this.extractProviderIds(authUser),
+      'google.com',
+    ].filter(Boolean);
+
+    return Array.from(new Set(merged));
   }
 
   // ===========================================================================
-  // Mapper (users doc -> IUserDados)
+  // Mapping
   // ===========================================================================
 
-  private mapToUserDados(doc: Partial<UserDoc>, nowMs: number): IUserDados {
-    const tier = this.normalizeTier((doc as any).tier ?? doc.role ?? 'basic');
+  private mapToUserDados(
+    doc: Partial<SocialAuthUserDoc>,
+    nowMs: number
+  ): IUserDados {
+    const tier = this.normalizeTier(doc.tier ?? doc.role ?? 'basic');
 
     return {
-      uid: doc.uid || '',
-      email: (doc.email ?? null) as any,
+      uid: doc.uid ?? '',
+      email: (doc.email ?? '') as any,
       emailVerified: !!doc.emailVerified,
 
-      nickname: (doc.nickname ? doc.nickname : null) as any,
-      photoURL: (doc.photoURL ?? null) as any,
+      nickname: ((doc.nickname ?? '') || null) as any,
+      photoURL: this.normalizePhotoUrl(doc.photoURL) ?? null,
 
-      // compat: role = tier (produto)
-      role: tier,
-
-      descricao: (doc as any).descricao ?? '',
+      role: this.normalizeRole(doc.role ?? tier),
       isSubscriber: !!doc.isSubscriber,
-      socialLinks: (doc as any).socialLinks ?? {},
 
-      firstLogin: toEpochOrZero((doc as any).firstLogin ?? nowMs),
-      lastLogin: toEpochOrZero((doc as any).lastLogin ?? nowMs),
+      descricao: (doc as any)?.descricao ?? '',
+      socialLinks: (doc as any)?.socialLinks ?? {},
 
-      acceptedTerms: (doc as any).acceptedTerms,
-      profileCompleted: (doc as any).profileCompleted,
-      suspended: !!(doc as any).suspended,
+      firstLogin: toEpochOrZero(doc.firstLogin ?? nowMs),
+      lastLogin: toEpochOrZero(doc.lastLogin ?? nowMs),
+
+      acceptedTerms: (doc as any)?.acceptedTerms,
+      profileCompleted: !!doc.profileCompleted,
+      suspended: this.resolveAccountStatus(doc) === 'suspended',
     } as IUserDados;
   }
 
   // ===========================================================================
-  // Popup errors
+  // Resultado estruturado
   // ===========================================================================
 
-  private handleAuthPopupError(err: any): void {
-    const code = String(err?.code ?? '');
+  private makeSuccessResult(params: {
+    outcome: 'profile-ready' | 'profile-incomplete';
+    isNewUser: boolean;
+    emailVerified: boolean;
+    user: IUserDados;
+    nextRoute: SocialAuthNextRoute;
+    message?: string;
+  }): SocialAuthResult {
+    return {
+      success: true,
+      outcome: params.outcome,
+      isNewUser: params.isNewUser,
+      emailVerified: params.emailVerified,
+      user: params.user,
+      nextRoute: params.nextRoute,
+      message: params.message,
+    };
+  }
 
-    const expected =
+  private makeBlockedResult(params: {
+    reason: SocialAuthBlockReason;
+    user: IUserDados | null;
+    message: string;
+  }): SocialAuthResult {
+    return {
+      success: false,
+      outcome: 'blocked',
+      isNewUser: false,
+      emailVerified: !!params.user?.emailVerified,
+      user: params.user,
+      nextRoute: '/login',
+      blockedReason: params.reason,
+      message: params.message,
+      code: `social-auth/${params.reason}`,
+    };
+  }
+
+  private makeCancelledResult(message = 'Login com Google cancelado.'): SocialAuthResult {
+    return {
+      success: false,
+      outcome: 'cancelled',
+      isNewUser: false,
+      emailVerified: false,
+      user: null,
+      nextRoute: null,
+      message,
+      code: 'social-auth/cancelled',
+    };
+  }
+
+  private makeErrorResult(params: {
+    code?: string;
+    message: string;
+  }): SocialAuthResult {
+    return {
+      success: false,
+      outcome: 'error',
+      isNewUser: false,
+      emailVerified: false,
+      user: null,
+      nextRoute: null,
+      code: params.code,
+      message: params.message,
+    };
+  }
+
+  // ===========================================================================
+  // Tratamento de erros
+  // ===========================================================================
+
+  private handleGoogleLoginError(err: unknown): SocialAuthResult {
+    const code = String((err as any)?.code ?? '');
+
+    /**
+     * Casos esperados:
+     * - usuário fechou popup
+     * - popup cancelado por novo popup
+     *
+     * Isso não precisa ser erro "grave".
+     */
+    if (
       code === 'auth/popup-closed-by-user' ||
-      code === 'auth/cancelled-popup-request';
+      code === 'auth/cancelled-popup-request'
+    ) {
+      this.reportSilent(err, {
+        phase: 'googleLogin.popup',
+        code,
+        expected: true,
+      });
+
+      return this.makeCancelledResult();
+    }
 
     if (code === 'auth/popup-blocked') {
-      this.errorNotifier.showError('O navegador bloqueou o popup. Permita popups e tente novamente.');
+      this.reportSilent(err, {
+        phase: 'googleLogin.popup',
+        code,
+        expected: false,
+      });
+
+      return this.makeErrorResult({
+        code,
+        message: 'O navegador bloqueou o popup do Google. Permita popups e tente novamente.',
+      });
     }
 
     if (code === 'auth/account-exists-with-different-credential') {
-      this.errorNotifier.showError('Já existe uma conta com este e-mail. Use o método de login anterior.');
+      this.reportSilent(err, {
+        phase: 'googleLogin.popup',
+        code,
+        expected: false,
+      });
+
+      return this.makeErrorResult({
+        code,
+        message: 'Já existe uma conta com este e-mail usando outro método de login.',
+      });
     }
 
-    this.reportError(err, { phase: 'googleLogin.popup', code }, expected);
+    this.reportSilent(err, {
+      phase: 'googleLogin.popup',
+      code,
+      expected: false,
+    });
+
+    return this.makeErrorResult({
+      code: code || 'social-auth/unknown',
+      message: 'Não foi possível autenticar com Google agora. Tente novamente.',
+    });
   }
 
-  private reportError(err: any, context: any, silent = false): void {
+  private reportSilent(err: unknown, context: Record<string, unknown>): void {
     try {
-      if (this.debug) console.log('[SocialAuthService]', context, err);
+      this.dbg('reportSilent', context);
 
-      const e = new Error('[SocialAuthService] error');
-      (e as any).silent = silent;
-      (e as any).original = err;
-      (e as any).context = context;
-      this.globalErrorHandler.handleError(e);
-    } catch { }
+      const error = new Error('[SocialAuthService] operation failed');
+      (error as any).silent = true;
+      (error as any).skipUserNotification = true;
+      (error as any).original = err;
+      (error as any).context = context;
+
+      this.globalErrorHandler.handleError(error);
+    } catch {
+      // noop
+    }
+  }
+
+  // ===========================================================================
+  // Debug
+  // ===========================================================================
+
+  private dbg(message: string, extra?: unknown): void {
+    if (!this.debug) return;
+
+    // eslint-disable-next-line no-console
+    console.log(`[SocialAuthService] ${message}`, extra ?? '');
   }
 }
-// Verificar migrações de responsabilidades para o:
-// 1 - auth-route-context.service.ts, e;
-// 2 - auth-user-document-watch.service.ts, e;
-// 3 - auth-session-monitor.service.ts.

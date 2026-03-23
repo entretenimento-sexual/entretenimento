@@ -167,7 +167,7 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         label: 'Chats',
         route: '/chat',
         icon: '💬',
-        exact: false,
+        exact: true,
         ariaLabel: 'Ir para conversas privadas',
       },
       {
@@ -175,7 +175,7 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         label: 'Salas',
         route: '/chat/rooms',
         icon: '🧩',
-        exact: false,
+        exact: true,
         ariaLabel: 'Ir para salas',
       },
       {
@@ -183,7 +183,7 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         label: 'Convites',
         route: '/chat/invite-list',
         icon: '📨',
-        exact: false,
+        exact: true,
         ariaLabel: 'Ir para convites',
       },
     ],

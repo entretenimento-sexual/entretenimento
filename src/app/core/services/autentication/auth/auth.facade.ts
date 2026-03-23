@@ -1,18 +1,42 @@
-//src\app\core\services\autentication\auth\auth.facade.ts
-// Não esqueça os comentários explicativos sobre os métodos sobre o propósito desse serviço.
-// - Este serviço atua como uma fachada para as operações de autenticação, centralizando a lógica de registro, verificação de email e logout.
-// - Ele utiliza outros serviços especializados para realizar as operações, e expõe métodos que retornam Observables para facilitar a integração com componentes e outros serviços.
-// - O AuthFacade também gerencia um estado de carregamento para indicar quando uma operação de autenticação está em andamento, permitindo que os componentes exibam feedback visual adequado.
-// Visando sempre semelhança com outros componentes e boas práticas de Angular e as grandes plataformas.
+// src/app/core/services/autentication/auth/auth.facade.ts
+// =============================================================================
+// AUTH FACADE
+//
+// Responsabilidade desta facade:
+// - centralizar fluxos de autenticação usados pela UI
+// - expor estado reativo de loading
+// - encapsular register, verificação de e-mail, social auth e logout
+// - devolver resultados estruturados para a camada chamadora decidir UI/rota
+//
+// NÃO é responsabilidade desta facade:
+// - decidir regra de negócio de maioridade
+// - hidratar CurrentUserStore manualmente
+// - iniciar watchers
+// - executar side-effects de navegação automaticamente
+//
+// Observação:
+// - A camada chamadora (component, container, orchestrator ou guard) decide:
+//   - feedback visual
+//   - navegação
+//   - pós-ação
+// =============================================================================
+
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import type { UserCredential } from 'firebase/auth';
 
 import { RegisterService } from '../register/register.service';
-import { EmailVerificationService, VerifyEmailResult } from '../register/email-verification.service';
+import {
+  EmailVerificationService,
+  VerifyEmailResult,
+} from '../register/email-verification.service';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { LogoutService } from './logout.service';
+import {
+  SocialAuthService,
+  SocialAuthResult,
+} from '../social-auth.service';
 
 export interface RegisterFacadeResult {
   success: boolean;
@@ -25,16 +49,43 @@ export interface RegisterFacadeResult {
 @Injectable({ providedIn: 'root' })
 export class AuthFacade {
   private readonly loadingSubject = new BehaviorSubject<boolean>(false);
-  readonly loading$ = this.loadingSubject.asObservable();
+
+  /**
+   * loading$:
+   * - permite UI reativa simples
+   * - útil para botão, spinner e bloqueio temporário de ações concorrentes
+   */
+  readonly loading$: Observable<boolean> = this.loadingSubject.asObservable();
 
   constructor(
     private readonly registerService: RegisterService,
     private readonly emailVerification: EmailVerificationService,
-    private logout: LogoutService,
-  ) { }
+    private readonly logoutService: LogoutService,
+    private readonly socialAuthService: SocialAuthService,
+  ) {}
 
-  register$(user: IUserRegistrationData, password: string): Observable<RegisterFacadeResult> {
+  // ===========================================================================
+  // Helpers internos
+  // ===========================================================================
+
+  private startLoading(): void {
     this.loadingSubject.next(true);
+  }
+
+  private stopLoading(): void {
+    this.loadingSubject.next(false);
+  }
+
+  // ===========================================================================
+  // Registro
+  // ===========================================================================
+
+  register$(
+    user: IUserRegistrationData,
+    password: string
+  ): Observable<RegisterFacadeResult> {
+    this.startLoading();
+
     return this.registerService.registerUser(user, password).pipe(
       map((credential) => ({
         success: true,
@@ -49,31 +100,81 @@ export class AuthFacade {
           message: err?.message || 'Não foi possível concluir o registro.',
         })
       ),
-      finalize(() => this.loadingSubject.next(false))
+      finalize(() => this.stopLoading())
     );
   }
 
+  // ===========================================================================
+  // Verificação de e-mail
+  // ===========================================================================
+
   resendVerificationEmail$(): Observable<string> {
-    this.loadingSubject.next(true);
+    this.startLoading();
+
     return this.emailVerification.resendVerificationEmail().pipe(
-      finalize(() => this.loadingSubject.next(false))
+      finalize(() => this.stopLoading())
     );
   }
 
   handleEmailVerification$(): Observable<VerifyEmailResult> {
-    this.loadingSubject.next(true);
+    this.startLoading();
+
     return this.emailVerification.handleEmailVerification().pipe(
-      finalize(() => this.loadingSubject.next(false))
+      finalize(() => this.stopLoading())
     );
   }
+
+  // ===========================================================================
+  // Social auth
+  // ===========================================================================
+
+  /**
+   * googleLogin$:
+   * - executa login social
+   * - devolve SocialAuthResult estruturado
+   * - não navega
+   * - não faz toast
+   *
+   * A UI decide:
+   * - mostrar mensagem
+   * - navegar para result.nextRoute
+   * - abrir fluxo complementar
+   */
+  googleLogin$(): Observable<SocialAuthResult> {
+    this.startLoading();
+
+    return this.socialAuthService.googleLogin().pipe(
+      catchError((err: any) =>
+        of({
+          success: false,
+          outcome: 'error',
+          isNewUser: false,
+          emailVerified: false,
+          user: null,
+          nextRoute: null,
+          code: err?.code ?? 'auth-facade/social-login-failed',
+          message: err?.message ?? 'Não foi possível autenticar com Google agora.',
+        } as SocialAuthResult)
+      ),
+      finalize(() => this.stopLoading())
+    );
+  }
+
+  // ===========================================================================
+  // Logout
+  // ===========================================================================
+
   logout$(): Observable<void> {
-    return this.logout.logout$();
+    this.startLoading();
+
+    return this.logoutService.logout$().pipe(
+      finalize(() => this.stopLoading())
+    );
   }
 
   logoutNow(): void {
-    this.logout.logout();
+    this.logoutService.logout();
   }
-
 }
 /*
 (1) fonte única,

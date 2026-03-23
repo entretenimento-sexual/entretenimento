@@ -1,45 +1,136 @@
 <!-- src\app\chat-module\chat-module-layout\chat-module-layout.component.html -->
 <div class="chat-module-container">
-  <!-- Painel de informações do usuário logado -->
-  <div class="user-info-panel">
-    <div class="user-details">
-      <img ngSrc="{{ (usuario$ | async)?.photoURL || '/assets/imagem-padrao.webp' }}" width="80" height="80" alt="Foto"
-        class="foto_chat" priority>
-        <p>{{ (usuario$ | async)?.nickname }}</p>
-      </div>
-      <div class="recent-interactions">
-        <app-chat-list (chatSelected)="onChatSelected($event)"></app-chat-list>
-      </div>
-    </div>
+  <aside class="chat-sidebar" aria-label="Painel lateral do bate-papo">
+    <section class="chat-sidebar__profile" aria-label="Perfil atual">
+      @if (usuario$ | async; as usuario) {
+        <img
+          [ngSrc]="usuario.photoURL || '/assets/imagem-padrao.webp'"
+          width="80"
+          height="80"
+          alt="Foto do perfil atual"
+          class="foto-chat"
+          priority
+        />
 
-    <!-- Área principal do chat -->
-    <div class="chat-window-main">
-      <div class="chat-rooms">
-        <app-chat-rooms></app-chat-rooms>
-      </div>
+        <div class="chat-sidebar__profile-text">
+          <p class="chat-sidebar__nickname">
+            {{ usuario.nickname || 'Usuário' }}
+          </p>
 
-      <!-- Área de mensagens e interação -->
-      <div class="chat-content">
-        <div class="chat-area">
-          @if (selectedType === 'room') {
-            <app-room-interaction [roomId]="selectedChatId"></app-room-interaction>
-          }
-          @if (selectedType === 'chat') {
-            <app-chat-messages-list [chatId]="selectedChatId" [type]="selectedType"></app-chat-messages-list>
-          }
-          @if (!selectedType) {
-            <p>Selecione um chat ou uma sala.</p>
-          }
+          <p class="chat-sidebar__hint">
+            Conversas diretas em destaque
+          </p>
         </div>
+      } @else {
+        <img
+          [ngSrc]="'/assets/imagem-padrao.webp'"
+          width="80"
+          height="80"
+          alt="Foto do perfil atual"
+          class="foto-chat"
+          priority
+        />
 
-        <!-- Área fixa de digitação no bottom -->
-        @if (selectedType) {
-          <div class="chat-input">
-            <textarea [(ngModel)]="messageContent" (keydown.enter)="sendMessage(); $event.preventDefault()"
-            placeholder="Digite sua mensagem..."></textarea>
-            <button (click)="sendMessage()">Enviar</button>
+        <div class="chat-sidebar__profile-text">
+          <p class="chat-sidebar__nickname">Usuário</p>
+          <p class="chat-sidebar__hint">
+            Conversas diretas em destaque
+          </p>
+        </div>
+      }
+    </section>
+
+    <section class="chat-sidebar__list" aria-label="Conversas recentes">
+      <app-chat-list (chatSelected)="onChatSelected($event)"></app-chat-list>
+    </section>
+
+    <section class="chat-sidebar__rooms" aria-label="Salas de bate-papo">
+      <details class="rooms-panel">
+        <summary class="rooms-panel__summary">
+          Salas e interações em grupo
+        </summary>
+
+        <div class="rooms-panel__content">
+          <app-chat-rooms (roomSelected)="onRoomSelected($event)"></app-chat-rooms>
+        </div>
+      </details>
+    </section>
+  </aside>
+
+  <main class="chat-main" aria-label="Área principal da conversa">
+    <header class="chat-main__header">
+      @if (selectedType === 'chat') {
+        <div class="chat-main__context">
+          <h2 class="chat-main__title">Conversa direta</h2>
+          <p class="chat-main__subtitle">
+            Canal principal entre dois perfis
+          </p>
+        </div>
+      }
+
+      @if (selectedType === 'room') {
+        <div class="chat-main__context">
+          <h2 class="chat-main__title">Sala de bate-papo</h2>
+          <p class="chat-main__subtitle">
+            Compat mantido para interações em grupo
+          </p>
+        </div>
+      }
+
+      @if (!selectedType) {
+        <div class="chat-main__context">
+          <h2 class="chat-main__title">Mensagens</h2>
+          <p class="chat-main__subtitle">
+            Selecione uma conversa direta ou uma sala
+          </p>
+        </div>
+      }
+    </header>
+
+    <section class="chat-content">
+      <div class="chat-area">
+        @if (selectedType === 'room') {
+          @if (selectedChatId; as activeRoomId) {
+            <app-room-interaction [roomId]="activeRoomId"></app-room-interaction>
+          }
+        }
+
+        @if (selectedType === 'chat') {
+          @if (selectedChatId; as activeChatId) {
+            <app-chat-messages-list
+              [chatId]="activeChatId"
+              [type]="'chat'">
+            </app-chat-messages-list>
+          }
+        }
+
+        @if (!selectedType || !selectedChatId) {
+          <div class="chat-empty-state" role="status" aria-live="polite">
+            <p class="chat-empty-state__title">Nenhuma conversa selecionada.</p>
+            <p class="chat-empty-state__text">
+              Escolha uma conversa direta na lateral para começar.
+            </p>
           </div>
         }
       </div>
-    </div>
-  </div>
+
+      @if (selectedType && selectedChatId) {
+        <footer class="chat-input" aria-label="Área de envio de mensagem">
+          <textarea
+            [(ngModel)]="messageContent"
+            (keydown.enter)="sendMessage(); $event.preventDefault()"
+            placeholder="Digite sua mensagem..."
+            aria-label="Digite sua mensagem">
+          </textarea>
+
+          <button
+            type="button"
+            class="chat-input__send"
+            (click)="sendMessage()">
+            Enviar
+          </button>
+        </footer>
+      }
+    </section>
+  </main>
+</div>

@@ -1,19 +1,30 @@
 // src/app/chat-module/chat-list/chat-list.component.ts
-// Responsável por exibir lista de conversas (1:1 e salas), seleção e ações de sala.
+// ============================================================================
+// CHAT LIST COMPONENT
 //
-// Ajustes (estilo grandes plataformas):
-// - Fonte de verdade reativa (Observables + shareReplay).
-// - Gating de realtime via AccessControlService.canListenRealtime$ (evita listeners sem permissão).
-// Usa AuthSessionService (uid/auth), CurrentUserStoreService (perfil/role).
-// - Erros roteados para GlobalErrorHandlerService + ErrorNotificationService.
-// - “Thread ativa” única: switchMap em seleção cancela monitor anterior automaticamente.
-// - Read receipts com auditTime (evita escrita a cada emissão).
+// Responsabilidade atual (fase de transição):
+// - exibir lista de chats diretos 1:1
+// - exibir lista de rooms
+// - emitir seleção de chat/room para o layout pai
+// - manter ações de room (editar, excluir, convidar)
+// - manter monitor/regras legadas APENAS para room
 //
-// Observação importante:
-// - Para salas: ideal que RoomMessagesService.getRoomMessages(...) devolva mensagens com `id`.
-//   Se ainda estiver retornando só d.data(), read receipts não funcionam (não há messageId).
-// - Se você implementou roomMessages.markDeliveredAsRead$ (recomendado), o componente usa.
-//   Se não implementou ainda, existe fallback best-effort (menos eficiente).
+// SUPRESSÕES EXPLÍCITAS NESTA FASE:
+// - foi removido o monitor da thread ativa de chat 1:1 deste componente
+// - foi removida a lógica de read receipts do chat 1:1 deste componente
+// - foi removida a dependência direta do ChatService legado para o eixo 1:1
+//
+// Motivo:
+// - reduzir acoplamento
+// - tirar do ChatListComponent a responsabilidade de dono do chat direto
+// - preparar a migração para DirectChatFacade / DirectChatService
+//
+// Observação arquitetural:
+// - o 1:1 agora entra via DirectChatFacade
+// - rooms permanecem em compat temporária aqui
+// - o layout/containers continuam recebendo `chatSelected` como antes
+// ============================================================================
+
 import {
   Component,
   DestroyRef,
@@ -47,12 +58,16 @@ import {
 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { environment } from 'src/environments/environment';
+import { Timestamp } from '@firebase/firestore';
 
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { IRoom } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 
-import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
+import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
+import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
+import { DirectChatListItem } from 'src/app/messaging/direct-chat/models/direct-chat.models';
+
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
@@ -63,14 +78,10 @@ import { ConfirmacaoDialogComponent } from 'src/app/shared/components-globais/co
 import { InviteUserModalComponent } from '../modals/invite-user-modal/invite-user-modal.component';
 import { CreateRoomModalComponent } from '../modals/create-room-modal/create-room-modal.component';
 
-import { Timestamp } from '@firebase/firestore';
-
-// ✅ NOVA ARCH
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 
-// ✅ Erros centralizados
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
@@ -83,44 +94,59 @@ type ChatSelection = { id: string; type: 'room' | 'chat' };
   standalone: false,
 })
 export class ChatListComponent implements OnInit, OnDestroy {
-  // Mantido para compat com template atual
+  /**
+   * Mantidos para compat com o template atual.
+   * O ideal futuro é o template consumir somente streams.
+   */
   rooms: IRoom[] = [];
   regularChats: IChat[] = [];
 
-  // Streams (recomendado para async pipe se você quiser evoluir o HTML depois)
+  /**
+   * Streams públicas do componente.
+   */
   rooms$!: Observable<IRoom[]>;
   regularChats$!: Observable<IChat[]>;
 
   @Output() chatSelected = new EventEmitter<ChatSelection>();
+
+  /**
+   * Seleção atual, mantida por compat com CSS/template legado.
+   */
   selectedChatId: string | undefined;
 
-  // UID atual para usos sincrônicos (ex.: isOwner / filtros rápidos)
+  /**
+   * UID atual para comparações rápidas locais.
+   */
   private currentUserUid: string | null = null;
 
-  // Seleção reativa da “thread ativa” (como grandes plataformas)
-  private readonly activeSelection$ = new Subject<ChatSelection>();
+  /**
+   * Monitor legado apenas para rooms.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - chat 1:1 não é mais monitorado aqui
+   */
+  private readonly activeRoomSelection$ = new Subject<string>();
 
-  // Debug controlado
+  /**
+   * Anti-spam de writes de read receipts em room.
+   */
+  private readonly roomReceiptAuditMs = 600;
+  private readonly maxRoomReceiptUpdatesPerTick = 50;
+
   private readonly debug = !environment.production;
-
-  // Read receipts: debouncer para reduzir writes (especialmente relevante para mobile)
-  // TODO(mobile): aumentar para ~800-1200ms e reduzir limites de stream/paginar.
-  private readonly readReceiptAuditMs = 600;
-
-  // Segurança operacional: evita loop gigante de decrement em caso de muitos itens
-  private readonly maxReceiptUpdatesPerTick = 50;
-
-  // Angular destroy lifecycle (evita leaks)
   private readonly destroyRef = inject(DestroyRef);
 
   constructor(
-    // ✅ NOVA ARCH
+    // Auth / acesso
     private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly access: AccessControlService,
 
-    // Services do chat
-    private readonly chatService: ChatService,
+    // Novo eixo 1:1
+    private readonly directChatFacade: DirectChatFacade,
+    private readonly directChatService: DirectChatService,
+
+    // Eixo room / legado
     private readonly roomService: RoomService,
     private readonly roomMessages: RoomMessagesService,
     private readonly chatnotification: ChatNotificationService,
@@ -131,23 +157,53 @@ export class ChatListComponent implements OnInit, OnDestroy {
     public readonly dialog: MatDialog,
     private readonly router: Router,
 
-    // ✅ Erros centralizados
+    // Erros centralizados
     private readonly globalError: GlobalErrorHandlerService,
     private readonly notifier: ErrorNotificationService
-  ) { }
+  ) {}
 
-  // ------------------------------------------------------------
-  // Init
-  // ------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
+
   ngOnInit(): void {
     this.dbg('ChatListComponent init');
 
-    // UID snapshot (para usos sincrônicos)
-    this.authSession.uid$
-      .pipe(distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
-      .subscribe((uid) => (this.currentUserUid = uid));
+    this.bindCurrentUid();
+    this.bindAuthFallbackRedirect();
+    this.bindRoomsStream();
+    this.bindDirectChatsStream();
+    this.bindActiveRoomMonitor();
+  }
 
-    // Fallback defensivo: se o componente for acessado sem guard, redireciona após ready.
+  ngOnDestroy(): void {
+    /**
+     * Nada manual por enquanto:
+     * - takeUntilDestroyed já encerra streams
+     * - subject de room não precisa complete imperativo nesta fase
+     *
+     * Mantido por contrato e por clareza arquitetural.
+     */
+  }
+
+  // ---------------------------------------------------------------------------
+  // Binds
+  // ---------------------------------------------------------------------------
+
+  private bindCurrentUid(): void {
+    this.authSession.uid$
+      .pipe(
+        map((uid) => (uid ?? '').trim() || null),
+        distinctUntilChanged(),
+        tap((uid) => {
+          this.currentUserUid = uid;
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
+  private bindAuthFallbackRedirect(): void {
     combineLatest([this.authSession.ready$, this.authSession.uid$])
       .pipe(
         filter(([ready]) => !!ready),
@@ -155,24 +211,32 @@ export class ChatListComponent implements OnInit, OnDestroy {
         tap(([_, uid]) => {
           if (!uid) {
             this.dbg('Sem sessão -> redirect /login (fallback)');
-            this.router.navigate(['/login'], { replaceUrl: true }).catch(() => { });
+            this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {
+              // noop
+            });
           }
         }),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
+  }
 
-    // -----------------------------
-    // ROOMS (gated realtime)
-    // -----------------------------
-    this.rooms$ = combineLatest([this.access.canRunChatRealtime$, this.authSession.uid$]).pipe(
+  private bindRoomsStream(): void {
+    this.rooms$ = combineLatest([
+      this.access.canRunChatRealtime$,
+      this.authSession.uid$,
+    ]).pipe(
       switchMap(([canListen, uid]) => {
-        if (!canListen || !uid) return of([] as IRoom[]);
+        if (!canListen || !uid) {
+          return of([] as IRoom[]);
+        }
 
-        // ⚠️ Observação:
-        // - Se a UX esperada é “todas as salas em que participo”, use roomService.getRooms(uid).
-        // - Se a UX esperada é “somente salas que criei”, use getUserRooms(uid).
-        // Aqui mantemos o comportamento atual do seu snippet: getUserRooms(uid).
+        /**
+         * Compat atual:
+         * - mantém getUserRooms(uid)
+         * - quando a arquitetura de group-interactions nascer,
+         *   isso deve sair deste componente
+         */
         return this.roomService.getUserRooms(uid);
       }),
       map((rooms) => this.sortRoomsByActivity(rooms)),
@@ -184,21 +248,18 @@ export class ChatListComponent implements OnInit, OnDestroy {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // Mantém compat com template atual
-    this.rooms$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((rooms) => (this.rooms = rooms));
+    this.rooms$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((rooms) => {
+        this.rooms = rooms;
+      });
+  }
 
-    // -----------------------------
-    // CHATS 1:1 (gated realtime + enrichment)
-    // -----------------------------
-    this.regularChats$ = combineLatest([this.access.canListenRealtime$, this.authSession.uid$]).pipe(
-      switchMap(([canListen, uid]) => {
-        if (!canListen || !uid) return of([] as IChat[]);
-        return this.chatService.getChats(uid);
-      }),
-      switchMap((chats) => this.enrichChatsWithOtherParticipant$(chats)),
+  private bindDirectChatsStream(): void {
+    this.regularChats$ = this.directChatFacade.items$.pipe(
+      switchMap((items) => this.enrichDirectChatsForLegacyTemplate$(items)),
       map((chats) => this.sortChatsByLastMessage(chats)),
-      map((chats) => chats.filter((c) => !c.isRoom)),
-      tap((chats) => this.dbg('Chats loaded', { count: chats.length })),
+      tap((chats) => this.dbg('Direct chats loaded', { count: chats.length })),
       catchError((err) => {
         this.handleError('ChatList.regularChats$', err, true);
         return of([] as IChat[]);
@@ -206,45 +267,50 @@ export class ChatListComponent implements OnInit, OnDestroy {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // Mantém compat com template atual
     this.regularChats$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((chats) => (this.regularChats = chats));
+      .subscribe((chats) => {
+        this.regularChats = chats;
+      });
+  }
 
-    // -----------------------------
-    // THREAD ATIVA (monitor único)
-    // - switchMap cancela a anterior automaticamente
-    // - auditTime reduz writes de read receipts
-    // -----------------------------
-    this.activeSelection$
+  /**
+   * Monitor legado apenas de room.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - o monitor de chat 1:1 saiu deste componente
+   * - a thread 1:1 deve migrar para DirectThreadFacade / thread container
+   */
+  private bindActiveRoomMonitor(): void {
+    this.activeRoomSelection$
       .pipe(
-        // Gating por permissão + uid (sem isso: evita listeners indevidos)
-        switchMap((sel) =>
-          combineLatest([this.access.canListenRealtime$, this.authSession.uid$]).pipe(
+        switchMap((roomId) =>
+          combineLatest([this.access.canRunChatRealtime$, this.authSession.uid$]).pipe(
             take(1),
-            map(([canListen, uid]) => ({ sel, canListen, uid }))
+            map(([canListen, uid]) => ({
+              roomId,
+              canListen,
+              uid: (uid ?? '').trim() || null,
+            }))
           )
         ),
-        switchMap(({ sel, canListen, uid }) => {
+        switchMap(({ roomId, canListen, uid }) => {
           if (!canListen || !uid) {
-            // Não “spamma” toast aqui: seleção pode ocorrer por UI,
-            // mas sem permissão o app deve simplesmente não abrir realtime.
-            this.dbg('Seleção sem permissão/uid - realtime bloqueado', { sel, canListen, uid });
-            return of(null as any);
+            this.dbg('Seleção de room sem permissão/uid', {
+              roomId,
+              canListen,
+              uid,
+            });
+            return of(void 0);
           }
 
-          // Streams do monitor (chat/sala)
-          const stream$ =
-            sel.type === 'chat'
-              ? this.chatService.monitorChat(sel.id)
-              : this.roomMessages.getRoomMessages(sel.id);
-
-          // TODO(mobile): reduzir pageSize no monitor e paginar (evita “explodir” memória/render).
-          return stream$.pipe(
-            auditTime(this.readReceiptAuditMs),
-            switchMap((messages: any[]) => this.applyReadReceipts$(sel, uid, messages)),
+          return this.roomMessages.getRoomMessages(roomId).pipe(
+            auditTime(this.roomReceiptAuditMs),
+            switchMap((messages: any[]) =>
+              this.applyRoomReadReceipts$(roomId, uid, messages)
+            ),
             catchError((err) => {
-              this.handleError(`ChatList.activeMonitor(${sel.type}:${sel.id})`, err, false);
+              this.handleError(`ChatList.activeRoomMonitor(${roomId})`, err, false);
               return of(void 0);
             })
           );
@@ -254,55 +320,49 @@ export class ChatListComponent implements OnInit, OnDestroy {
       .subscribe();
   }
 
-  // ------------------------------------------------------------
-  // Enrichment (dados do outro participante)
-  // ------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Compat helpers para template legado
+  // ---------------------------------------------------------------------------
+
   /**
-   * Em grandes plataformas, a lista sempre renderiza “avatar/nome do outro”.
-   * Aqui:
-   * - Se o chat já tem otherParticipantDetails -> passa direto.
-   * - Se não tem -> chama fetchAndPersistParticipantDetails(...) (one-shot),
-   *   que deve persistir/cachar de forma idempotente no nível de service.
+   * Compat de transição:
+   * - o template atual ainda espera `IChat[]`
+   * - se faltar otherParticipantDetails, pedimos refresh best-effort
+   *
+   * Importante:
+   * - não bloqueia render
+   * - não faz enrichment síncrono
+   * - apenas dispara atualização de detalhes via camada nova
    */
-  private enrichChatsWithOtherParticipant$(chats: IChat[]): Observable<IChat[]> {
-    if (!chats?.length) return of([]);
+  private enrichDirectChatsForLegacyTemplate$(
+    items: DirectChatListItem[]
+  ): Observable<IChat[]> {
+    const chats = (items ?? []).map((item) => item.chat);
 
-    const myUid = this.currentUserUid;
+    for (const chat of chats) {
+      if (!chat?.id) continue;
 
-    // Se ainda não temos UID (race no boot), não “chuta”:
-    // deixa como está e a próxima emissão vai completar.
-    if (!myUid) return of(chats);
+      if (!(chat as any)?.otherParticipantDetails) {
+        this.directChatService.refreshParticipantDetailsIfNeeded(chat.id);
+      }
+    }
 
-    const ops = chats.map((chat) => {
-      if (chat.otherParticipantDetails) return of(chat);
-
-      const otherUid = (chat.participants ?? []).find((u: string) => u !== myUid);
-      if (!otherUid || !chat.id) return of(chat);
-
-      return this.chatService.fetchAndPersistParticipantDetails(chat.id, otherUid).pipe(
-        take(1),
-        map((details) => ({ ...chat, otherParticipantDetails: details } as IChat)),
-        catchError((err) => {
-          this.handleError('ChatList.enrichParticipantDetails', err, false);
-          return of(chat);
-        })
-      );
-    });
-
-    return combineLatest(ops);
+    return of(chats);
   }
 
-  // ------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // Actions
-  // ------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+
   sendInvite(roomId: string | undefined, event: MouseEvent): void {
     event.stopPropagation();
-    if (!roomId) {
+
+    const safeRoomId = (roomId ?? '').trim();
+    if (!safeRoomId) {
       this.dbg('sendInvite: roomId undefined');
       return;
     }
 
-    // Resolve uid + perfil (role)
     combineLatest([
       this.authSession.uid$.pipe(take(1)),
       this.currentUserStore.user$.pipe(
@@ -316,6 +376,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
             this.notifier.showError('Você precisa estar logado para enviar convites.');
             return of(null);
           }
+
           if (!appUser || !(appUser as any).role) {
             this.notifier.showError('Seu perfil ainda não está pronto para enviar convites.');
             return of(null);
@@ -324,7 +385,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
           const dialogRef = this.dialog.open(InviteUserModalComponent, {
             width: '60%',
             maxWidth: '500px',
-            data: { roomId },
+            data: { roomId: safeRoomId },
           });
 
           return dialogRef.afterClosed().pipe(
@@ -341,16 +402,15 @@ export class ChatListComponent implements OnInit, OnDestroy {
         if (!result?.uid || !result.selectedUsers?.length) return;
 
         const { uid: senderId, selectedUsers } = result;
-
-        // ✅ IRoom usa roomName (não name)
-        const roomName = this.rooms.find((r) => r.id === roomId)?.roomName ?? '';
+        const roomName =
+          this.rooms.find((room) => room.id === safeRoomId)?.roomName ?? '';
 
         const now = new Date();
         const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
         const requests = selectedUsers.map((receiverId) => {
           const invite: Invite = {
-            roomId,
+            roomId: safeRoomId,
             roomName,
             receiverId,
             senderId,
@@ -359,19 +419,24 @@ export class ChatListComponent implements OnInit, OnDestroy {
             expiresAt: Timestamp.fromDate(expiresAt),
           };
 
-          return this.inviteService.sendInviteToRoom(roomId, invite).pipe(
+          return this.inviteService.sendInviteToRoom(safeRoomId, invite).pipe(
             take(1),
             catchError((err) => {
-              this.handleError(`InviteService.sendInviteToRoom(${receiverId})`, err, false);
+              this.handleError(
+                `InviteService.sendInviteToRoom(${receiverId})`,
+                err,
+                false
+              );
               return of(void 0);
             })
           );
         });
 
-        // Dispara em paralelo (melhor UX)
         forkJoin(requests)
           .pipe(takeUntilDestroyed(this.destroyRef))
-          .subscribe(() => this.dbg('Invites processed', { count: selectedUsers.length }));
+          .subscribe(() => {
+            this.dbg('Invites processed', { count: selectedUsers.length });
+          });
       });
   }
 
@@ -379,45 +444,60 @@ export class ChatListComponent implements OnInit, OnDestroy {
     return item?.isRoom === true;
   }
 
+  /**
+   * Chat 1:1:
+   * - seleção local continua por compat
+   * - façade nova assume a seleção canônica do eixo direct-chat
+   * - este componente não monitora mais a thread do 1:1
+   */
   selectChat(chatId: string | undefined): void {
-    if (!chatId) {
+    const safeChatId = (chatId ?? '').trim();
+    if (!safeChatId) {
       this.dbg('selectChat: chatId undefined');
       return;
     }
-    if (this.selectedChatId === chatId) return; // evita re-subscribe/efeitos desnecessários
 
-    this.selectedChatId = chatId;
-    this.chatSelected.emit({ id: chatId, type: 'chat' });
+    if (this.selectedChatId === safeChatId) return;
 
-    // Atualiza detalhes do participante (best-effort)
-    this.chatService.refreshParticipantDetailsIfNeeded(chatId);
+    this.selectedChatId = safeChatId;
 
-    // Ativa monitor “thread ativa”
-    this.activeSelection$.next({ id: chatId, type: 'chat' });
+    // Novo dono canônico da seleção 1:1
+    this.directChatFacade.selectChat(safeChatId);
+
+    // Compat com o restante do módulo atual
+    this.chatSelected.emit({ id: safeChatId, type: 'chat' });
   }
 
+  /**
+   * Room:
+   * - permanece em compat nesta fase
+   * - o monitor de room continua aqui temporariamente
+   */
   selectRoom(roomId: string | undefined): void {
-    if (!roomId) {
+    const safeRoomId = (roomId ?? '').trim();
+    if (!safeRoomId) {
       this.dbg('selectRoom: roomId undefined');
       return;
     }
-    if (this.selectedChatId === roomId) return;
 
-    this.selectedChatId = roomId;
-    this.chatSelected.emit({ id: roomId, type: 'room' });
+    if (this.selectedChatId === safeRoomId) return;
 
-    // Ativa monitor “thread ativa”
-    this.activeSelection$.next({ id: roomId, type: 'room' });
+    this.selectedChatId = safeRoomId;
+    this.chatSelected.emit({ id: safeRoomId, type: 'room' });
+
+    // Legado temporário: room ainda é monitorada aqui
+    this.activeRoomSelection$.next(safeRoomId);
   }
 
-  // Dono da sala (usa UID do AuthSession)
   isOwner(room: IRoom): boolean {
     return !!this.currentUserUid && room?.createdBy === this.currentUserUid;
   }
 
   deleteRoom(roomId: string | undefined, event: MouseEvent): void {
     event.stopPropagation();
-    if (!roomId) {
+
+    const safeRoomId = (roomId ?? '').trim();
+    if (!safeRoomId) {
       this.dbg('deleteRoom: roomId undefined');
       return;
     }
@@ -435,82 +515,72 @@ export class ChatListComponent implements OnInit, OnDestroy {
       if (!result) return;
 
       this.roomManagement
-        .deleteRoom(roomId)
-        .then(() => this.dbg('Sala excluída', { roomId }))
+        .deleteRoom(safeRoomId)
+        .then(() => this.dbg('Sala excluída', { roomId: safeRoomId }))
         .catch((err) => this.handleError('RoomManagementService.deleteRoom', err, true));
     });
   }
 
   editRoom(roomId: string, event: MouseEvent): void {
     event.stopPropagation();
-    const roomData = this.rooms.find((r) => r.id === roomId);
+
+    const safeRoomId = (roomId ?? '').trim();
+    if (!safeRoomId) {
+      this.dbg('editRoom: roomId undefined');
+      return;
+    }
+
+    const roomData = this.rooms.find((room) => room.id === safeRoomId);
     if (!roomData) {
-      this.dbg('editRoom: sala não encontrada', { roomId });
+      this.dbg('editRoom: sala não encontrada', { roomId: safeRoomId });
       return;
     }
 
     const dialogRef = this.dialog.open(CreateRoomModalComponent, {
       width: '50%',
-      data: { roomId, roomData, isEditing: true },
+      data: { roomId: safeRoomId, roomData, isEditing: true },
     });
 
     dialogRef.afterClosed().pipe(take(1)).subscribe((result) => {
-      if (result?.success) this.dbg('Sala editada', { roomId });
+      if (result?.success) {
+        this.dbg('Sala editada', { roomId: safeRoomId });
+      }
     });
   }
 
   getOptimizedPhotoURL(originalURL: string | null | undefined): string {
     if (!originalURL) return '';
-    // TODO(mobile): considerar fallback/placeholder e compressão via CDN.
     return `${originalURL}&w=40&h=40&fit=crop`;
   }
 
-  // ------------------------------------------------------------
-  // Read receipts (delivered -> read) + notificação local
-  // ------------------------------------------------------------
-  private applyReadReceipts$(sel: ChatSelection, myUid: string, messages: any[]): Observable<void> {
-    if (!myUid || !sel?.id) return of(void 0);
+  // ---------------------------------------------------------------------------
+  // Room read receipts (legado temporário)
+  // ---------------------------------------------------------------------------
 
-    // Proteção: não deixa “tick” virar centenas/milhares de writes
-    // (mobile e redes ruins agradecem).
-    const cap = this.maxReceiptUpdatesPerTick;
-
-    if (sel.type === 'room') {
-      // Preferência: usar helper do service se existir (mais limpo e reutilizável).
-      // Se não existir, fallback.
-      return this.markRoomDeliveredAsRead$(sel.id, myUid, messages).pipe(
-        take(1),
-        tap((n) => this.decrementUnreadBy(n, cap)),
-        map(() => void 0),
-        catchError((err) => {
-          this.handleError('ChatList.applyReadReceipts(room)', err, false);
-          return of(void 0);
-        })
-      );
+  /**
+   * SUPRESSÃO EXPLÍCITA:
+   * - este método ficou restrito a ROOM
+   * - o branch de read receipts de chat 1:1 foi removido
+   *
+   * Motivo:
+   * - o 1:1 deve sair deste componente
+   * - room ainda permanece aqui por compatibilidade temporária
+   */
+  private applyRoomReadReceipts$(
+    roomId: string,
+    myUid: string,
+    messages: any[]
+  ): Observable<void> {
+    if (!myUid || !roomId) {
+      return of(void 0);
     }
 
-    // Chat 1:1: marca delivered -> read (somente recebidas).
-    const toMark = (messages ?? [])
-      .filter((m: any) => m?.status === 'delivered' && m.senderId !== myUid && !!m.id)
-      .slice(0, cap);
-
-    if (!toMark.length) return of(void 0);
-
-    return forkJoin(
-      toMark.map((m: any) =>
-        this.chatService.updateMessageStatus(sel.id, m.id, 'read').pipe(
-          take(1),
-          catchError((err) => {
-            this.handleError('ChatService.updateMessageStatus(read)', err, false);
-            return of(void 0);
-          })
-        )
-      )
-    ).pipe(
-      tap(() => this.decrementUnreadBy(toMark.length, cap)),
+    return this.markRoomDeliveredAsRead$(roomId, myUid, messages).pipe(
+      take(1),
+      tap((count) => this.decrementUnreadBy(count, this.maxRoomReceiptUpdatesPerTick)),
       map(() => void 0),
       catchError((err) => {
-        this.handleError('ChatList.applyReadReceipts(chat)', err, false);
+        this.handleError('ChatList.applyRoomReadReceipts$', err, false);
         return of(void 0);
       })
     );
@@ -518,53 +588,68 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   /**
    * Se RoomMessagesService tiver markDeliveredAsRead$, usamos.
-   * Se não tiver, fallback com updateMessageStatus por id (menos eficiente).
+   * Se não tiver, fallback com updateMessageStatus por id.
    */
-  private markRoomDeliveredAsRead$(roomId: string, myUid: string, messages: any[]): Observable<number> {
-    const svc: any = this.roomMessages as any;
+  private markRoomDeliveredAsRead$(
+    roomId: string,
+    myUid: string,
+    messages: any[]
+  ): Observable<number> {
+    const svc = this.roomMessages as any;
 
     if (typeof svc.markDeliveredAsRead$ === 'function') {
       return svc.markDeliveredAsRead$(roomId, myUid, messages) as Observable<number>;
     }
 
-    // Fallback: depende de `messages` conter `id`.
-    // Se seu RoomMessagesService ainda retorna só d.data(), isso sempre vai dar 0.
     const toMark = (messages ?? [])
-      .filter((m: any) => m?.status === 'delivered' && m.senderId !== myUid && !!m.id)
-      .slice(0, this.maxReceiptUpdatesPerTick);
+      .filter((message: any) => {
+        return (
+          message?.status === 'delivered' &&
+          message?.senderId !== myUid &&
+          !!message?.id
+        );
+      })
+      .slice(0, this.maxRoomReceiptUpdatesPerTick);
 
-    if (!toMark.length) return of(0);
+    if (!toMark.length) {
+      return of(0);
+    }
 
     return forkJoin(
-      toMark.map((m: any) =>
-        this.roomMessages.updateMessageStatus(roomId, m.id, 'read').pipe(
+      toMark.map((message: any) =>
+        this.roomMessages.updateMessageStatus(roomId, message.id, 'read').pipe(
           take(1),
           catchError((err) => {
-            this.handleError('RoomMessagesService.updateMessageStatus(read)', err, false);
+            this.handleError(
+              'RoomMessagesService.updateMessageStatus(read)',
+              err,
+              false
+            );
             return of(void 0);
           })
         )
       )
-    ).pipe(map(() => toMark.length));
+    ).pipe(
+      map(() => toMark.length),
+      catchError((err) => {
+        this.handleError('ChatList.markRoomDeliveredAsRead$', err, false);
+        return of(0);
+      })
+    );
   }
 
-  /**
-   * Hoje seu ChatNotificationService parece expor apenas decrementUnreadMessages().
-   * Em plataformas grandes, é comum ter:
-   * - decrementBy(n) ou recomputar contador via query/aggregation.
-   * TODO: evoluir ChatNotificationService para decrementBy(n) (menos loops).
-   */
-  private decrementUnreadBy(n: number, cap: number): void {
-    const safe = Math.max(0, Math.min(n ?? 0, cap));
-    for (let i = 0; i < safe; i++) {
+  private decrementUnreadBy(count: number, cap: number): void {
+    const safeCount = Math.max(0, Math.min(count ?? 0, cap));
+
+    for (let i = 0; i < safeCount; i++) {
       this.chatnotification.decrementUnreadMessages();
     }
   }
 
-  // ------------------------------------------------------------
-  // Sorting helpers (mantidos no componente por ora)
-  // TODO: migrar para util/helper (p/ reaproveitar e testar isolado).
-  // ------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // Sorting helpers
+  // ---------------------------------------------------------------------------
+
   private sortRoomsByActivity(rooms: IRoom[]): IRoom[] {
     return (rooms ?? []).slice().sort((a, b) => {
       const timeA =
@@ -593,44 +678,41 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   private sortChatsByLastMessage(chats: IChat[]): IChat[] {
     return (chats ?? []).slice().sort((a, b) => {
-      const timeA = a.lastMessage?.timestamp ? a.lastMessage.timestamp.toDate().getTime() : 0;
-      const timeB = b.lastMessage?.timestamp ? b.lastMessage.timestamp.toDate().getTime() : 0;
+      const timeA = a.lastMessage?.timestamp
+        ? a.lastMessage.timestamp.toDate().getTime()
+        : 0;
+
+      const timeB = b.lastMessage?.timestamp
+        ? b.lastMessage.timestamp.toDate().getTime()
+        : 0;
+
       return timeB - timeA;
     });
   }
 
-  // ------------------------------------------------------------
-  // Debug + Error routing
-  // ------------------------------------------------------------
-  private dbg(msg: string, extra?: unknown): void {
+  // ---------------------------------------------------------------------------
+  // Debug / Error routing
+  // ---------------------------------------------------------------------------
+
+  private dbg(message: string, extra?: unknown): void {
     if (!this.debug) return;
     // eslint-disable-next-line no-console
-    console.log(`[ChatList] ${msg}`, extra ?? '');
+    console.log(`[ChatList] ${message}`, extra ?? '');
   }
 
-  /**
-   * Roteia erro para o handler global e opcionalmente notifica o usuário.
-   * Obs.: evita console.log espalhado e mantém política central.
-   */
   private handleError(context: string, err: unknown, notifyUser: boolean): void {
-    const e = err instanceof Error ? err : new Error(`ChatList error: ${context}`);
-    (e as any).silent = !notifyUser;
-    (e as any).original = err;
-    (e as any).context = context;
+    const error =
+      err instanceof Error ? err : new Error(`ChatList error: ${context}`);
 
-    this.globalError.handleError(e);
+    (error as any).silent = !notifyUser;
+    (error as any).original = err;
+    (error as any).context = context;
+    (error as any).skipUserNotification = true;
+
+    this.globalError.handleError(error);
 
     if (notifyUser) {
       this.notifier.showError('Falha ao carregar o chat. Tente novamente.');
     }
-  }
-
-  // ------------------------------------------------------------
-  // Destroy
-  // ------------------------------------------------------------
-  ngOnDestroy(): void {
-    // Nada manual para “monitor ativo”:
-    // - takeUntilDestroyed + switchMap já encerra tudo corretamente.
-    // Mantido por contrato (OnDestroy) e para futuras necessidades.
   }
 }

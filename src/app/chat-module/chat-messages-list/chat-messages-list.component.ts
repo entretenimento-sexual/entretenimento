@@ -1,23 +1,40 @@
 // src/app/chat-module/chat-messages-list/chat-messages-list.component.ts
-// Componente responsável por exibir a lista de mensagens de um chat ou sala.
-// Ajustes aplicados:
-// - Fonte de verdade do UID: AuthSessionService
-// - Fluxo reativo por Signal Inputs (chatId/type)
-// - Remove duplicação artificial de mensagens
-// - Read receipts feitos em best-effort
-// - Tratamento de erro centralizado
+// ============================================================================
+// CHAT MESSAGES LIST COMPONENT
+//
+// Responsabilidade atual (fase de transição):
+// - renderizar mensagens da thread selecionada
+// - consumir DirectThreadFacade para chat 1:1
+// - manter compat temporária com RoomMessagesService para rooms
+// - manter scroll automático
+// - manter tratamento de erro centralizado
+//
+// SUPRESSÕES EXPLÍCITAS NESTA FASE:
+// - foi removida a dependência direta de ChatService no eixo 1:1
+// - foi removida a função local markDeliveredMessagesAsRead(...)
+// - foi removida a função local coerceToVoid$(...)
+//
+// Motivo:
+// - receipts do 1:1 agora pertencem à DirectThreadFacade
+// - a thread 1:1 agora pertence ao eixo direct-chat
+// - o componente deixa de carregar responsabilidade de domínio
+//
+// Observação arquitetural:
+// - chat 1:1 -> DirectThreadFacade
+// - room      -> RoomMessagesService (compat temporária)
+// ============================================================================
 
 import {
   ChangeDetectorRef,
   Component,
+  DestroyRef,
   ElementRef,
   ViewChild,
-  input,
-  DestroyRef,
   inject,
+  input,
 } from '@angular/core';
-import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
-import { Observable, combineLatest, forkJoin, from, of, isObservable } from 'rxjs';
+
+import { of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -28,34 +45,46 @@ import {
   take,
   tap,
 } from 'rxjs/operators';
+
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 
-import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
+import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
+
+import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
+import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/direct-thread.facade';
+
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+
+import { environment } from 'src/environments/environment';
+
+type MessageListSource = {
+  chatId: string;
+  type: 'chat' | 'room';
+};
 
 @Component({
   selector: 'app-chat-messages-list',
   templateUrl: './chat-messages-list.component.html',
   styleUrls: ['./chat-messages-list.component.css'],
-  standalone: false
+  standalone: false,
 })
 export class ChatMessagesListComponent {
   @ViewChild('messagesContainer')
-  private messagesContainer!: ElementRef<HTMLDivElement>;
+  private messagesContainer?: ElementRef<HTMLDivElement>;
 
   readonly chatId = input<string>();
   readonly type = input<'chat' | 'room'>();
 
   messages: Message[] = [];
 
+  private readonly debug = !environment.production;
   private readonly destroyRef = inject(DestroyRef);
 
   constructor(
-    private readonly authSession: AuthSessionService,
-    private readonly chatService: ChatService,
+    private readonly directChatFacade: DirectChatFacade,
+    private readonly directThreadFacade: DirectThreadFacade,
     private readonly roomMessage: RoomMessagesService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly globalError: GlobalErrorHandlerService,
@@ -64,112 +93,175 @@ export class ChatMessagesListComponent {
     this.bindMessagesStream();
   }
 
-  private readonly currentUid$ = this.authSession.uid$.pipe(
-    map((uid) => (uid ?? '').trim() || null),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  // ---------------------------------------------------------------------------
+  // Sources
+  // ---------------------------------------------------------------------------
 
-  private readonly source$ = combineLatest([
+  private readonly source$ = [
     toObservable(this.chatId),
     toObservable(this.type),
-  ]).pipe(
-    map(([chatId, type]) => ({
-      chatId: (chatId ?? '').trim(),
-      type: type ?? null,
-    })),
-    filter((v): v is { chatId: string; type: 'chat' | 'room' } => !!v.chatId && !!v.type),
+  ] as const;
+
+  private readonly resolvedSource$ = (toObservable(this.chatId)).pipe(
+    switchMap(() =>
+      toObservable(this.type).pipe(
+        map((type) => ({
+          chatId: (this.chatId() ?? '').trim(),
+          type: type ?? null,
+        }))
+      )
+    ),
+    filter((value): value is MessageListSource => {
+      return !!value.chatId && (value.type === 'chat' || value.type === 'room');
+    }),
     distinctUntilChanged((a, b) => a.chatId === b.chatId && a.type === b.type),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  // ---------------------------------------------------------------------------
+  // Binding principal
+  // ---------------------------------------------------------------------------
+
   private bindMessagesStream(): void {
-    this.source$
+    this.resolvedSource$
       .pipe(
-        switchMap(({ chatId, type }) => {
-          const stream$ =
-            type === 'chat'
-              ? this.chatService.monitorChat(chatId)
-              : this.roomMessage.getRoomMessages(chatId);
-
-          return stream$.pipe(
-            switchMap((messages: Message[]) => {
-              const normalizedMessages = Array.isArray(messages) ? messages : [];
-
-              if (type !== 'chat') {
-                return of(normalizedMessages);
-              }
-
-              return this.currentUid$.pipe(
-                take(1),
-                tap((currentUid) => {
-                  this.markDeliveredMessagesAsRead(chatId, currentUid, normalizedMessages);
-                }),
-                map(() => normalizedMessages)
-              );
-            }),
-            tap((messages) => {
-              // Em streams realtime, substituir a coleção inteira é mais seguro
-              // do que fazer append/deduplicação local.
-              this.messages = messages;
-              this.cdRef.detectChanges();
-              setTimeout(() => this.scrollToBottom(), 0);
-            }),
-            catchError((error) => {
-              this.reportError(
-                'Erro ao carregar mensagens.',
-                error,
-                { op: 'bindMessagesStream', chatId, type }
-              );
-              this.messages = [];
-              this.cdRef.detectChanges();
-              return of([] as Message[]);
-            })
-          );
+        tap(({ chatId, type }) => {
+          /**
+           * Compat defensiva:
+           * - se o pai/componentes legados passarem um chatId de 1:1,
+           *   garantimos que a DirectChatFacade fique sincronizada
+           */
+          if (type === 'chat') {
+            this.directChatFacade.selectChat(chatId);
+          }
         }),
+
+        switchMap(({ chatId, type }) => {
+          return type === 'chat'
+            ? this.bindDirectChatThread$(chatId)
+            : this.bindRoomThread$(chatId);
+        }),
+
+        tap((messages) => {
+          this.messages = Array.isArray(messages) ? messages : [];
+          this.cdRef.detectChanges();
+
+          queueMicrotask(() => this.scrollToBottom());
+        }),
+
+        catchError((error) => {
+          this.reportError(
+            'Erro ao carregar mensagens.',
+            error,
+            { op: 'bindMessagesStream' }
+          );
+
+          this.messages = [];
+          this.cdRef.detectChanges();
+          return of([] as Message[]);
+        }),
+
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
   }
 
-  private markDeliveredMessagesAsRead(
-    chatId: string,
-    currentUid: string | null,
-    messages: Message[]
-  ): void {
-    const uid = (currentUid ?? '').trim();
-    if (!uid || !messages?.length) {
-      return;
-    }
+  // ---------------------------------------------------------------------------
+  // Chat direto 1:1
+  // ---------------------------------------------------------------------------
 
-    const idsToMark = messages
-      .filter((msg) => msg.status === 'delivered' && msg.senderId !== uid && !!msg.id)
-      .map((msg) => msg.id as string);
+  /**
+   * Thread de chat direto 1:1.
+   *
+   * Regras:
+   * - usa DirectThreadFacade como fonte
+   * - receipts do 1:1 são feitos pela facade, não pelo componente
+   */
+  private bindDirectChatThread$(chatId: string) {
+    return this.directThreadFacade.state$.pipe(
+      map((state) => {
+        /**
+         * Proteção contra resíduo de seleção anterior:
+         * - só aceitamos mensagens quando o state bate com o chatId atual do input
+         */
+        if (state.chatId !== chatId) {
+          return [] as Message[];
+        }
 
-    if (!idsToMark.length) {
-      return;
-    }
+        return Array.isArray(state.messages) ? state.messages : [];
+      }),
+      switchMap((messages) => {
+        if (!messages.length) {
+          return of(messages);
+        }
 
-    const ops = idsToMark.map((messageId) =>
-      this.coerceToVoid$(this.chatService.updateMessageStatus(chatId, messageId, 'read')).pipe(
-        catchError((error) => {
-          this.reportError(
-            'Falha ao atualizar status da mensagem.',
-            error,
-            { op: 'markDeliveredMessagesAsRead', chatId, messageId },
-            false
-          );
-          return of(void 0);
-        })
-      )
+        return this.directThreadFacade.markVisibleMessagesAsRead$(messages).pipe(
+          take(1),
+          map(() => messages),
+          catchError((error) => {
+            this.reportError(
+              'Falha ao atualizar status das mensagens.',
+              error,
+              { op: 'bindDirectChatThread', chatId },
+              false
+            );
+            return of(messages);
+          })
+        );
+      }),
+      tap((messages) => {
+        this.dbg('bindDirectChatThread$', {
+          chatId,
+          count: messages.length,
+        });
+      }),
+      catchError((error) => {
+        this.reportError(
+          'Erro ao carregar mensagens do chat.',
+          error,
+          { op: 'bindDirectChatThread', chatId }
+        );
+        return of([] as Message[]);
+      })
     );
-
-    forkJoin(ops)
-      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe();
   }
 
-  /** Rola automaticamente para a última mensagem no contêiner. */
+  // ---------------------------------------------------------------------------
+  // Room (compat temporária)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * SUPRESSÃO EXPLÍCITA:
+   * - room continua legado temporário
+   * - ainda não migramos rooms para um domínio separado
+   */
+  private bindRoomThread$(chatId: string) {
+    return this.roomMessage.getRoomMessages(chatId).pipe(
+      map((messages) => (Array.isArray(messages) ? messages : [])),
+      tap((messages) => {
+        this.dbg('bindRoomThread$', {
+          roomId: chatId,
+          count: messages.length,
+        });
+      }),
+      catchError((error) => {
+        this.reportError(
+          'Erro ao carregar mensagens da sala.',
+          error,
+          { op: 'bindRoomThread', chatId }
+        );
+        return of([] as Message[]);
+      })
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Scroll
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Rola automaticamente para a última mensagem no contêiner.
+   */
   private scrollToBottom(): void {
     if (!this.messagesContainer) {
       return;
@@ -177,24 +269,21 @@ export class ChatMessagesListComponent {
 
     const container = this.messagesContainer.nativeElement;
     const { scrollTop, scrollHeight, clientHeight } = container;
-
-    const nearBottom = (scrollHeight - scrollTop - clientHeight) < 200;
+    const nearBottom = scrollHeight - scrollTop - clientHeight < 200;
 
     if (nearBottom) {
       container.scrollTop = scrollHeight;
     }
   }
 
-  private coerceToVoid$(result: unknown): Observable<void> {
-    if (isObservable(result)) {
-      return (result as Observable<unknown>).pipe(map(() => void 0));
-    }
+  // ---------------------------------------------------------------------------
+  // Debug / Error
+  // ---------------------------------------------------------------------------
 
-    if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
-      return from(result as PromiseLike<unknown>).pipe(map(() => void 0));
-    }
-
-    return of(void 0);
+  private dbg(message: string, extra?: unknown): void {
+    if (!this.debug) return;
+    // eslint-disable-next-line no-console
+    console.log(`[ChatMessagesList] ${message}`, extra ?? '');
   }
 
   private reportError(
@@ -224,4 +313,4 @@ export class ChatMessagesListComponent {
       // noop
     }
   }
-} // Linha228
+}

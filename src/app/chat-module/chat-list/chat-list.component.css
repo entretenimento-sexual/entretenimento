@@ -1,111 +1,258 @@
 /* src\app\chat-module\chat-list\chat-list.component.css */
-.room-item {
+.chat-list-shell {
   display: flex;
   flex-direction: column;
-  cursor: pointer;
-  padding: 10px;
-  background-color: #f0f0f0;
-  margin-bottom: 5px;  /* Espaçamento entre salas */
-  border-radius: 5px;  /* Bordas arredondadas para salas */
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);  /* Sombra leve para dar destaque */
+  gap: var(--space-4, 24px);
+  padding: var(--space-3, 16px);
+  color: var(--text-color);
 }
 
-.room-item:hover {
-  background-color: #e0e0e0;
-}
-
-.room-item.selected,
-.chat-item.selected {
-  background-color: #007bff;  /* Cor de destaque */
-  color: white;  /* Texto em branco */
-  font-weight: bold;
-  border-radius: 8px;
-}
-
-.room-name {
-  font-weight: bold;
-  color: #007bff;  /* Cor azul, mas sinta-se à vontade para escolher outra */
+.chat-list-section {
   display: flex;
-  align-items: center;
-  gap: 5px;  /* Espaçamento entre o ícone e o texto */
-  font-size: 1.2em;  /* Aumenta o tamanho da fonte */
-  padding-bottom: 10px;
+  flex-direction: column;
+  gap: var(--space-3, 16px);
 }
 
-.room-name:before {
-  content: "💬";
-  /* Ícone de chat, substitua por um ícone de sua escolha */
-  display: inline-block;
-}
-
-.button {
-  padding: 5px 10px;    /* Padding dos botões */
-    border: 1px solid #007bff;    /* Borda azul */
-    background-color: white;    /* Fundo branco */
-    color: #007bff;    /* Texto azul */
-    cursor: pointer;
-    text-align: center;    /* Centraliza o texto no botão */
-    border-radius: 4px;
-}
-
-.button:hover {
-  background-color: #007bff;  /* Fundo azul ao passar o mouse */
-  color: white;  /* Texto branco ao passar o mouse */
-}
-
-.room-management-buttons {
+.chat-list-section__header {
   display: flex;
-  gap: 10px;  /* Espaçamento entre os botões */
-  justify-content: flex-end;  /* Alinha os botões à direita */
-  margin-top: 5px;  /* Espaçamento acima dos botões */
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2, 12px);
 }
 
-.room-management-buttons button {
-  margin-right: 10px;
+.chat-list-section__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.chat-list-section__subtitle {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
 }
 
 .chat-list-container {
-  list-style-type: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin: 0;
   padding: 0;
+}
+
+.chat-item,
+.room-item__main {
+  width: 100%;
+  border: 1px solid var(--surface-border);
+  background: var(--surface-color);
+  color: var(--text-color);
+  border-radius: 14px;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .chat-item {
   display: flex;
   align-items: center;
-  border-bottom: 1px solid #ccc;
-  padding: 10px;
-  cursor: pointer;
+  gap: 14px;
+  padding: 14px;
+  box-shadow: var(--box-shadow);
 }
 
-.chat-item:hover {
-  background-color: #f5f5f5;
+.chat-item:hover,
+.room-item__main:hover {
+  background: var(--header-hover-bg);
+  border-color: color-mix(in oklab, var(--primary-color) 30%, var(--surface-border));
+}
+
+.chat-item:focus-visible,
+.room-item__main:focus-visible,
+.room-action-btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.chat-item.selected,
+.room-item.selected .room-item__main {
+  border-color: var(--primary-color);
+  background: color-mix(in oklab, var(--primary-color) 10%, var(--surface-color));
 }
 
 .chat-user-photo {
-  width: 50px;
-  height: 50px;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
   object-fit: cover;
-  margin-right: 15px;
+  flex: 0 0 52px;
+  border: 1px solid var(--surface-border);
+  background: var(--input-background);
 }
 
-.chat-item p {
+.chat-item__content,
+.room-item__content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.chat-item__name,
+.room-name {
   margin: 0;
-  padding: 0;
+  font-weight: 700;
+  color: var(--text-color);
+  line-height: 1.2;
 }
 
-.chat-item a {
-  margin-left: auto;
-  padding: 5px 10px;
-  text-decoration: none;
-  color: #007bff;
-  border: 1px solid #007bff;
-  border-radius: 4px;
-  transition: background-color 0.2s;
+.chat-item__meta,
+.room-item__meta {
+  margin: 0;
+  font-size: 0.875rem;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.chat-item a:hover {
-  background-color: #007bff;
-  color: white;
+.room-item {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.room-item__main {
+  display: flex;
+  align-items: center;
+  padding: 14px;
+  box-shadow: none;
+}
+
+.room-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.room-name::before {
+  content: "💬";
+  display: inline-block;
+  font-size: 1rem;
+}
+
+.room-management-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.room-action-btn {
+  min-height: var(--tap-target, 44px);
+  padding: 0 14px;
+  border-radius: 10px;
+}
+
+.room-action-btn--danger {
+  color: var(--danger-color) !important;
+  border-color: color-mix(in oklab, var(--danger-color) 40%, var(--surface-border)) !important;
+}
+
+.room-action-btn--danger:hover,
+.room-action-btn--danger:focus-visible {
+  background: color-mix(in oklab, var(--danger-color) 10%, transparent) !important;
+}
+
+.chat-list-empty {
+  border: 1px dashed var(--surface-border);
+  background: color-mix(in oklab, var(--surface-color) 90%, transparent);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.chat-list-empty__title {
+  margin: 0 0 6px;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.chat-list-empty__text {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  line-height: 1.4;
+}
+
+.chat-list-empty--secondary {
+  opacity: 0.92;
+}
+
+.chat-list-empty--global {
+  margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  .chat-list-shell {
+    padding: var(--space-2, 12px);
+    gap: var(--space-3, 16px);
+  }
+
+  .chat-item,
+  .room-item__main {
+    padding: 12px;
+  }
+
+  .chat-user-photo {
+    width: 46px;
+    height: 46px;
+    flex-basis: 46px;
+  }
+
+  .room-management-buttons {
+    justify-content: stretch;
+  }
+
+  .room-action-btn {
+    flex: 1 1 calc(50% - 8px);
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-item {
+    align-items: flex-start;
+  }
+
+  .chat-item__meta,
+  .room-item__meta {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: initial;
+  }
+
+  .room-action-btn {
+    flex: 1 1 100%;
+  }
+}
+
+@media (max-width: 350px) {
+  .chat-list-shell {
+    padding: 10px;
+  }
+
+  .chat-item,
+  .room-item__main,
+  .chat-list-empty {
+    border-radius: 12px;
+  }
+
+  .chat-user-photo {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+  }
 }

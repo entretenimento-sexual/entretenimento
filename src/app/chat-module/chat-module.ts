@@ -1,4 +1,4 @@
-//src\app\chat-module\chat-module.ts
+// src/app/chat-module/chat-module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { StoreModule } from '@ngrx/store';
@@ -38,7 +38,6 @@ import { BaseModalComponent } from './modals/base-modal/base-modal.component';
     RoomCreationConfirmationModalComponent,
     RoomInteractionComponent,
   ],
-
   imports: [
     CommonModule,
     StoreModule.forFeature('chat', chatReducer),
@@ -52,8 +51,7 @@ import { BaseModalComponent } from './modals/base-modal/base-modal.component';
     RoomsModule,
     CommunitiesModule,
     NgOptimizedImage,
-    BaseModalComponent
+    BaseModalComponent,
   ],
-
 })
-export class ChatModule { }
+export class ChatModule {}
