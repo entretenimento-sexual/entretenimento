@@ -32,7 +32,7 @@
       <button
         class="btn btn-secondary"
         (click)="checkNow()"
-        [disabled]="busy"
+        [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev || savingOptional || sessionInvalid"
         [attr.aria-busy]="checkingVerification"
       >
         {{ checkingVerification ? 'Checando…' : 'Checar agora' }}
@@ -41,7 +41,7 @@
       <button
         class="btn"
         (click)="resendVerificationEmail()"
-        [disabled]="busy"
+        [disabled]="resendingVerificationEmail || checkingVerification || markingVerifiedDev || savingOptional || sessionInvalid"
         [attr.aria-busy]="resendingVerificationEmail"
       >
         {{ resendingVerificationEmail ? 'Reenviando…' : 'Reenviar e-mail' }}
@@ -57,7 +57,12 @@
       <button class="btn btn-ghost" (click)="reloadPage()">Recarregar</button>
       <button class="btn btn-ghost" (click)="restartRegistration()">Refazer cadastro</button>
 
-      <button class="btn btn-primary" *ngIf="emailVerified" (click)="proceedToDashboard()">
+      <button
+        class="btn btn-primary"
+        *ngIf="emailVerified"
+        (click)="proceedToDashboard()"
+        [disabled]="savingOptional || sessionInvalid"
+      >
         Ir para o painel
       </button>
     </div>
@@ -83,7 +88,7 @@
         <button
           class="btn btn-primary"
           (click)="checkNow()"
-          [disabled]="busy"
+          [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev || savingOptional || sessionInvalid"
           [attr.aria-busy]="checkingVerification"
         >
           {{ checkingVerification ? 'Checando…' : 'Já verifiquei — checar agora' }}
@@ -93,7 +98,7 @@
           *ngIf="isDevEmu"
           class="btn btn-ghost"
           (click)="markVerifiedDev()"
-          [disabled]="busy"
+          [disabled]="markingVerifiedDev || checkingVerification || resendingVerificationEmail || savingOptional || sessionInvalid"
           [attr.aria-busy]="markingVerifiedDev"
         >
           {{ markingVerifiedDev ? 'Marcando…' : 'DEV: marcar como verificado (emulator)' }}
@@ -102,13 +107,18 @@
         <button
           class="btn btn-secondary"
           (click)="resendVerificationEmail()"
-          [disabled]="busy"
+          [disabled]="resendingVerificationEmail || checkingVerification || markingVerifiedDev || savingOptional || sessionInvalid"
           [attr.aria-busy]="resendingVerificationEmail"
         >
           {{ resendingVerificationEmail ? 'Reenviando…' : 'Reenviar e-mail' }}
         </button>
 
-        <button class="btn" (click)="proceedToDashboard()" [disabled]="busy || !emailVerified">
+        <button
+          class="btn"
+          (click)="proceedToDashboard()"
+          [disabled]="!emailVerified || savingOptional || sessionInvalid"
+          [attr.aria-disabled]="(!emailVerified || savingOptional || sessionInvalid) ? 'true' : 'false'"
+        >
           Ir para o painel
         </button>
       </div>
@@ -152,7 +162,7 @@
         <button
           class="btn btn-primary"
           (click)="saveOptionalProfile()"
-          [disabled]="savingOptional || busy"
+          [disabled]="savingOptional || checkingVerification || resendingVerificationEmail || markingVerifiedDev || sessionInvalid"
           [attr.aria-busy]="savingOptional"
         >
           {{ savingOptional ? 'Salvando…' : 'Salvar preferências' }}
@@ -164,7 +174,13 @@
       <h2 class="card-title">Tudo certo! 🎉</h2>
       <p>Seu e-mail está verificado. Você pode seguir para o painel quando quiser.</p>
       <div class="actions">
-        <button class="btn btn-primary" (click)="proceedToDashboard()">Ir para o painel</button>
+        <button
+          class="btn btn-primary"
+          (click)="proceedToDashboard()"
+          [disabled]="savingOptional || sessionInvalid"
+        >
+          Ir para o painel
+        </button>
       </div>
     </section>
 
@@ -184,7 +200,7 @@
         <button
           class="btn btn-secondary"
           (click)="checkNow()"
-          [disabled]="busy"
+          [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev || savingOptional"
           [attr.aria-busy]="checkingVerification"
         >
           {{ checkingVerification ? 'Reconectando…' : 'Tentar reconectar' }}

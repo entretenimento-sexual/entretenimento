@@ -1,0 +1,59 @@
+<!-- src\app\preferences\pages\preferences-home\preferences-home.component.html -->
+<main class="preferences-home-page" aria-label="Página de preferências">
+  <section class="preferences-home-shell">
+    <header class="preferences-home-header">
+      <div>
+        <h1 class="preferences-home-title">Preferências</h1>
+        <p class="preferences-home-subtitle">
+          Área nova do domínio de preferências, intenção e descoberta.
+        </p>
+      </div>
+
+      <nav class="preferences-home-actions" aria-label="Ações de preferências">
+        <a class="btn btn-secondary" routerLink="/perfil">
+          Voltar ao perfil
+        </a>
+      </nav>
+    </header>
+
+    @if (vm$ | async; as vm) {
+      @if (vm) {
+        <app-preference-summary-card [vm]="vm"></app-preference-summary-card>
+
+        <section class="preferences-home-section" aria-label="Capacidades do usuário">
+          <h2 class="section-title">Capacidades atuais</h2>
+
+          <div class="capabilities-grid" role="list">
+            <article class="capability-item" role="listitem">
+              <span class="capability-label">Discovery avançado</span>
+              <strong>{{ vm.capabilities.canUseAdvancedDiscovery ? 'Liberado' : 'Bloqueado' }}</strong>
+            </article>
+
+            <article class="capability-item" role="listitem">
+              <span class="capability-label">Modo discreto</span>
+              <strong>{{ vm.capabilities.canUseDiscreetMode ? 'Liberado' : 'Bloqueado' }}</strong>
+            </article>
+
+            <article class="capability-item" role="listitem">
+              <span class="capability-label">Visibilidade prioritária</span>
+              <strong>{{ vm.capabilities.canUsePriorityVisibility ? 'Liberado' : 'Bloqueado' }}</strong>
+            </article>
+
+            <article class="capability-item" role="listitem">
+              <span class="capability-label">Insights de compatibilidade</span>
+              <strong>{{ vm.capabilities.canSeeCompatibilityInsights ? 'Liberado' : 'Bloqueado' }}</strong>
+            </article>
+          </div>
+        </section>
+      } @else {
+        <section class="preferences-home-section" aria-label="Sem sessão ativa">
+          <p>Você precisa estar autenticado para acessar esta área.</p>
+        </section>
+      }
+    } @else {
+      <section class="preferences-home-section" aria-label="Carregando preferências">
+        <p>Carregando domínio de preferências...</p>
+      </section>
+    }
+  </section>
+</main>

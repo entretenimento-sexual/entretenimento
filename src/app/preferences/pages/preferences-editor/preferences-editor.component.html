@@ -1,0 +1,91 @@
+<!-- src\app\preferences\pages\preferences-editor\preferences-editor.component.html -->
+<main class="preferences-editor-page" aria-label="Editor do novo domínio de preferências">
+  <section class="preferences-editor-shell">
+    <header class="preferences-editor-header">
+      <div>
+        <h1 class="preferences-editor-title">Editor de preferências</h1>
+        <p class="preferences-editor-subtitle">
+          Edição nova do domínio de preferências, intenção e descoberta.
+        </p>
+      </div>
+
+      <nav class="preferences-editor-actions" aria-label="Ações do editor">
+        <a class="btn btn-secondary" routerLink="/preferencias">
+          Voltar para preferências
+        </a>
+      </nav>
+    </header>
+
+    @if (state$ | async; as state) {
+      <app-preference-summary-card
+        [vm]="{
+          uid: state.uid,
+          user: state.user,
+          profile: state.profile,
+          intent: state.intent,
+          matchProfile: null,
+          capabilities: state.capabilities
+        }">
+      </app-preference-summary-card>
+
+      <app-discovery-visibility-panel
+        [profile]="state.profile"
+        [capabilities]="state.capabilities">
+      </app-discovery-visibility-panel>
+
+      <app-intent-state-card [intent]="state.intent"></app-intent-state-card>
+
+      <section class="preferences-editor-section" aria-label="Formulário do perfil de preferências">
+        <h2 class="section-title">Perfil de preferências</h2>
+
+        <app-preference-profile-form
+          [profile]="state.profile"
+          [capabilities]="state.capabilities"
+          [saving]="isSavingProfile()"
+          (saveProfile)="onSaveProfile(state.uid, $event)">
+        </app-preference-profile-form>
+      </section>
+
+      <section class="preferences-editor-section" aria-label="Formulário da intenção atual">
+        <h2 class="section-title">Intenção atual</h2>
+
+        <app-intent-state-form
+          [intent]="state.intent"
+          [capabilities]="state.capabilities"
+          [saving]="isSavingIntent()"
+          (saveIntent)="onSaveIntent(state.uid, $event)">
+        </app-intent-state-form>
+      </section>
+
+      <section class="preferences-editor-section" aria-label="Capacidades de edição">
+        <h2 class="section-title">Permissões do editor novo</h2>
+
+        <div class="capabilities-grid" role="list">
+          <article class="capability-item" role="listitem">
+            <span class="capability-label">Preferências avançadas</span>
+            <strong>{{ state.capabilities.canEditAdvancedPreferences ? 'Liberado' : 'Bloqueado' }}</strong>
+          </article>
+
+          <article class="capability-item" role="listitem">
+            <span class="capability-label">Discovery avançado</span>
+            <strong>{{ state.capabilities.canUseAdvancedDiscovery ? 'Liberado' : 'Bloqueado' }}</strong>
+          </article>
+
+          <article class="capability-item" role="listitem">
+            <span class="capability-label">Modo discreto</span>
+            <strong>{{ state.capabilities.canUseDiscreetMode ? 'Liberado' : 'Bloqueado' }}</strong>
+          </article>
+
+          <article class="capability-item" role="listitem">
+            <span class="capability-label">Visibilidade prioritária</span>
+            <strong>{{ state.capabilities.canUsePriorityVisibility ? 'Liberado' : 'Bloqueado' }}</strong>
+          </article>
+        </div>
+      </section>
+    } @else {
+      <section class="preferences-editor-section" aria-label="Carregando editor">
+        <p>Carregando editor novo de preferências...</p>
+      </section>
+    }
+  </section>
+</main>

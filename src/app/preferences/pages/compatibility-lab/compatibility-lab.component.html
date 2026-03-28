@@ -1,0 +1,37 @@
+<!-- src\app\preferences\pages\compatibility-lab\compatibility-lab.component.html -->
+<main class="compatibility-lab-page app-page" aria-label="Laboratório de compatibilidade">
+  <section class="compatibility-lab-shell stack">
+    <app-preferences-page-header
+      title="Laboratório de compatibilidade"
+      subtitle="Cruzamento entre o match profile atual e o perfil materializado de outro usuário."
+    >
+      <a page-actions class="btn btn-secondary" routerLink="/preferencias">
+        Voltar para preferências
+      </a>
+    </app-preferences-page-header>
+
+    <app-preferences-domain-nav></app-preferences-domain-nav>
+
+    @if (vm$ | async; as vm) {
+      <app-compatibility-preview-card [preview]="vm.preview"></app-compatibility-preview-card>
+
+      <section class="compatibility-lab-section" aria-label="Comparação dos match profiles">
+        <div class="cards-grid">
+          <app-match-profile-preview-card
+            [title]="'Seu match profile'"
+            [matchProfile]="vm.current">
+          </app-match-profile-preview-card>
+
+          <app-match-profile-preview-card
+            [title]="'Match profile alvo'"
+            [matchProfile]="vm.target">
+          </app-match-profile-preview-card>
+        </div>
+      </section>
+    } @else {
+      <section class="compatibility-lab-section" aria-label="Carregando compatibilidade">
+        <p>Carregando laboratório de compatibilidade...</p>
+      </section>
+    }
+  </section>
+</main>

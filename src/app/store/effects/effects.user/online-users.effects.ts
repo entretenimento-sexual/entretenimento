@@ -170,12 +170,25 @@ export class OnlineUsersEffects {
     });
   }
 
-private safeJsonEqual(a: unknown, b: unknown): boolean {
-  try {
-    return JSON.stringify(a) === JSON.stringify(b);
-  } catch {
-    return a === b;
-  }
+private areProfilesEquivalent(
+  current: IUserDados | null | undefined,
+  incoming: IUserDados | null | undefined
+): boolean {
+  if (current === incoming) return true;
+  if (!current || !incoming) return false;
+
+  const currentWithMunicipio = current as IUserDados & { municipio?: string | null };
+  const incomingWithMunicipio = incoming as IUserDados & { municipio?: string | null };
+
+  return (
+    current.uid === incoming.uid &&
+    current.nickname === incoming.nickname &&
+    current.email === incoming.email &&
+    current.emailVerified === incoming.emailVerified &&
+    current.role === incoming.role &&
+    current.profileCompleted === incoming.profileCompleted &&
+    (currentWithMunicipio.municipio ?? null) === (incomingWithMunicipio.municipio ?? null)
+  );
 }
 
 private shouldUpsertProfile(
@@ -184,7 +197,8 @@ private shouldUpsertProfile(
 ): boolean {
   if (!incoming?.uid) return false;
   if (!current) return true;
-  return !this.safeJsonEqual(current, incoming);
+
+  return !this.areProfilesEquivalent(current, incoming);
 }
 
   /**

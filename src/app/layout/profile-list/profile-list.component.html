@@ -1,22 +1,36 @@
 <!-- src/app/layout/profile-list/profile-list.component.html -->
-@if (profiles && profiles.length) {
-<div class="profile-list-container">
-  @for (profile of profiles; track trackByUid($index, profile)) {
-  <div class="profile-item">
-    @if (profile.photoURL) {
-    <img [src]="profile.photoURL" alt="{{ displayName(profile) }}" class="profile-photo" />
-    }
-    <h3>{{ displayName(profile) }}</h3>
-    <p>{{ profile.descricao || 'Descrição não disponível' }}</p>
-    @if (profile.isOnline) {
-    <p class="online-status">Online agora</p>
+@if (loading) {
+  <div class="profile-list-state" aria-live="polite">
+    <p>Carregando perfis...</p>
+  </div>
+} @else if (loadError) {
+  <div class="profile-list-state profile-list-state--error" aria-live="assertive">
+    <p>Não foi possível carregar os perfis agora.</p>
+    <p>Tente novamente em instantes.</p>
+  </div>
+} @else if (profiles && profiles.length) {
+  <div class="profile-list-container">
+    @for (profile of profiles; track trackByUid($index, profile)) {
+      <div class="profile-item">
+        @if (profile.photoURL) {
+          <img
+            [src]="profile.photoURL"
+            [alt]="displayName(profile)"
+            class="profile-photo"
+          />
+        }
+
+        <h3>{{ displayName(profile) }}</h3>
+        <p>{{ profile.descricao || 'Descrição não disponível' }}</p>
+
+        @if (profile.isOnline) {
+          <p class="online-status">Online agora</p>
+        }
+      </div>
     }
   </div>
-  }
-</div>
-}
-@if (!profiles || !profiles.length) {
-<div class="no-profiles">
-  <p>Nenhum perfil encontrado.</p>
-</div>
+} @else {
+  <div class="no-profiles" aria-live="polite">
+    <p>Nenhum perfil encontrado.</p>
+  </div>
 }

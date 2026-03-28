@@ -1,0 +1,19 @@
+<!-- src\app\preferences\components\preferences-domain-nav\preferences-domain-nav.component.html -->
+<nav class="preferences-domain-nav" aria-label="Navegação do domínio de preferências">
+  <div class="preferences-domain-nav__list">
+    @for (item of items; track item.route) {
+      <a
+        class="preferences-domain-nav__link"
+        [routerLink]="item.route"
+        routerLinkActive="preferences-domain-nav__link--active"
+        [routerLinkActiveOptions]="{ exact: item.exact }"
+      >
+        {{ item.label }}
+      </a>
+    }
+  </div>
+
+  <div class="preferences-domain-nav__extra">
+    <ng-content select="[domain-nav-extra]"></ng-content>
+  </div>
+</nav>

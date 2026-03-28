@@ -1,0 +1,85 @@
+/* src\app\preferences\pages\preferences-editor\preferences-editor.component.css */
+.preferences-editor-page {
+  width: 100%;
+}
+
+.preferences-editor-shell {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.preferences-editor-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.preferences-editor-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.preferences-editor-subtitle {
+  margin: 0.4rem 0 0;
+  opacity: 0.8;
+}
+
+.preferences-editor-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.preferences-editor-section {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--surface-border, #2b2b2b);
+  border-radius: 1rem;
+  background: var(--surface-color, rgba(255, 255, 255, 0.02));
+}
+
+.section-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.capabilities-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.capability-item {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.875rem;
+  border-radius: 0.875rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.capability-label {
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.editor-roadmap {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.muted {
+  margin: 0;
+  opacity: 0.8;
+}
+
+@media (max-width: 640px) {
+  .capabilities-grid {
+    grid-template-columns: 1fr;
+  }
+}

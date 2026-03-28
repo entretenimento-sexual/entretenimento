@@ -1,0 +1,81 @@
+<!-- src\app\preferences\pages\preferences-hub\preferences-hub.component.html -->
+<main class="preferences-hub-page app-page" aria-label="Hub de preferências">
+  <section class="preferences-hub-shell stack">
+    <app-preferences-page-header
+      title="Hub de preferências"
+      subtitle="Entrada principal do domínio novo de preferências, descoberta e compatibilidade."
+    >
+      <a page-actions class="btn btn-secondary" routerLink="/perfil">
+        Voltar ao perfil
+      </a>
+    </app-preferences-page-header>
+
+    <app-preferences-domain-nav></app-preferences-domain-nav>
+
+    @if (vm$ | async; as vm) {
+      @if (vm) {
+        <app-preference-summary-card [vm]="vm"></app-preference-summary-card>
+
+        <section class="hub-grid" aria-label="Navegação do domínio de preferências">
+          <app-preferences-hub-card
+            title="Visão geral"
+            description="Resumo do domínio novo de preferências e capacidades atuais."
+            route="/preferencias/overview">
+          </app-preferences-hub-card>
+
+          <app-preferences-hub-card
+            title="Editor novo"
+            description="Edição da nova arquitetura de preferências e intenção."
+            [route]="'/preferencias/editar/' + vm.uid"
+            badge="Novo">
+          </app-preferences-hub-card>
+
+          <app-preferences-hub-card
+            title="Discovery settings"
+            description="Controle de descoberta, privacidade e elegibilidade de exposição."
+            route="/preferencias/discovery-settings">
+          </app-preferences-hub-card>
+
+          <app-preferences-hub-card
+            title="Laboratório do match profile"
+            description="Visualize e materialize o perfil derivado para discovery."
+            route="/preferencias/match-profile">
+          </app-preferences-hub-card>
+
+          <app-preferences-hub-card
+            title="Compatibilidade"
+            description="Cruze seu match profile com outro usuário materializado."
+            [route]="'/preferencias/compatibility-lab/' + vm.uid"
+            badge="Lab">
+          </app-preferences-hub-card>
+
+          @if (lastEditorUid()) {
+            <app-preferences-hub-card
+              title="Retomar último editor"
+              description="Volte rapidamente para a última edição aberta no domínio novo."
+              [route]="'/preferencias/editar/' + lastEditorUid()"
+              badge="Contexto">
+            </app-preferences-hub-card>
+          }
+
+          @if (lastCompatibilityTargetUid()) {
+            <app-preferences-hub-card
+              title="Retomar última compatibilidade"
+              description="Volte rapidamente para o último laboratório de compatibilidade."
+              [route]="'/preferencias/compatibility-lab/' + lastCompatibilityTargetUid()"
+              badge="Contexto">
+            </app-preferences-hub-card>
+          }
+        </section>
+      } @else {
+        <section class="hub-empty section" aria-label="Sem sessão ativa">
+          <p>Você precisa estar autenticado para acessar o hub de preferências.</p>
+        </section>
+      }
+    } @else {
+      <section class="hub-empty section" aria-label="Carregando hub">
+        <p>Carregando hub de preferências...</p>
+      </section>
+    }
+  </section>
+</main>

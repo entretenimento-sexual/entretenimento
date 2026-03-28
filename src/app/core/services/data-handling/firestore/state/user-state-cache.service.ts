@@ -50,6 +50,18 @@ export class UserStateCacheService {
   upsertUser(user: IUserDados, ttlMs = 300_000): void {
     if (!user?.uid) return;
 
+    const current = this.getCachedUserSnapshot(user.uid);
+    const same =
+      !!current &&
+      current.uid === user.uid &&
+      current.email === user.email &&
+      current.emailVerified === user.emailVerified &&
+      current.nickname === user.nickname &&
+      current.profileCompleted === user.profileCompleted &&
+      current.role === user.role;
+
+    if (same) return;
+
     this.store.dispatch(addUserToState({ user }));
     this.cache.set(this.key(user.uid), user, ttlMs);
   }

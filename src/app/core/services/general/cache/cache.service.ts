@@ -8,7 +8,6 @@
 // - CacheService NÃO é orquestrador de domínio.
 // - Ele não deve ser a fonte de verdade de current user.
 // - Métodos como syncCurrentUserWithUid e setUser existem por compatibilidade.
-
 import { Injectable } from '@angular/core';
 import { Store } from '@ngrx/store';
 import {
@@ -47,6 +46,16 @@ export class CacheService {
   private readonly logNoopDeletes = false;
   private readonly inFlightGets = new Map<string, Observable<any>>();
   private readonly noisyPrefixes: ReadonlyArray<string> = ['validation:'];
+  private readonly traceUserKeys = !environment.production;
+
+  private readonly tracedUserKeyPrefixes: ReadonlyArray<string> = [
+    'user:',
+  ];
+
+  private readonly tracedExactKeys: ReadonlySet<string> = new Set([
+    'currentUser',
+    'currentUserUid',
+  ]);
 
   constructor(
     private store: Store<AppState>,
@@ -60,38 +69,73 @@ export class CacheService {
   // SETTERS
   // ===========================================================================
 
-  set<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
-    const normalizedKey = this.normalizeKey(key);
-    const expiration = ttl ? Date.now() + ttl : null;
+set<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
+  const normalizedKey = this.normalizeKey(key);
+  const expiration = ttl ? Date.now() + ttl : null;
 
-    /**
-     * HOT_KEYS:
-     * - ficam em memória
-     * - espelham no localStorage
-     * - por default não vão para IndexedDB
-     */
-    const persist = opts?.persist ?? !HOT_KEYS.has(normalizedKey);
+  /**
+   * HOT_KEYS:
+   * - ficam em memória
+   * - espelham no localStorage
+   * - por default não vão para IndexedDB
+   */
+  const persist = opts?.persist ?? !HOT_KEYS.has(normalizedKey);
 
-    const prev = this.cache.get(normalizedKey);
-    const sameData = prev ? this.deepEqual(prev.data, data) : false;
-    const sameExp = prev ? prev.expiration === expiration : false;
+  const prev = this.cache.get(normalizedKey);
+  const sameData = prev ? this.deepEqual(prev.data, data) : false;
+  const sameExp = prev ? prev.expiration === expiration : false;
 
-    if (sameData && sameExp) return;
-
-    this.cache.set(normalizedKey, { data, expiration });
-    this.logKey(normalizedKey, `set → "${normalizedKey}"`, { expiration, persist });
-
-    if (persist) {
-      this.cachePersistence.setPersistent(normalizedKey, data).subscribe({
-        next: () => {},
-        error: (err) => this.safeHandle(err, `CacheService.setPersistent("${normalizedKey}")`),
-      });
-    }
-
-    if (HOT_KEYS.has(normalizedKey)) {
-      this.mirrorHotKeyToLocalStorage(normalizedKey, data);
-    }
+  if (sameData && sameExp) {
+    this.traceUserWrite(normalizedKey, data, {
+      stage: 'skip:sameData+sameExp',
+      expiration,
+      persist,
+    });
+    return;
   }
+
+  this.traceUserWrite(normalizedKey, data, {
+    stage: 'before:set',
+    expiration,
+    persist,
+    hadPrev: !!prev,
+    sameData,
+    sameExp,
+  });
+
+  this.cache.set(normalizedKey, { data, expiration });
+  this.logKey(normalizedKey, `set → "${normalizedKey}"`, { expiration, persist });
+
+  if (persist) {
+    this.cachePersistence.setPersistent(normalizedKey, data).subscribe({
+      next: () => {
+        this.traceUserWrite(normalizedKey, data, {
+          stage: 'after:setPersistent:ok',
+          expiration,
+          persist,
+        });
+      },
+      error: (err) => {
+        this.traceUserWrite(normalizedKey, data, {
+          stage: 'after:setPersistent:error',
+          expiration,
+          persist,
+          error: err,
+        });
+        this.safeHandle(err, `CacheService.setPersistent("${normalizedKey}")`);
+      },
+    });
+  }
+
+  if (HOT_KEYS.has(normalizedKey)) {
+    this.mirrorHotKeyToLocalStorage(normalizedKey, data);
+    this.traceUserWrite(normalizedKey, data, {
+      stage: 'after:mirrorHotKeyToLocalStorage',
+      expiration,
+      persist,
+    });
+  }
+}
 
   /**
    * Compat semântico:
@@ -314,6 +358,42 @@ export class CacheService {
       return false;
     }
   }
+
+  private shouldTraceUserKey(key: string): boolean {
+  if (!this.traceUserKeys) return false;
+
+  if (this.tracedExactKeys.has(key)) return true;
+  return this.tracedUserKeyPrefixes.some((prefix) => key.startsWith(prefix));
+}
+
+private summarizeUserLikeData(data: unknown): unknown {
+  if (!data || typeof data !== 'object') return data;
+
+  const value = data as Record<string, unknown>;
+  return {
+    uid: value['uid'] ?? null,
+    email: value['email'] ?? null,
+    emailVerified: value['emailVerified'] ?? null,
+    nickname: value['nickname'] ?? null,
+    profileCompleted: value['profileCompleted'] ?? null,
+    role: value['role'] ?? null,
+  };
+}
+
+    private traceUserWrite(key: string, data: unknown, meta?: Record<string, unknown>): void {
+      if (!this.shouldTraceUserKey(key)) return;
+
+      const stack = new Error(`[CacheService][TRACE] ${key}`).stack
+        ?.split('\n')
+        .slice(1, 7);
+
+      // eslint-disable-next-line no-console
+      console.log(`[CacheService][TRACE] ${key}`, {
+        meta,
+        summary: this.summarizeUserLikeData(data),
+        stack,
+      });
+    }
 
   private mirrorHotKeyToLocalStorage(key: string, data: any): void {
     try {

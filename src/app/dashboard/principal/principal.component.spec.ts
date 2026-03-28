@@ -2,9 +2,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideMockStore, MockStore } from '@ngrx/store/testing';
 import { PrincipalComponent } from './principal.component';
+import {  selectCurrentUser } from '../../store/selectors/selectors.user/user.selectors';
 
-import { selectPendingFriendRequestsCount } from '../../store/selectors/selectors.interactions/friend.selector';
-import { selectCurrentUser } from '../../store/selectors/selectors.user/user.selectors';
 import { IUserDados } from '../../core/interfaces/iuser-dados';
 
 
@@ -34,7 +33,7 @@ describe('PrincipalComponent', () => {
       email: 'x@y.com',
       profileCompleted: true,
     } as unknown as IUserDados);
-    store.overrideSelector(selectPendingFriendRequestsCount, 0);
+  
 
     fixture = TestBed.createComponent(PrincipalComponent);
     component = fixture.componentInstance;

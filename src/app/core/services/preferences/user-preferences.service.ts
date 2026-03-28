@@ -1,7 +1,7 @@
 // src/app/core/services/preferences/user-preferences.service.ts
-// =============================================================================
+// =============================================================
 // USER PREFERENCES SERVICE (SWR)
-// ----------------------------------------------------------------------------
+// -------------------------------------------------------------
 // Padrão “grandes plataformas” aplicado:
 //
 // 1) API Observable-first.
@@ -24,7 +24,7 @@
 // Cache TTL:
 // - preferences:{uid}      -> payload IUserPreferences
 // - preferences:{uid}:meta -> { cachedAt: number }
-// =============================================================================
+// ==================================================================
 import { Injectable } from '@angular/core';
 import {
   Firestore,

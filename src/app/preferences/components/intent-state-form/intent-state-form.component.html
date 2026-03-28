@@ -1,0 +1,53 @@
+<!-- src\app\preferences\components\intent-state-form\intent-state-form.component.html -->
+ <form class="intent-state-form" [formGroup]="form" (ngSubmit)="submit()" aria-label="Formulário de intenção atual">
+  <section class="form-section" aria-labelledby="intent-mode-title">
+    <h2 id="intent-mode-title" class="section-title">Estado atual</h2>
+
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="intentMode">Modo atual</label>
+        <select id="intentMode" formControlName="mode">
+          @for (option of intentOptions; track option.key) {
+            <option [value]="option.key">{{ option.label }}</option>
+          }
+        </select>
+      </div>
+
+      <div class="form-field">
+        <label for="cityOverride">Cidade contextual</label>
+        <input id="cityOverride" type="text" formControlName="cityOverride" placeholder="Ex.: Rio de Janeiro" />
+      </div>
+
+      <div class="form-field">
+        <label for="expiresAt">Expira em</label>
+        <input id="expiresAt" type="datetime-local" formControlName="expiresAt" />
+      </div>
+
+      <div class="form-field">
+        <label for="tagsText">Tags contextuais</label>
+        <input
+          id="tagsText"
+          type="text"
+          formControlName="tagsText"
+          placeholder="Ex.: viagem, fim de semana, discreto"
+        />
+      </div>
+
+      <label class="checkbox-item inline-item">
+        <input type="checkbox" formControlName="availableNow" />
+        <span>Disponível agora</span>
+      </label>
+
+      <label class="checkbox-item inline-item">
+        <input type="checkbox" formControlName="availableToday" />
+        <span>Disponível hoje</span>
+      </label>
+    </div>
+  </section>
+
+  <footer class="form-actions">
+    <button type="submit" class="btn btn-primary" [disabled]="saving()">
+      Salvar intenção atual
+    </button>
+  </footer>
+</form>

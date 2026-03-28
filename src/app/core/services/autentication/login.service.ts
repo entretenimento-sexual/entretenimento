@@ -17,8 +17,7 @@
 // - pós-login de domínio
 //
 // Tudo isso continua no AuthOrchestrator / serviços correlatos.
-// ===============================================================
-
+// ==============================================================
 import { Injectable } from '@angular/core';
 import { Observable, defer, firstValueFrom, of } from 'rxjs';
 import {

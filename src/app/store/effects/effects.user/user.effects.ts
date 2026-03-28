@@ -81,13 +81,6 @@ export class UserEffects {
     private readonly globalErrorHandler: GlobalErrorHandlerService
   ) {}
 
-  private safeJsonEqual(a: unknown, b: unknown): boolean {
-    try {
-      return JSON.stringify(a) === JSON.stringify(b);
-    } catch {
-      return a === b;
-    }
-  }
 
   private buildUnavailableAction(uid: string) {
     return setCurrentUserUnavailable({
@@ -99,6 +92,23 @@ export class UserEffects {
       ),
     });
   }
+
+  private areUsersEquivalent(
+  current: IUserDados | null | undefined,
+  incoming: IUserDados | null | undefined
+): boolean {
+  if (current === incoming) return true;
+  if (!current || !incoming) return false;
+
+  return (
+    current.uid === incoming.uid &&
+    current.nickname === incoming.nickname &&
+    current.email === incoming.email &&
+    current.emailVerified === incoming.emailVerified &&
+    current.role === incoming.role &&
+    current.profileCompleted === incoming.profileCompleted
+  );
+}
 
   /**
    * Observa o documento users/{uid}.
@@ -155,7 +165,12 @@ export class UserEffects {
         });
 
         return this.firestoreUserQuery.getUser(uid).pipe(
-          distinctUntilChanged((a, b) => this.safeJsonEqual(a, b)),
+          distinctUntilChanged((a, b) =>
+            this.areUsersEquivalent(
+              (a as IUserDados | null | undefined) ?? null,
+              (b as IUserDados | null | undefined) ?? null
+            )
+          ),
 
           tap((user) =>
             this.dbg('user snapshot', {

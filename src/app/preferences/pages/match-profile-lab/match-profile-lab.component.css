@@ -1,0 +1,53 @@
+/* src\app\preferences\pages\match-profile-lab\match-profile-lab.component.css */
+.match-profile-lab-page {
+  width: 100%;
+}
+
+.match-profile-lab-shell {
+  display: grid;
+  gap: 1.25rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.match-profile-lab-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.match-profile-lab-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.match-profile-lab-subtitle {
+  margin: 0.4rem 0 0;
+  opacity: 0.8;
+}
+
+.match-profile-lab-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.match-profile-lab-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 840px) {
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+}

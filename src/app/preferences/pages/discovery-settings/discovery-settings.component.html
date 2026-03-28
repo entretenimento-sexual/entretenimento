@@ -1,0 +1,47 @@
+<!-- src\app\preferences\pages\discovery-settings\discovery-settings.component.html -->
+<main class="discovery-settings-page app-page" aria-label="Configurações de descoberta">
+  <section class="discovery-settings-shell stack">
+    <app-preferences-page-header
+      title="Discovery settings"
+      subtitle="Controle do modo de descoberta, privacidade e elegibilidade de exposição."
+    >
+      <a page-actions class="btn btn-secondary" routerLink="/preferencias">
+        Voltar para preferências
+      </a>
+    </app-preferences-page-header>
+
+    <app-preferences-domain-nav></app-preferences-domain-nav>
+
+    @if (vm$ | async; as vm) {
+      @if (vm) {
+        <app-discovery-visibility-panel
+          [profile]="vm.profile"
+          [capabilities]="vm.capabilities">
+        </app-discovery-visibility-panel>
+
+        <section class="discovery-settings-section" aria-label="Formulário de descoberta">
+          <h2 class="section-title">Editar descoberta e visibilidade</h2>
+
+          <app-discovery-visibility-form
+            [visibility]="vm.visibility"
+            [capabilities]="vm.capabilities"
+            [saving]="isSaving()"
+            (saveVisibility)="onSave(vm.uid, $event)">
+          </app-discovery-visibility-form>
+        </section>
+
+        <app-discovery-upgrade-hints
+          [capabilities]="vm.capabilities">
+        </app-discovery-upgrade-hints>
+      } @else {
+        <section class="discovery-settings-section" aria-label="Sem sessão ativa">
+          <p>Você precisa estar autenticado para acessar esta área.</p>
+        </section>
+      }
+    } @else {
+      <section class="discovery-settings-section" aria-label="Carregando configurações de descoberta">
+        <p>Carregando configurações de descoberta...</p>
+      </section>
+    }
+  </section>
+</main>

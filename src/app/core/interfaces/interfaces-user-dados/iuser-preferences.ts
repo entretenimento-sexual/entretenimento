@@ -1,6 +1,19 @@
-//src\app\core\interfaces\interfaces-user-dados\iuser-preferences.ts
-export interface IUserPreferences {
-  [key: string]: any;  // Permite qualquer chave com valor de qualquer tipo
+// src/app/core/interfaces/interfaces-user-dados/iuser-preferences.ts
 
-  // Outras categorias conforme necessário
+/**
+ * @deprecated
+ * Interface legado/V1.
+ *
+ * Motivo:
+ * - ainda sustenta o editor atual de preferências baseado em flags soltas
+ * - continua sendo usada pelo UserPreferencesService legado
+ *
+ * Destino:
+ * - migrar gradualmente para:
+ *   - IUserPreferenceProfile
+ *   - IUserIntentState
+ *   - IUserMatchProfile
+ */
+export interface IUserPreferences {
+  [key: string]: any;
 }

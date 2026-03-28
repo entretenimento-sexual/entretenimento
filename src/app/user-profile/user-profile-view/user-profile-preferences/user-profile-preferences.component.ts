@@ -1,22 +1,45 @@
-// src\app\user-profile\user-profile-view\user-profile-preferences\user-profile-preferences.component.ts
-// Não esqueça os comentários explicativos e ferramentas de debug.
+// src/app/user-profile/user-profile-view/user-profile-preferences/user-profile-preferences.component.ts
+// Viewer de preferências alinhado com V2 + fallback legado.
+//
+// Estratégia:
+// - lê V2 primeiro (IUserPreferenceProfile)
+// - se V2 estiver vazia, cai para o legado (IUserPreferences)
+// - mantém o template atual sem exigir reescrita imediata
+// - remove cache/store duplicados do componente
+//
+// Observações:
+// - role continua canônico em IUserDados, não em IUserPreferenceProfile
+// - este componente só exibe preferências; não decide permissões
+
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit, input } from '@angular/core';
 import { Router, RouterModule } from '@angular/router';
-import { Observable, of } from 'rxjs';
-import { catchError, switchMap, take, tap } from 'rxjs/operators';
-import { mapeamentoCategorias } from 'src/app/core/interfaces/icategoria-mapeamento';
-import { IUserPreferences } from 'src/app/core/interfaces/interfaces-user-dados/iuser-preferences';
-import { UserPreferencesService } from 'src/app/core/services/preferences/user-preferences.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { CacheService } from 'src/app/core/services/general/cache/cache.service';
+import { combineLatest, Observable, of } from 'rxjs';
+import { catchError, map, shareReplay, tap } from 'rxjs/operators';
+
 import { SharedModule } from 'src/app/shared/shared.module';
-import { selectCacheItem } from 'src/app/store/selectors/cache.selectors';
-import { setCache } from 'src/app/store/actions/cache.actions';
-import { Store } from '@ngrx/store';
-import { AppState } from 'src/app/store/states/app.state';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
+
+import { IUserPreferences } from 'src/app/core/interfaces/interfaces-user-dados/iuser-preferences';
+import { IUserPreferenceProfile } from '@core/interfaces/preferences/user-preference-profile.interface';
+
+import { UserPreferencesService } from 'src/app/core/services/preferences/user-preferences.service';
+import { UserPreferenceProfileService } from 'src/app/core/services/preferences/user-preference-profile.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+
+import { mapeamentoCategorias } from 'src/app/core/interfaces/icategoria-mapeamento';
+import {
+  hasMeaningfulPreferenceProfile,
+  mapProfileToLegacyEditorState,
+} from '@core/utils/preferences/preference-mappers';
+
+import { environment } from 'src/environments/environment';
+
+type TCategoriasDePreferencias = Record<
+  'genero' | 'praticaSexual' | 'preferenciaFisica' | 'relacionamento',
+  string[]
+>;
 
 @Component({
   selector: 'app-user-profile-preferences',
@@ -28,128 +51,144 @@ import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
 export class UserProfilePreferencesComponent implements OnInit {
   readonly uid = input<string | null>(null);
 
-  public categoriasDePreferencias: any = {
+  public preferences$: Observable<IUserPreferences | null> = of(null);
+
+  public categoriasDePreferencias: TCategoriasDePreferencias = {
     genero: [],
     praticaSexual: [],
     preferenciaFisica: [],
     relacionamento: [],
   };
 
-  public preferences$: Observable<IUserPreferences | null> = of(null);
+  private readonly debug = !environment.production;
 
   constructor(
-    private userPreferencesService: UserPreferencesService,
-    private cacheService: CacheService,
-    private errorNotifier: ErrorNotificationService,
-    private cdr: ChangeDetectorRef,
-    private router: Router,
-    private store: Store<AppState>,) { }
+    private readonly preferenceProfileService: UserPreferenceProfileService,
+    private readonly userPreferencesService: UserPreferencesService,
+    private readonly errorNotifier: ErrorNotificationService,
+    private readonly cdr: ChangeDetectorRef,
+    private readonly router: Router,
+  ) {}
 
   ngOnInit(): void {
+    const userId = (this.uid() ?? '').trim();
+    this.dbg('init uid', userId || null);
 
-    const uid = this.uid();
-    console.log('[UserProfilePreferencesComponent] Iniciando com UID:', uid);
-
-    if (!uid) { // ✅ Corrigido: Evita erro de null antes de acessar a API
-      console.log('[UserProfilePreferencesComponent] UID inválido.');
+    if (!userId) {
+      this.dbg('uid ausente');
+      this.resetCategorias();
       return;
     }
 
-    this.preferences$ = this.cacheService.get<IUserPreferences>(`preferences:${uid}`).pipe(
-      switchMap((cachedPreferences) => {
-        if (cachedPreferences) {
-          console.log('[Cache] Preferências encontradas no cache:', cachedPreferences);
-          this.agruparPreferencias(cachedPreferences);
-          this.cdr.detectChanges();
-          return of(cachedPreferences);
+    const profileV2$ = this.preferenceProfileService.getPreferenceProfile$(userId).pipe(
+      catchError((error) => {
+        this.dbg('erro ao ler V2', error);
+        return of(null as IUserPreferenceProfile | null);
+      })
+    );
+
+    const legacy$ = this.userPreferencesService.getUserPreferences$(userId).pipe(
+      catchError((error) => {
+        this.dbg('erro ao ler legado', error);
+        return of(null as IUserPreferences | null);
+      })
+    );
+
+    this.preferences$ = combineLatest([profileV2$, legacy$]).pipe(
+      map(([profileV2, legacy]) => {
+        if (hasMeaningfulPreferenceProfile(profileV2)) {
+          this.dbg('viewer usando V2');
+          return mapProfileToLegacyEditorState(profileV2);
         }
 
-        console.log('[Store] Preferências não encontradas no cache. Verificando Store...');
-        return this.store.select(selectCacheItem(`preferences:${this.uid()}`)).pipe(
-          take(1),
-          switchMap((storePreferences) => {
-            if (storePreferences) {
-              console.log('[Store] Preferências encontradas no Store:', storePreferences);
-              this.cacheService.set(`preferences:${this.uid()}`, storePreferences);
-              this.agruparPreferencias(storePreferences);
-              this.cdr.detectChanges();
-              return of(storePreferences);
-            }
+        if (legacy) {
+          this.dbg('viewer usando legado');
+          return legacy;
+        }
 
-            console.log('[Firestore] Preferências não encontradas no Store. Buscando no Firestore...');
-            return this.userPreferencesService.getUserPreferences$(uid).pipe( // ✅ `this.uid!` pois já foi verificado antes
-              take(1),
-              tap((fetchedPreferences) => {
-                if (fetchedPreferences) {
-                  console.log('[Firestore] Preferências carregadas:', fetchedPreferences);
-                  const uidValue = this.uid();
-                  this.cacheService.set(`preferences:${uidValue}`, fetchedPreferences);
-                  this.store.dispatch(setCache({ key: `preferences:${uidValue}`, value: fetchedPreferences }));
-                  this.agruparPreferencias(fetchedPreferences);
-                  this.cdr.detectChanges();
-                }
-              }),
-              catchError((error) => {
-                console.log('[UserProfilePreferencesComponent] Erro ao buscar preferências:', error);
-                this.errorNotifier.showError('Não foi possível carregar as preferências.');
-                return of(null);
-              })
-            );
-          })
-        );
-      })
+        this.dbg('nenhuma preferência encontrada');
+        return null;
+      }),
+      tap((preferences) => {
+        if (!preferences) {
+          this.resetCategorias();
+          this.cdr.detectChanges();
+          return;
+        }
+
+        this.agruparPreferencias(preferences);
+        this.cdr.detectChanges();
+      }),
+      catchError((error) => {
+        this.dbg('erro final no viewer', error);
+        this.errorNotifier.showError('Não foi possível carregar as preferências.');
+        this.resetCategorias();
+        this.cdr.detectChanges();
+        return of(null);
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
-
-
-  /**
-  * Organiza as preferências do usuário dentro de categorias definidas.
-  * @param preferencias Preferências do usuário a serem categorizadas.
-  */
-  private agruparPreferencias(preferencias: IUserPreferences): void {
-    // 🔥 Reinicializa os arrays de categorias antes de preenchê-los novamente
+  private resetCategorias(): void {
     this.categoriasDePreferencias = {
       genero: [],
       praticaSexual: [],
       preferenciaFisica: [],
       relacionamento: [],
     };
+  }
 
-    if (!preferencias) {
-      console.log("[UserProfilePreferencesComponent] Nenhuma preferência foi encontrada.");
-      return;
+  /**
+   * Compatibilidade dupla:
+   * - aceita arrays por categoria (shape legado agrupado / estado do editor)
+   * - aceita flags booleanas soltas (shape legado antigo)
+   */
+  private agruparPreferencias(preferencias: IUserPreferences): void {
+    this.resetCategorias();
+
+    const categoriasBase = ['genero', 'praticaSexual', 'preferenciaFisica', 'relacionamento'] as const;
+
+    // 1) Formato agrupado por categoria
+    for (const categoria of categoriasBase) {
+      const valor = preferencias?.[categoria];
+      if (Array.isArray(valor)) {
+        this.categoriasDePreferencias[categoria] = [...valor];
+      }
     }
 
-    // 🔄 Percorre todas as preferências do usuário
-    Object.keys(preferencias).forEach((key) => {
-      if (preferencias[key]) { // ✅ Apenas adiciona se a preferência estiver ativa
-        for (const categoria in mapeamentoCategorias) {
-          if (mapeamentoCategorias[categoria as keyof typeof mapeamentoCategorias].includes(key)) {
-            this.categoriasDePreferencias[categoria].push(key);
-            break; // 🔥 Evita adicionar a mesma chave em múltiplas categorias
+    // 2) Formato antigo por flags booleanas
+    Object.keys(preferencias ?? {}).forEach((key) => {
+      if (!preferencias[key]) return;
+      if (categoriasBase.includes(key as any)) return;
+
+      for (const categoria in mapeamentoCategorias) {
+        if (mapeamentoCategorias[categoria as keyof typeof mapeamentoCategorias].includes(key)) {
+          if (!this.categoriasDePreferencias[categoria as keyof TCategoriasDePreferencias].includes(key)) {
+            this.categoriasDePreferencias[categoria as keyof TCategoriasDePreferencias].push(key);
           }
+          break;
         }
       }
     });
 
-    console.log("[UserProfilePreferencesComponent] Preferências agrupadas:", this.categoriasDePreferencias);
+    this.dbg('categoriasDePreferencias', this.categoriasDePreferencias);
   }
 
-  onPreferenceClick(pref: string): void {
-    console.log(`Clicou na preferência: ${pref}`);
-
-    // 🚀 No futuro, essa lógica será aprimorada para buscar perfis compatíveis
-    this.router.navigate(['/buscar'], { queryParams: { preferencia: pref } });
+  onPreferenceClick(preference: string): void {
+    this.dbg('preference click', preference);
+    this.router.navigate(['/buscar'], {
+      queryParams: { preferencia: preference },
+    });
   }
 
-
-  /**
- * Retorna as chaves de um objeto para ser usado no template
- * @param obj Objeto do qual queremos as chaves
- * @returns Lista de chaves
- */
-  public objectKeys(obj: any): string[] {
-    return obj ? Object.keys(obj) : [];
+  public objectKeys(obj: unknown): string[] {
+    return obj && typeof obj === 'object' ? Object.keys(obj as object) : [];
   }
-}
+
+  private dbg(message: string, extra?: unknown): void {
+    if (!this.debug) return;
+    // eslint-disable-next-line no-console
+    console.log(`[UserProfilePreferencesComponent] ${message}`, extra ?? '');
+  }
+} // Linha 194

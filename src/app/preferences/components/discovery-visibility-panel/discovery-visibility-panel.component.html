@@ -1,0 +1,40 @@
+<!-- src\app\preferences\components\discovery-visibility-panel\discovery-visibility-panel.component.html -->
+<section class="discovery-visibility-panel" aria-label="Painel de descoberta e visibilidade">
+  <header class="panel-header">
+    <div>
+      <h2 class="panel-title">Descoberta e visibilidade</h2>
+      <p class="panel-subtitle">
+        Como o perfil circula na plataforma e quais recursos de descoberta estão disponíveis.
+      </p>
+    </div>
+
+    <div class="panel-badges" aria-label="Estado atual de descoberta">
+      <span class="panel-badge">{{ discoveryModeLabel() }}</span>
+      <span class="panel-badge">Badges: {{ showBadgesLabel() }}</span>
+      <span class="panel-badge">Intenção: {{ showIntentPubliclyLabel() }}</span>
+    </div>
+  </header>
+
+  <div class="panel-grid" role="list">
+    @for (item of availabilityItems(); track item.label) {
+      <article class="panel-item" role="listitem">
+        <div class="panel-item-header">
+          <span class="panel-item-label">{{ item.label }}</span>
+          <strong class="panel-item-status">
+            {{ item.enabled ? 'Liberado' : 'Bloqueado' }}
+          </strong>
+        </div>
+
+        <p class="panel-item-hint">
+          {{ item.hint }}
+        </p>
+      </article>
+    }
+  </div>
+
+  <footer class="panel-footer">
+    <p class="panel-footnote">
+      {{ monetizationHint() }}
+    </p>
+  </footer>
+</section>

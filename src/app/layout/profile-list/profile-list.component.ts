@@ -1,17 +1,26 @@
+// src/app/layout/profile-list/profile-list.component.ts
+// Observa o usuário autenticado e busca perfis públicos sugeridos.
+// Ajustes deste arquivo:
+// - loading e erro reais na UI
+// - filtro do próprio usuário fora da lista
+// - compatível com OnPush via markForCheck()
+// - debug enxuto em ambiente não produtivo
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   DestroyRef,
   OnInit,
   inject,
 } from '@angular/core';
-import { finalize, switchMap, catchError, distinctUntilChanged, map, startWith } from 'rxjs/operators';
 import { of } from 'rxjs';
+import { catchError, distinctUntilChanged, finalize, map, switchMap } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { FirestoreQueryService } from 'src/app/core/services/data-handling/firestore-query.service';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { environment } from 'src/environments/environment';
 
 @Component({
   selector: 'app-profile-list',
@@ -24,61 +33,73 @@ export class ProfileListComponent implements OnInit {
   private readonly userStore = inject(CurrentUserStoreService);
   private readonly firestoreQuery = inject(FirestoreQueryService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly cdr = inject(ChangeDetectorRef);
 
-  /** Usuário autenticado (ou null) — usado se precisar personalizar a lista */
+  private readonly debug = !environment.production;
+
+  /** Usuário autenticado (ou null) */
   user: IUserDados | null = null;
 
   /** Perfis sugeridos para exibição */
   profiles: IUserDados[] = [];
 
-  /** Sinais simples de UX */
+  /** Estados simples de UX */
   loading = false;
   loadError = false;
 
   ngOnInit(): void {
-    // Observa mudanças do usuário atual (normalizando undefined -> null),
-    // evita refetch quando o uid não muda e busca sugestões quando há login.
     this.userStore.user$
       .pipe(
-        startWith(undefined),
-        map(u => u ?? null),
+        map((user) => user ?? null),
         distinctUntilChanged((a, b) => (a?.uid ?? null) === (b?.uid ?? null)),
         switchMap((currentUser) => {
           this.user = currentUser;
           this.loadError = false;
 
-          if (!currentUser) {
-            // Sem usuário => não buscar sugestões
+          if (!currentUser?.uid) {
             this.loading = false;
+            this.profiles = [];
+            this.cdr.markForCheck();
             return of<IUserDados[]>([]);
           }
 
-          // Com usuário => buscar sugestões
           this.loading = true;
+          this.cdr.markForCheck();
+
           return this.firestoreQuery.getSuggestedProfiles().pipe(
+            map((profiles) =>
+              (profiles ?? []).filter((profile) => !!profile?.uid && profile.uid !== currentUser.uid)
+            ),
             catchError((err) => {
-              // Log enxuto: deixe detalhes no console e apenas sinalize no UI
-              console.error('[ProfileListComponent] Erro ao buscar perfis sugeridos:', err);
+              this.dbg('Erro ao buscar perfis sugeridos', err);
               this.loadError = true;
               return of<IUserDados[]>([]);
             }),
             finalize(() => {
               this.loading = false;
-            }),
+              this.cdr.markForCheck();
+            })
           );
         }),
-        takeUntilDestroyed(this.destroyRef),
+        takeUntilDestroyed(this.destroyRef)
       )
       .subscribe((profiles) => {
         this.profiles = profiles ?? [];
+        this.cdr.markForCheck();
       });
   }
 
-  /** trackBy para @for — evita recriar DOM inteiro a cada emissão */
-  trackByUid = (_: number, p: IUserDados) => p?.uid ?? p;
+  /** trackBy para @for — evita recriar a lista inteira */
+  trackByUid = (_: number, profile: IUserDados) => profile?.uid ?? profile;
 
-  /** Helper simples para exibir rótulo coerente */
-  displayName(p: IUserDados): string {
-    return p?.nickname || p?.nome || 'Usuário Anônimo';
+  /** Rótulo coerente para UI */
+  displayName(profile: IUserDados): string {
+    return profile?.nickname || profile?.nome || 'Usuário Anônimo';
+  }
+
+  private dbg(message: string, extra?: unknown): void {
+    if (!this.debug) return;
+    // eslint-disable-next-line no-console
+    console.debug(`[ProfileListComponent] ${message}`, extra ?? '');
   }
 }

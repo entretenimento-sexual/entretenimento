@@ -1,0 +1,42 @@
+<!-- src\app\preferences\components\discovery-visibility-form\discovery-visibility-form.component.html -->
+<form
+  class="discovery-visibility-form"
+  [formGroup]="form"
+  (ngSubmit)="submit()"
+  aria-label="Formulário de configurações de descoberta"
+>
+  <section class="form-section" aria-labelledby="visibility-settings-title">
+    <h2 id="visibility-settings-title" class="section-title">
+      Configurações de descoberta
+    </h2>
+
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="discoveryMode">Modo de descoberta</label>
+        <select id="discoveryMode" formControlName="discoveryMode">
+          @for (option of discoveryModeOptions; track option.key) {
+            @if (isModeAvailable(option.key)) {
+              <option [value]="option.key">{{ option.label }}</option>
+            }
+          }
+        </select>
+      </div>
+
+      <label class="checkbox-item inline-item">
+        <input type="checkbox" formControlName="showPreferenceBadges" />
+        <span>Exibir badges de preferências</span>
+      </label>
+
+      <label class="checkbox-item inline-item">
+        <input type="checkbox" formControlName="showIntentPublicly" />
+        <span>Exibir intenção publicamente</span>
+      </label>
+    </div>
+  </section>
+
+  <footer class="form-actions">
+    <button type="submit" class="btn btn-primary" [disabled]="!canEdit() || saving()">
+      Salvar descoberta e visibilidade
+    </button>
+  </footer>
+</form>

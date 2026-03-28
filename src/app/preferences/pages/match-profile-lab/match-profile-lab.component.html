@@ -1,0 +1,49 @@
+<!-- src\app\preferences\pages\match-profile-lab\match-profile-lab.component.html -->
+ <main class="match-profile-lab-page" aria-label="Laboratório do match profile">
+  <section class="match-profile-lab-shell">
+    <header class="match-profile-lab-header">
+      <div>
+        <h1 class="match-profile-lab-title">Laboratório do match profile</h1>
+        <p class="match-profile-lab-subtitle">
+          Visualização e materialização do documento derivado de discovery.
+        </p>
+      </div>
+
+      <nav class="match-profile-lab-actions" aria-label="Ações do laboratório">
+        <button class="btn btn-primary" type="button" (click)="rebuild()" [disabled]="isSaving()">
+          {{ isSaving() ? 'Materializando...' : 'Recriar e salvar match profile' }}
+        </button>
+
+        <a class="btn btn-secondary" routerLink="/preferencias">
+          Voltar para preferências
+        </a>
+      </nav>
+    </header>
+
+    @if (vm$ | async; as vm) {
+      @if (vm) {
+        <section class="match-profile-lab-section" aria-label="Comparação do match profile">
+          <div class="cards-grid">
+            <app-match-profile-preview-card
+              [title]="'Construído em memória'"
+              [matchProfile]="vm.built">
+            </app-match-profile-preview-card>
+
+            <app-match-profile-preview-card
+              [title]="'Materializado no store'"
+              [matchProfile]="vm.stored">
+            </app-match-profile-preview-card>
+          </div>
+        </section>
+      } @else {
+        <section class="match-profile-lab-section" aria-label="Sem sessão ativa">
+          <p>Você precisa estar autenticado para visualizar esta área.</p>
+        </section>
+      }
+    } @else {
+      <section class="match-profile-lab-section" aria-label="Carregando laboratório">
+        <p>Carregando laboratório do match profile...</p>
+      </section>
+    }
+  </section>
+</main>

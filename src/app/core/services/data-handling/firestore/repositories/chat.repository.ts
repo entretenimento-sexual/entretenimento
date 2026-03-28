@@ -116,7 +116,9 @@ export class ChatRepository {
     );
 
     // idField injeta o id do doc no objeto
-    return collectionData(q as any, { idField: 'id' }).pipe(
+    return runInInjectionContext(this.injector, () =>
+      collectionData(q as any, { idField: 'id' })
+    ).pipe(
       map(arr => (arr ?? []) as IChat[]),
       catchError(err => {
         this.reportSilent('watchChats$', err);

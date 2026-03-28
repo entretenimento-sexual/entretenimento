@@ -1,5 +1,5 @@
 // src/app/core/services/autentication/auth/auth-user-document-watch.service.ts
-// =================================================================
+// ============================================================
 // AUTH USER DOCUMENT WATCH SERVICE
 //
 // Responsabilidade única:

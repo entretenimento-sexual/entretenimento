@@ -5,10 +5,9 @@
 // - Parar de usar `as any` em doc(), collection(), query(), updateDoc(), etc.
 // - Manter API pública simples (getFirestoreInstance)
 import { inject, Injectable } from '@angular/core';
-import { Firestore } from '@angular/fire/firestore';
-import { QueryConstraint, where } from 'firebase/firestore';
 import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
+import { Firestore, limit, QueryConstraint, where } from '@angular/fire/firestore';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { CacheService } from '../general/cache/cache.service';
@@ -131,11 +130,19 @@ export class FirestoreQueryService {
    * Compat: sugestões (pode evoluir para ranking no futuro).
    * Por ora: delega para listagem simples.
    */
-  getSuggestedProfiles(): Observable<IUserDados[]> {
-    return this.getDocumentsByQuery<IUserDados>('users', []).pipe(
-      catchError(() => of([] as IUserDados[]))
-    );
-  }
+getSuggestedProfiles(limitCount = 24): Observable<IUserDados[]> {
+  return this.read.getDocumentsLiveSafe<IUserDados>(
+    'public_profiles',
+    [limit(limitCount)],
+    {
+      idField: 'uid',
+      requireAuth: true,
+    }
+  ).pipe(
+    map((profiles) => (profiles ?? []) as IUserDados[]),
+    catchError(() => of([] as IUserDados[]))
+  );
+}
 
   // =========================================================
   // Consultas específicas

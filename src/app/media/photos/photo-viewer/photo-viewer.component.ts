@@ -4,7 +4,6 @@
 // - Recebe lista de fotos + índice inicial via MAT_DIALOG_DATA
 // - Navegação anterior/próxima
 // - Acessível (aria, botões, foco natural)
-
 import { ChangeDetectionStrategy, Component, Inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';

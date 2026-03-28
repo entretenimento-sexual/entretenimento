@@ -1,0 +1,122 @@
+<!-- src\app\preferences\components\preference-profile-form\preference-profile-form.component.html -->
+ <form class="preference-profile-form" [formGroup]="form" (ngSubmit)="submit()" aria-label="Formulário de perfil de preferências">
+  <section class="form-section" aria-labelledby="relationship-intents-title">
+    <h2 id="relationship-intents-title" class="section-title">Intenções relacionais</h2>
+
+    <div class="checkbox-grid">
+      @for (option of relationshipIntentOptions; track option.key) {
+        <label class="checkbox-item">
+          <input type="checkbox" [formControlName]="'ri_' + option.key" />
+          <span>{{ option.label }}</span>
+        </label>
+      }
+    </div>
+  </section>
+
+  <section class="form-section" aria-labelledby="gender-interests-title">
+    <h2 id="gender-interests-title" class="section-title">Interesses de gênero</h2>
+
+    <div class="checkbox-grid">
+      @for (option of genderInterestOptions; track option.key) {
+        <label class="checkbox-item">
+          <input type="checkbox" [formControlName]="'gi_' + option.key" />
+          <span>{{ option.label }}</span>
+        </label>
+      }
+    </div>
+  </section>
+
+  <section class="form-section" aria-labelledby="sexual-practices-title">
+    <h2 id="sexual-practices-title" class="section-title">Práticas desejadas</h2>
+
+    <div class="checkbox-grid">
+      @for (option of sexualPracticeOptions; track option.key) {
+        <label class="checkbox-item">
+          <input type="checkbox" [formControlName]="'sp_' + option.key" />
+          <span>{{ option.label }}</span>
+        </label>
+      }
+    </div>
+  </section>
+
+  <section class="form-section" aria-labelledby="body-preferences-title">
+    <h2 id="body-preferences-title" class="section-title">Preferências físicas</h2>
+
+    <div class="checkbox-grid">
+      @for (option of bodyPreferenceOptions; track option.key) {
+        <label class="checkbox-item">
+          <input type="checkbox" [formControlName]="'bp_' + option.key" />
+          <span>{{ option.label }}</span>
+        </label>
+      }
+    </div>
+  </section>
+
+  <section class="form-section" aria-labelledby="hard-rules-title">
+    <h2 id="hard-rules-title" class="section-title">Regras de descoberta</h2>
+
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="maxDistanceKm">Distância máxima (km)</label>
+        <input id="maxDistanceKm" type="number" formControlName="maxDistanceKm" min="0" step="1" />
+      </div>
+
+      <div class="form-field">
+        <label for="acceptsTransProfiles">Preferência sobre perfis trans</label>
+        <select id="acceptsTransProfiles" formControlName="acceptsTransProfiles">
+          <option value="all">Sem restrição</option>
+          <option value="yes">Aceita</option>
+          <option value="no">Não aceita</option>
+        </select>
+      </div>
+
+      <label class="checkbox-item inline-item">
+        <input type="checkbox" formControlName="acceptsCouples" />
+        <span>Aceita casais</span>
+      </label>
+
+      <label class="checkbox-item inline-item">
+        <input type="checkbox" formControlName="acceptsSingles" />
+        <span>Aceita singles</span>
+      </label>
+
+      <label class="checkbox-item inline-item">
+        <input type="checkbox" formControlName="locationRequired" />
+        <span>Exigir localização</span>
+      </label>
+    </div>
+  </section>
+
+  <section class="form-section" aria-labelledby="visibility-title">
+    <h2 id="visibility-title" class="section-title">Visibilidade</h2>
+
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="discoveryMode">Modo de descoberta</label>
+        <select id="discoveryMode" formControlName="discoveryMode">
+          @for (option of discoveryModeOptions; track option.key) {
+            @if (option.key !== 'discreet' || canUseDiscreetMode()) {
+              <option [value]="option.key">{{ option.label }}</option>
+            }
+          }
+        </select>
+      </div>
+
+      <label class="checkbox-item inline-item">
+        <input type="checkbox" formControlName="showPreferenceBadges" />
+        <span>Exibir badges de preferências</span>
+      </label>
+
+      <label class="checkbox-item inline-item">
+        <input type="checkbox" formControlName="showIntentPublicly" />
+        <span>Exibir intenção publicamente</span>
+      </label>
+    </div>
+  </section>
+
+  <footer class="form-actions">
+    <button type="submit" class="btn btn-primary" [disabled]="!canEdit() || saving()">
+      Salvar perfil de preferências
+    </button>
+  </footer>
+</form> 

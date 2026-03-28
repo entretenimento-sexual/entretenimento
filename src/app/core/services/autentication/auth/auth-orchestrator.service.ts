@@ -50,7 +50,6 @@ import {
 } from './auth-user-document-watch.service';
 import { AuthSessionMonitorService } from './auth-session-monitor.service';
 import { AuthPostLoginEffectsService } from './auth-post-login-effects.service';
-import { CurrentUserStoreService } from './current-user-store.service';
 import { AuthAppBlockService } from './auth-app-block.service';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -59,7 +58,10 @@ import { ErrorNotificationService } from '@core/services/error-handler/error-not
 import { environment } from 'src/environments/environment';
 import { LogoutService } from './logout.service';
 
-import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.types';
+import {
+  inRegistrationFlow as isRegFlow,
+  type TerminateReason,
+} from './auth.types';
 import { UserRepositoryService } from '../../data-handling/firestore/repositories/user-repository.service';
 
 type OrchestratorContext = {
@@ -109,7 +111,6 @@ export class AuthOrchestratorService {
     private readonly userDocumentWatch: AuthUserDocumentWatchService,
     private readonly sessionMonitor: AuthSessionMonitorService,
     private readonly postLoginEffects: AuthPostLoginEffectsService,
-    private readonly currentUserStore: CurrentUserStoreService,
     private readonly userRepo: UserRepositoryService,
     private readonly router: Router,
     private readonly logoutService: LogoutService,
@@ -209,6 +210,16 @@ export class AuthOrchestratorService {
       .subscribe();
   }
 
+  /**
+   * Evita trabalho redundante quando o contexto efetivo não mudou.
+   *
+   * Regras:
+   * - se ready mudou => contexto mudou
+   * - se routerReady mudou => contexto mudou
+   * - se uid mudou => contexto mudou
+   * - se blockedReason mudou => contexto mudou
+   * - com uid presente, rota e estado do auth-flow também entram na comparação
+   */
   private isSameContext(prev: OrchestratorContext, curr: OrchestratorContext): boolean {
     if (prev.ready !== curr.ready) return false;
     if (prev.routerReady !== curr.routerReady) return false;
@@ -229,6 +240,14 @@ export class AuthOrchestratorService {
     );
   }
 
+  /**
+   * "app-mode" é o estado em que infraestrutura técnica pode rodar:
+   * - há authUser
+   * - há uid
+   * - não estamos no fluxo de registro
+   * - email já está verificado
+   * - app não está bloqueado
+   */
   private shouldRunAppMode(ctx: OrchestratorContext): boolean {
     return !!ctx.uid && !!ctx.authUser && !ctx.inReg && !ctx.unverified && !ctx.blockedReason;
   }
@@ -267,9 +286,19 @@ export class AuthOrchestratorService {
     });
   }
 
+  /**
+   * Sem authUser:
+   * - limpa bloqueio de app
+   * - para side-effects técnicos
+   * - reseta estado transitório interno
+   *
+   * Importante:
+   * - este service NÃO limpa o CurrentUserStore.
+   * - o runtime do perfil continua sob a fonte única:
+   *   AuthSessionSyncEffects + UserEffects + CurrentUserStoreService
+   */
   private handleNoAuthUser(): void {
     this.sessionUid = null;
-    this.currentUserStore.clear();
     this.appBlock.clear();
     this.stopRuntimeSideEffects();
     this.resetTransientSessionState();
@@ -277,6 +306,12 @@ export class AuthOrchestratorService {
     this.dbg('handleNoAuthUser()');
   }
 
+  /**
+   * Troca de UID:
+   * - zera bloqueio local do ciclo anterior
+   * - reinicia watchers/efeitos que dependem do usuário
+   * - preserva a responsabilidade do perfil runtime fora deste service
+   */
   private handleUidChange(uid: string): void {
     this.sessionUid = uid;
     this.appBlock.clear();
@@ -293,12 +328,24 @@ export class AuthOrchestratorService {
     this.clearMissingDocProbe();
   }
 
+  /**
+   * Para side-effects técnicos associados ao app-mode.
+   *
+   * Não mexe em CurrentUserStore.
+   */
   private stopRuntimeSideEffects(): void {
     this.sessionMonitor.stop();
     this.stopWatchers();
     this.stopPostLoginEffects();
   }
 
+  /**
+   * Janela de proteção para evitar conclusões precipitadas logo após login/criação.
+   *
+   * Uso:
+   * - tolerar propagação assíncrona do documento users/{uid}
+   * - evitar ações fortes cedo demais
+   */
   private refreshGraceWindow(authUser: User): void {
     const now = Date.now();
     const createdAt = authUser.metadata?.creationTime
@@ -317,6 +364,13 @@ export class AuthOrchestratorService {
     this.missingDocProbeId = null;
   }
 
+  /**
+   * Agenda uma confirmação posterior para documento ausente.
+   *
+   * Motivo:
+   * - impedir reação definitiva antes da janela de grace
+   * - manter o fluxo totalmente concentrado aqui
+   */
   private scheduleMissingDocConfirm(
     uid: string,
     reason: Extract<TerminateReason, 'deleted' | 'doc-missing-confirmed'>
@@ -338,6 +392,14 @@ export class AuthOrchestratorService {
     }, delay);
   }
 
+  /**
+   * Confirma em reconsulta se o documento realmente segue ausente.
+   *
+   * Regras:
+   * - se ainda estamos na grace window, reprograma
+   * - se o doc reapareceu, não faz nada
+   * - se continua ausente, bloqueia ou derruba a sessão conforme feature flag
+   */
   private async confirmAndSignOutIfMissing(
     uid: string,
     reason: Extract<TerminateReason, 'deleted' | 'doc-missing-confirmed'>
@@ -366,6 +428,11 @@ export class AuthOrchestratorService {
     this.postLoginUid = null;
   }
 
+  /**
+   * Efeitos pós-login:
+   * - só rodam em app-mode
+   * - reiniciam quando muda o uid efetivo
+   */
   private syncPostLoginEffects(authUser: User, shouldRun: boolean): void {
     if (!shouldRun) {
       if (this.postLoginSub) {
@@ -395,6 +462,11 @@ export class AuthOrchestratorService {
       });
   }
 
+  /**
+   * Relato silencioso para observabilidade/diagnóstico.
+   *
+   * Não notifica o usuário diretamente.
+   */
   private reportSilent(err: unknown, context: Record<string, unknown>): void {
     try {
       const error = new Error('[AuthOrchestrator] internal error');
@@ -408,6 +480,12 @@ export class AuthOrchestratorService {
     }
   }
 
+  /**
+   * Notifica visualmente que a sessão está bloqueada no domínio do app.
+   *
+   * Importante:
+   * - não mostra mensagem se já estamos no flow de registro/onboarding
+   */
   private notifyAppBlocked(reason: TerminateReason): void {
     const url = this.router.url || '';
     if (this.isRegistrationFlowUrl(url)) return;
@@ -419,6 +497,9 @@ export class AuthOrchestratorService {
     this.reportSilent(new Error('App session blocked'), { reason });
   }
 
+  /**
+   * Navegação defensiva para a tela de welcome/onboarding.
+   */
   private navigateToWelcome(reason: TerminateReason, replaceUrl = true): void {
     const target = '/register/welcome';
 
@@ -443,6 +524,11 @@ export class AuthOrchestratorService {
     this.watchersUid = null;
   }
 
+  /**
+   * Watchers de documento do usuário:
+   * - só existem em app-mode
+   * - reiniciam quando troca o uid
+   */
   private syncWatchers(uid: string, shouldRun: boolean): void {
     if (!shouldRun) {
       if (this.watchersOn) this.stopWatchers();
@@ -472,6 +558,14 @@ export class AuthOrchestratorService {
     });
   }
 
+  /**
+   * Trata eventos vindos do watcher do users/{uid}.
+   *
+   * Regras gerais:
+   * - exists => confirma que o doc já apareceu ao menos uma vez
+   * - missing/deleted => reconsulta antes de agir forte
+   * - suspended/forbidden => bloqueio ou hard sign-out conforme feature flag
+   */
   private handleUserDocumentWatchEvent(event: AuthUserDocumentWatchEvent): void {
     switch (event.type) {
       case 'exists': {
@@ -555,6 +649,11 @@ export class AuthOrchestratorService {
     }
   }
 
+  /**
+   * Encerramento forte de sessão.
+   *
+   * Usado apenas quando realmente necessário.
+   */
   private hardSignOutToEntry(reason: TerminateReason): void {
     if (this.terminating) return;
     this.terminating = true;
@@ -570,13 +669,20 @@ export class AuthOrchestratorService {
     }
   }
 
+  /**
+   * Bloqueio de domínio do app.
+   *
+   * Importante:
+   * - NÃO mexe no CurrentUserStore
+   * - o bloqueio efetivo fica em AuthAppBlockService
+   * - a UI/guards decidem acesso a partir desse estado
+   */
   private blockAppSession(reason: TerminateReason): void {
     if (this.terminating) return;
     this.terminating = true;
 
     try {
       this.appBlock.set(reason);
-      this.currentUserStore.setUnavailable();
       this.stopRuntimeSideEffects();
       this.clearMissingDocProbe();
 
@@ -586,4 +692,4 @@ export class AuthOrchestratorService {
       this.terminating = false;
     }
   }
-}// linha 589, fim do auth-orchestrator.service.ts
+}// Linha 695, fim do auth-orchestrator.service.ts

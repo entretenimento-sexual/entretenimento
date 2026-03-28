@@ -207,6 +207,7 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         icon: '🎥',
         exact: false,
         ariaLabel: 'Ir para vídeos',
+        disabled: true,
       },
     ],
   },

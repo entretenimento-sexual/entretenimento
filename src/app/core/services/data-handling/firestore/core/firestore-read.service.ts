@@ -1,7 +1,18 @@
 // src/app/core/services/data-handling/firestore/core/firestore-read.service.ts
-// Serviço genérico de leitura do Firestore com tratamento de erros e compatibilidade
-// Não esquecer os comentários
-import { Injectable } from '@angular/core';
+// Serviço genérico de leitura do Firestore com tratamento de erros,
+// compatibilidade de assinaturas e proteção para listeners live.
+//
+// Ajuste importante nesta versão:
+// - collectionData()/docData() passam a rodar dentro de runInInjectionContext()
+// - isso reduz o risco de warning/erro do AngularFire fora de injection context
+//
+// Mantido:
+// - nomes dos métodos
+// - estratégia reativa
+// - tratamento centralizado de erros
+// - compatibilidade com chamadas existentes
+
+import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import {
   Firestore,
@@ -20,7 +31,7 @@ import {
 
 import type { QueryConstraint } from 'firebase/firestore';
 
-import { defer, EMPTY, Observable, of, throwError } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
 import { FirestoreContextService } from './firestore-context.service';
@@ -79,8 +90,9 @@ export class FirestoreReadService {
     private readonly firestore: Firestore,
     private readonly ctx: FirestoreContextService,
     private readonly firestoreError: FirestoreErrorHandlerService,
-    private readonly auth: Auth
-  ) { }
+    private readonly auth: Auth,
+    private readonly environmentInjector: EnvironmentInjector
+  ) {}
 
   // ---------------------------------------------------------------------------
   // Helpers de normalização / segurança
@@ -118,13 +130,11 @@ export class FirestoreReadService {
    */
   private gateAuth$<T>(requireAuth: boolean | undefined, emptyValue: T): Observable<T | null> {
     if (!requireAuth) return of(null);
-    // Observação: currentUser pode ser null durante bootstrap/refresh.
-    // A escolha aqui é "não fazer listen" e não estourar erro global em transição de sessão.
     return this.auth.currentUser ? of(null) : of(emptyValue);
   }
 
   /**
-   * Centraliza erro e adiciona contexto útil (sem depender do formato do erro).
+   * Centraliza erro e adiciona contexto útil.
    * Mantém o tratamento centralizado (FirestoreErrorHandlerService -> global/error-notification).
    */
   private handleError(
@@ -132,35 +142,35 @@ export class FirestoreReadService {
     meta: Record<string, unknown>,
     silent?: boolean
   ): Observable<never> {
-    // Anexa metadados no erro (ajuda debug sem quebrar fluxo)
     const enriched =
       typeof err === 'object' && err !== null
         ? Object.assign(err as any, { _firestoreReadMeta: meta })
         : Object.assign(new Error(String(err)), { _firestoreReadMeta: meta });
 
-    // silent => não notifica globalmente, mas propaga erro pro caller tratar
     if (silent) return throwError(() => enriched);
 
-    // caminho padrão (centralizado no handler do projeto)
     return this.firestoreError.handleFirestoreError(enriched);
+  }
+
+  /**
+   * Garante que APIs do AngularFire que dependem de injection context
+   * rodem dentro de runInInjectionContext().
+   *
+   * Uso:
+   * - collectionData(...)
+   * - docData(...)
+   */
+  private runInAngularInjectionContext<T>(factory: () => T): T {
+    return runInInjectionContext(this.environmentInjector, factory);
   }
 
   // ---------------------------------------------------------------------------
   // READ: DOC (once)
   // ---------------------------------------------------------------------------
 
-  /**
-   * Lê um documento 1x.
-   * Aceita assinatura antiga (source string) e a nova (options object).
-   *
-   * Ex:
-   *   getDocument('users', uid, 'server')
-   *   getDocument('public_index', docId, { source: 'server', silent: true, context: 'nickname-soft' })
-   */
   getDocument<T>(collectionName: string, docId: string, arg?: GetDocumentArg): Observable<T | null> {
     const opts = this.normalizeGetDocumentArg(arg);
 
-    // Fail-fast para parâmetros inválidos (grandes plataformas preferem bug visível cedo)
     if (!this.isNonEmptyString(collectionName) || !this.isNonEmptyString(docId)) {
       return this.handleError(
         new Error('Parâmetros inválidos: collectionName/docId.'),
@@ -169,8 +179,6 @@ export class FirestoreReadService {
       );
     }
 
-    // Se o docId depende de auth (ex.: uid), este gate evita chamadas prematuras.
-    // Aqui retornamos null (documento inexistente/indisponível) sem notificação global.
     return this.gateAuth$<T | null>(opts.requireAuth, null).pipe(
       switchMap((maybeEmpty) => {
         if (maybeEmpty !== null) return of(maybeEmpty);
@@ -178,18 +186,21 @@ export class FirestoreReadService {
         return this.ctx.deferPromise$(() => {
           const ref = doc(this.firestore, `${collectionName}/${docId}`);
 
-          // source default -> getDoc padrão (server + cache)
           if (opts.source === 'default') return getDoc(ref);
           if (opts.source === 'cache') return getDocFromCache(ref);
-
-          // server (padrão forte)
           return getDocFromServer(ref);
         }).pipe(
           map((snap) => (snap.exists() ? (snap.data() as T) : null)),
           catchError((err) =>
             this.handleError(
               err,
-              { method: 'getDocument', collectionName, docId, source: opts.source, context: opts.context },
+              {
+                method: 'getDocument',
+                collectionName,
+                docId,
+                source: opts.source,
+                context: opts.context,
+              },
               opts.silent
             )
           )
@@ -202,11 +213,6 @@ export class FirestoreReadService {
   // READ: COLLECTION (once)
   // ---------------------------------------------------------------------------
 
-  /**
-   * Lê uma coleção 1x (query com constraints).
-   * - Sempre retorna array (vazio quando não houver docs).
-   * - idField é aplicado manualmente (padrão "id").
-   */
   getDocumentsOnce<T>(
     collectionName: string,
     constraints: QueryConstraint[] = [],
@@ -224,8 +230,6 @@ export class FirestoreReadService {
       );
     }
 
-    // Gate opcional (evita query prematura se o caller depende de auth).
-    // Retorna [] sem notificação global (cenário comum durante bootstrap).
     return this.gateAuth$<T[]>(requireAuth, []).pipe(
       switchMap((maybeEmpty) => {
         if (maybeEmpty !== null) return of(maybeEmpty);
@@ -240,7 +244,11 @@ export class FirestoreReadService {
         }).pipe(
           map((snap) => snap.docs.map((d) => ({ ...(d.data() as any), [idField]: d.id } as T))),
           catchError((err) =>
-            this.handleError(err, { method: 'getDocumentsOnce', collectionName, source, idField }, false)
+            this.handleError(
+              err,
+              { method: 'getDocumentsOnce', collectionName, source, idField },
+              false
+            )
           )
         );
       })
@@ -251,11 +259,6 @@ export class FirestoreReadService {
   // LIVE: COLLECTION (realtime)
   // ---------------------------------------------------------------------------
 
-  /**
-   * Escuta uma coleção em tempo real.
-   * - Importante: listeners em grande escala exigem cuidado com auth/transições.
-   * - Se requireAuth=true e não há user: retorna [] e completa (não inicia listener).
-   */
   getDocumentsLive<T>(
     collectionName: string,
     constraints: QueryConstraint[] = [],
@@ -272,7 +275,6 @@ export class FirestoreReadService {
       );
     }
 
-    // Gate: evita iniciar listener sem sessão (ou em transição)
     return this.gateAuth$<T[]>(requireAuth, []).pipe(
       switchMap((maybeEmpty) => {
         if (maybeEmpty !== null) return of(maybeEmpty);
@@ -280,10 +282,17 @@ export class FirestoreReadService {
         return this.ctx.deferObservable$(() => {
           const colRef = collection(this.firestore, collectionName);
           const qRef = query(colRef, ...(constraints ?? []));
-          return collectionData(qRef, { idField }) as Observable<T[]>;
+
+          return this.runInAngularInjectionContext(
+            () => collectionData(qRef, { idField }) as Observable<T[]>
+          );
         }).pipe(
           catchError((err) =>
-            this.handleError(err, { method: 'getDocumentsLive', collectionName, idField }, false)
+            this.handleError(
+              err,
+              { method: 'getDocumentsLive', collectionName, idField },
+              false
+            )
           )
         );
       })
@@ -294,11 +303,6 @@ export class FirestoreReadService {
   // LIVE: DOC (realtime)
   // ---------------------------------------------------------------------------
 
-  /**
-   * Escuta um documento em tempo real.
-   * - Se docId estiver vazio (muito comum quando depende de uid), retorna null e completa.
-   * - Se requireAuth=true e não há user: retorna null e completa (não inicia listener).
-   */
   getDocumentLive<T>(
     collectionName: string,
     docId: string,
@@ -315,7 +319,6 @@ export class FirestoreReadService {
       );
     }
 
-    // Proteção forte: se docId não existe ainda, não tentamos abrir listener.
     if (!this.isNonEmptyString(docId)) {
       return of(null);
     }
@@ -326,11 +329,18 @@ export class FirestoreReadService {
 
         return this.ctx.deferObservable$(() => {
           const ref = doc(this.firestore, `${collectionName}/${docId}`);
-          return docData(ref, { idField }) as Observable<T>;
+
+          return this.runInAngularInjectionContext(
+            () => docData(ref, { idField }) as Observable<T>
+          );
         }).pipe(
           map((data) => (data ? (data as T) : null)),
           catchError((err) =>
-            this.handleError(err, { method: 'getDocumentLive', collectionName, docId, idField }, false)
+            this.handleError(
+              err,
+              { method: 'getDocumentLive', collectionName, docId, idField },
+              false
+            )
           )
         );
       })
@@ -338,26 +348,26 @@ export class FirestoreReadService {
   }
 
   // ---------------------------------------------------------------------------
-  // (Opcional) utilitário para cenários onde você quer apenas "não fazer nada" em vez de erro.
-  // Grandes apps às vezes preferem isso em rotas/guards durante transições.
+  // SAFE helpers
   // ---------------------------------------------------------------------------
 
-  /**
-   * Variante segura para doc live quando você quer "silêncio total" e nunca erro global.
-   * Útil em telas que abrem antes do login, mas têm binding para doc do usuário.
-   */
-  getDocumentLiveSafe<T>(collectionName: string, docId: string, options?: CompatReadOptions): Observable<T | null> {
+  getDocumentLiveSafe<T>(
+    collectionName: string,
+    docId: string,
+    options?: CompatReadOptions
+  ): Observable<T | null> {
     return this.getDocumentLive<T>(collectionName, docId, options).pipe(
       catchError(() => of(null))
     );
   }
 
-  /**
-   * Variante segura para collection live quando você quer "silêncio total" e nunca erro global.
-   */
-  getDocumentsLiveSafe<T>(collectionName: string, constraints: QueryConstraint[] = [], options?: CompatReadOptions): Observable<T[]> {
+  getDocumentsLiveSafe<T>(
+    collectionName: string,
+    constraints: QueryConstraint[] = [],
+    options?: CompatReadOptions
+  ): Observable<T[]> {
     return this.getDocumentsLive<T>(collectionName, constraints, options).pipe(
       catchError(() => of([]))
     );
   }
-} //Linha 363
+} // Linha 373

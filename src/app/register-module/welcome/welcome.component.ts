@@ -121,89 +121,143 @@ export class WelcomeComponent implements OnInit {
    * - se o Auth já refletiu emailVerified=true, mas a sincronização ainda não concluiu,
    *   mantemos/reiniciamos o polling para terminar a propagação corretamente.
    */
-  markVerifiedDev(): void {
-    if (
-      !this.isDevEmu ||
-      this.markingVerifiedDev ||
-      this.checkingVerification ||
-      this.resendingVerificationEmail
-    ) {
-      return;
-    }
+markVerifiedDev(): void {
+  if (
+    !this.isDevEmu ||
+    this.markingVerifiedDev ||
+    this.checkingVerification ||
+    this.resendingVerificationEmail
+  ) {
+    return;
+  }
 
-    this.stopPolling();
-    this.markingVerifiedDev = true;
+  this.stopPolling();
+  this.markingVerifiedDev = true;
 
-    this.emulatorEmailVerifyDev
-      .markVerifiedInEmulatorDebug$()
-      .pipe(
-        take(1),
-        switchMap((dbg) =>
-          this.reloadAndSync$().pipe(
-            take(1),
-            map((syncedOk) => ({ dbg, syncedOk }))
-          )
-        ),
-        tap(({ dbg, syncedOk }) => {
-          const details = {
-            traceId: dbg.traceId,
-            okAuth: dbg.after.emailVerified,
-            okSync: syncedOk,
-            uid: dbg.uid,
-            email: dbg.email,
-            listOob: dbg.listOob,
-            apply: dbg.apply,
-            note: dbg.note,
-          };
+  this.emulatorEmailVerifyDev
+    .markVerifiedInEmulatorDebug$()
+    .pipe(
+      take(1),
 
-          if (dbg.after.emailVerified && syncedOk) {
-            this.setBanner(
-              'success',
-              `DEV OK (trace: ${dbg.traceId})`,
-              'E-mail verificado no Auth Emulator e sincronizado no app.',
-              details
-            );
-            return;
-          }
+      tap((dbg) => {
+        // O ato de "marcar no emulator" terminou aqui.
+        // A partir daqui não faz sentido manter o botão DEV preso em "Marcando…".
+        this.markingVerifiedDev = false;
 
-          if (dbg.after.emailVerified && !syncedOk) {
-            this.setBanner(
-              'info',
-              `DEV parcial (trace: ${dbg.traceId})`,
-              'O Auth Emulator já marcou o e-mail como verificado, mas a sincronização final ainda está propagando.',
-              details
-            );
-            this.restartPolling();
-            return;
-          }
+        this.lastCheckedAt = new Date();
+
+        if (dbg.after.emailVerified) {
+          // Reflete imediatamente o estado do Auth na UI.
+          this.emailVerified = true;
 
           this.setBanner(
-            'warn',
-            `DEV não verificou (trace: ${dbg.traceId})`,
-            dbg.note ?? 'Não foi possível aplicar a verificação no emulador.',
+            'info',
+            `DEV OK (trace: ${dbg.traceId})`,
+            'O Auth Emulator já marcou o e-mail como verificado. Finalizando a sincronização no app…',
+            {
+              traceId: dbg.traceId,
+              okAuth: dbg.after.emailVerified,
+              uid: dbg.uid,
+              email: dbg.email,
+              listOob: dbg.listOob,
+              apply: dbg.apply,
+              note: dbg.note,
+            }
+          );
+        }
+      }),
+
+      switchMap((dbg) => {
+        // A sincronização passa a usar o estado de "checando",
+        // e não mais o estado do botão DEV.
+        this.checkingVerification = true;
+
+        return this.reloadAndSync$().pipe(
+          take(1),
+          timeout({ first: this.ACTION_TIMEOUT_MS }),
+          map((syncedOk) => ({ dbg, syncedOk })),
+          catchError((err) =>
+            of({
+              dbg,
+              syncedOk: false,
+              syncError: err,
+            })
+          ),
+          finalize(() => {
+            this.checkingVerification = false;
+          })
+        );
+      }),
+
+      tap(({ dbg, syncedOk, syncError }: any) => {
+        const details = {
+          traceId: dbg.traceId,
+          okAuth: dbg.after.emailVerified,
+          okSync: syncedOk,
+          uid: dbg.uid,
+          email: dbg.email,
+          listOob: dbg.listOob,
+          apply: dbg.apply,
+          note: dbg.note,
+          syncError: syncError ?? undefined,
+        };
+
+        if (dbg.after.emailVerified && syncedOk) {
+          this.emailVerified = true;
+          this.setBanner(
+            'success',
+            `DEV OK (trace: ${dbg.traceId})`,
+            'E-mail verificado no Auth Emulator e sincronizado no app.',
+            details
+          );
+          return;
+        }
+
+        if (dbg.after.emailVerified && !syncedOk) {
+          this.emailVerified = true;
+          this.setBanner(
+            'info',
+            `DEV parcial (trace: ${dbg.traceId})`,
+            'O Auth já está verificado. A sincronização final ainda está propagando, mas você já pode seguir o fluxo.',
             details
           );
           this.restartPolling();
-        }),
-        catchError((err) => {
-          const traceId = (err as any)?.traceId;
-          const payload = (err as any)?.emuPayload;
+          return;
+        }
 
-          this.setBanner(
-            'error',
-            `DEV erro${traceId ? ` (trace: ${traceId})` : ''}`,
-            'Falha ao marcar como verificado no emulador.',
-            payload ?? err
-          );
-          return of(void 0);
-        }),
-        finalize(() => {
-          this.markingVerifiedDev = false;
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-  }
+        this.emailVerified = false;
+        this.setBanner(
+          'warn',
+          `DEV não verificou (trace: ${dbg.traceId})`,
+          dbg.note ?? 'Não foi possível aplicar a verificação no emulador.',
+          details
+        );
+        this.restartPolling();
+      }),
+
+      catchError((err) => {
+        const traceId = (err as any)?.traceId;
+        const payload = (err as any)?.emuPayload;
+
+        this.setBanner(
+          'error',
+          `DEV erro${traceId ? ` (trace: ${traceId})` : ''}`,
+          'Falha ao marcar como verificado no emulador.',
+          payload ?? err
+        );
+
+        return of(void 0);
+      }),
+
+      finalize(() => {
+        // Garantia final: nunca deixar o botão DEV preso.
+        this.markingVerifiedDev = false;
+      }),
+
+      takeUntilDestroyed(this.destroyRef)
+    )
+    .subscribe();
+}
 
   /**
    * Observable reativo do estado do Firebase Auth.

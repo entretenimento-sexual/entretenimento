@@ -8,7 +8,6 @@
 //   - requireProfileCompleted
 //
 // Isso deixa o fluxo previsível e evita espalhar guards diferentes em cada tela.
-
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 

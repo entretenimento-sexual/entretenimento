@@ -13,6 +13,10 @@
 // Observação:
 // - Este serviço NÃO consulta Firestore.
 // - Ele só mantém o runtime do perfil e faz bootstrap compatível por HOT_KEYS.
+// - Perfil runtime do app: fluxo oficial AuthSessionSyncEffects + UserEffects + CurrentUserStoreService
+//* - este service NÃO escreve no perfil runtime do app.
+//* - o perfil continua sob a fonte única:
+//*   AuthSessionSyncEffects + UserEffects + CurrentUserStoreService
 import { Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
 import { BehaviorSubject, Observable } from 'rxjs';
@@ -53,7 +57,9 @@ export class CurrentUserStoreService {
     if (!user?.uid) return;
 
     const current = this.userSubject.value;
-    if (current && current !== null && this.safeJsonEqual(current, user)) return;
+    if (current && current !== null && this.areUsersEquivalent(current, user)) {
+      return;
+    }
 
     this.userSubject.next(user);
 
@@ -74,7 +80,7 @@ export class CurrentUserStoreService {
 
     const next = { ...current, ...partial } as IUserDados;
     if (!next?.uid) return;
-    if (this.safeJsonEqual(current, next)) return;
+    if (this.areUsersEquivalent(current, next)) return;
 
     this.userSubject.next(next);
     this.cache.set(this.keyUser, next, undefined, { persist: false });
@@ -152,9 +158,6 @@ export class CurrentUserStoreService {
     return this.userSubject.value;
   }
 
-  /**
-   * Emite apenas quando a hidratação realmente saiu de undefined.
-   */
   isHydratedOnce$(): Observable<boolean> {
     return this.user$.pipe(
       map((value) => value !== undefined),
@@ -164,10 +167,6 @@ export class CurrentUserStoreService {
     );
   }
 
-  /**
-   * Conveniência:
-   * - true quando o runtime já saiu do estado "undefined"
-   */
   isResolved$(): Observable<boolean> {
     return this.user$.pipe(
       map((value) => value !== undefined),
@@ -175,10 +174,6 @@ export class CurrentUserStoreService {
     );
   }
 
-  /**
-   * Conveniência:
-   * - true quando há perfil disponível
-   */
   hasProfile$(): Observable<boolean> {
     return this.user$.pipe(
       map((value) => value !== undefined && value !== null),
@@ -217,10 +212,6 @@ export class CurrentUserStoreService {
   // Restore compatível
   // ---------------------------------------------------------------------------
 
-  /**
-   * Compat:
-   * usa o uid já resolvido do auth, quando existir.
-   */
   restoreFromCache(): IUserDados | null {
     const uid =
       this.authSession.currentAuthUser?.uid ??
@@ -230,10 +221,6 @@ export class CurrentUserStoreService {
     return this.restoreFromCacheForUid(uid);
   }
 
-  /**
-   * Restaura currentUser do cache compatível apenas se o uid bater.
-   * Não purge sem UID resolvido.
-   */
   restoreFromCacheForUid(uid: string | null | undefined): IUserDados | null {
     const authUid = (uid ?? '').trim();
     if (!authUid) {
@@ -245,7 +232,7 @@ export class CurrentUserStoreService {
 
     if (cached?.uid && cached.uid === authUid) {
       const current = this.userSubject.value;
-      if (!(current && current !== null && this.safeJsonEqual(current, cached))) {
+      if (!(current && current !== null && this.areUsersEquivalent(current, cached))) {
         this.userSubject.next(cached);
       }
 
@@ -254,10 +241,6 @@ export class CurrentUserStoreService {
       return cached;
     }
 
-    /**
-     * Cache stale de outro usuário.
-     * Limpamos só as HOT_KEYS compatíveis.
-     */
     if (cached?.uid && cached.uid !== authUid) {
       this.cache.delete(this.keyUser);
       this.cache.delete(this.keyUid);
@@ -272,10 +255,6 @@ export class CurrentUserStoreService {
     return null;
   }
 
-  /**
-   * Conveniência para bootstrap:
-   * espera ready=true antes de tentar restore.
-   */
   restoreFromCacheWhenReady$(): Observable<IUserDados | null> {
     return this.getAuthReady$().pipe(
       filter((ready) => ready === true),
@@ -288,12 +267,21 @@ export class CurrentUserStoreService {
   // Internals
   // ---------------------------------------------------------------------------
 
-  private safeJsonEqual(a: unknown, b: unknown): boolean {
-    try {
-      return JSON.stringify(a) === JSON.stringify(b);
-    } catch {
-      return false;
-    }
+  private areUsersEquivalent(
+    a: IUserDados | null | undefined,
+    b: IUserDados | null | undefined,
+  ): boolean {
+    if (a === b) return true;
+    if (!a || !b) return false;
+
+    return (
+      a.uid === b.uid &&
+      a.email === b.email &&
+      a.emailVerified === b.emailVerified &&
+      a.nickname === b.nickname &&
+      a.profileCompleted === b.profileCompleted &&
+      a.role === b.role
+    );
   }
 
   private dbg(message: string, extra?: unknown): void {

@@ -1,4 +1,5 @@
 // src/app/core/services/batepapo/invite-service/invite-inbox.service.ts
+// Não esquecer dos comentários explicativos e ferramentas de debug
 import { Injectable } from '@angular/core';
 import { where, orderBy, limit } from '@angular/fire/firestore';
 import { Observable, of } from 'rxjs';

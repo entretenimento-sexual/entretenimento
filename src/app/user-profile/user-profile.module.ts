@@ -10,7 +10,6 @@
 // - a proteção principal de acesso ao módulo é feita no AppRouting
 // - este módulo não deve assumir por conta própria que o usuário já está
 //   com e-mail verificado ou perfil 100% completo
-
 import { NgModule } from '@angular/core';
 import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';

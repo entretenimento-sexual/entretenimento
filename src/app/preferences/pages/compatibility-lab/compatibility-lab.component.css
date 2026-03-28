@@ -1,0 +1,28 @@
+/* src\app\preferences\pages\compatibility-lab\compatibility-lab.component.css */
+.compatibility-lab-page {
+  width: 100%;
+}
+
+.compatibility-lab-shell {
+  width: 100%;
+  max-width: var(--content-wide, 1360px);
+  margin-inline: auto;
+  padding-inline: var(--gutter, 16px);
+}
+
+.compatibility-lab-section {
+  display: grid;
+  gap: 1rem;
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 840px) {
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+}

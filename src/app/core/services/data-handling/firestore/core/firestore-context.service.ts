@@ -1,5 +1,5 @@
 // src/app/core/services/data-handling/firestore/core/firestore-context.service.ts
-// =============================================================================
+// ========================================================
 // FIRESTORE CONTEXT SERVICE
 //
 // Objetivo:
@@ -24,7 +24,6 @@
 // - Este service NÃO faz tratamento de erro. Ele só fornece o “ambiente seguro”.
 //   Tratamento fica nos services consumidores via catchError + GlobalErrorHandlerService.
 // =============================================================================
-
 import { Injectable, EnvironmentInjector, runInInjectionContext } from '@angular/core';
 import { defer, from, Observable, of } from 'rxjs';
 

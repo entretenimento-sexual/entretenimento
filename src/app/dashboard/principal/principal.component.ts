@@ -3,7 +3,6 @@
 // - UID vem do AUTH (fonte única).
 // - Perfil (IUserDados) é usado só para UI (ex.: saudação).
 // - Listas e paginações dependem apenas de UID → reduz “tela vazia” no cold start.
-
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';

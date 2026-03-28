@@ -1,4 +1,17 @@
 // src\app\core\enums\valid-genders.enum.ts
+/**
+ * @deprecated
+ * Enum legado usado principalmente em fluxos antigos de onboarding/welcome.
+ *
+ * Migração alvo:
+ * - TGenderInterest
+ * - TRelationshipIntent
+ * - modelos em core/interfaces/preferences/*
+ *
+ * Não remover até migrar:
+ * - WelcomeComponent
+ * - qualquer formulário legado ainda baseado em enum fechado
+ */
 export enum ValidGenders {
   // Gêneros binários tradicionais
   HOMEM = 'homem',

@@ -49,20 +49,25 @@ export class ProfilePhotosComponent {
   }
 
   // UID do perfil dono das fotos (rota /perfil/:id/fotos)
-  readonly ownerUid$: Observable<string> = this.route.paramMap.pipe(
-    map((p) => p.get('uid') ?? ''),
-    distinctUntilChanged(),
-    tap((id) => this.debug('ownerUid$', id)),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+ readonly viewerUid$: Observable<string | null> = this.currentUserStore.user$.pipe(
+  map((u) => u?.uid ?? null),
+  distinctUntilChanged(),
+  tap((uid) => this.debug('viewerUid$', uid)),
+  shareReplay({ bufferSize: 1, refCount: true })
+);
 
-  // UID do usuário logado (viewer)
-  readonly viewerUid$: Observable<string | null> = this.currentUserStore.user$.pipe(
-    map((u) => u?.uid ?? null),
-    distinctUntilChanged(),
-    tap((uid) => this.debug('viewerUid$', uid)),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+readonly ownerUid$: Observable<string> = combineLatest([
+  this.route.paramMap.pipe(
+    map((p) => p.get('id')),
+    distinctUntilChanged()
+  ),
+  this.viewerUid$
+]).pipe(
+  map(([routeId, viewerUid]) => routeId ?? viewerUid ?? ''),
+  distinctUntilChanged(),
+  tap((id) => this.debug('ownerUid$', id)),
+  shareReplay({ bufferSize: 1, refCount: true })
+);
 
   // Policy: pode ver?
   readonly policyResult$: Observable<IMediaPolicyResult> = combineLatest([this.viewerUid$, this.ownerUid$]).pipe(
@@ -94,7 +99,7 @@ export class ProfilePhotosComponent {
   readonly isEmpty$: Observable<boolean> = this.photos$.pipe(map((items) => items.length === 0), distinctUntilChanged());
 
   openUpload(ownerUid: string): void {
-    this.router.navigate(['/perfil', ownerUid, 'fotos', 'upload']).catch(() => {
+    this.router.navigate(['/media', 'perfil', ownerUid, 'fotos', 'upload']).catch(() => {
       this.errorNotifier.showError('Falha ao navegar para upload.');
     });
   }

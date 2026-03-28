@@ -82,7 +82,6 @@ export class FinalizarCadastroComponent implements OnInit {
 
         try {
           const parsed = JSON.parse(raw) as IUserDados;
-          this.currentUserStore.set(parsed as any);
           return of(parsed);
         } catch {
           return of(null);
@@ -244,11 +243,7 @@ export class FinalizarCadastroComponent implements OnInit {
               ? this.storageService.uploadProfileAvatar(this.avatarFile, uid)
               : of(null)
           ),
-          tap(() => {
-            // ✅ mantém store/cache coerente com guards/efeitos
-            this.currentUserStore.set(updatedUserData as any);
-          }),
-          map(() => void 0)
+           map(() => void 0)
         );
       }),
 

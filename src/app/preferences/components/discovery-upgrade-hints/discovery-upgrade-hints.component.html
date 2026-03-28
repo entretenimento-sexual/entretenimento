@@ -1,0 +1,34 @@
+<!-- src\app\preferences\components\discovery-upgrade-hints\discovery-upgrade-hints.component.html -->
+<section class="upgrade-hints" aria-label="Recursos de descoberta e possíveis upgrades">
+  <header class="upgrade-hints-header">
+    <h2 class="upgrade-hints-title">Recursos de descoberta</h2>
+    <p class="upgrade-hints-subtitle">
+      Visão simples do que está liberado e do que pode ser habilitado futuramente.
+    </p>
+  </header>
+
+  <div class="upgrade-hints-grid" role="list">
+    @for (hint of hints(); track hint.title) {
+      <article class="upgrade-hint-item" role="listitem">
+        <div class="upgrade-hint-header">
+          <span class="upgrade-hint-title">{{ hint.title }}</span>
+          <strong class="upgrade-hint-status">
+            {{ hint.locked ? 'Bloqueado' : 'Liberado' }}
+          </strong>
+        </div>
+
+        <p class="upgrade-hint-description">
+          {{ hint.description }}
+        </p>
+      </article>
+    }
+  </div>
+
+  @if (hasLockedHints()) {
+    <footer class="upgrade-hints-footer">
+      <p class="upgrade-hint-footnote">
+        Alguns recursos avançados podem ser liberados conforme role, assinatura e evolução do produto.
+      </p>
+    </footer>
+  }
+</section>
