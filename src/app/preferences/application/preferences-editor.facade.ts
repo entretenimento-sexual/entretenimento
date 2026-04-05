@@ -10,10 +10,9 @@
 // - não toca no legado
 // - não faz bridge
 // - serve de base para páginas/components inéditos
-
 import { Injectable, inject } from '@angular/core';
-import { Observable, combineLatest, forkJoin, of, throwError } from 'rxjs';
-import { catchError, map, shareReplay, take } from 'rxjs/operators';
+import { Observable, combineLatest, forkJoin, throwError } from 'rxjs';
+import { catchError, map, shareReplay, switchMap, take } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -109,7 +108,7 @@ export class PreferencesEditorFacade {
           updatedAt: Date.now(),
         },
       })),
-      switchMapSafe(({ profile: safeProfile, intent: safeIntent }) =>
+      switchMap(({ profile: safeProfile, intent: safeIntent }) =>
         forkJoin([
           this.profilePreferences.saveProfile$(safeUid, safeProfile).pipe(take(1)),
           this.intentState.saveIntentState$(safeUid, safeIntent).pipe(take(1)),
@@ -144,7 +143,7 @@ export class PreferencesEditorFacade {
           updatedAt: Date.now(),
         };
       }),
-      switchMapSafe((safeProfile) =>
+      switchMap((safeProfile) =>
         this.profilePreferences.saveProfile$(safeUid, safeProfile).pipe(
           take(1),
           map(() => void 0)
@@ -179,7 +178,7 @@ export class PreferencesEditorFacade {
           updatedAt: Date.now(),
         };
       }),
-      switchMapSafe((safeIntent) =>
+      switchMap((safeIntent) =>
         this.intentState.saveIntentState$(safeUid, safeIntent).pipe(
           take(1),
           map(() => void 0)
@@ -206,28 +205,4 @@ export class PreferencesEditorFacade {
     this.globalError.handleError(e);
     this.notifier.showError(userMessage);
   }
-}
-
-function switchMapSafe<T, R>(project: (value: T) => Observable<R>) {
-  return (source: Observable<T>): Observable<R> =>
-    new Observable<R>((subscriber) => {
-      let innerSub: { unsubscribe(): void } | null = null;
-
-      const outerSub = source.subscribe({
-        next(value) {
-          innerSub?.unsubscribe();
-          innerSub = project(value).subscribe({
-            next: (v) => subscriber.next(v),
-            error: (e) => subscriber.error(e),
-          });
-        },
-        error: (e) => subscriber.error(e),
-        complete: () => subscriber.complete(),
-      });
-
-      return () => {
-        innerSub?.unsubscribe();
-        outerSub.unsubscribe();
-      };
-    });
-}
+} // linha 208, fim do preferences-editor.facade.ts

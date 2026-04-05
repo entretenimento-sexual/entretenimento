@@ -9,7 +9,6 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 
 import { ProfileListComponent } from './profile-list/profile-list.component';
-
 import { GeolocationService } from '../core/services/geolocation/geolocation.service';
 import { LayoutRoutingModule } from './layout-routing.module';
 import { SharedModule } from '../shared/shared.module';

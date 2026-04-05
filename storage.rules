@@ -1,8 +1,71 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isImageUpload() {
+      return request.resource != null
+        && request.resource.contentType.matches('image/.*')
+        && request.resource.size <= 10 * 1024 * 1024;
+    }
+
+    function isVideoUpload() {
+      return request.resource != null
+        && request.resource.contentType.matches('video/.*')
+        && request.resource.size <= 500 * 1024 * 1024;
+    }
+
+    // -----------------------------------------------------------------------
+    // Upload bruto: não legível diretamente
+    // -----------------------------------------------------------------------
+    match /users/{uid}/uploads/images/{fileName} {
+      allow read: if false;
+      allow write: if isSelf(uid) && isImageUpload();
+    }
+
+    match /users/{uid}/uploads/videos/{fileName} {
+      allow read: if false;
+      allow write: if isSelf(uid) && isVideoUpload();
+    }
+
+    // -----------------------------------------------------------------------
+    // Avatar publicado: leitura autenticada, escrita só do dono
+    // -----------------------------------------------------------------------
+    match /users/{uid}/published/avatar/{fileName} {
+      allow read: if signedIn();
+      allow write: if isSelf(uid) && isImageUpload();
+    }
+
+    // -----------------------------------------------------------------------
+    // Mídia publicada sensível: por enquanto continua fechada
+    // -----------------------------------------------------------------------
+    match /users/{uid}/published/images/{fileName} {
+      allow read, write: if false;
+    }
+
+    match /users/{uid}/published/videos/{fileName} {
+      allow read, write: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // Área técnica / quarentena / derivados
+    // -----------------------------------------------------------------------
+    match /system/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // -----------------------------------------------------------------------
+    // Negação padrão
+    // -----------------------------------------------------------------------
     match /{allPaths=**} {
-      allow read, write: if true; // DEV APENAS
+      allow read, write: if false;
     }
   }
 }

@@ -4,7 +4,7 @@
     <h1>Confirme seu e-mail para começar</h1>
     <p class="subtitle" id="welcome-subtitle">
       Enviamos um link de verificação para <strong>{{ email || 'seu e-mail' }}</strong>.
-      Assim que você confirmar, liberamos todos os recursos.
+      Assim que você confirmar, vamos continuar para suas preferências.
     </p>
   </header>
 
@@ -32,7 +32,7 @@
       <button
         class="btn btn-secondary"
         (click)="checkNow()"
-        [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev || savingOptional || sessionInvalid"
+        [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev || sessionInvalid"
         [attr.aria-busy]="checkingVerification"
       >
         {{ checkingVerification ? 'Checando…' : 'Checar agora' }}
@@ -41,7 +41,7 @@
       <button
         class="btn"
         (click)="resendVerificationEmail()"
-        [disabled]="resendingVerificationEmail || checkingVerification || markingVerifiedDev || savingOptional || sessionInvalid"
+        [disabled]="resendingVerificationEmail || checkingVerification || markingVerifiedDev || sessionInvalid"
         [attr.aria-busy]="resendingVerificationEmail"
       >
         {{ resendingVerificationEmail ? 'Reenviando…' : 'Reenviar e-mail' }}
@@ -59,11 +59,10 @@
 
       <button
         class="btn btn-primary"
-        *ngIf="emailVerified"
-        (click)="proceedToDashboard()"
-        [disabled]="savingOptional || sessionInvalid"
+        *ngIf="emailVerified && !sessionInvalid"
+        (click)="continueToPreferences()"
       >
-        Ir para o painel
+        Ir para minhas preferências
       </button>
     </div>
 
@@ -80,7 +79,7 @@
 
       <ol class="steps">
         <li>Abra sua caixa de entrada.</li>
-        <li>Procure pelo e-mail “Confirme seu endereço”.</li>
+        <li>Procure pelo e-mail de confirmação.</li>
         <li>Clique no botão do e-mail para confirmar.</li>
       </ol>
 
@@ -88,7 +87,7 @@
         <button
           class="btn btn-primary"
           (click)="checkNow()"
-          [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev || savingOptional || sessionInvalid"
+          [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev || sessionInvalid"
           [attr.aria-busy]="checkingVerification"
         >
           {{ checkingVerification ? 'Checando…' : 'Já verifiquei — checar agora' }}
@@ -98,7 +97,7 @@
           *ngIf="isDevEmu"
           class="btn btn-ghost"
           (click)="markVerifiedDev()"
-          [disabled]="markingVerifiedDev || checkingVerification || resendingVerificationEmail || savingOptional || sessionInvalid"
+          [disabled]="markingVerifiedDev || checkingVerification || resendingVerificationEmail || sessionInvalid"
           [attr.aria-busy]="markingVerifiedDev"
         >
           {{ markingVerifiedDev ? 'Marcando…' : 'DEV: marcar como verificado (emulator)' }}
@@ -107,7 +106,7 @@
         <button
           class="btn btn-secondary"
           (click)="resendVerificationEmail()"
-          [disabled]="resendingVerificationEmail || checkingVerification || markingVerifiedDev || savingOptional || sessionInvalid"
+          [disabled]="resendingVerificationEmail || checkingVerification || markingVerifiedDev || sessionInvalid"
           [attr.aria-busy]="resendingVerificationEmail"
         >
           {{ resendingVerificationEmail ? 'Reenviando…' : 'Reenviar e-mail' }}
@@ -115,71 +114,26 @@
 
         <button
           class="btn"
-          (click)="proceedToDashboard()"
-          [disabled]="!emailVerified || savingOptional || sessionInvalid"
-          [attr.aria-disabled]="(!emailVerified || savingOptional || sessionInvalid) ? 'true' : 'false'"
+          (click)="continueToPreferences()"
+          [disabled]="!emailVerified || sessionInvalid"
+          [attr.aria-disabled]="(!emailVerified || sessionInvalid) ? 'true' : 'false'"
         >
-          Ir para o painel
+          Ir para minhas preferências
         </button>
       </div>
     </section>
 
-    <details class="welcome-card details-optional">
-      <summary>Quero adiantar meu perfil (opcional)</summary>
-
-      <div class="optional-grid">
-        <div>
-          <label class="form-label" for="genderSelect">Identidade de gênero (opcional)</label>
-          <select
-            id="genderSelect"
-            class="input-field"
-            [(ngModel)]="selectedGender"
-            [ngModelOptions]="{ standalone: true }"
-            aria-label="Selecione seu gênero"
-          >
-            <option value="" disabled>Selecione seu gênero (opcional)</option>
-            <option *ngFor="let gender of validGenders" [value]="gender">{{ gender }}</option>
-          </select>
-        </div>
-
-        <div>
-          <span class="form-label" id="prefsLabel">O que você gostaria de encontrar? (opcional)</span>
-
-          <div class="checkbox-group" role="group" aria-labelledby="prefsLabel">
-            <label class="checkbox-item" *ngFor="let preference of validPreferences">
-              <input
-                type="checkbox"
-                [(ngModel)]="selectedPreferencesMap[preference]"
-                [ngModelOptions]="{ standalone: true }"
-              />
-              {{ preference }}
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <div class="actions right">
-        <button
-          class="btn btn-primary"
-          (click)="saveOptionalProfile()"
-          [disabled]="savingOptional || checkingVerification || resendingVerificationEmail || markingVerifiedDev || sessionInvalid"
-          [attr.aria-busy]="savingOptional"
-        >
-          {{ savingOptional ? 'Salvando…' : 'Salvar preferências' }}
-        </button>
-      </div>
-    </details>
-
-    <section *ngIf="emailVerified" class="welcome-card success-card">
+    <section *ngIf="emailVerified && !sessionInvalid" class="welcome-card success-card">
       <h2 class="card-title">Tudo certo! 🎉</h2>
-      <p>Seu e-mail está verificado. Você pode seguir para o painel quando quiser.</p>
+      <p>Seu e-mail está verificado. Agora vamos ajustar suas preferências.</p>
+
       <div class="actions">
         <button
           class="btn btn-primary"
-          (click)="proceedToDashboard()"
-          [disabled]="savingOptional || sessionInvalid"
+          (click)="continueToPreferences()"
+          [disabled]="busy"
         >
-          Ir para o painel
+          Ir para minhas preferências
         </button>
       </div>
     </section>
@@ -196,15 +150,17 @@
         Não conseguimos manter sua sessão ativa durante a verificação. Você pode tentar reconectar ou refazer o
         cadastro.
       </p>
+
       <div class="actions">
         <button
           class="btn btn-secondary"
           (click)="checkNow()"
-          [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev || savingOptional"
+          [disabled]="checkingVerification || resendingVerificationEmail || markingVerifiedDev"
           [attr.aria-busy]="checkingVerification"
         >
           {{ checkingVerification ? 'Reconectando…' : 'Tentar reconectar' }}
         </button>
+
         <button class="btn btn-primary" (click)="restartRegistration()">Refazer cadastro</button>
       </div>
     </section>

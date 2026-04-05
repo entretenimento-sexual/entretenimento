@@ -31,7 +31,15 @@ import { Firestore, doc, docSnapshots } from '@angular/fire/firestore';
 import type { DocumentData, DocumentSnapshot } from 'firebase/firestore';
 
 import { EMPTY, Observable, defer, merge, of } from 'rxjs';
-import { catchError, filter, map, shareReplay, take, tap } from 'rxjs/operators';
+import {
+  catchError,
+  distinctUntilChanged,
+  filter,
+  map,
+  shareReplay,
+  take,
+  tap,
+} from 'rxjs/operators';
 
 import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
 import { environment } from 'src/environments/environment';
@@ -39,26 +47,10 @@ import { environment } from 'src/environments/environment';
 export type AuthUserDocumentWatchSource = 'doc' | 'deleted-flag';
 
 export type AuthUserDocumentWatchEvent =
-  | {
-      type: 'exists';
-      uid: string;
-      source: 'doc';
-    }
-  | {
-      type: 'missing';
-      uid: string;
-      source: 'doc';
-    }
-  | {
-      type: 'suspended';
-      uid: string;
-      source: 'doc';
-    }
-  | {
-      type: 'deleted';
-      uid: string;
-      source: AuthUserDocumentWatchSource;
-    }
+  | { type: 'exists'; uid: string; source: 'doc' }
+  | { type: 'missing'; uid: string; source: 'doc' }
+  | { type: 'suspended'; uid: string; source: 'doc' }
+  | { type: 'deleted'; uid: string; source: AuthUserDocumentWatchSource }
   | {
       type: 'forbidden';
       uid: string;
@@ -77,6 +69,7 @@ export type AuthUserDocumentWatchEvent =
 @Injectable({ providedIn: 'root' })
 export class AuthUserDocumentWatchService {
   private readonly debug = !environment.production;
+  private readonly streams = new Map<string, Observable<AuthUserDocumentWatchEvent>>();
 
   constructor(
     private readonly db: Firestore,
@@ -84,46 +77,30 @@ export class AuthUserDocumentWatchService {
     private readonly userQuery: FirestoreUserQueryService,
   ) {}
 
-  // ---------------------------------------------------------------------------
-  // Debug
-  // ---------------------------------------------------------------------------
-
   private dbg(message: string, extra?: unknown): void {
     if (!this.debug) return;
     // eslint-disable-next-line no-console
     console.log(`[AuthUserDocumentWatch] ${message}`, extra ?? '');
   }
 
-  // ---------------------------------------------------------------------------
-  // API pública
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Observa o documento users/{uid} e traduz tudo para eventos simples.
-   *
-   * Eventos possíveis:
-   * - exists: doc existe e não indica suspensão/deleção
-   * - missing: doc não existe
-   * - suspended: doc existe, mas indica conta suspensa/bloqueada
-   * - deleted: doc indica exclusão lógica OU watcher dedicado confirmou exclusão
-   * - forbidden: permission-denied ao observar
-   * - error: qualquer outro erro
-   */
   watch$(uid: string): Observable<AuthUserDocumentWatchEvent> {
     const cleanUid = this.normalizeUid(uid);
     if (!cleanUid) return EMPTY;
 
-    return merge(
+    const cached = this.streams.get(cleanUid);
+    if (cached) return cached;
+
+    const stream$ = merge(
       this.buildUserDocWatch$(cleanUid),
       this.buildDeletedFlagWatch$(cleanUid)
     ).pipe(
+      distinctUntilChanged((a, b) => this.areEventsEquivalent(a, b)),
       shareReplay({ bufferSize: 1, refCount: true })
     );
-  }
 
-  // ---------------------------------------------------------------------------
-  // Streams internas
-  // ---------------------------------------------------------------------------
+    this.streams.set(cleanUid, stream$);
+    return stream$;
+  }
 
   private buildUserDocWatch$(uid: string): Observable<AuthUserDocumentWatchEvent> {
     return defer(() => {
@@ -134,15 +111,12 @@ export class AuthUserDocumentWatchService {
       return runInInjectionContext(this.injector, () => docSnapshots(ref));
     }).pipe(
       map((snapshot) => this.mapSnapshotToEvent(uid, snapshot)),
+      distinctUntilChanged((a, b) => this.areEventsEquivalent(a, b)),
       tap((event) => this.dbg('doc event', event)),
       catchError((err) => of(this.mapErrorToEvent(uid, err, 'doc')))
     );
   }
 
-  /**
-   * Watch dedicado de exclusão.
-   * Mantemos separado porque parte da codebase já usa esse caminho especializado.
-   */
   private buildDeletedFlagWatch$(uid: string): Observable<AuthUserDocumentWatchEvent> {
     return this.userQuery.watchUserDocDeleted$(uid).pipe(
       filter((deleted) => deleted === true),
@@ -154,51 +128,32 @@ export class AuthUserDocumentWatchService {
           source: 'deleted-flag',
         })
       ),
+      distinctUntilChanged((a, b) => this.areEventsEquivalent(a, b)),
       tap((event) => this.dbg('deleted-flag event', event)),
       catchError((err) => of(this.mapErrorToEvent(uid, err, 'deleted-flag')))
     );
   }
-
-  // ---------------------------------------------------------------------------
-  // Mapeamento
-  // ---------------------------------------------------------------------------
 
   private mapSnapshotToEvent(
     uid: string,
     snapshot: DocumentSnapshot<DocumentData>
   ): AuthUserDocumentWatchEvent {
     if (!snapshot.exists()) {
-      return {
-        type: 'missing',
-        uid,
-        source: 'doc',
-      };
+      return { type: 'missing', uid, source: 'doc' };
     }
 
     const data = snapshot.data() ?? {};
     const status = this.normalizeStatus(data);
 
     if (this.isSuspended(data, status)) {
-      return {
-        type: 'suspended',
-        uid,
-        source: 'doc',
-      };
+      return { type: 'suspended', uid, source: 'doc' };
     }
 
     if (this.isDeleted(data, status)) {
-      return {
-        type: 'deleted',
-        uid,
-        source: 'doc',
-      };
+      return { type: 'deleted', uid, source: 'doc' };
     }
 
-    return {
-      type: 'exists',
-      uid,
-      source: 'doc',
-    };
+    return { type: 'exists', uid, source: 'doc' };
   }
 
   private mapErrorToEvent(
@@ -227,9 +182,17 @@ export class AuthUserDocumentWatchService {
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Regras de leitura
-  // ---------------------------------------------------------------------------
+  private areEventsEquivalent(
+    a: AuthUserDocumentWatchEvent,
+    b: AuthUserDocumentWatchEvent
+  ): boolean {
+    return (
+      a.type === b.type &&
+      a.uid === b.uid &&
+      a.source === b.source &&
+      String((a as any).code ?? '') === String((b as any).code ?? '')
+    );
+  }
 
   private normalizeUid(uid: string | null | undefined): string {
     return (uid ?? '').trim();
@@ -245,17 +208,17 @@ export class AuthUserDocumentWatchService {
       .toLowerCase();
   }
 
-private isSuspended(data: Record<string, unknown>, status: string): boolean {
-  return (
-    (data as any)?.isSuspended === true ||
-    (data as any)?.isBanned === true ||
-    (data as any)?.accountLocked === true ||
-    (data as any)?.accountStatus === 'locked' ||
-    status === 'suspended' ||
-    status === 'banned' ||
-    status === 'locked'
-  );
-}
+  private isSuspended(data: Record<string, unknown>, status: string): boolean {
+    return (
+      (data as any)?.isSuspended === true ||
+      (data as any)?.isBanned === true ||
+      (data as any)?.accountLocked === true ||
+      (data as any)?.accountStatus === 'locked' ||
+      status === 'suspended' ||
+      status === 'banned' ||
+      status === 'locked'
+    );
+  }
 
   private isDeleted(data: Record<string, unknown>, status: string): boolean {
     return (
@@ -264,4 +227,4 @@ private isSuspended(data: Record<string, unknown>, status: string): boolean {
       status === 'deleted'
     );
   }
-}
+} // Linha 230

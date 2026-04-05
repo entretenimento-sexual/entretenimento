@@ -1,0 +1,199 @@
+<!-- src\app\account\pages\account-home\account-home.component.html -->
+ <main class="account-home-page app-page" aria-label="Minha conta">
+  <section class="account-home-shell stack">
+    <header class="account-home-header">
+      <div class="account-home-header__text">
+        <h1>Minha conta</h1>
+        <p>
+          Área consolidada da conta, segurança, assinatura, tokens e dados de acesso.
+        </p>
+      </div>
+
+      <nav class="account-home-header__actions" aria-label="Ações da conta">
+        <a class="btn btn-secondary" routerLink="/perfil">Voltar ao perfil</a>
+      </nav>
+    </header>
+
+    <nav class="account-nav" aria-label="Seções da conta">
+      <a href="#conta">Informações da conta</a>
+      <a href="#seguranca">Segurança e privacidade</a>
+      <a href="#assinatura">Assinatura</a>
+      <a href="#tokens">Tokens</a>
+      <a href="#gerenciar">Gerenciar conta</a>
+    </nav>
+
+    @if (vm$ | async; as vm) {
+      @if (vm) {
+        <section id="conta" class="account-card">
+          <h2>Informações da conta</h2>
+
+          <div class="account-grid">
+            <article class="account-item">
+              <span class="label">Perfil público</span>
+              <strong>{{ vm.profilePath || 'Não definido' }}</strong>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Apelido</span>
+              <strong>{{ vm.nickname || 'Não definido' }}</strong>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Usuário desde</span>
+              <strong>
+                {{ vm.memberSince ? (vm.memberSince | date:'longDate') : 'Não disponível' }}
+              </strong>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Último acesso</span>
+              <strong>
+                {{ vm.lastLoginAt ? (vm.lastLoginAt | date:'dd/MM/yyyy HH:mm') : 'Não disponível' }}
+              </strong>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Plano</span>
+              <strong>{{ vm.roleLabel }}</strong>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Localização</span>
+              <strong>{{ vm.locationLabel }}</strong>
+              <small>{{ vm.locationDetails }}</small>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Idioma</span>
+              <strong>{{ vm.localeLabel }}</strong>
+              <small>{{ vm.localeCode }}</small>
+            </article>
+          </div>
+        </section>
+
+        <section id="seguranca" class="account-card">
+          <h2>Segurança e privacidade</h2>
+
+          <div class="account-grid">
+            <article class="account-item account-item--highlight">
+              <span class="label">E-mail</span>
+              <strong>{{ vm.email || 'Não informado' }}</strong>
+              <small>Status: {{ vm.emailStatusLabel }}</small>
+              <p class="hint">{{ vm.verificationHint }}</p>
+
+              @if (!vm.emailVerified) {
+                <div class="actions">
+                  <a class="btn btn-primary" routerLink="/register/welcome">
+                    Confirmar e-mail
+                  </a>
+                </div>
+              }
+            </article>
+
+            <article class="account-item">
+              <span class="label">Vinculação Google</span>
+              <strong>{{ vm.googleLinked ? 'Vinculada' : 'Não vinculada' }}</strong>
+              <small>
+                {{ vm.googleLinked ? 'Login social disponível.' : 'Você poderá vincular sua conta Google.' }}
+              </small>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Senha</span>
+              <strong>{{ vm.passwordConfigured ? '●●●●●●●●●●' : 'Não configurada' }}</strong>
+              <small>Gerencie sua senha nesta área futuramente.</small>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Autenticação 2FA</span>
+              <strong>{{ vm.twoFactorEnabled ? 'Ativada' : 'Desativada' }}</strong>
+              <p class="hint">{{ vm.twoFactorHint }}</p>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Dispositivos logados</span>
+              <strong>{{ vm.canManageDevices ? 'Disponível' : 'Indisponível' }}</strong>
+              <div class="actions">
+                <a class="btn btn-secondary" [routerLink]="vm.devicesRoute">
+                  Acessar dispositivos logados
+                </a>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="assinatura" class="account-card">
+          <h2>Assinatura</h2>
+
+          <div class="account-grid">
+            <article class="account-item">
+              <span class="label">Status da assinatura</span>
+              <strong>{{ vm.subscriptionLabel }}</strong>
+              <small>Integração fina com billing pode entrar na próxima etapa.</small>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Compra rápida</span>
+              <strong>
+                {{
+                  vm.quickPurchaseEnabled === null
+                    ? 'Indisponível nesta etapa'
+                    : (vm.quickPurchaseEnabled ? 'Ativada' : 'Desativada')
+                }}
+              </strong>
+              <small>
+                Controle futuro para acelerar compra de assinatura e tokens com segurança.
+              </small>
+            </article>
+          </div>
+        </section>
+
+        <section id="tokens" class="account-card">
+          <h2>Tokens</h2>
+
+          <div class="account-grid">
+            <article class="account-item">
+              <span class="label">Saldo atual</span>
+              <strong>{{ vm.tokensBalance === null ? 'Indisponível' : vm.tokensBalance }}</strong>
+              <small>O saldo de tokens será plugado na etapa de monetização.</small>
+            </article>
+          </div>
+        </section>
+
+        <section id="gerenciar" class="account-card account-card--danger">
+          <h2>Gerenciar conta</h2>
+
+          <div class="account-grid">
+            <article class="account-item">
+              <span class="label">Bloquear conta</span>
+              <p class="hint">
+                Ao bloquear sua conta, você será deslogado e seu perfil ficará inacessível para outras pessoas.
+              </p>
+              <button class="btn btn-secondary" type="button" disabled>
+                Em breve
+              </button>
+            </article>
+
+            <article class="account-item">
+              <span class="label">Excluir conta</span>
+              <p class="hint">
+                Ao excluir a conta, suas informações, fotos e vídeos poderão ser removidos em definitivo.
+              </p>
+              <button class="btn btn-danger" type="button" disabled>
+                Em breve
+              </button>
+            </article>
+          </div>
+        </section>
+      } @else {
+        <section class="account-card">
+          <p>Você precisa estar autenticado para acessar sua conta.</p>
+        </section>
+      }
+    } @else {
+      <section class="account-card">
+        <p>Carregando dados da conta...</p>
+      </section>
+    }
+  </section>
+</main>

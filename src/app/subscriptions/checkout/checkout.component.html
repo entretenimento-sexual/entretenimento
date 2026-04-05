@@ -1,0 +1,49 @@
+<!-- src\app\subscriptions\checkout\checkout.component.html -->
+ <section class="checkout-page" *ngIf="plan$ | async as plan; else invalidPlan">
+  <header class="checkout-header">
+    <p class="checkout-kicker">Resumo da contratação</p>
+    <h1>{{ plan.title }}</h1>
+    <p class="checkout-description">{{ plan.description }}</p>
+  </header>
+
+  <article class="checkout-card">
+    <div class="checkout-price-block">
+      <span class="checkout-price-label">Valor</span>
+      <strong class="checkout-price">
+        {{ (plan.amountCents / 100) | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
+        <span *ngIf="plan.interval === 'month'">/mês</span>
+      </strong>
+    </div>
+
+    <div class="checkout-meta">
+      <p><strong>Plano:</strong> {{ plan.key }}</p>
+      <p><strong>Escopo:</strong> {{ plan.scope }}</p>
+      <p><strong>Status:</strong> {{ plan.active ? 'Ativo' : 'Inativo' }}</p>
+    </div>
+
+    <div class="checkout-actions">
+      <button type="button" class="btn btn-secondary" (click)="back()">
+        Voltar aos planos
+      </button>
+
+      <button type="button" class="btn btn-primary" (click)="continue()">
+        Continuar para pagamento
+      </button>
+    </div>
+  </article>
+</section>
+
+<ng-template #invalidPlan>
+  <section class="checkout-page">
+    <article class="checkout-card">
+      <h1>Plano inválido</h1>
+      <p>O plano informado não existe ou não está disponível.</p>
+
+      <div class="checkout-actions">
+        <button type="button" class="btn btn-primary" (click)="back()">
+          Voltar aos planos
+        </button>
+      </div>
+    </article>
+  </section>
+</ng-template>

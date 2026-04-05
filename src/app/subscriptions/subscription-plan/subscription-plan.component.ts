@@ -1,6 +1,6 @@
-// src\app\subscriptions\subscription-plan\subscription-plan.component.ts
+// src/app/subscriptions/subscription-plan/subscription-plan.component.ts
 import { Component } from '@angular/core';
-import { Router } from '@angular/router'; // Para redirecionar após a assinatura
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-subscription-plan',
@@ -9,12 +9,13 @@ import { Router } from '@angular/router'; // Para redirecionar após a assinatur
   styleUrls: ['./subscription-plan.component.css']
 })
 export class SubscriptionPlanComponent {
+  constructor(private readonly router: Router) {}
 
-  constructor(private router: Router) { }
-
-  subscribe(plan: string) {
-    // Aqui você pode implementar a lógica de redirecionamento ou ativação da assinatura
+  subscribe(plan: string): void {
     console.log(`Usuário escolheu o plano: ${plan}`);
-    this.router.navigate(['/checkout', { plan }]);
+
+    this.router.navigate(['/checkout'], {
+      queryParams: { plan }
+    });
   }
 }

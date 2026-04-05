@@ -13,5 +13,5 @@ export {
   cleanupOldData,
   onUserCreateIndexNickname,
   clearStalePresence,
-
 };
+export * from './payments';

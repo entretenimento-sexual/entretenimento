@@ -10,10 +10,9 @@
 // - não toca no legado
 // - não salva nada
 // - role continua vindo de IUserDados / CurrentUserStoreService
-
 import { Injectable, inject } from '@angular/core';
 import { Observable, combineLatest, of } from 'rxjs';
-import { distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
+import { distinctUntilChanged, map, shareReplay, switchMap } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
 import { IUserDados } from '@core/interfaces/iuser-dados';
@@ -67,15 +66,15 @@ export class PreferencesFacade {
   /**
    * VM do usuário logado, útil para telas "Minhas preferências".
    */
-  readonly currentPreferencesVm$: Observable<PreferencesViewModel | null> = this.currentUser$.pipe(
-    map((user) => user?.uid?.trim() || null),
-    distinctUntilChanged(),
-    switchMapSafe((uid) => {
-      if (!uid) return of(null);
-      return this.getPreferencesVmByUid$(uid);
-    }),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+    readonly currentPreferencesVm$: Observable<PreferencesViewModel | null> = this.currentUser$.pipe(
+      map((user) => user?.uid?.trim() || null),
+      distinctUntilChanged(),
+      switchMap((uid) => {
+        if (!uid) return of(null);
+        return this.getPreferencesVmByUid$(uid);
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
   /**
    * VM por uid explícito.
@@ -129,32 +128,4 @@ export class PreferencesFacade {
   private normalizeUid(uid: string): string {
     return (uid ?? '').trim();
   }
-}
-
-/**
- * Helper local para evitar importar switchMap em excesso só para um caso simples.
- * Mantém a facade mais legível.
- */
-function switchMapSafe<T, R>(project: (value: T) => Observable<R>) {
-  return (source: Observable<T>): Observable<R> =>
-    new Observable<R>((subscriber) => {
-      let innerSub: { unsubscribe(): void } | null = null;
-
-      const outerSub = source.subscribe({
-        next(value) {
-          innerSub?.unsubscribe();
-          innerSub = project(value).subscribe({
-            next: (v) => subscriber.next(v),
-            error: (e) => subscriber.error(e),
-          });
-        },
-        error: (e) => subscriber.error(e),
-        complete: () => subscriber.complete(),
-      });
-
-      return () => {
-        innerSub?.unsubscribe();
-        outerSub.unsubscribe();
-      };
-    });
-}
+} // Linha 131, fim do preferences.facade.ts

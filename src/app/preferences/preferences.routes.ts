@@ -1,4 +1,6 @@
 // src/app/preferences/preferences.routes.ts
+// Não esquecer comentários explicativos e ferramentas de debug
+// OJETIVO DE REDUZIR A COMPLEXIDADE DA UI
 import { Routes } from '@angular/router';
 
 export const PREFERENCES_ROUTES: Routes = [

@@ -131,6 +131,16 @@ const routes: Routes = [
       },
 
       {
+        path: 'preferencias',
+        loadChildren: () =>
+          import('./preferences/preferences.routes').then(m => m.PREFERENCES_ROUTES),
+        canActivate: [authGuard],
+        data: {
+          requireVerified: true,
+        },
+      },
+
+      {
         path: 'friends',
         loadChildren: () =>
           import('./layout/friend-management/friend-management.module')
@@ -152,10 +162,21 @@ const routes: Routes = [
           requireProfileCompleted: true,
         },
       },
-
       {
-        path: 'profile-list',
-        component: ProfileListComponent,
+        path: 'subscription-plan',
+        component: SubscriptionPlanComponent,
+        canActivate: [authGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
+      {
+        path: 'checkout',
+        loadComponent: () =>
+          import('./subscriptions/checkout/checkout.component').then(
+            (m) => m.CheckoutComponent
+          ),
         canActivate: [authGuard],
         data: {
           requireVerified: true,
@@ -164,15 +185,20 @@ const routes: Routes = [
       },
 
       {
-        path: 'subscription-plan',
-        component: SubscriptionPlanComponent,
-      },
-
-      {
         path: 'perfil-debug/:id',
         loadComponent: () =>
           import('./perfil-debug.component').then(c => c.PerfilDebugComponent),
         canActivate: [authGuard],
+      },
+
+      {
+        path: 'conta',
+        loadChildren: () =>
+          import('./account/account.routes').then((m) => m.ACCOUNT_ROUTES),
+        canActivate: [authGuard],
+        data: {
+          requireVerified: true,
+        },
       },
 
       {

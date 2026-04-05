@@ -13,12 +13,20 @@ import { ErrorNotificationService } from '@core/services/error-handler/error-not
 
 import { MatchProfileFacade } from '../../application/match-profile.facade';
 import { MatchProfilePreviewCardComponent } from '../../components/match-profile-preview-card/match-profile-preview-card.component';
+import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
+import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
 
 @Component({
   selector: 'app-match-profile-lab',
   standalone: true,
-  imports: [CommonModule, RouterModule, MatchProfilePreviewCardComponent],
+  imports: [
+    CommonModule,
+    RouterModule,
+    MatchProfilePreviewCardComponent,
+    PreferencesPageHeaderComponent,
+    PreferencesDomainNavComponent,
+  ],
   templateUrl: './match-profile-lab.component.html',
   styleUrl: './match-profile-lab.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -32,8 +40,8 @@ export class MatchProfileLabComponent {
   readonly vm$ = this.matchProfileFacade.currentMatchProfileVm$;
 
   constructor() {
-  this.preferencesUi.setActiveView('match_profile_lab');
-}
+    this.preferencesUi.setActiveView('match_profile_lab');
+  }
 
   rebuild(): void {
     this.isSaving.set(true);

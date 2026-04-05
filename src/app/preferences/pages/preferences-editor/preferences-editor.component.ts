@@ -3,7 +3,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { map } from 'rxjs/operators';
+import { distinctUntilChanged, map, tap } from 'rxjs/operators';
 
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
@@ -17,6 +17,9 @@ import { PreferenceProfileFormComponent } from '../../components/preference-prof
 import { IntentStateFormComponent } from '../../components/intent-state-form/intent-state-form.component';
 import { DiscoveryVisibilityPanelComponent } from '../../components/discovery-visibility-panel/discovery-visibility-panel.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
+import { Observable } from 'rxjs';
+import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
+import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 
 @Component({
   selector: 'app-preferences-editor',
@@ -29,6 +32,8 @@ import { PreferencesUiService } from '../../state/preferences-ui.service';
     PreferenceProfileFormComponent,
     IntentStateFormComponent,
     DiscoveryVisibilityPanelComponent,
+    PreferencesPageHeaderComponent,
+    PreferencesDomainNavComponent,
   ],
   templateUrl: './preferences-editor.component.html',
   styleUrl: './preferences-editor.component.css',
@@ -44,17 +49,18 @@ export class PreferencesEditorComponent {
   readonly isSavingIntent = signal(false);
 
   readonly uid$ = this.route.paramMap.pipe(
-    map((params) => (params.get('uid') ?? params.get('id') ?? '').trim() || null)
+    map((params) => (params.get('uid') ?? params.get('id') ?? '').trim() || null),
+    distinctUntilChanged(),
+    tap((uid) => {
+      this.preferencesUi.setActiveView('editor');
+      this.preferencesUi.setLastEditorUid(uid);
+    })
   );
 
-readonly state$ = this.uid$.pipe(
-  map((uid) => uid ?? ''),
-  switchMapSafe((uid) => {
-    this.preferencesUi.setActiveView('editor');
-    this.preferencesUi.setLastEditorUid(uid || null);
-    return this.editorFacade.getEditorState$(uid);
-  })
-);
+  readonly state$ = this.uid$.pipe(
+    map((uid) => uid ?? ''),
+    switchMapSafe((uid) => this.editorFacade.getEditorState$(uid))
+  );
 
   onSaveProfile(uid: string, profile: PreferenceProfile): void {
     if (!uid) return;
@@ -88,8 +94,6 @@ readonly state$ = this.uid$.pipe(
     });
   }
 }
-
-import { Observable } from 'rxjs';
 
 function switchMapSafe<T, R>(project: (value: T) => Observable<R>) {
   return (source: Observable<T>): Observable<R> =>

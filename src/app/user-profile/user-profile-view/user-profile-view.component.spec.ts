@@ -9,7 +9,7 @@ import { UserProfileViewComponent } from './user-profile-view.component';
 // imports relativos
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
-import { SidebarService } from '../../core/services/sidebar.service';
+
 import { UserSocialLinksService } from '../../core/services/user-profile/user-social-links.service';
 import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
@@ -126,8 +126,6 @@ describe('UserProfileViewComponent', () => {
 
         { provide: CurrentUserStoreService, useClass: MockCurrentUserStoreService },
         { provide: AuthSessionService, useClass: MockAuthSessionService },
-        { provide: SidebarService, useClass: MockSidebarService },
-
         { provide: UserSocialLinksService, useClass: MockUserSocialLinksService },
         { provide: FirestoreUserQueryService, useClass: MockFirestoreUserQueryService },
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },

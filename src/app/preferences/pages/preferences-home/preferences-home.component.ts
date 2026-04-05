@@ -15,12 +15,20 @@ import { RouterModule } from '@angular/router';
 
 import { PreferencesFacade } from '../../application/preferences.facade';
 import { PreferenceSummaryCardComponent } from '../../components/preference-summary-card/preference-summary-card.component';
+import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
+import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
 
 @Component({
   selector: 'app-preferences-home',
   standalone: true,
-  imports: [CommonModule, RouterModule, PreferenceSummaryCardComponent],
+  imports: [
+    CommonModule,
+    RouterModule,
+    PreferenceSummaryCardComponent,
+    PreferencesPageHeaderComponent,
+    PreferencesDomainNavComponent,
+  ],
   templateUrl: './preferences-home.component.html',
   styleUrl: './preferences-home.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

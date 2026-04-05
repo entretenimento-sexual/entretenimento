@@ -1,20 +1,16 @@
 <!-- src\app\preferences\pages\preferences-home\preferences-home.component.html -->
-<main class="preferences-home-page" aria-label="Página de preferências">
-  <section class="preferences-home-shell">
-    <header class="preferences-home-header">
-      <div>
-        <h1 class="preferences-home-title">Preferências</h1>
-        <p class="preferences-home-subtitle">
-          Área nova do domínio de preferências, intenção e descoberta.
-        </p>
-      </div>
+<main class="preferences-home-page app-page" aria-label="Página de preferências">
+  <section class="preferences-home-shell stack">
+    <app-preferences-page-header
+      title="Preferências"
+      subtitle="Área nova do domínio de preferências, intenção e descoberta."
+    >
+      <a page-actions class="btn btn-secondary" routerLink="/perfil">
+        Voltar ao perfil
+      </a>
+    </app-preferences-page-header>
 
-      <nav class="preferences-home-actions" aria-label="Ações de preferências">
-        <a class="btn btn-secondary" routerLink="/perfil">
-          Voltar ao perfil
-        </a>
-      </nav>
-    </header>
+    <app-preferences-domain-nav></app-preferences-domain-nav>
 
     @if (vm$ | async; as vm) {
       @if (vm) {

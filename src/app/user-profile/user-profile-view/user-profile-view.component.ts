@@ -9,6 +9,7 @@
 // - suprime a renderização do sidebar local do perfil
 // - o sidebar autenticado passa a ser responsabilidade exclusiva do LayoutShellComponent
 // - evita duplicidade visual em /perfil/:uid
+// apreciar deixar mais ostensivo para o usuário o status da verificação de email e o a oferta deste
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -41,7 +42,7 @@ import { GlobalErrorHandlerService } from '@core/services/error-handler/global-e
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
 import { SocialLinksAccordionComponent } from './user-social-links-accordion/user-social-links-accordion.component';
-import { UserProfilePreferencesComponent } from './user-profile-preferences/user-profile-preferences.component';
+//import { UserProfilePreferencesComponent } from './user-profile-preferences/user-profile-preferences.component';
 import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
@@ -56,7 +57,7 @@ import { environment } from 'src/environments/environment';
     CommonModule,
     RouterModule,
     SocialLinksAccordionComponent,
-    UserProfilePreferencesComponent,
+    //UserProfilePreferencesComponent,
     UserPhotoManagerComponent,
     DateFormatPipe,
     CapitalizePipe,

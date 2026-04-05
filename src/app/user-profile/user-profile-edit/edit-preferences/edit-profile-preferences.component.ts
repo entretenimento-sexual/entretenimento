@@ -39,12 +39,15 @@ import {
 
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-edit-profile-preferences',
   templateUrl: './edit-profile-preferences.component.html',
   styleUrls: ['./edit-profile-preferences.component.css'],
-  standalone: false
+  standalone: true,
+  imports: [CommonModule, FormsModule],
 })
 export class EditProfilePreferencesComponent implements OnInit {
   uid: string | null = null;

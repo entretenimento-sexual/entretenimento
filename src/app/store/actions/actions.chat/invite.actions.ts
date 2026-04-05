@@ -42,3 +42,7 @@ export const DeclineInviteFailure = createAction(
   '[Invite] Decline Invite Failure',
   props<{ error: string }>()
 );
+export const StopInvites = createAction(
+  '[Invite] Stop Invites');
+export const ClearInvitesState = createAction(
+  '[Invite] Clear Invites State');

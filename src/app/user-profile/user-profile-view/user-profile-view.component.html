@@ -1,4 +1,5 @@
 <!-- src/app/user-profile/user-profile-view/user-profile-view.component.html -->
+<!-- apreciar deixar mais ostensivo para o usuário o status da verificação de email e o a oferta deste -->
 <div class="profile-page">
   <main class="profile-main" aria-label="Perfil do usuário">
     <div class="profile-shell container-wide">
@@ -30,12 +31,12 @@
                 </a>
 
                 <a
-                  class="btn btn-secondary"
-                  [routerLink]="['/perfil', uid, 'edit-profile-preferences']"
-                  aria-label="Editar preferências"
-                >
-                  Editar preferências
-                </a>
+                class="btn btn-secondary"
+                [routerLink]="['/preferencias', 'editar', uid]"
+                aria-label="Editar preferências"
+              >
+                Editar preferências
+              </a>
 
                 <a
                   class="btn btn-secondary"
@@ -184,9 +185,12 @@
         </section>
       }
 
-      <section class="profile-card" aria-label="Preferências do usuário">
-        <app-user-profile-preferences [uid]="uid"></app-user-profile-preferences>
-      </section>
+     <!-- remover temporariamente o viewer legado -->
+<!--
+<section class="profile-card" aria-label="Preferências do usuário">
+  <app-user-profile-preferences [uid]="uid"></app-user-profile-preferences>
+</section>
+-->
 
       <section class="profile-card" aria-label="Links sociais do usuário">
         <app-social-links-accordion [uid]="uid" [isOwner]="isOnOwnProfile()"></app-social-links-accordion>

@@ -1,0 +1,29 @@
+/* src\app\shared\components-globais\email-verification-gate-banner\email-verification-gate-banner.component.css */
+.email-verification-gate-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin: 0.75rem var(--gutter, 16px) 0;
+  padding: 1rem;
+  border: 1px solid color-mix(in oklab, var(--warning-color, #ff9800) 50%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in oklab, var(--warning-color, #ff9800) 10%, transparent);
+}
+
+.email-verification-gate-banner__content {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.email-verification-gate-banner__content p,
+.email-verification-gate-banner__content strong {
+  margin: 0;
+}
+
+.email-verification-gate-banner__actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}

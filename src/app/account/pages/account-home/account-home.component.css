@@ -1,0 +1,111 @@
+/* src\app\account\pages\account-home\account-home.component.css */
+.account-home-page {
+  width: 100%;
+}
+
+.account-home-shell {
+  width: 100%;
+  max-width: var(--content-wide, 1360px);
+  margin-inline: auto;
+  padding-inline: var(--gutter, 16px);
+}
+
+.account-home-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.account-home-header__text {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.account-home-header__text h1,
+.account-home-header__text p {
+  margin: 0;
+}
+
+.account-home-header__actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.account-nav {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--surface-border, #2b2b2b);
+  border-radius: 1rem;
+  background: var(--surface-color, rgba(255, 255, 255, 0.02));
+}
+
+.account-nav a {
+  text-decoration: none;
+  color: inherit;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--surface-border, #2b2b2b);
+}
+
+.account-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--surface-border, #2b2b2b);
+  border-radius: 1rem;
+  background: var(--surface-color, rgba(255, 255, 255, 0.02));
+}
+
+.account-card h2 {
+  margin: 0;
+}
+
+.account-card--danger {
+  border-color: color-mix(in oklab, var(--danger-color, #b00020) 55%, var(--surface-border, #2b2b2b));
+}
+
+.account-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.account-item {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.9rem;
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.account-item--highlight {
+  border: 1px solid color-mix(in oklab, var(--primary-color, #7c4dff) 40%, transparent);
+}
+
+.label {
+  opacity: 0.78;
+  font-size: 0.92rem;
+}
+
+.hint {
+  margin: 0;
+  opacity: 0.82;
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 840px) {
+  .account-grid {
+    grid-template-columns: 1fr;
+  }
+}

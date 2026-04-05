@@ -9,7 +9,7 @@
 // - corrige o fluxo DEV para continuar sincronizando quando o Auth já verificou,
 //   mas o token/Firestore ainda não refletiram totalmente
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
-import { Router, ActivatedRoute } from '@angular/router';
+import { Router } from '@angular/router';
 
 import { Observable, Subscription, EMPTY, from, interval, of } from 'rxjs';
 import {
@@ -30,9 +30,6 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
-import { ValidGenders } from 'src/app/core/enums/valid-genders.enum';
-import { ValidPreferences } from 'src/app/core/enums/valid-preferences.enum';
-
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
@@ -42,7 +39,7 @@ import { Firestore } from '@angular/fire/firestore';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 import type { DocumentReference, Unsubscribe } from 'firebase/firestore';
-import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 
 import { EmulatorEmailVerifyDevService } from 'src/app/core/services/autentication/register/emulator-email-verify-dev.service';
 import { environment } from 'src/environments/environment';
@@ -63,13 +60,9 @@ type UiBanner = {
   standalone: false,
 })
 export class WelcomeComponent implements OnInit {
-  // =========================
-  //         ESTADOS
-  // =========================
   checkingVerification = false;
   resendingVerificationEmail = false;
   markingVerifiedDev = false;
-  savingOptional = false;
   sessionInvalid = false;
 
   banner: UiBanner | null = null;
@@ -79,34 +72,22 @@ export class WelcomeComponent implements OnInit {
   email: string | null = null;
   lastCheckedAt: Date | null = null;
 
-  validGenders = Object.values(ValidGenders);
-  validPreferences = Object.values(ValidPreferences);
-
-  selectedGender = '';
-  selectedPreferencesMap: Record<string, boolean> = {};
-
   private readonly destroyRef = inject(DestroyRef);
   readonly isDevEmu = environment.useEmulators && environment.env === 'dev-emu';
 
   private readonly ACTION_TIMEOUT_MS = 15_000;
 
-  /**
-   * Getter agregado mantido para facilitar desabilitação geral da UI,
-   * sem perder a granularidade dos estados específicos.
-   */
   get busy(): boolean {
     return (
       this.checkingVerification ||
       this.resendingVerificationEmail ||
-      this.markingVerifiedDev ||
-      this.savingOptional
+      this.markingVerifiedDev
     );
   }
 
   constructor(
     private readonly emailVerificationService: EmailVerificationService,
     private readonly router: Router,
-    private readonly route: ActivatedRoute,
     private readonly auth: Auth,
     private readonly db: Firestore,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
@@ -114,154 +95,133 @@ export class WelcomeComponent implements OnInit {
     private readonly emulatorEmailVerifyDev: EmulatorEmailVerifyDevService
   ) {}
 
-  /**
-   * Acelera o fluxo em dev-emu sem depender do clique no e-mail real.
-   *
-   * Regra importante:
-   * - se o Auth já refletiu emailVerified=true, mas a sincronização ainda não concluiu,
-   *   mantemos/reiniciamos o polling para terminar a propagação corretamente.
-   */
-markVerifiedDev(): void {
-  if (
-    !this.isDevEmu ||
-    this.markingVerifiedDev ||
-    this.checkingVerification ||
-    this.resendingVerificationEmail
-  ) {
-    return;
-  }
+  markVerifiedDev(): void {
+    if (
+      !this.isDevEmu ||
+      this.markingVerifiedDev ||
+      this.checkingVerification ||
+      this.resendingVerificationEmail
+    ) {
+      return;
+    }
 
-  this.stopPolling();
-  this.markingVerifiedDev = true;
+    this.stopPolling();
+    this.markingVerifiedDev = true;
 
-  this.emulatorEmailVerifyDev
-    .markVerifiedInEmulatorDebug$()
-    .pipe(
-      take(1),
+    this.emulatorEmailVerifyDev
+      .markVerifiedInEmulatorDebug$()
+      .pipe(
+        take(1),
+        tap((dbg) => {
+          this.markingVerifiedDev = false;
+          this.lastCheckedAt = new Date();
 
-      tap((dbg) => {
-        // O ato de "marcar no emulator" terminou aqui.
-        // A partir daqui não faz sentido manter o botão DEV preso em "Marcando…".
-        this.markingVerifiedDev = false;
+          if (dbg.after.emailVerified) {
+            this.emailVerified = true;
 
-        this.lastCheckedAt = new Date();
+            this.setBanner(
+              'info',
+              `DEV OK (trace: ${dbg.traceId})`,
+              'O Auth Emulator já marcou o e-mail como verificado. Finalizando a sincronização no app…',
+              {
+                traceId: dbg.traceId,
+                okAuth: dbg.after.emailVerified,
+                uid: dbg.uid,
+                email: dbg.email,
+                listOob: dbg.listOob,
+                apply: dbg.apply,
+                note: dbg.note,
+              }
+            );
+          }
+        }),
+        switchMap((dbg) => {
+          this.checkingVerification = true;
 
-        if (dbg.after.emailVerified) {
-          // Reflete imediatamente o estado do Auth na UI.
-          this.emailVerified = true;
-
-          this.setBanner(
-            'info',
-            `DEV OK (trace: ${dbg.traceId})`,
-            'O Auth Emulator já marcou o e-mail como verificado. Finalizando a sincronização no app…',
-            {
-              traceId: dbg.traceId,
-              okAuth: dbg.after.emailVerified,
-              uid: dbg.uid,
-              email: dbg.email,
-              listOob: dbg.listOob,
-              apply: dbg.apply,
-              note: dbg.note,
-            }
-          );
-        }
-      }),
-
-      switchMap((dbg) => {
-        // A sincronização passa a usar o estado de "checando",
-        // e não mais o estado do botão DEV.
-        this.checkingVerification = true;
-
-        return this.reloadAndSync$().pipe(
-          take(1),
-          timeout({ first: this.ACTION_TIMEOUT_MS }),
-          map((syncedOk) => ({ dbg, syncedOk })),
-          catchError((err) =>
-            of({
-              dbg,
-              syncedOk: false,
-              syncError: err,
+          return this.reloadAndSync$().pipe(
+            take(1),
+            timeout({ first: this.ACTION_TIMEOUT_MS }),
+            map((syncedOk) => ({ dbg, syncedOk })),
+            catchError((err) =>
+              of({
+                dbg,
+                syncedOk: false,
+                syncError: err,
+              })
+            ),
+            finalize(() => {
+              this.checkingVerification = false;
             })
-          ),
-          finalize(() => {
-            this.checkingVerification = false;
-          })
-        );
-      }),
-
-      tap(({ dbg, syncedOk, syncError }: any) => {
-        const details = {
-          traceId: dbg.traceId,
-          okAuth: dbg.after.emailVerified,
-          okSync: syncedOk,
-          uid: dbg.uid,
-          email: dbg.email,
-          listOob: dbg.listOob,
-          apply: dbg.apply,
-          note: dbg.note,
-          syncError: syncError ?? undefined,
-        };
-
-        if (dbg.after.emailVerified && syncedOk) {
-          this.emailVerified = true;
-          this.setBanner(
-            'success',
-            `DEV OK (trace: ${dbg.traceId})`,
-            'E-mail verificado no Auth Emulator e sincronizado no app.',
-            details
           );
-          return;
-        }
+        }),
+        tap(({ dbg, syncedOk, syncError }: any) => {
+          const details = {
+            traceId: dbg.traceId,
+            okAuth: dbg.after.emailVerified,
+            okSync: syncedOk,
+            uid: dbg.uid,
+            email: dbg.email,
+            listOob: dbg.listOob,
+            apply: dbg.apply,
+            note: dbg.note,
+            syncError: syncError ?? undefined,
+          };
 
-        if (dbg.after.emailVerified && !syncedOk) {
-          this.emailVerified = true;
+          if (dbg.after.emailVerified && syncedOk) {
+            this.emailVerified = true;
+            this.setBanner(
+              'success',
+              `DEV OK (trace: ${dbg.traceId})`,
+              'E-mail verificado no Auth Emulator e sincronizado no app.',
+              details
+            );
+            this.tryAutoRedirectToPreferences();
+            return;
+          }
+
+          if (dbg.after.emailVerified && !syncedOk) {
+            this.emailVerified = true;
+            this.setBanner(
+              'info',
+              `DEV parcial (trace: ${dbg.traceId})`,
+              'O Auth já está verificado. A sincronização final ainda está propagando, mas você já pode seguir o fluxo.',
+              details
+            );
+            this.tryAutoRedirectToPreferences();
+            this.restartPolling();
+            return;
+          }
+
+          this.emailVerified = false;
           this.setBanner(
-            'info',
-            `DEV parcial (trace: ${dbg.traceId})`,
-            'O Auth já está verificado. A sincronização final ainda está propagando, mas você já pode seguir o fluxo.',
+            'warn',
+            `DEV não verificou (trace: ${dbg.traceId})`,
+            dbg.note ?? 'Não foi possível aplicar a verificação no emulador.',
             details
           );
           this.restartPolling();
-          return;
-        }
+        }),
+        catchError((err) => {
+          const traceId = (err as any)?.traceId;
+          const payload = (err as any)?.emuPayload;
 
-        this.emailVerified = false;
-        this.setBanner(
-          'warn',
-          `DEV não verificou (trace: ${dbg.traceId})`,
-          dbg.note ?? 'Não foi possível aplicar a verificação no emulador.',
-          details
-        );
-        this.restartPolling();
-      }),
+          this.setBanner(
+            'error',
+            `DEV erro${traceId ? ` (trace: ${traceId})` : ''}`,
+            'Falha ao marcar como verificado no emulador.',
+            payload ?? err
+          );
 
-      catchError((err) => {
-        const traceId = (err as any)?.traceId;
-        const payload = (err as any)?.emuPayload;
+          return of(void 0);
+        }),
+        finalize(() => {
+          this.markingVerifiedDev = false;
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
 
-        this.setBanner(
-          'error',
-          `DEV erro${traceId ? ` (trace: ${traceId})` : ''}`,
-          'Falha ao marcar como verificado no emulador.',
-          payload ?? err
-        );
-
-        return of(void 0);
-      }),
-
-      finalize(() => {
-        // Garantia final: nunca deixar o botão DEV preso.
-        this.markingVerifiedDev = false;
-      }),
-
-      takeUntilDestroyed(this.destroyRef)
-    )
-    .subscribe();
-}
-
-  /**
-   * Observable reativo do estado do Firebase Auth.
-   */
   private authState$(): Observable<User | null> {
     return new Observable<User | null>((sub) => {
       const unsub = onAuthStateChanged(
@@ -282,9 +242,6 @@ markVerifiedDev(): void {
     );
   }
 
-  /**
-   * Observable de existência do documento do usuário.
-   */
   private docExists$(ref: DocumentReference): Observable<boolean> {
     return new Observable<boolean>((sub) => {
       const unsub: Unsubscribe = onSnapshot(
@@ -355,6 +312,7 @@ markVerifiedDev(): void {
 
           if (this.emailVerified) {
             this.stopPolling();
+            this.tryAutoRedirectToPreferences();
             return;
           }
 
@@ -421,9 +379,6 @@ markVerifiedDev(): void {
     console.error(`[${origin}]`, err);
   }
 
-  /**
-   * Faz reload do usuário e tenta sincronizar emailVerified.
-   */
   private reloadAndSync$(): Observable<boolean> {
     const u = this.auth.currentUser;
     if (!u) return of(false);
@@ -473,8 +428,9 @@ markVerifiedDev(): void {
                 this.setBanner(
                   'success',
                   'E-mail verificado (sincronizado)',
-                  'Você já pode seguir para o painel.'
+                  'Sua conta foi validada. Vamos continuar para suas preferências.'
                 );
+                this.tryAutoRedirectToPreferences();
                 return true;
               }
 
@@ -529,8 +485,10 @@ markVerifiedDev(): void {
                 this.setBanner(
                   'success',
                   'E-mail verificado com sucesso!',
-                  'Você já pode seguir para o painel.'
+                  'Sua conta foi validada. Vamos continuar para suas preferências.'
                 );
+
+                this.tryAutoRedirectToPreferences();
                 return true;
               })
             );
@@ -550,6 +508,57 @@ markVerifiedDev(): void {
       })
     );
   }
+
+private redirectingToPreferences = false;
+
+continueToPreferences(): void {
+  const uid = this.auth.currentUser?.uid?.trim();
+
+  if (!uid) {
+    this.setBanner(
+      'warn',
+      'Sessão não encontrada',
+      'Não foi possível identificar sua conta para continuar.'
+    );
+    return;
+  }
+
+  if (this.redirectingToPreferences) {
+    return;
+  }
+
+  if (this.router.url.startsWith('/preferencias/editar/')) {
+    return;
+  }
+
+  this.redirectingToPreferences = true;
+
+  this.router.navigate(['/preferencias', 'editar', uid], {
+    replaceUrl: true,
+  }).finally(() => {
+    this.redirectingToPreferences = false;
+  });
+}
+
+private tryAutoRedirectToPreferences(): void {
+  const uid = this.auth.currentUser?.uid?.trim();
+
+  if (!uid || !this.emailVerified || this.sessionInvalid || this.redirectingToPreferences) {
+    return;
+  }
+
+  if (this.router.url.startsWith('/preferencias/editar/')) {
+    return;
+  }
+
+  this.redirectingToPreferences = true;
+
+  this.router.navigate(['/preferencias', 'editar', uid], {
+    replaceUrl: true,
+  }).finally(() => {
+    this.redirectingToPreferences = false;
+  });
+}
 
   checkNow(): void {
     if (
@@ -650,73 +659,7 @@ markVerifiedDev(): void {
   }
 
   proceedToDashboard(): void {
-    if (!this.emailVerified) {
-      this.setBanner(
-        'warn',
-        'E-mail ainda não verificado',
-        'Verifique seu e-mail antes de continuar.'
-      );
-      return;
-    }
-
-    const redirectTo =
-      this.route.snapshot.queryParamMap.get('redirectTo') || '/dashboard/principal';
-
-    this.router
-      .navigateByUrl(redirectTo)
-      .then((ok) => {
-        if (!ok) {
-          this.router.navigate(['/dashboard/principal']);
-        }
-      })
-      .catch(() => {
-        this.router.navigate(['/dashboard/principal']);
-      });
-  }
-
-  saveOptionalProfile(): void {
-    const u = this.auth.currentUser;
-    const uid = u?.uid;
-
-    if (!uid) {
-      this.setBanner('warn', 'Sessão não encontrada', 'Sua sessão não está ativa.');
-      this.sessionInvalid = true;
-      return;
-    }
-
-    const selectedPreferences = Object.entries(this.selectedPreferencesMap)
-      .filter(([_, ok]) => ok)
-      .map(([k]) => k);
-
-    this.savingOptional = true;
-
-    const ref = doc(this.db as any, 'users', uid, 'preferences', 'onboarding');
-
-    const payload = {
-      gender: this.selectedGender || null,
-      preferences: selectedPreferences,
-      updatedAt: serverTimestamp(),
-    };
-
-    from(setDoc(ref, payload as any, { merge: true }))
-      .pipe(
-        take(1),
-        timeout({ first: this.ACTION_TIMEOUT_MS }),
-        tap(() => {
-          this.setBanner('success', 'Preferências salvas', 'Tudo certo!');
-          this.notify.showSuccess('Preferências salvas.');
-        }),
-        catchError((err) => {
-          this.setBanner('error', 'Não foi possível salvar agora', 'Tente novamente.', err);
-          this.reportError('WelcomeComponent.saveOptionalProfile', err);
-          return EMPTY;
-        }),
-        finalize(() => {
-          this.savingOptional = false;
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
+    this.continueToPreferences();
   }
 
   private pollingSub: Subscription | null = null;
@@ -811,4 +754,4 @@ markVerifiedDev(): void {
     if (!this.email || !navigator?.clipboard) return;
     navigator.clipboard.writeText(this.email).catch(() => {});
   }
-} // Linha 760
+} // Linha 735. welcome.component.ts está gigantesco, considerar redistribuir as funções

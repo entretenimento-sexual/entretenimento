@@ -2,7 +2,6 @@
 // Selectors puros do estado local do domínio de preferências.
 // Não dependem de Angular nem de store específico.
 // Isso facilita teste, reuse e futura migração.
-
 import { PreferencesUiState } from './preferences-ui.state';
 
 export const selectPreferencesActiveView = (state: PreferencesUiState) => state.activeView;

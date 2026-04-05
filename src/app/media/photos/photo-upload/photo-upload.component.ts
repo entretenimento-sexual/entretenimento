@@ -43,7 +43,7 @@ export class PhotoUploadComponent {
 
   // ownerUid vindo da rota /perfil/:id/fotos/upload
   readonly ownerUid$: Observable<string> = this.route.paramMap.pipe(
-    map((p) => p.get('uid') ?? ''),
+    map((p) => p.get('id') ?? ''),
     distinctUntilChanged(),
     tap((id) => this.debug('ownerUid$', id)),
     shareReplay({ bufferSize: 1, refCount: true })

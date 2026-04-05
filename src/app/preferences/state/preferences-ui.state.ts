@@ -5,7 +5,6 @@
 // - centralizar estado efêmero de navegação/UX do domínio preferences
 // - NÃO substituir o Auth/NgRx global
 // - servir como contrato claro para a camada local em signal state
-
 export type PreferencesDomainView =
   | 'hub'
   | 'overview'

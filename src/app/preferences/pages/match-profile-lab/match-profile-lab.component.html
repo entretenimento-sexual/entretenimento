@@ -1,24 +1,26 @@
 <!-- src\app\preferences\pages\match-profile-lab\match-profile-lab.component.html -->
- <main class="match-profile-lab-page" aria-label="Laboratório do match profile">
-  <section class="match-profile-lab-shell">
-    <header class="match-profile-lab-header">
-      <div>
-        <h1 class="match-profile-lab-title">Laboratório do match profile</h1>
-        <p class="match-profile-lab-subtitle">
-          Visualização e materialização do documento derivado de discovery.
-        </p>
-      </div>
+<main class="match-profile-lab-page app-page" aria-label="Laboratório do match profile">
+  <section class="match-profile-lab-shell stack">
+    <app-preferences-page-header
+      title="Laboratório do match profile"
+      subtitle="Visualização e materialização do documento derivado de discovery."
+    >
+      <button
+        page-actions
+        class="btn btn-primary"
+        type="button"
+        (click)="rebuild()"
+        [disabled]="isSaving()"
+      >
+        {{ isSaving() ? 'Materializando...' : 'Recriar e salvar match profile' }}
+      </button>
 
-      <nav class="match-profile-lab-actions" aria-label="Ações do laboratório">
-        <button class="btn btn-primary" type="button" (click)="rebuild()" [disabled]="isSaving()">
-          {{ isSaving() ? 'Materializando...' : 'Recriar e salvar match profile' }}
-        </button>
+      <a page-actions class="btn btn-secondary" routerLink="/preferencias">
+        Voltar para preferências
+      </a>
+    </app-preferences-page-header>
 
-        <a class="btn btn-secondary" routerLink="/preferencias">
-          Voltar para preferências
-        </a>
-      </nav>
-    </header>
+    <app-preferences-domain-nav></app-preferences-domain-nav>
 
     @if (vm$ | async; as vm) {
       @if (vm) {

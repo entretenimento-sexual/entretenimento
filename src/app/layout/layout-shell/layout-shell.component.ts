@@ -22,7 +22,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { Observable, combineLatest } from 'rxjs';
 import { distinctUntilChanged, map, shareReplay, tap } from 'rxjs/operators';
-
+import { EmailVerificationGateBannerComponent } from '../../shared/components-globais/email-verification-gate-banner/email-verification-gate-banner.component';
 import { SidebarService, SidebarVm } from '@core/services/navigation/sidebar.service';
 import {
   AuthenticatedNavigationService,
@@ -56,6 +56,7 @@ interface LayoutShellVm {
     HeaderModule,
     FooterModule,
     UniversalSidebarComponent,
+    EmailVerificationGateBannerComponent,
   ],
   templateUrl: './layout-shell.component.html',
   styleUrls: ['./layout-shell.component.css'],

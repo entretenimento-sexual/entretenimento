@@ -2,7 +2,6 @@
 // Adapter/compat layer.
 // Objetivo: delegar para o DONO (UserRepositoryService) e marcar aliases como @deprecated.
 // Mantém métodos usados no projeto, mas evita duplicar regra de cache/store/firestore.
-
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';

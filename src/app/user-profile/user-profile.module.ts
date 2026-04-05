@@ -19,7 +19,6 @@ import { UserProfileRoutingModule } from './user-profile-routing.module';
 import { LayoutModule } from '../layout/layout.module';
 
 import { EditProfileRegionComponent } from './user-profile-edit/edit-region/edit-profile-region.component';
-import { EditProfilePreferencesComponent } from './user-profile-edit/edit-preferences/edit-profile-preferences.component';
 import { EditProfileSocialLinksComponent } from './user-profile-edit/edit-profile-social-links/edit-profile-social-links.component';
 import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/edit-user-profile.component';
 
@@ -30,7 +29,6 @@ import { MatExpansionModule } from '@angular/material/expansion';
 @NgModule({
   declarations: [
     EditProfileRegionComponent,
-    EditProfilePreferencesComponent,
     EditProfileSocialLinksComponent,
     EditUserProfileComponent,
   ],
@@ -47,4 +45,4 @@ import { MatExpansionModule } from '@angular/material/expansion';
     MatExpansionModule,
   ],
 })
-export class UserProfileModule { }
+export class UserProfileModule {}

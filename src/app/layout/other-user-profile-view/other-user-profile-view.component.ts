@@ -8,7 +8,7 @@ import { SharedModule } from "../../shared/shared.module";
 import { catchError, finalize, of } from 'rxjs';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { SocialLinksAccordionComponent } from 'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
-import { UserProfilePreferencesComponent } from 'src/app/user-profile/user-profile-view/user-profile-preferences/user-profile-preferences.component';
+//import { UserProfilePreferencesComponent } from 'src/app/user-profile/user-profile-view/user-profile-preferences/user-profile-preferences.component';
 // ⬇️ novos imports para o tratamento centralizado
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -22,7 +22,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
     CommonModule,
     SharedModule,
     SocialLinksAccordionComponent,
-    UserProfilePreferencesComponent,
+    //UserProfilePreferencesComponent,
   ]
 })
 export class OtherUserProfileViewComponent implements OnInit {

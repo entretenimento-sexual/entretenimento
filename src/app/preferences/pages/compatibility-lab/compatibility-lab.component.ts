@@ -34,25 +34,22 @@ export class CompatibilityLabComponent {
   private readonly compatibilityFacade = inject(CompatibilityPreviewFacade);
   private readonly preferencesUi = inject(PreferencesUiService);
 
-readonly targetUid$ = this.route.paramMap.pipe(
-  map((params) => (params.get('targetUid') ?? '').trim() || null),
-  distinctUntilChanged(),
-  tap((targetUid) => {
-    this.preferencesUi.setActiveView('compatibility_lab');
-    this.preferencesUi.setLastCompatibilityTargetUid(targetUid);
-  })
-);
-
-    readonly vm$ = this.targetUid$.pipe(
-    switchMap((targetUid) => {
-        this.preferencesUi.setActiveView('compatibility_lab');
-        this.preferencesUi.setLastCompatibilityTargetUid(targetUid);
-
-        if (!targetUid) {
-        return this.compatibilityFacade.getCompatibilityPreviewByTargetUid$('__invalid__');
-        }
-
-        return this.compatibilityFacade.getCompatibilityPreviewByTargetUid$(targetUid);
+  readonly targetUid$ = this.route.paramMap.pipe(
+    map((params) => (params.get('targetUid') ?? '').trim() || null),
+    distinctUntilChanged(),
+    tap((targetUid) => {
+      this.preferencesUi.setActiveView('compatibility_lab');
+      this.preferencesUi.setLastCompatibilityTargetUid(targetUid);
     })
-   );
- }
+  );
+
+  readonly vm$ = this.targetUid$.pipe(
+    switchMap((targetUid) => {
+      if (!targetUid) {
+        return this.compatibilityFacade.getCompatibilityPreviewByTargetUid$('__invalid__');
+      }
+
+      return this.compatibilityFacade.getCompatibilityPreviewByTargetUid$(targetUid);
+    })
+  );
+}

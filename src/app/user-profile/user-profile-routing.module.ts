@@ -15,15 +15,11 @@ import { RouterModule, Routes } from '@angular/router';
 
 import { UserProfileViewComponent } from './user-profile-view/user-profile-view.component';
 import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/edit-user-profile.component';
-import { EditProfilePreferencesComponent } from './user-profile-edit/edit-preferences/edit-profile-preferences.component';
 import { EditProfileSocialLinksComponent } from './user-profile-edit/edit-profile-social-links/edit-profile-social-links.component';
 
 import { UserOwnerGuard } from '../core/guards/ownership-guard/user.owner.guard';
 
 const routes: Routes = [
-  // ===========================================================================
-  // Edição do próprio perfil
-  // ===========================================================================
   {
     path: ':uid/editar-dados-pessoais',
     component: EditUserProfileComponent,
@@ -31,7 +27,9 @@ const routes: Routes = [
   },
   {
     path: ':uid/edit-profile-preferences',
-    component: EditProfilePreferencesComponent,
+    loadComponent: () =>
+      import('../preferences/pages/preferences-editor/preferences-editor.component')
+        .then(m => m.PreferencesEditorComponent),
     canActivate: [UserOwnerGuard],
   },
   {
@@ -39,10 +37,6 @@ const routes: Routes = [
     component: EditProfileSocialLinksComponent,
     canActivate: [UserOwnerGuard],
   },
-
-  // ===========================================================================
-  // Visualização
-  // ===========================================================================
   {
     path: '',
     component: UserProfileViewComponent,
@@ -58,4 +52,4 @@ const routes: Routes = [
   imports: [RouterModule.forChild(routes)],
   exports: [RouterModule],
 })
-export class UserProfileRoutingModule { }
+export class UserProfileRoutingModule {}

@@ -6,7 +6,6 @@
 // - Fail-safe: qualquer erro resulta em redirect controlado (não quebra navegação).
 // - Preferência por dados locais (CurrentUserStore) quando disponíveis, com fallback
 //   para Firestore only-once (evita leitura desnecessária em cada navegação).
-
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { combineLatest, of } from 'rxjs';

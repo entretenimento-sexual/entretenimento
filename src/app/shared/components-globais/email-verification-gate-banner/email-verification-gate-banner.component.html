@@ -1,0 +1,29 @@
+<!-- src\app\shared\components-globais\email-verification-gate-banner\email-verification-gate-banner.component.html -->
+ @if (vm$ | async; as vm) {
+  <section
+    class="email-verification-gate-banner"
+    role="alert"
+    aria-live="polite"
+    aria-atomic="true"
+  >
+    <div class="email-verification-gate-banner__content">
+      <strong>Seu e-mail ainda não foi verificado</strong>
+      <p>
+        {{ vm.message }}
+        @if (vm.email) {
+          <span> E-mail atual: <strong>{{ vm.email }}</strong>.</span>
+        }
+      </p>
+    </div>
+
+    <div class="email-verification-gate-banner__actions">
+      <a class="btn btn-primary" routerLink="/register/welcome">
+        {{ vm.ctaLabel }}
+      </a>
+
+      <button class="btn btn-secondary" type="button" (click)="resend()">
+        Reenviar e-mail
+      </button>
+    </div>
+  </section>
+}

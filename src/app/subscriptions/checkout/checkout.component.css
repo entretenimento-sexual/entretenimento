@@ -1,0 +1,74 @@
+/* src\app\subscriptions\checkout\checkout.component.css */
+.checkout-page {
+  width: min(100%, 840px);
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.checkout-header {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.checkout-kicker {
+  margin: 0;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.checkout-header h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+}
+
+.checkout-description {
+  margin: 0;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+
+.checkout-card {
+  border-radius: 20px;
+  padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: grid;
+  gap: 1.25rem;
+}
+
+.checkout-price-block,
+.checkout-meta {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.checkout-price-label {
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.checkout-price {
+  font-size: 1.8rem;
+}
+
+.checkout-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .checkout-page {
+    padding: 1rem 0.875rem 1.5rem;
+  }
+
+  .checkout-actions {
+    flex-direction: column;
+  }
+
+  .checkout-actions .btn {
+    width: 100%;
+  }
+}

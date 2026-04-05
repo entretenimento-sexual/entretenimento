@@ -6,17 +6,48 @@ import * as InviteActions from '../../actions/actions.chat/invite.actions';
 export const inviteReducer = createReducer<InviteState>(
   initialInviteState,
 
-  on(InviteActions.LoadInvites, s => ({ ...s, loading: true, error: null })),
-  on(InviteActions.LoadInvitesSuccess, (s, { invites }) => ({ ...s, loading: false, invites })),
-  on(InviteActions.LoadInvitesFailure, (s, { error }) => ({ ...s, loading: false, error })),
+  on(InviteActions.LoadInvites, (s) => ({
+    ...s,
+    loading: true,
+    error: null,
+  })),
+
+  on(InviteActions.LoadInvitesSuccess, (s, { invites }) => ({
+    ...s,
+    loading: false,
+    invites,
+    error: null,
+  })),
+
+  on(InviteActions.LoadInvitesFailure, (s, { error }) => ({
+    ...s,
+    loading: false,
+    error,
+  })),
+
+  /**
+   * Limpeza explícita do inbox.
+   *
+   * Robusteza:
+   * - limpamos tanto em StopInvites quanto em ClearInvitesState
+   * - isso evita depender 100% do effect intermediário para zerar o estado
+   */
+  on(InviteActions.StopInvites, InviteActions.ClearInvitesState, () => ({
+    ...initialInviteState,
+  })),
 
   // ✅ atualiza somente no sucesso
   on(InviteActions.AcceptInviteSuccess, (s, { inviteId }) => ({
     ...s,
-    invites: s.invites.map(i => i.id === inviteId ? { ...i, status: 'accepted' } : i),
+    invites: s.invites.map((i) =>
+      i.id === inviteId ? { ...i, status: 'accepted' } : i
+    ),
   })),
+
   on(InviteActions.DeclineInviteSuccess, (s, { inviteId }) => ({
     ...s,
-    invites: s.invites.map(i => i.id === inviteId ? { ...i, status: 'declined' } : i),
+    invites: s.invites.map((i) =>
+      i.id === inviteId ? { ...i, status: 'declined' } : i
+    ),
   })),
 );

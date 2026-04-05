@@ -95,7 +95,7 @@
         <label for="discoveryMode">Modo de descoberta</label>
         <select id="discoveryMode" formControlName="discoveryMode">
           @for (option of discoveryModeOptions; track option.key) {
-            @if (option.key !== 'discreet' || canUseDiscreetMode()) {
+            @if (isModeAvailable(option.key)) {
               <option [value]="option.key">{{ option.label }}</option>
             }
           }

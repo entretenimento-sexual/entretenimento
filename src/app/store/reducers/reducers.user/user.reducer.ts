@@ -80,15 +80,6 @@ export const userReducer = createReducer(
 
   /* ------------------ Ciclo do current user ------------------ */
 
-  /**
-   * Início da observação do users/{uid}.
-   * Entramos em modo de hidratação.
-   *
-   * Regra importante:
-   * - se o mesmo uid já era o currentUser, preservamos esse espelho
-   *   durante o loading para evitar flicker desnecessário
-   * - se for outro uid, limpamos o currentUser espelhado
-   */
   on(observeUserChanges, (state, { uid }) => {
     const sameUid = state.currentUser?.uid === uid;
 
@@ -101,9 +92,6 @@ export const userReducer = createReducer(
     };
   }),
 
-  /**
-   * Current user efetivamente disponível/hidratado.
-   */
   on(setCurrentUser, (state, { user }) => {
     const safe = sanitizeUserForStore(user);
 
@@ -117,15 +105,6 @@ export const userReducer = createReducer(
     };
   }),
 
-  /**
-   * Doc indisponível/ausente no ciclo atual.
-   * Não é logout.
-   *
-   * Importante:
-   * - o ciclo foi RESOLVIDO
-   * - portanto currentUserHydrated = true
-   * - removemos o uid atual do users map para não ressuscitar perfil stale
-   */
   on(setCurrentUserUnavailable, (state, { error }) => {
     const uidToRemove = state.currentUser?.uid ?? null;
 
@@ -141,19 +120,6 @@ export const userReducer = createReducer(
     };
   }),
 
-  /**
-   * Erro de stream de hidratação.
-   * Não destruímos agressivamente o currentUser já existente.
-   *
-   * Regra:
-   * - encerramos o loading
-   * - marcamos o ciclo como resolvido do ponto de vista do store
-   * - preservamos currentUser se ele já existia
-   *
-   * Com isso:
-   * - se havia currentUser válido, a UI pode continuar operando
-   * - se não havia, os selectors podem degradar para unavailable
-   */
   on(setCurrentUserHydrationError, (state, { error }) => ({
     ...state,
     currentUserLoading: false,
@@ -161,10 +127,6 @@ export const userReducer = createReducer(
     error,
   })),
 
-  /**
-   * Cleanup explícito do current user.
-   * Aqui sim tratamos como estado resolvido sem usuário.
-   */
   on(clearCurrentUser, (state) => {
     const uidToRemove = state.currentUser?.uid ?? null;
 
@@ -187,13 +149,17 @@ export const userReducer = createReducer(
     users: upsertUser(state.users, user),
   })),
 
+  /**
+   * updatedData agora é patch parcial.
+   * O merge oficial continua centralizado aqui no reducer.
+   */
   on(updateUserInState, (state, { uid, updatedData }) => {
     const safeUid = (uid ?? '').trim();
     if (!safeUid) return state;
 
     const merged: IUserDados = sanitizeUserForStore({
       ...(state.users[safeUid] || ({ uid: safeUid } as IUserDados)),
-      ...updatedData,
+      ...(updatedData ?? {}),
       uid: safeUid,
     });
 
@@ -220,10 +186,6 @@ export const userReducer = createReducer(
     error: null,
   })),
 
-  /**
-   * Falha da lista geral.
-   * Não misturar com currentUserLoading/currentUserHydrated.
-   */
   on(loadUsersFailure, (state, { error }) => ({
     ...state,
     loading: false,
@@ -232,23 +194,19 @@ export const userReducer = createReducer(
 
   /* ------------------ Online users ------------------ */
 
-on(loadOnlineUsersSuccess, (state, { users }) => {
-  const nextOnline = (users ?? []).reduce(
-    (acc, u) => upsertInArray(acc, u),
-    [] as IUserDados[]
-  );
+  on(loadOnlineUsersSuccess, (state, { users }) => {
+    const nextOnline = (users ?? []).reduce(
+      (acc, u) => upsertInArray(acc, u),
+      [] as IUserDados[]
+    );
 
-  return {
-    ...state,
-    onlineUsers: nextOnline,
-    error: null,
-  };
-}),
+    return {
+      ...state,
+      onlineUsers: nextOnline,
+      error: null,
+    };
+  }),
 
-  /**
-   * @deprecated
-   * Mantido por compatibilidade.
-   */
   on(updateUserOnlineStatus, (state, { uid, isOnline }) => {
     const baseUser = state.users[uid] || ({ uid } as IUserDados);
     const patched = { ...baseUser, isOnline };
@@ -286,12 +244,6 @@ on(loadOnlineUsersSuccess, (state, { users }) => {
 
   /* ------------------ Compat com auth antigo ------------------ */
 
-  /**
-   * Compat:
-   * alguns fluxos antigos ainda disparam loginSuccess com user.
-   * Mantemos suporte, mas o runtime oficial continua vindo do CurrentUserStoreService
-   * e da hidratação via observeUserChanges/setCurrentUser.
-   */
   on(loginSuccess, (state, { user }) => {
     const safe = sanitizeUserForStore(user);
 
@@ -320,4 +272,4 @@ on(loadOnlineUsersSuccess, (state, { users }) => {
       error: null,
     };
   })
-);//Linha 325, fim do userReducer
+); //Linha 275, fim do userReducer

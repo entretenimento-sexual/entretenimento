@@ -1,9 +1,23 @@
 // src/app/core/services/data-handling/firestore-query.service.ts
 // Fonte única do Firestore (AngularFire).
+//
 // Objetivo:
-// - Evitar mistura de imports (firebase/firestore vs @angular/fire/firestore)
-// - Parar de usar `as any` em doc(), collection(), query(), updateDoc(), etc.
-// - Manter API pública simples (getFirestoreInstance)
+// - evitar mistura de imports (firebase/firestore vs @angular/fire/firestore)
+// - parar de usar APIs function-based do AngularFire fora do Injection Context
+// - manter API pública simples
+// - explicitar o que é Firebase/AngularFire e o que ainda é compat com NgRx
+//
+// Ajustes desta revisão:
+// - adiciona FirestoreContextService
+// - cria helpers internos seguros para queries once/live
+// - corrige getSuggestedProfiles() e demais métodos que constroem where/limit
+// - mantém getUserFromState() por compatibilidade, mas explicitamente marcado como STATE-only
+//
+// Observação arquitetural:
+// - Padrão ideal de plataforma grande:
+//   * FirestoreQueryService / PresenceQueryService => somente Firebase/AngularFire
+//   * UserStateQueryService (ou facade) => somente NgRx
+// - Por enquanto, getUserFromState() continua aqui apenas para não quebrar callers.
 import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
@@ -12,6 +26,7 @@ import { Firestore, limit, QueryConstraint, where } from '@angular/fire/firestor
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { CacheService } from '../general/cache/cache.service';
 import { FirestoreReadService } from './firestore/core/firestore-read.service';
+import { FirestoreContextService } from './firestore/core/firestore-context.service';
 import { UserPresenceQueryService } from './queries/user-presence.query.service';
 import { AppState } from 'src/app/store/states/app.state';
 import { Store } from '@ngrx/store';
@@ -19,12 +34,16 @@ import { selectUserProfileDataByUid } from 'src/app/store/selectors/selectors.us
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreQueryService {
-  // ✅ Injection via field initializer (Angular 16+ / 19 ok)
+  // Firebase / AngularFire
   private readonly db = inject(Firestore);
-  // Dependências de “app layer” (cache, query state, reads, presence)
+  private readonly ctx = inject(FirestoreContextService);
+
+  // App-layer
   private readonly cacheService = inject(CacheService);
   private readonly read = inject(FirestoreReadService);
   private readonly presenceQuery = inject(UserPresenceQueryService);
+
+  // STATE compat (NgRx) — manter por enquanto, migrar depois
   private readonly store = inject(Store<AppState>);
 
   /**
@@ -39,14 +58,70 @@ export class FirestoreQueryService {
     return this.read.getDocument<T>(collectionName, id);
   }
 
+  // ===========================================================================
+  // Helpers seguros para construir constraints dentro do Injection Context
+  // ===========================================================================
+
   /**
-   * Query genérica com cache (padrão “plataforma grande”: reduz leituras repetidas).
+   * Query once com constraints criadas dentro do FirestoreContextService.
+   *
+   * Use este helper sempre que este service for responsável por criar:
+   * - where(...)
+   * - limit(...)
+   * - orderBy(...)
+   *
+   * Isso evita o warning:
+   * "Calling Firebase APIs outside of an Injection context..."
    */
-  getDocumentsByQuery<T>(collectionName: string, constraints: QueryConstraint[]): Observable<T[]> {
-    return this.read.getDocumentsOnce<T>(collectionName, constraints, {
-      useCache: true,
-      cacheTTL: 300_000,
-    });
+  private getDocumentsByQuerySafe<T>(
+    collectionName: string,
+    buildConstraints: () => QueryConstraint[],
+    options?: {
+      useCache?: boolean;
+      cacheTTL?: number;
+      idField?: string;
+      requireAuth?: boolean;
+    }
+  ): Observable<T[]> {
+    return this.ctx.deferObservable$(() =>
+      this.read.getDocumentsOnce<T>(collectionName, buildConstraints(), options)
+    );
+  }
+
+  /**
+   * Realtime query com constraints criadas dentro do FirestoreContextService.
+   */
+  private getDocumentsLiveByQuerySafe<T>(
+    collectionName: string,
+    buildConstraints: () => QueryConstraint[],
+    options?: {
+      idField?: string;
+      requireAuth?: boolean;
+    }
+  ): Observable<T[]> {
+    return this.ctx.deferObservable$(() =>
+      this.read.getDocumentsLiveSafe<T>(collectionName, buildConstraints(), options)
+    );
+  }
+
+  /**
+   * Query genérica com cache.
+   *
+   * IMPORTANTE:
+   * - este método permanece por compatibilidade
+   * - se o caller já construir QueryConstraint[] fora do contexto, o warning pode continuar
+   * - para novos usos, prefira getDocumentsByQuerySafe(...)
+   */
+  getDocumentsByQuery<T>(
+    collectionName: string,
+    constraints: QueryConstraint[]
+  ): Observable<T[]> {
+    return this.ctx.deferObservable$(() =>
+      this.read.getDocumentsOnce<T>(collectionName, constraints, {
+        useCache: true,
+        cacheTTL: 300_000,
+      })
+    );
   }
 
   /**
@@ -59,7 +134,10 @@ export class FirestoreQueryService {
       switchMap((cached) => {
         if (cached) return of(cached);
 
-        return this.getDocumentsByQuery<IUserDados>('users', []).pipe(
+        return this.getDocumentsByQuerySafe<IUserDados>('users', () => [], {
+          useCache: true,
+          cacheTTL: 300_000,
+        }).pipe(
           map((users) => {
             this.cacheService.set(cacheKey, users, 600_000);
             return users;
@@ -104,14 +182,16 @@ export class FirestoreQueryService {
   }
 
   // =========================================================
-  // WRAPPERS (COMPAT) — mantêm nomenclaturas antigas
+  // WRAPPERS (COMPAT)
   // =========================================================
 
   /**
-   * Compat: usado por partes antigas e pelo spec.
+   * Compat: usado por partes antigas e por specs.
    */
   getUsersByMunicipio(municipio: string): Observable<IUserDados[]> {
-    return this.getDocumentsByQuery<IUserDados>('users', [where('municipio', '==', municipio)]).pipe(
+    return this.getDocumentsByQuerySafe<IUserDados>('users', () => [
+      where('municipio', '==', municipio),
+    ]).pipe(
       catchError(() => of([] as IUserDados[]))
     );
   }
@@ -128,21 +208,24 @@ export class FirestoreQueryService {
 
   /**
    * Compat: sugestões (pode evoluir para ranking no futuro).
-   * Por ora: delega para listagem simples.
+   * Por ora: delega para listagem simples em public_profiles.
+   *
+   * Ajuste principal:
+   * - limit(...) agora nasce dentro do FirestoreContextService
    */
-getSuggestedProfiles(limitCount = 24): Observable<IUserDados[]> {
-  return this.read.getDocumentsLiveSafe<IUserDados>(
-    'public_profiles',
-    [limit(limitCount)],
-    {
-      idField: 'uid',
-      requireAuth: true,
-    }
-  ).pipe(
-    map((profiles) => (profiles ?? []) as IUserDados[]),
-    catchError(() => of([] as IUserDados[]))
-  );
-}
+  getSuggestedProfiles(limitCount = 24): Observable<IUserDados[]> {
+    return this.getDocumentsLiveByQuerySafe<IUserDados>(
+      'public_profiles',
+      () => [limit(limitCount)],
+      {
+        idField: 'uid',
+        requireAuth: true,
+      }
+    ).pipe(
+      map((profiles) => (profiles ?? []) as IUserDados[]),
+      catchError(() => of([] as IUserDados[]))
+    );
+  }
 
   // =========================================================
   // Consultas específicas
@@ -153,15 +236,23 @@ getSuggestedProfiles(limitCount = 24): Observable<IUserDados[]> {
     orientation: string,
     municipio: string
   ): Observable<IUserDados[]> {
-    return this.getDocumentsByQuery<IUserDados>('users', [
+    return this.getDocumentsByQuerySafe<IUserDados>('users', () => [
       where('gender', '==', gender),
       where('orientation', '==', orientation),
       where('municipio', '==', municipio),
-    ]).pipe(catchError(() => of([] as IUserDados[])));
+    ]).pipe(
+      catchError(() => of([] as IUserDados[]))
+    );
   }
 
   /**
-   * Nome histórico, mas útil: pega do “state layer” de userQuery
+   * STATE-only (compat):
+   * - este método NÃO consulta Firestore
+   * - ele lê do NgRx Store
+   * - manter por enquanto para não quebrar callers antigos
+   *
+   * Futuro ideal:
+   * - mover para UserStateQueryService / facade de selectors
    */
   getUserFromState(uid: string): Observable<IUserDados | null> {
     const id = (uid ?? '').toString().trim();
@@ -174,29 +265,14 @@ getSuggestedProfiles(limitCount = 24): Observable<IUserDados[]> {
   }
 
   searchUsers(constraints: QueryConstraint[]): Observable<IUserDados[]> {
+    /**
+     * Compat:
+     * - aqui ainda aceitamos QueryConstraint[] pronto vindo de fora
+     * - se o caller montar where/limit fora do contexto, o warning pode persistir
+     * - para novos fluxos, prefira um método seguro com factory
+     */
     return this.getDocumentsByQuery<IUserDados>('users', constraints).pipe(
       catchError(() => of([] as IUserDados[]))
     );
   }
-}/*Linha 157
-tudo no projeto deve rodar redondo em dev, staging, prod e emu.
- AuthSession manda no UID
-/*CurrentUserStore manda no IUserDados
-qualquer UID fora disso vira derivado / compat
-// ainda está sendo usado em alguns lugares e precisa ser migrado.
-Ferramentas de debug ajudam bastante
-É assim que funcionam as grandes plataformas?
-Compatibilizar o estado online do usuário com o presence.service e aproximar do funcionamento ideal
-deixar explícito que é Firebase/AngularFire e o que é NgRx, evitando misturar responsabilidades
-*/
-
-/*
-Separação “Firebase/AngularFire vs NgRx” (responsabilidade)
-FirestoreQueryService
-
-Ele ainda injeta Store e expõe getUserFromState(). Isso mistura camadas (query firebase vs query de state). Em plataformas grandes, normalmente seria:
-FirestoreQueryService / UserPresenceQueryService: somente Firebase
-UserStateQueryService (ou “selectors facade”): somente NgRx
-componentes: consomem selectors/facades
-Se você quiser manter compat por enquanto, deixe o método, mas marque explicitamente como STATE-only (e planeje mover).
-*/
+} // Linha 278

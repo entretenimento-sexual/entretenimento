@@ -6,7 +6,9 @@
 // - evita subscriptions sem teardown
 // - centraliza tratamento de erro
 // - mantém nomenclaturas públicas (loadInvites / respondToInvite)
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+// - envia StopInvites() quando a sessão some ou quando o componente é destruído,
+//   para garantir que o listener realtime do effect seja desligado
+import { Component, DestroyRef, OnDestroy, OnInit, inject } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { of } from 'rxjs';
 import { catchError, distinctUntilChanged, map, tap } from 'rxjs/operators';
@@ -14,7 +16,10 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AppState } from 'src/app/store/states/app.state';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
-import { LoadInvites } from 'src/app/store/actions/actions.chat/invite.actions';
+import {
+  LoadInvites,
+  StopInvites,
+} from 'src/app/store/actions/actions.chat/invite.actions';
 import { selectInvites } from 'src/app/store/selectors/selectors.chat/invite.selectors';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -27,7 +32,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
   styleUrls: ['./invite-list.component.css'],
   standalone: false
 })
-export class InviteListComponent implements OnInit {
+export class InviteListComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
 
   invites: Invite[] = [];
@@ -38,17 +43,29 @@ export class InviteListComponent implements OnInit {
     private readonly store: Store<AppState>,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly globalError: GlobalErrorHandlerService
-  ) { }
+  ) {}
 
   ngOnInit(): void {
     this.observeAuthenticatedUid();
     this.observeInvitesState();
   }
 
+  ngOnDestroy(): void {
+    /**
+     * Importante:
+     * - takeUntilDestroyed() desmonta as subscriptions do componente
+     * - mas o inbox realtime vive no effect
+     * - por isso precisamos sinalizar parada explícita da feature
+     */
+    this.store.dispatch(StopInvites());
+    this.invites = [];
+    this.userId = null;
+  }
+
   /**
    * Observa o UID autenticado.
    * - Quando existe UID, carrega convites.
-   * - Quando não existe, limpa o estado local sem gerar toast agressivo.
+   * - Quando não existe, dispara StopInvites e limpa o estado local sem toast agressivo.
    */
   private observeAuthenticatedUid(): void {
     this.authSession.uid$
@@ -63,6 +80,12 @@ export class InviteListComponent implements OnInit {
             return;
           }
 
+          /**
+           * Sessão terminou / uid sumiu:
+           * - para o inbox realtime da feature
+           * - limpa estado local do componente
+           */
+          this.store.dispatch(StopInvites());
           this.invites = [];
         }),
         catchError((error) => {
@@ -72,6 +95,7 @@ export class InviteListComponent implements OnInit {
             { op: 'observeAuthenticatedUid' }
           );
 
+          this.store.dispatch(StopInvites());
           this.userId = null;
           this.invites = [];
           return of(null);
@@ -150,4 +174,4 @@ export class InviteListComponent implements OnInit {
       // noop
     }
   }
-} // Linha 155
+} // Linha 177

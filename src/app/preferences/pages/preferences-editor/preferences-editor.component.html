@@ -1,20 +1,16 @@
 <!-- src\app\preferences\pages\preferences-editor\preferences-editor.component.html -->
-<main class="preferences-editor-page" aria-label="Editor do novo domínio de preferências">
-  <section class="preferences-editor-shell">
-    <header class="preferences-editor-header">
-      <div>
-        <h1 class="preferences-editor-title">Editor de preferências</h1>
-        <p class="preferences-editor-subtitle">
-          Edição nova do domínio de preferências, intenção e descoberta.
-        </p>
-      </div>
+<main class="preferences-editor-page app-page" aria-label="Editor do novo domínio de preferências">
+  <section class="preferences-editor-shell stack">
+    <app-preferences-page-header
+      title="Editor de preferências"
+      subtitle="Edição nova do domínio de preferências, intenção e descoberta."
+    >
+      <a page-actions class="btn btn-secondary" routerLink="/preferencias">
+        Voltar para preferências
+      </a>
+    </app-preferences-page-header>
 
-      <nav class="preferences-editor-actions" aria-label="Ações do editor">
-        <a class="btn btn-secondary" routerLink="/preferencias">
-          Voltar para preferências
-        </a>
-      </nav>
-    </header>
+    <app-preferences-domain-nav></app-preferences-domain-nav>
 
     @if (state$ | async; as state) {
       <app-preference-summary-card

@@ -6,7 +6,6 @@
 // - obter match profile alvo
 // - gerar preview de compatibilidade
 // - manter UI desacoplada de infraestrutura
-
 import { Injectable, inject } from '@angular/core';
 import { Observable, combineLatest, of, throwError } from 'rxjs';
 import { catchError, map, shareReplay, switchMap } from 'rxjs/operators';
