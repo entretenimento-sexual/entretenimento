@@ -5,6 +5,7 @@
 // - visualizar built vs stored
 // - acionar materialização manual no domínio novo
 // - servir de base para evolução futura do fluxo de discovery
+// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterModule } from '@angular/router';

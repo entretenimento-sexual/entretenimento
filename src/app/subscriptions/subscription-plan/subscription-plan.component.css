@@ -1,72 +1,117 @@
 /* src\app\subscriptions\subscription-plan\subscription-plan.component.css */
 .subscription-plan-container {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;  /* Centraliza o conteúdo verticalmente */
-  align-items: center;  /* Centraliza o conteúdo horizontalmente */
+  display: grid;
+  gap: var(--space-4);
+  padding-block: var(--space-4);
+}
+
+.subscription-plan-header {
+  display: grid;
+  gap: 0.5rem;
   text-align: center;
-  padding: 20px;
-  min-height: 60vh;  /* Mantém a altura mínima */
+}
+
+.subscription-plan-kicker {
+  margin: 0;
+  font-size: 0.95rem;
+  opacity: 0.8;
+}
+
+.subscription-plan-header h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+}
+
+.subscription-plan-description {
+  margin: 0 auto;
+  max-width: 760px;
+  line-height: 1.6;
+  opacity: 0.92;
+}
+
+.subscription-plan-warning {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 16px;
+}
+
+.subscription-plan-warning h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.subscription-plan-warning p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.subscription-plan-warning__list {
+  margin: 0;
+  padding-left: 1.2rem;
+  list-style: disc;
+}
+
+.subscription-plan-warning__list li {
+  margin-bottom: 0.35rem;
+}
+
+.subscription-plan-warning__discreet-text {
+  font-weight: 500;
+  opacity: 0.95;
 }
 
 .plans-grid {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-3);
   width: 100%;
 }
 
 .plan {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 20px;
-  width: 100%;
-  max-width: 350px;
-  transition: transform 0.3s, box-shadow 0.3s;
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  padding: 1rem;
+  background: var(--surface-color);
+  display: grid;
+  gap: 0.9rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .plan:hover {
-  transform: scale(1.05);
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+  box-shadow: var(--box-shadow);
 }
 
 .featured-plan {
-  border: 2px solid #007bff;
+  border: 2px solid var(--primary-color);
 }
 
 .price {
   font-size: 1.5rem;
-  color: #333;
-  margin: 10px 0;
-}
-
-.plan h3 {
-  margin-top: 0;
+  font-weight: 700;
+  color: var(--text-color);
 }
 
 .plan ul {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 
 .plan li {
-  padding: 5px 0;
-  border-bottom: 1px solid #ddd;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--surface-border);
 }
 
-.plan button {
-  background-color: #007bff;
-  color: white;
-  padding: 10px 20px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  margin-top: 20px;
+.plan .btn {
   width: 100%;
-  transition: background-color 0.3s;
+  min-height: var(--tap-target);
+  padding: 0.85rem 1rem;
 }
 
-.plan button:hover {
-  background-color: #0056b3;
+@media (max-width: 640px) {
+  .subscription-plan-container {
+    padding-inline: 0;
+  }
 }

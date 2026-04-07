@@ -26,7 +26,7 @@ describe('RoomCreationConfirmationComponent', () => {
             room: { roomName: 'Sala Teste' } // adicione outros campos se o template usar
           }
         },
-        { provide: MatDialogRef, useValue: { close: jest.fn() } },
+        { provide: MatDialogRef, useValue: { close: vi.fn() } },
       ],
     }).compileComponents();
 

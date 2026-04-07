@@ -29,11 +29,36 @@
   opacity: 0.9;
 }
 
+.checkout-warning-card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 16px;
+}
+
+.checkout-warning-card h2,
+.checkout-warning-card p {
+  margin: 0;
+}
+
+.checkout-warning-card__list {
+  margin: 0;
+  padding-left: 1.2rem;
+  list-style: disc;
+}
+
+.checkout-warning-card__ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  line-height: 1.5;
+}
+
 .checkout-card {
   border-radius: 20px;
   padding: 1.25rem;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--surface-color);
+  border: 1px solid var(--surface-border);
   display: grid;
   gap: 1.25rem;
 }
@@ -59,6 +84,11 @@
   gap: 0.75rem;
 }
 
+.checkout-actions .btn {
+  min-height: var(--tap-target);
+  padding: 0.85rem 1rem;
+}
+
 @media (max-width: 640px) {
   .checkout-page {
     padding: 1rem 0.875rem 1.5rem;
@@ -70,5 +100,9 @@
 
   .checkout-actions .btn {
     width: 100%;
+  }
+
+  .checkout-warning-card__ack {
+    flex-direction: row;
   }
 }

@@ -168,7 +168,6 @@ const routes: Routes = [
         canActivate: [authGuard],
         data: {
           requireVerified: true,
-          requireProfileCompleted: true,
         },
       },
       {
@@ -180,7 +179,6 @@ const routes: Routes = [
         canActivate: [authGuard],
         data: {
           requireVerified: true,
-          requireProfileCompleted: true,
         },
       },
 

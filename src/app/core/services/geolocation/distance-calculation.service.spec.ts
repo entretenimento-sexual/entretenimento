@@ -4,7 +4,7 @@ import { DistanceCalculationService } from '../geolocation/distance-calculation.
 
 // mocka a lib externa para termos previsibilidade
 jest.mock('geofire-common', () => ({
-  distanceBetween: jest.fn(() => 1.234567), // km
+  distanceBetween: vi.fn(() => 1.234567), // km
 }));
 
 describe('DistanceCalculationService', () => {

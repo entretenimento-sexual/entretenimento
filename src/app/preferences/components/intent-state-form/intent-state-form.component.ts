@@ -3,7 +3,7 @@
 // Não conhece legado.
 // Não persiste diretamente.
 // Emite IntentState pronto para a página/facade salvar.
-
+// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import {
   ChangeDetectionStrategy,
   Component,

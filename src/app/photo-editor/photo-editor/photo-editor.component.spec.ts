@@ -114,7 +114,7 @@ describe('PhotoEditorComponent', () => {
 
   it('deve inicializar observables do store', (done) => {
     component.isLoading$.subscribe((value) => {
-      expect(value).toBeFalse();
+      expect(value).toBe(false);
       done();
     });
   });

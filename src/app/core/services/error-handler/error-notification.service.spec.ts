@@ -1,26 +1,30 @@
 // src/app/core/services/error-handler/error-notification.service.spec.ts
 import { TestBed } from '@angular/core/testing';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { Subject, of } from 'rxjs';
+import { of, Subject } from 'rxjs';
+import { describe, beforeEach, it, expect, vi, type Mock, afterEach } from 'vitest';
 
 import { ErrorNotificationService } from './error-notification.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 describe('ErrorNotificationService', () => {
   let service: ErrorNotificationService;
 
   // mocks do snackbar (com controle do onAction)
   let action$: Subject<void>;
-  const snackBar = {
-    open: jest.fn(),
-    dismiss: jest.fn(),
-  } as unknown as jest.Mocked<MatSnackBar>;
+const snackBar: {
+  open: Mock;
+  dismiss: Mock;
+} = {
+  open: vi.fn(),
+  dismiss: vi.fn(),
+};
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     action$ = new Subject<void>();
 
     // toda chamada a open retorna um ref com onAction/afterDismissed
-    (snackBar.open as jest.Mock).mockImplementation((_msg: string, _action?: string, _cfg?: any) => {
+    (snackBar.open as Mock).mockImplementation((_msg: string, _action?: string, _cfg?: any) => {
       return {
         onAction: () => action$.asObservable(),
         afterDismissed: () => of({ dismissedByAction: false }),
@@ -35,11 +39,11 @@ describe('ErrorNotificationService', () => {
     });
 
     service = TestBed.inject(ErrorNotificationService);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   it('deve ser criado', () => {
@@ -50,7 +54,7 @@ describe('ErrorNotificationService', () => {
     service.showSuccess('ok');
 
     expect(snackBar.open).toHaveBeenCalledTimes(1);
-    const [msg, action, cfg] = (snackBar.open as jest.Mock).mock.calls[0];
+    const [msg, action, cfg] = snackBar.open.mock.calls[0];
 
     expect(msg).toBe('ok');
     expect(action).toBe('Fechar');
@@ -62,7 +66,7 @@ describe('ErrorNotificationService', () => {
     service.showError('falhou');
 
     expect(snackBar.open).toHaveBeenCalledTimes(1);
-    const [msg, action, cfg] = (snackBar.open as jest.Mock).mock.calls[0];
+    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
 
     expect(msg).toBe('falhou');
     expect(action).toBe('Detalhes');
@@ -71,11 +75,11 @@ describe('ErrorNotificationService', () => {
   });
 
   it('showError: respeita duração customizada e dispara alert com detalhes ao clicar em "Detalhes"', () => {
-    const spyAlert = jest.spyOn(window, 'alert').mockImplementation(() => { /* noop */ });
+    const spyAlert = vi.spyOn(window, 'alert').mockImplementation(() => { /* noop */ });
 
     service.showError('ops', 'STACK TRACE', 1234);
 
-    const [msg, action, cfg] = (snackBar.open as jest.Mock).mock.calls[0];
+    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
     expect(msg).toBe('ops');
     expect(action).toBe('Detalhes');
     expect(cfg.duration).toBe(1234);
@@ -91,7 +95,7 @@ describe('ErrorNotificationService', () => {
   it('showInfo: abre snackbar com classe "info-snackbar"', () => {
     service.showInfo('informação', 2222);
 
-    const [msg, action, cfg] = (snackBar.open as jest.Mock).mock.calls[0];
+    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
     expect(msg).toBe('informação');
     expect(action).toBe('Fechar');
     expect(cfg.duration).toBe(2222);
@@ -101,7 +105,7 @@ describe('ErrorNotificationService', () => {
   it('showWarning: abre snackbar com classe "warning-snackbar"', () => {
     service.showWarning('cuidado', 3333);
 
-    const [msg, action, cfg] = (snackBar.open as jest.Mock).mock.calls[0];
+    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
     expect(msg).toBe('cuidado');
     expect(action).toBe('Fechar');
     expect(cfg.duration).toBe(3333);
@@ -119,7 +123,7 @@ describe('ErrorNotificationService', () => {
     expect(snackBar.open).toHaveBeenCalledTimes(1);
 
     // avança o relógio além do TTL (5s) para liberar a mesma mensagem novamente
-    jest.advanceTimersByTime(5000);
+    vi.advanceTimersByTime(5000);
 
     service.showInfo('msg repetida');
     expect(snackBar.open).toHaveBeenCalledTimes(2);
@@ -128,7 +132,7 @@ describe('ErrorNotificationService', () => {
   it('showNotification delega corretamente por tipo: success', () => {
     service.showNotification('success', 'yay', 1111);
 
-    const [msg, action, cfg] = (snackBar.open as jest.Mock).mock.calls[0];
+    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
     expect(msg).toBe('yay');
     expect(action).toBe('Fechar');
     expect(cfg.duration).toBe(1111);
@@ -138,7 +142,7 @@ describe('ErrorNotificationService', () => {
   it('showNotification delega corretamente por tipo: error (com duração passada)', () => {
     service.showNotification('error', 'nope', 4444);
 
-    const [msg, action, cfg] = (snackBar.open as jest.Mock).mock.calls[0];
+    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
     expect(msg).toBe('nope');
     expect(action).toBe('Detalhes');
     expect(cfg.duration).toBe(4444);

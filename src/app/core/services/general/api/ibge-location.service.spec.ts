@@ -15,10 +15,11 @@ import {
 import { CacheService } from '../cache/cache.service';
 import { CurrentUserStoreService } from '../../autentication/auth/current-user-store.service';
 import { AccessControlService } from '../../autentication/auth/access-control.service';
+import { afterEach, expect } from 'vitest';
 
 
 // =============================================================================
-// Mocks nativos do ambiente atual (Jest runtime, sem depender de jasmine.any())
+// Mocks nativos do ambiente atual (Jest runtime, sem depender de expect.any())
 // =============================================================================
 
 type CacheServiceMock = {
@@ -53,9 +54,9 @@ describe('IBGELocationService', () => {
 
   beforeEach(() => {
     cacheMock = {
-      get: jest.fn().mockReturnValue(of(null)),
-      set: jest.fn(),
-      delete: jest.fn(),
+      get: vi.fn().mockReturnValue(of(null)),
+      set: vi.fn(),
+      delete: vi.fn(),
     };
 
     userStoreMock = {
@@ -63,7 +64,7 @@ describe('IBGELocationService', () => {
     };
 
     accessMock = {
-      hasAtLeast$: jest.fn().mockReturnValue(of(false)),
+      hasAtLeast$: vi.fn().mockReturnValue(of(false)),
     };
 
     TestBed.configureTestingModule({
@@ -83,7 +84,7 @@ describe('IBGELocationService', () => {
   afterEach(() => {
     httpMock.verify();
     userStoreMock.user$.complete();
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('deve ser criado', () => {

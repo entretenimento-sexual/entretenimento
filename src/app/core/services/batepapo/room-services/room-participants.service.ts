@@ -1,9 +1,8 @@
-// src/app/core/services/batepapo/rooms/room-participants.service.ts
+// src/app/core/services/batepapo/room-services/room-participants.service.ts
 // Serviço para gerenciar participantes de salas de bate-papo usando Firestore.
 //
 // Objetivos deste service:
 // - Gerenciar leitura realtime dos participantes de uma sala.
-// - Aceitar convite e ingressar na sala com consistência transacional.
 // - Adicionar/remover participantes mantendo coerência entre:
 //   (1) rooms/{roomId}.participants
 //   (2) rooms/{roomId}/participants/{userId}
@@ -16,12 +15,21 @@
 // - Tratamento de erro centralizado em GlobalErrorHandlerService + ErrorNotificationService.
 // - Operações de membership do room (add/remove) usam transação para reduzir risco de estado parcial.
 //
+// SUPRESSÃO EXPLÍCITA NESTA REVISÃO:
+// - foi removida a responsabilidade de aceitar convite de sala deste service.
+// - foram removidos os métodos:
+//   1) acceptInviteAndJoinRoom()
+//   2) acceptInvite()
+//
+// Motivo:
+// - o aceite/recusa de convite de sala já possui dono mais específico:
+//   RoomInviteFlowService.
+// - este service passa a ser focado apenas em participantes/membership,
+//   evitando duplicação de regra de negócio.
+//
 // Observação:
 // - Neste service, o subdoc rooms/{roomId}/participants/{userId} é um índice auxiliar.
 // - A fonte de verdade principal da participação continua sendo rooms/{roomId}.participants.
-//
-// Não esquecer comentários explicativos para facilitar manutenção futura.
-
 import { Injectable, NgZone } from '@angular/core';
 import {
   Firestore,
@@ -31,7 +39,6 @@ import {
   onSnapshot,
   runTransaction,
 } from '@angular/fire/firestore';
-import { serverTimestamp } from 'firebase/firestore';
 import {
   Observable,
   defer,
@@ -47,17 +54,11 @@ import {
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
-// ✅ centralização de erros / UI
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
-// ✅ vínculo roomIds do usuário
 import { UserRoomIdsService } from './user-room-ids.service';
-
-// ✅ fonte de verdade do ator autenticado
 import { AuthSessionService } from '../../autentication/auth/auth-session.service';
-
-type InviteStatus = 'pending' | 'accepted' | 'rejected' | 'declined';
 
 type RoomParticipantDoc = {
   uid: string;
@@ -75,7 +76,7 @@ export class RoomParticipantsService {
     private readonly globalError: GlobalErrorHandlerService,
     private readonly userRoomIds: UserRoomIdsService,
     private readonly authSession: AuthSessionService
-  ) { }
+  ) {}
 
   // ---------------------------------------------------------------------------
   // Utils
@@ -107,7 +108,7 @@ export class RoomParticipantsService {
       (e as any).original = err;
       (e as any).context = {
         scope: 'RoomParticipantsService',
-        ...(context ?? {})
+        ...(context ?? {}),
       };
       (e as any).skipUserNotification = true;
       this.globalError.handleError(e);
@@ -124,11 +125,15 @@ export class RoomParticipantsService {
    */
   private reportSilent(err: unknown, context?: Record<string, unknown>): void {
     try {
-      const e = err instanceof Error ? err : new Error('[RoomParticipantsService] stream error');
+      const e =
+        err instanceof Error
+          ? err
+          : new Error('[RoomParticipantsService] stream error');
+
       (e as any).original = err;
       (e as any).context = {
         scope: 'RoomParticipantsService',
-        ...(context ?? {})
+        ...(context ?? {}),
       };
       (e as any).silent = true;
       (e as any).skipUserNotification = true;
@@ -142,11 +147,14 @@ export class RoomParticipantsService {
    * Resolve o UID do ator autenticado a partir da sessão.
    * Esse helper evita confiar em userId externo para ações sensíveis.
    */
-  private withActorUid$<T>(operation: (actorUid: string) => Observable<T>): Observable<T> {
+  private withActorUid$<T>(
+    operation: (actorUid: string) => Observable<T>
+  ): Observable<T> {
     return this.authSession.uid$.pipe(
       take(1),
       switchMap((uid) => {
         const actorUid = this.norm(uid);
+
         if (!actorUid) {
           return this.fail<T>(
             'Sessão inválida para gerenciar participantes.',
@@ -190,7 +198,13 @@ export class RoomParticipantsService {
       return this.fail<void>(
         'Dados inválidos para alterar participante.',
         new Error('Invalid args'),
-        { op: 'mutateParticipantMembership$', actorUid, targetUid, roomId, mode }
+        {
+          op: 'mutateParticipantMembership$',
+          actorUid,
+          targetUid,
+          roomId,
+          mode,
+        }
       );
     }
 
@@ -212,9 +226,11 @@ export class RoomParticipantsService {
             ? roomData.participants
             : [];
 
-          // Regra de integridade no client:
-          // - o próprio usuário pode agir sobre seu doc
-          // - o owner da sala também pode gerenciar terceiros
+          /**
+           * Regra de integridade no client:
+           * - o próprio usuário pode agir sobre seu doc
+           * - o owner da sala também pode gerenciar terceiros
+           */
           const actorCanManage = actorUid === uid || createdBy === actorUid;
           if (!actorCanManage) {
             throw new Error('Ação não autorizada para este participante.');
@@ -243,7 +259,9 @@ export class RoomParticipantsService {
           // mode === 'remove'
           if (alreadyInRoom) {
             tx.update(roomRef, {
-              participants: currentParticipants.filter((participantUid) => participantUid !== uid),
+              participants: currentParticipants.filter(
+                (participantUid) => participantUid !== uid
+              ),
             } as any);
           }
 
@@ -264,7 +282,13 @@ export class RoomParticipantsService {
             ? 'Erro ao adicionar participante na sala.'
             : 'Erro ao remover participante da sala.',
           err,
-          { op: 'mutateParticipantMembership$', actorUid, targetUid: uid, roomId: rid, mode }
+          {
+            op: 'mutateParticipantMembership$',
+            actorUid,
+            targetUid: uid,
+            roomId: rid,
+            mode,
+          }
         )
       )
     );
@@ -313,132 +337,13 @@ export class RoomParticipantsService {
   }
 
   // ---------------------------------------------------------------------------
-  // Convites / Join
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Aceita convite e adiciona usuário à sala (Promise).
-   * Mantém assinatura original por compatibilidade.
-   */
-  async acceptInviteAndJoinRoom(inviteId: string, roomId: string, userId: string): Promise<void> {
-    await firstValueFrom(this.acceptInvite(roomId, inviteId, userId));
-  }
-
-  /**
-   * Aceita um convite e adiciona o usuário autenticado à sala.
-   *
-   * O que este método atualiza:
-   * - rooms/{roomId}.participants
-   * - rooms/{roomId}/participants/{actorUid}
-   * - invites/{inviteId} -> accepted + respondedAt + updatedAt
-   * - users/{actorUid}.roomIds (via UserRoomIdsService)
-   *
-   * Importante:
-   * - o userId recebido é mantido por compatibilidade, mas NÃO é mais a fonte de verdade do ator;
-   * - a identidade do ator vem da sessão (AuthSessionService);
-   * - se userId vier preenchido e não bater com a sessão, o fluxo falha por integridade.
-   */
-  acceptInvite(roomId: string, inviteId: string, userId: string): Observable<void> {
-    const rid = this.norm(roomId);
-    const iid = this.norm(inviteId);
-    const requestedUid = this.norm(userId);
-
-    if (!rid || !iid) {
-      return this.fail<void>(
-        'Dados inválidos para aceitar convite.',
-        new Error('Invalid args'),
-        { op: 'acceptInvite', roomId, inviteId, userId }
-      );
-    }
-
-    return this.withActorUid$((actorUid) => {
-      if (requestedUid && requestedUid !== actorUid) {
-        return this.fail<void>(
-          'Sessão incompatível com o convite informado.',
-          new Error('Actor UID mismatch'),
-          { op: 'acceptInvite', requestedUid, actorUid, roomId: rid, inviteId: iid }
-        );
-      }
-
-      const roomRef = doc(this.db, 'rooms', rid);
-      const inviteRef = doc(this.db, 'invites', iid);
-      const participantRef = doc(this.db, 'rooms', rid, 'participants', actorUid);
-
-      const tx$ = defer(() =>
-        from(
-          runTransaction(this.db, async (tx) => {
-            const [roomSnap, inviteSnap] = await Promise.all([
-              tx.get(roomRef),
-              tx.get(inviteRef),
-            ]);
-
-            if (!inviteSnap.exists()) throw new Error('Convite não encontrado.');
-            if (!roomSnap.exists()) throw new Error('Sala não encontrada.');
-
-            const invite = inviteSnap.data() as any;
-            const status = (invite?.status ?? 'pending') as InviteStatus;
-
-            const inviteReceiverId = this.norm(invite?.receiverId);
-            if (inviteReceiverId !== actorUid) {
-              throw new Error('O usuário autenticado não é o destinatário do convite.');
-            }
-
-            const inviteRoomId = this.norm(invite?.targetId || invite?.roomId);
-            if (!inviteRoomId) {
-              throw new Error('Convite sem roomId/targetId.');
-            }
-
-            if (inviteRoomId !== rid) {
-              throw new Error('Convite não corresponde à sala informada.');
-            }
-
-            const roomData = roomSnap.data() as any;
-            const participants: string[] = Array.isArray(roomData?.participants)
-              ? roomData.participants
-              : [];
-
-            if (!participants.includes(actorUid)) {
-              tx.update(roomRef, {
-                participants: [...participants, actorUid],
-              } as any);
-            }
-
-            tx.set(
-              participantRef,
-              {
-                uid: actorUid,
-                joinedAt: Date.now(),
-                removedAt: null,
-                removed: false,
-              } as any,
-              { merge: true }
-            );
-
-            if (status !== 'accepted') {
-              tx.update(inviteRef, {
-                status: 'accepted',
-                respondedAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-              } as any);
-            }
-          })
-        )
-      ).pipe(map(() => void 0));
-
-      return tx$.pipe(
-        switchMap(() => this.userRoomIds.addRoomId$(actorUid, rid)),
-        map(() => void 0),
-        catchError((err) =>
-          this.fail<void>(
-            'Erro ao aceitar convite.',
-            err,
-            { op: 'acceptInvite', actorUid, roomId: rid, inviteId: iid }
-          )
-        )
-      );
-    });
-  }
-
+// Membership manual / administrativo
+//
+// Importante:
+// - este service cuida apenas de membership da sala;
+// - aceite/recusa de convite de sala NÃO pertence mais aqui;
+// - esse fluxo foi concentrado em RoomInviteFlowService.
+// ---------------------------------------------------------------------------
   // ---------------------------------------------------------------------------
   // Add/Remove participante
   // ---------------------------------------------------------------------------
@@ -589,4 +494,4 @@ export class RoomParticipantsService {
       )
     );
   }
-} // Linha 592, fim do room-participants.service.ts
+} // Linha 490

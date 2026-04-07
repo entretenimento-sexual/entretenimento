@@ -5,6 +5,7 @@
 // - padronizar os blocos de acesso do domínio novo
 // - servir como peça reutilizável no hub
 // - manter navegação clara e acessível
+// Visua clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { RouterModule } from '@angular/router';

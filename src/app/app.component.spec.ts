@@ -3,6 +3,7 @@ import { Component } from '@angular/core';
 import { TestBed, fakeAsync, tick } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
+import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 
 import { AppComponent } from './app.component';
 import { AuthOrchestratorService } from './core/services/autentication/auth/auth-orchestrator.service';
@@ -20,23 +21,23 @@ describe('AppComponent', () => {
   let router: Router;
 
   const orchestratorStub = {
-    start: jest.fn(),
+    start: vi.fn(),
   };
 
   const presenceOrchestratorStub = {
-    start: jest.fn(),
+    start: vi.fn(),
   };
 
   const authDebugStub = {
-    start: jest.fn(),
+    start: vi.fn(),
   };
 
   const routerDiagnosticsStub = {
-    start: jest.fn(),
+    start: vi.fn(),
   };
 
   beforeEach(async () => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     document.documentElement.className = '';
     document.body.className = '';
@@ -63,7 +64,7 @@ describe('AppComponent', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('should create the app', () => {

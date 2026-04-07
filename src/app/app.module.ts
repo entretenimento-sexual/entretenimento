@@ -13,6 +13,12 @@
 // - O src/main.ts continua sendo a camada de bootstrap + debug global.
 // - Este AppModule apenas consome as convenções definidas lá,
 //   especialmente a chave de persistência do Auth Emulator.
+//
+// Ajuste desta versão:
+// - adiciona provider global de Cloud Functions
+// - conecta o Functions Emulator de forma defensiva
+// - mantém a mesma estratégia robusta já adotada para Auth, Firestore,
+//   Realtime Database e Storage
 // =============================================================================
 
 import {
@@ -61,6 +67,11 @@ import {
 } from '@angular/fire/firestore';
 import { provideDatabase } from '@angular/fire/database';
 import { provideStorage } from '@angular/fire/storage';
+import {
+  connectFunctionsEmulator,
+  getFunctions,
+  provideFunctions,
+} from '@angular/fire/functions';
 
 // =============================================================================
 // Firebase Web SDK
@@ -148,7 +159,9 @@ function isUsingEmulators(): boolean {
   return !environment.production && cfg?.useEmulators === true;
 }
 
-function hasEmulatorTarget(kind: 'auth' | 'firestore' | 'database' | 'storage'): boolean {
+function hasEmulatorTarget(
+  kind: 'auth' | 'firestore' | 'database' | 'storage' | 'functions'
+): boolean {
   const cfg: any = environment;
   return !!cfg?.emulators?.[kind]?.host && !!cfg?.emulators?.[kind]?.port;
 }
@@ -167,6 +180,18 @@ function isUsingDatabaseEmulator(): boolean {
 
 function isUsingStorageEmulator(): boolean {
   return isUsingEmulators() && hasEmulatorTarget('storage');
+}
+
+/**
+ * Functions Emulator só deve ser usado quando:
+ * - o ambiente realmente estiver em modo emulator
+ * - existir host/port configurados especificamente para functions
+ *
+ * Isso evita acessar cfg.emulators.functions em ambientes onde esse alvo
+ * não foi configurado.
+ */
+function isUsingFunctionsEmulator(): boolean {
+  return isUsingEmulators() && hasEmulatorTarget('functions');
 }
 
 /**
@@ -207,7 +232,11 @@ function connectAuthEmulatorOnce(auth: Auth, url: string): void {
 /**
  * Marca defensiva para Firestore Emulator.
  */
-function connectFirestoreEmulatorOnce(db: any, host: string, port: number): void {
+function connectFirestoreEmulatorOnce(
+  db: any,
+  host: string,
+  port: number
+): void {
   const marker = '__firestoreEmulatorConnected__';
 
   if ((db as any)[marker] === true) return;
@@ -219,7 +248,11 @@ function connectFirestoreEmulatorOnce(db: any, host: string, port: number): void
 /**
  * Marca defensiva para RTDB Emulator.
  */
-function connectDatabaseEmulatorOnce(db: any, host: string, port: number): void {
+function connectDatabaseEmulatorOnce(
+  db: any,
+  host: string,
+  port: number
+): void {
   const marker = '__databaseEmulatorConnected__';
 
   if ((db as any)[marker] === true) return;
@@ -231,13 +264,35 @@ function connectDatabaseEmulatorOnce(db: any, host: string, port: number): void 
 /**
  * Marca defensiva para Storage Emulator.
  */
-function connectStorageEmulatorOnce(storage: any, host: string, port: number): void {
+function connectStorageEmulatorOnce(
+  storage: any,
+  host: string,
+  port: number
+): void {
   const marker = '__storageEmulatorConnected__';
 
   if ((storage as any)[marker] === true) return;
 
   connectStorageEmulator(storage, host, port);
   (storage as any)[marker] = true;
+}
+
+/**
+ * Marca defensiva para Functions Emulator.
+ *
+ * Mantém coerência com o padrão já adotado para os demais serviços Firebase.
+ */
+function connectFunctionsEmulatorOnce(
+  functions: any,
+  host: string,
+  port: number
+): void {
+  const marker = '__functionsEmulatorConnected__';
+
+  if ((functions as any)[marker] === true) return;
+
+  connectFunctionsEmulator(functions, host, port);
+  (functions as any)[marker] = true;
 }
 
 // =============================================================================
@@ -362,8 +417,60 @@ export function authRestoreInitializer(
   providers: [
     // =========================================================================
     // Firebase App
+    //
+    // Deve vir antes dos providers específicos do ecossistema Firebase.
+    // Isso deixa a ordem de bootstrap mais clara e reduz ambiguidade.
     // =========================================================================
     provideFirebaseApp(() => initializeApp(environment.firebase)),
+
+    // =========================================================================
+    // Cloud Functions
+    //
+    // Necessário para o fluxo de checkout e demais chamadas callable.
+    // Sem este provider, BillingRepository não consegue injetar Functions.
+    //
+    // Estratégia:
+    // - usa getFunctions(getApp()) para compartilhar a app já inicializada
+    // - conecta no emulator apenas se o target "functions" estiver configurado
+    // - protege contra reconexão em HMR/rebootstrap
+    // =========================================================================
+// =========================================================================
+// Cloud Functions
+//
+// Necessário para o fluxo de checkout e demais chamadas callable.
+// Sem este provider, BillingRepository não consegue injetar Functions.
+//
+// Estratégia:
+// - usa getFunctions(getApp(), 'southamerica-east1') para alinhar client e backend
+// - conecta no emulator apenas se o target "functions" estiver configurado
+// - protege contra reconexão em HMR/rebootstrap
+// =========================================================================
+provideFunctions(() => {
+  const functions = getFunctions(getApp(), 'southamerica-east1');
+
+  if (isUsingFunctionsEmulator()) {
+    const cfg: any = environment;
+
+    connectFunctionsEmulatorOnce(
+      functions,
+      cfg.emulators.functions.host,
+      cfg.emulators.functions.port
+    );
+
+    safeDbg('[FUNCTIONS][PROVIDE] emulator connected', {
+      region: 'southamerica-east1',
+      host: cfg.emulators.functions.host,
+      port: cfg.emulators.functions.port,
+    });
+  } else {
+    safeDbg('[FUNCTIONS][PROVIDE] cloud/default', {
+      env: environment.env,
+      region: 'southamerica-east1',
+    });
+  }
+
+  return functions;
+}),
 
     // =========================================================================
     // APP_INITIALIZER

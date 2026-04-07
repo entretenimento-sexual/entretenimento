@@ -4,37 +4,36 @@
 // - instancia o service via TestBed, porque ele usa inject()
 // - evita matchers que quebram com tipagem Jasmine
 // - mantém Jest no runner, mas com asserts compatíveis
-
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
-import * as ffs from 'firebase/firestore';
-import { Firestore } from '@angular/fire/firestore';
+import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
 
 import { RoomService } from './room.service';
-import { IRoom } from '../../../interfaces/interfaces-chat/room.interface';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import * as ffs from 'firebase/firestore';
+import { Firestore } from '@angular/fire/firestore';
 
 describe('RoomService (unit)', () => {
   let service: RoomService;
 
   let errorNotifierMock: {
-    showError: jest.Mock;
+    showError: Mock;
   };
 
   let globalErrorMock: {
-    handleError: jest.Mock;
+    handleError: Mock;
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     errorNotifierMock = {
-      showError: jest.fn(),
+      showError: vi.fn(),
     };
 
     globalErrorMock = {
-      handleError: jest.fn(),
+      handleError: vi.fn(),
     };
 
     TestBed.configureTestingModule({
@@ -54,7 +53,7 @@ describe('RoomService (unit)', () => {
   });
 
   it('countUserRooms retorna a contagem', async () => {
-    (ffs.getDocs as jest.Mock).mockResolvedValue({
+    (ffs.getDocs as Mock).mockResolvedValue({
       docs: [
         { id: 'r1', data: () => ({}) },
         { id: 'r2', data: () => ({}) },
@@ -91,9 +90,9 @@ describe('RoomService (unit)', () => {
       ],
     } as any;
 
-    (ffs.onSnapshot as jest.Mock).mockImplementation((_q: any, next: Function) => {
+    (ffs.onSnapshot as Mock).mockImplementation((_q: any, next: Function) => {
       next(snapshot);
-      return jest.fn();
+      return vi.fn();
     });
 
     const rooms = await firstValueFrom(service.getUserRooms('u1'));
@@ -119,9 +118,9 @@ describe('RoomService (unit)', () => {
       ],
     } as any;
 
-    (ffs.onSnapshot as jest.Mock).mockImplementation((_q: any, next: Function) => {
+    (ffs.onSnapshot as Mock).mockImplementation((_q: any, next: Function) => {
       next(snapshot);
-      return jest.fn();
+      return vi.fn();
     });
 
     const rooms = await firstValueFrom(service.getRooms('u1'));
@@ -143,9 +142,9 @@ describe('RoomService (unit)', () => {
       }),
     } as any;
 
-    (ffs.onSnapshot as jest.Mock).mockImplementation((_ref: any, next: Function) => {
+    (ffs.onSnapshot as Mock).mockImplementation((_ref: any, next: Function) => {
       next(docSnap);
-      return jest.fn();
+      return vi.fn();
     });
 
     const room = await firstValueFrom(service.getRoomById('room-xyz'));
@@ -155,21 +154,15 @@ describe('RoomService (unit)', () => {
     expect(room.participants).toEqual(['a', 'b']);
   });
 
-  it('deve falhar ao contar salas sem uid', async () => {
-    try {
-      await service.countUserRooms('');
-      fail('Era esperado lançar erro para uid vazio.');
-    } catch (error: any) {
-      expect(error?.message).toContain('UID ausente para consulta de salas.');
-    }
-  });
-
-  it('deve falhar ao buscar roomId vazio', async () => {
-    try {
-      await firstValueFrom(service.getRoomById(''));
-      fail('Era esperado lançar erro para roomId vazio.');
-    } catch (error: any) {
-      expect(error?.message).toContain('roomId ausente.');
-    }
-  });
+it('deve falhar ao contar salas sem uid', async () => {
+  await expect(service.countUserRooms('')).rejects.toThrow(
+    'UID ausente para consulta de salas.'
+  );
 });
+
+it('deve falhar ao buscar roomId vazio', async () => {
+  await expect(firstValueFrom(service.getRoomById(''))).rejects.toThrow(
+    'roomId ausente.'
+  );
+});
+})

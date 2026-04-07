@@ -2,6 +2,7 @@
 // utilizando ferramentas nativas
 import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
 
 import { Auth } from '@angular/fire/auth';
 
@@ -11,9 +12,9 @@ import { AuthSessionService } from './auth-session.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 
 class MockCacheService {
-  set = jest.fn();
-  delete = jest.fn();
-  getSync = jest.fn();
+  set = vi.fn();
+  delete = vi.fn();
+  getSync = vi.fn();
 }
 
 class MockAuthSessionService {
@@ -60,7 +61,7 @@ describe('CurrentUserStoreService', () => {
     cache = TestBed.inject(CacheService) as any;
     authSession = TestBed.inject(AuthSessionService) as any;
 
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     authCurrentUserMock = null;
     authSession.currentAuthUser = null;
     authSession.ready$.next(false);
@@ -87,7 +88,7 @@ describe('CurrentUserStoreService', () => {
 
   it('set() não deve escrever novamente se o usuário for idêntico', () => {
     service.set(userMock);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     service.set({ ...userMock });
 
@@ -96,7 +97,7 @@ describe('CurrentUserStoreService', () => {
 
 it('patch() deve mesclar os dados do usuário atual', () => {
   service.set(userMock);
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 
   service.patch({ nickname: 'alex-updated' });
 
@@ -105,11 +106,14 @@ it('patch() deve mesclar os dados do usuário atual', () => {
     nickname: 'alex-updated',
   });
 
-  const currentUserCall = cache.set.mock.calls.find(
-    (call: any[]) => call[0] === 'currentUser'
-  );
+ const currentUserCall = cache.set.mock.calls.find(
+  (call: any[]) => call[0] === 'currentUser'
+);
 
-  expect(currentUserCall).toBeDefined();
+if (!currentUserCall) {
+  throw new Error('currentUser call não encontrado');
+}
+
   expect(currentUserCall[1]).toBeDefined();
   expect(currentUserCall[1].nickname).toBe('alex-updated');
   expect(currentUserCall[1].uid).toBe('u1');
@@ -126,7 +130,7 @@ it('patch() deve mesclar os dados do usuário atual', () => {
 
   it('clear() deve marcar estado como null e limpar HOT_KEYS', () => {
     service.set(userMock);
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     service.clear();
 

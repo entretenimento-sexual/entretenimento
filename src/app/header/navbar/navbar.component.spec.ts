@@ -5,16 +5,18 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { BehaviorSubject, of } from 'rxjs';
 
+import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
+
 import { NavbarComponent } from './navbar.component';
 import { Auth } from '@angular/fire/auth';
 
-import { SidebarService } from '../../core/services/sidebar.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
+import { SidebarService } from '../../core/services/navigation/sidebar.service';
 
 class MockSidebarService {
-  toggleSidebar = jest.fn();
+  toggleSidebar = vi.fn();
 }
 
 class MockAuthSessionService {
@@ -26,7 +28,7 @@ class MockAuthSessionService {
   // o componente usa startWith(this.session.currentAuthUser?.uid ?? null)
   currentAuthUser: { uid: string } | null = null;
 
-  signOut$ = jest.fn(() => of(void 0));
+  signOut$ = vi.fn(() => of(void 0));
 
   setUid(uid: string | null): void {
     this.currentAuthUser = uid ? { uid } : null;
@@ -40,8 +42,8 @@ class MockCurrentUserStoreService {
 }
 
 class MockErrorNotificationService {
-  showSuccess = jest.fn();
-  showError = jest.fn();
+  showSuccess = vi.fn();
+  showError = vi.fn();
 }
 
 describe('NavbarComponent', () => {
@@ -78,7 +80,6 @@ describe('NavbarComponent', () => {
 
     router = TestBed.inject(Router);
     session = TestBed.inject(AuthSessionService) as unknown as MockAuthSessionService;
-    sidebar = TestBed.inject(SidebarService) as unknown as MockSidebarService;
     notify = TestBed.inject(ErrorNotificationService) as unknown as MockErrorNotificationService;
 
     fixture = TestBed.createComponent(NavbarComponent);
@@ -104,7 +105,7 @@ describe('NavbarComponent', () => {
   }));
 
   it('logout: deve chamar signOut$, notificar sucesso e navegar para /login', fakeAsync(() => {
-    const navSpy = jest.spyOn(router, 'navigate').mockResolvedValue(true as any);
+    const navSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true as any);
 
     component.logout();
     tick();
@@ -137,5 +138,6 @@ describe('NavbarComponent', () => {
     fixture.detectChanges();
 
     expect(session.currentAuthUser?.uid).toBe('uid-123');
+    sidebar = TestBed.inject(SidebarService) as unknown as MockSidebarService;
   }));
 });

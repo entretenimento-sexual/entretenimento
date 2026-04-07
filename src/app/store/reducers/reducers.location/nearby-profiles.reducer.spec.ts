@@ -15,8 +15,8 @@ describe('nearbyProfilesReducer', () => {
   it('should return initial state for unknown action', () => {
     const state = nearbyProfilesReducer(undefined, { type: '@@init/unknown' } as any);
     // shape básico esperado
-    expect(state).toEqual(jasmine.objectContaining({
-      ttlMs: jasmine.any(Number),
+    expect(state).toEqual(expect.objectContaining({
+      ttlMs: expect.any(Number),
       byKey: {},
     }));
   });
@@ -31,7 +31,7 @@ describe('nearbyProfilesReducer', () => {
 
     expect(next).not.toBe(prev);
     expect(next.byKey[key]).toBeDefined();
-    expect(next.byKey[key].loading).toBeTrue();
+    expect(next.byKey[key].loading).toBe(true);
     expect(next.byKey[key].error).toBeNull();
     // não deve apagar lista existente se já houver (aqui não havia)
     expect(next.byKey[key].list).toEqual([]);
@@ -51,7 +51,7 @@ describe('nearbyProfilesReducer', () => {
     const next = nearbyProfilesReducer(prev, NearbyProfilesActions.loaded({ key, list, updatedAt }));
 
     expect(next).not.toBe(prev);
-    expect(next.byKey[key].loading).toBeFalse();
+    expect(next.byKey[key].loading).toBe(false);
     expect(next.byKey[key].error).toBeNull();
     expect(next.byKey[key].list).toEqual(list);
     expect(next.byKey[key].updatedAt).toBe(updatedAt);
@@ -67,7 +67,7 @@ describe('nearbyProfilesReducer', () => {
 
     const next = nearbyProfilesReducer(prev, NearbyProfilesActions.error({ key, message: 'Falha' }));
 
-    expect(next.byKey[key].loading).toBeFalse();
+    expect(next.byKey[key].loading).toBe(false);
     expect(next.byKey[key].error).toBe('Falha');
     expect(next.byKey[key].list).toEqual(prev.byKey[key].list);
     expect(next.byKey[key].updatedAt).toBe(123);

@@ -1,4 +1,5 @@
 //src\app\payments-core\infrastructure\repositories\billing.repository.ts
+//Não esquecer de comentários explicativos e ferramentas de debug
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { from, Observable } from 'rxjs';
@@ -11,13 +12,18 @@ import { CreateCheckoutResult } from '../../domain/ports/payment-provider.port';
 export class BillingRepository {
   private readonly functions = inject(Functions);
 
-  getPlatformPlanByKey$(planKey: string): Observable<BillingPlan | null> {
-    const callable = httpsCallable<{ key: string }, BillingPlan | null>(
-      this.functions,
-      'getPlatformPlanByKey'
-    );
+  private readonly getPlatformPlanByKeyCallable = httpsCallable<
+    { key: string },
+    BillingPlan | null
+  >(this.functions, 'getPlatformPlanByKey');
 
-    return from(callable({ key: planKey })).pipe(
+  private readonly createPlatformCheckoutSessionCallable = httpsCallable<
+    { planId: string; planKey: string },
+    CreateCheckoutResult | null
+  >(this.functions, 'createPlatformCheckoutSession');
+
+  getPlatformPlanByKey$(planKey: string): Observable<BillingPlan | null> {
+    return from(this.getPlatformPlanByKeyCallable({ key: planKey })).pipe(
       map((result) => result.data ?? null)
     );
   }
@@ -25,13 +31,8 @@ export class BillingRepository {
   createPlatformCheckoutSession$(
     plan: BillingPlan
   ): Observable<CreateCheckoutResult | null> {
-    const callable = httpsCallable<
-      { planId: string; planKey: string },
-      CreateCheckoutResult | null
-    >(this.functions, 'createPlatformCheckoutSession');
-
     return from(
-      callable({
+      this.createPlatformCheckoutSessionCallable({
         planId: plan.id,
         planKey: String(plan.key),
       })

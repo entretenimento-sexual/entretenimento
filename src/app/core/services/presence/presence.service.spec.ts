@@ -12,7 +12,7 @@ describe('PresenceService', () => {
   const serverTsMock = serverTimestamp as unknown as jest.Mock;
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     updateDocMock.mockClear();
     serverTsMock.mockClear();
 
@@ -27,7 +27,7 @@ describe('PresenceService', () => {
 
   afterEach(() => {
     try { service.stop(); } catch { }
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   function lastCallArgs() {
@@ -50,16 +50,16 @@ describe('PresenceService', () => {
     service.start('u1');
     updateDocMock.mockClear();
 
-    jest.advanceTimersByTime(29_000);
+    vi.advanceTimersByTime(29_000);
     expect(updateDocMock).not.toHaveBeenCalled();
 
-    jest.advanceTimersByTime(1_000);
+    vi.advanceTimersByTime(1_000);
     expect(updateDocMock).toHaveBeenCalledTimes(1);
     let [, data] = lastCallArgs();
     expect('lastSeen' in data).toBe(true);
     expect((data as any).isOnline).toBe(true);
 
-    jest.advanceTimersByTime(30_000);
+    vi.advanceTimersByTime(30_000);
     expect(updateDocMock).toHaveBeenCalledTimes(2);
   });
 
@@ -106,7 +106,7 @@ describe('PresenceService', () => {
     updateDocMock.mockClear();
 
     service.stop();
-    jest.advanceTimersByTime(60_000);
+    vi.advanceTimersByTime(60_000);
     expect(updateDocMock).not.toHaveBeenCalled();
 
     window.dispatchEvent(new Event('offline'));

@@ -10,7 +10,7 @@
 // - componente somente visual
 // - não salva nada
 // - não conhece legado
-
+// Visua clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 

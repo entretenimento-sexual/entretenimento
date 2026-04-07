@@ -48,9 +48,9 @@ describe('selectLocationNearbyVMByUid', () => {
     expect(vm.currentLocation).toBeNull();
     expect(vm.maxDistanceKm).toBe(maxDistanceKm);
     expect(vm.list.length).toBe(0);
-    expect(vm.loading).toBeFalse();
+    expect(vm.loading).toBe(false);
     expect(vm.error).toBeNull();
-    expect(vm.isFresh).toBeFalse();
+    expect(vm.isFresh).toBe(false);
     expect(vm.ttlMs).toBe(ttl);
     expect(vm.ttlLeftMs).toBe(0);
   });
@@ -73,9 +73,9 @@ describe('selectLocationNearbyVMByUid', () => {
     expect(vm.key).toBe(key);
     expect(vm.currentLocation).toEqual(currentLocation);
     expect(vm.list.length).toBe(1);
-    expect(vm.loading).toBeFalse();
+    expect(vm.loading).toBe(false);
     expect(vm.error).toBeNull();
-    expect(vm.isFresh).toBeTrue();
+    expect(vm.isFresh).toBe(true);
     expect(vm.ttlMs).toBe(ttl);
     // deve restar tempo (>0) e não extrapolar TTL
     expect(vm.ttlLeftMs).toBeGreaterThan(0);
@@ -98,7 +98,7 @@ describe('selectLocationNearbyVMByUid', () => {
     );
 
     expect(vm.key).toBe(key);
-    expect(vm.isFresh).toBeFalse();
+    expect(vm.isFresh).toBe(false);
     expect(vm.ttlMs).toBe(ttl);
     expect(vm.ttlLeftMs).toBe(0);
     // lista continua presente até o efeito recarregar
@@ -123,9 +123,9 @@ describe('selectLocationNearbyVMByUid', () => {
 
     expect(vm.key).toBe(buildNearbyKey({ uid, lat, lon, radiusKm }));
     expect(vm.list.length).toBe(0);
-    expect(vm.loading).toBeFalse();
+    expect(vm.loading).toBe(false);
     expect(vm.error).toBeNull();
-    expect(vm.isFresh).toBeFalse();
+    expect(vm.isFresh).toBe(false);
     expect(vm.ttlLeftMs).toBe(0);
   });
 });

@@ -3,39 +3,31 @@
   "compilerOptions": {
     "outDir": "./out-tsc/spec",
     "types": [
-      "jest",
+      "vitest/globals",
       "node"
     ],
     "emitDecoratorMetadata": false,
     "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
-      "src/*": [
-        "src/*"
-      ],
-      "@app/*": [
-        "src/app/*"
-      ],
-      "@core/*": [
-        "src/app/core/*"
-      ],
-      "@shared/*": [
-        "src/app/shared/*"
-      ],
-      "@env/*": [
-        "src/environments/*"
-      ],
-      "@store/*": [
-        "src/app/store/*"
-      ]
+      "src/*": ["src/*"],
+      "@app/*": ["src/app/*"],
+      "@core/*": ["src/app/core/*"],
+      "@shared/*": ["src/app/shared/*"],
+      "@env/*": ["src/environments/*"],
+      "@store/*": ["src/app/store/*"]
     }
   },
-  "files": ["src/test/setup-jest.ts", "src/polyfills.ts"],
+  "files": [
+    "src/test/setup-vitest.ts"
+  ],
   "include": [
     "src/**/*.spec.ts",
     "src/**/*.d.ts",
-    "src/test/setup-jest.ts",
-    "src/test/**/*.ts"
+    "src/test/setup-vitest.ts",
+    "src/test/jest-stubs/**/*.ts"
   ],
-  "exclude": []
+  "exclude": [
+    "src/test/setup-jest.ts"
+  ]
 }

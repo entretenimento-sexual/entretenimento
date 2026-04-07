@@ -44,7 +44,7 @@ class MockAuthSessionService {
     emailVerified: true,
   };
 
-  signOut$ = jest.fn(() => of(void 0));
+  signOut$ = vi.fn(() => of(void 0));
 
   setAuthUser(user: { uid: string; email?: string; emailVerified?: boolean } | null): void {
     this.currentAuthUser = user;
@@ -58,13 +58,13 @@ class MockSidebarService {
 }
 
 class MockUserSocialLinksService {
-  getSocialLinks = jest.fn(() => of(null));
-  saveSocialLinks = jest.fn(() => of(void 0));
-  removeLink = jest.fn(() => of(void 0));
+  getSocialLinks = vi.fn(() => of(null));
+  saveSocialLinks = vi.fn(() => of(void 0));
+  removeLink = vi.fn(() => of(void 0));
 }
 
 class MockFirestoreUserQueryService {
-  getUser = jest.fn(() =>
+  getUser = vi.fn(() =>
     of({
       uid: 'test-uid',
       nickname: 'Alex',
@@ -72,7 +72,7 @@ class MockFirestoreUserQueryService {
     })
   );
 
-  getUserWithObservable = jest.fn(() =>
+  getUserWithObservable = vi.fn(() =>
     of({
       uid: 'test-uid',
       nickname: 'Alex',
@@ -82,12 +82,12 @@ class MockFirestoreUserQueryService {
 }
 
 class MockErrorNotificationService {
-  showError = jest.fn();
-  showSuccess = jest.fn();
+  showError = vi.fn();
+  showSuccess = vi.fn();
 }
 
 class MockRoomManagementService {
-  createRoom = jest.fn(() => of({ id: 'room-1' }));
+  createRoom = vi.fn(() => of({ id: 'room-1' }));
 }
 
 describe('UserProfileViewComponent', () => {

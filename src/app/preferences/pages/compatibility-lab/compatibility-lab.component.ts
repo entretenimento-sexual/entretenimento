@@ -2,6 +2,7 @@
 // Página laboratório de compatibilidade.
 // Agora alinhada ao padrão visual interno do domínio preferences,
 // sem criar shell paralelo ao shell global.
+// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';

@@ -9,6 +9,7 @@
 // Observação:
 // - nesta primeira versão, a página é somente leitura
 // - edição nova entra em etapa posterior
+// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';

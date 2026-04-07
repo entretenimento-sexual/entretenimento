@@ -21,7 +21,7 @@ describe('CreateRoomModalComponent', () => {
         MatDialogModule,                                  // se o componente usa <mat-dialog-content> etc.
       ],
       providers: [
-        { provide: MatDialogRef, useValue: { close: jest.fn() } },
+        { provide: MatDialogRef, useValue: { close: vi.fn() } },
         { provide: MAT_DIALOG_DATA, useValue: {} },
       ],
       schemas: [NO_ERRORS_SCHEMA],                        // ignora filhos não declarados

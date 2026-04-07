@@ -11,7 +11,7 @@ describe('NearbyProfilesActions (createActionGroup)', () => {
     const action = NearbyProfilesActions.load({ params, force: true });
     expect(action.type).toBe('[Nearby Profiles] load');
     expect(action.params).toEqual(params);
-    expect(action.force).toBeTrue();
+    expect(action.force).toBe(true);
   });
 
   it('should create loaded action (type + payload)', () => {
@@ -36,6 +36,6 @@ describe('NearbyProfilesActions (createActionGroup)', () => {
     expect(a1.type).toBe('[Nearby Profiles] invalidate');
     expect(a1.key).toBe('k1');
     expect(a2.type).toBe('[Nearby Profiles] invalidate');
-    expect(a2).toEqual(jasmine.objectContaining({}));
+    expect(a2).toEqual(expect.objectContaining({}));
   });
 });

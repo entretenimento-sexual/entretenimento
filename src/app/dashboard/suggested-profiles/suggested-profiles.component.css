@@ -1,0 +1,51 @@
+/* src\app\dashboard\suggested-profiles\suggested-profiles.component.css */
+:host {
+  display: block;
+}
+
+.suggested-profiles-page {
+  width: 100%;
+}
+
+.profile-count,
+.no-profile-message {
+  color: var(--text-color);
+  font-size: 1rem;
+}
+
+.profiles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-3);
+}
+
+.profile-card {
+  background: var(--surface-color);
+  color: var(--text-color);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--box-shadow);
+  overflow: hidden;
+}
+
+.profile-avatar {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+mat-card-title,
+mat-card-subtitle {
+  color: var(--text-color);
+}
+
+mat-card-actions {
+  padding-inline: 16px;
+  padding-bottom: 16px;
+}
+
+@media (max-width: 350px) {
+  .profiles-grid {
+    grid-template-columns: 1fr;
+  }
+}

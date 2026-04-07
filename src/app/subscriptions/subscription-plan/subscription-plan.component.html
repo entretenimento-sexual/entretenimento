@@ -1,38 +1,76 @@
 <!-- src\app\subscriptions\subscription-plan\subscription-plan.component.html -->
-<div class="subscription-plan-container">
-  <h2>Escolha seu Plano de Assinatura</h2>
+<section class="subscription-plan-container ui-container">
+  <header class="subscription-plan-header">
+    <p class="subscription-plan-kicker">Assinatura premium</p>
+    <h1>Escolha seu plano de assinatura</h1>
+    <p class="subscription-plan-description">
+      Ative os benefícios premium da sua conta e explore a plataforma com mais liberdade.
+    </p>
+  </header>
+
+  <section
+    class="alert alert-info subscription-plan-warning"
+    *ngIf="shouldShowSubscriptionWarning$ | async"
+    aria-labelledby="subscription-plan-warning-title"
+    aria-describedby="subscription-plan-warning-description"
+  >
+    <h2 id="subscription-plan-warning-title">
+      Você pode assinar mesmo com o perfil incompleto
+    </h2>
+
+    <p id="subscription-plan-warning-description">
+      Sua assinatura será ativada normalmente, mas algumas funções sociais e de descoberta podem continuar limitadas até a conclusão do perfil.
+    </p>
+
+    <ul class="subscription-plan-warning__list">
+      <li *ngFor="let item of subscriptionWarningItems">
+        {{ item }}
+      </li>
+    </ul>
+
+    <p class="subscription-plan-warning__discreet-text">
+      Prefere mais discrição neste momento? Sem problema. Você pode assinar agora e completar o perfil depois, quando quiser liberar mais visibilidade e interação.
+    </p>
+  </section>
+
   <div class="plans-grid">
-    <div class="plan">
-      <h3>Plano Básico</h3>
+    <article class="plan">
+      <h2>Plano Básico</h2>
       <p class="price">R$19,99/mês</p>
       <ul>
         <li>Acesso ilimitado a artigos</li>
         <li>Acesso a comunidades exclusivas</li>
         <li>5 convites para amigos por mês</li>
       </ul>
-      <button (click)="subscribe('basic')">Assinar Plano Básico</button>
-    </div>
+      <button class="btn btn-primary" type="button" (click)="subscribe('basic')">
+        Assinar Plano Básico
+      </button>
+    </article>
 
-    <div class="plan featured-plan">
-      <h3>Plano Premium</h3>
+    <article class="plan featured-plan">
+      <h2>Plano Premium</h2>
       <p class="price">R$29,99/mês</p>
       <ul>
         <li>Todos os benefícios do Plano Básico</li>
         <li>Acesso antecipado a novas funcionalidades</li>
         <li>Assistência prioritária</li>
       </ul>
-      <button (click)="subscribe('premium')">Assinar Plano Premium</button>
-    </div>
+      <button class="btn btn-primary" type="button" (click)="subscribe('premium')">
+        Assinar Plano Premium
+      </button>
+    </article>
 
-    <div class="plan">
-      <h3>Plano Vip</h3>
+    <article class="plan">
+      <h2>Plano VIP</h2>
       <p class="price">R$39,99/mês</p>
       <ul>
         <li>Acesso ilimitado a artigos</li>
         <li>Acesso a comunidades exclusivas</li>
         <li>5 convites para amigos por mês</li>
       </ul>
-      <button (click)="subscribe('vip')">Assinar Plano Vip</button>
-    </div>
+      <button class="btn btn-primary" type="button" (click)="subscribe('vip')">
+        Assinar Plano VIP
+      </button>
+    </article>
   </div>
-</div>
+</section>

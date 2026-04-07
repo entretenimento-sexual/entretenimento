@@ -15,7 +15,6 @@ import { RouterModule, Routes } from '@angular/router';
 
 import { LoginComponent } from './login-component/login-component';
 import { ProgressiveSignupComponent } from './progressive-signup/progressive-signup.component';
-import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
 
 const authRoutes: Routes = [
   {
@@ -29,11 +28,6 @@ const authRoutes: Routes = [
     data: { allowAuthenticated: true },
   },
 
-  {
-    path: 'suggested-profiles',
-    component: SuggestedProfilesComponent,
-    data: { allowAuthenticated: true },
-  },
 ];
 
 @NgModule({

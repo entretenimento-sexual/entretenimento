@@ -13,9 +13,9 @@ import { AuthSessionService } from '../../../core/services/autentication/auth/au
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 
 class MockUserSocialLinksService {
-  getSocialLinks = jest.fn().mockReturnValue(of({ instagram: 'alex' }));
-  saveSocialLinks = jest.fn().mockReturnValue(of(void 0));
-  removeLink = jest.fn().mockReturnValue(of(void 0));
+  getSocialLinks = vi.fn().mockReturnValue(of({ instagram: 'alex' }));
+  saveSocialLinks = vi.fn().mockReturnValue(of(void 0));
+  removeLink = vi.fn().mockReturnValue(of(void 0));
 }
 
 class MockCurrentUserStoreService {
@@ -38,8 +38,8 @@ class MockAuthSessionService {
 }
 
 class MockErrorNotificationService {
-  showSuccess = jest.fn();
-  showError = jest.fn();
+  showSuccess = vi.fn();
+  showError = vi.fn();
 }
 
 describe('SocialLinksAccordionComponent', () => {

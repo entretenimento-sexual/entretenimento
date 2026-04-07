@@ -44,7 +44,7 @@ describe('InviteUserModalComponent', () => {
     });
 
     dialogRefMock = {
-      close: jest.fn(),
+      close: vi.fn(),
     };
 
     authSessionMock = {
@@ -54,34 +54,34 @@ describe('InviteUserModalComponent', () => {
 
     currentUserStoreMock = {
       user$: currentUserSubject.asObservable(),
-      getSnapshot: jest.fn(() => currentUserSubject.value),
+      getSnapshot: vi.fn(() => currentUserSubject.value),
     };
 
     ibgeStub = {
-      getEstados: jest.fn(() => of([{ sigla: 'SP' }, { sigla: 'RJ' }])),
-      getMunicipios: jest.fn(() => of([{ nome: 'São Paulo' }, { nome: 'Rio de Janeiro' }])),
+      getEstados: vi.fn(() => of([{ sigla: 'SP' }, { sigla: 'RJ' }])),
+      getMunicipios: vi.fn(() => of([{ nome: 'São Paulo' }, { nome: 'Rio de Janeiro' }])),
     };
 
     regionFilterStub = {
-      getUserRegion: jest.fn(() => of({ uf: 'SP', city: 'São Paulo' })),
+      getUserRegion: vi.fn(() => of({ uf: 'SP', city: 'São Paulo' })),
     };
 
     inviteSearchStub = {
-      searchEligibleUsers: jest.fn(() => of([])),
+      searchEligibleUsers: vi.fn(() => of([])),
     };
 
     inviteServiceStub = {
-      createInvite: jest.fn(() => of(void 0)),
+      createInvite: vi.fn(() => of(void 0)),
     };
 
     globalErrorHandlerMock = {
-      handleError: jest.fn(),
+      handleError: vi.fn(),
     };
 
     errorNotifierMock = {
-      showError: jest.fn(),
-      showWarning: jest.fn(),
-      showInfo: jest.fn(),
+      showError: vi.fn(),
+      showWarning: vi.fn(),
+      showInfo: vi.fn(),
     };
 
     await TestBed.configureTestingModule({

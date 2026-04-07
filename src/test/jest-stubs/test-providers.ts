@@ -1,5 +1,5 @@
 // src/test/jest-stubs/test-providers.ts
-// ============================================================================
+// ================================================================
 // Provedores e stubs reutilizáveis para testes unitários com Jest
 //
 // Objetivo:
@@ -7,8 +7,8 @@
 // - Remover dependência do AuthService legado
 // - Expor estado reativo de autenticação/perfil para specs
 // - Facilitar manutenção futura com helpers utilitários
-// ============================================================================
-
+// ================================================================
+import { vi } from 'vitest';
 import { Provider } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { distinctUntilChanged, map, take } from 'rxjs/operators';
@@ -35,9 +35,9 @@ import { ErrorNotificationService } from '../../app/core/services/error-handler/
 
 import type { IUserDados } from '../../app/core/interfaces/iuser-dados';
 
-// ============================================================================
+// ==========================================================
 // Estado reativo compartilhado dos testes
-// ============================================================================
+// ============================================================
 
 export type TestAuthUser = {
   uid: string;
@@ -134,8 +134,8 @@ export const authTestingProviders: Provider[] = [
       ready$: authReadySubject.asObservable(),
       isAuthenticated$: authIsAuthenticated$,
 
-      whenReady: jest.fn(() => Promise.resolve()),
-      signOut$: jest.fn(() => of(void 0)),
+      whenReady: vi.fn(() => Promise.resolve()),
+      signOut$: vi.fn(() => of(void 0)),
 
       get currentAuthUser() {
         return authUserSubject.value;
@@ -147,23 +147,23 @@ export const authTestingProviders: Provider[] = [
     useValue: {
       user$: currentUserSubject.asObservable(),
 
-      set: jest.fn((user: IUserDados) => currentUserSubject.next(user)),
-      patch: jest.fn((partial: Partial<IUserDados>) => {
+      set: vi.fn((user: IUserDados) => currentUserSubject.next(user)),
+      patch: vi.fn((partial: Partial<IUserDados>) => {
         const current = currentUserSubject.value;
         if (!current || current === undefined || current === null) return;
         currentUserSubject.next({ ...current, ...partial } as IUserDados);
       }),
-      clear: jest.fn(() => currentUserSubject.next(null)),
-      markUnhydrated: jest.fn(() => currentUserSubject.next(undefined)),
+      clear: vi.fn(() => currentUserSubject.next(null)),
+      markUnhydrated: vi.fn(() => currentUserSubject.next(undefined)),
 
-      getSnapshot: jest.fn(() => currentUserSubject.value),
+      getSnapshot: vi.fn(() => currentUserSubject.value),
 
-      getAuthReady$: jest.fn(() => authReadySubject.asObservable()),
-      getLoggedUserUID$: jest.fn(() => authUid$),
-      getLoggedUserUIDOnce$: jest.fn(() => authUid$.pipe(take(1))),
-      getLoggedUserUIDSnapshot: jest.fn(() => authUserSubject.value?.uid ?? null),
+      getAuthReady$: vi.fn(() => authReadySubject.asObservable()),
+      getLoggedUserUID$: vi.fn(() => authUid$),
+      getLoggedUserUIDOnce$: vi.fn(() => authUid$.pipe(take(1))),
+      getLoggedUserUIDSnapshot: vi.fn(() => authUserSubject.value?.uid ?? null),
 
-      isHydratedOnce$: jest.fn(() =>
+      isHydratedOnce$: vi.fn(() =>
         currentUserSubject.asObservable().pipe(
           map((v) => v !== undefined),
           distinctUntilChanged(),
@@ -171,8 +171,8 @@ export const authTestingProviders: Provider[] = [
         )
       ),
 
-      restoreFromCache: jest.fn(() => null),
-      restoreFromCacheWhenReady$: jest.fn(() => of(null)),
+      restoreFromCache: vi.fn(() => null),
+      restoreFromCacheWhenReady$: vi.fn(() => of(null)),
     },
   },
 ];
@@ -187,22 +187,22 @@ export const appServiceStubs: Provider[] = [
   {
     provide: FirestoreUserQueryService,
     useValue: {
-      getUser: jest.fn(() => of(null)),
-      getUser$: jest.fn(() => of(null)),
-      watchUserDocDeleted$: jest.fn(() => of(false)),
-      getUsersPublicMap$: jest.fn(() => of({})),
+      getUser: vi.fn(() => of(null)),
+      getUser$: vi.fn(() => of(null)),
+      watchUserDocDeleted$: vi.fn(() => of(false)),
+      getUsersPublicMap$: vi.fn(() => of({})),
     },
   },
 
   {
     provide: ChatService,
     useValue: {
-      monitorChat: jest.fn(() => of([])),
-      updateMessageStatus: jest.fn(() => Promise.resolve()),
-      getOrCreateChatId: jest.fn(() => of('chat-test-1')),
-      sendMessage: jest.fn(() => of(void 0)),
-      updateChat: jest.fn(() => of(void 0)),
-      deleteMessage: jest.fn(() => of(void 0)),
+      monitorChat: vi.fn(() => of([])),
+      updateMessageStatus: vi.fn(() => Promise.resolve()),
+      getOrCreateChatId: vi.fn(() => of('chat-test-1')),
+      sendMessage: vi.fn(() => of(void 0)),
+      updateChat: vi.fn(() => of(void 0)),
+      deleteMessage: vi.fn(() => of(void 0)),
     },
   },
 
@@ -211,49 +211,49 @@ export const appServiceStubs: Provider[] = [
   {
     provide: FriendshipService,
     useValue: {
-      searchUsers: jest.fn(() => of([])),
-      blockUser: jest.fn(() => of(void 0)),
+      searchUsers: vi.fn(() => of([])),
+      blockUser: vi.fn(() => of(void 0)),
     },
   },
 
   {
     provide: StorageService,
     useValue: {
-      replaceFile: jest.fn(() => of('https://example.com/file.jpg')),
-      uploadProfileAvatar: jest.fn(() => of(null)),
+      replaceFile: vi.fn(() => of('https://example.com/file.jpg')),
+      uploadProfileAvatar: vi.fn(() => of(null)),
     },
   },
 
   {
     provide: PhotoFirestoreService,
     useValue: {
-      getPhotosByUser: jest.fn(() => of([])),
-      savePhotoMetadata: jest.fn(async () => void 0),
-      saveImageState: jest.fn(async () => void 0),
-      updatePhotoMetadata: jest.fn(async () => void 0),
-      deletePhoto: jest.fn(async () => void 0),
+      getPhotosByUser: vi.fn(() => of([])),
+      savePhotoMetadata: vi.fn(async () => void 0),
+      saveImageState: vi.fn(async () => void 0),
+      updatePhotoMetadata: vi.fn(async () => void 0),
+      deletePhoto: vi.fn(async () => void 0),
     },
   },
 
   {
     provide: SubscriptionService,
     useValue: {
-      promptSubscription: jest.fn(),
+      promptSubscription: vi.fn(),
     },
   },
 
   {
     provide: RoomManagementService,
     useValue: {
-      createRoom: jest.fn(() => of({ roomId: 'room-1', roomName: 'Sala Teste', action: 'created' })),
+      createRoom: vi.fn(() => of({ roomId: 'room-1', roomName: 'Sala Teste', action: 'created' })),
     },
   },
 
   {
     provide: GlobalErrorHandlerService,
     useValue: {
-      handleError: jest.fn(),
-      formatErrorMessage: jest.fn((error: unknown) =>
+      handleError: vi.fn(),
+      formatErrorMessage: vi.fn((error: unknown) =>
         error instanceof Error ? error.message : 'Erro desconhecido'
       ),
     },
@@ -262,19 +262,18 @@ export const appServiceStubs: Provider[] = [
   {
     provide: ErrorNotificationService,
     useValue: {
-      showSuccess: jest.fn(),
-      showError: jest.fn(),
-      showWarning: jest.fn(),
-      showInfo: jest.fn(),
-      showNotification: jest.fn(),
+      showSuccess: vi.fn(),
+      showError: vi.fn(),
+      showWarning: vi.fn(),
+      showInfo: vi.fn(),
+      showNotification: vi.fn(),
     },
   },
 ];
 
-// ============================================================================
+// ===============================================================
 // Provider agregado
-// ============================================================================
-
+// ===============================================================
 export const commonTestingProviders = (): Provider[] => [
   ...angularFireTokenStubs,
   ...authTestingProviders,

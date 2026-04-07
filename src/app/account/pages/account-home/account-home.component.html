@@ -1,5 +1,5 @@
 <!-- src\app\account\pages\account-home\account-home.component.html -->
- <main class="account-home-page app-page" aria-label="Minha conta">
+<main class="account-home-page app-page" aria-label="Minha conta">
   <section class="account-home-shell stack">
     <header class="account-home-header">
       <div class="account-home-header__text">
@@ -13,6 +13,74 @@
         <a class="btn btn-secondary" routerLink="/perfil">Voltar ao perfil</a>
       </nav>
     </header>
+
+    @if (currentUser$ | async; as currentUser) {
+      @if (shouldShowPostPaymentNotice$ | async) {
+        <section
+          class="alert alert-success account-post-payment-notice"
+          aria-labelledby="account-post-payment-title"
+          aria-describedby="account-post-payment-description"
+        >
+          <div class="account-post-payment-notice__content">
+            <h2 id="account-post-payment-title">Assinatura ativada com sucesso</h2>
+
+            <p id="account-post-payment-description">
+              Seu plano premium já está ativo. Como seu perfil ainda está incompleto, algumas funções sociais e de descoberta podem continuar limitadas por enquanto.
+            </p>
+
+            <p>
+              Você pode continuar navegando com mais discrição. Quando quiser ampliar sua visibilidade e liberar mais interações, finalize seu perfil.
+            </p>
+          </div>
+
+          <div class="account-post-payment-notice__actions">
+            <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
+              Completar perfil agora
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="onDismissPostPaymentNotice(currentUser)"
+            >
+              Continuar com discrição
+            </button>
+          </div>
+        </section>
+      }
+
+      @if (shouldShowIncompleteProfileBanner$ | async) {
+        <aside
+          class="alert alert-info account-incomplete-profile-banner"
+          aria-labelledby="account-incomplete-profile-banner-title"
+          aria-describedby="account-incomplete-profile-banner-description"
+        >
+          <div class="account-incomplete-profile-banner__content">
+            <h2 id="account-incomplete-profile-banner-title">
+              Plano ativo. Perfil incompleto.
+            </h2>
+
+            <p id="account-incomplete-profile-banner-description">
+              Você pode continuar navegando normalmente, mas sua visibilidade e algumas interações podem continuar limitadas.
+            </p>
+          </div>
+
+          <div class="account-incomplete-profile-banner__actions">
+            <button type="button" class="btn btn-primary" (click)="onCompleteProfile()">
+              Finalizar perfil
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="onSnoozeIncompleteProfileBanner(currentUser)"
+            >
+              Lembrar depois
+            </button>
+          </div>
+        </aside>
+      }
+    }
 
     <nav class="account-nav" aria-label="Seções da conta">
       <a href="#conta">Informações da conta</a>

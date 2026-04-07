@@ -1,5 +1,6 @@
 // src/app/preferences/pages/preferences-editor/preferences-editor.component.ts
 // Não esquecer ferramentas de debug e comentários explicativos
+// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, RouterModule } from '@angular/router';

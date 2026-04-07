@@ -5,7 +5,7 @@
 // - mostrar rapidamente o documento derivado construído/materializado
 // - ajudar debug funcional e evolução do ranking/discovery
 // - não persiste nada
-
+// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 

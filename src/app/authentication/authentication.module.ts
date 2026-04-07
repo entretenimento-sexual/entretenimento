@@ -8,7 +8,6 @@ import { RouterModule } from '@angular/router';
 import { LoginComponent } from './login-component/login-component';
 import { ProgressiveSignupComponent } from './progressive-signup/progressive-signup.component';
 import { AuthenticationRoutingModule } from './authentication-routing.module';
-import { SuggestedProfilesComponent } from './suggested-profiles/suggested-profiles.component';
 import { MatCardModule } from '@angular/material/card';
 import { EmailInputModalComponent } from './email-input-modal/email-input-modal.component';
 
@@ -16,7 +15,6 @@ import { EmailInputModalComponent } from './email-input-modal/email-input-modal.
   declarations: [
     LoginComponent,
     ProgressiveSignupComponent,
-    SuggestedProfilesComponent,
   ],
 
   imports: [
@@ -33,7 +31,7 @@ import { EmailInputModalComponent } from './email-input-modal/email-input-modal.
   exports: [
     LoginComponent,
     ProgressiveSignupComponent,
-    SuggestedProfilesComponent
+    
   ],
 
 })

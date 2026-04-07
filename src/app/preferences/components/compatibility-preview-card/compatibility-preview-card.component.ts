@@ -2,6 +2,7 @@
 // Card visual da prévia de compatibilidade.
 // Não persiste nada.
 // Não toca no legado.
+// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 

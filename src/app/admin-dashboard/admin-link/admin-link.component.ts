@@ -4,7 +4,6 @@
 // - Opcional: pode ser configurado para aparecer apenas em rotas específicas (ex: login).
 // IMPORTANTE: componente standalone e leve (sem módulos pesados).
 // Não esquecer comentários explicativos, especialmente sobre a lógica de exibição baseada em claims e rotas.
-
 import { AsyncPipe, CommonModule, NgIf } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { Router, RouterLink, NavigationEnd } from '@angular/router';

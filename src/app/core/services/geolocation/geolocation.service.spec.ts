@@ -8,6 +8,7 @@ import {
 } from './geolocation.service';
 import { of } from 'rxjs';
 import type { GeoCoordinates } from '../../interfaces/geolocation.interface';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 describe('GeolocationService', () => {
   let service: GeolocationService;
@@ -165,7 +166,7 @@ describe('GeolocationService', () => {
         error: (err: unknown) => {
           expect(err instanceof GeolocationError).toBe(true);
           expect((err as GeolocationError).code).toBe(GeolocationErrorCode.PERMISSION_DENIED);
-          done();
+         
         },
       });
     });
@@ -181,7 +182,7 @@ describe('GeolocationService', () => {
         error: (err: GeolocationError) => {
           expect(called).toBe(false);
           expect(err.code).toBe(GeolocationErrorCode.USER_GESTURE_REQUIRED);
-          done();
+          
         },
       });
     });
@@ -202,7 +203,7 @@ describe('GeolocationService', () => {
         expect(received[1]).toBeCloseTo(1.001, 6);
         sub.unsubscribe();
         expect(clearCalled).toBe(true);
-        done();
+        
       }, 0);
     });
 
@@ -216,7 +217,7 @@ describe('GeolocationService', () => {
         next: () => done.fail('não deveria emitir sucesso'),
         error: (err: GeolocationError) => {
           expect(err.code).toBe(GeolocationErrorCode.TIMEOUT);
-          done();
+          
         },
       });
     });
@@ -297,7 +298,7 @@ describe('GeolocationService', () => {
       };
 
       // evita depender do preflight/DOM aqui; testamos apenas o wrap
-      jest.spyOn(service, 'currentPosition$').mockReturnValue(of(fake));
+      vi.spyOn(service, 'currentPosition$').mockReturnValue(of(fake));
 
       const got = await service.getCurrentLocation();
       expect(got.latitude).toBeCloseTo(1, 6);

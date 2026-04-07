@@ -3,18 +3,18 @@ import { Component, Input, NgModule } from '@angular/core';
 
 @Component({
   selector: 'pintura-editor',
-  template: ''
+  template: '',
+  standalone: true,
 })
 export class PinturaEditorComponent {
-  @Input() src: any;
-  @Input() options: any;
-  standalone: true
+  @Input() src: unknown;
+  @Input() options: unknown;
 }
 
 @NgModule({
   imports: [PinturaEditorComponent],
   exports: [PinturaEditorComponent],
 })
-export class AngularPinturaModule { }
+export class AngularPinturaModule {}
 
 export default AngularPinturaModule;

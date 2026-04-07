@@ -14,7 +14,7 @@ class MockCurrentUserStoreService {
 }
 
 class MockFirestoreQueryService {
-  getSuggestedProfiles = jest.fn(() =>
+  getSuggestedProfiles = vi.fn(() =>
     of([
       { uid: 'p1', nickname: 'Alice' },
       { uid: 'p2', nickname: 'Bob' },

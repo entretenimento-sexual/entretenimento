@@ -41,30 +41,30 @@ function matchesAllowList(args: unknown[]): boolean {
 // ✅ Spies aplicados AGORA (fora de hooks), para capturar logs em import-time
 if (SILENCE_STD) {
   // log/info/debug ficam mudos, exceto se baterem na allowlist
-  jest.spyOn(console, 'log').mockImplementation((...args: any[]) => {
+  jest\.spyOn(console, 'log').mockImplementation((...args: any[]) => {
     if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.log(...args);
   });
-  jest.spyOn(console, 'info').mockImplementation((...args: any[]) => {
+  jest\.spyOn(console, 'info').mockImplementation((...args: any[]) => {
     if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.info(...args);
   });
-  jest.spyOn(console, 'debug').mockImplementation((...args: any[]) => {
+  jest\.spyOn(console, 'debug').mockImplementation((...args: any[]) => {
     if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.debug(...args);
   });
 }
 
 if (SILENCE_WARN) {
-  jest.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
+  jest\.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
     if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.warn(...args);
   });
 } else {
   // Modo "falante" para warn, porém com prefixo (útil para debugar)
-  jest.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
+  jest\.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
     if (matchesAllowList(args)) return __ORIGINAL_CONSOLE__.warn(...args);
     __ORIGINAL_CONSOLE__.warn('[WARN nos testes]', ...args);
   });
 }
 
-jest.spyOn(console, 'error').mockImplementation((...args: any[]) => {
+jest\.spyOn(console, 'error').mockImplementation((...args: any[]) => {
   if (matchesAllowList(args)) return __ORIGINAL_CONSOLE__.error(...args);
   // mantém visível no output, mas opcionalmente falha o teste
   __ORIGINAL_CONSOLE__.error('[ERROR nos testes]', ...args);
@@ -117,25 +117,25 @@ Object.defineProperty(document, 'visibilityState', {
 jest.mock('firebase/app', () => {
   const app = { name: '[DEFAULT]' };
   return {
-    initializeApp: jest.fn(() => app),
-    getApps: jest.fn(() => []),
-    getApp: jest.fn(() => app),
+    initializeApp: vi.fn(() => app),
+    getApps: vi.fn(() => []),
+    getApp: vi.fn(() => app),
   };
 });
 
 // --- firebase/auth ---
 jest.mock('firebase/auth', () => {
-  const onAuthStateChanged = jest.fn((_auth: any, _cb: any) => {
+  const onAuthStateChanged = vi.fn((_auth: any, _cb: any) => {
     return () => { /* unsubscribe noop */ };
   });
   return {
-    getAuth: jest.fn(() => ({ currentUser: null })),
+    getAuth: vi.fn(() => ({ currentUser: null })),
     onAuthStateChanged,
-    signOut: jest.fn(() => Promise.resolve()),
-    signInWithPopup: jest.fn(() => Promise.resolve({ user: { uid: 'uid-x' } })),
-    createUserWithEmailAndPassword: jest.fn(() => Promise.resolve({ user: { uid: 'uid-x' } })),
-    sendPasswordResetEmail: jest.fn(() => Promise.resolve()),
-    updateProfile: jest.fn(() => Promise.resolve()),
+    signOut: vi.fn(() => Promise.resolve()),
+    signInWithPopup: vi.fn(() => Promise.resolve({ user: { uid: 'uid-x' } })),
+    createUserWithEmailAndPassword: vi.fn(() => Promise.resolve({ user: { uid: 'uid-x' } })),
+    sendPasswordResetEmail: vi.fn(() => Promise.resolve()),
+    updateProfile: vi.fn(() => Promise.resolve()),
     GoogleAuthProvider: function GoogleAuthProvider() { },
   };
 });
@@ -143,25 +143,25 @@ jest.mock('firebase/auth', () => {
 // --- firebase/database ---
 jest.mock('firebase/database', () => {
   const __refs = new Map<string, any>();
-  const ref = jest.fn((_db: any, path?: string) => {
+  const ref = vi.fn((_db: any, path?: string) => {
     const key = path ?? '';
     if (!__refs.has(key)) __refs.set(key, { __path: key });
     return __refs.get(key);
   });
 
-  const set = jest.fn(() => Promise.resolve());
-  const update = jest.fn(() => Promise.resolve());
-  const remove = jest.fn(() => Promise.resolve());
+  const set = vi.fn(() => Promise.resolve());
+  const update = vi.fn(() => Promise.resolve());
+  const remove = vi.fn(() => Promise.resolve());
 
-  const onDisconnect = jest.fn((_ref?: any) => ({
-    set: jest.fn(() => Promise.resolve()),
-    update: jest.fn(() => Promise.resolve()),
-    remove: jest.fn(() => Promise.resolve()),
+  const onDisconnect = vi.fn((_ref?: any) => ({
+    set: vi.fn(() => Promise.resolve()),
+    update: vi.fn(() => Promise.resolve()),
+    remove: vi.fn(() => Promise.resolve()),
   }));
 
-  const serverTimestamp = jest.fn(() => Date.now());
+  const serverTimestamp = vi.fn(() => Date.now());
 
-  const getDatabase = jest.fn(() => ({
+  const getDatabase = vi.fn(() => ({
     ref, set, update, remove, onDisconnect,
   }));
 
@@ -178,27 +178,27 @@ jest.mock('firebase/database', () => {
 
 // --- firebase/firestore ---
 jest.mock('firebase/firestore', () => {
-  const addDoc = jest.fn(async () => ({ id: 'doc-1' }));
-  const setDoc = jest.fn(async () => { });
-  const updateDoc = jest.fn(async () => { });
-  const deleteDoc = jest.fn(async () => { });
+  const addDoc = vi.fn(async () => ({ id: 'doc-1' }));
+  const setDoc = vi.fn(async () => { });
+  const updateDoc = vi.fn(async () => { });
+  const deleteDoc = vi.fn(async () => { });
 
   // doc() carrega a "path" para que getDoc() consiga responder condicionalmente
-  const doc = jest.fn((first: any, ...segments: string[]) => {
+  const doc = vi.fn((first: any, ...segments: string[]) => {
     const base = typeof first === 'object' && first?.__path ? first.__path : '';
     const path = [base, ...segments].filter(Boolean).join('/');
     return { __path: path };
   });
 
-  const collection = jest.fn((_db: any, ...segments: string[]) => {
+  const collection = vi.fn((_db: any, ...segments: string[]) => {
     const path = segments.filter(Boolean).join('/');
     return { __path: path };
   });
 
-  const where = jest.fn(() => ({}));
-  const query = jest.fn(() => ({}));
+  const where = vi.fn(() => ({}));
+  const query = vi.fn(() => ({}));
 
-  const getDoc = jest.fn(async (docRef: any) => {
+  const getDoc = vi.fn(async (docRef: any) => {
     const p: string = docRef?.__path ?? '';
     const id = p.split('/').pop() ?? 'doc-1';
     if (p.startsWith('public_index/')) {
@@ -214,12 +214,12 @@ jest.mock('firebase/firestore', () => {
     return { exists: () => false, data: () => undefined, id };
   });
 
-  const getDocs = jest.fn(async () => ({ docs: [] as any[] }));
-  const onSnapshot = jest.fn((_q: any, next?: any) => { next?.({ docs: [] }); return () => { }; });
+  const getDocs = vi.fn(async () => ({ docs: [] as any[] }));
+  const onSnapshot = vi.fn((_q: any, next?: any) => { next?.({ docs: [] }); return () => { }; });
 
-  const serverTimestamp = jest.fn(() => new Date());
-  const arrayUnion = jest.fn((...values: any[]) => ({ __op: 'arrayUnion', values }));
-  const increment = jest.fn((n: number) => ({ __op: 'increment', n }));
+  const serverTimestamp = vi.fn(() => new Date());
+  const arrayUnion = vi.fn((...values: any[]) => ({ __op: 'arrayUnion', values }));
+  const increment = vi.fn((n: number) => ({ __op: 'increment', n }));
 
   class Timestamp {
     static now() { return { toMillis: () => Date.now(), toDate: () => new Date() } as any; }
@@ -230,7 +230,7 @@ jest.mock('firebase/firestore', () => {
   }
 
   return {
-    getFirestore: jest.fn(() => ({})),
+    getFirestore: vi.fn(() => ({})),
     collection,
     addDoc,
     doc,
@@ -251,25 +251,25 @@ jest.mock('firebase/firestore', () => {
 
 // --- Alias usado em alguns arquivos (ex.: Timestamp importado de '@firebase/firestore')
 jest.mock('@firebase/firestore', () => {
-  const addDoc = jest.fn(async () => ({ id: 'doc-1' }));
-  const setDoc = jest.fn(async () => { });
-  const updateDoc = jest.fn(async () => { });
-  const deleteDoc = jest.fn(async () => { });
+  const addDoc = vi.fn(async () => ({ id: 'doc-1' }));
+  const setDoc = vi.fn(async () => { });
+  const updateDoc = vi.fn(async () => { });
+  const deleteDoc = vi.fn(async () => { });
 
-  const doc = jest.fn((_db: any, ...segments: string[]) => {
+  const doc = vi.fn((_db: any, ...segments: string[]) => {
     const path = segments.filter(Boolean).join('/');
     return { __path: path };
   });
 
-  const collection = jest.fn((_db: any, ...segments: string[]) => {
+  const collection = vi.fn((_db: any, ...segments: string[]) => {
     const path = segments.filter(Boolean).join('/');
     return { __path: path };
   });
 
-  const where = jest.fn(() => ({}));
-  const query = jest.fn(() => ({}));
+  const where = vi.fn(() => ({}));
+  const query = vi.fn(() => ({}));
 
-  const getDoc = jest.fn(async (docRef: any) => {
+  const getDoc = vi.fn(async (docRef: any) => {
     const p: string = docRef?.__path ?? '';
     const id = p.split('/').pop() ?? 'doc-1';
     if (p.startsWith('public_index/')) {
@@ -285,12 +285,12 @@ jest.mock('@firebase/firestore', () => {
     return { exists: () => false, data: () => undefined, id };
   });
 
-  const getDocs = jest.fn(async () => ({ docs: [] as any[] }));
-  const onSnapshot = jest.fn((_q: any, next?: any) => { next?.({ docs: [] }); return () => { }; });
+  const getDocs = vi.fn(async () => ({ docs: [] as any[] }));
+  const onSnapshot = vi.fn((_q: any, next?: any) => { next?.({ docs: [] }); return () => { }; });
 
-  const serverTimestamp = jest.fn(() => new Date());
-  const arrayUnion = jest.fn((...values: any[]) => ({ __op: 'arrayUnion', values }));
-  const increment = jest.fn((n: number) => ({ __op: 'increment', n }));
+  const serverTimestamp = vi.fn(() => new Date());
+  const arrayUnion = vi.fn((...values: any[]) => ({ __op: 'arrayUnion', values }));
+  const increment = vi.fn((n: number) => ({ __op: 'increment', n }));
 
   class Timestamp {
     static now() { return { toMillis: () => Date.now(), toDate: () => new Date() } as any; }
@@ -301,7 +301,7 @@ jest.mock('@firebase/firestore', () => {
   }
 
   return {
-    getFirestore: jest.fn(() => ({})),
+    getFirestore: vi.fn(() => ({})),
     collection,
     addDoc,
     doc,
@@ -346,19 +346,19 @@ try {
 Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
   value: () => ({
     canvas: {},
-    clearRect: jest.fn(), drawImage: jest.fn(), fillRect: jest.fn(),
-    getImageData: jest.fn(() => ({ data: new Uint8ClampedArray(4) })),
-    putImageData: jest.fn(), createImageData: jest.fn(() => ({ data: new Uint8ClampedArray(4) })),
-    setTransform: jest.fn(), resetTransform: jest.fn(),
-    translate: jest.fn(), scale: jest.fn(), rotate: jest.fn(),
-    save: jest.fn(), restore: jest.fn(), beginPath: jest.fn(),
-    moveTo: jest.fn(), lineTo: jest.fn(), arc: jest.fn(),
-    stroke: jest.fn(), fill: jest.fn(), closePath: jest.fn(),
-    measureText: jest.fn(() => ({ width: 0 })),
+    clearRect: vi.fn(), drawImage: vi.fn(), fillRect: vi.fn(),
+    getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4) })),
+    putImageData: vi.fn(), createImageData: vi.fn(() => ({ data: new Uint8ClampedArray(4) })),
+    setTransform: vi.fn(), resetTransform: vi.fn(),
+    translate: vi.fn(), scale: vi.fn(), rotate: vi.fn(),
+    save: vi.fn(), restore: vi.fn(), beginPath: vi.fn(),
+    moveTo: vi.fn(), lineTo: vi.fn(), arc: vi.fn(),
+    stroke: vi.fn(), fill: vi.fn(), closePath: vi.fn(),
+    measureText: vi.fn(() => ({ width: 0 })),
   }),
   configurable: true,
 });
-class ResizeObserverMock { observe = jest.fn(); unobserve = jest.fn(); disconnect = jest.fn(); }
+class ResizeObserverMock { observe = vi.fn(); unobserve = vi.fn(); disconnect = vi.fn(); }
 (globalThis as any).ResizeObserver = ResizeObserverMock;
 
 // ---- TestBed default ----
@@ -376,8 +376,8 @@ jest.mock('@angular/fire/app', () => {
   const FirebaseApp = Symbol('FirebaseApp');
   return {
     FirebaseApp,
-    initializeApp: jest.fn(() => ({})),
-    provideFirebaseApp: jest.fn(() => ({ provide: FirebaseApp, useValue: {} })),
+    initializeApp: vi.fn(() => ({})),
+    provideFirebaseApp: vi.fn(() => ({ provide: FirebaseApp, useValue: {} })),
   };
 });
 jest.mock('@angular/fire/auth', () => {
@@ -385,12 +385,12 @@ jest.mock('@angular/fire/auth', () => {
   const Auth = Symbol('Auth');
   return {
     Auth,
-    provideAuth: jest.fn(() => ({ provide: Auth, useValue: {} })),
+    provideAuth: vi.fn(() => ({ provide: Auth, useValue: {} })),
     // ➜ retorne Observables:
-    authState: jest.fn(() => of(null)),
-    user: jest.fn(() => of(null)),
-    idToken: jest.fn(() => of(null)),
-    signOut: jest.fn(() => Promise.resolve()),
+    authState: vi.fn(() => of(null)),
+    user: vi.fn(() => of(null)),
+    idToken: vi.fn(() => of(null)),
+    signOut: vi.fn(() => Promise.resolve()),
   };
 });
 
@@ -400,7 +400,7 @@ jest.mock('@angular/fire/firestore', () => {
   const Firestore = Symbol('Firestore');
   return {
     Firestore,
-    provideFirestore: jest.fn(() => ({ provide: Firestore, useValue: {} })),
+    provideFirestore: vi.fn(() => ({ provide: Firestore, useValue: {} })),
     getFirestore: firebaseFs.getFirestore,
     collection: firebaseFs.collection,
     doc: firebaseFs.doc,
@@ -416,7 +416,7 @@ jest.mock('@angular/fire/firestore', () => {
     increment: firebaseFs.increment,
     arrayUnion: firebaseFs.arrayUnion,
     Timestamp: firebaseFs.Timestamp,
-    collectionData: jest.fn(),
+    collectionData: vi.fn(),
   };
 });
 
@@ -425,8 +425,8 @@ jest.mock('@angular/fire/storage', () => {
   const Storage = Symbol('Storage');
   return {
     Storage,
-    getStorage: jest.fn(() => ({})),
-    provideStorage: jest.fn(() => ({ provide: Storage, useValue: {} })),
+    getStorage: vi.fn(() => ({})),
+    provideStorage: vi.fn(() => ({ provide: Storage, useValue: {} })),
   };
 });
 
@@ -436,7 +436,7 @@ jest.mock('@angular/fire/database', () => {
   const Database = Symbol('Database');
   return {
     Database,
-    provideDatabase: jest.fn(() => ({ provide: Database, useValue: {} })),
+    provideDatabase: vi.fn(() => ({ provide: Database, useValue: {} })),
     getDatabase: firebaseDb.getDatabase,
     ref: firebaseDb.ref,
     set: firebaseDb.set,
@@ -478,11 +478,11 @@ beforeEach(() => {
       }),
       ...commonTestingProviders(),
       { provide: MAT_DIALOG_DATA, useValue: {} },
-      { provide: MatDialogRef, useValue: { close: jest.fn() } },
+      { provide: MatDialogRef, useValue: { close: vi.fn() } },
       {
         provide: MatSnackBar,
         useValue: {
-          open: jest.fn(() => ({
+          open: vi.fn(() => ({
             onAction: () => of(void 0),
             afterDismissed: () => of({ dismissedByAction: false }),
           })),

@@ -9,6 +9,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { BehaviorSubject, of } from 'rxjs';
+import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
 
 import { ChatRoomsComponent } from './chat-rooms.component';
 import { MatDialog } from '@angular/material/dialog';
@@ -32,7 +33,7 @@ describe('ChatRoomsComponent', () => {
 
   // Mocks reutilizáveis
   let matDialogMock: {
-    open: jest.Mock;
+    open: Mock;
   };
 
   let authSessionMock: {
@@ -42,30 +43,30 @@ describe('ChatRoomsComponent', () => {
 
   let currentUserStoreMock: {
     user$: any;
-    getSnapshot: jest.Mock;
+    getSnapshot: Mock;
   };
 
   let subscriptionServiceMock: {
-    promptSubscription: jest.Mock;
+    promptSubscription: Mock;
   };
 
   let roomServiceMock: {
-    getUserRooms: jest.Mock;
-    countUserRooms: jest.Mock;
+    getUserRooms: Mock;
+    countUserRooms: Mock;
   };
 
   let roomManagementMock: {
-    createRoom: jest.Mock;
+    createRoom: Mock;
   };
 
   let errorNotifierMock: {
-    showError: jest.Mock;
-    showWarning: jest.Mock;
-    showInfo: jest.Mock;
+    showError: Mock;
+    showWarning: Mock;
+    showInfo: Mock;
   };
 
   let globalErrorHandlerMock: {
-    handleError: jest.Mock;
+    handleError: Mock;
   };
 
   beforeEach(async () => {
@@ -77,7 +78,7 @@ describe('ChatRoomsComponent', () => {
     });
 
     matDialogMock = {
-      open: jest.fn(() => ({
+      open: vi.fn(() => ({
         afterClosed: () => of(null),
       })),
     };
@@ -89,20 +90,20 @@ describe('ChatRoomsComponent', () => {
 
     currentUserStoreMock = {
       user$: currentUserSubject.asObservable(),
-      getSnapshot: jest.fn(() => currentUserSubject.value),
+      getSnapshot: vi.fn(() => currentUserSubject.value),
     };
 
     subscriptionServiceMock = {
-      promptSubscription: jest.fn(),
+      promptSubscription: vi.fn(),
     };
 
     roomServiceMock = {
-      getUserRooms: jest.fn(() => of([])),
-      countUserRooms: jest.fn(() => Promise.resolve(0)),
+      getUserRooms: vi.fn(() => of([])),
+      countUserRooms: vi.fn(() => Promise.resolve(0)),
     };
 
     roomManagementMock = {
-      createRoom: jest.fn(() =>
+      createRoom: vi.fn(() =>
         of({
           id: 'r1',
           roomName: 'Sala de Teste',
@@ -113,13 +114,13 @@ describe('ChatRoomsComponent', () => {
     };
 
     errorNotifierMock = {
-      showError: jest.fn(),
-      showWarning: jest.fn(),
-      showInfo: jest.fn(),
+      showError: vi.fn(),
+      showWarning: vi.fn(),
+      showInfo: vi.fn(),
     };
 
     globalErrorHandlerMock = {
-      handleError: jest.fn(),
+      handleError: vi.fn(),
     };
 
     await TestBed.configureTestingModule({
@@ -158,7 +159,7 @@ it('deve atualizar currentUser a partir do CurrentUserStoreService', () => {
 });
 
   it('deve emitir roomSelected ao selecionar uma sala válida', () => {
-    const emitSpy = jest.spyOn(component.roomSelected, 'emit');
+    const emitSpy = vi.spyOn(component.roomSelected, 'emit');
 
     component.selectRoom('room-123');
 
@@ -166,7 +167,7 @@ it('deve atualizar currentUser a partir do CurrentUserStoreService', () => {
   });
 
   it('não deve emitir roomSelected quando roomId for vazio', () => {
-    const emitSpy = jest.spyOn(component.roomSelected, 'emit');
+    const emitSpy = vi.spyOn(component.roomSelected, 'emit');
 
     component.selectRoom('   ');
 

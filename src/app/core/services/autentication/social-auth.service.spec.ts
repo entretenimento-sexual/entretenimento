@@ -170,14 +170,14 @@ describe('SocialAuthService', () => {
     expect(writeMock.setDocument).toHaveBeenCalledWith(
       'users',
       'new-user-1',
-      jasmine.objectContaining({
+      expect.objectContaining({
         uid: 'new-user-1',
         email: 'new-user@test.com',
         role: 'basic',
         emailVerified: true,
         profileCompleted: false,
       }),
-      jasmine.objectContaining({
+      expect.objectContaining({
         merge: true,
         context: 'SocialAuthService.onNewUserLogin',
       })
@@ -187,7 +187,7 @@ describe('SocialAuthService', () => {
     expect(routerMock.navigate).toHaveBeenCalledWith(['/register/finalizar-cadastro']);
 
     expect(result).toEqual(
-      jasmine.objectContaining({
+      expect.objectContaining({
         uid: 'new-user-1',
         email: 'new-user@test.com',
         role: 'basic',
@@ -229,13 +229,13 @@ describe('SocialAuthService', () => {
     expect(writeMock.updateDocument).toHaveBeenCalledWith(
       'users',
       'existing-incomplete',
-      jasmine.objectContaining({
+      expect.objectContaining({
         emailVerified: true,
         photoURL: 'https://cdn.test/existing-incomplete.jpg',
         role: 'basic',
         tier: 'basic',
       }),
-      jasmine.objectContaining({
+      expect.objectContaining({
         context: 'SocialAuthService.onExistingUserLogin',
       })
     );
@@ -244,7 +244,7 @@ describe('SocialAuthService', () => {
     expect(routerMock.navigate).toHaveBeenCalledWith(['/register/finalizar-cadastro']);
 
     expect(result).toEqual(
-      jasmine.objectContaining({
+      expect.objectContaining({
         uid: 'existing-incomplete',
         email: 'existing-incomplete@test.com',
         role: 'basic',
@@ -287,7 +287,7 @@ describe('SocialAuthService', () => {
     expect(routerMock.navigate).toHaveBeenCalledWith(['/dashboard/principal']);
 
     expect(result).toEqual(
-      jasmine.objectContaining({
+      expect.objectContaining({
         uid: 'existing-complete',
         email: 'existing-complete@test.com',
         role: 'premium',
@@ -326,7 +326,7 @@ describe('SocialAuthService', () => {
     expect(writeMock.updateDocument).not.toHaveBeenCalled();
 
     expect(result).toEqual(
-      jasmine.objectContaining({
+      expect.objectContaining({
         uid: 'deleted-user',
       })
     );
@@ -363,7 +363,7 @@ describe('SocialAuthService', () => {
     expect(writeMock.updateDocument).not.toHaveBeenCalled();
 
     expect(result).toEqual(
-      jasmine.objectContaining({
+      expect.objectContaining({
         uid: 'suspended-user',
       })
     );

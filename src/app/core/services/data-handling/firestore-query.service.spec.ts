@@ -1,7 +1,6 @@
 // src/app/core/services/data-handling/firestore-query.service.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
-import { expect as jestExpect } from '@jest/globals';
 
 import { Firestore } from '@angular/fire/firestore';
 import { FirestoreQueryService } from './firestore-query.service';
@@ -12,30 +11,31 @@ import { FirestoreReadService } from './firestore/core/firestore-read.service';
 import { UserPresenceQueryService } from './queries/user-presence.query.service';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ========================
 // Mocks
 // ========================
 
 class MockFirestoreReadService {
-  getDocument = jest.fn().mockReturnValue(of(null));
-  getDocumentsOnce = jest.fn().mockReturnValue(of([]));
+  getDocument = vi.fn().mockReturnValue(of(null));
+  getDocumentsOnce = vi.fn().mockReturnValue(of([]));
 }
 
 class MockCacheService {
-  get = jest.fn().mockReturnValue(of(undefined));
-  set = jest.fn();
+  get = vi.fn().mockReturnValue(of(undefined));
+  set = vi.fn();
 }
 
 class MockFirestoreUserQueryService {
-  getUserWithObservable = jest.fn().mockReturnValue(of(null));
+  getUserWithObservable = vi.fn().mockReturnValue(of(null));
 }
 
 class MockUserPresenceQueryService {
-  getOnlineUsers$ = jest.fn().mockReturnValue(of([]));
-  getOnlineUsersOnce$ = jest.fn().mockReturnValue(of([]));
-  getOnlineUsersByRegion$ = jest.fn().mockReturnValue(of([]));
-  getRecentlyOnline$ = jest.fn().mockReturnValue(of([]));
+  getOnlineUsers$ = vi.fn().mockReturnValue(of([]));
+  getOnlineUsersOnce$ = vi.fn().mockReturnValue(of([]));
+  getOnlineUsersByRegion$ = vi.fn().mockReturnValue(of([]));
+  getRecentlyOnline$ = vi.fn().mockReturnValue(of([]));
 }
 
 describe('FirestoreQueryService (Jest)', () => {
@@ -68,7 +68,7 @@ describe('FirestoreQueryService (Jest)', () => {
     mockUserQuery = TestBed.inject(FirestoreUserQueryService) as unknown as MockFirestoreUserQueryService;
     mockPresence = TestBed.inject(UserPresenceQueryService) as unknown as MockUserPresenceQueryService;
 
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('deve ser criado', () => {
@@ -87,7 +87,7 @@ describe('FirestoreQueryService (Jest)', () => {
     service.getDocumentById<IUserDados>('users', '123').subscribe((res: IUserDados | null) => {
       expect(mockRead.getDocument).toHaveBeenCalledWith('users', '123');
       expect(res).toEqual(obj);
-      done();
+      
     });
   });
 
@@ -98,11 +98,11 @@ describe('FirestoreQueryService (Jest)', () => {
     service.getDocumentsByQuery<IUserDados>('users', []).subscribe((res: IUserDados[]) => {
       expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
         'users',
-        jestExpect.any(Array),
+        
         { useCache: true, cacheTTL: 300_000 }
       );
       expect(res).toEqual(result);
-      done();
+      
     });
   });
 
@@ -115,7 +115,7 @@ describe('FirestoreQueryService (Jest)', () => {
         expect(res).toEqual(cached);
         expect(mockRead.getDocumentsOnce).not.toHaveBeenCalled();
         expect(mockCache.set).not.toHaveBeenCalled();
-        done();
+        
       });
     });
 
@@ -128,11 +128,11 @@ describe('FirestoreQueryService (Jest)', () => {
         expect(res).toEqual(users);
         expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
           'users',
-          jestExpect.any(Array),
+          
           { useCache: true, cacheTTL: 300_000 }
         );
         expect(mockCache.set).toHaveBeenCalledWith('allUsers', users, 600_000);
-        done();
+        
       });
     });
   });
@@ -145,7 +145,7 @@ describe('FirestoreQueryService (Jest)', () => {
       service.getOnlineUsers$().subscribe((res: IUserDados[]) => {
         expect(mockPresence.getOnlineUsers$).toHaveBeenCalled();
         expect(res).toEqual(users);
-        done();
+        
       });
     });
 
@@ -156,7 +156,7 @@ describe('FirestoreQueryService (Jest)', () => {
       service.getOnlineUsers().subscribe((res: IUserDados[]) => {
         expect(mockPresence.getOnlineUsersOnce$).toHaveBeenCalled();
         expect(res).toEqual(users);
-        done();
+        
       });
     });
 
@@ -167,7 +167,7 @@ describe('FirestoreQueryService (Jest)', () => {
       service.getOnlineUsersByRegion('Rio').subscribe((res: IUserDados[]) => {
         expect(mockPresence.getOnlineUsersByRegion$).toHaveBeenCalledWith('Rio');
         expect(res).toEqual(users);
-        done();
+        
       });
     });
 
@@ -178,7 +178,7 @@ describe('FirestoreQueryService (Jest)', () => {
       service.getRecentlyOnline$(45_000).subscribe((res: IUserDados[]) => {
         expect(mockPresence.getRecentlyOnline$).toHaveBeenCalledWith(45_000);
         expect(res).toEqual(users);
-        done();
+        
       });
     });
   });
@@ -196,7 +196,6 @@ describe('FirestoreQueryService (Jest)', () => {
         expect(Array.isArray(last[1])).toBe(true);
         expect((last[1] as any[]).length).toBe(1);
 
-        done();
       });
     });
 
@@ -207,7 +206,7 @@ describe('FirestoreQueryService (Jest)', () => {
       service.getOnlineUsersByMunicipio('Rio').subscribe((res: IUserDados[]) => {
         expect(mockPresence.getOnlineUsersByRegion$).toHaveBeenCalledWith('Rio');
         expect(res).toEqual(users);
-        done();
+        
       });
     });
 
@@ -219,10 +218,10 @@ describe('FirestoreQueryService (Jest)', () => {
         expect(res).toEqual(users);
         expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
           'users',
-          jestExpect.any(Array),
+          
           { useCache: true, cacheTTL: 300_000 }
         );
-        done();
+        
       });
     });
   });
@@ -236,7 +235,7 @@ describe('FirestoreQueryService (Jest)', () => {
       const last = mockRead.getDocumentsOnce.mock.calls.at(-1)!;
       const constraints = last[1] as any[];
       expect(constraints.length).toBe(3);
-      done();
+      
     });
   });
 
@@ -247,7 +246,7 @@ describe('FirestoreQueryService (Jest)', () => {
     service.getUserFromState('uX').subscribe((res: IUserDados | null) => {
       expect(res).toEqual(user);
       expect(mockUserQuery.getUserWithObservable).toHaveBeenCalledWith('uX');
-      done();
+      
     });
   });
 
@@ -263,7 +262,7 @@ describe('FirestoreQueryService (Jest)', () => {
         constraints as any,
         { useCache: true, cacheTTL: 300_000 }
       );
-      done();
+      
     });
   });
 });

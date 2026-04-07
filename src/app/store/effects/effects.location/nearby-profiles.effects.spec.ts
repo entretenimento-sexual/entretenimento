@@ -82,7 +82,7 @@ describe('NearbyProfilesEffects', () => {
       NearbyProfilesActions.loaded({
         key,
         list: cached.list,
-        updatedAt: jasmine.any(Number) as any,
+        updatedAt: expect.any(Number) as any,
       })
     );
     expect(svc.getProfilesNearLocation).not.toHaveBeenCalled();
@@ -108,7 +108,7 @@ describe('NearbyProfilesEffects', () => {
       NearbyProfilesActions.loaded({
         key,
         list: fetched,
-        updatedAt: jasmine.any(Number) as any,
+        updatedAt: expect.any(Number) as any,
       })
     );
   });

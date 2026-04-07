@@ -1,1 +1,47 @@
-<p>suggested-profiles works!</p>
+<!-- src\app\dashboard\suggested-profiles\suggested-profiles.component.html -->
+<main class="app-page suggested-profiles-page">
+  <section class="container-wide stack">
+    @if (matchingProfilesCount) {
+      <p class="profile-count">
+        Foram encontrados {{ matchingProfilesCount }} perfis que correspondem aos seus desejos.
+      </p>
+    }
+
+    <div class="profiles-grid">
+      @for (profile of suggestedProfiles; track trackByUid($index, profile)) {
+        <mat-card class="profile-card">
+          <mat-card-header>
+            <div
+              mat-card-avatar
+              class="profile-avatar"
+              [style.background-image]="'url(' + profile.photoURL + ')'"
+              aria-hidden="true">
+            </div>
+
+            <mat-card-title>{{ profile.nickname }}</mat-card-title>
+            <mat-card-subtitle>
+              {{ profile.email }}
+            </mat-card-subtitle>
+          </mat-card-header>
+
+          <img
+            mat-card-image
+            [src]="profile.photoURL"
+            [alt]="'Foto de perfil de ' + profile.nickname">
+
+          <mat-card-actions>
+            <button type="button" mat-button class="btn-link">
+              Ver perfil
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      }
+    </div>
+
+    @if (noProfilesMessage) {
+      <p class="no-profile-message">
+        {{ noProfilesMessage }}
+      </p>
+    }
+  </section>
+</main>

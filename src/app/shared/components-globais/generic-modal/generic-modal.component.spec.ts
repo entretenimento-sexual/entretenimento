@@ -15,7 +15,7 @@ describe('GenericModalComponent', () => {
       declarations: [GenericModalComponent],
       imports: [CommonModule, FormsModule, ReactiveFormsModule, MatDialogModule],
       providers: [
-        { provide: MatDialogRef, useValue: { close: jest.fn() } },
+        { provide: MatDialogRef, useValue: { close: vi.fn() } },
         { provide: MAT_DIALOG_DATA, useValue: {} },
       ],
     }).compileComponents();

@@ -5,6 +5,7 @@
 // - tornar explícitas as capacidades bloqueadas
 // - ajudar produto/UX a comunicar valor premium
 // - continuar desacoplado de billing real
+// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 

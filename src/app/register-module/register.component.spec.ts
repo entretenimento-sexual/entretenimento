@@ -1,11 +1,11 @@
 // src/app/register-module/register.component.spec.ts
-import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { NO_ERRORS_SCHEMA } from '@angular/core';
+import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
 import { ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { of } from 'rxjs';
-import { expect as jestExpect } from '@jest/globals';
 import { Auth } from '@angular/fire/auth';
 
 import { RegisterComponent } from './register.component';
@@ -16,19 +16,19 @@ import { ErrorNotificationService } from '../core/services/error-handler/error-n
 
 // Mocks simples
 class MockFirestoreValidationService {
-  checkIfNicknameExists = jest.fn().mockReturnValue(of(false));
+  checkIfNicknameExists = vi.fn().mockReturnValue(of(false));
 }
 
 class MockRegisterService {
-  registerUser = jest.fn().mockReturnValue(of(void 0));
+  registerUser = vi.fn().mockReturnValue(of(void 0));
 }
 
 class MockEmailVerificationService {
-  resendVerificationEmail = jest.fn().mockReturnValue(of(void 0));
+  resendVerificationEmail = vi.fn().mockReturnValue(of(void 0));
 }
 
 class MockErrorNotificationService {
-  showError = jest.fn();
+  showError = vi.fn();
 }
 
 describe('RegisterComponent', () => {
@@ -62,7 +62,7 @@ describe('RegisterComponent', () => {
     errorNotification = TestBed.inject(ErrorNotificationService) as unknown as MockErrorNotificationService;
     router = TestBed.inject(Router);
 
-    jest.spyOn(router, 'navigate').mockResolvedValue(true);
+    vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
     fixture.detectChanges();
   });
@@ -92,10 +92,10 @@ describe('RegisterComponent', () => {
     await fixture.whenStable();
 
     expect(registerService.registerUser).toHaveBeenCalledWith(
-      jestExpect.objectContaining({
+      expect.objectContaining({
         email: 'jd@example.com',
-        nickname: jestExpect.stringContaining('john'),
-        acceptedTerms: jestExpect.objectContaining({ accepted: true }),
+        nickname: expect.stringContaining('john'),
+        acceptedTerms: expect.objectContaining({ accepted: true }),
         emailVerified: false,
       }),
       '123456'

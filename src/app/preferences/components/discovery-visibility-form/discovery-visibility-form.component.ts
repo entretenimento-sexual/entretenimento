@@ -5,7 +5,7 @@
 // - editar apenas o bloco visibility de PreferenceProfile
 // - aplicar gating de UI por capabilities
 // - emitir somente o payload já tipado
-
+// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import {
   ChangeDetectionStrategy,
   Component,

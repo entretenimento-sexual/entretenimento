@@ -53,7 +53,7 @@ describe('FriendListPageComponent', () => {
     expect(component.sortBy()).toBe('online');
 
     component.onOnlyOnlineToggle(true);
-    expect(component.filters().onlyOnline).toBeTrue();
+    expect(component.filters().onlyOnline).toBe(true);
 
     component.onQueryChange('ana');
     expect(component.filters().q).toBe('ana');

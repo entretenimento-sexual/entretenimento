@@ -17,17 +17,17 @@ class MockCurrentUserStoreService {
   user$ = new BehaviorSubject<any>({ uid: 'u1', role: 'premium' });
 }
 class MockAuthSessionService {
-  signOut$ = jest.fn(() => of(void 0));
+  signOut$ = vi.fn(() => of(void 0));
 }
 class MockFirestoreUserQueryService {
-  getUser = jest.fn(() => of({ uid: 'u1', nickname: 'Alex', photoURL: '' }));
+  getUser = vi.fn(() => of({ uid: 'u1', nickname: 'Alex', photoURL: '' }));
 }
 class MockErrorNotificationService {
-  showError = jest.fn();
-  showSuccess = jest.fn();
+  showError = vi.fn();
+  showSuccess = vi.fn();
 }
 class MockRoomManagementService {
-  createRoom = jest.fn(() => of({ id: 'room-1' }));
+  createRoom = vi.fn(() => of({ id: 'room-1' }));
 }
 
 describe('UserProfileSidebarComponent', () => {
@@ -47,7 +47,7 @@ describe('UserProfileSidebarComponent', () => {
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },
         { provide: RoomManagementService, useClass: MockRoomManagementService },
         // MatDialog não é usado no teste (apenas injetado). Se precisar, stub:
-        { provide: (class MatDialog { } as any), useValue: { open: jest.fn() } },
+        { provide: (class MatDialog { } as any), useValue: { open: vi.fn() } },
       ],
     }).compileComponents();
 

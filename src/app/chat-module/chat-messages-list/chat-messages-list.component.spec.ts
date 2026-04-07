@@ -19,26 +19,26 @@ describe('ChatMessagesListComponent', () => {
         {
           provide: ChatService,
           useValue: {
-            monitorChat: jest.fn(() => of([])),
-            updateMessageStatus: jest.fn(() => of(void 0)),
+            monitorChat: vi.fn(() => of([])),
+            updateMessageStatus: vi.fn(() => of(void 0)),
           },
         },
         {
           provide: RoomMessagesService,
           useValue: {
-            getRoomMessages: jest.fn(() => of([])),
+            getRoomMessages: vi.fn(() => of([])),
           },
         },
         {
           provide: ErrorNotificationService,
           useValue: {
-            showError: jest.fn(),
+            showError: vi.fn(),
           },
         },
         {
           provide: GlobalErrorHandlerService,
           useValue: {
-            handleError: jest.fn(),
+            handleError: vi.fn(),
           },
         },
         {

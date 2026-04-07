@@ -1,18 +1,22 @@
 // src/app/chat-module/rooms/room-interaction/room-interaction.component.spec.ts
 // Testes do RoomInteractionComponent
 //
-// Ajustes desta versão:
-// - usa AuthSessionService + CurrentUserStoreService
-// - evita SpyObj<Service> para não colidir com as assinaturas concretas do projeto
-// - adiciona mocks para markDeliveredAsRead$ e sendMessageToRoom$
-// - adiciona GlobalErrorHandlerService
+// Ajustes desta revisão:
+// - convertido de Jasmine para Jest para alinhar com o runner atual do projeto
+// - mantém AuthSessionService + CurrentUserStoreService como fontes canônicas
+// - mantém mock de RoomParticipantsService restrito às responsabilidades atuais:
+//   1) getParticipants()
+//   2) getRoomCreator()
+// - mantém GlobalErrorHandlerService e ErrorNotificationService
 // - mantém o input obrigatório roomId antes do detectChanges
-
+//
+// Observação:
+// - esta revisão não altera o comportamento esperado do spec;
+// - ela apenas ajusta o arquivo ao ambiente de testes realmente usado no projeto.
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterTestingModule } from '@angular/router/testing';
 import { BehaviorSubject, of } from 'rxjs';
+import { describe, beforeEach, it, expect, vi, type Mock, afterEach } from 'vitest';
 
 import { RoomInteractionComponent } from './room-interaction.component';
 
@@ -37,35 +41,35 @@ describe('RoomInteractionComponent', () => {
   let currentUserSubject: BehaviorSubject<any>;
 
   let roomParticipantsServiceMock: {
-    getParticipants: jasmine.Spy;
-    getRoomCreator: jasmine.Spy;
+    getParticipants: Mock;
+    getRoomCreator: Mock;
   };
 
   let roomMessagesServiceMock: {
-    getRoomMessages: jasmine.Spy;
-    markDeliveredAsRead$: jasmine.Spy;
-    sendMessageToRoom$: jasmine.Spy;
+    getRoomMessages: Mock;
+    markDeliveredAsRead$: Mock;
+    sendMessageToRoom$: Mock;
   };
 
   let roomServiceMock: {
-    getRoomById: jasmine.Spy;
+    getRoomById: Mock;
   };
 
   let firestoreUserQueryMock: {
-    getUser: jasmine.Spy;
+    getUser: Mock;
   };
 
   let firestoreQueryMock: {
-    getUserFromState: jasmine.Spy;
+    getUserFromState: Mock;
   };
 
   let errorNotifierMock: {
-    showError: jasmine.Spy;
-    showWarning: jasmine.Spy;
+    showError: Mock;
+    showWarning: Mock;
   };
 
   let globalErrorMock: {
-    handleError: jasmine.Spy;
+    handleError: Mock;
   };
 
   let authSessionMock: {
@@ -85,37 +89,37 @@ describe('RoomInteractionComponent', () => {
     });
 
     roomParticipantsServiceMock = {
-      getParticipants: jasmine.createSpy('getParticipants').and.returnValue(of([])),
-      getRoomCreator: jasmine.createSpy('getRoomCreator').and.returnValue(of(null)),
+      getParticipants: vi.fn().mockReturnValue(of([])),
+      getRoomCreator: vi.fn().mockReturnValue(of(null)),
     };
 
     roomMessagesServiceMock = {
-      getRoomMessages: jasmine.createSpy('getRoomMessages').and.returnValue(of([])),
-      markDeliveredAsRead$: jasmine.createSpy('markDeliveredAsRead$').and.returnValue(of(0)),
-      sendMessageToRoom$: jasmine.createSpy('sendMessageToRoom$').and.returnValue(of('msg-1')),
+      getRoomMessages: vi.fn().mockReturnValue(of([])),
+      markDeliveredAsRead$: vi.fn().mockReturnValue(of(0)),
+      sendMessageToRoom$: vi.fn().mockReturnValue(of('msg-1')),
     };
 
     roomServiceMock = {
-      getRoomById: jasmine.createSpy('getRoomById').and.returnValue(
+      getRoomById: vi.fn().mockReturnValue(
         of({ roomName: 'Sala X' } as any)
       ),
     };
 
     firestoreUserQueryMock = {
-      getUser: jasmine.createSpy('getUser').and.returnValue(of(null)),
+      getUser: vi.fn().mockReturnValue(of(null)),
     };
 
     firestoreQueryMock = {
-      getUserFromState: jasmine.createSpy('getUserFromState').and.returnValue(of(null)),
+      getUserFromState: vi.fn().mockReturnValue(of(null)),
     };
 
     errorNotifierMock = {
-      showError: jasmine.createSpy('showError'),
-      showWarning: jasmine.createSpy('showWarning'),
+      showError: vi.fn(),
+      showWarning: vi.fn(),
     };
 
     globalErrorMock = {
-      handleError: jasmine.createSpy('handleError'),
+      handleError: vi.fn(),
     };
 
     authSessionMock = {
@@ -129,7 +133,7 @@ describe('RoomInteractionComponent', () => {
 
     await TestBed.configureTestingModule({
       declarations: [RoomInteractionComponent],
-      imports: [CommonModule, RouterTestingModule],
+      imports: [],
       providers: [
         { provide: AuthSessionService, useValue: authSessionMock },
         { provide: CurrentUserStoreService, useValue: currentUserStoreMock },
@@ -151,6 +155,10 @@ describe('RoomInteractionComponent', () => {
     fixture.componentRef.setInput('roomId', 'room-1');
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
   });
 
   it('should create', () => {

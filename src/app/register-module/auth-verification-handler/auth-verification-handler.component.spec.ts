@@ -1,6 +1,6 @@
 // src/app/register-module/auth-verification-handler/auth-verification-handler.component.spec.ts
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
 import { Router } from '@angular/router';
 import { NgZone } from '@angular/core';
 
@@ -13,30 +13,31 @@ import { DateTimeService } from '../../core/services/general/date-time.service';
 
 import { IUserDados } from '../../core/interfaces/iuser-dados';
 import { IUserRegistrationData } from '../../core/interfaces/iuser-registration-data';
+import { of } from 'rxjs';
 
 describe('AuthVerificationHandlerComponent - finishRegistration', () => {
   let component: AuthVerificationHandlerComponent;
 
   const mockRouter = {
-    navigate: jest.fn().mockResolvedValue(true),
+    navigate: vi.fn().mockResolvedValue(true),
   };
 
   const mockCurrentUserStore = {
-    getLoggedUserUID$: jest.fn(),
+    getLoggedUserUID$: vi.fn(),
   };
 
   const mockFirestoreUserQuery = {
-    getUser: jest.fn(),
-    updateUserInStateAndCache: jest.fn(),
+    getUser: vi.fn(),
+    updateUserInStateAndCache: vi.fn(),
   };
 
   // ✅ mock correto do novo service
   const mockFirestoreUserWrite = {
-    saveInitialUserData$: jest.fn(),
+    saveInitialUserData$: vi.fn(),
   };
 
   const mockDateTimeService = {
-    convertToDate: jest.fn(),
+    convertToDate: vi.fn(),
   };
 
   beforeEach(async () => {
@@ -60,63 +61,59 @@ describe('AuthVerificationHandlerComponent - finishRegistration', () => {
     component.selectedEstado = 'SP';
     component.selectedMunicipio = 'São Paulo';
 
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
-  it('normaliza firstLogin quando vier como number e envia Date para saveInitialUserData$', (done) => {
-    const uid = 'user-123';
-    const firstLoginMs = 1710000000000;
+it('normaliza firstLogin quando vier como number e envia Date para saveInitialUserData$', async () => {
+  const uid = 'user-123';
+  const firstLoginMs = 1710000000000;
 
-    const existingUserData: Partial<IUserDados> = {
-      uid,
-      email: 'x@y.com',
-      nickname: 'x',
-      isSubscriber: false,
-      firstLogin: firstLoginMs as any,
-    };
+  const existingUserData: Partial<IUserDados> = {
+    uid,
+    email: 'x@y.com',
+    nickname: 'x',
+    isSubscriber: false,
+    firstLogin: firstLoginMs as any,
+  };
 
-    mockCurrentUserStore.getLoggedUserUID$.mockReturnValue(of(uid));
-    mockFirestoreUserQuery.getUser.mockReturnValue(of(existingUserData as IUserDados));
+  mockCurrentUserStore.getLoggedUserUID$.mockReturnValue(of(uid));
+  mockFirestoreUserQuery.getUser.mockReturnValue(of(existingUserData as IUserDados));
 
-    const normalizedDate = new Date(firstLoginMs);
-    mockDateTimeService.convertToDate.mockReturnValue(normalizedDate);
+  const normalizedDate = new Date(firstLoginMs);
+  mockDateTimeService.convertToDate.mockReturnValue(normalizedDate);
+  mockFirestoreUserWrite.saveInitialUserData$.mockReturnValue(of(void 0));
 
-    mockFirestoreUserWrite.saveInitialUserData$.mockReturnValue(of(void 0));
+  component.finishRegistration();
 
-    component.finishRegistration();
+  await new Promise((resolve) => setTimeout(resolve, 0));
 
-    setTimeout(() => {
-      expect(mockDateTimeService.convertToDate).toHaveBeenCalledTimes(1);
-      expect(mockDateTimeService.convertToDate).toHaveBeenCalledWith(firstLoginMs);
+  expect(mockDateTimeService.convertToDate).toHaveBeenCalledTimes(1);
+  expect(mockDateTimeService.convertToDate).toHaveBeenCalledWith(firstLoginMs);
 
-      expect(mockFirestoreUserWrite.saveInitialUserData$).toHaveBeenCalledTimes(1);
+  expect(mockFirestoreUserWrite.saveInitialUserData$).toHaveBeenCalledTimes(1);
 
-      const [calledUid, calledDto] =
-        mockFirestoreUserWrite.saveInitialUserData$.mock.calls[0] as [string, IUserRegistrationData];
+  const [calledUid, calledDto] =
+    mockFirestoreUserWrite.saveInitialUserData$.mock.calls[0] as [string, IUserRegistrationData];
 
-      expect(calledUid).toBe(uid);
+  expect(calledUid).toBe(uid);
+  expect(((calledDto as any).firstLogin as any) instanceof Date).toBe(true);
+  expect((calledDto as any).firstLogin).toBe(normalizedDate);
 
-      // ✅ cast para evitar erro TS2358 se firstLogin for tipado como number/union
-      expect(((calledDto as any).firstLogin as any) instanceof Date).toBe(true);
-      // opcional: garante que é exatamente o Date mockado
-      expect((calledDto as any).firstLogin).toBe(normalizedDate);
+  expect(mockFirestoreUserQuery.updateUserInStateAndCache).toHaveBeenCalledTimes(1);
 
-      expect(mockFirestoreUserQuery.updateUserInStateAndCache).toHaveBeenCalledTimes(1);
+  const [updateUid, updateDto] =
+    mockFirestoreUserQuery.updateUserInStateAndCache.mock.calls[0] as [string, IUserRegistrationData];
 
-      const [updateUid, updateDto] =
-        mockFirestoreUserQuery.updateUserInStateAndCache.mock.calls[0] as [string, IUserRegistrationData];
+  expect(updateUid).toBe(uid);
+  expect(((updateDto as any).firstLogin as any) instanceof Date).toBe(true);
+  expect((updateDto as any).firstLogin).toBe(normalizedDate);
 
-      expect(updateUid).toBe(uid);
-      expect(((updateDto as any).firstLogin as any) instanceof Date).toBe(true);
-      expect((updateDto as any).firstLogin).toBe(normalizedDate);
+  expect(mockRouter.navigate).toHaveBeenCalledWith(
+    ['/register/welcome'],
+    { queryParams: { autocheck: '1' }, replaceUrl: true }
+  );
 
-      expect(mockRouter.navigate).toHaveBeenCalledWith(
-        ['/register/welcome'],
-        { queryParams: { autocheck: '1' }, replaceUrl: true }
-      );
-
-      expect(component.showSubscriptionOptions).toBe(true);
-      done();
-    }, 0);
-  });
+  expect(component.showSubscriptionOptions).toBe(true);
 });
+  });
+

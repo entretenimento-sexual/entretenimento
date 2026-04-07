@@ -5,6 +5,7 @@
 // - passa a usar header reutilizável do domínio
 // - passa a usar navegação interna do domínio
 // - continua respeitando o shell global já existente
+// Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { RouterModule } from '@angular/router';
