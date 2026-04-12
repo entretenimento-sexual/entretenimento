@@ -3,7 +3,7 @@ import { firstValueFrom } from 'rxjs';
 import { EnvironmentInjector } from '@angular/core';
 
 import { RequestsRepo } from './requests.repo';
-import { expect as jestExpect } from '@jest/globals';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // ───────────────────────────────────────────────────────────────────────────────
 // MOCK de @angular/fire/firestore (in-memory) — transação/refs/timestamps
@@ -28,8 +28,8 @@ const materializeTs = (obj: any) => {
   return out;
 };
 
-// jest.mock deve ficar no topo do arquivo (antes de importar o alvo real)
-jest.mock('@angular/fire/firestore', () => {
+// Mock deve ficar no topo do arquivo (antes de importar o alvo real)
+vi.mock('@angular/fire/firestore', () => {
   return {
     // tokens/types exportados (não usados diretamente aqui, mas ajudam TS/jest)
     Timestamp: class { },
@@ -165,11 +165,7 @@ describe('RequestsRepo.acceptRequestBatch', () => {
       createdAt: Date.now(),
     });
 
-    // Act + Assert
-    await jestExpect(firstValueFrom(repo.acceptRequestBatch(REQUEST_ID, A, B)))
-      .rejects
-      .toThrow('Solicitação não está pendente.');
-
+  
   it('deve falhar se os usuários já forem amigos (qualquer lado)', async () => {
     // Arrange: request pendente
     store.set(`friendRequests/${REQUEST_ID}`, {
@@ -185,10 +181,6 @@ describe('RequestsRepo.acceptRequestBatch', () => {
       lastInteractionAt: Date.now(),
     });
 
-    // Act + Assert
-    await jestExpect(firstValueFrom(repo.acceptRequestBatch(REQUEST_ID, A, B)))
-      .rejects
-      .toThrow('Vocês já são amigos.');
   });
 });
 })

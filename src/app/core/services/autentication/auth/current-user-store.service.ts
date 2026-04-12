@@ -266,23 +266,43 @@ export class CurrentUserStoreService {
   // ---------------------------------------------------------------------------
   // Internals
   // ---------------------------------------------------------------------------
+private areUsersEquivalent(
+  current: IUserDados | null | undefined,
+  incoming: IUserDados | null | undefined
+): boolean {
+  if (current === incoming) return true;
+  if (!current && !incoming) return true;
+  if (!current || !incoming) return false;
 
-  private areUsersEquivalent(
-    a: IUserDados | null | undefined,
-    b: IUserDados | null | undefined,
-  ): boolean {
-    if (a === b) return true;
-    if (!a || !b) return false;
+  return (
+    current.uid === incoming.uid &&
+    current.nickname === incoming.nickname &&
+    current.email === incoming.email &&
+    current.emailVerified === incoming.emailVerified &&
+    current.role === incoming.role &&
+    current.tier === incoming.tier &&
+    current.profileCompleted === incoming.profileCompleted &&
+    current.isSubscriber === incoming.isSubscriber &&
+    current.subscriptionStatus === incoming.subscriptionStatus &&
 
-    return (
-      a.uid === b.uid &&
-      a.email === b.email &&
-      a.emailVerified === b.emailVerified &&
-      a.nickname === b.nickname &&
-      a.profileCompleted === b.profileCompleted &&
-      a.role === b.role
-    );
-  }
+    // lifecycle / moderação
+    current.accountStatus === incoming.accountStatus &&
+    current.suspended === incoming.suspended &&
+    current.publicVisibility === incoming.publicVisibility &&
+    current.interactionBlocked === incoming.interactionBlocked &&
+    current.loginAllowed === incoming.loginAllowed &&
+    current.statusUpdatedAt === incoming.statusUpdatedAt &&
+    current.statusUpdatedBy === incoming.statusUpdatedBy &&
+    current.suspensionReason === incoming.suspensionReason &&
+    current.suspensionSource === incoming.suspensionSource &&
+    current.suspensionEndsAt === incoming.suspensionEndsAt &&
+    current.deletionRequestedAt === incoming.deletionRequestedAt &&
+    current.deletionRequestedBy === incoming.deletionRequestedBy &&
+    current.deletionUndoUntil === incoming.deletionUndoUntil &&
+    current.purgeAfter === incoming.purgeAfter &&
+    current.deletedAt === incoming.deletedAt
+  );
+}
 
   private dbg(message: string, extra?: unknown): void {
     if (!this.debug) return;

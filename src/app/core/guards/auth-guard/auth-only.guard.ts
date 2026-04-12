@@ -1,4 +1,4 @@
-// ssrc\app\core\guards\auth-guard\auth-only.guard.ts
+// src\app\core\guards\auth-guard\auth-only.guard.ts
 // Não esqueça os comentáros explicativos sobre o propósito desse guard.
 // Garante que apenas usuários autenticados possam acessar determinadas rotas.
 import { inject } from '@angular/core';

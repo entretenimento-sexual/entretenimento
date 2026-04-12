@@ -1,9 +1,10 @@
 // src/app/core/services/distance-calculation.service.ts
 import { TestBed } from '@angular/core/testing';
 import { DistanceCalculationService } from '../geolocation/distance-calculation.service';
+import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 // mocka a lib externa para termos previsibilidade
-jest.mock('geofire-common', () => ({
+vi.mock('geofire-common', () => ({
   distanceBetween: vi.fn(() => 1.234567), // km
 }));
 

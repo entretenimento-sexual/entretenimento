@@ -5,7 +5,6 @@
 // - One-shot: take(1) (guard conclui rápido)
 // - Fail-safe: catchError -> redireciona com segurança e registra no GlobalErrorHandler
 // - Evita spam de toast com throttle simples (singleton)
-
 import { Injectable } from '@angular/core';
 import {
   ActivatedRouteSnapshot,

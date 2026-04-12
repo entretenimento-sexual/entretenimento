@@ -4,12 +4,13 @@
 // Verdades:
 // - AuthSessionService: sessão / uid / ready / emailVerified
 // - CurrentUserStoreService: perfil do app em runtime
-// - AuthAppBlockService: bloqueio do app
+// - AuthAppBlockService: bloqueio explícito do app
 // - AuthRouteContextService: contexto canônico de rota/auth-flow
 //
 // Objetivo:
 // - derivar gates simples e previsíveis
 // - degradar sempre para "nega acesso" em caso de erro
+// - incluir lifecycle da conta no gate global
 // - reduzir recomputações e logs duplicados
 //
 // Observação arquitetural:
@@ -17,6 +18,8 @@
 // - O contexto de rota vem inteiro do AuthRouteContextService.
 // - AuthSession manda na sessão.
 // - CurrentUserStore manda no runtime do perfil do app.
+// - accountStatus agora também participa do bloqueio efetivo do app.
+//
 import { Injectable, inject } from '@angular/core';
 import { Observable, combineLatest, of } from 'rxjs';
 import {
@@ -51,6 +54,13 @@ export type AccessState =
   | 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_PENDING'
   | 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_BLOCKED'
   | 'AUTHED_PROFILE_COMPLETE_VERIFIED_AGE_OK';
+
+type LifecycleAccountStatus =
+  | 'active'
+  | 'self_suspended'
+  | 'moderation_suspended'
+  | 'pending_deletion'
+  | 'deleted';
 
 const ROLE_RANK: Record<string, number> = {
   visitante: 0,
@@ -104,6 +114,47 @@ export class AccessControlService {
     );
   }
 
+  private normalizeAccountStatus(
+    user: IUserDados | null | undefined
+  ): LifecycleAccountStatus {
+    const raw = String((user as any)?.accountStatus ?? '')
+      .trim()
+      .toLowerCase();
+
+    if (
+      raw === 'active' ||
+      raw === 'self_suspended' ||
+      raw === 'moderation_suspended' ||
+      raw === 'pending_deletion' ||
+      raw === 'deleted'
+    ) {
+      return raw;
+    }
+
+    /**
+     * Compatibilidade com camada legada:
+     * - se ainda existir só `suspended === true`
+     * - tentamos inferir o tipo de suspensão
+     */
+    if ((user as any)?.suspended === true) {
+      return (user as any)?.suspensionSource === 'self'
+        ? 'self_suspended'
+        : 'moderation_suspended';
+    }
+
+    return 'active';
+  }
+
+  private isLifecycleBlockedStatus(status: LifecycleAccountStatus): boolean {
+    return status !== 'active';
+  }
+
+  private normalizeSubscriptionStatus(user: IUserDados | null | undefined): string {
+    return String((user as any)?.subscriptionStatus ?? '')
+      .trim()
+      .toLowerCase();
+  }
+
   private handleStreamError<T>(
     context: string,
     fallback: T
@@ -135,11 +186,6 @@ export class AccessControlService {
   // Router context (fonte única: AuthRouteContextService)
   // ---------------------------------------------------------------------------
 
-  /**
-   * Snapshot atômico do contexto de rota.
-   * Evita recombinar currentUrl$, routerReady$ e inRegistrationFlow$
-   * como se fossem fontes independentes.
-   */
   private readonly routeCtx$: Observable<AuthRouteContext> = this.routeContext.context$.pipe(
     distinctUntilChanged(
       (a, b) =>
@@ -252,8 +298,54 @@ export class AccessControlService {
     catchError(this.handleStreamError('blockedReason$', null))
   );
 
-  readonly isBlocked$: Observable<boolean> = this.blockedReason$.pipe(
-    map((reason) => !!reason),
+  // ---------------------------------------------------------------------------
+  // Lifecycle da conta
+  // ---------------------------------------------------------------------------
+
+  readonly accountStatus$: Observable<LifecycleAccountStatus> = this.appUser$.pipe(
+    map(
+      (user): LifecycleAccountStatus =>
+        this.normalizeAccountStatus(user as IUserDados | null | undefined)
+    ),
+    distinctUntilChanged(),
+    tap((accountStatus) => {
+      if (!this.debug) return;
+
+      const user = this.currentUserStore.getSnapshot() as any;
+      this.dbg('accountStatus$', {
+        accountStatus,
+        uid: user?.uid,
+        rawAccountStatus: user?.accountStatus,
+        suspended: user?.suspended,
+        suspensionSource: user?.suspensionSource,
+      });
+    }),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(
+      this.handleStreamError<LifecycleAccountStatus>(
+        'accountStatus$',
+        'active'
+      )
+    )
+  );
+
+  readonly isLifecycleBlocked$: Observable<boolean> = this.accountStatus$.pipe(
+    map((status) => this.isLifecycleBlockedStatus(status)),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('isLifecycleBlocked$', false))
+  );
+
+  /**
+   * Bloqueio efetivo do app:
+   * - bloqueio explícito via AuthAppBlockService
+   * - OU lifecycle bloqueado da conta
+   */
+  readonly isBlocked$: Observable<boolean> = combineLatest([
+    this.blockedReason$,
+    this.isLifecycleBlocked$,
+  ]).pipe(
+    map(([reason, lifecycleBlocked]) => !!reason || lifecycleBlocked),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('isBlocked$', false))
@@ -375,12 +467,28 @@ export class AccessControlService {
   // Gates
   // ---------------------------------------------------------------------------
 
+  /**
+   * Gate global do app:
+   * - router pronto
+   * - sem bloqueio explícito
+   * - sem lifecycle bloqueado
+   */
   readonly canRunApp$: Observable<boolean> = combineLatest([
     this.routerReady$,
     this.isBlocked$,
   ]).pipe(
     map(([routerReady, blocked]) => routerReady === true && blocked === false),
     distinctUntilChanged(),
+    tap((canRunApp) => {
+      if (!this.debug) return;
+
+      const user = this.currentUserStore.getSnapshot() as any;
+      this.dbg('canRunApp$', {
+        canRunApp,
+        uid: user?.uid,
+        accountStatus: user?.accountStatus,
+      });
+    }),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('canRunApp$', false))
   );
@@ -428,6 +536,7 @@ export class AccessControlService {
         can,
         uid: user?.uid,
         profileCompleted: user?.profileCompleted,
+        accountStatus: user?.accountStatus,
       });
     }),
     shareReplay({ bufferSize: 1, refCount: true }),
@@ -555,22 +664,28 @@ export class AccessControlService {
 
   readonly isFree$: Observable<boolean> = combineLatest([
     this.isAuthenticated$,
-    this.role$,
+    this.appUser$,
   ]).pipe(
-    map(([isAuth, role]) => !isAuth || role === 'free' || role === 'visitante'),
+    map(([isAuth, user]) => {
+      if (!isAuth) return true;
+
+      const subscriptionStatus = this.normalizeSubscriptionStatus(user as IUserDados | null);
+      const isSubscriber = (user as any)?.isSubscriber === true;
+
+      return !(isSubscriber || subscriptionStatus === 'active');
+    }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('isFree$', true))
   );
 
-  readonly isSubscriber$: Observable<boolean> = this.role$.pipe(
-    map((role) => ['premium', 'vip'].includes(String(role))),
+  readonly isSubscriber$: Observable<boolean> = this.appUser$.pipe(
+    map((user) => {
+      const subscriptionStatus = this.normalizeSubscriptionStatus(user as IUserDados | null);
+      return (user as any)?.isSubscriber === true || subscriptionStatus === 'active';
+    }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('isSubscriber$', false))
   );
-} // Linha 570, final do AccessControlService
-// Verificar migrações de responsabilidades para o:
-// 1 - auth-route-context.service.ts, e;
-// 2 - auth-user-document-watch.service.ts, e;
-// 3 - auth-session-monitor.service.ts.
+}

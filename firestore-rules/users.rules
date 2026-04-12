@@ -29,6 +29,7 @@ match /users/{userId} {
       "role",
       "tier",
       "isSubscriber",
+      "subscriptionStatus",
       "accountLocked",
       "suspended",
       "suspensionReason",
@@ -59,15 +60,15 @@ match /users/{userId} {
   function createDefaultsOk() {
     return request.resource.data.keys().hasAny(["uid"])
       && request.resource.data.uid == uid()
-      && (!hasField("role") || request.resource.data.role == "basic")
+      && (!hasField("role") || request.resource.data.role == "free")
+      && (!hasField("tier") || request.resource.data.tier == "free")
       && (!hasField("isSubscriber") || request.resource.data.isSubscriber == false)
-      && (!hasField("tier") || request.resource.data.tier == "basic");
+      && (!hasField("subscriptionStatus") || request.resource.data.subscriptionStatus == "inactive");
   }
 
   allow get: if isSelf(userId) || isAdminActor();
   allow list: if false;
 
-  // ✅ UM ÚNICO create (com defaults travados)
   allow create: if isSelf(userId)
     && emailVerifiedMatchesToken()
     && createDefaultsOk();

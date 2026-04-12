@@ -49,7 +49,6 @@ export type AuthUserDocumentWatchSource = 'doc' | 'deleted-flag';
 export type AuthUserDocumentWatchEvent =
   | { type: 'exists'; uid: string; source: 'doc' }
   | { type: 'missing'; uid: string; source: 'doc' }
-  | { type: 'suspended'; uid: string; source: 'doc' }
   | { type: 'deleted'; uid: string; source: AuthUserDocumentWatchSource }
   | {
       type: 'forbidden';
@@ -145,10 +144,6 @@ export class AuthUserDocumentWatchService {
     const data = snapshot.data() ?? {};
     const status = this.normalizeStatus(data);
 
-    if (this.isSuspended(data, status)) {
-      return { type: 'suspended', uid, source: 'doc' };
-    }
-
     if (this.isDeleted(data, status)) {
       return { type: 'deleted', uid, source: 'doc' };
     }
@@ -208,23 +203,12 @@ export class AuthUserDocumentWatchService {
       .toLowerCase();
   }
 
-  private isSuspended(data: Record<string, unknown>, status: string): boolean {
-    return (
-      (data as any)?.isSuspended === true ||
-      (data as any)?.isBanned === true ||
-      (data as any)?.accountLocked === true ||
-      (data as any)?.accountStatus === 'locked' ||
-      status === 'suspended' ||
-      status === 'banned' ||
-      status === 'locked'
-    );
-  }
-
   private isDeleted(data: Record<string, unknown>, status: string): boolean {
     return (
       (data as any)?.isDeleted === true ||
       !!(data as any)?.deletedAt ||
+      (data as any)?.accountStatus === 'deleted' ||
       status === 'deleted'
     );
   }
-} // Linha 230
+} // Linha 213

@@ -1,5 +1,5 @@
 // src/app/payments-core/application/checkout.facade.ts
-// =============================================================================
+// ====================================================================
 // CHECKOUT FACADE
 //
 // Responsabilidades:
@@ -12,8 +12,7 @@
 // - esta facade depende de ActivatedRoute, portanto faz mais sentido
 //   ficar no escopo da tela de checkout, e não como singleton global.
 // - por isso, ela não usa mais providedIn: 'root'.
-// =============================================================================
-
+// ==================================================================
 import { Injectable, inject, isDevMode } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, of } from 'rxjs';

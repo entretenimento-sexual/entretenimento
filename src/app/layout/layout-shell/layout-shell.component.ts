@@ -65,13 +65,6 @@ interface LayoutShellVm {
 export class LayoutShellComponent {
   private readonly debug = !environment.production;
 
-  /**
-   * Resumo visual do usuário autenticado para o sidebar universal.
-   *
-   * Observação:
-   * - mantido fora do SidebarVm para não misturar
-   *   estado estrutural de navegação com identidade visual do usuário.
-   */
   readonly sidebarUser$: Observable<UniversalSidebarUserSummary | null> =
     this.authenticatedNavigation.vm$.pipe(
       map((navVm: AuthenticatedNavigationVm): UniversalSidebarUserSummary | null => {
@@ -101,14 +94,6 @@ export class LayoutShellComponent {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-  /**
-   * VM único do shell.
-   *
-   * Vantagens:
-   * - um único async no template
-   * - regra de exibição centralizada
-   * - menos chance de conflito entre header/sidebar/footer
-   */
   readonly vm$: Observable<LayoutShellVm> = combineLatest([
     this.sidebar.vm$,
     this.sidebarUser$,
@@ -120,7 +105,7 @@ export class LayoutShellComponent {
       return {
         currentUrl,
         shellMode,
-        showSidebar: shellMode === 'auth',
+        showSidebar: shellMode === 'auth' && !this.shouldHideSidebar(currentUrl),
         showFooter: !this.shouldHideFooter(currentUrl),
         sidebar,
         sidebarUser,
@@ -145,7 +130,6 @@ export class LayoutShellComponent {
     ),
     tap((vm) => {
       if (!this.debug) return;
-      // eslint-disable-next-line no-console
       console.log('[LayoutShell] vm$', vm);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -156,7 +140,6 @@ export class LayoutShellComponent {
     private readonly authenticatedNavigation: AuthenticatedNavigationService
   ) {
     if (this.debug) {
-      // eslint-disable-next-line no-console
       console.log('[LayoutShell] constructor');
     }
   }
@@ -169,12 +152,6 @@ export class LayoutShellComponent {
     this.sidebar.toggleCollapse();
   }
 
-  /**
-   * Define o modo visual do shell.
-   *
-   * Ordem importa:
-   * - welcome/finalizar-cadastro vêm antes do matcher amplo de /register
-   */
   private resolveShellMode(url: string): ShellMode {
     const clean = this.normalizeUrl(url);
 
@@ -197,16 +174,23 @@ export class LayoutShellComponent {
     return 'auth';
   }
 
-  /**
-   * Footer continua amplo por padrão.
-   * Hoje só escondemos em chat, que tende a exigir foco total.
-   */
+  private shouldHideSidebar(url: string): boolean {
+    const clean = this.normalizeUrl(url);
+
+    return (
+      /^\/checkout(\/|$)/.test(clean) ||
+      /^\/subscription-plan(\/|$)/.test(clean) ||
+      /^\/billing\/return(\/|$)/.test(clean)
+    );
+  }
+
   private shouldHideFooter(url: string): boolean {
     const clean = this.normalizeUrl(url);
+
     return /^\/chat(\/|$)/.test(clean);
   }
 
   private normalizeUrl(url: string | null | undefined): string {
     return (url ?? '').trim().split('?')[0].split('#')[0];
   }
-}
+} // Linha 197

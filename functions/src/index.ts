@@ -15,3 +15,4 @@ export {
   clearStalePresence,
 };
 export * from './payments';
+export * from './account_lifecycle';

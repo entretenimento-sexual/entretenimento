@@ -1,0 +1,111 @@
+<!-- src/app/account/components/account-lifecycle-dialog/account-lifecycle-dialog.component.html -->
+<div
+  class="account-lifecycle-dialog-backdrop"
+  (click)="onBackdropClick()"
+  aria-hidden="true"
+>
+  <section
+    class="account-lifecycle-dialog"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="account-lifecycle-dialog-title"
+    aria-describedby="account-lifecycle-dialog-description"
+    (click)="onDialogClick($event)"
+  >
+    <header class="account-lifecycle-dialog__header">
+      <div class="account-lifecycle-dialog__title-group">
+        <p class="account-lifecycle-dialog__eyebrow">
+          Gerenciar conta
+        </p>
+
+        <h2 id="account-lifecycle-dialog-title">
+          {{ title() }}
+        </h2>
+      </div>
+
+      <button
+        type="button"
+        class="btn btn-ghost account-lifecycle-dialog__close"
+        (click)="onClose()"
+        [disabled]="busy()"
+        aria-label="Fechar"
+      >
+        Fechar
+      </button>
+    </header>
+
+    <div class="account-lifecycle-dialog__content">
+      <p
+        id="account-lifecycle-dialog-description"
+        class="account-lifecycle-dialog__description"
+      >
+        {{ description() }}
+      </p>
+
+      @if (
+        intent() === 'self_suspend' ||
+        intent() === 'self_delete' ||
+        intent() === 'moderator_suspend' ||
+        intent() === 'moderator_delete'
+      ) {
+        <div class="account-lifecycle-dialog__field">
+          <label
+            class="account-lifecycle-dialog__label"
+            for="account-lifecycle-dialog-reason"
+          >
+            {{ reasonLabel() }}
+          </label>
+
+          <textarea
+            id="account-lifecycle-dialog-reason"
+            class="input-field account-lifecycle-dialog__textarea"
+            rows="4"
+            [value]="reason()"
+            [placeholder]="reasonPlaceholder()"
+            [attr.aria-invalid]="reasonError() ? 'true' : 'false'"
+            [disabled]="busy()"
+            (input)="onReasonInput($event)"
+            (blur)="onReasonBlur()"
+          ></textarea>
+
+          @if (reasonError()) {
+            <p class="account-lifecycle-dialog__error" role="alert">
+              {{ reasonError() }}
+            </p>
+          }
+        </div>
+      }
+
+      @if (isDanger()) {
+        <div class="account-lifecycle-dialog__risk-box">
+          <strong>Atenção</strong>
+          <p>
+            Esta ação altera o estado operacional da conta e pode limitar fortemente o uso da plataforma.
+          </p>
+        </div>
+      }
+    </div>
+
+    <footer class="account-lifecycle-dialog__actions">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="onClose()"
+        [disabled]="busy()"
+      >
+        Cancelar
+      </button>
+
+      <button
+        type="button"
+        class="btn"
+        [class.btn-danger]="isDanger()"
+        [class.btn-primary]="!isDanger()"
+        [disabled]="!canConfirm()"
+        (click)="onConfirm()"
+      >
+        {{ busy() ? 'Processando...' : ctaLabel() }}
+      </button>
+    </footer>
+  </section>
+</div>

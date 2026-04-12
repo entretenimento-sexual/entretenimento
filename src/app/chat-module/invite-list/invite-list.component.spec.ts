@@ -7,7 +7,6 @@
 // - adiciona mocks de ErrorNotificationService e GlobalErrorHandlerService
 // - usa BehaviorSubject para simular uid$
 // - evita typings problemáticos com SpyObj<Service>
-
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
@@ -24,6 +23,7 @@ import { GlobalErrorHandlerService } from '../../core/services/error-handler/glo
 import { LoadInvites } from '../../store/actions/actions.chat/invite.actions';
 import { selectInvites } from '../../store/selectors/selectors.chat/invite.selectors';
 import { Invite } from '../../core/interfaces/interfaces-chat/invite.interface';
+import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 describe('InviteListComponent', () => {
   let component: InviteListComponent;
@@ -38,11 +38,11 @@ describe('InviteListComponent', () => {
   };
 
   let errorNotifierMock: {
-    showError: jasmine.Spy;
+    showError: Mock;
   };
 
   let globalErrorMock: {
-    handleError: jasmine.Spy;
+    handleError: Mock;
   };
 
   beforeEach(async () => {
@@ -54,11 +54,11 @@ describe('InviteListComponent', () => {
     };
 
     errorNotifierMock = {
-      showError: jasmine.createSpy('showError'),
+      showError: vi.fn(),
     };
 
     globalErrorMock = {
-      handleError: jasmine.createSpy('handleError'),
+      handleError: vi.fn(),
     };
 
     await TestBed.configureTestingModule({
@@ -81,7 +81,7 @@ describe('InviteListComponent', () => {
     }).compileComponents();
 
     store = TestBed.inject(MockStore);
-    spyOn(store, 'dispatch');
+    vi.spyOn(store, 'dispatch');
 
     fixture = TestBed.createComponent(InviteListComponent);
     component = fixture.componentInstance;

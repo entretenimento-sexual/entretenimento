@@ -41,30 +41,30 @@ function matchesAllowList(args: unknown[]): boolean {
 // ✅ Spies aplicados AGORA (fora de hooks), para capturar logs em import-time
 if (SILENCE_STD) {
   // log/info/debug ficam mudos, exceto se baterem na allowlist
-  jest\.spyOn(console, 'log').mockImplementation((...args: any[]) => {
+  jest\.vi.spyOn(console, 'log').mockImplementation((...args: any[]) => {
     if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.log(...args);
   });
-  jest\.spyOn(console, 'info').mockImplementation((...args: any[]) => {
+  jest\.vi.spyOn(console, 'info').mockImplementation((...args: any[]) => {
     if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.info(...args);
   });
-  jest\.spyOn(console, 'debug').mockImplementation((...args: any[]) => {
+  jest\.vi.spyOn(console, 'debug').mockImplementation((...args: any[]) => {
     if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.debug(...args);
   });
 }
 
 if (SILENCE_WARN) {
-  jest\.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
+  jest\.vi.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
     if (matchesAllowList(args)) __ORIGINAL_CONSOLE__.warn(...args);
   });
 } else {
   // Modo "falante" para warn, porém com prefixo (útil para debugar)
-  jest\.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
+  jest\.vi.spyOn(console, 'warn').mockImplementation((...args: any[]) => {
     if (matchesAllowList(args)) return __ORIGINAL_CONSOLE__.warn(...args);
     __ORIGINAL_CONSOLE__.warn('[WARN nos testes]', ...args);
   });
 }
 
-jest\.spyOn(console, 'error').mockImplementation((...args: any[]) => {
+jest\.vi.spyOn(console, 'error').mockImplementation((...args: any[]) => {
   if (matchesAllowList(args)) return __ORIGINAL_CONSOLE__.error(...args);
   // mantém visível no output, mas opcionalmente falha o teste
   __ORIGINAL_CONSOLE__.error('[ERROR nos testes]', ...args);
@@ -114,7 +114,7 @@ Object.defineProperty(document, 'visibilityState', {
 });
 
 // --- firebase/app ---
-jest.mock('firebase/app', () => {
+Mock('firebase/app', () => {
   const app = { name: '[DEFAULT]' };
   return {
     initializeApp: vi.fn(() => app),
@@ -124,7 +124,7 @@ jest.mock('firebase/app', () => {
 });
 
 // --- firebase/auth ---
-jest.mock('firebase/auth', () => {
+Mock('firebase/auth', () => {
   const onAuthStateChanged = vi.fn((_auth: any, _cb: any) => {
     return () => { /* unsubscribe noop */ };
   });
@@ -141,7 +141,7 @@ jest.mock('firebase/auth', () => {
 });
 
 // --- firebase/database ---
-jest.mock('firebase/database', () => {
+Mock('firebase/database', () => {
   const __refs = new Map<string, any>();
   const ref = vi.fn((_db: any, path?: string) => {
     const key = path ?? '';
@@ -177,7 +177,7 @@ jest.mock('firebase/database', () => {
 });
 
 // --- firebase/firestore ---
-jest.mock('firebase/firestore', () => {
+Mock('firebase/firestore', () => {
   const addDoc = vi.fn(async () => ({ id: 'doc-1' }));
   const setDoc = vi.fn(async () => { });
   const updateDoc = vi.fn(async () => { });
@@ -250,7 +250,7 @@ jest.mock('firebase/firestore', () => {
 });
 
 // --- Alias usado em alguns arquivos (ex.: Timestamp importado de '@firebase/firestore')
-jest.mock('@firebase/firestore', () => {
+Mock('@firebase/firestore', () => {
   const addDoc = vi.fn(async () => ({ id: 'doc-1' }));
   const setDoc = vi.fn(async () => { });
   const updateDoc = vi.fn(async () => { });
@@ -372,7 +372,7 @@ import { of } from 'rxjs';
 import { commonTestingProviders } from './jest-stubs/test-providers';
 
 // AngularFire (compat bridge — usado por alguns serviços)
-jest.mock('@angular/fire/app', () => {
+Mock('@angular/fire/app', () => {
   const FirebaseApp = Symbol('FirebaseApp');
   return {
     FirebaseApp,
@@ -380,7 +380,7 @@ jest.mock('@angular/fire/app', () => {
     provideFirebaseApp: vi.fn(() => ({ provide: FirebaseApp, useValue: {} })),
   };
 });
-jest.mock('@angular/fire/auth', () => {
+Mock('@angular/fire/auth', () => {
   const { of } = require('rxjs');
   const Auth = Symbol('Auth');
   return {
@@ -395,7 +395,7 @@ jest.mock('@angular/fire/auth', () => {
 });
 
 // @angular/fire/firestore — reexporta mocks do firebase/firestore
-jest.mock('@angular/fire/firestore', () => {
+Mock('@angular/fire/firestore', () => {
   const firebaseFs = jest.requireMock('firebase/firestore');
   const Firestore = Symbol('Firestore');
   return {
@@ -421,7 +421,7 @@ jest.mock('@angular/fire/firestore', () => {
 });
 
 // @angular/fire/storage
-jest.mock('@angular/fire/storage', () => {
+Mock('@angular/fire/storage', () => {
   const Storage = Symbol('Storage');
   return {
     Storage,
@@ -431,7 +431,7 @@ jest.mock('@angular/fire/storage', () => {
 });
 
 // @angular/fire/database — bridge total para o mock de 'firebase/database'
-jest.mock('@angular/fire/database', () => {
+Mock('@angular/fire/database', () => {
   const firebaseDb = jest.requireMock('firebase/database');
   const Database = Symbol('Database');
   return {
@@ -496,7 +496,7 @@ beforeEach(() => {
 // Permite disparar o callback mais recente registrado por onAuthStateChanged
 (globalThis as any).emitAuthUser = (user: any) => {
   const auth = jest.requireMock('firebase/auth');
-  const calls = (auth.onAuthStateChanged as jest.Mock).mock.calls;
+  const calls = (auth.onAuthStateChanged as Mock).mock.calls;
   const last = calls[calls.length - 1];
   const cb = last?.[1];
   if (typeof cb === 'function') cb(user);

@@ -2,17 +2,26 @@
 import { userReducer } from './user.reducer';
 import { initialUserState } from '../../states/states.user/user.state';
 import { IUserDados } from '../../../core/interfaces/iuser-dados';
-import { addUserToState, loadUsers, loadUsersSuccess, loadUsersFailure,
-        loadOnlineUsersSuccess, updateUserOnlineStatus, setFilteredOnlineUsers,
-        setCurrentUser, clearCurrentUser } from '../../actions/actions.user/user.actions';
-
+import type { IError } from '../../../core/interfaces/ierror';
+import {
+  addUserToState,
+  loadUsers,
+  loadUsersSuccess,
+  loadUsersFailure,
+  loadOnlineUsersSuccess,
+  updateUserOnlineStatus,
+  setFilteredOnlineUsers,
+  setCurrentUser,
+  clearCurrentUser,
+} from '../../actions/actions.user/user.actions';
 import { loginSuccess, logoutSuccess } from '../../actions/actions.user/auth.actions';
+import { describe, expect, it } from 'vitest';
 
 function reduceFrom(initial = initialUserState, ...actions: any[]) {
   return actions.reduce((state, action) => userReducer(state, action), initial);
 }
 
-/** Helper pra mockar Timestamp.now() do firebase (já stubado no setup-jest) */
+/** Helper pra mockar Timestamp.now() do firebase */
 const nowMs = () => Date.now();
 
 const u = (overrides?: Partial<IUserDados>): IUserDados => ({
@@ -22,13 +31,11 @@ const u = (overrides?: Partial<IUserDados>): IUserDados => ({
   role: 'basic',
   emailVerified: true,
   isOnline: false,
-  // ---- obrigatórios na sua interface
   photoURL: null,
   lastLogin: nowMs(),
   firstLogin: nowMs(),
   isSubscriber: false,
   descricao: '',
-  // ---- sobrescritas
   ...overrides,
 });
 
@@ -39,13 +46,11 @@ const v = (overrides?: Partial<IUserDados>): IUserDados => ({
   role: 'vip',
   emailVerified: true,
   isOnline: true,
-  // obrigatórios
   photoURL: null,
   lastLogin: nowMs(),
   firstLogin: nowMs(),
   isSubscriber: true,
   descricao: '',
-  // sobrescritas
   ...overrides,
 });
 
@@ -89,7 +94,10 @@ describe('userReducer', () => {
   });
 
   it('loadOnlineUsersSuccess deve preencher users + onlineUsers sem duplicar e mantendo merges', () => {
-    const base = reduceFrom(initialUserState, addUserToState({ user: u({ uid: 'x', nickname: 'antes' }) }));
+    const base = reduceFrom(
+      initialUserState,
+      addUserToState({ user: u({ uid: 'x', nickname: 'antes' }) })
+    );
 
     const incoming = [
       v({ uid: 'x', isOnline: true, nickname: 'depois' }),
@@ -138,17 +146,18 @@ describe('userReducer', () => {
 
   it('loadUsersFailure deve desligar loading e setar erro', () => {
     const s1 = reduceFrom(initialUserState, loadUsers());
-    const s2 = reduceFrom(s1, loadUsersFailure({ error: 'oops' }));
+
+    const error = { message: 'oops' } as IError;
+    const s2 = reduceFrom(s1, loadUsersFailure({ error }));
 
     expect(s2.loading).toBe(false);
-    expect(s2.error).toBe('oops');
+    expect(s2.error).toEqual(error);
   });
 
   it('setFilteredOnlineUsers deve apenas setar o array filtrado', () => {
     const filtered = [v({ uid: 'f1' }), v({ uid: 'f2' })];
     const s = reduceFrom(initialUserState, setFilteredOnlineUsers({ filteredUsers: filtered }));
 
-    // Quick fix pra evitar choque de tipos de matchers (Jasmine vs Jest)
     expect(s.filteredUsers.length).toBe(2);
     expect(s.filteredUsers[0].uid).toBe('f1');
   });

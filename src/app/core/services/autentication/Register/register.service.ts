@@ -167,18 +167,7 @@ export class RegisterService {
       tap((ctx2) => {
         const { user } = ctx2.cred;
 
-        this.seedLocalStateAfterSignup(user.uid, {
-          uid: user.uid,
-          email: user.email || '',
-          nickname: (userData.nickname ?? '').trim(),
-          role: 'basic',
-          emailVerified: false,
-          isSubscriber: false,
-          profileCompleted: false,
-          registrationDate: Date.now(),
-          firstLogin: Date.now(),
-          acceptedTerms: { accepted: true, date: Date.now() },
-        });
+        this.seedLocalStateAfterSignup(user.uid);
 
         if (!environment.production && ctx2.warns.length) {
           this.devWarn(ctx2.traceId, 'registerUser:warns', { warns: ctx2.warns });
@@ -364,9 +353,15 @@ export class RegisterService {
           uid,
           email: (userData.email ?? '').trim(),
           nickname,
-          role: 'basic',
+
+          role: 'free',
+          tier: 'free',
+
           emailVerified: false,
           isSubscriber: false,
+          subscriptionStatus: 'inactive',
+          accountStatus: 'active',
+
           profileCompleted: false,
 
           acceptedTerms: {
@@ -397,7 +392,7 @@ export class RegisterService {
           uid,
           nickname,
           nicknameNormalized: normalized,
-          role: 'basic',
+          role: 'free',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
@@ -448,7 +443,10 @@ export class RegisterService {
         uid,
         email: (userData.email ?? '').trim(),
         nickname,
-        role: 'basic',
+        role: 'free',
+        tier: 'free',
+        isSubscriber: false,
+        subscriptionStatus: 'inactive',
         createdAt: serverTimestamp(),
       }, { merge: true })
     ).pipe(
@@ -479,10 +477,10 @@ export class RegisterService {
             uid,
             nickname,
             nicknameNormalized: normalized,
-            role: 'basic',
+            role: 'free',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
-          })
+          })  
         )
       ),
       tap(() => this.devDebug(traceId, 'debugPersistWrites$:OK public_profiles')),
@@ -519,12 +517,12 @@ export class RegisterService {
    * Mantemos apenas a HOT_KEY de UID para compatibilidade com bootstraps legados
    * que precisem de leitura síncrona defensiva.
    */
-  private seedLocalStateAfterSignup(uid: string, _data: Partial<IUserRegistrationData>): void {
-    const safeUid = (uid ?? '').trim();
-    if (!safeUid) return;
+  private seedLocalStateAfterSignup(uid: string): void {
+      const safeUid = (uid ?? '').trim();
+      if (!safeUid) return;
 
-    this.cache.set(this.HOT_KEY_CURRENT_USER_UID, safeUid, undefined, { persist: false });
-  }
+      this.cache.set(this.HOT_KEY_CURRENT_USER_UID, safeUid, undefined, { persist: false });
+    }
 
   private handleRegisterError(error: any, context: string, traceId: string): Observable<never> {
     const message = this.mapErrorMessage(error);

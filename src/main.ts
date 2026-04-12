@@ -1,5 +1,5 @@
 // src/main.ts
-// =============================================================================
+// ==================================================================
 // BOOTSTRAP PRINCIPAL DA APLICAÇÃO
 //
 // Responsabilidades deste arquivo:
@@ -13,8 +13,7 @@
 // Observação importante:
 // - Este arquivo NÃO contém lógica de negócio.
 // - Aqui ficam apenas ferramentas de bootstrap, debug e suporte ao ambiente.
-// =============================================================================
-
+// ================================================================
 import 'zone.js';
 import { platformBrowserDynamic } from '@angular/platform-browser-dynamic';
 import { setLogLevel } from 'firebase/firestore';

@@ -13,8 +13,7 @@
 //   para ficar alinhada à ActivatedRoute atual.
 // - o aviso de perfil incompleto atua apenas na camada de UX,
 //   sem interferir na lógica de checkout/billing.
-// ==============================================================
-
+// ============================================================
 import {
   ChangeDetectionStrategy,
   Component,
@@ -26,7 +25,14 @@ import {
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { distinctUntilChanged, map, shareReplay, take, tap } from 'rxjs/operators';
+import { combineLatest } from 'rxjs';
+import {
+  distinctUntilChanged,
+  map,
+  shareReplay,
+  take,
+  tap,
+} from 'rxjs/operators';
 
 import { CheckoutFacade } from 'src/app/payments-core/application/checkout.facade';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
@@ -49,6 +55,7 @@ export class CheckoutComponent implements OnInit {
   private readonly noticeService = inject(IncompleteProfileSubscriptionNoticeService);
 
   checkoutAcknowledged = false;
+  isStartingCheckout = false;
 
   readonly facade = inject(CheckoutFacade);
   readonly plan$ = this.facade.plan$;
@@ -62,6 +69,17 @@ export class CheckoutComponent implements OnInit {
   readonly shouldShowCheckoutWarning$ = this.noticeService.shouldShow$(
     this.currentUser$,
     this.buildStaticContext$('checkout')
+  );
+
+  readonly vm$ = combineLatest([
+    this.plan$,
+    this.shouldShowCheckoutWarning$,
+  ]).pipe(
+    map(([plan, shouldShowCheckoutWarning]) => ({
+      plan,
+      shouldShowCheckoutWarning,
+    })),
+    shareReplay({ bufferSize: 1, refCount: true })
   );
 
   readonly checkoutWarningItems = [
@@ -81,21 +99,29 @@ export class CheckoutComponent implements OnInit {
       .subscribe();
   }
 
-  continue(shouldShowCheckoutWarning: boolean): void {
-    this.debug('continue() acionado');
+continue(shouldShowCheckoutWarning: boolean): void {
+  this.debug('continue() acionado', { shouldShowCheckoutWarning });
 
-    if (shouldShowCheckoutWarning && !this.checkoutAcknowledged) {
-      this.errorNotifier.showWarning(
-        'Antes de continuar, confirme que entendeu as limitações de um perfil incompleto.'
-      );
-      return;
-    }
+  if (this.isStartingCheckout) {
+    return;
+  }
 
-    this.facade
-      .startCheckout$()
-      .pipe(take(1))
-      .subscribe((checkoutUrl) => {
+  if (shouldShowCheckoutWarning && !this.checkoutAcknowledged) {
+    this.errorNotifier.showWarning(
+      'Antes de continuar, confirme que entendeu as limitações de um perfil incompleto.'
+    );
+    return;
+  }
+
+  this.isStartingCheckout = true;
+
+  this.facade
+    .startCheckout$()
+    .pipe(take(1))
+    .subscribe({
+      next: (checkoutUrl) => {
         if (!checkoutUrl) {
+          this.isStartingCheckout = false;
           this.errorNotifier.showError(
             'Checkout ainda não disponível para este plano.'
           );
@@ -104,8 +130,12 @@ export class CheckoutComponent implements OnInit {
 
         this.debug('redirecionando para checkout', { checkoutUrl });
         window.location.assign(checkoutUrl);
-      });
-  }
+      },
+      error: () => {
+        this.isStartingCheckout = false;
+      },
+    });
+}
 
   back(): void {
     this.debug('back() acionado');

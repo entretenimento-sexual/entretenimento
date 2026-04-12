@@ -1,4 +1,5 @@
 //src\app\account\models\account-overview.model.ts
+//Comentários são sempre bem vindos
 export interface AccountOverviewVm {
   uid: string | null;
   nickname: string | null;
@@ -26,6 +27,9 @@ export interface AccountOverviewVm {
   twoFactorHint: string;
 
   subscriptionLabel: string;
+  subscriptionActive: boolean;
+  activePlanLabel: string | null;
+
   tokensBalance: number | null;
 
   quickPurchaseEnabled: boolean | null;

@@ -11,14 +11,15 @@
 //
 // Observações:
 // - usamos spy em método interno para evitar acoplamento com signInWithPopup real
-// - mantemos Jasmine
+// - suíte migrada para Vitest
 // - usamos mocks mínimos, focados apenas nos métodos necessários
 // =============================================================================
 
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
 import { Auth } from '@angular/fire/auth';
+import { of, throwError } from 'rxjs';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SocialAuthService } from './social-auth.service';
 import { FirestoreReadService } from '../data-handling/firestore/core/firestore-read.service';
@@ -33,56 +34,56 @@ describe('SocialAuthService', () => {
   let authMock: Partial<Auth>;
 
   let readMock: {
-    getDocument: jasmine.Spy;
+    getDocument: Mock;
   };
 
   let writeMock: {
-    setDocument: jasmine.Spy;
-    updateDocument: jasmine.Spy;
+    setDocument: Mock;
+    updateDocument: Mock;
   };
 
   let userRepoMock: {
-    updateUserInStateAndCache: jasmine.Spy;
+    updateUserInStateAndCache: Mock;
   };
 
   let globalErrorHandlerMock: {
-    handleError: jasmine.Spy;
+    handleError: Mock;
   };
 
   let errorNotifierMock: {
-    showError: jasmine.Spy;
+    showError: Mock;
   };
 
   let routerMock: {
-    navigate: jasmine.Spy;
+    navigate: Mock;
   };
 
   beforeEach(() => {
     authMock = {} as Partial<Auth>;
 
     readMock = {
-      getDocument: jasmine.createSpy('getDocument'),
+      getDocument: vi.fn(),
     };
 
     writeMock = {
-      setDocument: jasmine.createSpy('setDocument'),
-      updateDocument: jasmine.createSpy('updateDocument'),
+      setDocument: vi.fn(),
+      updateDocument: vi.fn(),
     };
 
     userRepoMock = {
-      updateUserInStateAndCache: jasmine.createSpy('updateUserInStateAndCache'),
+      updateUserInStateAndCache: vi.fn(),
     };
 
     globalErrorHandlerMock = {
-      handleError: jasmine.createSpy('handleError'),
+      handleError: vi.fn(),
     };
 
     errorNotifierMock = {
-      showError: jasmine.createSpy('showError'),
+      showError: vi.fn(),
     };
 
     routerMock = {
-      navigate: jasmine.createSpy('navigate').and.returnValue(Promise.resolve(true)),
+      navigate: vi.fn().mockResolvedValue(true),
     };
 
     TestBed.configureTestingModule({
@@ -123,6 +124,7 @@ describe('SocialAuthService', () => {
       nickname: 'alex',
       photoURL: 'https://cdn.test/avatar.jpg',
       role: 'basic',
+      tier: 'basic',
       emailVerified: true,
       isSubscriber: false,
       firstLogin: 1700000000000,
@@ -150,12 +152,13 @@ describe('SocialAuthService', () => {
       photoURL: 'https://cdn.test/new-user.jpg',
     });
 
-    spyOn<any>(service, 'signInWithPopupInCtx$').and.returnValue(
-      of({ user: firebaseUser })
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
+      of({ user: firebaseUser } as any)
     );
 
-    readMock.getDocument.and.returnValue(of(null));
-    writeMock.setDocument.and.returnValue(of(void 0));
+    readMock.getDocument.mockReturnValue(of(null));
+    writeMock.setDocument.mockReturnValue(of(void 0));
+    writeMock.updateDocument.mockReturnValue(of(void 0));
 
     let result: any = null;
 
@@ -211,14 +214,15 @@ describe('SocialAuthService', () => {
       gender: undefined,
       profileCompleted: false,
       role: 'basic',
+      tier: 'basic',
     });
 
-    spyOn<any>(service, 'signInWithPopupInCtx$').and.returnValue(
-      of({ user: firebaseUser })
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
+      of({ user: firebaseUser } as any)
     );
 
-    readMock.getDocument.and.returnValue(of(existingDoc));
-    writeMock.updateDocument.and.returnValue(of(void 0));
+    readMock.getDocument.mockReturnValue(of(existingDoc));
+    writeMock.updateDocument.mockReturnValue(of(void 0));
 
     let result: any = null;
 
@@ -270,12 +274,12 @@ describe('SocialAuthService', () => {
       tier: 'premium',
     });
 
-    spyOn<any>(service, 'signInWithPopupInCtx$').and.returnValue(
-      of({ user: firebaseUser })
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
+      of({ user: firebaseUser } as any)
     );
 
-    readMock.getDocument.and.returnValue(of(existingDoc));
-    writeMock.updateDocument.and.returnValue(of(void 0));
+    readMock.getDocument.mockReturnValue(of(existingDoc));
+    writeMock.updateDocument.mockReturnValue(of(void 0));
 
     let result: any = null;
 
@@ -307,11 +311,11 @@ describe('SocialAuthService', () => {
       accountStatus: 'deleted',
     });
 
-    spyOn<any>(service, 'signInWithPopupInCtx$').and.returnValue(
-      of({ user: firebaseUser })
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
+      of({ user: firebaseUser } as any)
     );
 
-    readMock.getDocument.and.returnValue(of(existingDoc));
+    readMock.getDocument.mockReturnValue(of(existingDoc));
 
     let result: any = null;
 
@@ -344,11 +348,11 @@ describe('SocialAuthService', () => {
       accountStatus: 'suspended',
     });
 
-    spyOn<any>(service, 'signInWithPopupInCtx$').and.returnValue(
-      of({ user: firebaseUser })
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
+      of({ user: firebaseUser } as any)
     );
 
-    readMock.getDocument.and.returnValue(of(existingDoc));
+    readMock.getDocument.mockReturnValue(of(existingDoc));
 
     let result: any = null;
 
@@ -370,7 +374,7 @@ describe('SocialAuthService', () => {
   });
 
   it('deve retornar null e notificar quando o popup for bloqueado', () => {
-    spyOn<any>(service, 'signInWithPopupInCtx$').and.returnValue(
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
       throwError(() => ({ code: 'auth/popup-blocked' }))
     );
 
@@ -388,7 +392,7 @@ describe('SocialAuthService', () => {
   });
 
   it('deve retornar null quando o usuário fechar o popup', () => {
-    spyOn<any>(service, 'signInWithPopupInCtx$').and.returnValue(
+    vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
       throwError(() => ({ code: 'auth/popup-closed-by-user' }))
     );
 

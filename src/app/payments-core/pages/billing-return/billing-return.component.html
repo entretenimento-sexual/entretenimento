@@ -1,0 +1,53 @@
+<!-- src\app\payments-core\pages\billing-return\billing-return.component.html -->
+ <main class="billing-return-page app-page" aria-label="Processamento do pagamento">
+  <section class="billing-return-shell ui-container">
+    @if (vm$ | async; as vm) {
+      <article
+        class="billing-return-card"
+        [attr.data-status]="vm.status"
+        [attr.aria-busy]="vm.busy ? 'true' : 'false'"
+      >
+        <div class="billing-return-card__icon" aria-hidden="true">
+          @if (vm.status === 'granted') {
+            ✓
+          } @else if (vm.status === 'failed') {
+            !
+          } @else if (vm.status === 'canceled') {
+            ×
+          } @else {
+            •
+          }
+        </div>
+
+        <div class="billing-return-card__content">
+          <p class="billing-return-card__eyebrow">Pagamento</p>
+          <h1>{{ vm.title }}</h1>
+          <p class="billing-return-card__description">{{ vm.description }}</p>
+
+          @if (vm.detail) {
+            <p class="billing-return-card__detail">{{ vm.detail }}</p>
+          }
+        </div>
+
+        @if (vm.busy) {
+          <div class="billing-return-card__progress">
+            <span class="spinner"></span>
+            <span>Processando…</span>
+          </div>
+        }
+
+        @if (!vm.busy && vm.primaryActionLabel) {
+          <div class="billing-return-card__actions">
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="onPrimaryAction()"
+            >
+              {{ vm.primaryActionLabel }}
+            </button>
+          </div>
+        }
+      </article>
+    }
+  </section>
+</main>

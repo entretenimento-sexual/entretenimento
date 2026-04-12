@@ -1,14 +1,9 @@
 // src/app/core/services/geolocation/geolocation.service.spec.ts
 import { TestBed } from '@angular/core/testing';
-import {
-  GeolocationService,
-  GeolocationError,
-  GeolocationErrorCode,
-  type GeoPolicy,
-} from './geolocation.service';
-import { of } from 'rxjs';
+import { GeolocationService,  GeolocationErrorCode, type GeoPolicy } from './geolocation.service';
+import { firstValueFrom, of, take, toArray } from 'rxjs';
 import type { GeoCoordinates } from '../../interfaces/geolocation.interface';
-import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('GeolocationService', () => {
   let service: GeolocationService;
@@ -143,87 +138,71 @@ describe('GeolocationService', () => {
     });
   });
 
-  describe('currentPosition$', () => {
-    it('emite coordenadas e completa (sucesso)', (done) => {
-      service.currentPosition$().subscribe({
-        next: (coords) => {
-          expect(coords.latitude).toBeCloseTo(1, 6);
-          expect(coords.longitude).toBeCloseTo(0, 6);
-          expect(typeof coords.geohash).toBe('string');
-          expect((coords.geohash || '').length).toBeGreaterThan(0);
-        },
-        complete: () => done(),
-        error: done.fail,
-      });
-    });
+describe('currentPosition$', () => {
+  it('emite coordenadas e completa (sucesso)', async () => {
+    const coords = await firstValueFrom(service.currentPosition$());
 
-    it('mapeia erro DOM → GeolocationError (PERMISSION_DENIED)', (done) => {
-      const errGeo = { code: 1 } as GeolocationPositionError;
-      (navigator.geolocation as any).getCurrentPosition = (_s: any, e: any) => e(errGeo);
+    expect(coords.latitude).toBeCloseTo(1, 6);
+    expect(coords.longitude).toBeCloseTo(0, 6);
+    expect(typeof coords.geohash).toBe('string');
+    expect((coords.geohash || '').length).toBeGreaterThan(0);
+  });
 
-      service.currentPosition$().subscribe({
-        next: () => done.fail('não deveria emitir sucesso'),
-        error: (err: unknown) => {
-          expect(err instanceof GeolocationError).toBe(true);
-          expect((err as GeolocationError).code).toBe(GeolocationErrorCode.PERMISSION_DENIED);
-         
-        },
-      });
-    });
+  it('mapeia erro DOM → GeolocationError (PERMISSION_DENIED)', async () => {
+    const errGeo = { code: 1 } as GeolocationPositionError;
+    (navigator.geolocation as any).getCurrentPosition = (_s: any, e: any) => e(errGeo);
 
-    it('requireUserGesture:true + permissão != granted → USER_GESTURE_REQUIRED e NÃO chama geolocation', (done) => {
-      setPermissions('prompt'); // não é granted
-
-      let called = false;
-      (navigator.geolocation as any).getCurrentPosition = () => { called = true; };
-
-      service.currentPosition$({ requireUserGesture: true }).subscribe({
-        next: () => done.fail('não deveria emitir sucesso'),
-        error: (err: GeolocationError) => {
-          expect(called).toBe(false);
-          expect(err.code).toBe(GeolocationErrorCode.USER_GESTURE_REQUIRED);
-          
-        },
-      });
+    await expect(firstValueFrom(service.currentPosition$())).rejects.toMatchObject({
+      code: GeolocationErrorCode.PERMISSION_DENIED,
     });
   });
 
-  describe('watchPosition$', () => {
-    it('emite atualizações (2 chamadas síncronas) e chama clearWatch no unsubscribe', (done) => {
-      const received: number[] = [];
+  it('requireUserGesture:true + permissão != granted → USER_GESTURE_REQUIRED e NÃO chama geolocation', async () => {
+    setPermissions('prompt');
 
-      const sub = service.watchPosition$().subscribe({
-        next: (coords) => received.push(coords.latitude),
-        error: done.fail,
-      });
+    let called = false;
+    (navigator.geolocation as any).getCurrentPosition = () => {
+      called = true;
+    };
 
-      setTimeout(() => {
-        expect(received.length).toBe(2);
-        expect(received[0]).toBeCloseTo(1, 6);
-        expect(received[1]).toBeCloseTo(1.001, 6);
-        sub.unsubscribe();
-        expect(clearCalled).toBe(true);
-        
-      }, 0);
+    await expect(
+      firstValueFrom(service.currentPosition$({ requireUserGesture: true }))
+    ).rejects.toMatchObject({
+      code: GeolocationErrorCode.USER_GESTURE_REQUIRED,
     });
 
-    it('mapeia erro do DOM em erro tipado (TIMEOUT)', (done) => {
-      (navigator.geolocation as any).watchPosition = (_success: any, error: any) => {
-        setTimeout(() => error({ code: 3 }), 0);
-        return 7;
-      };
+    expect(called).toBe(false);
+  });
+});
 
-      service.watchPosition$().subscribe({
-        next: () => done.fail('não deveria emitir sucesso'),
-        error: (err: GeolocationError) => {
-          expect(err.code).toBe(GeolocationErrorCode.TIMEOUT);
-          
-        },
-      });
-    });
+describe('watchPosition$', () => {
+  it('emite atualizações (2 chamadas síncronas) e chama clearWatch no unsubscribe', async () => {
+    const received = await firstValueFrom(
+      service.watchPosition$().pipe(
+        take(2),
+        toArray()
+      )
+    );
+
+    expect(received).toHaveLength(2);
+    expect(received[0].latitude).toBeCloseTo(1, 6);
+    expect(received[1].latitude).toBeCloseTo(1.001, 6);
+    expect(clearCalled).toBe(true);
   });
 
-  describe('privacidade / utilitários', () => {
+  it('mapeia erro do DOM em erro tipado (TIMEOUT)', async () => {
+    (navigator.geolocation as any).watchPosition = (_success: any, error: any) => {
+      setTimeout(() => error({ code: 3 }), 0);
+      return 7;
+    };
+
+    await expect(firstValueFrom(service.watchPosition$())).rejects.toMatchObject({
+      code: GeolocationErrorCode.TIMEOUT,
+    });
+  });
+});
+
+ describe('privacidade / utilitários', () => {
     it('toCoarseGeohash reduz para o tamanho solicitado (mín 1, máx geohash.length)', () => {
       const g = 'u4pruydqqvj';
       expect(service.toCoarseGeohash(g, 3)).toBe('u4p');
@@ -306,3 +285,4 @@ describe('GeolocationService', () => {
     });
   });
 })
+

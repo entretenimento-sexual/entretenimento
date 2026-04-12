@@ -3,13 +3,14 @@ import { TestBed } from '@angular/core/testing';
 import { NgZone } from '@angular/core';
 import { Firestore, updateDoc, serverTimestamp } from '@angular/fire/firestore';
 import { PresenceService } from './presence.service';
+import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 describe('PresenceService', () => {
   let service: PresenceService;
   let zone: NgZone;
 
-  const updateDocMock = updateDoc as unknown as jest.Mock;
-  const serverTsMock = serverTimestamp as unknown as jest.Mock;
+  const updateDocMock = updateDoc as unknown as Mock;
+  const serverTsMock = serverTimestamp as unknown as Mock;
 
   beforeEach(() => {
     vi.useFakeTimers();

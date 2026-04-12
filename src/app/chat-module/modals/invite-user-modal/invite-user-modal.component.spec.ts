@@ -14,6 +14,7 @@ import { InviteSearchService } from '../../../core/services/batepapo/invite-serv
 import { InviteService } from '../../../core/services/batepapo/invite-service/invite.service';
 import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
+import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 describe('InviteUserModalComponent', () => {
   let fixture: ComponentFixture<InviteUserModalComponent>;
@@ -22,16 +23,16 @@ describe('InviteUserModalComponent', () => {
   let authUidSubject: BehaviorSubject<string | null>;
   let currentUserSubject: BehaviorSubject<any>;
 
-  let dialogRefMock: { close: jest.Mock };
+  let dialogRefMock: { close: Mock };
   let authSessionMock: { uid$: ReturnType<BehaviorSubject<string | null>['asObservable']>; currentAuthUser: { uid: string } | null };
-  let currentUserStoreMock: { user$: ReturnType<BehaviorSubject<any>['asObservable']>; getSnapshot: jest.Mock };
+  let currentUserStoreMock: { user$: ReturnType<BehaviorSubject<any>['asObservable']>; getSnapshot: Mock };
 
-  let ibgeStub: { getEstados: jest.Mock; getMunicipios: jest.Mock };
-  let regionFilterStub: { getUserRegion: jest.Mock };
-  let inviteSearchStub: { searchEligibleUsers: jest.Mock };
-  let inviteServiceStub: { createInvite: jest.Mock };
-  let globalErrorHandlerMock: { handleError: jest.Mock };
-  let errorNotifierMock: { showError: jest.Mock; showWarning: jest.Mock; showInfo: jest.Mock };
+  let ibgeStub: { getEstados: Mock; getMunicipios: Mock };
+  let regionFilterStub: { getUserRegion: Mock };
+  let inviteSearchStub: { searchEligibleUsers: Mock };
+  let inviteServiceStub: { createInvite: Mock };
+  let globalErrorHandlerMock: { handleError: Mock };
+  let errorNotifierMock: { showError: Mock; showWarning: Mock; showInfo: Mock };
 
   beforeEach(async () => {
     authUidSubject = new BehaviorSubject<string | null>('uid-123');

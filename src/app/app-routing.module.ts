@@ -10,6 +10,7 @@ import { adminCanMatch } from './core/guards/access-guard/admin.guard';
 import { ProfileListComponent } from './layout/profile-list/profile-list.component';
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { LayoutShellComponent } from './layout/layout-shell/layout-shell.component';
+import { accountLifecycleGuard } from './account/guards/account-lifecycle.guard';
 
 const routes: Routes = [
   {
@@ -111,19 +112,19 @@ const routes: Routes = [
       {
         path: 'dashboard',
         loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
-        canActivate: [authGuard],
+        canActivate: [authGuard, accountLifecycleGuard],
       },
 
       {
         path: 'perfil',
         loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule),
-        canActivate: [authGuard],
+        canActivate: [authGuard, accountLifecycleGuard],
       },
 
       {
         path: 'chat',
         loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule),
-        canActivate: [authGuard],
+        canActivate: [authGuard, accountLifecycleGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -134,7 +135,7 @@ const routes: Routes = [
         path: 'preferencias',
         loadChildren: () =>
           import('./preferences/preferences.routes').then(m => m.PREFERENCES_ROUTES),
-        canActivate: [authGuard],
+        canActivate: [authGuard, accountLifecycleGuard],
         data: {
           requireVerified: true,
         },
@@ -145,7 +146,7 @@ const routes: Routes = [
         loadChildren: () =>
           import('./layout/friend-management/friend-management.module')
             .then(m => m.FriendManagementModule),
-        canActivate: [authGuard],
+        canActivate: [authGuard, accountLifecycleGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -156,16 +157,19 @@ const routes: Routes = [
         path: 'admin-dashboard',
         loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule),
         canMatch: [adminCanMatch],
-        canActivate: [authGuard],
+        canActivate: [authGuard, accountLifecycleGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
         },
       },
+      // ===============================================================
+      // Assinaturas / checkout
+      // ===============================================================
       {
         path: 'subscription-plan',
         component: SubscriptionPlanComponent,
-        canActivate: [authGuard],
+        canActivate: [authGuard, accountLifecycleGuard],
         data: {
           requireVerified: true,
         },
@@ -176,12 +180,24 @@ const routes: Routes = [
           import('./subscriptions/checkout/checkout.component').then(
             (m) => m.CheckoutComponent
           ),
-        canActivate: [authGuard],
+        canActivate: [authGuard, accountLifecycleGuard],
         data: {
           requireVerified: true,
         },
       },
 
+      // ===============================================================
+      // Billing / retorno técnico de pagamento
+      // - público por natureza
+      // - não deve cair em guard antes de processar o callback
+      // ===============================================================
+      {
+        path: 'billing',
+        loadChildren: () =>
+          import('./payments-core/payments-core.routes').then(
+            (m) => m.PAYMENTS_CORE_ROUTES
+          ),
+      },
       {
         path: 'perfil-debug/:id',
         loadComponent: () =>
@@ -193,17 +209,13 @@ const routes: Routes = [
         path: 'conta',
         loadChildren: () =>
           import('./account/account.routes').then((m) => m.ACCOUNT_ROUTES),
-        canActivate: [authGuard],
-        data: {
-          requireVerified: true,
-        },
       },
 
       {
         path: 'media',
         loadChildren: () =>
           import('./media/media.routes').then(m => m.MEDIA_ROUTES),
-        canActivate: [authGuard],
+        canActivate: [authGuard, accountLifecycleGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,

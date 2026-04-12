@@ -1,0 +1,84 @@
+<!-- src/app/account/pages/account-status/account-status.component.html -->
+<main class="account-status-page app-page" aria-label="Status da conta">
+  <section class="account-status-shell ui-container">
+    @if (vm$ | async; as vm) {
+      <header class="account-status-hero">
+        <p class="account-status-hero__eyebrow">Estado da conta</p>
+        <h1>{{ vm.title }}</h1>
+        <p class="account-status-hero__subtitle">
+          {{ vm.description }}
+        </p>
+
+        <span class="account-status-badge">
+          {{ vm.badgeLabel }}
+        </span>
+      </header>
+
+      <section class="account-status-card">
+        @if (vm.suspensionReason) {
+          <article class="account-status-item">
+            <span class="label">Motivo</span>
+            <strong>{{ vm.suspensionReason }}</strong>
+          </article>
+        }
+
+        @if (vm.suspensionEndsAt) {
+          <article class="account-status-item">
+            <span class="label">Fim previsto</span>
+            <strong>{{ vm.suspensionEndsAt | date:'dd/MM/yyyy HH:mm' }}</strong>
+          </article>
+        }
+
+        @if (vm.deletionUndoUntil) {
+          <article class="account-status-item">
+            <span class="label">Prazo para arrependimento</span>
+            <strong>{{ vm.deletionUndoUntil | date:'dd/MM/yyyy HH:mm' }}</strong>
+          </article>
+        }
+
+        @if (vm.purgeAfter) {
+          <article class="account-status-item">
+            <span class="label">Expurgo previsto</span>
+            <strong>{{ vm.purgeAfter | date:'dd/MM/yyyy HH:mm' }}</strong>
+          </article>
+        }
+      </section>
+
+      <section class="account-status-actions" aria-label="Ações de status da conta">
+        @if (vm.canReactivateSelfSuspension) {
+        <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="isBusy()"
+            (click)="onReactivateSelfSuspension()"
+        >
+            {{ isReactivating() ? 'Reativando...' : 'Reativar conta' }}
+        </button>
+        }
+
+        @if (vm.canCancelDeletion) {
+        <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="isBusy()"
+            (click)="onCancelDeletion()"
+        >
+            {{ isCancelingDeletion() ? 'Cancelando...' : 'Cancelar exclusão' }}
+        </button>
+        }
+
+        @if (vm.canGoToAccountHome) {
+          <a class="btn btn-secondary" routerLink="/conta">
+            Voltar para minha conta
+          </a>
+        }
+
+        @if (!vm.isBlocked) {
+          <a class="btn btn-secondary" routerLink="/perfil">
+            Ir para meu perfil
+          </a>
+        }
+      </section>
+    }
+  </section>
+</main>

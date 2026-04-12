@@ -1,4 +1,5 @@
 //functions\src\payments\infrastructure\providers\asaas.provider.ts
+// Não esqueça os comentários explicativos e ferramentas de debug
 import {
   CreateCheckoutInput,
   CreateCheckoutResult,
@@ -12,15 +13,32 @@ export class AsaasPaymentProvider extends PaymentProviderPort {
   ): Promise<CreateCheckoutResult> {
     /**
      * Stub inicial.
+     *
+     * Nesta fase:
+     * - preservamos successUrl e cancelUrl já montadas pelo backend
+     * - não concatenamos query string manualmente
+     * - simulamos uma URL de checkout do provider apontando para o retorno de sucesso
+     *
      * Próxima etapa:
-     * - chamar API do Asaas no backend
+     * - chamar API real do Asaas
      * - criar cobrança/assinatura
-     * - devolver checkoutUrl real
+     * - devolver checkoutUrl real hospedada pelo provider
      */
+    const successUrl = new URL(input.successUrl);
+
+    // Garante mockProvider sem quebrar query string existente.
+    if (!successUrl.searchParams.has('mockProvider')) {
+      successUrl.searchParams.set('mockProvider', 'asaas');
+    }
+
+    if (!successUrl.searchParams.has('scope')) {
+      successUrl.searchParams.set('scope', input.scope);
+    }
+
     return {
       provider: 'asaas',
       providerSessionId: `stub_asaas_${Date.now()}`,
-      checkoutUrl: `${input.successUrl}?mockProvider=asaas&scope=${input.scope}`,
+      checkoutUrl: successUrl.toString(),
       expiresAt: null,
     };
   }

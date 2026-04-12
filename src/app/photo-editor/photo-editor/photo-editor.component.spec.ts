@@ -20,6 +20,7 @@ import {
   selectFileSuccess,
   selectFileDownloadUrl,
 } from '../../store/selectors/selectors.user/file.selectors';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('PhotoEditorComponent', () => {
   let fixture: ComponentFixture<PhotoEditorComponent>;
@@ -37,8 +38,8 @@ describe('PhotoEditorComponent', () => {
         {
           provide: NgbActiveModal,
           useValue: {
-            close: jasmine.createSpy('close'),
-            dismiss: jasmine.createSpy('dismiss'),
+            close: vi.fn(),
+            dismiss: vi.fn(),
           }
         },
         {
@@ -51,7 +52,7 @@ describe('PhotoEditorComponent', () => {
         {
           provide: StorageService,
           useValue: {
-            replaceFile: jasmine.createSpy('replaceFile').and.returnValue(
+            replaceFile: vi.fn()(
               of('https://example.com/file.jpg')
             )
           }
@@ -59,22 +60,22 @@ describe('PhotoEditorComponent', () => {
         {
           provide: PhotoFirestoreService,
           useValue: {
-            savePhotoMetadata: jasmine.createSpy('savePhotoMetadata').and.resolveTo(void 0),
-            saveImageState: jasmine.createSpy('saveImageState').and.resolveTo(void 0),
-            updatePhotoMetadata: jasmine.createSpy('updatePhotoMetadata').and.resolveTo(void 0),
+            savePhotoMetadata: vi.fn(),
+            saveImageState: vi.fn(),
+            updatePhotoMetadata: vi.fn(),
           }
         },
         {
           provide: GlobalErrorHandlerService,
           useValue: {
-            handleError: jasmine.createSpy('handleError')
+            handleError: vi.fn()
           }
         },
         {
           provide: ErrorNotificationService,
           useValue: {
-            showSuccess: jasmine.createSpy('showSuccess'),
-            showError: jasmine.createSpy('showError')
+            showSuccess: vi.fn(),
+            showError: vi.fn()
           }
         },
         provideMockStore({
@@ -115,7 +116,7 @@ describe('PhotoEditorComponent', () => {
   it('deve inicializar observables do store', (done) => {
     component.isLoading$.subscribe((value) => {
       expect(value).toBe(false);
-      done();
+      
     });
   });
 

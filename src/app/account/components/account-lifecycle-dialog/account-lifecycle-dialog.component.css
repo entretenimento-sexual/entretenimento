@@ -1,0 +1,146 @@
+/* src/app/account/components/account-lifecycle-dialog/account-lifecycle-dialog.component.css */
+
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+}
+
+.account-lifecycle-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.account-lifecycle-dialog {
+  width: min(100%, 560px);
+  display: grid;
+  gap: 1rem;
+  padding: 1.15rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 24px;
+  background: var(--surface-color);
+  color: var(--text-color);
+  box-shadow: var(--box-shadow);
+}
+
+.account-lifecycle-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.account-lifecycle-dialog__title-group {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.account-lifecycle-dialog__eyebrow,
+.account-lifecycle-dialog__label {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in oklab, var(--text-color) 64%, transparent);
+}
+
+.account-lifecycle-dialog__header h2 {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.15;
+  color: var(--text-color);
+}
+
+.account-lifecycle-dialog__close {
+  min-height: var(--tap-target);
+  padding: 0.7rem 0.9rem;
+  white-space: nowrap;
+}
+
+.account-lifecycle-dialog__content {
+  display: grid;
+  gap: 1rem;
+}
+
+.account-lifecycle-dialog__description {
+  margin: 0;
+  line-height: 1.55;
+  color: color-mix(in oklab, var(--text-color) 82%, transparent);
+}
+
+.account-lifecycle-dialog__field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.account-lifecycle-dialog__textarea {
+  min-height: 120px;
+  resize: vertical;
+  margin-bottom: 0;
+}
+
+.account-lifecycle-dialog__error {
+  margin: 0;
+  color: var(--danger-color);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.account-lifecycle-dialog__risk-box {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.95rem 1rem;
+  border: 1px solid color-mix(in oklab, var(--danger-color) 24%, var(--surface-border));
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--danger-color) 7%, transparent),
+      color-mix(in oklab, var(--surface-color) 98%, transparent)
+    );
+}
+
+.account-lifecycle-dialog__risk-box strong,
+.account-lifecycle-dialog__risk-box p {
+  margin: 0;
+  color: var(--text-color);
+}
+
+.account-lifecycle-dialog__risk-box p {
+  line-height: 1.5;
+  color: color-mix(in oklab, var(--text-color) 80%, transparent);
+}
+
+.account-lifecycle-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.account-lifecycle-dialog__actions .btn {
+  min-height: var(--tap-target);
+  padding: 0.85rem 1rem;
+}
+
+@media (max-width: 640px) {
+  .account-lifecycle-dialog {
+    padding: 1rem;
+    border-radius: 18px;
+  }
+
+  .account-lifecycle-dialog__header,
+  .account-lifecycle-dialog__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .account-lifecycle-dialog__actions .btn,
+  .account-lifecycle-dialog__close {
+    width: 100%;
+  }
+}

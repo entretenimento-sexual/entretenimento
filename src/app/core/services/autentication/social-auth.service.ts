@@ -1,5 +1,5 @@
 // src/app/core/services/autentication/social-auth.service.ts
-// =============================================================================
+// ==========================================================
 // SOCIAL AUTH SERVICE (Google Sign-In) — Auth + Firestore
 //
 // Responsabilidade deste service:
@@ -23,8 +23,14 @@
 // - Sessão continua sendo verdade do AuthSessionService
 // - Runtime de perfil continua sendo verdade do fluxo oficial do projeto
 // - Este service apenas autentica + persiste + devolve resultado
-// =============================================================================
-
+//
+// Ajuste desta versão:
+// - migra o fluxo para o novo lifecycle da conta
+// - conta suspensa ou em exclusão pendente pode autenticar
+// - nesses casos, a próxima rota correta passa a ser /conta/status
+// - apenas conta realmente "deleted" bloqueia o fluxo aqui
+// - usuário novo via Google nasce como FREE, não BASIC
+// ==============================================================
 import {
   EnvironmentInjector,
   Injectable,
@@ -34,6 +40,8 @@ import {
 import { Auth } from '@angular/fire/auth';
 import {
   GoogleAuthProvider,
+  browserLocalPersistence,
+  setPersistence,
   signInWithPopup,
   type User as FirebaseUser,
   type UserCredential,
@@ -67,7 +75,12 @@ import {
 // Tipos públicos de resultado
 // -----------------------------------------------------------------------------
 
-export type SocialAuthBlockReason = 'deleted' | 'suspended' | 'locked';
+/**
+ * Com o lifecycle novo, somente conta realmente excluída deve bloquear o login
+ * nesta camada. Suspensão e exclusão pendente autenticam e seguem para
+ * /conta/status.
+ */
+export type SocialAuthBlockReason = 'deleted';
 
 export type SocialAuthOutcome =
   | 'profile-ready'
@@ -79,6 +92,7 @@ export type SocialAuthOutcome =
 export type SocialAuthNextRoute =
   | '/dashboard/principal'
   | '/register/finalizar-cadastro'
+  | '/conta/status'
   | '/login';
 
 export interface SocialAuthResult {
@@ -95,13 +109,6 @@ export interface SocialAuthResult {
 
 // -----------------------------------------------------------------------------
 // Documento real de users/{uid}
-// - Mantido amplo o suficiente para evolução futura
-// - Sem misturar responsabilidade de runtime/cache aqui
-//
-// IMPORTANTE:
-// - photoURL aqui fica alinhado ao contrato de IUserRegistrationData:
-//   string | undefined
-// - null só deve existir no mapper de saída para IUserDados, se necessário
 // -----------------------------------------------------------------------------
 
 type SocialAuthUserDoc = IUserRegistrationData & {
@@ -131,10 +138,30 @@ type SocialAuthUserDoc = IUserRegistrationData & {
   roles?: string[];
   permissions?: string[];
   entitlements?: string[];
-  accountStatus?: AccountStatus;
+  accountStatus?: AccountStatus | string;
 
+  /**
+   * Campos legados ainda aceitos na leitura, para compatibilidade durante a
+   * migração do banco e dos fluxos antigos.
+   */
   suspended?: boolean;
   accountLocked?: boolean;
+
+  /**
+   * Campos do lifecycle novo.
+   */
+  publicVisibility?: 'visible' | 'hidden';
+  interactionBlocked?: boolean;
+  loginAllowed?: boolean;
+
+  suspensionReason?: string | null;
+  suspensionSource?: 'self' | 'moderator' | null;
+  suspensionEndsAt?: number | null;
+
+  deletionRequestedAt?: number | null;
+  deletionRequestedBy?: 'self' | 'moderator' | null;
+  deletionUndoUntil?: number | null;
+  purgeAfter?: number | null;
 
   authProviders?: string[];
   lastProvider?: string;
@@ -152,26 +179,29 @@ export class SocialAuthService {
     private readonly envInjector: EnvironmentInjector
   ) {}
 
-  // ===========================================================================
+  // ==============================================================
   // API pública
-  // ===========================================================================
+  // ==============================================================
 
-  /**
-   * Fluxo principal de login com Google.
-   *
-   * Saída:
-   * - devolve um resultado estruturado
-   * - NÃO navega
-   * - NÃO atualiza store/cache manualmente
-   */
-  googleLogin(): Observable<SocialAuthResult> {
-    const provider = this.buildGoogleProvider();
+  private ensurePersistentAuth$(): Observable<void> {
+  return defer(() =>
+    runInInjectionContext(this.envInjector, () =>
+      setPersistence(this.auth, browserLocalPersistence)
+    )
+  ).pipe(
+    map(() => void 0)
+  );
+}
 
-    return this.signInWithPopupInCtx$(provider).pipe(
-      switchMap((credential) => this.bootstrapUserAfterAuth$(credential)),
-      catchError((err) => of(this.handleGoogleLoginError(err)))
-    );
-  }
+    googleLogin(): Observable<SocialAuthResult> {
+      const provider = this.buildGoogleProvider();
+
+      return this.ensurePersistentAuth$().pipe(
+        switchMap(() => this.signInWithPopupInCtx$(provider)),
+        switchMap((credential) => this.bootstrapUserAfterAuth$(credential)),
+        catchError((err) => of(this.handleGoogleLoginError(err)))
+      );
+    }
 
   // ===========================================================================
   // Auth popup
@@ -179,13 +209,7 @@ export class SocialAuthService {
 
   private buildGoogleProvider(): GoogleAuthProvider {
     const provider = new GoogleAuthProvider();
-
-    /**
-     * UX mais previsível:
-     * - força escolha explícita de conta
-     */
     provider.setCustomParameters({ prompt: 'select_account' });
-
     return provider;
   }
 
@@ -224,10 +248,6 @@ export class SocialAuthService {
 
     const nowMs = Date.now();
 
-    /**
-     * Server-first:
-     * - evita cache stale no momento do login
-     */
     return this.read
       .getDocument<SocialAuthUserDoc>('users', authUser.uid, { source: 'server' })
       .pipe(
@@ -268,10 +288,6 @@ export class SocialAuthService {
 
     return this.write
       .setDocument('users', authUser.uid, payload, {
-        /**
-         * merge=true deixa o fluxo idempotente e mais tolerante a retry,
-         * sem exigir sobrescrita cega.
-         */
         merge: true,
         context: 'SocialAuthService.handleNewUserLogin',
       })
@@ -317,7 +333,7 @@ export class SocialAuthService {
   ): SocialAuthUserDoc {
     const acl: IUserAccessControl = {
       ...DEFAULT_ACCESS_CONTROL,
-      tier: 'basic',
+      tier: 'free',
     };
 
     const providerIds = this.extractProviderIds(authUser);
@@ -333,10 +349,10 @@ export class SocialAuthService {
       profileCompleted: false,
 
       /**
-       * Mantido porque o contrato atual do app ainda consome role.
-       * O canônico futuro é tier.
+       * Novo usuário via Google deve nascer FREE.
+       * Isso evita contaminar a UI de assinatura com "basic" sem pagamento.
        */
-      role: 'basic',
+      role: 'free',
       tier: acl.tier,
 
       firstLogin: nowMs,
@@ -357,6 +373,10 @@ export class SocialAuthService {
 
       suspended: false,
       accountLocked: false,
+
+      publicVisibility: acl.publicVisibility ?? 'visible',
+      interactionBlocked: acl.interactionBlocked ?? false,
+      loginAllowed: acl.loginAllowed ?? true,
 
       authProviders: providerIds,
       lastProvider: 'google.com',
@@ -384,22 +404,24 @@ export class SocialAuthService {
       );
     }
 
-    if (status === 'suspended') {
-      return of(
-        this.makeBlockedResult({
-          reason: 'suspended',
-          user: this.mapToUserDados(existing, nowMs),
-          message: 'Sua conta está suspensa temporariamente.',
-        })
-      );
-    }
+    if (
+      status === 'self_suspended' ||
+      status === 'moderation_suspended' ||
+      status === 'pending_deletion'
+    ) {
+      const user = this.mapToUserDados(existing, nowMs);
 
-    if (status === 'locked') {
       return of(
-        this.makeBlockedResult({
-          reason: 'locked',
-          user: this.mapToUserDados(existing, nowMs),
-          message: 'Sua conta está bloqueada temporariamente.',
+        this.makeSuccessResult({
+          outcome: 'profile-ready',
+          isNewUser: false,
+          emailVerified: !!authUser.emailVerified,
+          user,
+          nextRoute: '/conta/status',
+          message:
+            status === 'pending_deletion'
+              ? 'Sua conta está em processo de exclusão. Revise o status da conta.'
+              : 'Sua conta está com acesso restrito. Revise o status da conta.',
         })
       );
     }
@@ -458,8 +480,9 @@ export class SocialAuthService {
     authUser: FirebaseUser,
     nowMs: number
   ): Partial<SocialAuthUserDoc> {
-    const tier = this.normalizeTier(existing.tier ?? existing.role ?? 'basic');
+    const tier = this.normalizeTier(existing.tier ?? existing.role ?? 'free');
     const providerIds = this.mergeProviderIds(existing.authProviders, authUser);
+    const accountStatus = this.resolveAccountStatus(existing);
 
     return {
       lastLogin: nowMs,
@@ -470,10 +493,6 @@ export class SocialAuthService {
         this.normalizePhotoUrl(authUser.photoURL) ??
         this.normalizePhotoUrl(existing.photoURL),
 
-      /**
-       * Mantido para o contrato atual do projeto.
-       * Quando o app migrar totalmente para tier, esse espelho pode sair.
-       */
       role: this.normalizeRole(existing.role ?? tier),
       tier,
 
@@ -490,7 +509,7 @@ export class SocialAuthService {
         ? existing.entitlements
         : [],
 
-      accountStatus: this.resolveAccountStatus(existing),
+      accountStatus,
       authProviders: providerIds,
       lastProvider: 'google.com',
     };
@@ -512,11 +531,21 @@ export class SocialAuthService {
     const raw = String(user.accountStatus ?? '').trim().toLowerCase();
 
     if (raw === 'deleted') return 'deleted';
-    if (raw === 'suspended') return 'suspended';
-    if (raw === 'locked') return 'locked';
+    if (raw === 'pending_deletion') return 'pending_deletion';
+    if (raw === 'self_suspended') return 'self_suspended';
+    if (raw === 'moderation_suspended') return 'moderation_suspended';
 
-    if (user.suspended === true) return 'suspended';
-    if (user.accountLocked === true) return 'locked';
+    /**
+     * Compatibilidade com valores legados ainda existentes no banco.
+     */
+    if (raw === 'suspended') return 'moderation_suspended';
+    if (raw === 'locked') return 'moderation_suspended';
+
+    /**
+     * Compatibilidade com flags antigas.
+     */
+    if (user.accountLocked === true) return 'moderation_suspended';
+    if (user.suspended === true) return 'moderation_suspended';
 
     return 'active';
   }
@@ -527,7 +556,7 @@ export class SocialAuthService {
       value === 'premium' ||
       value === 'vip'
       ? value
-      : 'basic';
+      : 'free';
   }
 
   private normalizeRole(value: unknown): IUserDados['role'] {
@@ -537,16 +566,9 @@ export class SocialAuthService {
       value === 'premium' ||
       value === 'vip'
       ? value
-      : 'basic';
+      : 'free';
   }
 
-  /**
-   * Normaliza photoURL para o boundary do Firestore.
-   *
-   * Regra:
-   * - documento usa string | undefined
-   * - null não entra no payload persistido
-   */
   private normalizePhotoUrl(value: string | null | undefined): string | undefined {
     const clean = (value ?? '').trim();
     return clean ? clean : undefined;
@@ -583,7 +605,8 @@ export class SocialAuthService {
     doc: Partial<SocialAuthUserDoc>,
     nowMs: number
   ): IUserDados {
-    const tier = this.normalizeTier(doc.tier ?? doc.role ?? 'basic');
+    const tier = this.normalizeTier(doc.tier ?? doc.role ?? 'free');
+    const accountStatus = this.resolveAccountStatus(doc);
 
     return {
       uid: doc.uid ?? '',
@@ -594,6 +617,7 @@ export class SocialAuthService {
       photoURL: this.normalizePhotoUrl(doc.photoURL) ?? null,
 
       role: this.normalizeRole(doc.role ?? tier),
+      tier,
       isSubscriber: !!doc.isSubscriber,
 
       descricao: (doc as any)?.descricao ?? '',
@@ -604,7 +628,29 @@ export class SocialAuthService {
 
       acceptedTerms: (doc as any)?.acceptedTerms,
       profileCompleted: !!doc.profileCompleted,
-      suspended: this.resolveAccountStatus(doc) === 'suspended',
+
+      accountStatus,
+      publicVisibility: doc.publicVisibility,
+      interactionBlocked: doc.interactionBlocked,
+      loginAllowed: doc.loginAllowed,
+
+      suspensionReason: doc.suspensionReason ?? null,
+      suspensionSource: doc.suspensionSource ?? null,
+      suspensionEndsAt: doc.suspensionEndsAt ?? null,
+
+      deletionRequestedAt: doc.deletionRequestedAt ?? null,
+      deletionRequestedBy: doc.deletionRequestedBy ?? null,
+      deletionUndoUntil: doc.deletionUndoUntil ?? null,
+      purgeAfter: doc.purgeAfter ?? null,
+
+      /**
+       * Compatibilidade legada.
+       */
+      suspended:
+        accountStatus === 'self_suspended' ||
+        accountStatus === 'moderation_suspended',
+
+      accountLocked: doc.accountLocked === true,
     } as IUserDados;
   }
 
@@ -685,13 +731,6 @@ export class SocialAuthService {
   private handleGoogleLoginError(err: unknown): SocialAuthResult {
     const code = String((err as any)?.code ?? '');
 
-    /**
-     * Casos esperados:
-     * - usuário fechou popup
-     * - popup cancelado por novo popup
-     *
-     * Isso não precisa ser erro "grave".
-     */
     if (
       code === 'auth/popup-closed-by-user' ||
       code === 'auth/cancelled-popup-request'

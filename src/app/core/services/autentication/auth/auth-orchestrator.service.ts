@@ -25,10 +25,9 @@
 // - Aqui ficam apenas side-effects de ciclo de vida.
 // - O contexto de rota entra como snapshot atômico via routeContext.context$.
 // =============================================================================
-
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
-
+import { CurrentUserStoreService } from './current-user-store.service';
 import { combineLatest, firstValueFrom, of, Subscription } from 'rxjs';
 import {
   catchError,
@@ -64,6 +63,13 @@ import {
 } from './auth.types';
 import { UserRepositoryService } from '../../data-handling/firestore/repositories/user-repository.service';
 
+type OrchestratorLifecycleStatus =
+  | 'active'
+  | 'self_suspended'
+  | 'moderation_suspended'
+  | 'pending_deletion'
+  | 'deleted';
+
 type OrchestratorContext = {
   ready: boolean;
   routerReady: boolean;
@@ -74,6 +80,9 @@ type OrchestratorContext = {
   inReg: boolean;
   unverified: boolean;
   blockedReason: TerminateReason | null;
+
+  accountStatus: OrchestratorLifecycleStatus;
+  lifecycleBlocked: boolean;
 };
 
 @Injectable({ providedIn: 'root' })
@@ -117,6 +126,7 @@ export class AuthOrchestratorService {
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly appBlock: AuthAppBlockService,
+    private readonly currentUserStore: CurrentUserStoreService,
   ) {}
 
   private dbg(message: string, extra?: unknown): void {
@@ -125,6 +135,32 @@ export class AuthOrchestratorService {
     console.log(`[AuthOrchestrator] ${message}`, extra ?? '');
   }
 
+  private normalizeAccountStatus(user: any): OrchestratorLifecycleStatus {
+  const raw = String(user?.accountStatus ?? '').trim().toLowerCase();
+
+  if (raw === 'active') return 'active';
+  if (raw === 'self_suspended') return 'self_suspended';
+  if (raw === 'moderation_suspended') return 'moderation_suspended';
+  if (raw === 'pending_deletion') return 'pending_deletion';
+  if (raw === 'deleted') return 'deleted';
+
+  if (user?.suspended === true) {
+    return user?.suspensionSource === 'self'
+      ? 'self_suspended'
+      : 'moderation_suspended';
+  }
+
+  return 'active';
+}
+
+private navigateToAccountStatus(replaceUrl = true): void {
+  const target = '/conta/status';
+
+  if ((this.router.url || '').startsWith(target)) return;
+
+  this.router.navigate([target], { replaceUrl }).catch(() => {});
+}
+
   /**
    * Liga o orquestrador uma única vez.
    */
@@ -132,30 +168,34 @@ export class AuthOrchestratorService {
     if (this.started) return;
     this.started = true;
 
-    combineLatest([
-      this.authSession.ready$,
-      this.authSession.authUser$,
-      this.appBlock.reason$,
-      this.routeContext.context$,
-    ])
+      combineLatest([
+        this.authSession.ready$,
+        this.authSession.authUser$,
+        this.appBlock.reason$,
+        this.routeContext.context$,
+        this.currentUserStore.user$,
+      ])
       .pipe(
         filter(() => typeof window !== 'undefined' && typeof document !== 'undefined'),
 
-        map(([ready, authUser, blockedReason, routeCtx]): OrchestratorContext => {
-          const uid = authUser?.uid ?? null;
+      map(([ready, authUser, blockedReason, routeCtx, appUser]): OrchestratorContext => {
+        const uid = authUser?.uid ?? null;
+        const accountStatus = this.normalizeAccountStatus(appUser);
 
-          return {
-            ready,
-            routerReady: routeCtx.routerReady,
-            authUser,
-            uid,
-            url: routeCtx.currentUrl,
-            navPath: routeCtx.navPath,
-            inReg: routeCtx.inRegistrationFlow,
-            unverified: authUser ? authUser.emailVerified !== true : false,
-            blockedReason,
-          };
-        }),
+        return {
+          ready,
+          routerReady: routeCtx.routerReady,
+          authUser,
+          uid,
+          url: routeCtx.currentUrl,
+          navPath: routeCtx.navPath,
+          inReg: routeCtx.inRegistrationFlow,
+          unverified: authUser ? authUser.emailVerified !== true : false,
+          blockedReason,
+          accountStatus,
+          lifecycleBlocked: accountStatus !== 'active',
+        };
+      }),
 
         distinctUntilChanged((prev, curr) => this.isSameContext(prev, curr)),
 
@@ -169,6 +209,8 @@ export class AuthOrchestratorService {
             inReg: ctx.inReg,
             unverified: ctx.unverified,
             blockedReason: ctx.blockedReason,
+            accountStatus: ctx.accountStatus,
+            lifecycleBlocked: ctx.lifecycleBlocked,
           });
         }),
 
@@ -187,6 +229,16 @@ export class AuthOrchestratorService {
           }
 
           this.refreshGraceWindow(ctx.authUser);
+
+          if (ctx.lifecycleBlocked) {
+            this.stopRuntimeSideEffects();
+
+            if (!ctx.inReg) {
+              this.navigateToAccountStatus(true);
+            }
+
+            return of(null);
+          }
 
           if (ctx.blockedReason) {
             this.stopRuntimeSideEffects();
@@ -229,6 +281,8 @@ export class AuthOrchestratorService {
 
     if (prev.uid !== curr.uid) return false;
     if (prev.blockedReason !== curr.blockedReason) return false;
+    if (prev.accountStatus !== curr.accountStatus) return false;
+    if (prev.lifecycleBlocked !== curr.lifecycleBlocked) return false;
 
     if (!curr.uid) return true;
 
@@ -248,9 +302,16 @@ export class AuthOrchestratorService {
    * - email já está verificado
    * - app não está bloqueado
    */
-  private shouldRunAppMode(ctx: OrchestratorContext): boolean {
-    return !!ctx.uid && !!ctx.authUser && !ctx.inReg && !ctx.unverified && !ctx.blockedReason;
-  }
+    private shouldRunAppMode(ctx: OrchestratorContext): boolean {
+      return (
+        !!ctx.uid &&
+        !!ctx.authUser &&
+        !ctx.inReg &&
+        !ctx.unverified &&
+        !ctx.blockedReason &&
+        !ctx.lifecycleBlocked
+      );
+    }
 
   /**
    * Sincroniza toda a infraestrutura que só deve existir em "app-mode".
@@ -283,6 +344,8 @@ export class AuthOrchestratorService {
       inReg: ctx.inReg,
       unverified: ctx.unverified,
       blockedReason: ctx.blockedReason,
+      accountStatus: ctx.accountStatus,
+      lifecycleBlocked: ctx.lifecycleBlocked,
     });
   }
 
@@ -584,16 +647,6 @@ export class AuthOrchestratorService {
         return;
       }
 
-      case 'suspended': {
-        if (this.voluntaryLogoutOnly) {
-          this.blockAppSession('suspended');
-          return;
-        }
-
-        this.hardSignOutToEntry('suspended');
-        return;
-      }
-
       case 'deleted': {
         if (event.source === 'deleted-flag') {
           this.confirmAndSignOutIfMissing(event.uid, 'deleted').catch((err) => {
@@ -692,4 +745,4 @@ export class AuthOrchestratorService {
       this.terminating = false;
     }
   }
-}// Linha 695, fim do auth-orchestrator.service.ts
+}// Linha 758, fim do gigantesco auth-orchestrator.service.ts

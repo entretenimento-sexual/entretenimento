@@ -1,87 +1,90 @@
 <!-- src\app\subscriptions\checkout\checkout.component.html -->
-@if (shouldShowCheckoutWarning$ | async; as shouldShowCheckoutWarning) {
-  <section class="checkout-page ui-container" *ngIf="plan$ | async as plan; else invalidPlan">
-    <header class="checkout-header">
-      <p class="checkout-kicker">Resumo da contratação</p>
-      <h1>{{ plan.title }}</h1>
-      <p class="checkout-description">{{ plan.description }}</p>
-    </header>
+ <!--  O layout ideal deve ser "Dark Mode", clean, focado em dispositivos móveis e extremamente direto. 
+ Imagine uma estrutura de vitrine infinita (estilo Netflix ou Instagram), 
+ onde o conteúdo visual domina a tela. -->
+<!-- src/app/subscriptions/checkout/checkout.component.html -->
+<section class="checkout-page ui-container">
+  @if (vm$ | async; as vm) {
+    @if (vm.plan; as plan) {
+      <header class="checkout-header">
+        <p class="checkout-kicker">Resumo da contratação</p>
+        <h1>{{ plan.title }}</h1>
+        <p class="checkout-description">{{ plan.description }}</p>
+      </header>
 
-    @if (shouldShowCheckoutWarning) {
-      <section
-        class="alert alert-warning checkout-warning-card"
-        aria-labelledby="checkout-warning-title"
-        aria-describedby="checkout-warning-description"
-      >
-        <h2 id="checkout-warning-title">Importante antes de concluir</h2>
-
-        <p id="checkout-warning-description">
-          A assinatura ativa os benefícios premium da sua conta, mas não remove automaticamente as limitações de um perfil incompleto.
-        </p>
-
-        <ul class="checkout-warning-card__list">
-          <li *ngFor="let item of checkoutWarningItems">
-            {{ item }}
-          </li>
-        </ul>
-
-        <label class="checkout-warning-card__ack" for="checkout-acknowledgement">
-          <input
-            id="checkout-acknowledgement"
-            type="checkbox"
-            [checked]="checkoutAcknowledged"
-            (change)="onAcknowledgementChange($event)"
-          />
-          <span>
-            Li e entendi que a assinatura ativa os benefícios premium da conta, mas algumas funções podem continuar limitadas enquanto meu perfil estiver incompleto.
-          </span>
-        </label>
-      </section>
-    }
-
-    <article class="checkout-card">
-      <div class="checkout-price-block">
-        <span class="checkout-price-label">Valor</span>
-        <strong class="checkout-price">
-          {{ (plan.amountCents / 100) | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
-          <span *ngIf="plan.interval === 'month'">/mês</span>
-        </strong>
-      </div>
-
-      <div class="checkout-meta">
-        <p><strong>Plano:</strong> {{ plan.key }}</p>
-        <p><strong>Escopo:</strong> {{ plan.scope }}</p>
-        <p><strong>Status:</strong> {{ plan.active ? 'Ativo' : 'Inativo' }}</p>
-      </div>
-
-      <div class="checkout-actions">
-        <button type="button" class="btn btn-secondary" (click)="back()">
-          Voltar aos planos
-        </button>
-
-        <button
-          type="button"
-          class="btn btn-primary"
-          (click)="continue(shouldShowCheckoutWarning)"
+      @if (vm.shouldShowCheckoutWarning) {
+        <section
+          class="alert alert-warning checkout-warning-card"
+          aria-labelledby="checkout-warning-title"
+          aria-describedby="checkout-warning-description"
         >
-          Continuar para pagamento
-        </button>
-      </div>
-    </article>
-  </section>
-}
+          <h2 id="checkout-warning-title">Importante antes de concluir</h2>
 
-<ng-template #invalidPlan>
-  <section class="checkout-page ui-container">
-    <article class="checkout-card">
-      <h1>Plano inválido</h1>
-      <p>O plano informado não existe ou não está disponível.</p>
+          <p id="checkout-warning-description">
+            A assinatura ativa os benefícios premium da sua conta, mas não remove automaticamente as limitações de um perfil incompleto.
+          </p>
 
-      <div class="checkout-actions">
-        <button type="button" class="btn btn-primary" (click)="back()">
-          Voltar aos planos
-        </button>
-      </div>
-    </article>
-  </section>
-</ng-template>
+          <ul class="checkout-warning-card__list">
+            <li *ngFor="let item of checkoutWarningItems">
+              {{ item }}
+            </li>
+          </ul>
+
+          <label class="checkout-warning-card__ack" for="checkout-acknowledgement">
+            <input
+              id="checkout-acknowledgement"
+              type="checkbox"
+              [checked]="checkoutAcknowledged"
+              (change)="onAcknowledgementChange($event)"
+            />
+            <span>
+              Li e entendi que a assinatura ativa os benefícios premium da conta, mas algumas funções podem continuar limitadas enquanto meu perfil estiver incompleto.
+            </span>
+          </label>
+        </section>
+      }
+
+      <article class="checkout-card">
+        <div class="checkout-price-block">
+          <span class="checkout-price-label">Valor</span>
+          <strong class="checkout-price">
+            {{ (plan.amountCents / 100) | currency:'BRL':'symbol':'1.2-2':'pt-BR' }}
+            <span *ngIf="plan.interval === 'month'">/mês</span>
+          </strong>
+        </div>
+
+        <div class="checkout-meta">
+          <p><strong>Plano:</strong> {{ plan.key }}</p>
+          <p><strong>Escopo:</strong> {{ plan.scope }}</p>
+          <p><strong>Status:</strong> {{ plan.active ? 'Ativo' : 'Inativo' }}</p>
+        </div>
+
+        <div class="checkout-actions">
+          <button type="button" class="btn btn-secondary" (click)="back()">
+            Voltar aos planos
+          </button>
+
+      <button
+            type="button"
+            class="btn btn-primary"
+            [disabled]="isStartingCheckout"
+            (click)="continue(vm.shouldShowCheckoutWarning)"
+            >
+            {{ isStartingCheckout ? 'Preparando pagamento...' : 'Continuar para pagamento' }}
+      </button>
+        </div>
+      </article>
+    } @else {
+      <article class="checkout-card">
+        <h1>Plano inválido</h1>
+        <p>O plano informado não existe ou não está disponível.</p>
+
+        <div class="checkout-actions">
+          <button type="button" class="btn btn-primary" (click)="back()">
+            Voltar aos planos
+          </button>
+        </div>
+      </article>
+    }
+  }
+</section>

@@ -14,6 +14,7 @@ import { NearbyProfilesService } from '../../../core/services/geolocation/near-p
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
 import { IUserDados } from '../../../core/interfaces/iuser-dados';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 describe('NearbyProfilesEffects', () => {
   let actions$: ReplaySubject<Action>;
@@ -21,9 +22,17 @@ describe('NearbyProfilesEffects', () => {
   let store: MockStore;
 
   // stubs / spies
-  let svc: jasmine.SpyObj<NearbyProfilesService>;
-  let notify: jasmine.SpyObj<ErrorNotificationService>;
-  let globalErr: jasmine.SpyObj<GlobalErrorHandlerService>;
+let svc: {
+  getProfilesNearLocation: Mock;
+};
+
+let notify: {
+  showError: Mock;
+};
+
+let globalErr: {
+  handleError: Mock;
+};
 
   // params base
   const uid = 'u-1';
@@ -40,9 +49,17 @@ describe('NearbyProfilesEffects', () => {
   beforeEach(() => {
     actions$ = new ReplaySubject<Action>(1);
 
-    svc = jasmine.createSpyObj('NearbyProfilesService', ['getProfilesNearLocation']);
-    notify = jasmine.createSpyObj('ErrorNotificationService', ['showError']);
-    globalErr = jasmine.createSpyObj('GlobalErrorHandlerService', ['handleError']);
+   svc = {
+  getProfilesNearLocation: vi.fn(),
+};
+
+notify = {
+  showError: vi.fn(),
+};
+
+globalErr = {
+  handleError: vi.fn(),
+};
 
     TestBed.configureTestingModule({
       providers: [
@@ -97,13 +114,14 @@ describe('NearbyProfilesEffects', () => {
     store.overrideSelector(freshSel, false);
     store.overrideSelector(entrySel, { list: [], loading: false, error: null, updatedAt: 0 });
 
-    svc.getProfilesNearLocation.and.resolveTo(fetched);
+    svc.getProfilesNearLocation.mockResolvedValue(fetched);
 
     actions$.next(NearbyProfilesActions.load({ params }));
 
     const emitted = await firstValueFrom(effects.load$);
 
-    expect(svc.getProfilesNearLocation).toHaveBeenCalledOnceWith(lat, lon, radiusKm, uid);
+    expect(svc.getProfilesNearLocation).toHaveBeenCalledOnce();
+expect(svc.getProfilesNearLocation).toHaveBeenCalledWith(lat, lon, radiusKm, uid);
     expect(emitted).toEqual(
       NearbyProfilesActions.loaded({
         key,
@@ -118,7 +136,7 @@ describe('NearbyProfilesEffects', () => {
     store.overrideSelector(entrySel, { list: [], loading: false, error: null, updatedAt: 0 });
 
     const boom = new Error('network');
-    svc.getProfilesNearLocation.and.rejectWith(boom);
+    svc.getProfilesNearLocation.mockRejectedValue(boom);
 
     actions$.next(NearbyProfilesActions.load({ params }));
 

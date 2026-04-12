@@ -1,5 +1,6 @@
 //functions\src\payments\application\create-platform-checkout-session.handler.ts
-import * as admin from 'firebase-admin';
+// Não esqueça os comentários explicativos
+import { db } from '../../firebaseApp';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { AsaasPaymentProvider } from '../infrastructure/providers/asaas.provider';
 
@@ -58,6 +59,26 @@ const PLATFORM_PLANS: Record<PlatformPlanKey, BillingPlan> = {
   },
 };
 
+function buildReturnUrl(params: {
+  appBaseUrl: string;
+  billing: 'success' | 'cancel';
+  scope: 'platform_subscription';
+  checkoutSessionId: string;
+  provider?: string;
+}): string {
+  const url = new URL('/billing/return', params.appBaseUrl);
+
+  url.searchParams.set('billing', params.billing);
+  url.searchParams.set('scope', params.scope);
+  url.searchParams.set('checkoutSessionId', params.checkoutSessionId);
+
+  if (params.provider) {
+    url.searchParams.set('mockProvider', params.provider);
+  }
+
+  return url.toString();
+}
+
 export const createPlatformCheckoutSession =
   onCall<CreatePlatformCheckoutSessionRequest>(async (request) => {
     const buyerUid = request.auth?.uid ?? null;
@@ -75,32 +96,25 @@ export const createPlatformCheckoutSession =
     }
 
     const plan = PLATFORM_PLANS[planKey];
+
+    if (request.data?.planId && request.data.planId !== plan.id) {
+      throw new HttpsError(
+        'invalid-argument',
+        'planId incompatível com o planKey informado.'
+      );
+    }
+
     const provider = new AsaasPaymentProvider();
 
     const appBaseUrl =
       process.env.APP_BASE_URL?.trim() ||
       'http://localhost:4200';
 
-    const checkout = await provider.createCheckoutSession({
-      buyerUid,
-      scope: 'platform_subscription',
-      planId: plan.id,
-      planKey: plan.key,
-      amountCents: plan.amountCents,
-      currency: 'BRL',
-      successUrl: `${appBaseUrl}/conta?billing=success`,
-      cancelUrl: `${appBaseUrl}/subscription-plan?billing=cancel`,
-      metadata: {
-        scope: 'platform_subscription',
-        buyerUid,
-        planId: plan.id,
-        planKey: plan.key,
-      },
-    });
-
     const now = Date.now();
-    const ref = admin.firestore().collection('checkout_sessions').doc();
+    const ref = db.collection('checkout_sessions').doc();
 
+    // Criamos a sessão local ANTES de chamar o provider
+    // para já ter checkoutSessionId canônico no retorno.
     await ref.set({
       id: ref.id,
       buyerUid,
@@ -109,19 +123,88 @@ export const createPlatformCheckoutSession =
       planKey: plan.key,
       amountCents: plan.amountCents,
       currency: plan.currency,
-      provider: checkout.provider,
-      providerSessionId: checkout.providerSessionId,
-      checkoutUrl: checkout.checkoutUrl,
-      status: 'provider_created',
+      provider: 'asaas',
+      providerSessionId: null,
+      checkoutUrl: null,
+      status: 'pending',
       metadata: {
         scope: 'platform_subscription',
         buyerUid,
         planId: plan.id,
         planKey: plan.key,
+        checkoutSessionId: ref.id,
       },
       createdAt: now,
       updatedAt: now,
     });
 
-    return checkout;
+    try {
+      const checkout = await provider.createCheckoutSession({
+        buyerUid,
+        scope: 'platform_subscription',
+        planId: plan.id,
+        planKey: plan.key,
+        amountCents: plan.amountCents,
+        currency: 'BRL',
+        successUrl: buildReturnUrl({
+          appBaseUrl,
+          billing: 'success',
+          scope: 'platform_subscription',
+          checkoutSessionId: ref.id,
+          provider: 'asaas',
+        }),
+        cancelUrl: buildReturnUrl({
+          appBaseUrl,
+          billing: 'cancel',
+          scope: 'platform_subscription',
+          checkoutSessionId: ref.id,
+          provider: 'asaas',
+        }),
+        metadata: {
+          scope: 'platform_subscription',
+          buyerUid,
+          planId: plan.id,
+          planKey: plan.key,
+          checkoutSessionId: ref.id,
+        },
+      });
+
+      await ref.set(
+        {
+          provider: checkout.provider,
+          providerSessionId: checkout.providerSessionId,
+          checkoutUrl: checkout.checkoutUrl,
+          status: 'provider_created',
+          updatedAt: Date.now(),
+        },
+        { merge: true }
+      );
+
+      return {
+        ...checkout,
+        checkoutSessionId: ref.id,
+      };
+    } catch (error) {
+      await ref.set(
+        {
+          status: 'failed',
+          updatedAt: Date.now(),
+          metadata: {
+            scope: 'platform_subscription',
+            buyerUid,
+            planId: plan.id,
+            planKey: plan.key,
+            checkoutSessionId: ref.id,
+            errorMessage:
+              error instanceof Error ? error.message : String(error),
+          },
+        },
+        { merge: true }
+      );
+
+      throw new HttpsError(
+        'internal',
+        'Não foi possível criar a sessão de checkout.'
+      );
+    }
   });

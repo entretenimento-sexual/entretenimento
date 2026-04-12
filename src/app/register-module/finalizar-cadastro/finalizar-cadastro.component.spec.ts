@@ -16,6 +16,7 @@ import { CurrentUserStoreService } from '../../core/services/autentication/auth/
 import { StorageService } from '../../core/services/image-handling/storage.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('FinalizarCadastroComponent', () => {
   let fixture: ComponentFixture<FinalizarCadastroComponent>;
@@ -76,7 +77,7 @@ describe('FinalizarCadastroComponent', () => {
               nickname: 'tester',
             }),
             getLoggedUserUID$: () => of('u1'),
-            set: jasmine.createSpy('set'),
+            set: vi.fn(),
           },
         },
         {
@@ -88,16 +89,16 @@ describe('FinalizarCadastroComponent', () => {
         {
           provide: GlobalErrorHandlerService,
           useValue: {
-            handleError: jasmine.createSpy('handleError'),
+            handleError: vi.fn(),
           },
         },
         {
           provide: ErrorNotificationService,
           useValue: {
-            showError: jasmine.createSpy('showError'),
-            showSuccess: jasmine.createSpy('showSuccess'),
-            showWarning: jasmine.createSpy('showWarning'),
-            showInfo: jasmine.createSpy('showInfo'),
+            showError: vi.fn(),
+            showSuccess: vi.fn(),
+            showWarning: vi.fn(),
+            showInfo: vi.fn(),
           },
         },
       ],

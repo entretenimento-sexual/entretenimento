@@ -93,22 +93,43 @@ export class UserEffects {
     });
   }
 
-  private areUsersEquivalent(
-  current: IUserDados | null | undefined,
-  incoming: IUserDados | null | undefined
-): boolean {
-  if (current === incoming) return true;
-  if (!current || !incoming) return false;
+    private areUsersEquivalent(
+      current: IUserDados | null | undefined,
+      incoming: IUserDados | null | undefined
+    ): boolean {
+      if (current === incoming) return true;
+      if (!current && !incoming) return true;
+      if (!current || !incoming) return false;
 
-  return (
-    current.uid === incoming.uid &&
-    current.nickname === incoming.nickname &&
-    current.email === incoming.email &&
-    current.emailVerified === incoming.emailVerified &&
-    current.role === incoming.role &&
-    current.profileCompleted === incoming.profileCompleted
-  );
-}
+      return (
+        current.uid === incoming.uid &&
+        current.nickname === incoming.nickname &&
+        current.email === incoming.email &&
+        current.emailVerified === incoming.emailVerified &&
+        current.role === incoming.role &&
+        current.tier === incoming.tier &&
+        current.profileCompleted === incoming.profileCompleted &&
+        current.isSubscriber === incoming.isSubscriber &&
+        current.subscriptionStatus === incoming.subscriptionStatus &&
+
+        // lifecycle / moderação
+        current.accountStatus === incoming.accountStatus &&
+        current.suspended === incoming.suspended &&
+        current.publicVisibility === incoming.publicVisibility &&
+        current.interactionBlocked === incoming.interactionBlocked &&
+        current.loginAllowed === incoming.loginAllowed &&
+        current.statusUpdatedAt === incoming.statusUpdatedAt &&
+        current.statusUpdatedBy === incoming.statusUpdatedBy &&
+        current.suspensionReason === incoming.suspensionReason &&
+        current.suspensionSource === incoming.suspensionSource &&
+        current.suspensionEndsAt === incoming.suspensionEndsAt &&
+        current.deletionRequestedAt === incoming.deletionRequestedAt &&
+        current.deletionRequestedBy === incoming.deletionRequestedBy &&
+        current.deletionUndoUntil === incoming.deletionUndoUntil &&
+        current.purgeAfter === incoming.purgeAfter &&
+        current.deletedAt === incoming.deletedAt
+      );
+    }
 
   /**
    * Observa o documento users/{uid}.
@@ -289,4 +310,4 @@ export class UserEffects {
       )
     )
   );
-} // Linha 292, fim do user.effects.ts
+} // Linha 313, fim do user.effects.ts

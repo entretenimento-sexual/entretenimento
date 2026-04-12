@@ -1,6 +1,7 @@
 //src\app\account\application\account.facade.ts
+// Não esquecer comentários explicativos e ferramentas de debug
 import { Injectable, inject } from '@angular/core';
-import { combineLatest, Observable, of } from 'rxjs';
+import { combineLatest, Observable } from 'rxjs';
 import { map, shareReplay, startWith } from 'rxjs/operators';
 
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
@@ -9,12 +10,14 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 import { AccountOverviewVm } from '../models/account-overview.model';
 
+type PaidPlanKey = 'basic' | 'premium' | 'vip';
+
 @Injectable({ providedIn: 'root' })
 export class AccountFacade {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly authSession = inject(AuthSessionService);
 
-readonly vm$: Observable<AccountOverviewVm | null> = combineLatest([
+  readonly vm$: Observable<AccountOverviewVm | null> = combineLatest([
     this.currentUserStore.user$.pipe(
       map((user): IUserDados | null => user ?? null),
       startWith(null)
@@ -35,7 +38,8 @@ readonly vm$: Observable<AccountOverviewVm | null> = combineLatest([
     const nickname = (user?.nickname ?? '').trim() || null;
     const uid = (user?.uid ?? authUser?.uid ?? '').trim() || null;
     const email = user?.email ?? authUser?.email ?? null;
-    const emailVerified = user?.emailVerified === true || authUser?.emailVerified === true;
+    const emailVerified =
+      user?.emailVerified === true || authUser?.emailVerified === true;
 
     const providerIds = (authUser?.providerData ?? [])
       .map((p: any) => String(p?.providerId ?? '').trim())
@@ -63,8 +67,13 @@ readonly vm$: Observable<AccountOverviewVm | null> = combineLatest([
       municipio && estado
         ? `${municipio}, ${estado}, BR`
         : estado
-        ? `${estado}, BR`
-        : 'Localização não informada';
+          ? `${estado}, BR`
+          : 'Localização não informada';
+
+    const effectivePlanKey = this.resolvePaidPlanKey(user);
+    const subscriptionActive = this.isSubscriptionActive(user, effectivePlanKey);
+    const roleLabel = this.mapRoleLabel(user, effectivePlanKey);
+    const activePlanLabel = subscriptionActive ? roleLabel : null;
 
     return {
       uid,
@@ -78,7 +87,7 @@ readonly vm$: Observable<AccountOverviewVm | null> = combineLatest([
         ? 'Seu e-mail já está validado.'
         : 'Verifique seu e-mail para liberar áreas sensíveis, descoberta e mais recursos.',
 
-      roleLabel: this.mapRoleLabel(user?.role),
+      roleLabel,
       memberSince,
       lastLoginAt,
 
@@ -97,7 +106,10 @@ readonly vm$: Observable<AccountOverviewVm | null> = combineLatest([
           ? `Toda vez que acessar em um novo dispositivo pela primeira vez, podemos enviar um código para ${email}.`
           : 'Associe um e-mail válido para reforçar a segurança em novos dispositivos.',
 
-      subscriptionLabel: this.mapSubscriptionLabel(user),
+      subscriptionLabel: this.mapSubscriptionLabel(subscriptionActive),
+      subscriptionActive,
+      activePlanLabel,
+
       tokensBalance: null,
 
       quickPurchaseEnabled: null,
@@ -110,8 +122,53 @@ readonly vm$: Observable<AccountOverviewVm | null> = combineLatest([
     };
   }
 
-  private mapRoleLabel(role: IUserDados['role'] | undefined): string {
-    switch (role) {
+  private resolvePaidPlanKey(user: IUserDados | null): PaidPlanKey | null {
+    if (!user) return null;
+
+    const role = String(user.role ?? '').trim().toLowerCase();
+    const tier = String((user as any).tier ?? '').trim().toLowerCase();
+    const candidate = role || tier;
+
+    if (candidate === 'basic' || candidate === 'premium' || candidate === 'vip') {
+      return candidate;
+    }
+
+    return null;
+  }
+
+  /**
+   * REGRA CORRIGIDA:
+   * - assinatura ativa NÃO deve nascer só porque role/tier é basic/premium/vip
+   * - assinatura ativa depende de:
+   *   1) isSubscriber === true
+   *   2) subscriptionStatus === 'active'
+   */
+  private isSubscriptionActive(
+    user: IUserDados | null,
+    _effectivePlanKey: PaidPlanKey | null
+  ): boolean {
+    if (!user) return false;
+
+    const subscriptionStatus = String((user as any).subscriptionStatus ?? '')
+      .trim()
+      .toLowerCase();
+
+    return (
+      user.isSubscriber === true ||
+      subscriptionStatus === 'active'
+    );
+  }
+
+  private mapRoleLabel(
+    user: IUserDados | null,
+    effectivePlanKey: PaidPlanKey | null
+  ): string {
+    const rawRole = String(user?.role ?? '').trim().toLowerCase();
+    const rawTier = String((user as any)?.tier ?? '').trim().toLowerCase();
+    const fallbackPlan = rawRole || rawTier;
+    const normalized = effectivePlanKey ?? fallbackPlan;
+
+    switch (normalized) {
       case 'vip':
         return 'VIP';
       case 'premium':
@@ -127,13 +184,9 @@ readonly vm$: Observable<AccountOverviewVm | null> = combineLatest([
     }
   }
 
-  private mapSubscriptionLabel(user: IUserDados | null): string {
-    if (!user) return 'Indisponível';
-
-    if (user.isSubscriber) {
-      return 'Assinatura ativa';
-    }
-
-    return 'Sem assinatura ativa';
+  private mapSubscriptionLabel(subscriptionActive: boolean): string {
+    return subscriptionActive
+      ? 'Assinatura ativa'
+      : 'Sem assinatura ativa';
   }
 }

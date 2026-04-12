@@ -1,6 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-04-07T21:54:23.062Z
+// Generated at: 2026-04-12T11:37:31.247Z
 
 // ===== _helpers.rules =====
 // ===============================================================
@@ -132,6 +132,7 @@ match /users/{userId} {
       "role",
       "tier",
       "isSubscriber",
+      "subscriptionStatus",
       "accountLocked",
       "suspended",
       "suspensionReason",
@@ -162,15 +163,15 @@ match /users/{userId} {
   function createDefaultsOk() {
     return request.resource.data.keys().hasAny(["uid"])
       && request.resource.data.uid == uid()
-      && (!hasField("role") || request.resource.data.role == "basic")
+      && (!hasField("role") || request.resource.data.role == "free")
+      && (!hasField("tier") || request.resource.data.tier == "free")
       && (!hasField("isSubscriber") || request.resource.data.isSubscriber == false)
-      && (!hasField("tier") || request.resource.data.tier == "basic");
+      && (!hasField("subscriptionStatus") || request.resource.data.subscriptionStatus == "inactive");
   }
 
   allow get: if isSelf(userId) || isAdminActor();
   allow list: if false;
 
-  // ✅ UM ÚNICO create (com defaults travados)
   allow create: if isSelf(userId)
     && emailVerifiedMatchesToken()
     && createDefaultsOk();
@@ -196,7 +197,6 @@ match /users/{userId} {
 //    - signedIn(), uid(), isSelf()
 //    - optTimestamp()  (se você mantém esse helper global)
 // =========================================================================
-
 match /public_profiles/{userId} {
   // Leitura: exige login (evita scraping público).
   // Obs.: para queries (where/orderBy) o Firestore usa "list".
@@ -345,17 +345,17 @@ match /public_profiles/{userId} {
   // CREATE
   // - somente dono
   // - createdAt/updatedAt obrigatoriamente serverTimestamp() => request.time
-  // - role inicial obrigatoriamente "basic"
+  // - role inicial obrigatoriamente "free"
   // -----------------------------------------------------------------------
   allow create: if (
     isSelf(userId)
     && validPublicProfilePayload()
     && request.resource.data.createdAt == request.time
     && request.resource.data.updatedAt == request.time
-    && request.resource.data.role == "basic"
+    && request.resource.data.role == "free"
   );
 
-  // -----------------------------------------------------------------------
+ // -----------------------------------------------------------------------
   // UPDATE
   // - somente dono
   // - uid e createdAt imutáveis

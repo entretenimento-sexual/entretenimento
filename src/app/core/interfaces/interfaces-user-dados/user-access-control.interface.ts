@@ -1,53 +1,89 @@
-// src/app/core/interfaces/user-access-control.interface.ts
+// src/app/core/interfaces/interfaces-user-dados/user-access-control.interface.ts
 // =============================================================================
-// USER ACCESS CONTROL — “padrão plataforma grande”
+// USER ACCESS CONTROL — padrão evoluído para lifecycle real de conta
 //
-// Objetivo:
-// - Separar claramente:
-//   (A) Tier/Plano (monetização)        -> free/basic/premium/vip
-//   (B) Roles/Permissions (autorização)-> admin/moderator/... + permissões granulares
-//   (C) AccountStatus (enforcement)    -> active/suspended/locked/deleted/pending
+// Separação intencional:
+// - tier/plano monetário
+// - roles/permissões de staff
+// - entitlements
+// - lifecycle/status operacional da conta
 //
-// Observação:
-// - No seu projeto atual, IUserDados.role = TIER.
-// - Este “esqueleto” permite evoluir sem quebrar compat.
+// OBSERVAÇÃO IMPORTANTE:
+// - No projeto atual, IUserDados.role continua sendo o tier legad o.
+// - Este contrato existe para consolidar a direção arquitetural correta
+//   sem quebrar o que já funciona hoje.
 // =============================================================================
-import { IUserDados } from "../iuser-dados";
 
-export type Tier = Exclude<IUserDados['role'], 'visitante'>; // free|basic|premium|vip
-export type AccountStatus = 'active' | 'suspended' | 'locked' | 'deleted' | 'pending';
+import { IUserDados } from '../iuser-dados';
 
-// Roles “staff” (não confundir com tier)
-// Em plataformas grandes, isso vira Custom Claims no token.
-// Aqui deixamos como esqueleto para evolução.
-export type StaffRole = 'user' | 'moderator' | 'support' | 'admin' | 'superadmin';
+export type Tier = Exclude<IUserDados['role'], 'visitante'>;
 
-// Permissões granulares (string por flexibilidade; você pode tipar mais tarde)
+export type AccountStatus =
+  | 'active'
+  | 'self_suspended'
+  | 'moderation_suspended'
+  | 'pending_deletion'
+  | 'deleted';
+
+export type StaffRole =
+  | 'user'
+  | 'moderator'
+  | 'support'
+  | 'admin'
+  | 'superadmin';
+
 export type Permission = string;
-
-// Entitlements = direitos de produto (feature flags monetizáveis ou concedidas)
 export type Entitlement = string;
 
 export interface IUserAccessControl {
-  // Monetização canônica (futuro)
+  /**
+   * Monetização / plano.
+   * Mantém coerência com billing e com o role legado.
+   */
   tier: Tier;
 
-  // Autorização (futuro)
-  roles: StaffRole[];             // ex.: ['user'], ['moderator']
-  permissions: Permission[];      // ex.: ['users:suspend', 'reports:read']
+  /**
+   * Autorização de staff.
+   * Em evolução futura, o ideal é refletir isso também em custom claims.
+   */
+  roles: StaffRole[];
+  permissions: Permission[];
 
-  // Feature access (futuro)
-  entitlements: Entitlement[];    // ex.: ['nickname:change', 'rooms:create']
+  /**
+   * Direitos de produto.
+   */
+  entitlements: Entitlement[];
 
-  // Segurança/moderação (futuro)
-  accountStatus: AccountStatus;   // ex.: 'active'
+  /**
+   * Lifecycle da conta.
+   */
+  accountStatus: AccountStatus;
+
+  /**
+   * Regras operacionais derivadas do lifecycle.
+   */
+  publicVisibility: 'visible' | 'hidden';
+  interactionBlocked: boolean;
+  loginAllowed: boolean;
+
+  /**
+   * Holds de retenção mínima / proteção de expurgo.
+   */
+  legalHold: boolean;
+  billingHold: boolean;
 }
 
-// Defaults “padrão big platform”
 export const DEFAULT_ACCESS_CONTROL: IUserAccessControl = {
   tier: 'basic',
   roles: ['user'],
   permissions: [],
   entitlements: [],
+
   accountStatus: 'active',
+  publicVisibility: 'visible',
+  interactionBlocked: false,
+  loginAllowed: true,
+
+  legalHold: false,
+  billingHold: false,
 };

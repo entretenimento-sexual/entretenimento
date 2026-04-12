@@ -172,27 +172,28 @@ export class LoginService {
     );
   }
 
-  /**
-   * Lê o modo de persistência do Auth Emulator.
-   *
-   * Deve ficar coerente com:
-   * - src/main.ts
-   * - src/app/app.module.ts
-   *
-   * Default:
-   * - memory
-   *
-   * Motivo:
-   * - reduz sessão fantasma quando o emulator é resetado.
-   */
+ /**
+ * Lê o modo de persistência do Auth Emulator.
+ *
+ * Deve ficar coerente com:
+ * - src/main.ts
+ * - src/app/app.module.ts
+ *
+ * Default:
+ * - session
+ *
+ * Motivo:
+ * - o projeto deve manter a sessão no refresh também em dev-emu
+ * - "memory" fica apenas como ferramenta manual de troubleshooting
+ */
   private getEmuPersistMode(): EmuPersistMode {
-    if (!this.isBrowser()) return 'memory';
+    if (!this.isBrowser()) return 'session';
 
     const raw = (localStorage.getItem(this.EMU_AUTH_PERSIST_KEY) || '')
       .trim()
       .toLowerCase();
 
-    return raw === 'session' ? 'session' : 'memory';
+    return raw === 'memory' ? 'memory' : 'session';
   }
 
   /**
@@ -708,7 +709,7 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
 
     return { code, message };
   }
-} // fim do login.service.ts, que tá com 718 linhas
+} // fim do login.service.ts, que tá com 711 linhas
 // Verificar migrações de responsabilidades para:
 // 1 - auth-route-context.service.ts
 // 2 - auth-user-document-watch.service.ts

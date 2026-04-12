@@ -13,19 +13,20 @@ import { GlobalErrorHandlerService } from '../../../core/services/error-handler/
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 
 import { IUserDados } from '../../../core/interfaces/iuser-dados';
+import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 describe('ModalMensagemComponent', () => {
   let component: ModalMensagemComponent;
   let fixture: ComponentFixture<ModalMensagemComponent>;
 
   let dialogRefMock: {
-    close: jasmine.Spy;
+    close: Mock;
   };
 
   let chatServiceMock: {
-    getOrCreateChatId: jasmine.Spy;
-    sendMessage: jasmine.Spy;
-    updateChat: jasmine.Spy;
+    getOrCreateChatId: Mock;
+    sendMessage: Mock;
+    updateChat: Mock;
   };
 
   let authSessionMock: {
@@ -38,24 +39,24 @@ describe('ModalMensagemComponent', () => {
   };
 
   let globalErrorMock: {
-    handleError: jasmine.Spy;
+    handleError: Mock;
   };
 
   let errorNotifierMock: {
-    showError: jasmine.Spy;
-    showWarning: jasmine.Spy;
+    showError: Mock;
+    showWarning: Mock;
   };
 
   beforeEach(async () => {
     dialogRefMock = {
-      close: jasmine.createSpy('close'),
+      close: vi.fn(),
     };
 
-    chatServiceMock = {
-      getOrCreateChatId: jasmine.createSpy('getOrCreateChatId').and.returnValue(of('chat-1')),
-      sendMessage: jasmine.createSpy('sendMessage').and.returnValue(of(void 0)),
-      updateChat: jasmine.createSpy('updateChat').and.returnValue(of(void 0)),
-    };
+  chatServiceMock = {
+  getOrCreateChatId: vi.fn(),
+  sendMessage: vi.fn(),
+  updateChat: vi.fn(),
+};
 
     authSessionMock = {
       uid$: of('u1'),
@@ -70,12 +71,12 @@ describe('ModalMensagemComponent', () => {
     };
 
     globalErrorMock = {
-      handleError: jasmine.createSpy('handleError'),
+      handleError: vi.fn(),
     };
 
     errorNotifierMock = {
-      showError: jasmine.createSpy('showError'),
-      showWarning: jasmine.createSpy('showWarning'),
+      showError: vi.fn(),
+      showWarning: vi.fn(),
     };
 
     await TestBed.configureTestingModule({

@@ -8,7 +8,6 @@
 //    - signedIn(), uid(), isSelf()
 //    - optTimestamp()  (se você mantém esse helper global)
 // =========================================================================
-
 match /public_profiles/{userId} {
   // Leitura: exige login (evita scraping público).
   // Obs.: para queries (where/orderBy) o Firestore usa "list".
@@ -157,17 +156,17 @@ match /public_profiles/{userId} {
   // CREATE
   // - somente dono
   // - createdAt/updatedAt obrigatoriamente serverTimestamp() => request.time
-  // - role inicial obrigatoriamente "basic"
+  // - role inicial obrigatoriamente "free"
   // -----------------------------------------------------------------------
   allow create: if (
     isSelf(userId)
     && validPublicProfilePayload()
     && request.resource.data.createdAt == request.time
     && request.resource.data.updatedAt == request.time
-    && request.resource.data.role == "basic"
+    && request.resource.data.role == "free"
   );
 
-  // -----------------------------------------------------------------------
+ // -----------------------------------------------------------------------
   // UPDATE
   // - somente dono
   // - uid e createdAt imutáveis
