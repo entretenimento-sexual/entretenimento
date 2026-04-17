@@ -4,58 +4,160 @@
 @let policy = (policyResult$ | async);
 @let preview = (previewUrl$ | async);
 @let phase = (phase$ | async);
-@let progress = (progress$ | async);
+@let uploadedPhotoId = (uploadedPhotoId$ | async);
+@let selectedFileName = (selectedFileName$ | async);
+@let selectedFileSizeLabel = (selectedFileSizeLabel$ | async);
+@let uploadPercent = (uploadPercent$ | async);
 
 <section class="upload-page" aria-label="Envio de foto do perfil">
   <header class="upload-header">
-    <div>
+    <div class="title-block">
+      <span class="eyebrow">Mídia</span>
       <h2>Adicionar foto</h2>
-      <p class="subtitle">MVP: envio simulado (sem Firestore/Storage ainda).</p>
+      <p class="subtitle">
+        Envie uma imagem diretamente ou abra o editor antes do envio.
+      </p>
     </div>
 
-    <button type="button" class="btn" (click)="backToPhotos(ownerUid || '')" aria-label="Voltar para minhas fotos">
+    <button
+      type="button"
+      class="btn btn-ghost"
+      (click)="backToPhotos(ownerUid || '')"
+      aria-label="Voltar para minhas fotos">
       Voltar
     </button>
   </header>
 
   @if (!canUpload) {
-  <div class="blocked" role="status" aria-live="polite">
-    <strong>Acesso negado.</strong>
-    <p class="subtitle">
-      @if (policy?.reason === 'NOT_AUTHENTICATED') { Faça login para enviar fotos. }
-      @else if (policy?.reason === 'NOT_OWNER') { Você só pode enviar fotos do seu próprio perfil. }
-      @else { Ação bloqueada por política. }
-    </p>
-  </div>
+    <div class="blocked" role="status" aria-live="polite">
+      <strong>Acesso negado.</strong>
+      <p class="subtitle">
+        @if (policy?.reason === 'NOT_AUTHENTICATED') { Faça login para enviar fotos. }
+        @else if (policy?.reason === 'NOT_OWNER') { Você só pode enviar fotos do seu próprio perfil. }
+        @else { Ação bloqueada por política. }
+      </p>
+    </div>
   } @else {
-  <div class="card">
-    <label class="file-label" for="fileInput">Selecionar imagem</label>
-    <input id="fileInput" type="file" accept="image/*" (change)="onFileSelected($event)" />
+    <div class="card">
+      @if (phase !== 'DONE') {
+        <div class="upload-grid">
+          <div class="upload-panel">
+            <label class="file-label" for="fileInput">Selecionar imagem</label>
 
-    @if (preview) {
-    <div class="preview" aria-label="Pré-visualização da imagem selecionada">
-      <img [src]="preview" alt="Pré-visualização da foto" />
+            <input
+              #fileInput
+              id="fileInput"
+              class="native-file-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              (change)="onFileSelected($event)"
+              [disabled]="phase === 'UPLOADING'" />
+
+            <div class="upload-hints" aria-live="polite">
+              <p>Formatos aceitos: JPG, PNG e WEBP.</p>
+              <p>Tamanho máximo: 10 MB.</p>
+
+              @if (selectedFileName) {
+                <p class="selected-file">
+                  <strong>Arquivo:</strong> {{ selectedFileName }}
+                  @if (selectedFileSizeLabel) {
+                    <span>• {{ selectedFileSizeLabel }}</span>
+                  }
+                </p>
+              }
+            </div>
+
+            <div class="actions">
+              <button
+                type="button"
+                class="btn btn-primary"
+                (click)="startUpload()"
+                [disabled]="phase !== 'READY'">
+                Enviar foto
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="editBeforeUpload()"
+                [disabled]="phase !== 'READY'">
+                Editar antes de enviar
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-ghost"
+                (click)="resetSelection(fileInput)"
+                [disabled]="phase === 'UPLOADING'">
+                Limpar
+              </button>
+            </div>
+
+            <p class="flow-note">
+              Você pode enviar a imagem diretamente ou abrir o editor antes do envio.
+            </p>
+
+            @if (phase === 'UPLOADING') {
+              <div
+                class="progress"
+                role="progressbar"
+                aria-live="polite"
+                [attr.aria-valuemin]="0"
+                [attr.aria-valuemax]="100"
+                [attr.aria-valuenow]="uploadPercent || 0"
+                [attr.aria-label]="'Progresso do upload: ' + (uploadPercent || 0) + '%'">
+                <div class="bar" [style.width.%]="uploadPercent || 0"></div>
+              </div>
+
+              <span class="pct">Enviando imagem... {{ uploadPercent || 0 }}%</span>
+            }
+          </div>
+
+          <div class="preview-panel">
+            @if (preview) {
+              <div class="preview" aria-label="Pré-visualização da imagem selecionada">
+                <img [src]="preview" alt="Pré-visualização da foto" />
+              </div>
+            } @else {
+              <div class="preview-empty" role="status" aria-live="polite">
+                <p>Nenhuma imagem selecionada.</p>
+                <small>A pré-visualização aparecerá aqui antes do envio.</small>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      @if (phase === 'DONE') {
+        <div class="done" role="status" aria-live="polite">
+          <div class="done-badge" aria-hidden="true">✓</div>
+
+          <div class="done-copy">
+            <h3>Upload concluído</h3>
+            <p>Sua foto foi enviada com sucesso.</p>
+
+            @if (uploadedPhotoId) {
+              <small>ID da foto: {{ uploadedPhotoId }}</small>
+            }
+          </div>
+
+          <div class="actions done-actions">
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="backToPhotos(ownerUid || '')">
+              Ver minhas fotos
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="sendAnotherPhoto()">
+              Enviar outra foto
+            </button>
+          </div>
+        </div>
+      }
     </div>
-    } @else {
-    <p class="hint">Nenhum arquivo selecionado.</p>
-    }
-
-    <div class="actions">
-      <button type="button" class="btn" (click)="startUpload()" [disabled]="phase !== 'READY'">
-        Enviar (simulado)
-      </button>
-    </div>
-
-    @if (phase === 'UPLOADING') {
-    <div class="progress" role="status" aria-live="polite">
-      <div class="bar" [style.width.%]="progress"></div>
-      <span class="pct">{{ progress }}%</span>
-    </div>
-    }
-
-    @if (phase === 'DONE') {
-    <p class="done" role="status" aria-live="polite">Concluído. (simulado)</p>
-    }
-  </div>
   }
 </section>

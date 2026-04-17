@@ -1,0 +1,51 @@
+<!-- src/app/media/shared/components/public-photo-card/public-photo-card.component.html -->
+@let item = photo();
+@let mode = variant();
+
+<article class="photo-tile" role="listitem">
+  <button
+    type="button"
+    class="photo-card-link"
+    (click)="onPreview()"
+    [attr.aria-label]="'Abrir foto pública ' + (item.alt || item.id)">
+    <img
+      class="photo"
+      [src]="item.url"
+      [alt]="item.alt || 'Foto pública'"
+      loading="lazy"
+      referrerpolicy="no-referrer" />
+  </button>
+
+  <div class="photo-meta">
+    @switch (mode) {
+      @case ('latest') {
+        <span class="meta-chip">Publicada</span>
+        <span class="meta-chip">{{ item.publishedAt | date:'dd/MM/yyyy HH:mm' }}</span>
+      }
+
+      @case ('top') {
+        <span class="meta-chip">Score: {{ item.engagementScore ?? 0 }}</span>
+        <span class="meta-chip">Curtidas: {{ item.likesCount ?? 0 }}</span>
+        <span class="meta-chip">Comentários: {{ item.commentsCount ?? 0 }}</span>
+      }
+
+      @case ('boosted') {
+        <span class="meta-chip meta-boost">Turbo ativo</span>
+
+        @if (item.boostPriority !== undefined) {
+          <span class="meta-chip">Prioridade: {{ item.boostPriority }}</span>
+        }
+      }
+
+      @default {
+        <span class="meta-chip">Galeria pública</span>
+      }
+    }
+
+    <a
+      class="profile-link"
+      [routerLink]="galleryLink()">
+      Ver galeria
+    </a>
+  </div>
+</article>

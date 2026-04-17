@@ -7,7 +7,6 @@ import { authGuard } from './core/guards/auth-guard/auth.guard';
 import { guestOnlyCanActivate, guestOnlyCanMatch } from './core/guards/auth-guard/guest-only.guard';
 import { adminCanMatch } from './core/guards/access-guard/admin.guard';
 
-import { ProfileListComponent } from './layout/profile-list/profile-list.component';
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { LayoutShellComponent } from './layout/layout-shell/layout-shell.component';
 import { accountLifecycleGuard } from './account/guards/account-lifecycle.guard';
@@ -59,6 +58,22 @@ const routes: Routes = [
       {
         path: 'welcome',
         redirectTo: 'register/welcome',
+        pathMatch: 'full',
+      },
+
+      // ===============================================================
+      // Aliases novos para fotos
+      // - mantêm compatibilidade com chamadas antigas
+      // - consolidam /media como rota canônica do domínio
+      // ===============================================================
+      {
+        path: 'perfil/:uid/fotos',
+        redirectTo: 'media/perfil/:uid/fotos',
+        pathMatch: 'full',
+      },
+      {
+        path: 'perfil/:uid/fotos/upload',
+        redirectTo: 'media/perfil/:uid/fotos/upload',
         pathMatch: 'full',
       },
 
@@ -163,6 +178,7 @@ const routes: Routes = [
           requireProfileCompleted: true,
         },
       },
+
       // ===============================================================
       // Assinaturas / checkout
       // ===============================================================
@@ -211,15 +227,18 @@ const routes: Routes = [
           import('./account/account.routes').then((m) => m.ACCOUNT_ROUTES),
       },
 
+      // ===============================================================
+      // Media
+      // AJUSTE:
+      // - mantém auth + lifecycle
+      // - SUPRIMIDO requireVerified / requireProfileCompleted
+      //   para não quebrar o fluxo de fotos neste momento
+      // ===============================================================
       {
         path: 'media',
         loadChildren: () =>
           import('./media/media.routes').then(m => m.MEDIA_ROUTES),
         canActivate: [authGuard, accountLifecycleGuard],
-        data: {
-          requireVerified: true,
-          requireProfileCompleted: true,
-        },
       },
     ],
   },

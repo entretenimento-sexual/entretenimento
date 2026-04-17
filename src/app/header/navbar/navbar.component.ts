@@ -34,6 +34,8 @@ import {
 
 import { combineLatest, Observable } from 'rxjs';
 
+import { BreakpointObserver } from '@angular/cdk/layout';
+
 import { SidebarService } from 'src/app/core/services/navigation/sidebar.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
@@ -85,6 +87,16 @@ export class NavbarComponent implements OnInit, OnDestroy {
   public canShowLinksInteraction = false;
   public canShowGuestBanner = false;
 
+  /**
+   * Sidebar toggle / responsividade estrutural
+   * - isOverlayViewport: viewport em que a sidebar deve operar como overlay/autohide
+   * - shouldShowSidebarToggle: controla o botão hambúrguer sem depender só de mobile estreito
+   * - isSidebarOpen: mantém aria-expanded coerente no botão
+   */
+  public isOverlayViewport = false;
+  public shouldShowSidebarToggle = false;
+  public isSidebarOpen = false;
+
   // ===========================================================================
   // Tema / acessibilidade
   // ===========================================================================
@@ -117,6 +129,14 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private readonly notify = inject(ErrorNotificationService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly logoutService = inject(LogoutService);
+  private readonly breakpointObserver = inject(BreakpointObserver);
+
+  /**
+   * Breakpoint estrutural do shell:
+   * - abaixo disso, a sidebar deve se comportar como overlay/autohide
+   * - não depende apenas do “mobile puro”
+   */
+  private readonly sidebarOverlayBreakpoint = '(max-width: 1279.98px)';
 
   // ===========================================================================
   // Debug / observabilidade
@@ -193,20 +213,31 @@ export class NavbarComponent implements OnInit, OnDestroy {
    * O GuestBanner ainda faz sua própria validação interna.
    * Aqui só evitamos instanciar o componente quando já sabemos que não faz sentido.
    */
-private recomputeHeaderVisibility(): void {
-  const hasAuthenticatedUser = this.isAuthenticated && !!this.userId;
-  const canShow = hasAuthenticatedUser && !this.isPublicAuthRoute;
+  private recomputeHeaderVisibility(): void {
+    const hasAuthenticatedUser = this.isAuthenticated && !!this.userId;
+    const canShow = hasAuthenticatedUser && !this.isPublicAuthRoute;
 
-  this.canShowLinksInteraction = canShow;
-  this.canShowGuestBanner = canShow;
-}
+    this.canShowLinksInteraction = canShow;
+    this.canShowGuestBanner = canShow;
+  }
 
-private syncRouteUiFlags(url: string | null | undefined): void {
-  const normalizedUrl = url ?? '';
-  this.isLoginPage = this.isLoginRoute(normalizedUrl);
-  this.isPublicAuthRoute = this.isLoginPage || isRegistrationFlow(normalizedUrl);
-  this.recomputeHeaderVisibility();
-}
+  /**
+   * Regras do toggle da sidebar:
+   * - nunca aparece em rotas públicas de auth
+   * - aparece quando a sidebar deve operar em overlay/autohide
+   */
+  private recomputeSidebarToggleVisibility(): void {
+    this.shouldShowSidebarToggle = !this.isPublicAuthRoute && this.isOverlayViewport;
+  }
+
+  private syncRouteUiFlags(url: string | null | undefined): void {
+    const normalizedUrl = url ?? '';
+    this.isLoginPage = this.isLoginRoute(normalizedUrl);
+    this.isPublicAuthRoute = this.isLoginPage || isRegistrationFlow(normalizedUrl);
+
+    this.recomputeHeaderVisibility();
+    this.recomputeSidebarToggleVisibility();
+  }
 
   // ===========================================================================
   // Lifecycle
@@ -215,6 +246,47 @@ private syncRouteUiFlags(url: string | null | undefined): void {
   ngOnInit(): void {
     // sincroniza estado inicial da rota antes de qualquer render
     this.syncRouteUiFlags(this.router.url);
+
+    // -------------------------------------------------------------------------
+    // Watcher de breakpoint do shell/sidebar
+    // -------------------------------------------------------------------------
+    this.breakpointObserver
+      .observe(this.sidebarOverlayBreakpoint)
+      .pipe(
+        map(state => state.matches),
+        distinctUntilChanged(),
+        tap(matches => {
+          this.isOverlayViewport = matches;
+          this.recomputeSidebarToggleVisibility();
+
+          this.logNavbar('overlay breakpoint changed', {
+            matches,
+            url: this.router.url,
+            shouldShowSidebarToggle: this.shouldShowSidebarToggle
+          });
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+
+    // -------------------------------------------------------------------------
+    // Watcher de estado aberto/fechado da sidebar
+    // -------------------------------------------------------------------------
+    this.sidebarService.vm$
+      .pipe(
+        map(vm => !!vm.isOpen),
+        distinctUntilChanged(),
+        tap(isOpen => {
+          this.isSidebarOpen = isOpen;
+
+          this.logNavbar('sidebar vm changed', {
+            isOpen,
+            url: this.router.url
+          });
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
 
     // -------------------------------------------------------------------------
     // Fonte única de uid
@@ -313,27 +385,30 @@ private syncRouteUiFlags(url: string | null | undefined): void {
     // -------------------------------------------------------------------------
     // Assinatura única de estado imperativo
     // -------------------------------------------------------------------------
-vm$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(vm => {
-  const prevUid = this.userId;
+    vm$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(vm => {
+      const prevUid = this.userId;
 
-  this.isAuthenticated = vm.isAuthenticated;
-  this.nickname = vm.nickname;
-  this.photoURL = vm.photoURL;
-  this.userId = vm.uid;
-  this.isFree = vm.isFree;
+      this.isAuthenticated = vm.isAuthenticated;
+      this.nickname = vm.nickname;
+      this.photoURL = vm.photoURL;
+      this.userId = vm.uid;
+      this.isFree = vm.isFree;
 
-  this.recomputeHeaderVisibility();
+      this.recomputeHeaderVisibility();
+      this.recomputeSidebarToggleVisibility();
 
-  this.logNavbar('STATE applied', {
-    prevUid,
-    nextUid: this.userId,
-    isAuthenticated: this.isAuthenticated,
-    isPublicAuthRoute: this.isPublicAuthRoute,
-    canShowLinksInteraction: this.canShowLinksInteraction,
-    canShowGuestBanner: this.canShowGuestBanner,
-    url: this.router.url
-  });
-});
+      this.logNavbar('STATE applied', {
+        prevUid,
+        nextUid: this.userId,
+        isAuthenticated: this.isAuthenticated,
+        isPublicAuthRoute: this.isPublicAuthRoute,
+        canShowLinksInteraction: this.canShowLinksInteraction,
+        canShowGuestBanner: this.canShowGuestBanner,
+        shouldShowSidebarToggle: this.shouldShowSidebarToggle,
+        isSidebarOpen: this.isSidebarOpen,
+        url: this.router.url
+      });
+    });
 
     // -------------------------------------------------------------------------
     // Debug watchers
@@ -577,4 +652,4 @@ vm$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(vm => {
       }
     });
   }
-}
+} // linha 655

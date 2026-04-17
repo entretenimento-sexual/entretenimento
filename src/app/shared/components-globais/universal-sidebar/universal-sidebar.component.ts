@@ -3,9 +3,9 @@
 //
 // Objetivos desta revisão:
 // - manter o componente desacoplado de Auth/Firestore
-// - suportar avatar/resumo do usuário autenticado via Input
+// - suportar header com avatar/resumo do usuário autenticado via Input
 // - melhorar acessibilidade no modo colapsado
-// - melhorar UX mobile com fechamento por Escape e backdrop
+// - melhorar UX mobile/overlay com fechamento por Escape e backdrop
 // - substituir detecção manual de item ativo por routerLinkActive
 //
 // Observação arquitetural:
@@ -15,10 +15,12 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   EventEmitter,
   HostListener,
   Input,
   Output,
+  ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -57,8 +59,19 @@ export class UniversalSidebarComponent {
    */
   @Input() user: UniversalSidebarUserSummary | null = null;
 
+  /**
+   * Força comportamento overlay mesmo fora do mobile puro.
+   * Isso permite que o shell esconda a sidebar naturalmente
+   * em larguras intermediárias sem deformar o template antigo.
+   */
+  @Input() forceOverlay = false;
+  @Input() forceCollapsed = false;
+
   @Output() toggleRequested = new EventEmitter<void>();
   @Output() collapseRequested = new EventEmitter<void>();
+
+  @ViewChild('sidebarRoot', { read: ElementRef })
+  private sidebarRoot?: ElementRef<HTMLElement>;
 
   trackSection(_: number, section: SidebarSection): string {
     return section.key;
@@ -68,11 +81,27 @@ export class UniversalSidebarComponent {
     return item.id;
   }
 
-  get shouldShowExpandedContent(): boolean {
-    return !this.vm?.isCollapsed || !!this.vm?.isMobile;
+get isOverlayMode(): boolean {
+  return this.forceOverlay;
+}
+
+get isCollapsedMode(): boolean {
+  if (this.isOverlayMode) {
+    return false;
   }
 
-  get avatarSrc(): string {
+  return !!this.forceCollapsed || !!this.vm?.isCollapsed;
+}
+
+get shouldShowExpandedContent(): boolean {
+  return !this.isCollapsedMode;
+}
+
+get shouldShowDesktopCollapseButton(): boolean {
+  return !this.isOverlayMode;
+}
+
+    get avatarSrc(): string {
     return this.user?.photoURL?.trim() || 'assets/imagem-padrao.webp';
   }
 
@@ -85,21 +114,45 @@ export class UniversalSidebarComponent {
   }
 
   onItemActivated(): void {
-    if (this.vm?.isMobile && this.vm?.isOpen) {
-      this.toggleRequested.emit();
+    if (this.isOverlayMode && this.vm?.isOpen) {
+      this.closeOverlaySidebar();
     }
   }
 
   onBackdropClick(): void {
-    if (this.vm?.isMobile && this.vm?.isOpen) {
-      this.toggleRequested.emit();
+    if (this.isOverlayMode && this.vm?.isOpen) {
+      this.closeOverlaySidebar();
+    }
+  }
+
+  onCloseButtonClick(): void {
+    if (this.isOverlayMode && this.vm?.isOpen) {
+      this.closeOverlaySidebar();
+    }
+  }
+
+  private closeOverlaySidebar(): void {
+    this.blurFocusedElementInsideSidebar();
+    this.toggleRequested.emit();
+  }
+
+  private blurFocusedElementInsideSidebar(): void {
+    const sidebarEl = this.sidebarRoot?.nativeElement;
+    const activeEl = document.activeElement as HTMLElement | null;
+
+    if (!sidebarEl || !activeEl) {
+      return;
+    }
+
+    if (sidebarEl.contains(activeEl) && typeof activeEl.blur === 'function') {
+      activeEl.blur();
     }
   }
 
   @HostListener('document:keydown.escape')
   onEscapePressed(): void {
-    if (this.vm?.isMobile && this.vm?.isOpen) {
-      this.toggleRequested.emit();
+    if (this.isOverlayMode && this.vm?.isOpen) {
+      this.closeOverlaySidebar();
     }
   }
 }

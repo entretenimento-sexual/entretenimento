@@ -8,9 +8,8 @@
 // - mantém nomenclaturas públicas (loadUserPhotos / deleteFile)
 // - centraliza tratamento de erro com GlobalErrorHandlerService + ErrorNotificationService
 // - preserva compatibilidade com o template atual
-
 import { CommonModule } from '@angular/common';
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import {
   catchError,
@@ -20,11 +19,11 @@ import {
   switchMap,
   tap,
 } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
-import { StorageService } from 'src/app/core/services/image-handling/storage.service';
-
+import {
+  Photo,
+  PhotoFirestoreService,
+} from 'src/app/core/services/image-handling/photo-firestore.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -37,31 +36,20 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
   imports: [CommonModule]
 })
 export class UserPhotoManagerComponent implements OnInit {
-  private readonly destroyRef = inject(DestroyRef);
-
-  userPhotos$: Observable<any[]> = of([]);
+  userPhotos$: Observable<Photo[]> = of([]);
   userId = '';
 
   constructor(
     private readonly photoService: PhotoFirestoreService,
-    private readonly storageService: StorageService,
     private readonly authSession: AuthSessionService,
     private readonly errorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
-  ) { }
+  ) {}
 
   ngOnInit(): void {
     this.loadUserPhotos();
   }
 
-  /**
-   * Carrega as fotos do usuário autenticado.
-   *
-   * Estratégia:
-   * - UID vem do AuthSessionService (fonte canônica da sessão)
-   * - quando não há UID, retorna lista vazia
-   * - em erro, não quebra a UI: registra erro e retorna []
-   */
   loadUserPhotos(): void {
     this.userPhotos$ = this.authSession.uid$.pipe(
       map((uid) => (uid ?? '').trim()),
@@ -89,12 +77,6 @@ export class UserPhotoManagerComponent implements OnInit {
     );
   }
 
-  /**
-   * Exclui uma foto do usuário autenticado.
-   * - mantém nomenclatura original
-   * - protege contra UID ausente
-   * - tratamento de erro centralizado
-   */
   deleteFile(photoId: string, photoPath: string): void {
     const uid = (this.userId ?? '').trim();
 
@@ -123,9 +105,6 @@ export class UserPhotoManagerComponent implements OnInit {
       });
   }
 
-  /**
-   * Encaminha erro ao handler global e exibe feedback amigável.
-   */
   private reportError(
     userMessage: string,
     error: unknown,
@@ -150,4 +129,4 @@ export class UserPhotoManagerComponent implements OnInit {
       // noop
     }
   }
-} // Linha 154
+} // Linha 132

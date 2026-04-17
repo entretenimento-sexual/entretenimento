@@ -1,4 +1,11 @@
 <!-- src/app/media/photos/photo-viewer/photo-viewer.component.html -->
+@let comments = (comments$ | async);
+@let submittingComment = (submittingComment$ | async);
+@let togglingLike = (togglingLike$ | async);
+@let commentLength = (commentLength$ | async);
+@let likesCount = (likesCount$ | async);
+@let likedByViewer = (likedByViewer$ | async);
+
 <section class="viewer" aria-label="Visualizador de foto">
   <header class="viewer-header">
     <div class="viewer-title" aria-live="polite">
@@ -6,26 +13,115 @@
       <span class="counter">{{ index + 1 }}/{{ data.items.length }}</span>
     </div>
 
-    <button type="button" class="btn icon" (click)="close()" aria-label="Fechar visualizador">
+    <button
+      type="button"
+      class="btn btn-ghost icon"
+      (click)="close()"
+      aria-label="Fechar visualizador">
       ✕
     </button>
   </header>
 
   <div class="viewer-body">
     @if (current) {
-    <img class="viewer-img" [src]="current.url" [alt]="current.alt || 'Foto do perfil'" loading="eager"
-      referrerpolicy="no-referrer" />
+      <img
+        class="viewer-img"
+        [src]="current.url"
+        [alt]="current.alt || 'Foto do perfil'"
+        loading="eager"
+        referrerpolicy="no-referrer" />
     } @else {
-    <p class="empty">Nenhuma foto para exibir.</p>
+      <p class="empty">Nenhuma foto para exibir.</p>
     }
   </div>
 
+  <section class="engagement-section" aria-label="Interações da foto">
+    <div class="reaction-row">
+      <button
+        type="button"
+        class="btn btn-ghost reaction-btn"
+        (click)="toggleLike()"
+        [disabled]="!!togglingLike"
+        [attr.aria-pressed]="likedByViewer ? 'true' : 'false'"
+        aria-label="Curtir foto">
+        @if (likedByViewer) {
+          ♥ Curtido
+        } @else {
+          ♡ Curtir
+        }
+      </button>
+
+      <span class="reaction-count" aria-live="polite">
+        {{ likesCount || 0 }} curtida(s)
+      </span>
+    </div>
+  </section>
+
+  <section class="comments-section" aria-label="Comentários da foto">
+    <div class="comments-header">
+      <strong>Comentários</strong>
+    </div>
+
+    <form class="comment-form" (ngSubmit)="submitComment()">
+      <label for="photo-comment" class="visually-hidden">Escreva um comentário</label>
+
+      <textarea
+        id="photo-comment"
+        class="comment-input"
+        rows="3"
+        maxlength="500"
+        [formControl]="commentControl"
+        placeholder="Escreva um comentário sobre esta foto">
+      </textarea>
+
+      <div class="comment-meta">
+        <span>{{ commentLength || 0 }}/500</span>
+      </div>
+
+      <div class="comment-form-actions">
+        <button
+          type="submit"
+          class="btn btn-primary"
+          [disabled]="commentControl.invalid || !!submittingComment">
+          @if (submittingComment) {
+            Enviando...
+          } @else {
+            Comentar
+          }
+        </button>
+      </div>
+    </form>
+
+    @if ((comments?.length || 0) > 0) {
+      <div class="comments-list" role="list" aria-label="Lista de comentários">
+        @for (comment of (comments || []); track comment.id) {
+          <article class="comment-item" role="listitem">
+            <p class="comment-text">{{ comment.comment }}</p>
+            <small class="comment-date">{{ comment.date | date:'dd/MM/yyyy HH:mm' }}</small>
+          </article>
+        }
+      </div>
+    } @else {
+      <p class="comments-empty">Nenhum comentário ainda.</p>
+    }
+  </section>
+
   <footer class="viewer-footer" aria-label="Controles do visualizador">
-    <button type="button" class="btn" (click)="prev()" [disabled]="!hasPrev" aria-label="Foto anterior">
+    <button
+      type="button"
+      class="btn btn-secondary"
+      (click)="prev()"
+      [disabled]="!hasPrev"
+      aria-label="Foto anterior">
       ← Anterior
     </button>
 
-    <button type="button" class="btn" (click)="next()" [disabled]="!hasNext" aria-label="Próxima foto">
+    <button
+      type="button"
+      class="btn btn-secondary"
+      (click)="next()"
+      [disabled]="!hasNext"
+      aria-label="Próxima foto">
       Próxima →
     </button>
   </footer>

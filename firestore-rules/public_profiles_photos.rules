@@ -1,0 +1,66 @@
+// firestore-rules/public_profiles_photos.rules
+// ===============================================================
+// PUBLIC_PROFILES / photos
+// - Projeção pública das fotos publicadas
+// - Terceiros só leem o que estiver efetivamente PUBLIC
+// - O dono também pode ler seus próprios itens projetados
+// - Escrita ainda fica com o próprio dono; no futuro, pode migrar para Function
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// ===============================================================
+
+match /public_profiles/{userId}/photos/{photoId} {
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "id",
+      "ownerUid",
+      "url",
+      "alt",
+      "createdAt",
+      "publishedAt",
+      "updatedAt",
+      "visibility",
+      "isCover",
+      "orderIndex",
+      "commentsEnabled",
+      "reactionsEnabled"
+    ]);
+  }
+
+  function validVisibility() {
+    return request.resource.data.visibility in ["FRIENDS", "SUBSCRIBERS", "PUBLIC"];
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && request.resource.data.id == photoId
+      && request.resource.data.ownerUid == userId
+      && request.resource.data.url is string
+      && (!hasField("alt") || request.resource.data.alt is string)
+      && isTs(request.resource.data.createdAt)
+      && isTs(request.resource.data.publishedAt)
+      && optTimestamp("updatedAt")
+      && validVisibility()
+      && (!hasField("isCover") || request.resource.data.isCover is bool)
+      && (!hasField("orderIndex") || request.resource.data.orderIndex is int)
+      && (!hasField("commentsEnabled") || request.resource.data.commentsEnabled is bool)
+      && (!hasField("reactionsEnabled") || request.resource.data.reactionsEnabled is bool);
+  }
+
+  function isPublicReadable() {
+    return resource.data.visibility == "PUBLIC";
+  }
+
+  allow get: if isSelf(userId) || (signedIn() && isPublicReadable());
+  allow list: if isSelf(userId) || (signedIn() && isPublicReadable());
+
+  allow create, update: if isSelf(userId) && validPayload();
+  allow delete: if isSelf(userId);
+}
+// ==============================================================
+//           FIM DO PUBLIC_PROFILES_PHOTOS.RULES
+// ==============================================================

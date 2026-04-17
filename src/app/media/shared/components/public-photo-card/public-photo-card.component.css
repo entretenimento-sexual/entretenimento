@@ -1,0 +1,76 @@
+/* src/app/media/photos/shared/public-photo-card/public-photo-card.component.css */
+.photo-tile {
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--surface-color);
+  box-shadow: var(--box-shadow);
+  transition: transform 0.18s ease, border-color 0.18s ease;
+}
+
+.photo-tile:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary-color) 40%, var(--surface-border));
+}
+
+.photo-card-link {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.photo-card-link:focus-visible,
+.profile-link:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.photo {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  display: block;
+  background: color-mix(in oklab, var(--surface-color) 90%, transparent);
+}
+
+.photo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+}
+
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid var(--surface-border);
+  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+}
+
+.meta-boost {
+  color: var(--primary-color);
+  border-color: color-mix(in oklab, var(--primary-color) 32%, var(--surface-border));
+}
+
+.profile-link {
+  margin-left: auto;
+  text-decoration: none;
+  color: var(--primary-color);
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .profile-link {
+    margin-left: 0;
+    width: 100%;
+  }
+}

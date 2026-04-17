@@ -1,27 +1,11 @@
 // src/app/layout/layout-shell/layout-shell.component.ts
-// Shell global da aplicação.
-//
-// Responsabilidades:
-// - renderizar navbar global
-// - renderizar sidebar universal quando a tela estiver em modo auth
-// - renderizar o outlet principal
-// - renderizar footer conforme a rota
-//
-// Modos do shell:
-// - guest: login / register / handlers públicos
-// - onboarding: welcome / finalizar-cadastro
-// - auth: área interna real do produto
-//
-// Observação:
-// - o shell não consulta Firestore diretamente
-// - o shell deriva tudo reativamente a partir do SidebarService
-// - o resumo visual do usuário autenticado vem do AuthenticatedNavigationService
-// - isso reduz duplicidade e evita regra de rota espalhada
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { Observable, combineLatest } from 'rxjs';
 import { distinctUntilChanged, map, shareReplay, tap } from 'rxjs/operators';
+
 import { EmailVerificationGateBannerComponent } from '../../shared/components-globais/email-verification-gate-banner/email-verification-gate-banner.component';
 import { SidebarService, SidebarVm } from '@core/services/navigation/sidebar.service';
 import {
@@ -45,6 +29,8 @@ interface LayoutShellVm {
   showFooter: boolean;
   sidebar: SidebarVm;
   sidebarUser: UniversalSidebarUserSummary | null;
+  sidebarShouldOverlay: boolean;
+  sidebarShouldCompact: boolean;
 }
 
 @Component({
@@ -64,6 +50,16 @@ interface LayoutShellVm {
 })
 export class LayoutShellComponent {
   private readonly debug = !environment.production;
+
+  /**
+   * Faixas:
+   * - <= 767.98px  => overlay real
+   * - 768px..991.98px => compactado em ícones
+   * - >= 992px => sidebar normal ocupando espaço
+   */
+  private readonly mobileOverlayBreakpoint = '(max-width: 767.98px)';
+  private readonly compactSidebarBreakpoint =
+    '(min-width: 768px) and (max-width: 991.98px)';
 
   readonly sidebarUser$: Observable<UniversalSidebarUserSummary | null> =
     this.authenticatedNavigation.vm$.pipe(
@@ -94,11 +90,27 @@ export class LayoutShellComponent {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  readonly sidebarShouldOverlay$: Observable<boolean> =
+    this.breakpointObserver.observe(this.mobileOverlayBreakpoint).pipe(
+      map((state) => state.matches),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly sidebarShouldCompact$: Observable<boolean> =
+    this.breakpointObserver.observe(this.compactSidebarBreakpoint).pipe(
+      map((state) => state.matches),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
   readonly vm$: Observable<LayoutShellVm> = combineLatest([
     this.sidebar.vm$,
     this.sidebarUser$,
+    this.sidebarShouldOverlay$,
+    this.sidebarShouldCompact$,
   ]).pipe(
-    map(([sidebar, sidebarUser]): LayoutShellVm => {
+    map(([sidebar, sidebarUser, sidebarShouldOverlay, sidebarShouldCompact]): LayoutShellVm => {
       const currentUrl = sidebar.currentUrl;
       const shellMode = this.resolveShellMode(currentUrl);
 
@@ -109,6 +121,8 @@ export class LayoutShellComponent {
         showFooter: !this.shouldHideFooter(currentUrl),
         sidebar,
         sidebarUser,
+        sidebarShouldOverlay,
+        sidebarShouldCompact,
       };
     }),
     distinctUntilChanged((a, b) =>
@@ -116,6 +130,8 @@ export class LayoutShellComponent {
       a.shellMode === b.shellMode &&
       a.showSidebar === b.showSidebar &&
       a.showFooter === b.showFooter &&
+      a.sidebarShouldOverlay === b.sidebarShouldOverlay &&
+      a.sidebarShouldCompact === b.sidebarShouldCompact &&
       a.sidebar.isMobile === b.sidebar.isMobile &&
       a.sidebar.isOpen === b.sidebar.isOpen &&
       a.sidebar.isCollapsed === b.sidebar.isCollapsed &&
@@ -137,12 +153,9 @@ export class LayoutShellComponent {
 
   constructor(
     private readonly sidebar: SidebarService,
-    private readonly authenticatedNavigation: AuthenticatedNavigationService
-  ) {
-    if (this.debug) {
-      console.log('[LayoutShell] constructor');
-    }
-  }
+    private readonly authenticatedNavigation: AuthenticatedNavigationService,
+    private readonly breakpointObserver: BreakpointObserver
+  ) {}
 
   onToggleSidebar(): void {
     this.sidebar.toggle();
@@ -186,11 +199,10 @@ export class LayoutShellComponent {
 
   private shouldHideFooter(url: string): boolean {
     const clean = this.normalizeUrl(url);
-
     return /^\/chat(\/|$)/.test(clean);
   }
 
   private normalizeUrl(url: string | null | undefined): string {
     return (url ?? '').trim().split('?')[0].split('#')[0];
   }
-} // Linha 197
+} // Linha 208

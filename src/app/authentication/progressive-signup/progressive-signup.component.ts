@@ -4,8 +4,6 @@
 import { Component } from '@angular/core';
 import { Router } from '@angular/router';
 
-import { PreRegisterServiceService } from 'src/app/core/services/autentication/register/pre-register.service';
-
 @Component({
     selector: 'app-progressive-signup',
     templateUrl: './progressive-signup.component.html',
@@ -36,7 +34,7 @@ export class ProgressiveSignupComponent {
 
   constructor(
         private router: Router,
-        private preRegisterService: PreRegisterServiceService
+        
     ) { }
 
   // Função para capturar as mudanças nos checkboxes
@@ -50,9 +48,7 @@ export class ProgressiveSignupComponent {
 
   async register() {
     try {
-      // Aqui, você está apenas salvando as preferências do usuário usando o método saveUserPreferences
-      await this.preRegisterService.saveUserPreferences(this.userPreferences);
-
+      
       console.log('Preferências do usuário coletadas com sucesso.');
 
       // Navegue para o SuggestedProfilesComponent

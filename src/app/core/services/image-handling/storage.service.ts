@@ -78,6 +78,10 @@ export class StorageService {
     private readonly usuarioService: UsuarioService
   ) {}
 
+  public buildOwnedImageUploadPath(userId: string, fileName: string): string {
+  return this.buildImageUploadPath(userId, fileName);
+}
+
   // ---------------------------------------------------------------------------
   // Debug / erro centralizado
   // ---------------------------------------------------------------------------
@@ -299,111 +303,110 @@ export class StorageService {
    * - pode devolver download URL (quando legível)
    * - ou storage path bruto (quando a leitura direta não é permitida)
    */
-  uploadFile(file: File, path: string, userId: string): Observable<string> {
-    const safeUid = this.sanitizeUid(userId);
-    if (!safeUid) {
-      return throwError(() => new Error('UID inválido para upload.'));
-    }
-
-    const currentUid = this.currentUid;
-    if (currentUid && currentUid !== safeUid) {
-      return throwError(() => new Error('O upload deve ocorrer apenas no namespace do usuário autenticado.'));
-    }
-
-    const kind = this.resolveUploadKind(file, path);
-    const validation$ = kind === 'video'
-      ? this.validateVideoFile(file)
-      : this.validateImageFile(file);
-
-    return validation$.pipe(
-      switchMap(() => {
-        const resolvedPath =
-          kind === 'video'
-            ? this.buildVideoUploadPath(safeUid, file.name)
-            : this.buildImageUploadPath(safeUid, file.name);
-
-        this.dbg('Iniciando uploadFile', {
-          fileName: file.name,
-          kind,
-          requestedPath: path,
-          resolvedPath,
-          userId: safeUid,
-        });
-
-        const storageRef = ref(this.storage, resolvedPath);
-        const uploadTask = uploadBytesResumable(storageRef, file);
-
-        return new Observable<string>((observer) => {
-          uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-              const progress =
-                (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-
-              this.dbg('Progresso do upload', { progress, resolvedPath });
-              this.store.dispatch(uploadProgress({ progress }));
-            },
-            (error) => {
-              const errorMsg = this.extractErrorMessage(error);
-
-              this.dbg('Erro durante uploadFile', { errorMsg, resolvedPath });
-              this.store.dispatch(uploadError({ error: errorMsg }));
-              this.routeError(
-                '[StorageService] Falha durante uploadFile.',
-                error,
-                { resolvedPath, fileName: file.name, kind },
-                false
-              );
-              this.errorNotifier.showError(
-                kind === 'video' ? 'Erro no upload do vídeo.' : 'Erro no upload da foto.'
-              );
-              observer.error(error);
-            },
-            () => {
-              this.resolveReadableLocation$(resolvedPath).subscribe({
-                next: (location) => {
-                  /**
-                   * SUPRESSÃO SEMÂNTICA EXPLÍCITA:
-                   * - a action se chama uploadSuccess({ url })
-                   * - porém, com rules rígidas, este "url" pode carregar storage path bruto
-                   * - mantemos esse formato apenas para preservar compatibilidade imediata
-                   */
-                  this.store.dispatch(uploadSuccess({ url: location }));
-                  observer.next(location);
-                  observer.complete();
-                },
-                error: (error) => {
-                  const errorMsg = this.extractErrorMessage(error);
-
-                  this.dbg('Erro ao resolver localização legível', {
-                    errorMsg,
-                    resolvedPath,
-                  });
-
-                  this.store.dispatch(uploadError({ error: errorMsg }));
-                  observer.error(error);
-                },
-              });
-            }
-          );
-        });
-      }),
-      catchError((error) => {
-        const errorMsg = this.extractErrorMessage(error);
-
-        this.dbg('Erro no fluxo uploadFile', { errorMsg, path, userId });
-        this.routeError(
-          '[StorageService] Erro no fluxo do Observable uploadFile.',
-          error,
-          { path, userId, fileName: file?.name },
-          false
-        );
-
-        return throwError(() => error);
-      })
-    );
+uploadFile(
+  file: File,
+  path: string,
+  userId: string,
+  progressCallback?: (progress: number) => void
+): Observable<string> {
+  const safeUid = this.sanitizeUid(userId);
+  if (!safeUid) {
+    return throwError(() => new Error('UID inválido para upload.'));
   }
 
+  const currentUid = this.currentUid;
+  if (currentUid && currentUid !== safeUid) {
+    return throwError(() => new Error('O upload deve ocorrer apenas no namespace do usuário autenticado.'));
+  }
+
+  const kind = this.resolveUploadKind(file, path);
+  const validation$ = kind === 'video'
+    ? this.validateVideoFile(file)
+    : this.validateImageFile(file);
+
+  return validation$.pipe(
+    switchMap(() => {
+      const resolvedPath =
+        kind === 'video'
+          ? this.buildVideoUploadPath(safeUid, file.name)
+          : this.buildImageUploadPath(safeUid, file.name);
+
+      this.dbg('Iniciando uploadFile', {
+        fileName: file.name,
+        kind,
+        requestedPath: path,
+        resolvedPath,
+        userId: safeUid,
+      });
+
+      const storageRef = ref(this.storage, resolvedPath);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      return new Observable<string>((observer) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress =
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+
+            this.dbg('Progresso do upload', { progress, resolvedPath });
+            this.store.dispatch(uploadProgress({ progress }));
+            progressCallback?.(progress);
+          },
+          (error) => {
+            const errorMsg = this.extractErrorMessage(error);
+
+            this.dbg('Erro durante uploadFile', { errorMsg, resolvedPath });
+            this.store.dispatch(uploadError({ error: errorMsg }));
+            this.routeError(
+              '[StorageService] Falha durante uploadFile.',
+              error,
+              { resolvedPath, fileName: file.name, kind },
+              false
+            );
+            this.errorNotifier.showError(
+              kind === 'video' ? 'Erro no upload do vídeo.' : 'Erro no upload da foto.'
+            );
+            observer.error(error);
+          },
+          () => {
+            this.resolveReadableLocation$(resolvedPath).subscribe({
+              next: (location) => {
+                this.store.dispatch(uploadSuccess({ url: location }));
+                observer.next(location);
+                observer.complete();
+              },
+              error: (error) => {
+                const errorMsg = this.extractErrorMessage(error);
+
+                this.dbg('Erro ao resolver localização legível', {
+                  errorMsg,
+                  resolvedPath,
+                });
+
+                this.store.dispatch(uploadError({ error: errorMsg }));
+                observer.error(error);
+              },
+            });
+          }
+        );
+      });
+    }),
+    catchError((error) => {
+      const errorMsg = this.extractErrorMessage(error);
+
+      this.dbg('Erro no fluxo uploadFile', { errorMsg, path, userId });
+      this.routeError(
+        '[StorageService] Erro no fluxo do Observable uploadFile.',
+        error,
+        { path, userId, fileName: file?.name },
+        false
+      );
+
+      return throwError(() => error);
+    })
+  );
+}
   // ---------------------------------------------------------------------------
   // Avatar
   // ---------------------------------------------------------------------------

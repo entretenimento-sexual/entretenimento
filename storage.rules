@@ -2,6 +2,10 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
+    // ============================================================
+    // Helpers básicos - 14ABR2026
+    // ============================================================
+
     function signedIn() {
       return request.auth != null;
     }
@@ -10,42 +14,92 @@ service firebase.storage {
       return signedIn() && request.auth.uid == uid;
     }
 
-    function isImageUpload() {
+    // ------------------------------------------------------------
+    // Validação de upload de imagem
+    // - create/update: request.resource existe
+    // - delete: request.resource é null, então não pode usar este helper
+    // ------------------------------------------------------------
+    function isImageCreateOrUpdate() {
       return request.resource != null
         && request.resource.contentType.matches('image/.*')
         && request.resource.size <= 10 * 1024 * 1024;
     }
 
-    function isVideoUpload() {
+    // ------------------------------------------------------------
+    // Validação de upload de vídeo
+    // ------------------------------------------------------------
+    function isVideoCreateOrUpdate() {
       return request.resource != null
         && request.resource.contentType.matches('video/.*')
         && request.resource.size <= 500 * 1024 * 1024;
     }
 
-    // -----------------------------------------------------------------------
-    // Upload bruto: não legível diretamente
-    // -----------------------------------------------------------------------
+    // ============================================================
+    // Upload bruto do usuário
+    //
+    // Fluxo atual do app:
+    // - o upload físico acontece em users/{uid}/uploads/...
+    // - depois o app tenta resolver URL legível / carregar a foto
+    // - portanto, o DONO precisa poder ler seu próprio upload bruto
+    //
+    // Segurança:
+    // - terceiros continuam sem acesso
+    // - create/update continuam limitados por tipo e tamanho
+    // - delete é liberado para o dono sem depender de request.resource
+    // ============================================================
+
     match /users/{uid}/uploads/images/{fileName} {
-      allow read: if false;
-      allow write: if isSelf(uid) && isImageUpload();
+      // Leitura apenas do próprio dono
+      allow read: if isSelf(uid);
+
+      // Criação/atualização apenas do dono, validando imagem
+      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+
+      // Exclusão do próprio dono
+      allow delete: if isSelf(uid);
     }
 
     match /users/{uid}/uploads/videos/{fileName} {
-      allow read: if false;
-      allow write: if isSelf(uid) && isVideoUpload();
+      // Leitura apenas do próprio dono
+      allow read: if isSelf(uid);
+
+      // Criação/atualização apenas do dono, validando vídeo
+      allow create, update: if isSelf(uid) && isVideoCreateOrUpdate();
+
+      // Exclusão do próprio dono
+      allow delete: if isSelf(uid);
     }
 
-    // -----------------------------------------------------------------------
-    // Avatar publicado: leitura autenticada, escrita só do dono
-    // -----------------------------------------------------------------------
+    // ============================================================
+    // Avatar publicado
+    //
+    // Mantido conforme sua intenção atual:
+    // - leitura para usuário autenticado
+    // - escrita só do dono
+    //
+    // Também corrigido:
+    // - delete separado de create/update
+    // ============================================================
+
     match /users/{uid}/published/avatar/{fileName} {
+      // Avatar pode ser lido por usuários autenticados
       allow read: if signedIn();
-      allow write: if isSelf(uid) && isImageUpload();
+
+      // Só o dono cria/atualiza avatar, com validação de imagem
+      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
+
+      // Só o dono remove avatar
+      allow delete: if isSelf(uid);
     }
 
-    // -----------------------------------------------------------------------
-    // Mídia publicada sensível: por enquanto continua fechada
-    // -----------------------------------------------------------------------
+    // ============================================================
+    // Mídia publicada sensível
+    //
+    // Por enquanto segue fechada.
+    // Quando você criar a etapa formal de publicação/moderação,
+    // estas regras podem ser abertas de forma controlada.
+    // ============================================================
+
     match /users/{uid}/published/images/{fileName} {
       allow read, write: if false;
     }
@@ -54,16 +108,18 @@ service firebase.storage {
       allow read, write: if false;
     }
 
-    // -----------------------------------------------------------------------
-    // Área técnica / quarentena / derivados
-    // -----------------------------------------------------------------------
+    // ============================================================
+    // Área técnica / sistema / derivados
+    // ============================================================
+
     match /system/{allPaths=**} {
       allow read, write: if false;
     }
 
-    // -----------------------------------------------------------------------
+    // ============================================================
     // Negação padrão
-    // -----------------------------------------------------------------------
+    // ============================================================
+
     match /{allPaths=**} {
       allow read, write: if false;
     }

@@ -1,6 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-04-12T11:37:31.247Z
+// Generated at: 2026-04-16T19:18:05.439Z
 
 // ===== _helpers.rules =====
 // ===============================================================
@@ -1183,11 +1183,13 @@ match /user_profile/{userId} {
 // ===== users_photos.rules =====
 // ===============================================================
 // USERS / photos + imageStates + comments
-// - MVP seguro: somente o dono lê/escreve
+// - Fluxo atual: metadado da foto salva id, url, path, fileName, createdAt
+// - Somente o dono lê/escreve
 // - Sem scraping, sem enumeração
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // uso de helpers globais
 // firestore-rules/users_photos.rules
+// 14ABR2026
 // ===============================================================
 match /users/{userId}/photos/{photoId} {
 
@@ -1199,6 +1201,7 @@ match /users/{userId}/photos/{photoId} {
     return request.resource.data.keys().hasOnly([
       "id",
       "url",
+      "path",
       "fileName",
       "createdAt",
       "updatedAt"
@@ -1209,6 +1212,7 @@ match /users/{userId}/photos/{photoId} {
     return allowedKeys()
       && (!hasField("id") || request.resource.data.id is string)
       && (!hasField("url") || request.resource.data.url is string)
+      && (!hasField("path") || request.resource.data.path is string)
       && (!hasField("fileName") || request.resource.data.fileName is string)
       && optTimestamp("createdAt")
       && optTimestamp("updatedAt");
@@ -1220,9 +1224,6 @@ match /users/{userId}/photos/{photoId} {
   allow update: if isSelf(userId) && validPhotoPayload();
   allow delete: if isSelf(userId);
 
-  // -----------------------------------------------------------------------
-  // comments (subcollection) — MVP: só dono
-  // -----------------------------------------------------------------------
   match /comments/{commentId} {
     function allowedCommentKeys() {
       return request.resource.data.keys().hasOnly(["comment", "date"]);

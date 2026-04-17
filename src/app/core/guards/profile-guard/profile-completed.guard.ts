@@ -1,15 +1,16 @@
 // src/app/core/guards/profile-guard/profile-completed.guard.ts
 // Guard: bloqueia rotas que exigem perfil completo.
 //
-// Regras:
-// - respeita route.data.allowProfileIncomplete === true
-// - exige sessão autenticada
-// - usa appUser já hidratado pelo fluxo canônico do projeto
-// - em erro, degrada para /register/finalizar-cadastro
+// AJUSTES DESTA VERSÃO:
+// - mantém o bypass por route.data.allowProfileIncomplete
+// - adiciona bypass explícito para o fluxo de fotos
+// - evita que upload/galeria briguem com o onboarding
 //
-// Observação:
-// - evita nova query no Firestore dentro do guard
-// - reduz race condition e duplicação de responsabilidade
+// OBSERVAÇÃO:
+// - isso é um ajuste funcional concreto.
+// - depois, se quiser, você pode migrar esse bypass para data nas rotas
+//   e remover a detecção por URL.
+
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 import { combineLatest, of } from 'rxjs';
@@ -25,9 +26,21 @@ import {
   isResolvedAccessState,
 } from '../_shared-guard/guard-utils';
 
+function isPhotosFlowUrl(url: string): boolean {
+  const clean = (url ?? '').split('?')[0];
+
+  return (
+    /^\/perfil\/[^/]+\/fotos(?:\/upload)?$/i.test(clean) ||
+    /^\/media\/perfil\/[^/]+\/fotos(?:\/upload)?$/i.test(clean) ||
+    clean === '/media/photos'
+  );
+}
+
 export const profileCompletedGuard: CanActivateFn = (route, state) => {
-  const allowIncomplete = route.data?.['allowProfileIncomplete'] === true;
-  if (allowIncomplete) {
+  const allowIncompleteByData = route.data?.['allowProfileIncomplete'] === true;
+  const allowIncompleteByPhotosFlow = isPhotosFlowUrl(state.url);
+
+  if (allowIncompleteByData || allowIncompleteByPhotosFlow) {
     return of(true);
   }
 

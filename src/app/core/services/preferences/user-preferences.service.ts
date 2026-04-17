@@ -219,27 +219,6 @@ export class UserPreferencesService {
     );
   }
 
-  /**
-   * Preferências por token (pré-cadastro).
-   * - Retorna null se não existir ou se falhar (sem quebrar UI).
-   */
-  getUserPreferencesByToken$(token: string): Observable<any | null> {
-    const safeToken = (token ?? '').trim();
-    if (!safeToken) return of(null);
-
-    return this.firestoreCtx.deferPromise$(() => {
-      const preRegisterCollection = collection(this.db, 'preRegisterPreferences');
-      const preRegisterQuery = query(preRegisterCollection, where('token', '==', safeToken));
-      return getDocs(preRegisterQuery);
-    }).pipe(
-      map((snap) => (snap.empty ? null : snap.docs[0].data())),
-      catchError((err) => {
-        this.routeError(err, 'getUserPreferencesByToken$', 'Erro ao buscar preferências pelo token.');
-        return of(null);
-      })
-    );
-  }
-
   // =============================================================================
   // FIRESTORE (internos)
   // =============================================================================

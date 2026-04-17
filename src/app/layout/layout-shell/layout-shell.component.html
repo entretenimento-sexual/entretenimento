@@ -6,23 +6,31 @@
 >
   <app-navbar></app-navbar>
   <app-email-verification-gate-banner></app-email-verification-gate-banner>
-  <div class="auth-shell__body">
+
+  <div
+    class="auth-shell__body"
+    [class.auth-shell__body--sidebar-overlay-open]="vm.showSidebar && vm.sidebarShouldOverlay && vm.sidebar.isOpen"
+  >
     <app-universal-sidebar
       *ngIf="vm.showSidebar"
       [vm]="vm.sidebar"
       [user]="vm.sidebarUser"
+      [forceOverlay]="vm.sidebarShouldOverlay"
+      [forceCollapsed]="vm.sidebarShouldCompact"
       (toggleRequested)="onToggleSidebar()"
       (collapseRequested)="onToggleCollapse()"
     ></app-universal-sidebar>
 
     <div
       class="auth-shell__content-area"
-      [class.auth-shell__content-area--collapsed]="vm.showSidebar && !vm.sidebar.isMobile && vm.sidebar.isCollapsed"
+      [class.auth-shell__content-area--compact]="vm.showSidebar && vm.sidebarShouldCompact"
+      [class.auth-shell__content-area--collapsed]="vm.showSidebar && !vm.sidebarShouldOverlay && !vm.sidebarShouldCompact && !vm.sidebar.isMobile && vm.sidebar.isCollapsed"
       [class.auth-shell__content-area--full]="!vm.showSidebar"
+      [class.auth-shell__content-area--overlay]="vm.showSidebar && vm.sidebarShouldOverlay"
     >
       <main
         class="auth-shell__content"
-        [attr.aria-hidden]="vm.showSidebar && vm.sidebar.isMobile && vm.sidebar.isOpen ? 'true' : null"
+        [attr.inert]="vm.showSidebar && vm.sidebarShouldOverlay && vm.sidebar.isOpen ? '' : null"
       >
         <router-outlet></router-outlet>
       </main>

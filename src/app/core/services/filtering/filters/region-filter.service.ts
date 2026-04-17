@@ -1,51 +1,98 @@
-// src\app\core\services\filtering\filters\region-filter.service.ts
-// Não esquecer dos comentários explicativos e ferrementas de debug
-import { Injectable } from '@angular/core';
-import { catchError, from, map, Observable, of } from 'rxjs';
-import { collection, doc, getDoc, getDocs, query, QueryConstraint, QueryDocumentSnapshot, where } from 'firebase/firestore';
-import { FirestoreService } from '../../data-handling/legacy/firestore.service';
+// src/app/core/services/filtering/filters/region-filter.service.ts
+// Não esquecer dos comentários explicativos e ferramentas de debug.
+//
+// AJUSTES DESTA VERSÃO:
+// - SUPRIMIDO o uso do FirestoreService legado
+// - Firestore agora é injetado diretamente via AngularFire
+// - removido Observable manual em getUserRegion()
+// - removidos console.log espalhados
+// - erros passam pelo GlobalErrorHandlerService + ErrorNotificationService
+// - mantidas as nomenclaturas públicas: getUserRegion / applyRegionFilters / getUsersInRegion / validateRegion
+//
+// OBSERVAÇÃO:
+// - mantive a assinatura de getUsersInRegion() compatível.
+// - mantive o filtro por 'estado' e 'municipio' exatamente como já existia.
+// - se depois você quiser, dá para evoluir esse service para um repository read-only.
+
+import { Injectable, inject } from '@angular/core';
+import {
+  Firestore,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  QueryConstraint,
+  QueryDocumentSnapshot,
+  where,
+} from '@angular/fire/firestore';
+import { catchError, from, map, Observable, of, throwError } from 'rxjs';
+
 import { IBGELocationService } from '../../general/api/ibge-location.service';
+import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { ErrorNotificationService } from '../../error-handler/error-notification.service';
+
+export interface UserRegion {
+  uf: string;
+  city: string;
+}
+
+export type RegionUserResult = {
+  id: string;
+} & Record<string, unknown>;
 
 @Injectable({
   providedIn: 'root',
 })
 export class RegionFilterService {
+  private readonly firestore = inject(Firestore);
+
   constructor(
-    private firestoreService: FirestoreService,
-    private ibgeLocationService: IBGELocationService
-  ) { }
+    private readonly ibgeLocationService: IBGELocationService,
+    private readonly errorHandler: GlobalErrorHandlerService,
+    private readonly errorNotifier: ErrorNotificationService
+  ) {}
 
   /**
-  * Obtém a UF e o município do usuário logado.
-  * @param uid ID do usuário logado.
-  * @returns Observable com as informações de UF e município.
-  */
-  getUserRegion(uid: string): Observable<{ uf: string; city: string } | null> {
-    if (!uid) return of(null);
+   * Obtém a UF e o município do usuário logado.
+   * @param uid ID do usuário logado.
+   * @returns Observable com as informações de UF e município.
+   */
+  getUserRegion(uid: string): Observable<UserRegion | null> {
+    const safeUid = (uid ?? '').trim();
+    if (!safeUid) {
+      return of(null);
+    }
 
-    const userDocRef = doc(this.firestoreService.getFirestoreInstance(), `users/${uid}`);
-    return new Observable((observer) => {
-      getDoc(userDocRef)
-        .then((docSnap) => {
-          if (docSnap.exists()) {
-            const data = docSnap.data();
-            console.log('Dados obtidos do Firestore:', data)
-            observer.next({
-              uf: data?.['estado'] || '',
-              city: data?.['municipio'] || '',
-            });
-          } else {
-            observer.next(null);
-          }
-          observer.complete();
-        })
-        .catch((error) => {
-          console.log('Erro ao buscar região do usuário:', error);
-          observer.error(error);
-        });
-    });
+    const userDocRef = doc(this.firestore, `users/${safeUid}`);
+
+    return from(getDoc(userDocRef)).pipe(
+      map((docSnap) => {
+        if (!docSnap.exists()) {
+          return null;
+        }
+
+        const data = docSnap.data();
+
+        return {
+          uf: String(data?.['estado'] ?? ''),
+          city: String(data?.['municipio'] ?? ''),
+        };
+      }),
+      catchError((error) => {
+        const normalizedError = this.normalizeError(
+          error,
+          'Erro ao buscar região do usuário.',
+          { op: 'getUserRegion', uid: safeUid }
+        );
+
+        this.errorHandler.handleError(normalizedError);
+        this.errorNotifier.showError('Erro ao buscar região do usuário.');
+
+        return throwError(() => normalizedError);
+      })
+    );
   }
-
 
   /**
    * Aplica filtros para encontrar usuários na região especificada.
@@ -57,16 +104,15 @@ export class RegionFilterService {
     const constraints: QueryConstraint[] = [];
 
     if (uf?.trim()) {
-      constraints.push(where('estado', '==', uf.toUpperCase().trim())); // Certifique-se de que 'estado' é o nome correto no Firestore
+      constraints.push(where('estado', '==', uf.toUpperCase().trim()));
     }
 
     if (city?.trim()) {
-      constraints.push(where('municipio', '==', city.toLowerCase().trim())); // Certifique-se de que 'municipio' é o nome correto no Firestore
+      constraints.push(where('municipio', '==', city.toLowerCase().trim()));
     }
 
     return constraints;
   }
-
 
   /**
    * Busca usuários de uma região no Firestore.
@@ -74,20 +120,28 @@ export class RegionFilterService {
    * @param city Cidade.
    * @returns Observable com a lista de usuários.
    */
-  getUsersInRegion(uf?: string, city?: string): Observable<any[]> {
+  getUsersInRegion(uf?: string, city?: string): Observable<RegionUserResult[]> {
     const constraints = this.applyRegionFilters(uf, city);
-    const usersCollection = collection(this.firestoreService.getFirestoreInstance(), 'users');
+    const usersCollection = collection(this.firestore, 'users');
     const q = query(usersCollection, ...constraints);
 
     return from(getDocs(q)).pipe(
       map((snapshot) =>
-        snapshot.docs.map((doc: QueryDocumentSnapshot) => ({
-          id: doc.id,
-          ...doc.data(),
+        snapshot.docs.map((docSnap: QueryDocumentSnapshot) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
         }))
       ),
       catchError((error) => {
-        console.log('Erro ao buscar usuários por região:', error);
+        const normalizedError = this.normalizeError(
+          error,
+          'Erro ao buscar usuários por região.',
+          { op: 'getUsersInRegion', uf, city }
+        );
+
+        this.errorHandler.handleError(normalizedError);
+        this.errorNotifier.showError('Erro ao buscar usuários por região.');
+
         return of([]);
       })
     );
@@ -101,8 +155,39 @@ export class RegionFilterService {
    */
   validateRegion(uf: string, city: string): Observable<boolean> {
     return this.ibgeLocationService.getMunicipios(uf).pipe(
-      map((municipios) => municipios.some((municipio) => municipio.nome.toLowerCase() === city.toLowerCase()))
+      map((municipios) =>
+        municipios.some(
+          (municipio) => municipio.nome.toLowerCase() === city.toLowerCase()
+        )
+      ),
+      catchError((error) => {
+        const normalizedError = this.normalizeError(
+          error,
+          'Erro ao validar região.',
+          { op: 'validateRegion', uf, city }
+        );
+
+        this.errorHandler.handleError(normalizedError);
+        return of(false);
+      })
     );
   }
-} // Linha 107, fim do RegionFilterService
-// - FirestoreService está sendo descontinuado -> usa FirestoreWriteService
+
+  private normalizeError(
+    error: unknown,
+    fallbackMessage: string,
+    context?: Record<string, unknown>
+  ): Error {
+    const normalizedError =
+      error instanceof Error ? error : new Error(fallbackMessage);
+
+    (normalizedError as any).original = error;
+    (normalizedError as any).context = {
+      scope: 'RegionFilterService',
+      ...(context ?? {}),
+    };
+    (normalizedError as any).skipUserNotification = true;
+
+    return normalizedError;
+  }
+}

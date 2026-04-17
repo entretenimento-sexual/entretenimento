@@ -14,13 +14,14 @@
           <span class="visually-hidden">Página inicial</span>
         </a>
 
-        @if (!isPublicAuthRoute) {
+        @if (shouldShowSidebarToggle) {
           <button
             type="button"
             class="hamburger-btn"
             (click)="onToggleSidebar()"
-            aria-label="Abrir menu lateral"
+            aria-label="Abrir ou fechar menu lateral"
             aria-controls="app-sidebar"
+            [attr.aria-expanded]="isSidebarOpen ? 'true' : 'false'"
           >
             &#9776;
           </button>

@@ -1,115 +1,535 @@
 /* src/app/media/photos/profile-photos/profile-photos.component.css */
-/* MVP: layout limpo e responsivo. Ajuste depois com seu design system global. */
+/* ==========================================================================
+   GALERIA PRIVADA DE FOTOS
+   --------------------------------------------------------------------------
+   Diretrizes deste arquivo:
+   - foco em biblioteca privada organizada
+   - foto nunca deve “explodir” e ocupar largura exagerada
+   - grid com limite mínimo e máximo de card
+   - preparado para mobile/app futuro (.apk), portrait/landscape,
+     notebooks, monitores ultrawide e telas grandes
+   - visual limpo, estável e inspirado em plataformas grandes
+   ========================================================================== */
+
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  color: var(--text-color, #f5f7fb);
+}
+
+/* ==========================================================================
+   Página / estrutura geral
+   ========================================================================== */
 
 .photos-page {
   width: 100%;
-  max-width: 1100px;
+  max-width: min(1680px, 100%);
   margin: 0 auto;
-  padding: 16px;
+  padding:
+    clamp(12px, 1vw, 20px)
+    clamp(12px, 2vw, 28px)
+    clamp(24px, 3vw, 40px);
+  box-sizing: border-box;
 }
 
 .photos-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: clamp(12px, 2vw, 24px);
+  margin-bottom: clamp(16px, 2vw, 28px);
+}
+
+.photos-title {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .photos-title h2 {
   margin: 0;
-  font-size: 1.25rem;
-  line-height: 1.2;
+  font-size: clamp(1.45rem, 1.1rem + 1.2vw, 2.25rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: var(--text-color, #f5f7fb);
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-color, #ff6b81);
 }
 
 .subtitle {
-  margin: 6px 0 0;
-  opacity: 0.8;
-  font-size: 0.95rem;
+  margin: 10px 0 0;
+  max-width: 78ch;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
+  font-size: clamp(0.94rem, 0.9rem + 0.18vw, 1.02rem);
+  line-height: 1.5;
 }
 
 .actions {
   display: flex;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  min-width: max-content;
 }
 
-.btn {
-  border: 0;
-  border-radius: 10px;
-  padding: 10px 12px;
-  cursor: pointer;
+.gallery-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.93rem;
 }
 
-.btn-secondary {
-  opacity: 0.9;
+/* ==========================================================================
+   Estados vazios / bloqueio
+   ========================================================================== */
+
+.empty-state,
+.blocked {
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  background: color-mix(in oklab, var(--surface-color, #0e1624) 94%, transparent);
+  border-radius: 22px;
+  padding: clamp(16px, 2vw, 28px);
+  box-shadow: var(--box-shadow, 0 10px 30px rgba(0, 0, 0, 0.18));
 }
 
 .empty-state {
-  border-radius: 14px;
-  padding: 18px;
-  opacity: 0.9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(12px, 2vw, 20px);
 }
+
+.empty-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.empty-copy h3 {
+  margin: 0 0 8px;
+  font-size: clamp(1.05rem, 0.96rem + 0.45vw, 1.3rem);
+  line-height: 1.2;
+  color: var(--text-color, #f5f7fb);
+}
+
+.empty-copy p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 78%, transparent);
+  line-height: 1.5;
+}
+
+/* ==========================================================================
+   Grid da galeria
+   --------------------------------------------------------------------------
+   Regras centrais:
+   - cards têm largura mínima e máxima controladas
+   - um único item não cresce para ocupar a linha inteira
+   - grid fica alinhado à esquerda e organizado
+   ========================================================================== */
 
 .photos-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(clamp(180px, 20vw, 230px), 1fr));
+  gap: clamp(12px, 1.6vw, 20px);
+  align-items: start;
+}
+
+/* wrapper do card */
+.photo-tile {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--surface-color, #0e1624);
+  box-shadow: var(--box-shadow, 0 10px 30px rgba(0, 0, 0, 0.18));
+  display: flex;
+  flex-direction: column;
+  isolation: isolate;
+}
+
+/* botão da imagem */
+.photo-card {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    filter 0.18s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.photo-card:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.02);
+}
+
+.photo-card:active {
+  transform: translateY(0);
+}
+
+.photo-card:focus-visible,
+.photo-action-btn:focus-visible,
+.delete-confirm-actions .btn:focus-visible,
+.actions .btn:focus-visible {
+  outline: var(--focus-ring, 2px solid rgba(255, 107, 129, 0.95));
+  outline-offset: var(--focus-offset, 3px);
+}
+
+/* imagem com limite mínimo e máximo de altura */
+.photo {
+  width: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  aspect-ratio: 4 / 5;
+  min-height: 180px;
+  max-height: 360px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color, #0e1624) 92%, white 8%),
+      color-mix(in oklab, var(--surface-color, #0e1624) 82%, black 18%)
+    );
+}
+
+/* ==========================================================================
+   Linha de status
+   ========================================================================== */
+
+.photo-status-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 12px 0;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  background: color-mix(in oklab, var(--surface-color, #0e1624) 94%, transparent);
+}
+
+.status-private {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 88%, transparent);
+}
+
+.status-published {
+  color: var(--primary-color, #ff6b81);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b81) 34%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+}
+
+.status-cover {
+  color: var(--success-color, #5ed39a);
+  border-color: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 34%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+}
+
+.status-visibility {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 84%, transparent);
+}
+
+/* ==========================================================================
+   Ações do card
+   ========================================================================== */
+
+.photo-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+}
+
+.photo-action-btn {
+  min-width: 92px;
+  flex: 0 0 auto;
+}
+
+.publication-note {
+  width: 100%;
+  margin: 0;
+  padding: 0 12px 12px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+  font-size: 0.87rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.publication-note code {
+  font-family: inherit;
+  font-weight: 700;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 92%, transparent);
+}
+
+/* ação perigosa */
+.danger-ghost {
+  color: var(--danger-color, #ff6b6b) !important;
+  border-color: color-mix(
+    in oklab,
+    var(--danger-color, #ff6b6b) 34%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  ) !important;
+}
+
+.danger-ghost:hover,
+.danger-ghost:focus-visible {
+  background: color-mix(in oklab, var(--danger-color, #ff6b6b) 10%, transparent) !important;
+}
+
+/* ==========================================================================
+   Confirmação inline de exclusão
+   ========================================================================== */
+
+.delete-confirm-box {
+  width: 100%;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--danger-color, #ff6b6b) 28%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  background: color-mix(in oklab, var(--surface-color, #0e1624) 92%, transparent);
+  border-radius: 16px;
+  padding: 12px;
+  display: grid;
   gap: 10px;
 }
 
-.photo-card {
-  padding: 0;
-  border: 0;
-  cursor: pointer;
-  border-radius: 14px;
-  overflow: hidden;
-  background: transparent;
+.delete-confirm-box p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 88%, transparent);
+  font-size: 0.94rem;
+  line-height: 1.45;
 }
 
-.photo {
-  width: 100%;
-  height: 220px;
-  object-fit: cover;
-  display: block;
+.delete-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.blocked {
-  border-radius: 14px;
-  padding: 16px;
-  opacity: 0.9;
-}
+/* ==========================================================================
+   Melhorias para telas muito pequenas
+   ========================================================================== */
 
-/* Responsivo */
-@media (max-width: 900px) {
-  .photos-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+@media (max-width: 599px) {
+  .photos-page {
+    padding:
+      12px
+      12px
+      24px;
   }
 
-  .photo {
-    height: 200px;
-  }
-}
-
-@media (max-width: 650px) {
-  .photos-header {
+  .photos-header,
+  .empty-state {
     flex-direction: column;
     align-items: stretch;
   }
 
+  .actions {
+    width: 100%;
+    min-width: 0;
+    justify-content: stretch;
+  }
+
+  .actions .btn,
+  .empty-state .btn,
+  .photo-action-btn,
+  .delete-confirm-actions .btn {
+    width: 100%;
+  }
+
   .photos-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
   }
 
   .photo {
-    height: 180px;
+    min-height: 160px;
+    max-height: 240px;
+  }
+
+  .photo-actions {
+    gap: 8px;
+  }
+
+  .status-badge {
+    font-size: 0.76rem;
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 420px) {
   .photos-grid {
     grid-template-columns: 1fr;
   }
 
   .photo {
-    height: 210px;
+    min-height: 180px;
+    max-height: 250px;
+  }
+
+  .photo-status-row,
+  .photo-actions,
+  .publication-note {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+/* ==========================================================================
+   Mobile em paisagem / aparelhos baixos
+   ========================================================================== */
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .photos-page {
+    padding-top: 12px;
+  }
+
+  .photos-header {
+    margin-bottom: 14px;
+  }
+
+  .photo {
+    min-height: 150px;
+    max-height: 220px;
+  }
+}
+
+/* ==========================================================================
+   Tablets / notebooks menores
+   ========================================================================== */
+
+@media (min-width: 600px) and (max-width: 1023px) {
+  .photos-grid {
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  }
+
+  .photo {
+    min-height: 190px;
+    max-height: 300px;
+  }
+}
+
+/* ==========================================================================
+   Notebooks / desktops médios
+   ========================================================================== */
+
+@media (min-width: 1024px) {
+  .photos-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  }
+
+  .photo {
+    min-height: 210px;
+    max-height: 320px;
+  }
+}
+
+/* ==========================================================================
+   Desktops largos / monitores grandes
+   ========================================================================== */
+
+@media (min-width: 1440px) {
+  .photos-page {
+    max-width: 1800px;
+  }
+
+  .photos-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 20px;
+  }
+
+  .photo {
+    min-height: 220px;
+    max-height: 340px;
+  }
+}
+
+/* ==========================================================================
+   Telas gigantes / TVs / monitores ultrawide
+   --------------------------------------------------------------------------
+   Mesmo em telas enormes, a galeria continua organizada e sem cards gigantes.
+   ========================================================================== */
+
+@media (min-width: 1920px) {
+  .photos-page {
+    max-width: 1920px;
+  }
+
+  .photos-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 280px));
+    justify-content: start;
+    gap: 22px;
+  }
+
+  .photo-tile {
+    max-width: 280px;
+  }
+
+  .photo {
+    min-height: 220px;
+    max-height: 360px;
+  }
+}
+
+@media (min-width: 2560px) {
+  .photos-page {
+    max-width: 2200px;
+  }
+
+  .photos-grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 300px));
+    gap: 24px;
+  }
+
+  .photo-tile {
+    max-width: 300px;
+  }
+}
+
+/* ==========================================================================
+   Preferências de movimento
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-card,
+  .photo-tile {
+    transition: none !important;
   }
 }

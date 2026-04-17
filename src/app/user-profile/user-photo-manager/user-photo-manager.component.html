@@ -1,14 +1,19 @@
-<!-- src\app\user-profile\user-photo-manager\user-photo-manager.component.html -->
+<!-- src/app/user-profile/user-photo-manager/user-photo-manager.component.html -->
 <div class="photo-manager">
   <h3>Gerenciamento de Fotos</h3>
+
   @if ((userPhotos$ | async)?.length) {
     <div>
       <div class="photo-grid">
-        @for (photo of userPhotos$ | async; track photo) {
+        @for (photo of userPhotos$ | async; track photo.id) {
           <div class="photo-item">
             <div class="photo-wrapper">
               <img [src]="photo.url" alt="Foto do usuário" class="user-photo">
-              <button class="delete-button" (click)="deleteFile(photo.id, photo.path)">Excluir</button>
+              <button
+                class="delete-button"
+                (click)="deleteFile(photo.id, photo.path ? photo.path : '')">
+                Excluir
+              </button>
             </div>
           </div>
         }
@@ -17,5 +22,4 @@
   } @else {
     <p>Nenhuma foto disponível.</p>
   }
-
 </div>

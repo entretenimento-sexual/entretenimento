@@ -1,46 +1,59 @@
 // src/app/core/services/media/media-command.service.ts
-// Commands do domínio Media (fotos/vídeos).
-// MVP: upload simulado (Observable de progresso).
-// Depois: plugar Storage + Firestore, mantendo assinatura.
+// Commands reais do domínio Media (fotos).
+//
+// AJUSTES DESTA VERSÃO:
+// - SUPRIMIDO o upload simulado com interval(...)
+// - SUPRIMIDA a mutação em memória via MediaQueryService
+// - upload agora delega para PhotoUploadFlowService
+// - delete agora usa PhotoFirestoreService real
+// - mantido o nome dos métodos públicos para reduzir impacto no restante do app
+//
+// OBSERVAÇÃO:
+// - uploadProfilePhoto$ mantém Observable<IMediaUploadProgress>
+// - como o fluxo real atual não expõe progresso granular, emitimos:
+//   1) UPLOADING 0
+//   2) DONE 100
+// - isso é mais honesto do que simular progresso inexistente
 
 import { Injectable } from '@angular/core';
-import { Observable, interval, of } from 'rxjs';
-import { catchError, map, takeWhile, tap } from 'rxjs/operators';
+import { Observable, concat, from, of, throwError } from 'rxjs';
+import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { MediaQueryService } from './media-query.service';
-import type { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PhotoUploadFlowService } from 'src/app/core/services/image-handling/photo-upload-flow.service';
+import { PhotoFirestoreService } from 'src/app/core/services/image-handling/photo-firestore.service';
 
 export type UploadPhase = 'UPLOADING' | 'DONE';
 
 export interface IMediaUploadProgress {
   phase: UploadPhase;
-  progress: number; // 0..100
-  // Futuro:
-  // photoId?: string;
-  // downloadUrl?: string;
+  progress: number;
+  photoId?: string;
+  downloadUrl?: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class MediaCommandService {
   constructor(
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly mediaQuery: MediaQueryService
-  ) { }
+    private readonly errorHandler: GlobalErrorHandlerService,
+    private readonly photoUploadFlow: PhotoUploadFlowService,
+    private readonly photoFirestoreService: PhotoFirestoreService
+  ) {}
 
   /**
-   * Upload de foto do perfil.
-   * MVP: simulado; Futuro: Storage + doc em "media/photos".
-   *
-   * Mantive o nome do método.
-   * Adicionei previewUrl opcional (não quebra chamada existente).
+   * Upload real de foto do perfil.
+   * Mantido o nome do método.
    */
   uploadProfilePhoto$(
     ownerUid: string,
     file: File,
-    previewUrl?: string | null
+    _previewUrl?: string | null
   ): Observable<IMediaUploadProgress> {
-    if (!ownerUid) {
+    const safeOwnerUid = (ownerUid ?? '').trim();
+
+    if (!safeOwnerUid) {
       this.errorNotifier.showError('Perfil inválido para upload.');
       return of({ phase: 'DONE', progress: 0 });
     }
@@ -50,45 +63,102 @@ export class MediaCommandService {
       return of({ phase: 'DONE', progress: 0 });
     }
 
-    // Item final (MVP): usa previewUrl se existir; senão, asset.
-    const photo: IPhotoItem = {
-      id: `p_${ownerUid}_${Date.now()}`,
-      ownerUid,
-      url: previewUrl ?? 'assets/imagem-padrao.webp',
-      alt: file.name,
-      createdAt: Date.now(),
-    };
+    const uploading$ = of<IMediaUploadProgress>({
+      phase: 'UPLOADING',
+      progress: 0,
+    });
 
-    return interval(120).pipe(
-      map((tick) => Math.min(100, (tick + 1) * 5)),
-      map((p) => ({ phase: p === 100 ? 'DONE' : 'UPLOADING', progress: p } as IMediaUploadProgress)),
-      takeWhile((evt) => evt.progress < 100, true),
-      tap((evt) => {
-        if (evt.phase === 'DONE') {
-          // ✅ atualiza UI imediatamente (store vivo)
-          this.mediaQuery.appendProfilePhoto(ownerUid, photo);
+    const done$ = this.photoUploadFlow.uploadProcessedPhoto$({
+      userId: safeOwnerUid,
+      processedFile: file,
+      originalFileName: file.name,
+      mimeType: file.type,
+    }).pipe(
+      map((result) => ({
+        phase: 'DONE' as const,
+        progress: 100,
+        photoId: result.photoId,
+        downloadUrl: result.url,
+      })),
+      catchError((error) => {
+        const normalizedError = this.normalizeError(
+          error,
+          'Erro ao enviar foto do perfil.',
+          { op: 'uploadProfilePhoto$', ownerUid: safeOwnerUid, fileName: file.name }
+        );
 
-          // ✅ mantém invalidate para quando virar Firestore
-          this.mediaQuery.invalidateProfilePhotos(ownerUid);
+        this.errorHandler.handleError(normalizedError);
+        this.errorNotifier.showError('Erro ao enviar foto do perfil.');
+
+        return of<IMediaUploadProgress>({
+          phase: 'DONE',
+          progress: 0,
+        });
+      })
+    );
+
+    return concat(uploading$, done$);
+  }
+
+  /**
+   * Delete real de foto do perfil.
+   * Mantido o nome do método.
+   */
+  deleteProfilePhoto$(ownerUid: string, photoId: string): Observable<void> {
+    const safeOwnerUid = (ownerUid ?? '').trim();
+    const safePhotoId = (photoId ?? '').trim();
+
+    if (!safeOwnerUid || !safePhotoId) {
+      return of(void 0);
+    }
+
+    return this.photoFirestoreService.getPhotosByUser(safeOwnerUid).pipe(
+      take(1),
+      map((items) => items.find((photo) => (photo.id ?? '').trim() === safePhotoId) ?? null),
+      switchMap((photo) => {
+        if (!photo) {
+          return throwError(() => new Error('Foto não encontrada para exclusão.'));
         }
+
+        const safePath = (photo.path ?? '').trim();
+        if (!safePath) {
+          return throwError(() => new Error('A foto não possui storagePath válido para exclusão.'));
+        }
+
+        return from(
+          this.photoFirestoreService.deletePhoto(safeOwnerUid, safePhotoId, safePath)
+        );
       }),
-      catchError((err) => {
-        this.errorNotifier.showError(err);
-        return of({ phase: 'DONE', progress: 0 } as IMediaUploadProgress);
+      catchError((error) => {
+        const normalizedError = this.normalizeError(
+          error,
+          'Erro ao excluir foto do perfil.',
+          { op: 'deleteProfilePhoto$', ownerUid: safeOwnerUid, photoId: safePhotoId }
+        );
+
+        this.errorHandler.handleError(normalizedError);
+        this.errorNotifier.showError('Erro ao excluir foto do perfil.');
+
+        return of(void 0);
       })
     );
   }
 
-  /**
-   * Delete (MVP).
-   * Futuro: deletar Storage + remover doc Firestore + invalidar cache.
-   */
-  deleteProfilePhoto$(ownerUid: string, photoId: string): Observable<void> {
-    if (!ownerUid || !photoId) return of(void 0);
+  private normalizeError(
+    error: unknown,
+    fallbackMessage: string,
+    context?: Record<string, unknown>
+  ): Error {
+    const normalizedError =
+      error instanceof Error ? error : new Error(fallbackMessage);
 
-    this.mediaQuery.removeProfilePhoto(ownerUid, photoId);
-    this.mediaQuery.invalidateProfilePhotos(ownerUid);
+    (normalizedError as any).original = error;
+    (normalizedError as any).context = {
+      scope: 'MediaCommandService',
+      ...(context ?? {}),
+    };
+    (normalizedError as any).skipUserNotification = true;
 
-    return of(void 0);
+    return normalizedError;
   }
 }

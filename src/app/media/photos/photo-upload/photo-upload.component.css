@@ -1,107 +1,248 @@
 /* src/app/media/photos/photo-upload/photo-upload.component.css */
-
 .upload-page {
   width: 100%;
-  max-width: 900px;
+  max-width: var(--content-wide, 1360px);
   margin: 0 auto;
-  padding: 16px;
+  padding: var(--space-4, 24px);
 }
 
 .upload-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: var(--space-3, 16px);
+  margin-bottom: var(--space-4, 24px);
+}
+
+.title-block h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 1vw + 1rem, 1.9rem);
+  line-height: 1.15;
+}
+
+.eyebrow {
+  display: inline-block;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary-color);
 }
 
 .subtitle {
-  margin: 6px 0 0;
-  opacity: 0.8;
+  margin: 8px 0 0;
+  color: color-mix(in oklab, var(--text-color) 78%, transparent);
+  font-size: 0.96rem;
 }
 
 .card {
-  border-radius: 14px;
-  padding: 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: 20px;
+  padding: var(--space-4, 24px);
+  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+  box-shadow: var(--box-shadow);
+}
+
+.upload-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 380px) 1fr;
+  gap: var(--space-4, 24px);
+  align-items: start;
+}
+
+.upload-panel,
+.preview-panel {
+  min-width: 0;
 }
 
 .file-label {
   display: inline-block;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
   font-weight: 600;
+  color: var(--text-color);
 }
 
-input[type="file"] {
-  display: block;
-  margin-bottom: 12px;
+.native-file-input {
+  width: 100%;
+  min-height: var(--tap-target, 44px);
+  padding: 10px 12px;
+  border: 1px dashed var(--surface-border);
+  border-radius: 14px;
+  background: var(--input-background);
+  color: var(--text-color);
+}
+
+.upload-hints {
+  margin-top: 12px;
+  display: grid;
+  gap: 6px;
+  color: color-mix(in oklab, var(--text-color) 78%, transparent);
+  font-size: 0.92rem;
+}
+
+.selected-file {
+  margin-top: 6px;
+  word-break: break-word;
 }
 
 .preview {
-  border-radius: 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
   overflow: hidden;
-  margin: 10px 0 12px;
+  background: var(--surface-color);
+  min-height: 320px;
+  display: grid;
+  place-items: center;
 }
 
 .preview img {
   width: 100%;
   height: auto;
-  max-height: 420px;
+  max-height: 520px;
   object-fit: contain;
   display: block;
+}
+
+.preview-empty {
+  min-height: 320px;
+  border: 1px dashed var(--surface-border);
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: var(--space-4, 24px);
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  background: color-mix(in oklab, var(--surface-color) 88%, transparent);
 }
 
 .actions {
   display: flex;
   gap: 10px;
-  margin-top: 8px;
-}
-
-.btn {
-  border: 0;
-  border-radius: 10px;
-  padding: 10px 12px;
-  cursor: pointer;
-}
-
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  flex-wrap: wrap;
+  margin-top: var(--space-3, 16px);
 }
 
 .progress {
   position: relative;
-  height: 14px;
+  height: 12px;
   border-radius: 999px;
   overflow: hidden;
   margin-top: 12px;
+  background: color-mix(in oklab, var(--surface-border) 65%, transparent);
 }
 
 .bar {
   height: 100%;
   width: 0%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--primary-color) 72%, white 28%),
+    var(--primary-color)
+  );
+  transition: width 0.18s linear;
+}
+
+.progress-bar-indeterminate {
+  position: absolute;
+  inset: 0;
+  width: 38%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--primary-color) 35%, transparent),
+    var(--primary-color),
+    color-mix(in oklab, var(--primary-color) 35%, transparent)
+  );
+  animation: uploadSlide 1.15s linear infinite;
 }
 
 .pct {
   display: inline-block;
   margin-top: 8px;
-  opacity: 0.8;
+  opacity: 0.86;
+  font-size: 0.95rem;
 }
 
 .blocked {
-  border-radius: 14px;
-  padding: 16px;
-  opacity: 0.9;
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
+  padding: var(--space-4, 24px);
+  background: color-mix(in oklab, var(--surface-color) 92%, transparent);
+  box-shadow: var(--box-shadow);
 }
 
-.hint,
 .done {
-  opacity: 0.85;
-  margin: 10px 0 0;
+  display: grid;
+  gap: 16px;
+  justify-items: start;
+}
+
+.done-badge {
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: color-mix(in oklab, var(--success-color) 18%, transparent);
+  color: var(--success-color);
+  border: 1px solid color-mix(in oklab, var(--success-color) 35%, transparent);
+}
+
+.done-copy h3 {
+  margin: 0 0 6px;
+  font-size: 1.2rem;
+}
+
+.done-copy p {
+  margin: 0 0 6px;
+  color: color-mix(in oklab, var(--text-color) 82%, transparent);
+}
+
+.done-copy small {
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  word-break: break-all;
+}
+
+.done-actions {
+  width: 100%;
+}
+
+@keyframes uploadSlide {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (max-width: 900px) {
+  .upload-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 650px) {
   .upload-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .actions .btn {
+    width: 100%;
+  }
+
+  .card {
+    padding: var(--space-3, 16px);
+  }
+
+  .preview,
+  .preview-empty {
+    min-height: 240px;
   }
 }

@@ -1,8 +1,4 @@
 // src/app/media/media.routes.ts
-// Rotas do domínio Media (fotos/vídeos).
-// Ajuste atual:
-// - cria uma rota funcional para "/media/photos"
-// - mantém as rotas reais parametrizadas para perfil
 import { Routes } from '@angular/router';
 
 export const MEDIA_ROUTES: Routes = [
@@ -27,12 +23,32 @@ export const MEDIA_ROUTES: Routes = [
         (m) => m.PhotoUploadComponent
       ),
   },
-
-  /* Futuro:
   {
-    path: 'videos',
-    loadChildren: () =>
-      import('./videos/videos.routes').then((m) => m.VIDEOS_ROUTES),
+    path: 'perfil/:id/fotos-publicas',
+    loadComponent: () =>
+      import('./photos/public-profile-photos/public-profile-photos.component').then(
+        (m) => m.PublicProfilePhotosComponent
+      ),
   },
-  */
+  {
+    path: 'ultimas-fotos',
+    loadComponent: () =>
+      import('./photos/latest-public-photos/latest-public-photos.component').then(
+        (m) => m.LatestPublicPhotosComponent
+      ),
+  },
+  {
+    path: 'fotos-top',
+    loadComponent: () =>
+      import('./photos/top-public-photos/top-public-photos.component').then(
+        (m) => m.TopPublicPhotosComponent
+      ),
+  },
+  {
+    path: 'fotos-turbinadas',
+    loadComponent: () =>
+      import('./photos/boosted-public-photos/boosted-public-photos.component').then(
+        (m) => m.BoostedPublicPhotosComponent
+      ),
+  },
 ];

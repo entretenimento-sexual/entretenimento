@@ -1,6 +1,6 @@
 <!-- src/app/shared/components-globais/universal-sidebar/universal-sidebar.component.html -->
 <button
-  *ngIf="vm.isMobile && vm.isOpen"
+  *ngIf="isOverlayMode && vm.isOpen"
   type="button"
   class="universal-sidebar__backdrop"
   aria-label="Fechar navegação lateral"
@@ -8,36 +8,37 @@
 ></button>
 
 <aside
+  #sidebarRoot
   id="app-sidebar"
   class="universal-sidebar"
-  [class.universal-sidebar--mobile]="vm.isMobile"
+  [class.universal-sidebar--mobile]="isOverlayMode"
   [class.universal-sidebar--open]="vm.isOpen"
-  [class.universal-sidebar--collapsed]="!vm.isMobile && vm.isCollapsed"
-  [attr.aria-hidden]="vm.isMobile && !vm.isOpen ? 'true' : null"
+  [class.universal-sidebar--collapsed]="isCollapsedMode"
+  [attr.aria-hidden]="isOverlayMode && !vm.isOpen ? 'true' : null"
   aria-label="Navegação principal"
 >
   <div class="universal-sidebar__top">
     <button
-      *ngIf="vm.isMobile"
+      *ngIf="isOverlayMode"
       type="button"
       class="universal-sidebar__action"
       aria-label="Fechar menu lateral"
       aria-controls="app-sidebar"
-      (click)="toggleRequested.emit()"
+      (click)="onCloseButtonClick()"
     >
       <span aria-hidden="true">✕</span>
     </button>
 
     <button
-      *ngIf="!vm.isMobile"
+      *ngIf="shouldShowDesktopCollapseButton"
       type="button"
       class="universal-sidebar__action"
-      [attr.aria-label]="vm.isCollapsed ? 'Expandir menu lateral' : 'Recolher menu lateral'"
-      [attr.aria-pressed]="vm.isCollapsed ? 'true' : 'false'"
+      [attr.aria-label]="isCollapsedMode ? 'Expandir menu lateral' : 'Recolher menu lateral'"
+      [attr.aria-pressed]="isCollapsedMode ? 'true' : 'false'"
       aria-controls="app-sidebar"
       (click)="collapseRequested.emit()"
     >
-      <span aria-hidden="true">{{ vm.isCollapsed ? '⟫' : '⟪' }}</span>
+      <span aria-hidden="true">{{ isCollapsedMode ? '⟫' : '⟪' }}</span>
     </button>
   </div>
 
@@ -48,7 +49,7 @@
           class="universal-sidebar__profile-link"
           [routerLink]="sidebarUser.profileRoute"
           [attr.aria-label]="'Abrir perfil de ' + sidebarUser.displayName"
-          [attr.title]="vm.isCollapsed && !vm.isMobile ? sidebarUser.displayName : null"
+          [attr.title]="isCollapsedMode ? sidebarUser.displayName : null"
           (click)="onItemActivated()"
         >
           <img
@@ -81,7 +82,7 @@
       <ng-template #staticProfile>
         <div
           class="universal-sidebar__profile-link universal-sidebar__profile-link--static"
-          [attr.title]="vm.isCollapsed && !vm.isMobile ? sidebarUser.displayName : null"
+          [attr.title]="isCollapsedMode ? sidebarUser.displayName : null"
         >
           <img
             class="universal-sidebar__avatar"
@@ -138,7 +139,7 @@
               #rla="routerLinkActive"
               [attr.aria-label]="item.ariaLabel || item.label"
               [attr.aria-current]="rla.isActive ? 'page' : null"
-              [attr.title]="vm.isCollapsed && !vm.isMobile ? item.label : null"
+              [attr.title]="isCollapsedMode ? item.label : null"
               (click)="onItemActivated()"
             >
               <span class="universal-sidebar__icon" aria-hidden="true">
@@ -159,7 +160,7 @@
               class="universal-sidebar__link universal-sidebar__link--disabled"
               aria-disabled="true"
               [attr.aria-label]="item.ariaLabel || item.label"
-              [attr.title]="vm.isCollapsed && !vm.isMobile ? item.label : null"
+              [attr.title]="isCollapsedMode ? item.label : null"
             >
               <span class="universal-sidebar__icon" aria-hidden="true">
                 {{ item.icon || '•' }}

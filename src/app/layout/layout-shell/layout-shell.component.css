@@ -12,10 +12,6 @@
   color: var(--text-color);
 }
 
-/*
-  O navbar agora pertence ao shell.
-  Por isso o sticky deve ficar aqui, não mais no AppComponent.
-*/
 app-navbar {
   position: sticky;
   top: 0;
@@ -32,6 +28,11 @@ app-navbar {
   display: flex;
   flex: 1;
   min-height: 0;
+  min-width: 0;
+}
+
+.auth-shell__body--sidebar-overlay-open {
+  overflow: hidden;
 }
 
 .auth-shell__content-area {
@@ -44,11 +45,13 @@ app-navbar {
   transition: margin-left 220ms ease;
 }
 
+.auth-shell__content-area--compact,
 .auth-shell__content-area--collapsed {
   margin-left: 88px;
 }
 
-.auth-shell__content-area--full {
+.auth-shell__content-area--full,
+.auth-shell__content-area--overlay {
   margin-left: 0;
 }
 
@@ -57,12 +60,16 @@ app-navbar {
   min-width: 0;
   min-height: 0;
   padding: var(--space-3);
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 767.98px) {
   .auth-shell__content-area,
+  .auth-shell__content-area--compact,
   .auth-shell__content-area--collapsed,
-  .auth-shell__content-area--full {
+  .auth-shell__content-area--full,
+  .auth-shell__content-area--overlay {
     margin-left: 0;
   }
 
@@ -70,10 +77,15 @@ app-navbar {
     padding: var(--space-2);
   }
 }
-/* Considerar sempre futuras versões .apk, mobile,
-Tentativa de inspiração no melhor das grandes plataformas e a super, ultra, mega, responsividade.
-De forma que considere das menores e diversas telas de smartphones,
-diversos tipos de monitores, de notebook, e telas gigantes de televisões monitores,
-tanto em retrato ou paisagem.
-Nunca esquecer dos formatos device, paisagem
-*/
+
+@media (max-width: 420px) {
+  .auth-shell__content {
+    padding: 10px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .auth-shell__content {
+    padding: var(--space-4);
+  }
+}

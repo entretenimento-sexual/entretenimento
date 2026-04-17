@@ -10,6 +10,9 @@ export interface IPhotoItem {
 
   createdAt: number;  // epoch ms
 
+   path?: string;
+   fileName?: string;
+
   // Futuro (não usar ainda no MVP, mas já “prepara” a expansão):
   // visibility?: 'PRIVATE' | 'FRIENDS' | 'SUBSCRIBERS' | 'PUBLIC';
   // isSensitive?: boolean;

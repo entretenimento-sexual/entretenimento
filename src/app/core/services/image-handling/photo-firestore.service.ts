@@ -1,9 +1,19 @@
 // src/app/core/services/image-handling/photo-firestore.service.ts
-// Não esquercer comentários e ferramentas de debug
-import { Injectable } from '@angular/core';
-import { collection, getFirestore, doc, setDoc, deleteDoc, updateDoc, onSnapshot, getDocs } from '@firebase/firestore';
-import { Observable } from 'rxjs';
+import { Injectable, inject } from '@angular/core';
+import {
+  Firestore,
+  collection,
+  collectionData,
+  deleteDoc,
+  doc,
+  getDocs,
+  setDoc,
+  updateDoc,
+} from '@angular/fire/firestore';
+import { Observable, catchError, firstValueFrom, lastValueFrom, map, throwError } from 'rxjs';
+import { FirestoreContextService } from '../data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { StorageService } from './storage.service';
 
 export interface Photo {
@@ -11,123 +21,283 @@ export interface Photo {
   url: string;
   fileName: string;
   createdAt: Date;
+  path?: string;
 }
+
+export interface PhotoComment {
+  id: string;
+  comment: string;
+  date: Date;
+}
+
+export type PhotoUpdateData =
+  Partial<Pick<Photo, 'url' | 'fileName' | 'createdAt' | 'path'>> &
+  Record<string, unknown>;
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
-
 export class PhotoFirestoreService {
-  private db = getFirestore();
+  private readonly firestore = inject(Firestore);
 
-  constructor(private errorNotifier: ErrorNotificationService,
-              private storageService: StorageService) { }
+  constructor(
+    private readonly errorNotifier: ErrorNotificationService,
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly storageService: StorageService,
+    private readonly firestoreCtx: FirestoreContextService,
+  ) {}
 
-  // Método para obter todas as fotos de um usuário com reatividade
-  getPhotosByUser(userId: string): Observable<any[]> {
-    const photosCollection = collection(this.db, `users/${userId}/photos`);
-    return new Observable<any[]>(observer => {
-      const unsubscribe = onSnapshot(photosCollection, snapshot => {
-        const photos = snapshot.docs.map(doc => doc.data());
-        observer.next(photos);
-      }, error => {
-        this.errorNotifier.showError('Erro ao carregar as fotos.');
-        observer.error(error);
-      });
+  getPhotosByUser(userId: string): Observable<Photo[]> {
+    const safeUserId = this.getSafeUserId(userId);
 
-      return () => unsubscribe();
-    });
-  }
-
-  // Método para salvar o estado da imagem
-  async saveImageState(userId: string, imageStateStr: string): Promise<void> {
-    try {
-      const imageStateRef = doc(this.db, `users/${userId}/imageStates/${Date.now()}`);
-      await setDoc(imageStateRef, { imageState: imageStateStr });
-      this.errorNotifier.showSuccess('Estado da imagem salvo com sucesso!');
-    } catch (error) {
-      this.errorNotifier.showError('Erro ao salvar o estado da imagem.');
-      throw error;
+    if (!safeUserId) {
+      return this.handleReadError<Photo[]>(
+        new Error('Usuário não autenticado.'),
+        'Usuário não autenticado.',
+        { op: 'getPhotosByUser', userId }
+      );
     }
+
+    return this.firestoreCtx.deferObservable$(() => {
+      const photosCollection = collection(this.firestore, `users/${safeUserId}/photos`);
+
+      return collectionData(photosCollection, { idField: 'id' }).pipe(
+        map((photos) => photos as Photo[])
+      );
+    }).pipe(
+      catchError((error) =>
+        this.handleReadError<Photo[]>(
+          error,
+          'Erro ao carregar as fotos.',
+          { op: 'getPhotosByUser', userId: safeUserId }
+        )
+      )
+    );
   }
 
-  // Método para contar o número de fotos de um usuário
+  async saveImageState(userId: string, imageStateStr: string): Promise<void> {
+    const safeUserId = this.requireUserId(userId);
+
+    await this.executeWrite(
+      async () => {
+        await this.firestoreCtx.run(async () => {
+          const imageStateRef = doc(
+            this.firestore,
+            `users/${safeUserId}/imageStates/${Date.now()}`
+          );
+
+          await setDoc(imageStateRef, { imageState: imageStateStr });
+        });
+      },
+      'Estado da imagem salvo com sucesso!',
+      'Erro ao salvar o estado da imagem.',
+      { op: 'saveImageState', userId: safeUserId }
+    );
+  }
+
   async countPhotos(userId: string): Promise<number> {
+    const safeUserId = this.requireUserId(userId);
+
     try {
-      const photosCollection = collection(this.db, `users/${userId}/photos`);
-      const snapshot = await getDocs(photosCollection);
+        const snapshot = await lastValueFrom(
+          this.firestoreCtx.deferPromise$(() => {
+            const photosCollection = collection(this.firestore, `users/${safeUserId}/photos`);
+            return getDocs(photosCollection);
+          })
+        );
       return snapshot.size;
     } catch (error) {
+      const normalizedError = this.normalizeHandledError(
+        error,
+        'Erro ao contar as fotos.',
+        { op: 'countPhotos', userId: safeUserId }
+      );
+
+      this.globalErrorHandler.handleError(normalizedError);
       this.errorNotifier.showError('Erro ao contar as fotos.');
-      throw error;
+      throw normalizedError;
     }
   }
 
-  // Método para salvar metadados da foto
   async savePhotoMetadata(userId: string, photo: Photo): Promise<void> {
-    try {
-      const photoRef = doc(this.db, `users/${userId}/photos/${photo.id}`);
-      await setDoc(photoRef, photo);
-      this.errorNotifier.showSuccess('Metadados da foto salvos com sucesso!');
-    } catch (error) {
-      this.errorNotifier.showError('Erro ao salvar os metadados da foto.');
-      throw error;
-    }
+    const safeUserId = this.requireUserId(userId);
+
+    await this.executeWrite(
+      async () => {
+        await this.firestoreCtx.run(async () => {
+          const photoRef = doc(this.firestore, `users/${safeUserId}/photos/${photo.id}`);
+          await setDoc(photoRef, photo);
+        });
+      },
+      'Metadados da foto salvos com sucesso!',
+      'Erro ao salvar os metadados da foto.',
+      { op: 'savePhotoMetadata', userId: safeUserId, photoId: photo.id }
+    );
   }
 
-  // Método para atualizar os metadados de uma foto após edição
-  async updatePhotoMetadata(userId: string, photoId: string, updatedData: any): Promise<void> {
-    try {
-      const photoRef = doc(this.db, `users/${userId}/photos/${photoId}`);
-      await updateDoc(photoRef, updatedData);
-      this.errorNotifier.showSuccess('Metadados atualizados com sucesso!');
-    } catch (error) {
-      this.errorNotifier.showError('Erro ao atualizar os metadados da foto.');
-      throw error;
-    }
+  async updatePhotoMetadata(
+    userId: string,
+    photoId: string,
+    updatedData: PhotoUpdateData
+  ): Promise<void> {
+    const safeUserId = this.requireUserId(userId);
+
+    await this.executeWrite(
+      async () => {
+        await this.firestoreCtx.run(async () => {
+          const photoRef = doc(this.firestore, `users/${safeUserId}/photos/${photoId}`);
+          await updateDoc(photoRef, updatedData);
+        });
+      },
+      'Metadados atualizados com sucesso!',
+      'Erro ao atualizar os metadados da foto.',
+      { op: 'updatePhotoMetadata', userId: safeUserId, photoId }
+    );
   }
 
-  // Método para adicionar um comentário à foto
   async addComment(userId: string, photoId: string, comment: string): Promise<void> {
-    try {
-      const commentsRef = doc(this.db, `users/${userId}/photos/${photoId}/comments/${Date.now()}`);
-      await setDoc(commentsRef, { comment, date: new Date() });
-    } catch (error) {
-      this.errorNotifier.showError('Erro ao adicionar o comentário.');
-      throw error;
-    }
+    const safeUserId = this.requireUserId(userId);
+
+    await this.executeWrite(
+      async () => {
+        await this.firestoreCtx.run(async () => {
+          const commentsRef = doc(
+            this.firestore,
+            `users/${safeUserId}/photos/${photoId}/comments/${Date.now()}`
+          );
+
+          await setDoc(commentsRef, {
+            comment,
+            date: new Date(),
+          });
+        });
+      },
+      undefined,
+      'Erro ao adicionar o comentário.',
+      { op: 'addComment', userId: safeUserId, photoId }
+    );
   }
 
-  // Método para obter os comentários de uma foto com reatividade
-  getComments(userId: string, photoId: string): Observable<any[]> {
-    const commentsCollection = collection(this.db, `users/${userId}/photos/${photoId}/comments`);
-    return new Observable<any[]>(observer => {
-      const unsubscribe = onSnapshot(commentsCollection, snapshot => {
-        const comments = snapshot.docs.map(doc => doc.data());
-        observer.next(comments);
-      }, error => {
-        this.errorNotifier.showError('Erro ao carregar os comentários.');
-        observer.error(error);
-      });
+getComments(userId: string, photoId: string): Observable<PhotoComment[]> {
+  const safeUserId = this.getSafeUserId(userId);
 
-      return () => unsubscribe();
-    });
+  if (!safeUserId) {
+    return this.handleReadError<PhotoComment[]>(
+      new Error('Usuário não autenticado.'),
+      'Usuário não autenticado.',
+      { op: 'getComments', userId, photoId }
+    );
   }
 
-  // Método para deletar foto do Firestore e do Storage
-  async deletePhoto(userId: string, photoId: string, photoPath: string): Promise<void> {
-    try {
-      // Primeiro, remover a foto do Storage
-      await this.storageService.deleteFile(photoPath).toPromise();
+  return this.firestoreCtx.deferObservable$(() => {
+    const commentsCollection = collection(
+      this.firestore,
+      `users/${safeUserId}/photos/${photoId}/comments`
+    );
 
-      // Após a remoção do arquivo, remover os metadados do Firestore
-      const photoRef = doc(this.db, `users/${userId}/photos/${photoId}`);
-      await deleteDoc(photoRef);
-
-      this.errorNotifier.showSuccess('Foto e metadados deletados com sucesso!');
-    } catch (error) {
-      this.errorNotifier.showError('Erro ao deletar a foto ou metadados.');
-      throw error;
-    }
-  }
+    return collectionData(commentsCollection, { idField: 'id' }).pipe(
+      map((comments) => comments as PhotoComment[])
+    );
+  }).pipe(
+    catchError((error) =>
+      this.handleReadError<PhotoComment[]>(
+        error,
+        'Erro ao carregar os comentários.',
+        { op: 'getComments', userId: safeUserId, photoId }
+      )
+    )
+  );
 }
+
+  async deletePhoto(userId: string, photoId: string, photoPath: string): Promise<void> {
+    const safeUserId = this.requireUserId(userId);
+
+    await this.executeWrite(
+      async () => {
+        await firstValueFrom(this.storageService.deleteFile(photoPath));
+
+        await this.firestoreCtx.run(async () => {
+          const photoRef = doc(this.firestore, `users/${safeUserId}/photos/${photoId}`);
+          await deleteDoc(photoRef);
+        });
+      },
+      'Foto e metadados deletados com sucesso!',
+      'Erro ao deletar a foto ou metadados.',
+      { op: 'deletePhoto', userId: safeUserId, photoId, photoPath }
+    );
+  }
+
+  private getSafeUserId(userId: string | null | undefined): string | null {
+    const normalized = userId?.trim();
+    return normalized ? normalized : null;
+  }
+
+  private requireUserId(userId: string | null | undefined): string {
+    const safeUserId = this.getSafeUserId(userId);
+
+    if (!safeUserId) {
+      const error = this.normalizeHandledError(
+        new Error('Usuário não autenticado.'),
+        'Usuário não autenticado.',
+        { op: 'requireUserId', userId }
+      );
+
+      this.globalErrorHandler.handleError(error);
+      throw error;
+    }
+
+    return safeUserId;
+  }
+
+  private handleReadError<T>(
+    error: unknown,
+    userMessage: string,
+    context?: Record<string, unknown>
+  ): Observable<T> {
+    const normalizedError = this.normalizeHandledError(error, userMessage, context);
+
+    this.globalErrorHandler.handleError(normalizedError);
+    this.errorNotifier.showError(userMessage);
+
+    return throwError(() => normalizedError);
+  }
+
+  private async executeWrite(
+    action: () => Promise<void>,
+    successMessage?: string,
+    errorMessage = 'Erro ao executar a operação.',
+    context?: Record<string, unknown>
+  ): Promise<void> {
+    try {
+      await action();
+
+      if (successMessage) {
+        this.errorNotifier.showSuccess(successMessage);
+      }
+    } catch (error) {
+      const normalizedError = this.normalizeHandledError(error, errorMessage, context);
+
+      this.globalErrorHandler.handleError(normalizedError);
+      this.errorNotifier.showError(errorMessage);
+      throw normalizedError;
+    }
+  }
+
+  private normalizeHandledError(
+    error: unknown,
+    fallbackMessage: string,
+    context?: Record<string, unknown>
+  ): Error {
+    const normalizedError =
+      error instanceof Error ? error : new Error(fallbackMessage);
+
+    (normalizedError as any).original = error;
+    (normalizedError as any).context = {
+      scope: 'PhotoFirestoreService',
+      ...(context ?? {}),
+    };
+    (normalizedError as any).skipUserNotification = true;
+
+    return normalizedError;
+  }
+} // Linha 282

@@ -1,0 +1,57 @@
+// firestore-rules/users_photo_publications.rules
+// ==============================================================
+// USERS / photo_publications
+// - Configuração privada de publicação das fotos
+// - Somente o dono lê/escreve
+// - Separada de users/{uid}/photos para não contaminar o acervo privado
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// ==============================================================
+
+match /users/{userId}/photo_publications/{photoId} {
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "photoId",
+      "ownerUid",
+      "isPublished",
+      "visibility",
+      "isCover",
+      "orderIndex",
+      "commentsEnabled",
+      "reactionsEnabled",
+      "publishedAt",
+      "updatedAt"
+    ]);
+  }
+
+  function validVisibility() {
+    return !hasField("visibility")
+      || request.resource.data.visibility in ["PRIVATE", "FRIENDS", "SUBSCRIBERS", "PUBLIC"];
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && request.resource.data.photoId == photoId
+      && request.resource.data.ownerUid == userId
+      && (!hasField("isPublished") || request.resource.data.isPublished is bool)
+      && validVisibility()
+      && (!hasField("isCover") || request.resource.data.isCover is bool)
+      && (!hasField("orderIndex") || request.resource.data.orderIndex is int)
+      && (!hasField("commentsEnabled") || request.resource.data.commentsEnabled is bool)
+      && (!hasField("reactionsEnabled") || request.resource.data.reactionsEnabled is bool)
+      && optTimestamp("publishedAt")
+      && optTimestamp("updatedAt");
+  }
+
+  allow get, list: if isSelf(userId);
+
+  allow create, update: if isSelf(userId) && validPayload();
+  allow delete: if isSelf(userId);
+}
+// ==============================================================
+//           FIM DO USER_PHOTO_PUBLICATIONS.RULES
+// ==============================================================

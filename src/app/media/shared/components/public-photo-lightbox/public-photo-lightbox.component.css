@@ -1,0 +1,82 @@
+/* src/app/media/photos/shared/public-photo-lightbox/public-photo-lightbox.component.css */
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 1200;
+}
+
+.lightbox-dialog {
+  width: min(980px, 96vw);
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--surface-color);
+  color: var(--text-color);
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--box-shadow);
+}
+
+.lightbox-header,
+.lightbox-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+}
+
+.lightbox-title {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.lightbox-body {
+  padding: 12px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--surface-color) 90%, transparent);
+}
+
+.lightbox-img {
+  width: 100%;
+  height: auto;
+  max-height: 72vh;
+  object-fit: contain;
+  display: block;
+  border-radius: 12px;
+}
+
+.btn.icon {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+}
+
+@media (max-width: 700px) {
+  .lightbox-dialog {
+    width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+
+  .lightbox-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .lightbox-footer .btn {
+    width: 100%;
+  }
+
+  .lightbox-img {
+    max-height: 58vh;
+  }
+}

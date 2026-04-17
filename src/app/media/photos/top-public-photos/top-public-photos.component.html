@@ -1,0 +1,51 @@
+<section class="top-photos-page" aria-label="Fotos públicas em destaque">
+  @let items = (topPhotos$ | async);
+  @let selectedIndex = (selectedIndex$ | async);
+
+  <header class="top-photos-header">
+    <div class="title-block">
+      <span class="eyebrow">Destaques</span>
+      <h2>Fotos top</h2>
+      <p class="subtitle">
+        Fotos públicas com maior engajamento na plataforma.
+      </p>
+    </div>
+  </header>
+
+  @if (((items?.length) || 0) === 0) {
+    <div class="empty-state" role="status" aria-live="polite">
+      <h3>Nenhuma foto em destaque</h3>
+      <p>Ainda não há fotos públicas suficientes para compor esta vitrine.</p>
+    </div>
+  } @else {
+    <div class="photos-grid" role="list" aria-label="Fotos públicas em destaque">
+      @for (item of (items || []); track trackByPhotoId($index, item); let i = $index) {
+        <app-public-photo-card
+          [photo]="item"
+          variant="top"
+          (preview)="openPhoto(i)" />
+      }
+    </div>
+
+    @if (canLoadMore$ | async) {
+      <div class="feed-actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="loadMore()">
+          Carregar mais
+        </button>
+      </div>
+    }
+  }
+
+  @if (selectedIndex !== null) {
+    <app-public-photo-lightbox
+      [items]="items || []"
+      [activeIndex]="selectedIndex"
+      title="Fotos top"
+      (closed)="closeViewer()"
+      (prevRequested)="prev()"
+      (nextRequested)="next()" />
+  }
+</section>

@@ -1,16 +1,43 @@
 <!-- src/app/photo-editor/photo-editor/photo-editor.component.html -->
-<div class="editor-container">
-  @if (!(isLoading$ | async)) {
-    <pintura-editor [src]="src" [options]="options" (process)="handleProcess($event)">
-    </pintura-editor>
-  } @else {
-    <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
-    <p>Carregando...</p>
-  }
-
-  @if ((errorMessage$ | async); as errorMessage) {
-    <div class="alert alert-danger">
-      {{ errorMessage }}
+<section class="editor-shell" aria-label="Editor de imagem">
+  <header class="editor-header">
+    <div class="editor-title-block">
+      <span class="eyebrow">Editor</span>
+      <h2>Editar foto</h2>
+      <p class="subtitle">
+        Ajuste a imagem antes de concluir o envio.
+      </p>
     </div>
-  }
-</div>
+
+    <button
+      type="button"
+      class="btn btn-ghost close-btn"
+      (click)="activeModal.dismiss('close')"
+      aria-label="Fechar editor">
+      Fechar
+    </button>
+  </header>
+
+  <div class="editor-card">
+    @if (!(isLoading$ | async)) {
+      <div class="editor-body">
+        <pintura-editor
+          [src]="src"
+          [options]="options"
+          (process)="handleProcess($event)">
+        </pintura-editor>
+      </div>
+    } @else {
+      <div class="editor-loading" role="status" aria-live="polite">
+        <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+        <p>Processando imagem...</p>
+      </div>
+    }
+
+    @if ((errorMessage$ | async); as errorMessage) {
+      <div class="alert alert-error editor-error" role="alert" aria-live="assertive">
+        {{ errorMessage }}
+      </div>
+    }
+  </div>
+</section>

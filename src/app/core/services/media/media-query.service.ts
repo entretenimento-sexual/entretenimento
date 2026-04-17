@@ -1,120 +1,111 @@
 // src/app/core/services/media/media-query.service.ts
-// Query do domínio Media (fotos/vídeos).
-// MVP: store in-memory (BehaviorSubject) com seed seguro e assinaturas estáveis
-// para depois plugar Firestore/Storage sem quebrar componentes.
+// Query real do domínio Media (fotos).
+//
+// AJUSTES DESTA VERSÃO:
+// - continua sem store fake
+// - continua lendo do PhotoFirestoreService
+// - agora expõe path e fileName para gestão direta na galeria
+// - mantém stream reativa e contrato de leitura
 
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { Observable, of } from 'rxjs';
 import { catchError, distinctUntilChanged, map, shareReplay } from 'rxjs/operators';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import {
+  Photo,
+  PhotoFirestoreService,
+} from 'src/app/core/services/image-handling/photo-firestore.service';
 import type { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
 
 @Injectable({ providedIn: 'root' })
 export class MediaQueryService {
-  private readonly cache = new Map<string, Observable<IPhotoItem[]>>();
-  private readonly store = new Map<string, BehaviorSubject<IPhotoItem[]>>();
+  constructor(
+    private readonly errorNotifier: ErrorNotificationService,
+    private readonly photoFirestoreService: PhotoFirestoreService
+  ) {}
 
-  constructor(private readonly errorNotifier: ErrorNotificationService) { }
-
-  /**
-   * Lista fotos do perfil (API estável).
-   * MVP: delega para watchProfilePhotos$ e cacheia.
-   * Futuro: Firestore (collection) + paginação + filtros (visibilidade, idade, etc).
-   */
   getProfilePhotos$(ownerUid: string): Observable<IPhotoItem[]> {
-    if (!ownerUid) return of([]);
+    return this.watchProfilePhotos$(ownerUid);
+  }
 
-    const key = `profilePhotos:${ownerUid}`;
-    const cached = this.cache.get(key);
-    if (cached) return cached;
+  watchProfilePhotos$(ownerUid: string): Observable<IPhotoItem[]> {
+    const safeOwnerUid = (ownerUid ?? '').trim();
+    if (!safeOwnerUid) {
+      return of([]);
+    }
 
-    const stream$ = this.watchProfilePhotos$(ownerUid).pipe(
-      map((items) => items ?? []),
-      catchError((err) => {
-        this.errorNotifier.showError(err);
+    return this.photoFirestoreService.getPhotosByUser(safeOwnerUid).pipe(
+      map((items) => items.map((photo) => this.mapPhotoToMediaItem(safeOwnerUid, photo))),
+      distinctUntilChanged((a, b) => this.sameItems(a, b)),
+      catchError(() => {
+        this.errorNotifier.showError('Erro ao carregar fotos do perfil.');
         return of([] as IPhotoItem[]);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
-
-    this.cache.set(key, stream$);
-    return stream$;
   }
 
-  /**
-   * Limpa cache + reseta store (no MVP isso “simula” reload).
-   * No futuro: isso dispara uma nova query Firestore.
-   */
-  invalidateProfilePhotos(ownerUid: string): void {
-    if (!ownerUid) return;
-
-    this.cache.delete(`profilePhotos:${ownerUid}`);
-
-    const subj = this.store.get(ownerUid);
-    if (subj) {
-      subj.next([]);           // evita estado “fantasma”
-      this.ensureSeed(ownerUid);
-    }
-  }
-
-  /**
-   * Stream “ao vivo” das fotos do perfil (recomendado para UI).
-   */
-  watchProfilePhotos$(ownerUid: string): Observable<IPhotoItem[]> {
-    if (!ownerUid) return of([]);
-
-    const subj = this.getOrCreate(ownerUid);
-    this.ensureSeed(ownerUid);
-
-    return subj.asObservable().pipe(
-      // comparador simples (barato) para evitar rerender trivial
-      distinctUntilChanged((a, b) => a.length === b.length && a[0]?.id === b[0]?.id)
-    );
-  }
-
-  /** Snapshot interno (usado pelo command). */
-  getProfilePhotosSnapshot(ownerUid: string): IPhotoItem[] {
-    return this.getOrCreate(ownerUid).value;
-  }
-
-  /** Append (usado pelo command). */
-  appendProfilePhoto(ownerUid: string, item: IPhotoItem): void {
-    const subj = this.getOrCreate(ownerUid);
-    subj.next([item, ...subj.value]);
-  }
-
-  /** Remove (usado pelo command). */
-  removeProfilePhoto(ownerUid: string, photoId: string): void {
-    const subj = this.getOrCreate(ownerUid);
-    subj.next(subj.value.filter((p) => p.id !== photoId));
-  }
-
-  private getOrCreate(ownerUid: string): BehaviorSubject<IPhotoItem[]> {
-    const existing = this.store.get(ownerUid);
-    if (existing) return existing;
-
-    const created = new BehaviorSubject<IPhotoItem[]>([]);
-    this.store.set(ownerUid, created);
-    return created;
-  }
-
-  /**
-   * Seed MVP (para não ficar vazio no começo).
-   * Importante: aqui é “safe default” (não vaza foto real).
-   */
-  private ensureSeed(ownerUid: string): void {
-    const subj = this.getOrCreate(ownerUid);
-    if (subj.value.length > 0) return;
-
-    const base: IPhotoItem[] = Array.from({ length: 4 }).map((_, i) => ({
-      id: `seed_${ownerUid}_${i + 1}`,
+  private mapPhotoToMediaItem(ownerUid: string, photo: Photo): IPhotoItem {
+    return {
+      id: photo.id,
       ownerUid,
-      url: 'assets/imagem-padrao.webp',
-      alt: `Foto ${i + 1}`,
-      createdAt: Date.now() - i * 1000,
-    }));
+      url: photo.url,
+      alt: photo.fileName || 'Foto do perfil',
+      createdAt: this.normalizeCreatedAt(photo.createdAt),
+      path: photo.path,
+      fileName: photo.fileName,
+    };
+  }
 
-    subj.next(base);
+  private normalizeCreatedAt(value: unknown): number {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (value instanceof Date) {
+      return value.getTime();
+    }
+
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'toDate' in value &&
+      typeof (value as { toDate?: unknown }).toDate === 'function'
+    ) {
+      try {
+        const date = (value as { toDate: () => Date }).toDate();
+        return date.getTime();
+      } catch {
+        return Date.now();
+      }
+    }
+
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'seconds' in value &&
+      typeof (value as { seconds?: unknown }).seconds === 'number'
+    ) {
+      return Number((value as { seconds: number }).seconds) * 1000;
+    }
+
+    return Date.now();
+  }
+
+  private sameItems(a: IPhotoItem[], b: IPhotoItem[]): boolean {
+    if (a === b) return true;
+    if (a.length !== b.length) return false;
+
+    return a.every((item, index) => {
+      const other = b[index];
+      return (
+        item?.id === other?.id &&
+        item?.url === other?.url &&
+        item?.createdAt === other?.createdAt &&
+        item?.path === other?.path &&
+        item?.fileName === other?.fileName
+      );
+    });
   }
 }

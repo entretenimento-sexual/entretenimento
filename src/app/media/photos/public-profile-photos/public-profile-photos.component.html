@@ -1,0 +1,45 @@
+<!-- src/app/media/photos/public-profile-photos/public-profile-photos.component.html -->
+@let items = (publicPhotos$ | async);
+@let selectedIndex = (selectedIndex$ | async);
+
+<section class="public-photos-page" aria-label="Galeria pública do perfil">
+  <header class="public-photos-header">
+    <div class="title-block">
+      <span class="eyebrow">Galeria pública</span>
+      <h2>Fotos do perfil</h2>
+      <p class="subtitle">
+        Exibição pública das fotos publicadas pelo usuário.
+      </p>
+    </div>
+  </header>
+
+  @if (isEmpty$ | async) {
+    <div class="empty-state" role="status" aria-live="polite">
+      <h3>Nenhuma foto pública disponível</h3>
+      <p>Este perfil ainda não publicou fotos para exibição pública.</p>
+    </div>
+  } @else {
+    <div class="gallery-meta" aria-live="polite">
+      <span>{{ items?.length || 0 }} foto(s) pública(s)</span>
+    </div>
+
+    <div class="photos-grid" role="list" aria-label="Fotos públicas do perfil">
+      @for (item of (items || []); track trackByPhotoId($index, item); let i = $index) {
+        <app-public-photo-card
+          [photo]="item"
+          variant="profile"
+          (preview)="openPhoto(i)" />
+      }
+    </div>
+  }
+
+  @if (selectedIndex !== null) {
+    <app-public-photo-lightbox
+      [items]="items || []"
+      [activeIndex]="selectedIndex"
+      title="Foto pública"
+      (closed)="closeViewer()"
+      (prevRequested)="prev()"
+      (nextRequested)="next()" />
+  }
+</section>

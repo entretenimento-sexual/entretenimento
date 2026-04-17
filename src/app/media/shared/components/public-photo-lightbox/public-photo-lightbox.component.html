@@ -1,0 +1,58 @@
+<!-- src/app/media/photos/shared/public-photo-lightbox/public-photo-lightbox.component.html -->
+@let photo = currentPhoto();
+
+<div
+  class="lightbox-backdrop"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-label]="title()"
+  (click)="close()">
+  <div
+    class="lightbox-dialog"
+    (click)="$event.stopPropagation()">
+
+    <header class="lightbox-header">
+      <div class="lightbox-title">
+        <strong>{{ title() }}</strong>
+        <span>{{ activeIndex() + 1 }}/{{ items().length }}</span>
+      </div>
+
+      <button
+        type="button"
+        class="btn btn-ghost icon"
+        (click)="close()"
+        aria-label="Fechar visualização">
+        ✕
+      </button>
+    </header>
+
+    <div class="lightbox-body">
+      @if (photo) {
+        <img
+          class="lightbox-img"
+          [src]="photo.url"
+          [alt]="photo.alt || 'Foto pública ampliada'" />
+      }
+    </div>
+
+    <footer class="lightbox-footer">
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="prev()"
+        [disabled]="!hasPrev()"
+        aria-label="Foto anterior">
+        ← Anterior
+      </button>
+
+      <button
+        type="button"
+        class="btn btn-secondary"
+        (click)="next()"
+        [disabled]="!hasNext()"
+        aria-label="Próxima foto">
+        Próxima →
+      </button>
+    </footer>
+  </div>
+</div>
