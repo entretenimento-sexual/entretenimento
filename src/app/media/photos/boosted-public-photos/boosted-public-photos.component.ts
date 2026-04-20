@@ -12,7 +12,6 @@ import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-i
 import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
 import { PublicPhotoLightboxComponent } from '../../shared/components/public-photo-lightbox/public-photo-lightbox.component';
 
-
 @Component({
   selector: 'app-boosted-public-photos',
   standalone: true,

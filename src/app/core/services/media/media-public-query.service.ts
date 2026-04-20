@@ -13,7 +13,6 @@
 // OBSERVAÇÃO:
 // - usa a subcoleção public_photos para evitar conflito com collectionGroup('photos')
 //   da camada privada.
-
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,

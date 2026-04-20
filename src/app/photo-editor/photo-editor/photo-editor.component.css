@@ -50,18 +50,40 @@
 }
 
 .editor-body {
+  position: relative;
   min-height: 0;
   padding: 10px;
 }
 
+.pintura-host {
+  width: 100%;
+  height: min(74vh, 780px);
+  margin: 0 auto;
+  border-radius: 16px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--surface-color) 90%, transparent);
+}
+
+.pintura-host--hidden {
+  visibility: hidden;
+}
+
+:host ::ng-deep .pintura-host .PinturaRoot,
+:host ::ng-deep .pintura-host .pintura-editor {
+  height: 100%;
+  width: 100%;
+}
+
 .editor-loading {
-  flex: 1;
-  min-height: 320px;
+  position: absolute;
+  inset: 10px;
   display: grid;
   place-items: center;
   gap: 12px;
   padding: var(--space-4, 24px);
   text-align: center;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--surface-color) 96%, transparent);
 }
 
 .editor-error {
@@ -70,14 +92,6 @@
 
 .close-btn {
   flex-shrink: 0;
-}
-
-::ng-deep .pintura-editor {
-  height: min(74vh, 780px);
-  width: 100%;
-  margin: 0 auto;
-  border-radius: 16px;
-  overflow: hidden;
 }
 
 @media (max-width: 700px) {
@@ -96,7 +110,7 @@
     width: 100%;
   }
 
-  ::ng-deep .pintura-editor {
+  .pintura-host {
     height: min(64vh, 620px);
   }
 }

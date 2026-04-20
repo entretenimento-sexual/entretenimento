@@ -1,6 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-04-16T19:18:05.439Z
+// Generated at: 2026-04-19T13:59:18.890Z
 
 // ===== _helpers.rules =====
 // ===============================================================
@@ -374,6 +374,86 @@ match /public_profiles/{userId} {
   // Delete bloqueado
   allow delete: if false;
 }
+
+// ===== public_profiles_photos.rules =====
+// firestore-rules/public_profiles_photos.rules
+// ===============================================================
+// PUBLIC_PROFILES / photos
+// - projeção pública derivada da publicação
+// - leitura pública autenticada apenas para fotos PUBLIC
+// - escrita somente pelo próprio dono
+// - Escrita ainda fica com o próprio dono; no futuro, pode migrar para Function
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// ===============================================================
+match /public_profiles/{userId}/public_photos/{photoId} {
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "id",
+      "ownerUid",
+      "url",
+      "alt",
+      "createdAt",
+      "publishedAt",
+      "updatedAt",
+      "visibility",
+      "isCover",
+      "orderIndex",
+      "commentsEnabled",
+      "reactionsEnabled"
+    ]);
+  }
+
+  function optBool(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is bool;
+  }
+
+  function optNumber(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is number;
+  }
+
+  function validVisibility() {
+    return hasField("visibility")
+      && request.resource.data.visibility in ["FRIENDS", "SUBSCRIBERS", "PUBLIC"];
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && request.resource.data.id == photoId
+      && request.resource.data.ownerUid == userId
+      && request.resource.data.url is string
+      && (!hasField("alt") || request.resource.data.alt is string)
+      && request.resource.data.createdAt is number
+      && request.resource.data.publishedAt is number
+      && optNumber("updatedAt")
+      && validVisibility()
+      && optBool("isCover")
+      && optNumber("orderIndex")
+      && optBool("commentsEnabled")
+      && optBool("reactionsEnabled");
+  }
+
+  function isPublicReadable() {
+    return resource.data.visibility == "PUBLIC";
+  }
+
+  allow get: if isSelf(userId) || (signedIn() && isPublicReadable());
+  allow list: if isSelf(userId) || (signedIn() && isPublicReadable());
+
+  allow create, update: if isSelf(userId) && validPayload();
+  allow delete: if isSelf(userId);
+}
+// ==============================================================
+//           FIM DO PUBLIC_PROFILES_PHOTOS.RULES
+// ==============================================================
 
 // ===== presence.rules =====
 // firestore-rules/presence.rules
@@ -1262,6 +1342,79 @@ match /users/{userId}/imageStates/{stateId} {
 // ===============================================================
 //                   FIM DO PHOTOS + IMAGESTATES
 // ===============================================================
+
+// ===== users_photo_publications.rules =====
+// firestore-rules/users_photo_publications.rules
+// ==============================================================
+// USERS / photo_publications
+// - Configuração privada de publicação das fotos
+// - Somente o dono lê/escreve
+// - Separada de users/{uid}/photos para não contaminar o acervo privado
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// ==============================================================
+match /users/{userId}/photo_publications/{photoId} {
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "photoId",
+      "ownerUid",
+      "isPublished",
+      "visibility",
+      "isCover",
+      "orderIndex",
+      "commentsEnabled",
+      "reactionsEnabled",
+      "publishedAt",
+      "updatedAt"
+    ]);
+  }
+
+  function optBool(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is bool;
+  }
+
+  function optNumber(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is number;
+  }
+
+  function validVisibility() {
+    return !hasField("visibility")
+      || request.resource.data.visibility in [
+        "PRIVATE",
+        "FRIENDS",
+        "SUBSCRIBERS",
+        "PUBLIC"
+      ];
+  }
+
+  function validPayload() {
+    return allowedKeys()
+      && request.resource.data.photoId == photoId
+      && request.resource.data.ownerUid == userId
+      && optBool("isPublished")
+      && validVisibility()
+      && optBool("isCover")
+      && optNumber("orderIndex")
+      && optBool("commentsEnabled")
+      && optBool("reactionsEnabled")
+      && optNumber("publishedAt")
+      && optNumber("updatedAt");
+  }
+
+  allow get, list: if isSelf(userId);
+  allow create, update, delete: if isSelf(userId) && validPayload();
+}
+// ==============================================================
+//           FIM DO USERS_PHOTO_PUBLICATIONS.RULES
+// ==============================================================
 
 // ===== users_blocks.rules =====
 // =========================================================================

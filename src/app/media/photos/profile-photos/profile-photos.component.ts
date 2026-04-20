@@ -14,6 +14,34 @@
 //   2) public_profiles/{uid}/photos/{photoId}
 //   estarem deployadas.
 // - depois do deploy correto, troque para true.
+// ============================================================================
+// ATENÇÃO — PENDÊNCIA TÉCNICA / EDITOR DE IMAGENS TERCEIRIZADO
+// ----------------------------------------------------------------------------
+// Há histórico de erro residual ligado ao software terceirizado de edição de
+// imagens (Pintura), inclusive fora do fluxo explícito de edição.
+//
+// SINTOMA OBSERVADO:
+// - erro em runtime na rota da galeria privada `/media/perfil/:id/fotos`
+// - stack com mensagens como:
+//   "Cannot read properties of undefined (reading 'width')"
+// - em ciclos anteriores também houve erro passando por
+//   `PinturaEditorComponent.initEditor` / `pqina-angular-pintura.mjs`
+//
+// IMPACTO:
+// - o problema pode aparecer mesmo sem o usuário abrir manualmente o editor
+// - isso indica acoplamento residual, carregamento indireto, bundle antecipado
+//   ou comportamento instável do editor terceirizado
+//
+// DECISÃO ATUAL DO PROJETO:
+// - NÃO bloquear a evolução da galeria privada/pública por causa deste editor
+// - tratar o editor atual como solução provisória / experimental
+// - manter a evolução da plataforma desacoplada do fornecedor final de edição
+//
+// ORIENTAÇÃO:
+// - evitar novas dependências fortes do editor atual neste componente
+// - preferir carregamento tardio (lazy import) para qualquer abertura de editor
+// - reavaliar esta integração quando a solução definitiva de edição for escolhida
+// ============================================================================
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -43,7 +71,6 @@ import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/
 import { IPhotoPublicationConfig } from 'src/app/core/interfaces/media/i-photo-publication-config';
 
 import { PhotoViewerComponent, IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
-import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
 
 type IManageablePhotoItem = IProfilePhotoItem & {
   path?: string;
@@ -220,30 +247,35 @@ export class ProfilePhotosComponent {
     ).subscribe();
   }
 
-  editPhoto(item: IPhotoCardVm, event?: Event): void {
-    event?.stopPropagation();
+editPhoto(item: IPhotoCardVm, event?: Event): void {
+  event?.stopPropagation();
 
-    combineLatest([this.isOwner$, this.ownerUid$])
-      .pipe(take(1))
-      .subscribe(([isOwner, ownerUid]) => {
-        if (!isOwner) {
-          this.errorNotifier.showError('Você não tem permissão para editar esta foto.');
-          return;
-        }
+  combineLatest([this.isOwner$, this.ownerUid$])
+    .pipe(take(1))
+    .subscribe(async ([isOwner, ownerUid]) => {
+      if (!isOwner) {
+        this.errorNotifier.showError('Você não tem permissão para editar esta foto.');
+        return;
+      }
 
-        if (!item.id?.trim() || !item.path?.trim() || !item.url?.trim()) {
-          this.errorNotifier.showError('Metadados insuficientes para editar esta foto.');
-          return;
-        }
+      if (!item.id?.trim() || !item.path?.trim() || !item.url?.trim()) {
+        this.errorNotifier.showError('Metadados insuficientes para editar esta foto.');
+        return;
+      }
 
-        this.photoEditorSession.setEditDraft({
-          ownerUid,
-          photoId: item.id,
-          storedImageUrl: item.url,
-          storedImagePath: item.path,
-          storedImageState: null,
-          fileName: item.fileName ?? item.alt ?? null,
-        });
+      this.photoEditorSession.setEditDraft({
+        ownerUid,
+        photoId: item.id,
+        storedImageUrl: item.url,
+        storedImagePath: item.path,
+        storedImageState: null,
+        fileName: item.fileName ?? item.alt ?? null,
+      });
+
+      try {
+        const { PhotoEditorComponent } = await import(
+          'src/app/photo-editor/photo-editor/photo-editor.component'
+        );
 
         const modalRef = this.modal.open(PhotoEditorComponent, {
           size: 'xl',
@@ -254,22 +286,31 @@ export class ProfilePhotosComponent {
           windowClass: 'photo-editor-modal-window',
         });
 
-        modalRef.result
-          .then((payload) => {
-            if (!payload || payload.reason !== 'updateSuccess' || !payload.photo) {
-              return;
-            }
+        const payload = await modalRef.result;
 
-            this.errorNotifier.showSuccess('Foto atualizada com sucesso.');
-          })
-          .catch(() => {
-            // dismiss do modal: sem erro visível
-          })
-          .finally(() => {
-            this.photoEditorSession.clearDraft();
-          });
-      });
-  }
+        if (!payload || payload.reason !== 'updateSuccess' || !payload.photo) {
+          return;
+        }
+
+        this.errorNotifier.showSuccess('Foto atualizada com sucesso.');
+      } catch (error) {
+        // dismiss do modal: não tratar como erro visível
+        if (error !== 'close' && error !== 'dismiss') {
+          this.reportError(
+            'Erro ao abrir o editor da foto.',
+            error,
+            {
+              op: 'editPhoto',
+              ownerUid,
+              photoId: item.id,
+            }
+          );
+        }
+      } finally {
+        this.photoEditorSession.clearDraft();
+      }
+    });
+}
 
   requestDelete(item: IPhotoCardVm, event?: Event): void {
     event?.stopPropagation();

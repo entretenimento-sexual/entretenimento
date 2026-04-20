@@ -1,14 +1,13 @@
 // firestore-rules/public_profiles_photos.rules
 // ===============================================================
 // PUBLIC_PROFILES / photos
-// - Projeção pública das fotos publicadas
-// - Terceiros só leem o que estiver efetivamente PUBLIC
-// - O dono também pode ler seus próprios itens projetados
+// - projeção pública derivada da publicação
+// - leitura pública autenticada apenas para fotos PUBLIC
+// - escrita somente pelo próprio dono
 // - Escrita ainda fica com o próprio dono; no futuro, pode migrar para Function
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // ===============================================================
-
-match /public_profiles/{userId}/photos/{photoId} {
+match /public_profiles/{userId}/public_photos/{photoId} {
 
   function hasField(field) {
     return request.resource.data.keys().hasAny([field]);
@@ -31,8 +30,21 @@ match /public_profiles/{userId}/photos/{photoId} {
     ]);
   }
 
+  function optBool(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is bool;
+  }
+
+  function optNumber(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is number;
+  }
+
   function validVisibility() {
-    return request.resource.data.visibility in ["FRIENDS", "SUBSCRIBERS", "PUBLIC"];
+    return hasField("visibility")
+      && request.resource.data.visibility in ["FRIENDS", "SUBSCRIBERS", "PUBLIC"];
   }
 
   function validPayload() {
@@ -41,14 +53,14 @@ match /public_profiles/{userId}/photos/{photoId} {
       && request.resource.data.ownerUid == userId
       && request.resource.data.url is string
       && (!hasField("alt") || request.resource.data.alt is string)
-      && isTs(request.resource.data.createdAt)
-      && isTs(request.resource.data.publishedAt)
-      && optTimestamp("updatedAt")
+      && request.resource.data.createdAt is number
+      && request.resource.data.publishedAt is number
+      && optNumber("updatedAt")
       && validVisibility()
-      && (!hasField("isCover") || request.resource.data.isCover is bool)
-      && (!hasField("orderIndex") || request.resource.data.orderIndex is int)
-      && (!hasField("commentsEnabled") || request.resource.data.commentsEnabled is bool)
-      && (!hasField("reactionsEnabled") || request.resource.data.reactionsEnabled is bool);
+      && optBool("isCover")
+      && optNumber("orderIndex")
+      && optBool("commentsEnabled")
+      && optBool("reactionsEnabled");
   }
 
   function isPublicReadable() {

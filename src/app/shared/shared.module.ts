@@ -13,8 +13,6 @@ import { ModalMensagemComponent } from './components-globais/modal-mensagem/moda
 import { TextoDialogComponent } from './components-globais/texto-dialog/texto-dialog.component';
 import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { UploadPhotoComponent } from './components-globais/upload-photo/upload-photo.component';
-
-import { AngularPinturaModule } from '@pqina/angular-pintura';
 import { UniversalSidebarComponent } from './components-globais/universal-sidebar/universal-sidebar.component';
 
 @NgModule({
@@ -33,7 +31,6 @@ import { UniversalSidebarComponent } from './components-globais/universal-sideba
     MatInputModule,
     MatButtonModule,
     MatSnackBarModule,
-    AngularPinturaModule,
     UniversalSidebarComponent,
   ],
   exports: [

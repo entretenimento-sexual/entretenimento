@@ -1,14 +1,15 @@
 <!-- src/app/media/photos/shared/public-photo-lightbox/public-photo-lightbox.component.html -->
 @let photo = currentPhoto();
-
 <div
   class="lightbox-backdrop"
-  role="dialog"
-  aria-modal="true"
-  [attr.aria-label]="title()"
   (click)="close()">
   <div
+    #dialogRoot
     class="lightbox-dialog"
+    role="dialog"
+    aria-modal="true"
+    [attr.aria-label]="title()"
+    tabindex="-1"
     (click)="$event.stopPropagation()">
 
     <header class="lightbox-header">
@@ -32,6 +33,8 @@
           class="lightbox-img"
           [src]="photo.url"
           [alt]="photo.alt || 'Foto pública ampliada'" />
+      } @else {
+        <p class="empty-state">Nenhuma foto disponível.</p>
       }
     </div>
 

@@ -12,27 +12,28 @@
     <button
       type="button"
       class="btn btn-ghost close-btn"
-      (click)="activeModal.dismiss('close')"
+      (click)="onClose()"
       aria-label="Fechar editor">
       Fechar
     </button>
   </header>
 
-  <div class="editor-card">
-    @if (!(isLoading$ | async)) {
-      <div class="editor-body">
-        <pintura-editor
-          [src]="src"
-          [options]="options"
-          (process)="handleProcess($event)">
-        </pintura-editor>
+  <div class="editor-card" [attr.aria-busy]="(isLoading$ | async) ? 'true' : 'false'">
+    <div class="editor-body">
+      <div
+        #editorHost
+        class="pintura-host"
+        [class.pintura-host--hidden]="(isLoading$ | async) || !(isEditorReady$ | async)"
+        aria-hidden="false">
       </div>
-    } @else {
-      <div class="editor-loading" role="status" aria-live="polite">
-        <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
-        <p>Processando imagem...</p>
-      </div>
-    }
+
+      @if ((isLoading$ | async) || !(isEditorReady$ | async)) {
+        <div class="editor-loading" role="status" aria-live="polite">
+          <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
+          <p>Preparando editor...</p>
+        </div>
+      }
+    </div>
 
     @if ((errorMessage$ | async); as errorMessage) {
       <div class="alert alert-error editor-error" role="alert" aria-live="assertive">

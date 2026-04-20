@@ -8,7 +8,28 @@
 // - mantém preview local e pós-upload com escolha do usuário
 // - mantém tratamento centralizado de erro
 // - limpa a sessão efêmera do editor com segurança
-
+//
+// AJUSTE DESTA VERSÃO:
+// - SUPRIMIDO o import estático de PhotoEditorComponent
+// - editor agora é carregado por import() dinâmico apenas quando necessário
+// - isso evita que a rota de upload/galeria puxe o editor cedo demais
+// ============================================================================
+// ATENÇÃO — INTEGRAÇÃO PROVISÓRIA COM EDITOR DE IMAGENS
+// ----------------------------------------------------------------------------
+// O editor de imagens atualmente acoplado ao fluxo de upload é considerado
+// provisório. Há histórico de erro residual do software terceirizado de edição,
+// inclusive com stack do Pintura aparecendo fora do fluxo manual de edição.
+//
+// DECISÃO DE ARQUITETURA:
+// - manter este componente funcional mesmo sem depender do editor
+// - preservar o upload direto como fluxo principal e confiável
+// - tratar "Editar antes de enviar" como capacidade opcional e substituível
+//
+// ORIENTAÇÃO PARA EVOLUÇÕES FUTURAS:
+// - não transformar o editor atual em dependência estrutural do upload
+// - manter import dinâmico / lazy loading para qualquer editor visual
+// - facilitar futura troca por outro fornecedor ou por solução interna
+// ============================================================================
 import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -39,7 +60,6 @@ import {
   IPhotoUploadFlowEvent,
 } from 'src/app/core/services/image-handling/photo-upload-flow.service';
 import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/photo-editor-session.service';
-import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
 
 type UploadPhase = 'IDLE' | 'READY' | 'UPLOADING' | 'DONE';
 
@@ -279,41 +299,7 @@ export class PhotoUploadComponent {
           return;
         }
 
-        this.photoEditorSession.setCreateDraft(file, ownerUid);
-
-        const modalRef = this.modal.open(PhotoEditorComponent, {
-          size: 'xl',
-          centered: true,
-          backdrop: 'static',
-          keyboard: false,
-          scrollable: true,
-          windowClass: 'photo-editor-modal-window',
-        });
-
-        modalRef.result
-          .then((payload) => {
-            if (!payload || payload.reason !== 'uploadSuccess' || !payload.photo) {
-              return;
-            }
-
-            this.phaseSubject.next('DONE');
-            this.uploadedPhotoIdSubject.next(payload.photo.photoId ?? null);
-            this.uploadPercentSubject.next(100);
-
-            if (payload.photo.url) {
-              this.revokePreviewUrl();
-              this.previewUrlSubject.next(payload.photo.url);
-            }
-
-            this.fileSubject.next(null);
-            this.errorNotifier.showSuccess('Foto editada e enviada com sucesso.');
-          })
-          .catch(() => {
-            // dismiss do modal: não tratar como erro visível
-          })
-          .finally(() => {
-            this.photoEditorSession.clearDraft();
-          });
+        void this.openEditorModal(file, ownerUid);
       });
   }
 
@@ -342,6 +328,57 @@ export class PhotoUploadComponent {
         { op: 'backToPhotos', ownerUid }
       );
     });
+  }
+
+  private async openEditorModal(file: File, ownerUid: string): Promise<void> {
+    this.photoEditorSession.setCreateDraft(file, ownerUid);
+
+    try {
+      const { PhotoEditorComponent } = await import(
+        'src/app/photo-editor/photo-editor/photo-editor.component'
+      );
+
+      const modalRef = this.modal.open(PhotoEditorComponent, {
+        size: 'xl',
+        centered: true,
+        backdrop: 'static',
+        keyboard: false,
+        scrollable: true,
+        windowClass: 'photo-editor-modal-window',
+      });
+
+      const payload = await modalRef.result;
+
+      if (!payload || payload.reason !== 'uploadSuccess' || !payload.photo) {
+        return;
+      }
+
+      this.phaseSubject.next('DONE');
+      this.uploadedPhotoIdSubject.next(payload.photo.photoId ?? null);
+      this.uploadPercentSubject.next(100);
+
+      if (payload.photo.url) {
+        this.revokePreviewUrl();
+        this.previewUrlSubject.next(payload.photo.url);
+      }
+
+      this.fileSubject.next(null);
+      this.errorNotifier.showSuccess('Foto editada e enviada com sucesso.');
+    } catch (error) {
+      if (error !== 'close' && error !== 'dismiss') {
+        this.reportError(
+          'Erro ao abrir o editor da foto.',
+          error,
+          {
+            op: 'openEditorModal',
+            ownerUid,
+            fileName: file.name,
+          }
+        );
+      }
+    } finally {
+      this.photoEditorSession.clearDraft();
+    }
   }
 
   private revokePreviewUrl(): void {
@@ -393,4 +430,4 @@ export class PhotoUploadComponent {
     // eslint-disable-next-line no-console
     console.debug(`[PhotoUpload] ${msg}`, data ?? '');
   }
-} // Linha 396
+} // Linha 416

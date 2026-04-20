@@ -9,14 +9,47 @@
 // - mantém upload/replace reais via PhotoUploadFlowService
 // - mantém tratamento centralizado de erro
 // - limpa sessão e blob URL no destroy
-import { Component, OnInit, input, DestroyRef, inject } from '@angular/core';
+// ============================================================================
+// ATENÇÃO — COMPONENTE PROVISÓRIO / SOFTWARE TERCEIRIZADO DE EDIÇÃO
+// ----------------------------------------------------------------------------
+// Este componente representa uma integração temporária com editor terceirizado
+// de imagens. Há histórico de instabilidade em runtime associado ao editor,
+// incluindo erros como:
+//
+// - "Cannot read properties of undefined (reading 'width')"
+// - falhas anteriores envolvendo `PinturaEditorComponent.initEditor`
+//
+// IMPORTANTE:
+// - a existência deste componente NÃO significa decisão definitiva de fornecedor
+// - a plataforma pode migrar para outro editor sem preservar esta integração
+// - evitar espalhar dependências do editor atual por componentes de domínio
+//
+// DIRETRIZ:
+// - manter este componente isolado
+// - evitar uso estrutural fora de fluxos explicitamente opt-in
+// - documentar qualquer novo erro de runtime antes de aprofundar refactors
+// ============================================================================
+import {
+  AfterViewInit,
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  ElementRef,
+  NgZone,
+  OnInit,
+  ViewChild,
+  inject,
+  input,
+} from '@angular/core';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import {
+  PinturaEditorDefaultOptions,
   PinturaEditorOptions,
-  getEditorDefaults,
+  PinturaImageState,
+  appendDefaultEditor,
   createDefaultImageReader,
   createDefaultImageWriter,
-  PinturaImageState,
+  getEditorDefaults,
 } from '@pqina/pintura';
 import * as locale_pt_br from '@pqina/pintura/locale/pt_PT';
 import { BehaviorSubject, Observable, firstValueFrom, of } from 'rxjs';
@@ -27,23 +60,38 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import {
-  PhotoUploadFlowService,
   IPhotoFlowResult,
+  PhotoUploadFlowService,
 } from 'src/app/core/services/image-handling/photo-upload-flow.service';
 import {
-  PhotoEditorSessionService,
   IPhotoEditorDraft,
+  PhotoEditorSessionService,
 } from 'src/app/core/services/image-handling/photo-editor-session.service';
+
+type TPinturaProcessPayload = {
+  dest?: Blob;
+  imageState?: PinturaImageState;
+};
+
+type TPinturaEditorInstance = {
+  on?: (eventName: string, cb: (payload: TPinturaProcessPayload) => void) => void;
+  destroy?: () => void;
+};
 
 @Component({
   selector: 'app-photo-editor',
   templateUrl: './photo-editor.component.html',
   styleUrls: ['./photo-editor.component.css'],
   standalone: false,
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class PhotoEditorComponent implements OnInit {
+export class PhotoEditorComponent implements OnInit, AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly photoEditorSession = inject(PhotoEditorSessionService);
+  private readonly ngZone = inject(NgZone);
+
+  @ViewChild('editorHost', { static: true })
+  private readonly editorHostRef!: ElementRef<HTMLDivElement>;
 
   readonly imageFile = input<File | null>(null);
   readonly storedImageUrl = input<string | null>(null);
@@ -53,7 +101,7 @@ export class PhotoEditorComponent implements OnInit {
   readonly isEditMode = input<boolean>(false);
 
   src = '';
-  options!: PinturaEditorOptions;
+  options: PinturaEditorDefaultOptions | null = null;
   userId = '';
 
   private sourceFile: File | null = null;
@@ -66,13 +114,21 @@ export class PhotoEditorComponent implements OnInit {
   private effectiveStoredImageState: string | null = null;
   private effectivePhotoId: string | null = null;
 
-  private readonly isLoadingSubject = new BehaviorSubject<boolean>(false);
+  private editorInstance: TPinturaEditorInstance | null = null;
+  private viewReady = false;
+
+  private readonly isLoadingSubject = new BehaviorSubject<boolean>(true);
+  private readonly isEditorReadySubject = new BehaviorSubject<boolean>(false);
   private readonly errorMessageSubject = new BehaviorSubject<string | null>(null);
+  private readonly isClosingSubject = new BehaviorSubject<boolean>(false);
 
   readonly isLoading$: Observable<boolean> = this.isLoadingSubject.asObservable();
+  readonly isEditorReady$: Observable<boolean> = this.isEditorReadySubject.asObservable();
   readonly errorMessage$: Observable<string | null> = this.errorMessageSubject.asObservable();
 
   private readonly DEBUG = true;
+  private readonly instanceId =
+    `photo-editor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
   constructor(
     private readonly photoUploadFlow: PhotoUploadFlowService,
@@ -81,7 +137,24 @@ export class PhotoEditorComponent implements OnInit {
     private readonly errorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService
   ) {
+    this.debug('ctor', {
+      instanceId: this.instanceId,
+      href: typeof window !== 'undefined' ? window.location.href : '',
+    });
+
     this.destroyRef.onDestroy(() => {
+      this.debug('onDestroy', {
+        instanceId: this.instanceId,
+        href: typeof window !== 'undefined' ? window.location.href : '',
+        hadSrc: !!this.src,
+        hadOptions: !!this.options,
+        isClosing: this.isClosingSubject.value,
+      });
+
+      this.isClosingSubject.next(true);
+      this.destroyEditorInstance();
+      this.options = null;
+      this.src = '';
       this.revokeSourceObjectUrl();
       this.photoEditorSession.clearDraft();
     });
@@ -100,7 +173,7 @@ export class PhotoEditorComponent implements OnInit {
         }),
         takeUntilDestroyed(this.destroyRef)
       )
-      .subscribe((uid) => {
+      .subscribe(async (uid) => {
         this.userId = uid;
 
         if (!uid) {
@@ -132,7 +205,7 @@ export class PhotoEditorComponent implements OnInit {
         this.resolveEffectiveState(sessionDraft);
 
         const sourceResolved = this.resolveSource();
-        if (!sourceResolved) {
+        if (!sourceResolved || !this.src.trim()) {
           this.failAndDismiss(
             'Nenhuma imagem disponível para edição.',
             new Error('Editor aberto sem imagem de origem.'),
@@ -142,37 +215,106 @@ export class PhotoEditorComponent implements OnInit {
           return;
         }
 
-        const parsedImageState = this.safeParseImageState(this.effectiveStoredImageState);
+        try {
+          this.isLoadingSubject.next(true);
+          this.isEditorReadySubject.next(false);
+          this.errorMessageSubject.next(null);
 
-        this.options = this.buildEditorOptions(parsedImageState);
+          this.debug('ngOnInit:beforePreload', {
+            instanceId: this.instanceId,
+            href: typeof window !== 'undefined' ? window.location.href : '',
+            src: this.src,
+            effectiveIsEditMode: this.effectiveIsEditMode,
+          });
 
-        this.debug('init', {
-          uid,
-          effectiveIsEditMode: this.effectiveIsEditMode,
-          hasSourceFile: !!this.sourceFile,
-          hasStoredImageUrl: !!this.effectiveStoredImageUrl,
-          hasStoredImagePath: !!this.effectiveStoredImagePath,
-          hasPhotoId: !!this.effectivePhotoId,
-        });
+          await this.preloadImage(this.src);
+
+          const parsedImageState = this.safeParseImageState(
+            this.effectiveStoredImageState
+          );
+
+          this.options = this.buildEditorOptions(parsedImageState);
+          this.isEditorReadySubject.next(true);
+          this.isLoadingSubject.next(false);
+
+          this.debug('ngOnInit:editorReady', {
+            instanceId: this.instanceId,
+            href: typeof window !== 'undefined' ? window.location.href : '',
+            hasOptions: !!this.options,
+            src: this.src,
+          });
+
+          this.tryMountEditor();
+        } catch (error) {
+          this.failAndDismiss(
+            'Não foi possível carregar a imagem para edição.',
+            error,
+            'editor-source-load-failed',
+            { op: 'ngOnInit.preloadImage', src: this.src }
+          );
+        }
       });
   }
 
-  async handleProcess(event: any): Promise<void> {
-    const imageStateStr = this.stringifyImageState(event.imageState);
+  ngAfterViewInit(): void {
+    this.viewReady = true;
+    this.tryMountEditor();
+  }
 
-    if (this.effectiveIsEditMode) {
-      await this.updateStoredFile(event.dest, imageStateStr);
+  async handleProcess(payload: TPinturaProcessPayload): Promise<void> {
+    if (this.isClosingSubject.value) {
+      this.debug('handleProcess:ignoredClosing', {
+        instanceId: this.instanceId,
+      });
       return;
     }
 
-    await this.uploadProcessedFile(event.dest, imageStateStr);
+    if (!payload?.dest) {
+      this.reportError(
+        'O editor não retornou uma imagem processada válida.',
+        new Error('Pintura process sem payload.dest'),
+        { op: 'handleProcess', payload }
+      );
+      return;
+    }
+
+    const imageStateStr = this.stringifyImageState(
+      payload.imageState ?? ({} as PinturaImageState)
+    );
+
+    if (this.effectiveIsEditMode) {
+      await this.updateStoredFile(payload.dest, imageStateStr);
+      return;
+    }
+
+    await this.uploadProcessedFile(payload.dest, imageStateStr);
   }
 
-  async uploadProcessedFile(processedFile: Blob, imageStateStr: string): Promise<void> {
+  onClose(): void {
+    if (this.isClosingSubject.value) {
+      this.debug('onClose:ignored', { instanceId: this.instanceId });
+      return;
+    }
+
+    this.debug('onClose:start', {
+      instanceId: this.instanceId,
+      href: typeof window !== 'undefined' ? window.location.href : '',
+    });
+
+    this.isClosingSubject.next(true);
+    this.activeModal.dismiss('close');
+  }
+
+  async uploadProcessedFile(
+    processedFile: Blob,
+    imageStateStr: string
+  ): Promise<void> {
     if (!this.userId) {
-      this.reportError('Usuário não autenticado.', new Error('Usuário não autenticado.'), {
-        op: 'uploadProcessedFile',
-      });
+      this.reportError(
+        'Usuário não autenticado.',
+        new Error('Usuário não autenticado.'),
+        { op: 'uploadProcessedFile' }
+      );
       return;
     }
 
@@ -214,7 +356,10 @@ export class PhotoEditorComponent implements OnInit {
     }
   }
 
-  async updateStoredFile(processedFile: Blob, imageStateStr: string): Promise<void> {
+  async updateStoredFile(
+    processedFile: Blob,
+    imageStateStr: string
+  ): Promise<void> {
     const safePhotoId = (this.effectivePhotoId ?? '').trim();
     const safeStoredImagePath = (this.effectiveStoredImagePath ?? '').trim();
 
@@ -275,38 +420,108 @@ export class PhotoEditorComponent implements OnInit {
   }
 
   stringifyImageState(imageState: PinturaImageState): string {
-    return JSON.stringify(imageState, (_key, value) => (value === undefined ? null : value));
+    return JSON.stringify(imageState, (_key, value) =>
+      value === undefined ? null : value
+    );
   }
 
   parseImageState(str: string): PinturaImageState {
     return JSON.parse(str);
   }
 
-  private buildEditorOptions(imageState?: PinturaImageState): PinturaEditorOptions {
-    return {
-      ...getEditorDefaults(),
-      imageReader: createDefaultImageReader({ orientImage: true }),
-      imageWriter: createDefaultImageWriter({
-        copyImageHead: false,
-        quality: 0.8,
-      }),
-      locale: locale_pt_br,
-      enableToolbar: true,
-      enableButtonExport: true,
-      enableButtonRevert: true,
-      enableDropImage: true,
-      enableBrowseImage: false,
-      enablePan: true,
-      enableZoom: true,
-      zoomLevel: 1,
-      previewUpscale: true,
-      enableTransparencyGrid: true,
-      imageCropAspectRatio: undefined,
-      imageCrop: undefined,
-      imageBackgroundColor: [255, 255, 255, 0],
-      imageState,
-    };
+  private tryMountEditor(): void {
+    if (this.isClosingSubject.value) {
+      return;
+    }
+
+    if (!this.viewReady || !this.editorHostRef?.nativeElement) {
+      return;
+    }
+
+    if (!this.src || !this.options) {
+      return;
+    }
+
+    if (this.editorInstance) {
+      return;
+    }
+
+    try {
+      const host = this.editorHostRef.nativeElement;
+      host.innerHTML = '';
+
+      const editor = appendDefaultEditor(host, {
+        ...this.options,
+        src: this.src,
+      }) as TPinturaEditorInstance;
+
+      editor.on?.('process', (payload: TPinturaProcessPayload) => {
+        this.ngZone.run(() => {
+          void this.handleProcess(payload);
+        });
+      });
+
+      this.editorInstance = editor;
+
+      this.debug('editorMounted', {
+        instanceId: this.instanceId,
+        href: typeof window !== 'undefined' ? window.location.href : '',
+        src: this.src,
+      });
+    } catch (error) {
+      this.reportError(
+        'Falha ao montar o editor de imagem.',
+        error,
+        { op: 'tryMountEditor' }
+      );
+    }
   }
+
+  private destroyEditorInstance(): void {
+    if (this.editorInstance?.destroy) {
+      try {
+        this.editorInstance.destroy();
+      } catch (error) {
+        this.debug('destroyEditorInstance:error', {
+          instanceId: this.instanceId,
+          error,
+        });
+      }
+    }
+
+    this.editorInstance = null;
+
+    if (this.editorHostRef?.nativeElement) {
+      this.editorHostRef.nativeElement.innerHTML = '';
+    }
+  }
+
+private buildEditorOptions(
+  imageState?: PinturaImageState
+): ReturnType<typeof getEditorDefaults> {
+  return getEditorDefaults({
+    imageReader: createDefaultImageReader({ orientImage: true }),
+    imageWriter: createDefaultImageWriter({
+      copyImageHead: false,
+      quality: 0.8,
+    }),
+    locale: locale_pt_br,
+    enableToolbar: true,
+    enableButtonExport: true,
+    enableButtonRevert: true,
+    enableDropImage: true,
+    enableBrowseImage: false,
+    enablePan: true,
+    enableZoom: true,
+    zoomLevel: 1,
+    previewUpscale: true,
+    enableTransparencyGrid: true,
+    imageCropAspectRatio: undefined,
+    imageCrop: undefined,
+    imageBackgroundColor: [255, 255, 255, 0],
+    imageState,
+  });
+}
 
   private validateDraftOwnership(
     sessionDraft: IPhotoEditorDraft | null,
@@ -360,6 +575,23 @@ export class PhotoEditorComponent implements OnInit {
     }
 
     return false;
+  }
+
+  private async preloadImage(src: string): Promise<void> {
+    await new Promise<void>((resolve, reject) => {
+      const img = new Image();
+
+      img.onload = () => {
+        if (!img.naturalWidth || !img.naturalHeight) {
+          reject(new Error('Imagem carregada sem dimensões válidas.'));
+          return;
+        }
+        resolve();
+      };
+
+      img.onerror = () => reject(new Error('Falha ao pré-carregar a imagem.'));
+      img.src = src;
+    });
   }
 
   private resolveOriginalFileMetadata():
@@ -432,7 +664,9 @@ export class PhotoEditorComponent implements OnInit {
     }
   }
 
-  private safeParseImageState(str: string | null | undefined): PinturaImageState | undefined {
+  private safeParseImageState(
+    str: string | null | undefined
+  ): PinturaImageState | undefined {
     const safe = (str ?? '').trim();
     if (!safe) return undefined;
 
@@ -459,7 +693,22 @@ export class PhotoEditorComponent implements OnInit {
     reason: 'uploadSuccess' | 'updateSuccess',
     photo: IPhotoFlowResult
   ): void {
-    this.photoEditorSession.clearDraft();
+    if (this.isClosingSubject.value) {
+      this.debug('closeWithSuccess:ignored', {
+        instanceId: this.instanceId,
+        reason,
+      });
+      return;
+    }
+
+    this.debug('closeWithSuccess:start', {
+      instanceId: this.instanceId,
+      href: typeof window !== 'undefined' ? window.location.href : '',
+      reason,
+      photoId: photo?.photoId ?? null,
+    });
+
+    this.isClosingSubject.next(true);
     this.activeModal.close({ reason, photo });
   }
 
@@ -511,4 +760,4 @@ export class PhotoEditorComponent implements OnInit {
     // eslint-disable-next-line no-console
     console.debug(`[PhotoEditor] ${msg}`, data ?? '');
   }
-} // Linha 515
+} // Linha 742

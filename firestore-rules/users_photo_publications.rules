@@ -6,7 +6,6 @@
 // - Separada de users/{uid}/photos para não contaminar o acervo privado
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // ==============================================================
-
 match /users/{userId}/photo_publications/{photoId} {
 
   function hasField(field) {
@@ -28,30 +27,45 @@ match /users/{userId}/photo_publications/{photoId} {
     ]);
   }
 
+  function optBool(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is bool;
+  }
+
+  function optNumber(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is number;
+  }
+
   function validVisibility() {
     return !hasField("visibility")
-      || request.resource.data.visibility in ["PRIVATE", "FRIENDS", "SUBSCRIBERS", "PUBLIC"];
+      || request.resource.data.visibility in [
+        "PRIVATE",
+        "FRIENDS",
+        "SUBSCRIBERS",
+        "PUBLIC"
+      ];
   }
 
   function validPayload() {
     return allowedKeys()
       && request.resource.data.photoId == photoId
       && request.resource.data.ownerUid == userId
-      && (!hasField("isPublished") || request.resource.data.isPublished is bool)
+      && optBool("isPublished")
       && validVisibility()
-      && (!hasField("isCover") || request.resource.data.isCover is bool)
-      && (!hasField("orderIndex") || request.resource.data.orderIndex is int)
-      && (!hasField("commentsEnabled") || request.resource.data.commentsEnabled is bool)
-      && (!hasField("reactionsEnabled") || request.resource.data.reactionsEnabled is bool)
-      && optTimestamp("publishedAt")
-      && optTimestamp("updatedAt");
+      && optBool("isCover")
+      && optNumber("orderIndex")
+      && optBool("commentsEnabled")
+      && optBool("reactionsEnabled")
+      && optNumber("publishedAt")
+      && optNumber("updatedAt");
   }
 
   allow get, list: if isSelf(userId);
-
-  allow create, update: if isSelf(userId) && validPayload();
-  allow delete: if isSelf(userId);
+  allow create, update, delete: if isSelf(userId) && validPayload();
 }
 // ==============================================================
-//           FIM DO USER_PHOTO_PUBLICATIONS.RULES
+//           FIM DO USERS_PHOTO_PUBLICATIONS.RULES
 // ==============================================================

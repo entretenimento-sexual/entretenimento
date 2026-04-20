@@ -10,7 +10,18 @@
 // - Observable-first.
 // - Mantém nomenclaturas públicas usadas no template.
 // - Erros centralizados em GlobalErrorHandlerService + ErrorNotificationService.
-
+// ============================================================================
+// ATENÇÃO — NÃO ACOPLAR ESTE COMPONENTE AO EDITOR DE IMAGENS
+// ----------------------------------------------------------------------------
+// O editor de imagens atual apresenta histórico de erro residual no runtime.
+// Por isso, este componente não deve manter dependência estrutural, import
+// estático ou inicialização antecipada do editor terceirizado.
+//
+// DIRETRIZ:
+// - qualquer uso de editor deve ser tardio e explicitamente acionado
+// - evitar importar diretamente o componente de edição no topo do arquivo
+// - priorizar lazy loading / import dinâmico quando estritamente necessário
+// ============================================================================
 import {
   ChangeDetectionStrategy,
   Component,

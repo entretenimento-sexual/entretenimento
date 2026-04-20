@@ -6,17 +6,25 @@
 // - escrever config privada + projeção pública
 // - manter Observable na API pública
 // - usar FirestoreContextService para evitar chamadas fora do Injection Context
+//
+// AJUSTE DESTA VERSÃO:
+// - SUPRIMIDOS os paths literais antigos da projeção pública em:
+//   public_profiles/{uid}/photos/{photoId}
+// - PADRONIZADO o uso de:
+//   public_profiles/{uid}/public_photos/{photoId}
+// - isso harmoniza a escrita com o MediaPublicQueryService,
+//   que já lê da subcoleção public_photos.
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
   collection,
   collectionData,
-  deleteDoc,
   doc,
   getDocs,
   query,
   where,
   writeBatch,
+  type DocumentReference,
 } from '@angular/fire/firestore';
 import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
@@ -154,10 +162,7 @@ export class MediaPublicationService {
         { merge: true }
       );
 
-      const publicRef = doc(
-        this.firestore,
-        `public_profiles/${safeOwnerUid}/photos/${safePhotoId}`
-      );
+      const publicRef = this.getPublicPhotoRef(safeOwnerUid, safePhotoId);
 
       batch.set(
         publicRef,
@@ -223,11 +228,7 @@ export class MediaPublicationService {
         { merge: true }
       );
 
-      const publicRef = doc(
-        this.firestore,
-        `public_profiles/${safeOwnerUid}/photos/${safePhotoId}`
-      );
-
+      const publicRef = this.getPublicPhotoRef(safeOwnerUid, safePhotoId);
       batch.delete(publicRef);
 
       await batch.commit();
@@ -237,7 +238,11 @@ export class MediaPublicationService {
         this.reportError(
           'Erro ao despublicar a foto.',
           error,
-          { op: 'unpublishPhoto$', ownerUid: safeOwnerUid, privatePhotoId: safePhotoId },
+          {
+            op: 'unpublishPhoto$',
+            ownerUid: safeOwnerUid,
+            privatePhotoId: safePhotoId,
+          },
           false
         );
         return of(void 0);
@@ -280,10 +285,7 @@ export class MediaPublicationService {
           { merge: true }
         );
 
-        const publicRef = doc(
-          this.firestore,
-          `public_profiles/${safeOwnerUid}/photos/${docSnap.id}`
-        );
+        const publicRef = this.getPublicPhotoRef(safeOwnerUid, docSnap.id);
 
         batch.set(
           publicRef,
@@ -302,7 +304,11 @@ export class MediaPublicationService {
         this.reportError(
           'Erro ao definir foto de capa.',
           error,
-          { op: 'setCoverPhoto$', ownerUid: safeOwnerUid, privatePhotoId: safePhotoId },
+          {
+            op: 'setCoverPhoto$',
+            ownerUid: safeOwnerUid,
+            privatePhotoId: safePhotoId,
+          },
           false
         );
         return of(void 0);
@@ -315,7 +321,9 @@ export class MediaPublicationService {
     orderedPhotoIds: string[]
   ): Observable<void> {
     const safeOwnerUid = (ownerUid ?? '').trim();
-    const safeOrderedIds = (orderedPhotoIds ?? []).map((id) => (id ?? '').trim()).filter(Boolean);
+    const safeOrderedIds = (orderedPhotoIds ?? [])
+      .map((id) => (id ?? '').trim())
+      .filter(Boolean);
 
     if (!safeOwnerUid || safeOrderedIds.length === 0) {
       return of(void 0);
@@ -342,10 +350,7 @@ export class MediaPublicationService {
           { merge: true }
         );
 
-        const publicRef = doc(
-          this.firestore,
-          `public_profiles/${safeOwnerUid}/photos/${photoId}`
-        );
+        const publicRef = this.getPublicPhotoRef(safeOwnerUid, photoId);
 
         batch.set(
           publicRef,
@@ -364,11 +369,25 @@ export class MediaPublicationService {
         this.reportError(
           'Erro ao reordenar fotos publicadas.',
           error,
-          { op: 'reorderPublishedPhotos$', ownerUid: safeOwnerUid, orderedPhotoIds: safeOrderedIds },
+          {
+            op: 'reorderPublishedPhotos$',
+            ownerUid: safeOwnerUid,
+            orderedPhotoIds: safeOrderedIds,
+          },
           false
         );
         return of(void 0);
       })
+    );
+  }
+
+  private getPublicPhotoRef(
+    ownerUid: string,
+    photoId: string
+  ): DocumentReference {
+    return doc(
+      this.firestore,
+      `public_profiles/${ownerUid}/public_photos/${photoId}`
     );
   }
 
@@ -399,4 +418,4 @@ export class MediaPublicationService {
       // noop
     }
   }
-}
+} // Linha 421
