@@ -754,4 +754,4 @@ private tryAutoRedirectToPreferences(): void {
     if (!this.email || !navigator?.clipboard) return;
     navigator.clipboard.writeText(this.email).catch(() => {});
   }
-} // Linha 735. welcome.component.ts está gigantesco, considerar redistribuir as funções
+} // Linha 757. welcome.component.ts está gigantesco, considerar redistribuir as funções

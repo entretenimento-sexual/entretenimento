@@ -7,14 +7,23 @@
   flex-wrap: wrap;
   margin: 0.75rem var(--gutter, 16px) 0;
   padding: 1rem;
-  border: 1px solid color-mix(in oklab, var(--warning-color, #ff9800) 50%, transparent);
   border-radius: 1rem;
+}
+
+.email-verification-gate-banner--soft {
+  border: 1px solid color-mix(in oklab, var(--primary-color) 28%, transparent);
+  background: color-mix(in oklab, var(--primary-color) 8%, transparent);
+}
+
+.email-verification-gate-banner--hard {
+  border: 1px solid color-mix(in oklab, var(--warning-color, #ff9800) 50%, transparent);
   background: color-mix(in oklab, var(--warning-color, #ff9800) 10%, transparent);
 }
 
 .email-verification-gate-banner__content {
   display: grid;
   gap: 0.35rem;
+  min-width: min(100%, 360px);
 }
 
 .email-verification-gate-banner__content p,

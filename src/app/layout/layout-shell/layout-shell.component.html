@@ -5,6 +5,7 @@
   [attr.data-shell-mode]="vm.shellMode"
 >
   <app-navbar></app-navbar>
+
   <app-email-verification-gate-banner></app-email-verification-gate-banner>
 
   <div
@@ -15,6 +16,7 @@
       *ngIf="vm.showSidebar"
       [vm]="vm.sidebar"
       [user]="vm.sidebarUser"
+      [quickActions]="vm.sidebarQuickActions"
       [forceOverlay]="vm.sidebarShouldOverlay"
       [forceCollapsed]="vm.sidebarShouldCompact"
       (toggleRequested)="onToggleSidebar()"

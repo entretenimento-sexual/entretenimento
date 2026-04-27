@@ -543,61 +543,52 @@ export class AccessControlService {
     catchError(this.handleStreamError('canRunProductRealtime$', false))
   );
 
-  /**
-   * Gate final de OnlineUsers:
-   * - depende do gate de produto
-   * - exige uid
-   * - exige perfil runtime resolvido e disponível
-   * - exige match entre appUser.uid e authUid
-   *
-   * Observação:
-   * - Mantemos a URL junto apenas para debug do gate.
-   * - A saída pública continua sendo boolean.
-   */
-  readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
-    this.canRunProductRealtime$,
-    this.authUid$,
-    this.appUserResolved$,
-    this.appUser$,
-    this.routeCtx$,
-  ]).pipe(
-    map(([canRunProduct, uid, resolved, appUser, routeCtx]) => {
-      let can = true;
+/**
+ * Gate específico de Online Users:
+ * - exige infraestrutura ativa
+ * - exige sessão autenticada válida
+ * - exige perfil mínimo concluído
+ * - NÃO exige e-mail verificado como bloqueio
+ *
+ * Motivo:
+ * Online Users entra na política de descoberta/proximidade,
+ * não na política de interação sensível.
+ */
+readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
+  this.canRunInfraRealtime$,
+  this.profileEligible$,
+  this.authUid$,
+  this.routeCtx$,
+]).pipe(
+  map(([infraOk, profileEligible, uid, routeCtx]) => ({
+    can: infraOk && profileEligible && !!uid,
+    url: routeCtx.currentUrl,
+    routerReady: routeCtx.routerReady,
+  })),
+  distinctUntilChanged(
+    (a, b) =>
+      a.can === b.can &&
+      a.url === b.url &&
+      a.routerReady === b.routerReady
+  ),
+  tap(({ can, url, routerReady }) => {
+    if (!this.debug) return;
+    if (!routerReady) return;
 
-      if (!canRunProduct) can = false;
-      else if (!uid) can = false;
-      else if (!resolved) can = false;
-      else if (appUser === null) can = false;
-      else {
-        const appUid = (appUser as any)?.uid;
-        if (typeof appUid === 'string' && appUid && appUid !== uid) {
-          can = false;
-        }
-      }
-
-      return {
-        can,
-        url: routeCtx.currentUrl,
-        routerReady: routeCtx.routerReady,
-      };
-    }),
-    distinctUntilChanged(
-      (a, b) =>
-        a.can === b.can &&
-        a.url === b.url &&
-        a.routerReady === b.routerReady
-    ),
-    tap(({ can, url, routerReady }) => {
-      if (!this.debug) return;
-      if (!routerReady) return;
-
-      this.dbg('canRunOnlineUsers$', { can, url });
-    }),
-    map(({ can }) => can),
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(this.handleStreamError('canRunOnlineUsers$', false))
-  );
+    const user = this.currentUserStore.getSnapshot() as any;
+    this.dbg('canRunOnlineUsers$', {
+      can,
+      url,
+      uid: user?.uid,
+      profileCompleted: user?.profileCompleted,
+      emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
+    });
+  }),
+  map(({ can }) => can),
+  distinctUntilChanged(),
+  shareReplay({ bufferSize: 1, refCount: true }),
+  catchError(this.handleStreamError('canRunOnlineUsers$', false))
+);
 
   // ---------------------------------------------------------------------------
   // Capacidades de alto nível

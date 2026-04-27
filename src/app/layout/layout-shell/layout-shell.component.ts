@@ -16,11 +16,22 @@ import { HeaderModule } from '../../header/header.module';
 import { FooterModule } from '../../footer/footer.module';
 import {
   UniversalSidebarComponent,
+  type UniversalSidebarQuickAction,
   type UniversalSidebarUserSummary,
 } from '../../shared/components-globais/universal-sidebar/universal-sidebar.component';
 import { environment } from 'src/environments/environment';
 
 type ShellMode = 'guest' | 'onboarding' | 'auth';
+
+interface NavbarContextAction {
+  id: string;
+  label: string;
+  route: any[] | string;
+  queryParams?: Record<string, string> | null;
+  icon?: string | null;
+  ariaLabel?: string | null;
+  variant?: 'primary' | 'secondary' | 'ghost';
+}
 
 interface LayoutShellVm {
   currentUrl: string;
@@ -31,6 +42,8 @@ interface LayoutShellVm {
   sidebarUser: UniversalSidebarUserSummary | null;
   sidebarShouldOverlay: boolean;
   sidebarShouldCompact: boolean;
+  navbarContextActions: NavbarContextAction[];
+  sidebarQuickActions: UniversalSidebarQuickAction[];
 }
 
 @Component({
@@ -53,40 +66,16 @@ export class LayoutShellComponent {
 
   /**
    * Faixas:
-   * - <= 767.98px  => overlay real
-   * - 768px..991.98px => compactado em ícones
+   * - <= 767.98px => overlay real
+   * - 768px..991.98px => compactado
    * - >= 992px => sidebar normal ocupando espaço
    */
   private readonly mobileOverlayBreakpoint = '(max-width: 767.98px)';
   private readonly compactSidebarBreakpoint =
     '(min-width: 768px) and (max-width: 991.98px)';
 
-  readonly sidebarUser$: Observable<UniversalSidebarUserSummary | null> =
+  readonly navigationVm$: Observable<AuthenticatedNavigationVm> =
     this.authenticatedNavigation.vm$.pipe(
-      map((navVm: AuthenticatedNavigationVm): UniversalSidebarUserSummary | null => {
-        if (!navVm.uid || !navVm.usuario) {
-          return null;
-        }
-
-        return {
-          uid: navVm.uid,
-          displayName: navVm.usuario.nickname?.trim() || 'Meu perfil',
-          email: navVm.usuario.email?.trim() || null,
-          subtitle: navVm.usuario.role
-            ? `Conta ${String(navVm.usuario.role)}`
-            : null,
-          photoURL: navVm.usuario.photoURL?.trim() || null,
-          profileRoute: ['/perfil', navVm.uid],
-        };
-      }),
-      distinctUntilChanged((a, b) =>
-        (a?.uid ?? null) === (b?.uid ?? null) &&
-        (a?.displayName ?? null) === (b?.displayName ?? null) &&
-        (a?.email ?? null) === (b?.email ?? null) &&
-        (a?.subtitle ?? null) === (b?.subtitle ?? null) &&
-        (a?.photoURL ?? null) === (b?.photoURL ?? null) &&
-        JSON.stringify(a?.profileRoute ?? null) === JSON.stringify(b?.profileRoute ?? null)
-      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
@@ -106,13 +95,19 @@ export class LayoutShellComponent {
 
   readonly vm$: Observable<LayoutShellVm> = combineLatest([
     this.sidebar.vm$,
-    this.sidebarUser$,
+    this.navigationVm$,
     this.sidebarShouldOverlay$,
     this.sidebarShouldCompact$,
   ]).pipe(
-    map(([sidebar, sidebarUser, sidebarShouldOverlay, sidebarShouldCompact]): LayoutShellVm => {
+    map(([sidebar, navVm, sidebarShouldOverlay, sidebarShouldCompact]): LayoutShellVm => {
       const currentUrl = sidebar.currentUrl;
       const shellMode = this.resolveShellMode(currentUrl);
+      const sidebarUser = this.mapSidebarUser(navVm);
+
+      const shellContextActions =
+        shellMode === 'auth'
+          ? this.buildShellContextActions(currentUrl, navVm)
+          : [];
 
       return {
         currentUrl,
@@ -123,6 +118,8 @@ export class LayoutShellComponent {
         sidebarUser,
         sidebarShouldOverlay,
         sidebarShouldCompact,
+        navbarContextActions: shellContextActions.slice(0, 1),
+        sidebarQuickActions: shellContextActions,
       };
     }),
     distinctUntilChanged((a, b) =>
@@ -137,6 +134,8 @@ export class LayoutShellComponent {
       a.sidebar.isCollapsed === b.sidebar.isCollapsed &&
       a.sidebar.currentSection === b.sidebar.currentSection &&
       JSON.stringify(a.sidebar.sections) === JSON.stringify(b.sidebar.sections) &&
+      JSON.stringify(a.navbarContextActions) === JSON.stringify(b.navbarContextActions) &&
+      JSON.stringify(a.sidebarQuickActions) === JSON.stringify(b.sidebarQuickActions) &&
       (a.sidebarUser?.uid ?? null) === (b.sidebarUser?.uid ?? null) &&
       (a.sidebarUser?.displayName ?? null) === (b.sidebarUser?.displayName ?? null) &&
       (a.sidebarUser?.email ?? null) === (b.sidebarUser?.email ?? null) &&
@@ -163,6 +162,102 @@ export class LayoutShellComponent {
 
   onToggleCollapse(): void {
     this.sidebar.toggleCollapse();
+  }
+
+  private mapSidebarUser(
+    navVm: AuthenticatedNavigationVm
+  ): UniversalSidebarUserSummary | null {
+    if (!navVm.uid || !navVm.usuario) {
+      return null;
+    }
+
+    return {
+      uid: navVm.uid,
+      displayName: navVm.usuario.nickname?.trim() || 'Meu perfil',
+      email: navVm.usuario.email?.trim() || null,
+      subtitle: navVm.usuario.role
+        ? `Conta ${String(navVm.usuario.role)}`
+        : null,
+      photoURL: navVm.usuario.photoURL?.trim() || null,
+      profileRoute: ['/perfil', navVm.uid],
+    };
+  }
+
+  /**
+   * O shell decide ações contextuais.
+   * O header e a sidebar só renderizam.
+   */
+  private buildShellContextActions(
+    currentUrl: string,
+    navVm: AuthenticatedNavigationVm
+  ): UniversalSidebarQuickAction[] {
+    const uid = navVm.uid?.trim() || '';
+    const usuario = navVm.usuario as any | null;
+    const clean = this.normalizeUrl(currentUrl);
+
+    if (!uid || !usuario) {
+      return [];
+    }
+
+    const actions: UniversalSidebarQuickAction[] = [];
+
+    const redirectTo = this.normalizeRedirectTarget(currentUrl);
+    const needsProfileCompletion = usuario.profileCompleted !== true;
+    const needsEmailVerification = usuario.emailVerified !== true;
+
+    if (needsProfileCompletion && clean !== '/register/finalizar-cadastro') {
+      actions.push({
+        id: 'complete-profile',
+        label: 'Completar perfil',
+        route: ['/register/finalizar-cadastro'],
+        queryParams: {
+          reason: 'profile_incomplete',
+          redirectTo,
+        },
+        icon: '🧩',
+        ariaLabel: 'Completar perfil para liberar recursos da plataforma',
+        variant: 'primary',
+      });
+    }
+
+    if (needsEmailVerification && clean !== '/register/welcome') {
+      actions.push({
+        id: 'verify-email',
+        label: 'Verificar e-mail',
+        route: ['/register/welcome'],
+        queryParams: {
+          reason: 'email_unverified',
+          redirectTo,
+        },
+        icon: '✉️',
+        ariaLabel: 'Ir para a tela de verificação de e-mail',
+        variant: 'secondary',
+      });
+    }
+
+    if (!clean.startsWith('/preferencias/')) {
+      actions.push({
+        id: 'edit-preferences',
+        label: 'Editar preferências',
+        route: ['/preferencias', 'editar', uid],
+        icon: '⚙️',
+        ariaLabel: 'Editar preferências da conta',
+        variant: 'ghost',
+      });
+    }
+
+    if (clean !== '/subscription-plan') {
+      actions.push({
+        id: 'subscription-plan',
+        label: 'Ver planos',
+        route: ['/subscription-plan'],
+        icon: '⭐',
+        ariaLabel: 'Ver planos de assinatura',
+        variant: 'ghost',
+      });
+    }
+
+    return actions;
   }
 
   private resolveShellMode(url: string): ShellMode {
@@ -205,4 +300,12 @@ export class LayoutShellComponent {
   private normalizeUrl(url: string | null | undefined): string {
     return (url ?? '').trim().split('?')[0].split('#')[0];
   }
-} // Linha 208
+
+  private normalizeRedirectTarget(url: string | null | undefined): string {
+    const raw = (url ?? '').trim();
+    if (!raw.startsWith('/') || raw.startsWith('//')) {
+      return '/dashboard/principal';
+    }
+    return raw;
+  }
+} // Linha 311

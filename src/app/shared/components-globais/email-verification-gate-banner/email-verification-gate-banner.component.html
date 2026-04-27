@@ -1,13 +1,15 @@
 <!-- src\app\shared\components-globais\email-verification-gate-banner\email-verification-gate-banner.component.html -->
- @if (vm$ | async; as vm) {
+@if (vm$ | async; as vm) {
   <section
     class="email-verification-gate-banner"
-    role="alert"
+    [class.email-verification-gate-banner--soft]="vm.mode === 'soft'"
+    [class.email-verification-gate-banner--hard]="vm.mode === 'hard'"
+    [attr.role]="vm.mode === 'hard' ? 'alert' : 'status'"
     aria-live="polite"
     aria-atomic="true"
   >
     <div class="email-verification-gate-banner__content">
-      <strong>Seu e-mail ainda não foi verificado</strong>
+      <strong>{{ vm.title }}</strong>
       <p>
         {{ vm.message }}
         @if (vm.email) {
@@ -17,13 +19,18 @@
     </div>
 
     <div class="email-verification-gate-banner__actions">
-      <a class="btn btn-primary" routerLink="/register/welcome">
+      <a
+        class="btn btn-primary"
+        [routerLink]="vm.ctaRoute"
+        [queryParams]="vm.ctaQueryParams">
         {{ vm.ctaLabel }}
       </a>
 
-      <button class="btn btn-secondary" type="button" (click)="resend()">
-        Reenviar e-mail
-      </button>
+      @if (vm.showResend) {
+        <button class="btn btn-secondary" type="button" (click)="resend()">
+          Reenviar e-mail
+        </button>
+      }
     </div>
   </section>
 }

@@ -40,6 +40,17 @@ export interface UniversalSidebarUserSummary {
   profileRoute?: any[] | string | null;
 }
 
+export interface UniversalSidebarQuickAction {
+  id: string;
+  label: string;
+  route: any[] | string;
+  queryParams?: Record<string, string> | null;
+  icon?: string | null;
+  ariaLabel?: string | null;
+  variant?: 'primary' | 'secondary' | 'ghost';
+  disabled?: boolean;
+}
+
 @Component({
   selector: 'app-universal-sidebar',
   standalone: true,
@@ -53,17 +64,16 @@ export class UniversalSidebarComponent {
 
   /**
    * Resumo opcional do usuário autenticado.
-   * Mantido fora do SidebarVm para não misturar:
-   * - estado estrutural do menu
-   * - identidade visual/contextual do usuário
+   * Mantido desacoplado do estado estrutural do menu.
    */
   @Input() user: UniversalSidebarUserSummary | null = null;
 
   /**
-   * Força comportamento overlay mesmo fora do mobile puro.
-   * Isso permite que o shell esconda a sidebar naturalmente
-   * em larguras intermediárias sem deformar o template antigo.
+   * Ações rápidas opcionais vindas do shell.
+   * O componente apenas renderiza; não decide regra de negócio.
    */
+  @Input() quickActions: UniversalSidebarQuickAction[] = [];
+
   @Input() forceOverlay = false;
   @Input() forceCollapsed = false;
 
@@ -81,27 +91,31 @@ export class UniversalSidebarComponent {
     return item.id;
   }
 
-get isOverlayMode(): boolean {
-  return this.forceOverlay;
-}
-
-get isCollapsedMode(): boolean {
-  if (this.isOverlayMode) {
-    return false;
+  trackQuickAction(_: number, action: UniversalSidebarQuickAction): string {
+    return action.id;
   }
 
-  return !!this.forceCollapsed || !!this.vm?.isCollapsed;
-}
+  get isOverlayMode(): boolean {
+    return this.forceOverlay;
+  }
 
-get shouldShowExpandedContent(): boolean {
-  return !this.isCollapsedMode;
-}
+  get isCollapsedMode(): boolean {
+    if (this.isOverlayMode) {
+      return false;
+    }
 
-get shouldShowDesktopCollapseButton(): boolean {
-  return !this.isOverlayMode;
-}
+    return !!this.forceCollapsed || !!this.vm?.isCollapsed;
+  }
 
-    get avatarSrc(): string {
+  get shouldShowExpandedContent(): boolean {
+    return !this.isCollapsedMode;
+  }
+
+  get shouldShowDesktopCollapseButton(): boolean {
+    return !this.isOverlayMode;
+  }
+
+  get avatarSrc(): string {
     return this.user?.photoURL?.trim() || 'assets/imagem-padrao.webp';
   }
 

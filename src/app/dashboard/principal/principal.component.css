@@ -1,89 +1,265 @@
 /* src/app/dashboard/principal/principal.component.css */
+/* -------------------------------------------------------------------------- */
+/* Dashboard principal                                                        */
+/* Objetivos desta versão:                                                    */
+/* - tornar a home mais operacional                                           */
+/* - remover sensação de conteúdo "fake"                                      */
+/* - melhorar leitura e navegação                                             */
+/* - manter responsividade forte                                              */
+/* -------------------------------------------------------------------------- */
+
 .principal-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: var(--space-3, 16px);
 }
 
-/* Card de boas-vindas com superfície */
-.welcome-section {
-  grid-column: 1 / -1;
-  background-color: var(--surface-color);  /* antes: #ffffff */
-  color: var(--text-color);
-  padding: 20px;
-  border-radius: 8px;
-  border-left: 6px solid var(--primary-color);
-  box-shadow: var(--box-shadow);
-  border: 1px solid var(--surface-border);
-}
-
-.welcome-section h1 {
-  margin-bottom: 8px;
-  line-height: 1.2;
-}
-
-.welcome-section p {
-  margin: 6px 0;
-  line-height: 1.5;
-}
-
+/* -------------------------------------------------------------------------- */
+/* Seções-base                                                                */
+/* -------------------------------------------------------------------------- */
+.welcome-section,
+.quick-actions-section,
 .online-users-section,
-.latest-photos-section {
-  background-color: var(--surface-color);  /* antes: #ffffff */
-  color: var(--text-color);
-  padding: 15px;
-  border-radius: 8px;
-  border: 1px solid var(--surface-border);  /* antes: rgba(0,0,0,0.08) */
-  box-shadow: var(--box-shadow);
-}
-
-.online-users-section h2,
-.latest-photos-section h2 {
-  margin-bottom: 12px;
-  line-height: 1.25;
-}
-
+.latest-photos-section,
 .friends-section {
   background-color: var(--surface-color);
   color: var(--text-color);
-  padding: 15px;
-  border-radius: 8px;
+  padding: var(--space-3, 16px);
+  border-radius: 12px;
   border: 1px solid var(--surface-border);
   box-shadow: var(--box-shadow);
 }
 
-.friends-section h2 {
-  margin-bottom: 12px;
-  line-height: 1.25;
+.welcome-section {
+  grid-column: 1 / -1;
+  border-left: 6px solid var(--primary-color);
 }
 
-.ver-todos:focus-visible {
+.quick-actions-section {
+  grid-column: 1 / -1;
+}
+
+.friends-section {
+  grid-column: 1 / -1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Cabeçalhos de seção                                                        */
+/* -------------------------------------------------------------------------- */
+.section-heading {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.section-heading h2,
+.welcome-section h1 {
+  margin: 0;
+  line-height: 1.2;
+}
+
+.section-heading p,
+.welcome-section p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.section-heading--row,
+.welcome-section__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.welcome-section__copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.welcome-section__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Stats rápidas                                                              */
+/* -------------------------------------------------------------------------- */
+.welcome-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.welcome-stat-card {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface-color) 88%, var(--background-color) 12%);
+  border: 1px solid var(--surface-border);
+}
+
+.welcome-stat-card__label {
+  font-size: 0.92rem;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+}
+
+.welcome-stat-card__value {
+  font-size: 1.35rem;
+  line-height: 1.1;
+}
+
+.welcome-stat-card__link {
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ações rápidas                                                              */
+/* -------------------------------------------------------------------------- */
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.quick-action-card {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--surface-border);
+  background: color-mix(in oklab, var(--surface-color) 90%, var(--background-color) 10%);
+  color: var(--text-color);
+  text-decoration: none;
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.quick-action-card:hover,
+.quick-action-card:focus-visible {
+  background: var(--header-hover-bg);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.quick-action-card__icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Placeholder operacionalizado                                               */
+/* -------------------------------------------------------------------------- */
+.placeholder-panel {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px dashed var(--surface-border);
+  background: color-mix(in oklab, var(--surface-color) 92%, var(--background-color) 8%);
+}
+
+.placeholder-panel p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Friends toolbar                                                            */
+/* -------------------------------------------------------------------------- */
+.friends-toolbar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.friends-toolbar__select {
+  min-width: 160px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Acessibilidade / foco                                                      */
+/* -------------------------------------------------------------------------- */
+.ver-todos:focus-visible,
+.quick-action-card:focus-visible,
+.welcome-stat-card__link:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
 
-/* Dark mode: NÃO precisa bloco extra — já herdamos via variáveis */
-
-/* High contrast: borda forte e sem sombra */
-:root.high-contrast .welcome-section,
-:root.high-contrast .online-users-section,
-:root.high-contrast .latest-photos-section {
+/* -------------------------------------------------------------------------- */
+/* Alto contraste                                                             */
+/* -------------------------------------------------------------------------- */
+html.high-contrast .welcome-section,
+html.high-contrast .quick-actions-section,
+html.high-contrast .online-users-section,
+html.high-contrast .latest-photos-section,
+html.high-contrast .friends-section,
+html.high-contrast .welcome-stat-card,
+html.high-contrast .quick-action-card,
+html.high-contrast .placeholder-panel {
   background: var(--surface-color) !important;
   color: var(--text-color) !important;
   border: 3px solid var(--surface-border) !important;
   box-shadow: none !important;
 }
 
-/* Botão em HC com contraste alto */
-:root.high-contrast .ver-todos {
-  background: var(--primary-color) !important;
-  color: var(--background-color) !important;
-  border: 2px solid var(--surface-border) !important;
+html.high-contrast .quick-action-card:hover,
+html.high-contrast .quick-action-card:focus-visible {
+  background: transparent !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsividade                                                             */
+/* -------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .principal-container {
+    grid-template-columns: 1fr;
+  }
+
+  .welcome-stats {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 768px) {
   .principal-container {
-    grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .section-heading--row,
+  .welcome-section__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .welcome-section__actions {
+    width: 100%;
+  }
+
+  .welcome-section__actions .btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .welcome-section,
+  .quick-actions-section,
+  .online-users-section,
+  .latest-photos-section,
+  .friends-section {
+    padding: 12px;
+  }
+
+  .quick-actions-grid {
+    grid-template-columns: 1fr;
   }
 }

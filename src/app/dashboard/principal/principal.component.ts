@@ -1,8 +1,18 @@
 // src/app/dashboard/principal/principal.component.ts
-// Objetivo: dashboard resiliente.
-// - UID vem do AUTH (fonte única).
-// - Perfil (IUserDados) é usado só para UI (ex.: saudação).
-// - Listas e paginações dependem apenas de UID → reduz “tela vazia” no cold start.
+// -----------------------------------------------------------------------------
+// Dashboard principal mais operacional.
+// Objetivos desta revisão:
+// - remover dependência visual de textos placeholder
+// - manter UID como fonte única para fluxos reais
+// - fornecer links úteis e imediatos para o usuário
+// - preparar um hub mais parecido com grandes plataformas
+//
+// Ajustes desta versão:
+// - adiciona links reativos para perfil e preferências
+// - mantém paginação de amigos por UID
+// - preserva filtros/toolbar existentes
+// -----------------------------------------------------------------------------
+
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -13,7 +23,15 @@ import { MatOptionModule } from '@angular/material/core';
 
 import { Store } from '@ngrx/store';
 import { Observable } from 'rxjs';
-import { filter, map, switchMap, take, distinctUntilChanged, tap, shareReplay } from 'rxjs/operators';
+import {
+  filter,
+  map,
+  switchMap,
+  take,
+  distinctUntilChanged,
+  tap,
+  shareReplay
+} from 'rxjs/operators';
 
 import { OnlineUsersComponent } from '../online/online-users/online-users.component';
 import { FriendCardsComponent } from 'src/app/layout/friend-management/friend-cards/friend-cards.component';
@@ -27,7 +45,10 @@ import {
   selectCurrentUserStatus,
 } from 'src/app/store/selectors/selectors.user/user.selectors';
 
-import { selectFriendsCount, selectInboundRequestsCount } from 'src/app/store/selectors/selectors.interactions/friend.selector';
+import {
+  selectFriendsCount,
+  selectInboundRequestsCount
+} from 'src/app/store/selectors/selectors.interactions/friend.selector';
 
 import {
   selectFriendsPageItems,
@@ -45,9 +66,14 @@ import { environment } from 'src/environments/environment';
   styleUrls: ['./principal.component.css'],
   standalone: true,
   imports: [
-    CommonModule, RouterModule,
-    MatProgressSpinnerModule, MatSlideToggleModule, MatOptionModule, MatSelectModule,
-    OnlineUsersComponent, FriendCardsComponent
+    CommonModule,
+    RouterModule,
+    MatProgressSpinnerModule,
+    MatSlideToggleModule,
+    MatOptionModule,
+    MatSelectModule,
+    OnlineUsersComponent,
+    FriendCardsComponent
   ],
 })
 export class PrincipalComponent implements OnInit {
@@ -56,15 +82,19 @@ export class PrincipalComponent implements OnInit {
   private readonly debug = !environment.production;
   private dbg(msg: string, extra?: unknown) {
     if (!this.debug) return;
-    // eslint-disable-next-line no-console
     console.log('[Principal]', msg, extra ?? '');
   }
 
-  // UI: perfil (pode chegar depois) — não deve bloquear fluxos por UID
+  // ---------------------------------------------------------------------------
+  // Estado de usuário para UI
+  // ---------------------------------------------------------------------------
   currentUser$: Observable<IUserDados | null> = this.store.select(selectCurrentUser);
   currentUserStatus$ = this.store.select(selectCurrentUserStatus);
 
-  // UID: fonte única (AUTH)
+  /**
+   * UID:
+   * fonte única de verdade para navegação, carregamentos e ações ligadas à conta.
+   */
   private uid$ = this.store.select(selectCurrentUserUid).pipe(
     map(uid => uid?.trim() || null),
     distinctUntilChanged(),
@@ -72,11 +102,31 @@ export class PrincipalComponent implements OnInit {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  // métricas
-  pendingRequestsCount$: Observable<number> = this.store.select(selectInboundRequestsCount);
-  showSeeAll$: Observable<boolean> = this.store.select(selectFriendsCount).pipe(map(c => c > 6));
+  /**
+   * Links reativos:
+   * evitam montar URL no template com suposições ou fallback manual.
+   */
+  readonly profileLink$: Observable<any[] | null> = this.uid$.pipe(
+    map(uid => uid ? ['/perfil', uid] : null),
+    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
-  // amigos (paginado por UID do usuário)
+  readonly preferencesLink$: Observable<any[] | null> = this.uid$.pipe(
+    map(uid => uid ? ['/preferencias', 'editar', uid] : null),
+    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  // ---------------------------------------------------------------------------
+  // Métricas simples e já existentes no estado
+  // ---------------------------------------------------------------------------
+  pendingRequestsCount$: Observable<number> = this.store.select(selectInboundRequestsCount);
+  friendsCount$: Observable<number> = this.store.select(selectFriendsCount);
+
+  // ---------------------------------------------------------------------------
+  // Amigos (paginado por UID do usuário)
+  // ---------------------------------------------------------------------------
   items$: Observable<any[]> = this.uid$.pipe(
     filter((uid): uid is string => !!uid),
     switchMap(uid => this.store.select(selectFriendsPageItems(uid)))
@@ -92,17 +142,29 @@ export class PrincipalComponent implements OnInit {
     switchMap(uid => this.store.select(selectFriendsPageReachedEnd(uid)))
   );
 
-  // UI local
+  // ---------------------------------------------------------------------------
+  // Estado local da UI
+  // ---------------------------------------------------------------------------
   readonly expanded = signal<boolean>(false);
   readonly sortBy = signal<'recent' | 'online' | 'distance' | 'alpha'>('online');
   readonly filters = signal<{ onlyOnline?: boolean }>({ onlyOnline: true });
 
   ngOnInit(): void {
-    // Carrega 1ª página dos amigos baseado SOMENTE no UID (mais resiliente)
+    /**
+     * Carrega a primeira página dos amigos baseado SOMENTE no UID.
+     * Mantém o comportamento resiliente atual.
+     */
     this.uid$
-      .pipe(filter((uid): uid is string => !!uid), take(1))
+      .pipe(
+        filter((uid): uid is string => !!uid),
+        take(1)
+      )
       .subscribe(uid => {
-        this.dbg('dispatch loadFriendsFirstPage', { uid, pageSize: PAGE_SIZES.FRIENDS_DASHBOARD });
+        this.dbg('dispatch loadFriendsFirstPage', {
+          uid,
+          pageSize: PAGE_SIZES.FRIENDS_DASHBOARD
+        });
+
         this.store.dispatch(P.loadFriendsFirstPage({
           uid,
           pageSize: PAGE_SIZES.FRIENDS_DASHBOARD
@@ -110,9 +172,17 @@ export class PrincipalComponent implements OnInit {
       });
   }
 
-  // handlers
-  toggleExpand(): void { this.expanded.update(v => !v); }
-  onSortChange(value: 'recent' | 'online' | 'distance' | 'alpha'): void { this.sortBy.set(value); }
+  // ---------------------------------------------------------------------------
+  // Handlers de UI
+  // ---------------------------------------------------------------------------
+  toggleExpand(): void {
+    this.expanded.update(v => !v);
+  }
+
+  onSortChange(value: 'recent' | 'online' | 'distance' | 'alpha'): void {
+    this.sortBy.set(value);
+  }
+
   onOnlyOnlineToggle(checked: boolean): void {
     this.filters.set({ ...this.filters(), onlyOnline: checked });
   }

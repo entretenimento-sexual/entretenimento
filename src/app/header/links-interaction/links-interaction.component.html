@@ -1,82 +1,138 @@
 <!-- src/app/header/links-interaction/links-interaction.component.html -->
 @if (isLogged$ | async) {
-<nav class="links-bar" aria-label="Ações rápidas">
-  <a class="link" [routerLink]="['/chat', (userId$ | async)]" aria-label="Salas de Bate-Papo">
-    <i class="fas fa-comments" aria-hidden="true"></i>
-    <span class="label">Bate-Papo</span>
-    @if (unreadMessagesCount$ | async; as unread) { @if (unread > 0) {
-    <span class="badge" [attr.aria-label]="unread + ' mensagens não lidas'">{{ unread }}</span>
-    }}
-  </a>
+  @if (vm$ | async; as vm) {
+    <div
+      class="links-bar"
+      aria-label="Utilidades rápidas"
+      [class.links-bar--compact]="vm.compactMode"
+    >
+      @if (vm.showChatShortcut) {
+        <a
+          class="util-btn"
+          [routerLink]="['/chat']"
+          aria-label="Abrir bate-papo"
+          title="Bate-papo"
+        >
+          <i class="fas fa-comments" aria-hidden="true"></i>
+          <span class="sr-only">Bate-papo</span>
 
-  <span class="dot" aria-hidden="true">·</span>
+          @if (unreadMessagesCount$ | async; as unread) {
+            @if (unread > 0) {
+              <span
+                class="util-badge"
+                [attr.aria-label]="unread + ' mensagens não lidas'"
+              >
+                {{ unread }}
+              </span>
+            }
+          }
+        </a>
+      }
 
-  <button class="link" type="button" (click)="onUploadPhotoClick()" aria-label="Enviar Foto">
-    <i class="fas fa-upload" aria-hidden="true"></i>
-    <span class="label">Enviar Foto</span>
-  </button>
+      @if (vm.showUploadShortcut) {
+        <button
+          class="util-btn"
+          type="button"
+          (click)="onUploadPhotoClick()"
+          aria-label="Enviar foto"
+          title="Enviar foto"
+        >
+          <i class="fas fa-upload" aria-hidden="true"></i>
+          <span class="sr-only">Enviar foto</span>
+        </button>
+      }
 
-  <span class="dot" aria-hidden="true">·</span>
+      @if (vm.showInviteShortcut) {
+        <a
+          class="util-btn"
+          [routerLink]="['/chat', 'invite-list']"
+          aria-label="Abrir convites"
+          title="Convites"
+        >
+          <i class="fas fa-user-plus" aria-hidden="true"></i>
+          <span class="sr-only">Convites</span>
 
-  <a class="link" [routerLink]="['/invites']" aria-label="Convites">
-    <i class="fas fa-user-plus" aria-hidden="true"></i>
-    <span class="label">Convites</span>
-    @if (pendingInvitesCount$ | async; as invites) { @if (invites > 0) {
-    <span class="badge" [attr.aria-label]="invites + ' convites pendentes'">{{ invites }}</span>
-    }}
-  </a>
+          @if (pendingInvitesCount$ | async; as invites) {
+            @if (invites > 0) {
+              <span
+                class="util-badge"
+                [attr.aria-label]="invites + ' convites pendentes'"
+              >
+                {{ invites }}
+              </span>
+            }
+          }
+        </a>
+      }
 
-  <!-- 🔔 Mini-inbox -->
-<button class="icon-btn" mat-icon-button matBadgePosition="above after" matBadgeSize="small" matBadgeOverlap="true"
-  [matBadge]="(pendingFriendReqCount$ | async) || 0" [matBadgeHidden]="!((pendingFriendReqCount$ | async) || 0)"
-  matBadgeColor="warn" [matMenuTriggerFor]="reqMenu" (menuOpened)="refreshInboundOnOpen()">
-  <mat-icon aria-hidden="true">person_add</mat-icon>
-  <span class="sr-only">Solicitações</span>
-</button>
+      <button
+        class="util-btn"
+        mat-icon-button
+        [matMenuTriggerFor]="reqMenu"
+        (menuOpened)="refreshInboundOnOpen()"
+        [matBadge]="(pendingFriendReqCount$ | async) || 0"
+        [matBadgeHidden]="!((pendingFriendReqCount$ | async) || 0)"
+        matBadgePosition="above after"
+        matBadgeSize="small"
+        matBadgeOverlap="true"
+        matBadgeColor="warn"
+        aria-label="Abrir solicitações"
+        title="Solicitações"
+      >
+        <mat-icon aria-hidden="true">person_add</mat-icon>
+        <span class="sr-only">Solicitações</span>
+      </button>
 
-  <mat-menu #reqMenu="matMenu" class="menu-requests-panel"
-            [overlapTrigger]="false"
-            xPosition="after"
-            yPosition="below">
-    <div class="menu-hd">
-      <strong>Solicitações</strong>
-      <a class="view-all" [routerLink]="['/friends','requests']">Ver todas</a>
-    </div>
-
-    @if (inboundRequestsVM$ | async; as list) {
-    @if (list.length === 0) {
-    <div class="menu-empty">Sem pendências</div>
-    } @else {
-    @for (req of list.slice(0,5); track req.id) {
-    <div class="req" role="group" (click)="$event.stopPropagation()">
-      <div class="avatar">
-        <img *ngIf="req.avatarUrl; else defAvatar" [src]="req.avatarUrl" alt="" />
-        <ng-template #defAvatar><mat-icon>person</mat-icon></ng-template>
-      </div>
-
-      <div class="body">
-        <div class="name">{{ req.nickname }}</div>
-        @if (req.message) { <div class="msg">{{ req.message }}</div> }
-        <div class="acts">
-          <button mat-icon-button aria-label="Aceitar" (click)="accept(req); $event.stopPropagation()">
-            <mat-icon>check</mat-icon>
-          </button>
-          <button mat-icon-button color="warn" aria-label="Recusar" (click)="decline(req); $event.stopPropagation()">
-            <mat-icon>close</mat-icon>
-          </button>
-          <button mat-icon-button aria-label="Bloquear" (click)="block(req); $event.stopPropagation()">
-            <mat-icon>block</mat-icon>
-          </button>
+      <mat-menu
+        #reqMenu="matMenu"
+        class="menu-requests-panel"
+        [overlapTrigger]="false"
+        xPosition="after"
+        yPosition="below"
+      >
+        <div class="menu-hd">
+          <strong>Solicitações</strong>
+          <a class="view-all" [routerLink]="['/friends', 'requests']">Ver todas</a>
         </div>
-      </div>
+
+        @if (inboundRequestsVM$ | async; as list) {
+          @if (list.length === 0) {
+            <div class="menu-empty">Sem pendências</div>
+          } @else {
+            @for (req of list.slice(0, 5); track req.id) {
+              <div class="req" role="group" (click)="$event.stopPropagation()">
+                <div class="avatar">
+                  <img *ngIf="req.avatarUrl; else defAvatar" [src]="req.avatarUrl" alt="" />
+                  <ng-template #defAvatar><mat-icon>person</mat-icon></ng-template>
+                </div>
+
+                <div class="body">
+                  <div class="name">{{ req.nickname }}</div>
+                  @if (req.message) {
+                    <div class="msg">{{ req.message }}</div>
+                  }
+                  <div class="acts">
+                    <button mat-icon-button aria-label="Aceitar" (click)="accept(req); $event.stopPropagation()">
+                      <mat-icon>check</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" aria-label="Recusar" (click)="decline(req); $event.stopPropagation()">
+                      <mat-icon>close</mat-icon>
+                    </button>
+                    <button mat-icon-button aria-label="Bloquear" (click)="block(req); $event.stopPropagation()">
+                      <mat-icon>block</mat-icon>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            }
+
+            <button mat-menu-item [routerLink]="['/friends', 'requests']">
+              <mat-icon>open_in_new</mat-icon>
+              Abrir caixa inteira
+            </button>
+          }
+        }
+      </mat-menu>
     </div>
-    }
-    <button mat-menu-item [routerLink]="['/friends','requests']">
-      <mat-icon>open_in_new</mat-icon>
-      Abrir caixa inteira
-    </button>
-    }
-    }
-  </mat-menu>
-</nav>
+  }
 }

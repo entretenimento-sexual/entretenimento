@@ -14,10 +14,10 @@
 // - não consulta Firestore
 //
 // Ajustes desta revisão:
-// - adiciona gating explícito para admin
-// - melhora a ordem e precisão dos matchers
-// - filtra seções vazias após aplicar permissões
-// - adiciona ícones simples compatíveis com o componente atual
+// - mantém gating explícito para admin
+// - melhora matchers da seção "Conta"
+// - alinha rotas de amizade ao padrão /friends/list
+// - amplia a seção "Conta" com atalhos coerentes
 export type SidebarSectionKey =
   | 'dashboard'
   | 'profiles'
@@ -82,6 +82,8 @@ const SECTION_MATCHERS: ReadonlyArray<{
     key: 'subscriptions',
     prefixes: [
       '/subscription-plan',
+      '/checkout',
+      '/billing/return',
       '/dashboard/featured-profiles',
       '/dashboard/latest-photos',
     ],
@@ -105,7 +107,7 @@ const SECTION_MATCHERS: ReadonlyArray<{
   },
   {
     key: 'settings',
-    prefixes: ['/perfil', '/perfil-debug'],
+    prefixes: ['/perfil', '/perfil-debug', '/preferencias', '/conta'],
   },
   {
     key: 'dashboard',
@@ -151,7 +153,7 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
       {
         id: 'friends',
         label: 'Amizades',
-        route: '/friends',
+        route: '/friends/list',
         icon: '👥',
         exact: false,
         ariaLabel: 'Ir para gerenciamento de amizades',
@@ -254,6 +256,22 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         icon: '🙍',
         exact: false,
         ariaLabel: 'Ir para meu perfil',
+      },
+      {
+        id: 'my-account',
+        label: 'Minha conta',
+        route: '/conta',
+        icon: '🧾',
+        exact: false,
+        ariaLabel: 'Ir para a área da conta',
+      },
+      {
+        id: 'preferences',
+        label: 'Preferências',
+        route: '/preferencias',
+        icon: '⚙️',
+        exact: false,
+        ariaLabel: 'Ir para preferências',
       },
     ],
   },

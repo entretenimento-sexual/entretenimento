@@ -197,62 +197,129 @@ export class EmailVerificationService {
       })
     );
   }
+/** Fluxo completo do handler (rota aberta pelo link do e-mail) */
+handleEmailVerification(): Observable<VerifyEmailResult> {
+  // ✅ Em service singleton, ActivatedRoute pode ser inconsistente.
+  // Preferimos Router.parseUrl(router.url) para ler query params atuais.
+  const tree = this.router.parseUrl(this.router.url || '');
+  const qp = tree?.queryParams ?? {};
 
-  /** Fluxo completo do handler (rota aberta pelo link do e-mail) */
-  handleEmailVerification(): Observable<VerifyEmailResult> {
-    // ✅ Em service singleton, ActivatedRoute pode ser inconsistente.
-    // Preferimos Router.parseUrl(router.url) para ler query params atuais.
-    const tree = this.router.parseUrl(this.router.url || '');
-    const qp = tree?.queryParams ?? {};
+  const mode = (qp['mode'] as string | undefined) ?? null;
+  const actionCode = (qp['oobCode'] as string | undefined) ?? null;
 
-    const mode = (qp['mode'] as string | undefined) ?? null;
-    const actionCode = (qp['oobCode'] as string | undefined) ?? null;
+  if (mode && mode !== 'verifyEmail') {
+    // Evita processar outros modos por engano
+    return of({ ok: false, reason: 'unknown' } as VerifyEmailResult);
+  }
 
-    if (mode && mode !== 'verifyEmail') {
-      // Evita processar outros modos por engano
-      return of({ ok: false, reason: 'unknown' } as VerifyEmailResult);
-    }
-    if (!actionCode) return throwError(() => new Error('Código de verificação ausente na URL.'));
+  if (!actionCode) {
+    return throwError(() => new Error('Código de verificação ausente na URL.'));
+  }
 
-    return from(checkActionCode(this.auth, actionCode)).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      switchMap(info => this.verifyEmail(actionCode).pipe(map(() => info))),
-      switchMap((info) => {
-        const emailFromCode = (info?.data as any)?.email as string | undefined;
-        const u = this.auth.currentUser;
+  return from(checkActionCode(this.auth, actionCode)).pipe(
+    timeout({ each: this.NET_TIMEOUT_MS }),
 
-        if (!u) {
-          if (!emailFromCode) return of<VerifyEmailResult>({ ok: true, reason: 'not-logged-in' });
-          return this.userWrite.patchEmailVerifiedByEmail$(emailFromCode, true).pipe(
-            map(() => ({ ok: true, firestoreUpdated: true } as VerifyEmailResult)),
-            catchError(() => of({ ok: true, firestoreUpdated: false, reason: 'not-logged-in' } as VerifyEmailResult))
-          );
+    // 1) aplica o action code do e-mail
+    switchMap((info) =>
+      this.verifyEmail(actionCode).pipe(
+        map(() => info)
+      )
+    ),
+
+    // 2) decide como refletir a verificação no Firestore
+    switchMap((info) => {
+      const emailFromCode = (info?.data as any)?.email as string | undefined;
+      const u = this.auth.currentUser;
+
+      // ---------------------------------------------------------------------
+      // Sem sessão: tenta atualizar por e-mail (best effort)
+      // ---------------------------------------------------------------------
+      if (!u) {
+        if (!emailFromCode) {
+          return of<VerifyEmailResult>({
+            ok: true,
+            reason: 'not-logged-in',
+          });
         }
 
-        // Sessão presente → recarrega e atualiza por UID
-        return from(u.reload()).pipe(
-          timeout({ each: this.NET_TIMEOUT_MS }),
-          switchMap(() => {
-            const refreshed = this.auth.currentUser;
-            if (!refreshed?.emailVerified) {
-              return of<VerifyEmailResult>({ ok: false, reason: 'not-verified' });
-            }
-            return this.updateEmailVerificationStatus(refreshed.uid, true).pipe(
-              map(() => ({ ok: true, firestoreUpdated: true } as VerifyEmailResult)),
-              catchError(() => of({ ok: true, firestoreUpdated: false } as VerifyEmailResult))
-            );
-          })
+        return this.userWrite.patchEmailVerifiedByEmail$(emailFromCode, true).pipe(
+          map(() => ({
+            ok: true,
+            firestoreUpdated: true,
+          } as VerifyEmailResult)),
+          catchError(() =>
+            of<VerifyEmailResult>({
+              ok: true,
+              firestoreUpdated: false,
+              reason: 'not-logged-in',
+            })
+          )
         );
-      }),
-      catchError((err) => {
-        const code = err?.code as string | undefined;
-        const reason: VerifyEmailReason =
-          code === 'auth/expired-action-code' ? 'expired' :
-            code === 'auth/invalid-action-code' ? 'invalid' : 'unknown';
-        return of<VerifyEmailResult>({ ok: false, reason });
-      })
-    );
-  }
+      }
+
+      // ---------------------------------------------------------------------
+      // Com sessão:
+      // 1) reload do usuário
+      // 2) force refresh do token/claims
+      // 3) só então grava emailVerified no Firestore
+      //
+      // Motivo:
+      // suas rules de /users/{uid} exigem que o campo emailVerified no doc
+      // bata com request.auth.token.email_verified.
+      // ---------------------------------------------------------------------
+      return from(u.reload()).pipe(
+        timeout({ each: this.NET_TIMEOUT_MS }),
+
+        // ✅ ajuste principal: força atualização do token antes do write
+        switchMap(() =>
+          from(u.getIdToken(true)).pipe(
+            timeout({ each: this.NET_TIMEOUT_MS })
+          )
+        ),
+
+        switchMap(() => {
+          const refreshed = this.auth.currentUser;
+
+          if (!refreshed?.emailVerified) {
+            return of<VerifyEmailResult>({
+              ok: false,
+              reason: 'not-verified',
+            });
+          }
+
+          return this.updateEmailVerificationStatus(refreshed.uid, true).pipe(
+            map(() => ({
+              ok: true,
+              firestoreUpdated: true,
+            } as VerifyEmailResult)),
+            catchError(() =>
+              of<VerifyEmailResult>({
+                ok: true,
+                firestoreUpdated: false,
+              })
+            )
+          );
+        })
+      );
+    }),
+
+    catchError((err) => {
+      const code = err?.code as string | undefined;
+
+      const reason: VerifyEmailReason =
+        code === 'auth/expired-action-code'
+          ? 'expired'
+          : code === 'auth/invalid-action-code'
+            ? 'invalid'
+            : 'unknown';
+
+      return of<VerifyEmailResult>({
+        ok: false,
+        reason,
+      });
+    })
+  );
+}
 
   /** Atualiza o campo emailVerified no Firestore */
   updateEmailVerificationStatus(uid: string, status: boolean): Observable<void> {

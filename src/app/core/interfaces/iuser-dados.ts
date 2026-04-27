@@ -1,7 +1,7 @@
 // src/app/core/interfaces/iuser-dados.ts
 import { IUserSocialLinks } from './interfaces-user-dados/iuser-social-links';
 
-export type UserTierRole = 'visitante' | 'free' | 'basic' | 'premium' | 'vip';
+export type UserTierRole = 'visitante' | 'free' | 'basic' | 'premium' | 'vip' | 'admin';
 
 export type AccountStatus =
   | 'active'

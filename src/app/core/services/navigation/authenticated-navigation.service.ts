@@ -1,4 +1,4 @@
-// src/app/core/navigation/authenticated-navigation.service.ts
+// src/app/core/services/navigation/authenticated-navigation.service.ts
 // ============================================================================
 // AUTHENTICATED NAVIGATION SERVICE
 //
@@ -64,8 +64,6 @@ export class AuthenticatedNavigationService {
 
   /**
    * URL atual normalizada.
-   * - útil para decidir quando esconder "Meu perfil" apenas no próprio perfil
-   * - futura base para evolução de menu global autenticado
    */
   private readonly currentUrl$: Observable<string> = this.router.events.pipe(
     filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -134,18 +132,14 @@ export class AuthenticatedNavigationService {
    * Itens do menu autenticado.
    *
    * Observação:
-   * - esta lista já nasce reutilizável
-   * - depois ela pode ser consumida por LinksInteraction e DashboardLayout
+   * - esta lista continua reutilizável
+   * - mas agora fica restrita a rotas realmente sólidas
    */
   readonly items$: Observable<AuthenticatedNavItem[]> = this.vm$.pipe(
     map((vm) => this.buildItems(vm)),
     distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
-
-  // ==========================================================================
-  // Helpers internos
-  // ==========================================================================
 
   private normalizeUrl(url: string | null | undefined): string {
     return String(url ?? '')
@@ -165,9 +159,7 @@ export class AuthenticatedNavigationService {
   private buildItems(vm: AuthenticatedNavigationVm): AuthenticatedNavItem[] {
     if (!vm.uid) return [];
 
-    const items: AuthenticatedNavItem[] = [
-      // Só escondemos "Meu perfil" quando já estamos no próprio perfil.
-      // Em /friends/list, /dashboard etc. ele continua aparecendo.
+    return [
       ...(!vm.isOwnProfileRoute
         ? [
             {
@@ -180,15 +172,6 @@ export class AuthenticatedNavigationService {
             },
           ]
         : []),
-
-      {
-        id: 'nearby',
-        label: 'Perfis próximos',
-        ariaLabel: 'Ir para perfis próximos',
-        iconClass: 'fas fa-map-marker-alt',
-        routerLink: ['/layout/perfis-proximos'],
-        activeExact: true,
-      },
       {
         id: 'photos',
         label: 'Minhas fotos',
@@ -214,14 +197,6 @@ export class AuthenticatedNavigationService {
         activeExact: false,
       },
       {
-        id: 'favorites',
-        label: 'Meus favoritos',
-        ariaLabel: 'Ir para meus favoritos',
-        iconClass: 'fas fa-star',
-        routerLink: ['/favoritos'],
-        activeExact: false,
-      },
-      {
         id: 'chat',
         label: 'Bate-papo',
         ariaLabel: 'Ir para bate-papo',
@@ -229,8 +204,22 @@ export class AuthenticatedNavigationService {
         routerLink: ['/chat'],
         activeExact: false,
       },
+      {
+        id: 'subscription',
+        label: 'Assinatura',
+        ariaLabel: 'Ir para assinatura',
+        iconClass: 'fas fa-gem',
+        routerLink: ['/subscription-plan'],
+        activeExact: false,
+      },
+      {
+        id: 'account',
+        label: 'Minha conta',
+        ariaLabel: 'Ir para minha conta',
+        iconClass: 'fas fa-id-card',
+        routerLink: ['/conta'],
+        activeExact: false,
+      },
     ];
-
-    return items;
   }
 }

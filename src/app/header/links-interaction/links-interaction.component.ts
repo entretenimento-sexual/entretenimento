@@ -1,26 +1,22 @@
 // src/app/header/links-interaction/links-interaction.component.ts
-// Componente para interação com links no cabeçalho.
-//
-// Padrão adotado:
-// - Este componente governa start/stop dos listeners do header.
-// - A decisão de gate NÃO é recalculada localmente.
-// - A fonte única de verdade é o AccessControlService.
-//
-// Observações:
-// - Observable-first.
-// - Mantém nomenclaturas públicas usadas no template.
-// - Erros centralizados em GlobalErrorHandlerService + ErrorNotificationService.
 // ============================================================================
-// ATENÇÃO — NÃO ACOPLAR ESTE COMPONENTE AO EDITOR DE IMAGENS
+// LINKS INTERACTION
 // ----------------------------------------------------------------------------
-// O editor de imagens atual apresenta histórico de erro residual no runtime.
-// Por isso, este componente não deve manter dependência estrutural, import
-// estático ou inicialização antecipada do editor terceirizado.
+// Nova proposta desta revisão:
+// - deixa de funcionar como "segunda navbar"
+// - vira um grupo compacto de utilidades dentro da mesma linha do header
+// - as ações passam a ser contextuais por rota
+// - o botão de solicitações continua sempre relevante
 //
-// DIRETRIZ:
-// - qualquer uso de editor deve ser tardio e explicitamente acionado
-// - evitar importar diretamente o componente de edição no topo do arquivo
-// - priorizar lazy loading / import dinâmico quando estritamente necessário
+// Regras desta versão:
+// - Chat: aparece fora de /chat
+// - Enviar foto: aparece em rotas de perfil, mídia e principal
+// - Convites: aparece fora de /chat/invite-list
+// - Solicitações: sempre disponível para usuário autenticado
+//
+// Observação:
+// - mantive nomenclaturas públicas para reduzir risco de quebra
+// - mantive governança central dos listeners com AccessControlService
 // ============================================================================
 import {
   ChangeDetectionStrategy,
@@ -48,9 +44,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AppState } from 'src/app/store/states/app.state';
 import { environment } from 'src/environments/environment';
 
-import { UploadPhotoComponent } from 'src/app/shared/components-globais/upload-photo/upload-photo.component';
-import { PhotoEditorComponent } from 'src/app/photo-editor/photo-editor/photo-editor.component';
-
 import { SidebarService } from 'src/app/core/services/navigation/sidebar.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
@@ -64,6 +57,14 @@ import { selectInboundRequestsRichVM } from 'src/app/store/selectors/selectors.i
 
 import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
 import * as RT from 'src/app/store/actions/actions.interactions/friends/friends-realtime.actions';
+
+type LinksInteractionVm = {
+  currentUrl: string;
+  showChatShortcut: boolean;
+  showUploadShortcut: boolean;
+  showInviteShortcut: boolean;
+  compactMode: boolean;
+};
 
 @Component({
   selector: 'app-links-interaction',
@@ -99,39 +100,20 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   // Auth / Gate
   // ===========================================================================
 
-  /**
-   * UID canônico para template e governança.
-   */
   private readonly authUid$ = this.authSession.uid$.pipe(
     map((uid) => (uid ?? '').trim() || null),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  /**
-   * Exposto ao template.
-   */
   readonly userId$: Observable<string | null> = this.authUid$;
 
-  /**
-   * Mantém compat visual atual:
-   * - se houver uid, mostra os links.
-   *
-   * Se depois você quiser esconder o bloco inteiro durante /register,
-   * a mudança deve ser feita aqui, e não no gate de listeners.
-   */
   readonly isLogged$: Observable<boolean> = this.authUid$.pipe(
     map((uid) => !!uid),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  /**
-   * Fonte única para governança de realtime:
-   * - usa o gate centralizado do AccessControlService
-   * - evita race no boot
-   * - evita divergência entre componente e arquitetura
-   */
   private readonly realtimeUid$ = combineLatest([
     this.authUid$,
     this.accessControl.canListenRealtime$,
@@ -142,9 +124,31 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   );
 
   /**
-   * UID atualmente ativo nos listeners do header.
-   * Serve para transições idempotentes de stop/start.
+   * VM visual/contextual.
+   * O componente continua leve e reativo.
    */
+  readonly vm$: Observable<LinksInteractionVm> = combineLatest([
+    this.accessControl.currentUrl$,
+    this.sidebarService.isMobile$,
+  ]).pipe(
+    map(([url, isMobile]) => {
+      const currentUrl = this.normalizeUrl(url);
+
+      return {
+        currentUrl,
+        showChatShortcut: !currentUrl.startsWith('/chat'),
+        showUploadShortcut:
+          currentUrl === '/dashboard/principal' ||
+          currentUrl.startsWith('/perfil') ||
+          currentUrl.startsWith('/media'),
+        showInviteShortcut: !currentUrl.startsWith('/chat/invite-list'),
+        compactMode: isMobile,
+      };
+    }),
+    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   private activeUid: string | null = null;
 
   // ===========================================================================
@@ -162,19 +166,11 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
 
   private dbg(...args: unknown[]): void {
     if (!environment.production) {
-      // eslint-disable-next-line no-console
       console.log('[LinksInteraction]', ...args);
     }
   }
 
-  // ===========================================================================
-  // Lifecycle
-  // ===========================================================================
-
   ngOnInit(): void {
-    /**
-     * Governança central de listeners do header.
-     */
     this.realtimeUid$
       .pipe(
         tap((uid) => this.applyRealtimeGate(uid)),
@@ -186,9 +182,6 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
       )
       .subscribe();
 
-    /**
-     * Log de diagnóstico alinhado à fonte central.
-     */
     combineLatest([
       this.authUid$,
       this.accessControl.ready$,
@@ -210,15 +203,10 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
     this.safeStopAll('destroy');
   }
 
-  // ===========================================================================
-  // Gate apply (start/stop central)
-  // ===========================================================================
+  private normalizeUrl(url: string | null | undefined): string {
+    return (url ?? '').split('?')[0].split('#')[0].trim();
+  }
 
-  /**
-   * Aplica transição do gate com idempotência.
-   * - uid === null -> stop
-   * - uid !== null -> start
-   */
   private applyRealtimeGate(uid: string | null): void {
     if (!uid) {
       if (this.activeUid) {
@@ -278,13 +266,6 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ===========================================================================
-  // Mini-menu actions
-  // ===========================================================================
-
-  /**
-   * Ao abrir o menu, recarrega inbound se o gate estiver aberto.
-   */
   async refreshInboundOnOpen(): Promise<void> {
     const uid = await this.getRealtimeUidOnce();
     if (!uid) return;
@@ -317,9 +298,6 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
     this.store.dispatch(A.declineFriendRequest({ requestId: req.id }));
   }
 
-  /**
-   * Obtém uma vez o UID já validado pelo gate.
-   */
   private async getRealtimeUidOnce(): Promise<string | null> {
     try {
       const uid = await firstValueFrom(this.realtimeUid$.pipe(take(1)));
@@ -334,14 +312,20 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
   // Upload / Editor
   // ===========================================================================
 
-  onUploadPhotoClick(): void {
+  async onUploadPhotoClick(): Promise<void> {
     try {
+      const { UploadPhotoComponent } = await import(
+        '../../shared/components-globais/upload-photo/upload-photo.component'
+      );
+
       const modalRef = this.modalService.open(UploadPhotoComponent, { size: 'lg' });
 
       modalRef.componentInstance.photoSelected
         .pipe(take(1))
         .subscribe({
-          next: (file: File) => this.openPhotoEditorWithFile(file),
+          next: (file: File) => {
+            void this.openPhotoEditorWithFile(file);
+          },
           error: (err: unknown) => this.handleError(err, 'Falha ao selecionar foto.'),
         });
     } catch (err) {
@@ -349,8 +333,12 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
     }
   }
 
-  openPhotoEditorWithFile(file: File): void {
+  async openPhotoEditorWithFile(file: File): Promise<void> {
     try {
+      const { PhotoEditorComponent } = await import(
+        '../../photo-editor/photo-editor/photo-editor.component'
+      );
+
       const editorModalRef = this.modalService.open(PhotoEditorComponent, { size: 'lg' });
       editorModalRef.componentInstance.imageFile = file;
     } catch (err) {
@@ -358,16 +346,10 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ===========================================================================
-  // Error handling
-  // ===========================================================================
-
   private handleError(err: unknown, userMsg: string): void {
     try {
       this.errorNotifier.showError(userMsg);
-    } catch {
-      // best-effort
-    }
+    } catch {}
 
     const e =
       err instanceof Error
@@ -376,10 +358,8 @@ export class LinksInteractionComponent implements OnInit, OnDestroy {
 
     try {
       this.globalError.handleError(e);
-    } catch {
-      // best-effort
-    }
+    } catch {}
 
     this.dbg('error', { userMsg, err: e });
   }
-} // Linha 374, fim do links-interaction.component.ts
+}

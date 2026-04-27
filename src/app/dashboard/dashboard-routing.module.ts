@@ -1,13 +1,4 @@
 // src/app/dashboard/dashboard-routing.module.ts
-// Rotas internas do dashboard.
-//
-// Convenção adotada:
-// - o módulo /dashboard exige autenticação no AppRouting
-// - rotas internas mais sensíveis usam authGuard com data:
-//   - requireVerified
-//   - requireProfileCompleted
-//
-// Isso deixa o fluxo previsível e evita espalhar guards diferentes em cada tela.
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
@@ -19,42 +10,40 @@ import { OnlineUsersComponent } from './online/online-users/online-users.compone
 import { OnlineUsersFullComponent } from './online/online-users-full/online-users-full.component';
 
 import { authGuard } from '../core/guards/auth-guard/auth.guard';
+import { emailVerifiedGuard } from '../core/guards/profile-guard/email-verified.guard';
+import { profileCompletedGuard } from '../core/guards/profile-guard/profile-completed.guard';
 
 const routes: Routes = [
   {
     path: '',
     component: DashboardLayoutComponent,
     children: [
-      /**
-       * Dashboard principal:
-       * - exige apenas autenticação
-       * - útil como hub inicial
-       * - não força verified/profileComplete aqui
-       */
       {
         path: 'principal',
         component: PrincipalComponent,
       },
 
       /**
-       * Painel compacto de online:
-       * - continua dentro do dashboard
-       * - se quiser endurecer depois, basta ligar flags
+       * Painel compacto:
+       * política leve
+       * - exige autenticação
+       * - não exige verificação de e-mail no guard
+       * - UX local já trata perfil mínimo no clique da localização
        */
       {
         path: 'online-users',
         component: OnlineUsersComponent,
+        canActivate: [authGuard],
       },
 
       /**
-       * Discovery / listagem ampla:
-       * - exige e-mail verificado
-       * - exige perfil completo
+       * Discovery mais amplo:
+       * política dura
        */
       {
         path: 'online',
         component: OnlineUsersFullComponent,
-        canActivate: [authGuard],
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -64,7 +53,7 @@ const routes: Routes = [
       {
         path: 'featured-profiles',
         component: FeaturedProfilesComponent,
-        canActivate: [authGuard],
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -74,7 +63,7 @@ const routes: Routes = [
       {
         path: 'chat-rooms',
         component: ChatRoomsComponent,
-        canActivate: [authGuard],
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -83,7 +72,7 @@ const routes: Routes = [
 
       {
         path: 'friends/list',
-        canActivate: [authGuard],
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,

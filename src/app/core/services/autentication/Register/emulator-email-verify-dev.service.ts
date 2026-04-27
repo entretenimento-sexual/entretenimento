@@ -285,5 +285,5 @@ export class EmulatorEmailVerifyDevService {
     } catch { /* noop */ }
     return err;
   }
-}// linha 285, fim EmulatorEmailVerifyDevService
+}// linha 288, fim EmulatorEmailVerifyDevService
 // Não esquecer comentários explicativos sobre o propósito do serviço, de seus métodos e avisos de uso.

@@ -113,6 +113,38 @@
     </div>
   </ng-container>
 
+  <section
+    class="universal-sidebar__quick-actions"
+    *ngIf="quickActions.length > 0"
+    aria-label="Ações rápidas"
+  >
+    <a
+      class="universal-sidebar__quick-action"
+      *ngFor="let action of quickActions; trackBy: trackQuickAction"
+      [class.universal-sidebar__quick-action--primary]="action.variant === 'primary'"
+      [class.universal-sidebar__quick-action--secondary]="action.variant === 'secondary'"
+      [class.universal-sidebar__quick-action--ghost]="action.variant === 'ghost'"
+      [class.universal-sidebar__quick-action--disabled]="action.disabled === true"
+      [routerLink]="action.disabled ? null : action.route"
+      [queryParams]="action.disabled ? null : (action.queryParams ?? null)"
+      [attr.aria-label]="action.ariaLabel || action.label"
+      [attr.aria-disabled]="action.disabled ? 'true' : null"
+      [attr.title]="isCollapsedMode ? action.label : null"
+      (click)="action.disabled ? $event.preventDefault() : onItemActivated()"
+    >
+      <span class="universal-sidebar__quick-action-icon" aria-hidden="true">
+        {{ action.icon || '•' }}
+      </span>
+
+      <span
+        class="universal-sidebar__quick-action-label"
+        *ngIf="shouldShowExpandedContent"
+      >
+        {{ action.label }}
+      </span>
+    </a>
+  </section>
+
   <nav class="universal-sidebar__nav" aria-label="Seções da aplicação">
     <section
       class="universal-sidebar__section"

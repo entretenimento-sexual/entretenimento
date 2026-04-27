@@ -1,9 +1,17 @@
 // src/app/header/navbar/navbar.component.ts
-// Buscar padronizar no que for possível em "uid"
-// Não esqueça os comentários explicativos.
-// TODO(STATE): Criar canShowLinksInteraction$ (fonte: AuthSession.ready$ + AuthSession.uid$ + URL atual).
-// - Objetivo: não renderizar <app-links-interaction> quando uid=null ou em rotas públicas.
-// - Padrão “plataforma grande”: o componente nem deve existir nessas rotas.
+// ============================================================================
+// NAVBAR
+// ----------------------------------------------------------------------------
+// Objetivo desta revisão:
+// - manter o navbar como barra única
+// - limpar resíduos de integração com LinksInteractionComponent
+// - preservar uid como fonte canônica do header
+// - manter toggle da sidebar, responsividade e debug útil
+//
+// Supressões explícitas desta versão:
+// 1) canShowLinksInteraction
+// 2) TODO sobre canShowLinksInteraction$
+// 3) logs ligados a esse estado
 import {
   Component,
   DestroyRef,
@@ -56,50 +64,29 @@ import { inRegistrationFlow as isRegistrationFlow } from 'src/app/core/services/
   standalone: false
 })
 export class NavbarComponent implements OnInit, OnDestroy {
-  // ===========================================================================
-  // Estado exposto ao template
-  // ===========================================================================
-
   public isAuthenticated = false;
   public nickname = '';
   public photoURL = '';
-
-  /**
-   * userId (LEGADO): na prática é o UID do Firebase.
-   * - Mantido para evitar quebra em bindings/uso externo.
-   * - Fonte única de verdade: AuthSessionService.uid$.
-   * - Recomendação de evolução: renomear para uid no template e remover userId.
-   */
   public userId = '';
-
-  // Mostra banner/upsell ao visitante e plano free
   public isFree = false;
 
-  /**
-   * UI route flags
-   * - isLoginPage: mantém compat com o template atual.
-   * - isPublicAuthRoute: cobre /login, /register e handlers de auth.
-   * - canShowLinksInteraction / canShowGuestBanner: evitam instanciar componentes
-   *   em rotas públicas ou sem usuário autenticado.
-   */
   public isLoginPage = false;
   public isPublicAuthRoute = false;
-  public canShowLinksInteraction = false;
   public canShowGuestBanner = false;
 
   /**
-   * Sidebar toggle / responsividade estrutural
-   * - isOverlayViewport: viewport em que a sidebar deve operar como overlay/autohide
-   * - shouldShowSidebarToggle: controla o botão hambúrguer sem depender só de mobile estreito
-   * - isSidebarOpen: mantém aria-expanded coerente no botão
+   * Mantidos por compatibilidade, mas o hambúrguer do navbar
+   * deixa de controlar a sidebar nesta fase.
    */
   public isOverlayViewport = false;
   public shouldShowSidebarToggle = false;
   public isSidebarOpen = false;
 
-  // ===========================================================================
-  // Tema / acessibilidade
-  // ===========================================================================
+  /**
+   * Novo estado do menu mobile do próprio navbar.
+   */
+  public isMobileMenuViewport = false;
+  public isMobileMenuOpen = false;
 
   private _isDarkModeActive = false;
   private _isHighContrastActive = false;
@@ -110,15 +97,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private prefersDarkMql?: MediaQueryList;
   private prefersDarkListener?: (ev: MediaQueryListEvent) => void;
 
-  // ===========================================================================
-  // Injeções
-  // ===========================================================================
-
-  /**
-   * Auth do AngularFire:
-   * - mantido apenas para debug/comparação via authState$()
-   * - não é a fonte canônica de uid neste componente
-   */
   private readonly auth = inject(Auth);
 
   private readonly injector = inject(Injector);
@@ -132,20 +110,16 @@ export class NavbarComponent implements OnInit, OnDestroy {
   private readonly breakpointObserver = inject(BreakpointObserver);
 
   /**
-   * Breakpoint estrutural do shell:
-   * - abaixo disso, a sidebar deve se comportar como overlay/autohide
-   * - não depende apenas do “mobile puro”
+   * Mantido para o shell/sidebar, sem uso direto no hambúrguer do navbar.
    */
   private readonly sidebarOverlayBreakpoint = '(max-width: 1279.98px)';
 
-  // ===========================================================================
-  // Debug / observabilidade
-  // ===========================================================================
-
   /**
-   * Debug do Navbar:
-   * localStorage.setItem('debug.navbar', '1')
+   * Breakpoint do colapso do menu do navbar.
+   * Aqui os links horizontais somem e entram no painel dropdown.
    */
+  private readonly mobileMenuBreakpoint = '(max-width: 860px)';
+
   private readonly debugNavbar = localStorage.getItem('debug.navbar') === '1';
   private _logSeq = 0;
 
@@ -155,7 +129,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     const seq = ++this._logSeq;
     const ts = new Date().toISOString();
 
-    // eslint-disable-next-line no-console
     console.debug(`[NAVBAR][${seq}][${ts}] ${tag}`, payload ?? '');
   }
 
@@ -165,15 +138,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return (node.params?.['id'] as string) ?? null;
   }
 
-  // ===========================================================================
-  // Streams base
-  // ===========================================================================
-
-  /**
-   * Stream direto do AngularFire Auth:
-   * - mantido só para debug/comparação
-   * - não deve governar uid da UI
-   */
   private authState$(): Observable<User | null> {
     return runInInjectionContext(this.injector, () => afUser(this.auth)).pipe(
       startWith(this.auth.currentUser),
@@ -181,13 +145,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     );
   }
 
-  /**
-   * Stream do perfil do usuário no domínio do app.
-   * Pode emitir:
-   * - undefined: ainda não hidratou
-   * - null: deslogado
-   * - IUserDados: logado e hidratado
-   */
   private appUser$(): Observable<IUserDados | null | undefined> {
     return this.currentUserStore.user$.pipe(
       startWith(undefined),
@@ -195,39 +152,24 @@ export class NavbarComponent implements OnInit, OnDestroy {
     );
   }
 
-  // ===========================================================================
-  // Helpers de rota / visibilidade
-  // ===========================================================================
-
   private isLoginRoute(url: string | null | undefined): boolean {
     const path = (url ?? '').split('?')[0].split('#')[0];
     return /^\/login(\/|$)/.test(path);
   }
 
-  /**
-   * Regras atuais do header:
-   * - LinksInteraction só quando autenticado e fora das rotas públicas de auth.
-   * - GuestBanner idem.
-   *
-   * Obs.:
-   * O GuestBanner ainda faz sua própria validação interna.
-   * Aqui só evitamos instanciar o componente quando já sabemos que não faz sentido.
-   */
   private recomputeHeaderVisibility(): void {
     const hasAuthenticatedUser = this.isAuthenticated && !!this.userId;
     const canShow = hasAuthenticatedUser && !this.isPublicAuthRoute;
 
-    this.canShowLinksInteraction = canShow;
     this.canShowGuestBanner = canShow;
   }
 
   /**
-   * Regras do toggle da sidebar:
-   * - nunca aparece em rotas públicas de auth
-   * - aparece quando a sidebar deve operar em overlay/autohide
+   * Agora o hambúrguer do navbar NÃO controla mais a sidebar.
+   * Mantemos o estado por compatibilidade, mas sem exibição no navbar.
    */
   private recomputeSidebarToggleVisibility(): void {
-    this.shouldShowSidebarToggle = !this.isPublicAuthRoute && this.isOverlayViewport;
+    this.shouldShowSidebarToggle = false;
   }
 
   private syncRouteUiFlags(url: string | null | undefined): void {
@@ -239,17 +181,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.recomputeSidebarToggleVisibility();
   }
 
-  // ===========================================================================
-  // Lifecycle
-  // ===========================================================================
-
   ngOnInit(): void {
-    // sincroniza estado inicial da rota antes de qualquer render
     this.syncRouteUiFlags(this.router.url);
 
-    // -------------------------------------------------------------------------
-    // Watcher de breakpoint do shell/sidebar
-    // -------------------------------------------------------------------------
     this.breakpointObserver
       .observe(this.sidebarOverlayBreakpoint)
       .pipe(
@@ -269,9 +203,28 @@ export class NavbarComponent implements OnInit, OnDestroy {
       )
       .subscribe();
 
-    // -------------------------------------------------------------------------
-    // Watcher de estado aberto/fechado da sidebar
-    // -------------------------------------------------------------------------
+    this.breakpointObserver
+      .observe(this.mobileMenuBreakpoint)
+      .pipe(
+        map(state => state.matches),
+        distinctUntilChanged(),
+        tap(matches => {
+          this.isMobileMenuViewport = matches;
+
+          if (!matches && this.isMobileMenuOpen) {
+            this.isMobileMenuOpen = false;
+          }
+
+          this.logNavbar('mobileMenu breakpoint changed', {
+            matches,
+            isMobileMenuOpen: this.isMobileMenuOpen,
+            url: this.router.url
+          });
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+
     this.sidebarService.vm$
       .pipe(
         map(vm => !!vm.isOpen),
@@ -288,36 +241,24 @@ export class NavbarComponent implements OnInit, OnDestroy {
       )
       .subscribe();
 
-    // -------------------------------------------------------------------------
-    // Fonte única de uid
-    // -------------------------------------------------------------------------
     const uid$ = this.session.uid$.pipe(
       startWith(this.session.currentAuthUser?.uid ?? null),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // -------------------------------------------------------------------------
-    // Bootstrap gate do auth
-    // -------------------------------------------------------------------------
     const ready$ = this.session.ready$.pipe(
       startWith(false),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // -------------------------------------------------------------------------
-    // Estado autenticado, respeitando o ready gate
-    // -------------------------------------------------------------------------
     const isAuthenticated$ = combineLatest([ready$, this.session.isAuthenticated$]).pipe(
       map(([ready, isAuth]) => ready ? isAuth : false),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // -------------------------------------------------------------------------
-    // Perfil do app e authUser de fallback visual
-    // -------------------------------------------------------------------------
     const appUser$ = this.appUser$();
 
     const authUser$ = this.session.authUser$.pipe(
@@ -325,9 +266,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // -------------------------------------------------------------------------
-    // ViewModel do navbar
-    // -------------------------------------------------------------------------
     const vm$ = combineLatest([ready$, uid$, isAuthenticated$, appUser$, authUser$]).pipe(
       map(([ready, uid, isAuth, appUser, authUser]) => {
         const safeUid = uid ?? '';
@@ -351,8 +289,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
           nickname,
           photoURL,
           isFree,
-
-          // debug
           __auth_uid_snapshot: this.session.currentAuthUser?.uid ?? null,
           __store_uid: (appUser as any)?.uid ?? null,
           __route_id_snapshot: this.getRouteParamIdSnapshot(),
@@ -382,9 +318,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    // -------------------------------------------------------------------------
-    // Assinatura única de estado imperativo
-    // -------------------------------------------------------------------------
     vm$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(vm => {
       const prevUid = this.userId;
 
@@ -402,17 +335,13 @@ export class NavbarComponent implements OnInit, OnDestroy {
         nextUid: this.userId,
         isAuthenticated: this.isAuthenticated,
         isPublicAuthRoute: this.isPublicAuthRoute,
-        canShowLinksInteraction: this.canShowLinksInteraction,
         canShowGuestBanner: this.canShowGuestBanner,
-        shouldShowSidebarToggle: this.shouldShowSidebarToggle,
-        isSidebarOpen: this.isSidebarOpen,
+        isMobileMenuViewport: this.isMobileMenuViewport,
+        isMobileMenuOpen: this.isMobileMenuOpen,
         url: this.router.url
       });
     });
 
-    // -------------------------------------------------------------------------
-    // Debug watchers
-    // -------------------------------------------------------------------------
     if (this.debugNavbar) {
       uid$
         .pipe(
@@ -470,9 +399,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
         .subscribe();
     }
 
-    // -------------------------------------------------------------------------
-    // Watcher de rota para flags de UI
-    // -------------------------------------------------------------------------
     this.router.events
       .pipe(
         filter(e => e instanceof NavigationEnd),
@@ -481,11 +407,12 @@ export class NavbarComponent implements OnInit, OnDestroy {
       )
       .subscribe(() => {
         this.syncRouteUiFlags(this.router.url);
+
+        if (this.isMobileMenuOpen) {
+          this.isMobileMenuOpen = false;
+        }
       });
 
-    // -------------------------------------------------------------------------
-    // Tema / contraste
-    // -------------------------------------------------------------------------
     this.initializeThemes();
     this.bindSystemPrefersDark();
   }
@@ -496,10 +423,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ===========================================================================
-  // Ações / debug
-  // ===========================================================================
-
   onMyProfileClick(): void {
     this.logNavbar('CLICK Meu Perfil', {
       navbar_uid: this.userId,
@@ -508,10 +431,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
       url: this.router.url
     });
   }
-
-  // ===========================================================================
-  // Theme state machine
-  // ===========================================================================
 
   private initializeThemes(): void {
     const root = document.documentElement;
@@ -553,7 +472,7 @@ export class NavbarComponent implements OnInit, OnDestroy {
         this.prefersDarkMql.addEventListener('change', this.prefersDarkListener);
       }
     } catch {
-      // ambiente sem matchMedia
+      // noop
     }
   }
 
@@ -592,10 +511,6 @@ export class NavbarComponent implements OnInit, OnDestroy {
     this.applyThemeStates(false);
   }
 
-  // ===========================================================================
-  // Navegação / ações
-  // ===========================================================================
-
   goToMyProfile(ev?: Event): void {
     ev?.preventDefault();
 
@@ -612,8 +527,20 @@ export class NavbarComponent implements OnInit, OnDestroy {
     });
   }
 
+  /**
+   * Mantido apenas por compatibilidade.
+   * O hambúrguer do navbar não usa mais esse método.
+   */
   onToggleSidebar(): void {
     this.sidebarService.toggleSidebar();
+  }
+
+  toggleMobileMenu(): void {
+    this.isMobileMenuOpen = !this.isMobileMenuOpen;
+  }
+
+  closeMobileMenu(): void {
+    this.isMobileMenuOpen = false;
   }
 
   get myProfileLink(): any[] {
@@ -646,10 +573,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
       },
       error: (error) => {
         this.logNavbar('logout error', { error });
-        // eslint-disable-next-line no-console
         console.error('[NavbarComponent] Erro no logout:', error);
         this.notify.showError('Não foi possível sair agora. Tente novamente.');
       }
     });
   }
-} // linha 655
+}

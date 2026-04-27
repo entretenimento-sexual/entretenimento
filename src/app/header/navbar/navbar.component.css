@@ -1,130 +1,201 @@
-/* src/app/header/navbar/navbar.component.css */
-/* Container geral do header */
+/* src/app/header/navbar/navbar.component.css
+   ============================================================================
+   NAVBAR
+   ----------------------------------------------------------------------------
+   Correções desta versão:
+   - hambúrguer só aparece quando o menu principal some
+   - clicando no hambúrguer, o menu mobile desce
+   - o hambúrguer fica à direita da logo no mobile
+   - navbar fica mais baixa sem mexer no token global
+   ============================================================================
+*/
+
+:host {
+  display: block;
+  --navbar-effective-height: clamp(64px, 4.4vw, 72px);
+}
+
+/* Wrapper */
 .navbar-with-links {
-  display: flex;
-  flex-direction: column;
+  display: block;
   width: 100%;
-  height: var(--header-height);
   background: var(--header-bg);
   color: var(--header-fg);
 }
 
-/* Barra de navegação */
+/* Barra principal */
 .navbar {
-  background: var(--header-bg);
-  color: var(--header-fg);
   display: flex;
   align-items: center;
+  width: 100%;
+  min-height: var(--navbar-effective-height);
+  background: var(--header-bg);
+  color: var(--header-fg);
   border-bottom: 1px solid var(--surface-border);
 }
 
-/* Container principal do nav (logo + menu) */
+/* Container interno */
 .navbar-container {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   width: 100%;
-  padding: 0 5%;
-  box-sizing: border-box;
+  min-height: var(--navbar-effective-height);
+  padding-inline: clamp(16px, 3vw, 28px);
   gap: 14px;
+  box-sizing: border-box;
 }
 
-/* Logo e botão de hambúrguer */
+/* Esquerda */
 .navbar-header {
   display: flex;
   align-items: center;
-  flex: 0 0 auto;
   gap: 12px;
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
-/* ✅ Menu principal (fix: garante que fique à direita) */
-.navbar-menu {
-  list-style-type: none;
-  margin: 0;
-  padding: 0;
-
-  display: flex;
-  gap: 20px;
+.navbar-brand {
+  display: inline-flex;
   align-items: center;
-
-  flex-grow: 0;
-  flex-shrink: 0;
-
-  justify-content: flex-end;
-  margin-left: auto;
-}
-
-/* Itens do menu */
-.navbar-item {
-  flex-grow: 0;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-}
-
-/* ✅ Estilo unificado: serve para <a> e para <button class="navbar-link as-button"> */
-.navbar-item a.navbar-link,
-.navbar-item button.navbar-link {
-  padding: 5px 10px;
-  border-radius: 6px;
-  font-size: 16px;
-  transition: background-color .2s, transform .2s, color .2s;
-
-  color: var(--header-fg);
+  min-width: 0;
   text-decoration: none;
-
-  display: block;
-  line-height: 1.1;
 }
 
-/* Hover/focus */
-.navbar-item a.navbar-link:hover,
-.navbar-item a.navbar-link:focus-visible,
-.navbar-item button.navbar-link:hover,
-.navbar-item button.navbar-link:focus-visible {
-  background-color: var(--header-hover-bg);
-  color: var(--header-fg);
-  outline: none;
-}
-
-/* ✅ Reset do button para se comportar como link sem bagunçar layout */
-.navbar-link.as-button {
-  appearance: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font: inherit;
-}
-
-/* Foto do usuário */
-.user-photo {
-  width: 35px;
-  height: 35px;
-  border-radius: 50%;
-  margin-right: 10px;
-  object-fit: cover;
-}
-
-/* Logo */
 .navbar-logo {
-  max-height: 100%;
+  display: block;
+  max-height: 40px;
   width: auto;
   object-fit: contain;
 }
 
-/* Botão hamburguer / toggle da sidebar em modo overlay */
-.hamburger-btn {
-  background: none;
+/* Menu desktop */
+.navbar-menu {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: clamp(8px, 1.2vw, 16px);
+
+  margin: 0 0 0 auto;
+  padding: 0;
+
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.navbar-item {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.navbar-item a.navbar-link,
+.navbar-item button.navbar-link,
+.dark-toggle,
+.contrast-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-height: 36px;
+  padding: 6px 10px;
+
   border: none;
-  font-size: 24px;
+  border-radius: 8px;
+  background: transparent;
   color: var(--header-fg);
-  display: none;
+
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.1;
+  text-decoration: none;
+  white-space: nowrap;
   cursor: pointer;
-  min-width: 42px;
-  min-height: 42px;
+
+  transition:
+    background-color .18s ease,
+    color .18s ease,
+    transform .18s ease;
+}
+
+.navbar-item a.navbar-link:hover,
+.navbar-item a.navbar-link:focus-visible,
+.navbar-item button.navbar-link:hover,
+.navbar-item button.navbar-link:focus-visible,
+.dark-toggle:hover,
+.dark-toggle:focus-visible,
+.contrast-toggle:hover,
+.contrast-toggle:focus-visible {
+  background: var(--header-hover-bg);
+  color: var(--header-fg);
+  outline: none;
+}
+
+.navbar-item a.navbar-link:active,
+.navbar-item button.navbar-link:active,
+.dark-toggle:active,
+.contrast-toggle:active {
+  transform: scale(0.98);
+}
+
+.navbar-item a.navbar-link.active {
+  background: color-mix(in oklab, var(--primary-color) 16%, transparent);
+}
+
+.navbar-link.as-button,
+.dark-toggle,
+.contrast-toggle {
+  appearance: none;
+  background: none;
+}
+
+/* Usuário */
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--header-fg);
+  white-space: nowrap;
+  max-width: 200px;
+}
+
+.user-photo {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+.user-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Hambúrguer */
+.hamburger-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+
+  border: none;
   border-radius: 10px;
-  transition: background-color .2s, transform .2s;
+  background: transparent;
+  color: var(--header-fg);
+
+  font-size: 24px;
+  cursor: pointer;
+
+  transition:
+    background-color .18s ease,
+    transform .18s ease;
 }
 
 .hamburger-btn:hover,
@@ -137,38 +208,169 @@
   transform: scale(0.98);
 }
 
-/* O botão passa a existir também em larguras intermediárias,
-   acompanhando o modo overlay da sidebar */
-@media only screen and (max-width: 1279.98px) {
-  .hamburger-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
+/* Painel mobile dropdown */
+.navbar-mobile-panel {
+  display: none;
+}
+
+/* ============================================================================
+   Faixas intermediárias
+   ============================================================================
+*/
+
+@media only screen and (max-width: 1120px) {
+  .navbar-container {
+    padding-inline: 20px;
+    gap: 12px;
+  }
+
+  .navbar-menu {
+    gap: 10px;
+  }
+
+  .navbar-item a.navbar-link,
+  .navbar-item button.navbar-link,
+  .dark-toggle,
+  .contrast-toggle {
+    font-size: 14px;
+    padding: 5px 8px;
+  }
+
+  .user-name {
+    display: none;
+  }
+
+  .user-info {
+    max-width: none;
   }
 }
 
-/* Mantive seu comportamento original do menu principal:
-   abaixo de 600px ele some */
-@media only screen and (max-width: 600px) {
+@media only screen and (max-width: 960px) {
+  .user-info {
+    display: none;
+  }
+
+  .navbar-menu {
+    gap: 8px;
+  }
+
+  .navbar-item a.navbar-link,
+  .navbar-item button.navbar-link,
+  .dark-toggle,
+  .contrast-toggle {
+    min-height: 34px;
+    padding: 4px 7px;
+    font-size: 13px;
+  }
+}
+
+/* Mobile do navbar */
+@media only screen and (max-width: 860px) {
   .navbar-menu {
     display: none;
   }
 
+  .hamburger-btn {
+    display: inline-flex;
+  }
+
+  .navbar-header {
+    flex: 1 1 auto;
+    justify-content: space-between;
+  }
+
   .navbar-container {
-    padding: 0 20px;
+    padding-inline: 16px;
+  }
+
+  .navbar-logo {
+    max-height: 36px;
+  }
+
+  .navbar-mobile-panel {
+    display: grid;
+    gap: 8px;
+    padding: 12px 16px 16px;
+    border-bottom: 1px solid var(--surface-border);
+    background: color-mix(in oklab, var(--header-bg) 94%, black 6%);
+  }
+
+  .navbar-mobile-link {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+
+    min-height: 42px;
+    width: 100%;
+    padding: 10px 12px;
+
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--header-fg);
+
+    font: inherit;
+    font-size: 14px;
+    line-height: 1.2;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .navbar-mobile-link:hover,
+  .navbar-mobile-link:focus-visible {
+    background: var(--header-hover-bg);
+    outline: none;
+  }
+
+  .navbar-mobile-link.active {
+    background: color-mix(in oklab, var(--primary-color) 16%, transparent);
+  }
+
+  .navbar-mobile-link--button {
+    appearance: none;
+  }
+
+  .navbar-mobile-actions {
+    display: grid;
+    gap: 8px;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--surface-border);
   }
 }
 
-/* Ajustes extras */
-.navbar-brand {
-  display: flex;
-  align-items: center;
+@media only screen and (max-width: 420px) {
+  .navbar-container {
+    padding-inline: 12px;
+    gap: 10px;
+  }
+
+  .navbar-logo {
+    max-height: 32px;
+  }
+
+  .hamburger-btn {
+    min-width: 38px;
+    min-height: 38px;
+    font-size: 22px;
+  }
+
+  .navbar-mobile-panel {
+    padding: 10px 12px 14px;
+  }
 }
 
-.user-info {
-  color: var(--header-fg);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  white-space: nowrap;
+/* Alto contraste */
+html.high-contrast .navbar {
+  border-bottom: 2px solid currentColor;
+}
+
+html.high-contrast .navbar-item a.navbar-link,
+html.high-contrast .navbar-item button.navbar-link,
+html.high-contrast .dark-toggle,
+html.high-contrast .contrast-toggle,
+html.high-contrast .hamburger-btn,
+html.high-contrast .navbar-mobile-link {
+  border: 2px solid currentColor;
+  background: transparent !important;
 }

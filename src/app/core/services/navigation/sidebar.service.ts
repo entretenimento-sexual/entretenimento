@@ -1,4 +1,4 @@
-// src/app/core/services/sidebar.service.ts
+// src/app/core/services/navigation/sidebar.service.ts
 // Serviço global do sidebar universal.
 //
 // Responsabilidades:
@@ -102,6 +102,7 @@ export class SidebarService {
       this.handleStreamError<SidebarSectionKey>('currentSection$', 'unknown', err)
     )
   );
+
   /**
    * Seções efetivamente renderizáveis no sidebar.
    *
@@ -112,12 +113,13 @@ export class SidebarService {
   readonly sections$: Observable<SidebarSection[]> = combineLatest([
     this.access.isSubscriber$,
     this.access.hasAny$(['vip']),
+    this.access.hasAny$(['admin']),
   ]).pipe(
-    map(([isSubscriber, isVip]) =>
+    map(([isSubscriber, isVip, isAdmin]) =>
       buildSidebarSections({
         isSubscriber,
         isVip,
-        isAdmin: false,
+        isAdmin,
       })
     ),
     distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),

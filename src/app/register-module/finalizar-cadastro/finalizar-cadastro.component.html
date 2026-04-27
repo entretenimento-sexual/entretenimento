@@ -1,33 +1,40 @@
-<!-- src/app/authentication/finalizar-cadastro/finalizar-cadastro.component.html -->
+<!-- src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.html -->
 <div class="auth-container">
   <div class="form-container">
-    <h1>Finalize seu cadastro</h1>
-    <p>Obrigado por verificar seu e-mail. Complete os dados abaixo para liberar recursos.</p>
+    <h1>{{ pageTitle }}</h1>
+    <p>{{ introText }}</p>
 
-    <!-- Loading -->
-    @if (isLoading) {
-    <div class="alert alert-secondary">
-      Aguarde, estamos processando sua solicitação...
-    </div>
+    <!--
+      Loading visual APENAS de submit.
+      Não usamos mais isLoading para esconder a tela.
+    -->
+    @if (isSubmitting) {
+      <div class="alert alert-secondary" role="status" aria-live="polite">
+        Salvando seus dados...
+      </div>
     }
 
     <!-- Mensagem geral -->
-    @if (!isLoading && message) {
-    <p class="alert" [ngClass]="{
-        'error-message': message.includes('Erro') || message.includes('Falha') || message.includes('não coincidem'),
-        'success-message': message.includes('sucesso')
-      }">
-      {{ message }}
-    </p>
+    @if (message) {
+      <p class="alert" [ngClass]="{
+          'error-message': message.includes('Erro') || message.includes('Falha') || message.includes('não coincidem'),
+          'success-message': message.includes('sucesso')
+        }">
+        {{ message }}
+      </p>
     }
 
     <!-- Opções de assinatura -->
     @if (showSubscriptionOptions) {
-    <div class="stack" style="margin-top: var(--space-3, 16px);">
-      <h3>Deseja se tornar um assinante?</h3>
-      <button class="btn-submit" type="button" (click)="goToSubscription()">Sim, quero me tornar assinante</button>
-      <button class="btn-submit" type="button" (click)="continueWithoutSubscription()">Continuar sem assinar</button>
-    </div>
+      <div class="stack" style="margin-top: var(--space-3, 16px);">
+        <h3>Deseja se tornar um assinante?</h3>
+        <button class="btn-submit" type="button" (click)="goToSubscription()">
+          Sim, quero me tornar assinante
+        </button>
+        <button class="btn-submit" type="button" (click)="continueWithoutSubscription()">
+          Continuar sem assinar
+        </button>
+      </div>
     }
 
     <form (ngSubmit)="onSubmit()" #form="ngForm" novalidate>
@@ -38,11 +45,17 @@
           <span class="sr-only">(obrigatório)</span>
         </label>
 
-        <select id="gender" [(ngModel)]="gender" name="gender" required class="input-field"
+        <select
+          id="gender"
+          [(ngModel)]="gender"
+          name="gender"
+          required
+          class="input-field"
           (change)="checkFieldValidity('gender', gender, 'Quero me cadastrar como')"
           (blur)="checkFieldValidity('gender', gender, 'Quero me cadastrar como')"
           [attr.aria-invalid]="isFieldInvalid('gender') ? 'true' : 'false'"
-          [attr.aria-describedby]="isFieldInvalid('gender') ? 'gender-err' : null">
+          [attr.aria-describedby]="isFieldInvalid('gender') ? 'gender-err' : null"
+        >
           <option value="" disabled>Selecione...</option>
           <option value="homem">Homem</option>
           <option value="mulher">Mulher</option>
@@ -55,9 +68,9 @@
         </select>
 
         @if (isFieldInvalid('gender')) {
-        <div class="tooltip-error" id="gender-err" role="alert" aria-live="polite">
-          {{ formErrors['gender'] }}
-        </div>
+          <div class="tooltip-error" id="gender-err" role="alert" aria-live="polite">
+            {{ formErrors['gender'] }}
+          </div>
         }
       </div>
 
@@ -81,21 +94,27 @@
           <span class="sr-only">(obrigatório)</span>
         </label>
 
-        <select id="estado" [(ngModel)]="selectedEstado" name="estado" required class="input-field"
+        <select
+          id="estado"
+          [(ngModel)]="selectedEstado"
+          name="estado"
+          required
+          class="input-field"
           (change)="onEstadoChange(); checkFieldValidity('estado', selectedEstado, 'Estado')"
           (blur)="checkFieldValidity('estado', selectedEstado, 'Estado')"
           [attr.aria-invalid]="isFieldInvalid('estado') ? 'true' : 'false'"
-          [attr.aria-describedby]="isFieldInvalid('estado') ? 'estado-err' : null">
+          [attr.aria-describedby]="isFieldInvalid('estado') ? 'estado-err' : null"
+        >
           <option value="" disabled>Selecione...</option>
           @for (estado of estados; track estado) {
-          <option [value]="estado.sigla">{{ estado.nome }}</option>
+            <option [value]="estado.sigla">{{ estado.nome }}</option>
           }
         </select>
 
         @if (isFieldInvalid('estado')) {
-        <div class="tooltip-error" id="estado-err" role="alert" aria-live="polite">
-          {{ formErrors['estado'] }}
-        </div>
+          <div class="tooltip-error" id="estado-err" role="alert" aria-live="polite">
+            {{ formErrors['estado'] }}
+          </div>
         }
       </div>
 
@@ -106,21 +125,27 @@
           <span class="sr-only">(obrigatório)</span>
         </label>
 
-        <select id="municipio" [(ngModel)]="selectedMunicipio" name="municipio" required class="input-field"
+        <select
+          id="municipio"
+          [(ngModel)]="selectedMunicipio"
+          name="municipio"
+          required
+          class="input-field"
           (change)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
           (blur)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
           [attr.aria-invalid]="isFieldInvalid('municipio') ? 'true' : 'false'"
-          [attr.aria-describedby]="isFieldInvalid('municipio') ? 'municipio-err' : null">
+          [attr.aria-describedby]="isFieldInvalid('municipio') ? 'municipio-err' : null"
+        >
           <option value="" disabled>Selecione...</option>
           @for (municipio of municipios; track municipio) {
-          <option [value]="municipio.nome">{{ municipio.nome }}</option>
+            <option [value]="municipio.nome">{{ municipio.nome }}</option>
           }
         </select>
 
         @if (isFieldInvalid('municipio')) {
-        <div class="tooltip-error" id="municipio-err" role="alert" aria-live="polite">
-          {{ formErrors['municipio'] }}
-        </div>
+          <div class="tooltip-error" id="municipio-err" role="alert" aria-live="polite">
+            {{ formErrors['municipio'] }}
+          </div>
         }
       </div>
 
@@ -128,32 +153,44 @@
       <div class="form-field">
         <label for="avatar">Foto principal (opcional)</label>
 
-        <input id="avatar" type="file" (change)="uploadFile($event)" class="input-field" accept="image/*" />
+        <input
+          id="avatar"
+          type="file"
+          (change)="uploadFile($event)"
+          class="input-field"
+          accept="image/*"
+        />
 
         <p class="field-hint">
           Você pode enviar depois. Uma boa foto aumenta a confiança e a taxa de interação.
         </p>
       </div>
 
-      <!-- Progresso upload -->
+      <!-- Progresso de upload -->
       @if (isUploading) {
-      <div class="progress-custom" aria-label="Progresso do upload">
-        <div class="progress-bar-custom" role="progressbar" [attr.aria-valuenow]="progressValue" aria-valuemin="0"
-          aria-valuemax="100" [style.width]="progressValue + '%'">
-          {{progressValue | number:'1.0-0'}}%
+        <div class="progress-custom" aria-label="Progresso do upload">
+          <div
+            class="progress-bar-custom"
+            role="progressbar"
+            [attr.aria-valuenow]="progressValue"
+            aria-valuemin="0"
+            aria-valuemax="100"
+            [style.width]="progressValue + '%'"
+          >
+            {{ progressValue | number:'1.0-0' }}%
+          </div>
         </div>
-      </div>
       }
 
-      <button type="submit" [disabled]="!form.valid || isLoading" class="btn-submit">
+      <button type="submit" [disabled]="!form.valid || isSubmitting" class="btn-submit">
         Concluir cadastro
       </button>
     </form>
 
     @if (uploadMessage) {
-    <div class="alert alert-warning" style="margin-top: var(--space-2, 12px);">
-      {{ uploadMessage }}
-    </div>
+      <div class="alert alert-warning" style="margin-top: var(--space-2, 12px);">
+        {{ uploadMessage }}
+      </div>
     }
   </div>
 </div>

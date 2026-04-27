@@ -2,76 +2,149 @@
 <div class="container mt-3">
   <h2 class="profiles-title">Perfis Próximos</h2>
 
-  <!-- Info sobre verificação de e-mail (sem acionar geolocation) -->
+  <!--
+    Aviso leve sobre verificação de e-mail.
+    Não bloqueia a tela nem tenta ativar localização.
+    Apenas informa que precisão e raio podem ser limitados.
+  -->
   @if (user$ | async; as user) {
-  @if (!user?.emailVerified) {
-  <div class="alert alert-warning" role="status" aria-live="polite">
-    Sua conta ainda não está verificada. A precisão da localização e o raio de busca
-    estão limitados por segurança e privacidade.
-  </div>
-  }
+    @if (!user?.emailVerified) {
+      <div class="alert alert-warning" role="status" aria-live="polite">
+        Sua conta ainda não está verificada. A precisão da localização e o raio de busca
+        podem ficar limitados por segurança e privacidade.
+      </div>
+    }
   }
 
+  <!--
+    Estado sem localização:
+    - o usuário ainda não ativou localização nesta área
+    - mostramos o CTA principal
+    - se o clique detectar que o perfil mínimo ainda não foi concluído,
+      exibimos o aviso contextual abaixo
+  -->
   @if (!userLocation()) {
-  <div class="alert alert-info" role="status" aria-live="polite">
-    Ative sua localização para listar perfis próximos respeitando sua privacidade e nível de acesso.
-  </div>
+    <div class="alert alert-info" role="status" aria-live="polite">
+      Ative sua localização para listar perfis próximos respeitando sua privacidade e nível de acesso.
+    </div>
 
-  <button type="button" class="btn btn-primary" (click)="onEnableLocationClick()" aria-describedby="locHelpText">
-    Ativar localização
-  </button>
-
-  <p id="locHelpText" class="form-text text-muted mt-2">
-    A precisão e o raio de busca variam conforme seu plano e verificação de e-mail.
-  </p>
-  } @else {
-
-  <!-- Controles de raio (capados pelo limite da policy) -->
-  <div class="card mb-3" aria-labelledby="distControlTitle">
-    <div class="card-body">
-      <h3 class="h6 mb-3" id="distControlTitle">Ajustar raio de busca</h3>
-
-      <div class="row align-items-center g-2">
-        <div class="col-12 col-sm-8">
-          <input type="range" class="form-range" [value]="uiDistanceKm()" [min]="1" [max]="policyMaxDistanceKm()"
-            [step]="1" (input)="onDistanceChangeKm($any($event.target).value)"
-            aria-label="Raio de busca em quilômetros" />
-        </div>
-
-        <div class="col-12 col-sm-4">
-          <div class="d-flex justify-content-between small text-muted">
-            <span>1 km</span>
-            <span>{{ uiDistanceKm() }} / {{ policyMaxDistanceKm() }} km máx.</span>
-          </div>
-        </div>
+    <!--
+      Prompt contextual:
+      aparece apenas após a tentativa do usuário de ativar localização
+      com perfil mínimo ainda incompleto
+    -->
+    @if (showProfileCompletionPrompt()) {
+      <div class="alert alert-warning mt-3" role="alert" aria-live="assertive">
+        Para ativar a localização nesta área, falta concluir uma etapa rápida do seu perfil.
+        Deseja finalizar agora ou continuar sem localização?
       </div>
 
-      <p class="form-text mt-2">
-        O valor selecionado é limitado ao máximo permitido pelo seu plano e status de verificação.
-      </p>
-    </div>
-  </div>
+      <div class="d-flex flex-wrap gap-2 mt-2">
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="goToFinishMinimumProfile()">
+          Finalizar agora
+        </button>
 
-  <!-- feedback de carregamento/erro baseado no VM -->
-  @if (nearbyLoading$ | async) {
-  <div class="alert alert-secondary" role="status" aria-live="polite">Carregando perfis…</div>
-  }
-  @if (nearbyError$ | async; as err) {
-  <div class="alert alert-danger" role="alert" aria-live="assertive">{{ err }}</div>
-  }
-
-  @if (profiles$ | async; as profiles) {
-  @if (profiles.length > 0) {
-  <div class="profiles-row mt-3">
-    @for (profile of profiles; track profile.uid) {
-    <div class="profile-card">
-      <app-user-card [user]="profile" [distanciaKm]="profile.distanciaKm ?? null"></app-user-card>
-    </div>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="continueWithoutLocation()">
+          Agora não
+        </button>
+      </div>
     }
-  </div>
-  } @else {
-  <p class="no-profiles text-center mt-4">Nenhum perfil próximo foi encontrado.</p>
+
+    <!--
+      CTA principal.
+      A decisão de seguir com geolocalização ou exibir o prompt
+      fica no TypeScript.
+    -->
+    <button
+      type="button"
+      class="btn btn-primary mt-3"
+      (click)="onEnableLocationClick()"
+      aria-describedby="locHelpText">
+      Ativar localização
+    </button>
+
+    <p id="locHelpText" class="form-text text-muted mt-2">
+      A precisão e o raio de busca variam conforme seu plano e verificação de e-mail.
+    </p>
   }
-  }
+
+  @else {
+    <!--
+      Estado com localização:
+      - mostramos controles de raio
+      - exibimos feedbacks de carregamento/erro
+      - renderizamos os perfis retornados
+    -->
+
+    <div class="card mb-3" aria-labelledby="distControlTitle">
+      <div class="card-body">
+        <h3 class="h6 mb-3" id="distControlTitle">Ajustar raio de busca</h3>
+
+        <div class="row align-items-center g-2">
+          <div class="col-12 col-sm-8">
+            <input
+              type="range"
+              class="form-range"
+              [value]="uiDistanceKm()"
+              [min]="1"
+              [max]="policyMaxDistanceKm()"
+              [step]="1"
+              (input)="onDistanceChangeKm($any($event.target).value)"
+              aria-label="Raio de busca em quilômetros" />
+          </div>
+
+          <div class="col-12 col-sm-4">
+            <div class="d-flex justify-content-between small text-muted">
+              <span>1 km</span>
+              <span>{{ uiDistanceKm() }} / {{ policyMaxDistanceKm() }} km máx.</span>
+            </div>
+          </div>
+        </div>
+
+        <p class="form-text mt-2">
+          O valor selecionado é limitado ao máximo permitido pelo seu plano e status de verificação.
+        </p>
+      </div>
+    </div>
+
+    <!-- Feedback de carregamento -->
+    @if (nearbyLoading$ | async) {
+      <div class="alert alert-secondary" role="status" aria-live="polite">
+        Carregando perfis…
+      </div>
+    }
+
+    <!-- Feedback de erro -->
+    @if (nearbyError$ | async; as err) {
+      <div class="alert alert-danger" role="alert" aria-live="assertive">
+        {{ err }}
+      </div>
+    }
+
+    <!-- Lista de perfis -->
+    @if (profiles$ | async; as profiles) {
+      @if (profiles.length > 0) {
+        <div class="profiles-row mt-3">
+          @for (profile of profiles; track profile.uid) {
+            <div class="profile-card">
+              <app-user-card
+                [user]="profile"
+                [distanciaKm]="profile.distanciaKm ?? null">
+              </app-user-card>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="no-profiles text-center mt-4">
+          Nenhum perfil próximo foi encontrado.
+        </p>
+      }
+    }
   }
 </div>

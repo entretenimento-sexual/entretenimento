@@ -1,11 +1,12 @@
 // src/app/app-routing.module.ts
-// Não esquecer comentários explicativos e ferramentas de debug
 import { NgModule } from '@angular/core';
 import { NoPreloading, RouterModule, Routes } from '@angular/router';
 
 import { authGuard } from './core/guards/auth-guard/auth.guard';
 import { guestOnlyCanActivate, guestOnlyCanMatch } from './core/guards/auth-guard/guest-only.guard';
 import { adminCanMatch } from './core/guards/access-guard/admin.guard';
+import { emailVerifiedGuard } from './core/guards/profile-guard/email-verified.guard';
+import { profileCompletedGuard } from './core/guards/profile-guard/profile-completed.guard';
 
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { LayoutShellComponent } from './layout/layout-shell/layout-shell.component';
@@ -22,9 +23,6 @@ const routes: Routes = [
         pathMatch: 'full',
       },
 
-      // ===============================================================
-      // Aliases de compatibilidade
-      // ===============================================================
       {
         path: 'principal',
         redirectTo: 'dashboard/principal',
@@ -61,11 +59,6 @@ const routes: Routes = [
         pathMatch: 'full',
       },
 
-      // ===============================================================
-      // Aliases novos para fotos
-      // - mantêm compatibilidade com chamadas antigas
-      // - consolidam /media como rota canônica do domínio
-      // ===============================================================
       {
         path: 'perfil/:uid/fotos',
         redirectTo: 'media/perfil/:uid/fotos',
@@ -77,9 +70,6 @@ const routes: Routes = [
         pathMatch: 'full',
       },
 
-      // ===============================================================
-      // Fluxo guest / auth pages
-      // ===============================================================
       {
         path: 'register',
         loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),
@@ -102,9 +92,6 @@ const routes: Routes = [
         },
       },
 
-      // ===============================================================
-      // Handlers globais de ação/verificação de auth
-      // ===============================================================
       {
         path: 'post-verification/action',
         loadComponent: () =>
@@ -121,9 +108,6 @@ const routes: Routes = [
         data: { allowUnverified: true },
       },
 
-      // ===============================================================
-      // Áreas autenticadas
-      // ===============================================================
       {
         path: 'dashboard',
         loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
@@ -139,7 +123,7 @@ const routes: Routes = [
       {
         path: 'chat',
         loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule),
-        canActivate: [authGuard, accountLifecycleGuard],
+        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -150,7 +134,7 @@ const routes: Routes = [
         path: 'preferencias',
         loadChildren: () =>
           import('./preferences/preferences.routes').then(m => m.PREFERENCES_ROUTES),
-        canActivate: [authGuard, accountLifecycleGuard],
+        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard],
         data: {
           requireVerified: true,
         },
@@ -161,7 +145,7 @@ const routes: Routes = [
         loadChildren: () =>
           import('./layout/friend-management/friend-management.module')
             .then(m => m.FriendManagementModule),
-        canActivate: [authGuard, accountLifecycleGuard],
+        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -172,22 +156,24 @@ const routes: Routes = [
         path: 'admin-dashboard',
         loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule),
         canMatch: [adminCanMatch],
-        canActivate: [authGuard, accountLifecycleGuard],
+        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
         },
       },
 
-      // ===============================================================
-      // Assinaturas / checkout
-      // ===============================================================
+      /**
+       * Aqui eu deixei leve de propósito:
+       * assinatura/checkout não deveriam depender de e-mail verificado
+       * se você quiser exigir depois, pode voltar o emailVerifiedGuard.
+       */
       {
         path: 'subscription-plan',
         component: SubscriptionPlanComponent,
         canActivate: [authGuard, accountLifecycleGuard],
         data: {
-          requireVerified: true,
+          requireVerified: false,
         },
       },
       {
@@ -198,15 +184,10 @@ const routes: Routes = [
           ),
         canActivate: [authGuard, accountLifecycleGuard],
         data: {
-          requireVerified: true,
+          requireVerified: false,
         },
       },
 
-      // ===============================================================
-      // Billing / retorno técnico de pagamento
-      // - público por natureza
-      // - não deve cair em guard antes de processar o callback
-      // ===============================================================
       {
         path: 'billing',
         loadChildren: () =>
@@ -227,13 +208,6 @@ const routes: Routes = [
           import('./account/account.routes').then((m) => m.ACCOUNT_ROUTES),
       },
 
-      // ===============================================================
-      // Media
-      // AJUSTE:
-      // - mantém auth + lifecycle
-      // - SUPRIMIDO requireVerified / requireProfileCompleted
-      //   para não quebrar o fluxo de fotos neste momento
-      // ===============================================================
       {
         path: 'media',
         loadChildren: () =>

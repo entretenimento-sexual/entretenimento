@@ -372,3 +372,87 @@ html.high-contrast .universal-sidebar__link--active {
 html.high-contrast .universal-sidebar__avatar {
   border: 2px solid currentColor;
 }
+
+/* ==========================================================================
+   Quick actions
+   ========================================================================== */
+.universal-sidebar__quick-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid color-mix(in oklab, var(--surface-border) 80%, transparent);
+}
+
+.universal-sidebar__quick-action {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: var(--tap-target, 44px);
+  padding: 0.75rem 0.9rem;
+  border-radius: 14px;
+  text-decoration: none;
+  color: var(--text-color);
+  border: 1px solid transparent;
+  transition:
+    background-color 180ms ease,
+    transform 180ms ease,
+    border-color 180ms ease;
+}
+
+.universal-sidebar__quick-action:hover,
+.universal-sidebar__quick-action:focus-visible {
+  background: var(--header-hover-bg);
+  outline: none;
+}
+
+.universal-sidebar__quick-action:active {
+  transform: scale(0.99);
+}
+
+.universal-sidebar__quick-action--primary {
+  background: color-mix(in oklab, var(--primary-color) 20%, transparent);
+  border-color: color-mix(in oklab, var(--primary-color) 35%, transparent);
+}
+
+.universal-sidebar__quick-action--secondary {
+  background: color-mix(in oklab, var(--secondary-color) 12%, transparent);
+  border-color: color-mix(in oklab, var(--secondary-color) 30%, transparent);
+}
+
+.universal-sidebar__quick-action--ghost {
+  background: transparent;
+  border-color: var(--surface-border);
+}
+
+.universal-sidebar__quick-action--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.universal-sidebar__quick-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.universal-sidebar__quick-action-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.universal-sidebar--collapsed .universal-sidebar__quick-action {
+  justify-content: center;
+  padding-inline: 0.4rem;
+}
+
+html.high-contrast .universal-sidebar__quick-action {
+  border-color: currentColor;
+  background: transparent !important;
+}

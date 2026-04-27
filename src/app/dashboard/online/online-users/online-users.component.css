@@ -1,312 +1,328 @@
-/* src/app/dashboard/online-users/online-users.component.css
-  ----------------------------------------------------------------------------
-  ONLINE USERS (Dashboard) — UI touch-first e responsiva
-  - Clean, alto contraste compatível
-  - Alvos de toque >= 44px
-  - Grid fluido e consistente com tokens globais
-  ---------------------------------------------------------------------------- */
-
+/* src/app/dashboard/online/online-users/online-users.component.css */
 :host {
   display: block;
-  /* Ajustes finos locais (não afetam global) */
-  --local-gap: 12px;
-  --local-card-radius: 14px;
-
-  /* Slider */
-  --range-track-height: 6px;
-  --range-thumb-size: 18px;
+  --ou-radius-lg: 18px;
+  --ou-radius-md: 14px;
+  --ou-radius-sm: 10px;
+  --ou-gap: 16px;
+  --ou-gap-sm: 12px;
+  --ou-border: 1px solid var(--surface-border);
 }
 
-/* Evita conflito com .container do Bootstrap:
-   use no HTML: <div class="ui-container online-users"> ... */
 .online-users {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ou-gap);
+  padding-block: var(--space-3, 16px);
 }
 
-/* Título */
-.online-users-title {
-  font-size: var(--ui-h2, 1.25rem);
-  letter-spacing: .2px;
-  margin-bottom: .75rem;
+.online-users__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ou-gap);
 }
 
-/* Texto auxiliar (respeita tema) */
-.help-text {
-  font-size: .92rem;
-  line-height: 1.35;
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+.online-users__title {
+  margin: 0;
+  font-size: clamp(1.25rem, 1rem + 0.8vw, 1.75rem);
+  line-height: 1.1;
+  color: var(--text-color);
 }
 
-/* ===========================
-   Card de controle (Raio)
-   =========================== */
-.control-card {
+.online-users__subtitle {
+  margin: 6px 0 0;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font-size: 0.98rem;
+  line-height: 1.45;
+}
+
+.online-users__banner,
+.online-users__state-card,
+.online-users__activation-card,
+.online-users__decision-card,
+.online-users__controls-card,
+.online-users__empty-card {
   background: var(--surface-color);
-  border: 1px solid var(--surface-border);
-  border-radius: var(--local-card-radius);
+  border: var(--ou-border);
+  border-radius: var(--ou-radius-lg);
   box-shadow: var(--box-shadow);
 }
 
-html.high-contrast .control-card {
+.online-users__banner,
+.online-users__state-card,
+.online-users__empty-card {
+  padding: 16px 18px;
+}
+
+.online-users__activation-card,
+.online-users__controls-card {
+  padding: 20px;
+}
+
+.online-users__decision-card {
+  margin-top: 14px;
+  padding: 16px;
+  border-color: color-mix(in oklab, var(--primary-color) 22%, var(--surface-border));
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--primary-color) 7%, var(--surface-color)) 0%,
+      var(--surface-color) 100%
+    );
+}
+
+.online-users__banner--warning {
+  border-color: color-mix(in oklab, var(--snackbar-warning) 30%, var(--surface-border));
+}
+
+.online-users__banner-content,
+.online-users__decision-copy,
+.online-users__activation-copy,
+.online-users__results-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.online-users__banner-title,
+.online-users__decision-title,
+.online-users__state-title,
+.online-users__empty-title,
+.online-users__section-title {
+  margin: 0;
+  color: var(--text-color);
+}
+
+.online-users__banner-title,
+.online-users__decision-title,
+.online-users__state-title,
+.online-users__empty-title {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.online-users__section-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.online-users__banner-text,
+.online-users__decision-text,
+.online-users__state-text,
+.online-users__empty-text,
+.online-users__section-text,
+.online-users__helper {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: color-mix(in oklab, var(--text-color) 75%, transparent);
+}
+
+.online-users__activation-actions {
+  margin-top: 16px;
+}
+
+.online-users__primary-action {
+  min-height: var(--tap-target, 44px);
+  padding-inline: 18px;
+}
+
+.online-users__decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.online-users__controls-head,
+.online-users__results-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ou-gap);
+}
+
+.online-users__head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.online-users__head-btn {
+  min-height: var(--tap-target, 44px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.online-users__range-block {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  gap: 12px;
+  align-items: center;
+  margin-top: 18px;
+}
+
+.online-users__step-btn {
+  inline-size: 44px;
+  block-size: 44px;
+  border-radius: 12px;
+  border: var(--ou-border);
+  background: transparent;
+  color: var(--text-color);
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.online-users__step-btn:hover {
+  background: var(--header-hover-bg);
+}
+
+.online-users__step-btn:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.online-users__range-wrap {
+  position: relative;
+}
+
+.online-users__range-bubble {
+  position: absolute;
+  top: -34px;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: var(--ou-border);
+  background: var(--surface-color);
+  color: var(--text-color);
+  font-size: 0.78rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.online-users__range-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+}
+
+.online-users__loading-pill {
+  align-self: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color) 12%, transparent);
+  color: var(--text-color);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.profiles-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+}
+
+.online-users__empty-card {
+  padding: 22px;
+  text-align: center;
+}
+
+app-user-card:focus-within,
+app-user-card:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+  border-radius: var(--ou-radius-md);
+}
+
+@media (max-width: 767px) {
+  .online-users__activation-card,
+  .online-users__controls-card {
+    padding: 16px;
+  }
+
+  .online-users__controls-head,
+  .online-users__results-head,
+  .online-users__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .online-users__head-actions,
+  .online-users__decision-actions {
+    flex-direction: column;
+  }
+
+  .online-users__head-btn,
+  .online-users__decision-actions .btn,
+  .online-users__primary-action {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .online-users__range-block {
+    grid-template-columns: 1fr;
+  }
+
+  .online-users__step-btn {
+    width: 100%;
+  }
+
+  .online-users__range-bubble {
+    top: -30px;
+  }
+}
+
+@media (max-width: 380px) {
+  .online-users {
+    gap: 12px;
+  }
+
+  .online-users__banner,
+  .online-users__state-card,
+  .online-users__empty-card,
+  .online-users__decision-card,
+  .online-users__activation-card,
+  .online-users__controls-card {
+    border-radius: 14px;
+  }
+
+  .online-users__title {
+    font-size: 1.15rem;
+  }
+
+  .online-users__subtitle,
+  .online-users__banner-text,
+  .online-users__decision-text,
+  .online-users__state-text,
+  .online-users__empty-text,
+  .online-users__section-text,
+  .online-users__helper {
+    font-size: 0.92rem;
+  }
+}
+
+html.high-contrast .online-users__banner,
+html.high-contrast .online-users__state-card,
+html.high-contrast .online-users__activation-card,
+html.high-contrast .online-users__decision-card,
+html.high-contrast .online-users__controls-card,
+html.high-contrast .online-users__empty-card {
   box-shadow: none !important;
   border: 3px solid var(--text-color) !important;
   background: var(--background-color) !important;
 }
 
-/* Cabeçalho do card */
-.card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .75rem;
-}
-
-.head-actions {
-  display: inline-flex;
-  gap: .5rem;
-  align-items: center;
-}
-
-/* Botões ghost com touch target */
-.icon-btn {
-  min-height: var(--ui-touch, 44px);
-  min-width: var(--ui-touch, 44px);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: .5rem;
-
-  background: transparent;
-  border: 1px solid var(--surface-border);
-  color: var(--text-color);
-  border-radius: 12px;
-  padding: 0 12px;
-  line-height: 1;
-}
-
-.icon-btn:hover {
-  background: var(--header-hover-bg);
-}
-
-.icon-btn:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
-}
-
-/* “Ver todos” — texto some em telas pequenas */
-.hide-xs {
-  display: none;
-}
-
-@media (min-width: 420px) {
-  .hide-xs {
-    display: inline;
-  }
-}
-
-/* ===========================
-   Slider + stepper (touch)
-   =========================== */
-.range-toolbar {
-  display: grid;
-  grid-template-columns: var(--ui-touch, 44px) 1fr var(--ui-touch, 44px);
-  gap: .6rem;
-  align-items: center;
-  margin-top: .75rem;
-}
-
-/* Botão de step */
-.step-btn {
-  inline-size: var(--ui-touch, 44px);
-  block-size: var(--ui-touch, 44px);
-  border-radius: 12px;
-  border: 1px solid var(--surface-border);
-  background: transparent;
-  color: var(--text-color);
-  font-weight: 800;
-  font-size: 1.05rem;
-  line-height: 1;
-}
-
-.step-btn:hover {
-  background: var(--header-hover-bg);
-}
-
-.step-btn:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
-}
-
-/* Wrapper do range e bolha */
-.range-wrap {
-  position: relative;
-  padding-inline: 2px;
-}
-
-/* Range base (usa global-forms, mas reforça aqui) */
-.enhanced-range {
-  inline-size: 100%;
-  block-size: var(--range-track-height);
-  background: var(--range-track-color);
-  border-radius: var(--radius-sm);
-  appearance: none;
-}
-
-.enhanced-range:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
-}
-
-/* Trilhos */
-.enhanced-range::-webkit-slider-runnable-track {
-  block-size: var(--range-track-height);
-  background: transparent;
-  border-radius: var(--radius-sm);
-}
-
-.enhanced-range::-moz-range-track {
-  block-size: var(--range-track-height);
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-sm);
-}
-
-/* Polegar */
-.enhanced-range::-webkit-slider-thumb {
-  appearance: none;
-  inline-size: var(--range-thumb-size);
-  block-size: var(--range-thumb-size);
-  border-radius: 9999px;
-  background: var(--primary-color);
-  box-shadow: var(--range-thumb-shadow);
-  margin-top: calc((var(--range-track-height) - var(--range-thumb-size)) / 2);
-  transition: transform .1s ease;
-}
-
-.enhanced-range::-webkit-slider-thumb:hover {
-  transform: scale(1.05);
-}
-
-.enhanced-range::-moz-range-thumb {
-  inline-size: var(--range-thumb-size);
-  block-size: var(--range-thumb-size);
-  border: none;
-  border-radius: 9999px;
-  background: var(--primary-color);
-  box-shadow: var(--range-thumb-shadow);
-}
-
-/* Bolha com valor */
-.range-bubble {
-  position: absolute;
-  top: -34px;
-  transform: translateX(-50%);
-  padding: 4px 8px;
-  border-radius: 10px;
-  font-size: .8rem;
-
-  background: var(--surface-color);
-  color: var(--text-color);
-  border: 1px solid var(--surface-border);
-
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-html.dark-mode .range-bubble {
-  background: color-mix(in oklab, var(--surface-color) 85%, black 15%);
-}
-
-/* Legenda */
-.range-legend {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: .75rem;
-
-  font-size: .9rem;
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
-  margin-top: .5rem;
-}
-
-/* ===========================
-   Grid de cards
-   =========================== */
-/* ===========================
-   Grid de cards (fluido)
-   - Cresce sozinho em telas grandes
-   - Mantém 1 coluna no mobile
-   =========================== */
-:host {
-  --card-min: 260px;
-  /* ajuste fino: 260~320 conforme o card real */
-}
-
-.profiles-grid {
-  display: grid;
-  gap: var(--local-gap);
-  margin-top: .75rem;
-
-  grid-template-columns:
-      repeat(auto-fit,
-      minmax(min(var(--card-min), 100%), 1fr));
-}
-
-/* Breakpoints (touch-first) */
-@media (min-width: 520px) {
-  .profiles-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 820px) {
-  .profiles-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1100px) {
-  .profiles-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-/* Foco em cards */
-app-user-card:focus-within,
-app-user-card:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
-  border-radius: var(--radius-md);
-}
-
-/* ===========================
-   Ultra small screens (<= 350px)
-   - reduz paddings e evita overflow
-   =========================== */
-@media (max-width: 350px) {
-  :host {
-    --range-thumb-size: 16px;
-    --range-track-height: 6px;
-  }
-
-  .icon-btn {
-    padding: 0 10px;
-  }
-
-  .range-bubble {
-    font-size: .78rem;
-    padding: 3px 7px;
-  }
-}
-
-/* Alto contraste: slider reforçado */
-html.high-contrast .enhanced-range {
-  background: var(--range-track-color) !important;
-}
-
-html.high-contrast .enhanced-range::-webkit-slider-thumb,
-html.high-contrast .enhanced-range::-moz-range-thumb {
+html.high-contrast .online-users__range-bubble {
+  border: 2px solid var(--text-color) !important;
   background: var(--background-color) !important;
-  outline: 3px solid var(--text-color) !important;
-  box-shadow: none !important;
+}
+
+html.high-contrast .online-users__loading-pill {
+  border: 2px solid var(--text-color);
+  background: transparent;
 }

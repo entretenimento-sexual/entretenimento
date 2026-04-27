@@ -9,19 +9,20 @@
           routerLinkActive="active"
           #rlaHome="routerLinkActive"
           [attr.aria-current]="rlaHome.isActive ? 'page' : null"
+          (click)="closeMobileMenu()"
         >
           <app-logo class="navbar-logo"></app-logo>
           <span class="visually-hidden">Página inicial</span>
         </a>
 
-        @if (shouldShowSidebarToggle) {
+        @if (isMobileMenuViewport) {
           <button
             type="button"
             class="hamburger-btn"
-            (click)="onToggleSidebar()"
-            aria-label="Abrir ou fechar menu lateral"
-            aria-controls="app-sidebar"
-            [attr.aria-expanded]="isSidebarOpen ? 'true' : 'false'"
+            (click)="toggleMobileMenu()"
+            aria-label="Abrir ou fechar menu principal"
+            aria-controls="navbar-mobile-panel"
+            [attr.aria-expanded]="isMobileMenuOpen ? 'true' : 'false'"
           >
             &#9776;
           </button>
@@ -48,6 +49,10 @@
               class="navbar-link"
               role="menuitem"
               [routerLink]="myProfileLink"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: false }"
+              #rlaMyProfile="routerLinkActive"
+              [attr.aria-current]="rlaMyProfile.isActive ? 'page' : null"
               (click)="onMyProfileLinkClick($event)"
               aria-label="Ir para meu perfil"
             >
@@ -161,8 +166,105 @@
       </ul>
     </div>
   </nav>
-</div>
 
-@if (canShowGuestBanner) {
-  <app-guest-banner></app-guest-banner>
-}
+  @if (isMobileMenuViewport && isMobileMenuOpen) {
+    <div id="navbar-mobile-panel" class="navbar-mobile-panel" role="menu" aria-label="Menu principal móvel">
+      @if (isAuthenticated) {
+        <a
+          routerLink="/dashboard/principal"
+          class="navbar-mobile-link"
+          routerLinkActive="active"
+          #rlaPrincipalMobile="routerLinkActive"
+          [attr.aria-current]="rlaPrincipalMobile.isActive ? 'page' : null"
+          (click)="closeMobileMenu()"
+        >
+          Principal
+        </a>
+
+        <a
+          class="navbar-mobile-link"
+          [routerLink]="myProfileLink"
+          routerLinkActive="active"
+          [routerLinkActiveOptions]="{ exact: false }"
+          #rlaProfileMobile="routerLinkActive"
+          [attr.aria-current]="rlaProfileMobile.isActive ? 'page' : null"
+          (click)="closeMobileMenu()"
+        >
+          Meu Perfil
+        </a>
+
+        <a
+          routerLink="/subscription-plan"
+          class="navbar-mobile-link"
+          routerLinkActive="active"
+          #rlaPlanosMobile="routerLinkActive"
+          [attr.aria-current]="rlaPlanosMobile.isActive ? 'page' : null"
+          (click)="closeMobileMenu()"
+        >
+          Planos de Assinatura
+        </a>
+
+        <button
+          type="button"
+          class="navbar-mobile-link navbar-mobile-link--button"
+          (click)="logout(); closeMobileMenu()"
+        >
+          Sair
+        </button>
+      } @else {
+        @if (!isLoginPage) {
+          <a
+            routerLink="/login"
+            class="navbar-mobile-link"
+            routerLinkActive="active"
+            #rlaLoginMobile="routerLinkActive"
+            [attr.aria-current]="rlaLoginMobile.isActive ? 'page' : null"
+            (click)="closeMobileMenu()"
+          >
+            Logar
+          </a>
+        }
+
+        <a
+          routerLink="/register"
+          class="navbar-mobile-link"
+          routerLinkActive="active"
+          #rlaRegisterMobile="routerLinkActive"
+          [attr.aria-current]="rlaRegisterMobile.isActive ? 'page' : null"
+          (click)="closeMobileMenu()"
+        >
+          Cadastre-se
+        </a>
+
+        <a
+          routerLink="/subscription-plan"
+          class="navbar-mobile-link"
+          routerLinkActive="active"
+          #rlaPlanosGuestMobile="routerLinkActive"
+          [attr.aria-current]="rlaPlanosGuestMobile.isActive ? 'page' : null"
+          (click)="closeMobileMenu()"
+        >
+          Planos de Assinatura
+        </a>
+      }
+
+      <div class="navbar-mobile-actions">
+        <button
+          type="button"
+          class="navbar-mobile-link navbar-mobile-link--button"
+          (click)="toggleDarkMode()"
+        >
+          {{ isDarkMode() ? 'Modo escuro' : 'Modo claro' }}
+        </button>
+
+        <button
+          type="button"
+          class="navbar-mobile-link navbar-mobile-link--button"
+          (click)="toggleHighContrast()"
+        >
+          {{ isHighContrast() ? 'Desativar alto contraste' : 'Ativar alto contraste' }}
+        </button>
+      </div>
+    </div>
+  }
+</div>
