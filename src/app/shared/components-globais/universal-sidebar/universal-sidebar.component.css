@@ -8,6 +8,7 @@
   - melhorar acessibilidade no modo colapsado
   - melhorar UX mobile com backdrop
   - manter foco visível e alvos de toque confortáveis
+  - travar o rail recolhido no modo chat
 */
 :host {
   display: block;
@@ -41,7 +42,7 @@
   flex-direction: column;
   gap: 0.85rem;
 
-  width: clamp(272px, 18vw, 320px);
+  width: var(--app-sidebar-width, clamp(272px, 18vw, 320px));
   height: calc(100dvh - var(--header-height, 100px));
   padding: 1rem 0.75rem max(1rem, var(--safe-bottom, 0px));
 
@@ -62,7 +63,7 @@
 }
 
 .universal-sidebar--collapsed {
-  width: clamp(84px, 6vw, 96px);
+  width: var(--app-sidebar-collapsed-width, clamp(84px, 6vw, 96px));
 }
 
 .universal-sidebar--mobile {
@@ -282,6 +283,18 @@
 /* ==========================================================================
    Collapsed desktop
    ========================================================================== */
+.universal-sidebar--collapsed {
+  align-items: stretch;
+}
+
+.universal-sidebar--collapsed .universal-sidebar__nav {
+  gap: 0.75rem;
+}
+
+.universal-sidebar--collapsed .universal-sidebar__section {
+  gap: 0.35rem;
+}
+
 .universal-sidebar--collapsed .universal-sidebar__profile-link {
   justify-content: center;
   padding-inline: 0.4rem;
@@ -290,12 +303,29 @@
 .universal-sidebar--collapsed .universal-sidebar__link {
   justify-content: center;
   padding-inline: 0.4rem;
+  border-radius: 16px;
 }
 
 .universal-sidebar--collapsed .universal-sidebar__icon {
   width: 32px;
   min-width: 32px;
   font-size: 1.45rem;
+}
+
+.universal-sidebar--collapsed .universal-sidebar__item + .universal-sidebar__item {
+  margin-top: 0.1rem;
+}
+
+/**
+ * Quando o rail está travado no modo chat,
+ * o visual pode ficar ainda mais limpo.
+ */
+.universal-sidebar--locked .universal-sidebar__top {
+  margin-bottom: 0;
+}
+
+.universal-sidebar--locked .universal-sidebar__nav {
+  padding-top: 0.25rem;
 }
 
 /* ==========================================================================

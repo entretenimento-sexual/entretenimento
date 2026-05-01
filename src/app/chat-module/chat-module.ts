@@ -1,4 +1,4 @@
-// src/app/chat-module/chat-module.ts
+//src\app\chat-module\chat-module.ts
 import { NgModule } from '@angular/core';
 import { CommonModule, NgOptimizedImage } from '@angular/common';
 import { StoreModule } from '@ngrx/store';
@@ -7,6 +7,8 @@ import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { SharedModule } from '../shared/shared.module';
 
 import { ChatListComponent } from './chat-list/chat-list.component';
@@ -43,6 +45,8 @@ import { BaseModalComponent } from './modals/base-modal/base-modal.component';
     StoreModule.forFeature('chat', chatReducer),
     MatDialogModule,
     MatButtonModule,
+    MatCardModule,
+    MatProgressSpinnerModule,
     ChatModuleRoutingModule,
     FormsModule,
     RouterModule,

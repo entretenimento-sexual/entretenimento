@@ -20,10 +20,11 @@
 // - O gating de usuário não verificado pertence ao fluxo de auth/orchestrator/guards,
 //   não a este effect.
 //
-// Ajuste principal deste patch:
-// - parar de tratar usuário autenticado porém não verificado como falha de login
-// - adicionar observabilidade leve em dev
-// - manter mensagens de erro consistentes
+// Ajuste desta versão:
+// - manter a regra: sessão válida => loginSuccess
+// - respeitar profileResolution apenas como observabilidade
+// - NÃO tratar profileResolution='unknown' como loginFailure
+// - NÃO decidir onboarding/perfil aqui
 // =============================================================================
 
 import { Injectable } from '@angular/core';
@@ -83,10 +84,6 @@ export class AuthEffects {
 
   // ---------------------------------------------------------------------------
   // REGISTER
-  //
-  // Observação:
-  // - exhaustMap evita disparos concorrentes por múltiplos cliques
-  // - o fluxo de sessão pós-registro continua sendo refletido pelo AuthSessionSync
   // ---------------------------------------------------------------------------
   register$ = createEffect(() =>
     this.actions$.pipe(
@@ -140,14 +137,13 @@ export class AuthEffects {
   // ---------------------------------------------------------------------------
   // LOGIN
   //
-  // Regra arquitetural importante:
-  // - success=false => falha real de autenticação/login
-  // - success=true  => a sessão existe
+  // Regra arquitetural:
+  // - success=false => falha real
+  // - success=true  => sessão existe
   //
-  // Logo:
-  // - success=true + emailVerified=false NÃO é loginFailure
-  // - o bloqueio/redirecionamento do usuário não verificado deve acontecer
-  //   no fluxo canônico de sessão/roteamento, e não aqui
+  // Ajuste:
+  // - profileResolution serve apenas para debug/observabilidade
+  // - onboarding e gating continuam fora deste effect
   // ---------------------------------------------------------------------------
   login$ = createEffect(() =>
     this.actions$.pipe(
@@ -179,13 +175,19 @@ export class AuthEffects {
             // ---------------------------------------------------------------
             // Sucesso real de autenticação
             //
-            // Mesmo com emailVerified=false, a sessão existe e o restante do
-            // fluxo precisa ser decidido pelo AuthSessionSync/AuthOrchestrator.
+            // SUPRESSÃO EXPLÍCITA:
+            // - não usamos needsProfileCompletion para decidir nada aqui
+            //
+            // Motivo:
+            // - profile/onboarding pode estar "unknown" no fallback do Auth
+            // - a decisão final pertence ao fluxo canônico de sessão
             // ---------------------------------------------------------------
             this.dbg('login:success', {
               uid: response.user.uid,
               emailVerified: response.emailVerified === true,
-              needsProfileCompletion: response.needsProfileCompletion === true,
+              profileResolution: response.profileResolution ?? 'unknown',
+              hasNeedsProfileCompletion:
+                typeof response.needsProfileCompletion === 'boolean',
             });
 
             return loginSuccess({ user: response.user });
@@ -207,4 +209,4 @@ export class AuthEffects {
       })
     )
   );
-} // Linha 210, fim do auth.effects.ts
+} // Linha 212

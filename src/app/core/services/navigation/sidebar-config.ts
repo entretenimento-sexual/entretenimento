@@ -97,13 +97,14 @@ const SECTION_MATCHERS: ReadonlyArray<{
     prefixes: ['/media'],
   },
   {
-    key: 'profiles',
-    prefixes: [
-      '/profile-list',
-      '/friends',
-      '/perfis-proximos',
-      '/outro-perfil',
-    ],
+  key: 'profiles',
+  prefixes: [
+    '/dashboard/online',
+    '/friends',
+    '/perfis-proximos',
+    '/outro-perfil',
+    '/profile-list',
+  ],
   },
   {
     key: 'settings',
@@ -128,14 +129,6 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         exact: false,
         ariaLabel: 'Ir para a página principal',
       },
-      {
-        id: 'dashboard-online',
-        label: 'Online',
-        route: '/dashboard/online',
-        icon: '🟢',
-        exact: false,
-        ariaLabel: 'Ir para usuários online',
-      },
     ],
   },
   {
@@ -143,12 +136,12 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
     title: 'Perfis',
     items: [
       {
-        id: 'profiles-list',
+        id: 'profiles-discovery',
         label: 'Explorar perfis',
-        route: '/profile-list',
+        route: '/dashboard/online',
         icon: '🔎',
         exact: false,
-        ariaLabel: 'Explorar perfis',
+        ariaLabel: 'Explorar perfis online',
       },
       {
         id: 'friends',

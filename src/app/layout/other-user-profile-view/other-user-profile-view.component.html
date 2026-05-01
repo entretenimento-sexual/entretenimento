@@ -1,89 +1,152 @@
 <!-- src\app\layout\other-user-profile-view\other-user-profile-view.component.html -->
-<section class="user-profile-container" aria-labelledby="profile-heading"
-  [attr.aria-busy]="isLoading ? 'true' : 'false'">
-  <header class="user-info" role="region" aria-label="Informações do usuário">
-    <figure class="profile-photo-wrapper">
-      <img [src]="userProfile?.photoURL || 'assets/imagem-padrao.webp'"
-        [attr.alt]="userProfile?.nickname ? ('Foto de perfil de ' + (userProfile?.nickname ?? '')) : 'Foto de perfil padrão'"
-        class="profile-photo" width="160" height="160" loading="lazy" decoding="async" />
-      <figcaption class="visually-hidden">
-        {{ userProfile?.nickname || 'Usuário' }}
-      </figcaption>
-    </figure>
-
-    <!-- Um H1 para a visão -->
-    <h1 id="profile-heading" class="profile-title">
-      {{ userProfile?.nickname || 'Perfil de usuário' }}
-    </h1>
-
-    @if (userProfile?.municipio && userProfile?.estado) {
-    <p class="user-location">
-      <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
-      <span class="sr-only">Localização: </span>
-      {{ userProfile?.municipio }}, {{ userProfile?.estado }}
-    </p>
-    }
-
-    <dl class="user-basics" role="list">
-      <div class="user-basic-item" role="listitem">
-        <dt class="sr-only">E-mail</dt>
-        <dd>
-          <i class="fas fa-envelope" aria-hidden="true"></i>
-          <a *ngIf="userProfile?.email as email" [href]="'mailto:' + email" class="email-link">
-            <span class="sr-only">Enviar e-mail para </span>{{ email }}
-          </a>
-          <span *ngIf="!userProfile?.email">Não informado</span>
-        </dd>
-      </div>
-
-      <div class="user-basic-item" role="listitem">
-        <dt class="sr-only">Gênero</dt>
-        <dd>
-          <i class="fas fa-user" aria-hidden="true"></i>
-          <!-- IMPORTANTE: parênteses para o pipe -->
-          <span>
-            {{ userProfile?.gender ? (userProfile?.gender | titlecase) : 'Não informado' }}
-          </span>
-        </dd>
-      </div>
-
-      <div class="user-basic-item" role="listitem">
-        <dt class="sr-only">Orientação</dt>
-        <dd>
-          <i class="fas fa-heart" aria-hidden="true"></i>
-          <span>{{ userProfile?.orientation ?? 'Não informado' }}</span>
-        </dd>
-      </div>
-
-      <div class="user-basic-item" role="listitem">
-        <dt class="sr-only">Descrição</dt>
-        <dd>
-          <i class="fas fa-info-circle" aria-hidden="true"></i>
-          <span>{{ userProfile?.descricao ?? 'Sem descrição' }}</span>
-        </dd>
-      </div>
-    </dl>
+<section
+  class="other-profile-page"
+  aria-labelledby="profile-heading"
+  [attr.aria-busy]="isLoading ? 'true' : 'false'"
+>
+  <header class="other-profile-page__topbar">
+    <a
+      class="btn btn-ghost"
+      [routerLink]="discoveryLink"
+      aria-label="Voltar para descoberta"
+    >
+      ← Voltar para descoberta
+    </a>
   </header>
 
-<!--   <section class="user-preferences" role="region" aria-labelledby="prefs-heading">
-    <h2 id="prefs-heading">
-      O que {{ userProfile?.nickname || 'este usuário' }} procura
-    </h2>
+  <section class="other-profile-page__hero" *ngIf="userProfile as profile">
+    <div class="other-profile-page__hero-main">
+      <figure class="other-profile-page__photo-wrap">
+        <img
+          [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
+          [attr.alt]="profile.nickname ? ('Foto de perfil de ' + profile.nickname) : 'Foto de perfil padrão'"
+          class="other-profile-page__photo"
+          width="160"
+          height="160"
+          loading="lazy"
+          decoding="async"
+        />
+        <figcaption class="visually-hidden">
+          {{ displayName }}
+        </figcaption>
+      </figure>
 
-    @if (!uid) {
-    <p class="error" role="alert" aria-live="assertive">
-      Erro: UID não encontrado.
-    </p>
-    }
+      <div class="other-profile-page__identity">
+        <p class="other-profile-page__eyebrow">Perfil público</p>
+        <h1 id="profile-heading" class="other-profile-page__title">
+          {{ displayName }}
+        </h1>
 
-    @if (uid) {
-    <app-user-profile-preferences [uid]="uid" aria-label="Preferências do usuário"></app-user-profile-preferences>
-    }
-  </section> -->
+        <p class="other-profile-page__location" *ngIf="hasLocation">
+          <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+          {{ profile.municipio }}, {{ profile.estado }}
+        </p>
 
-  <section role="region" aria-labelledby="social-heading">
-    <h2 id="social-heading" class="visually-hidden">Redes sociais do usuário</h2>
-    <app-social-links-accordion [uid]="uid" [isOwner]="false" aria-label="Links sociais do usuário">
-    </app-social-links-accordion>
+        <div class="other-profile-page__meta">
+          <span class="other-profile-page__chip">
+            {{ profile.gender ? (profile.gender | titlecase) : 'Gênero não informado' }}
+          </span>
+
+          <span class="other-profile-page__chip">
+            {{ profile.orientation || 'Orientação não informada' }}
+          </span>
+        </div>
+
+        <p class="other-profile-page__description">
+          {{ hasDescription ? profile.descricao : 'Este usuário ainda não adicionou uma descrição pública.' }}
+        </p>
+      </div>
+    </div>
+
+    <aside class="other-profile-page__actions-card" aria-label="Ações rápidas do perfil">
+      <h2 class="other-profile-page__actions-title">Ações do perfil</h2>
+
+      <div class="other-profile-page__actions">
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="sendFriendRequest()"
+          [disabled]="(friendRequestBusy$ | async) === true || !uid"
+        >
+          {{ (friendRequestBusy$ | async) ? 'Enviando...' : 'Solicitar amizade' }}
+        </button>
+
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="startDirectChat()"
+          [disabled]="(directChatBusy$ | async) === true || !uid"
+        >
+          {{ (directChatBusy$ | async) ? 'Preparando...' : 'Iniciar chat' }}
+        </button>
+
+        <a
+          class="btn btn-secondary"
+          *ngIf="photosLink"
+          [routerLink]="photosLink"
+        >
+          Ver fotos
+        </a>
+
+        <a
+          class="btn btn-ghost"
+          [routerLink]="invitesLink"
+        >
+          Meus convites
+        </a>
+      </div>
+
+      <p class="other-profile-page__actions-helper">
+        Solicite amizade ou prepare uma conversa direta. Convites disponíveis hoje continuam ligados ao fluxo de salas.
+      </p>
+    </aside>
+  </section>
+
+  <section class="other-profile-page__content" *ngIf="hasProfile">
+    <article class="other-profile-page__panel">
+      <header class="other-profile-page__panel-header">
+        <div>
+          <p class="other-profile-page__eyebrow">Apresentação</p>
+          <h2>Resumo do perfil</h2>
+        </div>
+      </header>
+
+      <dl class="other-profile-page__facts">
+        <div class="other-profile-page__fact">
+          <dt>Apelido</dt>
+          <dd>{{ userProfile?.nickname || 'Não informado' }}</dd>
+        </div>
+
+        <div class="other-profile-page__fact">
+          <dt>Gênero</dt>
+          <dd>{{ userProfile?.gender ? (userProfile?.gender | titlecase) : 'Não informado' }}</dd>
+        </div>
+
+        <div class="other-profile-page__fact">
+          <dt>Orientação</dt>
+          <dd>{{ userProfile?.orientation || 'Não informada' }}</dd>
+        </div>
+
+        <div class="other-profile-page__fact" *ngIf="hasLocation">
+          <dt>Localização</dt>
+          <dd>{{ userProfile?.municipio }}, {{ userProfile?.estado }}</dd>
+        </div>
+      </dl>
+    </article>
+
+    <article class="other-profile-page__panel" role="region" aria-labelledby="social-heading">
+      <header class="other-profile-page__panel-header">
+        <div>
+          <p class="other-profile-page__eyebrow">Contato público</p>
+          <h2 id="social-heading">Redes sociais</h2>
+        </div>
+      </header>
+
+      <app-social-links-accordion
+        [uid]="uid"
+        [isOwner]="false"
+        aria-label="Links sociais do usuário"
+      ></app-social-links-accordion>
+    </article>
   </section>
 </section>

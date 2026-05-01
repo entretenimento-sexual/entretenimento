@@ -3,6 +3,7 @@
   class="auth-shell"
   *ngIf="vm$ | async as vm"
   [attr.data-shell-mode]="vm.shellMode"
+  [attr.data-chat-layout]="vm.isChatLayout ? 'true' : 'false'"
 >
   <app-navbar></app-navbar>
 
@@ -18,15 +19,17 @@
       [user]="vm.sidebarUser"
       [quickActions]="vm.sidebarQuickActions"
       [forceOverlay]="vm.sidebarShouldOverlay"
-      [forceCollapsed]="vm.sidebarShouldCompact"
+      [forceCollapsed]="vm.isChatLayout || vm.sidebarShouldCompact"
+      [lockCollapsed]="vm.isChatLayout"
       (toggleRequested)="onToggleSidebar()"
       (collapseRequested)="onToggleCollapse()"
     ></app-universal-sidebar>
 
     <div
       class="auth-shell__content-area"
-      [class.auth-shell__content-area--compact]="vm.showSidebar && vm.sidebarShouldCompact"
-      [class.auth-shell__content-area--collapsed]="vm.showSidebar && !vm.sidebarShouldOverlay && !vm.sidebarShouldCompact && !vm.sidebar.isMobile && vm.sidebar.isCollapsed"
+      [class.auth-shell__content-area--chat]="vm.showSidebar && vm.isChatLayout && !vm.sidebarShouldOverlay"
+      [class.auth-shell__content-area--compact]="vm.showSidebar && !vm.isChatLayout && vm.sidebarShouldCompact"
+      [class.auth-shell__content-area--collapsed]="vm.showSidebar && !vm.isChatLayout && !vm.sidebarShouldOverlay && !vm.sidebarShouldCompact && !vm.sidebar.isMobile && vm.sidebar.isCollapsed"
       [class.auth-shell__content-area--full]="!vm.showSidebar"
       [class.auth-shell__content-area--overlay]="vm.showSidebar && vm.sidebarShouldOverlay"
     >

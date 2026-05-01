@@ -1,7 +1,17 @@
-// src/app/core/services/batepapo/rooms/room-messages.service.ts
-// - Padroniza retorno com idField
-// - Stream passivo não deve “derrubar UX” nem spammar toast
-// - Helpers reutilizáveis (markDeliveredAsRead$) para remover duplicação no componente
+// src/app/core/services/batepapo/room-services/room-messages.service.ts
+// Serviço de mensagens de room.
+//
+// Objetivos desta versão:
+// - manter room em compatibilidade sem poluir UX
+// - garantir que collection/query/collectionData/doc/setDoc/addDoc
+//   rodem dentro de injection context
+// - preservar helpers reutilizáveis para read receipts
+//
+// Ajustes desta versão:
+// - remove warning de collectionData fora de injection context
+// - remove warning de refs/query fora de injection context
+// - mantém Observable-first
+
 import { Injectable } from '@angular/core';
 import {
   Firestore,
@@ -16,7 +26,7 @@ import {
 } from '@angular/fire/firestore';
 
 import { Observable, defer, from, of } from 'rxjs';
-import { catchError, map, take } from 'rxjs/operators';
+import { catchError, map, take, tap } from 'rxjs/operators';
 
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -34,7 +44,7 @@ export class RoomMessagesService {
     private readonly ctx: FirestoreContextService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService
-  ) { }
+  ) {}
 
   private dbg(msg: string, extra?: unknown): void {
     if (!this.debug) return;
@@ -50,6 +60,38 @@ export class RoomMessagesService {
     this.globalErrorHandler.handleError(e);
   }
 
+  private normRoomId(roomId: string): string {
+    return (roomId ?? '').toString().trim();
+  }
+
+  private normMessageId(messageId: string): string {
+    return (messageId ?? '').toString().trim();
+  }
+
+  private messagesCol(roomId: string) {
+    const rid = this.normRoomId(roomId);
+    return this.ctx.run(() => collection(this.db, `rooms/${rid}/messages`));
+  }
+
+  private messageRef(roomId: string, messageId: string) {
+    const rid = this.normRoomId(roomId);
+    const mid = this.normMessageId(messageId);
+
+    return this.ctx.run(() =>
+      doc(this.db, `rooms/${rid}/messages/${mid}`)
+    );
+  }
+
+  private buildMessagesQuery(roomId: string, pageSize: number) {
+    return this.ctx.run(() =>
+      query(
+        this.messagesCol(roomId),
+        orderBy('timestamp', 'asc'),
+        limit(pageSize)
+      )
+    );
+  }
+
   /**
    * getRoomMessages(roomId)
    * Realtime stream ASC por timestamp.
@@ -57,16 +99,19 @@ export class RoomMessagesService {
    * ✅ Em erro: report silent + retorna [] (não derruba UI).
    */
   getRoomMessages(roomId: string, pageSize = 200): Observable<Message[]> {
-    const rid = (roomId ?? '').toString().trim();
+    const rid = this.normRoomId(roomId);
     if (!rid) return of([]);
 
-    const messagesRef = collection(this.db, `rooms/${rid}/messages`);
-    const q = query(messagesRef, orderBy('timestamp', 'asc'), limit(pageSize));
-
-    return collectionData(q as any, { idField: 'id' }).pipe(
-      map(arr => (arr ?? []) as Message[]),
-      map(list => list.filter(m => !!m)), // sanity
-      catchError(err => {
+    return defer(() => {
+      const q = this.buildMessagesQuery(rid, pageSize);
+      return this.ctx.run(() =>
+        collectionData(q as any, { idField: 'id' })
+      ) as Observable<Message[]>;
+    }).pipe(
+      map((arr) => (arr ?? []) as Message[]),
+      map((list) => list.filter((m) => !!m)),
+      tap((list) => this.dbg('getRoomMessages()', { roomId: rid, count: list.length })),
+      catchError((err) => {
         this.reportSilent('getRoomMessages', err);
         return of([] as Message[]);
       })
@@ -79,14 +124,14 @@ export class RoomMessagesService {
    * - Erro: report + toast (aqui é ação do usuário, então pode notificar).
    */
   sendMessageToRoom$(roomId: string, message: Message): Observable<string> {
-    const rid = (roomId ?? '').toString().trim();
+    const rid = this.normRoomId(roomId);
     if (!rid) return of('');
 
-    const messagesRef = collection(this.db, `rooms/${rid}/messages`);
-
-    return defer(() => this.ctx.run(() => addDoc(messagesRef, message as any))).pipe(
-      map(ref => ref.id),
-      catchError(err => {
+    return defer(() =>
+      from(this.ctx.run(() => addDoc(this.messagesCol(rid), message as any)))
+    ).pipe(
+      map((ref) => ref.id),
+      catchError((err) => {
         this.reportSilent('sendMessageToRoom$', err);
         this.errorNotifier.showError('Erro ao enviar mensagem.');
         return of('');
@@ -96,8 +141,6 @@ export class RoomMessagesService {
 
   /**
    * sendMessageToRoom (compat legado)
-   * - Mantido para não quebrar chamadas antigas.
-   * - Implementa via Observable.
    */
   async sendMessageToRoom(roomId: string, message: any): Promise<void> {
     await this.sendMessageToRoom$(roomId, message as Message).pipe(take(1)).toPromise();
@@ -107,7 +150,6 @@ export class RoomMessagesService {
    * updateMessageStatus
    * ✅ Mantém nome
    * - Por padrão: silent (read receipts não devem gerar toast)
-   * - notifyUser=true só se for ação explícita do usuário.
    */
   updateMessageStatus(
     roomId: string,
@@ -115,19 +157,23 @@ export class RoomMessagesService {
     status: 'sent' | 'delivered' | 'read',
     notifyUser = false
   ): Observable<void> {
-    const rid = (roomId ?? '').toString().trim();
-    const mid = (messageId ?? '').toString().trim();
+    const rid = this.normRoomId(roomId);
+    const mid = this.normMessageId(messageId);
     if (!rid || !mid) return of(void 0);
 
-    const ref = doc(this.db, `rooms/${rid}/messages/${mid}`);
-
     return defer(() =>
-      this.ctx.run(() => setDoc(ref, { status } as any, { merge: true }))
+      from(
+        this.ctx.run(() =>
+          setDoc(this.messageRef(rid, mid), { status } as any, { merge: true })
+        )
+      )
     ).pipe(
       map(() => void 0),
-      catchError(err => {
+      catchError((err) => {
         this.reportSilent('updateMessageStatus', err);
-        if (notifyUser) this.errorNotifier.showError('Erro ao atualizar status da mensagem na sala.');
+        if (notifyUser) {
+          this.errorNotifier.showError('Erro ao atualizar status da mensagem na sala.');
+        }
         return of(void 0);
       })
     );
@@ -136,30 +182,25 @@ export class RoomMessagesService {
   /**
    * markDeliveredAsRead$
    * Helper para remover duplicação no componente.
-   * - Filtra apenas mensagens recebidas (senderId !== myUid) e delivered.
-   * - Aplica update status read best-effort.
-   * - Retorna quantidade marcada (útil para debug/contador).
    */
   markDeliveredAsRead$(roomId: string, myUid: string, messages: Message[]): Observable<number> {
-    const rid = (roomId ?? '').toString().trim();
+    const rid = this.normRoomId(roomId);
     const me = (myUid ?? '').toString().trim();
     const list = messages ?? [];
 
     if (!rid || !me || !list.length) return of(0);
 
     const toMark = list
-      .filter(m => m?.status === 'delivered' && m.senderId !== me && !!(m as any).id)
-      .map(m => (m as any).id as string);
+      .filter((m) => m?.status === 'delivered' && m.senderId !== me && !!(m as any).id)
+      .map((m) => (m as any).id as string);
 
     if (!toMark.length) return of(0);
 
-    // Sem “spam”: uma chamada por id, mas sem toast e best-effort.
-    // Se quiser evoluir: trocar para writeBatch em um repository.
-    const ops$ = toMark.map(id => this.updateMessageStatus(rid, id, 'read', false));
+    const ops$ = toMark.map((id) => this.updateMessageStatus(rid, id, 'read', false));
 
-    return from(Promise.all(ops$.map(o => o.pipe(take(1)).toPromise()))).pipe(
+    return from(Promise.all(ops$.map((o) => o.pipe(take(1)).toPromise()))).pipe(
       map(() => toMark.length),
-      catchError(err => {
+      catchError((err) => {
         this.reportSilent('markDeliveredAsRead$', err);
         return of(0);
       })

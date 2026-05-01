@@ -107,6 +107,24 @@ export class UserSocialLinksService {
     private readonly notifier: ErrorNotificationService,
   ) {}
 
+  private isOwnerTarget(targetUid: string, authUid: string | null | undefined): boolean {
+  return !!authUid && authUid === targetUid;
+}
+
+private privateSocialLinksPath(uid: string): string {
+  return `users/${uid}/profileData/socialLinks`;
+}
+
+private publicSocialLinksPath(uid: string): string {
+  return `public_social_links/${uid}`;
+}
+
+private resolveReadPath(targetUid: string, authUid: string | null | undefined): string {
+  return this.isOwnerTarget(targetUid, authUid)
+    ? this.privateSocialLinksPath(targetUid)
+    : this.publicSocialLinksPath(targetUid);
+}
+
   // =============================================================================
   // API PÚBLICA
   // =============================================================================
@@ -227,57 +245,73 @@ export class UserSocialLinksService {
   // READ (getDoc) com coalescência + cache
   // =============================================================================
 
-  private getOrCreateFirestoreRead$(
-    uid: string,
-    options: SocialLinksOptions
-  ): Observable<IUserSocialLinks | null> {
-    const key = this.inFlightKey(uid, !!options.allowAnonymousRead, 'read');
-    const existing = this.inFlightReads.get(key);
-    if (existing) return existing;
+private getOrCreateFirestoreRead$(
+  uid: string,
+  options: SocialLinksOptions
+): Observable<IUserSocialLinks | null> {
+  return this.session.authUser$.pipe(
+    take(1),
+    switchMap((authUser) => {
+      const authUid = authUser?.uid ?? null;
+      const scope = this.isOwnerTarget(uid, authUid) ? 'private' : 'public';
+      const path = this.resolveReadPath(uid, authUid);
 
-    const read$ = this.firestoreCtx.deferPromise$(async () => {
-      const ref = doc(this.db, `users/${uid}/profileData/socialLinks`);
-      return getDoc(ref);
-    }).pipe(
-      map((snap) => (snap.exists() ? (snap.data() as IUserSocialLinks) : null)),
-      tap((links) => this.setCache(uid, links, options)),
-      catchError((err) => this.handleError(err, 'getDoc(socialLinks)', options, null)),
-      finalize(() => this.inFlightReads.delete(key)),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
+      const key = this.inFlightKey(`${uid}:${scope}`, !!options.allowAnonymousRead, 'read');
+      const existing = this.inFlightReads.get(key);
+      if (existing) return existing;
 
-    this.inFlightReads.set(key, read$);
-    return read$;
-  }
+      const read$ = this.firestoreCtx.deferPromise$(async () => {
+        const ref = doc(this.db, path);
+        return getDoc(ref);
+      }).pipe(
+        map((snap) => (snap.exists() ? (snap.data() as IUserSocialLinks) : null)),
+        tap((links) => this.setCache(uid, links, options)),
+        catchError((err) => this.handleError(err, `getDoc(socialLinks:${scope})`, options, null)),
+        finalize(() => this.inFlightReads.delete(key)),
+        shareReplay({ bufferSize: 1, refCount: true })
+      );
+
+      this.inFlightReads.set(key, read$);
+      return read$;
+    })
+  );
+}
 
   // =============================================================================
   // WATCH (docSnapshots) com coalescência + cache
   // =============================================================================
 
-  private getOrCreateFirestoreWatch$(
-    uid: string,
-    options: SocialLinksOptions
-  ): Observable<IUserSocialLinks | null> {
-    const key = this.inFlightKey(uid, !!options.allowAnonymousRead, 'watch');
-    const existing = this.inFlightWatches.get(key);
-    if (existing) return existing;
+private getOrCreateFirestoreWatch$(
+  uid: string,
+  options: SocialLinksOptions
+): Observable<IUserSocialLinks | null> {
+  return this.session.authUser$.pipe(
+    take(1),
+    switchMap((authUser) => {
+      const authUid = authUser?.uid ?? null;
+      const scope = this.isOwnerTarget(uid, authUid) ? 'private' : 'public';
+      const path = this.resolveReadPath(uid, authUid);
 
-    const watch$ = this.firestoreCtx.deferObservable$(() => {
-      // IMPORTANT: criação do ref e do Observable dentro do Injection Context
-      const ref = doc(this.db, `users/${uid}/profileData/socialLinks`);
-      return docSnapshots(ref);
-    }).pipe(
-      map((snap) => (snap.exists() ? (snap.data() as IUserSocialLinks) : null)),
-      tap((links) => this.setCache(uid, links, options)),
-      catchError((err) => this.handleError(err, 'docSnapshots(socialLinks)', options, null)),
-      finalize(() => this.inFlightWatches.delete(key)),
-      // Compartilha 1 listener por UID entre múltiplos subscribers
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
+      const key = this.inFlightKey(`${uid}:${scope}`, !!options.allowAnonymousRead, 'watch');
+      const existing = this.inFlightWatches.get(key);
+      if (existing) return existing;
 
-    this.inFlightWatches.set(key, watch$);
-    return watch$;
-  }
+      const watch$ = this.firestoreCtx.deferObservable$(() => {
+        const ref = doc(this.db, path);
+        return docSnapshots(ref);
+      }).pipe(
+        map((snap) => (snap.exists() ? (snap.data() as IUserSocialLinks) : null)),
+        tap((links) => this.setCache(uid, links, options)),
+        catchError((err) => this.handleError(err, `docSnapshots(socialLinks:${scope})`, options, null)),
+        finalize(() => this.inFlightWatches.delete(key)),
+        shareReplay({ bufferSize: 1, refCount: true })
+      );
+
+      this.inFlightWatches.set(key, watch$);
+      return watch$;
+    })
+  );
+}
 
   // =============================================================================
   // FIRESTORE COMMITS (batch) - Observable-first + Injection Context

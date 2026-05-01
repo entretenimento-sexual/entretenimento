@@ -1,18 +1,30 @@
 <!-- src/app/chat-module/chat-messages-list/chat-messages-list.component.html -->
-<div class="messages-container" #messagesContainer>
-  @if (type(); as safeType) {
+<div class="thread-shell" #messagesContainer>
+  @if (type; as safeType) {
     @if (messages.length > 0) {
-      @for (message of messages; track message.id ?? $index) {
-        <app-chat-message
-          [message]="message"
-          [chatId]="chatId()"
-          [type]="safeType">
-        </app-chat-message>
-      }
+      <div class="thread-shell__stack">
+        @for (message of messages; track message.id ?? $index) {
+          <app-chat-message
+            [message]="message"
+            [chatId]="chatId"
+            [type]="safeType">
+          </app-chat-message>
+        }
+      </div>
     } @else {
-      <p>Nenhuma mensagem para exibir</p>
+      <div class="thread-shell__empty" role="status" aria-live="polite">
+        <p class="thread-shell__empty-title">Ainda não há mensagens nesta conversa.</p>
+        <p class="thread-shell__empty-text">
+          Envie a primeira mensagem para iniciar a interação.
+        </p>
+      </div>
     }
   } @else {
-    <p>Selecione um chat ou uma sala.</p>
+    <div class="thread-shell__empty" role="status" aria-live="polite">
+      <p class="thread-shell__empty-title">Nenhuma conversa ativa.</p>
+      <p class="thread-shell__empty-text">
+        Selecione um chat ou uma sala para visualizar a thread.
+      </p>
+    </div>
   }
 </div>

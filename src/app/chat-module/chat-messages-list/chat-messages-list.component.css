@@ -1,1 +1,60 @@
-/* src\app\chat-module\chat-messages-list\chat-messages-list.component.css */
+/* src/app/chat-module/chat-messages-list/chat-messages-list.component.css */
+/* -------------------------------------------------------------------------- */
+/* Thread de mensagens                                                        */
+/* Objetivos desta versão:                                                    */
+/* - dar estrutura visual à área central                                      */
+/* - substituir vazios crus por estados dignos                                */
+/* - criar respiro vertical entre mensagens                                   */
+/* -------------------------------------------------------------------------- */
+
+.thread-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  width: min(100%, 980px);
+  margin-inline: auto;
+  box-sizing: border-box;
+}
+
+.thread-shell__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+}
+
+.thread-shell__empty {
+  max-width: 620px;
+  margin: 2rem auto;
+  padding: 22px 20px;
+  border: 1px dashed var(--surface-border);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+  text-align: center;
+  box-shadow: var(--box-shadow);
+}
+
+.thread-shell__empty-title {
+  margin: 0 0 8px;
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.thread-shell__empty-text {
+  margin: 0;
+  line-height: 1.55;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+}
+
+@media (max-width: 768px) {
+  .thread-shell__stack {
+    gap: 10px;
+  }
+
+  .thread-shell__empty {
+    margin: 1rem auto;
+    padding: 18px 16px;
+    border-radius: 14px;
+  }
+}

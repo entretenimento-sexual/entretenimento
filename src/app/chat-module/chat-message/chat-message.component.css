@@ -1,126 +1,172 @@
-/* src\app\chat-module\chat-message\chat-message.component.css */
-.chat-message {
-  margin: 8px 0;
-  padding: 10px 14px;
-  border-radius: 12px;
+/* src/app/chat-module/chat-message/chat-message.component.css */
+/* -------------------------------------------------------------------------- */
+/* Mensagem individual                                                        */
+/* Objetivos desta versão:                                                    */
+/* - aproximar a thread do padrão de plataformas maiores                      */
+/* - reforçar distinção entre enviada e recebida                              */
+/* - reduzir ruído no header/footer                                           */
+/* - manter acessibilidade e delete discreto                                  */
+/* -------------------------------------------------------------------------- */
+
+.thread-message {
+  display: flex;
   width: 100%;
+}
+
+.thread-message__rail {
+  display: flex;
+  width: 100%;
+}
+
+.thread-message--sent .thread-message__rail {
+  justify-content: flex-end;
+}
+
+.thread-message--received .thread-message__rail {
+  justify-content: flex-start;
+}
+
+.thread-message__bubble {
+  width: fit-content;
   max-width: min(100%, 720px);
-  position: relative;
+  min-width: 160px;
   display: flex;
   flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  border-radius: 18px;
+  border: 1px solid var(--surface-border);
+  box-shadow: var(--box-shadow);
   box-sizing: border-box;
-  gap: 6px;
+  position: relative;
 }
 
-.message-sent {
-  background-color: #fee4ec;
-  align-self: flex-end;
-  text-align: right;
-  margin-left: auto;
+.thread-message--sent .thread-message__bubble {
+  background: color-mix(in oklab, var(--primary-color) 12%, var(--surface-color));
+  border-color: color-mix(in oklab, var(--primary-color) 28%, var(--surface-border));
+  border-bottom-right-radius: 8px;
 }
 
-.message-received {
-  background-color: #f0f0f0;
-  align-self: flex-start;
-  text-align: left;
-  margin-right: auto;
+.thread-message--received .thread-message__bubble {
+  background: var(--surface-color);
+  border-bottom-left-radius: 8px;
 }
 
-.message-header {
+.thread-message--room.thread-message--received .thread-message__bubble,
+.thread-message--room.thread-message--sent .thread-message__bubble {
+  background: color-mix(in oklab, var(--surface-color) 88%, transparent);
+}
+
+.thread-message__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
-.message-sender {
+.thread-message__sender {
   margin: 0;
-  font-weight: 600;
-  font-size: 0.92rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.2;
+  color: color-mix(in oklab, var(--text-color) 84%, transparent);
 }
 
-.message-content {
-  margin: 0;
-  line-height: 1.45;
-  word-break: break-word;
-  white-space: pre-wrap;
-}
-
-.message-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.message-time {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #666;
-}
-
-.message-status {
-  margin: 0;
-  font-size: 0.75rem;
-  color: #888;
-  text-align: right;
-  min-width: 36px;
-}
-
-.message-status.sent::before {
-  content: '✓';
-  color: #888;
-  font-size: 1.1em;
-  font-weight: 600;
-  margin-right: 2px;
-}
-
-.message-status.delivered::before {
-  content: '✓✓';
-  color: #888;
-  font-size: 1.1em;
-  font-weight: 600;
-  margin-right: 2px;
-}
-
-.message-status.read::before {
-  content: '✓✓';
-  color: #d1005c;
-  font-size: 1.1em;
-  font-weight: 600;
-  margin-right: 2px;
-}
-
-.message-delete-btn {
-  background: none;
-  border: none;
-  color: #d1005c;
-  cursor: pointer;
-  font-size: 1rem;
-  opacity: 0.75;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  margin-left: 8px;
+.thread-message__delete {
   flex: 0 0 auto;
+  border: none;
+  background: transparent;
+  color: var(--danger-color, #d1005c);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  padding: 0;
+  min-width: 28px;
+  min-height: 28px;
 }
 
-.message-delete-btn:hover {
+.thread-message__delete:hover,
+.thread-message__delete:focus-visible {
   opacity: 1;
   transform: scale(1.05);
 }
 
-@media (max-width: 640px) {
-  .chat-message {
-    padding: 10px 12px;
+.thread-message__content {
+  margin: 0;
+  font-size: 0.97rem;
+  line-height: 1.58;
+  word-break: break-word;
+  white-space: pre-wrap;
+  color: var(--text-color);
+}
+
+.thread-message__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.thread-message--sent .thread-message__footer {
+  justify-content: flex-end;
+}
+
+.thread-message__time,
+.thread-message__status {
+  margin: 0;
+  font-size: 0.74rem;
+  line-height: 1.2;
+}
+
+.thread-message__time {
+  color: color-mix(in oklab, var(--text-color) 58%, transparent);
+}
+
+.thread-message__status {
+  color: color-mix(in oklab, var(--text-color) 60%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 52px;
+  justify-content: flex-end;
+}
+
+.thread-message__status.sent::before {
+  content: '✓';
+  font-weight: 700;
+}
+
+.thread-message__status.delivered::before {
+  content: '✓✓';
+  font-weight: 700;
+}
+
+.thread-message__status.read::before {
+  content: '✓✓';
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+@media (max-width: 768px) {
+  .thread-message__bubble {
     max-width: 100%;
+    padding: 12px 14px 10px;
+    border-radius: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .thread-message__bubble {
+    min-width: 0;
+    width: 100%;
   }
 
-  .message-footer {
-    flex-direction: column;
+  .thread-message__footer {
     align-items: flex-start;
   }
 
-  .message-sent .message-footer {
+  .thread-message--sent .thread-message__footer {
     align-items: flex-end;
   }
 }

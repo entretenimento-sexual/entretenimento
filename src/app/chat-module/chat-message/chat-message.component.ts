@@ -118,46 +118,52 @@ export class ChatMessageComponent implements OnInit {
   // Sender
   // ---------------------------------------------------------------------------
 
-  private observeSenderName(): void {
-    this.message$
-      .pipe(
-        map((message) => ({
-          senderId: (message?.senderId ?? '').trim(),
-          nickname: (message?.nickname ?? '').trim(),
-        })),
-        distinctUntilChanged((a, b) => {
-          return a.senderId === b.senderId && a.nickname === b.nickname;
-        }),
-        switchMap(({ senderId, nickname }) => {
-          if (nickname) {
-            return of(nickname);
-          }
+private observeSenderName(): void {
+  this.message$
+    .pipe(
+      map((message) => ({
+        senderId: (message?.senderId ?? '').trim(),
+        nickname: (message?.nickname ?? '').trim(),
+      })),
+      distinctUntilChanged((a, b) => {
+        return a.senderId === b.senderId && a.nickname === b.nickname;
+      }),
+      switchMap(({ senderId, nickname }) => {
+        if (nickname) {
+          return of(nickname);
+        }
 
-          if (!senderId) {
+        if (!senderId) {
+          return of('Usuário desconhecido');
+        }
+
+        const isSelfMessage = senderId === this.currentUserUid;
+
+        const user$ = isSelfMessage
+          ? this.firestoreUserQuery.getUser$(senderId)
+          : this.firestoreUserQuery.getPublicUserById$(senderId);
+
+        return user$.pipe(
+          take(1),
+          map((user: IUserDados | null) => user?.nickname?.trim() || 'Usuário desconhecido'),
+          catchError((error) => {
+            this.reportError(
+              'Erro ao buscar nome do usuário.',
+              error,
+              { op: 'observeSenderName', senderId, isSelfMessage },
+              false
+            );
             return of('Usuário desconhecido');
-          }
-
-          return this.firestoreUserQuery.getUser(senderId).pipe(
-            take(1),
-            map((user: IUserDados | null) => user?.nickname?.trim() || 'Usuário desconhecido'),
-            catchError((error) => {
-              this.reportError(
-                'Erro ao buscar nome do usuário.',
-                error,
-                { op: 'observeSenderName', senderId },
-                false
-              );
-              return of('Usuário desconhecido');
-            })
-          );
-        }),
-        tap((nickname) => {
-          this.senderName = nickname || 'Usuário desconhecido';
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-  }
+          })
+        );
+      }),
+      tap((nickname) => {
+        this.senderName = nickname || 'Usuário desconhecido';
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    )
+    .subscribe();
+}
 
   // ---------------------------------------------------------------------------
   // UI helpers

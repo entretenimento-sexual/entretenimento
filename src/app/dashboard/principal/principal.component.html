@@ -1,227 +1,144 @@
 <!-- src/app/dashboard/principal/principal.component.html -->
-<div class="principal-container">
-  <!-- --------------------------------------------------------------------- -->
-  <!-- Hero / boas-vindas                                                     -->
-  <!-- --------------------------------------------------------------------- -->
-  <section class="welcome-section" aria-labelledby="principal-welcome-title">
-    <div class="welcome-section__header">
-      <div class="welcome-section__copy">
-        <h1 id="principal-welcome-title">
-          @if ((currentUserStatus$ | async) === 'ready') {
-            Bem-vindo de volta, {{ (currentUser$ | async)?.nickname }}!
-          } @else {
-            Bem-vindo de volta!
-          }
-        </h1>
-
-        <p>
-          Use este painel para acessar rapidamente as áreas mais importantes da plataforma.
-        </p>
-      </div>
-
-      <div class="welcome-section__actions">
-        @if (profileLink$ | async; as profileLink) {
-          <a class="btn btn-secondary" [routerLink]="profileLink">
-            Meu perfil
-          </a>
-        }
-
-        @if (preferencesLink$ | async; as preferencesLink) {
-          <a class="btn btn-secondary" [routerLink]="preferencesLink">
-            Preferências
-          </a>
-        }
-
-        <a class="btn btn-primary" routerLink="/subscription-plan">
-          Ver planos
-        </a>
-      </div>
-    </div>
-
-    <div class="welcome-stats" aria-label="Resumo rápido da conta">
-      <article class="welcome-stat-card">
-        <span class="welcome-stat-card__label">Solicitações pendentes</span>
-        <strong class="welcome-stat-card__value">
-          {{ pendingRequestsCount$ | async }}
-        </strong>
-        <a class="welcome-stat-card__link" routerLink="/friends/list">
-          Abrir amigos
-        </a>
-      </article>
-
-      <article class="welcome-stat-card">
-        <span class="welcome-stat-card__label">Amigos</span>
-        <strong class="welcome-stat-card__value">
-          {{ friendsCount$ | async }}
-        </strong>
-        <a class="welcome-stat-card__link" routerLink="/friends/list">
-          Ver lista
-        </a>
-      </article>
-
-      <article class="welcome-stat-card">
-        <span class="welcome-stat-card__label">Descoberta</span>
-        <strong class="welcome-stat-card__value">Agora</strong>
-        <a class="welcome-stat-card__link" routerLink="/dashboard/online">
-          Ver online
-        </a>
-      </article>
-    </div>
-  </section>
-
-  <!-- --------------------------------------------------------------------- -->
-  <!-- Ações rápidas                                                          -->
-  <!-- --------------------------------------------------------------------- -->
-  <section class="quick-actions-section" aria-labelledby="quick-actions-title">
-    <div class="section-heading">
-      <h2 id="quick-actions-title">Ações rápidas</h2>
-      <p>Atalhos diretos para as áreas mais usadas.</p>
-    </div>
-
-    <div class="quick-actions-grid">
-      <a class="quick-action-card" routerLink="/dashboard/online">
-        <span class="quick-action-card__icon" aria-hidden="true">🟢</span>
-        <strong>Usuários online</strong>
-        <span>Veja quem está disponível agora.</span>
-      </a>
-
-      <a class="quick-action-card" routerLink="/friends/list">
-        <span class="quick-action-card__icon" aria-hidden="true">🤝</span>
-        <strong>Amigos</strong>
-        <span>Gerencie amizades e solicitações.</span>
-      </a>
-
-      <a class="quick-action-card" routerLink="/chat">
-        <span class="quick-action-card__icon" aria-hidden="true">💬</span>
-        <strong>Chats</strong>
-        <span>Abra suas conversas rapidamente.</span>
-      </a>
-
-      @if (preferencesLink$ | async; as preferencesLink) {
-        <a class="quick-action-card" [routerLink]="preferencesLink">
-          <span class="quick-action-card__icon" aria-hidden="true">⚙️</span>
-          <strong>Preferências</strong>
-          <span>Ajuste descoberta e combinações.</span>
-        </a>
-      }
-
-      @if (profileLink$ | async; as profileLink) {
-        <a class="quick-action-card" [routerLink]="profileLink">
-          <span class="quick-action-card__icon" aria-hidden="true">👤</span>
-          <strong>Meu perfil</strong>
-          <span>Revise e atualize sua apresentação.</span>
-        </a>
-      }
-
-      <a class="quick-action-card" routerLink="/subscription-plan">
-        <span class="quick-action-card__icon" aria-hidden="true">⭐</span>
-        <strong>Planos</strong>
-        <span>Veja benefícios e evolução da conta.</span>
-      </a>
-    </div>
-  </section>
-
-  <!-- --------------------------------------------------------------------- -->
-  <!-- Usuários online                                                        -->
-  <!-- --------------------------------------------------------------------- -->
-  <section class="online-users-section" aria-labelledby="online-users-title">
-    <div class="section-heading section-heading--row">
-      <div>
-        <h2 id="online-users-title">Usuários online</h2>
-        <p>Uma visão rápida de quem está ativo agora.</p>
-      </div>
-
-      <a class="btn btn-secondary" routerLink="/dashboard/online">
-        Ver lista completa
-      </a>
-    </div>
-
-    <app-online-users></app-online-users>
-  </section>
-
-  <!-- --------------------------------------------------------------------- -->
-  <!-- Mídia / fotos                                                          -->
-  <!-- --------------------------------------------------------------------- -->
-  <section class="latest-photos-section" aria-labelledby="latest-photos-title">
-    <div class="section-heading">
-      <h2 id="latest-photos-title">Mídia em destaque</h2>
-      <p>
-        Esta área pode evoluir para últimas fotos, destaques ou publicações em evidência.
+<section class="principal-page" *ngIf="currentUser$ | async as currentUser">
+  <header class="principal-hero">
+    <div class="principal-hero__copy">
+      <p class="principal-hero__eyebrow">Painel principal</p>
+      <h1>Bem-vindo de volta, {{ currentUser.nickname || 'usuário' }}!</h1>
+      <p class="principal-hero__description">
+        Use a home para entender seu estado atual, ver o que exige atenção e entrar direto na descoberta.
       </p>
     </div>
 
-    <div class="placeholder-panel" role="note" aria-label="Área de mídia em evolução">
-      <p>
-        Assim que a vitrine de mídia estiver conectada a uma fonte real, ela pode aparecer aqui
-        sem precisar mudar a estrutura principal da dashboard.
-      </p>
-    </div>
-  </section>
+    <div class="principal-hero__actions">
+      <a class="btn btn-primary" routerLink="/dashboard/online">
+        Ver perfis agora
+      </a>
 
-  <!-- --------------------------------------------------------------------- -->
-  <!-- Amigos                                                                 -->
-  <!-- --------------------------------------------------------------------- -->
-  <section class="friends-section" aria-labelledby="friends-heading">
-    <div class="section-heading section-heading--row">
-      <div>
-        <h2 id="friends-heading">Seus amigos</h2>
-        <p>Filtre e acompanhe seus contatos de forma rápida.</p>
-      </div>
+      <a class="btn btn-secondary" routerLink="/chat/invite-list">
+        Meus convites
+      </a>
 
       <a class="btn btn-secondary" routerLink="/friends/list">
-        Ver todos
+        Minhas amizades
       </a>
     </div>
+  </header>
 
-    <!-- Toolbar -->
-    <div
-      role="toolbar"
-      aria-labelledby="friends-heading"
-      class="friends-toolbar"
-    >
-      <button
-        class="btn btn-secondary"
-        type="button"
-        (click)="toggleExpand()"
-        aria-controls="friends-list-region"
-        [attr.aria-expanded]="expanded()"
-      >
-        {{ expanded() ? 'Compactar' : 'Expandir' }}
-      </button>
-
-      <label class="sr-only" for="sortSelect">Ordenar por</label>
-      <mat-select
-        id="sortSelect"
-        placeholder="Ordenar por"
-        [value]="sortBy()"
-        (valueChange)="onSortChange($event)"
-        class="friends-toolbar__select"
-      >
-        <mat-option value="online">Online</mat-option>
-        <mat-option value="recent">Recentes</mat-option>
-        <mat-option value="distance">Distância</mat-option>
-        <mat-option value="alpha">A–Z</mat-option>
-      </mat-select>
-
-      <mat-slide-toggle
-        [checked]="filters().onlyOnline ?? false"
-        (change)="onOnlyOnlineToggle($event.checked)"
-      >
-        Só online
-      </mat-slide-toggle>
+  <section class="principal-status-strip" *ngIf="currentUserStatus$ | async as currentStatus">
+    <div class="principal-status-strip__item">
+      <span class="principal-status-strip__label">Conta</span>
+      <strong class="principal-status-strip__value">
+        {{ currentStatus === 'ready' ? 'Pronta para uso' : 'Sincronizando' }}
+      </strong>
     </div>
 
-    <!-- Grid de cards -->
-    <div id="friends-list-region">
-      <app-friend-cards
-        [items]="(items$ | async) ?? []"
-        [isLoading]="(loading$ | async) ?? false"
-        [reachedEnd]="(reachedEnd$ | async) ?? false"
-        [displayMode]="expanded() ? 'full' : 'dashboard'"
-        [limit]="expanded() ? 0 : 6"
-        [sortBy]="sortBy()"
-        [filters]="{ onlyOnline: (filters().onlyOnline ?? false) }"
-      ></app-friend-cards>
+    <div class="principal-status-strip__item">
+      <span class="principal-status-strip__label">Descoberta</span>
+      <strong class="principal-status-strip__value">
+        {{ currentStatus === 'ready' ? 'Disponível' : 'Aguardando liberação' }}
+      </strong>
+    </div>
+
+    <div class="principal-status-strip__item">
+      <span class="principal-status-strip__label">Próximo passo</span>
+      <strong class="principal-status-strip__value">
+        Explorar perfis
+      </strong>
     </div>
   </section>
-</div>
+
+  <section class="principal-summary">
+    <article class="principal-summary__card">
+      <span class="principal-summary__label">Solicitações pendentes</span>
+      <strong class="principal-summary__value">
+        {{ (pendingRequestsCount$ | async) ?? 0 }}
+      </strong>
+      <a routerLink="/friends/list" class="principal-summary__link">
+        Abrir amizades
+      </a>
+    </article>
+
+    <article class="principal-summary__card">
+      <span class="principal-summary__label">Amigos</span>
+      <strong class="principal-summary__value">
+        {{ (friendsCount$ | async) ?? 0 }}
+      </strong>
+      <a routerLink="/friends/list" class="principal-summary__link">
+        Ver lista
+      </a>
+    </article>
+
+    <article class="principal-summary__card">
+      <span class="principal-summary__label">Descoberta</span>
+      <strong class="principal-summary__value">Agora</strong>
+      <a routerLink="/dashboard/online" class="principal-summary__link">
+        Ver perfis
+      </a>
+    </article>
+  </section>
+
+  <section class="principal-section-grid">
+    <article class="principal-panel principal-panel--highlight">
+      <div class="principal-panel__header">
+        <div>
+          <p class="principal-panel__eyebrow">Descoberta</p>
+          <h2>Perfis online</h2>
+        </div>
+      </div>
+
+      <p class="principal-panel__description">
+        Veja quem está online perto de você, ajuste o raio e abra perfis para interagir.
+      </p>
+
+      <div class="principal-panel__actions">
+        <a class="btn btn-primary" routerLink="/dashboard/online">
+          Abrir descoberta
+        </a>
+      </div>
+    </article>
+
+    <article class="principal-panel">
+      <div class="principal-panel__header">
+        <div>
+          <p class="principal-panel__eyebrow">Relacionamentos</p>
+          <h2>Amizades e convites</h2>
+        </div>
+      </div>
+
+      <p class="principal-panel__description">
+        Gerencie solicitações, acompanhe convites recebidos e veja sua lista de amigos.
+      </p>
+
+      <div class="principal-panel__actions">
+        <a class="btn btn-secondary" routerLink="/friends/list">
+          Amizades
+        </a>
+        <a class="btn btn-secondary" routerLink="/chat/invite-list">
+          Convites
+        </a>
+      </div>
+    </article>
+
+    <article class="principal-panel">
+      <div class="principal-panel__header">
+        <div>
+          <p class="principal-panel__eyebrow">Conversas</p>
+          <h2>Chats e salas</h2>
+        </div>
+      </div>
+
+      <p class="principal-panel__description">
+        Entre nas conversas em andamento e acesse rapidamente suas salas.
+      </p>
+
+      <div class="principal-panel__actions">
+        <a class="btn btn-secondary" routerLink="/chat-list">
+          Chats
+        </a>
+        <a class="btn btn-secondary" routerLink="/chat-rooms">
+          Salas
+        </a>
+      </div>
+    </article>
+  </section>
+</section>

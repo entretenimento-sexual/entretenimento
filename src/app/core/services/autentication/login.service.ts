@@ -49,7 +49,6 @@ import { IUserDados } from '../../interfaces/iuser-dados';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 import { environment } from 'src/environments/environment';
-import { CurrentUserStoreService } from './auth/current-user-store.service';
 import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 
 export interface LoginResult {
@@ -59,6 +58,16 @@ export interface LoginResult {
   code?: string;
   message?: string;
   needsProfileCompletion?: boolean;
+
+  /**
+   * resolved:
+   * - users/{uid} foi lido de forma resolvida
+   *
+   * unknown:
+   * - houve fallback para Auth mínimo
+   * - não tratar como decisão final de onboarding
+   */
+  profileResolution?: 'resolved' | 'unknown';
 }
 
 type SessionMode = 'local' | 'session' | 'none';
@@ -332,25 +341,33 @@ export class LoginService {
   // Model helpers
   // ---------------------------------------------------------------------------
 
-  /**
-   * Estado mínimo derivado do Firebase Auth.
-   *
-   * Usado como fallback quando:
-   * - users/{uid} ainda não chegou
-   * - leitura do Firestore falha
-   * - o doc ainda está propagando
-   */
-  private minimalFromAuth(user: User): IUserDados {
-    return {
-      uid: user.uid,
-      email: user.email ?? '',
-      nickname: user.displayName ?? (user.email ? user.email.split('@')[0] : 'Usuário'),
-      emailVerified: !!user.emailVerified,
-      isSubscriber: false,
-      profileCompleted: false,
-      role: 'basic' as any,
-    } as IUserDados;
-  }
+/**
+ * Estado mínimo derivado do Firebase Auth.
+ *
+ * Ajuste:
+ * - não marcamos mais profileCompleted=false como verdade forte.
+ * - isso evita empurrar onboarding prematuro quando o Firestore ainda não respondeu.
+ */
+private minimalFromAuth(user: User): IUserDados {
+  return {
+    uid: user.uid,
+    email: user.email ?? '',
+    nickname: user.displayName ?? (user.email ? user.email.split('@')[0] : 'Usuário'),
+    emailVerified: !!user.emailVerified,
+    isSubscriber: false,
+
+    /**
+     * SUPRESSÃO EXPLÍCITA:
+     * - removido profileCompleted: false no fallback mínimo.
+     *
+     * Motivo:
+     * - fallback de Auth não deve fingir que o perfil foi resolvido como incompleto.
+     */
+    profileCompleted: undefined,
+
+    role: 'basic' as any,
+  } as IUserDados;
+}
 
   /**
    * Regras mínimas de completude.
@@ -386,14 +403,14 @@ export class LoginService {
     } as IUserDados;
   }
 
-  /**
-   * Faz um snapshot único do users/{uid} após login.
-   *
-   * Importante:
-   * - não abre listener realtime aqui
-   * - falha de Firestore NÃO derruba o login
-   * - se o doc ainda não existir no primeiro instante, retry curto ajuda
-   */
+/**
+ * Faz um snapshot único do users/{uid} após login.
+ *
+ * Ajuste:
+ * - erro de leitura agora cai em "unknown", não em "incomplete resolvido"
+ * - null continua significando leitura resolvida sem doc
+ * - undefined significa fallback por falha/timeout
+ */
 private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
   if (!authUser?.uid) {
     return of({
@@ -414,7 +431,11 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
         { uid: authUser.uid }
       );
 
-      return of(null);
+      /**
+       * undefined = profile não resolvido
+       * null      = resolvido, mas sem doc
+       */
+      return of(undefined);
     }),
     map((firestoreUser) => {
       const effectiveUser = this.buildEffectiveUser(
@@ -422,11 +443,18 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
         firestoreUser as IUserDados | null | undefined
       );
 
+      const profileResolution: 'resolved' | 'unknown' =
+        firestoreUser === undefined ? 'unknown' : 'resolved';
+
       return {
         success: true,
         emailVerified: !!authUser.emailVerified,
         user: effectiveUser,
-        needsProfileCompletion: this.needsProfileCompletion(effectiveUser),
+        profileResolution,
+        needsProfileCompletion:
+          profileResolution === 'resolved'
+            ? this.needsProfileCompletion(effectiveUser)
+            : undefined,
       } as LoginResult;
     })
   );

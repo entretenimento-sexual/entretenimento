@@ -3,24 +3,29 @@
 //
 // Ajustes desta versão:
 // - usa AuthSessionService como fonte canônica do UID
-// - evita subscriptions sem teardown
+// - consome o store sem ser owner do inbox
 // - centraliza tratamento de erro
-// - mantém nomenclaturas públicas (loadInvites / respondToInvite)
-// - envia StopInvites() quando a sessão some ou quando o componente é destruído,
-//   para garantir que o listener realtime do effect seja desligado
+// - mantém nomenclaturas públicas (respondToInvite)
+// - o owner global de LoadInvites / StopInvites agora fica no LayoutShellComponent
+// - fecha o fluxo real de aceitar/recusar
 import { Component, DestroyRef, OnDestroy, OnInit, inject } from '@angular/core';
 import { Store } from '@ngrx/store';
-import { of } from 'rxjs';
-import { catchError, distinctUntilChanged, map, tap } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { catchError, distinctUntilChanged, map, shareReplay, tap } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AppState } from 'src/app/store/states/app.state';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 import {
-  LoadInvites,
-  StopInvites,
+  AcceptInvite,
+  DeclineInvite,
 } from 'src/app/store/actions/actions.chat/invite.actions';
-import { selectInvites } from 'src/app/store/selectors/selectors.chat/invite.selectors';
+import {
+  selectInvitesError,
+  selectInvitesLoading,
+  selectPendingInvites,
+  selectPendingInvitesCount,
+} from 'src/app/store/selectors/selectors.chat/invite.selectors';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -35,8 +40,19 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 export class InviteListComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
 
-  invites: Invite[] = [];
   userId: string | null = null;
+
+  readonly pendingCount$: Observable<number> =
+    this.store.select(selectPendingInvitesCount);
+
+  readonly loading$: Observable<boolean> =
+    this.store.select(selectInvitesLoading);
+
+  readonly error$: Observable<string | null> =
+    this.store.select(selectInvitesError);
+
+  readonly invites$: Observable<Invite[]> =
+    this.store.select(selectPendingInvites);
 
   constructor(
     private readonly authSession: AuthSessionService,
@@ -47,26 +63,12 @@ export class InviteListComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.observeAuthenticatedUid();
-    this.observeInvitesState();
   }
 
   ngOnDestroy(): void {
-    /**
-     * Importante:
-     * - takeUntilDestroyed() desmonta as subscriptions do componente
-     * - mas o inbox realtime vive no effect
-     * - por isso precisamos sinalizar parada explícita da feature
-     */
-    this.store.dispatch(StopInvites());
-    this.invites = [];
     this.userId = null;
   }
 
-  /**
-   * Observa o UID autenticado.
-   * - Quando existe UID, carrega convites.
-   * - Quando não existe, dispara StopInvites e limpa o estado local sem toast agressivo.
-   */
   private observeAuthenticatedUid(): void {
     this.authSession.uid$
       .pipe(
@@ -74,19 +76,6 @@ export class InviteListComponent implements OnInit, OnDestroy {
         distinctUntilChanged(),
         tap((uid) => {
           this.userId = uid;
-
-          if (uid) {
-            this.loadInvites(uid);
-            return;
-          }
-
-          /**
-           * Sessão terminou / uid sumiu:
-           * - para o inbox realtime da feature
-           * - limpa estado local do componente
-           */
-          this.store.dispatch(StopInvites());
-          this.invites = [];
         }),
         catchError((error) => {
           this.reportError(
@@ -95,9 +84,7 @@ export class InviteListComponent implements OnInit, OnDestroy {
             { op: 'observeAuthenticatedUid' }
           );
 
-          this.store.dispatch(StopInvites());
           this.userId = null;
-          this.invites = [];
           return of(null);
         }),
         takeUntilDestroyed(this.destroyRef)
@@ -105,51 +92,65 @@ export class InviteListComponent implements OnInit, OnDestroy {
       .subscribe();
   }
 
-  /**
-   * Observa a lista de convites no store.
-   */
-  private observeInvitesState(): void {
-    this.store.select(selectInvites)
-      .pipe(
-        tap((invites) => {
-          this.invites = Array.isArray(invites) ? invites : [];
-          console.log('Convites carregados:', this.invites);
-        }),
-        catchError((error) => {
-          this.reportError(
-            'Erro ao carregar convites do estado.',
-            error,
-            { op: 'observeInvitesState' }
-          );
-
-          this.invites = [];
-          return of([]);
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-  }
-
-  loadInvites(userId: string): void {
-    const uid = (userId ?? '').trim();
-    if (!uid) return;
-
-    this.store.dispatch(LoadInvites({ userId: uid }));
-  }
-
   respondToInvite(invite: Invite, status: 'accepted' | 'declined'): void {
-    if (!this.userId || !invite.id) {
+    if (!this.userId || !invite?.id) {
       this.errorNotifier.showError('Erro ao processar resposta ao convite.');
       return;
     }
 
-    // Mantido como placeholder porque a implementação da action/effect
-    // de resposta não foi incluída neste trecho.
+    if (status === 'accepted') {
+      this.store.dispatch(AcceptInvite({ inviteId: invite.id }));
+      return;
+    }
+
+    this.store.dispatch(DeclineInvite({ inviteId: invite.id }));
   }
 
-  /**
-   * Tratamento centralizado de erros.
-   */
+  trackByInviteId = (_: number, invite: Invite): string =>
+    invite.id ?? `${invite.receiverId ?? 'unknown'}-${invite.targetId ?? invite.roomId ?? 'unknown'}`;
+
+  getInviteTitle(invite: Invite): string {
+    return (
+      invite.targetName?.trim() ||
+      invite.roomName?.trim() ||
+      'Convite'
+    );
+  }
+
+  getInviteSubtitle(invite: Invite): string {
+    return (
+      invite.senderId?.trim() ||
+      invite.receiverId?.trim() ||
+      'Usuário não identificado'
+    );
+  }
+
+  formatInviteDate(value: unknown): string | null {
+    if (!value) return null;
+
+    if (value instanceof Date) {
+      return value.toLocaleString('pt-BR');
+    }
+
+    if (typeof value === 'number') {
+      return new Date(value).toLocaleString('pt-BR');
+    }
+
+    if (typeof value === 'string') {
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('pt-BR');
+    }
+
+    if (typeof value === 'object' && value !== null) {
+      const maybeTimestamp = value as { toDate?: () => Date };
+      if (typeof maybeTimestamp.toDate === 'function') {
+        return maybeTimestamp.toDate().toLocaleString('pt-BR');
+      }
+    }
+
+    return null;
+  }
+
   private reportError(
     userMessage: string,
     error: unknown,
@@ -174,4 +175,4 @@ export class InviteListComponent implements OnInit, OnDestroy {
       // noop
     }
   }
-} // Linha 177
+} // Linha 178

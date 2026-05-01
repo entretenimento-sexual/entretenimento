@@ -12,53 +12,107 @@ import { UserPublic } from '@core/interfaces/user-public.interface';
 
 import { FirestoreErrorHandlerService } from '../error-handler/firestore-error-handler.service';
 
-import { UsersReadRepository } from './firestore/repositories/users-read.repository';
 import { UserStateCacheService } from './firestore/state/user-state-cache.service';
 import { UserRepositoryService } from './firestore/repositories/user-repository.service';
+import { UserDiscoveryQueryService } from './queries/user-discovery.query.service';
+import { UsersReadRepository } from './firestore/repositories/users-read.repository';
 
 @Injectable({ providedIn: 'root' })
 export class FirestoreUserQueryService {
-  constructor(
-    private readonly firestoreError: FirestoreErrorHandlerService,
-    private readonly usersReadRepo: UsersReadRepository,
-    private readonly userStateCache: UserStateCacheService,
-
-    // ✅ DONO oficial do "pegar usuário"
-    private readonly userRepo: UserRepositoryService
-  ) { }
+constructor(
+  private readonly firestoreError: FirestoreErrorHandlerService,
+  private readonly usersReadRepo: UsersReadRepository,
+  private readonly userStateCache: UserStateCacheService,
+  private readonly userRepo: UserRepositoryService,
+  private readonly discoveryQuery: UserDiscoveryQueryService
+) { }
 
   // ============================================================
   // Public map (batch) - pode migrar para UserRepositoryService depois
   // ============================================================
-  getUsersPublicMap$(uids: string[]): Observable<Record<string, UserPublic>> {
-    const ids = Array.from(new Set((uids ?? []).filter(Boolean).map(x => String(x).trim()).filter(Boolean)));
-    if (!ids.length) return of({});
+/**
+ * Public map (batch)
+ *
+ * Ajuste principal:
+ * - deixa de ler /users (privado)
+ * - passa a ler /public_profiles via UserDiscoveryQueryService
+ *
+ * Motivo:
+ * - fluxo público/social não deve depender de query/list em /users
+ * - suas rules já suportam public_profiles para leitura autenticada
+ */
+getUsersPublicMap$(uids: string[]): Observable<Record<string, UserPublic>> {
+  const ids = Array.from(
+    new Set((uids ?? []).filter(Boolean).map(x => String(x).trim()).filter(Boolean))
+  );
 
-    return this.usersReadRepo.getUsersByUidsOnce$(ids).pipe(
-      map((users) => {
-        const out: Record<string, UserPublic> = {};
+  if (!ids.length) return of({});
 
-        for (const u of users ?? []) {
-          if (!u?.uid) continue;
+  return this.discoveryQuery.getProfilesByUids$(ids, { cacheTTL: 30_000 }).pipe(
+    map((users) => {
+      const out: Record<string, UserPublic> = {};
 
-          out[u.uid] = {
-            uid: u.uid,
-            nickname: (u as any)?.nickname ?? (u as any)?.displayName ?? (u as any)?.name ?? undefined,
-            avatarUrl: (u as any)?.photoURL ?? (u as any)?.avatarUrl ?? (u as any)?.imageUrl ?? undefined,
-          };
+      for (const u of users ?? []) {
+        if (!u?.uid) continue;
 
-          // padroniza: store + cache via serviço dedicado
-          this.userStateCache.upsertUser(u);
-        }
+        out[u.uid] = {
+          uid: u.uid,
+          nickname:
+            (u as any)?.nickname ??
+            (u as any)?.displayName ??
+            (u as any)?.name ??
+            undefined,
+          avatarUrl:
+            (u as any)?.photoURL ??
+            (u as any)?.avatarUrl ??
+            (u as any)?.imageUrl ??
+            undefined,
+        };
 
-        return out;
-      }),
-      catchError((err) => {
-        this.firestoreError.handleFirestoreError(err);
-        return of({});
-      })
-    );
-  }
+        /**
+         * Mantém a mesma estratégia anterior:
+         * padroniza passagem pelo cache/state local para UX consistente.
+         */
+        this.userStateCache.upsertUser(u);
+      }
+
+      return out;
+    }),
+    catchError((err) => {
+      this.firestoreError.handleFirestoreError(err);
+      return of({});
+    })
+  );
+}
+
+/**
+ * Perfil público por UID.
+ *
+ * Uso:
+ * - páginas de perfil de terceiros
+ * - modais/cards públicos
+ *
+ * Não consulta /users.
+ * Consulta /public_profiles via discovery.
+ */
+getPublicUserById$(uid: string): Observable<IUserDados | null> {
+  const id = (uid ?? '').trim();
+  if (!id) return of(null);
+
+  return this.discoveryQuery.getProfilesByUids$([id], { cacheTTL: 30_000 }).pipe(
+    map((profiles) => {
+      const first = Array.isArray(profiles) ? profiles[0] ?? null : null;
+      if (first) {
+        this.userStateCache.upsertUser(first);
+      }
+      return first;
+    }),
+    catchError((err) => {
+      this.firestoreError.handleFirestoreError(err);
+      return of(null);
+    })
+  );
+}
 
   // ============================================================
   // Exists (server)

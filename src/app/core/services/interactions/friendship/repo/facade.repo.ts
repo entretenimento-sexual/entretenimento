@@ -1,17 +1,24 @@
-// src\app\core\services\interactions\friendship\repo\facade.repo.ts
+// src/app/core/services/interactions/friendship/repo/facade.repo.ts
 // Nomes trocados podem causar confusão, exporta FriendshipRepo
 // Não esquecer comentários e ferramentas de debug
 import { Injectable, inject } from '@angular/core';
 import {
-  Firestore, collection, getDocs, query, where,
-  doc, getDoc, CollectionReference, QuerySnapshot
+  Firestore,
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  getDoc,
+  CollectionReference,
+  QuerySnapshot
 } from '@angular/fire/firestore';
 import { DocumentData } from 'firebase/firestore';
 import { FriendsRepo } from './friends.repo';
 import { BlocksRepo } from './blocks.repo';
 import { CooldownRepo } from './cooldown.repo';
 import { RequestsRepo } from './requests.repo';
-import { map, from, Observable } from 'rxjs';
+import { map, from, Observable, of } from 'rxjs';
 import { IUserDados } from '../../../../interfaces/iuser-dados';
 
 @Injectable({ providedIn: 'root' })
@@ -52,22 +59,62 @@ export class FriendshipRepo {
   isAlreadyFriends(a: string, b: string) { return this.getFriendDoc$(a, b); }
   isBlockedByA(owner: string, target: string) { return this.getBlockedDoc$(owner, target); }
 
-  /* Busca direta via Firestore */
+  /**
+   * Busca pública por apelido.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - removido query em /users com nicknameLower
+   *
+   * Motivo:
+   * - fluxo social/público deve consultar /public_profiles
+   * - suas rules públicas já permitem leitura autenticada nessa coleção
+   */
   searchUsers(term: string) {
     const q = (term ?? '').trim().toLowerCase();
-    if (!q) return from(Promise.resolve([] as IUserDados[]));
-    const usersCol = collection(this.db, 'users') as CollectionReference<DocumentData>;
-    const qRef = query(usersCol, where('nicknameLower', '>=', q), where('nicknameLower', '<=', q + '\uf8ff'));
+    if (!q) return of([] as IUserDados[]);
+
+    const profilesCol = collection(this.db, 'public_profiles') as CollectionReference<DocumentData>;
+    const qRef = query(
+      profilesCol,
+      where('nicknameNormalized', '>=', q),
+      where('nicknameNormalized', '<=', q + '\uf8ff')
+    );
+
     return from(getDocs(qRef)).pipe(
       map((snap: QuerySnapshot<DocumentData>) =>
-        snap.docs.map(d => ({ uid: d.id, ...(d.data() as any) } as IUserDados))
+        snap.docs.map(d => {
+          const data = d.data() as any;
+          return {
+            uid: data.uid ?? d.id,
+            ...data,
+          } as IUserDados;
+        })
       )
     );
   }
 
+  /**
+   * Perfil público de terceiro.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - removido get em /users/{uid}
+   *
+   * Motivo:
+   * - para fluxo público/social, a fonte correta é /public_profiles/{uid}
+   */
   getUserByUid(uid: string): Observable<IUserDados | null> {
-    return from(getDoc(doc(this.db, `users/${uid}`))).pipe(
-      map(d => (d.exists() ? ({ uid: d.id, ...(d.data() as any) } as IUserDados) : null))
+    const safeUid = (uid ?? '').trim();
+    if (!safeUid) return of(null);
+
+    return from(getDoc(doc(this.db, `public_profiles/${safeUid}`))).pipe(
+      map(d => {
+        if (!d.exists()) return null;
+        const data = d.data() as any;
+        return {
+          uid: data.uid ?? d.id,
+          ...data,
+        } as IUserDados;
+      })
     );
   }
 

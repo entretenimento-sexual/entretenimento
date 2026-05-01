@@ -33,9 +33,6 @@ import {
   shareReplay
 } from 'rxjs/operators';
 
-import { OnlineUsersComponent } from '../online/online-users/online-users.component';
-import { FriendCardsComponent } from 'src/app/layout/friend-management/friend-cards/friend-cards.component';
-
 import { AppState } from 'src/app/store/states/app.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
@@ -72,8 +69,7 @@ import { environment } from 'src/environments/environment';
     MatSlideToggleModule,
     MatOptionModule,
     MatSelectModule,
-    OnlineUsersComponent,
-    FriendCardsComponent
+
   ],
 })
 export class PrincipalComponent implements OnInit {

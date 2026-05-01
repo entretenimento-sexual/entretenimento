@@ -9,10 +9,8 @@
    - navbar fica mais baixa sem mexer no token global
    ============================================================================
 */
-
 :host {
   display: block;
-  --navbar-effective-height: clamp(64px, 4.4vw, 72px);
 }
 
 /* Wrapper */
@@ -28,7 +26,7 @@
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: var(--navbar-effective-height);
+  min-height: var(--header-height);
   background: var(--header-bg);
   color: var(--header-fg);
   border-bottom: 1px solid var(--surface-border);
@@ -40,7 +38,7 @@
   align-items: center;
   justify-content: flex-start;
   width: 100%;
-  min-height: var(--navbar-effective-height);
+  min-height: var(--header-height);
   padding-inline: clamp(16px, 3vw, 28px);
   gap: 14px;
   box-sizing: border-box;

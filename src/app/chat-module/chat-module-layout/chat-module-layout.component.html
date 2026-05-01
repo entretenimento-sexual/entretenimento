@@ -1,94 +1,59 @@
-<!-- src\app\chat-module\chat-module-layout\chat-module-layout.component.html -->
-<div class="chat-module-container">
-  <aside class="chat-sidebar" aria-label="Painel lateral do bate-papo">
-    <section class="chat-sidebar__profile" aria-label="Perfil atual">
-      @if (usuario$ | async; as usuario) {
-        <img
-          [ngSrc]="usuario.photoURL || '/assets/imagem-padrao.webp'"
-          width="80"
-          height="80"
-          alt="Foto do perfil atual"
-          class="foto-chat"
-          priority
-        />
-
-        <div class="chat-sidebar__profile-text">
-          <p class="chat-sidebar__nickname">
-            {{ usuario.nickname || 'Usuário' }}
-          </p>
-
-          <p class="chat-sidebar__hint">
-            Conversas diretas em destaque
-          </p>
-        </div>
-      } @else {
-        <img
-          [ngSrc]="'/assets/imagem-padrao.webp'"
-          width="80"
-          height="80"
-          alt="Foto do perfil atual"
-          class="foto-chat"
-          priority
-        />
-
-        <div class="chat-sidebar__profile-text">
-          <p class="chat-sidebar__nickname">Usuário</p>
-          <p class="chat-sidebar__hint">
-            Conversas diretas em destaque
-          </p>
-        </div>
-      }
-    </section>
-
-    <section class="chat-sidebar__list" aria-label="Conversas recentes">
-      <app-chat-list (chatSelected)="onChatSelected($event)"></app-chat-list>
-    </section>
-
-    <section class="chat-sidebar__rooms" aria-label="Salas de bate-papo">
-      <details class="rooms-panel">
-        <summary class="rooms-panel__summary">
-          Salas e interações em grupo
-        </summary>
-
-        <div class="rooms-panel__content">
-          <app-chat-rooms (roomSelected)="onRoomSelected($event)"></app-chat-rooms>
-        </div>
-      </details>
+<!-- src/app/chat-module/chat-module-layout/chat-module-layout.component.html -->
+<div class="chat-shell">
+  <aside class="chat-shell__sidebar" aria-label="Lista de conversas">
+    <section class="chat-shell__sidebar-body">
+      <app-chat-list
+        [activeChatId]="selectedChatId"
+        [activeType]="selectedType"
+        (chatSelected)="onChatSelected($event)"
+      ></app-chat-list>
     </section>
   </aside>
 
-  <main class="chat-main" aria-label="Área principal da conversa">
-    <header class="chat-main__header">
+  <main class="chat-shell__main" aria-label="Área principal da conversa">
+    <header class="chat-shell__main-header">
       @if (selectedType === 'chat') {
-        <div class="chat-main__context">
-          <h2 class="chat-main__title">Conversa direta</h2>
-          <p class="chat-main__subtitle">
-            Canal principal entre dois perfis
-          </p>
+        <div class="chat-shell__main-context chat-shell__main-context--direct">
+          <img
+            [src]="activeChatPeerPhotoURL || '/assets/imagem-padrao.webp'"
+            alt="Foto do perfil da conversa ativa"
+            class="chat-shell__main-avatar"
+            loading="lazy"
+          />
+
+          <div class="chat-shell__main-context-copy">
+            <p class="chat-shell__main-kicker">Conversa direta</p>
+            <h2 class="chat-shell__main-title">{{ activeDirectChatTitle }}</h2>
+            <p class="chat-shell__main-subtitle">
+              {{ activeDirectChatSubtitle }}
+            </p>
+          </div>
         </div>
       }
 
       @if (selectedType === 'room') {
-        <div class="chat-main__context">
-          <h2 class="chat-main__title">Sala de bate-papo</h2>
-          <p class="chat-main__subtitle">
-            Compat mantido para interações em grupo
+        <div class="chat-shell__main-context">
+          <p class="chat-shell__main-kicker">Sala</p>
+          <h2 class="chat-shell__main-title">Sala de bate-papo</h2>
+          <p class="chat-shell__main-subtitle">
+            Interação em grupo mantida em compatibilidade.
           </p>
         </div>
       }
 
       @if (!selectedType) {
-        <div class="chat-main__context">
-          <h2 class="chat-main__title">Mensagens</h2>
-          <p class="chat-main__subtitle">
-            Selecione uma conversa direta ou uma sala
+        <div class="chat-shell__main-context">
+          <p class="chat-shell__main-kicker">Mensagens</p>
+          <h2 class="chat-shell__main-title">Nenhuma conversa aberta</h2>
+          <p class="chat-shell__main-subtitle">
+            Selecione uma conversa à esquerda para começar.
           </p>
         </div>
       }
     </header>
 
-    <section class="chat-content">
-      <div class="chat-area">
+    <section class="chat-shell__content">
+      <div class="chat-shell__thread">
         @if (selectedType === 'room') {
           @if (selectedChatId; as activeRoomId) {
             <app-room-interaction [roomId]="activeRoomId"></app-room-interaction>
@@ -105,17 +70,27 @@
         }
 
         @if (!selectedType || !selectedChatId) {
-          <div class="chat-empty-state" role="status" aria-live="polite">
-            <p class="chat-empty-state__title">Nenhuma conversa selecionada.</p>
-            <p class="chat-empty-state__text">
-              Escolha uma conversa direta na lateral para começar.
+          <div class="chat-shell__empty-state" role="status" aria-live="polite">
+            <p class="chat-shell__empty-title">Nenhuma conversa aberta ainda.</p>
+            <p class="chat-shell__empty-text">
+              Explore perfis, inicie um chat direto ou acompanhe seus convites para movimentar esta área.
             </p>
+
+            <div class="chat-shell__empty-actions">
+              <a class="btn btn-primary" routerLink="/dashboard/online">
+                Explorar perfis
+              </a>
+
+              <a class="btn btn-secondary" routerLink="/chat/invite-list">
+                Ver convites
+              </a>
+            </div>
           </div>
         }
       </div>
 
       @if (selectedType && selectedChatId) {
-        <footer class="chat-input" aria-label="Área de envio de mensagem">
+        <footer class="chat-shell__input" aria-label="Área de envio de mensagem">
           <textarea
             [(ngModel)]="messageContent"
             (keydown.enter)="sendMessage(); $event.preventDefault()"
@@ -125,7 +100,7 @@
 
           <button
             type="button"
-            class="chat-input__send"
+            class="chat-shell__send"
             (click)="sendMessage()">
             Enviar
           </button>

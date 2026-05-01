@@ -24,6 +24,7 @@ import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import * as InviteActions from '../../actions/actions.chat/invite.actions';
 import { authSessionChanged } from '../../actions/actions.user/auth.actions';
+import { ChatNotificationService } from '@core/services/batepapo/chat-notification.service';
 
 import {
   map,
@@ -41,11 +42,12 @@ import { RoomInviteFlowService } from '@core/services/batepapo/room-services/roo
 
 @Injectable()
 export class InviteEffects {
-  constructor(
-    private readonly actions$: Actions,
-    private readonly inbox: InviteInboxService,
-    private readonly roomInviteFlow: RoomInviteFlowService
-  ) {}
+constructor(
+  private readonly actions$: Actions,
+  private readonly inbox: InviteInboxService,
+  private readonly roomInviteFlow: RoomInviteFlowService,
+  private readonly chatNotification: ChatNotificationService
+) {}
 
   /**
    * Stop manual da feature.
@@ -174,4 +176,40 @@ export class InviteEffects {
       )
     )
   );
-} // Linha 177
+
+  /**
+ * Sincroniza o badge global de convites com o resultado do inbox.
+ *
+ * Motivo:
+ * - o ChatNotificationService hoje expõe o contador,
+ *   mas não o deriva sozinho do store/inbox.
+ */
+syncPendingInvitesCount$ = createEffect(
+  () =>
+    this.actions$.pipe(
+      ofType(InviteActions.LoadInvitesSuccess),
+      tap(({ invites }) => {
+        const pendingCount = (invites ?? []).filter(
+          (invite) => invite?.status === 'pending'
+        ).length;
+
+        this.chatNotification.updatePendingInvites(pendingCount);
+      })
+    ),
+  { dispatch: false }
+);
+
+/**
+ * Reseta o badge quando a feature de convites é parada/limpa.
+ */
+resetPendingInvitesCount$ = createEffect(
+  () =>
+    this.actions$.pipe(
+      ofType(InviteActions.ClearInvitesState),
+      tap(() => {
+        this.chatNotification.resetPendingInvites();
+      })
+    ),
+  { dispatch: false }
+);
+} // Linha 215

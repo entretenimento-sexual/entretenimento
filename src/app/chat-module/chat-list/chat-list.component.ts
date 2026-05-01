@@ -2,36 +2,34 @@
 // ============================================================================
 // CHAT LIST COMPONENT
 //
-// Responsabilidade atual (fase de transição):
-// - exibir lista de chats diretos 1:1
-// - exibir lista de rooms
-// - emitir seleção de chat/room para o layout pai
-// - manter ações de room (editar, excluir, convidar)
-// - manter monitor/regras legadas APENAS para room
+// Responsabilidade atual:
+// - exibir lista lateral do módulo de mensagens
+// - tratar chats diretos e rooms como itens filtráveis da mesma caixa de entrada
+// - aplicar filtro por tipo (all/direct/rooms)
+// - aplicar busca textual real sobre diretas e rooms
+// - emitir seleção de chat/room para o container pai
+// - manter ações de owner para rooms
 //
-// SUPRESSÕES EXPLÍCITAS NESTA FASE:
-// - foi removido o monitor da thread ativa de chat 1:1 deste componente
-// - foi removida a lógica de read receipts do chat 1:1 deste componente
-// - foi removida a dependência direta do ChatService legado para o eixo 1:1
+// Ajustes desta versão:
+// - adiciona campo de busca real (searchTerm)
+// - adiciona listas filtradas por texto
+// - mantém "Salas" como chip discreto no topo
 //
-// Motivo:
-// - reduzir acoplamento
-// - tirar do ChatListComponent a responsabilidade de dono do chat direto
-// - preparar a migração para DirectChatFacade / DirectChatService
-//
-// Observação arquitetural:
-// - o 1:1 agora entra via DirectChatFacade
-// - rooms permanecem em compat temporária aqui
-// - o layout/containers continuam recebendo `chatSelected` como antes
+// SUPRESSÕES EXPLÍCITAS:
+// - removida a dependência de blocos explicativos duplicados
+// - removida a lógica de seção de rooms sempre exposta como bloco pesado
 // ============================================================================
 
 import {
   Component,
   DestroyRef,
   EventEmitter,
+  Input,
+  OnChanges,
   OnDestroy,
   OnInit,
   Output,
+  SimpleChanges,
   inject,
 } from '@angular/core';
 import { Router } from '@angular/router';
@@ -85,7 +83,15 @@ import { AccessControlService } from '@core/services/autentication/auth/access-c
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
-type ChatSelection = { id: string; type: 'room' | 'chat' };
+type ChatSelection = {
+  id: string;
+  type: 'room' | 'chat';
+  peerUid?: string | null;
+  peerName?: string | null;
+  peerPhotoURL?: string | null;
+};
+
+type ConversationFilter = 'all' | 'direct' | 'rooms';
 
 @Component({
   selector: 'app-chat-list',
@@ -93,43 +99,32 @@ type ChatSelection = { id: string; type: 'room' | 'chat' };
   styleUrls: ['./chat-list.component.css'],
   standalone: false,
 })
-export class ChatListComponent implements OnInit, OnDestroy {
-  /**
-   * Mantidos para compat com o template atual.
-   * O ideal futuro é o template consumir somente streams.
-   */
+export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
   rooms: IRoom[] = [];
   regularChats: IChat[] = [];
 
-  /**
-   * Streams públicas do componente.
-   */
   rooms$!: Observable<IRoom[]>;
   regularChats$!: Observable<IChat[]>;
+
+  @Input() activeChatId: string | undefined;
+  @Input() activeType: 'room' | 'chat' | undefined;
 
   @Output() chatSelected = new EventEmitter<ChatSelection>();
 
   /**
-   * Seleção atual, mantida por compat com CSS/template legado.
+   * Filtro ativo da lateral.
    */
-  selectedChatId: string | undefined;
+  activeFilter: ConversationFilter = 'all';
 
   /**
-   * UID atual para comparações rápidas locais.
+   * Busca textual real da lateral.
    */
+  searchTerm = '';
+
   private currentUserUid: string | null = null;
 
-  /**
-   * Monitor legado apenas para rooms.
-   *
-   * SUPRESSÃO EXPLÍCITA:
-   * - chat 1:1 não é mais monitorado aqui
-   */
   private readonly activeRoomSelection$ = new Subject<string>();
 
-  /**
-   * Anti-spam de writes de read receipts em room.
-   */
   private readonly roomReceiptAuditMs = 600;
   private readonly maxRoomReceiptUpdatesPerTick = 50;
 
@@ -137,34 +132,25 @@ export class ChatListComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
 
   constructor(
-    // Auth / acesso
     private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly access: AccessControlService,
 
-    // Novo eixo 1:1
     private readonly directChatFacade: DirectChatFacade,
     private readonly directChatService: DirectChatService,
 
-    // Eixo room / legado
     private readonly roomService: RoomService,
     private readonly roomMessages: RoomMessagesService,
     private readonly chatnotification: ChatNotificationService,
     private readonly roomManagement: RoomManagementService,
     private readonly inviteService: InviteService,
 
-    // UI
     public readonly dialog: MatDialog,
     private readonly router: Router,
 
-    // Erros centralizados
     private readonly globalError: GlobalErrorHandlerService,
     private readonly notifier: ErrorNotificationService
   ) {}
-
-  // ---------------------------------------------------------------------------
-  // Lifecycle
-  // ---------------------------------------------------------------------------
 
   ngOnInit(): void {
     this.dbg('ChatListComponent init');
@@ -176,19 +162,95 @@ export class ChatListComponent implements OnInit, OnDestroy {
     this.bindActiveRoomMonitor();
   }
 
-  ngOnDestroy(): void {
-    /**
-     * Nada manual por enquanto:
-     * - takeUntilDestroyed já encerra streams
-     * - subject de room não precisa complete imperativo nesta fase
-     *
-     * Mantido por contrato e por clareza arquitetural.
-     */
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['activeType']) {
+      if (this.activeType === 'room') {
+        this.activeFilter = 'rooms';
+      }
+    }
   }
 
-  // ---------------------------------------------------------------------------
-  // Binds
-  // ---------------------------------------------------------------------------
+  ngOnDestroy(): void {}
+
+  setActiveFilter(filter: ConversationFilter): void {
+    this.activeFilter = filter;
+  }
+
+  clearSearch(): void {
+    this.searchTerm = '';
+  }
+
+  get hasSearch(): boolean {
+    return this.normalizeText(this.searchTerm).length > 0;
+  }
+
+  get showDirectChats(): boolean {
+    return this.activeFilter === 'all' || this.activeFilter === 'direct';
+  }
+
+  get showRooms(): boolean {
+    return this.activeFilter === 'all' || this.activeFilter === 'rooms';
+  }
+
+  get roomsChipLabel(): string {
+    const count = this.filteredRooms.length;
+    return count > 0 ? `Salas ${count}` : 'Salas';
+  }
+
+  get filteredDirectChats(): IChat[] {
+    const term = this.normalizeText(this.searchTerm);
+    const source = this.regularChats ?? [];
+
+    if (!term) {
+      return source;
+    }
+
+    return source.filter((chat) => {
+      const nickname = this.normalizeText((chat as any)?.otherParticipantDetails?.nickname);
+      const preview = this.normalizeText(chat?.lastMessage?.content);
+      return nickname.includes(term) || preview.includes(term);
+    });
+  }
+
+  get filteredRooms(): IRoom[] {
+    const term = this.normalizeText(this.searchTerm);
+    const source = this.rooms ?? [];
+
+    if (!term) {
+      return source;
+    }
+
+    return source.filter((room) => {
+      const roomName = this.normalizeText(room?.roomName);
+      const description = this.normalizeText(room?.description);
+      return roomName.includes(term) || description.includes(term);
+    });
+  }
+
+  get hasVisibleDirectChats(): boolean {
+    return this.filteredDirectChats.length > 0;
+  }
+
+  get hasVisibleRooms(): boolean {
+    return this.filteredRooms.length > 0;
+  }
+
+  get shouldShowEmptyState(): boolean {
+    const noDirectWhenExpected = this.showDirectChats && !this.hasVisibleDirectChats && !this.showRooms;
+    const noRoomsWhenExpected = this.showRooms && !this.hasVisibleRooms && !this.showDirectChats;
+    const noAnything = !this.hasVisibleDirectChats && !this.hasVisibleRooms;
+    return noDirectWhenExpected || noRoomsWhenExpected || noAnything;
+  }
+
+  isDirectChatSelected(chatId: string | undefined): boolean {
+    const safeId = (chatId ?? '').trim();
+    return this.activeType === 'chat' && !!safeId && this.activeChatId === safeId;
+  }
+
+  isRoomSelected(roomId: string | undefined): boolean {
+    const safeId = (roomId ?? '').trim();
+    return this.activeType === 'room' && !!safeId && this.activeChatId === safeId;
+  }
 
   private bindCurrentUid(): void {
     this.authSession.uid$
@@ -211,9 +273,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
         tap(([_, uid]) => {
           if (!uid) {
             this.dbg('Sem sessão -> redirect /login (fallback)');
-            this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {
-              // noop
-            });
+            this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {});
           }
         }),
         takeUntilDestroyed(this.destroyRef)
@@ -231,12 +291,6 @@ export class ChatListComponent implements OnInit, OnDestroy {
           return of([] as IRoom[]);
         }
 
-        /**
-         * Compat atual:
-         * - mantém getUserRooms(uid)
-         * - quando a arquitetura de group-interactions nascer,
-         *   isso deve sair deste componente
-         */
         return this.roomService.getUserRooms(uid);
       }),
       map((rooms) => this.sortRoomsByActivity(rooms)),
@@ -261,7 +315,7 @@ export class ChatListComponent implements OnInit, OnDestroy {
       map((chats) => this.sortChatsByLastMessage(chats)),
       tap((chats) => this.dbg('Direct chats loaded', { count: chats.length })),
       catchError((err) => {
-        this.handleError('ChatList.regularChats$', err, true);
+        this.handleError('ChatList.regularChats$', err, false);
         return of([] as IChat[]);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -274,13 +328,6 @@ export class ChatListComponent implements OnInit, OnDestroy {
       });
   }
 
-  /**
-   * Monitor legado apenas de room.
-   *
-   * SUPRESSÃO EXPLÍCITA:
-   * - o monitor de chat 1:1 saiu deste componente
-   * - a thread 1:1 deve migrar para DirectThreadFacade / thread container
-   */
   private bindActiveRoomMonitor(): void {
     this.activeRoomSelection$
       .pipe(
@@ -320,20 +367,6 @@ export class ChatListComponent implements OnInit, OnDestroy {
       .subscribe();
   }
 
-  // ---------------------------------------------------------------------------
-  // Compat helpers para template legado
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Compat de transição:
-   * - o template atual ainda espera `IChat[]`
-   * - se faltar otherParticipantDetails, pedimos refresh best-effort
-   *
-   * Importante:
-   * - não bloqueia render
-   * - não faz enrichment síncrono
-   * - apenas dispara atualização de detalhes via camada nova
-   */
   private enrichDirectChatsForLegacyTemplate$(
     items: DirectChatListItem[]
   ): Observable<IChat[]> {
@@ -349,10 +382,6 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
     return of(chats);
   }
-
-  // ---------------------------------------------------------------------------
-  // Actions
-  // ---------------------------------------------------------------------------
 
   sendInvite(roomId: string | undefined, event: MouseEvent): void {
     event.stopPropagation();
@@ -440,39 +469,30 @@ export class ChatListComponent implements OnInit, OnDestroy {
       });
   }
 
-  isRoom(item: any): boolean {
-    return item?.isRoom === true;
-  }
-
-  /**
-   * Chat 1:1:
-   * - seleção local continua por compat
-   * - façade nova assume a seleção canônica do eixo direct-chat
-   * - este componente não monitora mais a thread do 1:1
-   */
-  selectChat(chatId: string | undefined): void {
-    const safeChatId = (chatId ?? '').trim();
+  selectChat(chat: IChat): void {
+    const safeChatId = (chat?.id ?? '').trim();
     if (!safeChatId) {
       this.dbg('selectChat: chatId undefined');
       return;
     }
 
-    if (this.selectedChatId === safeChatId) return;
+    if (this.activeType === 'chat' && this.activeChatId === safeChatId) {
+      return;
+    }
 
-    this.selectedChatId = safeChatId;
-
-    // Novo dono canônico da seleção 1:1
     this.directChatFacade.selectChat(safeChatId);
 
-    // Compat com o restante do módulo atual
-    this.chatSelected.emit({ id: safeChatId, type: 'chat' });
+    const peer = (chat as any)?.otherParticipantDetails;
+
+    this.chatSelected.emit({
+      id: safeChatId,
+      type: 'chat',
+      peerUid: (peer?.uid ?? '').trim() || null,
+      peerName: (peer?.nickname ?? '').trim() || null,
+      peerPhotoURL: (peer?.photoURL ?? '').trim() || null,
+    });
   }
 
-  /**
-   * Room:
-   * - permanece em compat nesta fase
-   * - o monitor de room continua aqui temporariamente
-   */
   selectRoom(roomId: string | undefined): void {
     const safeRoomId = (roomId ?? '').trim();
     if (!safeRoomId) {
@@ -480,12 +500,12 @@ export class ChatListComponent implements OnInit, OnDestroy {
       return;
     }
 
-    if (this.selectedChatId === safeRoomId) return;
+    if (this.activeType === 'room' && this.activeChatId === safeRoomId) {
+      return;
+    }
 
-    this.selectedChatId = safeRoomId;
+    this.activeFilter = 'rooms';
     this.chatSelected.emit({ id: safeRoomId, type: 'room' });
-
-    // Legado temporário: room ainda é monitorada aqui
     this.activeRoomSelection$.next(safeRoomId);
   }
 
@@ -550,22 +570,9 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   getOptimizedPhotoURL(originalURL: string | null | undefined): string {
     if (!originalURL) return '';
-    return `${originalURL}&w=40&h=40&fit=crop`;
+    return `${originalURL}&w=52&h=52&fit=crop`;
   }
 
-  // ---------------------------------------------------------------------------
-  // Room read receipts (legado temporário)
-  // ---------------------------------------------------------------------------
-
-  /**
-   * SUPRESSÃO EXPLÍCITA:
-   * - este método ficou restrito a ROOM
-   * - o branch de read receipts de chat 1:1 foi removido
-   *
-   * Motivo:
-   * - o 1:1 deve sair deste componente
-   * - room ainda permanece aqui por compatibilidade temporária
-   */
   private applyRoomReadReceipts$(
     roomId: string,
     myUid: string,
@@ -586,10 +593,6 @@ export class ChatListComponent implements OnInit, OnDestroy {
     );
   }
 
-  /**
-   * Se RoomMessagesService tiver markDeliveredAsRead$, usamos.
-   * Se não tiver, fallback com updateMessageStatus por id.
-   */
   private markRoomDeliveredAsRead$(
     roomId: string,
     myUid: string,
@@ -646,31 +649,61 @@ export class ChatListComponent implements OnInit, OnDestroy {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Sorting helpers
-  // ---------------------------------------------------------------------------
+  private normalizeText(value: unknown): string {
+    return String(value ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .trim()
+      .toLowerCase();
+  }
+
+  private coerceEpochMs(value: unknown): number {
+    if (!value) return 0;
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (value instanceof Date) {
+      return value.getTime();
+    }
+
+    if (typeof value === 'string') {
+      const parsed = Date.parse(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    const maybeAny = value as any;
+
+    if (typeof maybeAny?.toDate === 'function') {
+      const asDate = maybeAny.toDate();
+      return asDate instanceof Date ? asDate.getTime() : 0;
+    }
+
+    if (typeof maybeAny?.seconds === 'number') {
+      const nanos = typeof maybeAny?.nanoseconds === 'number' ? maybeAny.nanoseconds : 0;
+      return (maybeAny.seconds * 1000) + Math.floor(nanos / 1_000_000);
+    }
+
+    if (typeof maybeAny?._seconds === 'number') {
+      const nanos = typeof maybeAny?._nanoseconds === 'number' ? maybeAny._nanoseconds : 0;
+      return (maybeAny._seconds * 1000) + Math.floor(nanos / 1_000_000);
+    }
+
+    return 0;
+  }
 
   private sortRoomsByActivity(rooms: IRoom[]): IRoom[] {
     return (rooms ?? []).slice().sort((a, b) => {
       const timeA =
-        a.lastMessage?.timestamp?.toDate?.().getTime?.() ??
-        (a.lastActivity instanceof Date
-          ? a.lastActivity.getTime()
-          : (a.lastActivity as any)?.toDate?.().getTime?.() ?? 0) ??
-        (a.creationTime instanceof Date
-          ? a.creationTime.getTime()
-          : (a.creationTime as any)?.toDate?.().getTime?.() ?? 0) ??
-        0;
+        this.coerceEpochMs(a?.lastMessage?.timestamp) ||
+        this.coerceEpochMs(a?.lastActivity) ||
+        this.coerceEpochMs(a?.creationTime);
 
       const timeB =
-        b.lastMessage?.timestamp?.toDate?.().getTime?.() ??
-        (b.lastActivity instanceof Date
-          ? b.lastActivity.getTime()
-          : (b.lastActivity as any)?.toDate?.().getTime?.() ?? 0) ??
-        (b.creationTime instanceof Date
-          ? b.creationTime.getTime()
-          : (b.creationTime as any)?.toDate?.().getTime?.() ?? 0) ??
-        0;
+        this.coerceEpochMs(b?.lastMessage?.timestamp) ||
+        this.coerceEpochMs(b?.lastActivity) ||
+        this.coerceEpochMs(b?.creationTime);
 
       return timeB - timeA;
     });
@@ -678,25 +711,15 @@ export class ChatListComponent implements OnInit, OnDestroy {
 
   private sortChatsByLastMessage(chats: IChat[]): IChat[] {
     return (chats ?? []).slice().sort((a, b) => {
-      const timeA = a.lastMessage?.timestamp
-        ? a.lastMessage.timestamp.toDate().getTime()
-        : 0;
-
-      const timeB = b.lastMessage?.timestamp
-        ? b.lastMessage.timestamp.toDate().getTime()
-        : 0;
+      const timeA = this.coerceEpochMs(a?.lastMessage?.timestamp);
+      const timeB = this.coerceEpochMs(b?.lastMessage?.timestamp);
 
       return timeB - timeA;
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Debug / Error routing
-  // ---------------------------------------------------------------------------
-
   private dbg(message: string, extra?: unknown): void {
     if (!this.debug) return;
-    // eslint-disable-next-line no-console
     console.log(`[ChatList] ${message}`, extra ?? '');
   }
 

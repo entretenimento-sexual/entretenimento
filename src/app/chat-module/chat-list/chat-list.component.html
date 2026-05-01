@@ -1,102 +1,142 @@
-<!-- src\app\chat-module\chat-list\chat-list.component.html -->
-<div class="chat-list-shell">
-  <section
-    class="chat-list-section chat-list-section--direct"
-    aria-labelledby="direct-chats-title"
-  >
-    <div class="chat-list-section__header">
-      <div>
-        <h2 id="direct-chats-title" class="chat-list-section__title">
-          Conversas diretas
-        </h2>
-        <p class="chat-list-section__subtitle">
-          Prioridade atual da plataforma
-        </p>
-      </div>
-    </div>
+<!-- src/app/chat-module/chat-list/chat-list.component.html -->
+  <section class="conversation-list__search" aria-label="Buscar conversas">
+    <div class="conversation-list__search-box">
+      <span class="conversation-list__search-icon" aria-hidden="true">⌕</span>
 
-    @if (regularChats$ | async; as directChats) {
-      @if (directChats.length > 0) {
-        <div class="chat-list-container">
-          @for (chat of directChats; track chat.id ?? $index) {
+      <input
+        type="text"
+        [(ngModel)]="searchTerm"
+        placeholder="Buscar conversas..."
+        aria-label="Buscar conversas"
+      />
+
+      @if (hasSearch) {
+        <button
+          type="button"
+          class="conversation-list__search-clear"
+          aria-label="Limpar busca"
+          (click)="clearSearch()"
+        >
+          ✕
+        </button>
+      }
+    </div>
+  </section>
+
+  <section class="conversation-list__filters" aria-label="Filtros da caixa de entrada">
+    <button
+      type="button"
+      class="conversation-list__chip"
+      [class.conversation-list__chip--active]="activeFilter === 'all'"
+      [attr.aria-pressed]="activeFilter === 'all'"
+      (click)="setActiveFilter('all')"
+    >
+      Todas
+    </button>
+
+    <button
+      type="button"
+      class="conversation-list__chip"
+      [class.conversation-list__chip--active]="activeFilter === 'direct'"
+      [attr.aria-pressed]="activeFilter === 'direct'"
+      (click)="setActiveFilter('direct')"
+    >
+      Diretas
+    </button>
+
+    <button
+      type="button"
+      class="conversation-list__chip"
+      [class.conversation-list__chip--active]="activeFilter === 'rooms'"
+      [attr.aria-pressed]="activeFilter === 'rooms'"
+      (click)="setActiveFilter('rooms')"
+    >
+      {{ roomsChipLabel }}
+    </button>
+  </section>
+
+  <div class="conversation-list__scroll">
+    @if (showDirectChats && hasVisibleDirectChats) {
+      <section class="conversation-list__section" aria-labelledby="direct-chats-title">
+        <header class="conversation-list__section-header">
+          <div>
+            <h3 id="direct-chats-title" class="conversation-list__section-title">
+              Conversas diretas
+            </h3>
+            <p class="conversation-list__section-subtitle">
+              <!-- Seus chats 1:1 aparecem aqui. -->
+            </p>
+          </div>
+        </header>
+
+        <div class="conversation-list__items">
+          @for (chat of filteredDirectChats; track chat.id ?? $index) {
             <button
               type="button"
-              class="chat-item"
-              (click)="selectChat(chat.id)"
-              [ngClass]="{ 'selected': selectedChatId === chat.id }"
-              [attr.aria-pressed]="selectedChatId === chat.id"
+              class="conversation-card"
+              (click)="selectChat(chat)"
+              [ngClass]="{ 'conversation-card--selected': isDirectChatSelected(chat.id) }"
+              [attr.aria-pressed]="isDirectChatSelected(chat.id)"
             >
               <img
-                class="chat-user-photo"
+                class="conversation-card__avatar"
                 [src]="getOptimizedPhotoURL(chat.otherParticipantDetails?.photoURL) || 'assets/imagem-padrao.webp'"
                 [alt]="'Foto de ' + (chat.otherParticipantDetails?.nickname || 'usuário')"
                 loading="lazy"
               />
 
-              <div class="chat-item__content">
-                <p class="chat-item__name">
+              <div class="conversation-card__content">
+                <p class="conversation-card__name">
                   {{ chat.otherParticipantDetails?.nickname || 'Usuário' }}
                 </p>
 
-                <p class="chat-item__meta">
+                <p class="conversation-card__meta">
                   {{ chat.lastMessage?.content || 'Nenhuma mensagem recente.' }}
                 </p>
               </div>
             </button>
           }
         </div>
-      } @else {
-        <div class="chat-list-empty" role="status" aria-live="polite">
-          <p class="chat-list-empty__title">Nenhuma conversa direta ainda.</p>
-          <p class="chat-list-empty__text">
-            Quando houver interação entre dois perfis, ela aparecerá aqui.
-          </p>
-        </div>
-      }
+      </section>
     }
-  </section>
 
-  <section
-    class="chat-list-section chat-list-section--rooms"
-    aria-labelledby="rooms-title"
-  >
-    <div class="chat-list-section__header">
-      <div>
-        <h2 id="rooms-title" class="chat-list-section__title">Salas</h2>
-        <p class="chat-list-section__subtitle">
-          Compat temporária, mantida em segundo plano
-        </p>
-      </div>
-    </div>
+    @if (showRooms && hasVisibleRooms) {
+      <section class="conversation-list__section conversation-list__section--rooms" aria-labelledby="rooms-title">
+        <header class="conversation-list__section-header">
+          <div>
+            <h3 id="rooms-title" class="conversation-list__section-title">
+              Salas
+            </h3>
+            <p class="conversation-list__section-subtitle">
+              Interações em grupo disponíveis neste filtro.
+            </p>
+          </div>
+        </header>
 
-    @if (rooms$ | async; as rooms) {
-      @if (rooms.length > 0) {
-        <div class="chat-list-container">
-          @for (room of rooms; track room.id) {
-            <article
-              class="room-item"
-              [ngClass]="{ 'selected': selectedChatId === room.id }"
-            >
+        <div class="conversation-list__items conversation-list__items--rooms">
+          @for (room of filteredRooms; track room.id) {
+            <article class="room-card">
               <button
                 type="button"
-                class="room-item__main"
+                class="room-card__main"
                 (click)="selectRoom(room.id)"
-                [attr.aria-pressed]="selectedChatId === room.id"
+                [ngClass]="{ 'room-card__main--selected': isRoomSelected(room.id) }"
+                [attr.aria-pressed]="isRoomSelected(room.id)"
               >
-                <div class="room-item__content">
-                  <span class="room-name">{{ room.roomName }}</span>
+                <div class="room-card__content">
+                  <span class="room-card__name">{{ room.roomName }}</span>
 
-                  <span class="room-item__meta">
+                  <span class="room-card__meta">
                     {{ room.description || 'Sala ativa para interação em grupo.' }}
                   </span>
                 </div>
               </button>
 
-              @if (isOwner(room)) {
-                <div class="room-management-buttons">
+              @if (isOwner(room) && activeFilter === 'rooms') {
+                <div class="room-card__actions">
                   <button
                     type="button"
-                    class="btn btn-ghost room-action-btn"
+                    class="btn btn-ghost room-card__action"
                     (click)="editRoom(room.id, $event)"
                   >
                     Editar
@@ -104,7 +144,7 @@
 
                   <button
                     type="button"
-                    class="btn btn-ghost room-action-btn"
+                    class="btn btn-ghost room-card__action"
                     (click)="sendInvite(room.id, $event)"
                   >
                     Convidar
@@ -112,7 +152,7 @@
 
                   <button
                     type="button"
-                    class="btn btn-ghost room-action-btn room-action-btn--danger"
+                    class="btn btn-ghost room-card__action room-card__action--danger"
                     (click)="deleteRoom(room.id, $event)"
                   >
                     Excluir
@@ -122,31 +162,15 @@
             </article>
           }
         </div>
-      } @else {
-        <div
-          class="chat-list-empty chat-list-empty--secondary"
-          role="status"
-          aria-live="polite"
-        >
-          <p class="chat-list-empty__title">Nenhuma sala disponível.</p>
-          <p class="chat-list-empty__text">
-            As salas continuam suportadas, mas ficam em segundo plano nesta fase.
-          </p>
-        </div>
-      }
+      </section>
     }
-  </section>
 
-  @if (rooms.length === 0 && regularChats.length === 0) {
-    <div
-      class="chat-list-empty chat-list-empty--global"
-      role="status"
-      aria-live="polite"
-    >
-      <p class="chat-list-empty__title">Você ainda não possui chats ou salas.</p>
-      <p class="chat-list-empty__text">
-        Assim que surgirem interações, elas aparecerão nesta lista.
-      </p>
-    </div>
-  }
-</div>
+    @if (shouldShowEmptyState) {
+      <section class="conversation-list__empty" role="status" aria-live="polite">
+        <p class="conversation-list__empty-title">Nenhuma conversa encontrada.</p>
+        <p class="conversation-list__empty-text">
+          Ajuste o filtro ou limpe a busca para localizar conversas.
+        </p>
+      </section>
+    }
+  </div>

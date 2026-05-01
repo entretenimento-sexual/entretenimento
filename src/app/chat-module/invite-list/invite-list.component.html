@@ -1,15 +1,111 @@
 <!-- src\app\chat-module\invite-list\invite-list.component.html -->
-@for (invite of invites; track invite) {
-  <div>
-    @if (invite.id) {
-      <button (click)="respondToInvite(invite, 'accepted')">
-        Aceitar
-      </button>
+<section class="invite-list-page" aria-labelledby="invite-list-title">
+  <header class="invite-list-page__header">
+    <div>
+      <h2 id="invite-list-title">Convites</h2>
+      <p>Gerencie seus convites pendentes.</p>
+    </div>
+
+    @if (pendingCount$ | async; as count) {
+      <span class="invite-list-page__count" [attr.aria-label]="count + ' convites pendentes'">
+        {{ count }}
+      </span>
     }
-    @if (invite.id) {
-      <button (click)="respondToInvite(invite, 'declined')">
-        Recusar
-      </button>
+  </header>
+
+  @if (loading$ | async) {
+    <div class="invite-list-page__loading">
+      <mat-spinner diameter="32"></mat-spinner>
+      <span>Carregando convites...</span>
+    </div>
+  } @else {
+    @if (error$ | async; as error) {
+      @if (error) {
+        <div class="invite-list-page__error" role="alert">
+          {{ error }}
+        </div>
+      }
     }
-  </div>
-}
+
+    @if (invites$ | async; as invites) {
+      @if (invites.length === 0) {
+        <div class="invite-list-page__empty" role="status">
+          Você não tem convites pendentes.
+        </div>
+      } @else {
+        <ul class="invite-list-page__cards">
+          @for (invite of invites; track trackByInviteId($index, invite)) {
+            <li>
+              <mat-card class="invite-card">
+                <mat-card-header>
+                  <mat-card-title>
+                    {{ getInviteTitle(invite) }}
+                  </mat-card-title>
+
+                  <mat-card-subtitle>
+                    Enviado por {{ getInviteSubtitle(invite) }}
+                  </mat-card-subtitle>
+                </mat-card-header>
+
+                <mat-card-content>
+                  <div class="invite-card__meta">
+                    @if (invite.type) {
+                      <span class="invite-chip">Tipo: {{ invite.type }}</span>
+                    }
+
+                    @if (invite.status) {
+                      <span class="invite-chip">Status: {{ invite.status }}</span>
+                    }
+                  </div>
+
+                  @if (invite.roomId || invite.targetId) {
+                    <p class="invite-card__info">
+                      Destino:
+                      <strong>{{ invite.targetId || invite.roomId }}</strong>
+                    </p>
+                  }
+
+                  @if (formatInviteDate(invite.sentAt); as sentAtLabel) {
+                    <p class="invite-card__info">
+                      Enviado em:
+                      <strong>{{ sentAtLabel }}</strong>
+                    </p>
+                  }
+
+                  @if (formatInviteDate(invite.expiresAt); as expiresAtLabel) {
+                    <p class="invite-card__info">
+                      Expira em:
+                      <strong>{{ expiresAtLabel }}</strong>
+                    </p>
+                  }
+                </mat-card-content>
+
+                <mat-card-actions align="end">
+                  <button
+                    mat-button
+                    color="primary"
+                    type="button"
+                    (click)="respondToInvite(invite, 'accepted')"
+                    [disabled]="!invite.id"
+                  >
+                    Aceitar
+                  </button>
+
+                  <button
+                    mat-button
+                    color="warn"
+                    type="button"
+                    (click)="respondToInvite(invite, 'declined')"
+                    [disabled]="!invite.id"
+                  >
+                    Recusar
+                  </button>
+                </mat-card-actions>
+              </mat-card>
+            </li>
+          }
+        </ul>
+      }
+    }
+  }
+</section>

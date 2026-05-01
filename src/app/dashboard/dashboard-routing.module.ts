@@ -37,8 +37,9 @@ const routes: Routes = [
       },
 
       /**
-       * Discovery mais amplo:
-       * política dura
+       * Discovery canônico da plataforma.
+       * Toda navegação de "ver pessoas", "explorar perfis" e "online"
+       * deve convergir para /dashboard/online.
        */
       {
         path: 'online',

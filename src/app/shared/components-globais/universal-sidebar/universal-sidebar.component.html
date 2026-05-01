@@ -14,6 +14,7 @@
   [class.universal-sidebar--mobile]="isOverlayMode"
   [class.universal-sidebar--open]="vm.isOpen"
   [class.universal-sidebar--collapsed]="isCollapsedMode"
+  [class.universal-sidebar--locked]="lockCollapsed && isCollapsedMode"
   [attr.aria-hidden]="isOverlayMode && !vm.isOpen ? 'true' : null"
   aria-label="Navegação principal"
 >
@@ -36,13 +37,13 @@
       [attr.aria-label]="isCollapsedMode ? 'Expandir menu lateral' : 'Recolher menu lateral'"
       [attr.aria-pressed]="isCollapsedMode ? 'true' : 'false'"
       aria-controls="app-sidebar"
-      (click)="collapseRequested.emit()"
+      (click)="onCollapseButtonClick()"
     >
       <span aria-hidden="true">{{ isCollapsedMode ? '⟫' : '⟪' }}</span>
     </button>
   </div>
 
-  <ng-container *ngIf="user as sidebarUser">
+  <ng-container *ngIf="shouldShowUserBlock && user as sidebarUser">
     <div class="universal-sidebar__profile">
       <ng-container *ngIf="sidebarUser.profileRoute; else staticProfile">
         <a
@@ -115,7 +116,7 @@
 
   <section
     class="universal-sidebar__quick-actions"
-    *ngIf="quickActions.length > 0"
+    *ngIf="shouldShowQuickActionsBlock && quickActions.length > 0"
     aria-label="Ações rápidas"
   >
     <a

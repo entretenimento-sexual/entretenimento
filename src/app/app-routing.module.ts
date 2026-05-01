@@ -69,7 +69,16 @@ const routes: Routes = [
         redirectTo: 'media/perfil/:uid/fotos/upload',
         pathMatch: 'full',
       },
-
+      {
+        path: 'profile-list',
+        redirectTo: 'dashboard/online',
+        pathMatch: 'full',
+      },
+      {
+        path: 'perfis-proximos',
+        redirectTo: 'dashboard/online',
+        pathMatch: 'full',
+      },
       {
         path: 'register',
         loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),

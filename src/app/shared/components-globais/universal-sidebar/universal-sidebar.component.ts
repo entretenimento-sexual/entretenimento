@@ -8,10 +8,16 @@
 // - melhorar UX mobile/overlay com fechamento por Escape e backdrop
 // - substituir detecção manual de item ativo por routerLinkActive
 //
+// Ajustes desta versão:
+// - adiciona lockCollapsed para o modo chat
+// - suprime perfil expandido e quick actions quando o rail estiver travado
+// - impede expansão manual do sidebar no modo chat
+//
 // Observação arquitetural:
 // - este componente NÃO consulta sessão diretamente
 // - os dados do usuário devem vir do container/shell
 // - isso evita acoplamento indevido e facilita reuso futuro
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -77,6 +83,17 @@ export class UniversalSidebarComponent {
   @Input() forceOverlay = false;
   @Input() forceCollapsed = false;
 
+  /**
+   * Quando true:
+   * - sidebar fica permanentemente recolhido
+   * - botão de expandir/recolher some
+   * - perfil expandido e quick actions são suprimidos
+   *
+   * Uso principal:
+   * - modo chat
+   */
+  @Input() lockCollapsed = false;
+
   @Output() toggleRequested = new EventEmitter<void>();
   @Output() collapseRequested = new EventEmitter<void>();
 
@@ -112,7 +129,15 @@ export class UniversalSidebarComponent {
   }
 
   get shouldShowDesktopCollapseButton(): boolean {
-    return !this.isOverlayMode;
+    return !this.isOverlayMode && !this.lockCollapsed;
+  }
+
+  get shouldShowUserBlock(): boolean {
+    return !(this.lockCollapsed && this.isCollapsedMode);
+  }
+
+  get shouldShowQuickActionsBlock(): boolean {
+    return !(this.lockCollapsed && this.isCollapsedMode);
   }
 
   get avatarSrc(): string {
@@ -143,6 +168,14 @@ export class UniversalSidebarComponent {
     if (this.isOverlayMode && this.vm?.isOpen) {
       this.closeOverlaySidebar();
     }
+  }
+
+  onCollapseButtonClick(): void {
+    if (this.lockCollapsed) {
+      return;
+    }
+
+    this.collapseRequested.emit();
   }
 
   private closeOverlaySidebar(): void {

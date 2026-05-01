@@ -2,6 +2,10 @@
 :host {
   display: block;
   min-height: 100dvh;
+
+  --app-sidebar-width: clamp(272px, 18vw, 320px);
+  --app-sidebar-collapsed-width: clamp(84px, 6vw, 96px);
+  --app-sidebar-gap: clamp(12px, 1.2vw, 20px);
 }
 
 .auth-shell {
@@ -41,13 +45,14 @@ app-navbar {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  margin-left: 280px;
+  margin-left: calc(var(--app-sidebar-width) + var(--app-sidebar-gap));
   transition: margin-left 220ms ease;
 }
 
 .auth-shell__content-area--compact,
-.auth-shell__content-area--collapsed {
-  margin-left: 88px;
+.auth-shell__content-area--collapsed,
+.auth-shell__content-area--chat {
+  margin-left: calc(var(--app-sidebar-collapsed-width) + var(--app-sidebar-gap));
 }
 
 .auth-shell__content-area--full,
@@ -59,13 +64,26 @@ app-navbar {
   flex: 1;
   min-width: 0;
   min-height: 0;
-  padding: var(--space-3);
+  padding: clamp(12px, 1.2vw, 24px);
   overflow-x: hidden;
   overflow-y: auto;
 }
 
+/**
+ * Ajuste crítico:
+ * no modo chat o shell pai não deve criar respiro visual.
+ *
+ * SUPRESSÃO EXPLÍCITA:
+ * - removido o padding global do content enquanto a rota for /chat*
+ */
+.auth-shell[data-chat-layout='true'] .auth-shell__content {
+  padding: 0;
+  overflow: hidden;
+}
+
 @media (max-width: 767.98px) {
   .auth-shell__content-area,
+  .auth-shell__content-area--chat,
   .auth-shell__content-area--compact,
   .auth-shell__content-area--collapsed,
   .auth-shell__content-area--full,
@@ -76,16 +94,28 @@ app-navbar {
   .auth-shell__content {
     padding: var(--space-2);
   }
+
+  .auth-shell[data-chat-layout='true'] .auth-shell__content {
+    padding: 0;
+  }
 }
 
 @media (max-width: 420px) {
   .auth-shell__content {
     padding: 10px;
   }
+
+  .auth-shell[data-chat-layout='true'] .auth-shell__content {
+    padding: 0;
+  }
 }
 
 @media (min-width: 1600px) {
   .auth-shell__content {
-    padding: var(--space-4);
+    padding: clamp(18px, 1.5vw, 28px);
+  }
+
+  .auth-shell[data-chat-layout='true'] .auth-shell__content {
+    padding: 0;
   }
 }
