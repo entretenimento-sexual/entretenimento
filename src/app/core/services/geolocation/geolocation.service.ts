@@ -224,17 +224,34 @@ export class GeolocationService {
   }
 
   /** Aplica a política (role + verificação) às coordenadas e ao geohash. */
-  applyRolePrivacy(
-    coords: GeoCoordinates,
-    role: UserRole | undefined,
-    emailVerified: boolean
-  ): { coords: GeoCoordinates; geohash: string | undefined; policy: GeoPolicy } {
-    const policy = this.getPolicyFor(role, emailVerified);
-    const coarseCoords = this.toCoarseCoords(coords, policy.decimals);
-    const fullHash = coords.geohash || geohashForLocation([coords.latitude, coords.longitude]);
-    const geohash = this.toCoarseGeohash(fullHash, policy.geohashLen);
-    return { coords: coarseCoords, geohash, policy };
-  }
+applyRolePrivacy(
+  coords: GeoCoordinates,
+  role: UserRole | undefined,
+  emailVerified: boolean
+): { coords: GeoCoordinates; geohash: string | undefined; policy: GeoPolicy } {
+  const policy = this.getPolicyFor(role, emailVerified);
+
+  const coarseCoords = this.toCoarseCoords(coords, policy.decimals);
+
+  const fullHashFromCoarseCoords = geohashForLocation([
+    coarseCoords.latitude,
+    coarseCoords.longitude,
+  ]);
+
+  const geohash = this.toCoarseGeohash(
+    fullHashFromCoarseCoords,
+    policy.geohashLen
+  );
+
+  return {
+    coords: {
+      ...coarseCoords,
+      geohash,
+    },
+    geohash,
+    policy,
+  };
+}
 
   // =============================================================
   // LEGACY / COMPATIBILIDADE (PROMISE)

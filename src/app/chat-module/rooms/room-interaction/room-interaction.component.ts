@@ -6,7 +6,6 @@
 // - Cancela streams antigos ao trocar de sala
 // - Mantém nomenclaturas públicas do componente
 // - Centraliza erros e evita subscribe legado desnecessário
-
 import {
   Component,
   Input,

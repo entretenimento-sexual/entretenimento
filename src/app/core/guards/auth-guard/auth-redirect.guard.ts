@@ -1,15 +1,18 @@
 // src/app/core/guards/auth-guard/auth-redirect.guard.ts
+// -----------------------------------------------------------------------------
+// AuthRedirectGuard
+// -----------------------------------------------------------------------------
+//
 // Guard de redirecionamento para rotas de visitante.
 //
-// Propósito:
-// - permitir acesso a /login e /register para visitantes
-// - redirecionar usuários autenticados para o destino correto
-//   conforme estado real da conta
-//
-// route.data.allowAuthenticated = true
-// - bypass explícito quando uma rota guest pode aceitar autenticado
+// Regra corrigida:
+// - perfil incompleto tem prioridade sobre e-mail não verificado;
+// - completar perfil não depende de e-mail verificado;
+// - verificar e-mail não significa perfil completo.
+
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
+
 import { combineLatest, of } from 'rxjs';
 import { catchError, filter, map, take } from 'rxjs/operators';
 
@@ -17,6 +20,7 @@ import { AccessControlService } from '../../services/autentication/auth/access-c
 import { AuthReturnUrlService } from '../../services/autentication/auth/auth-return-url.service';
 import { GlobalErrorHandlerService } from '../../services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../services/error-handler/error-notification.service';
+
 import {
   buildFinalizeRedirectTree,
   buildWelcomeRedirectTree,
@@ -32,6 +36,7 @@ export const authRedirectGuard: CanActivateFn = (route, _state) => {
   const notify = inject(ErrorNotificationService);
 
   const allowAuthenticated = route.data?.['allowAuthenticated'] === true;
+
   if (allowAuthenticated) {
     return of(true);
   }
@@ -48,6 +53,7 @@ export const authRedirectGuard: CanActivateFn = (route, _state) => {
     filter(([ready, authUid, appUser]) => {
       return ready === true && isResolvedAccessState(authUid, appUser);
     }),
+
     take(1),
 
     map(([_, authUid, appUser, blockedReason, emailVerified]) => {
@@ -71,39 +77,60 @@ export const authRedirectGuard: CanActivateFn = (route, _state) => {
         redirectTo,
       });
 
-      // Conta bloqueada / fluxo interrompido -> welcome
+      /**
+       * 1) Conta bloqueada/interrompida.
+       */
       if (blockedReason) {
         return buildWelcomeRedirectTree(router, redirectTo, {
           reason: blockedReason,
         });
       }
 
-      // E-mail ainda não verificado -> welcome
-      if (!emailVerified) {
-        return buildWelcomeRedirectTree(router, redirectTo, {
-          reason: 'email_unverified',
-        });
-      }
-
-      // Perfil ainda incompleto -> finalizar cadastro
+      /**
+       * 2) Perfil incompleto vem antes de e-mail.
+       *
+       * Um usuário pode estar:
+       * - profileCompleted=false
+       * - emailVerified=false
+       *
+       * Mesmo assim o destino correto é finalizar cadastro,
+       * não welcome por e-mail.
+       */
       if (!profileCompleted) {
         return buildFinalizeRedirectTree(router, redirectTo, {
           reason: 'profile_incomplete',
         });
       }
 
-      // Conta liberada -> segue para destino final
+      /**
+       * 3) Só depois do perfil completo o e-mail decide bloqueio de confiança.
+       */
+      if (!emailVerified) {
+        return buildWelcomeRedirectTree(router, redirectTo, {
+          reason: 'email_unverified',
+        });
+      }
+
+      /**
+       * 4) Conta liberada.
+       */
       return router.parseUrl(redirectTo);
     }),
 
     catchError((err) => {
       try {
         (err as any).silent = true;
-        (err as any).context = { guard: 'authRedirectGuard' };
+        (err as any).context = {
+          guard: 'authRedirectGuard',
+        };
+
         globalError.handleError(err);
-      } catch {}
+      } catch {
+        // noop
+      }
 
       notify.showError('Falha ao validar redirecionamento.');
+
       return of(true);
     })
   );

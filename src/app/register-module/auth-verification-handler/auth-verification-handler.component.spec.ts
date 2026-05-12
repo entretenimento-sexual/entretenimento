@@ -1,119 +1,229 @@
 // src/app/register-module/auth-verification-handler/auth-verification-handler.component.spec.ts
-import { TestBed } from '@angular/core/testing';
-import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
-import { Router } from '@angular/router';
+// Testes do AuthVerificationHandlerComponent
+//
+// Ajustes desta versão:
+// - remove testes legados de finishRegistration;
+// - remove dependências de FirestoreUserWriteService, FirestoreUserQueryService e CurrentUserStoreService;
+// - valida a responsabilidade atual do componente: verificação de e-mail e reset de senha.
+
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ActivatedRoute, Router } from '@angular/router';
 import { NgZone } from '@angular/core';
+import { BehaviorSubject, of, throwError } from 'rxjs';
+import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 import { AuthVerificationHandlerComponent } from './auth-verification-handler.component';
+import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 
-import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
-import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
-import { FirestoreUserWriteService } from '../../core/services/data-handling/firestore-user-write.service';
-import { DateTimeService } from '../../core/services/general/date-time.service';
-
-import { IUserDados } from '../../core/interfaces/iuser-dados';
-import { IUserRegistrationData } from '../../core/interfaces/iuser-registration-data';
-import { of } from 'rxjs';
-
-describe('AuthVerificationHandlerComponent - finishRegistration', () => {
+describe('AuthVerificationHandlerComponent', () => {
+  let fixture: ComponentFixture<AuthVerificationHandlerComponent>;
   let component: AuthVerificationHandlerComponent;
 
-  const mockRouter = {
-    navigate: vi.fn().mockResolvedValue(true),
+  let queryParamsSubject: BehaviorSubject<Record<string, string>>;
+
+  let routerMock: {
+    navigate: Mock;
   };
 
-  const mockCurrentUserStore = {
-    getLoggedUserUID$: vi.fn(),
+  let emailVerificationMock: {
+    handleEmailVerification: Mock;
+    resendVerificationEmail: Mock;
   };
 
-  const mockFirestoreUserQuery = {
-    getUser: vi.fn(),
-    updateUserInStateAndCache: vi.fn(),
+  let loginServiceMock: {
+    confirmPasswordReset$: Mock;
   };
 
-  // ✅ mock correto do novo service
-  const mockFirestoreUserWrite = {
-    saveInitialUserData$: vi.fn(),
+  let globalErrorMock: {
+    handleError: Mock;
   };
 
-  const mockDateTimeService = {
-    convertToDate: vi.fn(),
+  let emailInputModalMock: {
+    openModal: Mock;
   };
 
   beforeEach(async () => {
+    queryParamsSubject = new BehaviorSubject<Record<string, string>>({});
+
+    routerMock = {
+      navigate: vi.fn().mockResolvedValue(true),
+    };
+
+    emailVerificationMock = {
+      handleEmailVerification: vi.fn(),
+      resendVerificationEmail: vi.fn(),
+    };
+
+    loginServiceMock = {
+      confirmPasswordReset$: vi.fn(),
+    };
+
+    globalErrorMock = {
+      handleError: vi.fn(),
+    };
+
+    emailInputModalMock = {
+      openModal: vi.fn(),
+    };
+
     await TestBed.configureTestingModule({
       imports: [AuthVerificationHandlerComponent],
       providers: [
-        { provide: Router, useValue: mockRouter },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            queryParams: queryParamsSubject.asObservable(),
+          },
+        },
+        { provide: Router, useValue: routerMock },
         { provide: NgZone, useValue: new NgZone({ enableLongStackTrace: false }) },
-        { provide: CurrentUserStoreService, useValue: mockCurrentUserStore },
-        { provide: FirestoreUserQueryService, useValue: mockFirestoreUserQuery },
-        { provide: FirestoreUserWriteService, useValue: mockFirestoreUserWrite },
-        { provide: DateTimeService, useValue: mockDateTimeService },
+        { provide: EmailVerificationService, useValue: emailVerificationMock },
+        { provide: LoginService, useValue: loginServiceMock },
+        { provide: GlobalErrorHandlerService, useValue: globalErrorMock },
+        { provide: EmailInputModalService, useValue: emailInputModalMock },
       ],
     }).compileComponents();
 
-    const fixture = TestBed.createComponent(AuthVerificationHandlerComponent);
+    fixture = TestBed.createComponent(AuthVerificationHandlerComponent);
     component = fixture.componentInstance;
-
-    component.gender = 'masculino';
-    component.orientation = 'heterossexual';
-    component.selectedEstado = 'SP';
-    component.selectedMunicipio = 'São Paulo';
 
     vi.clearAllMocks();
   });
 
-it('normaliza firstLogin quando vier como number e envia Date para saveInitialUserData$', async () => {
-  const uid = 'user-123';
-  const firstLoginMs = 1710000000000;
-
-  const existingUserData: Partial<IUserDados> = {
-    uid,
-    email: 'x@y.com',
-    nickname: 'x',
-    isSubscriber: false,
-    firstLogin: firstLoginMs as any,
-  };
-
-  mockCurrentUserStore.getLoggedUserUID$.mockReturnValue(of(uid));
-  mockFirestoreUserQuery.getUser.mockReturnValue(of(existingUserData as IUserDados));
-
-  const normalizedDate = new Date(firstLoginMs);
-  mockDateTimeService.convertToDate.mockReturnValue(normalizedDate);
-  mockFirestoreUserWrite.saveInitialUserData$.mockReturnValue(of(void 0));
-
-  component.finishRegistration();
-
-  await new Promise((resolve) => setTimeout(resolve, 0));
-
-  expect(mockDateTimeService.convertToDate).toHaveBeenCalledTimes(1);
-  expect(mockDateTimeService.convertToDate).toHaveBeenCalledWith(firstLoginMs);
-
-  expect(mockFirestoreUserWrite.saveInitialUserData$).toHaveBeenCalledTimes(1);
-
-  const [calledUid, calledDto] =
-    mockFirestoreUserWrite.saveInitialUserData$.mock.calls[0] as [string, IUserRegistrationData];
-
-  expect(calledUid).toBe(uid);
-  expect(((calledDto as any).firstLogin as any) instanceof Date).toBe(true);
-  expect((calledDto as any).firstLogin).toBe(normalizedDate);
-
-  expect(mockFirestoreUserQuery.updateUserInStateAndCache).toHaveBeenCalledTimes(1);
-
-  const [updateUid, updateDto] =
-    mockFirestoreUserQuery.updateUserInStateAndCache.mock.calls[0] as [string, IUserRegistrationData];
-
-  expect(updateUid).toBe(uid);
-  expect(((updateDto as any).firstLogin as any) instanceof Date).toBe(true);
-  expect((updateDto as any).firstLogin).toBe(normalizedDate);
-
-  expect(mockRouter.navigate).toHaveBeenCalledWith(
-    ['/register/welcome'],
-    { queryParams: { autocheck: '1' }, replaceUrl: true }
-  );
-
-  expect(component.showSubscriptionOptions).toBe(true);
-});
+  it('deve criar o componente', () => {
+    expect(component).toBeTruthy();
   });
 
+  it('deve exibir ação desconhecida quando não houver mode', () => {
+    fixture.detectChanges();
+
+    expect(component.isLoading).toBe(false);
+    expect(component.message).toBe('Ação desconhecida.');
+  });
+
+  it('deve exibir erro quando mode vier sem oobCode', () => {
+    queryParamsSubject.next({
+      mode: 'verifyEmail',
+    });
+
+    fixture.detectChanges();
+
+    expect(component.isLoading).toBe(false);
+    expect(component.message).toBe('Código inválido ou ausente.');
+  });
+
+  it('deve processar verificação de e-mail com sucesso', () => {
+    emailVerificationMock.handleEmailVerification.mockReturnValue(
+      of({
+        ok: true,
+        reason: 'verified',
+        firestoreUpdated: true,
+      })
+    );
+
+    queryParamsSubject.next({
+      mode: 'verifyEmail',
+      oobCode: 'abc123',
+    });
+
+    fixture.detectChanges();
+
+    expect(emailVerificationMock.handleEmailVerification).toHaveBeenCalledTimes(1);
+    expect(component.verifyOk).toBe(true);
+    expect(component.message).toBe('E-mail verificado com sucesso.');
+    expect(component.showResendVerifyCTA).toBe(false);
+  });
+
+  it('deve oferecer reenvio quando link de verificação estiver expirado', () => {
+    emailVerificationMock.handleEmailVerification.mockReturnValue(
+      of({
+        ok: false,
+        reason: 'expired',
+      })
+    );
+
+    queryParamsSubject.next({
+      mode: 'verifyEmail',
+      oobCode: 'expired-code',
+    });
+
+    fixture.detectChanges();
+
+    expect(component.verifyOk).toBe(false);
+    expect(component.showResendVerifyCTA).toBe(true);
+    expect(component.message).toBe('O link de verificação expirou. Reenvie um novo e-mail.');
+  });
+
+  it('deve preparar tela de resetPassword sem executar reset automaticamente', () => {
+    queryParamsSubject.next({
+      mode: 'resetPassword',
+      oobCode: 'reset-code',
+    });
+
+    fixture.detectChanges();
+
+    expect(component.mode).toBe('resetPassword');
+    expect(component.oobCode).toBe('reset-code');
+    expect(component.isLoading).toBe(false);
+    expect(loginServiceMock.confirmPasswordReset$).not.toHaveBeenCalled();
+  });
+
+  it('deve redefinir senha quando as senhas forem válidas', async () => {
+    queryParamsSubject.next({
+      mode: 'resetPassword',
+      oobCode: 'reset-code',
+    });
+
+    fixture.detectChanges();
+
+    loginServiceMock.confirmPasswordReset$.mockReturnValue(of(void 0));
+
+    component.newPassword = 'senhaSegura123';
+    component.confirmPassword = 'senhaSegura123';
+
+    await component.resetPassword();
+
+    expect(loginServiceMock.confirmPasswordReset$).toHaveBeenCalledWith(
+      'reset-code',
+      'senhaSegura123'
+    );
+
+    expect(component.message).toBe(
+      'Senha redefinida com sucesso. Redirecionando para o login...'
+    );
+  });
+
+  it('deve informar erro quando as senhas não coincidirem', async () => {
+    component.mode = 'resetPassword';
+    component.oobCode = 'reset-code';
+    component.newPassword = 'senhaSegura123';
+    component.confirmPassword = 'outraSenha123';
+
+    await component.resetPassword();
+
+    expect(component.message).toBe('As senhas não coincidem.');
+    expect(loginServiceMock.confirmPasswordReset$).not.toHaveBeenCalled();
+  });
+
+  it('deve exibir recuperação quando resetPassword falhar por código expirado', async () => {
+    component.mode = 'resetPassword';
+    component.oobCode = 'reset-code';
+    component.newPassword = 'senhaSegura123';
+    component.confirmPassword = 'senhaSegura123';
+
+    loginServiceMock.confirmPasswordReset$.mockReturnValue(
+      throwError(() => ({ code: 'auth/expired-action-code' }))
+    );
+
+    await component.resetPassword();
+
+    expect(component.shouldShowRecoveryLink).toBe(true);
+    expect(component.message).toBe('O link de redefinição de senha expirou.');
+  });
+
+  it('deve abrir modal de recuperação de senha', () => {
+    component.openPasswordRecoveryModal();
+
+    expect(emailInputModalMock.openModal).toHaveBeenCalledTimes(1);
+  });
+});

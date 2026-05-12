@@ -1,0 +1,141 @@
+/* src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.css */
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+.discovery-page {
+  width: min(100%, 1040px);
+  margin-inline: auto;
+  padding: clamp(18px, 3vw, 32px);
+  color: var(--text-color);
+}
+
+.discovery-page__header {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.discovery-page__title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.discovery-page__back {
+  flex: 0 0 auto;
+
+  min-height: 40px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.discovery-page__title-copy {
+  min-width: 0;
+}
+
+.discovery-page__title {
+  margin: 0;
+  font-size: clamp(1.35rem, 1rem + 1vw, 1.8rem);
+  line-height: 1.1;
+  font-weight: 800;
+}
+
+.discovery-page__subtitle {
+  margin: 4px 0 0;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.discovery-page__content {
+  min-width: 0;
+}
+
+.discovery-page__placeholder {
+  width: min(100%, 720px);
+
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+
+  padding: 18px;
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+
+  background: var(--surface-color);
+  box-shadow: var(--box-shadow);
+}
+
+.discovery-page__placeholder-icon {
+  flex: 0 0 auto;
+
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  background: color-mix(in oklab, var(--primary-color) 14%, transparent);
+  color: var(--primary-color);
+}
+
+.discovery-page__placeholder h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.discovery-page__placeholder p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+  .discovery-page {
+    padding: 16px;
+  }
+
+  .discovery-page__title-row {
+    gap: 8px;
+  }
+
+  .discovery-page__placeholder {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 420px) {
+  .discovery-page__back span {
+    display: none;
+  }
+
+  .discovery-page__back {
+    width: 40px;
+    justify-content: center;
+    padding-inline: 0;
+  }
+}
+
+html.high-contrast .discovery-page__placeholder {
+  background: var(--background-color) !important;
+  border: 3px solid var(--text-color) !important;
+  box-shadow: none !important;
+}
+
+html.high-contrast .discovery-page__placeholder-icon {
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  border: 2px solid var(--text-color) !important;
+}

@@ -1,0 +1,106 @@
+/* src/app/dashboard/discovery/discovery-mode-tabs/discovery-mode-tabs.component.css */
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+.discovery-tabs {
+  width: fit-content;
+  max-width: 100%;
+
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  padding: 4px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 86%, transparent);
+  border-radius: 999px;
+
+  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.discovery-tabs__item {
+  position: relative;
+
+  min-height: 36px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+
+  cursor: pointer;
+}
+
+.discovery-tabs__item:hover:not(:disabled) {
+  background: var(--header-hover-bg);
+  color: var(--text-color);
+}
+
+.discovery-tabs__item.is-active {
+  background: color-mix(in oklab, var(--primary-color) 16%, transparent);
+  color: var(--text-color);
+}
+
+.discovery-tabs__item.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.discovery-tabs__item:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.discovery-tabs__soon {
+  margin-left: 2px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  opacity: 0.7;
+}
+
+@media (max-width: 760px) {
+  .discovery-tabs {
+    width: 100%;
+    border-radius: 16px;
+  }
+
+  .discovery-tabs__item {
+    flex: 0 0 auto;
+  }
+}
+
+html.high-contrast .discovery-tabs {
+  background: var(--background-color) !important;
+  border: 3px solid var(--text-color) !important;
+  box-shadow: none !important;
+}
+
+html.high-contrast .discovery-tabs__item {
+  color: var(--text-color) !important;
+  border: 2px solid transparent !important;
+}
+
+html.high-contrast .discovery-tabs__item.is-active {
+  background: var(--text-color) !important;
+  color: var(--background-color) !important;
+  border-color: var(--text-color) !important;
+}

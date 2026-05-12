@@ -1,0 +1,34 @@
+// src/app/dashboard/discovery/models/public-profile-card.model.ts
+// -----------------------------------------------------------------------------
+// PublicProfileCard
+// -----------------------------------------------------------------------------
+//
+// Modelo visual mínimo para listagem de perfis públicos.
+//
+// Importante:
+// - não representa o documento completo de users/{uid};
+// - deve refletir apenas campos seguros de public_profiles;
+// - não deve carregar e-mail, telefone, dados privados ou flags internas sensíveis.
+
+export interface PublicProfileCard {
+  uid: string;
+  nickname: string;
+  nicknameNormalized?: string | null;
+
+  photoURL?: string | null;
+
+  gender?: string | null;
+  orientation?: string | null;
+
+  estado?: string | null;
+  municipio?: string | null;
+
+  role?: string | null;
+
+  latitude?: number | null;
+  longitude?: number | null;
+  geohash?: string | null;
+
+  updatedAt?: unknown;
+  createdAt?: unknown;
+}

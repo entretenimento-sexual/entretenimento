@@ -2,28 +2,44 @@
 // -----------------------------------------------------------------------------
 // FinalizarCadastroComponent
 // -----------------------------------------------------------------------------
-// Responsabilidade:
-// - Permitir que o usuário complete o perfil mínimo obrigatório após registro
-// - Carregar dados auxiliares (estados/municípios)
-// - Ler o contexto de entrada da rota (profile_incomplete | email_unverified)
-// - Salvar os dados mínimos no Firestore
 //
-// Ajuste desta versão:
-// - NÃO esconder o formulário no bootstrap inicial
-// - Separar loading de bootstrap (isLoading) de loading de submit (isSubmitting)
-// - Mostrar feedback de "salvando" apenas quando houver submit real
-// -----------------------------------------------------------------------------
+// Responsabilidade exclusiva:
+// - completar o perfil mínimo obrigatório da plataforma;
+// - gravar profileCompleted=true;
+// - gravar dados públicos básicos em public_profiles via FirestoreUserWriteService.
+//
+// Este componente NÃO deve:
+// - verificar e-mail;
+// - gravar emailVerified;
+// - inferir que e-mail verificado significa perfil completo.
+//
+// Separação correta:
+// - Completar perfil: profileCompleted=true.
+// - Verificar e-mail: emailVerified=true, feito em outro fluxo.
+//
+// Assim, o estado abaixo é válido:
+// - profileCompleted=true
+// - emailVerified=false
 
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
+
 import { of, EMPTY } from 'rxjs';
-import { catchError, filter, finalize, map, switchMap, take, tap } from 'rxjs/operators';
+import {
+  catchError,
+  filter,
+  finalize,
+  map,
+  switchMap,
+  take,
+  tap,
+} from 'rxjs/operators';
+
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 
-import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { IBGELocationService } from 'src/app/core/services/general/api/ibge-location.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { FirestoreUserWriteService } from 'src/app/core/services/data-handling/firestore-user-write.service';
@@ -33,11 +49,13 @@ import { StorageService } from 'src/app/core/services/image-handling/storage.ser
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
+type ProfileCompletionPayload = Partial<IUserRegistrationData> & Partial<IUserDados>;
+
 @Component({
   selector: 'app-finalizar-cadastro',
   templateUrl: './finalizar-cadastro.component.html',
   styleUrls: ['./finalizar-cadastro.component.css'],
-  standalone: false
+  standalone: false,
 })
 export class FinalizarCadastroComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
@@ -45,38 +63,40 @@ export class FinalizarCadastroComponent implements OnInit {
   // ---------------------------------------------------------------------------
   // Contexto de entrada da tela
   // ---------------------------------------------------------------------------
+
   public entryReason: 'profile_incomplete' | 'email_unverified' | null = null;
-  public pageTitle = 'Finalize seu cadastro';
-  public introText = 'Complete os dados abaixo para liberar recursos da plataforma.';
+  public pageTitle = 'Complete seu perfil';
+  public introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
 
   // ---------------------------------------------------------------------------
   // Dados da UI / formulário
   // ---------------------------------------------------------------------------
+
   public email = '';
   public nickname = '';
+
   public gender = '';
   public orientation = '';
   public selectedEstado = '';
   public selectedMunicipio = '';
+
   public estados: any[] = [];
   public municipios: any[] = [];
 
   // ---------------------------------------------------------------------------
   // Estados visuais
   // ---------------------------------------------------------------------------
+
   public message = '';
 
   /**
-   * isLoading:
-   * - representa o bootstrap interno inicial da tela
-   * - NÃO deve mais esconder o formulário inteiro
+   * Bootstrap inicial da tela.
+   * Não deve ser usado para travar permanentemente o formulário.
    */
   public isLoading = true;
 
   /**
-   * isSubmitting:
-   * - representa EXCLUSIVAMENTE o envio do formulário
-   * - é esse flag que deve controlar loading visual de submit e disable do botão
+   * Loading exclusivo do submit.
    */
   public isSubmitting = false;
 
@@ -89,7 +109,6 @@ export class FinalizarCadastroComponent implements OnInit {
   public formErrors: { [key: string]: string } = {};
 
   constructor(
-    private readonly emailVerificationService: EmailVerificationService,
     private readonly ibgeLocationService: IBGELocationService,
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly firestoreUserWrite: FirestoreUserWriteService,
@@ -98,8 +117,8 @@ export class FinalizarCadastroComponent implements OnInit {
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly errorNotification: ErrorNotificationService,
-  ) { }
+    private readonly errorNotification: ErrorNotificationService
+  ) {}
 
   private getLS(): Storage | null {
     try {
@@ -110,65 +129,68 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // 1) Resolve o contexto da entrada na rota
     this.resolveEntryContext();
-
-    // 2) Carrega estados (independente da autenticação)
     this.loadEstados();
 
-    // 3) Resolve usuário atual (store -> localStorage -> login)
-    this.currentUserStore.user$.pipe(
-      take(1),
-      switchMap((u) => {
-        if (u) return of(u);
+    this.currentUserStore.user$
+      .pipe(
+        take(1),
+        switchMap((u) => {
+          if (u) return of(u);
 
-        const ls = this.getLS();
-        const raw = ls?.getItem?.('currentUser') ?? null;
-        if (!raw) return of(null);
+          const ls = this.getLS();
+          const raw = ls?.getItem?.('currentUser') ?? null;
 
-        try {
-          const parsed = JSON.parse(raw) as IUserDados;
-          return of(parsed);
-        } catch {
-          return of(null);
-        }
-      }),
-      tap((u) => {
-        if (!u?.uid) {
-          this.router.navigate(['/login']);
-        }
-      }),
-      switchMap((u) => u?.uid ? this.verifyEmailAndLoadUser$(u) : of(void 0)),
-      finalize(() => {
-        // bootstrap inicial terminou
-        this.isLoading = false;
-      }),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe({
-      error: (err) => {
-        this.globalErrorHandler.handleError(err);
-        this.message = 'Erro ao carregar seus dados. Tente novamente.';
-        this.errorNotification.showError(this.message);
-      }
-    });
+          if (!raw) return of(null);
+
+          try {
+            const parsed = JSON.parse(raw) as IUserDados;
+            return of(parsed);
+          } catch {
+            return of(null);
+          }
+        }),
+        tap((u) => {
+          if (!u?.uid) {
+            this.router.navigate(['/login']).catch(() => {});
+          }
+        }),
+        switchMap((u) => (u?.uid ? this.loadUserForForm$(u) : of(void 0))),
+        finalize(() => {
+          this.isLoading = false;
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe({
+        error: (err) => {
+          this.globalErrorHandler.handleError(err);
+          this.message = 'Erro ao carregar seus dados. Tente novamente.';
+          this.errorNotification.showError(this.message);
+        },
+      });
   }
 
   /**
-   * Carrega dados básicos do usuário e confirma, de forma reativa,
-   * o status atual do Auth.
+   * Carrega dados atuais do usuário para preencher o formulário.
+   *
+   * Importante:
+   * aqui NÃO recarregamos Auth e NÃO consultamos emailVerified.
+   * Esta tela só cuida de profileCompleted.
    */
-  private verifyEmailAndLoadUser$(userData: IUserDados) {
+  private loadUserForForm$(userData: IUserDados) {
     return this.firestoreUserQuery.getUser(userData.uid).pipe(
       take(1),
       tap((doc) => {
         this.email = doc?.email ?? userData.email ?? '';
         this.nickname = doc?.nickname ?? userData.nickname ?? '';
-      }),
-      switchMap(() => this.emailVerificationService.reloadCurrentUser().pipe(take(1))),
-      tap((authVerified) => {
-        // Só exibe aviso de e-mail se a entrada da tela estiver ligada a isso.
-        if (!authVerified && this.entryReason === 'email_unverified') {
-          this.message = 'Seu e-mail ainda não aparece como verificado. Se você já verificou, volte e tente novamente.';
+
+        this.gender = doc?.gender ?? userData.gender ?? '';
+        this.orientation = doc?.orientation ?? userData.orientation ?? '';
+        this.selectedEstado = doc?.estado ?? userData.estado ?? '';
+        this.selectedMunicipio = doc?.municipio ?? userData.municipio ?? '';
+
+        if (this.selectedEstado) {
+          this.loadMunicipiosForEstado(this.selectedEstado);
         }
       }),
       map(() => void 0)
@@ -176,7 +198,8 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   loadEstados(): void {
-    this.ibgeLocationService.getEstados()
+    this.ibgeLocationService
+      .getEstados()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (estados) => {
@@ -189,15 +212,9 @@ export class FinalizarCadastroComponent implements OnInit {
       });
   }
 
-  onEstadoChange(): void {
-    if (!this.selectedEstado) {
-      this.municipios = [];
-      this.selectedMunicipio = '';
-      this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
-      return;
-    }
-
-    this.ibgeLocationService.getMunicipios(this.selectedEstado)
+  private loadMunicipiosForEstado(estado: string): void {
+    this.ibgeLocationService
+      .getMunicipios(estado)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (municipios) => {
@@ -210,149 +227,147 @@ export class FinalizarCadastroComponent implements OnInit {
       });
   }
 
+  onEstadoChange(): void {
+    if (!this.selectedEstado) {
+      this.municipios = [];
+      this.selectedMunicipio = '';
+      this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
+      return;
+    }
+
+    this.loadMunicipiosForEstado(this.selectedEstado);
+  }
+
   /**
-   * Define para onde o usuário deve ir após concluir o perfil.
-   * Se houver redirectTo seguro, respeita.
-   * Caso contrário, usa o perfil próprio como fallback.
+   * Define rota após completar perfil.
    */
   private getRedirectToAfterCompletion(uid: string): string {
     const raw = this.route.snapshot.queryParamMap.get('redirectTo');
+
     if (!raw) return `/perfil/${uid}`;
     if (!raw.startsWith('/') || raw.startsWith('//')) return `/perfil/${uid}`;
+
     return raw;
   }
 
   onSubmit(): void {
-    // Evita submit duplicado
     if (this.isSubmitting) return;
 
     this.isSubmitting = true;
     this.message = '';
 
-    this.currentUserStore.getLoggedUserUID$().pipe(
-      take(1),
+    this.currentUserStore
+      .getLoggedUserUID$()
+      .pipe(
+        take(1),
 
-      // 1) validações iniciais
-      switchMap((uid) => {
-        if (!uid) {
-          const msg = 'Erro: UID do usuário não encontrado.';
+        switchMap((uid) => {
+          if (!uid) {
+            const msg = 'Erro: UID do usuário não encontrado.';
+            this.message = msg;
+            this.errorNotification.showError(msg);
+            return EMPTY;
+          }
+
+          this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
+          this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
+          this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
+
+          if (
+            this.isFieldInvalid('gender') ||
+            this.isFieldInvalid('estado') ||
+            this.isFieldInvalid('municipio')
+          ) {
+            const msg = 'Por favor, preencha os campos obrigatórios.';
+            this.message = msg;
+            this.errorNotification.showError(msg);
+            return EMPTY;
+          }
+
+          return this.firestoreUserQuery.getUser(uid).pipe(
+            take(1),
+            map((existingUserData) => ({ uid, existingUserData }))
+          );
+        }),
+
+        switchMap((ctx) => {
+          const { uid, existingUserData } = ctx;
+
+          if (!existingUserData) {
+            throw new Error('Dados do usuário não encontrados.');
+          }
+
+          const completionPayload: ProfileCompletionPayload = {
+            uid: existingUserData.uid,
+            nickname: existingUserData.nickname || '',
+
+            gender: this.gender || existingUserData.gender || '',
+            orientation: this.orientation || existingUserData.orientation || '',
+            estado: this.selectedEstado || existingUserData.estado || '',
+            municipio: this.selectedMunicipio || existingUserData.municipio || '',
+
+            /**
+             * Ato exclusivo desta tela:
+             * completar o perfil.
+             *
+             * Não incluir emailVerified aqui.
+             */
+            profileCompleted: true,
+          };
+
+          return this.firestoreUserWrite.saveInitialUserData$(uid, completionPayload).pipe(
+            switchMap(() =>
+              this.avatarFile
+                ? this.storageService.uploadProfileAvatar(this.avatarFile, uid)
+                : of(null)
+            ),
+            switchMap((photoURL) => {
+              if (!photoURL) return of(void 0);
+
+              const photoPatch: ProfileCompletionPayload = {
+                ...completionPayload,
+                photoURL,
+              };
+
+              return this.firestoreUserWrite.saveInitialUserData$(uid, photoPatch);
+            }),
+            map(() => void 0)
+          );
+        }),
+
+        finalize(() => {
+          this.isSubmitting = false;
+        }),
+
+        takeUntilDestroyed(this.destroyRef),
+
+        catchError((err) => {
+          this.globalErrorHandler.handleError(err);
+
+          const msg = 'Ocorreu um erro ao finalizar o cadastro. Tente novamente.';
           this.message = msg;
           this.errorNotification.showError(msg);
+
           return EMPTY;
-        }
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.message = 'Perfil finalizado com sucesso!';
 
-        this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
-        this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
-        this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
-
-        if (
-          this.isFieldInvalid('gender') ||
-          this.isFieldInvalid('estado') ||
-          this.isFieldInvalid('municipio')
-        ) {
-          const msg = 'Por favor, preencha os campos obrigatórios.';
-          this.message = msg;
-          this.errorNotification.showError(msg);
-          return EMPTY;
-        }
-
-        // 2) confirma status real do Auth e carrega o usuário atual do Firestore
-        return this.emailVerificationService.reloadCurrentUser().pipe(
-          take(1),
-          switchMap((authVerified) =>
-            this.firestoreUserQuery.getUser(uid).pipe(
-              take(1),
-              map((existingUserData) => ({ uid, existingUserData, authVerified }))
+          this.currentUserStore.user$
+            .pipe(
+              filter((user): user is IUserDados => !!user?.uid && user.profileCompleted === true),
+              take(1)
             )
-          )
-        );
-      }),
-
-      // 3) monta payload e salva
-      switchMap((ctx) => {
-        const { uid, existingUserData, authVerified } = ctx;
-
-        if (!existingUserData) {
-          throw new Error('Dados do usuário não encontrados.');
-        }
-
-        const now = Date.now();
-
-        const updatedUserData: IUserRegistrationData = {
-          uid: existingUserData.uid,
-          email: existingUserData.email || '',
-          nickname: existingUserData.nickname || '',
-
-          // Verdade do Auth
-          emailVerified: authVerified === true,
-
-          isSubscriber: !!existingUserData.isSubscriber,
-          firstLogin: typeof existingUserData.firstLogin === 'number' ? existingUserData.firstLogin : now,
-          registrationDate: typeof (existingUserData as any).registrationDate === 'number'
-            ? (existingUserData as any).registrationDate
-            : now,
-
-          gender: this.gender || existingUserData.gender || '',
-          orientation: this.orientation || existingUserData.orientation || '',
-          estado: this.selectedEstado || existingUserData.estado || '',
-          municipio: this.selectedMunicipio || existingUserData.municipio || '',
-
-          acceptedTerms: existingUserData.acceptedTerms ?? {
-            accepted: true,
-            date: now
-          },
-
-          // Finalização do perfil mínimo
-          profileCompleted: true,
-        };
-
-        return this.firestoreUserWrite.saveInitialUserData$(uid, updatedUserData).pipe(
-          switchMap(() =>
-            this.avatarFile
-              ? this.storageService.uploadProfileAvatar(this.avatarFile, uid)
-              : of(null)
-          ),
-          map(() => void 0)
-        );
-      }),
-
-      finalize(() => {
-        this.isSubmitting = false;
-      }),
-
-      takeUntilDestroyed(this.destroyRef),
-
-      catchError((err) => {
-        this.globalErrorHandler.handleError(err);
-        const msg = 'Ocorreu um erro ao finalizar o cadastro. Tente novamente.';
-        this.message = msg;
-        this.errorNotification.showError(msg);
-        return EMPTY;
-      })
-    ).subscribe({
-      next: () => {
-        this.message = 'Cadastro finalizado com sucesso!';
-
-        /**
-         * Mantido:
-         * aguardamos a store refletir profileCompleted=true antes de navegar,
-         * para reduzir risco de corrida com guard/logo após o write.
-         */
-        this.currentUserStore.user$.pipe(
-          filter((user): user is IUserDados => !!user?.uid && user.profileCompleted === true),
-          take(1)
-        ).subscribe((user) => {
-          const target = this.getRedirectToAfterCompletion(user.uid);
-          this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
-        });
-      }
-    });
+            .subscribe((user) => {
+              const target = this.getRedirectToAfterCompletion(user.uid);
+              this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
+            });
+        },
+      });
   }
 
-  /**
-   * Upload local simulado para feedback visual.
-   * Pode ser refinado depois para progresso real do provider de storage.
-   */
   uploadFile(event: any): void {
     const file = event?.target?.files?.[0] as File | undefined;
 
@@ -387,7 +402,11 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   /**
-   * Ajusta o texto da tela conforme o motivo da entrada.
+   * Contexto visual apenas.
+   *
+   * Mesmo se a entrada vier por reason=email_unverified, esta tela continua
+   * fazendo somente a finalização do perfil. A verificação de e-mail permanece
+   * em fluxo próprio.
    */
   private resolveEntryContext(): void {
     const reason = this.route.snapshot.queryParamMap.get('reason');
@@ -395,25 +414,27 @@ export class FinalizarCadastroComponent implements OnInit {
     if (reason === 'profile_incomplete') {
       this.entryReason = 'profile_incomplete';
       this.pageTitle = 'Complete seu perfil';
-      this.introText = 'Complete os dados abaixo para liberar recursos da plataforma.';
+      this.introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
       return;
     }
 
     if (reason === 'email_unverified') {
       this.entryReason = 'email_unverified';
-      this.pageTitle = 'Finalize seu cadastro';
-      this.introText = 'Obrigado por verificar seu e-mail. Complete os dados abaixo para liberar recursos.';
+      this.pageTitle = 'Complete seu perfil';
+      this.introText =
+        'Seu e-mail ainda pode estar pendente de verificação, mas esta etapa serve apenas para completar seu perfil.';
       return;
     }
 
     this.entryReason = null;
-    this.pageTitle = 'Finalize seu cadastro';
-    this.introText = 'Complete os dados abaixo para liberar recursos da plataforma.';
+    this.pageTitle = 'Complete seu perfil';
+    this.introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
   }
 
   checkFieldValidity(field: string, value: unknown, label?: string): void {
     const nice = label || field;
     const empty = value === null || value === undefined || String(value).trim() === '';
+
     this.formErrors[field] = empty ? `O campo "${nice}" é obrigatório.` : '';
   }
 
@@ -422,10 +443,10 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   goToSubscription(): void {
-    this.router.navigate(['/subscription-plan']);
+    this.router.navigate(['/subscription-plan']).catch(() => {});
   }
 
   continueWithoutSubscription(): void {
-    this.router.navigate(['/dashboard/principal']);
+    this.router.navigate(['/dashboard/principal']).catch(() => {});
   }
-}
+} // Linha 452

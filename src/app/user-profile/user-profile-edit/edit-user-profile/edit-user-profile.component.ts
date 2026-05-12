@@ -18,6 +18,22 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/iuser-social-links';
 import { environment } from 'src/environments/environment';
 
+type IbgeEstado = {
+  id: number;
+  sigla: string;
+  nome: string;
+};
+
+type IbgeMunicipio = {
+  id: number;
+  nome: string;
+};
+
+type GenderOption = {
+  value: string;
+  label: string;
+};
+
 @Component({
   selector: 'app-edit-user-profile',
   templateUrl: './edit-user-profile.component.html',
@@ -26,20 +42,19 @@ import { environment } from 'src/environments/environment';
 })
 export class EditUserProfileComponent implements OnInit, OnDestroy {
   public progressValue = 0;
-
   userData: IUserDados = {} as IUserDados;
   editForm: FormGroup;
 
   uid = '';
-  estados: any[] = [];
-  municipios: any[] = [];
+  estados: IbgeEstado[] = [];
+  municipios: IbgeMunicipio[] = [];
 
   isUploading = false;
   isSaving = false;
 
   private readonly destroy$ = new Subject<void>();
 
-  genderOptions = [
+  readonly genderOptions: GenderOption[] = [
     { value: 'homem', label: 'Homem' },
     { value: 'mulher', label: 'Mulher' },
     { value: 'casal-ele-ele', label: 'Casal (Ele/Ele)' },

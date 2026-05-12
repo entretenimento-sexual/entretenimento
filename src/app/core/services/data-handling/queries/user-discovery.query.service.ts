@@ -69,41 +69,54 @@ export class UserDiscoveryQueryService {
       });
   }
 
+  private cachedProfilesCoverRequestedUids(
+  cached: IUserDados[] | null | undefined,
+  requestedUids: string[]
+): boolean {
+  if (!Array.isArray(cached)) return false;
+  if (!requestedUids.length) return false;
+
+  const cachedUids = new Set(
+    cached
+      .map((profile) => (profile?.uid ?? '').trim())
+      .filter(Boolean)
+  );
+
+  return requestedUids.every((uid) => cachedUids.has(uid));
+}
+
   // --------------------------------------------------------------------------
   // Helpers de compatibilidade (IUserDados)
   // --------------------------------------------------------------------------
 
-  private toUserDadosFromPublicProfile(raw: any): IUserDados {
-    const uid = (raw?.uid ?? '').toString().trim();
+private toUserDadosFromPublicProfile(raw: any): IUserDados {
+  const uid = (raw?.uid ?? '').toString().trim();
 
-    return {
-      uid,
+  return {
+    uid,
 
-      nickname: raw?.nickname ?? null,
-      photoURL: raw?.photoURL ?? raw?.avatarUrl ?? null,
+    nickname: raw?.nickname ?? null,
+    nicknameNormalized: raw?.nicknameNormalized ?? null,
 
-      role: raw?.role ?? 'basic',
-      gender: raw?.gender ?? null,
-      age: raw?.age ?? null,
-      orientation: raw?.orientation ?? null,
-      municipio: raw?.municipio ?? null,
-      estado: raw?.estado ?? null,
+    photoURL: raw?.photoURL ?? raw?.avatarUrl ?? null,
 
-      // Discovery não assume presença
-      isOnline: false,
-      lastSeen: null,
-      lastOnlineAt: null,
-      lastOfflineAt: null,
+    role: raw?.role ?? 'basic',
+    gender: raw?.gender ?? null,
+    age: raw?.age ?? null,
+    orientation: raw?.orientation ?? null,
+    municipio: raw?.municipio ?? null,
+    estado: raw?.estado ?? null,
 
-      latitude: raw?.latitude ?? null,
-      longitude: raw?.longitude ?? null,
-      geohash: raw?.geohash ?? null,
+    isOnline: false,
+    lastSeen: null,
+    lastOnlineAt: null,
+    lastOfflineAt: null,
 
-      // Campos úteis para regra de exposição
-      emailVerified: raw?.emailVerified ?? null,
-      profileCompleted: raw?.profileCompleted ?? null,
-    } as unknown as IUserDados;
-  }
+    latitude: raw?.latitude ?? null,
+    longitude: raw?.longitude ?? null,
+    geohash: raw?.geohash ?? null,
+  } as unknown as IUserDados;
+}
 
   private normalizeUidList(uids: string[] | null | undefined): string[] {
     const seen = new Set<string>();
@@ -235,8 +248,8 @@ export class UserDiscoveryQueryService {
 
         return this.cache.get<IUserDados[]>(cacheKey).pipe(
           switchMap((cached) => {
-            if (Array.isArray(cached) && cached.length) {
-              return of(cached);
+            if (this.cachedProfilesCoverRequestedUids(cached, sorted)) {
+              return of(cached ?? []);
             }
 
             const batches = this.chunk(sorted, UserDiscoveryQueryService.UID_BATCH_SIZE);

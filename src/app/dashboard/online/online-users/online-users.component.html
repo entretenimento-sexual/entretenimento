@@ -1,4 +1,5 @@
 <!-- src/app/dashboard/online/online-users/online-users.component.html -->
+
 <div class="ui-container online-users" [attr.aria-busy]="loading ? 'true' : 'false'">
   <header class="online-users__header">
     <div>
@@ -10,7 +11,6 @@
   </header>
 
   @if (currentUserStatus$ | async; as st) {
-
     @if (st === 'boot' || st === 'loading_profile') {
       <section class="online-users__state-card" role="status" aria-live="polite">
         <h3 class="online-users__state-title">Carregando sua sessão</h3>
@@ -31,7 +31,6 @@
 
     @else {
       @if (currentUserResolved$ | async; as u) {
-
         @if (!u) {
           <section class="online-users__state-card" role="status" aria-live="polite">
             <h3 class="online-users__state-title">Carregando perfil</h3>
@@ -40,7 +39,6 @@
             </p>
           </section>
         } @else {
-
           @if (!u.emailVerified) {
             <section class="online-users__banner online-users__banner--warning" role="status" aria-live="polite">
               <div class="online-users__banner-content">
@@ -55,12 +53,22 @@
           @if (!userLocation) {
             <section class="online-users__activation-card" aria-labelledby="onlineLocationTitle">
               <div class="online-users__activation-copy">
-                <h3 id="onlineLocationTitle" class="online-users__section-title">
-                  Ative sua localização
-                </h3>
-                <p class="online-users__section-text">
-                  Use sua posição para priorizar perfis online próximos a você, com limites compatíveis com seu plano e status de verificação.
-                </p>
+                <div class="online-users__activation-title-row">
+                  <span class="online-users__activation-icon" aria-hidden="true">
+                    <i class="fas fa-location-dot"></i>
+                  </span>
+
+                  <div>
+                    <h3 id="onlineLocationTitle" class="online-users__section-title">
+                      Ative sua localização para ver perfis próximos
+                    </h3>
+
+                    <p class="online-users__section-text">
+                      Sua posição será usada com precisão limitada conforme seu plano,
+                      privacidade e status de verificação.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div class="online-users__activation-actions">
@@ -71,7 +79,8 @@
                   [disabled]="loading || !u.uid"
                   [attr.aria-busy]="loading ? 'true' : 'false'"
                   [attr.aria-disabled]="(loading || !u.uid) ? 'true' : 'false'"
-                  aria-describedby="onlineLocHelp">
+                  aria-describedby="onlineLocHelp"
+                >
                   {{ loading ? 'Obtendo sua localização...' : 'Ativar localização' }}
                 </button>
               </div>
@@ -93,40 +102,69 @@
                     <button
                       type="button"
                       class="btn btn-primary"
-                      (click)="goToFinishMinimumProfile()">
+                      (click)="goToFinishMinimumProfile()"
+                    >
                       Finalizar agora
                     </button>
 
                     <button
                       type="button"
                       class="btn btn-ghost"
-                      (click)="continueWithoutLocation()">
+                      (click)="continueWithoutLocation()"
+                    >
                       Agora não
                     </button>
                   </div>
                 </section>
               }
-             </section>
+            </section>
           }
 
           @else {
-            <section class="online-users__controls-card" aria-labelledby="distControlTitleOnline">
-              <div class="online-users__controls-head">
-                <div>
-                  <h3 class="online-users__section-title" id="distControlTitleOnline">Raio de busca</h3>
-                  <p class="online-users__section-text">
-                    Ajuste a distância máxima para filtrar os perfis exibidos.
+            <section class="online-users__discovery-bar" aria-labelledby="onlineDiscoveryTitle">
+              <div class="online-users__discovery-main">
+                <span class="online-users__discovery-icon" aria-hidden="true">
+                  <i class="fas fa-location-crosshairs"></i>
+                </span>
+
+                <div class="online-users__discovery-copy">
+                  <h3 id="onlineDiscoveryTitle" class="online-users__discovery-title">
+                    Descoberta
+                  </h3>
+
+                  <p class="online-users__discovery-meta">
+                    <span>Online</span>
+                    <span aria-hidden="true">•</span>
+                    <strong>{{ uiDistanceKm ?? policyMaxDistanceKm }} km</strong>
                   </p>
                 </div>
+              </div>
 
-                <div class="online-users__head-actions">
-                  <a
-                    class="btn btn-ghost online-users__head-btn"
-                    [routerLink]="['/dashboard','online']"
-                    aria-label="Ver todos os usuários online">
-                    <i class="fas fa-users" aria-hidden="true"></i>
-                    <span>Ver todos</span>
-                  </a>
+              <button
+                type="button"
+                class="online-users__discovery-toggle"
+                (click)="toggleDiscoveryControls()"
+                [attr.aria-expanded]="discoveryControlsOpen() ? 'true' : 'false'"
+                aria-controls="onlineDiscoveryPanel"
+              >
+                <i class="fas fa-sliders" aria-hidden="true"></i>
+                <span>{{ discoveryControlsOpen() ? 'Fechar ajuste' : 'Ajustar raio' }}</span>
+              </button>
+            </section>
+
+            @if (discoveryControlsOpen()) {
+              <section
+                id="onlineDiscoveryPanel"
+                class="online-users__discovery-panel"
+                aria-label="Ajustes da descoberta"
+              >
+                <div class="online-users__discovery-panel-head">
+                  <div>
+                    <h3 class="online-users__section-title">Raio de busca</h3>
+                    <p class="online-users__section-text">
+                      Ajuste a distância máxima para filtrar os perfis exibidos.
+                    </p>
+                  </div>
 
                   <button
                     type="button"
@@ -136,54 +174,67 @@
                     [attr.aria-busy]="loading ? 'true' : 'false'"
                     [attr.aria-disabled]="(loading || !u.uid) ? 'true' : 'false'"
                     aria-label="Atualizar minha posição"
-                    title="Atualizar minha posição">
+                    title="Atualizar minha posição"
+                  >
                     <i class="fas fa-location-crosshairs" aria-hidden="true"></i>
                     <span>Atualizar</span>
                   </button>
                 </div>
-              </div>
 
-              <div class="online-users__range-block" role="group" aria-label="Ajuste do raio de busca">
-                <button class="online-users__step-btn" type="button" (click)="stepRange(-1)" aria-label="Diminuir raio">
-                  −
-                </button>
+                <div class="online-users__range-block" role="group" aria-label="Ajuste do raio de busca">
+                  <button
+                    class="online-users__step-btn"
+                    type="button"
+                    (click)="stepRange(-1)"
+                    aria-label="Diminuir raio"
+                  >
+                    −
+                  </button>
 
-                <div class="online-users__range-wrap">
-                  <input
-                    type="range"
-                    class="form-range enhanced-range"
-                    [(ngModel)]="uiDistanceKm"
-                    (ngModelChange)="onDistanceChange($event)"
-                    [min]="1"
-                    [max]="policyMaxDistanceKm"
-                    [step]="1"
-                    [style.background]="getRangeTrackBackground(uiDistanceKm)"
-                    aria-label="Raio de busca em quilômetros"
-                    list="km-ticks" />
+                  <div class="online-users__range-wrap">
+                    <input
+                      type="range"
+                      class="form-range enhanced-range"
+                      [(ngModel)]="uiDistanceKm"
+                      (ngModelChange)="onDistanceChange($event)"
+                      [min]="1"
+                      [max]="policyMaxDistanceKm"
+                      [step]="1"
+                      [style.background]="getRangeTrackBackground(uiDistanceKm)"
+                      aria-label="Raio de busca em quilômetros"
+                      list="km-ticks"
+                    />
 
-                  <output
-                    class="online-users__range-bubble"
-                    [attr.aria-live]="'polite'"
-                    [attr.aria-label]="'Raio atual: ' + (uiDistanceKm ?? policyMaxDistanceKm) + ' quilômetros'"
-                    [style.left.%]="getRangeThumbPercent(uiDistanceKm)">
-                    {{ uiDistanceKm ?? policyMaxDistanceKm }} km
-                  </output>
+                    <output
+                      class="online-users__range-bubble"
+                      [attr.aria-live]="'polite'"
+                      [attr.aria-label]="'Raio atual: ' + (uiDistanceKm ?? policyMaxDistanceKm) + ' quilômetros'"
+                      [style.left.%]="getRangeThumbPercent(uiDistanceKm)"
+                    >
+                      {{ uiDistanceKm ?? policyMaxDistanceKm }} km
+                    </output>
+                  </div>
+
+                  <button
+                    class="online-users__step-btn"
+                    type="button"
+                    (click)="stepRange(1)"
+                    aria-label="Aumentar raio"
+                  >
+                    +
+                  </button>
                 </div>
 
-                <button class="online-users__step-btn" type="button" (click)="stepRange(1)" aria-label="Aumentar raio">
-                  +
-                </button>
-              </div>
+                <datalist id="km-ticks">
+                  <option *ngFor="let t of [1,5,10,15,20,25,30,40,50]" [value]="t"></option>
+                </datalist>
 
-              <datalist id="km-ticks">
-                <option *ngFor="let t of [1,5,10,15,20,25,30,40,50]" [value]="t"></option>
-              </datalist>
-
-              <div class="online-users__range-meta">
-                <span>1 km</span>
-                <span>{{ uiDistanceKm ?? policyMaxDistanceKm }} / {{ policyMaxDistanceKm }} km</span>
-              </div>
-            </section>
+                <div class="online-users__range-meta">
+                  <span>1 km</span>
+                  <span>{{ uiDistanceKm ?? policyMaxDistanceKm }} / {{ policyMaxDistanceKm }} km</span>
+                </div>
+              </section>
+            }
 
             <section class="online-users__results-head">
               <div class="online-users__results-copy">
@@ -206,7 +257,6 @@
 
             <div class="profiles-grid" role="list" aria-label="Lista de perfis online">
               @if (onlineUsers$ | async; as users) {
-
                 @if (users.length === 0) {
                   <section class="online-users__empty-card" role="status" aria-live="polite">
                     <h4 class="online-users__empty-title">Nenhum perfil no raio atual</h4>
@@ -219,11 +269,11 @@
                     <app-user-card
                       role="listitem"
                       [user]="user"
-                      [distanciaKm]="user.distanciaKm ?? null">
+                      [distanciaKm]="user.distanciaKm ?? null"
+                    >
                     </app-user-card>
                   }
                 }
-
               } @else {
                 <section class="online-users__state-card" role="status" aria-live="polite">
                   <h4 class="online-users__state-title">Carregando perfis</h4>
@@ -234,7 +284,6 @@
               }
             </div>
           }
-
         }
       } @else {
         <section class="online-users__state-card" role="status" aria-live="polite">

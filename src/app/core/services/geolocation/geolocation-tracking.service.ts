@@ -6,14 +6,16 @@
 // - Escrita via FirestoreWriteService (elimina FirestoreService legado)
 // Não esquecer os comentários e ferramentas de debug para facilitar a manutenção futura
 import { Injectable, NgZone } from '@angular/core';
-import { EMPTY } from 'rxjs';
-import { catchError, take } from 'rxjs/operators';
+import { EMPTY, Observable, of } from 'rxjs';
+import { catchError, switchMap, take } from 'rxjs/operators';
 
 import { GeoCoordinates } from '../../interfaces/geolocation.interface';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
 
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import { serverTimestamp } from 'firebase/firestore';
+import { geohashForLocation } from 'geofire-common';
 
 type PermissionState = 'granted' | 'prompt' | 'denied' | 'unsupported';
 
@@ -194,34 +196,124 @@ export class GeolocationTrackingService {
     }
   }
 
-  /** Escrita centralizada (Observable-first) */
-  private persistLocation$(
-    uid: string,
-    latitude: number,
-    longitude: number,
-    accuracy?: number | null
-  ) {
-    return this.write.updateDocument(
-      'users',
-      uid,
-      {
-        latitude,
-        longitude,
-        locationAccuracy: Math.round(accuracy ?? 0),
-        lastLocationAt: Date.now(),
-      },
-      {
-        // geolocalização é “best-effort” — não travar UI
-        silent: true,
-        context: 'GeolocationTrackingService.persistLocation$',
-      }
-    ).pipe(
-      catchError((err) => {
-        this.handleWriteError(err);
-        return EMPTY;
-      })
-    );
+  /**
+ * Persiste uma posição pontual em users/{uid}.
+ *
+ * Uso:
+ * - chamado após clique explícito do usuário;
+ * - evita depender apenas do watchPosition(), que pode demorar.
+ */
+persistLocationOnce$(uid: string, coords: GeoCoordinates): Observable<void> {
+  const safeUid = (uid ?? '').trim();
+
+  if (!safeUid || !this.isValidCoordinates(coords?.latitude, coords?.longitude)) {
+    return of(void 0);
   }
+
+  return this.persistLocation$(
+    safeUid,
+    coords.latitude,
+    coords.longitude,
+    coords.accuracy
+  );
+}
+
+/**
+ * Persiste a localização pública usada por discovery/perfis online.
+ *
+ * Importante:
+ * - recebe coordenadas já tratadas pela policy de privacidade;
+ * - não grava locationAccuracy nem locationUpdatedAt porque as rules atuais
+ *   de public_profiles não permitem esses campos;
+ * - não cria public_profiles legado. O documento deve existir.
+ */
+persistPublicLocation$(uid: string, coords: GeoCoordinates): Observable<void> {
+  const safeUid = (uid ?? '').trim();
+
+  if (!safeUid || !this.isValidCoordinates(coords?.latitude, coords?.longitude)) {
+    return of(void 0);
+  }
+
+  const geohash =
+    coords.geohash ||
+    geohashForLocation([coords.latitude, coords.longitude]);
+
+  return this.write.updateDocument(
+    'public_profiles',
+    safeUid,
+    {
+      uid: safeUid,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      geohash,
+      updatedAt: serverTimestamp(),
+    },
+    {
+      silent: true,
+      context: 'GeolocationTrackingService.persistPublicLocation$',
+    }
+  ).pipe(
+    catchError((err) => {
+      this.handleWriteError(err);
+      return of(void 0);
+    })
+  );
+}
+
+private isValidCoordinates(latitude: unknown, longitude: unknown): boolean {
+  return (
+    typeof latitude === 'number' &&
+    typeof longitude === 'number' &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
+
+/**
+ * Escrita centralizada em users/{uid}.
+ *
+ * users/{uid} continua sendo a fonte privada/completa.
+ * Aqui também gravamos geohash para manter compatibilidade com fluxos antigos.
+ */
+private persistLocation$(
+  uid: string,
+  latitude: number,
+  longitude: number,
+  accuracy?: number | null
+): Observable<void> {
+  const safeUid = (uid ?? '').trim();
+
+  if (!safeUid || !this.isValidCoordinates(latitude, longitude)) {
+    return of(void 0);
+  }
+
+  const geohash = geohashForLocation([latitude, longitude]);
+
+  return this.write.updateDocument(
+    'users',
+    safeUid,
+    {
+      latitude,
+      longitude,
+      geohash,
+      locationAccuracy: Math.round(accuracy ?? 0),
+      lastLocationAt: Date.now(),
+    },
+    {
+      silent: true,
+      context: 'GeolocationTrackingService.persistLocation$',
+    }
+  ).pipe(
+    catchError((err) => {
+      this.handleWriteError(err);
+      return EMPTY;
+    })
+  );
+}
 
   private handleWriteError(err: unknown): void {
     // Observabilidade sem UX duplicada (best-effort)

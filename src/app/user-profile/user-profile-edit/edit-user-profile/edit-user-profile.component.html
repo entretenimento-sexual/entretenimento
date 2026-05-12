@@ -6,7 +6,7 @@
        ========================================================= -->
   <header class="profile-header" aria-label="Foto e ações de perfil">
     <div class="profile-picture-container" aria-label="Foto de perfil atual">
-      <img class="profile-picture" [src]="userData.photoURL || 'assets/img/avatar-placeholder.png'"
+      <img class="profile-picture" [src]="userData.photoURL || 'assets/imagem-padrao.webp'"
         alt="Foto de perfil" loading="lazy" decoding="async">
     </div>
 
@@ -58,8 +58,8 @@
         <label class="form-label" for="estado">Estado</label>
         <select id="estado" class="input-field" formControlName="estado" name="estado" aria-describedby="estado-help">
           <option value="">Selecione</option>
-          @for (estado of estados; track estado) {
-          <option [value]="estado.sigla">{{ estado.nome }}</option>
+         @for (estado of estados; track estado.id) {
+            <option [value]="estado.sigla">{{ estado.nome }}</option>
           }
         </select>
 
@@ -71,11 +71,17 @@
       <!-- Município -->
       <div class="form-field">
         <label class="form-label" for="municipio">Município</label>
-        <select id="municipio" class="input-field" formControlName="municipio" name="municipio"
-          [attr.aria-disabled]="municipios.length ? null : 'true'">
+        <select
+          id="municipio"
+          class="input-field"
+          formControlName="municipio"
+          name="municipio"
+          [disabled]="municipios.length === 0"
+          [attr.aria-disabled]="municipios.length ? null : 'true'"
+        >
           <option value="">Selecione</option>
-          @for (municipio of municipios; track municipio) {
-          <option [value]="municipio.nome">{{ municipio.nome }}</option>
+          @for (municipio of municipios; track municipio.id) {
+            <option [value]="municipio.nome">{{ municipio.nome }}</option>
           }
         </select>
       </div>
@@ -85,9 +91,9 @@
         <label class="form-label" for="gender">Gênero</label>
         <select id="gender" class="input-field" formControlName="gender" name="gender" aria-describedby="gender-help">
           <option value="">Selecione</option>
-          @for (genderOption of genderOptions; track genderOption) {
-          <option [value]="genderOption.value">{{ genderOption.label }}</option>
-          }
+            @for (genderOption of genderOptions; track genderOption.value) {
+              <option [value]="genderOption.value">{{ genderOption.label }}</option>
+            }
         </select>
 
         <p id="gender-help" class="help-text">

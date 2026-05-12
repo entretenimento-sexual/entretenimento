@@ -65,11 +65,20 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "6kb",
-                  "maximumError": "8kb"
+                  "maximumWarning": "10kb",
+                  "maximumError": "12kb"
                 }
               ],
-              "optimization": true,
+              "optimization": {
+  "scripts": true,
+  "styles": {
+    "minify": true,
+    "inlineCritical": true
+  },
+  "fonts": {
+    "inline": false
+  }
+},
               "outputHashing": "all",
               "sourceMap": false,
               "extractLicenses": true,

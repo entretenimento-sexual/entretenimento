@@ -25,25 +25,42 @@ function mergeProfileWithPresence(
   presence: IUserDados | null | undefined
 ): IUserDados | null {
   if (!profile && !presence) return null;
-  if (!profile) return presence ?? null;
+
+  /**
+   * Sem perfil público persistente, não montamos usuário exibível.
+   * Presence sozinho diz "está online", mas não diz "pode ser exibido".
+   */
+  if (!profile) return null;
+
   if (!presence) return profile ?? null;
 
+  const anyPresence = presence as any;
+  const anyProfile = profile as any;
+
+  /**
+   * Importante:
+   * NÃO espalhar `...presence` por cima do profile.
+   *
+   * Motivo:
+   * presence é documento efêmero e pode vir sem nickname, latitude,
+   * longitude, gender, estado, municipio etc.
+   * Se espalhar tudo, pode apagar campos públicos válidos.
+   */
   return {
     ...profile,
-    ...presence,
 
-    // uid canônico preservado
-    uid: presence.uid || profile.uid,
+    uid: anyPresence.uid || anyProfile.uid,
 
-    // prioridade explícita para campos de presença
-    isOnline: (presence as any)?.isOnline ?? (profile as any)?.isOnline,
-    lastSeen: (presence as any)?.lastSeen ?? (profile as any)?.lastSeen,
-    lastOnlineAt: (presence as any)?.lastOnlineAt ?? (profile as any)?.lastOnlineAt,
-    lastOfflineAt: (presence as any)?.lastOfflineAt ?? (profile as any)?.lastOfflineAt,
+    isOnline: anyPresence.isOnline ?? anyProfile.isOnline,
+    lastSeen: anyPresence.lastSeen ?? anyProfile.lastSeen,
+    lastOnlineAt: anyPresence.lastOnlineAt ?? anyProfile.lastOnlineAt,
+    lastOfflineAt: anyPresence.lastOfflineAt ?? anyProfile.lastOfflineAt,
     lastStateChangeAt:
-      (presence as any)?.lastStateChangeAt ?? (profile as any)?.lastStateChangeAt,
+      anyPresence.lastStateChangeAt ?? anyProfile.lastStateChangeAt,
     presenceState:
-      (presence as any)?.presenceState ?? (profile as any)?.presenceState,
+      anyPresence.presenceState ?? anyProfile.presenceState,
+    presenceSessionId:
+      anyPresence.presenceSessionId ?? anyProfile.presenceSessionId,
   } as IUserDados;
 }
 
@@ -62,37 +79,36 @@ function canExposeUser(
   const anyMerged = merged as any;
   const anyProfile = profile as any;
 
-  // opt-out futuro
   if (anyMerged?.hideFromOnline === true) return false;
 
-  // se temos perfil persistente, aplicamos regra mais rica
-  if (profile) {
-    const profileCompleted = anyProfile?.profileCompleted === true;
-
-    const hasMinFields =
-      typeof anyProfile?.gender === 'string' &&
-      anyProfile.gender.trim() !== '' &&
-      typeof anyProfile?.estado === 'string' &&
-      anyProfile.estado.trim() !== '' &&
-      typeof anyProfile?.municipio === 'string' &&
-      anyProfile.municipio.trim() !== '';
-
-    // quando explicitamente false, não expõe
-    if (anyProfile?.emailVerified === false) return false;
-
-    return profileCompleted || hasMinFields;
-  }
+  /**
+   * Presence sozinho não basta.
+   * Para aparecer em discovery/online, precisa haver perfil público.
+   */
+  if (!profile) return false;
 
   /**
-   * Fallback sem perfil persistente:
-   * - aceitamos apenas presença com dados mínimos de exibição
-   * - isso evita cards “fantasma” só com uid
+   * Contrato público mínimo para exibição.
+   *
+   * Não usar aqui:
+   * - emailVerified
+   * - profileCompleted
+   * - acceptedTerms
+   * - email
    */
-  const hasDisplayData =
-    (typeof anyMerged?.nickname === 'string' && anyMerged.nickname.trim() !== '') ||
-    (typeof anyMerged?.photoURL === 'string' && anyMerged.photoURL.trim() !== '');
+  const hasPublicIdentity =
+    typeof anyProfile?.nickname === 'string' &&
+    anyProfile.nickname.trim() !== '';
 
-  return hasDisplayData;
+  const hasPublicProfileBasics =
+    typeof anyProfile?.gender === 'string' &&
+    anyProfile.gender.trim() !== '' &&
+    typeof anyProfile?.estado === 'string' &&
+    anyProfile.estado.trim() !== '' &&
+    typeof anyProfile?.municipio === 'string' &&
+    anyProfile.municipio.trim() !== '';
+
+  return hasPublicIdentity && hasPublicProfileBasics;
 }
 
 export const selectGlobalOnlineUsers = createSelector(

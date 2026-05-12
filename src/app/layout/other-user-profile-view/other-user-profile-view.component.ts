@@ -10,7 +10,6 @@
 // Supressão explícita:
 // - NÃO existe mais botão de "enviar convite para este perfil"
 // - motivo: InviteService atual é orientado a convites de sala, não perfil-a-perfil
-
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
@@ -92,9 +91,9 @@ export class OtherUserProfileViewComponent implements OnInit {
     return this.userProfile?.nickname?.trim() || 'Perfil de usuário';
   }
 
-  get discoveryLink(): any[] {
-    return ['/dashboard/online'];
-  }
+get discoveryLink(): any[] {
+  return ['/dashboard/explorar'];
+}
 
   get photosLink(): any[] | null {
     return this.uid ? ['/perfil', this.uid, 'fotos'] : null;

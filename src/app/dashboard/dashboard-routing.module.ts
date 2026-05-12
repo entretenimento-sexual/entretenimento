@@ -36,11 +36,36 @@ const routes: Routes = [
         canActivate: [authGuard],
       },
 
-      /**
-       * Discovery canônico da plataforma.
-       * Toda navegação de "ver pessoas", "explorar perfis" e "online"
-       * deve convergir para /dashboard/online.
+            /**
+       * Página pai de descoberta de perfis.
+       *
+       * Esta rota será o novo ponto canônico para:
+       * - Online
+       * - Todos
+       * - Perto
+       * - Compatíveis
+       * - Novos
+       *
+       * Por enquanto, /dashboard/online permanece intacta para evitar quebra.
        */
+      {
+        path: 'explorar',
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+        loadComponent: () =>
+          import('./discovery/profiles-discovery-page/profiles-discovery-page.component')
+            .then((m) => m.ProfilesDiscoveryPageComponent),
+      },
+
+/**
+ * Rota legada/específica de perfis online.
+ *
+ * Mantida por compatibilidade enquanto /dashboard/explorar
+ * passa a ser a página pai de descoberta da plataforma.
+ */
       {
         path: 'online',
         component: OnlineUsersFullComponent,

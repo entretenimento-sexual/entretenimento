@@ -70,15 +70,15 @@ const routes: Routes = [
         pathMatch: 'full',
       },
       {
-        path: 'profile-list',
-        redirectTo: 'dashboard/online',
-        pathMatch: 'full',
-      },
-      {
-        path: 'perfis-proximos',
-        redirectTo: 'dashboard/online',
-        pathMatch: 'full',
-      },
+  path: 'profile-list',
+  redirectTo: 'dashboard/explorar',
+  pathMatch: 'full',
+},
+{
+  path: 'perfis-proximos',
+  redirectTo: 'dashboard/explorar',
+  pathMatch: 'full',
+},
       {
         path: 'register',
         loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),

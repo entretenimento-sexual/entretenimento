@@ -153,22 +153,39 @@ export class PresenceService {
       })
     );
 
-    // 2) heartbeat SOMENTE quando líder + visible
-    const heartbeat$ = combineLatest([isLeader$, visibility$]).pipe(
-      switchMap(([leader, vis]) => {
-        if (!leader || vis !== 'visible') return EMPTY;
+// 2) heartbeat de presença SOMENTE quando líder
+//
+// Regra:
+// - visible => mantém online com beatOnline$
+// - hidden  => mantém away vivo com setAway$
+//
+// Motivo:
+// o UserPresenceQueryService expira presença por lastSeen.
+// Se a aba fica hidden e não atualiza lastSeen, o perfil some da lista
+// mesmo estando com isOnline: true e presenceState: "away".
+const heartbeat$ = combineLatest([isLeader$, visibility$]).pipe(
+  switchMap(([leader, vis]) => {
+    if (!leader) return EMPTY;
 
-        return interval(PresenceService.HEARTBEAT_MS).pipe(
-          startWith(0),
-          filter(() => (typeof navigator === 'undefined' ? true : navigator.onLine !== false)),
-          exhaustMap(() => this.writer.beatOnline$(cleanUid)),
-          catchError((err) => {
-            this.dbg('heartbeat$ erro (suprimido no stream)', err);
-            return EMPTY;
-          })
-        );
+    return interval(PresenceService.HEARTBEAT_MS).pipe(
+      startWith(0),
+      filter(() =>
+        typeof navigator === 'undefined'
+          ? true
+          : navigator.onLine !== false
+      ),
+      exhaustMap(() =>
+        vis === 'hidden'
+          ? this.writer.setAway$(cleanUid)
+          : this.writer.beatOnline$(cleanUid)
+      ),
+      catchError((err) => {
+        this.dbg('heartbeat$ erro (suprimido no stream)', err);
+        return EMPTY;
       })
     );
+  })
+);
 
     // 3) rede voltou: líder seta online/away conforme visibilidade atual
     const onOnline$ = dom.online$.pipe(
@@ -211,21 +228,26 @@ export class PresenceService {
     );
 
     // 5) rede caiu: líder tenta setOffline (best-effort)
-    const onOffline$ = dom.offline$.pipe(
-      auditTime(250),
-      tap((reason) => this.dbg('DOM offline$', { uid: cleanUid, reason })),
-      switchMap((reason) =>
-        isLeader$.pipe(
-          take(1),
-          filter(Boolean),
-          exhaustMap(() => this.writer.setOffline$(cleanUid, reason))
-        )
-      ),
-      catchError((err) => {
-        this.dbg('onOffline$ erro (suprimido no stream)', err);
-        return EMPTY;
-      })
-    );
+const onOffline$ = dom.offline$.pipe(
+  auditTime(1000),
+  tap((reason) =>
+    this.dbg('DOM offline$ → setAway best-effort', {
+      uid: cleanUid,
+      reason,
+    })
+  ),
+  switchMap(() =>
+    isLeader$.pipe(
+      take(1),
+      filter(Boolean),
+      exhaustMap(() => this.writer.setAway$(cleanUid))
+    )
+  ),
+  catchError((err) => {
+    this.dbg('onOffline$ erro (suprimido no stream)', err);
+    return EMPTY;
+  })
+);
 
     // 6) exit: libera liderança imediatamente (sincrono); opcionalmente tenta setOffline
     const onExit$ = merge(dom.beforeUnload$, dom.pageHide$).pipe(

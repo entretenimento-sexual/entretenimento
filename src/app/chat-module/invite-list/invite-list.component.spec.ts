@@ -2,17 +2,20 @@
 // Testes do InviteListComponent
 //
 // Ajustes desta versão:
+// - remove expectativas legadas sobre component.invites;
+// - remove expectativa legada de LoadInvites neste componente;
+// - testa invites$ vindo do NgRx selector atual;
+// - testa AcceptInvite / DeclineInvite;
+// - mantém AuthSessionService como fonte canônica do UID.
 
-// - adiciona MockStore para o selectInvites
-// - adiciona mocks de ErrorNotificationService e GlobalErrorHandlerService
-// - usa BehaviorSubject para simular uid$
-// - evita typings problemáticos com SpyObj<Service>
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
 import { provideMockStore, MockStore } from '@ngrx/store/testing';
+
+import { describe, beforeEach, expect, it, Mock, vi } from 'vitest';
 
 import { InviteListComponent } from './invite-list.component';
 
@@ -20,10 +23,19 @@ import { AuthSessionService } from '../../core/services/autentication/auth/auth-
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 
-import { LoadInvites } from '../../store/actions/actions.chat/invite.actions';
-import { selectInvites } from '../../store/selectors/selectors.chat/invite.selectors';
 import { Invite } from '../../core/interfaces/interfaces-chat/invite.interface';
-import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+
+import {
+  AcceptInvite,
+  DeclineInvite,
+} from '../../store/actions/actions.chat/invite.actions';
+
+import {
+  selectInvitesError,
+  selectInvitesLoading,
+  selectPendingInvites,
+  selectPendingInvitesCount,
+} from '../../store/selectors/selectors.chat/invite.selectors';
 
 describe('InviteListComponent', () => {
   let component: InviteListComponent;
@@ -68,8 +80,20 @@ describe('InviteListComponent', () => {
         provideMockStore({
           selectors: [
             {
-              selector: selectInvites,
+              selector: selectPendingInvites,
               value: [] as Invite[],
+            },
+            {
+              selector: selectPendingInvitesCount,
+              value: 0,
+            },
+            {
+              selector: selectInvitesLoading,
+              value: false,
+            },
+            {
+              selector: selectInvitesError,
+              value: null,
             },
           ],
         }),
@@ -88,41 +112,53 @@ describe('InviteListComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('deve criar o componente', () => {
     expect(component).toBeTruthy();
   });
 
-  it('deve carregar convites quando houver UID autenticado', () => {
-    expect(store.dispatch).toHaveBeenCalledWith(
-      LoadInvites({ userId: 'u1' })
-    );
+  it('deve observar o UID autenticado pela sessão', () => {
     expect(component.userId).toBe('u1');
   });
 
-  it('deve limpar convites locais quando não houver UID autenticado', () => {
-    component.invites = [
-      { id: 'i1' } as Invite,
-      { id: 'i2' } as Invite,
-    ];
-
+  it('deve limpar userId quando não houver UID autenticado', () => {
     authUidSubject.next(null);
     fixture.detectChanges();
 
     expect(component.userId).toBeNull();
-    expect(component.invites).toEqual([]);
   });
 
-  it('deve refletir convites vindos do store', () => {
+  it('deve refletir convites vindos do store via invites$', async () => {
     const invites: Invite[] = [
       { id: 'a1' } as Invite,
       { id: 'a2' } as Invite,
     ];
 
-    store.overrideSelector(selectInvites, invites);
+    store.overrideSelector(selectPendingInvites, invites);
     store.refreshState();
-    fixture.detectChanges();
 
-    expect(component.invites).toEqual(invites);
+    const result = await firstValueFrom(component.invites$);
+
+    expect(result).toEqual(invites);
+  });
+
+  it('deve despachar AcceptInvite ao aceitar convite válido', () => {
+    component.userId = 'u1';
+
+    component.respondToInvite({ id: 'invite-1' } as Invite, 'accepted');
+
+    expect(store.dispatch).toHaveBeenCalledWith(
+      AcceptInvite({ inviteId: 'invite-1' })
+    );
+  });
+
+  it('deve despachar DeclineInvite ao recusar convite válido', () => {
+    component.userId = 'u1';
+
+    component.respondToInvite({ id: 'invite-2' } as Invite, 'declined');
+
+    expect(store.dispatch).toHaveBeenCalledWith(
+      DeclineInvite({ inviteId: 'invite-2' })
+    );
   });
 
   it('deve mostrar erro ao responder convite sem userId', () => {

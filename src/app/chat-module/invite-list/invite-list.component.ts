@@ -5,21 +5,24 @@
 // - usa AuthSessionService como fonte canônica do UID
 // - consome o store sem ser owner do inbox
 // - centraliza tratamento de erro
-// - mantém nomenclaturas públicas (respondToInvite)
-// - o owner global de LoadInvites / StopInvites agora fica no LayoutShellComponent
+// - mantém nomenclaturas públicas: respondToInvite
+// - o owner global de LoadInvites / StopInvites fica no LayoutShellComponent
 // - fecha o fluxo real de aceitar/recusar
+
 import { Component, DestroyRef, OnDestroy, OnInit, inject } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { Observable, of } from 'rxjs';
-import { catchError, distinctUntilChanged, map, shareReplay, tap } from 'rxjs/operators';
+import { catchError, distinctUntilChanged, map, tap } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AppState } from 'src/app/store/states/app.state';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
+
 import {
   AcceptInvite,
   DeclineInvite,
 } from 'src/app/store/actions/actions.chat/invite.actions';
+
 import {
   selectInvitesError,
   selectInvitesLoading,
@@ -35,7 +38,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
   selector: 'app-invite-list',
   templateUrl: './invite-list.component.html',
   styleUrls: ['./invite-list.component.css'],
-  standalone: false
+  standalone: false,
 })
 export class InviteListComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
@@ -107,14 +110,11 @@ export class InviteListComponent implements OnInit, OnDestroy {
   }
 
   trackByInviteId = (_: number, invite: Invite): string =>
-    invite.id ?? `${invite.receiverId ?? 'unknown'}-${invite.targetId ?? invite.roomId ?? 'unknown'}`;
+    invite.id ??
+    `${invite.receiverId ?? 'unknown'}-${invite.targetId ?? invite.roomId ?? 'unknown'}`;
 
   getInviteTitle(invite: Invite): string {
-    return (
-      invite.targetName?.trim() ||
-      invite.roomName?.trim() ||
-      'Convite'
-    );
+    return invite.targetName?.trim() || invite.roomName?.trim() || 'Convite';
   }
 
   getInviteSubtitle(invite: Invite): string {
@@ -138,11 +138,14 @@ export class InviteListComponent implements OnInit, OnDestroy {
 
     if (typeof value === 'string') {
       const parsed = new Date(value);
-      return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('pt-BR');
+      return Number.isNaN(parsed.getTime())
+        ? value
+        : parsed.toLocaleString('pt-BR');
     }
 
     if (typeof value === 'object' && value !== null) {
       const maybeTimestamp = value as { toDate?: () => Date };
+
       if (typeof maybeTimestamp.toDate === 'function') {
         return maybeTimestamp.toDate().toLocaleString('pt-BR');
       }
@@ -164,15 +167,17 @@ export class InviteListComponent implements OnInit, OnDestroy {
 
     try {
       const err = error instanceof Error ? error : new Error(userMessage);
+
       (err as any).original = error;
       (err as any).context = {
         scope: 'InviteListComponent',
-        ...(context ?? {})
+        ...(context ?? {}),
       };
       (err as any).skipUserNotification = true;
+
       this.globalError.handleError(err);
     } catch {
       // noop
     }
   }
-} // Linha 178
+}

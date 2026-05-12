@@ -1,41 +1,48 @@
-/* src/app/dashboard/online-users-full/online-users-full.component.css */
+/* src/app/dashboard/online/online-users-full/online-users-full.component.css */
 
-/* casca da página (respeita claro/escuro) */
-.page-shell {
-  padding: 24px;
+:host {
+  display: block;
+  width: 100%;
+}
+
+.online-directory-page {
+  width: min(100%, 980px);
+  margin-inline: auto;
+  padding: clamp(18px, 3vw, 32px);
   color: var(--text-color);
 }
 
-/* header da página */
 .page-head {
   display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: end;
-  gap: 12px;
-  margin-bottom: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 16px;
+  margin-bottom: 18px;
 }
 
 .head-left {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-areas:
-    "back title"
-    "back subtitle";
-  column-gap: 10px;
-  row-gap: 2px;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.page-title-group {
+  min-width: 0;
 }
 
 .back-btn {
-  grid-area: back;
-  padding: 8px 10px;
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 12px;
   border: 1px solid var(--surface-border);
   border-radius: 10px;
   color: var(--text-color);
-  background: transparent;
+  background: var(--surface-color);
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  text-decoration: none;
 }
 
 .back-btn:hover {
@@ -47,42 +54,31 @@
   outline-offset: var(--focus-offset);
 }
 
-.hide-xs {
-  display: none;
-}
-
-@media (min-width: 420px) {
-  .hide-xs {
-    display: inline;
-  }
-}
-
 .page-title {
-  grid-area: title;
   margin: 0;
-  font-weight: 700;
-  font-size: clamp(1.125rem, 1.6vw, 1.6rem);
+  font-weight: 800;
+  font-size: clamp(1.25rem, 1rem + 1vw, 1.75rem);
+  line-height: 1.08;
 }
 
 .page-subtitle {
-  grid-area: subtitle;
-  margin: 0;
-  font-size: .95rem;
+  margin: 4px 0 0;
+  font-size: 0.96rem;
+  line-height: 1.35;
   color: color-mix(in oklab, var(--text-color) 70%, transparent);
 }
 
-/* ações do header (tabs/segmented) */
 .head-actions {
   display: flex;
-  align-items: end;
+  align-items: flex-start;
   justify-content: flex-end;
 }
 
 .segmented {
   display: inline-flex;
+  overflow: hidden;
   border: 1px solid var(--surface-border);
   border-radius: 12px;
-  overflow: hidden;
   background: var(--surface-color);
 }
 
@@ -92,39 +88,86 @@
   background: transparent;
   color: var(--text-color);
   padding: 8px 12px;
-  font-size: .95rem;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .seg-btn:hover {
   background: var(--header-hover-bg);
-  cursor: pointer;
 }
 
 .seg-btn:focus-visible {
   outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
+  outline-offset: -2px;
 }
 
 .seg-btn.active {
-  background: color-mix(in oklab, var(--primary-color) 16%, transparent);
-  color: var(--text-color);
+  background: color-mix(in oklab, var(--primary-color) 18%, transparent);
 }
 
-/* alto contraste */
-:root.high-contrast .back-btn,
-:root.high-contrast .segmented {
+.online-full-shell {
+  width: 100%;
+}
+
+.hide-xs {
+  display: inline;
+}
+
+@media (max-width: 760px) {
+  .online-directory-page {
+    padding: 16px;
+  }
+
+  .page-head {
+    grid-template-columns: 1fr;
+  }
+
+  .head-actions {
+    justify-content: flex-start;
+  }
+
+  .segmented {
+    width: 100%;
+  }
+
+  .seg-btn {
+    flex: 1;
+    justify-content: center;
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 420px) {
+  .head-left {
+    gap: 8px;
+  }
+
+  .hide-xs {
+    display: none;
+  }
+
+  .back-btn {
+    width: 40px;
+    justify-content: center;
+    padding-inline: 0;
+  }
+}
+
+html.high-contrast .back-btn,
+html.high-contrast .segmented {
   background: var(--background-color) !important;
   color: var(--text-color) !important;
   border: 3px solid var(--text-color) !important;
 }
 
-/* forced colors (Windows HC) */
 @media (forced-colors: active) {
-
   .back-btn,
   .segmented,
   .seg-btn {

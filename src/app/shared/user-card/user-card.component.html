@@ -20,15 +20,21 @@
 
   <div class="card-body d-flex flex-column">
     <p class="meta">
-      {{ user()?.gender | titlecase }} • {{ user()?.idade }} anos
+      @if (user()?.idade) {
+        {{ user()?.gender | titlecase }} • {{ user()?.idade }} anos
+      } @else {
+        {{ user()?.gender | titlecase }}
+      }
     </p>
     <p class="meta">
       {{ user()?.municipio }}, {{ user()?.estado }}
     </p>
 
-    <p class="description" [attr.id]="'uc-desc-' + (user()?.uid || 'x')">
-      {{ user()?.descricao || '' }}
-    </p>
+@if (user()?.descricao) {
+  <p class="description" [attr.id]="'uc-desc-' + (user()?.uid || 'x')">
+    {{ user()?.descricao }}
+  </p>
+}
 
     <!-- Distância com ícone -->
     <p class="distance mb-2">

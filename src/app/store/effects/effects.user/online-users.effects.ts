@@ -170,6 +170,62 @@ export class OnlineUsersEffects {
     });
   }
 
+private toComparableText(value: unknown): string {
+  return (value ?? '').toString().trim();
+}
+
+private toComparableCoordinate(value: unknown): number | null {
+  const n =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number(value)
+        : Number.NaN;
+
+  if (!Number.isFinite(n)) {
+    return null;
+  }
+
+  // Evita diferença irrelevante de precisão quebrar comparação.
+  return Number(n.toFixed(6));
+}
+
+/**
+ * Compara o recorte público usado por discovery/perfis online.
+ *
+ * Importante:
+ * se latitude/longitude/geohash não entrarem aqui, o usersMap pode manter
+ * uma versão antiga do public_profiles sem coordenadas, mesmo depois do
+ * Firestore já estar correto.
+ */
+private toComparablePublicProfile(
+  user: IUserDados | null | undefined
+): Record<string, unknown> | null {
+  if (!user?.uid) return null;
+
+  const anyUser = user as any;
+
+  return {
+    uid: this.toComparableText(anyUser.uid),
+
+    nickname: this.toComparableText(anyUser.nickname),
+    nicknameNormalized: this.toComparableText(anyUser.nicknameNormalized),
+
+    photoURL: this.toComparableText(anyUser.photoURL ?? anyUser.avatarUrl),
+
+    role: this.toComparableText(anyUser.role ?? 'free'),
+
+    gender: this.toComparableText(anyUser.gender),
+    orientation: this.toComparableText(anyUser.orientation),
+    estado: this.toComparableText(anyUser.estado),
+    municipio: this.toComparableText(anyUser.municipio),
+
+    latitude: this.toComparableCoordinate(anyUser.latitude),
+    longitude: this.toComparableCoordinate(anyUser.longitude),
+    geohash: this.toComparableText(anyUser.geohash),
+  };
+}
+
 private areProfilesEquivalent(
   current: IUserDados | null | undefined,
   incoming: IUserDados | null | undefined
@@ -177,18 +233,12 @@ private areProfilesEquivalent(
   if (current === incoming) return true;
   if (!current || !incoming) return false;
 
-  const currentWithMunicipio = current as IUserDados & { municipio?: string | null };
-  const incomingWithMunicipio = incoming as IUserDados & { municipio?: string | null };
+  const a = this.toComparablePublicProfile(current);
+  const b = this.toComparablePublicProfile(incoming);
 
-  return (
-    current.uid === incoming.uid &&
-    current.nickname === incoming.nickname &&
-    current.email === incoming.email &&
-    current.emailVerified === incoming.emailVerified &&
-    current.role === incoming.role &&
-    current.profileCompleted === incoming.profileCompleted &&
-    (currentWithMunicipio.municipio ?? null) === (incomingWithMunicipio.municipio ?? null)
-  );
+  if (!a || !b) return false;
+
+  return Object.keys(b).every((key) => a[key] === b[key]);
 }
 
 private shouldUpsertProfile(
@@ -201,32 +251,67 @@ private shouldUpsertProfile(
   return !this.areProfilesEquivalent(current, incoming);
 }
 
-  /**
-   * Materializa perfis públicos no usersMap.
-   * onlineUsers permanece separado.
-   */
+/**
+ * Materializa perfis públicos no usersMap.
+ * onlineUsers permanece separado.
+ *
+ * Regras:
+ * - presence define quem está online;
+ * - public_profiles define o card público;
+ * - usersMap precisa receber atualização quando public_profiles mudar
+ *   latitude, longitude, geohash, foto, nickname, município etc.
+ */
 private hydrateProfilesForOnlineUsers$(
   presenceUsers: IUserDados[],
   currentUid: string | null
 ) {
   const normalizedPresence = this.normalizePresenceUsers(presenceUsers, currentUid);
-  const uids = normalizedPresence.map((u) => (u.uid ?? '').trim()).filter(Boolean);
+  const uids = normalizedPresence
+    .map((u) => (u.uid ?? '').trim())
+    .filter(Boolean);
 
   if (!uids.length) {
     return of(loadOnlineUsersSuccess({ users: [] }));
   }
 
-  return this.discoveryQuery.getProfilesByUids$(uids).pipe(
+  return this.discoveryQuery.getProfilesByUids$(uids, { cacheTTL: 5_000 }).pipe(
     concatLatestFrom(() => this.store.select(selectUsersMap)),
+
     switchMap(([profiles, usersMap]) => {
       const profileActions = profiles
         .map((p) => sanitizeUserForStore(p))
-        .filter((p) => !!p?.uid)
-        .filter((profile) => this.shouldUpsertProfile(usersMap?.[profile.uid], profile))
-        .map((profile) => addUserToState({ user: profile }));
+        .filter((p): p is IUserDados => !!p?.uid)
+        .filter((profile) =>
+          this.shouldUpsertProfile(usersMap?.[profile.uid], profile)
+        )
+        .map((profile) => {
+  const current = usersMap?.[profile.uid];
+
+  return current
+    ? updateUserInState({
+        uid: profile.uid,
+        updatedData: profile,
+      })
+    : addUserToState({ user: profile });
+});
+
+      this.dbg('hydrateProfilesForOnlineUsers$', {
+        presenceTotal: normalizedPresence.length,
+        profilesTotal: profiles?.length ?? 0,
+        profileActionsTotal: profileActions.length,
+        uids,
+        hydrated: profiles?.map((p) => ({
+          uid: p.uid,
+          nickname: p.nickname,
+          latitude: (p as any).latitude,
+          longitude: (p as any).longitude,
+          geohash: (p as any).geohash,
+        })),
+      });
 
       return from([
         ...profileActions,
+
         loadOnlineUsersSuccess({
           users: sanitizeUsersForStore(normalizedPresence),
         }),
@@ -349,4 +434,5 @@ private hydrateProfilesForOnlineUsers$(
       })
     )
   );
-} // Linha 318, fim do OnlineUsersEffects
+} // Linha 337, fim do OnlineUsersEffects
+// fluxo deve estar nos comentários

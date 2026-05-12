@@ -1,25 +1,28 @@
 // src/app/core/services/autentication/auth/access-control.service.ts
 // Serviço central de controle de acesso/capacidades.
 //
-// Verdades:
+// Regra arquitetural principal:
+//
+// - profileCompleted:
+//   indica que o usuário concluiu o perfil mínimo obrigatório da plataforma.
+//   Deve controlar entrada no núcleo do app e navegação principal.
+//
+// - emailVerified:
+//   indica que o usuário confirmou o canal de e-mail.
+//   Deve controlar recursos sensíveis, como chat, convites, interações fortes,
+//   confiança da conta e maior precisão de localização.
+//
+// Importante:
+// - Completar perfil NÃO deve depender de e-mail verificado.
+// - Verificar e-mail NÃO deve marcar perfil como completo.
+// - Um usuário com profileCompleted=true e emailVerified=false é um estado válido.
+//
+// Fontes:
 // - AuthSessionService: sessão / uid / ready / emailVerified
-// - CurrentUserStoreService: perfil do app em runtime
+// - CurrentUserStoreService: perfil runtime do app
 // - AuthAppBlockService: bloqueio explícito do app
 // - AuthRouteContextService: contexto canônico de rota/auth-flow
-//
-// Objetivo:
-// - derivar gates simples e previsíveis
-// - degradar sempre para "nega acesso" em caso de erro
-// - incluir lifecycle da conta no gate global
-// - reduzir recomputações e logs duplicados
-//
-// Observação arquitetural:
-// - Este service NÃO recalcula contexto de rota.
-// - O contexto de rota vem inteiro do AuthRouteContextService.
-// - AuthSession manda na sessão.
-// - CurrentUserStore manda no runtime do perfil do app.
-// - accountStatus agora também participa do bloqueio efetivo do app.
-//
+
 import { Injectable, inject } from '@angular/core';
 import { Observable, combineLatest, of } from 'rxjs';
 import {
@@ -99,6 +102,12 @@ export class AccessControlService {
     return (ROLE_RANK[key] != null ? key : 'visitante') as UserRole;
   }
 
+  /**
+   * Diagnóstico auxiliar.
+   *
+   * Não substitui profileCompleted.
+   * Serve para debug e eventuais fluxos de recuperação/migração.
+   */
   private hasMinProfileFields(anyU: any): boolean {
     const gender = (anyU?.gender ?? anyU?.genero ?? anyU?.sexo) as unknown;
     const estado = (anyU?.estado ?? anyU?.state) as unknown;
@@ -131,11 +140,6 @@ export class AccessControlService {
       return raw;
     }
 
-    /**
-     * Compatibilidade com camada legada:
-     * - se ainda existir só `suspended === true`
-     * - tentamos inferir o tipo de suspensão
-     */
     if ((user as any)?.suspended === true) {
       return (user as any)?.suspensionSource === 'self'
         ? 'self_suspended'
@@ -183,7 +187,7 @@ export class AccessControlService {
   }
 
   // ---------------------------------------------------------------------------
-  // Router context (fonte única: AuthRouteContextService)
+  // Router context
   // ---------------------------------------------------------------------------
 
   private readonly routeCtx$: Observable<AuthRouteContext> = this.routeContext.context$.pipe(
@@ -257,9 +261,9 @@ export class AccessControlService {
 
   /**
    * appUser$:
-   * - undefined => runtime ainda está hidratando
-   * - null => runtime resolveu que não há perfil disponível
-   * - IUserDados => perfil disponível
+   * - undefined => perfil ainda hidratando
+   * - null => sessão resolvida sem perfil disponível
+   * - IUserDados => perfil runtime carregado
    */
   readonly appUser$ = this.currentUserStore.user$.pipe(
     startWith(undefined),
@@ -336,11 +340,6 @@ export class AccessControlService {
     catchError(this.handleStreamError('isLifecycleBlocked$', false))
   );
 
-  /**
-   * Bloqueio efetivo do app:
-   * - bloqueio explícito via AuthAppBlockService
-   * - OU lifecycle bloqueado da conta
-   */
   readonly isBlocked$: Observable<boolean> = combineLatest([
     this.blockedReason$,
     this.isLifecycleBlocked$,
@@ -365,6 +364,11 @@ export class AccessControlService {
     catchError(this.handleStreamError('isAuthenticated$', false))
   );
 
+  /**
+   * Verdade canônica de e-mail verificado.
+   *
+   * Não deve ser usada para decidir se o perfil está completo.
+   */
   readonly emailVerified$: Observable<boolean> = combineLatest([
     this.ready$,
     this.authUser$,
@@ -376,8 +380,9 @@ export class AccessControlService {
   );
 
   /**
-   * Verdade canônica de "perfil concluído".
-   * Esta stream governa os gates de produto.
+   * Verdade canônica de perfil concluído.
+   *
+   * Não deve ser usada para dizer se o e-mail foi verificado.
    */
   readonly profileCompleted$: Observable<boolean> = combineLatest([
     this.isAuthenticated$,
@@ -388,6 +393,7 @@ export class AccessControlService {
       if (!isAuth) return false;
       if (!resolved) return false;
       if (user === null) return false;
+
       return (user as any)?.profileCompleted === true;
     }),
     distinctUntilChanged(),
@@ -405,10 +411,6 @@ export class AccessControlService {
     catchError(this.handleStreamError('profileCompleted$', false))
   );
 
-  /**
-   * Diagnóstico apenas.
-   * Não governa o gate final do produto.
-   */
   readonly hasMinimalProfileData$: Observable<boolean> = combineLatest([
     this.isAuthenticated$,
     this.appUserResolved$,
@@ -418,6 +420,7 @@ export class AccessControlService {
       if (!isAuth) return false;
       if (!resolved) return false;
       if (user === null) return false;
+
       return this.hasMinProfileFields(user);
     }),
     distinctUntilChanged(),
@@ -438,8 +441,11 @@ export class AccessControlService {
   );
 
   /**
-   * Compatibilidade pública:
-   * profileEligible$ passa a espelhar profileCompleted$.
+   * Compatibilidade pública.
+   *
+   * Importante:
+   * profileEligible$ agora representa somente profileCompleted$.
+   * Não inclui emailVerified.
    */
   readonly profileEligible$: Observable<boolean> = this.profileCompleted$;
 
@@ -456,6 +462,7 @@ export class AccessControlService {
       if (!isAuth) return 'GUEST';
       if (!profileOk) return 'AUTHED_PROFILE_INCOMPLETE';
       if (!emailOk) return 'AUTHED_PROFILE_COMPLETE_UNVERIFIED';
+
       return 'AUTHED_PROFILE_COMPLETE_VERIFIED';
     }),
     distinctUntilChanged(),
@@ -467,12 +474,6 @@ export class AccessControlService {
   // Gates
   // ---------------------------------------------------------------------------
 
-  /**
-   * Gate global do app:
-   * - router pronto
-   * - sem bloqueio explícito
-   * - sem lifecycle bloqueado
-   */
   readonly canRunApp$: Observable<boolean> = combineLatest([
     this.routerReady$,
     this.isBlocked$,
@@ -493,40 +494,101 @@ export class AccessControlService {
     catchError(this.handleStreamError('canRunApp$', false))
   );
 
+  /**
+   * Infra realtime:
+   * sessão autenticada, fora do fluxo de registro e app liberado.
+   *
+   * Não exige profileCompleted nem emailVerified.
+   * Serve para infraestrutura neutra.
+   */
   readonly canRunInfraRealtime$: Observable<boolean> = combineLatest([
     this.canRunApp$,
     this.ready$,
     this.authUid$,
     this.inRegistrationFlow$,
   ]).pipe(
-    map(([canRunApp, ready, uid, inReg]) => canRunApp && ready && !!uid && inReg === false),
+    map(([canRunApp, ready, uid, inReg]) =>
+      canRunApp === true &&
+      ready === true &&
+      !!uid &&
+      inReg === false
+    ),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('canRunInfraRealtime$', false))
   );
 
+  /**
+   * Presença é infraestrutura de sessão.
+   * Não deve depender de e-mail verificado.
+   */
+  readonly canRunPresence$: Observable<boolean> = this.canRunInfraRealtime$;
+
+  /**
+   * Chat é recurso sensível:
+   * exige perfil completo + e-mail verificado.
+   */
   readonly canRunChatRealtime$: Observable<boolean> = combineLatest([
     this.canRunInfraRealtime$,
+    this.profileEligible$,
     this.emailVerified$,
   ]).pipe(
-    map(([infraOk, emailOk]) => infraOk && emailOk),
+    map(([infraOk, profileOk, emailOk]) =>
+      infraOk === true &&
+      profileOk === true &&
+      emailOk === true
+    ),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('canRunChatRealtime$', false))
   );
 
   /**
-   * Presença é infraestrutura de sessão.
-   * Mantemos alinhada ao gate infra.
+   * Discovery/Online Users:
+   * exige perfil completo, mas não exige e-mail verificado.
+   *
+   * O e-mail não verificado deve entrar na policy de limitação:
+   * raio menor, menor precisão, interações bloqueadas etc.
    */
-  readonly canRunPresence$: Observable<boolean> = this.canRunInfraRealtime$;
-
-  readonly canRunProductRealtime$: Observable<boolean> = combineLatest([
+  readonly canRunDiscoveryRealtime$: Observable<boolean> = combineLatest([
     this.canRunInfraRealtime$,
-    this.emailVerified$,
     this.profileEligible$,
   ]).pipe(
-    map(([infraOk, emailOk, profileEligible]) => infraOk && emailOk && profileEligible),
+    map(([infraOk, profileOk]) =>
+      infraOk === true &&
+      profileOk === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunDiscoveryRealtime$', false))
+  );
+
+  /**
+   * Recursos sensíveis genéricos.
+   *
+   * Use este gate para features que exponham interação forte entre usuários.
+   */
+  readonly canRunSensitiveRealtime$: Observable<boolean> = combineLatest([
+    this.canRunDiscoveryRealtime$,
+    this.emailVerified$,
+  ]).pipe(
+    map(([discoveryOk, emailOk]) =>
+      discoveryOk === true &&
+      emailOk === true
+    ),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunSensitiveRealtime$', false))
+  );
+
+  /**
+   * Mantido por compatibilidade.
+   *
+   * Interpretação:
+   * canRunProductRealtime$ = produto sensível.
+   * Para discovery/online use canRunDiscoveryRealtime$ ou canRunOnlineUsers$.
+   */
+  readonly canRunProductRealtime$: Observable<boolean> = this.canRunSensitiveRealtime$.pipe(
     distinctUntilChanged(),
     tap((can) => {
       if (!this.debug) return;
@@ -536,6 +598,7 @@ export class AccessControlService {
         can,
         uid: user?.uid,
         profileCompleted: user?.profileCompleted,
+        emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
         accountStatus: user?.accountStatus,
       });
     }),
@@ -543,73 +606,84 @@ export class AccessControlService {
     catchError(this.handleStreamError('canRunProductRealtime$', false))
   );
 
-/**
- * Gate específico de Online Users:
- * - exige infraestrutura ativa
- * - exige sessão autenticada válida
- * - exige perfil mínimo concluído
- * - NÃO exige e-mail verificado como bloqueio
- *
- * Motivo:
- * Online Users entra na política de descoberta/proximidade,
- * não na política de interação sensível.
- */
-readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
-  this.canRunInfraRealtime$,
-  this.profileEligible$,
-  this.authUid$,
-  this.routeCtx$,
-]).pipe(
-  map(([infraOk, profileEligible, uid, routeCtx]) => ({
-    can: infraOk && profileEligible && !!uid,
-    url: routeCtx.currentUrl,
-    routerReady: routeCtx.routerReady,
-  })),
-  distinctUntilChanged(
-    (a, b) =>
-      a.can === b.can &&
-      a.url === b.url &&
-      a.routerReady === b.routerReady
-  ),
-  tap(({ can, url, routerReady }) => {
-    if (!this.debug) return;
-    if (!routerReady) return;
+  readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
+    this.canRunInfraRealtime$,
+    this.profileEligible$,
+    this.authUid$,
+    this.routeCtx$,
+  ]).pipe(
+    map(([infraOk, profileEligible, uid, routeCtx]) => ({
+      can: infraOk === true && profileEligible === true && !!uid,
+      url: routeCtx.currentUrl,
+      routerReady: routeCtx.routerReady,
+    })),
+    distinctUntilChanged(
+      (a, b) =>
+        a.can === b.can &&
+        a.url === b.url &&
+        a.routerReady === b.routerReady
+    ),
+    tap(({ can, url, routerReady }) => {
+      if (!this.debug) return;
+      if (!routerReady) return;
 
-    const user = this.currentUserStore.getSnapshot() as any;
-    this.dbg('canRunOnlineUsers$', {
-      can,
-      url,
-      uid: user?.uid,
-      profileCompleted: user?.profileCompleted,
-      emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
-    });
-  }),
-  map(({ can }) => can),
-  distinctUntilChanged(),
-  shareReplay({ bufferSize: 1, refCount: true }),
-  catchError(this.handleStreamError('canRunOnlineUsers$', false))
-);
+      const user = this.currentUserStore.getSnapshot() as any;
+      this.dbg('canRunOnlineUsers$', {
+        can,
+        url,
+        uid: user?.uid,
+        profileCompleted: user?.profileCompleted,
+        emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
+      });
+    }),
+    map(({ can }) => can),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true }),
+    catchError(this.handleStreamError('canRunOnlineUsers$', false))
+  );
 
   // ---------------------------------------------------------------------------
   // Capacidades de alto nível
   // ---------------------------------------------------------------------------
 
+  /**
+   * Entrada no núcleo do app.
+   *
+   * Corrigido:
+   * - NÃO exige emailVerified.
+   * - Exige apenas sessão, profileCompleted e conta não bloqueada.
+   */
   readonly canEnterCore$: Observable<boolean> = combineLatest([
-    this.state$,
+    this.isAuthenticated$,
+    this.profileCompleted$,
     this.isBlocked$,
   ]).pipe(
-    map(([state, blocked]) => state === 'AUTHED_PROFILE_COMPLETE_VERIFIED' && !blocked),
+    map(([isAuth, profileCompleted, blocked]) =>
+      isAuth === true &&
+      profileCompleted === true &&
+      blocked === false
+    ),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('canEnterCore$', false))
   );
 
+  /**
+   * Compatibilidade.
+   *
+   * Mantido apontando para produto sensível.
+   * Quando precisar de listeners não sensíveis, use canRunDiscoveryRealtime$.
+   */
   readonly canListenRealtime$: Observable<boolean> = this.canRunProductRealtime$.pipe(
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('canListenRealtime$', false))
   );
 
+  /**
+   * Etapas de registro/onboarding:
+   * só exigem autenticação e ausência de bloqueio.
+   */
   readonly canEnterRegistrationSteps$: Observable<boolean> = combineLatest([
     this.isAuthenticated$,
     this.isBlocked$,
@@ -679,4 +753,4 @@ readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('isSubscriber$', false))
   );
-}
+} // Linha 756

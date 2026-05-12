@@ -1,34 +1,106 @@
-/* Card base */
-/* Container */
-.user-card {
-  border-radius: 14px;
-  overflow: hidden;
+/* src/app/shared/user-card/user-card.component.css */
+/* -----------------------------------------------------------------------------
+   UserCardComponent
+   Card compacto para listas de perfis, discovery e usuários online.
+
+   Decisões:
+   - O tamanho lateral do card é controlado pelo grid do componente pai.
+   - O card nunca deve crescer indefinidamente.
+   - A imagem tem altura controlada para não dominar a tela.
+   - As ações ficam no rodapé, mantendo os cards alinhados.
+   - Mobile first, com alvo de toque adequado.
+----------------------------------------------------------------------------- */
+
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
 }
 
-/* Capa + faixa */
+/* Card base */
+.user-card {
+  width: 100%;
+  height: 100%;
+  min-height: 318px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  background: var(--surface-color);
+  color: var(--text-color);
+  box-shadow: var(--box-shadow);
+
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
+}
+
+.user-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary-color) 22%, var(--surface-border));
+}
+
+.user-card:focus-within {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+/* Área de imagem */
+.profile-link {
+  color: inherit;
+  text-decoration: none;
+}
+
 .media {
   position: relative;
   display: block;
+  width: 100%;
+  height: 148px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--surface-color) 86%, black 14%);
 }
 
 .profile-photo {
-  width: 100%;
-  height: 180px;
-  object-fit: cover;
   display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: center;
 }
 
+/* Faixa do nickname sobre a foto */
 .nick-strip {
   position: absolute;
-  left: 0;
-  right: 0;
+  inset-inline: 0;
   bottom: 0;
-  padding: .5rem .75rem;
-  background: linear-gradient(to top, rgba(0, 0, 0, .55), rgba(0, 0, 0, 0));
+
   display: flex;
   align-items: center;
-  gap: .5rem;
+  gap: 8px;
+
+  min-height: 42px;
+  padding: 8px 10px;
+
   color: #fff;
+  background:
+    linear-gradient(
+      to top,
+      rgba(0, 0, 0, 0.72),
+      rgba(0, 0, 0, 0.34) 68%,
+      rgba(0, 0, 0, 0)
+    );
+}
+
+.status-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.22);
 }
 
 .nick-strip.is-online .status-dot {
@@ -39,85 +111,162 @@
   background: #94a3b8;
 }
 
-.status-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
 .nick {
-  max-width: 75%;
-  font-weight: 600;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.15;
 }
 
 /* Classes dinâmicas do nickname */
 .nickname-online {
-  text-shadow: 0 1px 0 rgba(0, 0, 0, .4);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
 }
 
 .nickname-recent {
-  color: #c7f9ff;
+  color: #dffaff;
 }
 
-.nickname-offline {
+.nickname-offline,
+.nickname-inactive {
   color: #e2e8f0;
 }
 
-.nickname-inactive {
-  color: #cbd5e1;
-  text-decoration: line-through;
-}
-
-/* Corpo */
+/* Corpo do card */
 .card-body {
-  padding: .75rem .9rem 1rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
 }
 
 .meta {
   margin: 0;
-  color: #5b6b7a;
-  font-size: .925rem;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.28;
 }
 
 .description {
-  margin: .5rem 0 0;
-  color: #334155;
-  min-height: 2.25rem;
+  margin: 2px 0 0;
+  min-height: 34px;
+  max-height: 42px;
+  overflow: hidden;
+
+  color: color-mix(in oklab, var(--text-color) 82%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.35;
 }
 
 /* Distância */
 .distance {
-  color: #475569;
-  font-size: .9rem;
+  margin: 4px 0 0;
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+  font-size: 0.86rem;
+  line-height: 1.25;
 }
 
 .distance-ico {
-  margin-right: .35rem;
+  margin-right: 5px;
+  color: var(--primary-color);
 }
 
 /* Ações */
 .actions {
-  display: flex;
-  gap: .5rem;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
 }
 
-.btn {
-  cursor: pointer;
+.actions .btn {
+  width: 100%;
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.1;
 }
 
-/* Utilidades (se não tiver Bootstrap) */
+/* Compatibilidade se Bootstrap não estiver ativo */
 .d-none {
-  display: none;
+  display: none !important;
 }
 
 .d-md-inline {
-  display: inline;
+  display: inline !important;
 }
 
-@media (max-width: 768px) {
-  .d-md-inline {
-    display: none;
+/* Mobile */
+@media (max-width: 520px) {
+  .user-card {
+    min-height: 292px;
+    border-radius: 14px;
   }
+
+  .media {
+    height: 132px;
+  }
+
+  .card-body {
+    padding: 10px;
+  }
+
+  .description {
+    min-height: 28px;
+    max-height: 36px;
+  }
+
+  .d-md-inline {
+    display: none !important;
+  }
+
+  .actions .btn {
+    min-height: var(--tap-target-sm, 40px);
+  }
+}
+
+/* Telas muito pequenas */
+@media (max-width: 350px) {
+  .media {
+    height: 124px;
+  }
+
+  .nick {
+    font-size: 0.9rem;
+  }
+
+  .meta,
+  .description,
+  .distance,
+  .actions .btn {
+    font-size: 0.82rem;
+  }
+}
+
+/* Alto contraste */
+html.high-contrast .user-card {
+  box-shadow: none !important;
+  border: 3px solid var(--text-color) !important;
+  background: var(--background-color) !important;
+}
+
+html.high-contrast .nick-strip {
+  background: #000 !important;
+  color: #fff !important;
+}
+
+html.high-contrast .status-dot {
+  border: 2px solid #fff;
+  box-shadow: none;
 }

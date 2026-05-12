@@ -1,6 +1,24 @@
 // src/app/core/services/autentication/auth/email-verification-gate.facade.ts
+// -----------------------------------------------------------------------------
+// EmailVerificationGateFacade
+// -----------------------------------------------------------------------------
+//
+// Responsabilidade:
+// - exibir banner de verificação de e-mail em áreas que exigem ou recomendam
+//   e-mail verificado.
+//
+// Regra importante:
+// - este banner NÃO deve aparecer enquanto profileCompleted=false.
+// - enquanto o perfil estiver incompleto, a prioridade visual e de navegação é
+//   "complete seu perfil", não "verifique seu e-mail".
+//
+// Separação:
+// - profileCompleted controla onboarding/navegação básica.
+// - emailVerified controla confiança e recursos sensíveis.
+
 import { Injectable, inject } from '@angular/core';
-import { NavigationEnd, Router, ActivatedRouteSnapshot } from '@angular/router';
+import { ActivatedRouteSnapshot, NavigationEnd, Router } from '@angular/router';
+
 import { Observable, Subject, combineLatest, of } from 'rxjs';
 import {
   catchError,
@@ -52,108 +70,127 @@ export class EmailVerificationGateFacade {
 
   /**
    * Meta da rota ativa:
-   * - currentUrl canônica
-   * - requireVerified efetivo do snapshot mais profundo
-   *
-   * Isso evita heurística por regex e mantém o banner alinhado ao routing real.
+   * - currentUrl normalizada;
+   * - requireVerified vindo do snapshot mais profundo da rota.
    */
-  private readonly activeRouteMeta$: Observable<ActiveRouteMeta> = this.router.events.pipe(
-    filter((event): event is NavigationEnd => event instanceof NavigationEnd),
-    startWith(null),
-    map(() => this.readActiveRouteMeta()),
-    distinctUntilChanged(
-      (a, b) =>
-        a.currentUrl === b.currentUrl &&
-        a.requireVerified === b.requireVerified
-    ),
-    shareReplay({ bufferSize: 1, refCount: true }),
-    catchError((err) => {
-      this.reportSilent(err, 'EmailVerificationGateFacade.activeRouteMeta$');
-      return of({
-        currentUrl: this.normalizeUrl(this.router.url),
-        requireVerified: false,
-      });
-    })
-  );
+  private readonly activeRouteMeta$: Observable<ActiveRouteMeta> =
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      startWith(null),
+      map(() => this.readActiveRouteMeta()),
+      distinctUntilChanged(
+        (a, b) =>
+          a.currentUrl === b.currentUrl &&
+          a.requireVerified === b.requireVerified
+      ),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError((err) => {
+        this.reportSilent(err, 'EmailVerificationGateFacade.activeRouteMeta$');
 
-  readonly vm$: Observable<EmailVerificationGateBannerVm | null> = combineLatest([
-    this.access.isAuthenticated$,
-    this.access.emailVerified$,
-    this.access.inRegistrationFlow$,
-    this.session.authUser$.pipe(startWith(null)),
-    this.activeRouteMeta$,
-  ]).pipe(
-map(([isAuthenticated, emailVerified, inRegistrationFlow, authUser, routeMeta]) => {
-  const cleanUrl = routeMeta.currentUrl;
+        return of({
+          currentUrl: this.normalizeUrl(this.router.url),
+          requireVerified: false,
+        });
+      })
+    );
 
-  if (!isAuthenticated) return null;
-  if (emailVerified) return null;
-  if (inRegistrationFlow) return null;
-  if (this.shouldHideBanner(cleanUrl)) return null;
+  readonly vm$: Observable<EmailVerificationGateBannerVm | null> =
+    combineLatest([
+      this.access.isAuthenticated$,
+      this.access.profileCompleted$,
+      this.access.emailVerified$,
+      this.access.inRegistrationFlow$,
+      this.session.authUser$.pipe(startWith(null)),
+      this.activeRouteMeta$,
+    ]).pipe(
+      map(
+        ([
+          isAuthenticated,
+          profileCompleted,
+          emailVerified,
+          inRegistrationFlow,
+          authUser,
+          routeMeta,
+        ]) => {
+          const cleanUrl = routeMeta.currentUrl;
 
-  const mode: BannerMode = routeMeta.requireVerified ? 'hard' : 'soft';
+          if (!isAuthenticated) return null;
 
-  const ctaQueryParams: Record<string, string> = {
-    redirectTo: this.normalizeRedirectTarget(this.router.url),
-  };
+          /**
+           * Prioridade:
+           * perfil incompleto deve ser tratado pelo fluxo de onboarding/finalização,
+           * não pelo banner de e-mail.
+           */
+          if (!profileCompleted) return null;
 
-  if (mode === 'hard') {
-    ctaQueryParams['autocheck'] = '1';
-    ctaQueryParams['reason'] = 'email_unverified';
-  }
+          if (emailVerified) return null;
+          if (inRegistrationFlow) return null;
+          if (this.shouldHideBanner(cleanUrl)) return null;
 
-  return {
-    mode,
-    title:
-      mode === 'hard'
-        ? 'Verifique seu e-mail para continuar'
-        : 'Seu e-mail ainda não foi verificado',
+          const mode: BannerMode = routeMeta.requireVerified ? 'hard' : 'soft';
 
-    message:
-      mode === 'hard'
-        ? 'Esta área exige uma conta com e-mail verificado.'
-        : 'Verificar seu e-mail aumenta a confiança da sua conta e libera alguns recursos da plataforma.',
+          const ctaQueryParams: Record<string, string> = {
+            redirectTo: this.normalizeRedirectTarget(this.router.url),
+          };
 
-    email: authUser?.email?.trim() || null,
+          if (mode === 'hard') {
+            ctaQueryParams['autocheck'] = '1';
+            ctaQueryParams['reason'] = 'email_unverified';
+          }
 
-    ctaLabel: mode === 'hard' ? 'Verificar agora' : 'Verificar e-mail',
+          return {
+            mode,
 
-    ctaRoute: ['/register/welcome'],
-    ctaQueryParams,
+            title:
+              mode === 'hard'
+                ? 'Verifique seu e-mail para continuar'
+                : 'Seu e-mail ainda não foi verificado',
 
-    showResend: true,
-    currentUrl: cleanUrl,
-  };
-}),
-    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
-    shareReplay({ bufferSize: 1, refCount: true }),
-    catchError((err) => {
-      this.reportSilent(err, 'EmailVerificationGateFacade.vm$');
-      return of(null);
-    })
-  );
+            message:
+              mode === 'hard'
+                ? 'Esta área exige uma conta com e-mail verificado.'
+                : 'Verificar seu e-mail aumenta a confiança da sua conta e libera alguns recursos da plataforma.',
+
+            email: authUser?.email?.trim() || null,
+
+            ctaLabel: mode === 'hard' ? 'Verificar agora' : 'Verificar e-mail',
+
+            ctaRoute: ['/register/welcome'],
+            ctaQueryParams,
+
+            showResend: true,
+            currentUrl: cleanUrl,
+          };
+        }
+      ),
+      distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError((err) => {
+        this.reportSilent(err, 'EmailVerificationGateFacade.vm$');
+        return of(null);
+      })
+    );
 
   resend(): void {
     this.resendClick$.next();
   }
 
-  /**
-   * Mantido separado do vm$ para não poluir o stream com efeito colateral.
-   */
-  readonly resendEffect$ = this.resendClick$.pipe(
-    exhaustMap(() =>
-      this.emailVerificationService.resendVerificationEmail().pipe(
-        tap(() => {
-          this.notify.showSuccess('E-mail de verificação reenviado.');
-        }),
-        catchError((err) => {
-          this.reportSilent(err, 'EmailVerificationGateFacade.resendEffect$');
-          this.notifyOnce('Não foi possível reenviar o e-mail de verificação.');
-          return of(void 0);
-        })
+  readonly resendEffect$ = this.resendClick$
+    .pipe(
+      exhaustMap(() =>
+        this.emailVerificationService.resendVerificationEmail().pipe(
+          tap(() => {
+            this.notify.showSuccess('E-mail de verificação reenviado.');
+          }),
+          catchError((err) => {
+            this.reportSilent(err, 'EmailVerificationGateFacade.resendEffect$');
+            this.notifyOnce('Não foi possível reenviar o e-mail de verificação.');
+            return of(void 0);
+          })
+        )
       )
     )
-  ).subscribe();
+    .subscribe();
 
   private readActiveRouteMeta(): ActiveRouteMeta {
     const leaf = this.findDeepestPrimary(this.router.routerState.snapshot.root);
@@ -166,9 +203,11 @@ map(([isAuthenticated, emailVerified, inRegistrationFlow, authUser, routeMeta]) 
 
   private findDeepestPrimary(snapshot: ActivatedRouteSnapshot): ActivatedRouteSnapshot {
     let current = snapshot;
+
     while (current.firstChild) {
       current = current.firstChild;
     }
+
     return current;
   }
 
@@ -187,20 +226,24 @@ map(([isAuthenticated, emailVerified, inRegistrationFlow, authUser, routeMeta]) 
 
   private normalizeRedirectTarget(url: string | null | undefined): string {
     const clean = (url ?? '').trim();
+
     if (!clean) return '/dashboard/principal';
     if (!clean.startsWith('/') || clean.startsWith('//')) {
       return '/dashboard/principal';
     }
+
     return clean;
   }
 
   private reportSilent(err: unknown, context: string): void {
     try {
       const e = err instanceof Error ? err : new Error(context);
+
       (e as any).silent = true;
       (e as any).context = context;
       (e as any).original = err;
       (e as any).skipUserNotification = true;
+
       this.globalErrorHandler.handleError(e);
     } catch {
       // noop
@@ -209,9 +252,10 @@ map(([isAuthenticated, emailVerified, inRegistrationFlow, authUser, routeMeta]) 
 
   private notifyOnce(message: string): void {
     const now = Date.now();
+
     if (now - this.lastNotifyAt > 15_000) {
       this.lastNotifyAt = now;
       this.notify.showError(message);
     }
   }
-}
+} // Linha 261

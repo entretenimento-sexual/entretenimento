@@ -96,16 +96,18 @@ const SECTION_MATCHERS: ReadonlyArray<{
     key: 'media',
     prefixes: ['/media'],
   },
-  {
+{
   key: 'profiles',
   prefixes: [
+    '/dashboard/explorar',
     '/dashboard/online',
+    '/dashboard/online-users',
     '/friends',
     '/perfis-proximos',
     '/outro-perfil',
     '/profile-list',
   ],
-  },
+},
   {
     key: 'settings',
     prefixes: ['/perfil', '/perfil-debug', '/preferencias', '/conta'],
@@ -138,7 +140,7 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
       {
         id: 'profiles-discovery',
         label: 'Explorar perfis',
-        route: '/dashboard/online',
+        route: '/dashboard/explorar',
         icon: '🔎',
         exact: false,
         ariaLabel: 'Explorar perfis online',

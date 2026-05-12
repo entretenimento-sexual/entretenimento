@@ -56,7 +56,7 @@ export class SidebarService {
    * - desktop: sidebar sempre "aberto" visualmente, mas pode ficar colapsado
    * - mobile: sidebar respeita abertura/fechamento real
    */
-  private readonly isOpenSubject = new BehaviorSubject<boolean>(true);
+  private readonly isOpenSubject = new BehaviorSubject<boolean>(false);
   private readonly isCollapsedSubject = new BehaviorSubject<boolean>(false);
 
   readonly isOpen$ = this.isOpenSubject.asObservable().pipe(

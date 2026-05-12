@@ -88,13 +88,22 @@ describe('SubscriptionPlanComponent', () => {
     expect(noticeServiceMock.hydrate).toHaveBeenCalledWith('user-1');
   });
 
-  it('deve navegar para o checkout com o plano selecionado', () => {
-    component.subscribe('premium');
-
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/checkout'], {
-      queryParams: { plan: 'premium' },
-    });
+it('deve navegar para o checkout com o plano selecionado', () => {
+  component.subscribe('premium', {
+    uid: 'user-1',
+    subscriptionActive: false,
+    currentPlanKey: null,
+    currentPlanLabel: null,
+    statusTitle: 'Sem assinatura ativa',
+    statusDescription: 'Você ainda não possui um plano ativo reconhecido na plataforma.',
+    canGoToAccount: true,
+    canGoToProfile: true,
   });
+
+  expect(routerMock.navigate).toHaveBeenCalledWith(['/checkout'], {
+    queryParams: { plan: 'premium' },
+  });
+});
 
   it('deve exibir o aviso de perfil incompleto quando shouldShowSubscriptionWarning$ for true', () => {
     const text = fixture.nativeElement.textContent;

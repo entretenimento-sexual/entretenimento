@@ -1,24 +1,38 @@
-<!-- src/app/dashboard/online-users-full/online-users-full.component.html -->
-<section class="container page-shell" aria-labelledby="onlineDirTitle">
+<!-- src/app/dashboard/online/online-users-full/online-users-full.component.html -->
+<section class="page-shell online-directory-page" aria-labelledby="onlineDirTitle">
   <header class="page-head">
     <div class="head-left">
-      <a class="btn btn-ghost back-btn" routerLink="/dashboard" aria-label="Voltar para o painel">
+      <a
+        class="btn btn-ghost back-btn"
+        routerLink="/dashboard/principal"
+        aria-label="Voltar para o painel principal"
+      >
         <i class="fas fa-arrow-left" aria-hidden="true"></i>
         <span class="hide-xs">Voltar</span>
       </a>
 
-      <h1 id="onlineDirTitle" class="page-title">Explorar perfis</h1>
-      <p class="page-subtitle">Ajuste o raio e encontre pessoas por perto.</p>
+      <div class="page-title-group">
+        <h1 id="onlineDirTitle" class="page-title">Explorar perfis</h1>
+        <p class="page-subtitle">
+          Veja quem está online perto de você e ajuste o raio da busca quando quiser.
+        </p>
+      </div>
     </div>
 
-    <div class="head-actions">
-      <!-- Tab de filtro (online vs todos) – “Todos” já fica aqui para evoluir depois -->
-      <nav class="segmented" role="tablist" aria-label="Modo de exibição">
+    <div class="head-actions" aria-label="Modo de exibição">
+      <nav class="segmented" role="tablist" aria-label="Modo de exibição dos perfis">
         <a class="seg-btn active" role="tab" aria-selected="true" tabindex="0">
           <i class="fas fa-bolt" aria-hidden="true"></i>
           <span>Online</span>
         </a>
-        <button class="seg-btn" role="tab" aria-selected="false" title="Em breve">
+
+        <button
+          type="button"
+          class="seg-btn"
+          role="tab"
+          aria-selected="false"
+          title="Em breve"
+        >
           <i class="fas fa-users" aria-hidden="true"></i>
           <span>Todos</span>
         </button>
@@ -26,11 +40,7 @@
     </div>
   </header>
 
-  <section class="online-full-shell">
-  <header class="online-full-shell__header">
-    <h1>Explorar perfis</h1>
-    <p>Veja quem está online, ajuste o raio e abra perfis para interagir.</p>
-  </header>
-  <!-- Reaproveita o componente com slider + grid, passando o usuário atual -->
-  <app-online-users></app-online-users>
+  <section class="online-full-shell" aria-label="Perfis online">
+    <app-online-users></app-online-users>
+  </section>
 </section>

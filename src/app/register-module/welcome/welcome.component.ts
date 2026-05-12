@@ -71,6 +71,19 @@ export class WelcomeComponent implements OnInit {
   emailVerified = false;
   email: string | null = null;
   lastCheckedAt: Date | null = null;
+  /**
+ * Estado do perfil mínimo.
+ *
+ * Importante:
+ * - emailVerified e profileCompleted são atos diferentes.
+ * - este componente só usa profileCompleted para decidir o próximo destino.
+ */
+  profileCompleted = false;
+
+/**
+ * Evita redirecionamento antes de sabermos o estado real do documento users/{uid}.
+ */
+  profileStateLoaded = false;
 
   private readonly destroyRef = inject(DestroyRef);
   readonly isDevEmu = environment.useEmulators && environment.env === 'dev-emu';
@@ -242,17 +255,39 @@ export class WelcomeComponent implements OnInit {
     );
   }
 
-  private docExists$(ref: DocumentReference): Observable<boolean> {
-    return new Observable<boolean>((sub) => {
-      const unsub: Unsubscribe = onSnapshot(
-        ref,
-        (snap) => sub.next(snap.exists()),
-        (err) => sub.error(err)
-      );
+/**
+ * Observa o documento users/{uid} e extrai o estado mínimo necessário
+ * para a navegação pós-verificação.
+ *
+ * Não altera profileCompleted.
+ * Apenas lê o valor.
+ */
+private userProfileState$(
+  ref: DocumentReference
+): Observable<{ exists: boolean; profileCompleted: boolean }> {
+  return new Observable<{ exists: boolean; profileCompleted: boolean }>((sub) => {
+    const unsub: Unsubscribe = onSnapshot(
+      ref,
+      (snap) => {
+        const data = snap.exists() ? (snap.data() as any) : null;
 
-      return { unsubscribe: unsub };
-    }).pipe(distinctUntilChanged());
-  }
+        sub.next({
+          exists: snap.exists(),
+          profileCompleted: data?.profileCompleted === true,
+        });
+      },
+      (err) => sub.error(err)
+    );
+
+    return { unsubscribe: unsub };
+  }).pipe(
+    distinctUntilChanged(
+      (a, b) =>
+        a.exists === b.exists &&
+        a.profileCompleted === b.profileCompleted
+    )
+  );
+}
 
   private userDocSub: Subscription | null = null;
 
@@ -290,25 +325,39 @@ export class WelcomeComponent implements OnInit {
 
           const ref = doc(this.db, 'users', u.uid);
 
-          this.userDocSub?.unsubscribe();
-          this.userDocSub = this.docExists$(ref as unknown as DocumentReference)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({
-              next: (exists) => {
-                if (!exists) {
-                  this.setBanner(
-                    'warn',
-                    'Conta indisponível',
-                    'Sua conta precisa de atenção. Você pode sair e refazer o cadastro.'
-                  );
-                  this.sessionInvalid = true;
-                  this.stopPolling();
-                }
-              },
-              error: (err) => {
-                this.reportError('WelcomeComponent.userDocWatcher', err, true);
-              },
-            });
+this.userDocSub?.unsubscribe();
+this.userDocSub = this.userProfileState$(ref as unknown as DocumentReference)
+  .pipe(takeUntilDestroyed(this.destroyRef))
+  .subscribe({
+    next: (state) => {
+      this.profileStateLoaded = true;
+      this.profileCompleted = state.profileCompleted;
+
+      if (!state.exists) {
+        this.setBanner(
+          'warn',
+          'Conta indisponível',
+          'Sua conta precisa de atenção. Você pode sair e refazer o cadastro.'
+        );
+
+        this.sessionInvalid = true;
+        this.profileCompleted = false;
+        this.stopPolling();
+        return;
+      }
+
+      /**
+       * Se o e-mail já estiver verificado, só redirecionamos depois
+       * de saber se o perfil está completo ou não.
+       */
+      if (this.emailVerified) {
+        this.tryAutoRedirectToPreferences();
+      }
+    },
+    error: (err) => {
+      this.reportError('WelcomeComponent.userDocWatcher', err, true);
+    },
+  });
 
           if (this.emailVerified) {
             this.stopPolling();
@@ -511,6 +560,14 @@ export class WelcomeComponent implements OnInit {
 
 private redirectingToPreferences = false;
 
+/**
+ * Leva o usuário para a etapa correta após a verificação.
+ *
+ * Ordem correta:
+ * 1. Sem e-mail verificado: fica no welcome.
+ * 2. E-mail verificado + perfil incompleto: finalizar cadastro.
+ * 3. E-mail verificado + perfil completo: preferências.
+ */
 continueToPreferences(): void {
   const uid = this.auth.currentUser?.uid?.trim();
 
@@ -523,41 +580,103 @@ continueToPreferences(): void {
     return;
   }
 
-  if (this.redirectingToPreferences) {
+  if (!this.emailVerified) {
+    this.setBanner(
+      'info',
+      'E-mail ainda não verificado',
+      'Confirme seu e-mail antes de continuar.'
+    );
     return;
   }
 
-  if (this.router.url.startsWith('/preferencias/editar/')) {
+  if (!this.profileStateLoaded) {
+    this.setBanner(
+      'info',
+      'Carregando perfil',
+      'Ainda estamos confirmando o estado do seu cadastro. Tente novamente em instantes.'
+    );
     return;
   }
 
-  this.redirectingToPreferences = true;
+  if (!this.profileCompleted) {
+    this.navigateToProfileCompletion(uid);
+    return;
+  }
 
-  this.router.navigate(['/preferencias', 'editar', uid], {
-    replaceUrl: true,
-  }).finally(() => {
-    this.redirectingToPreferences = false;
-  });
+  this.navigateToPreferences(uid);
 }
 
+/**
+ * Redirecionamento automático pós-verificação.
+ *
+ * Nunca manda direto para preferências com profileCompleted=false.
+ */
 private tryAutoRedirectToPreferences(): void {
   const uid = this.auth.currentUser?.uid?.trim();
 
-  if (!uid || !this.emailVerified || this.sessionInvalid || this.redirectingToPreferences) {
+  if (
+    !uid ||
+    !this.emailVerified ||
+    this.sessionInvalid ||
+    this.redirectingToPreferences ||
+    !this.profileStateLoaded
+  ) {
     return;
   }
 
+  if (!this.profileCompleted) {
+    this.navigateToProfileCompletion(uid);
+    return;
+  }
+
+  this.navigateToPreferences(uid);
+}
+
+/**
+ * Perfil incompleto:
+ * vai para a tela que grava profileCompleted=true.
+ *
+ * O redirectTo aponta para preferências, porque depois de completar o perfil
+ * o usuário pode continuar configurando a conta.
+ */
+private navigateToProfileCompletion(uid: string): void {
+  if (this.router.url.startsWith('/register/finalizar-cadastro')) {
+    return;
+  }
+
+  this.redirectingToPreferences = true;
+
+  this.router
+    .navigate(['/register/finalizar-cadastro'], {
+      replaceUrl: true,
+      queryParams: {
+        reason: 'profile_incomplete',
+        redirectTo: `/preferencias/editar/${uid}`,
+      },
+    })
+    .finally(() => {
+      this.redirectingToPreferences = false;
+    });
+}
+
+/**
+ * Perfil completo:
+ * pode ir para preferências.
+ */
+private navigateToPreferences(uid: string): void {
   if (this.router.url.startsWith('/preferencias/editar/')) {
     return;
   }
 
   this.redirectingToPreferences = true;
 
-  this.router.navigate(['/preferencias', 'editar', uid], {
-    replaceUrl: true,
-  }).finally(() => {
-    this.redirectingToPreferences = false;
-  });
+  this.router
+    .navigate(['/preferencias', 'editar', uid], {
+      replaceUrl: true,
+    })
+    .finally(() => {
+      this.redirectingToPreferences = false;
+    });
 }
 
   checkNow(): void {

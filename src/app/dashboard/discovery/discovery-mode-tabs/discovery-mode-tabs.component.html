@@ -1,0 +1,28 @@
+<!-- src/app/dashboard/discovery/discovery-mode-tabs/discovery-mode-tabs.component.html -->
+
+<nav class="discovery-tabs" aria-label="Modos de descoberta">
+  @for (tab of tabs(); track tab.mode) {
+    <button
+      type="button"
+      class="discovery-tabs__item"
+      [class.is-active]="mode() === tab.mode"
+      [class.is-disabled]="!tab.enabled"
+      [disabled]="!tab.enabled"
+      [attr.aria-pressed]="mode() === tab.mode ? 'true' : 'false'"
+      [attr.aria-label]="tab.label + ': ' + tab.description"
+      (click)="selectTab(tab)"
+    >
+      <i [class]="tab.icon" aria-hidden="true"></i>
+
+      <span class="discovery-tabs__label">
+        {{ tab.label }}
+      </span>
+
+      @if (!tab.enabled) {
+        <small class="discovery-tabs__soon">
+          em breve
+        </small>
+      }
+    </button>
+  }
+</nav>

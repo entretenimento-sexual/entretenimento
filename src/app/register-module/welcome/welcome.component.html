@@ -62,7 +62,7 @@
         *ngIf="emailVerified && !sessionInvalid"
         (click)="continueToPreferences()"
       >
-        Ir para minhas preferências
+        {{ profileCompleted ? 'Ir para minhas preferências' : 'Completar perfil' }}
       </button>
     </div>
 
@@ -118,14 +118,17 @@
           [disabled]="!emailVerified || sessionInvalid"
           [attr.aria-disabled]="(!emailVerified || sessionInvalid) ? 'true' : 'false'"
         >
-          Ir para minhas preferências
+          {{ profileCompleted ? 'Ir para minhas preferências' : 'Completar perfil' }}
         </button>
       </div>
     </section>
 
     <section *ngIf="emailVerified && !sessionInvalid" class="welcome-card success-card">
       <h2 class="card-title">Tudo certo! 🎉</h2>
-      <p>Seu e-mail está verificado. Agora vamos ajustar suas preferências.</p>
+      <p>
+        Seu e-mail está verificado.
+        {{ profileCompleted ? 'Agora vamos ajustar suas preferências.' : 'Agora complete seu perfil para liberar a navegação básica.' }}
+      </p>
 
       <div class="actions">
         <button
@@ -133,7 +136,7 @@
           (click)="continueToPreferences()"
           [disabled]="busy"
         >
-          Ir para minhas preferências
+          {{ profileCompleted ? 'Ir para minhas preferências' : 'Completar perfil' }}
         </button>
       </div>
     </section>
