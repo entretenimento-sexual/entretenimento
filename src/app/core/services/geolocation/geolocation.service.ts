@@ -2,7 +2,7 @@
 import { Injectable } from '@angular/core';
 import { Observable, defer, from, firstValueFrom, switchMap } from 'rxjs';
 import { geohashForLocation } from 'geofire-common';
-import { GeoCoordinates } from '../../interfaces/geolocation.interface';
+import { GeoCoordinates, GeoPermissionState, normalizeGeoPermissionState } from '../../interfaces/geolocation.interface';
 
 export type UserRole = 'vip' | 'premium' | 'basic' | 'free' | string;
 
@@ -59,17 +59,29 @@ export class GeolocationService {
     return !!secure || isLocal;
   }
 
-  /** ✅ Consulta a Permissions API (pode ser 'unsupported' em alguns navegadores). */
-  async queryPermission(): Promise<PermissionState | 'unsupported'> {
-    try {
-      const permissions = (navigator as any).permissions;
-      if (!permissions?.query) return 'unsupported';
-      const status = await permissions.query({ name: 'geolocation' as any });
-      return (status?.state ?? 'unsupported') as PermissionState | 'unsupported';
-    } catch {
+/** ✅ Consulta a Permissions API (pode ser 'unsupported' em alguns navegadores). */
+/**
+ * Consulta a permissão de geolocalização usando o tipo canônico da plataforma.
+ *
+ * Não expõe PermissionState nativo para o restante do app.
+ */
+async queryPermission(): Promise<GeoPermissionState> {
+  try {
+    const permissions = (navigator as any).permissions;
+
+    if (!permissions?.query) {
       return 'unsupported';
     }
+
+    const status = await permissions.query({
+      name: 'geolocation' as any,
+    });
+
+    return normalizeGeoPermissionState(status?.state);
+  } catch {
+    return 'unsupported';
   }
+}
 
   /** ✅ Defaults conservadores (acessibilidade + bateria). */
   private buildOptions(options?: GeolocationOptions): GeolocationOptions {

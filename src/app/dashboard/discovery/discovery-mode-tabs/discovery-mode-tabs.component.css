@@ -1,68 +1,215 @@
 /* src/app/dashboard/discovery/discovery-mode-tabs/discovery-mode-tabs.component.css */
+/* -----------------------------------------------------------------------------
+   DiscoveryModeTabsComponent
+
+   Barra de modos da descoberta.
+
+   Objetivos:
+   - desktop: barra premium completa, centralizada e com tooltip;
+   - tablet: barra rolável, compacta, sem cortar conteúdo;
+   - mobile: barra funcional, leve, com abas futuras reduzidas;
+   - telas muito pequenas: foco nos modos realmente úteis;
+   - sem quebrar layout dos cards;
+   - compatível com light, dark, high contrast e reduced motion.
+
+   Observação:
+   - tooltip visual só aparece em desktop largo;
+   - em mobile/tablet, a explicação continua no aria-label/aria-describedby,
+     mas o balão visual fica oculto para preservar o layout.
+----------------------------------------------------------------------------- */
 
 :host {
   display: block;
   width: 100%;
+  min-width: 0;
+
+  --tabs-bg: color-mix(in oklab, var(--surface-color) 94%, transparent);
+  --tabs-border: color-mix(in oklab, var(--surface-border) 86%, transparent);
+  --tabs-text: color-mix(in oklab, var(--text-color) 74%, transparent);
+  --tabs-muted: color-mix(in oklab, var(--text-color) 46%, transparent);
+
+  --tabs-active-bg: color-mix(in oklab, var(--primary-color) 16%, var(--surface-color));
+  --tabs-active-border: color-mix(in oklab, var(--primary-color) 48%, transparent);
+  --tabs-active-text: var(--text-color);
+
+  --tabs-hover-bg: color-mix(in oklab, var(--primary-color) 9%, var(--surface-color));
+  --tabs-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.055),
+    0 1px 4px rgba(15, 23, 42, 0.035);
 }
 
-.discovery-tabs {
-  width: fit-content;
+:host-context(.dark-mode) {
+  --tabs-bg: color-mix(in oklab, var(--surface-color) 86%, #000 14%);
+  --tabs-border: color-mix(in oklab, var(--surface-border) 72%, #ffffff 8%);
+  --tabs-text: color-mix(in oklab, var(--text-color) 72%, transparent);
+  --tabs-muted: color-mix(in oklab, var(--text-color) 44%, transparent);
+
+  --tabs-active-bg: color-mix(in oklab, var(--primary-color) 22%, var(--surface-color));
+  --tabs-active-border: color-mix(in oklab, var(--primary-color) 58%, transparent);
+  --tabs-active-text: #ffffff;
+
+  --tabs-hover-bg: color-mix(in oklab, var(--primary-color) 14%, var(--surface-color));
+  --tabs-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.24),
+    0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+:host-context(.high-contrast) {
+  --tabs-bg: var(--background-color);
+  --tabs-border: var(--text-color);
+  --tabs-text: var(--text-color);
+  --tabs-muted: var(--text-color);
+
+  --tabs-active-bg: var(--text-color);
+  --tabs-active-border: var(--text-color);
+  --tabs-active-text: var(--background-color);
+
+  --tabs-hover-bg: var(--background-color);
+  --tabs-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
+   Shell rolável
+   -------------------------------------------------------------------------- */
+
+.discovery-tabs-shell {
+  width: 100%;
   max-width: 100%;
+  min-width: 0;
 
-  display: flex;
-  align-items: center;
-  gap: 4px;
-
-  padding: 4px;
-  border: 1px solid color-mix(in oklab, var(--surface-border) 86%, transparent);
-  border-radius: 999px;
-
-  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
-
-  overflow-x: auto;
-  scrollbar-width: thin;
-}
-
-.discovery-tabs__item {
   position: relative;
 
-  min-height: 36px;
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  padding: 0.18rem 0.16rem 0.28rem;
+
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 0.75rem;
+}
+
+.discovery-tabs-shell::-webkit-scrollbar {
+  display: none;
+}
+
+/* Sombra lateral sutil para indicar rolagem em telas menores */
+.discovery-tabs-shell::before,
+.discovery-tabs-shell::after {
+  content: "";
+
+  position: sticky;
+  top: 0;
+  z-index: 3;
+
+  width: 1.15rem;
+  min-width: 1.15rem;
+  height: 2.75rem;
+
+  pointer-events: none;
+}
+
+.discovery-tabs-shell::before {
+  left: 0;
+  float: left;
+
+  background:
+    linear-gradient(
+      to right,
+      var(--background-color),
+      transparent
+    );
+}
+
+.discovery-tabs-shell::after {
+  right: 0;
+  float: right;
+
+  background:
+    linear-gradient(
+      to left,
+      var(--background-color),
+      transparent
+    );
+}
+
+/* --------------------------------------------------------------------------
+   Barra
+   -------------------------------------------------------------------------- */
+
+.discovery-tabs {
+  width: max-content;
+  max-width: none;
+  min-width: 0;
+
+  margin-inline: auto;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+
+  padding: 0.22rem;
+
+  border-radius: 999px;
+  border: 1px solid var(--tabs-border);
+
+  background: var(--tabs-bg);
+  color: var(--tabs-text);
+
+  box-shadow: var(--tabs-shadow);
+
+  list-style: none;
+}
+
+/* --------------------------------------------------------------------------
+   Item
+   -------------------------------------------------------------------------- */
+
+.discovery-tabs__item {
+  appearance: none;
+  -webkit-appearance: none;
+
+  position: relative;
+
+  min-width: max-content;
+  min-height: 2.08rem;
+  padding: 0.42rem 0.72rem;
 
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 0.34rem;
 
-  padding: 0 12px;
   border: 0;
   border-radius: 999px;
 
   background: transparent;
-  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  color: var(--tabs-text);
 
   font: inherit;
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-size: 0.82rem;
+  font-weight: 850;
   line-height: 1;
   white-space: nowrap;
 
   cursor: pointer;
+
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    opacity 150ms ease,
+    transform 150ms ease;
 }
 
 .discovery-tabs__item:hover:not(:disabled) {
-  background: var(--header-hover-bg);
+  background: var(--tabs-hover-bg);
   color: var(--text-color);
 }
 
-.discovery-tabs__item.is-active {
-  background: color-mix(in oklab, var(--primary-color) 16%, transparent);
-  color: var(--text-color);
-}
-
-.discovery-tabs__item.is-disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
+.discovery-tabs__item:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .discovery-tabs__item:focus-visible {
@@ -70,37 +217,382 @@
   outline-offset: var(--focus-offset);
 }
 
-.discovery-tabs__soon {
-  margin-left: 2px;
-  font-size: 0.66rem;
-  font-weight: 800;
+.discovery-tabs__item--active,
+.discovery-tabs__item[aria-current="page"] {
+  background: var(--tabs-active-bg);
+  color: var(--tabs-active-text);
+
+  box-shadow:
+    inset 0 0 0 1px var(--tabs-active-border),
+    0 4px 12px color-mix(in oklab, var(--primary-color) 10%, transparent);
+}
+
+.discovery-tabs__item--active:hover:not(:disabled),
+.discovery-tabs__item[aria-current="page"]:hover:not(:disabled) {
+  color: var(--tabs-active-text);
+}
+
+.discovery-tabs__item--disabled,
+.discovery-tabs__item:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.discovery-tabs__item i {
+  width: 1rem;
+  min-width: 1rem;
+
+  text-align: center;
+  font-size: 0.92rem;
+  line-height: 1;
+}
+
+.discovery-tabs__label {
+  display: inline-block;
+  min-width: 0;
+}
+
+.discovery-tabs__badge {
+  font-size: 0.58rem;
+  font-weight: 900;
+  line-height: 1;
+  opacity: 0.72;
+}
+
+/* --------------------------------------------------------------------------
+   Ícone de ajuda
+   -------------------------------------------------------------------------- */
+
+.discovery-tabs__hint-icon {
+  width: 0.92rem;
+  height: 0.92rem;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  margin-left: 0.08rem;
+
+  border-radius: 999px;
+  border: 1px solid currentColor;
+
+  font-size: 0.58rem;
+  font-weight: 950;
+  line-height: 1;
+
   opacity: 0.7;
 }
 
-@media (max-width: 760px) {
+.discovery-tabs__item--active .discovery-tabs__hint-icon,
+.discovery-tabs__item[aria-current="page"] .discovery-tabs__hint-icon {
+  opacity: 0.92;
+}
+
+/* --------------------------------------------------------------------------
+   Tooltip
+   -------------------------------------------------------------------------- */
+
+.discovery-tabs__tooltip {
+  display: none;
+}
+
+@media (min-width: 1101px) {
+  .discovery-tabs-shell {
+    overflow: visible;
+  }
+
+  .discovery-tabs-shell::before,
+  .discovery-tabs-shell::after {
+    display: none;
+  }
+
   .discovery-tabs {
-    width: 100%;
-    border-radius: 16px;
+    overflow: visible;
+  }
+
+  .discovery-tabs__item--has-tooltip {
+    overflow: visible;
+  }
+
+  .discovery-tabs__tooltip {
+    position: absolute;
+    left: 0;
+    bottom: calc(100% + 0.52rem);
+    z-index: 80;
+
+    width: max-content;
+    max-width: min(420px, calc(100vw - 2rem));
+
+    display: block;
+
+    padding: 0.5rem 0.65rem;
+
+    border-radius: 0.8rem;
+    border: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
+
+    background: color-mix(in oklab, var(--surface-color) 78%, transparent);
+    color: color-mix(in oklab, var(--text-color) 90%, transparent);
+
+    backdrop-filter: blur(14px) saturate(1.15);
+    -webkit-backdrop-filter: blur(14px) saturate(1.15);
+
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2);
+
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: left;
+    white-space: normal;
+
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(4px);
+    pointer-events: none;
+
+    transition:
+      opacity 140ms ease,
+      transform 140ms ease,
+      visibility 140ms ease;
+  }
+
+  .discovery-tabs__tooltip::after {
+    content: "";
+
+    position: absolute;
+    left: 1rem;
+    top: 100%;
+
+    width: 0.55rem;
+    height: 0.55rem;
+
+    background: inherit;
+    border-right: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
+    border-bottom: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
+
+    transform: translateY(-50%) rotate(45deg);
+  }
+
+  .discovery-tabs__item--has-tooltip:hover .discovery-tabs__tooltip,
+  .discovery-tabs__item--has-tooltip:focus-visible .discovery-tabs__tooltip,
+  .discovery-tabs__item--has-tooltip:focus-within .discovery-tabs__tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+  }
+
+  :host-context(.dark-mode) .discovery-tabs__tooltip {
+    background: color-mix(in oklab, var(--surface-color) 72%, transparent);
+    color: color-mix(in oklab, var(--text-color) 92%, transparent);
+    border-color: color-mix(in oklab, var(--surface-border) 72%, transparent);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.36);
+  }
+
+  :host-context(.high-contrast) .discovery-tabs__tooltip {
+    background: var(--background-color);
+    color: var(--text-color);
+    border: 2px solid currentColor;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  :host-context(.high-contrast) .discovery-tabs__tooltip::after {
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Responsividade progressiva
+   -------------------------------------------------------------------------- */
+
+/* Desktop médio: remove "em breve" primeiro */
+@media (max-width: 1200px) {
+  .discovery-tabs__badge {
+    display: none;
+  }
+}
+
+/* Notebook/tablet paisagem */
+@media (max-width: 1100px) {
+  .discovery-tabs {
+    margin-inline: 0;
   }
 
   .discovery-tabs__item {
-    flex: 0 0 auto;
+    min-height: 2.04rem;
+    padding-inline: 0.62rem;
+    font-size: 0.78rem;
+  }
+
+  .discovery-tabs__item i {
+    font-size: 0.88rem;
+  }
+
+  .discovery-tabs__hint-icon {
+    width: 0.88rem;
+    height: 0.88rem;
+    font-size: 0.54rem;
   }
 }
 
-html.high-contrast .discovery-tabs {
-  background: var(--background-color) !important;
-  border: 3px solid var(--text-color) !important;
+/*
+  Tablet/mobile:
+  - barra ocupa o fluxo horizontal natural;
+  - abas futuras desabilitadas ficam mais compactas;
+  - Todos/Online continuam legíveis.
+*/
+@media (max-width: 767.98px) {
+  .discovery-tabs-shell {
+    padding-inline: 0;
+    padding-bottom: 0.2rem;
+  }
+
+  .discovery-tabs {
+    margin-inline: 0;
+    border-radius: 18px;
+  }
+
+  .discovery-tabs__item {
+    min-height: 2.18rem;
+    padding-inline: 0.68rem;
+  }
+
+  .discovery-tabs__item--disabled {
+    padding-inline: 0.54rem;
+    gap: 0;
+  }
+
+  .discovery-tabs__item--disabled .discovery-tabs__label {
+    display: none;
+  }
+
+  .discovery-tabs__item--disabled i {
+    width: 1.15rem;
+    min-width: 1.15rem;
+    font-size: 0.92rem;
+  }
+
+  .discovery-tabs__hint-icon {
+    display: none;
+  }
+}
+
+/*
+  Mobile comum:
+  - mantém "Todos" e "Online" com texto;
+  - abas futuras ficam só com ícone;
+  - barra fica mais leve.
+*/
+@media (max-width: 560px) {
+  .discovery-tabs {
+    gap: 0.16rem;
+    padding: 0.18rem;
+  }
+
+  .discovery-tabs__item {
+    min-height: 2.2rem;
+    padding-inline: 0.62rem;
+    font-size: 0.78rem;
+  }
+
+  .discovery-tabs__item i {
+    width: 0.95rem;
+    min-width: 0.95rem;
+    font-size: 0.88rem;
+  }
+}
+
+/*
+  Mobile estreito:
+  - se não estiver ativo, vira quase ícone;
+  - aba ativa mantém label para orientação.
+*/
+@media (max-width: 430px) {
+  .discovery-tabs__item {
+    min-width: 2.24rem;
+    padding-inline: 0.54rem;
+    gap: 0.24rem;
+  }
+
+  .discovery-tabs__item:not(.discovery-tabs__item--active):not([aria-current="page"]) .discovery-tabs__label {
+    display: none;
+  }
+
+  .discovery-tabs__item:not(.discovery-tabs__item--active):not([aria-current="page"]) {
+    justify-content: center;
+  }
+
+  .discovery-tabs__item--active .discovery-tabs__label,
+  .discovery-tabs__item[aria-current="page"] .discovery-tabs__label {
+    display: inline-block;
+  }
+}
+
+/*
+  Tela mínima:
+  - reduz ainda mais sem quebrar.
+*/
+@media (max-width: 360px) {
+  .discovery-tabs-shell {
+    scroll-padding-inline: 0.35rem;
+  }
+
+  .discovery-tabs__item {
+    min-width: 2.12rem;
+    min-height: 2.12rem;
+    padding-inline: 0.48rem;
+  }
+
+  .discovery-tabs__item i {
+    width: 0.9rem;
+    min-width: 0.9rem;
+    font-size: 0.84rem;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Alto contraste
+   -------------------------------------------------------------------------- */
+
+:host-context(.high-contrast) .discovery-tabs {
+  border: 2px solid var(--text-color) !important;
   box-shadow: none !important;
 }
 
-html.high-contrast .discovery-tabs__item {
-  color: var(--text-color) !important;
-  border: 2px solid transparent !important;
+:host-context(.high-contrast) .discovery-tabs-shell::before,
+:host-context(.high-contrast) .discovery-tabs-shell::after {
+  display: none !important;
 }
 
-html.high-contrast .discovery-tabs__item.is-active {
+:host-context(.high-contrast) .discovery-tabs__item {
+  color: var(--text-color) !important;
+}
+
+:host-context(.high-contrast) .discovery-tabs__item--active,
+:host-context(.high-contrast) .discovery-tabs__item[aria-current="page"] {
   background: var(--text-color) !important;
   color: var(--background-color) !important;
-  border-color: var(--text-color) !important;
+  box-shadow: none !important;
+}
+
+:host-context(.high-contrast) .discovery-tabs__item:focus-visible {
+  outline: var(--focus-ring) !important;
+  outline-offset: var(--focus-offset) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Movimento reduzido
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .discovery-tabs__item,
+  .discovery-tabs__tooltip {
+    transition: none !important;
+  }
+
+  .discovery-tabs__item:active:not(:disabled) {
+    transform: none !important;
+  }
 }

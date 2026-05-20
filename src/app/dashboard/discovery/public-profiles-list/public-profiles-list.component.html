@@ -1,76 +1,31 @@
 <!-- src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component.html -->
-
-<section class="public-profiles" aria-labelledby="publicProfilesTitle">
-  <header class="public-profiles__header">
-    <div>
-      <h2 id="publicProfilesTitle" class="public-profiles__title">
-        Todos os perfis
-      </h2>
-
-      <p class="public-profiles__subtitle">
-        Perfis públicos disponíveis na plataforma.
-      </p>
-    </div>
-  </header>
-
+<section class="public-profiles" aria-label="Perfis públicos disponíveis">
   @if (loading()) {
     <div class="public-profiles__state" role="status" aria-live="polite">
       <span class="spinner" aria-hidden="true"></span>
       <p>Carregando perfis...</p>
     </div>
   } @else if (errorMessage()) {
-    <div class="public-profiles__state public-profiles__state--error" role="alert">
+    <div
+      class="public-profiles__state public-profiles__state--error"
+      role="alert"
+    >
       <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
       <p>{{ errorMessage() }}</p>
     </div>
   } @else if (profiles().length === 0) {
     <div class="public-profiles__state" role="status">
       <i class="fas fa-users" aria-hidden="true"></i>
-      <p>Nenhum perfil público encontrado no momento.</p>
+      <p>Nenhum perfil disponível agora.</p>
     </div>
   } @else {
     <div class="public-profiles__grid">
       @for (profile of profiles(); track trackProfile($index, profile)) {
-        <article class="public-profile-card">
-          <a
-            class="public-profile-card__media"
-            [routerLink]="getProfileRoute(profile)"
-            [attr.aria-label]="'Abrir perfil de ' + profile.nickname"
-          >
-            <img
-              class="public-profile-card__avatar"
-              [src]="getAvatar(profile)"
-              [alt]="'Foto de perfil de ' + profile.nickname"
-              loading="lazy"
-            />
-          </a>
-
-          <div class="public-profile-card__body">
-            <h3 class="public-profile-card__name">
-              <a [routerLink]="getProfileRoute(profile)">
-                {{ profile.nickname }}
-              </a>
-            </h3>
-
-            <p class="public-profile-card__meta">
-              {{ getProfileMeta(profile) }}
-            </p>
-
-            <p class="public-profile-card__location">
-              <i class="fas fa-location-dot" aria-hidden="true"></i>
-              <span>{{ getLocationLabel(profile) }}</span>
-            </p>
-          </div>
-
-          <div class="public-profile-card__actions">
-            <a
-              class="btn btn-primary public-profile-card__action"
-              [routerLink]="getProfileRoute(profile)"
-            >
-              Ver perfil
-            </a>
-          </div>
-        </article>
+        <app-user-card
+          class="public-profiles__item"
+          [user]="toUserCardProfile(profile)"
+          [distanciaKm]="getDistance(profile)"
+        />
       }
     </div>
   }

@@ -12,10 +12,7 @@ import {  GeolocationService,
           UserRole } from 'src/app/core/services/geolocation/geolocation.service';
 
 import { LocationPersistenceService } from 'src/app/core/services/geolocation/location-persistence.service';
-import { GeoCoordinates } from 'src/app/core/interfaces/geolocation.interface';
-
-// 👉 tipo local para o estado de permissão
-type PermState = PermissionState | 'unsupported';
+import { GeoCoordinates, GeoPermissionState } from 'src/app/core/interfaces/geolocation.interface';
 
 @Component({
   selector: 'app-location-cta',
@@ -31,7 +28,7 @@ export class LocationCtaComponent implements OnInit {
 
   @Output() updated = new EventEmitter<{ coords: GeoCoordinates; geohash?: string }>();
 
-  permState: PermState = 'unsupported';
+  permState: GeoPermissionState = 'unsupported';
   busy = false;
 
   constructor(

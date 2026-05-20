@@ -186,3 +186,9 @@ export class GuestBannerComponent implements OnInit {
     try { localStorage.removeItem(key); } catch {}
   }
 }
+/* Considerar sempre futuras versões .apk, mobile,
+Tentativa de inspiração no melhor das grandes plataformas e a super, ultra, mega, responsividade.
+De forma que considere das menores e diversas telas de smartphones,
+diversos tipos de monitores, de notebook, e telas gigantes de televisões monitores,
+tanto em retrato ou paisagem.
+*/

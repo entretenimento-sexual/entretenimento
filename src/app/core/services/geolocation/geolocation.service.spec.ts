@@ -2,7 +2,7 @@
 import { TestBed } from '@angular/core/testing';
 import { GeolocationService,  GeolocationErrorCode, type GeoPolicy } from './geolocation.service';
 import { firstValueFrom, of, take, toArray } from 'rxjs';
-import type { GeoCoordinates } from '../../interfaces/geolocation.interface';
+import type { GeoCoordinates, GeoPermissionState } from '../../interfaces/geolocation.interface';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 describe('GeolocationService', () => {
@@ -63,7 +63,7 @@ describe('GeolocationService', () => {
     },
   } as unknown as Geolocation;
 
-  function setPermissions(state: PermissionState | 'unsupported') {
+  function setPermissions(state: GeoPermissionState) {
     const permissions: any =
       state === 'unsupported'
         ? {}

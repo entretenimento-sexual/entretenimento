@@ -1,65 +1,194 @@
-<!-- src\app\shared\user-card\user-card.component.html -->
-<article class="card user-card shadow-lg" [attr.aria-labelledby]="'uc-title-' + (user()?.uid || 'x')"
-  [attr.aria-describedby]="'uc-desc-' + (user()?.uid || 'x')">
-  <!-- Foto grande + faixa do nickname integrada -->
-  <a class="media d-block profile-link" [routerLink]="['/profile', user()?.uid]"
-    [attr.aria-label]="'Ver perfil de ' + (user()?.nickname || 'usuário')">
-    <img [src]="user()?.photoURL || 'assets/imagem-padrao.webp'" class="profile-photo"
-      alt="{{ user()?.nickname || 'Foto do usuário' }}" loading="lazy" decoding="async" />
+<!-- src/app/shared/user-card/user-card.component.html -->
+<!--
+  UserCardComponent
 
-    <div class="nick-strip" [class.is-online]="user()?.isOnline" [class.is-offline]="!user()?.isOnline">
-      <span class="status-dot" aria-hidden="true"></span>
-      <span class="nick text-truncate" [ngClass]="nicknameClass()" [attr.id]="'uc-title-' + (user()?.uid || 'x')">
-        {{ user()?.nickname }}
-      </span>
-      <span class="sr-only">
-        {{ user()?.isOnline ? 'Online' : 'Offline' }}
-      </span>
-    </div>
-  </a>
+  Card premium para descoberta/listagem de perfis.
 
-  <div class="card-body d-flex flex-column">
-    <p class="meta">
-      @if (user()?.idade) {
-        {{ user()?.gender | titlecase }} • {{ user()?.idade }} anos
-      } @else {
-        {{ user()?.gender | titlecase }}
-      }
-    </p>
-    <p class="meta">
-      {{ user()?.municipio }}, {{ user()?.estado }}
-    </p>
+  Objetivos:
+  - visual marcante, adulto e discreto;
+  - status online claro;
+  - imagem forte sem quebrar o layout;
+  - ações compactas e acessíveis;
+  - preservação dos métodos existentes:
+    - abrirDM($event)
+    - adicionarAmigo()
+    - nicknameClass()
+    - distanciaKm()
+    - user()
+-->
+@if (user(); as profile) {
+  <article
+    class="user-card"
+    [class.user-card--online]="profile.isOnline"
+    [class.user-card--offline]="!profile.isOnline"
+    [class.user-card--vip]="profile.role === 'vip'"
+    [class.user-card--premium]="profile.role === 'premium'"
+    [attr.aria-labelledby]="'uc-title-' + (profile.uid || 'x')"
+    [attr.aria-describedby]="profile.descricao ? 'uc-desc-' + (profile.uid || 'x') : null"
+  >
+    <a
+      class="user-card__media"
+      [routerLink]="['/perfil', profile.uid]"
+      [attr.aria-label]="'Ver perfil de ' + (profile.nickname || 'usuário')"
+    >
+      <img
+        class="user-card__photo"
+        [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
+        [alt]="profile.nickname ? 'Foto de ' + profile.nickname : 'Foto do usuário'"
+        loading="lazy"
+        decoding="async"
+        referrerpolicy="no-referrer"
+      />
 
-@if (user()?.descricao) {
-  <p class="description" [attr.id]="'uc-desc-' + (user()?.uid || 'x')">
-    {{ user()?.descricao }}
-  </p>
-}
+      <span class="user-card__media-shade" aria-hidden="true"></span>
 
-    <!-- Distância com ícone -->
-    <p class="distance mb-2">
-      <i class="fas fa-location-dot distance-ico" aria-hidden="true"></i>
-      <span class="sr-only">Distância:</span>
-      @if (distanciaKm() == null) {
-      <strong>—</strong>
-      } @else if (distanciaKm()! < 1) { <strong>&lt; 1 km</strong>
-        } @else {
-        <strong>{{ distanciaKm() | number:'1.0-1' }} km</strong>
+      <div class="user-card__topbar">
+        <span
+          class="user-card__presence"
+          [class.user-card__presence--online]="profile.isOnline"
+          [class.user-card__presence--offline]="!profile.isOnline"
+        >
+          <span class="user-card__presence-dot" aria-hidden="true"></span>
+          <span>{{ profile.isOnline ? 'Online' : 'Offline' }}</span>
+        </span>
+
+        <span class="user-card__tier">
+          @if (profile.role) {
+            {{ profile.role | titlecase }}
+          } @else {
+            Perfil
+          }
+        </span>
+      </div>
+
+      <div class="user-card__identity">
+        <strong
+          class="user-card__name"
+          [ngClass]="nicknameClass()"
+          [attr.id]="'uc-title-' + (profile.uid || 'x')"
+        >
+          {{ profile.nickname || 'Usuário' }}
+        </strong>
+
+        <span class="sr-only">
+          {{ profile.isOnline ? 'Online' : 'Offline' }}
+        </span>
+      </div>
+    </a>
+
+    <div class="user-card__body">
+      <div class="user-card__summary">
+        <p class="user-card__meta">
+          @if (profile.gender) {
+            <span>{{ profile.gender | titlecase }}</span>
+          } @else {
+            <span>Perfil</span>
+          }
+
+          @if (profile.idade) {
+            <span class="user-card__muted">• {{ profile.idade }} anos</span>
+          }
+        </p>
+
+        @if (profile.orientation || profile.partner1Orientation || profile.partner2Orientation) {
+          <p class="user-card__orientation">
+            @if (profile.orientation) {
+              {{ profile.orientation | titlecase }}
+            } @else {
+              <span>{{ profile.partner1Orientation || 'Orientação 1 não informada' }}</span>
+              <span>/</span>
+              <span>{{ profile.partner2Orientation || 'Orientação 2 não informada' }}</span>
+            }
+          </p>
         }
-    </p>
 
-    <div class="actions mt-auto">
-      <button type="button" class="btn btn-outline-primary btn-sm d-inline-flex align-items-center"
-        (click)="abrirDM($event)" aria-label="Enviar mensagem para {{ user()?.nickname || 'usuário' }}">
-        <i class="fas fa-paper-plane" aria-hidden="true"></i>
-        <span class="btn-label d-none d-md-inline ms-2">Enviar mensagem</span>
-      </button>
+        <p class="user-card__location">
+          <i class="fas fa-location-dot" aria-hidden="true"></i>
 
-      <button type="button" class="btn btn-outline-success btn-sm d-inline-flex align-items-center"
-        (click)="adicionarAmigo()" aria-label="Adicionar {{ user()?.nickname || 'usuário' }} como amigo">
-        <i class="fas fa-user-plus" aria-hidden="true"></i>
-        <span class="btn-label d-none d-md-inline ms-2">Adicionar amigo</span>
-      </button>
+          @if (profile.municipio || profile.estado) {
+            <span>
+              {{ profile.municipio }}@if (profile.municipio && profile.estado) {, }{{ profile.estado }}
+            </span>
+          } @else {
+            <span>Localização não informada</span>
+          }
+        </p>
+
+        @if (showDistance() && distanciaKm() !== null) {
+          <p class="user-card__distance">
+            <i class="fas fa-location-arrow" aria-hidden="true"></i>
+            <span class="sr-only">Distância:</span>
+
+            @if (distanciaKm()! < 1) {
+              <strong>&lt; 1 km</strong>
+            } @else {
+              <strong>{{ distanciaKm() | number:'1.0-1' }} km</strong>
+            }
+          </p>
+        }
+      </div>
+
+      @if (profile.descricao) {
+        <p
+          class="user-card__description"
+          [attr.id]="'uc-desc-' + (profile.uid || 'x')"
+        >
+          {{ profile.descricao }}
+        </p>
+      }
+
+      <div class="user-card__signal-row" aria-hidden="true">
+        <span class="user-card__signal-pill">
+          <i class="fas fa-shield-heart"></i>
+          Público
+        </span>
+
+        @if (profile.isOnline) {
+          <span class="user-card__signal-pill user-card__signal-pill--hot">
+            <i class="fas fa-bolt"></i>
+            Agora
+          </span>
+        }
+      </div>
+
+      <div class="user-card__actions" aria-label="Ações do perfil">
+        <a
+          class="user-card__action user-card__action--neutral"
+          [routerLink]="['/perfil', profile.uid]"
+          [attr.aria-label]="'Ver perfil de ' + (profile.nickname || 'usuário')"
+          title="Ver perfil"
+        >
+          <i class="fas fa-user" aria-hidden="true"></i>
+          <span class="sr-only">Ver perfil</span>
+        </a>
+
+        <button
+          type="button"
+          class="user-card__action user-card__action--primary"
+          (click)="abrirDM($event)"
+          [attr.aria-label]="'Enviar mensagem para ' + (profile.nickname || 'usuário')"
+          title="Enviar mensagem"
+        >
+          <i class="fas fa-paper-plane" aria-hidden="true"></i>
+          <span>Mensagem</span>
+        </button>
+
+        <button
+          type="button"
+          class="user-card__action user-card__action--neutral"
+          (click)="adicionarAmigo()"
+          [attr.aria-label]="'Adicionar ' + (profile.nickname || 'usuário') + ' como amigo'"
+          title="Adicionar amigo"
+        >
+          <i class="fas fa-user-plus" aria-hidden="true"></i>
+          <span class="sr-only">Adicionar amigo</span>
+        </button>
+      </div>
     </div>
+  </article>
+} @else {
+  <div class="user-card user-card--placeholder" role="status" aria-live="polite">
+    <span class="spinner" aria-hidden="true"></span>
+    <p>Carregando perfil...</p>
   </div>
-</article>
+}

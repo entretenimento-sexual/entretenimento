@@ -16,8 +16,6 @@
 // - Durante /register o usuário ainda não está “habilitado” no app.
 // - Evita writes de presença prematuros e ruído (permission-denied / logs / custo).
 // =============================================================================
-// src/app/core/services/presence/presence-orchestrator.service.ts
-
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { defer, of } from 'rxjs';
 import {

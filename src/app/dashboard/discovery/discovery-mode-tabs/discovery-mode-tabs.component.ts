@@ -3,22 +3,31 @@
 // DiscoveryModeTabsComponent
 // -----------------------------------------------------------------------------
 //
-// Responsabilidade:
-// - exibir as opções de descoberta: Online, Todos, Perto, Compatíveis e Novos;
-// - emitir o modo selecionado para a página pai;
-// - não consultar serviço;
-// - não consultar store;
-// - não decidir regra de negócio.
+// Barra compacta de modos de descoberta.
 //
-// Este componente é puramente visual/controlado por Input.
-// A página pai continua sendo dona do estado selecionado.
+// Responsabilidade:
+// - renderizar os modos;
+// - emitir mudança de modo;
+// - exibir tooltip acessível quando o modo precisar de explicação;
+// - não consultar Firestore;
+// - não decidir regra de ranking;
+// - não criar layout paralelo.
+//
+// Observação:
+// - modos desabilitados permanecem visíveis para comunicar evolução,
+//   mas não são clicáveis.
+import {
+  ChangeDetectionStrategy,
+  Component,
+  input,
+  output,
+} from '@angular/core';
 
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import {
   DiscoveryMode,
-  DiscoveryTab,
+  DiscoveryModeTab,
 } from '../models/discovery-mode.model';
 
 @Component({
@@ -26,35 +35,26 @@ import {
   standalone: true,
   imports: [CommonModule],
   templateUrl: './discovery-mode-tabs.component.html',
-  styleUrls: ['./discovery-mode-tabs.component.css'],
+  styleUrl: './discovery-mode-tabs.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DiscoveryModeTabsComponent {
-  /**
-   * Lista de abas recebida da página pai.
-   * A página pai decide quais modos existem e quais estão habilitados.
-   */
-  readonly tabs = input.required<readonly DiscoveryTab[]>();
+  readonly tabs = input.required<readonly DiscoveryModeTab[]>();
+  readonly activeMode = input.required<DiscoveryMode>();
 
-  /**
-   * Modo atualmente ativo.
-   */
-  readonly mode = input.required<DiscoveryMode>();
-
-  /**
-   * Evento emitido quando o usuário seleciona um modo habilitado.
-   */
   readonly modeChange = output<DiscoveryMode>();
 
-  selectTab(tab: DiscoveryTab): void {
-    if (!tab.enabled) {
-      return;
-    }
+  selectTab(tab: DiscoveryModeTab): void {
+    if (tab.disabled) return;
 
-    if (tab.mode === this.mode()) {
-      return;
-    }
+    this.modeChange.emit(tab.id);
+  }
 
-    this.modeChange.emit(tab.mode);
+  tooltipId(tab: DiscoveryModeTab): string {
+    return `discovery-tab-tooltip-${tab.id}`;
+  }
+
+  trackTab(_: number, tab: DiscoveryModeTab): DiscoveryMode {
+    return tab.id;
   }
 }

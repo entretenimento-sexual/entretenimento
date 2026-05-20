@@ -9,7 +9,6 @@
 // - não representa o documento completo de users/{uid};
 // - deve refletir apenas campos seguros de public_profiles;
 // - não deve carregar e-mail, telefone, dados privados ou flags internas sensíveis.
-
 export interface PublicProfileCard {
   uid: string;
   nickname: string;
@@ -28,6 +27,12 @@ export interface PublicProfileCard {
   latitude?: number | null;
   longitude?: number | null;
   geohash?: string | null;
+
+  distanciaKm?: number | null;
+  isOnline?: boolean | null;
+  lastOnlineAt?: unknown;
+  lastOfflineAt?: unknown;
+  lastSeen?: unknown;
 
   updatedAt?: unknown;
   createdAt?: unknown;

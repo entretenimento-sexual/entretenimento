@@ -1,28 +1,49 @@
 <!-- src/app/dashboard/discovery/discovery-mode-tabs/discovery-mode-tabs.component.html -->
 
-<nav class="discovery-tabs" aria-label="Modos de descoberta">
-  @for (tab of tabs(); track tab.mode) {
-    <button
-      type="button"
-      class="discovery-tabs__item"
-      [class.is-active]="mode() === tab.mode"
-      [class.is-disabled]="!tab.enabled"
-      [disabled]="!tab.enabled"
-      [attr.aria-pressed]="mode() === tab.mode ? 'true' : 'false'"
-      [attr.aria-label]="tab.label + ': ' + tab.description"
-      (click)="selectTab(tab)"
-    >
-      <i [class]="tab.icon" aria-hidden="true"></i>
+<div class="discovery-tabs-shell">
+  <nav
+    class="discovery-tabs"
+    aria-label="Tipos de descoberta de perfis"
+  >
+    @for (tab of tabs(); track trackTab($index, tab)) {
+      <button
+        type="button"
+        class="discovery-tabs__item"
+        [class.discovery-tabs__item--active]="activeMode() === tab.id"
+        [class.discovery-tabs__item--disabled]="tab.disabled"
+        [class.discovery-tabs__item--has-tooltip]="!!tab.description"
+        [disabled]="tab.disabled"
+        [attr.aria-label]="tab.ariaLabel"
+        [attr.aria-current]="activeMode() === tab.id ? 'page' : null"
+        [attr.aria-describedby]="tab.description ? tooltipId(tab) : null"
+        (click)="selectTab(tab)"
+      >
+        <i [class]="tab.icon" aria-hidden="true"></i>
 
-      <span class="discovery-tabs__label">
-        {{ tab.label }}
-      </span>
+        <span class="discovery-tabs__label">
+          {{ tab.shortLabel || tab.label }}
+        </span>
 
-      @if (!tab.enabled) {
-        <small class="discovery-tabs__soon">
-          em breve
-        </small>
-      }
-    </button>
-  }
-</nav>
+        @if (tab.badge) {
+          <small class="discovery-tabs__badge">
+            {{ tab.badge }}
+          </small>
+        }
+
+        @if (tab.description) {
+          <span class="discovery-tabs__hint-icon" aria-hidden="true">
+            ?
+          </span>
+
+          <span
+            class="discovery-tabs__tooltip"
+            role="tooltip"
+            [attr.id]="tooltipId(tab)"
+          >
+            {{ tab.description }}
+          </span>
+        }
+      </button>
+    }
+  </nav>
+</div>

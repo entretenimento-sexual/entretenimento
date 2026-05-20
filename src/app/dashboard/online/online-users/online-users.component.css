@@ -1,44 +1,53 @@
 /* src/app/dashboard/online/online-users/online-users.component.css */
-/* OnlineUsersComponent
-   Escopo: somente modo Online da descoberta.
-   Estilos genéricos ficam nos CSS globais.
-*/
+/* ==========================================================================
+   ONLINE USERS COMPONENT
+   --------------------------------------------------------------------------
+   Seção online dentro da página /dashboard/explorar.
+
+   Objetivos desta revisão:
+   - retirar excesso visual do topo;
+   - deixar descoberta e contagem discretas;
+   - aproximar o usuário dos cards;
+   - manter dark mode, light mode e high contrast coerentes;
+   - preservar a lógica e os nomes usados pelo TypeScript.
+   ========================================================================== */
 
 :host {
   display: block;
+  width: 100%;
+  min-width: 0;
+
+  --ou-radius-xl: 22px;
   --ou-radius-lg: 18px;
   --ou-radius-md: 14px;
-  --ou-gap: 16px;
-  --ou-border: 1px solid var(--surface-border);
+  --ou-border: 1px solid color-mix(in oklab, var(--surface-border) 86%, transparent);
 }
+
+/* --------------------------------------------------------------------------
+   Wrapper
+   -------------------------------------------------------------------------- */
 
 .online-users {
   width: 100%;
-  max-width: 980px;
-  margin-inline: auto;
-  padding-block: var(--space-3, 16px);
+  max-width: 780px;
+
+  margin-inline: 0;
+  padding: 0;
+
   display: flex;
   flex-direction: column;
-  gap: var(--ou-gap);
+  gap: 14px;
 }
 
-.online-users__header,
-.online-users__results-head,
-.online-users__discovery-panel-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--ou-gap);
+/* Neutraliza possível padding do .ui-container global. */
+.ui-container.online-users {
+  padding-inline: 0;
 }
 
-.online-users__title {
-  margin: 0;
-  color: var(--text-color);
-  font-size: clamp(1.25rem, 1rem + 0.8vw, 1.75rem);
-  line-height: 1.1;
-}
+/* --------------------------------------------------------------------------
+   Tipografia reutilizada
+   -------------------------------------------------------------------------- */
 
-.online-users__subtitle,
 .online-users__banner-text,
 .online-users__decision-text,
 .online-users__state-text,
@@ -46,64 +55,10 @@
 .online-users__section-text,
 .online-users__helper {
   margin: 0;
-  color: color-mix(in oklab, var(--text-color) 75%, transparent);
-  font-size: 0.95rem;
-  line-height: 1.45;
-}
 
-.online-users__subtitle {
-  margin-top: 6px;
-  font-size: 0.98rem;
-}
-
-.online-users__banner,
-.online-users__state-card,
-.online-users__activation-card,
-.online-users__decision-card,
-.online-users__discovery-panel,
-.online-users__empty-card {
-  background: var(--surface-color);
-  border: var(--ou-border);
-  border-radius: var(--ou-radius-lg);
-  box-shadow: var(--box-shadow);
-}
-
-.online-users__banner,
-.online-users__state-card,
-.online-users__empty-card {
-  padding: 16px 18px;
-}
-
-.online-users__activation-card,
-.online-users__discovery-panel {
-  width: min(100%, 760px);
-  margin-inline: auto;
-  padding: 20px;
-}
-
-.online-users__decision-card {
-  margin-top: 14px;
-  padding: 16px;
-  border-color: color-mix(in oklab, var(--primary-color) 22%, var(--surface-border));
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--primary-color) 7%, var(--surface-color)),
-    var(--surface-color)
-  );
-}
-
-.online-users__banner--warning {
-  border-color: color-mix(in oklab, var(--snackbar-warning) 30%, var(--surface-border));
-}
-
-.online-users__banner-content,
-.online-users__decision-copy,
-.online-users__activation-copy,
-.online-users__results-copy,
-.online-users__discovery-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.42;
 }
 
 .online-users__banner-title,
@@ -112,92 +67,178 @@
 .online-users__empty-title,
 .online-users__section-title {
   margin: 0;
+
   color: var(--text-color);
-  font-size: 1rem;
-  font-weight: 700;
+  font-size: 0.98rem;
+  line-height: 1.2;
+  font-weight: 850;
 }
 
-.online-users__section-title {
-  font-size: 1.05rem;
+/* --------------------------------------------------------------------------
+   Cards de estado / aviso
+   -------------------------------------------------------------------------- */
+
+.online-users__banner,
+.online-users__state-card,
+.online-users__activation-card,
+.online-users__decision-card,
+.online-users__discovery-panel,
+.online-users__empty-card {
+  background: color-mix(in oklab, var(--surface-color) 96%, var(--primary-color) 4%);
+
+  border: var(--ou-border);
+  border-radius: var(--ou-radius-xl);
+
+  box-shadow:
+    0 14px 30px rgba(15, 23, 42, 0.07),
+    0 3px 10px rgba(15, 23, 42, 0.04);
 }
 
-.online-users__activation-title-row,
-.online-users__activation-actions,
-.online-users__decision-actions,
-.online-users__discovery-main,
-.online-users__discovery-meta,
-.online-users__discovery-toggle,
-.online-users__head-btn {
+.online-users__banner,
+.online-users__state-card,
+.online-users__empty-card {
+  width: min(100%, 680px);
+  padding: 16px 18px;
+}
+
+.online-users__activation-card,
+.online-users__discovery-panel {
+  width: min(100%, 680px);
+  padding: 18px;
+}
+
+.online-users__banner--warning {
+  border-color: color-mix(in oklab, var(--snackbar-warning) 28%, var(--surface-border));
+}
+
+.online-users__banner-content,
+.online-users__decision-copy,
+.online-users__activation-copy,
+.online-users__discovery-copy {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 5px;
 }
+
+/* --------------------------------------------------------------------------
+   Ativação de localização
+   -------------------------------------------------------------------------- */
 
 .online-users__activation-title-row {
+  display: grid;
+  grid-template-columns: 42px 1fr;
+  gap: 12px;
   align-items: flex-start;
-  gap: 14px;
 }
 
 .online-users__activation-icon,
 .online-users__discovery-icon {
-  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: color-mix(in oklab, var(--primary-color) 12%, transparent);
+
   color: var(--primary-color);
+  background: color-mix(in oklab, var(--primary-color) 12%, transparent);
 }
 
 .online-users__activation-icon {
   width: 42px;
   height: 42px;
-  border-radius: 14px;
-  font-size: 1.1rem;
+  border-radius: 15px;
+  font-size: 1rem;
 }
 
-.online-users__discovery-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  font-size: 0.95rem;
-}
-
-.online-users__activation-actions,
-.online-users__decision-actions {
+.online-users__activation-actions {
   margin-top: 16px;
-}
 
-.online-users__decision-actions {
-  flex-wrap: wrap;
+  display: flex;
+  align-items: center;
   gap: 10px;
 }
 
 .online-users__primary-action {
   min-height: var(--tap-target, 44px);
   padding-inline: 18px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 999px;
+  font-weight: 850;
 }
 
 .online-users__helper {
   margin-top: 8px;
+  font-size: 0.86rem;
 }
 
-.online-users__discovery-bar {
-  width: fit-content;
-  max-width: 100%;
-  padding: 8px;
-  border: var(--ou-border);
-  border-radius: 999px;
-  background: var(--surface-color);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  display: inline-flex;
+.online-users__decision-card {
+  margin-top: 16px;
+  padding: 15px;
+
+  border-color: color-mix(in oklab, var(--primary-color) 26%, var(--surface-border));
+}
+
+.online-users__decision-actions {
+  margin-top: 14px;
+
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* --------------------------------------------------------------------------
+   Cabeçalho compacto dos resultados
+   -------------------------------------------------------------------------- */
+
+.online-users__compact-head {
+  width: min(100%, 680px);
+
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+
+  margin-top: 2px;
+}
+
+.online-users__discovery-bar {
+  min-width: 0;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 4px;
+  border: var(--ou-border);
+  border-radius: 999px;
+
+  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+
+  box-shadow:
+    0 10px 22px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .online-users__discovery-main {
   min-width: 0;
-  padding: 2px 6px 2px 2px;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 0 4px 0 0;
+}
+
+.online-users__discovery-icon {
+  flex: 0 0 auto;
+
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+
+  font-size: 0.84rem;
 }
 
 .online-users__discovery-copy {
@@ -207,31 +248,37 @@
 
 .online-users__discovery-title {
   margin: 0;
-  color: color-mix(in oklab, var(--text-color) 88%, transparent);
-  font-size: 0.74rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
+
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+  font-size: 0.62rem;
+  font-weight: 900;
   line-height: 1.1;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .online-users__discovery-meta {
   margin: 0;
-  gap: 7px;
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
-  font-size: 0.88rem;
-  line-height: 1.2;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  font-size: 0.84rem;
+  line-height: 1.1;
   white-space: nowrap;
 }
 
 .online-users__discovery-meta strong {
   color: var(--text-color);
-  font-weight: 800;
+  font-weight: 900;
 }
 
 .online-users__discovery-toggle,
 .online-users__head-btn,
 .online-users__step-btn {
+  appearance: none;
   border: var(--ou-border);
   background: transparent;
   color: var(--text-color);
@@ -240,40 +287,93 @@
 }
 
 .online-users__discovery-toggle {
-  min-height: 36px;
-  padding: 7px 12px;
-  border-radius: 999px;
+  min-height: 32px;
+  padding: 0 11px;
+
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
-  font-weight: 700;
+  gap: 7px;
+
+  border-radius: 999px;
+
+  font-size: 0.82rem;
+  font-weight: 850;
   line-height: 1;
 }
 
-.online-users__head-btn {
-  min-height: var(--tap-target-sm, 40px);
-  justify-content: center;
-  padding-inline: 12px;
-  border-radius: 10px;
-}
-
 .online-users__discovery-toggle:hover,
-.online-users__step-btn:hover {
-  background: var(--header-hover-bg);
+.online-users__step-btn:hover,
+.online-users__head-btn:hover {
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  border-color: color-mix(in oklab, var(--primary-color) 38%, var(--surface-border));
 }
 
 .online-users__discovery-toggle:focus-visible,
-.online-users__step-btn:focus-visible {
+.online-users__step-btn:focus-visible,
+.online-users__head-btn:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
 
+.online-users__result-line {
+  min-width: 0;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+}
+
+.online-users__result-text {
+  margin: 0;
+
+  font-size: 0.9rem;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.online-users__loading-pill {
+  padding: 5px 8px;
+  border-radius: 999px;
+
+  background: color-mix(in oklab, var(--primary-color) 12%, transparent);
+  color: var(--text-color);
+
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+/* --------------------------------------------------------------------------
+   Painel de raio
+   -------------------------------------------------------------------------- */
+
 .online-users__discovery-panel {
   padding: 16px;
-  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.14);
 }
 
 .online-users__discovery-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+
   margin-bottom: 16px;
+}
+
+.online-users__head-btn {
+  min-height: var(--tap-target-sm, 40px);
+  padding-inline: 13px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  border-radius: 999px;
+  font-weight: 800;
 }
 
 .online-users__range-block {
@@ -281,65 +381,74 @@
   grid-template-columns: 40px 1fr 40px;
   gap: 12px;
   align-items: center;
-  margin-top: 18px;
+
+  margin-top: 20px;
 }
 
 .online-users__step-btn {
-  inline-size: 40px;
-  block-size: 40px;
+  width: 40px;
+  height: 40px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
   border-radius: 999px;
+
   font-size: 1.05rem;
-  font-weight: 800;
+  font-weight: 900;
   line-height: 1;
 }
 
 .online-users__range-wrap {
   position: relative;
+  min-width: 0;
 }
 
 .online-users__range-bubble {
   position: absolute;
   top: -34px;
   transform: translateX(-50%);
+
   padding: 4px 8px;
   border: var(--ou-border);
   border-radius: 999px;
+
   background: var(--surface-color);
   color: var(--text-color);
-  font-size: 0.78rem;
+
+  font-size: 0.76rem;
+  font-weight: 850;
   white-space: nowrap;
+
   pointer-events: none;
 }
 
 .online-users__range-meta {
+  margin-top: 12px;
+
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 12px;
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
-  font-size: 0.9rem;
+
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
+  font-size: 0.86rem;
 }
 
-.online-users__results-head {
-  margin-top: 2px;
-}
-
-.online-users__loading-pill {
-  align-self: center;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--primary-color) 12%, transparent);
-  color: var(--text-color);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
+/* --------------------------------------------------------------------------
+   Grid dos cards
+   -------------------------------------------------------------------------- */
 
 .profiles-grid {
+  width: 100%;
+
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 260px));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 240px));
   justify-content: start;
   align-items: stretch;
   gap: 16px;
+
+  margin-top: 2px;
 }
 
 .profiles-grid app-user-card {
@@ -349,46 +458,137 @@
 }
 
 .online-users__empty-card {
-  padding: 22px;
+  padding: 20px;
   text-align: center;
 }
 
-app-user-card:focus-within,
-app-user-card:focus-visible {
+app-user-card:focus-within {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
-  border-radius: var(--ou-radius-md);
+  border-radius: var(--ou-radius-lg);
 }
 
-@media (max-width: 767px) {
+/* --------------------------------------------------------------------------
+   Dark mode
+   -------------------------------------------------------------------------- */
+
+html.dark-mode .online-users__banner,
+html.dark-mode .online-users__state-card,
+html.dark-mode .online-users__activation-card,
+html.dark-mode .online-users__decision-card,
+html.dark-mode .online-users__discovery-panel,
+html.dark-mode .online-users__empty-card {
+  background: color-mix(in oklab, var(--surface-color) 90%, var(--primary-color) 10%);
+
+  box-shadow:
+    0 14px 30px rgba(0, 0, 0, 0.30),
+    0 3px 10px rgba(0, 0, 0, 0.22);
+}
+
+html.dark-mode .online-users__discovery-bar {
+  background: color-mix(in oklab, var(--surface-color) 88%, black 12%);
+  border-color: color-mix(in oklab, var(--surface-border) 78%, white 8%);
+
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+html.dark-mode .online-users__result-text {
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+}
+
+/* --------------------------------------------------------------------------
+   Alto contraste
+   -------------------------------------------------------------------------- */
+
+html.high-contrast .online-users__banner,
+html.high-contrast .online-users__state-card,
+html.high-contrast .online-users__activation-card,
+html.high-contrast .online-users__decision-card,
+html.high-contrast .online-users__discovery-bar,
+html.high-contrast .online-users__discovery-panel,
+html.high-contrast .online-users__empty-card {
+  box-shadow: none !important;
+  border: 2px solid var(--text-color) !important;
+  background: var(--background-color) !important;
+}
+
+html.high-contrast .online-users__banner-text,
+html.high-contrast .online-users__decision-text,
+html.high-contrast .online-users__state-text,
+html.high-contrast .online-users__empty-text,
+html.high-contrast .online-users__section-text,
+html.high-contrast .online-users__helper,
+html.high-contrast .online-users__discovery-title,
+html.high-contrast .online-users__discovery-meta,
+html.high-contrast .online-users__result-text,
+html.high-contrast .online-users__range-meta {
+  color: var(--text-color) !important;
+}
+
+html.high-contrast .online-users__activation-icon,
+html.high-contrast .online-users__discovery-icon,
+html.high-contrast .online-users__discovery-toggle,
+html.high-contrast .online-users__range-bubble,
+html.high-contrast .online-users__head-btn,
+html.high-contrast .online-users__step-btn {
+  border: 2px solid var(--text-color) !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: none !important;
+}
+
+html.high-contrast .online-users__loading-pill {
+  border: 2px solid var(--text-color) !important;
+  background: transparent !important;
+  color: var(--text-color) !important;
+}
+
+/* --------------------------------------------------------------------------
+   Responsividade
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 900px) {
   .online-users {
     max-width: none;
   }
 
-  .online-users__header,
-  .online-users__results-head,
-  .online-users__discovery-panel-head {
-    flex-direction: column;
-    align-items: stretch;
+  .profiles-grid {
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  }
+}
+
+@media (max-width: 767.98px) {
+  .online-users {
+    gap: 14px;
   }
 
-  .online-users__activation-card,
-  .online-users__discovery-panel {
-    padding: 16px;
+  .online-users__compact-head {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 9px;
   }
 
   .online-users__discovery-bar {
     width: 100%;
-    border-radius: 18px;
+    justify-content: space-between;
+  }
+
+  .online-users__result-line {
+    justify-content: flex-start;
+  }
+
+  .online-users__activation-card,
+  .online-users__discovery-panel {
+    width: 100%;
+    padding: 16px;
+  }
+
+  .online-users__discovery-panel-head {
+    flex-direction: column;
     align-items: stretch;
-  }
-
-  .online-users__discovery-main {
-    flex: 1 1 auto;
-  }
-
-  .online-users__discovery-toggle {
-    flex: 0 0 auto;
   }
 
   .online-users__head-btn,
@@ -408,8 +608,7 @@ app-user-card:focus-visible {
 
   .online-users__step-btn {
     width: 100%;
-    inline-size: auto;
-    border-radius: 12px;
+    border-radius: 14px;
   }
 
   .online-users__range-bubble {
@@ -418,33 +617,27 @@ app-user-card:focus-visible {
 
   .profiles-grid {
     grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+    gap: 14px;
   }
 }
 
 @media (max-width: 520px) {
   .online-users__activation-title-row {
+    grid-template-columns: 1fr;
     gap: 10px;
   }
 
   .online-users__activation-icon {
-    width: 38px;
-    height: 38px;
-    border-radius: 12px;
-  }
-
-  .online-users__activation-actions,
-  .online-users__discovery-bar {
-    flex-direction: column;
-    align-items: stretch;
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
   }
 
   .online-users__discovery-bar {
-    padding: 12px;
-    border-radius: 16px;
+    align-items: center;
   }
 
   .online-users__discovery-toggle {
-    width: 100%;
     min-height: var(--tap-target-sm, 40px);
   }
 
@@ -454,61 +647,28 @@ app-user-card:focus-visible {
 }
 
 @media (max-width: 380px) {
-  .online-users {
-    gap: 12px;
-  }
-
   .online-users__banner,
   .online-users__state-card,
   .online-users__empty-card,
   .online-users__decision-card,
   .online-users__activation-card,
   .online-users__discovery-panel {
-    border-radius: 14px;
+    border-radius: 16px;
   }
 
-  .online-users__title {
-    font-size: 1.15rem;
-  }
-
-  .online-users__subtitle,
   .online-users__banner-text,
   .online-users__decision-text,
   .online-users__state-text,
   .online-users__empty-text,
   .online-users__section-text,
   .online-users__helper {
-    font-size: 0.92rem;
+    font-size: 0.88rem;
   }
 
-  .online-users__discovery-meta {
+  .online-users__discovery-meta,
+  .online-users__result-text {
     white-space: normal;
   }
-}
-
-html.high-contrast .online-users__banner,
-html.high-contrast .online-users__state-card,
-html.high-contrast .online-users__activation-card,
-html.high-contrast .online-users__decision-card,
-html.high-contrast .online-users__discovery-bar,
-html.high-contrast .online-users__discovery-panel,
-html.high-contrast .online-users__empty-card {
-  box-shadow: none !important;
-  border: 3px solid var(--text-color) !important;
-  background: var(--background-color) !important;
-}
-
-html.high-contrast .online-users__discovery-icon,
-html.high-contrast .online-users__discovery-toggle,
-html.high-contrast .online-users__range-bubble {
-  border: 2px solid var(--text-color) !important;
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-}
-
-html.high-contrast .online-users__loading-pill {
-  border: 2px solid var(--text-color);
-  background: transparent;
 }
 
 @media (forced-colors: active) {

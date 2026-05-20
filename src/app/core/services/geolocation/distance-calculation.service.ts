@@ -1,35 +1,78 @@
-// src/app/core/services/distance-calculation.service.ts
+// src/app/core/services/geolocation/distance-calculation.service.ts
+// -----------------------------------------------------------------------------
+// DistanceCalculationService
+// -----------------------------------------------------------------------------
+//
+// Responsabilidade:
+// - calcular distância entre coordenadas geográficas;
+// - retornar null quando as coordenadas forem inválidas;
+// - manter a regra de validação centralizada em geolocation-coordinate.utils.ts.
+//
+// Observação:
+// - este service não consulta navegador;
+// - não persiste dados;
+// - não decide regra de privacidade;
+// - apenas calcula distância.
+
 import { Injectable } from '@angular/core';
 import { distanceBetween } from 'geofire-common';
+
+import { isValidGeoCoordinatePair } from './utils/geolocation-coordinate.utils';
 
 @Injectable({
   providedIn: 'root',
 })
 export class DistanceCalculationService {
-  // Método para calcular a distância em metros entre duas localizações geográficas
-  calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number | null {
-    if (this.isValidCoordinates(lat1, lon1) && this.isValidCoordinates(lat2, lon2)) {
-      const km = distanceBetween([lat1, lon1], [lat2, lon2]); // km
-      return km * 1000; // ➜ metros
+  /**
+   * Calcula a distância em metros entre duas localizações geográficas.
+   */
+  calculateDistance(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ): number | null {
+    if (
+      !isValidGeoCoordinatePair(lat1, lon1) ||
+      !isValidGeoCoordinatePair(lat2, lon2)
+    ) {
+      return null;
     }
-    return null;
+
+    const km = distanceBetween([lat1, lon1], [lat2, lon2]);
+
+    return km * 1000;
   }
 
-  // Método para calcular distância em quilômetros e verificar se está dentro de um limite
+  /**
+   * Calcula distância em quilômetros.
+   *
+   * Se maxDistanceKm for informado e a distância ultrapassar o limite,
+   * retorna null. Isso preserva o comportamento atual usado por perfis próximos.
+   */
   calculateDistanceInKm(
-    lat1: number, lon1: number, lat2: number, lon2: number, maxDistanceKm?: number
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number,
+    maxDistanceKm?: number
   ): number | null {
     const meters = this.calculateDistance(lat1, lon1, lat2, lon2);
-    if (meters === null) return null;
+
+    if (meters === null) {
+      return null;
+    }
 
     const distanceInKm = Math.round((meters / 1000) * 100) / 100;
-    if (typeof maxDistanceKm === 'number' && distanceInKm > maxDistanceKm) return null;
-    return distanceInKm;
-  }
 
-  // Método auxiliar para verificar se as coordenadas são válidas
-  private isValidCoordinates(latitude: number, longitude: number): boolean {
-    return Number.isFinite(latitude) && Number.isFinite(longitude)
-      && latitude >= -90 && latitude <= 90 && longitude >= -180 && longitude <= 180;
+    if (
+      typeof maxDistanceKm === 'number' &&
+      Number.isFinite(maxDistanceKm) &&
+      distanceInKm > maxDistanceKm
+    ) {
+      return null;
+    }
+
+    return distanceInKm;
   }
 }

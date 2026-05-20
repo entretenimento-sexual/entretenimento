@@ -1,25 +1,44 @@
 // src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.spec.ts
-import { Component } from '@angular/core';
+// -----------------------------------------------------------------------------
+// ProfilesDiscoveryPageComponent Spec
+// -----------------------------------------------------------------------------
+//
+// Teste da página pai de descoberta.
+//
+// Ajustes desta versão:
+// - alinha o spec com a API atual do componente:
+//   activeMode(), onDiscoveryModeChange(), tab.id e tab.disabled;
+// - remove expectativa antiga sobre mode(), setMode(), tab.mode e tab.enabled;
+// - mocka blocos pesados para manter o teste focado na página pai;
+// - usa Vitest.
+
+import { Component, Input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ProfilesDiscoveryPageComponent } from './profiles-discovery-page.component';
-import { OnlineUsersComponent } from '../../online/online-users/online-users.component';
 
-/**
- * Mock isolado do OnlineUsersComponent.
- *
- * Motivo:
- * o componente real injeta Store, geolocalização, AccessControlService
- * e outros providers. Aqui testamos apenas a página pai de discovery.
- */
+import { OnlineUsersFullComponent } from '../../online/online-users-full/online-users-full.component';
+import { PublicProfilesListComponent } from '../public-profiles-list/public-profiles-list.component';
+
 @Component({
-  selector: 'app-online-users',
+  selector: 'app-online-users-full',
   standalone: true,
-  template: '<div data-testid="mock-online-users"></div>',
+  template: '<div data-testid="mock-online-users-full"></div>',
 })
-class MockOnlineUsersComponent {}
+class MockOnlineUsersFullComponent {}
+
+@Component({
+  selector: 'app-public-profiles-list',
+  standalone: true,
+  template: '<div data-testid="mock-public-profiles-list"></div>',
+})
+class MockPublicProfilesListComponent {
+  @Input() profiles: unknown;
+  @Input() loading: unknown;
+  @Input() errorMessage: unknown;
+}
 
 describe('ProfilesDiscoveryPageComponent', () => {
   let component: ProfilesDiscoveryPageComponent;
@@ -32,10 +51,16 @@ describe('ProfilesDiscoveryPageComponent', () => {
     })
       .overrideComponent(ProfilesDiscoveryPageComponent, {
         remove: {
-          imports: [OnlineUsersComponent],
+          imports: [
+            OnlineUsersFullComponent,
+            PublicProfilesListComponent,
+          ],
         },
         add: {
-          imports: [MockOnlineUsersComponent],
+          imports: [
+            MockOnlineUsersFullComponent,
+            MockPublicProfilesListComponent,
+          ],
         },
       })
       .compileComponents();
@@ -49,31 +74,35 @@ describe('ProfilesDiscoveryPageComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('deve iniciar no modo online', () => {
-    expect(component.mode()).toBe('online');
+  it('deve iniciar no modo padrão todos', () => {
+    expect(component.activeMode()).toBe('all');
   });
 
-  it('deve alternar para o modo todos quando a aba estiver habilitada', () => {
-    const allTab = component.tabs.find((tab) => tab.mode === 'all');
+  it('deve alternar para online', () => {
+    component.onDiscoveryModeChange('online');
+    fixture.detectChanges();
+
+    expect(component.activeMode()).toBe('online');
+  });
+
+  it('deve normalizar modo inválido para todos', () => {
+    component.onDiscoveryModeChange('modo-invalido' as any);
+    fixture.detectChanges();
+
+    expect(component.activeMode()).toBe('all');
+  });
+
+  it('deve conter aba todos habilitada', () => {
+    const allTab = component.tabs.find((tab) => tab.id === 'all');
 
     expect(allTab).toBeTruthy();
-    expect(allTab!.enabled).toBe(true);
-
-    component.setMode(allTab!.mode);
-    fixture.detectChanges();
-
-    expect(component.mode()).toBe('all');
+    expect(allTab?.disabled).not.toBe(true);
   });
 
-  it('não deve alternar para modo desabilitado', () => {
-    const nearbyTab = component.tabs.find((tab) => tab.mode === 'nearby');
+  it('deve conter aba perto desabilitada por enquanto', () => {
+    const nearbyTab = component.tabs.find((tab) => tab.id === 'nearby');
 
     expect(nearbyTab).toBeTruthy();
-    expect(nearbyTab!.enabled).toBe(false);
-
-    component.setMode(nearbyTab!.mode);
-    fixture.detectChanges();
-
-    expect(component.mode()).toBe('online');
+    expect(nearbyTab?.disabled).toBe(true);
   });
 });

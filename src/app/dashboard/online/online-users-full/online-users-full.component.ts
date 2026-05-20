@@ -1,28 +1,49 @@
-// src\app\dashboard\online\online-users-full\online-users-full.component.ts
-// Não esquecer comentários explicativos e ferramentas de debug
-import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+// src/app/dashboard/online/online-users-full/online-users-full.component.ts
+// -----------------------------------------------------------------------------
+// OnlineUsersFullComponent
+// -----------------------------------------------------------------------------
+//
+// Wrapper leve da experiência de perfis online.
+//
+// Não controla:
+// - barra de modos;
+// - localização;
+// - raio;
+// - count$.
+//
+// Ele apenas repassa o modo ativo para o OnlineUsersComponent.
+// -----------------------------------------------------------------------------
 
-import { Store } from '@ngrx/store';
-import { Observable } from 'rxjs';
-import { AppState } from 'src/app/store/states/app.state';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.selectors';
+import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { CommonModule } from '@angular/common';
+
+import {
+  DEFAULT_DISCOVERY_MODE,
+  DiscoveryMode,
+  normalizeDiscoveryMode,
+} from '../../discovery/models/discovery-mode.model';
 
 import { OnlineUsersComponent } from '../online-users/online-users.component';
 
 @Component({
   selector: 'app-online-users-full',
   standalone: true,
-  imports: [CommonModule, RouterModule, OnlineUsersComponent],
+  imports: [CommonModule, OnlineUsersComponent],
   templateUrl: './online-users-full.component.html',
-  styleUrls: ['./online-users-full.component.css']
+  styleUrls: ['./online-users-full.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class OnlineUsersFullComponent {
-  currentUser$: Observable<IUserDados | null>;
+  @Input() embedded = false;
 
-  constructor(private store: Store<AppState>) {
-    this.currentUser$ = this.store.select(selectCurrentUser);
+  private _mode: DiscoveryMode = DEFAULT_DISCOVERY_MODE;
+
+  @Input()
+  set mode(value: DiscoveryMode | null | undefined) {
+    this._mode = normalizeDiscoveryMode(value);
+  }
+
+  get mode(): DiscoveryMode {
+    return this._mode;
   }
 }

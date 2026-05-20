@@ -29,6 +29,16 @@ export class UserCardComponent {
   // Inputs
   readonly user = input.required<IUserDados | null>();
   readonly distanciaKm = input<number | null>(null);
+  
+/**
+ * Controla se a linha de distância pode aparecer.
+ *
+ * Regra:
+ * - quando true, a linha só aparece se distanciaKm tiver valor numérico;
+ * - quando false, a linha não aparece;
+ * - o modo "Todos" pode exibir distância normalmente quando houver cálculo.
+ */
+readonly showDistance = input<boolean>(true);
 
   // Classe do nickname (performático)
   nicknameClass = computed(() => this.getUserNicknameClass(this.user()));
@@ -103,23 +113,57 @@ export class UserCardComponent {
 
   // ===== Aparência =====
 
-  getUserNicknameClass(user: IUserDados | null): string {
-    if (!user || !user.lastLogin) return '';
-
-    const toDate = (v: any): Date => {
-      if (v instanceof Date) return v;
-      if (typeof v === 'number') return new Date(v);
-      if (v?.toDate) return v.toDate(); // Firestore Timestamp
-      return new Date(v);
-    };
-
-    const now = Date.now();
-    const last = +toDate(user.lastLogin);
-    const days = Math.floor((now - last) / (1000 * 60 * 60 * 24));
-
-    if (user.isOnline) return 'nickname-online';
-    if (days <= 7) return 'nickname-recent';
-    if (days > 30) return 'nickname-inactive';
-    return 'nickname-offline';
+getUserNicknameClass(user: IUserDados | null): string {
+  if (!user) {
+    return '';
   }
+
+  /**
+   * Online deve ter prioridade visual mesmo quando lastLogin não existir.
+   */
+  if (user.isOnline) {
+    return 'nickname-online';
+  }
+
+  if (!user.lastLogin) {
+    return '';
+  }
+
+  const toDate = (value: unknown): Date => {
+    if (value instanceof Date) {
+      return value;
+    }
+
+    if (typeof value === 'number') {
+      return new Date(value);
+    }
+
+    const maybeTimestamp = value as { toDate?: () => Date } | null | undefined;
+
+    if (typeof maybeTimestamp?.toDate === 'function') {
+      return maybeTimestamp.toDate();
+    }
+
+    return new Date(String(value));
+  };
+
+  const now = Date.now();
+  const last = toDate(user.lastLogin).getTime();
+
+  if (!Number.isFinite(last)) {
+    return '';
+  }
+
+  const days = Math.floor((now - last) / (1000 * 60 * 60 * 24));
+
+  if (days <= 7) {
+    return 'nickname-recent';
+  }
+
+  if (days > 30) {
+    return 'nickname-inactive';
+  }
+
+  return 'nickname-offline';
+}
 }

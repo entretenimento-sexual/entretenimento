@@ -1,141 +1,164 @@
 /* src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.css */
+/* -----------------------------------------------------------------------------
+   ProfilesDiscoveryPageComponent
+
+   Layout da área de descoberta.
+
+   Objetivos:
+   - alinhar barra de modos e cards no mesmo corredor visual;
+   - evitar corte lateral em resoluções médias;
+   - manter o visual limpo, mobile-first e compatível com dark/high contrast;
+   - preservar a lógica atual: Todos = public_profiles + score + presença opcional.
+----------------------------------------------------------------------------- */
 
 :host {
   display: block;
   width: 100%;
-}
+  min-width: 0;
 
-.discovery-page {
-  width: min(100%, 1040px);
-  margin-inline: auto;
-  padding: clamp(18px, 3vw, 32px);
+  --discovery-content-max: min(100%, 920px);
+  --discovery-inline-padding: clamp(0.75rem, 2vw, 1.35rem);
+  --discovery-top-padding: clamp(0.7rem, 1.7vw, 1.15rem);
+  --discovery-gap: clamp(0.8rem, 1.8vw, 1.15rem);
+
+  --discovery-surface: color-mix(in oklab, var(--surface-color) 94%, transparent);
+  --discovery-border: color-mix(in oklab, var(--surface-border) 88%, transparent);
+  --discovery-shadow: 0 14px 34px rgba(15, 23, 42, 0.055);
+
   color: var(--text-color);
 }
 
-.discovery-page__header {
+:host-context(.dark-mode) {
+  --discovery-surface: color-mix(in oklab, var(--surface-color) 88%, #000 12%);
+  --discovery-border: color-mix(in oklab, var(--surface-border) 78%, #ffffff 8%);
+  --discovery-shadow: 0 18px 42px rgba(0, 0, 0, 0.26);
+}
+
+:host-context(.high-contrast) {
+  --discovery-surface: var(--background-color);
+  --discovery-border: currentColor;
+  --discovery-shadow: none;
+}
+
+.profiles-discovery-page {
+  width: 100%;
+  min-width: 0;
+
+  padding-inline: var(--discovery-inline-padding);
+  padding-top: var(--discovery-top-padding);
+  padding-bottom: clamp(1.25rem, 3vw, 2.5rem);
+
   display: grid;
-  gap: 16px;
-  margin-bottom: 20px;
+  justify-items: center;
+  gap: var(--discovery-gap);
 }
 
-.discovery-page__title-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
+/*
+  Topbar e conteúdo usam a mesma largura máxima.
+  Isso corrige o desalinhamento visual entre barra e cards.
+*/
+.profiles-discovery-page__topbar,
+.profiles-discovery-page__content {
+  width: var(--discovery-content-max);
   min-width: 0;
+  margin-inline: auto;
 }
 
-.discovery-page__back {
-  flex: 0 0 auto;
+.profiles-discovery-page__topbar {
+  position: sticky;
+  top: 0.35rem;
+  z-index: 12;
 
-  min-height: 40px;
+  overflow: visible;
 
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-
-  border-radius: 10px;
-  padding: 8px 12px;
+  padding: 0.18rem 0;
+  background: transparent;
 }
 
-.discovery-page__title-copy {
-  min-width: 0;
+.profiles-discovery-page__content {
+  display: grid;
+  gap: var(--discovery-gap);
 }
 
-.discovery-page__title {
+.profiles-discovery-page__empty {
+  width: min(100%, 560px);
+  margin-inline: auto;
+
+  border: 1px solid var(--discovery-border);
+  border-radius: 1rem;
+  padding: 0.95rem 1rem;
+
+  background: var(--discovery-surface);
+  box-shadow: var(--discovery-shadow);
+}
+
+.profiles-discovery-page__empty p {
   margin: 0;
-  font-size: clamp(1.35rem, 1rem + 1vw, 1.8rem);
-  line-height: 1.1;
-  font-weight: 800;
-}
 
-.discovery-page__subtitle {
-  margin: 4px 0 0;
   color: color-mix(in oklab, var(--text-color) 72%, transparent);
-  font-size: 0.95rem;
-  line-height: 1.4;
+
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.35;
 }
 
-.discovery-page__content {
-  min-width: 0;
+.sr-only {
+  position: absolute !important;
+
+  width: 1px !important;
+  height: 1px !important;
+
+  padding: 0 !important;
+  margin: -1px !important;
+
+  overflow: hidden !important;
+
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+
+  border: 0 !important;
 }
 
-.discovery-page__placeholder {
-  width: min(100%, 720px);
-
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-
-  padding: 18px;
-  border: 1px solid var(--surface-border);
-  border-radius: 16px;
-
-  background: var(--surface-color);
-  box-shadow: var(--box-shadow);
-}
-
-.discovery-page__placeholder-icon {
-  flex: 0 0 auto;
-
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  background: color-mix(in oklab, var(--primary-color) 14%, transparent);
-  color: var(--primary-color);
-}
-
-.discovery-page__placeholder h2 {
-  margin: 0 0 6px;
-  font-size: 1.1rem;
-  font-weight: 800;
-}
-
-.discovery-page__placeholder p {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
-  line-height: 1.45;
-}
-
-@media (max-width: 760px) {
-  .discovery-page {
-    padding: 16px;
-  }
-
-  .discovery-page__title-row {
-    gap: 8px;
-  }
-
-  .discovery-page__placeholder {
-    flex-direction: column;
-  }
-}
-
-@media (max-width: 420px) {
-  .discovery-page__back span {
-    display: none;
-  }
-
-  .discovery-page__back {
-    width: 40px;
-    justify-content: center;
-    padding-inline: 0;
-  }
-}
-
-html.high-contrast .discovery-page__placeholder {
-  background: var(--background-color) !important;
-  border: 3px solid var(--text-color) !important;
+:host-context(.high-contrast) .profiles-discovery-page__empty {
+  border: 2px solid var(--text-color) !important;
   box-shadow: none !important;
 }
 
-html.high-contrast .discovery-page__placeholder-icon {
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-  border: 2px solid var(--text-color) !important;
+/* --------------------------------------------------------------------------
+   Larguras médias: evita barra colada/cortada.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  :host {
+    --discovery-content-max: min(100%, 820px);
+    --discovery-inline-padding: clamp(0.65rem, 1.5vw, 1rem);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Mobile/tablet pequeno.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 767.98px) {
+  :host {
+    --discovery-content-max: 100%;
+    --discovery-inline-padding: 0.72rem;
+    --discovery-top-padding: 0.55rem;
+  }
+
+  .profiles-discovery-page {
+    padding-bottom: 1.25rem;
+  }
+
+  .profiles-discovery-page__topbar {
+    top: 0;
+    padding-block: 0.08rem;
+  }
+}
+
+/* Telas muito pequenas */
+@media (max-width: 380px) {
+  :host {
+    --discovery-inline-padding: 0.55rem;
+  }
 }

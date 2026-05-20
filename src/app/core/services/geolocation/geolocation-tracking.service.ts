@@ -9,15 +9,14 @@ import { Injectable, NgZone } from '@angular/core';
 import { EMPTY, Observable, of } from 'rxjs';
 import { catchError, switchMap, take } from 'rxjs/operators';
 
-import { GeoCoordinates } from '../../interfaces/geolocation.interface';
+import { GeoCoordinates, GeoPermissionState, normalizeGeoPermissionState } from '../../interfaces/geolocation.interface';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
 
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 import { serverTimestamp } from 'firebase/firestore';
 import { geohashForLocation } from 'geofire-common';
-
-type PermissionState = 'granted' | 'prompt' | 'denied' | 'unsupported';
+import { isValidGeoCoordinatePair } from './utils/geolocation-coordinate.utils';
 
 @Injectable({ providedIn: 'root' })
 export class GeolocationTrackingService {
@@ -85,30 +84,40 @@ export class GeolocationTrackingService {
     return typeof window !== 'undefined' && typeof navigator !== 'undefined';
   }
 
-  /** Lê o estado de permissão do navegador (quando suportado) */
-  async queryPermission(): Promise<PermissionState> {
-    if (!this.isBrowser()) return 'unsupported';
-
-    if (!('permissions' in navigator) || !(navigator as any).permissions?.query) {
-      const hint = (localStorage.getItem(this.consentKey) as PermissionState) || 'unsupported';
-      return hint;
-    }
-
-    try {
-      const status: PermissionStatus = await (navigator as any).permissions.query({ name: 'geolocation' });
-      return status.state as PermissionState;
-    } catch {
-      const hint = (localStorage.getItem(this.consentKey) as PermissionState) || 'unsupported';
-      return hint;
-    }
+/**
+ * Lê o estado de permissão do navegador.
+ *
+ * Retorna sempre GeoPermissionState, evitando tipos locais como
+ * PermissionState, PermState ou BrowserGeoPermissionState.
+ */
+async queryPermission(): Promise<GeoPermissionState> {
+  if (!this.isBrowser()) {
+    return 'unsupported';
   }
+
+  if (!('permissions' in navigator) || !(navigator as any).permissions?.query) {
+    const hint = localStorage.getItem(this.consentKey);
+    return normalizeGeoPermissionState(hint);
+  }
+
+  try {
+    const status: PermissionStatus = await (navigator as any).permissions.query({
+      name: 'geolocation',
+    });
+
+    return normalizeGeoPermissionState(status?.state);
+  } catch {
+    const hint = localStorage.getItem(this.consentKey);
+    return normalizeGeoPermissionState(hint);
+  }
+}
 
   /**
    * Dispara o prompt UMA vez (por ação do usuário).
    * Use isso, por ex., num botão “Ativar localização”.
    */
-  requestPermissionOnce(): Promise<PermissionState> {
-    return new Promise<PermissionState>((resolve) => {
+requestPermissionOnce(): Promise<GeoPermissionState> {
+  return new Promise<GeoPermissionState>((resolve) => {
       if (!this.isBrowser() || !navigator.geolocation) return resolve('unsupported');
 
       navigator.geolocation.getCurrentPosition(
@@ -261,16 +270,7 @@ persistPublicLocation$(uid: string, coords: GeoCoordinates): Observable<void> {
 }
 
 private isValidCoordinates(latitude: unknown, longitude: unknown): boolean {
-  return (
-    typeof latitude === 'number' &&
-    typeof longitude === 'number' &&
-    Number.isFinite(latitude) &&
-    Number.isFinite(longitude) &&
-    latitude >= -90 &&
-    latitude <= 90 &&
-    longitude >= -180 &&
-    longitude <= 180
-  );
+  return isValidGeoCoordinatePair(latitude, longitude);
 }
 
 /**
@@ -344,7 +344,7 @@ private persistLocation$(
       const perm: PermissionStatus = await (navigator as any).permissions.query({ name: 'geolocation' });
 
       const onChange = () => {
-        const state = perm.state as PermissionState;
+        const state = normalizeGeoPermissionState(perm.state);
 
         if (state === 'granted') {
           localStorage.setItem(this.consentKey, 'granted');
@@ -367,5 +367,5 @@ private persistLocation$(
       // sem Permissions API: ok
     }
   }
-} // Linha 278, fim do GeolocationTrackingService
+} // Linha 370, fim do GeolocationTrackingService
 

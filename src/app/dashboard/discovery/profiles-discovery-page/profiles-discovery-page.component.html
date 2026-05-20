@@ -1,55 +1,58 @@
 <!-- src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.html -->
-<section class="discovery-page" aria-labelledby="discoveryPageTitle">
-  <header class="discovery-page__header">
-    <div>
-      <h1 id="discoveryPageTitle" class="discovery-page__title">
-        Explorar perfis
-      </h1>
+<section class="profiles-discovery-page" aria-labelledby="discovery-title">
+  <!-- Título preservado para acessibilidade, sem poluir visualmente. -->
+  <h1 id="discovery-title" class="sr-only">
+    Descoberta de perfis
+  </h1>
 
-      <p class="discovery-page__subtitle">
-        Encontre perfis online, próximos, compatíveis e novos em um só lugar.
-      </p>
-    </div>
-  </header>
-
-  <app-discovery-mode-tabs
-    [tabs]="tabs"
-    [mode]="mode()"
-    (modeChange)="setMode($event)"
-  ></app-discovery-mode-tabs>
-
-  <div class="discovery-page__content">
-    @if (mode() === 'online') {
-      <app-online-users></app-online-users>
-    }
-
-    @if (mode() === 'all') {
-      <app-public-profiles-list
-        [profiles]="publicProfiles"
-        [loading]="publicProfilesLoading"
-        [errorMessage]="publicProfilesError"
-      ></app-public-profiles-list>
-    }
-
-    @if (mode() === 'nearby') {
-      <section class="discovery-page__placeholder" role="status">
-        <h2>Perto</h2>
-        <p>Modo preparado para perfis próximos.</p>
-      </section>
-    }
-
-    @if (mode() === 'compatible') {
-      <section class="discovery-page__placeholder" role="status">
-        <h2>Compatíveis</h2>
-        <p>Modo preparado para afinidade e preferências.</p>
-      </section>
-    }
-
-    @if (mode() === 'new') {
-      <section class="discovery-page__placeholder" role="status">
-        <h2>Novos</h2>
-        <p>Modo preparado para perfis recém-chegados.</p>
-      </section>
-    }
+  <div class="profiles-discovery-page__topbar">
+    <app-discovery-mode-tabs
+      [tabs]="tabs"
+      [activeMode]="activeMode()"
+      (modeChange)="onDiscoveryModeChange($event)"
+    />
   </div>
+
+  <main class="profiles-discovery-page__content">
+    @switch (activeMode()) {
+      @case ('all') {
+        <!--
+          Todos:
+          feed geral da descoberta.
+
+          Nesta fase, usa PublicProfilesListComponent.
+          Próxima evolução: aplicar ranking refinado nesse componente/serviço.
+        -->
+        <app-public-profiles-list
+          [profiles]="(publicProfilesFacade.profiles$ | async) ?? []"
+          [loading]="(publicProfilesFacade.loading$ | async) ?? false"
+          [errorMessage]="(publicProfilesFacade.errorMessage$ | async) ?? null"
+        />
+      }
+
+      @case ('online') {
+        <!--
+          Online:
+          fluxo atual já operacionalizado com presença/localização.
+        -->
+        <app-online-users-full 
+          [embedded]="true"
+          [mode]="activeMode()"
+        />
+      }
+
+       @case ('nearby') {
+        <app-online-users-full
+          [embedded]="true"
+          [mode]="activeMode()"
+       />
+  }
+
+      @default {
+        <section class="profiles-discovery-page__empty" role="status">
+          <p>Este modo de descoberta será liberado em breve.</p>
+        </section>
+      }
+    }
+  </main>
 </section>

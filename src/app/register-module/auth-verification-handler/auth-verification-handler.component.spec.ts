@@ -5,12 +5,19 @@
 // - remove testes legados de finishRegistration;
 // - remove dependências de FirestoreUserWriteService, FirestoreUserQueryService e CurrentUserStoreService;
 // - valida a responsabilidade atual do componente: verificação de e-mail e reset de senha.
-
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NgZone } from '@angular/core';
 import { BehaviorSubject, of, throwError } from 'rxjs';
-import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+
+import {
+  EmailVerificationService,
+} from '../../core/services/autentication/register/email-verification.service';
+
+import { LoginService } from '../../core/services/autentication/login.service';
+
+import { EmailInputModalService } from '../../core/services/autentication/email-input-modal.service';
 
 import { AuthVerificationHandlerComponent } from './auth-verification-handler.component';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';

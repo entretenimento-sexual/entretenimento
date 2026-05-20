@@ -1,15 +1,8 @@
 <!-- src/app/dashboard/online/online-users/online-users.component.html -->
-
-<div class="ui-container online-users" [attr.aria-busy]="loading ? 'true' : 'false'">
-  <header class="online-users__header">
-    <div>
-      <h2 class="online-users__title">Perfis Online</h2>
-      <p class="online-users__subtitle">
-        Veja quem está ativo perto de você e ajuste o raio da busca quando quiser.
-      </p>
-    </div>
-  </header>
-
+<div
+  class="ui-container online-users"
+  [attr.aria-busy]="loading ? 'true' : 'false'"
+>
   @if (currentUserStatus$ | async; as st) {
     @if (st === 'boot' || st === 'loading_profile') {
       <section class="online-users__state-card" role="status" aria-live="polite">
@@ -24,7 +17,7 @@
       <section class="online-users__state-card" role="status" aria-live="polite">
         <h3 class="online-users__state-title">Entre na sua conta</h3>
         <p class="online-users__state-text">
-          Faça login para ver perfis online e usar a busca por proximidade.
+          Faça login para ver perfis disponíveis na descoberta.
         </p>
       </section>
     }
@@ -40,18 +33,38 @@
           </section>
         } @else {
           @if (!u.emailVerified) {
-            <section class="online-users__banner online-users__banner--warning" role="status" aria-live="polite">
+            <section
+              class="online-users__banner online-users__banner--warning"
+              role="status"
+              aria-live="polite"
+            >
               <div class="online-users__banner-content">
-                <strong class="online-users__banner-title">Conta ainda não verificada</strong>
+                <strong class="online-users__banner-title">
+                  Conta ainda não verificada
+                </strong>
+
                 <p class="online-users__banner-text">
-                  A precisão da localização e o raio de busca podem ficar limitados por segurança e privacidade.
+                  Algumas recomendações podem ficar limitadas por segurança e privacidade.
                 </p>
               </div>
             </section>
           }
 
-          @if (!userLocation) {
-            <section class="online-users__activation-card" aria-labelledby="onlineLocationTitle">
+          @if (shouldShowLocationLoading) {
+            <section class="online-users__state-card" role="status" aria-live="polite">
+              <h3 class="online-users__state-title">Carregando localização</h3>
+
+              <p class="online-users__state-text">
+                Verificando a permissão já concedida neste navegador.
+              </p>
+            </section>
+          }
+
+          @else if (shouldShowLocationRequest) {
+            <section
+              class="online-users__activation-card"
+              aria-labelledby="onlineLocationTitle"
+            >
               <div class="online-users__activation-copy">
                 <div class="online-users__activation-title-row">
                   <span class="online-users__activation-icon" aria-hidden="true">
@@ -90,11 +103,18 @@
               </p>
 
               @if (showProfileCompletionPrompt) {
-                <section class="online-users__decision-card" role="alert" aria-live="assertive">
+                <section
+                  class="online-users__decision-card"
+                  role="alert"
+                  aria-live="assertive"
+                >
                   <div class="online-users__decision-copy">
-                    <h4 class="online-users__decision-title">Falta uma etapa rápida do seu perfil</h4>
+                    <h4 class="online-users__decision-title">
+                      Falta uma etapa rápida do seu perfil
+                    </h4>
+
                     <p class="online-users__decision-text">
-                      Para ativar a localização nesta área, conclua primeiro o perfil mínimo da sua conta.
+                      Para ativar localização nesta área, conclua primeiro o perfil mínimo.
                     </p>
                   </div>
 
@@ -121,38 +141,62 @@
           }
 
           @else {
-            <section class="online-users__discovery-bar" aria-labelledby="onlineDiscoveryTitle">
-              <div class="online-users__discovery-main">
-                <span class="online-users__discovery-icon" aria-hidden="true">
-                  <i class="fas fa-location-crosshairs"></i>
-                </span>
-
-                <div class="online-users__discovery-copy">
-                  <h3 id="onlineDiscoveryTitle" class="online-users__discovery-title">
-                    Descoberta
-                  </h3>
-
-                  <p class="online-users__discovery-meta">
-                    <span>Online</span>
-                    <span aria-hidden="true">•</span>
-                    <strong>{{ uiDistanceKm ?? policyMaxDistanceKm }} km</strong>
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                class="online-users__discovery-toggle"
-                (click)="toggleDiscoveryControls()"
-                [attr.aria-expanded]="discoveryControlsOpen() ? 'true' : 'false'"
-                aria-controls="onlineDiscoveryPanel"
+            @if (shouldShowDistanceControls) {
+              <section
+                class="online-users__compact-head"
+                aria-label="Estado da descoberta por proximidade"
               >
-                <i class="fas fa-sliders" aria-hidden="true"></i>
-                <span>{{ discoveryControlsOpen() ? 'Fechar ajuste' : 'Ajustar raio' }}</span>
-              </button>
-            </section>
+                <div
+                  class="online-users__discovery-bar"
+                  aria-labelledby="onlineDiscoveryTitle"
+                >
+                  <div class="online-users__discovery-main">
+                    <span class="online-users__discovery-icon" aria-hidden="true">
+                      <i class="fas fa-location-crosshairs"></i>
+                    </span>
 
-            @if (discoveryControlsOpen()) {
+                    <div class="online-users__discovery-copy">
+                      <h2 id="onlineDiscoveryTitle" class="online-users__discovery-title">
+                        Perto
+                      </h2>
+
+                      <p class="online-users__discovery-meta">
+                        <span>Raio</span>
+                        <span aria-hidden="true">•</span>
+                        <strong>{{ uiDistanceKm ?? policyMaxDistanceKm }} km</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    class="online-users__discovery-toggle"
+                    (click)="toggleDiscoveryControls()"
+                    [attr.aria-expanded]="discoveryControlsOpen() ? 'true' : 'false'"
+                    aria-controls="onlineDiscoveryPanel"
+                  >
+                    <i class="fas fa-sliders" aria-hidden="true"></i>
+                    <span>{{ discoveryControlsOpen() ? 'Fechar' : 'Raio' }}</span>
+                  </button>
+                </div>
+
+                <div class="online-users__result-line">
+                  @let total = (count$ | async) ?? 0;
+
+                  <p class="online-users__result-text" aria-live="polite">
+                    {{ total }} {{ total === 1 ? 'perfil encontrado' : 'perfis encontrados' }}
+                  </p>
+
+                  @if (loading) {
+                    <span class="online-users__loading-pill" role="status" aria-live="polite">
+                      Atualizando…
+                    </span>
+                  }
+                </div>
+              </section>
+            }
+
+            @if (shouldShowDistanceControls && discoveryControlsOpen()) {
               <section
                 id="onlineDiscoveryPanel"
                 class="online-users__discovery-panel"
@@ -160,7 +204,10 @@
               >
                 <div class="online-users__discovery-panel-head">
                   <div>
-                    <h3 class="online-users__section-title">Raio de busca</h3>
+                    <h3 class="online-users__section-title">
+                      Raio de busca
+                    </h3>
+
                     <p class="online-users__section-text">
                       Ajuste a distância máxima para filtrar os perfis exibidos.
                     </p>
@@ -181,7 +228,11 @@
                   </button>
                 </div>
 
-                <div class="online-users__range-block" role="group" aria-label="Ajuste do raio de busca">
+                <div
+                  class="online-users__range-block"
+                  role="group"
+                  aria-label="Ajuste do raio de busca"
+                >
                   <button
                     class="online-users__step-btn"
                     type="button"
@@ -207,7 +258,7 @@
 
                     <output
                       class="online-users__range-bubble"
-                      [attr.aria-live]="'polite'"
+                      aria-live="polite"
                       [attr.aria-label]="'Raio atual: ' + (uiDistanceKm ?? policyMaxDistanceKm) + ' quilômetros'"
                       [style.left.%]="getRangeThumbPercent(uiDistanceKm)"
                     >
@@ -236,51 +287,31 @@
               </section>
             }
 
-            <section class="online-users__results-head">
-              <div class="online-users__results-copy">
-                <h3 class="online-users__section-title">Resultados</h3>
-                <p class="online-users__section-text" aria-live="polite">
-                  @if (count$ | async; as c) {
-                    {{ c }} {{ c === 1 ? 'perfil online encontrado' : 'perfis online encontrados' }} no raio atual.
-                  } @else {
-                    Carregando contagem…
-                  }
-                </p>
-              </div>
+            <div
+              class="profiles-grid"
+              role="list"
+              [attr.aria-label]="listAriaLabel"
+            >
+              @let users = (onlineUsers$ | async) ?? [];
 
-              @if (loading) {
-                <span class="online-users__loading-pill" role="status" aria-live="polite">
-                  Atualizando…
-                </span>
-              }
-            </section>
+              @if (users.length === 0) {
+                <section class="online-users__empty-card" role="status" aria-live="polite">
+                  <h4 class="online-users__empty-title">
+                    {{ emptyTitle }}
+                  </h4>
 
-            <div class="profiles-grid" role="list" aria-label="Lista de perfis online">
-              @if (onlineUsers$ | async; as users) {
-                @if (users.length === 0) {
-                  <section class="online-users__empty-card" role="status" aria-live="polite">
-                    <h4 class="online-users__empty-title">Nenhum perfil no raio atual</h4>
-                    <p class="online-users__empty-text">
-                      Tente aumentar a distância ou atualizar sua posição.
-                    </p>
-                  </section>
-                } @else {
-                  @for (user of users; track user.uid) {
-                    <app-user-card
-                      role="listitem"
-                      [user]="user"
-                      [distanciaKm]="user.distanciaKm ?? null"
-                    >
-                    </app-user-card>
-                  }
-                }
-              } @else {
-                <section class="online-users__state-card" role="status" aria-live="polite">
-                  <h4 class="online-users__state-title">Carregando perfis</h4>
-                  <p class="online-users__state-text">
-                    Aguarde enquanto buscamos os usuários online.
+                  <p class="online-users__empty-text">
+                    {{ emptyText }}
                   </p>
                 </section>
+              } @else {
+                @for (user of users; track user.uid) {
+                  <app-user-card
+                    role="listitem"
+                    [user]="user"
+                    [distanciaKm]="user.distanciaKm ?? null"
+                  ></app-user-card>
+                }
               }
             </div>
           }

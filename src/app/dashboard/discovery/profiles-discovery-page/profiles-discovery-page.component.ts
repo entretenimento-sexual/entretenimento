@@ -5,102 +5,74 @@
 //
 // Página pai da descoberta de perfis.
 //
-// Responsabilidades:
-// - controlar o modo ativo de descoberta;
-// - compor os blocos da tela;
-// - renderizar a listagem correta para cada modo;
-// - manter OnlineUsersComponent especializado apenas em perfis online.
+// Objetivo desta revisão:
+// - remover cabeçalho visual excessivo;
+// - deixar "Todos" como modo padrão;
+// - manter barra compacta de modos no topo;
+// - separar claramente:
+//   1) Todos: feed geral/refinado, sem exigir localização;
+//   2) Online: fluxo atual baseado nos usuários online;
+// - preparar a evolução para Região, Recentes, Bombando e Compatíveis.
 //
-// Separação atual:
-// - DiscoveryModeTabsComponent controla apenas as abas;
-// - OnlineUsersComponent continua cuidando apenas do modo Online;
-// - PublicProfilesListComponent renderiza o modo Todos;
-// - a busca real de public_profiles ainda será ligada por service/facade.
+// Supressão explícita nesta revisão:
+// - título visual grande "Explorar perfis";
+// - subtítulo explicativo redundante;
+// - botão "Voltar" interno;
+// - estado duplicado `mode`.
+//
+// Motivo:
+// - a navegação global já existe no navbar/sidebar;
+// - a descoberta deve parecer área principal de produto, não página institucional;
+// - menos texto favorece mobile e reduz poluição visual.
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+} from '@angular/core';
 
-import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
-
-import { OnlineUsersComponent } from '../../online/online-users/online-users.component';
-import { DiscoveryModeTabsComponent } from '../discovery-mode-tabs/discovery-mode-tabs.component';
+import { DiscoveryPublicProfilesFacade } from '../application/discovery-public-profiles.facade';
+import { OnlineUsersFullComponent } from '../../online/online-users-full/online-users-full.component';
 import { PublicProfilesListComponent } from '../public-profiles-list/public-profiles-list.component';
+import { DiscoveryModeTabsComponent } from '../discovery-mode-tabs/discovery-mode-tabs.component';
 
 import {
+  DEFAULT_DISCOVERY_MODE,
+  DISCOVERY_MODE_TABS,
   DiscoveryMode,
-  DiscoveryTab,
+  DiscoveryModeTab,
+  normalizeDiscoveryMode,
 } from '../models/discovery-mode.model';
-
-import { PublicProfileCard } from '../models/public-profile-card.model';
 
 @Component({
   selector: 'app-profiles-discovery-page',
   standalone: true,
   imports: [
     CommonModule,
-    RouterModule,
-    OnlineUsersComponent,
     DiscoveryModeTabsComponent,
+    OnlineUsersFullComponent,
     PublicProfilesListComponent,
   ],
   templateUrl: './profiles-discovery-page.component.html',
-  styleUrls: ['./profiles-discovery-page.component.css'],
+  styleUrl: './profiles-discovery-page.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfilesDiscoveryPageComponent {
-  readonly mode = signal<DiscoveryMode>('online');
+  readonly publicProfilesFacade = inject(DiscoveryPublicProfilesFacade);
+  readonly tabs: readonly DiscoveryModeTab[] = DISCOVERY_MODE_TABS;
 
   /**
-   * Estado provisório do modo "Todos".
-   * Na próxima etapa, isso deve vir de uma facade/service de discovery.
+   * "Todos" é o modo padrão.
+   *
+   * Importante:
+   * - não deve exigir localização;
+   * - deve evoluir para feed refinado;
+   * - online, distância e compatibilidade entram como ranking, não como bloqueio.
    */
-  readonly publicProfiles: readonly PublicProfileCard[] = [];
-  readonly publicProfilesLoading = false;
-  readonly publicProfilesError: string | null = null;
+  readonly activeMode = signal<DiscoveryMode>(DEFAULT_DISCOVERY_MODE);
 
-  readonly tabs: readonly DiscoveryTab[] = [
-    {
-      mode: 'online',
-      label: 'Online',
-      icon: 'fas fa-bolt',
-      enabled: true,
-      description: 'Perfis ativos agora.',
-    },
-    {
-      mode: 'all',
-      label: 'Todos',
-      icon: 'fas fa-users',
-      enabled: true,
-      description: 'Perfis públicos disponíveis.',
-    },
-    {
-      mode: 'nearby',
-      label: 'Perto',
-      icon: 'fas fa-location-dot',
-      enabled: false,
-      description: 'Perfis próximos, online ou não.',
-    },
-    {
-      mode: 'compatible',
-      label: 'Compatíveis',
-      icon: 'fas fa-heart',
-      enabled: false,
-      description: 'Perfis com maior afinidade.',
-    },
-    {
-      mode: 'new',
-      label: 'Novos',
-      icon: 'fas fa-star',
-      enabled: false,
-      description: 'Perfis recém-chegados.',
-    },
-  ];
-
-setMode(mode: DiscoveryMode): void {
-  const tab = this.tabs.find((item) => item.mode === mode);
-
-  if (!tab?.enabled) {
-    return;
+  onDiscoveryModeChange(mode: DiscoveryMode): void {
+    this.activeMode.set(normalizeDiscoveryMode(mode));
   }
-
-  this.mode.set(mode);
-}
 }
