@@ -1,24 +1,36 @@
 // src/app/chat-module/chat-rooms/chat-rooms.component.spec.ts
-// Testes do ChatRoomsComponent
+// -----------------------------------------------------------------------------
+// CHAT ROOMS COMPONENT SPEC
+// -----------------------------------------------------------------------------
 //
-// Ajustes desta versão:
-// - usa AuthSessionService como fonte canônica de UID
-// - usa CurrentUserStoreService como fonte do perfil do usuário
-// - adiciona NO_ERRORS_SCHEMA para evitar ruído do template
-// - mantém Jest + Angular TestBed
+// Escopo:
+// - valida o view model reativo consumido pelo template;
+// - valida seleção de sala;
+// - valida bloqueios visuais antes de solicitar criação;
+// - confirma que perfil basic não é bloqueado localmente, pois a autorização
+//   real de criação pertence à callable createPrivateRoom.
+//
+// Segurança:
+// - o teste não reintroduz validação local por role/isSubscriber;
+// - o teste não assume convite ou mensagens habilitados;
+// - o mock de RoomManagementService representa a fronteira backend.
+
+import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
-import { BehaviorSubject, of } from 'rxjs';
-import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
+import { MatDialog } from '@angular/material/dialog';
+import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
+import { filter, take } from 'rxjs/operators';
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { ChatRoomsComponent } from './chat-rooms.component';
-import { MatDialog } from '@angular/material/dialog';
 
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
-
-import { SubscriptionService } from '../../core/services/subscriptions/subscription.service';
-import { RoomService } from '../../core/services/batepapo/room-services/room.service';
+import {
+  RoomListItem,
+  RoomService,
+} from '../../core/services/batepapo/room-services/room.service';
 import { RoomManagementService } from '../../core/services/batepapo/room-services/room-management.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
@@ -27,32 +39,25 @@ describe('ChatRoomsComponent', () => {
   let component: ChatRoomsComponent;
   let fixture: ComponentFixture<ChatRoomsComponent>;
 
-  // Subjects para simular streams reativos reais
   let authUidSubject: BehaviorSubject<string | null>;
   let currentUserSubject: BehaviorSubject<any>;
 
-  // Mocks reutilizáveis
   let matDialogMock: {
     open: Mock;
   };
 
   let authSessionMock: {
-    uid$: any;
-    currentAuthUser: { uid: string } | null;
+    uid$: ReturnType<BehaviorSubject<string | null>['asObservable']>;
+    whenReady: Mock;
   };
 
   let currentUserStoreMock: {
-    user$: any;
+    user$: ReturnType<BehaviorSubject<any>['asObservable']>;
     getSnapshot: Mock;
   };
 
-  let subscriptionServiceMock: {
-    promptSubscription: Mock;
-  };
-
   let roomServiceMock: {
-    getUserRooms: Mock;
-    countUserRooms: Mock;
+    getRooms: Mock;
   };
 
   let roomManagementMock: {
@@ -69,12 +74,48 @@ describe('ChatRoomsComponent', () => {
     handleError: Mock;
   };
 
+  function buildRoom(
+    overrides: Partial<RoomListItem> = {}
+  ): RoomListItem {
+    return {
+      id: 'r1',
+      roomId: 'r1',
+      roomName: 'Sala de Teste',
+      createdBy: 'u1',
+      participants: ['u1'],
+      isPrivate: true,
+      roomType: 'private',
+      visibility: 'hidden',
+      status: 'active',
+      memberCount: 1,
+      membershipMode: 'invite_only',
+      policyVersion: 'private-room-v1',
+      ...overrides,
+    } as RoomListItem;
+  }
+
+  async function readStableViewModel() {
+    return firstValueFrom(
+      component.roomsVm$.pipe(
+        filter((viewModel) => !viewModel.loading),
+        take(1)
+      )
+    );
+  }
+
+  async function flushAsyncFlow(): Promise<void> {
+    await Promise.resolve();
+    await Promise.resolve();
+    fixture.detectChanges();
+  }
+
   beforeEach(async () => {
     authUidSubject = new BehaviorSubject<string | null>('u1');
     currentUserSubject = new BehaviorSubject<any>({
       uid: 'u1',
-      role: 'premium',
-      isSubscriber: true,
+      role: 'basic',
+      isSubscriber: false,
+      profileCompleted: true,
     });
 
     matDialogMock = {
@@ -85,7 +126,7 @@ describe('ChatRoomsComponent', () => {
 
     authSessionMock = {
       uid$: authUidSubject.asObservable(),
-      currentAuthUser: { uid: 'u1' },
+      whenReady: vi.fn(() => Promise.resolve()),
     };
 
     currentUserStoreMock = {
@@ -93,13 +134,8 @@ describe('ChatRoomsComponent', () => {
       getSnapshot: vi.fn(() => currentUserSubject.value),
     };
 
-    subscriptionServiceMock = {
-      promptSubscription: vi.fn(),
-    };
-
     roomServiceMock = {
-      getUserRooms: vi.fn(() => of([])),
-      countUserRooms: vi.fn(() => Promise.resolve(0)),
+      getRooms: vi.fn(() => of([])),
     };
 
     roomManagementMock = {
@@ -109,6 +145,9 @@ describe('ChatRoomsComponent', () => {
           roomName: 'Sala de Teste',
           createdBy: 'u1',
           participants: ['u1'],
+          isPrivate: true,
+          roomType: 'private',
+          visibility: 'hidden',
         })
       ),
     };
@@ -124,12 +163,12 @@ describe('ChatRoomsComponent', () => {
     };
 
     await TestBed.configureTestingModule({
+      imports: [CommonModule],
       declarations: [ChatRoomsComponent],
       providers: [
         { provide: MatDialog, useValue: matDialogMock },
         { provide: AuthSessionService, useValue: authSessionMock },
         { provide: CurrentUserStoreService, useValue: currentUserStoreMock },
-        { provide: SubscriptionService, useValue: subscriptionServiceMock },
         { provide: RoomService, useValue: roomServiceMock },
         { provide: RoomManagementService, useValue: roomManagementMock },
         { provide: ErrorNotificationService, useValue: errorNotifierMock },
@@ -143,20 +182,61 @@ describe('ChatRoomsComponent', () => {
     fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('deve ser criado', () => {
     expect(component).toBeTruthy();
   });
 
-  it('deve carregar salas quando receber UID autenticado', () => {
-    expect(roomServiceMock.getUserRooms).toHaveBeenCalledWith('u1');
+  it('deve consultar salas por participação do usuário autenticado', () => {
+    expect(roomServiceMock.getRooms).toHaveBeenCalledWith('u1');
   });
 
-it('deve atualizar currentUser a partir do CurrentUserStoreService', () => {
-  expect(component.currentUser).toBeTruthy();
-  expect(component.currentUser?.uid).toBe('u1');
-  expect(component.currentUser?.role).toBe('premium');
-  expect(component.currentUser?.isSubscriber).toBe(true);
-});
+  it('deve atualizar currentUser a partir do CurrentUserStoreService', () => {
+    expect(component.currentUser).toBeTruthy();
+    expect(component.currentUser?.uid).toBe('u1');
+    expect(component.currentUser?.role).toBe('basic');
+  });
+
+  it('deve expor estado estável sem salas quando a consulta retorna vazia', async () => {
+    const viewModel = await readStableViewModel();
+
+    expect(viewModel.uid).toBe('u1');
+    expect(viewModel.rooms).toEqual([]);
+    expect(viewModel.loading).toBe(false);
+    expect(viewModel.loadFailed).toBe(false);
+    expect(viewModel.hasOwnedActiveRoom).toBe(false);
+    expect(viewModel.ownedActiveRoomCount).toBe(0);
+  });
+
+  it('deve reconhecer sala ativa administrada pelo usuário', async () => {
+    roomServiceMock.getRooms.mockReturnValueOnce(
+      of([buildRoom({ createdBy: 'u2', participants: ['u2'] })])
+    );
+
+    currentUserSubject.next({
+      uid: 'u2',
+      role: 'basic',
+      isSubscriber: false,
+      profileCompleted: true,
+    });
+    authUidSubject.next('u2');
+    fixture.detectChanges();
+
+    const viewModel = await firstValueFrom(
+      component.roomsVm$.pipe(
+        filter(
+          (value) =>
+            value.uid === 'u2' &&
+            !value.loading &&
+            value.rooms.length === 1
+        ),
+        take(1)
+      )
+    );
+
+    expect(viewModel.rooms[0]?.isOwner).toBe(true);
+    expect(viewModel.hasOwnedActiveRoom).toBe(true);
+    expect(viewModel.ownedActiveRoomCount).toBe(1);
+  });
 
   it('deve emitir roomSelected ao selecionar uma sala válida', () => {
     const emitSpy = vi.spyOn(component.roomSelected, 'emit');
@@ -174,29 +254,27 @@ it('deve atualizar currentUser a partir do CurrentUserStoreService', () => {
     expect(emitSpy).not.toHaveBeenCalled();
   });
 
-  it('deve limpar chatRooms quando uid ficar null', () => {
-    component.chatRooms = [
-      {
-        id: 'r1',
-        roomName: 'Sala 1',
-        createdBy: 'u1',
-        participants: ['u1'],
-      } as any,
-    ];
-
+  it('deve refletir ausência de sessão no view model', async () => {
+    currentUserSubject.next(null);
     authUidSubject.next(null);
     fixture.detectChanges();
 
-    expect(component.chatRooms).toEqual([]);
+    const viewModel = await firstValueFrom(
+      component.roomsVm$.pipe(
+        filter((value) => value.uid === null && !value.loading),
+        take(1)
+      )
+    );
+
+    expect(viewModel.rooms).toEqual([]);
+    expect(viewModel.hasOwnedActiveRoom).toBe(false);
     expect(component.currentUser).toBeNull();
   });
 
   it('deve mostrar warning ao tentar criar sala sem usuário autenticado', async () => {
-    authUidSubject.next(null);
     currentUserSubject.next(null);
+    authUidSubject.next(null);
     currentUserStoreMock.getSnapshot.mockReturnValue(null);
-    authSessionMock.currentAuthUser = null;
-
     fixture.detectChanges();
 
     component.openCreateRoomModal();
@@ -209,7 +287,6 @@ it('deve atualizar currentUser a partir do CurrentUserStoreService', () => {
   it('deve mostrar info quando perfil ainda estiver hidratando', () => {
     currentUserSubject.next(undefined);
     currentUserStoreMock.getSnapshot.mockReturnValue(undefined);
-
     fixture.detectChanges();
 
     component.openCreateRoomModal();
@@ -219,48 +296,120 @@ it('deve atualizar currentUser a partir do CurrentUserStoreService', () => {
     );
   });
 
-  it('deve bloquear criação para usuário sem assinatura e sem role premium/vip', async () => {
-    currentUserSubject.next({
-      uid: 'u1',
-      role: 'basic',
-      isSubscriber: false,
-    });
+  it('não deve bloquear localmente perfil basic sem isSubscriber quando não há sala ativa', async () => {
     currentUserStoreMock.getSnapshot.mockReturnValue({
       uid: 'u1',
       role: 'basic',
       isSubscriber: false,
+      profileCompleted: true,
     });
 
+    component.openCreateRoomModal();
+    await flushAsyncFlow();
+
+    expect(authSessionMock.whenReady).toHaveBeenCalled();
+    expect(matDialogMock.open).toHaveBeenCalled();
+  });
+
+  it('deve bloquear nova criação quando já existe sala própria ativa no view model', async () => {
+    roomServiceMock.getRooms.mockReturnValueOnce(
+      of([buildRoom({ createdBy: 'u2', participants: ['u2'] })])
+    );
+
+    currentUserSubject.next({
+      uid: 'u2',
+      role: 'basic',
+      isSubscriber: false,
+      profileCompleted: true,
+    });
+    currentUserStoreMock.getSnapshot.mockReturnValue({
+      uid: 'u2',
+      role: 'basic',
+      isSubscriber: false,
+      profileCompleted: true,
+    });
+    authUidSubject.next('u2');
     fixture.detectChanges();
 
+    await firstValueFrom(
+      component.roomsVm$.pipe(
+        filter(
+          (value) =>
+            value.uid === 'u2' &&
+            !value.loading &&
+            value.hasOwnedActiveRoom
+        ),
+        take(1)
+      )
+    );
+
+    vi.clearAllMocks();
+
     component.openCreateRoomModal();
-
-    // aguarda microtask do Promise.resolve(countUserRooms)
-    await Promise.resolve();
-
-    expect(subscriptionServiceMock.promptSubscription).toHaveBeenCalledWith({
-      title: 'Permissão necessária',
-      message: 'Você precisa ser assinante ou ter um perfil premium/vip para criar salas.',
-    });
-  });
-
-  it('deve mostrar info quando usuário já atingiu o limite de salas', async () => {
-    roomServiceMock.countUserRooms.mockResolvedValueOnce(1);
-
-    component.openCreateRoomModal();
-
-    await Promise.resolve();
 
     expect(errorNotifierMock.showInfo).toHaveBeenCalledWith(
-      'Você já atingiu o limite de salas criadas.'
+      'Você já possui uma sala ativa criada por você.'
     );
+    expect(matDialogMock.open).not.toHaveBeenCalled();
   });
 
-  it('deve abrir modal de criação quando usuário puder criar sala', async () => {
+  it('deve enviar a criação confirmada ao serviço backend e abrir confirmação', async () => {
+    matDialogMock.open
+      .mockReturnValueOnce({
+        afterClosed: () =>
+          of({
+            success: true,
+            action: 'created',
+            roomDetails: {
+              roomName: 'Sala Nova',
+              description: 'Teste seguro',
+            },
+          }),
+      })
+      .mockReturnValueOnce({
+        afterClosed: () => of(null),
+      });
+
     component.openCreateRoomModal();
+    await flushAsyncFlow();
 
-    await Promise.resolve();
+    expect(roomManagementMock.createRoom).toHaveBeenCalledWith({
+      roomName: 'Sala Nova',
+      description: 'Teste seguro',
+    });
 
-    expect(matDialogMock.open).toHaveBeenCalled();
+    expect(matDialogMock.open).toHaveBeenCalledTimes(2);
+  });
+
+  it('deve apresentar falha de carregamento quando a leitura de salas falhar', async () => {
+    roomServiceMock.getRooms.mockReturnValueOnce(
+      throwError(() => new Error('permission-denied'))
+    );
+
+    currentUserSubject.next({
+      uid: 'u2',
+      role: 'basic',
+      profileCompleted: true,
+    });
+    authUidSubject.next('u2');
+    fixture.detectChanges();
+
+    const viewModel = await firstValueFrom(
+      component.roomsVm$.pipe(
+        filter(
+          (value) =>
+            value.uid === 'u2' &&
+            !value.loading &&
+            value.loadFailed
+        ),
+        take(1)
+      )
+    );
+
+    expect(viewModel.loadFailed).toBe(true);
+    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
+      'Erro ao carregar suas salas.'
+    );
+    expect(globalErrorHandlerMock.handleError).toHaveBeenCalled();
   });
 });

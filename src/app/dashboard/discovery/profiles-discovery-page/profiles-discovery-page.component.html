@@ -1,4 +1,5 @@
 <!-- src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.html -->
+
 <section class="profiles-discovery-page" aria-labelledby="discovery-title">
   <!-- Título preservado para acessibilidade, sem poluir visualmente. -->
   <h1 id="discovery-title" class="sr-only">
@@ -18,10 +19,16 @@
       @case ('all') {
         <!--
           Todos:
-          feed geral da descoberta.
+          feed geral/refinado da descoberta.
 
-          Nesta fase, usa PublicProfilesListComponent.
-          Próxima evolução: aplicar ranking refinado nesse componente/serviço.
+          Fonte:
+          - public_profiles
+
+          Enriquecimento:
+          - presença opcional;
+          - distância quando houver coordenadas;
+          - score/ranking;
+          - elegibilidade pública.
         -->
         <app-public-profiles-list
           [profiles]="(publicProfilesFacade.profiles$ | async) ?? []"
@@ -33,20 +40,16 @@
       @case ('online') {
         <!--
           Online:
-          fluxo atual já operacionalizado com presença/localização.
+          recorte baseado em presence, hidratado com public_profiles.
+
+          O card já passa pela mesma camada genérica de enrichment usada pelo
+          modo Todos.
         -->
-        <app-online-users-full 
+        <app-online-users-full
           [embedded]="true"
           [mode]="activeMode()"
         />
       }
-
-       @case ('nearby') {
-        <app-online-users-full
-          [embedded]="true"
-          [mode]="activeMode()"
-       />
-  }
 
       @default {
         <section class="profiles-discovery-page__empty" role="status">

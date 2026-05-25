@@ -130,6 +130,16 @@ registerLocaleData(localePt, 'pt-BR');
  * - deve permanecer sincronizada com src/main.ts
  */
 const EMU_AUTH_PERSIST_KEY = '__EMU_AUTH_PERSIST__';
+/**
+ * Região canônica das callables consumidas pelo frontend.
+ *
+ * Deve permanecer alinhada com:
+ * functions/src/config/functions-region.ts
+ *
+ * O Firestore principal está em `nam5`, cuja região de Functions mais próxima
+ * indicada pelo Firebase é `us-central1`.
+ */
+const CALLABLE_FUNCTIONS_REGION = 'us-central1' as const;
 
 type EmuPersistMode = 'memory' | 'session';
 
@@ -426,52 +436,44 @@ export function authRestoreInitializer(
     // =========================================================================
     // Cloud Functions
     //
-    // Necessário para o fluxo de checkout e demais chamadas callable.
-    // Sem este provider, BillingRepository não consegue injetar Functions.
+    // Necessário para checkout, billing e lifecycle de conta via callable.
     //
     // Estratégia:
-    // - usa getFunctions(getApp()) para compartilhar a app já inicializada
-    // - conecta no emulator apenas se o target "functions" estiver configurado
-    // - protege contra reconexão em HMR/rebootstrap
+    // - cliente e backend utilizam a mesma região canônica;
+    // - em dev-emu, o mesmo provider é conectado ao Functions Emulator;
+    // - em dev-real/prod, as callables apontam para a região implantada;
+    // - protege contra reconexão em HMR/rebootstrap.
+    //
+    // Segurança:
+    // - utilizar o provider não significa que toda function esteja pronta para
+    //   produção; pagamentos mock devem permanecer restritos ao emulator até
+    //   validação real do gateway/webhook.
     // =========================================================================
-// =========================================================================
-// Cloud Functions
-//
-// Necessário para o fluxo de checkout e demais chamadas callable.
-// Sem este provider, BillingRepository não consegue injetar Functions.
-//
-// Estratégia:
-// - usa getFunctions(getApp(), 'southamerica-east1') para alinhar client e backend
-// - conecta no emulator apenas se o target "functions" estiver configurado
-// - protege contra reconexão em HMR/rebootstrap
-// =========================================================================
-provideFunctions(() => {
-  const functions = getFunctions(getApp(), 'southamerica-east1');
+    provideFunctions(() => {
+      const functions = getFunctions(getApp(), CALLABLE_FUNCTIONS_REGION);
 
-  if (isUsingFunctionsEmulator()) {
-    const cfg: any = environment;
+      if (isUsingFunctionsEmulator()) {
+        const cfg: any = environment;
 
-    connectFunctionsEmulatorOnce(
-      functions,
-      cfg.emulators.functions.host,
-      cfg.emulators.functions.port
-    );
+        connectFunctionsEmulatorOnce(
+          functions,
+          cfg.emulators.functions.host,
+          cfg.emulators.functions.port
+        );
 
-    safeDbg('[FUNCTIONS][PROVIDE] emulator connected', {
-      region: 'southamerica-east1',
-      host: cfg.emulators.functions.host,
-      port: cfg.emulators.functions.port,
-    });
-  } else {
-    safeDbg('[FUNCTIONS][PROVIDE] cloud/default', {
-      env: environment.env,
-      region: 'southamerica-east1',
-    });
-  }
-
-  return functions;
-}),
-
+        safeDbg('[FUNCTIONS][PROVIDE] emulator connected', {
+          region: CALLABLE_FUNCTIONS_REGION,
+          host: cfg.emulators.functions.host,
+          port: cfg.emulators.functions.port,
+        });
+      } else {
+        safeDbg('[FUNCTIONS][PROVIDE] cloud configured', {
+          env: environment.env,
+          region: CALLABLE_FUNCTIONS_REGION,
+        });
+      }
+      return functions;
+    }),
     // =========================================================================
     // APP_INITIALIZER
     // Garante que o Auth seja resolvido antes do app decidir navegação crítica

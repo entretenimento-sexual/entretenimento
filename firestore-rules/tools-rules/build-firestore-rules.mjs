@@ -1,85 +1,123 @@
 // C:\entretenimento\firestore-rules\tools-rules\build-firestore-rules.mjs
-// Script para construir o arquivo firestore.rules a partir de partes modulares.
-// Não esquecer commentários explicativos, especialmente sobre a estrutura de pastas e a ordem de concatenação.'
-import fs from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+// -----------------------------------------------------------------------------
+// FIRESTORE RULES BUILD
+// -----------------------------------------------------------------------------
+//
+// Constrói firestore.rules a partir de fragments modulares em ordem fixa.
+//
+// Decisões:
+// - firestore.rules é artefato gerado; não deve ser editado manualmente;
+// - fragments sensíveis ficam versionados em firestore-rules/;
+// - billing.rules entra logo após users.rules por tratar dados privados e
+//   financeiros internos;
+// - os marcadores por arquivo permanecem no resultado para diagnóstico.
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/**
- * Build previsível:
- * - Concatena partes em ordem fixa
- * - Gera C:\entretenimento\firestore.rules
- * - Insere marcadores por arquivo para debug
- * - Verifica balanceamento simples de chaves no final
- */
-
-// raiz do projeto (tools-rules -> firestore-rules -> raiz)
-const root = path.resolve(__dirname, "..", "..");
-const srcDir = path.join(root, "firestore-rules");
-const outFile = path.join(root, "firestore.rules");
+// Raiz do projeto: tools-rules -> firestore-rules -> raiz.
+const root = path.resolve(__dirname, '..', '..');
+const srcDir = path.join(root, 'firestore-rules');
+const outFile = path.join(root, 'firestore.rules');
 
 const parts = [
-  "_helpers.rules",
-  "users.rules",
-  "public_profiles.rules",
-  "public_profiles_photos.rules",
-  "presence.rules",
-  "friendRequests.rules",
-  "friends_root.rules",
-  "chats.rules",
-  "rooms.rules",
-  "rooms_participants.rules",
-  "public_index.rules",
-  "users_profile_socialLinks.rules",
-  "public_social_links.rules",
-  "preferences.rules",
-  "users_friends.rules",
-  "user_profile.rules",
-  "users_photos.rules",
-  "users_photo_publications.rules",
-  "users_blocks.rules",
-  "communities.rules",
-  "invites.rules",
-  "admin_logs.rules",
-  "_footer.rules",
+  '_helpers.rules',
+
+  // Documentos privados e domínios internos sensíveis.
+  'users.rules',
+  'billing.rules',
+
+  // Discovery e presença.
+  'public_profiles.rules',
+  'public_profiles_photos.rules',
+  'presence.rules',
+
+  // Relações e comunicação.
+  'friendRequests.rules',
+  'friends_root.rules',
+  'chats.rules',
+  'rooms.rules',
+  'rooms_participants.rules',
+  'public_index.rules',
+
+  // Dados privados/públicos complementares de perfil.
+  'users_profile_socialLinks.rules',
+  'public_social_links.rules',
+  'preferences.rules',
+  'users_friends.rules',
+  'user_profile.rules',
+  'users_photos.rules',
+  'users_photo_publications.rules',
+  'users_blocks.rules',
+
+  // Demais módulos.
+  'communities.rules',
+  'invites.rules',
+  'admin_logs.rules',
+
+  '_footer.rules',
 ];
 
 function build() {
   const banner =
-    `// AUTO-GENERATED FILE. DO NOT EDIT.\n` +
-    `// Source: firestore-rules/*\n` +
+    '// AUTO-GENERATED FILE. DO NOT EDIT.\n' +
+    '// Source: firestore-rules/*\n' +
     `// Generated at: ${new Date().toISOString()}\n\n`;
 
   const content = parts
-    .map((p) => {
-      const file = path.join(srcDir, p);
-      if (!fs.existsSync(file)) throw new Error(`Missing rules part: ${p}`);
-      const body = fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n").trimEnd();
-      return `// ===== ${p} =====\n${body}\n`;
+    .map((part) => {
+      const file = path.join(srcDir, part);
+
+      if (!fs.existsSync(file)) {
+        throw new Error(`Missing rules part: ${part}`);
+      }
+
+      const body = fs
+        .readFileSync(file, 'utf8')
+        .replace(/\r\n/g, '\n')
+        .trimEnd();
+
+      return `// ===== ${part} =====\n${body}\n`;
     })
-    .join("\n");
+    .join('\n');
 
   const finalRules = banner + content;
 
-  // check simples de chaves (não é parser, mas pega 99% dos erros de EOF)
+  /**
+   * Checagem simples de chaves.
+   *
+   * Não substitui a compilação do Firebase, mas detecta rapidamente fragment
+   * ausente ou fechamento estrutural quebrado.
+   */
   const opens = (finalRules.match(/{/g) || []).length;
   const closes = (finalRules.match(/}/g) || []).length;
+
   if (opens !== closes) {
-    throw new Error(`[rules] Unbalanced braces: opens=${opens}, closes=${closes}. Check fragments/_footer.`);
+    throw new Error(
+      `[rules] Unbalanced braces: opens=${opens}, closes=${closes}. ` +
+        'Check fragments/_footer.'
+    );
   }
 
-  fs.writeFileSync(outFile, finalRules, "utf8");
+  fs.writeFileSync(outFile, finalRules, 'utf8');
+
   console.log(`[rules] built -> ${outFile}`);
 }
 
-const watch = process.argv.includes("--watch");
+const watch = process.argv.includes('--watch');
+
 build();
 
 if (watch) {
   fs.watch(srcDir, { recursive: true }, () => {
-    try { build(); } catch (e) { console.error(e); }
+    try {
+      build();
+    } catch (error) {
+      console.error(error);
+    }
   });
 }

@@ -1,375 +1,263 @@
 // functions/src/payments/application/payment-webhook.handler.ts
-import { db } from '../../firebaseApp';
+// -----------------------------------------------------------------------------
+// PAYMENT WEBHOOK HANDLER
+// -----------------------------------------------------------------------------
+//
+// Endpoint público de entrada para eventos enviados por provedores de
+// pagamento.
+//
+// Responsabilidade:
+// - receber a requisição externa do provedor;
+// - selecionar o adaptador correspondente;
+// - exigir verificação segura do webhook no adaptador;
+// - encaminhar somente VerifiedPaymentEvent para PaymentSettlementService;
+// - responder de forma idempotente e sem expor dados sensíveis.
+//
+// Segurança:
+// - body, query string e headers não comprovam pagamento por si próprios;
+// - status "paid" recebido diretamente não é confiável;
+// - retorno do navegador não passa por este endpoint;
+// - payload bruto não é persistido;
+// - dados financeiros sensíveis não são devolvidos na resposta;
+// - enquanto AsaasPaymentProvider não validar assinatura real, o endpoint
+//   falha fechado e não concede acesso.
+//
+// Emulator:
+// - a simulação local NÃO ocorre aqui;
+// - a simulação controlada permanece em processBillingReturn, protegida pelo
+//   Functions Emulator Runtime;
+// - isso evita múltiplas rotas de desenvolvimento capazes de conceder acesso.
+//
+// Evolução futura:
+// - separar endpoints por provedor caso necessário;
+// - validar assinatura/segredo do Asaas via Secret Manager;
+// - suportar refund e chargeback com settlement reverso;
+// - persistir somente hash sanitizado do evento para auditoria.
+
+import * as logger from 'firebase-functions/logger';
 import { HttpsError, onRequest } from 'firebase-functions/v2/https';
-import type { Request } from 'express';
 
-type WebhookStatus =
-  | 'pending'
-  | 'provider_created'
-  | 'paid'
-  | 'failed'
-  | 'canceled';
+import { FUNCTIONS_REGION } from '../../config/functions-region';
 
-interface CheckoutSessionDoc {
-  id: string;
-  buyerUid: string;
-  sellerUid?: string;
-  scope: string;
-  planId?: string;
-  planKey?: string;
-  amountCents: number;
-  currency: 'BRL';
-  provider: string;
-  providerSessionId?: string | null;
-  checkoutUrl?: string | null;
-  status: WebhookStatus;
-  metadata?: Record<string, unknown>;
-  createdAt: number;
-  updatedAt: number;
-}
+import {
+  PaymentProviderPort,
+  ProviderWebhookInput,
+} from '../domain/payment-provider.port';
 
-interface EntitlementDoc {
-  id: string;
-  buyerUid: string;
-  sellerUid?: string;
-  scope: string;
-  resourceId?: string;
-  planId?: string;
-  active: boolean;
-  startsAt: number;
-  endsAt?: number | null;
-  sourceCheckoutSessionId: string;
-}
+import {
+  VerifiedPaymentEvent,
+} from '../domain/billing.model';
 
-interface ParsedWebhookPayload {
-  accepted: boolean;
-  provider: string;
-  eventId?: string | null;
-  providerSessionId?: string | null;
-  checkoutSessionId?: string | null;
-  newStatus?: WebhookStatus | null;
-  message?: string | null;
-}
+import {
+  AsaasPaymentProvider,
+} from '../infrastructure/providers/asaas.provider';
 
-function isDevEnvironment(): boolean {
-  return (
-    process.env.FUNCTIONS_EMULATOR === 'true' ||
-    process.env.NODE_ENV !== 'production'
-  );
-}
+import {
+  settleVerifiedPaidEvent,
+} from './payment-settlement.service';
 
-function normalizeStatus(raw: string | null | undefined): WebhookStatus | null {
-  const normalized = String(raw ?? '').trim().toLowerCase();
+type WebhookHeaderMap = Record<string, string | string[] | undefined>;
 
-  if (
-    normalized === 'pending' ||
-    normalized === 'provider_created' ||
-    normalized === 'paid' ||
-    normalized === 'failed' ||
-    normalized === 'canceled'
-  ) {
-    return normalized;
+function getHeaderValue(
+  headers: WebhookHeaderMap,
+  headerName: string
+): string | null {
+  const value = headers[headerName.toLowerCase()];
+
+  if (Array.isArray(value)) {
+    return String(value[0] ?? '').trim() || null;
   }
 
-  if (normalized === 'success') {
-    return 'paid';
-  }
-
-  if (normalized === 'cancel' || normalized === 'cancelled') {
-    return 'canceled';
-  }
-
-  if (normalized === 'error') {
-    return 'failed';
-  }
-
-  return null;
+  return typeof value === 'string' && value.trim()
+    ? value.trim()
+    : null;
 }
 
-function normalizeProvider(raw: string | null | undefined): string {
-  return String(raw ?? '').trim().toLowerCase() || 'unknown';
-}
-
-function safeJsonBody(req: Request): Record<string, unknown> {
-  if (req.body && typeof req.body === 'object') {
-    return req.body as Record<string, unknown>;
+function readRawBody(request: {
+  rawBody?: Buffer;
+  body?: unknown;
+}): string {
+  /**
+   * Em Cloud Functions, rawBody preserva o conteúdo necessário para futura
+   * validação criptográfica da assinatura do provider.
+   *
+   * O fallback existe apenas para robustez local; um provider real deverá
+   * exigir o rawBody correto antes de aceitar qualquer evento.
+   */
+  if (Buffer.isBuffer(request.rawBody)) {
+    return request.rawBody.toString('utf8');
   }
 
-  return {};
-}
-
-async function findCheckoutSession(params: {
-  checkoutSessionId?: string | null;
-  providerSessionId?: string | null;
-}): Promise<
-  FirebaseFirestore.DocumentSnapshot | FirebaseFirestore.QueryDocumentSnapshot | null
-> {
-  if (params.checkoutSessionId?.trim()) {
-    const ref = db.collection('checkout_sessions').doc(params.checkoutSessionId.trim());
-    const snap = await ref.get();
-
-    if (snap.exists) {
-      return snap;
-    }
-  }
-
-  if (params.providerSessionId?.trim()) {
-    const querySnap = await db
-      .collection('checkout_sessions')
-      .where('providerSessionId', '==', params.providerSessionId.trim())
-      .limit(1)
-      .get();
-
-    if (!querySnap.empty) {
-      return querySnap.docs[0];
-    }
-  }
-
-  return null;
-}
-
-async function updateCheckoutSessionStatus(params: {
-  checkoutSessionRef: FirebaseFirestore.DocumentReference;
-  nextStatus: WebhookStatus;
-  provider: string;
-  eventId?: string | null;
-  message?: string | null;
-  payload?: Record<string, unknown>;
-}): Promise<void> {
-  const now = Date.now();
-
-  await params.checkoutSessionRef.set(
-    {
-      status: params.nextStatus,
-      updatedAt: now,
-      metadata: {
-        webhookProvider: params.provider,
-        webhookEventId: params.eventId ?? null,
-        webhookMessage: params.message ?? null,
-        webhookPayload: params.payload ?? null,
-        webhookProcessedAt: now,
-      },
-    },
-    { merge: true }
-  );
-}
-
-async function applyGrantedPlatformSubscription(params: {
-  uid: string;
-  checkoutSessionId: string;
-  checkoutSession: CheckoutSessionDoc;
-}): Promise<void> {
-  const { uid, checkoutSessionId, checkoutSession } = params;
-  const now = Date.now();
-
-  const planKey = String(checkoutSession.planKey ?? '').trim().toLowerCase();
-  const normalizedRole =
-    planKey === 'basic' || planKey === 'premium' || planKey === 'vip'
-      ? planKey
-      : 'premium';
-
-  const userRef = db.collection('users').doc(uid);
-  const entitlementId = `platform_subscription_${uid}`;
-  const entitlementRef = db.collection('entitlements').doc(entitlementId);
-
-  const entitlementDoc: EntitlementDoc = {
-    id: entitlementId,
-    buyerUid: uid,
-    scope: 'platform_subscription',
-    planId: checkoutSession.planId,
-    active: true,
-    startsAt: now,
-    endsAt: null,
-    sourceCheckoutSessionId: checkoutSessionId,
-  };
-
-  await db.runTransaction(async (tx: FirebaseFirestore.Transaction) => {
-    tx.set(
-      userRef,
-      {
-        role: normalizedRole,
-        tier: normalizedRole,
-        isSubscriber: true,
-        subscriptionStatus: 'active',
-        subscriptionScope: 'platform_subscription',
-        lastBillingCheckoutSessionId: checkoutSessionId,
-        billingUpdatedAt: now,
-      },
-      { merge: true }
-    );
-
-    tx.set(entitlementRef, entitlementDoc, { merge: true });
-  });
-}
-
-function parseIncomingWebhookPayload(
-  headers: Record<string, unknown>,
-  body: Record<string, unknown>
-): ParsedWebhookPayload {
-  const provider =
-    normalizeProvider(
-      (headers['x-provider'] as string | undefined) ??
-      (body['provider'] as string | undefined) ??
-      (body['mockProvider'] as string | undefined)
-    ) || 'asaas';
-
-  const checkoutSessionId = String(body['checkoutSessionId'] ?? '').trim() || null;
-  const providerSessionId = String(body['providerSessionId'] ?? '').trim() || null;
-  const eventId = String(body['eventId'] ?? '').trim() || null;
-
-  const newStatus = normalizeStatus(
-    (body['status'] as string | undefined) ??
-    (body['billing'] as string | undefined)
-  );
-
-  if (
-    (provider === 'manual_pix' || provider === 'pix_manual') &&
-    !isDevEnvironment()
-  ) {
-    return {
-      accepted: false,
-      provider,
-      eventId,
-      checkoutSessionId,
-      providerSessionId,
-      newStatus: null,
-      message: 'manual_pix não é permitido fora de desenvolvimento.',
-    };
-  }
-
-  return {
-    accepted: true,
-    provider,
-    eventId,
-    checkoutSessionId,
-    providerSessionId,
-    newStatus,
-    message: String(body['message'] ?? '').trim() || null,
-  };
-}
-
-export const paymentWebhook = onRequest(async (req, res) => {
-  if (req.method !== 'POST') {
-    res.status(405).json({
-      ok: false,
-      error: 'method_not_allowed',
-      message: 'Use POST.',
-    });
-    return;
+  if (typeof request.body === 'string') {
+    return request.body;
   }
 
   try {
-    const headers = req.headers as Record<string, unknown>;
-    const body = safeJsonBody(req);
+    return JSON.stringify(request.body ?? {});
+  } catch {
+    return '';
+  }
+}
 
-    const parsed = parseIncomingWebhookPayload(headers, body);
+function resolveProvider(
+  headers: WebhookHeaderMap
+): PaymentProviderPort {
+  /**
+   * Por ora, o endpoint está reservado ao futuro webhook real do Asaas.
+   *
+   * O header pode ajudar no roteamento futuro, mas não serve como prova de
+   * origem. A confiança financeira só poderá vir de verifyWebhook().
+   */
+  const requestedProvider =
+    getHeaderValue(headers, 'x-billing-provider')?.toLowerCase() ??
+    'asaas';
 
-    if (!parsed.accepted) {
-      res.status(403).json({
+  if (requestedProvider !== 'asaas') {
+    throw new HttpsError(
+      'invalid-argument',
+      'Provedor de pagamento não suportado.'
+    );
+  }
+
+  return new AsaasPaymentProvider();
+}
+
+function assertSupportedFinancialEvent(
+  event: VerifiedPaymentEvent
+): void {
+  if (event.financialStatus === 'paid') {
+    return;
+  }
+
+  /**
+   * Refund e chargeback exigirão processador reverso próprio:
+   * - revogar entitlement;
+   * - ajustar assinatura;
+   * - gerar auditoria;
+   * - eventualmente bloquear saldo/saque futuro.
+   *
+   * Até essa camada existir, o sistema não confirma silenciosamente eventos
+   * reversos nem altera acesso parcialmente.
+   */
+  throw new HttpsError(
+    'failed-precondition',
+    'Evento financeiro reverso ainda não possui processamento seguro habilitado.'
+  );
+}
+
+function mapWebhookErrorToStatus(error: unknown): number {
+  if (!(error instanceof HttpsError)) {
+    /**
+     * Enquanto o provider real ainda não está configurado, o placeholder
+     * lança Error e a operação deve permanecer indisponível.
+     */
+    return 503;
+  }
+
+  switch (error.code) {
+    case 'invalid-argument':
+      return 400;
+
+    case 'unauthenticated':
+      return 401;
+
+    case 'permission-denied':
+      return 403;
+
+    case 'not-found':
+      return 404;
+
+    case 'already-exists':
+    case 'failed-precondition':
+      return 409;
+
+    default:
+      return 500;
+  }
+}
+
+function buildProviderWebhookInput(
+  headers: WebhookHeaderMap,
+  rawBody: string
+): ProviderWebhookInput {
+  return {
+    headers,
+    rawBody,
+  };
+}
+
+export const paymentWebhook = onRequest(
+  {
+    region: FUNCTIONS_REGION,
+    timeoutSeconds: 60,
+    memory: '256MiB',
+  },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      res.status(405).json({
         ok: false,
-        accepted: false,
-        reason: 'payload_rejected',
-        message: parsed.message ?? 'Payload rejeitado.',
+        code: 'method_not_allowed',
       });
       return;
     }
 
-    if (!parsed.newStatus) {
-      res.status(202).json({
-        ok: true,
-        accepted: true,
-        processed: false,
-        reason: 'missing_or_unknown_status',
-      });
-      return;
-    }
+    const headers = req.headers as WebhookHeaderMap;
+    const rawBody = readRawBody(req);
 
-    const checkoutSnap = await findCheckoutSession({
-      checkoutSessionId: parsed.checkoutSessionId,
-      providerSessionId: parsed.providerSessionId,
-    });
+    try {
+      const provider = resolveProvider(headers);
 
-    if (!checkoutSnap?.exists) {
-      res.status(202).json({
-        ok: true,
-        accepted: true,
-        processed: false,
-        reason: 'checkout_session_not_found',
-        checkoutSessionId: parsed.checkoutSessionId ?? null,
-        providerSessionId: parsed.providerSessionId ?? null,
-      });
-      return;
-    }
+      /**
+       * Ponto de confiança do fluxo:
+       *
+       * - nenhum campo recebido é usado para conceder acesso antes daqui;
+       * - AsaasPaymentProvider atual falha fechado;
+       * - futuramente verifyWebhook() deverá validar assinatura/segredo e
+       *   construir VerifiedPaymentEvent com valor, moeda e IDs confiáveis.
+       */
+      const verifiedEvent = await provider.verifyWebhook(
+        buildProviderWebhookInput(headers, rawBody)
+      );
 
-    const checkoutSession = checkoutSnap.data() as CheckoutSessionDoc | undefined;
+      assertSupportedFinancialEvent(verifiedEvent);
 
-    if (!checkoutSession) {
-      res.status(202).json({
-        ok: true,
-        accepted: true,
-        processed: false,
-        reason: 'checkout_session_empty',
-      });
-      return;
-    }
+      const settlement = await settleVerifiedPaidEvent(verifiedEvent);
 
-    if (checkoutSession.status === 'paid' && parsed.newStatus === 'paid') {
+      /**
+       * Resposta mínima ao provider.
+       * Não devolvemos uid, role, plano, valores ou dados de entitlement.
+       */
       res.status(200).json({
         ok: true,
-        accepted: true,
-        processed: true,
-        idempotent: true,
-        status: 'paid',
-        checkoutSessionId: checkoutSnap.id,
+        processed: settlement.processed,
+        idempotent: settlement.idempotent,
       });
-      return;
-    }
+    } catch (error: unknown) {
+      const statusCode = mapWebhookErrorToStatus(error);
 
-    await updateCheckoutSessionStatus({
-      checkoutSessionRef: checkoutSnap.ref,
-      nextStatus: parsed.newStatus,
-      provider: parsed.provider,
-      eventId: parsed.eventId,
-      message: parsed.message,
-      payload: body,
-    });
+      /**
+       * Não logamos body, headers completos ou dados pessoais.
+       * O log técnico registra apenas informações necessárias para diagnóstico.
+       */
+      logger.error('[paymentWebhook] rejected or unavailable', {
+        statusCode,
+        errorCode:
+          error instanceof HttpsError
+            ? error.code
+            : 'provider_not_configured_or_internal_error',
+        errorMessage:
+          error instanceof Error
+            ? error.message
+            : 'Unknown webhook error',
+      });
 
-    if (
-      parsed.newStatus === 'paid' &&
-      checkoutSession.scope === 'platform_subscription'
-    ) {
-      await applyGrantedPlatformSubscription({
-        uid: checkoutSession.buyerUid,
-        checkoutSessionId: checkoutSnap.id,
-        checkoutSession,
+      res.status(statusCode).json({
+        ok: false,
+        code:
+          statusCode === 503
+            ? 'payment_provider_not_configured'
+            : 'payment_event_rejected',
       });
     }
-
-    res.status(200).json({
-      ok: true,
-      accepted: true,
-      processed: true,
-      status: parsed.newStatus,
-      checkoutSessionId: checkoutSnap.id,
-      providerSessionId:
-        parsed.providerSessionId ?? checkoutSession.providerSessionId ?? null,
-      provider: parsed.provider,
-      devManualPix:
-        (parsed.provider === 'manual_pix' || parsed.provider === 'pix_manual') &&
-        isDevEnvironment(),
-    });
-  } catch (error) {
-    const normalizedError =
-      error instanceof Error ? error : new Error(String(error));
-
-    const statusCode =
-      error instanceof HttpsError && error.httpErrorCode?.status
-        ? error.httpErrorCode.status
-        : 500;
-
-    res.status(statusCode).json({
-      ok: false,
-      error: normalizedError.message,
-    });
   }
-});
+);

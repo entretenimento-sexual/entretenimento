@@ -52,3 +52,5 @@ tree*.txt
 
 scripts/service-account.json
 scripts/check-auth-user.mjs
+# Estado local persistido do Firebase Emulator
+.firebase/emulator-data/

@@ -1,30 +1,55 @@
-<!-- src\app\chat-module\room-creation-confirmation-modal\room-creation-confirmation-modal.component.html -->
-<app-base-modal title="{{ data.action === 'created' ? 'Sala Criada' : 'Sala Atualizada' }}" (closeModal)="close()">
+<!-- src/app/chat-module/modals/room-create-confirm-modal/room-creation-confirmation-modal.component.html -->
+
+<app-base-modal
+  [title]="vm.action === 'created' ? 'Sala criada' : 'Sala atualizada'"
+  (closeModal)="close()"
+>
   <div class="modal-content-body">
+    @if (vm.action === 'created') {
+      <p>
+        Sua sala privada foi criada com sucesso.
+      </p>
+    } @else {
+      <p>
+        Sua sala foi atualizada com sucesso.
+      </p>
+    }
+
+    @if (vm.roomName) {
+      <p>
+        Sala: <strong>{{ vm.roomName }}</strong>
+      </p>
+    }
+
     <p>
-      Agora você pode
-      {{ data.action === 'created' ? 'ter uma conversa em grupo, interagindo com vários participantes ao mesmo tempo' :
-      'continuar a conversa com os participantes atualizados' }}.
+      A participação de outros perfis será disponibilizada após a conclusão
+      das validações de convite e entrada segura.
     </p>
-    <p>Envie convites para os perfis que desejar.</p>
-    <p>
-      A sala "<strong>{{ data.room.roomName }}</strong>" foi
-      {{ data.action === 'created' ? 'criada' : 'atualizada' }} com sucesso!
-    </p>
-    @if (data.exceededLimit) {
-      <div class="warning">
+
+    @if (vm.exceededLimit) {
+      <div class="warning" role="status">
         <p>Você atingiu o limite máximo de salas criadas.</p>
       </div>
     }
-    <div>
-      <p>Informações adicionais:</p>
-      <ul>
-        <li>Total de salas criadas: {{ data.roomCount }}</li>
-        <!-- Outras informações do usuário -->
-      </ul>
-    </div>
+
+    @if (vm.roomCount !== null) {
+      <div>
+        <p>Informações adicionais:</p>
+
+        <ul>
+          <li>Total de salas criadas: {{ vm.roomCount }}</li>
+        </ul>
+      </div>
+    }
   </div>
+
   <div footer-actions>
-    <button class="btn btn-primary" (click)="close()">Fechar</button>
+    <button
+      type="button"
+      class="btn btn-primary"
+      (click)="close()"
+    >
+      Fechar
+    </button>
   </div>
 </app-base-modal>

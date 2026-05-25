@@ -1,118 +1,103 @@
-//src\app\core\services\general\notification.service.ts
-import { Injectable } from '@angular/core';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { MatDialog } from '@angular/material/dialog';
+// src/app/core/services/general/notification.service.ts
+// -----------------------------------------------------------------------------
+// NOTIFICATION SERVICE
+// -----------------------------------------------------------------------------
+//
+// Fachada retrocompatível para consumidores antigos da aplicação.
+//
+// Direção arquitetural:
+// - ErrorNotificationService é o ponto central de feedback visual;
+// - este serviço permanece apenas para preservar imports e nomenclaturas
+//   eventualmente existentes em fluxos legados;
+// - não mantém estado próprio;
+// - não acessa MatSnackBar diretamente;
+// - não utiliza MatDialog;
+// - não exibe detalhes técnicos.
+//
+// Segurança:
+// - `details` continua aceito por compatibilidade;
+// - a decisão de ocultar detalhes técnicos está centralizada em
+//   ErrorNotificationService;
+// - mensagens internas de Firebase, Functions, Storage, billing ou moderação
+//   não são abertas em alertas ou modais pelo navegador.
+//
+// Evolução futura:
+// - após migração total dos consumidores para ErrorNotificationService,
+//   esta fachada poderá ser removida.
+
+import { Injectable, inject } from '@angular/core';
+
+import {
+  ErrorNotificationService,
+  type NotificationType,
+} from '../error-handler/error-notification.service';
 
 @Injectable({
-  providedIn: 'root'
+  providedIn: 'root',
 })
 export class NotificationService {
-  private readonly defaultDuration = 5000; // 5 segundos por padrão
-  private recentMessages = new Set<string>(); // Previne mensagens repetidas
-
-  constructor(private snackBar: MatSnackBar,
-              private dialog: MatDialog) { }
+  private readonly notifier = inject(ErrorNotificationService);
 
   /**
-   * Exibe uma notificação de sucesso.
-   * @param message Mensagem a ser exibida.
-   * @param duration Duração da exibição (opcional).
+   * Exibe feedback visual positivo.
    */
-  showSuccess(message: string, duration: number = 3000): void {
-    this.showUniqueMessage(message, 'success-snackbar', duration);
+  showSuccess(
+    message: string,
+    duration: number = 3000
+  ): void {
+    this.notifier.showSuccess(message, duration);
   }
 
   /**
-   * Exibe uma notificação de erro com detalhes opcionais.
-   * @param message Mensagem principal.
-   * @param details Detalhes adicionais do erro (opcional).
-   * @param duration Duração da exibição.
+   * Exibe feedback visual de erro.
+   *
+   * `details` é preservado somente para compatibilidade com consumidores
+   * antigos. O serviço central garante que esse conteúdo não seja mostrado
+   * diretamente ao usuário.
    */
-  showError(message: string, details?: string, duration: number = this.defaultDuration): void {
-    if (this.addMessageToRecent(message)) {
-      this.snackBar.open(message, 'Ver Detalhes', {
-        duration,
-        panelClass: ['error-snackbar']
-      }).onAction().subscribe(() => {
-        if (details) {
-          console.log('Detalhes do erro:', details);
-          alert(details); // 🔥 Substituível por um modal de erro mais elegante no futuro
-        }
-      });
-    }
+  showError(
+    message: string,
+    details?: string,
+    duration: number = 5000
+  ): void {
+    this.notifier.showError(message, details, duration);
   }
 
   /**
-   * Exibe uma notificação de informação.
-   * @param message Mensagem informativa.
-   * @param duration Duração da exibição (opcional).
+   * Exibe mensagem informativa.
    */
-  showInfo(message: string, duration: number = 4000): void {
-    this.showUniqueMessage(message, 'info-snackbar', duration);
+  showInfo(
+    message: string,
+    duration: number = 4000
+  ): void {
+    this.notifier.showInfo(message, duration);
   }
 
   /**
-   * Exibe uma notificação de aviso.
-   * @param message Mensagem de aviso.
-   * @param duration Duração da exibição (opcional).
+   * Exibe aviso não bloqueante.
    */
-  showWarning(message: string, duration: number = this.defaultDuration): void {
-    this.showUniqueMessage(message, 'warning-snackbar', duration);
+  showWarning(
+    message: string,
+    duration: number = 5000
+  ): void {
+    this.notifier.showWarning(message, duration);
   }
 
   /**
-   * Exibe uma notificação persistente (que só fecha manualmente).
-   * @param message Mensagem a ser exibida.
+   * Exibe mensagem persistente até fechamento manual.
    */
   showPersistent(message: string): void {
-    this.snackBar.open(message, 'Fechar', {
-      panelClass: ['persistent-snackbar'],
-      duration: undefined // 🔥 Sem tempo limite
-    });
+    this.notifier.showPersistent(message);
   }
 
   /**
-   * Método genérico para exibir mensagens únicas.
-   * @param message Texto da notificação.
-   * @param panelClass Classe CSS para personalização do estilo.
-   * @param duration Tempo de exibição.
+   * Mantém a entrada genérica utilizada por consumidores legados.
    */
-  private showUniqueMessage(message: string, panelClass: string, duration: number): void {
-    if (this.addMessageToRecent(message)) {
-      this.snackBar.open(message, 'Fechar', {
-        duration,
-        panelClass: [panelClass]
-      });
-    }
-  }
-
-  /**
-   * Previne notificações duplicadas em curto intervalo de tempo.
-   * @param message Texto da notificação.
-   * @returns `true` se a mensagem for nova, `false` se já foi exibida recentemente.
-   */
-  private addMessageToRecent(message: string): boolean {
-    if (this.recentMessages.has(message)) {
-      return false; // Impede duplicação
-    }
-    this.recentMessages.add(message);
-    setTimeout(() => this.recentMessages.delete(message), this.defaultDuration);
-    return true;
-  }
-
-  /**
-   * Método genérico para exibir notificações por tipo.
-   * @param type Tipo da notificação ('success', 'error', 'info', 'warning').
-   * @param message Mensagem da notificação.
-   * @param duration Duração opcional da notificação.
-   */
-  showNotification(type: 'success' | 'error' | 'info' | 'warning', message: string, duration?: number): void {
-    const types = {
-      success: () => this.showSuccess(message, duration),
-      error: () => this.showError(message, undefined, duration),
-      info: () => this.showInfo(message, duration),
-      warning: () => this.showWarning(message, duration)
-    };
-    types[type]?.();
+  showNotification(
+    type: NotificationType,
+    message: string,
+    duration?: number
+  ): void {
+    this.notifier.showNotification(type, message, duration);
   }
 }

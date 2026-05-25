@@ -1,5 +1,25 @@
-//Não esquecer de comentários explicativos e ferramentas de debug
 // src/app/payments-core/infrastructure/repositories/billing.repository.ts
+// -----------------------------------------------------------------------------
+// BILLING REPOSITORY
+// -----------------------------------------------------------------------------
+//
+// Adapter AngularFire para as callable functions do domínio de billing.
+//
+// Responsabilidade:
+// - encapsular comunicação com Functions;
+// - devolver Observables para a camada de aplicação;
+// - não manter regra de negócio financeira no frontend.
+//
+// Segurança:
+// - o repository envia somente intenção de escolha de plano e identificador da
+//   sessão no retorno;
+// - valores, role, provider confirmado e entitlement são decididos no backend;
+// - processBillingReturn não confirma pagamento por parâmetros da URL em cloud;
+// - getMyBillingSnapshot devolve projeção sanitizada do entitlement válido.
+//
+// Tratamento de erro:
+// - erros continuam sendo tratados pela facade, integrada a
+//   ErrorNotificationService e GlobalErrorHandlerService.
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { from, Observable } from 'rxjs';
@@ -11,29 +31,44 @@ import {
   ProcessBillingReturnInput,
   ProcessBillingReturnResult,
 } from '../../domain/models/billing-return.model';
-import { CreateCheckoutResult } from '../../domain/ports/payment-provider.port';
+import {
+  CreateCheckoutResult,
+} from '../../domain/models/checkout-session-response.model';
 
 @Injectable({ providedIn: 'root' })
 export class BillingRepository {
   private readonly functions = inject(Functions);
 
+  /**
+   * Consulta o catálogo reconhecido pelo backend.
+   *
+   * O plano retornado serve para apresentação e escolha. A criação do checkout
+   * resolve o plano novamente no backend antes de persistir qualquer sessão.
+   */
   private readonly getPlatformPlanByKeyCallable = httpsCallable<
     { key: string },
     BillingPlan | null
   >(this.functions, 'getPlatformPlanByKey');
 
+  /**
+   * Cria intenção de assinatura.
+   *
+   * Em dev-emu:
+   * - utiliza provider local controlado pelo Functions Emulator.
+   *
+   * Em cloud:
+   * - deve permanecer bloqueado até existir gateway real validado.
+   */
   private readonly createPlatformCheckoutSessionCallable = httpsCallable<
     { planId: string; planKey: string },
     CreateCheckoutResult | null
   >(this.functions, 'createPlatformCheckoutSession');
 
   /**
-   * Esperado no backend:
-   * - recebe o retorno do provider/gateway
-   * - valida pagamento/cancelamento
-   * - atualiza checkout session
-   * - atualiza role/tier/entitlements quando aplicável
-   * - devolve o status final ou "processing"
+   * Processa a experiência visual de retorno.
+   *
+   * O retorno do navegador não comprova pagamento. O backend somente concede
+   * acesso no Emulator controlado ou após evento real verificado futuramente.
    */
   private readonly processBillingReturnCallable = httpsCallable<
     ProcessBillingReturnInput,
@@ -41,17 +76,22 @@ export class BillingRepository {
   >(this.functions, 'processBillingReturn');
 
   /**
-   * Esperado no backend:
-   * - devolve o estado consolidado atual do billing do usuário autenticado
-   * - útil para polling curto e sincronização final antes de navegar
+   * Consulta projeção sanitizada do entitlement ativo do usuário.
+   *
+   * A interface não acessa diretamente entitlements, transactions, events ou
+   * audit logs financeiros.
    */
   private readonly getMyBillingSnapshotCallable = httpsCallable<
     Record<string, never>,
     BillingSnapshotResult | null
   >(this.functions, 'getMyBillingSnapshot');
 
-  getPlatformPlanByKey$(planKey: string): Observable<BillingPlan | null> {
-    return from(this.getPlatformPlanByKeyCallable({ key: planKey })).pipe(
+  getPlatformPlanByKey$(
+    planKey: string
+  ): Observable<BillingPlan | null> {
+    return from(
+      this.getPlatformPlanByKeyCallable({ key: planKey })
+    ).pipe(
       map((result) => result.data ?? null)
     );
   }
@@ -72,13 +112,17 @@ export class BillingRepository {
   processBillingReturn$(
     input: ProcessBillingReturnInput
   ): Observable<ProcessBillingReturnResult | null> {
-    return from(this.processBillingReturnCallable(input)).pipe(
+    return from(
+      this.processBillingReturnCallable(input)
+    ).pipe(
       map((result) => result.data ?? null)
     );
   }
 
   getMyBillingSnapshot$(): Observable<BillingSnapshotResult | null> {
-    return from(this.getMyBillingSnapshotCallable({})).pipe(
+    return from(
+      this.getMyBillingSnapshotCallable({})
+    ).pipe(
       map((result) => result.data ?? null)
     );
   }

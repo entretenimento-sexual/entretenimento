@@ -1,40 +1,56 @@
-//functions\src\payments\domain\payment-provider.port.ts
-export type BillingProvider = 'asaas' | 'pagarme' | 'mercadopago';
-export type BillingScope =
-  | 'platform_subscription'
-  | 'creator_subscription'
-  | 'tip'
-  | 'paid_media'
-  | 'paid_live';
+// functions/src/payments/domain/payment-provider.port.ts
+// -----------------------------------------------------------------------------
+// PAYMENT PROVIDER PORT
+// -----------------------------------------------------------------------------
+//
+// Contrato comum para provedores externos e provider local do Emulator.
+//
+// Segurança:
+// - criar checkout não confirma pagamento;
+// - retorno do navegador não confirma pagamento;
+// - somente evento verificado pode alimentar settlement;
+// - cada provider real deverá implementar verificação própria de webhook.
+import {
+  BillingPlanSnapshot,
+  BillingProviderId,
+  BillingScope,
+  VerifiedPaymentEvent,
+} from './billing.model';
 
 export interface CreateCheckoutInput {
+  checkoutSessionId: string;
+
   buyerUid: string;
-  sellerUid?: string;
+  sellerUid?: string | null;
+
   scope: BillingScope;
-  planId?: string;
-  planKey?: string;
+
+  planSnapshot?: BillingPlanSnapshot | null;
+
   amountCents: number;
   currency: 'BRL';
+
   successUrl: string;
   cancelUrl: string;
+
   metadata?: Record<string, unknown>;
 }
 
 export interface CreateCheckoutResult {
-  provider: BillingProvider;
+  provider: BillingProviderId;
   providerSessionId: string;
   checkoutUrl: string;
   expiresAt?: number | null;
 }
 
-export interface PaymentWebhookResult {
-  accepted: boolean;
-  eventId?: string;
-  checkoutSessionId?: string;
-  newStatus?: 'pending' | 'provider_created' | 'paid' | 'failed' | 'canceled';
+export interface ProviderWebhookInput {
+  headers: Record<string, string | string[] | undefined>;
+  rawBody: string;
 }
 
 export abstract class PaymentProviderPort {
+  abstract readonly providerId: BillingProviderId;
+
   abstract createCheckoutSession(
     input: CreateCheckoutInput
   ): Promise<CreateCheckoutResult>;
@@ -43,8 +59,13 @@ export abstract class PaymentProviderPort {
     providerSessionId: string
   ): Promise<void>;
 
-  abstract parseWebhook(
-    headers: Record<string, string>,
-    rawBody: string
-  ): Promise<PaymentWebhookResult>;
+  /**
+   * Providers reais deverão:
+   * - validar assinatura/segredo;
+   * - validar evento;
+   * - devolver somente um evento financeiramente confiável.
+   */
+  abstract verifyWebhook(
+    input: ProviderWebhookInput
+  ): Promise<VerifiedPaymentEvent>;
 }

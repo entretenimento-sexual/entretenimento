@@ -1,210 +1,258 @@
-//functions\src\payments\application\create-platform-checkout-session.handler.ts
-// Não esqueça os comentários explicativos
-import { db } from '../../firebaseApp';
+// functions/src/payments/application/create-platform-checkout-session.handler.ts
+// -----------------------------------------------------------------------------
+// CREATE PLATFORM CHECKOUT SESSION HANDLER
+// -----------------------------------------------------------------------------
+//
+// Responsabilidade:
+// - receber a intenção autenticada de assinatura da plataforma;
+// - validar o plano exclusivamente pelo catálogo backend;
+// - criar snapshot imutável do preço/benefício selecionado;
+// - abrir checkout simulado somente no Functions Emulator;
+// - persistir checkout_sessions sem conceder acesso.
+//
+// Segurança:
+// - o frontend nunca informa valor financeiro confiável;
+// - o frontend nunca define role concedida;
+// - o checkout não confirma pagamento;
+// - em cloud, esta function falha até existir provider real validado;
+// - o provider local não se apresenta como Asaas real.
+//
+// Evolução futura:
+// - selecionar provider real por configuração segura;
+// - exigir App Check;
+// - aplicar idempotency key por tentativa de criação;
+// - permitir ciclos anuais, promoções e novos escopos financeiros.
+
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
-import { AsaasPaymentProvider } from '../infrastructure/providers/asaas.provider';
 
-type PlatformPlanKey = 'basic' | 'premium' | 'vip';
+import { db } from '../../firebaseApp';
+import { FUNCTIONS_REGION } from '../../config/functions-region';
 
-interface BillingPlan {
-  id: string;
-  key: PlatformPlanKey;
-  scope: 'platform';
-  title: string;
-  description: string;
-  amountCents: number;
-  currency: 'BRL';
-  interval: 'month';
-  active: boolean;
-}
+import {
+  CheckoutSessionDoc,
+} from '../domain/billing.model';
+
+import {
+  createBillingPlanSnapshot,
+  requirePlatformPlanByKey,
+} from './billing-plan-catalog.service';
+
+import {
+  EmulatorPaymentProvider,
+} from '../infrastructure/providers/emulator-payment.provider';
+
+import {
+  assertEmulatorPaymentRuntime,
+  requireSafeEmulatorAppBaseUrl,
+} from '../security/payment-runtime.guard';
 
 interface CreatePlatformCheckoutSessionRequest {
   planId?: string;
   planKey?: string;
 }
 
-const PLATFORM_PLANS: Record<PlatformPlanKey, BillingPlan> = {
-  basic: {
-    id: 'platform_basic_monthly',
-    key: 'basic',
-    scope: 'platform',
-    title: 'Plano Básico',
-    description: 'Entrada inicial para recursos essenciais da plataforma.',
-    amountCents: 1999,
-    currency: 'BRL',
-    interval: 'month',
-    active: true,
-  },
-  premium: {
-    id: 'platform_premium_monthly',
-    key: 'premium',
-    scope: 'platform',
-    title: 'Plano Premium',
-    description: 'Mais benefícios, prioridade e acesso ampliado.',
-    amountCents: 2999,
-    currency: 'BRL',
-    interval: 'month',
-    active: true,
-  },
-  vip: {
-    id: 'platform_vip_monthly',
-    key: 'vip',
-    scope: 'platform',
-    title: 'Plano Vip',
-    description: 'Experiência mais avançada da plataforma.',
-    amountCents: 3999,
-    currency: 'BRL',
-    interval: 'month',
-    active: true,
-  },
-};
-
 function buildReturnUrl(params: {
   appBaseUrl: string;
   billing: 'success' | 'cancel';
-  scope: 'platform_subscription';
   checkoutSessionId: string;
-  provider?: string;
 }): string {
   const url = new URL('/billing/return', params.appBaseUrl);
 
   url.searchParams.set('billing', params.billing);
-  url.searchParams.set('scope', params.scope);
+  url.searchParams.set('scope', 'platform_subscription');
   url.searchParams.set('checkoutSessionId', params.checkoutSessionId);
 
-  if (params.provider) {
-    url.searchParams.set('mockProvider', params.provider);
-  }
-
+  /**
+   * Não adicionamos mockProvider na URL.
+   *
+   * Motivo:
+   * - query string pertence ao navegador;
+   * - o provider verdadeiro já está persistido no checkout_sessions;
+   * - nenhuma informação financeira deve ser confiada com base no retorno
+   *   manipulado pelo cliente.
+   */
   return url.toString();
 }
 
 export const createPlatformCheckoutSession =
-  onCall<CreatePlatformCheckoutSessionRequest>(async (request) => {
-    const buyerUid = request.auth?.uid ?? null;
+  onCall<CreatePlatformCheckoutSessionRequest>(
+    { region: FUNCTIONS_REGION },
+    async (request) => {
+      const buyerUid = request.auth?.uid ?? null;
 
-    if (!buyerUid) {
-      throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
-    }
+      if (!buyerUid) {
+        throw new HttpsError(
+          'unauthenticated',
+          'Usuário não autenticado.'
+        );
+      }
 
-    const planKey = String(request.data?.planKey ?? '')
-      .trim()
-      .toLowerCase() as PlatformPlanKey;
+      /**
+       * Enquanto não houver gateway real implementado e validado, criação de
+       * checkout só pode ocorrer no Functions Emulator.
+       *
+       * Esta linha deve executar ANTES de qualquer gravação financeira.
+       */
+      assertEmulatorPaymentRuntime('create-platform-checkout-session');
 
-    if (!planKey || !(planKey in PLATFORM_PLANS)) {
-      throw new HttpsError('invalid-argument', 'Plano inválido.');
-    }
-
-    const plan = PLATFORM_PLANS[planKey];
-
-    if (request.data?.planId && request.data.planId !== plan.id) {
-      throw new HttpsError(
-        'invalid-argument',
-        'planId incompatível com o planKey informado.'
+      /**
+       * Plano e valor são resolvidos exclusivamente pelo backend.
+       * O planId recebido é usado apenas como verificação de consistência,
+       * nunca como fonte autônoma de preço ou benefício.
+       */
+      const plan = requirePlatformPlanByKey(
+        request.data?.planKey,
+        request.data?.planId
       );
-    }
 
-    const provider = new AsaasPaymentProvider();
+      const now = Date.now();
+      const planSnapshot = createBillingPlanSnapshot(plan, now);
 
-    const appBaseUrl =
-      process.env.APP_BASE_URL?.trim() ||
-      'http://localhost:4200';
+      const appBaseUrl = requireSafeEmulatorAppBaseUrl(
+        process.env.APP_BASE_URL
+      );
 
-    const now = Date.now();
-    const ref = db.collection('checkout_sessions').doc();
+      const provider = new EmulatorPaymentProvider();
+      const checkoutRef = db.collection('checkout_sessions').doc();
 
-    // Criamos a sessão local ANTES de chamar o provider
-    // para já ter checkoutSessionId canônico no retorno.
-    await ref.set({
-      id: ref.id,
-      buyerUid,
-      scope: 'platform_subscription',
-      planId: plan.id,
-      planKey: plan.key,
-      amountCents: plan.amountCents,
-      currency: plan.currency,
-      provider: 'asaas',
-      providerSessionId: null,
-      checkoutUrl: null,
-      status: 'pending',
-      metadata: {
-        scope: 'platform_subscription',
+      const checkoutSession: CheckoutSessionDoc = {
+        id: checkoutRef.id,
         buyerUid,
-        planId: plan.id,
-        planKey: plan.key,
-        checkoutSessionId: ref.id,
-      },
-      createdAt: now,
-      updatedAt: now,
-    });
+        sellerUid: null,
 
-    try {
-      const checkout = await provider.createCheckoutSession({
-        buyerUid,
         scope: 'platform_subscription',
-        planId: plan.id,
-        planKey: plan.key,
-        amountCents: plan.amountCents,
-        currency: 'BRL',
-        successUrl: buildReturnUrl({
-          appBaseUrl,
-          billing: 'success',
-          scope: 'platform_subscription',
-          checkoutSessionId: ref.id,
-          provider: 'asaas',
-        }),
-        cancelUrl: buildReturnUrl({
-          appBaseUrl,
-          billing: 'cancel',
-          scope: 'platform_subscription',
-          checkoutSessionId: ref.id,
-          provider: 'asaas',
-        }),
+
+        planId: planSnapshot.id,
+        planKey: planSnapshot.key,
+        planSnapshot,
+
+        amountCents: planSnapshot.amountCents,
+        currency: planSnapshot.currency,
+
+        provider: provider.providerId,
+        providerSessionId: null,
+        checkoutUrl: null,
+
+        status: 'pending',
+        statusHistory: [
+          {
+            status: 'pending',
+            at: now,
+            source: 'emulator',
+            eventId: null,
+          },
+        ],
+
+        createdAt: now,
+        updatedAt: now,
+
         metadata: {
-          scope: 'platform_subscription',
-          buyerUid,
-          planId: plan.id,
-          planKey: plan.key,
-          checkoutSessionId: ref.id,
+          runtime: 'emulator',
+          catalogVersion: planSnapshot.catalogVersion,
         },
-      });
+      };
 
-      await ref.set(
-        {
+      /**
+       * A sessão interna nasce antes da integração com provider para termos
+       * checkoutSessionId canônico e auditável desde o primeiro momento.
+       */
+      await checkoutRef.set(checkoutSession);
+
+      try {
+        const checkout = await provider.createCheckoutSession({
+          checkoutSessionId: checkoutRef.id,
+
+          buyerUid,
+          sellerUid: null,
+
+          scope: 'platform_subscription',
+          planSnapshot,
+
+          amountCents: planSnapshot.amountCents,
+          currency: planSnapshot.currency,
+
+          successUrl: buildReturnUrl({
+            appBaseUrl,
+            billing: 'success',
+            checkoutSessionId: checkoutRef.id,
+          }),
+
+          cancelUrl: buildReturnUrl({
+            appBaseUrl,
+            billing: 'cancel',
+            checkoutSessionId: checkoutRef.id,
+          }),
+
+          metadata: {
+            runtime: 'emulator',
+            catalogVersion: planSnapshot.catalogVersion,
+          },
+        });
+
+        const providerCreatedAt = Date.now();
+
+        await checkoutRef.set(
+          {
+            provider: checkout.provider,
+            providerSessionId: checkout.providerSessionId,
+            checkoutUrl: checkout.checkoutUrl,
+            status: 'provider_created',
+            statusHistory: [
+              ...checkoutSession.statusHistory!,
+              {
+                status: 'provider_created',
+                at: providerCreatedAt,
+                source: 'emulator',
+                eventId: null,
+              },
+            ],
+            updatedAt: providerCreatedAt,
+          },
+          { merge: true }
+        );
+
+        return {
           provider: checkout.provider,
           providerSessionId: checkout.providerSessionId,
           checkoutUrl: checkout.checkoutUrl,
-          status: 'provider_created',
-          updatedAt: Date.now(),
-        },
-        { merge: true }
-      );
+          expiresAt: checkout.expiresAt ?? null,
+          checkoutSessionId: checkoutRef.id,
+        };
+      } catch (error: unknown) {
+        const failedAt = Date.now();
 
-      return {
-        ...checkout,
-        checkoutSessionId: ref.id,
-      };
-    } catch (error) {
-      await ref.set(
-        {
-          status: 'failed',
-          updatedAt: Date.now(),
-          metadata: {
-            scope: 'platform_subscription',
-            buyerUid,
-            planId: plan.id,
-            planKey: plan.key,
-            checkoutSessionId: ref.id,
-            errorMessage:
-              error instanceof Error ? error.message : String(error),
+        await checkoutRef.set(
+          {
+            status: 'failed',
+            statusHistory: [
+              ...checkoutSession.statusHistory!,
+              {
+                status: 'failed',
+                at: failedAt,
+                source: 'emulator',
+                eventId: null,
+              },
+            ],
+            updatedAt: failedAt,
+            metadata: {
+              ...checkoutSession.metadata,
+              failureReason:
+                error instanceof Error
+                  ? error.message
+                  : 'Erro não identificado ao criar checkout local.',
+            },
           },
-        },
-        { merge: true }
-      );
+          { merge: true }
+        );
 
-      throw new HttpsError(
-        'internal',
-        'Não foi possível criar a sessão de checkout.'
-      );
+        if (error instanceof HttpsError) {
+          throw error;
+        }
+
+        throw new HttpsError(
+          'internal',
+          'Não foi possível criar a sessão de checkout.'
+        );
+      }
     }
-  });
+  );

@@ -1,42 +1,107 @@
 // ================================================================
 // ROOMS.RULES
 // - Coleção raiz: rooms/{roomId}
-// - Read: participantes ou owner
-// - Update normal:
-//   - owner pode alterar detalhes do room e participants
-//   - participante comum só altera lastActivity/lastMessage
-// - Join controlado por convite:
-//   - exige invite root com docId canônico room:<roomId>:to:<uid>
-//   - status pending
-//   - receiverId == uid()
-//   - targetId/roomId apontando para a própria sala
-//   - expiresAt > request.time
-// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
-// uso de helpers globais
-// firestore-rules/rooms.rules
+// - Criação: somente backend confiável via callable createPrivateRoom
+// - Leitura individual: somente participante/owner operacionalmente válido
+// - Listagem: somente salas em que o usuário consta em participants[]
+// - Entrada temporária: mantém aceite por convite ainda existente no cliente
+// - Update estrutural direto: bloqueado
+// - Delete direto: bloqueado
+//
+// Migração em andamento:
+// - participants[] permanece apenas como projeção transitória consultável;
+// - rooms/{roomId}/members/{uid} já nasce no backend;
+// - a estrutura escalável futura deverá utilizar projeção por usuário,
+//   mantida exclusivamente pelo backend;
+// - convite/aceite serão migrados para Functions na próxima etapa.
+//
+// ARQUIVO MODULAR: não incluir rules_version nem service cloud.firestore.
 // ================================================================
 
 match /rooms/{roomId} {
+
+  function actorUserPath() {
+    return /databases/$(database)/documents/users/$(uid());
+  }
+
+  function actorUserExists() {
+    return signedIn() && exists(actorUserPath());
+  }
+
+  function actorIsOperationallyActive() {
+    return actorUserExists()
+      && (
+        !get(actorUserPath()).data.keys().hasAny(["accountStatus"])
+        || get(actorUserPath()).data.accountStatus == "active"
+      )
+      && (
+        !get(actorUserPath()).data.keys().hasAny(["interactionBlocked"])
+        || get(actorUserPath()).data.interactionBlocked != true
+      )
+      && (
+        !get(actorUserPath()).data.keys().hasAny(["accountLocked"])
+        || get(actorUserPath()).data.accountLocked != true
+      )
+      && (
+        !get(actorUserPath()).data.keys().hasAny(["loginAllowed"])
+        || get(actorUserPath()).data.loginAllowed != false
+      );
+  }
+
+  function actorCanInteract() {
+    return actorIsOperationallyActive()
+      && request.auth.token.email_verified == true
+      && get(actorUserPath()).data.profileCompleted == true;
+  }
+
+  /**
+   * Uso exclusivo em leitura individual e validações de atualização.
+   *
+   * Em get/update, a Rule pode avaliar concretamente o documento existente.
+   */
   function participantsFrom(data) {
-    return (data.keys().hasAny(["participants"]) && data.participants is list)
+    return (
+      data.keys().hasAny(["participants"])
+      && data.participants is list
+    )
       ? data.participants
       : [];
   }
 
   function isRoomParticipant() {
-    return signedIn() && (uid() in participantsFrom(resource.data));
+    return actorCanInteract()
+      && (uid() in participantsFrom(resource.data));
   }
 
   function isRoomOwner() {
-    return signedIn()
+    return actorCanInteract()
       && resource.data.keys().hasAny(["createdBy"])
       && resource.data.createdBy == uid();
   }
 
+  /**
+   * Listagem compatível com a consulta frontend:
+   *
+   * where("participants", "array-contains", uid)
+   * limit(30)
+   *
+   * Nesta condição não usamos participantsFrom(), porque consultas precisam
+   * refletir diretamente o campo usado para restringir o conjunto potencial
+   * de resultados.
+   */
+  function canListParticipatingRooms() {
+    return actorCanInteract()
+      && request.query.limit <= 30
+      && (uid() in resource.data.participants);
+  }
+
   // ------------------------------------------------------------
-  // JOIN BY INVITE (root invites)
-  // DocId canônico: invites/room:<roomId>:to:<uid>
+  // JOIN TEMPORÁRIO POR CONVITE EXISTENTE
+  //
+  // Esta passagem permanece somente até acceptRoomInvite ser migrada
+  // para Function. O owner não pode adicionar terceiros diretamente.
   // ------------------------------------------------------------
+
   function joinInviteId() {
     return "room:" + roomId + ":to:" + uid();
   }
@@ -60,13 +125,20 @@ match /rooms/{roomId} {
 
   function joinInviteTargetsThisRoom() {
     return (
-      (joinInviteData().keys().hasAny(["targetId"]) && joinInviteData().targetId == roomId)
-      || (joinInviteData().keys().hasAny(["roomId"]) && joinInviteData().roomId == roomId)
+      (
+        joinInviteData().keys().hasAny(["targetId"])
+        && joinInviteData().targetId == roomId
+      )
+      ||
+      (
+        joinInviteData().keys().hasAny(["roomId"])
+        && joinInviteData().roomId == roomId
+      )
     );
   }
 
   function hasPendingJoinInvite() {
-    return signedIn()
+    return actorCanInteract()
       && joinInviteExists()
       && joinInviteData().status == "pending"
       && joinInviteData().receiverId == uid()
@@ -78,69 +150,71 @@ match /rooms/{roomId} {
   function isJoinUpdateShape() {
     let oldParticipants = participantsFrom(resource.data);
 
-    return signedIn()
-      && !(uid() in oldParticipants)
+    return !(uid() in oldParticipants)
       && request.resource.data.diff(resource.data).changedKeys().hasOnly([
         "participants",
         "lastActivity"
       ])
-      && (request.resource.data.participants is list)
+      && request.resource.data.participants is list
       && (uid() in request.resource.data.participants)
       && request.resource.data.participants.size() == oldParticipants.size() + 1
       && request.resource.data.participants.hasAll(oldParticipants)
       && request.resource.data.lastActivity == request.time;
   }
 
-  allow read: if isRoomParticipant() || isRoomOwner();
+  /**
+   * A leitura direta de uma sala específica continua aceitando:
+   * - participante ativo;
+   * - owner ativo.
+   */
+  allow get: if isRoomParticipant() || isRoomOwner();
 
-  allow create: if signedIn()
-    && request.resource.data.keys().hasAll([
-      "createdBy",
-      "participants",
-      "roomName",
-      "creationTime"
-    ])
-    && request.resource.data.createdBy == uid()
-    && request.resource.data.participants is list
-    && (uid() in request.resource.data.participants)
-    && isStr(request.resource.data.roomName)
-    && isTs(request.resource.data.creationTime);
+  /**
+   * A listagem é restrita à query de participação do usuário autenticado.
+   * Não autoriza enumeração geral de salas nem consulta owner-only.
+   */
+  allow list: if canListParticipatingRooms();
 
-  allow update: if
-    (
-      (isRoomParticipant() || isRoomOwner())
-      && (
-        (isRoomOwner()
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            "roomName",
-            "description",
-            "expirationDate",
-            "maxParticipants",
-            "isPrivate",
-            "roomType",
-            "visibility",
-            "participants",
-            "lastActivity",
-            "lastMessage"
-          ])
-        )
-        ||
-        (!isRoomOwner()
-          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
-            "lastActivity",
-            "lastMessage"
-          ])
-        )
-      )
-    )
-    ||
-    (
-      hasPendingJoinInvite()
-      && isJoinUpdateShape()
-    );
+  /**
+   * Salas privadas nascem somente pela Function createPrivateRoom.
+   * O Admin SDK usado pela Function não depende desta permissão.
+   */
+  allow create: if false;
+
+  /**
+   * Nenhum owner ou participante altera estrutura da sala diretamente.
+   *
+   * Mantemos apenas a entrada temporária do próprio destinatário de um
+   * convite válido, pois RoomInviteFlowService ainda executa essa transação
+   * no cliente. Esse fluxo ainda não é considerado final ou seguro.
+   */
+  allow update: if hasPendingJoinInvite() && isJoinUpdateShape();
 
   allow delete: if false;
 }
+
+// ----------------------------------------------------------------
+// MODELO FUTURO DE MEMBERSHIP
+//
+// A callable createPrivateRoom já cria o owner em /members.
+// Nenhum cliente deve escrever ou enumerar esta coleção nesta etapa.
+// ----------------------------------------------------------------
+
+match /rooms/{roomId}/members/{memberUid} {
+  allow read, write: if false;
+}
+
+// ----------------------------------------------------------------
+// COLEÇÕES INTERNAS DO BACKEND
+// ----------------------------------------------------------------
+
+match /room_owner_slots/{ownerUid} {
+  allow read, write: if false;
+}
+
+match /room_audit/{auditId} {
+  allow read, write: if false;
+}
 // ================================================================
-//                        FIM DO ROOMS.RULES
+// FIM DO ROOMS.RULES
 // ================================================================

@@ -420,6 +420,51 @@ export class OnlineUsersEffects {
     return !this.areProfilesEquivalent(current, incoming);
   }
 
+/**
+ * Gera uma assinatura estável apenas para mudanças que alteram a composição
+ * ou o status imediatamente exibível da lista Online.
+ *
+ * Não entram no fingerprint:
+ * - lastSeen;
+ * - lastOnlineAt;
+ * - lastOfflineAt;
+ * - lastStateChangeAt;
+ * - presenceSessionId.
+ *
+ * Motivo:
+ * timestamps e sessão são dados operacionais da presença. Eles podem mudar
+ * sem alterar os cards que precisam ser exibidos ou reidratados.
+ */
+private buildPresenceFingerprint(
+  users: IUserDados[] | null | undefined,
+  currentUid: string | null
+): string {
+  const normalized = this.normalizePresenceUsers(users, currentUid)
+    .map((user) => {
+      const anyUser = user as any;
+
+      return {
+        uid: this.toCleanText(anyUser.uid),
+        isOnline: anyUser.isOnline === true,
+        presenceState: this.toComparableText(anyUser.presenceState),
+      };
+    })
+    .filter(
+      (item): item is {
+        uid: string;
+        isOnline: boolean;
+        presenceState: string;
+      } => !!item.uid
+    )
+    .sort((a, b) =>
+      a.uid.localeCompare(b.uid, 'pt-BR', {
+        sensitivity: 'base',
+      })
+    );
+
+  return JSON.stringify(normalized);
+}
+
   // ===========================================================================
   // Normalização do public_profile para o card online
   // ===========================================================================
@@ -568,8 +613,8 @@ export class OnlineUsersEffects {
       longitude: (normalized as any).longitude,
       geohash: (normalized as any).geohash,
 
-      createdAt: (normalized as any).createdAt,
-      updatedAt: (normalized as any).updatedAt,
+createdAt: this.toSerializableStoreValue((normalized as any).createdAt),
+updatedAt: this.toSerializableStoreValue((normalized as any).updatedAt),
     } as IUserDados;
   }
 
@@ -658,30 +703,34 @@ export class OnlineUsersEffects {
       longitude: anyProfile.longitude,
       geohash: anyProfile.geohash,
 
-      createdAt: anyProfile.createdAt,
-      updatedAt: anyProfile.updatedAt,
+createdAt: this.toSerializableStoreValue(anyProfile.createdAt),
+updatedAt: this.toSerializableStoreValue(anyProfile.updatedAt),
 
-      isOnline: anyPresence?.isOnline === true,
+isOnline: anyPresence?.isOnline === true,
 
-      lastSeen:
-        anyPresence?.lastSeen ??
-        anyProfile.lastSeen ??
-        null,
+lastSeen: this.toSerializableStoreValue(
+  anyPresence?.lastSeen ??
+    anyProfile.lastSeen ??
+    null
+),
 
-      lastOnlineAt:
-        anyPresence?.lastOnlineAt ??
-        anyProfile.lastOnlineAt ??
-        null,
+lastOnlineAt: this.toSerializableStoreValue(
+  anyPresence?.lastOnlineAt ??
+    anyProfile.lastOnlineAt ??
+    null
+),
 
-      lastOfflineAt:
-        anyPresence?.lastOfflineAt ??
-        anyProfile.lastOfflineAt ??
-        null,
+lastOfflineAt: this.toSerializableStoreValue(
+  anyPresence?.lastOfflineAt ??
+    anyProfile.lastOfflineAt ??
+    null
+),
 
-      lastStateChangeAt:
-        anyPresence?.lastStateChangeAt ??
-        anyProfile.lastStateChangeAt ??
-        null,
+lastStateChangeAt: this.toSerializableStoreValue(
+  anyPresence?.lastStateChangeAt ??
+    anyProfile.lastStateChangeAt ??
+    null
+),
 
       presenceState:
         anyPresence?.presenceState ??
@@ -824,29 +873,49 @@ export class OnlineUsersEffects {
         return merge(
           of(startOnlineUsersListener()),
 
-          this.presenceQuery.getOnlineUsers$().pipe(
-            switchMap((presenceUsers) =>
-              this.hydrateProfilesForOnlineUsers$(presenceUsers, gate.uid)
-            ),
+this.presenceQuery.getOnlineUsers$().pipe(
+  map((presenceUsers) => ({
+    presenceUsers,
+    fingerprint: this.buildPresenceFingerprint(
+      presenceUsers,
+      gate.uid
+    ),
+  })),
 
-            finalize(() =>
-              this.dbg('realtime listener FINALIZE (unsub)')
-            ),
+  distinctUntilChanged(
+    (previous, current) => previous.fingerprint === current.fingerprint
+  ),
 
-            catchError((err) => {
-              const storeErr = this.reportEffectError(
-                err,
-                'Falha ao ouvir usuários online.',
-                'OnlineUsersEffects.realtime',
-                { uid: gate.uid ?? undefined }
-              );
+  tap(({ presenceUsers, fingerprint }) =>
+    this.dbg('presence emission accepted', {
+      uid: gate.uid,
+      fingerprint,
+      total: Array.isArray(presenceUsers) ? presenceUsers.length : 0,
+    })
+  ),
 
-              return of(
-                loadOnlineUsersFailure({ error: storeErr }),
-                stopOnlineUsersListener()
-              );
-            })
-          )
+  switchMap(({ presenceUsers }) =>
+    this.hydrateProfilesForOnlineUsers$(presenceUsers, gate.uid)
+  ),
+
+  finalize(() =>
+    this.dbg('realtime listener FINALIZE (unsub)')
+  ),
+
+  catchError((err) => {
+    const storeErr = this.reportEffectError(
+      err,
+      'Falha ao ouvir usuários online.',
+      'OnlineUsersEffects.realtime',
+      { uid: gate.uid ?? undefined }
+    );
+
+    return of(
+      loadOnlineUsersFailure({ error: storeErr }),
+      stopOnlineUsersListener()
+    );
+  })
+)
         );
       })
     )
@@ -888,6 +957,48 @@ export class OnlineUsersEffects {
       })
     )
   );
+
+  private toSerializableStoreValue(value: unknown): unknown {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  const maybeTimestamp = value as {
+    toMillis?: () => number;
+    toDate?: () => Date;
+    seconds?: number;
+    nanoseconds?: number;
+  } | null | undefined;
+
+  if (typeof maybeTimestamp?.toMillis === 'function') {
+    const millis = maybeTimestamp.toMillis();
+
+    return Number.isFinite(millis) ? millis : null;
+  }
+
+  if (typeof maybeTimestamp?.toDate === 'function') {
+    const millis = maybeTimestamp.toDate().getTime();
+
+    return Number.isFinite(millis) ? millis : null;
+  }
+
+  if (
+    typeof maybeTimestamp?.seconds === 'number' &&
+    Number.isFinite(maybeTimestamp.seconds)
+  ) {
+    return maybeTimestamp.seconds * 1000;
+  }
+
+  return null;
+}
 
   // ===========================================================================
   // 3) Filtro auxiliar por município
@@ -948,4 +1059,4 @@ export class OnlineUsersEffects {
       })
     )
   );
-}
+} // fim da classe OnlineUsersEffects com 1027 linhas

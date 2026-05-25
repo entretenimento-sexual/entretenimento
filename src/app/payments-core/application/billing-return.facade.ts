@@ -1,23 +1,58 @@
 // src/app/payments-core/application/billing-return.facade.ts
-// Não esquecer comentários explicativos e ferramentas de debug
+// -----------------------------------------------------------------------------
+// BILLING RETURN FACADE
+// -----------------------------------------------------------------------------
+//
+// Orquestra a experiência visual após o retorno do checkout.
+//
+// Responsabilidade:
+// - interpretar parâmetros mínimos da URL;
+// - aguardar autenticação;
+// - consultar o backend sobre a sessão criada;
+// - acompanhar entitlement ativo enquanto o pagamento estiver processando;
+// - navegar somente quando o backend confirmar acesso.
+//
+// Segurança:
+// - query string não confirma pagamento;
+// - não existe provider confiável vindo da URL;
+// - não existe sessão externa confiável vindo da URL;
+// - o acesso só é considerado concedido quando o backend retornar granted ou
+//   quando getMyBillingSnapshot confirmar entitlement de plataforma.
+//
+// Reatividade:
+// - polling limitado para gateways reais, onde o webhook pode chegar depois
+//   do redirecionamento do usuário;
+// - polling termina ao confirmar acesso ou ao atingir limite de espera.
+//
+// Debug opt-in:
+// - ativar no navegador:
+//   localStorage.setItem('debug.billing', '1'); location.reload();
+// - desativar:
+//   localStorage.removeItem('debug.billing'); location.reload();
+
 import { Injectable, inject, isDevMode } from '@angular/core';
 import { ActivatedRoute, ParamMap, Router } from '@angular/router';
-import { from, Observable, of, timer } from 'rxjs';
+import { concat, from, Observable, of, race, timer } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
+  filter,
   map,
   shareReplay,
   switchMap,
   take,
+  tap,
 } from 'rxjs/operators';
 
 import { BillingRepository } from '../infrastructure/repositories/billing.repository';
 import {
+  BillingGrantedRole,
   BillingReturnQuery,
   BillingReturnVm,
+  BillingSnapshotResult,
   ProcessBillingReturnResult,
 } from '../domain/models/billing-return.model';
+
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
@@ -31,9 +66,22 @@ export class BillingReturnFacade {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
+  private readonly pollIntervalMs = 1500;
+  private readonly pollTimeoutMs = 30_000;
+  private readonly debugEnabled = this.resolveDebugEnabled();
+
   readonly query$ = this.route.queryParamMap.pipe(
     map((params) => this.mapQuery(params)),
-    distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+    distinctUntilChanged((previous, current) =>
+      this.isSameQuery(previous, current)
+    ),
+    tap((query) =>
+      this.dbg('return query received', {
+        billing: query.billing,
+        scope: query.scope,
+        hasCheckoutSessionId: !!query.checkoutSessionId,
+      })
+    ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -46,19 +94,19 @@ export class BillingReturnFacade {
     return this.router.navigate(['/subscription-plan']);
   }
 
-  private processQuery$(query: BillingReturnQuery): Observable<BillingReturnVm> {
-    const normalizedBilling = (query.billing ?? '')
-      .trim()
-      .toLowerCase()
-      .split('?')[0];
+  private processQuery$(
+    query: BillingReturnQuery
+  ): Observable<BillingReturnVm> {
+    const normalizedBilling = this.normalizeBillingSignal(query.billing);
+    const normalizedScope = String(query.scope ?? '').trim();
 
-    if (!normalizedBilling || !query.scope) {
+    if (!normalizedBilling || !normalizedScope) {
       return of(
         this.buildVm({
           status: 'failed',
           title: 'Retorno inválido',
-          description: 'Não foi possível identificar o resultado do pagamento.',
-          detail: 'Os parâmetros de retorno vieram incompletos.',
+          description: 'Não foi possível identificar o retorno da assinatura.',
+          detail: 'Os parâmetros necessários não foram informados.',
           busy: false,
           primaryActionLabel: 'Voltar aos planos',
           secondaryActionLabel: null,
@@ -66,13 +114,34 @@ export class BillingReturnFacade {
       );
     }
 
-    if (normalizedBilling === 'cancel' || normalizedBilling === 'canceled') {
+    /**
+     * Cancelamento exibido ao usuário não concede nem remove acesso.
+     *
+     * Em operação real, o estado financeiro definitivo será estabelecido pelo
+     * provider/webhook validado; não confiamos em cancelamento vindo apenas da
+     * URL como evento contábil.
+     */
+    if (normalizedBilling === 'cancel') {
       return of(
         this.buildVm({
           status: 'canceled',
           title: 'Pagamento cancelado',
-          description: 'Nenhuma cobrança foi concluída.',
-          detail: 'Você pode revisar o plano e tentar novamente quando quiser.',
+          description: 'Nenhuma assinatura foi confirmada por este retorno.',
+          detail: 'Você pode revisar o plano e tentar novamente.',
+          busy: false,
+          primaryActionLabel: 'Voltar aos planos',
+          secondaryActionLabel: null,
+        })
+      );
+    }
+
+    if (!query.checkoutSessionId) {
+      return of(
+        this.buildVm({
+          status: 'failed',
+          title: 'Sessão não localizada',
+          description: 'Não foi possível identificar a sessão de checkout.',
+          detail: 'Retorne aos planos e inicie uma nova tentativa.',
           busy: false,
           primaryActionLabel: 'Voltar aos planos',
           secondaryActionLabel: null,
@@ -87,9 +156,11 @@ export class BillingReturnFacade {
             map(() =>
               this.buildVm({
                 status: 'login_required',
-                title: 'Entre para concluir',
-                description: 'Sua sessão não estava pronta no retorno do pagamento.',
-                detail: 'Após o login, o app retomará automaticamente o processamento do retorno.',
+                title: 'Entre para continuar',
+                description:
+                  'Sua sessão precisa estar ativa para consultar o estado da assinatura.',
+                detail:
+                  'Após o login, o app retomará automaticamente esta consulta.',
                 busy: true,
                 primaryActionLabel: null,
                 secondaryActionLabel: null,
@@ -98,33 +169,42 @@ export class BillingReturnFacade {
           );
         }
 
-        return this.billingRepository.processBillingReturn$({
-          billing: normalizedBilling,
-          scope: query.scope!,
-          mockProvider: query.mockProvider,
-          providerSessionId: query.providerSessionId,
-          checkoutSessionId: query.checkoutSessionId,
-        }).pipe(
-          switchMap((result) => this.handleProcessingResult$(result)),
-          catchError((error) => {
-            this.handleError(
-              error,
-              'Falha ao confirmar o pagamento com a plataforma.'
-            );
-
-            return of(
-              this.buildVm({
-                status: 'failed',
-                title: 'Falha ao confirmar pagamento',
-                description: 'Não foi possível concluir a confirmação agora.',
-                detail: 'Você pode voltar aos planos ou tentar novamente em instantes.',
-                busy: false,
-                primaryActionLabel: 'Voltar aos planos',
-                secondaryActionLabel: null,
-              })
-            );
+        return this.billingRepository
+          .processBillingReturn$({
+            billing: normalizedBilling,
+            scope: normalizedScope,
+            checkoutSessionId: query.checkoutSessionId!,
           })
-        );
+          .pipe(
+            tap((result) =>
+              this.dbg('processBillingReturn result', {
+                status: result?.status ?? null,
+                accessGranted: result?.accessGranted === true,
+                role: result?.role ?? null,
+              })
+            ),
+            switchMap((result) => this.handleProcessingResult$(result)),
+            catchError((error: unknown) => {
+              this.handleError(
+                error,
+                'Falha ao consultar o estado da assinatura.'
+              );
+
+              return of(
+                this.buildVm({
+                  status: 'failed',
+                  title: 'Não foi possível consultar a assinatura',
+                  description:
+                    'O estado da sua assinatura não pôde ser obtido agora.',
+                  detail:
+                    'Você pode voltar aos planos ou tentar novamente em instantes.',
+                  busy: false,
+                  primaryActionLabel: 'Voltar aos planos',
+                  secondaryActionLabel: null,
+                })
+              );
+            })
+          );
       })
     );
   }
@@ -142,9 +222,10 @@ export class BillingReturnFacade {
       return of(
         this.buildVm({
           status: 'failed',
-          title: 'Resposta vazia',
-          description: 'A plataforma não recebeu um estado válido do retorno.',
-          detail: 'O pagamento pode ainda estar em processamento.',
+          title: 'Resposta indisponível',
+          description:
+            'A plataforma não recebeu um estado válido da assinatura.',
+          detail: 'A confirmação pode ainda estar pendente.',
           busy: false,
           primaryActionLabel: 'Voltar aos planos',
           secondaryActionLabel: null,
@@ -157,8 +238,8 @@ export class BillingReturnFacade {
         this.buildVm({
           status: 'canceled',
           title: 'Pagamento cancelado',
-          description: 'Nenhuma cobrança foi concluída.',
-          detail: result.message ?? 'Você pode tentar novamente quando quiser.',
+          description: 'Nenhuma assinatura foi confirmada.',
+          detail: result.message ?? 'Você pode tentar novamente.',
           busy: false,
           primaryActionLabel: 'Voltar aos planos',
           secondaryActionLabel: null,
@@ -172,7 +253,8 @@ export class BillingReturnFacade {
           status: 'failed',
           title: 'Pagamento não confirmado',
           description: 'A cobrança não foi confirmada.',
-          detail: result.message ?? 'Revise os dados de pagamento e tente novamente.',
+          detail:
+            result.message ?? 'Revise a tentativa e tente novamente.',
           busy: false,
           primaryActionLabel: 'Voltar aos planos',
           secondaryActionLabel: null,
@@ -180,49 +262,98 @@ export class BillingReturnFacade {
       );
     }
 
-    if (result.status === 'processing') {
-      return this.pollBillingSnapshotAndFinish$();
+    if (
+      result.status === 'granted' &&
+      result.accessGranted === true &&
+      this.isBillingGrantedRole(result.role)
+    ) {
+      return this.finishGrantedFlow$(result);
     }
 
-    return this.finishGrantedFlow$(result);
+    /**
+     * Em cloud, este é o caminho normal após retorno do gateway:
+     * o usuário voltou à aplicação, mas o webhook ainda pode estar chegando.
+     *
+     * No Emulator, também cobre eventual resposta intermediária.
+     */
+    return this.pollBillingSnapshotAndFinish$();
   }
 
   private pollBillingSnapshotAndFinish$(): Observable<BillingReturnVm> {
-    return timer(1200).pipe(
-      switchMap(() => this.billingRepository.getMyBillingSnapshot$()),
-      switchMap((snapshot) => {
-        const granted =
-          snapshot?.isSubscriber === true &&
-          !!String(snapshot?.role ?? snapshot?.tier ?? '').trim();
+    const processingVm = this.buildVm({
+      status: 'processing',
+      title: 'Pagamento em processamento',
+      description: 'Estamos aguardando a confirmação da sua assinatura.',
+      detail: 'A atualização do acesso pode levar alguns instantes.',
+      busy: true,
+      primaryActionLabel: null,
+      secondaryActionLabel: null,
+    });
 
-        if (!granted) {
-          return of(
-            this.buildVm({
-              status: 'processing',
-              title: 'Pagamento em processamento',
-              description: 'Estamos aguardando a confirmação final da sua assinatura.',
-              detail: 'Pode levar alguns instantes até a atualização do seu acesso.',
-              busy: true,
-              primaryActionLabel: null,
-              secondaryActionLabel: null,
-            })
-          );
-        }
+    const granted$ = timer(0, this.pollIntervalMs).pipe(
+      tap((attempt) =>
+        this.dbg('billing snapshot poll', {
+          attempt: attempt + 1,
+        })
+      ),
+      switchMap(() =>
+        this.billingRepository.getMyBillingSnapshot$().pipe(
+          catchError((error: unknown) => {
+            /**
+             * Erro transitório de polling não gera toast repetido.
+             * O diagnóstico permanece disponível no modo debug e o fluxo pode
+             * continuar tentando até o timeout controlado.
+             */
+            this.dbg('billing snapshot poll failed', {
+              message:
+                error instanceof Error ? error.message : String(error),
+            });
 
-        return this.navigateAfterGranted$().pipe(
+            return of(null);
+          })
+        )
+      ),
+      filter(
+        (snapshot): snapshot is BillingSnapshotResult =>
+          this.hasGrantedPlatformSubscription(snapshot)
+      ),
+      take(1),
+      switchMap((snapshot) =>
+        this.navigateAfterGranted$().pipe(
           map(() =>
             this.buildVm({
               status: 'granted',
               title: 'Assinatura confirmada',
-              description: 'Seu acesso premium foi atualizado com sucesso.',
-              detail: 'Você será redirecionado automaticamente.',
+              description: 'Seu acesso foi atualizado com sucesso.',
+              detail: `Plano ativo: ${snapshot.role ?? snapshot.tier}.`,
               busy: true,
               primaryActionLabel: null,
               secondaryActionLabel: null,
             })
           )
-        );
-      })
+        )
+      )
+    );
+
+    const timeout$ = timer(this.pollTimeoutMs).pipe(
+      map(() =>
+        this.buildVm({
+          status: 'processing',
+          title: 'Confirmação ainda pendente',
+          description:
+            'Ainda não recebemos a confirmação final da assinatura.',
+          detail:
+            'Você pode retornar aos planos ou consultar sua conta novamente em instantes.',
+          busy: false,
+          primaryActionLabel: 'Voltar aos planos',
+          secondaryActionLabel: null,
+        })
+      )
+    );
+
+    return concat(
+      of(processingVm),
+      race(granted$, timeout$)
     );
   }
 
@@ -233,9 +364,10 @@ export class BillingReturnFacade {
       map(() =>
         this.buildVm({
           status: 'granted',
-          title: 'Pagamento confirmado',
+          title: 'Assinatura confirmada',
           description: 'Seu novo acesso já foi liberado na plataforma.',
-          detail: result.message ?? 'Você será redirecionado automaticamente.',
+          detail:
+            result.message ?? 'Você será redirecionado automaticamente.',
           busy: true,
           primaryActionLabel: null,
           secondaryActionLabel: null,
@@ -256,7 +388,9 @@ export class BillingReturnFacade {
     );
   }
 
-  private redirectToLogin$(query: BillingReturnQuery): Observable<boolean> {
+  private redirectToLogin$(
+    query: BillingReturnQuery
+  ): Observable<boolean> {
     const redirectTo = this.buildReturnUrl(query);
 
     return from(
@@ -270,12 +404,14 @@ export class BillingReturnFacade {
   private buildReturnUrl(query: BillingReturnQuery): string {
     const params = new URLSearchParams();
 
-    if (query.billing) params.set('billing', query.billing);
-    if (query.scope) params.set('scope', query.scope);
-    if (query.mockProvider) params.set('mockProvider', query.mockProvider);
-    if (query.providerSessionId) {
-      params.set('providerSessionId', query.providerSessionId);
+    if (query.billing) {
+      params.set('billing', query.billing);
     }
+
+    if (query.scope) {
+      params.set('scope', query.scope);
+    }
+
     if (query.checkoutSessionId) {
       params.set('checkoutSessionId', query.checkoutSessionId);
     }
@@ -287,39 +423,120 @@ export class BillingReturnFacade {
     return {
       billing: params.get('billing'),
       scope: params.get('scope'),
-      mockProvider: params.get('mockProvider'),
-      providerSessionId: params.get('providerSessionId'),
       checkoutSessionId: params.get('checkoutSessionId'),
     };
+  }
+
+  private normalizeBillingSignal(
+    rawValue: string | null
+  ): 'success' | 'failed' | 'cancel' | null {
+    const value = String(rawValue ?? '')
+      .trim()
+      .toLowerCase()
+      .split('?')[0];
+
+    if (value === 'success' || value === 'paid') {
+      return 'success';
+    }
+
+    if (value === 'failed' || value === 'error') {
+      return 'failed';
+    }
+
+    if (
+      value === 'cancel' ||
+      value === 'canceled' ||
+      value === 'cancelled'
+    ) {
+      return 'cancel';
+    }
+
+    return null;
+  }
+
+  private hasGrantedPlatformSubscription(
+    snapshot: BillingSnapshotResult | null
+  ): boolean {
+    const role = snapshot?.role ?? snapshot?.tier ?? null;
+
+    return (
+      snapshot?.isSubscriber === true &&
+      snapshot?.entitlements?.includes('platform_subscription') === true &&
+      this.isBillingGrantedRole(role)
+    );
+  }
+
+  private isBillingGrantedRole(
+    value: unknown
+  ): value is BillingGrantedRole {
+    return value === 'basic' || value === 'premium' || value === 'vip';
+  }
+
+  private isSameQuery(
+    previous: BillingReturnQuery,
+    current: BillingReturnQuery
+  ): boolean {
+    return (
+      previous.billing === current.billing &&
+      previous.scope === current.scope &&
+      previous.checkoutSessionId === current.checkoutSessionId
+    );
   }
 
   private buildVm(vm: BillingReturnVm): BillingReturnVm {
     return vm;
   }
 
+  private resolveDebugEnabled(): boolean {
+    if (!isDevMode() || typeof window === 'undefined') {
+      return false;
+    }
+
+    try {
+      return window.localStorage.getItem('debug.billing') === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  private dbg(message: string, payload?: unknown): void {
+    if (!this.debugEnabled) {
+      return;
+    }
+
+    console.debug(`[BillingReturnFacade] ${message}`, payload ?? '');
+  }
+
   private handleError(error: unknown, userMessage: string): void {
     try {
       this.errorNotifier.showError(userMessage);
     } catch {
-      // noop
+      // Falha no toast não pode quebrar o fluxo de billing.
     }
 
     try {
       const normalizedError =
         error instanceof Error ? error : new Error(String(error));
 
-      (normalizedError as any).context = {
+      (normalizedError as Error & {
+        context?: { scope: string };
+        skipUserNotification?: boolean;
+      }).context = {
         scope: 'BillingReturnFacade',
       };
-      (normalizedError as any).skipUserNotification = true;
+
+      (normalizedError as Error & {
+        skipUserNotification?: boolean;
+      }).skipUserNotification = true;
 
       this.globalErrorHandler.handleError(normalizedError);
     } catch {
-      // noop
+      // O handler global é observacional; não pode interromper a UX.
     }
 
-    if (isDevMode()) {
-      console.error('[BillingReturnFacade]', error);
-    }
+    this.dbg('billing return error', {
+      message:
+        error instanceof Error ? error.message : String(error),
+    });
   }
-}
+}//linha542

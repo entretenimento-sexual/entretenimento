@@ -1,58 +1,57 @@
-//functions\src\payments\infrastructure\providers\asaas.provider.ts
-// Não esqueça os comentários explicativos e ferramentas de debug
+// functions/src/payments/infrastructure/providers/asaas.provider.ts
+// -----------------------------------------------------------------------------
+// ASAAS PAYMENT PROVIDER
+// -----------------------------------------------------------------------------
+//
+// Placeholder seguro para a futura integração real com o Asaas.
+//
+// Importante:
+// - este arquivo NÃO implementa checkout simulado;
+// - este arquivo NÃO aceita webhook sem assinatura;
+// - até que a API real e a validação criptográfica estejam implementadas,
+//   qualquer uso falha de forma explícita.
+//
+// Próxima evolução:
+// - credenciais armazenadas no Secret Manager;
+// - criação real de cobrança/assinatura;
+// - validação real de webhook;
+// - mapeamento seguro de eventos pagos, cancelados, estornados e chargeback.
+
 import {
   CreateCheckoutInput,
   CreateCheckoutResult,
   PaymentProviderPort,
-  PaymentWebhookResult,
+  ProviderWebhookInput,
 } from '../../domain/payment-provider.port';
 
+import {
+  VerifiedPaymentEvent,
+} from '../../domain/billing.model';
+
 export class AsaasPaymentProvider extends PaymentProviderPort {
+  readonly providerId = 'asaas' as const;
+
   async createCheckoutSession(
-    input: CreateCheckoutInput
+    _input: CreateCheckoutInput
   ): Promise<CreateCheckoutResult> {
-    /**
-     * Stub inicial.
-     *
-     * Nesta fase:
-     * - preservamos successUrl e cancelUrl já montadas pelo backend
-     * - não concatenamos query string manualmente
-     * - simulamos uma URL de checkout do provider apontando para o retorno de sucesso
-     *
-     * Próxima etapa:
-     * - chamar API real do Asaas
-     * - criar cobrança/assinatura
-     * - devolver checkoutUrl real hospedada pelo provider
-     */
-    const successUrl = new URL(input.successUrl);
-
-    // Garante mockProvider sem quebrar query string existente.
-    if (!successUrl.searchParams.has('mockProvider')) {
-      successUrl.searchParams.set('mockProvider', 'asaas');
-    }
-
-    if (!successUrl.searchParams.has('scope')) {
-      successUrl.searchParams.set('scope', input.scope);
-    }
-
-    return {
-      provider: 'asaas',
-      providerSessionId: `stub_asaas_${Date.now()}`,
-      checkoutUrl: successUrl.toString(),
-      expiresAt: null,
-    };
+    throw new Error(
+      'AsaasPaymentProvider ainda não foi configurado para pagamentos reais.'
+    );
   }
 
-  async cancelCheckoutSession(_providerSessionId: string): Promise<void> {
-    return;
+  async cancelCheckoutSession(
+    _providerSessionId: string
+  ): Promise<void> {
+    throw new Error(
+      'AsaasPaymentProvider ainda não foi configurado para cancelamento real.'
+    );
   }
 
-  async parseWebhook(
-    _headers: Record<string, string>,
-    _rawBody: string
-  ): Promise<PaymentWebhookResult> {
-    return {
-      accepted: true,
-    };
+  async verifyWebhook(
+    _input: ProviderWebhookInput
+  ): Promise<VerifiedPaymentEvent> {
+    throw new Error(
+      'Webhook Asaas rejeitado: validação segura ainda não implementada.'
+    );
   }
 }

@@ -1,35 +1,41 @@
 // src/app/core/services/error-handler/error-notification.service.spec.ts
+// -----------------------------------------------------------------------------
+// Testes do ErrorNotificationService
+// -----------------------------------------------------------------------------
+//
+// Cobertura principal:
+// - mensagens visuais e classes CSS;
+// - deduplicação temporal;
+// - fechamento e liberação das mensagens;
+// - garantia de que detalhes técnicos não são expostos ao usuário.
+
 import { TestBed } from '@angular/core/testing';
-import { of, Subject } from 'rxjs';
-import { describe, beforeEach, it, expect, vi, type Mock, afterEach } from 'vitest';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 
 import { ErrorNotificationService } from './error-notification.service';
-import { MatSnackBar } from '@angular/material/snack-bar';
 
 describe('ErrorNotificationService', () => {
   let service: ErrorNotificationService;
 
-  // mocks do snackbar (com controle do onAction)
-  let action$: Subject<void>;
-const snackBar: {
-  open: Mock;
-  dismiss: Mock;
-} = {
-  open: vi.fn(),
-  dismiss: vi.fn(),
-};
+  const snackBar: {
+    open: Mock;
+    dismiss: Mock;
+  } = {
+    open: vi.fn(),
+    dismiss: vi.fn(),
+  };
 
   beforeEach(() => {
     vi.useFakeTimers();
-    action$ = new Subject<void>();
-
-    // toda chamada a open retorna um ref com onAction/afterDismissed
-    (snackBar.open as Mock).mockImplementation((_msg: string, _action?: string, _cfg?: any) => {
-      return {
-        onAction: () => action$.asObservable(),
-        afterDismissed: () => of({ dismissedByAction: false }),
-      } as any;
-    });
 
     TestBed.configureTestingModule({
       providers: [
@@ -39,113 +45,152 @@ const snackBar: {
     });
 
     service = TestBed.inject(ErrorNotificationService);
+
     vi.clearAllMocks();
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.useRealTimers();
+    TestBed.resetTestingModule();
   });
 
   it('deve ser criado', () => {
     expect(service).toBeTruthy();
   });
 
-  it('showSuccess: abre snackbar com action "Fechar", classe e duração padrão (3000ms)', () => {
-    service.showSuccess('ok');
+  it('showSuccess abre snackbar seguro com classe e duração padrão', () => {
+    service.showSuccess('Operação concluída.');
 
     expect(snackBar.open).toHaveBeenCalledTimes(1);
-    const [msg, action, cfg] = snackBar.open.mock.calls[0];
 
-    expect(msg).toBe('ok');
+    const [message, action, config] = snackBar.open.mock.calls[0];
+
+    expect(message).toBe('Operação concluída.');
     expect(action).toBe('Fechar');
-    expect(cfg.duration).toBe(3000);
-    expect(cfg.panelClass).toEqual(['success-snackbar']);
+    expect(config.duration).toBe(3000);
+    expect(config.panelClass).toEqual(['success-snackbar']);
   });
 
-  it('showError: abre snackbar com action "Detalhes", classe e duração padrão (5000ms)', () => {
-    service.showError('falhou');
+  it('showError abre snackbar sem ação de detalhes técnicos', () => {
+    service.showError('Falha ao concluir.');
 
     expect(snackBar.open).toHaveBeenCalledTimes(1);
-    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
 
-    expect(msg).toBe('falhou');
-    expect(action).toBe('Detalhes');
-    expect(cfg.duration).toBe(5000);
-    expect(cfg.panelClass).toEqual(['error-snackbar']);
-  });
+    const [message, action, config] = snackBar.open.mock.calls[0];
 
-  it('showError: respeita duração customizada e dispara alert com detalhes ao clicar em "Detalhes"', () => {
-    const spyAlert = vi.spyOn(window, 'alert').mockImplementation(() => { /* noop */ });
-
-    service.showError('ops', 'STACK TRACE', 1234);
-
-    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
-    expect(msg).toBe('ops');
-    expect(action).toBe('Detalhes');
-    expect(cfg.duration).toBe(1234);
-    expect(cfg.panelClass).toEqual(['error-snackbar']);
-
-    // simula clique no botão de ação do snackbar
-    action$.next();
-    expect(spyAlert).toHaveBeenCalledWith('STACK TRACE');
-
-    spyAlert.mockRestore();
-  });
-
-  it('showInfo: abre snackbar com classe "info-snackbar"', () => {
-    service.showInfo('informação', 2222);
-
-    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
-    expect(msg).toBe('informação');
+    expect(message).toBe('Falha ao concluir.');
     expect(action).toBe('Fechar');
-    expect(cfg.duration).toBe(2222);
-    expect(cfg.panelClass).toEqual(['info-snackbar']);
+    expect(config.duration).toBe(5000);
+    expect(config.panelClass).toEqual(['error-snackbar']);
   });
 
-  it('showWarning: abre snackbar com classe "warning-snackbar"', () => {
-    service.showWarning('cuidado', 3333);
+  it('showError não expõe details por alert ou pelo texto visual', () => {
+    const alertSpy = vi
+      .spyOn(window, 'alert')
+      .mockImplementation(() => undefined);
 
-    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
-    expect(msg).toBe('cuidado');
+    service.showError(
+      'Não foi possível salvar.',
+      'permission-denied: checkout_sessions/internal-id',
+      1234
+    );
+
+    const [message, action, config] = snackBar.open.mock.calls[0];
+
+    expect(message).toBe('Não foi possível salvar.');
+    expect(message).not.toContain('permission-denied');
+    expect(message).not.toContain('checkout_sessions');
     expect(action).toBe('Fechar');
-    expect(cfg.duration).toBe(3333);
-    expect(cfg.panelClass).toEqual(['warning-snackbar']);
+    expect(config.duration).toBe(1234);
+    expect(config.panelClass).toEqual(['error-snackbar']);
+    expect(alertSpy).not.toHaveBeenCalled();
   });
 
-  it('clearError: chama dismiss do MatSnackBar', () => {
+  it('showInfo abre snackbar com classe informativa', () => {
+    service.showInfo('Atualização disponível.', 2222);
+
+    const [message, action, config] = snackBar.open.mock.calls[0];
+
+    expect(message).toBe('Atualização disponível.');
+    expect(action).toBe('Fechar');
+    expect(config.duration).toBe(2222);
+    expect(config.panelClass).toEqual(['info-snackbar']);
+  });
+
+  it('showWarning abre snackbar com classe de aviso', () => {
+    service.showWarning('Revise os dados.', 3333);
+
+    const [message, action, config] = snackBar.open.mock.calls[0];
+
+    expect(message).toBe('Revise os dados.');
+    expect(action).toBe('Fechar');
+    expect(config.duration).toBe(3333);
+    expect(config.panelClass).toEqual(['warning-snackbar']);
+  });
+
+  it('showPersistent abre snackbar sem duração automática', () => {
+    service.showPersistent('Sua conta precisa de atenção.');
+
+    const [message, action, config] = snackBar.open.mock.calls[0];
+
+    expect(message).toBe('Sua conta precisa de atenção.');
+    expect(action).toBe('Fechar');
+    expect(config.duration).toBeUndefined();
+    expect(config.panelClass).toEqual(['persistent-snackbar']);
+  });
+
+  it('clearError fecha snackbar e permite exibir novamente a mesma mensagem', () => {
+    service.showInfo('Mensagem repetível');
     service.clearError();
+    service.showInfo('Mensagem repetível');
+
     expect(snackBar.dismiss).toHaveBeenCalledTimes(1);
-  });
-
-  it('desduplica mensagens dentro da janela padrão (5000ms) e permite novamente após o TTL', () => {
-    service.showInfo('msg repetida');
-    service.showInfo('msg repetida'); // deve ser ignorada
-    expect(snackBar.open).toHaveBeenCalledTimes(1);
-
-    // avança o relógio além do TTL (5s) para liberar a mesma mensagem novamente
-    vi.advanceTimersByTime(5000);
-
-    service.showInfo('msg repetida');
     expect(snackBar.open).toHaveBeenCalledTimes(2);
   });
 
-  it('showNotification delega corretamente por tipo: success', () => {
-    service.showNotification('success', 'yay', 1111);
+  it('deduplica mensagens dentro da janela padrão e permite após o TTL', () => {
+    service.showInfo('Mensagem repetida');
+    service.showInfo('Mensagem repetida');
 
-    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
-    expect(msg).toBe('yay');
-    expect(action).toBe('Fechar');
-    expect(cfg.duration).toBe(1111);
-    expect(cfg.panelClass).toEqual(['success-snackbar']);
+    expect(snackBar.open).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(5000);
+
+    service.showInfo('Mensagem repetida');
+
+    expect(snackBar.open).toHaveBeenCalledTimes(2);
   });
 
-  it('showNotification delega corretamente por tipo: error (com duração passada)', () => {
-    service.showNotification('error', 'nope', 4444);
+  it('showNotification delega corretamente notificações de sucesso', () => {
+    service.showNotification('success', 'Tudo certo.', 1111);
 
-    const [msg, action, cfg] = (snackBar.open as Mock).mock.calls[0];
-    expect(msg).toBe('nope');
-    expect(action).toBe('Detalhes');
-    expect(cfg.duration).toBe(4444);
-    expect(cfg.panelClass).toEqual(['error-snackbar']);
+    const [message, action, config] = snackBar.open.mock.calls[0];
+
+    expect(message).toBe('Tudo certo.');
+    expect(action).toBe('Fechar');
+    expect(config.duration).toBe(1111);
+    expect(config.panelClass).toEqual(['success-snackbar']);
+  });
+
+  it('showNotification delega erro sem expor ação de detalhes', () => {
+    service.showNotification('error', 'Operação falhou.', 4444);
+
+    const [message, action, config] = snackBar.open.mock.calls[0];
+
+    expect(message).toBe('Operação falhou.');
+    expect(action).toBe('Fechar');
+    expect(config.duration).toBe(4444);
+    expect(config.panelClass).toEqual(['error-snackbar']);
+  });
+
+  it('normaliza valor inválido recebido como mensagem de erro', () => {
+    service.showError({ code: 'permission-denied' } as unknown as string);
+
+    const [message] = snackBar.open.mock.calls[0];
+
+    expect(message).toBe(
+      'Não foi possível concluir a ação. Tente novamente.'
+    );
   });
 });

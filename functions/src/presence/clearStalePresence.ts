@@ -18,7 +18,7 @@
 // - NÃO sobrescreve lastSeen aqui. lastSeen é “último visto” real do usuário.
 // - Só marca offline (e opcionalmente registra staleClearedAt/offlineReason para auditoria).
 import { onSchedule } from "firebase-functions/v2/scheduler";
-import { setGlobalOptions } from "firebase-functions/v2/options";
+import { FUNCTIONS_REGION } from "../config/functions-region";
 import { db, FieldValue, Timestamp } from "../firebaseApp";
 
 // ✅ type-only imports: não alteram runtime, só resolvem tipagem
@@ -30,8 +30,6 @@ import type {
   WriteBatch,
 } from "firebase-admin/firestore";
 
-setGlobalOptions({ region: "southamerica-east1", memory: "256MiB" });
-
 const WINDOW_SEC = Number(process.env.PRESENCE_WINDOW_SEC || "120");
 
 // Firestore: limite hard 500 ops/batch. Mantemos folga.
@@ -40,7 +38,13 @@ const MAX_BATCH_OPS = 450;
 // Paginação simples (caso o volume cresça)
 const PAGE_SIZE = 1000;
 
-export const clearStalePresence = onSchedule("every 2 minutes", async () => {
+export const clearStalePresence = onSchedule(
+  {
+    schedule: 'every 2 minutes',
+    region: FUNCTIONS_REGION,
+    memory: '256MiB',
+  },
+  async () => {
   const cutoffTs = Timestamp.fromMillis(Date.now() - WINDOW_SEC * 1000);
 
   // ✅ Coleção correta: presence/{uid}

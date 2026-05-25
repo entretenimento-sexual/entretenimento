@@ -1,15 +1,186 @@
-<!-- src\app\chat-module\chat-rooms\chat-rooms.component.html -->
-<div class="chat-rooms">
-  <div class="button_e_saibamais">
-    <button (click)="openCreateRoomModal()" class="button_create_room">Criar Sala de bate-papo</button>
-    <a href="javascript:void(0);" class="saiba-mais-link" (click)="openInfoCriaSalaBpModal($event)">saiba mais</a>
-  </div>
-  <ul>
-    @for (room of chatRooms; track room) {
-      <li (click)="selectRoom(room.roomId)">
-        <span>Sua sala "{{ room.roomName }}" está ativa</span>
-        <!-- Botões adicionais aqui -->
-      </li>
-    }
-  </ul>
-</div>
+<!-- src/app/chat-module/chat-rooms/chat-rooms.component.html -->
+
+@if (roomsVm$ | async; as vm) {
+  <main class="chat-rooms" aria-labelledby="chat-rooms-title">
+    <header class="chat-rooms__hero">
+      <div class="chat-rooms__hero-copy">
+        <span class="chat-rooms__eyebrow">Salas privadas</span>
+
+        <h1 id="chat-rooms-title" class="chat-rooms__title">
+          Suas conversas em grupo
+        </h1>
+
+        <p class="chat-rooms__description">
+          Crie espaços privados com acesso controlado. Convites e participação
+          de terceiros serão liberados após a conclusão das validações de segurança.
+        </p>
+      </div>
+
+      <div class="chat-rooms__actions">
+        <button
+          type="button"
+          class="btn btn-primary chat-rooms__primary-action"
+          [disabled]="creatingRoom || vm.loading || vm.hasOwnedActiveRoom"
+          [attr.aria-describedby]="vm.hasOwnedActiveRoom ? 'rooms-create-limit' : null"
+          (click)="openCreateRoomModal()"
+        >
+          @if (creatingRoom) {
+            Criando sala...
+          } @else if (vm.hasOwnedActiveRoom) {
+            Limite atingido
+          } @else {
+            Criar sala privada
+          }
+        </button>
+
+        @if (vm.hasOwnedActiveRoom) {
+          <p id="rooms-create-limit" class="chat-rooms__limit-note" role="status">
+            Nesta fase, cada assinante pode manter uma sala própria ativa.
+          </p>
+        } @else {
+          <p class="chat-rooms__limit-note">
+            A criação depende de plano elegível confirmado com segurança.
+          </p>
+        }
+      </div>
+    </header>
+
+    <section
+      class="chat-rooms__security"
+      aria-label="Segurança das salas"
+    >
+      <div class="chat-rooms__security-badge" aria-hidden="true">
+        🔒
+      </div>
+
+      <div>
+        <h2 class="chat-rooms__security-title">
+          Acesso protegido
+        </h2>
+
+        <p class="chat-rooms__security-text">
+          As salas não são públicas nem descobríveis. Nesta etapa, apenas a
+          criação segura da sua própria sala está habilitada.
+        </p>
+      </div>
+    </section>
+
+    <section class="chat-rooms__collection" aria-labelledby="my-rooms-title">
+      <header class="chat-rooms__collection-header">
+        <div>
+          <h2 id="my-rooms-title" class="chat-rooms__section-title">
+            Minhas salas
+          </h2>
+
+          <p class="chat-rooms__section-description">
+            Espaços criados por você ou dos quais você futuramente aceitar participar.
+          </p>
+        </div>
+
+        @if (!vm.loading && !vm.loadFailed) {
+          <span class="chat-rooms__count" aria-label="Quantidade de salas">
+            {{ vm.rooms.length }}
+          </span>
+        }
+      </header>
+
+      @if (vm.loading) {
+        <div class="chat-rooms__loading" role="status" aria-live="polite">
+          <div class="chat-rooms__skeleton" aria-hidden="true"></div>
+          <span>Carregando suas salas...</span>
+        </div>
+      } @else if (vm.loadFailed) {
+        <div class="chat-rooms__empty chat-rooms__empty--error" role="alert">
+          <h3>Não foi possível carregar suas salas.</h3>
+          <p>
+            Atualize a página. Caso o problema persista, a ocorrência será
+            registrada para análise.
+          </p>
+        </div>
+      } @else if (vm.rooms.length === 0) {
+        <div class="chat-rooms__empty" role="status">
+          <div class="chat-rooms__empty-icon" aria-hidden="true">
+            💬
+          </div>
+
+          <h3>Nenhuma sala ativa</h3>
+
+          <p>
+            Você ainda não criou uma sala privada. Quando criar, ela aparecerá
+            aqui com as informações de acesso e segurança.
+          </p>
+        </div>
+      } @else {
+        <ul class="chat-rooms__list" aria-label="Lista de salas privadas">
+          @for (room of vm.rooms; track room.id) {
+            <li class="chat-rooms__card">
+              <article aria-labelledby="room-title-{{ room.id }}">
+                <header class="chat-rooms__card-header">
+                  <div>
+                    <h3
+                      id="room-title-{{ room.id }}"
+                      class="chat-rooms__room-name"
+                    >
+                      {{ room.roomName }}
+                    </h3>
+
+                    <p class="chat-rooms__room-access">
+                      @if (room.isOwner) {
+                        Você administra esta sala
+                      } @else {
+                        Você participa desta sala
+                      }
+                    </p>
+                  </div>
+
+                  <div class="chat-rooms__badges" aria-label="Estado da sala">
+                    <span class="chat-rooms__badge">
+                      Privada
+                    </span>
+
+                    <span class="chat-rooms__badge chat-rooms__badge--active">
+                      Ativa
+                    </span>
+                  </div>
+                </header>
+
+                <dl class="chat-rooms__metadata">
+                  <div>
+                    <dt>Participantes</dt>
+                    <dd>{{ room.memberCount }}</dd>
+                  </div>
+
+                  <div>
+                    <dt>Entrada</dt>
+                    <dd>Controlada</dd>
+                  </div>
+
+                  <div>
+                    <dt>Visibilidade</dt>
+                    <dd>Oculta</dd>
+                  </div>
+                </dl>
+
+                <p class="chat-rooms__pending-feature">
+                  Conversas e convites nesta sala serão disponibilizados após
+                  a conclusão da camada segura de participação.
+                </p>
+
+                <footer class="chat-rooms__card-footer">
+                  <button
+                    type="button"
+                    class="btn btn-ghost chat-rooms__disabled-action"
+                    disabled
+                    aria-disabled="true"
+                  >
+                    Conversas em validação
+                  </button>
+                </footer>
+              </article>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  </main>
+}

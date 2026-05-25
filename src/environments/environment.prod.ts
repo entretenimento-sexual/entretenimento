@@ -3,7 +3,6 @@
 // - Sem emuladores
 // - Políticas rígidas
 // - Debug tools desligadas
-
 import { AppEnvironment } from "./environment.model";
 
 export const environment: AppEnvironment = {

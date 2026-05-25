@@ -1,70 +1,37 @@
-//functions\src\payments\application\get-platform-plan-by-key.handler.ts
+// functions/src/payments/application/get-platform-plan-by-key.handler.ts
+// -----------------------------------------------------------------------------
+// GET PLATFORM PLAN BY KEY HANDLER
+// -----------------------------------------------------------------------------
+//
+// Consulta pública do catálogo de planos disponíveis para assinatura da
+// plataforma.
+//
+// Responsabilidade:
+// - devolver apenas planos ativos reconhecidos pelo backend;
+// - reutilizar a mesma fonte usada na criação do checkout;
+// - não expor informações sensíveis;
+// - não confiar em preço enviado pelo cliente.
+//
+// Segurança:
+// - o frontend pode consultar e exibir um plano;
+// - o valor efetivamente cobrado continua sendo resolvido novamente no backend
+//   durante a criação do checkout.
+
 import { onCall } from 'firebase-functions/v2/https';
 
-type PlatformPlanKey = 'basic' | 'premium' | 'vip';
+import { FUNCTIONS_REGION } from '../../config/functions-region';
 
-interface BillingPlan {
-  id: string;
-  key: PlatformPlanKey;
-  scope: 'platform';
-  title: string;
-  description: string;
-  amountCents: number;
-  currency: 'BRL';
-  interval: 'month';
-  active: boolean;
-}
+import {
+  getPlatformPlanByKey as findPlatformPlanByKey,
+} from './billing-plan-catalog.service';
 
 interface GetPlatformPlanByKeyRequest {
   key?: string;
 }
 
-const PLATFORM_PLANS: Record<PlatformPlanKey, BillingPlan> = {
-  basic: {
-    id: 'platform_basic_monthly',
-    key: 'basic',
-    scope: 'platform',
-    title: 'Plano Básico',
-    description: 'Entrada inicial para recursos essenciais da plataforma.',
-    amountCents: 1999,
-    currency: 'BRL',
-    interval: 'month',
-    active: true,
-  },
-  premium: {
-    id: 'platform_premium_monthly',
-    key: 'premium',
-    scope: 'platform',
-    title: 'Plano Premium',
-    description: 'Mais benefícios, prioridade e acesso ampliado.',
-    amountCents: 2999,
-    currency: 'BRL',
-    interval: 'month',
-    active: true,
-  },
-  vip: {
-    id: 'platform_vip_monthly',
-    key: 'vip',
-    scope: 'platform',
-    title: 'Plano Vip',
-    description: 'Experiência mais avançada da plataforma.',
-    amountCents: 3999,
-    currency: 'BRL',
-    interval: 'month',
-    active: true,
-  },
-};
-
 export const getPlatformPlanByKey = onCall<GetPlatformPlanByKeyRequest>(
+  { region: FUNCTIONS_REGION },
   async (request) => {
-    const key = String(request.data?.key ?? '')
-      .trim()
-      .toLowerCase() as PlatformPlanKey;
-
-    if (!key || !(key in PLATFORM_PLANS)) {
-      return null;
-    }
-
-    return PLATFORM_PLANS[key];
+    return findPlatformPlanByKey(request.data?.key);
   }
 );

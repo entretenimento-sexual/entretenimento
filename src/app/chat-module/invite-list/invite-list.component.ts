@@ -8,7 +8,6 @@
 // - mantém nomenclaturas públicas: respondToInvite
 // - o owner global de LoadInvites / StopInvites fica no LayoutShellComponent
 // - fecha o fluxo real de aceitar/recusar
-
 import { Component, DestroyRef, OnDestroy, OnInit, inject } from '@angular/core';
 import { Store } from '@ngrx/store';
 import { Observable, of } from 'rxjs';

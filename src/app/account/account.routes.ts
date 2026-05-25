@@ -1,5 +1,4 @@
 // src/app/account/account.routes.ts
-// Comentários nunca atrapalham
 import { Routes } from '@angular/router';
 import { authOnlyGuard } from '@core/guards/auth-guard/auth-only.guard';
 import { accountLifecycleGuard } from './guards/account-lifecycle.guard';

@@ -2,8 +2,13 @@
 import { createHash } from 'node:crypto';
 import { HttpsError } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
+import { FUNCTIONS_REGION } from '../config/functions-region';
 
-export const ACCOUNT_LIFECYCLE_REGION = 'southamerica-east1';
+/**
+ * Alias mantido para preservar os imports já existentes no domínio de
+ * lifecycle, mas a fonte real da região passa a ser centralizada.
+ */
+export const ACCOUNT_LIFECYCLE_REGION = FUNCTIONS_REGION;
 
 export type StaffPermission = 'users:suspend' | 'users:delete';
 

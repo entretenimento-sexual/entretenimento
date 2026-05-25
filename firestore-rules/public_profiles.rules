@@ -148,7 +148,7 @@ match /public_profiles/{userId} {
       && optStringSized("gender", 1, 40)
       && optStringSized("orientation", 1, 40)
 
-      // role: criação força "basic" e update impede mudança
+      // role: criação força "free" e update impede mudança pelo cliente
       && optStringSized("role", 3, 20);
   }
 

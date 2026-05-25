@@ -1,5 +1,6 @@
 //functions\src\account_lifecycle\requestAccountDeletion.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { ACCOUNT_LIFECYCLE_REGION } from './_shared';
 import { db } from '../firebaseApp';
 
 interface RequestAccountDeletionRequest {
@@ -44,6 +45,7 @@ function getNicknameIndexDocId(user: UserDoc): string | null {
 }
 
 export const requestAccountDeletion = onCall<RequestAccountDeletionRequest>(
+  { region: ACCOUNT_LIFECYCLE_REGION },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const uid = request.auth?.uid ?? null;
 

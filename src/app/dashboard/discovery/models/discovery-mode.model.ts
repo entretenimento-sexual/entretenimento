@@ -3,19 +3,32 @@
 // DiscoveryModeModel
 // -----------------------------------------------------------------------------
 //
-// Modelo central dos modos de descoberta.
+// Registro central dos modos nativos de descoberta.
 //
-// Objetivo:
+// Responsabilidade:
 // - evitar strings soltas em componentes;
-// - padronizar "Todos" como modo padrão;
-// - permitir evolução gradual para região, recentes, bombando e compatíveis;
-// - manter modos futuros visíveis, mas desabilitados enquanto a lógica real
-//   ainda não estiver implementada.
+// - manter "Todos" como modo padrão;
+// - alimentar a barra visual DiscoveryModeTabsComponent;
+// - declarar regras de produto por modo:
+//   - exige localização;
+//   - exige presença online;
+//   - origem principal dos dados;
+//   - disponibilidade atual;
+//   - tooltip/descrição;
+// - preparar evolução para Região, Recentes, Bombando, Compatíveis e outros.
 //
-// Observação de produto:
-// - "Todos" NÃO deve significar lista crua.
-// - "Todos" será o feed geral refinado: perfis exibíveis, priorizando online,
-//   compatibilidade, região/distância quando disponível e qualidade do perfil.
+// Regra importante:
+// - este arquivo NÃO busca dados;
+// - este arquivo NÃO calcula score;
+// - este arquivo NÃO filtra perfis sozinho;
+// - ele apenas descreve os modos disponíveis para outras camadas.
+//
+// Camadas consumidoras esperadas:
+// - DiscoveryModeTabsComponent: usa tabs visuais;
+// - ProfilesDiscoveryPageComponent: decide qual fluxo renderizar;
+// - DiscoveryCardEnrichmentService: usa mode para aplicar score/filtros;
+// - futuras facades/orchestrators: usam source/requiresLocation/requiresOnlinePresence.
+
 export const DISCOVERY_MODE_VALUES = [
   'all',
   'online',
@@ -27,6 +40,77 @@ export const DISCOVERY_MODE_VALUES = [
 ] as const;
 
 export type DiscoveryMode = (typeof DISCOVERY_MODE_VALUES)[number];
+
+export type DiscoveryModeSource =
+  | 'public_profiles'
+  | 'presence'
+  | 'geolocation'
+  | 'score'
+  | 'compatibility';
+
+export type DiscoveryModeAvailability =
+  | 'enabled'
+  | 'disabled'
+  | 'planned';
+
+export interface DiscoveryModeConfig {
+  id: DiscoveryMode;
+
+  /**
+   * Origem conceitual principal do modo.
+   *
+   * Isso não obriga a implementação a usar uma única fonte.
+   * Exemplo:
+   * - "Todos" nasce de public_profiles, mas pode receber presença como bônus;
+   * - "Online" nasce da presence, mas usa public_profiles para o card;
+   * - "Perto" pode nascer de public_profiles + geohash/localização.
+   */
+  source: DiscoveryModeSource;
+
+  /**
+   * Quando true, o modo precisa de localização ativa do usuário.
+   *
+   * Exemplo:
+   * - nearby: true;
+   * - all/online/region: false.
+   */
+  requiresLocation: boolean;
+
+  /**
+   * Quando true, o modo só faz sentido para perfis com presença online.
+   *
+   * Exemplo:
+   * - online: true.
+   */
+  requiresOnlinePresence: boolean;
+
+  /**
+   * Disponibilidade atual do modo.
+   *
+   * enabled:
+   *   pode ser clicado.
+   *
+   * disabled/planned:
+   *   aparece na barra para comunicar evolução, mas não é clicável.
+   */
+  availability: DiscoveryModeAvailability;
+
+  /**
+   * Campos visuais usados pela barra.
+   */
+  label: string;
+  shortLabel?: string;
+  icon: string;
+  ariaLabel: string;
+  badge?: string;
+  description?: string;
+
+  /**
+   * Futuro:
+   * - pode controlar liberação por assinatura sem espalhar regra.
+   */
+  minimumRole?: 'free' | 'basic' | 'premium' | 'vip';
+}
 
 export interface DiscoveryModeTab {
   id: DiscoveryMode;
@@ -49,67 +133,136 @@ export interface DiscoveryModeTab {
  * Default recomendado:
  * - "Todos" como entrada principal da descoberta;
  * - não exige localização;
- * - depois será refinado por ranking.
+ * - usa ranking refinado;
+ * - online, distância e compatibilidade entram como bônus, não como bloqueio.
  */
 export const DEFAULT_DISCOVERY_MODE: DiscoveryMode = 'all';
 
-export const DISCOVERY_MODE_TABS: readonly DiscoveryModeTab[] = [
-  {
+export const DISCOVERY_MODE_CONFIGS: Record<DiscoveryMode, DiscoveryModeConfig> = {
+  all: {
     id: 'all',
+    source: 'public_profiles',
+    requiresLocation: false,
+    requiresOnlinePresence: false,
+    availability: 'enabled',
+
     label: 'Todos',
     icon: 'fas fa-users',
     ariaLabel: 'Ver todos os perfis recomendados',
     description:
-    'Mostra perfis públicos disponíveis para descoberta.' +
-    'Não é uma lista bruta: online, distância, região, atualização recente e compatibilidade.',
+      'Mostra perfis públicos disponíveis para descoberta. Não é uma lista bruta: online, distância, região, atualização recente e compatibilidade podem influenciar a ordem.',
   },
-  {
+
+  online: {
     id: 'online',
+    source: 'presence',
+    requiresLocation: false,
+    requiresOnlinePresence: true,
+    availability: 'enabled',
+
     label: 'Online',
     icon: 'fas fa-bolt',
     ariaLabel: 'Ver perfis online agora',
+    description:
+      'Mostra perfis com presença ativa agora. A distância e a região podem ajudar na ordenação quando estiverem disponíveis.',
   },
-  {
+
+  nearby: {
     id: 'nearby',
+    source: 'geolocation',
+    requiresLocation: true,
+    requiresOnlinePresence: false,
+    availability: 'planned',
+
     label: 'Perto',
     icon: 'fas fa-location-dot',
     ariaLabel: 'Ver perfis próximos',
-    disabled: true,
     badge: 'em breve',
+    description:
+      'Mostrará perfis próximos usando localização e raio. Esse modo depende de permissão de localização.',
   },
-  {
+
+  region: {
     id: 'region',
+    source: 'public_profiles',
+    requiresLocation: false,
+    requiresOnlinePresence: false,
+    availability: 'planned',
+
     label: 'Região',
     icon: 'fas fa-map-location-dot',
     ariaLabel: 'Ver perfis por região',
-    disabled: true,
     badge: 'em breve',
+    description:
+      'Mostrará perfis com base em cidade, estado ou região informada no perfil, sem exigir GPS.',
   },
-  {
+
+  recent: {
     id: 'recent',
+    source: 'score',
+    requiresLocation: false,
+    requiresOnlinePresence: false,
+    availability: 'planned',
+
     label: 'Recentes',
     icon: 'fas fa-clock',
     ariaLabel: 'Ver perfis atualizados recentemente',
-    disabled: true,
     badge: 'em breve',
+    description:
+      'Mostrará perfis criados ou atualizados recentemente.',
   },
-  {
+
+  trending: {
     id: 'trending',
+    source: 'score',
+    requiresLocation: false,
+    requiresOnlinePresence: false,
+    availability: 'planned',
+
     label: 'Bombando',
     icon: 'fas fa-fire',
     ariaLabel: 'Ver perfis em destaque',
-    disabled: true,
     badge: 'em breve',
+    description:
+      'Mostrará perfis em destaque por atividade, engajamento e qualidade do perfil.',
   },
-  {
+
+  compatible: {
     id: 'compatible',
+    source: 'compatibility',
+    requiresLocation: false,
+    requiresOnlinePresence: false,
+    availability: 'planned',
+
     label: 'Compatíveis',
     icon: 'fas fa-heart',
     ariaLabel: 'Ver perfis compatíveis',
-    disabled: true,
     badge: 'em breve',
+    description:
+      'Mostrará perfis mais alinhados às preferências e intenções do usuário.',
   },
-] as const;
+} as const;
+
+/**
+ * Lista visual usada pela barra.
+ *
+ * Mantém o nome atual para não quebrar ProfilesDiscoveryPageComponent.
+ */
+export const DISCOVERY_MODE_TABS: readonly DiscoveryModeTab[] =
+  DISCOVERY_MODE_VALUES.map((mode) => {
+    const config = DISCOVERY_MODE_CONFIGS[mode];
+
+    return {
+      id: config.id,
+      label: config.label,
+      shortLabel: config.shortLabel,
+      icon: config.icon,
+      ariaLabel: config.ariaLabel,
+      disabled: config.availability !== 'enabled',
+      badge: config.badge,
+      description: config.description,
+    };
+  });
 
 export function isDiscoveryMode(value: unknown): value is DiscoveryMode {
   return DISCOVERY_MODE_VALUES.includes(value as DiscoveryMode);
@@ -119,30 +272,30 @@ export function normalizeDiscoveryMode(value: unknown): DiscoveryMode {
   return isDiscoveryMode(value) ? value : DEFAULT_DISCOVERY_MODE;
 }
 
+export function getDiscoveryModeConfig(
+  mode: DiscoveryMode | null | undefined
+): DiscoveryModeConfig {
+  return DISCOVERY_MODE_CONFIGS[normalizeDiscoveryMode(mode)];
+}
+
+export function isDiscoveryModeEnabled(
+  mode: DiscoveryMode | null | undefined
+): boolean {
+  return getDiscoveryModeConfig(mode).availability === 'enabled';
+}
+
 /**
  * Define se o modo de descoberta precisa de localização do navegador.
  *
- * Regra importante:
- * - "Todos" não exige localização.
- * - "Online" não exige localização.
- * - "Perto" exige localização.
- * - "Região" futuramente pode usar estado/município do perfil, não GPS.
- *
- * Isso evita que a plataforma peça localização em todo refresh quando o usuário
- * está apenas navegando pelo feed geral.
+ * Mantém o nome atual para compatibilidade com OnlineUsersComponent e demais
+ * consumidores já existentes.
  */
 export function discoveryModeRequiresLocation(mode: DiscoveryMode): boolean {
-  switch (mode) {
-    case 'nearby':
-      return true;
+  return getDiscoveryModeConfig(mode).requiresLocation;
+}
 
-    case 'all':
-    case 'online':
-    case 'region':
-    case 'recent':
-    case 'trending':
-    case 'compatible':
-    default:
-      return false;
-  }
+export function discoveryModeRequiresOnlinePresence(
+  mode: DiscoveryMode | null | undefined
+): boolean {
+  return getDiscoveryModeConfig(mode).requiresOnlinePresence;
 }

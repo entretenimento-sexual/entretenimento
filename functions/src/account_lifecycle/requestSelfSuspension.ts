@@ -1,6 +1,7 @@
 //functions\src\account_lifecycle\requestSelfSuspension.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { db } from '../firebaseApp';
+import { ACCOUNT_LIFECYCLE_REGION } from './_shared';
 
 interface RequestSelfSuspensionRequest {
   reason?: string | null;
@@ -56,6 +57,7 @@ function getNicknameIndexDocId(user: UserDoc): string | null {
 }
 
 export const requestSelfSuspension = onCall<RequestSelfSuspensionRequest>(
+  { region: ACCOUNT_LIFECYCLE_REGION },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const uid = request.auth?.uid ?? null;
 

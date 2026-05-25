@@ -5,25 +5,19 @@
 //
 // Página pai da descoberta de perfis.
 //
-// Objetivo desta revisão:
-// - remover cabeçalho visual excessivo;
-// - deixar "Todos" como modo padrão;
-// - manter barra compacta de modos no topo;
-// - separar claramente:
-//   1) Todos: feed geral/refinado, sem exigir localização;
-//   2) Online: fluxo atual baseado nos usuários online;
-// - preparar a evolução para Região, Recentes, Bombando e Compatíveis.
+// Responsabilidade:
+// - manter "Todos" como modo padrão;
+// - controlar o modo ativo da barra de descobertas;
+// - impedir ativação de modos ainda desabilitados/planned;
+// - renderizar o fluxo correto para cada modo habilitado;
+// - manter a barra visual desacoplada da regra de busca.
 //
-// Supressão explícita nesta revisão:
-// - título visual grande "Explorar perfis";
-// - subtítulo explicativo redundante;
-// - botão "Voltar" interno;
-// - estado duplicado `mode`.
-//
-// Motivo:
-// - a navegação global já existe no navbar/sidebar;
-// - a descoberta deve parecer área principal de produto, não página institucional;
-// - menos texto favorece mobile e reduz poluição visual.
+// Observação:
+// - a barra já bloqueia clique em abas desabilitadas;
+// - esta página também bloqueia defensivamente mudança programática indevida;
+// - modos futuros devem ser liberados no discovery-mode.model.ts antes de
+//   ganharem renderização real aqui.
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -32,7 +26,9 @@ import {
 } from '@angular/core';
 
 import { CommonModule } from '@angular/common';
+
 import { DiscoveryPublicProfilesFacade } from '../application/discovery-public-profiles.facade';
+
 import { OnlineUsersFullComponent } from '../../online/online-users-full/online-users-full.component';
 import { PublicProfilesListComponent } from '../public-profiles-list/public-profiles-list.component';
 import { DiscoveryModeTabsComponent } from '../discovery-mode-tabs/discovery-mode-tabs.component';
@@ -42,6 +38,7 @@ import {
   DISCOVERY_MODE_TABS,
   DiscoveryMode,
   DiscoveryModeTab,
+  isDiscoveryModeEnabled,
   normalizeDiscoveryMode,
 } from '../models/discovery-mode.model';
 
@@ -60,19 +57,33 @@ import {
 })
 export class ProfilesDiscoveryPageComponent {
   readonly publicProfilesFacade = inject(DiscoveryPublicProfilesFacade);
+
   readonly tabs: readonly DiscoveryModeTab[] = DISCOVERY_MODE_TABS;
 
   /**
    * "Todos" é o modo padrão.
    *
-   * Importante:
-   * - não deve exigir localização;
-   * - deve evoluir para feed refinado;
-   * - online, distância e compatibilidade entram como ranking, não como bloqueio.
+   * Regras:
+   * - não exige localização;
+   * - usa public_profiles como base;
+   * - score, presença, distância e região entram como enriquecimento/ranking;
+   * - não deve virar lista bruta da plataforma.
    */
   readonly activeMode = signal<DiscoveryMode>(DEFAULT_DISCOVERY_MODE);
 
   onDiscoveryModeChange(mode: DiscoveryMode): void {
-    this.activeMode.set(normalizeDiscoveryMode(mode));
+    const normalizedMode = normalizeDiscoveryMode(mode);
+
+    /**
+     * Defesa extra.
+     *
+     * A barra já bloqueia cliques em modos desabilitados, mas esta proteção
+     * evita ativação por mudança programática, bug de estado ou futura rota.
+     */
+    if (!isDiscoveryModeEnabled(normalizedMode)) {
+      return;
+    }
+
+    this.activeMode.set(normalizedMode);
   }
 }

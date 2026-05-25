@@ -66,7 +66,6 @@ import { selectCurrentUser, selectCurrentUserStatus
   } from 'src/app/store/selectors/selectors.user/user.selectors';
 
 import { selectGlobalOnlineUsers } from 'src/app/store/selectors/selectors.user/online.selectors';
-import { extractValidGeoCoordinates } from 'src/app/core/services/geolocation/utils/geolocation-coordinate.utils';
 import {
   GeolocationError,
   GeolocationErrorCode,
@@ -74,7 +73,6 @@ import {
 } from 'src/app/core/services/geolocation/geolocation.service';
 
 import { GeolocationTrackingService } from 'src/app/core/services/geolocation/geolocation-tracking.service';
-import { DistanceCalculationService } from 'src/app/core/services/geolocation/distance-calculation.service';
 
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 
@@ -91,9 +89,8 @@ import {
   normalizeDiscoveryMode,
 } from '../../discovery/models/discovery-mode.model';
 
-import type {IUserWithDistance, NormalizedCandidate, UserLocation } from './models/online-users.model';
-import { debugOnlineCandidatesTable } from './utils/online-users-debug.utils';
-import { compareDiscoverableProfilesStable } from 'src/app/core/utils/discovery/discovery-profile-sort.utils';
+import type {IUserWithDistance, UserLocation } from './models/online-users.model';
+import { DiscoveryCardEnrichmentService } from '../../discovery/application/discovery-card-enrichment.service';
 
 function shallowUserEqual(
   a: IUserDados | null,
@@ -204,16 +201,15 @@ get mode(): DiscoveryMode {
 /**
  * Lista preparada pelo NgRx para o modo Online.
  *
- * Debug temporário:
- * - rawOnlineTotal: o que o reducer colocou em state.onlineUsers;
- * - usersMapTotal: quantos perfis existem no usersMap;
- * - globalTotal: o que selectGlobalOnlineUsers liberou para a UI.
+ * Fonte:
+ * - selectGlobalOnlineUsers já entrega perfis públicos hidratados com presença.
  *
- * Se rawOnlineTotal > 0 e globalTotal = 0:
- *   o problema está no selectGlobalOnlineUsers.
- *
- * Se rawOnlineTotal = 0:
- *   o problema está no reducer/action/store registration.
+ * Esta lista ainda será enriquecida pela camada genérica de discovery para:
+ * - distância;
+ * - score;
+ * - filtro por modo;
+ * - ordenação;
+ * - contrato único de card.
  */
 private readonly onlineRaw$ = this.store.select(selectGlobalOnlineUsers).pipe(
   map((users) => (Array.isArray(users) ? (users as IUserDados[]) : [])),
@@ -258,16 +254,16 @@ private readonly onlineRaw$ = this.store.select(selectGlobalOnlineUsers).pipe(
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  constructor(
-    private readonly geolocationService: GeolocationService,
-    private readonly distanceService: DistanceCalculationService,
-    private readonly errorNotificationService: ErrorNotificationService,
-    private readonly globalErrorHandlerService: GlobalErrorHandlerService,
-    private readonly geoTracking: GeolocationTrackingService,
-    private readonly store: Store<AppState>,
-    private readonly access: AccessControlService,
-    private readonly router: Router
-  ) {
+constructor(
+  private readonly geolocationService: GeolocationService,
+  private readonly cardEnrichment: DiscoveryCardEnrichmentService,
+  private readonly errorNotificationService: ErrorNotificationService,
+  private readonly globalErrorHandlerService: GlobalErrorHandlerService,
+  private readonly geoTracking: GeolocationTrackingService,
+  private readonly store: Store<AppState>,
+  private readonly access: AccessControlService,
+  private readonly router: Router
+) {
     this.destroyRef.onDestroy(() => {
       this.geoTracking.stopTracking();
     });
@@ -704,13 +700,25 @@ this.onlineUsers$ = combineLatest([
       effectiveCurrentUser
     );
 
-    return this.processOnlineUsers(
-      filteredByPrefs,
-      effectiveCurrentUser.uid,
-      cap,
-      mode,
-      this.getViewerCoordinates(effectiveCurrentUser)
-    );
+const enriched = this.cardEnrichment.buildCards({
+  profiles: filteredByPrefs,
+  currentUser: effectiveCurrentUser,
+  currentUid: effectiveCurrentUser.uid,
+  mode,
+  capKm: cap,
+  fallbackLocation: this.userLocation,
+  applyVisibility: true,
+});
+
+this.log('onlineUsers enrichment result', {
+  mode,
+  inputTotal: filteredByPrefs.length,
+  outputTotal: enriched.length,
+  capKm: cap,
+  hasFallbackLocation: !!this.userLocation,
+});
+
+return enriched as IUserWithDistance[];
   }),
     catchError((err) => {
       this.handleGeoError(err);
@@ -772,188 +780,6 @@ this.onlineUsers$ = combineLatest([
      * Por enquanto, não filtramos por preferência aqui.
      */
     return users;
-  }
-
-  private getViewerCoordinates(
-  currentUser: IUserDados | null
-): UserLocation | null {
-  const fromProfile = extractValidGeoCoordinates(currentUser);
-
-  if (fromProfile) {
-    return {
-      latitude: fromProfile.latitude,
-      longitude: fromProfile.longitude,
-    };
-  }
-
-  return this.userLocation;
-}
-
-private processOnlineUsers(
-  users: IUserDados[],
-  loggedUID: string,
-  capKm: number,
-  mode: DiscoveryMode = DEFAULT_DISCOVERY_MODE,
-  viewerLocation: UserLocation | null = null
-): IUserWithDistance[] {
-  const requiresLocation = discoveryModeRequiresLocation(mode);
-
-  if (requiresLocation && !viewerLocation) {
-    this.log('processOnlineUsers abortado: modo exige localização', {
-      mode,
-      loggedUID,
-      capKm,
-      inputTotal: users?.length ?? 0,
-    });
-
-    return [];
-  }
-
-  const candidates = Array.isArray(users) ? users : [];
-
-  const normalized = candidates.map((user) =>
-    this.normalizeCandidate(user, loggedUID, capKm, mode, viewerLocation)
-  );
-
-  const accepted = normalized
-    .filter((item) => item.debug.rejectionReasons.length === 0)
-    .map((item) => item.normalized)
-    .sort((a, b) => compareDiscoverableProfilesStable(a, b));
-
-  this.log('processOnlineUsers debug', {
-    mode,
-    loggedUID,
-    capKm,
-    userLocation: this.userLocation,
-    inputTotal: candidates.length,
-    outputTotal: accepted.length,
-  });
-
-  debugOnlineCandidatesTable(normalized, accepted, this.debug);
-
-  return accepted;
-}
-
-private normalizeCandidate(
-  user: IUserDados,
-  loggedUID: string,
-  capKm: number,
-  mode: DiscoveryMode,
-  viewerLocation: UserLocation | null
-): NormalizedCandidate {
-    /**
- * O modo ativo define se coordenada/distância é requisito ou apenas bônus.
- *
- * - all: não exige coordenadas;
- * - online: não exige coordenadas;
- * - nearby: exige coordenadas e raio;
- * - modos futuros: por enquanto não exigem GPS.
- */
-const requiresLocation = discoveryModeRequiresLocation(mode);
-
-const latitude = this.toFiniteCoordinate((user as any)?.latitude);
-const longitude = this.toFiniteCoordinate((user as any)?.longitude);
-
-const hasUid = !!user?.uid;
-const isSelf = user?.uid === loggedUID;
-const hasCoords = latitude !== null && longitude !== null;
-
-const distanciaKm =
-  hasCoords && viewerLocation
-    ? this.distanceService.calculateDistanceInKm(
-        viewerLocation.latitude,
-        viewerLocation.longitude,
-        latitude,
-        longitude
-      )
-    : null;
-
-const safeDistance =
-  typeof distanciaKm === 'number' && Number.isFinite(distanciaKm)
-    ? distanciaKm
-    : null;
-
-/**
- * No modo "Todos", a distância não pode bloquear o card.
- * Ela só deve ser usada como informação/ranking quando existir.
- */
-const withinRadius =
-  !requiresLocation ||
-  (safeDistance !== null && safeDistance <= capKm);
-
-const rejectionReasons: string[] = [];
-
-if (!hasUid) {
-  rejectionReasons.push('sem_uid');
-}
-
-if (isSelf) {
-  rejectionReasons.push('proprio_usuario');
-}
-
-/**
- * Coordenadas só são obrigatórias no modo "Perto".
- * Sem isso, "Todos" fica vazio para perfis que ainda não têm latitude/longitude.
- */
-if (requiresLocation && !hasCoords) {
-  rejectionReasons.push('sem_coordenadas_validas');
-}
-
-/**
- * Raio só elimina candidato em modo dependente de localização.
- */
-if (requiresLocation && !withinRadius) {
-  rejectionReasons.push('fora_do_raio');
-}
-
-    return {
-      original: user,
-      normalized: {
-        ...user,
-        latitude: hasCoords ? latitude : user.latitude,
-        longitude: hasCoords ? longitude : user.longitude,
-        distanciaKm: safeDistance ?? undefined,
-      } as IUserWithDistance,
-      debug: {
-        uid: user?.uid ?? null,
-        nickname: (user as any)?.nickname ?? null,
-        latitude: (user as any)?.latitude,
-        longitude: (user as any)?.longitude,
-        latitudeType: typeof (user as any)?.latitude,
-        longitudeType: typeof (user as any)?.longitude,
-        normalizedLatitude: latitude,
-        normalizedLongitude: longitude,
-        distanciaKm: safeDistance,
-        capKm,
-        withinRadius,
-        hasUid,
-        isSelf,
-        hasCoords,
-        rejectionReasons,
-        isOnline: (user as any)?.isOnline,
-        lastSeen: (user as any)?.lastSeen,
-        presenceState: (user as any)?.presenceState,
-        role: (user as any)?.role,
-        municipio: (user as any)?.municipio,
-        estado: (user as any)?.estado,
-        gender: (user as any)?.gender,
-      },
-    };
-  }
-
-  private toFiniteCoordinate(value: unknown): number | null {
-    const n =
-      typeof value === 'number'
-        ? value
-        : typeof value === 'string'
-          ? Number(value)
-          : Number.NaN;
-
-    if (!Number.isFinite(n)) {
-      return null;
-    }
-
-    return n;
   }
 
   // ---------------------------------------------------------------------------
@@ -1130,4 +956,4 @@ private normalizeRedirectTarget(url: string | null | undefined): string {
     // eslint-disable-next-line no-console
     console.log(`[OnlineUsers] ${message}`, extra ?? '');
   } 
-}// Linha 1104, absurdamente grande — refatorar depois para extrair métodos menores e mais focados.
+}// Linha 959, absurdamente grande para um componente, mas a maioria das linhas são tipos, estados e comentários detalhados. Refatorar para reduzir complexidade futura é recomendado, mas fora do escopo desta tarefa de migração.

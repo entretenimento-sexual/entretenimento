@@ -1,24 +1,66 @@
 // src/app/chat-module/chat-rooms/chat-rooms.component.ts
-// Componente responsável por listar salas do usuário e abrir o fluxo de criação.
-// Ajustes desta versão:
-// - usa AuthSessionService como fonte canônica de UID
-// - usa CurrentUserStoreService como fonte do perfil do app
-// - evita subscribe solto sem teardown
-// - centraliza tratamento de erro com GlobalErrorHandlerService + ErrorNotificationService
-// - mantém nomenclaturas públicas já usadas no template e em outros componentes
-import { Component, DestroyRef, EventEmitter, OnInit, Output, inject } from '@angular/core';
+// -----------------------------------------------------------------------------
+// CHAT ROOMS COMPONENT
+// -----------------------------------------------------------------------------
+//
+// Responsabilidade:
+// - renderizar a área "Minhas salas";
+// - observar salas em tempo real por participação;
+// - iniciar o fluxo seguro de criação privada.
+//
+// Segurança:
+// - a UI oferece orientação, loading e bloqueio visual de limite;
+// - a autoridade da criação permanece na callable createPrivateRoom;
+// - não são expostas ações de convite ou mensagens até a migração segura
+//   desses fluxos para Functions.
+//
+// Reatividade:
+// - a view consome roomsVm$ pelo async pipe;
+// - não há atribuição manual de array dentro de tap() para renderização;
+// - AuthSessionService continua sendo a fonte canônica de UID.
+
+import {
+  Component,
+  DestroyRef,
+  EventEmitter,
+  OnInit,
+  Output,
+  inject,
+} from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
-import { combineLatest, from, of } from 'rxjs';
-import { catchError, distinctUntilChanged, filter, map, switchMap, take, tap } from 'rxjs/operators';
+import {
+  EMPTY,
+  Observable,
+  combineLatest,
+  from,
+  of,
+} from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  finalize,
+  map,
+  shareReplay,
+  startWith,
+  switchMap,
+  take,
+  tap,
+} from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import {
+  IRoom,
+  RoomCreationConfirmation,
+} from 'src/app/core/interfaces/interfaces-chat/room.interface';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 
-import { SubscriptionService } from 'src/app/core/services/subscriptions/subscription.service';
-import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
+import {
+  RoomListItem,
+  RoomService,
+} from 'src/app/core/services/batepapo/room-services/room.service';
 import { RoomManagementService } from 'src/app/core/services/batepapo/room-services/room-management.service';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -26,240 +68,319 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 
 import { InfoCriaSalaBpComponent } from 'src/app/core/textos-globais/info-cria-sala-bp/info-cria-sala-bp.component';
 import { RoomCreationConfirmationModalComponent } from '../modals/room-create-confirm-modal/room-creation-confirmation-modal.component';
-import { CreateRoomModalComponent } from '../modals/create-room-modal/create-room-modal.component';
+import {
+  CreateRoomModalComponent,
+  CreateRoomModalResult,
+} from '../modals/create-room-modal/create-room-modal.component';
+
+type RoomCardViewModel = RoomListItem & {
+  isOwner: boolean;
+};
+
+interface ChatRoomsViewModel {
+  uid: string | null;
+  rooms: RoomCardViewModel[];
+  loading: boolean;
+  loadFailed: boolean;
+  hasOwnedActiveRoom: boolean;
+  ownedActiveRoomCount: number;
+}
 
 @Component({
   selector: 'app-chat-rooms',
   templateUrl: './chat-rooms.component.html',
   styleUrls: ['./chat-rooms.component.css'],
-  standalone: false
+  standalone: false,
 })
 export class ChatRoomsComponent implements OnInit {
   @Output() roomSelected = new EventEmitter<string>();
 
-  chatRooms: any[] = [];
+  roomsVm$!: Observable<ChatRoomsViewModel>;
+
   currentUser: IUserDados | null = null;
+  creatingRoom = false;
+
+  private latestVm: ChatRoomsViewModel = {
+    uid: null,
+    rooms: [],
+    loading: true,
+    loadFailed: false,
+    hasOwnedActiveRoom: false,
+    ownedActiveRoomCount: 0,
+  };
 
   private readonly destroyRef = inject(DestroyRef);
 
   constructor(
     private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
-    private readonly subscriptionService: SubscriptionService,
     private readonly roomService: RoomService,
     private readonly roomManagement: RoomManagementService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     public readonly dialog: MatDialog
-  ) { }
+  ) {}
 
   ngOnInit(): void {
-    /**
-     * Fluxo central:
-     * - authSession.uid$ = fonte canônica da sessão
-     * - currentUserStore.user$ = fonte canônica do perfil do app
-     *
-     * Regras:
-     * - uid null -> limpa estado local
-     * - uid válido -> sincroniza currentUser e carrega salas
-     */
-    combineLatest([
+    this.roomsVm$ = combineLatest([
       this.authSession.uid$,
-      this.currentUserStore.user$
+      this.currentUserStore.user$,
     ]).pipe(
       map(([uid, user]) => ({
-        uid: (uid ?? '').trim() || null,
+        uid: String(uid ?? '').trim() || null,
         user,
       })),
-      distinctUntilChanged((a, b) =>
-        a.uid === b.uid &&
-        (a.user as any)?.uid === (b.user as any)?.uid &&
-        (a.user as any)?.role === (b.user as any)?.role &&
-        (a.user as any)?.isSubscriber === (b.user as any)?.isSubscriber
+
+      distinctUntilChanged(
+        (previous, current) =>
+          previous.uid === current.uid &&
+          (previous.user as IUserDados | null | undefined)?.uid ===
+            (current.user as IUserDados | null | undefined)?.uid &&
+          (previous.user as IUserDados | null | undefined)?.profileCompleted ===
+            (current.user as IUserDados | null | undefined)?.profileCompleted
       ),
-      tap(({ uid, user }) => {
-        if (!uid) {
-          this.currentUser = null;
-          this.chatRooms = [];
-          return;
-        }
 
-        if (user === null) {
-          this.currentUser = null;
-          this.chatRooms = [];
-          return;
-        }
-
-        if (user && user !== undefined) {
-          this.currentUser = user as IUserDados;
-        }
+      tap(({ user }) => {
+        this.currentUser =
+          user && user !== undefined
+            ? (user as IUserDados)
+            : null;
       }),
-      filter(({ uid }) => !!uid),
-      switchMap(({ uid }) =>
-        this.roomService.getUserRooms(uid!).pipe(
-          tap((rooms) => {
-            this.chatRooms = rooms ?? [];
-          }),
+
+      switchMap(({ uid }) => {
+        if (!uid) {
+          return of(this.buildViewModel(null, [], false, false));
+        }
+
+        return this.roomService.getRooms(uid).pipe(
+          map((rooms) => this.buildViewModel(uid, rooms, false, false)),
+          startWith(this.buildViewModel(uid, [], true, false)),
           catchError((error) => {
-            this.chatRooms = [];
-            this.handleError(error, 'Erro ao carregar salas.');
-            return of([]);
-          })
-        )
-      ),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe();
-  }
-
-  /**
-   * Seleciona uma sala para interação.
-   * Mantém a nomenclatura original.
-   */
-  selectRoom(roomId: string): void {
-    const rid = (roomId ?? '').trim();
-    if (!rid) return;
-
-    this.roomSelected.emit(rid);
-  }
-
-  /**
-   * Abre o modal para criar uma sala.
-   *
-   * Regras:
-   * - sem usuário -> warning
-   * - perfil ainda não hidratado (undefined) -> info
-   * - limite atingido -> info
-   * - usuário sem permissão -> prompt de assinatura
-   * - permitido -> abre modal de criação
-   */
-  openCreateRoomModal(): void {
-    const snapshot = this.currentUserStore.getSnapshot();
-
-    if (snapshot === undefined) {
-      this.errorNotifier.showInfo('Aguarde o carregamento do seu perfil para criar uma sala.');
-      return;
-    }
-
-    if (!snapshot?.uid) {
-      this.errorNotifier.showWarning('Você precisa estar logado para criar uma sala.');
-      return;
-    }
-
-    this.currentUser = snapshot;
-
-    const creatorId = snapshot.uid;
-
-    from(this.roomService.countUserRooms(creatorId)).pipe(
-      take(1),
-      switchMap((roomCount) => {
-        const MAX_ROOMS_ALLOWED = 1;
-
-        if (roomCount >= MAX_ROOMS_ALLOWED) {
-          this.errorNotifier.showInfo('Você já atingiu o limite de salas criadas.');
-          return of(null);
-        }
-
-        const canCreateRoom =
-          snapshot.isSubscriber === true ||
-          ['premium', 'vip'].includes(snapshot.role || '');
-
-        if (!canCreateRoom) {
-          this.subscriptionService.promptSubscription({
-            title: 'Permissão necessária',
-            message: 'Você precisa ser assinante ou ter um perfil premium/vip para criar salas.',
-          });
-          return of(null);
-        }
-
-        const dialogRef = this.dialog.open(CreateRoomModalComponent, {
-          width: '60vw',
-        });
-
-        return dialogRef.afterClosed().pipe(
-          take(1),
-          switchMap((result: {
-            success?: boolean;
-            roomId?: string;
-            roomName?: string;
-            action?: 'created' | 'updated';
-            error?: string;
-            roomDetails?: any;
-          } | null) => {
-            if (!result) return of(null);
-
-            if (result.error) {
-              this.errorNotifier.showError(result.error);
-              return of(null);
-            }
-
-            if (!result.success || !result.roomDetails) {
-              return of(null);
-            }
-
-            return this.roomManagement.createRoom(result.roomDetails, creatorId).pipe(
-              tap((response: any) => {
-                if (!response || typeof response !== 'object') return;
-
-                this.openRoomCreationConfirmationModal(
-                  response.id ?? response.roomId ?? '',
-                  false,
-                  roomCount + 1,
-                  response.roomName ?? result.roomName ?? 'Sala',
-                  (result.action ?? 'created')
-                );
-              }),
-              catchError((error) => {
-                this.handleError(error, 'Erro ao criar sala.');
-                return of(null);
-              })
-            );
+            this.handleError(error, 'Erro ao carregar suas salas.');
+            return of(this.buildViewModel(uid, [], false, true));
           })
         );
       }),
-      catchError((error) => {
-        this.handleError(error, 'Erro ao verificar limite de salas.');
-        return of(null);
+
+      tap((viewModel) => {
+        this.latestVm = viewModel;
       }),
+
+      shareReplay({ bufferSize: 1, refCount: true }),
+
       takeUntilDestroyed(this.destroyRef)
-    ).subscribe();
+    );
   }
 
   /**
-   * Abre o modal de confirmação após criar/atualizar uma sala.
+   * Método preservado para a futura navegação segura até a conversa da sala.
+   *
+   * Ele ainda não é exposto no card enquanto mensagens e participação não
+   * estiverem validadas sob a nova arquitetura protegida.
+   */
+  selectRoom(roomId: string): void {
+    const id = String(roomId ?? '').trim();
+
+    if (!id) {
+      return;
+    }
+
+    this.roomSelected.emit(id);
+  }
+
+  /**
+   * Abre o formulário de criação e executa a escrita uma única vez.
+   *
+   * Segurança:
+   * - a UI impede nova solicitação quando já reconhece uma sala própria ativa;
+   * - esse bloqueio visual não substitui a validação backend;
+   * - a callable resolve autenticação, entitlement, lifecycle e limite real;
+   * - nenhuma informação estrutural sensível é escolhida pelo cliente.
+   */
+  openCreateRoomModal(): void {
+    if (this.creatingRoom) {
+      return;
+    }
+
+    if (this.latestVm.loading) {
+      this.errorNotifier.showInfo(
+        'Aguarde enquanto suas salas são carregadas.'
+      );
+      return;
+    }
+
+    if (this.latestVm.hasOwnedActiveRoom) {
+      this.errorNotifier.showInfo(
+        'Você já possui uma sala ativa criada por você.'
+      );
+      return;
+    }
+
+    const profileSnapshot = this.currentUserStore.getSnapshot();
+
+    if (profileSnapshot === undefined) {
+      this.errorNotifier.showInfo(
+        'Aguarde o carregamento do seu perfil para criar uma sala.'
+      );
+      return;
+    }
+
+    if (!profileSnapshot) {
+      this.errorNotifier.showWarning(
+        'Você precisa estar logado para criar uma sala.'
+      );
+      return;
+    }
+
+    from(this.authSession.whenReady())
+      .pipe(
+        switchMap(() => this.authSession.uid$.pipe(take(1))),
+
+        switchMap((rawUid) => {
+          const uid = String(rawUid ?? '').trim();
+
+          if (!uid) {
+            this.errorNotifier.showWarning(
+              'Você precisa estar logado para criar uma sala.'
+            );
+            return EMPTY;
+          }
+
+          if (profileSnapshot.uid !== uid) {
+            this.errorNotifier.showInfo(
+              'Seu perfil ainda está sendo sincronizado. Tente novamente.'
+            );
+            return EMPTY;
+          }
+
+          const dialogRef = this.dialog.open(CreateRoomModalComponent, {
+            width: 'min(92vw, 40rem)',
+            maxWidth: '92vw',
+            data: {
+              isEditing: false,
+            },
+          });
+
+          return dialogRef.afterClosed().pipe(
+            take(1),
+
+            switchMap((result: CreateRoomModalResult | null) => {
+              if (!result?.success || result.action !== 'created') {
+                return of(null);
+              }
+
+              this.creatingRoom = true;
+
+              return this.roomManagement.createRoom(result.roomDetails).pipe(
+                tap((room: IRoom) => {
+                  const confirmedRoom: IRoom = {
+                    ...room,
+                    roomName:
+                      String(
+                        room.roomName ??
+                          result.roomDetails.roomName ??
+                          ''
+                      ).trim() || 'Sala',
+                  };
+
+                  this.openRoomCreationConfirmationModal(
+                    confirmedRoom,
+                    false,
+                    this.latestVm.ownedActiveRoomCount + 1,
+                    'created'
+                  );
+                }),
+
+                finalize(() => {
+                  this.creatingRoom = false;
+                }),
+
+                /**
+                 * RoomManagementService já traduz a falha da callable para
+                 * feedback seguro. Evitamos duplicar toast aqui.
+                 */
+                catchError(() => of(null))
+              );
+            })
+          );
+        }),
+
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
+  /**
+   * Abre a confirmação respeitando o contrato canônico do modal.
    */
   private openRoomCreationConfirmationModal(
-    roomId: string,
+    room: IRoom,
     exceededLimit: boolean,
     roomCount: number,
-    roomName: string,
     action: 'created' | 'updated'
   ): void {
+    const data: RoomCreationConfirmation = {
+      room,
+      exceededLimit,
+      roomCount,
+      action,
+    };
+
     this.dialog.open(RoomCreationConfirmationModalComponent, {
-      data: {
-        roomId,
-        exceededLimit,
-        roomCount,
-        roomName,
-        action,
-      },
+      width: 'min(92vw, 34rem)',
+      maxWidth: '92vw',
+      data,
     });
   }
 
   /**
-   * Abre um modal com informações adicionais sobre a criação de salas.
+   * Mantido por compatibilidade.
+   *
+   * O botão não será exibido nesta fase até revisarmos o conteúdo textual do
+   * modal, para evitar prometer convite ou participação ainda não liberados.
    */
   openInfoCriaSalaBpModal(event: Event): void {
     event.preventDefault();
 
     this.dialog.open(InfoCriaSalaBpComponent, {
-      width: '50vw',
+      width: 'min(92vw, 40rem)',
+      maxWidth: '92vw',
     });
   }
 
+  private buildViewModel(
+    uid: string | null,
+    rooms: RoomListItem[],
+    loading: boolean,
+    loadFailed: boolean
+  ): ChatRoomsViewModel {
+    const roomCards: RoomCardViewModel[] = (rooms ?? []).map((room) => ({
+      ...room,
+      isOwner: !!uid && room.createdBy === uid,
+    }));
+
+    const ownedActiveRoomCount = roomCards.filter(
+      (room) =>
+        room.isOwner &&
+        room.status !== 'closed' &&
+        room.status !== 'archived'
+    ).length;
+
+    return {
+      uid,
+      rooms: roomCards,
+      loading,
+      loadFailed,
+      hasOwnedActiveRoom: ownedActiveRoomCount > 0,
+      ownedActiveRoomCount,
+    };
+  }
+
   /**
-   * Tratamento central de erro:
-   * - feedback amigável ao usuário
-   * - roteamento para o GlobalErrorHandler
+   * Tratamento centralizado:
+   * - mensagem útil para a interface;
+   * - rastreabilidade técnica no handler global;
+   * - sem exposição de detalhes Firestore ao usuário.
    */
   private handleError(error: unknown, userMessage: string): void {
     try {
@@ -269,11 +390,19 @@ export class ChatRoomsComponent implements OnInit {
     }
 
     try {
-      const e = error instanceof Error ? error : new Error(userMessage);
-      (e as any).context = 'ChatRoomsComponent';
-      (e as any).skipUserNotification = true;
-      (e as any).original = error;
-      this.globalErrorHandler.handleError(e);
+      const normalizedError =
+        error instanceof Error
+          ? error
+          : new Error(userMessage);
+
+      (normalizedError as any).context = {
+        feature: 'chat-rooms',
+        operation: 'load-rooms',
+      };
+      (normalizedError as any).skipUserNotification = true;
+      (normalizedError as any).original = error;
+
+      this.globalErrorHandler.handleError(normalizedError);
     } catch {
       // noop
     }

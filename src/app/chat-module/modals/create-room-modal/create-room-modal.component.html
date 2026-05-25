@@ -1,21 +1,71 @@
-<!-- src\app\chat-module\create-room-modal\create-room-modal.component.html -->
-<app-base-modal [title]="isEditing ? 'Edite a Sala' : 'Crie sua Sala'" (closeModal)="dialogRef.close()">
+<!-- src/app/chat-module/modals/create-room-modal/create-room-modal.component.html -->
+
+<app-base-modal
+  [title]="isEditing ? 'Edite a Sala' : 'Crie sua Sala'"
+  (closeModal)="cancel()"
+>
   <div body-content>
-    <form [formGroup]="roomForm" (ngSubmit)="onSubmit()">
+    <form
+      id="create-room-form"
+      [formGroup]="roomForm"
+      (ngSubmit)="onSubmit()"
+    >
       <div class="form-group">
-        <label for="roomName">Nome da Sala</label>
-        <input type="text" formControlName="roomName" id="roomName" class="input-field" required />
+        <label for="roomName">Nome da sala</label>
+
+        <input
+          id="roomName"
+          type="text"
+          class="input-field"
+          formControlName="roomName"
+          autocomplete="off"
+          required
+          [attr.aria-invalid]="
+            roomForm.controls.roomName.touched &&
+            roomForm.controls.roomName.invalid
+          "
+          aria-describedby="roomName-error"
+        />
+
+        @if (
+          roomForm.controls.roomName.touched &&
+          roomForm.controls.roomName.hasError('required')
+        ) {
+          <p id="roomName-error" class="form-error" role="alert">
+            Informe um nome para a sala.
+          </p>
+        }
       </div>
+
       <div class="form-group">
         <label for="description">Descrição</label>
-        <textarea formControlName="description" id="description" class="input-field"></textarea>
+
+        <textarea
+          id="description"
+          class="input-field"
+          formControlName="description"
+          rows="3"
+        ></textarea>
       </div>
     </form>
   </div>
-  <div class="puta">
-    <button type="button" class="btn btn-secondary" (click)="dialogRef.close()">Cancelar</button>
-    <button type="submit" class="btn btn-primary" [disabled]="!roomForm.valid">
-      {{ isEditing ? 'Salvar Alterações' : 'Criar Sala' }}
+
+  <div class="modal-actions">
+    <button
+      type="button"
+      class="btn btn-secondary"
+      (click)="cancel()"
+    >
+      Cancelar
+    </button>
+
+    <button
+      type="submit"
+      form="create-room-form"
+      class="btn btn-primary"
+      [disabled]="roomForm.invalid"
+    >
+      {{ isEditing ? 'Salvar alterações' : 'Criar sala' }}
     </button>
   </div>
 </app-base-modal>

@@ -1,0 +1,113 @@
+// firestore-rules/billing.rules
+// =========================================================================
+// BILLING / FINANCIAL INTERNAL DATA
+// =========================================================================
+//
+// Coleções financeiras internas da plataforma.
+//
+// Princípio de segurança:
+// - o navegador não é autoridade financeira;
+// - o cliente não cria checkout diretamente;
+// - o cliente não confirma pagamento;
+// - o cliente não escreve entitlement;
+// - o cliente não acessa eventos, transações ou auditorias financeiras;
+// - leituras necessárias à UI devem ocorrer por Cloud Functions que retornem
+//   somente projeções sanitizadas e pertencentes ao usuário autenticado.
+//
+// Importante:
+// - Cloud Functions com Admin SDK não dependem destas permissões do cliente;
+// - as regras abaixo impedem adulteração ou exposição via SDK web/mobile;
+// - funções financeiras devem continuar validando Auth, App Check,
+//   idempotência, provider, valor, moeda e assinatura de webhook.
+//
+// Escalabilidade:
+// - as coleções futuras de assinatura, catálogo persistido, ledger e saque já
+//   permanecem fechadas até existir contrato seguro específico.
+//
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem
+//    `service cloud.firestore`.
+// =========================================================================
+
+match /checkout_sessions/{checkoutSessionId} {
+  /**
+   * Contém intenção de compra, snapshot de preço, provider e estado interno.
+   *
+   * O frontend atual já usa callables; portanto, não há necessidade de expor
+   * esta coleção diretamente ao cliente.
+   */
+  allow read, write: if false;
+}
+
+match /payment_events/{paymentEventId} {
+  /**
+   * Eventos recebidos e validados de provedores.
+   * Nunca devem ser expostos ou gravados pelo cliente.
+   */
+  allow read, write: if false;
+}
+
+match /payment_transactions/{transactionId} {
+  /**
+   * Registro financeiro normalizado.
+   * Uma futura tela de histórico deverá consumir projeção sanitizada via
+   * callable, e não esta coleção bruta.
+   */
+  allow read, write: if false;
+}
+
+match /entitlements/{entitlementId} {
+  /**
+   * Fonte autorizativa de benefícios pagos.
+   *
+   * Mesmo quando o documento pertence ao próprio usuário, a leitura direta
+   * não é necessária hoje: getMyBillingSnapshot devolve apenas o estado
+   * mínimo apropriado para a interface.
+   */
+  allow read, write: if false;
+}
+
+match /billing_audit/{auditId} {
+  /**
+   * Auditoria técnica/financeira interna.
+   * Não deve ser exposta ao cliente.
+   */
+  allow read, write: if false;
+}
+
+// =========================================================================
+// Coleções reservadas para expansão financeira
+// =========================================================================
+
+match /billing_plans/{planId} {
+  /**
+   * Futuro catálogo persistido e versionado.
+   * Enquanto o catálogo é retornado por callable, permanece interno.
+   */
+  allow read, write: if false;
+}
+
+match /subscriptions/{subscriptionId} {
+  /**
+   * Futuro ciclo de assinatura recorrente.
+   */
+  allow read, write: if false;
+}
+
+match /wallet_ledger/{entryId} {
+  /**
+   * Futuro livro razão para créditos, mimos, retenções, estornos e saques.
+   * Nenhuma escrita direta do usuário será aceitável nesse domínio.
+   */
+  allow read, write: if false;
+}
+
+match /payout_accounts/{payoutAccountId} {
+  /**
+   * Futuro vínculo tokenizado com provedor de repasse/KYC.
+   * Dados de saque nunca devem ser expostos diretamente pelo Firestore.
+   */
+  allow read, write: if false;
+}
+// =========================================================================
+//                      FIM DO BILLING.RULES
+// =========================================================================

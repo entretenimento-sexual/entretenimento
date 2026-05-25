@@ -1,5 +1,6 @@
 //functions\src\account_lifecycle\reactivateSelfSuspension.ts
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { ACCOUNT_LIFECYCLE_REGION } from './_shared';
 import { db } from '../firebaseApp';
 
 interface AccountLifecycleCommandResult {
@@ -59,6 +60,7 @@ function buildPublicProfileSeed(user: UserDoc, now: number) {
 }
 
 export const reactivateSelfSuspension = onCall<Record<string, never>>(
+  { region: ACCOUNT_LIFECYCLE_REGION },
   async (request): Promise<AccountLifecycleCommandResult> => {
     const uid = request.auth?.uid ?? null;
 
