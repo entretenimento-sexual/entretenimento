@@ -16,6 +16,21 @@
   color: var(--text-color);
 }
 
+/**
+ * O modo chat ocupa exatamente a altura visível da aplicação.
+ * A navbar e eventual gate permanecem no fluxo; o corpo recebe o restante.
+ */
+.auth-shell[data-chat-layout='true'] {
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.auth-shell[data-chat-layout='true'] .auth-shell__body {
+  min-height: 0;
+  overflow: hidden;
+}
+
 app-navbar {
   position: sticky;
   top: 0;
@@ -50,9 +65,16 @@ app-navbar {
 }
 
 .auth-shell__content-area--compact,
-.auth-shell__content-area--collapsed,
-.auth-shell__content-area--chat {
+.auth-shell__content-area--collapsed {
   margin-left: calc(var(--app-sidebar-collapsed-width) + var(--app-sidebar-gap));
+}
+
+/**
+ * No chat, a lateral de conversas deve começar imediatamente após o rail
+ * colapsado da navegação global, sem corredor visual intermediário.
+ */
+.auth-shell__content-area--chat {
+  margin-left: var(--app-sidebar-collapsed-width);
 }
 
 .auth-shell__content-area--full,

@@ -120,6 +120,17 @@
   box-sizing: border-box;
 }
 
+.chat-shell__thread--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-shell__thread--empty .chat-shell__empty-state {
+  width: min(100%, 640px);
+  margin: 0;
+}
+
 .chat-shell__empty-state {
   max-width: 640px;
   margin: 2rem auto;

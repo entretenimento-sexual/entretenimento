@@ -1,4 +1,5 @@
 <!-- src/app/chat-module/chat-list/chat-list.component.html -->
+<div class="conversation-list">
   <section class="conversation-list__search" aria-label="Buscar conversas">
     <div class="conversation-list__search-box">
       <span class="conversation-list__search-icon" aria-hidden="true">⌕</span>
@@ -59,14 +60,9 @@
     @if (showDirectChats && hasVisibleDirectChats) {
       <section class="conversation-list__section" aria-labelledby="direct-chats-title">
         <header class="conversation-list__section-header">
-          <div>
-            <h3 id="direct-chats-title" class="conversation-list__section-title">
-              Conversas diretas
-            </h3>
-            <p class="conversation-list__section-subtitle">
-              <!-- Seus chats 1:1 aparecem aqui. -->
-            </p>
-          </div>
+          <h3 id="direct-chats-title" class="conversation-list__section-title">
+            Conversas diretas
+          </h3>
         </header>
 
         <div class="conversation-list__items">
@@ -103,14 +99,9 @@
     @if (showRooms && hasVisibleRooms) {
       <section class="conversation-list__section conversation-list__section--rooms" aria-labelledby="rooms-title">
         <header class="conversation-list__section-header">
-          <div>
-            <h3 id="rooms-title" class="conversation-list__section-title">
-              Salas
-            </h3>
-            <p class="conversation-list__section-subtitle">
-              Interações em grupo disponíveis neste filtro.
-            </p>
-          </div>
+          <h3 id="rooms-title" class="conversation-list__section-title">
+            Salas
+          </h3>
         </header>
 
         <div class="conversation-list__items conversation-list__items--rooms">
@@ -165,12 +156,20 @@
       </section>
     }
 
-    @if (shouldShowEmptyState) {
-      <section class="conversation-list__empty" role="status" aria-live="polite">
-        <p class="conversation-list__empty-title">Nenhuma conversa encontrada.</p>
-        <p class="conversation-list__empty-text">
-          Ajuste o filtro ou limpe a busca para localizar conversas.
-        </p>
-      </section>
+@if (shouldShowEmptyState) {
+  <section class="conversation-list__empty" role="status" aria-live="polite">
+    @if (hasSearch || activeFilter !== 'all') {
+      <p class="conversation-list__empty-title">Nenhum resultado encontrado.</p>
+      <p class="conversation-list__empty-text">
+        Ajuste o filtro ou limpe a busca para localizar conversas.
+      </p>
+    } @else {
+      <p class="conversation-list__empty-title">Nenhuma conversa ainda.</p>
+      <p class="conversation-list__empty-text">
+        Suas conversas diretas e salas aparecerão aqui.
+      </p>
     }
+  </section>
+}
   </div>
+</div>

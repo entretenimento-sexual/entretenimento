@@ -470,6 +470,33 @@ export class AccessControlService {
     catchError(this.handleStreamError('state$', 'GUEST' as AccessState))
   );
 
+    /**
+   * Indica quando a rota atual realmente consome a listagem de perfis online.
+   *
+   * A presença do próprio usuário continua sendo infraestrutura global.
+   * Este recorte controla apenas a escuta/hidratação de outros usuários
+   * necessária às telas de descoberta.
+   *
+   * Rotas preservadas:
+   * - /dashboard/explorar: página canônica de descoberta;
+   * - /dashboard/online: rota legada de online;
+   * - /dashboard/online-users: painel compacto ainda existente.
+   */
+  private isOnlineUsersConsumptionRoute(url: string | null | undefined): boolean {
+    const normalizedUrl = String(url ?? '')
+      .split('?')[0]
+      .split('#')[0]
+      .replace(/\/+$/, '');
+
+    return (
+      normalizedUrl === '/dashboard/explorar' ||
+      normalizedUrl.startsWith('/dashboard/explorar/') ||
+      normalizedUrl === '/dashboard/online' ||
+      normalizedUrl.startsWith('/dashboard/online/') ||
+      normalizedUrl === '/dashboard/online-users' ||
+      normalizedUrl.startsWith('/dashboard/online-users/')
+    );
+  }
   // ---------------------------------------------------------------------------
   // Gates
   // ---------------------------------------------------------------------------
@@ -588,54 +615,84 @@ export class AccessControlService {
    * canRunProductRealtime$ = produto sensível.
    * Para discovery/online use canRunDiscoveryRealtime$ ou canRunOnlineUsers$.
    */
-  readonly canRunProductRealtime$: Observable<boolean> = this.canRunSensitiveRealtime$.pipe(
-    distinctUntilChanged(),
-    tap((can) => {
-      if (!this.debug) return;
+  readonly canRunProductRealtime$: Observable<boolean> =
+    this.canRunSensitiveRealtime$.pipe(
+      distinctUntilChanged(),
 
-      const user = this.currentUserStore.getSnapshot() as any;
-      this.dbg('canRunProductRealtime$', {
-        can,
-        uid: user?.uid,
-        profileCompleted: user?.profileCompleted,
-        emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
-        accountStatus: user?.accountStatus,
-      });
-    }),
-    shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(this.handleStreamError('canRunProductRealtime$', false))
-  );
+      tap((can) => {
+        if (!this.debug) {
+          return;
+        }
 
+        const user = this.currentUserStore.getSnapshot() as any;
+
+        this.dbg('canRunProductRealtime$', {
+          can,
+          uid: user?.uid,
+          profileCompleted: user?.profileCompleted,
+          emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
+          accountStatus: user?.accountStatus,
+        });
+      }),
+
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('canRunProductRealtime$', false))
+    );
+
+  /**
+   * Listener de outros usuários online.
+   *
+   * Diferente da presença do próprio usuário, esta escuta só deve existir em
+   * rotas que realmente exibem cards ou modos de descoberta.
+   */
   readonly canRunOnlineUsers$: Observable<boolean> = combineLatest([
     this.canRunInfraRealtime$,
     this.profileEligible$,
     this.authUid$,
     this.routeCtx$,
   ]).pipe(
-    map(([infraOk, profileEligible, uid, routeCtx]) => ({
-      can: infraOk === true && profileEligible === true && !!uid,
-      url: routeCtx.currentUrl,
-      routerReady: routeCtx.routerReady,
-    })),
+    map(([infraOk, profileEligible, uid, routeCtx]) => {
+      const routeConsumesOnlineUsers =
+        routeCtx.routerReady === true &&
+        this.isOnlineUsersConsumptionRoute(routeCtx.currentUrl);
+
+      return {
+        can:
+          infraOk === true &&
+          profileEligible === true &&
+          !!uid &&
+          routeConsumesOnlineUsers,
+        url: routeCtx.currentUrl,
+        routerReady: routeCtx.routerReady,
+        routeConsumesOnlineUsers,
+      };
+    }),
+
     distinctUntilChanged(
-      (a, b) =>
-        a.can === b.can &&
-        a.url === b.url &&
-        a.routerReady === b.routerReady
+      (previous, current) =>
+        previous.can === current.can &&
+        previous.url === current.url &&
+        previous.routerReady === current.routerReady &&
+        previous.routeConsumesOnlineUsers === current.routeConsumesOnlineUsers
     ),
-    tap(({ can, url, routerReady }) => {
-      if (!this.debug) return;
-      if (!routerReady) return;
+
+    tap(({ can, url, routerReady, routeConsumesOnlineUsers }) => {
+      if (!this.debug || !routerReady) {
+        return;
+      }
 
       const user = this.currentUserStore.getSnapshot() as any;
+
       this.dbg('canRunOnlineUsers$', {
         can,
         url,
+        routeConsumesOnlineUsers,
         uid: user?.uid,
         profileCompleted: user?.profileCompleted,
         emailVerified: this.session.currentAuthUser?.emailVerified ?? null,
       });
     }),
+
     map(({ can }) => can),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
@@ -753,4 +810,4 @@ export class AccessControlService {
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('isSubscriber$', false))
   );
-} // Linha 756
+} // Linha 783
