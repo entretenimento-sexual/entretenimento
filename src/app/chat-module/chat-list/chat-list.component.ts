@@ -291,7 +291,7 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
           return of([] as IRoom[]);
         }
 
-        return this.roomService.getUserRooms(uid);
+        return this.roomService.getRooms(uid);
       }),
       map((rooms) => this.sortRoomsByActivity(rooms)),
       tap((rooms) => this.dbg('Rooms loaded', { count: rooms.length })),
