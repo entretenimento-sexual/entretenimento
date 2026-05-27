@@ -1,4 +1,4 @@
-// functions/src/rooms/index.ts
+// functions/src/chat/rooms/index.ts
 // -----------------------------------------------------------------------------
 // ROOMS DOMAIN EXPORTS
 // -----------------------------------------------------------------------------
@@ -7,5 +7,5 @@
 //
 // Regra:
 // - este arquivo exporta somente handlers públicos do domínio `rooms`;
-// - o agregador global permanece em `functions/src/index.ts`.
+// - o agregador do domínio de mensageria permanece em `functions/src/chat/index.ts`.
 export { createPrivateRoom } from './application/create-private-room.handler';

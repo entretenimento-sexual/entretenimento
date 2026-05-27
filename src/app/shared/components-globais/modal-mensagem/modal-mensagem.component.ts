@@ -10,7 +10,7 @@ import { Component, Output, EventEmitter, Inject } from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { Timestamp } from '@firebase/firestore';
 
-import { combineLatest, throwError } from 'rxjs';
+import { combineLatest, EMPTY, throwError } from 'rxjs';
 import { switchMap, take, map, catchError } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -18,6 +18,7 @@ import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interfa
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 
 import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
+import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -37,8 +38,9 @@ export class ModalMensagemComponent {
   constructor(
     public dialogRef: MatDialogRef<ModalMensagemComponent>,
     @Inject(MAT_DIALOG_DATA) public data: { profile: IUserDados },
-    private readonly chatService: ChatService,
-    private readonly authSession: AuthSessionService,
+private readonly chatService: ChatService,
+private readonly directChatService: DirectChatService,
+private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService
@@ -93,27 +95,41 @@ export class ModalMensagemComponent {
             mensagem
           };
         }),
-        switchMap(({ currentUserUid, profileUid, mensagem }) => {
-          const participantes = [currentUserUid, profileUid];
+switchMap(({ currentUserUid, profileUid, mensagem }) =>
+  this.directChatService.ensureDirectChatIdWithUser$(profileUid).pipe(
+    switchMap((chatId) => {
+      /**
+       * O DirectChatService já exibiu feedback adequado quando a callable
+       * bloqueia a abertura da conversa. Retornamos EMPTY para não duplicar
+       * toasts e para não fechar o modal como se a mensagem tivesse sido enviada.
+       */
+      if (!chatId) {
+        return EMPTY;
+      }
 
-          return this.chatService.getOrCreateChatId(participantes).pipe(
-            switchMap((chatId) => {
-              if (!chatId) {
-                return throwError(() => new Error('Erro ao criar ou localizar o chat.'));
-              }
+      return this.chatService.sendMessage(chatId, mensagem, currentUserUid).pipe(
+        switchMap((messageId) => {
+          /**
+           * O repository legado de mensagens ainda converte erro de escrita em
+           * string vazia. Enquanto sendDirectMessage não migrar para callable,
+           * tratamos esse retorno como falha real para impedir sucesso falso.
+           */
+          if (!String(messageId ?? '').trim()) {
+            return throwError(() =>
+              new Error('Não foi possível confirmar o envio da mensagem.')
+            );
+          }
 
-              return this.chatService.sendMessage(chatId, mensagem, currentUserUid).pipe(
-                switchMap(() => {
-                  const chatUpdate: Partial<IChat> = {
-                    lastMessage: mensagem
-                  };
+          const chatUpdate: Partial<IChat> = {
+            lastMessage: mensagem
+          };
 
-                  return this.chatService.updateChat(chatId, chatUpdate);
-                })
-              );
-            })
-          );
-        }),
+          return this.chatService.updateChat(chatId, chatUpdate);
+        })
+      );
+    })
+  )
+),
         catchError((error: unknown) => {
           this.handleError(error, { op: 'enviarMensagem.pipeline', profileUid });
           return throwError(() => error);

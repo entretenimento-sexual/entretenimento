@@ -16,9 +16,9 @@
 // - este service faz a ponte entre a arquitetura nova (direct-chat)
 //   e o serviço legado de chat 1:1
 // ============================================================================
-
 import { Injectable } from '@angular/core';
-import { combineLatest, Observable, of } from 'rxjs';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+import { combineLatest, defer, from, Observable, of } from 'rxjs';
 import {
   catchError,
   map,
@@ -35,10 +35,30 @@ import { AccessControlService } from '@core/services/autentication/auth/access-c
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
+interface EnsureDirectChatPayload {
+  otherUserUid: string;
+}
+
+interface EnsureDirectChatResponse {
+  chatId: string;
+  created: boolean;
+  resolution:
+    | 'registered'
+    | 'legacy-adopted'
+    | 'deterministic-recovered'
+    | 'created';
+}
+
 @Injectable({ providedIn: 'root' })
 export class DirectChatService {
+  private readonly ensureDirectChatCallable = httpsCallable<
+    EnsureDirectChatPayload,
+    EnsureDirectChatResponse
+  >(this.functions, 'ensureDirectChat');
+
   constructor(
     private readonly chatService: ChatService,
+    private readonly functions: Functions,
     private readonly authSession: AuthSessionService,
     private readonly accessControl: AccessControlService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
@@ -99,18 +119,34 @@ export class DirectChatService {
           return of(null);
         }
 
-        return this.chatService
-          .getOrCreateChatId([safeCurrentUid, safeOtherUid])
-          .pipe(
-            catchError((error) => {
-              this.reportSilent(
-                error,
-                'DirectChatService.ensureDirectChatIdWithUser$'
-              );
-              this.notifyUser('Não foi possível abrir a conversa agora.');
-              return of(null);
-            })
-          );
+return defer(() =>
+  from(
+    this.ensureDirectChatCallable({
+      otherUserUid: safeOtherUid,
+    })
+  )
+).pipe(
+  map((result) => {
+    const chatId = String(result.data?.chatId ?? '').trim();
+
+    if (!chatId) {
+      throw new Error('Resposta inválida ao abrir conversa direta.');
+    }
+
+    return chatId;
+  }),
+
+  catchError((error) => {
+    this.reportSilent(
+      error,
+      'DirectChatService.ensureDirectChatIdWithUser$'
+    );
+
+    this.notifyUser(this.getOpenChatUserMessage(error));
+
+    return of(null);
+  })
+);
       }),
       catchError((error) => {
         this.reportSilent(error, 'DirectChatService.ensureDirectChatIdWithUser$');
@@ -132,6 +168,38 @@ export class DirectChatService {
       );
     }
   }
+
+  private getOpenChatUserMessage(error: unknown): string {
+  const code = String(
+    (error as { code?: unknown } | null)?.code ?? ''
+  ).toLowerCase();
+
+  const message = String(
+    (error as { message?: unknown } | null)?.message ?? ''
+  ).toLowerCase();
+
+  if (code.includes('unauthenticated')) {
+    return 'Entre novamente para iniciar uma conversa.';
+  }
+
+  if (code.includes('failed-precondition')) {
+    if (message.includes('conexão precisa estar aceita')) {
+      return 'Vocês precisam estar conectados para iniciar uma conversa.';
+    }
+
+    if (message.includes('verifique seu e-mail')) {
+      return 'Verifique seu e-mail antes de iniciar conversas.';
+    }
+
+    return 'Não foi possível iniciar a conversa nas condições atuais.';
+  }
+
+  if (code.includes('permission-denied')) {
+    return 'Esta conversa não está disponível.';
+  }
+
+  return 'Não foi possível abrir a conversa agora.';
+}
 
   private reportSilent(error: unknown, context: string): void {
     try {

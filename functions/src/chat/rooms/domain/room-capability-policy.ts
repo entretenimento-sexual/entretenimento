@@ -14,8 +14,7 @@
 // - nesta primeira fase, todos possuem limite de 1 sala ativa própria;
 // - participação, convites e quantidade de membros serão tratados em handlers
 //   específicos, sem liberar mutações diretas pelo cliente.
-
-import type { PlatformRole } from '../../payments/domain/billing.model';
+import type { PlatformRole } from '../../../payments/domain/billing.model';
 
 export const PRIVATE_ROOM_POLICY_VERSION = 'private-room-v1' as const;
 

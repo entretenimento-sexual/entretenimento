@@ -27,15 +27,20 @@
 // - ainda não exigido nesta callable porque o cliente/emulator não foi
 //   configurado nesta etapa;
 // - deve ser ativado antes da publicação do recurso em produção.
-
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { db, FieldValue } from '../../firebaseApp';
-import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { db, FieldValue } from '../../../firebaseApp';
+import { FUNCTIONS_REGION } from '../../../config/functions-region';
+import {
+  assertMessagingAccountOperational,
+} from '../../shared/messaging-account.policy';
+import type {
+  MessagingUserDoc,
+} from '../../shared/messaging.types';
 import type {
   EntitlementDoc,
   PlatformRole,
-} from '../../payments/domain/billing.model';
+} from '../../../payments/domain/billing.model';
 import {
   PRIVATE_ROOM_POLICY_VERSION,
   resolvePrivateRoomCreationCapabilities,
@@ -56,15 +61,6 @@ interface CreatePrivateRoomResponse {
   roomType: 'private';
   status: 'active';
 }
-
-type RoomUserDoc = {
-  uid?: string;
-  profileCompleted?: boolean;
-  accountStatus?: string | null;
-  interactionBlocked?: boolean | null;
-  accountLocked?: boolean | null;
-  loginAllowed?: boolean | null;
-};
 
 type PlatformEntitlementData = Partial<EntitlementDoc> & {
   buyerUid?: unknown;
@@ -120,31 +116,6 @@ function assertValidInput(
     roomName,
     description,
   };
-}
-
-function assertOperationalUser(user: RoomUserDoc | undefined): void {
-  if (!user?.uid) {
-    throw new HttpsError('not-found', 'Perfil de usuário não encontrado.');
-  }
-
-  if (user.profileCompleted !== true) {
-    throw new HttpsError(
-      'failed-precondition',
-      'Complete seu perfil antes de criar uma sala.'
-    );
-  }
-
-  if (
-    String(user.accountStatus ?? 'active') !== 'active' ||
-    user.interactionBlocked === true ||
-    user.accountLocked === true ||
-    user.loginAllowed === false
-  ) {
-    throw new HttpsError(
-      'permission-denied',
-      'Sua conta não está disponível para criar salas.'
-    );
-  }
 }
 
 function resolveActiveSubscriptionRole(
@@ -218,8 +189,12 @@ export const createPrivateRoom = onCall<CreatePrivateRoomRequest>(
           tx.get(ownerSlotRef),
         ]);
 
-      const user = userSnapshot.data() as RoomUserDoc | undefined;
-      assertOperationalUser(user);
+const user = userSnapshot.data() as MessagingUserDoc | undefined;
+
+assertMessagingAccountOperational(user, {
+  operation: 'create-private-room',
+  perspective: 'actor',
+});
 
       const entitlement = entitlementSnapshot.data() as
         | PlatformEntitlementData

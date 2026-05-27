@@ -16,4 +16,4 @@ export {
 };
 export * from './payments';
 export * from './account_lifecycle';
-export * from './rooms';
+export * from './chat';
