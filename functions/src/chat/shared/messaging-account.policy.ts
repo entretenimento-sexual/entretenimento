@@ -38,33 +38,33 @@ function normalizedAccountStatus(user: MessagingUserDoc | undefined): string {
 
 function actorProfileIncompleteMessage(operation: MessagingOperation): string {
   switch (operation) {
-    case 'create-private-room':
-      return 'Complete seu perfil antes de criar uma sala.';
+  case 'create-private-room':
+    return 'Complete seu perfil antes de criar uma sala.';
 
-    case 'ensure-direct-chat':
-      return 'Complete seu perfil antes de iniciar conversas.';
+  case 'ensure-direct-chat':
+    return 'Complete seu perfil antes de iniciar conversas.';
 
-    case 'send-direct-message':
-      return 'Complete seu perfil antes de enviar mensagens.';
+  case 'send-direct-message':
+    return 'Complete seu perfil antes de enviar mensagens.';
 
-    case 'create-message-request':
-      return 'Complete seu perfil antes de solicitar uma conversa.';
+  case 'create-message-request':
+    return 'Complete seu perfil antes de solicitar uma conversa.';
   }
 }
 
 function actorUnavailableMessage(operation: MessagingOperation): string {
   switch (operation) {
-    case 'create-private-room':
-      return 'Sua conta não está disponível para criar salas.';
+  case 'create-private-room':
+    return 'Sua conta não está disponível para criar salas.';
 
-    case 'ensure-direct-chat':
-      return 'Sua conta não está disponível para iniciar conversas.';
+  case 'ensure-direct-chat':
+    return 'Sua conta não está disponível para iniciar conversas.';
 
-    case 'send-direct-message':
-      return 'Sua conta não está disponível para enviar mensagens.';
+  case 'send-direct-message':
+    return 'Sua conta não está disponível para enviar mensagens.';
 
-    case 'create-message-request':
-      return 'Sua conta não está disponível para solicitar conversas.';
+  case 'create-message-request':
+    return 'Sua conta não está disponível para solicitar conversas.';
   }
 }
 

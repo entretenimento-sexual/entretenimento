@@ -1,4 +1,4 @@
-// functions/src/rooms/application/create-private-room.handler.ts
+// functions\src\chat\rooms\application\create-private-room.handler.ts
 // -----------------------------------------------------------------------------
 // CREATE PRIVATE ROOM HANDLER
 // -----------------------------------------------------------------------------
@@ -72,6 +72,7 @@ type PlatformEntitlementData = Partial<EntitlementDoc> & {
 
 function normalizeRoomName(value: unknown): string {
   return String(value ?? '')
+    // eslint-disable-next-line no-control-regex -- Sanitização intencional de entrada textual.
     .replace(/[\u0000-\u001F\u007F]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -79,6 +80,7 @@ function normalizeRoomName(value: unknown): string {
 
 function normalizeDescription(value: unknown): string | null {
   const normalized = String(value ?? '')
+    // eslint-disable-next-line no-control-regex -- Sanitização intencional de entrada textual.
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
     .trim();
 
@@ -189,12 +191,12 @@ export const createPrivateRoom = onCall<CreatePrivateRoomRequest>(
           tx.get(ownerSlotRef),
         ]);
 
-const user = userSnapshot.data() as MessagingUserDoc | undefined;
+      const user = userSnapshot.data() as MessagingUserDoc | undefined;
 
-assertMessagingAccountOperational(user, {
-  operation: 'create-private-room',
-  perspective: 'actor',
-});
+      assertMessagingAccountOperational(user, {
+        operation: 'create-private-room',
+        perspective: 'actor',
+      });
 
       const entitlement = entitlementSnapshot.data() as
         | PlatformEntitlementData

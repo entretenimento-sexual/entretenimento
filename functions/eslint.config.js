@@ -27,7 +27,10 @@ module.exports = [
       }],
 
       // Estilo
-      "quotes": ["error", "double"],
+      "quotes": ["error", "single", {
+        avoidEscape: true,
+        allowTemplateLiterals: true,
+      }],
       "indent": ["error", 2],
       "max-len": ["error", { code: 120 }],
       "linebreak-style": "off",
