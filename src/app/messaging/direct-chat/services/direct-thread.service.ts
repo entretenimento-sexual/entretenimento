@@ -17,92 +17,55 @@
 // - ownership/participação real deve continuar reforçada nas rules/backend
 // - este service já prepara a camada 1:1 para futura troca do adapter legado
 // ============================================================================
-
 import { Injectable } from '@angular/core';
-import { Observable, combineLatest, of } from 'rxjs';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+
+import { Observable, defer, from, of } from 'rxjs';
 import {
   catchError,
-  distinctUntilChanged,
   map,
-  shareReplay,
   switchMap,
   take,
   tap,
 } from 'rxjs/operators';
-import { Timestamp } from '@firebase/firestore';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
-import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
-import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+
 import { environment } from 'src/environments/environment';
 
-type DirectSenderContext = {
-  uid: string | null;
-  nickname: string;
-  canSend: boolean;
-};
+interface SendDirectMessagePayload {
+  chatId: string;
+  content: string;
+  clientRequestId: string;
+}
+
+interface SendDirectMessageResponse {
+  chatId: string;
+  messageId: string;
+  deduplicated: boolean;
+}
 
 @Injectable({ providedIn: 'root' })
 export class DirectThreadService {
   private readonly debug = !environment.production;
 
+  private readonly sendDirectMessageCallable = httpsCallable<
+    SendDirectMessagePayload,
+    SendDirectMessageResponse
+  >(this.functions, 'sendDirectMessage');
+
   constructor(
+    private readonly functions: Functions,
     private readonly chatService: ChatService,
-    private readonly currentUserStore: CurrentUserStoreService,
-    private readonly authSession: AuthSessionService,
     private readonly accessControl: AccessControlService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService
   ) {}
-
-  // ---------------------------------------------------------------------------
-  // Streams base
-  // ---------------------------------------------------------------------------
-
-  /**
-   * Contexto mínimo para envio de mensagem direta.
-   *
-   * Regras:
-   * - uid vem prioritariamente da sessão
-   * - nickname tenta usar o perfil runtime; se não houver, usa displayName/auth fallback
-   * - canSend depende do gate atual de acesso ao realtime/produto
-   */
-  private readonly senderContext$: Observable<DirectSenderContext> = combineLatest([
-    this.authSession.uid$,
-    this.authSession.authUser$,
-    this.currentUserStore.user$,
-    this.accessControl.canListenRealtime$,
-  ]).pipe(
-    map(([sessionUid, authUser, appUser, canListen]) => {
-      const uid = (sessionUid ?? '').trim() || null;
-
-      const runtimeNickname =
-        appUser && appUser !== null && appUser !== undefined
-          ? (appUser.nickname ?? '').trim()
-          : '';
-
-      const authNickname = (authUser?.displayName ?? '').trim();
-
-      return {
-        uid,
-        nickname: runtimeNickname || authNickname || 'Usuário',
-        canSend: !!uid && canListen === true,
-      };
-    }),
-    distinctUntilChanged(
-      (a, b) =>
-        a.uid === b.uid &&
-        a.nickname === b.nickname &&
-        a.canSend === b.canSend
-    ),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
 
   // ---------------------------------------------------------------------------
   // Observe
@@ -157,53 +120,70 @@ export class DirectThreadService {
    *
    * O perfil runtime é usado apenas para nickname.
    */
-  sendMessage$(chatId: string, content: string): Observable<string | null> {
-    const safeChatId = (chatId ?? '').trim();
-    const safeContent = (content ?? '').trim();
+sendMessage$(
+  chatId: string,
+  content: string,
+  clientRequestId = this.createClientRequestId()
+): Observable<string | null> {
+  const safeChatId = (chatId ?? '').trim();
+  const safeContent = (content ?? '').trim();
+  const safeClientRequestId = (clientRequestId ?? '').trim();
 
-    if (!safeChatId || !safeContent) {
-      return of(null);
-    }
-
-    return this.senderContext$.pipe(
-      take(1),
-      switchMap((ctx) => {
-        if (!ctx.uid || !ctx.canSend) {
-          this.errorNotifier.showWarning('Você não pode enviar mensagens agora.');
-          return of(null);
-        }
-
-        const message = this.buildMessage(ctx.uid, ctx.nickname, safeContent);
-
-        return this.chatService.sendMessage(safeChatId, message, ctx.uid).pipe(
-          tap((messageId) => {
-            this.dbg('sendMessage$', {
-              chatId: safeChatId,
-              messageId,
-            });
-          }),
-          catchError((error) => {
-            this.reportUi(
-              error,
-              'DirectThreadService.sendMessage$',
-              'Não foi possível enviar a mensagem.',
-              { chatId: safeChatId }
-            );
-            return of(null);
-          })
-        );
-      }),
-      catchError((error) => {
-        this.reportUi(
-          error,
-          'DirectThreadService.sendMessage$',
-          'Não foi possível obter os dados da sessão.',
-          { chatId: safeChatId }
-        );
-        return of(null);
-      })
-    );
+  if (!safeChatId || !safeContent) {
+    return of(null);
   }
+
+  if (safeContent.length > 1000) {
+    this.errorNotifier.showWarning(
+      'A mensagem deve ter no máximo 1000 caracteres.'
+    );
+    return of(null);
+  }
+
+  if (!safeClientRequestId) {
+    this.errorNotifier.showError(
+      'Não foi possível preparar o envio da mensagem.'
+    );
+    return of(null);
+  }
+
+  return defer(() =>
+    from(
+      this.sendDirectMessageCallable({
+        chatId: safeChatId,
+        content: safeContent,
+        clientRequestId: safeClientRequestId,
+      })
+    )
+  ).pipe(
+    map((result) => {
+      const messageId = String(result.data?.messageId ?? '').trim();
+
+      if (!messageId) {
+        throw new Error('Resposta inválida ao enviar mensagem direta.');
+      }
+
+      this.dbg('sendMessage$ callable ok', {
+        chatId: safeChatId,
+        messageId,
+        deduplicated: result.data?.deduplicated === true,
+      });
+
+      return messageId;
+    }),
+
+    catchError((error) => {
+      this.reportUi(
+        error,
+        'DirectThreadService.sendMessage$',
+        this.getSendMessageUserMessage(error),
+        { chatId: safeChatId }
+      );
+
+      return of(null);
+    })
+  );
+}
 
   // ---------------------------------------------------------------------------
   // Delete
@@ -266,14 +246,60 @@ export class DirectThreadService {
   // Helpers
   // ---------------------------------------------------------------------------
 
-  private buildMessage(uid: string, nickname: string, content: string): Message {
-    return {
-      content,
-      senderId: uid,
-      nickname: nickname?.trim() || 'Usuário',
-      timestamp: Timestamp.now(),
-    };
+private createClientRequestId(): string {
+  const cryptoApi = globalThis.crypto;
+
+  if (typeof cryptoApi?.randomUUID === 'function') {
+    return cryptoApi.randomUUID();
   }
+
+  return [
+    'dm',
+    Date.now().toString(36),
+    Math.random().toString(36).slice(2),
+    Math.random().toString(36).slice(2),
+  ].join('_');
+}
+
+private getSendMessageUserMessage(error: unknown): string {
+  const code = String(
+    (error as { code?: unknown } | null)?.code ?? ''
+  ).toLowerCase();
+
+  const message = String(
+    (error as { message?: unknown } | null)?.message ?? ''
+  ).toLowerCase();
+
+  if (code.includes('unauthenticated')) {
+    return 'Entre novamente para enviar mensagens.';
+  }
+
+  if (code.includes('invalid-argument')) {
+    if (message.includes('máximo') || message.includes('limite')) {
+      return 'A mensagem deve ter no máximo 1000 caracteres.';
+    }
+
+    return 'Revise a mensagem antes de enviar.';
+  }
+
+  if (code.includes('failed-precondition')) {
+    if (message.includes('verifique seu e-mail')) {
+      return 'Verifique seu e-mail antes de enviar mensagens.';
+    }
+
+    if (message.includes('complete seu perfil')) {
+      return 'Complete seu perfil antes de enviar mensagens.';
+    }
+
+    return 'Não foi possível enviar a mensagem nas condições atuais.';
+  }
+
+  if (code.includes('permission-denied')) {
+    return 'Esta conversa não está disponível para mensagens.';
+  }
+
+  return 'Não foi possível enviar a mensagem.';
+}
 
   private dbg(message: string, extra?: unknown): void {
     if (!this.debug) return;

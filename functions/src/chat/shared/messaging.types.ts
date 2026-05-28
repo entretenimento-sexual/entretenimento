@@ -31,6 +31,7 @@ export type MessagingPerspective = 'actor' | 'target';
 
 export interface MessagingUserDoc {
   uid?: string;
+  nickname?: string | null;
 
   profileCompleted?: boolean;
 

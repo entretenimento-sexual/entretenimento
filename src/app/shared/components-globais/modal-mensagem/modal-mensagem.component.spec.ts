@@ -1,20 +1,17 @@
 // src/app/shared/components-globais/modal-mensagem/modal-mensagem.component.spec.ts
+
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Observable, of } from 'rxjs';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { of } from 'rxjs';
+import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 import { ModalMensagemComponent } from './modal-mensagem.component';
-import { ChatService } from '../../../core/services/batepapo/chat-service/chat.service';
-import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { DirectChatService } from '../../../messaging/direct-chat/services/direct-chat.service';
 
-import { AuthSessionService } from '../../../core/services/autentication/auth/auth-session.service';
-import { CurrentUserStoreService } from '../../../core/services/autentication/auth/current-user-store.service';
+import { DirectChatService } from '../../../messaging/direct-chat/services/direct-chat.service';
+import { DirectThreadService } from '../../../messaging/direct-chat/services/direct-thread.service';
 import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
-
-import { IUserDados } from '../../../core/interfaces/iuser-dados';
-import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 describe('ModalMensagemComponent', () => {
   let component: ModalMensagemComponent;
@@ -22,24 +19,15 @@ describe('ModalMensagemComponent', () => {
 
   let dialogRefMock: {
     close: Mock;
+    disableClose: boolean;
   };
 
-  let chatServiceMock: {
-  sendMessage: Mock;
-  updateChat: Mock;
-};
-
-let directChatServiceMock: {
-  ensureDirectChatIdWithUser$: Mock;
-};
-
-  let authSessionMock: {
-    uid$: Observable<string | null>;
-    currentAuthUser: { uid: string; displayName?: string } | null;
+  let directChatServiceMock: {
+    ensureDirectChatIdWithUser$: Mock;
   };
 
-  let currentUserStoreMock: {
-    user$: Observable<IUserDados | null | undefined>;
+  let directThreadServiceMock: {
+    sendMessage$: Mock;
   };
 
   let globalErrorMock: {
@@ -49,32 +37,21 @@ let directChatServiceMock: {
   let errorNotifierMock: {
     showError: Mock;
     showWarning: Mock;
+    showSuccess: Mock;
   };
 
   beforeEach(async () => {
     dialogRefMock = {
       close: vi.fn(),
+      disableClose: false,
     };
 
-chatServiceMock = {
-  sendMessage: vi.fn().mockReturnValue(of('message-1')),
-  updateChat: vi.fn().mockReturnValue(of(undefined)),
-};
-
-directChatServiceMock = {
-  ensureDirectChatIdWithUser$: vi.fn().mockReturnValue(of('chat-1')),
-};
-
-    authSessionMock = {
-      uid$: of('u1'),
-      currentAuthUser: { uid: 'u1', displayName: 'Tester' },
+    directChatServiceMock = {
+      ensureDirectChatIdWithUser$: vi.fn().mockReturnValue(of('chat-1')),
     };
 
-    currentUserStoreMock = {
-      user$: of({
-        uid: 'u1',
-        nickname: 'Tester',
-      } as IUserDados),
+    directThreadServiceMock = {
+      sendMessage$: vi.fn().mockReturnValue(of('message-1')),
     };
 
     globalErrorMock = {
@@ -84,19 +61,19 @@ directChatServiceMock = {
     errorNotifierMock = {
       showError: vi.fn(),
       showWarning: vi.fn(),
+      showSuccess: vi.fn(),
     };
 
     await TestBed.configureTestingModule({
       declarations: [ModalMensagemComponent],
       providers: [
         { provide: MatDialogRef, useValue: dialogRefMock },
-        { provide: MAT_DIALOG_DATA, useValue: { profile: { uid: 'u2' } } },
-
-        { provide: AuthSessionService, useValue: authSessionMock },
-        { provide: CurrentUserStoreService, useValue: currentUserStoreMock },
+        {
+          provide: MAT_DIALOG_DATA,
+          useValue: { profile: { uid: 'u2', nickname: 'Perfil' } },
+        },
         { provide: DirectChatService, useValue: directChatServiceMock },
-
-        { provide: ChatService, useValue: chatServiceMock },
+        { provide: DirectThreadService, useValue: directThreadServiceMock },
         { provide: GlobalErrorHandlerService, useValue: globalErrorMock },
         { provide: ErrorNotificationService, useValue: errorNotifierMock },
       ],
