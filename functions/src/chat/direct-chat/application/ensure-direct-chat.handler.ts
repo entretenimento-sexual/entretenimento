@@ -150,7 +150,9 @@ function selectCanonicalLegacyChat(
 }
 
 export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
-  { region: FUNCTIONS_REGION },
+  { region: FUNCTIONS_REGION,
+    invoker: 'public',
+  },
   async (request): Promise<EnsureDirectChatResponse> => {
     const actorUid = normalizeUid(request.auth?.uid);
     const targetUid = normalizeUid(request.data?.otherUserUid);
