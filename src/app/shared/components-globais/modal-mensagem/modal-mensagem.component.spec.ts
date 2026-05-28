@@ -6,6 +6,7 @@ import { Observable, of } from 'rxjs';
 import { ModalMensagemComponent } from './modal-mensagem.component';
 import { ChatService } from '../../../core/services/batepapo/chat-service/chat.service';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { DirectChatService } from '../../../messaging/direct-chat/services/direct-chat.service';
 
 import { AuthSessionService } from '../../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../../core/services/autentication/auth/current-user-store.service';
@@ -24,10 +25,13 @@ describe('ModalMensagemComponent', () => {
   };
 
   let chatServiceMock: {
-    getOrCreateChatId: Mock;
-    sendMessage: Mock;
-    updateChat: Mock;
-  };
+  sendMessage: Mock;
+  updateChat: Mock;
+};
+
+let directChatServiceMock: {
+  ensureDirectChatIdWithUser$: Mock;
+};
 
   let authSessionMock: {
     uid$: Observable<string | null>;
@@ -52,10 +56,13 @@ describe('ModalMensagemComponent', () => {
       close: vi.fn(),
     };
 
-  chatServiceMock = {
-  getOrCreateChatId: vi.fn(),
-  sendMessage: vi.fn(),
-  updateChat: vi.fn(),
+chatServiceMock = {
+  sendMessage: vi.fn().mockReturnValue(of('message-1')),
+  updateChat: vi.fn().mockReturnValue(of(undefined)),
+};
+
+directChatServiceMock = {
+  ensureDirectChatIdWithUser$: vi.fn().mockReturnValue(of('chat-1')),
 };
 
     authSessionMock = {
@@ -87,6 +94,7 @@ describe('ModalMensagemComponent', () => {
 
         { provide: AuthSessionService, useValue: authSessionMock },
         { provide: CurrentUserStoreService, useValue: currentUserStoreMock },
+        { provide: DirectChatService, useValue: directChatServiceMock },
 
         { provide: ChatService, useValue: chatServiceMock },
         { provide: GlobalErrorHandlerService, useValue: globalErrorMock },

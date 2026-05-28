@@ -57,16 +57,22 @@ readonly showDistance = input<boolean>(true);
 
   // ===== Ações =====
 
-  abrirDM(event: Event): void {
-    event.preventDefault();
-    const profile = this.user();
-    if (!profile) return;
+abrirDM(event: Event): void {
+  event.preventDefault();
 
-    this.dialog.open(ModalMensagemComponent, {
-      width: '400px',
-      data: { profile },
-    });
+  const profile = this.user();
+  if (!profile) {
+    return;
   }
+
+  this.dialog.open(ModalMensagemComponent, {
+    panelClass: 'direct-message-dialog-panel',
+    width: 'min(92vw, 420px)',
+    maxWidth: '92vw',
+    restoreFocus: true,
+    data: { profile },
+  });
+}
 
   adicionarAmigo(): void {
     const target = this.user();

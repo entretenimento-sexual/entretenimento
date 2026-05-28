@@ -358,8 +358,11 @@ export class PerfisProximosComponent {
         }
 
         const dialogRef = this.dialog.open(ModalMensagemComponent, {
-          width: 'min(480px, 92vw)',
-          data: { profile: perfilSelecionado }
+          panelClass: 'direct-message-dialog-panel',
+          width: 'min(92vw, 420px)',
+          maxWidth: '92vw',
+          restoreFocus: true,
+          data: { profile: perfilSelecionado },
         });
 
         dialogRef.afterClosed().pipe(take(1)).subscribe((result) => {

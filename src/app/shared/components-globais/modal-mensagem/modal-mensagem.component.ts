@@ -1,46 +1,69 @@
 // src/app/shared/components-globais/modal-mensagem/modal-mensagem.component.ts
-// Modal para envio de mensagem direta a partir de um perfil.
-// Ajustes desta versão:
-// - usa AuthSessionService + CurrentUserStoreService
-// - mantém Observable-first
-// - centraliza feedback de erro
-// - corrige tipagem do usuário atual e do callback de erro
+// -----------------------------------------------------------------------------
+// MODAL MENSAGEM DIRETA
+// -----------------------------------------------------------------------------
+// Modal para iniciar uma conversa direta a partir de um perfil.
+//
+// Responsabilidades atuais:
+// - obter remetente autenticado;
+// - resolver/adotar conversa direta via callable segura;
+// - enviar mensagem pelo fluxo legado temporário;
+// - impedir submissão duplicada por clique repetido;
+// - centralizar feedback de erro.
+//
+// Migração pendente:
+// - o envio da mensagem ainda será movido para sendDirectMessage no backend.
+// -----------------------------------------------------------------------------
 
-import { Component, Output, EventEmitter, Inject } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Inject,
+  Output,
+  signal,
+} from '@angular/core';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { Timestamp } from '@firebase/firestore';
 
 import { combineLatest, EMPTY, throwError } from 'rxjs';
-import { switchMap, take, map, catchError } from 'rxjs/operators';
+import {
+  catchError,
+  finalize,
+  map,
+  switchMap,
+  take,
+} from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
+import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
-import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
-import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 
 @Component({
   selector: 'app-modal-mensagem',
   templateUrl: './modal-mensagem.component.html',
   styleUrls: ['./modal-mensagem.component.css'],
-  standalone: false
+  standalone: false,
 })
 export class ModalMensagemComponent {
-  @Output() mensagemEnviada = new EventEmitter<string>();
+  @Output() readonly mensagemEnviada = new EventEmitter<string>();
+
+  readonly isSending = signal(false);
 
   mensagem = '';
 
   constructor(
-    public dialogRef: MatDialogRef<ModalMensagemComponent>,
-    @Inject(MAT_DIALOG_DATA) public data: { profile: IUserDados },
-private readonly chatService: ChatService,
-private readonly directChatService: DirectChatService,
-private readonly authSession: AuthSessionService,
+    public readonly dialogRef: MatDialogRef<ModalMensagemComponent>,
+    @Inject(MAT_DIALOG_DATA) public readonly data: { profile: IUserDados },
+    private readonly chatService: ChatService,
+    private readonly directChatService: DirectChatService,
+    private readonly authSession: AuthSessionService,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService
@@ -49,6 +72,10 @@ private readonly authSession: AuthSessionService,
   }
 
   enviarMensagem(): void {
+    if (this.isSending()) {
+      return;
+    }
+
     const conteudo = this.mensagem.trim();
     const profileUid = (this.data?.profile?.uid ?? '').trim();
 
@@ -59,17 +86,21 @@ private readonly authSession: AuthSessionService,
 
     if (!profileUid) {
       this.handleError(new Error('Perfil de destino não identificado.'), {
-        op: 'enviarMensagem.profileUid'
+        op: 'enviarMensagem.profileUid',
       });
       return;
     }
 
+    this.isSending.set(true);
+    this.dialogRef.disableClose = true;
+
     combineLatest([
       this.authSession.uid$,
-      this.currentUserStore.user$
+      this.currentUserStore.user$,
     ])
       .pipe(
         take(1),
+
         map(([authUid, appUser]) => {
           const currentUserUid = (authUid ?? '').trim();
 
@@ -78,80 +109,102 @@ private readonly authSession: AuthSessionService,
           }
 
           const nickname =
-            (appUser && appUser !== null && appUser !== undefined
-              ? (appUser.nickname ?? '').trim()
-              : '') || 'Usuário';
+            (appUser?.nickname ?? '').trim() || 'Usuário';
 
           const mensagem: Message = {
             nickname,
             content: conteudo,
             senderId: currentUserUid,
-            timestamp: Timestamp.now()
+            timestamp: Timestamp.now(),
           };
 
           return {
             currentUserUid,
             profileUid,
-            mensagem
+            mensagem,
           };
         }),
-switchMap(({ currentUserUid, profileUid, mensagem }) =>
-  this.directChatService.ensureDirectChatIdWithUser$(profileUid).pipe(
-    switchMap((chatId) => {
-      /**
-       * O DirectChatService já exibiu feedback adequado quando a callable
-       * bloqueia a abertura da conversa. Retornamos EMPTY para não duplicar
-       * toasts e para não fechar o modal como se a mensagem tivesse sido enviada.
-       */
-      if (!chatId) {
-        return EMPTY;
-      }
 
-      return this.chatService.sendMessage(chatId, mensagem, currentUserUid).pipe(
-        switchMap((messageId) => {
-          /**
-           * O repository legado de mensagens ainda converte erro de escrita em
-           * string vazia. Enquanto sendDirectMessage não migrar para callable,
-           * tratamos esse retorno como falha real para impedir sucesso falso.
-           */
-          if (!String(messageId ?? '').trim()) {
-            return throwError(() =>
-              new Error('Não foi possível confirmar o envio da mensagem.')
-            );
-          }
+        switchMap(({ currentUserUid, profileUid: targetUid, mensagem }) =>
+          this.directChatService.ensureDirectChatIdWithUser$(targetUid).pipe(
+            switchMap((chatId) => {
+              /**
+               * O DirectChatService já informa ao usuário quando a callable
+               * recusa a abertura da conversa. EMPTY evita toast duplicado e
+               * impede fechamento do modal como se tivesse ocorrido envio.
+               */
+              if (!chatId) {
+                return EMPTY;
+              }
 
-          const chatUpdate: Partial<IChat> = {
-            lastMessage: mensagem
-          };
+              return this.chatService
+                .sendMessage(chatId, mensagem, currentUserUid)
+                .pipe(
+                  switchMap((messageId) => {
+                    /**
+                     * Proteção temporária:
+                     * o repository legado pode converter falha de escrita em
+                     * string vazia. Até sendDirectMessage existir no backend,
+                     * retorno vazio será tratado como falha real.
+                     */
+                    if (!String(messageId ?? '').trim()) {
+                      return throwError(() =>
+                        new Error(
+                          'Não foi possível confirmar o envio da mensagem.'
+                        )
+                      );
+                    }
 
-          return this.chatService.updateChat(chatId, chatUpdate);
-        })
-      );
-    })
-  )
-),
+                    const chatUpdate: Partial<IChat> = {
+                      lastMessage: mensagem,
+                    };
+
+                    return this.chatService.updateChat(chatId, chatUpdate);
+                  })
+                );
+            })
+          )
+        ),
+
         catchError((error: unknown) => {
-          this.handleError(error, { op: 'enviarMensagem.pipeline', profileUid });
+          this.handleError(error, {
+            op: 'enviarMensagem.pipeline',
+            profileUid,
+          });
+
           return throwError(() => error);
+        }),
+
+        finalize(() => {
+          this.isSending.set(false);
+          this.dialogRef.disableClose = false;
         })
       )
       .subscribe({
         next: () => {
-          console.log('Mensagem enviada com sucesso!');
+          this.errorNotifier.showSuccess?.('Mensagem enviada.');
           this.mensagemEnviada.emit(profileUid);
-          this.dialogRef.close();
+          this.dialogRef.close(true);
         },
+
         error: (error: unknown) => {
           console.log('Erro ao enviar mensagem:', error);
-        }
+        },
       });
   }
 
   fecharModal(): void {
+    if (this.isSending()) {
+      return;
+    }
+
     this.dialogRef.close();
   }
 
-  private handleError(error: unknown, context?: Record<string, unknown>): void {
+  private handleError(
+    error: unknown,
+    context?: Record<string, unknown>
+  ): void {
     try {
       this.errorNotifier.showError('Erro ao enviar mensagem.');
     } catch {
@@ -159,13 +212,26 @@ switchMap(({ currentUserUid, profileUid, mensagem }) =>
     }
 
     try {
-      const err = error instanceof Error ? error : new Error('Erro ao enviar mensagem.');
-      (err as any).original = error;
-      (err as any).context = {
+      const err =
+        error instanceof Error
+          ? error
+          : new Error('Erro ao enviar mensagem.');
+
+      (err as Error & { original?: unknown }).original = error;
+      (
+        err as Error & {
+          context?: Record<string, unknown>;
+        }
+      ).context = {
         scope: 'ModalMensagemComponent',
-        ...(context ?? {})
+        ...(context ?? {}),
       };
-      (err as any).skipUserNotification = true;
+      (
+        err as Error & {
+          skipUserNotification?: boolean;
+        }
+      ).skipUserNotification = true;
+
       this.globalError.handleError(err);
     } catch {
       // noop

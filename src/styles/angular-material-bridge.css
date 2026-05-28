@@ -318,3 +318,36 @@ html.dark-mode .cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel {
 :is(html.dark-mode, body.dark, [data-theme="dark"]) .cdk-overlay-pane.send-request-dialog-panel .mat-mdc-input-element {
   caret-color: var(--primary-color) !important;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Direct message dialog                                                      */
+/* -------------------------------------------------------------------------- */
+.cdk-overlay-pane.direct-message-dialog-panel {
+  width: min(92vw, 420px) !important;
+  max-width: 92vw !important;
+}
+
+.cdk-overlay-pane.direct-message-dialog-panel .mat-mdc-dialog-container {
+  --mat-dialog-container-color: var(--modal-background) !important;
+  --mat-dialog-subhead-color: var(--text-color) !important;
+  --mat-dialog-supporting-text-color: var(--text-color) !important;
+  padding: 0 !important;
+}
+
+.cdk-overlay-pane.direct-message-dialog-panel .mat-mdc-dialog-surface {
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  border-radius: 20px !important;
+  background: var(--modal-background) !important;
+  color: var(--text-color) !important;
+  box-shadow: 0 22px 64px rgba(0, 0, 0, 0.46) !important;
+}
+
+:is(html.dark-mode, body.dark, [data-theme="dark"])
+  .cdk-overlay-pane.direct-message-dialog-panel
+  .mat-mdc-dialog-surface {
+  background: var(--modal-background) !important;
+  color: var(--text-color) !important;
+  border-color: var(--surface-border);
+}

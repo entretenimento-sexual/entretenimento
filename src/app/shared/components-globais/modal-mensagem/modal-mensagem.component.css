@@ -1,44 +1,200 @@
-/* src\app\shared\components-globais\modal-mensagem\modal-mensagem.component.css */
-/* Imagem de perfil no modal */
+/* src/app/shared/components-globais/modal-mensagem/modal-mensagem.component.css */
+:host {
+  display: block;
+  width: 100%;
+  color: var(--text-color);
+}
+
+.direct-message-dialog {
+  display: grid;
+  gap: 1.25rem;
+  width: 100%;
+  padding: clamp(18px, 4vw, 24px);
+  background: var(--modal-background);
+  color: var(--text-color);
+}
+
+.direct-message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.direct-message-eyebrow {
+  margin: 0 0 0.25rem;
+  color: color-mix(in oklab, var(--text-color) 64%, transparent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.direct-message-title {
+  margin: 0;
+  color: var(--text-color);
+  font-size: clamp(1.05rem, 2vw, 1.15rem);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.direct-message-close {
+  display: grid;
+  flex: 0 0 var(--tap-target-sm);
+  place-items: center;
+  width: var(--tap-target-sm);
+  height: var(--tap-target-sm);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.direct-message-close:hover:not(:disabled) {
+  border-color: var(--surface-border);
+  background: var(--header-hover-bg);
+  color: var(--text-color);
+}
+
+.direct-message-recipient {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.75rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--surface-color) 76%, transparent);
+}
+
 .profile-photo-modal {
-  width: 80px;
-  height: 80px;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
   object-fit: cover;
-  border: 2px solid var(--primary-color);
+  border: 2px solid color-mix(in oklab, var(--primary-color) 70%, transparent);
+  border-radius: 999px;
 }
 
-/* Textarea para mensagem */
+.recipient-details {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+  text-align: left;
+}
+
+.recipient-details strong {
+  overflow: hidden;
+  color: var(--text-color);
+  font-size: 0.95rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipient-details span {
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  font-size: 0.8rem;
+}
+
+.direct-message-field {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.message-label {
+  color: color-mix(in oklab, var(--text-color) 86%, transparent);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+}
+
 .message-textarea {
-  min-height: 120px;
+  display: block;
+  width: 100%;
+  min-height: 118px;
+  padding: 0.8rem 0.875rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-lg);
+  outline: none;
+  background: var(--input-background);
+  color: var(--text-color);
+  font: inherit;
+  line-height: 1.45;
   resize: vertical;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-/* Botões no modal */
-.modal-footer .btn {
-  margin: 0 5px;
+.message-textarea::placeholder {
+  color: color-mix(in oklab, var(--text-color) 44%, transparent);
 }
 
-/* Responsividade para telas pequenas */
-@media (max-width: 576px) {
-  .modal-content {
-    padding: 15px;
+.message-textarea:focus-visible {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 18%, transparent);
+}
+
+.message-textarea[readonly] {
+  cursor: wait;
+  opacity: 1;
+}
+
+.direct-message-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 1.25rem;
+  color: color-mix(in oklab, var(--text-color) 55%, transparent);
+  font-size: 0.78rem;
+}
+
+.sending-feedback {
+  color: var(--primary-color);
+}
+
+.message-counter {
+  margin-left: auto;
+}
+
+.direct-message-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.625rem;
+}
+
+.direct-message-action {
+  min-height: var(--tap-target);
+  min-width: 98px;
+  padding: 0.65rem 1rem;
+  border-radius: var(--radius-lg);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+
+.direct-message-submit:hover:not(:disabled) {
+  transform: none;
+}
+
+@media (max-width: 420px) {
+  .direct-message-dialog {
+    gap: 1rem;
+    padding: 16px;
   }
 
-  .modal-title {
-    font-size: 1rem;
+  .direct-message-actions {
+    flex-direction: column-reverse;
   }
 
-  .profile-photo-modal {
-    width: 60px;
-    height: 60px;
-  }
-
-  .modal-footer {
-    flex-direction: column;
-  }
-
-  .modal-footer .btn {
+  .direct-message-action {
     width: 100%;
-    margin-bottom: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message-textarea,
+  .direct-message-close,
+  .direct-message-action {
+    transition: none;
   }
 }
