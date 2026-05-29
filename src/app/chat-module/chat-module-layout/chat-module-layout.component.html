@@ -81,21 +81,30 @@
       </div>
 
       @if (selectedType && selectedChatId) {
-        <footer class="chat-shell__input" aria-label="Área de envio de mensagem">
-          <textarea
-            [(ngModel)]="messageContent"
-            (keydown.enter)="sendMessage(); $event.preventDefault()"
-            placeholder="Digite sua mensagem..."
-            aria-label="Digite sua mensagem">
-          </textarea>
+<footer
+  class="chat-shell__input"
+  aria-label="Área de envio de mensagem"
+  [attr.aria-busy]="isSendingMessage()"
+>
+  <textarea
+    [(ngModel)]="messageContent"
+    (keydown.enter)="!isSendingMessage() && sendMessage(); $event.preventDefault()"
+    placeholder="Digite sua mensagem..."
+    aria-label="Digite sua mensagem"
+    [readOnly]="isSendingMessage()"
+    [attr.aria-readonly]="isSendingMessage()"
+    [attr.maxlength]="selectedType === 'chat' ? 1000 : null">
+  </textarea>
 
-          <button
-            type="button"
-            class="chat-shell__send"
-            (click)="sendMessage()">
-            Enviar
-          </button>
-        </footer>
+  <button
+    type="button"
+    class="chat-shell__send"
+    (click)="sendMessage()"
+    [disabled]="isSendingMessage() || !messageContent.trim()"
+    [attr.aria-busy]="isSendingMessage()">
+    {{ isSendingMessage() ? 'Enviando...' : 'Enviar' }}
+  </button>
+</footer>
       }
     </section>
   </main>

@@ -21,8 +21,7 @@
 // 2) não reaplica deep-link indefinidamente
 // 3) não mantém sidebar interna duplicando perfil/salas fora da lista
 // 4) não usa ngSrc no avatar do header do chat para evitar warning de proporção
-
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Timestamp } from '@firebase/firestore';
 
@@ -31,6 +30,7 @@ import {
   catchError,
   distinctUntilChanged,
   filter,
+  finalize,
   map,
   shareReplay,
   switchMap,
@@ -44,7 +44,8 @@ import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interfa
 
 import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
-
+import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
+import { DirectThreadService } from 'src/app/messaging/direct-chat/services/direct-thread.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
@@ -110,6 +111,8 @@ export class ChatModuleLayoutComponent implements OnInit {
 
   messageContent = '';
 
+  readonly isSendingMessage = signal(false);
+
   /**
    * ID real da conversa/sala selecionada.
    */
@@ -138,18 +141,20 @@ export class ChatModuleLayoutComponent implements OnInit {
   activeChatPeerName: string | null = null;
   activeChatPeerPhotoURL: string | null = null;
 
-  constructor(
-    private readonly authSession: AuthSessionService,
-    private readonly currentUserStore: CurrentUserStoreService,
-    private readonly accessControl: AccessControlService,
-    private readonly chatService: ChatService,
-    private readonly roomMessages: RoomMessagesService,
-    private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly route: ActivatedRoute,
-    private readonly router: Router,
-    private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService
-  ) {}
+constructor(
+  private readonly authSession: AuthSessionService,
+  private readonly currentUserStore: CurrentUserStoreService,
+  private readonly accessControl: AccessControlService,
+  private readonly chatService: ChatService,
+  private readonly directChatService: DirectChatService,
+  private readonly directThreadService: DirectThreadService,
+  private readonly roomMessages: RoomMessagesService,
+  private readonly firestoreUserQuery: FirestoreUserQueryService,
+  private readonly route: ActivatedRoute,
+  private readonly router: Router,
+  private readonly errorNotifier: ErrorNotificationService,
+  private readonly globalErrorHandler: GlobalErrorHandlerService
+) {}
 
   ngOnInit(): void {
     this.observeRouteUserId();
@@ -353,15 +358,22 @@ export class ChatModuleLayoutComponent implements OnInit {
             return throwError(() => new Error('withUser inválido para chat direto.'));
           }
 
-          return this.chatService.getOrCreateChatId([safeUid, payload.withUser]).pipe(
-            map((chatId) => ({
-              chatId,
-              withUser: payload.withUser,
-            }))
+        return this.directChatService
+          .ensureDirectChatIdWithUser$(payload.withUser)
+          .pipe(
+            map((chatId) =>
+              chatId
+                ? {
+                    chatId,
+                    withUser: payload.withUser,
+                  }
+                : null
+            )
           );
         }),
         tap((resolved) => {
           if (!resolved?.chatId) {
+            this.consumeDeepLinkQueryParams();
             return;
           }
 
@@ -473,103 +485,136 @@ export class ChatModuleLayoutComponent implements OnInit {
     });
   }
 
-  /**
-   * Envio principal de mensagem.
-   */
-  sendMessage(): void {
-    const content = (this.messageContent ?? '').trim();
+/**
+ * Envio principal de mensagem.
+ *
+ * Segurança:
+ * - conversa direta usa sendDirectMessage no backend;
+ * - sala permanece no fluxo legado específico de rooms nesta etapa;
+ * - o estado local evita clique duplicado enquanto a requisição está ativa.
+ */
+sendMessage(): void {
+  if (this.isSendingMessage()) {
+    return;
+  }
 
-    if (!content) {
-      return;
-    }
+  const content = (this.messageContent ?? '').trim();
 
-    const selectedChatId = (this.selectedChatId ?? '').trim();
-    const selectedType = this.selectedType;
+  if (!content) {
+    return;
+  }
 
-    if (!selectedChatId || !selectedType) {
-      this.errorNotifier.showWarning('Selecione uma conversa antes de enviar a mensagem.');
-      return;
-    }
+  const selectedChatId = (this.selectedChatId ?? '').trim();
+  const selectedType = this.selectedType;
 
-    this.canCompose$
-      .pipe(
-        take(1),
-        switchMap((canCompose) => {
-          if (!canCompose) {
-            this.errorNotifier.showWarning(
-              'Seu perfil ainda não pode enviar mensagens neste momento.'
+  if (!selectedChatId || !selectedType) {
+    this.errorNotifier.showWarning(
+      'Selecione uma conversa antes de enviar a mensagem.'
+    );
+    return;
+  }
+
+  this.isSendingMessage.set(true);
+
+  this.canCompose$
+    .pipe(
+      take(1),
+
+      switchMap((canCompose) => {
+        if (!canCompose) {
+          this.errorNotifier.showWarning(
+            'Seu perfil ainda não pode enviar mensagens neste momento.'
+          );
+
+          return of(null);
+        }
+
+        if (selectedType === 'chat') {
+          return this.directThreadService
+            .sendMessage$(selectedChatId, content)
+            .pipe(
+              tap((messageId) => {
+                if (!messageId) {
+                  return;
+                }
+
+                this.messageContent = '';
+
+                this.dbg('sendMessage() -> direct callable ok', {
+                  selectedChatId,
+                  messageId,
+                });
+              })
             );
-            return of(null);
-          }
+        }
 
-          return this.currentUserStore.user$.pipe(
-            filter((user) => user !== undefined),
-            take(1),
-            switchMap((currentUser) => {
-              const senderId =
-                currentUser?.uid ??
-                this.currentUserUid ??
-                this.authSession.currentAuthUser?.uid ??
-                null;
+        return this.currentUserStore.user$.pipe(
+          filter((user) => user !== undefined),
+          take(1),
 
-              const nickname =
-                currentUser?.nickname?.trim() ||
-                this.authSession.currentAuthUser?.displayName?.trim() ||
-                'Usuário';
+          switchMap((currentUser) => {
+            const senderId =
+              currentUser?.uid ??
+              this.currentUserUid ??
+              this.authSession.currentAuthUser?.uid ??
+              null;
 
-              if (!senderId) {
-                this.errorNotifier.showError('Erro: usuário não autenticado.');
-                return of(null);
-              }
+            const nickname =
+              currentUser?.nickname?.trim() ||
+              this.authSession.currentAuthUser?.displayName?.trim() ||
+              'Usuário';
 
-              const message: Message = {
-                content,
-                senderId,
-                nickname,
-                timestamp: Timestamp.now(),
-              };
+            if (!senderId) {
+              this.errorNotifier.showError('Erro: usuário não autenticado.');
+              return of(null);
+            }
 
-              if (selectedType === 'chat') {
-                return this.chatService.sendMessage(selectedChatId, message, senderId).pipe(
-                  tap(() => {
-                    this.messageContent = '';
-                    this.dbg('sendMessage() -> chat ok', {
-                      selectedChatId,
-                      senderId,
-                    });
-                  })
-                );
-              }
+            const message: Message = {
+              content,
+              senderId,
+              nickname,
+              timestamp: Timestamp.now(),
+            };
 
-              return this.roomMessages.sendMessageToRoom$(selectedChatId, message).pipe(
+            return this.roomMessages
+              .sendMessageToRoom$(selectedChatId, message)
+              .pipe(
                 tap(() => {
                   this.messageContent = '';
+
                   this.dbg('sendMessage() -> room ok', {
                     selectedChatId,
                     senderId,
                   });
                 })
               );
-            })
-          );
-        }),
-        catchError((error) => {
-          this.reportError(
-            'Erro ao enviar mensagem.',
-            error,
-            {
-              op: 'sendMessage',
-              selectedChatId,
-              selectedType,
-            },
-            true
-          );
-          return of(null);
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-  }
+          })
+        );
+      }),
+
+      catchError((error) => {
+        this.reportError(
+          'Erro ao enviar mensagem.',
+          error,
+          {
+            op: 'sendMessage',
+            selectedChatId,
+            selectedType,
+          },
+          true
+        );
+
+        return of(null);
+      }),
+
+      finalize(() => {
+        this.isSendingMessage.set(false);
+      }),
+
+      takeUntilDestroyed(this.destroyRef)
+    )
+    .subscribe();
+}
 
   private sameUser(a: IUserDados | null, b: IUserDados | null): boolean {
     return (
