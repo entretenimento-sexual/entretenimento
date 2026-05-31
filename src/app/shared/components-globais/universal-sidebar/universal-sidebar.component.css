@@ -328,6 +328,44 @@
   padding-top: 0.25rem;
 }
 
+.universal-sidebar__badge {
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.34rem;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 999px;
+
+  background: var(--primary-color, #ff4d57);
+  color: #fff;
+
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1;
+
+  box-shadow: 0 8px 18px rgba(255, 77, 87, 0.24);
+}
+
+.universal-sidebar--collapsed .universal-sidebar__badge {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.24rem;
+
+  font-size: 0.58rem;
+}
+
+.universal-sidebar__link,
+.universal-sidebar__quick-action {
+  position: relative;
+}
+
 /* ==========================================================================
    Mobile
    ========================================================================== */

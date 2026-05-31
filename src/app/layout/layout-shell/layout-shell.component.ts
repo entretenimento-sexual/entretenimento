@@ -41,6 +41,7 @@ import { ChatNotificationService } from 'src/app/core/services/batepapo/chat-not
 
 import * as InviteActions from 'src/app/store/actions/actions.chat/invite.actions';
 import { selectPendingInvitesCount } from 'src/app/store/selectors/selectors.chat/invite.selectors';
+import { selectInboundRequestsCount } from 'src/app/store/selectors/selectors.interactions/friends';
 
 type ShellMode = 'guest' | 'onboarding' | 'auth';
 
@@ -59,6 +60,7 @@ interface LayoutShellVm {
   shellMode: ShellMode;
   showSidebar: boolean;
   showFooter: boolean;
+  friendRequestsCount: number;
 
   /**
    * Modo especial do shell para chat.
@@ -135,8 +137,9 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     this.navigationVm$,
     this.sidebarShouldOverlay$,
     this.sidebarShouldCompact$,
+    this.store.select(selectInboundRequestsCount).pipe(distinctUntilChanged()),
   ]).pipe(
-    map(([sidebar, navVm, sidebarShouldOverlay, sidebarShouldCompact]): LayoutShellVm => {
+    map(([sidebar, navVm, sidebarShouldOverlay, sidebarShouldCompact, friendRequestsCount]): LayoutShellVm => {
       const currentUrl = sidebar.currentUrl;
       const shellMode = this.resolveShellMode(currentUrl);
       const sidebarUser = this.mapSidebarUser(navVm);
@@ -147,11 +150,20 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
        * - não depende de query string
        */
       const isChatLayout = /^\/chat(\/|$)/.test(this.normalizeUrl(currentUrl));
+      const safeFriendRequestsCount = this.normalizeBadgeCount(friendRequestsCount);
+      const sidebarWithBadges = this.applySidebarBadges(
+        sidebar,
+        safeFriendRequestsCount
+      );
 
       const shellContextActions =
-        shellMode === 'auth'
-          ? this.buildShellContextActions(currentUrl, navVm)
-          : [];
+      shellMode === 'auth'
+        ? this.buildShellContextActions(
+            currentUrl,
+            navVm,
+            safeFriendRequestsCount
+          )
+        : [];
 
       return {
         currentUrl,
@@ -159,7 +171,8 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
         showSidebar: shellMode === 'auth' && !this.shouldHideSidebar(currentUrl),
         showFooter: !this.shouldHideFooter(currentUrl),
         isChatLayout,
-        sidebar,
+        sidebar: sidebarWithBadges,
+        friendRequestsCount: safeFriendRequestsCount,
         sidebarUser,
         sidebarShouldOverlay,
         sidebarShouldCompact,
@@ -173,6 +186,7 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
       a.showSidebar === b.showSidebar &&
       a.showFooter === b.showFooter &&
       a.isChatLayout === b.isChatLayout &&
+      a.friendRequestsCount === b.friendRequestsCount &&
       a.sidebarShouldOverlay === b.sidebarShouldOverlay &&
       a.sidebarShouldCompact === b.sidebarShouldCompact &&
       a.sidebar.isMobile === b.sidebar.isMobile &&
@@ -286,10 +300,53 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     };
   }
 
-  private buildShellContextActions(
-    currentUrl: string,
-    navVm: AuthenticatedNavigationVm
-  ): UniversalSidebarQuickAction[] {
+  private normalizeBadgeCount(count: unknown): number {
+  const safeCount = Number(count ?? 0);
+
+  if (!Number.isFinite(safeCount) || safeCount <= 0) {
+    return 0;
+  }
+
+  return Math.floor(safeCount);
+}
+
+private formatBadgeCount(count: number): string {
+  return count > 99 ? '99+' : String(count);
+}
+
+private applySidebarBadges(
+  sidebar: SidebarVm,
+  friendRequestsCount: number
+): SidebarVm {
+  if (!friendRequestsCount) {
+    return sidebar;
+  }
+
+  return {
+    ...sidebar,
+    sections: sidebar.sections.map((section) => ({
+      ...section,
+      items: section.items.map((item) => {
+        if (item.id !== 'friends') {
+          return item;
+        }
+
+        return {
+          ...item,
+          badgeCount: friendRequestsCount,
+          badgeLabel: `${friendRequestsCount} solicitação de amizade pendente`,
+          ariaLabel: `Ir para amizades. Você tem ${friendRequestsCount} solicitação de amizade pendente.`,
+        };
+      }),
+    })),
+  };
+}
+
+private buildShellContextActions(
+  currentUrl: string,
+  navVm: AuthenticatedNavigationVm,
+  friendRequestsCount: number
+): UniversalSidebarQuickAction[] {
     const uid = navVm.uid?.trim() || '';
     const usuario = navVm.usuario as any | null;
     const clean = this.normalizeUrl(currentUrl);
@@ -303,6 +360,26 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     const redirectTo = this.normalizeRedirectTarget(currentUrl);
     const needsProfileCompletion = usuario.profileCompleted !== true;
     const needsEmailVerification = usuario.emailVerified !== true;
+
+    if (
+  friendRequestsCount > 0 &&
+  !needsProfileCompletion &&
+  !needsEmailVerification &&
+  clean !== '/friends/requests'
+) {
+  const formattedCount = this.formatBadgeCount(friendRequestsCount);
+
+  actions.push({
+    id: 'friend-requests',
+    label: `Pedidos (${formattedCount})`,
+    route: ['/friends/requests'],
+    icon: '🤝',
+    ariaLabel: `Você tem ${friendRequestsCount} solicitação de amizade pendente`,
+    variant: 'primary',
+    badgeCount: friendRequestsCount,
+    badgeLabel: `${friendRequestsCount} solicitação de amizade pendente`,
+  });
+}
 
     if (needsProfileCompletion && clean !== '/register/finalizar-cadastro') {
       actions.push({

@@ -280,29 +280,31 @@ export class FriendsRepo extends FirestoreRepoBase {
     );
   }
 
-  private async safeReadPublicProfile(
-    friendUid: string
-  ): Promise<DocumentData | null> {
-    const safeUid = this.normalizeText(friendUid);
+private async safeReadPublicProfile(
+  friendUid: string
+): Promise<DocumentData | null> {
+  const safeUid = this.normalizeText(friendUid);
 
-    if (!safeUid) {
-      return null;
-    }
-
-    try {
-      const profileRef = doc(this.db, `public_profiles/${safeUid}`);
-      const snapshot = await getDoc(profileRef);
-
-      return snapshot.exists() ? snapshot.data() : null;
-    } catch (error) {
-      this.dbg('public profile hydration failed', {
-        friendUid: safeUid,
-        error: String((error as Error)?.message ?? error),
-      });
-
-      return null;
-    }
+  if (!safeUid) {
+    return null;
   }
+
+  try {
+    const snapshot = await this.inCtxSync(() => {
+      const profileRef = doc(this.db, `public_profiles/${safeUid}`);
+      return getDoc(profileRef);
+    });
+
+    return snapshot.exists() ? snapshot.data() : null;
+  } catch (error) {
+    this.dbg('public profile hydration failed', {
+      friendUid: safeUid,
+      error: String((error as Error)?.message ?? error),
+    });
+
+    return null;
+  }
+}
 
   /**
    * Junta:

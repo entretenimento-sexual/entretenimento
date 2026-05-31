@@ -143,6 +143,13 @@
       >
         {{ action.label }}
       </span>
+      <span
+        *ngIf="hasBadge(action.badgeCount)"
+        class="universal-sidebar__badge"
+        [attr.aria-label]="action.badgeLabel || (formatBadgeCount(action.badgeCount) + ' notificações')"
+      >
+        {{ formatBadgeCount(action.badgeCount) }}
+      </span>
     </a>
   </section>
 

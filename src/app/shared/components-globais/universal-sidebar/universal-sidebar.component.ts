@@ -17,7 +17,6 @@
 // - este componente NÃO consulta sessão diretamente
 // - os dados do usuário devem vir do container/shell
 // - isso evita acoplamento indevido e facilita reuso futuro
-
 import {
   ChangeDetectionStrategy,
   Component,
@@ -55,6 +54,8 @@ export interface UniversalSidebarQuickAction {
   ariaLabel?: string | null;
   variant?: 'primary' | 'secondary' | 'ghost';
   disabled?: boolean;
+  badgeCount?: number | null;
+  badgeLabel?: string | null;
 }
 
 @Component({
@@ -111,6 +112,21 @@ export class UniversalSidebarComponent {
   trackQuickAction(_: number, action: UniversalSidebarQuickAction): string {
     return action.id;
   }
+
+  formatBadgeCount(count: number | null | undefined): string {
+  const safeCount = Number(count ?? 0);
+
+  if (!Number.isFinite(safeCount) || safeCount <= 0) {
+    return '';
+  }
+
+  return safeCount > 99 ? '99+' : String(safeCount);
+}
+
+hasBadge(count: number | null | undefined): boolean {
+  const safeCount = Number(count ?? 0);
+  return Number.isFinite(safeCount) && safeCount > 0;
+}
 
   get isOverlayMode(): boolean {
     return this.forceOverlay;

@@ -36,6 +36,8 @@ export interface SidebarItem {
   exact?: boolean;
   ariaLabel?: string;
   disabled?: boolean;
+  badgeCount?: number | null;
+  badgeLabel?: string | null;
 }
 
 export interface SidebarItemConfig extends SidebarItem {
