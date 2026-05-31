@@ -172,7 +172,7 @@
         title="Enviar mensagem"
       >
         <i class="fas fa-paper-plane" aria-hidden="true"></i>
-        <span>Mensagem</span>
+        <span class="sr-only">Enviar mensagem</span>
       </button>
     } @else if (relationship.canRespond) {
       <a
@@ -182,7 +182,7 @@
         title="Responder solicitação"
       >
         <i class="fas fa-user-check" aria-hidden="true"></i>
-        <span>Responder</span>
+        <span class="sr-only">Responder solicitação</span>
       </a>
     } @else if (relationship.state === 'outgoing_pending') {
       <button
@@ -193,7 +193,7 @@
         title="Solicitação enviada"
       >
         <i class="fas fa-clock" aria-hidden="true"></i>
-        <span>Enviada</span>
+        <span class="sr-only">Solicitação enviada</span>
       </button>
     } @else if (relationship.state === 'blocked_by_me') {
       <a
@@ -203,7 +203,7 @@
         title="Perfil bloqueado"
       >
         <i class="fas fa-ban" aria-hidden="true"></i>
-        <span>Bloqueado</span>
+        <span class="sr-only">Perfil bloqueado</span>
       </a>
     } @else if (relationship.canConnect) {
       <button
@@ -214,7 +214,7 @@
         title="Conectar"
       >
         <i class="fas fa-user-plus" aria-hidden="true"></i>
-        <span>Conectar</span>
+        <span class="sr-only">Conectar</span>
       </button>
     }
   </div>
