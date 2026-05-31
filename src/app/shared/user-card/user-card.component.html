@@ -174,6 +174,32 @@
         <i class="fas fa-paper-plane" aria-hidden="true"></i>
         <span class="sr-only">Enviar mensagem</span>
       </button>
+<button
+  type="button"
+  class="user-card__action user-card__action--danger"
+  (click)="desfazerAmizade($event)"
+  [disabled]="isEndingFriendship()"
+  [attr.aria-busy]="isEndingFriendship()"
+  [attr.aria-label]="
+    isEndingFriendship()
+      ? 'Desfazendo amizade com ' + (profile.nickname || 'usuário')
+      : 'Desfazer amizade com ' + (profile.nickname || 'usuário')
+  "
+  [title]="isEndingFriendship() ? 'Desfazendo amizade...' : 'Desfazer amizade'"
+>
+  <i
+    aria-hidden="true"
+    class="fas"
+    [class.fa-user-minus]="!isEndingFriendship()"
+    [class.fa-spinner]="isEndingFriendship()"
+    [class.user-card__spin]="isEndingFriendship()"
+  ></i>
+
+  <span class="sr-only">
+    {{ isEndingFriendship() ? 'Desfazendo amizade' : 'Desfazer amizade' }}
+  </span>
+</button>
+
     } @else if (relationship.canRespond) {
       <a
         class="user-card__action user-card__action--primary"

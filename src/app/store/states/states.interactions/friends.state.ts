@@ -31,6 +31,8 @@ export interface FriendsState {
 
   loadingBlocked: boolean;
   blockError: string | null;
+  endingFriendshipUid: string | null;
+  endingFriendshipError: string | null;
 }
 
 export const initialState: FriendsState = {
@@ -61,4 +63,6 @@ export const initialState: FriendsState = {
 
   loadingBlocked: false,
   blockError: null,
+  endingFriendshipUid: null,
+  endingFriendshipError: null,
 };

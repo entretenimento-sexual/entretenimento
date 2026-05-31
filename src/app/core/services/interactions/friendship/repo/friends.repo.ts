@@ -23,7 +23,6 @@
 //   gravado por Cloud Function no aceite da amizade;
 // - por enquanto, a fonte pública canônica permanece /public_profiles.
 // -----------------------------------------------------------------------------
-
 import { Injectable, EnvironmentInjector } from '@angular/core';
 import {
   Firestore,
@@ -36,6 +35,7 @@ import {
   limit,
   orderBy,
   startAfter,
+  collectionSnapshots,
 } from '@angular/fire/firestore';
 
 import {
@@ -45,7 +45,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 
-import { Observable } from 'rxjs';
+import { defer, Observable, of, switchMap } from 'rxjs';
 
 import { FirestoreRepoBase } from './base.repo';
 import type {
@@ -149,6 +149,69 @@ export class FriendsRepo extends FirestoreRepoBase {
       return hydrated;
     });
   }
+
+/**
+ * Listener realtime da lista de amigos.
+ *
+ * Por que existe:
+ * - listFriends() é leitura pontual;
+ * - aceitar/desfazer amizade altera as duas arestas via Cloud Function;
+ * - este listener permite que os dois usuários vejam a mudança sem refresh;
+ * - a UI continua usando apenas dados públicos de /public_profiles.
+ *
+ * Observação técnica:
+ * - não usamos this.inCtx$() aqui porque ele pode inferir
+ *   Observable<Observable<FriendForCard[]>>;
+ * - usamos defer() para iniciar sob demanda;
+ * - usamos inCtxSync() apenas para criar query/listener dentro do Injection Context.
+ */
+watchFriends(uid: string, pageSize = 24): Observable<FriendForCard[]> {
+  return defer(() => {
+    const safeUid = this.normalizeText(uid);
+
+    if (!safeUid) {
+      return of([] as FriendForCard[]);
+    }
+
+    const source$ = this.inCtxSync(() => {
+      const col = collection(
+        this.db,
+        `users/${safeUid}/friends`
+      ) as CollectionReference<DocumentData>;
+
+      const qRef = query(
+        col,
+        orderBy('lastInteractionAt', 'desc'),
+        limit(pageSize)
+      );
+
+      return collectionSnapshots(qRef);
+    });
+
+    return source$.pipe(
+      switchMap(async (snapshots) => {
+        const items = snapshots.map((snapshot) => {
+          const data = snapshot.data() as FriendDoc;
+
+          return sanitizeFriendForStore({
+            ...data,
+            friendUid: this.resolveFriendUid(data, snapshot.id),
+          });
+        });
+
+        const hydrated = await this.hydrateFriendsWithPublicProfiles(items);
+
+        this.dbg('watchFriends', {
+          uid: safeUid,
+          count: hydrated.length,
+          hydrated: hydrated.filter((item) => item.nickname !== item.uid).length,
+        });
+
+        return hydrated;
+      })
+    );
+  });
+}
 
   /**
    * Página de amigos, ordenada por lastInteractionAt desc.

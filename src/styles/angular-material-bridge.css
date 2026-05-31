@@ -351,3 +351,34 @@ html.dark-mode .cdk-overlay-pane .mat-mdc-menu-panel.menu-requests-panel {
   color: var(--text-color) !important;
   border-color: var(--surface-border);
 }
+
+/* ============================================================================
+   MAT DIALOG — CONFIRMATION DIALOG
+   ----------------------------------------------------------------------------
+   Ponte global entre Angular Material/CDK e o modal profissional de confirmação.
+
+   Motivo de estar neste arquivo:
+   - .mat-mdc-dialog-container, .mdc-dialog__surface e .mat-mdc-dialog-surface
+     são classes internas do Angular Material;
+   - essas regras precisam ser globais porque o MatDialog é renderizado fora
+     da árvore do componente, dentro do CDK Overlay;
+   - o escopo fica protegido por .confirmation-dialog-panel para não afetar
+     outros dialogs da plataforma.
+   ============================================================================ */
+
+.confirmation-dialog-panel .mat-mdc-dialog-container {
+  --mdc-dialog-container-shape: 22px;
+}
+
+.confirmation-dialog-panel .mdc-dialog__surface {
+  overflow: hidden;
+
+  border-radius: 22px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.confirmation-dialog-panel .mat-mdc-dialog-surface {
+  background: transparent !important;
+  box-shadow: none !important;
+}

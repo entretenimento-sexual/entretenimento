@@ -13,6 +13,19 @@ export class FriendsRequestsRealtimeEffects {
   private actions$ = inject(Actions);
   private svc = inject(FriendshipService);
 
+  listenFriends$ = createEffect(() =>
+  this.actions$.pipe(
+    ofType(RT.startFriendsListener),
+    switchMap(({ uid }) =>
+      this.svc.watchFriends(uid).pipe(
+        map(friends => RT.friendsChanged({ friends })),
+        catchError(err => of(A.loadFriendsFailure({ error: String(err?.message ?? err) }))),
+        takeUntil(this.actions$.pipe(ofType(RT.stopFriendsListener)))
+      )
+    )
+  )
+);
+
   listenInboundRequests$ = createEffect(() =>
     this.actions$.pipe(
       ofType(RT.startInboundRequestsListener),
@@ -44,6 +57,7 @@ stopOnSessionNull$ = createEffect(() =>
     ofType(authSessionChanged),
     filter(({ uid }) => !uid),
     switchMap(() => of(
+      RT.stopFriendsListener(),
       RT.stopInboundRequestsListener(),
       RT.stopOutboundRequestsListener(),
     ))

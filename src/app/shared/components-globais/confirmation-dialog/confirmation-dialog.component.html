@@ -1,0 +1,65 @@
+<section
+  class="confirmation-dialog"
+  [attr.data-tone]="tone()"
+  role="dialog"
+  aria-modal="true"
+  [attr.aria-labelledby]="'confirmation-dialog-title'"
+  [attr.aria-describedby]="'confirmation-dialog-message'"
+>
+  <header class="confirmation-dialog__header">
+    <div class="confirmation-dialog__icon" aria-hidden="true">
+      <mat-icon [fontIcon]="icon()"></mat-icon>
+    </div>
+
+    <div class="confirmation-dialog__heading">
+      @if (data.eyebrow) {
+        <p class="confirmation-dialog__eyebrow">{{ data.eyebrow }}</p>
+      }
+
+      <h2
+        mat-dialog-title
+        id="confirmation-dialog-title"
+        class="confirmation-dialog__title"
+      >
+        {{ data.title }}
+      </h2>
+    </div>
+  </header>
+
+  <mat-dialog-content class="confirmation-dialog__content">
+    <p
+      id="confirmation-dialog-message"
+      class="confirmation-dialog__message"
+    >
+      {{ data.message }}
+    </p>
+
+    @if (data.detail) {
+      <p class="confirmation-dialog__detail">
+        {{ data.detail }}
+      </p>
+    }
+  </mat-dialog-content>
+
+  <mat-dialog-actions
+    align="end"
+    class="confirmation-dialog__actions"
+  >
+    <button
+      type="button"
+      class="confirmation-dialog__button confirmation-dialog__button--ghost"
+      (click)="cancel()"
+      cdkFocusInitial
+    >
+      {{ cancelLabel() }}
+    </button>
+
+    <button
+      type="button"
+      class="confirmation-dialog__button confirmation-dialog__button--confirm"
+      (click)="confirm()"
+    >
+      {{ confirmLabel() }}
+    </button>
+  </mat-dialog-actions>
+</section>

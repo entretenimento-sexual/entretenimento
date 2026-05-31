@@ -1,5 +1,4 @@
 // src/app/shared/user-card/user-card.component.ts
-
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, input } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -14,12 +13,18 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 
 import { AppState } from 'src/app/store/states/app.state';
 import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.selectors';
+import * as FriendActions from 'src/app/store/actions/actions.interactions/actions.friends';
+import {
+  ConfirmationDialogComponent,
+  ConfirmationDialogData,
+} from 'src/app/shared/components-globais/confirmation-dialog/confirmation-dialog.component';
 
 import {
   selectAllFriends,
   selectBlockedFriends,
   selectInboundRequests,
   selectOutboundRequests,
+  selectEndingFriendshipUid,
 } from 'src/app/store/selectors/selectors.interactions/friends';
 
 import {
@@ -90,6 +95,11 @@ export class UserCardComponent {
   private readonly blockedUsers = toSignal(
     this.store.select(selectBlockedFriends),
     { initialValue: [] }
+  );
+
+  private readonly endingFriendshipUid = toSignal(
+    this.store.select(selectEndingFriendshipUid),
+    { initialValue: null }
   );
 
   readonly nicknameClass = computed(() =>
@@ -170,6 +180,13 @@ export class UserCardComponent {
     return this.buildRelationshipVm('none', currentUid, targetUid);
   });
 
+  readonly isEndingFriendship = computed(() => {
+  const targetUid = String(this.relationshipVm().targetUid ?? '').trim();
+  const endingUid = String(this.endingFriendshipUid() ?? '').trim();
+
+  return !!targetUid && !!endingUid && targetUid === endingUid;
+});
+
   abrirDM(event: Event): void {
     event.preventDefault();
 
@@ -235,6 +252,74 @@ export class UserCardComponent {
         });
       });
   }
+
+desfazerAmizade(event: Event): void {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const profile = this.user();
+  const relationship = this.relationshipVm();
+
+  const currentUid = String(relationship.currentUid ?? '').trim();
+  const targetUid = String(relationship.targetUid ?? '').trim();
+
+  if (!profile || !currentUid || !targetUid) {
+    this.notifier.showInfo('Não foi possível identificar esta amizade.');
+    return;
+  }
+
+  if (relationship.state !== 'friends') {
+    this.notifier.showInfo('Vocês não estão conectados.');
+    return;
+  }
+
+  if (this.isEndingFriendship()) {
+  this.notifier.showInfo('Aguarde. Estamos desfazendo esta amizade.');
+  return;
+}
+
+  const nickname = profile.nickname || 'este perfil';
+
+  const dialogData: ConfirmationDialogData = {
+    eyebrow: 'Conexão',
+    title: 'Desfazer amizade?',
+    message: `Você deixará de estar conectado com ${nickname}.`,
+    detail:
+  'Novas mensagens ficarão bloqueadas até que uma nova conexão seja aceita. O histórico existente será mantido por segurança e não será apagado automaticamente.',
+    confirmLabel: 'Desfazer amizade',
+    cancelLabel: 'Manter conexão',
+    icon: 'person_remove',
+    tone: 'danger',
+  };
+
+  const ref = this.dialog.open<
+    ConfirmationDialogComponent,
+    ConfirmationDialogData,
+    boolean
+  >(ConfirmationDialogComponent, {
+    panelClass: 'confirmation-dialog-panel',
+    width: 'min(94vw, 460px)',
+    maxWidth: '94vw',
+    autoFocus: false,
+    restoreFocus: true,
+    data: dialogData,
+  });
+
+  ref.afterClosed()
+    .pipe(take(1))
+    .subscribe((confirmed) => {
+      if (!confirmed) {
+        return;
+      }
+
+      this.store.dispatch(
+        FriendActions.endFriendship({
+          ownerUid: currentUid,
+          friendUid: targetUid,
+        })
+      );
+    });
+}
 
   adicionarAmigo(): void {
     const target = this.user();

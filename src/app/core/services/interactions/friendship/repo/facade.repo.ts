@@ -33,6 +33,16 @@ export class FriendshipRepo {
   getFriendDoc$(a: string, b: string) { return this.friends.getFriendDoc$(a, b); }
   listFriends(uid: string) { return this.friends.listFriends(uid); }
 
+  /**
+ * Amigos em tempo real.
+ *
+ * Expõe o listener do FriendsRepo pela fachada FriendshipRepo,
+ * mantendo o FriendshipService desacoplado da implementação interna.
+ */
+watchFriends(uid: string) {
+  return this.friends.watchFriends(uid);
+}
+
   /* Blocks */
   getBlockedDoc$(owner: string, target: string) { return this.blocks.getBlockedDoc$(owner, target); }
   listBlocked(uid: string) { return this.blocks.listBlocked(uid); }

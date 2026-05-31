@@ -636,9 +636,43 @@
   border-color: color-mix(in oklab, var(--uc-accent) 42%, var(--uc-border));
 }
 
+.user-card__action--danger {
+  background: color-mix(in oklab, var(--danger-color, #dc3545) 8%, var(--uc-bg));
+  color: var(--danger-color, #dc3545);
+  border-color: color-mix(in oklab, var(--danger-color, #dc3545) 34%, var(--uc-border));
+}
+
+.user-card__action--danger:hover,
+.user-card__action--danger:focus-visible {
+  background: var(--danger-color, #dc3545);
+  color: #ffffff;
+  border-color: var(--danger-color, #dc3545);
+  box-shadow: 0 12px 24px color-mix(in oklab, var(--danger-color, #dc3545) 24%, transparent);
+}
+
 .user-card__action:focus-visible {
   outline: var(--focus-ring, 2px solid var(--uc-accent));
   outline-offset: var(--focus-offset, 3px);
+}
+
+.user-card__action:disabled {
+  cursor: wait;
+  opacity: 0.72;
+  filter: grayscale(0.12);
+}
+
+.user-card__action:disabled:hover {
+  transform: none;
+}
+
+.user-card__spin {
+  animation: user-card-spin 800ms linear infinite;
+}
+
+@keyframes user-card-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* --------------------------------------------------------------------------
@@ -748,6 +782,18 @@ html.dark-mode .user-card__action--neutral:hover {
   border-color: color-mix(in oklab, var(--uc-accent) 52%, var(--uc-border));
 }
 
+:host-context(.dark-mode) .user-card__action--danger,
+html.dark-mode .user-card__action--danger {
+  background: color-mix(in oklab, var(--danger-color, #dc3545) 13%, var(--uc-bg));
+  color: color-mix(in oklab, var(--danger-color, #dc3545) 86%, #ffffff);
+  border-color: color-mix(in oklab, var(--danger-color, #dc3545) 42%, var(--uc-border));
+}
+
+:host-context(.dark-mode) .user-card__action--danger:hover,
+html.dark-mode .user-card__action--danger:hover {
+  background: var(--danger-color, #dc3545);
+  color: #ffffff;
+}
 /* --------------------------------------------------------------------------
    Alto contraste
    -------------------------------------------------------------------------- */
@@ -826,6 +872,13 @@ html.high-contrast .user-card__tier {
   box-shadow: none !important;
 }
 
+:host-context(.high-contrast) .user-card__action--danger,
+html.high-contrast .user-card__action--danger {
+  background: var(--background-color, #ffffff) !important;
+  color: var(--text-color, #000000) !important;
+  border: 2px solid var(--text-color, #000000) !important;
+  box-shadow: none !important;
+}
 /* --------------------------------------------------------------------------
    Dark + alto contraste
    -------------------------------------------------------------------------- */
@@ -878,6 +931,10 @@ html.dark-mode.high-contrast .user-card__action--primary {
   .user-card__action {
     transition: none !important;
   }
+
+  .user-card__spin {
+  animation: none !important;
+}
 
   .user-card:hover,
   .user-card__action:hover {

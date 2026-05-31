@@ -9,6 +9,7 @@ import * as RT from '../../../actions/actions.interactions/friends/friends-realt
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { environment } from 'src/environments/environment';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Injectable()
 export class FriendsNetworkEffects {
@@ -16,6 +17,7 @@ export class FriendsNetworkEffects {
     private actions$: Actions,
     private svc: FriendshipService,
     private access: AccessControlService,
+    private notifier: ErrorNotificationService,
   ) { }
 
   private dbg(msg: string, extra?: unknown) {
@@ -60,6 +62,7 @@ export class FriendsNetworkEffects {
           this.dbg('gate=false -> stop/clear');
 
           return of(
+            RT.stopFriendsListener(),
             RT.stopInboundRequestsListener(),
             RT.stopOutboundRequestsListener(),
 
@@ -77,6 +80,7 @@ export class FriendsNetworkEffects {
           A.loadInboundRequests({ uid: gate.uid }),
           A.loadOutboundRequests({ uid: gate.uid }),
           A.loadBlockedUsers({ uid: gate.uid }),
+          RT.startFriendsListener({ uid: gate.uid }),
           RT.startInboundRequestsListener({ uid: gate.uid }),
           RT.startOutboundRequestsListener({ uid: gate.uid }),
         );
@@ -95,6 +99,29 @@ export class FriendsNetworkEffects {
       )
     )
   );
+
+  endFriendship$ = createEffect(() =>
+  this.actions$.pipe(
+    ofType(A.endFriendship),
+    mergeMap(({ ownerUid, friendUid }) =>
+      this.svc.endFriendship(ownerUid, friendUid).pipe(
+        mergeMap(() => {
+          this.notifier.showSuccess('Amizade desfeita.');
+
+          return of(
+            A.endFriendshipSuccess({ ownerUid, friendUid }),
+            A.loadFriends({ uid: ownerUid })
+          );
+        }),
+        catchError(err => {
+          const msg = String(err?.message ?? 'Não foi possível desfazer a amizade.');
+          this.notifier.showError(msg);
+          return of(A.endFriendshipFailure({ error: msg }));
+        })
+      )
+    )
+  )
+);
 
   blockUser$ = createEffect(() =>
     this.actions$.pipe(

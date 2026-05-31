@@ -32,16 +32,6 @@
                   <span class="status-dot" [class.online]="req.isOnline" aria-hidden="true"></span>
                   @if (req.role) { <span class="role-pill" [attr.data-role]="req.role">{{ req.role }}</span> }
 
-
-
-                    <span class="title-spacer"></span> <!-- empurra ações pro canto -->
-                    <button mat-icon-button class="block-icon" (click)="blockUser(req)" aria-label="Bloquear este usuário"
-                      matTooltip="Bloquear (impede novas solicitações e mensagens)" matTooltipPosition="above" matTooltipShowDelay="250"
-                      matTooltipTouchGestures="off">
-                      <mat-icon fontIcon="block"></mat-icon>
-                    </button>
-
-
                 </div><!--title-row-->
 
                 <div class="meta-line">
@@ -92,9 +82,42 @@
               </div>
             </mat-card-content>
 
-            <mat-card-actions>
-              <button mat-button color="primary" (click)="acceptRequest(req)">Aceitar</button>
-              <button mat-button color="warn" (click)="declineRequest(req)">Recusar</button>
+            <mat-card-actions
+              class="request-actions"
+              aria-label="Ações da solicitação recebida"
+            >
+              <button
+                type="button"
+                class="request-action request-action--accept"
+                (click)="acceptRequest(req)"
+                [attr.aria-label]="'Aceitar solicitação de ' + (req.nickname || 'usuário')"
+                title="Aceitar solicitação"
+              >
+                <mat-icon fontIcon="check"></mat-icon>
+                <span>Aceitar</span>
+              </button>
+
+              <button
+                type="button"
+                class="request-action request-action--decline"
+                (click)="declineRequest(req)"
+                [attr.aria-label]="'Recusar solicitação de ' + (req.nickname || 'usuário')"
+                title="Recusar solicitação"
+              >
+                <mat-icon fontIcon="close"></mat-icon>
+                <span>Recusar</span>
+              </button>
+
+              <button
+                type="button"
+                class="request-action request-action--block"
+                (click)="blockUser(req)"
+                [attr.aria-label]="'Bloquear ' + (req.nickname || 'usuário')"
+                title="Bloquear usuário"
+              >
+                <mat-icon fontIcon="block"></mat-icon>
+                <span class="sr-only">Bloquear</span>
+              </button>
             </mat-card-actions>
           </mat-card>
         </li>
@@ -177,13 +200,30 @@
               </div>
             </mat-card-content>
 
-            <mat-card-actions>
-              <button mat-button color="warn" (click)="cancelRequest(req)">Cancelar</button>
+            <mat-card-actions
+              class="request-actions"
+              aria-label="Ações da solicitação enviada"
+            >
+              <button
+                type="button"
+                class="request-action request-action--cancel"
+                (click)="cancelRequest(req)"
+                [attr.aria-label]="'Cancelar solicitação enviada para ' + (req.nickname || 'usuário')"
+                title="Cancelar solicitação"
+              >
+                <mat-icon fontIcon="undo"></mat-icon>
+                <span>Cancelar</span>
+              </button>
 
-              <button mat-icon-button class="block-icon" (click)="blockUser(req)" aria-label="Bloquear este usuário"
-                matTooltip="Bloquear (impede novas solicitações e mensagens)" matTooltipPosition="above" matTooltipShowDelay="250"
-                matTooltipTouchGestures="off">
+              <button
+                type="button"
+                class="request-action request-action--block"
+                (click)="blockUser(req)"
+                [attr.aria-label]="'Bloquear ' + (req.nickname || 'usuário')"
+                title="Bloquear usuário"
+              >
                 <mat-icon fontIcon="block"></mat-icon>
+                <span class="sr-only">Bloquear</span>
               </button>
             </mat-card-actions>
           </mat-card>

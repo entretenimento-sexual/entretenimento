@@ -1,282 +1,449 @@
+/* src\app\layout\friend-management\friend-requests\friend-requests.component.css */
 /* ============================================================================
-   Friend Requests – CSS do componente
-   Regras:
-   - Avatar SEMPRE à esquerda, colado na borda do card (retrato 3:4)
-   - Todos os dados ficam à direita do avatar (header + info + ações)
-   - Em ≥1200px, as fotos aparecem numa terceira coluna à direita do texto
-   - Se não houver fotos, a terceira coluna fica como espaço reservado
-   ============================================================================ */
+   FRIEND REQUESTS COMPONENT
+   ----------------------------------------------------------------------------
+   Tela: /friends/requests
 
+   Objetivo visual:
+   - transformar a tela de solicitações em uma área de produto, não de painel cru;
+   - manter decisão de consentimento clara: aceitar, recusar, cancelar e bloquear;
+   - valorizar foto, nome, mensagem enviada e metadados públicos;
+   - funcionar bem em desktop, notebook, tablet e mobile;
+   - respeitar tema claro, escuro, alto contraste e foco acessível.
+
+   Observação importante:
+   - Nos cards de perfil usamos ações icon-only.
+   - Nesta tela, mantemos texto em Aceitar/Recusar/Cancelar porque são decisões
+     sensíveis de consentimento. Isso reduz clique acidental.
+   ============================================================================ */
 :host {
-  /* Tuning responsivo */
-  --avatar-col-mobile: 96px;
-  /* largura do avatar na faixa mobile/tablet */
-  --avatar-col-desktop: 220px;
-  /* largura do avatar no desktop (ajustada em MQs) */
-  --avatar-aspect: 3 / 4;
-  /* retrato */
-  --rail-thumb: 96px;
-  /* lado do quadrado de cada thumb */
-  --rail-gap: 8px;
-  /* gap entre thumbs */
-  --rail-cols: 2;
-  /* colunas na galeria */
-  --media-pad: 16px;
-  /* resguardo entre texto e a galeria */
+  /* Dimensões base */
+  --fr-avatar-mobile: clamp(84px, 24vw, 112px);
+  --fr-avatar-desktop: clamp(140px, 10.2vw, 184px);
+  --fr-avatar-aspect: 3 / 4;
+
+  /* Galeria opcional */
+  --fr-rail-cols: 2;
+  --fr-rail-thumb: clamp(68px, 5vw, 86px);
+  --fr-rail-gap: 6px;
+
+  /* Cores locais com fallback nos tokens globais */
+  --fr-bg: var(--surface-color);
+  --fr-border: var(--surface-border);
+  --fr-text: var(--text-color);
+  --fr-muted: color-mix(in oklab, var(--text-color) 68%, transparent);
+  --fr-soft: color-mix(in oklab, var(--surface-color) 88%, var(--text-color) 5%);
+  --fr-primary: var(--primary-color);
+  --fr-danger: var(--danger-color);
+  --fr-success: var(--snackbar-success, #2e7d32);
+
   display: block;
   box-sizing: border-box;
 }
 
+/* ============================================================================
+   Container da página
+   ============================================================================ */
+
 .friend-requests {
-  margin: 1rem;
-  padding: 1rem;
-  border-radius: var(--radius-md);
-  background: var(--surface-color);
-  color: var(--text-color);
-  border: 1px solid var(--surface-border);
+  width: 100%;
   min-height: clamp(480px, 60svh, 800px);
+
+  margin: 1rem;
+  padding: clamp(1rem, 2vw, 1.25rem);
+
   display: flex;
   flex-direction: column;
-  gap: .75rem;
+  gap: 0.85rem;
+
+  border-radius: var(--radius-lg, 12px);
+  border: 1px solid var(--fr-border);
+
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--fr-bg) 96%, var(--fr-primary) 4%),
+      var(--fr-bg) 42%
+    );
+  color: var(--fr-text);
+
   box-sizing: border-box;
 }
 
-/* Zera o padding do conteúdo do card para usarmos a grade no nível do mat-card */
+.friend-requests h4 {
+  margin: 0;
+  font-size: clamp(1rem, 1.4vw, 1.18rem);
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+
+/* ============================================================================
+   Angular Material tabs - ajuste leve
+   ============================================================================ */
+
+:host ::ng-deep .mat-mdc-tab-group {
+  color: var(--fr-text);
+}
+
+:host ::ng-deep .mat-mdc-tab-header {
+  border-bottom-color: color-mix(in oklab, var(--fr-border) 86%, transparent);
+}
+
+:host ::ng-deep .mat-mdc-tab .mdc-tab__text-label {
+  color: var(--fr-muted) !important;
+}
+
+:host ::ng-deep .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+  color: var(--fr-primary) !important;
+}
+
+:host ::ng-deep .mat-mdc-tab-body-content {
+  overflow: visible;
+}
+
+/* ============================================================================
+   Conteúdo do mat-card
+   ----------------------------------------------------------------------------
+   O Angular Material envolve o conteúdo em .mat-mdc-card-content.
+   Usamos display: contents para permitir que avatar, header, texto e ações
+   participem da mesma grid do card.
+   ============================================================================ */
+
 .friend-requests mat-card .mat-mdc-card-content {
   padding: 0 !important;
   display: contents;
 }
 
-/* fallback caso o encapsulamento bloqueie */
+/* Fallback para casos em que o encapsulamento do Angular Material impeça a regra. */
 :host ::ng-deep .mat-mdc-card-content {
   padding: 0 !important;
   display: contents;
 }
 
-/* ---------------- Lista / Card ---------------- */
+/* ============================================================================
+   Listas
+   ============================================================================ */
+
 .cards {
   display: flex;
   flex-direction: column;
-  gap: .75rem;
+  gap: 0.82rem;
+
   padding: 0;
   margin: 0;
+
   list-style: none;
 }
 
+.cards > li {
+  min-width: 0;
+}
+
+/* ============================================================================
+   Card da solicitação
+   ----------------------------------------------------------------------------
+   Layout base:
+   - avatar à esquerda;
+   - header, mensagem e ações à direita;
+   - em desktop largo pode existir uma terceira coluna de fotos.
+   ============================================================================ */
+
 mat-card {
   position: relative;
+  overflow: hidden;
+
   display: grid;
-  /* grade mestre do card */
-  grid-template-columns: var(--avatar-col-mobile) 1fr;
+  grid-template-columns: var(--fr-avatar-mobile) minmax(0, 1fr);
   grid-template-areas:
     "avatar header"
     "avatar content"
     "avatar actions";
-  column-gap: 12px;
+
+  column-gap: clamp(0.75rem, 1.4vw, 1rem);
   align-items: start;
-  background: var(--surface-color);
-  color: var(--text-color);
-  border: 1px solid var(--surface-border);
-  border-radius: var(--radius-md);
-  box-sizing: border-box;
+
+  min-width: 0;
+
+  border-radius: 18px;
+  border: 1px solid color-mix(in oklab, var(--fr-border) 90%, transparent);
+
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--fr-bg) 94%, var(--fr-primary) 3%),
+      var(--fr-bg)
+    );
+  color: var(--fr-text);
+
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, 0.12),
+    0 4px 12px rgba(0, 0, 0, 0.06);
+
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 mat-card:hover {
-  background: var(--header-hover-bg);
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--fr-primary) 34%, var(--fr-border));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--fr-bg) 90%, var(--fr-primary) 7%),
+      var(--fr-bg)
+    );
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.16),
+    0 5px 14px rgba(0, 0, 0, 0.08);
 }
 
-/* Header do card fica na área 'header' (à direita do avatar) */
+mat-card.is-recebida {
+  border-left: 3px solid color-mix(in oklab, var(--fr-success) 76%, transparent);
+}
+
+mat-card.is-enviada {
+  border-left: 3px solid color-mix(in oklab, var(--fr-primary) 76%, transparent);
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+
 .hdr {
   grid-area: header;
-  padding: 6px 10px 0 0;
-  /* levemente mais compacto */
+
+  min-width: 0;
+  overflow: hidden;
+
+  padding: 0.78rem 0.82rem 0.24rem 0;
 }
 
 .hdr-main {
+  min-width: 0;
+
   display: grid;
-  gap: .35rem;
+  gap: 0.42rem;
 }
 
 .title-row {
+  min-width: 0;
+
   display: flex;
   align-items: center;
-  gap: .5rem;
   flex-wrap: wrap;
-}
-
-.title-row .title-spacer {
-  flex: 1 1 auto;
+  gap: 0.46rem;
 }
 
 .name {
-  font-weight: 800;
-  font-size: 1.04rem;
+  min-width: 0;
+  max-width: min(100%, 22rem);
+
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  color: var(--fr-text);
+
+  font-size: clamp(1rem, 1.2vw, 1.1rem);
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
 }
 
-.role-pill {
-  margin-left: .25rem;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  font-size: .72rem;
-  line-height: 1.2;
-  border: 1px solid var(--surface-border);
-  background: color-mix(in oklab, var(--primary-color) 14%, transparent);
+.type-icon {
+  width: 18px;
+  height: 18px;
+
+  color: var(--fr-primary);
+
+  font-size: 18px;
+  line-height: 18px;
 }
 
-.role-pill[data-role="premium"] {
-  background: color-mix(in oklab, gold 30%, transparent);
-  border-color: color-mix(in oklab, gold 40%, var(--surface-border));
+.type-icon.recebidas {
+  color: var(--fr-success);
 }
 
-.meta-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .35rem .5rem;
-  opacity: .95;
+.type-icon.enviadas {
+  color: var(--fr-primary);
 }
 
-.meta-chip {
-  padding: 2px 8px;
-  border-radius: 9999px;
-  border: 1px solid var(--surface-border);
-  font-size: .78rem;
-}
-
-/* Status online pontinho */
+/* Status online discreto */
 .status-dot {
-  display: inline-block;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-left: .25rem;
-  background: #9aa;
+  width: 0.55rem;
+  height: 0.55rem;
+
+  flex: 0 0 auto;
+
+  border-radius: 999px;
+  background: #9ca3af;
+
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--fr-bg) 72%, transparent);
 }
 
 .status-dot.online {
-  background: #2ecc71;
+  background: #22c55e;
+  box-shadow:
+    0 0 0 2px color-mix(in oklab, var(--fr-bg) 72%, transparent),
+    0 0 12px rgba(34, 197, 94, 0.62);
 }
 
-/* Bloco de info (datas/mensagem) ocupa a área 'content' */
+.role-pill {
+  min-height: 1.35rem;
+  padding: 0.18rem 0.48rem;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--fr-primary) 28%, var(--fr-border));
+
+  background: color-mix(in oklab, var(--fr-primary) 12%, var(--fr-bg));
+  color: var(--fr-text);
+
+  font-size: 0.72rem;
+  font-weight: 820;
+  line-height: 1;
+}
+
+.role-pill[data-role="premium"],
+.role-pill[data-role="vip"] {
+  background: color-mix(in oklab, gold 26%, var(--fr-bg));
+  border-color: color-mix(in oklab, gold 46%, var(--fr-border));
+}
+
+.meta-line {
+  min-width: 0;
+
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.48rem;
+}
+
+.meta-chip {
+  min-height: 1.42rem;
+  padding: 0.2rem 0.52rem;
+
+  display: inline-flex;
+  align-items: center;
+
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--fr-border) 90%, transparent);
+
+  background: color-mix(in oklab, var(--fr-soft) 88%, transparent);
+  color: color-mix(in oklab, var(--fr-text) 78%, transparent);
+
+  font-size: 0.76rem;
+  font-weight: 760;
+  line-height: 1;
+}
+
+/* ============================================================================
+   Informação / mensagem
+   ============================================================================ */
+
 .info-block {
   grid-area: content;
-  padding: 6px 10px 10px 0;
-  /* menos vertical */
+
+  min-width: 0;
+
+  padding: 0.38rem 0.82rem 0.55rem 0;
+
   display: grid;
-  gap: .45rem;
-}
-
-.block-icon {
-  color: var(--danger-color);
-  opacity: .55;
-  transition: opacity .15s ease, transform .15s ease;
-}
-
-.block-icon:hover,
-.block-icon:focus-visible {
-  opacity: 1;
-  transform: scale(1.05);
-}
-
-/* Em telas touch, pode ficar sempre um pouco mais visível */
-@media (pointer: coarse) {
-  .block-icon {
-    opacity: .8;
-  }
-}
-
-/* Garante que o header não estoure para a coluna de mídia */
-.hdr {
-  overflow: hidden;
+  gap: 0.42rem;
 }
 
 .when {
-  font-size: .9rem;
-  opacity: .9;
+  color: var(--fr-muted);
+
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.25;
 }
 
 .msg {
-  margin-top: .15rem;
+  margin: 0;
+  max-width: 60ch;
+
+  color: var(--fr-text);
+
+  font-size: 0.95rem;
+  font-weight: 620;
+  line-height: 1.35;
 }
 
-/* Ações no rodapé (área 'actions') */
-mat-card-actions {
-  grid-area: actions;
-  padding: 0 10px 10px 0;
-  /* compactado */
-  display: flex;
-  gap: .5rem;
+.msg::first-letter {
+  text-transform: none;
 }
 
-/* Avatar SEMPRE na coluna à esquerda (área 'avatar') */
+/* ============================================================================
+   Avatar / mídia
+   ============================================================================ */
+
 .content-with-rail,
 .aside-rail {
   display: contents;
 }
 
-/* achatam wrappers */
-
 .big-avatar {
   grid-area: avatar;
+
   width: 100%;
-  aspect-ratio: var(--avatar-aspect);
-  /* retrato 3:4 */
-  border-radius: 10px;
+  height: 100%;
+  min-height: 100%;
+
+  aspect-ratio: var(--fr-avatar-aspect);
+
   overflow: hidden;
-  border: 1px solid var(--surface-border);
-  background: color-mix(in oklab, var(--text-color) 12%, transparent);
+
+  border-radius: 0;
+  border-right: 1px solid color-mix(in oklab, var(--fr-border) 88%, transparent);
+
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--fr-text) 16%, transparent),
+      color-mix(in oklab, var(--fr-primary) 10%, transparent)
+    );
 }
 
 .big-avatar img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+
   display: block;
+
+  object-fit: cover;
+  object-position: center;
+
+  filter: saturate(1.03) contrast(1.02);
+}
+
+.big-avatar-fallback {
+  width: 100%;
+  height: 100%;
+
+  display: grid;
+  place-items: center;
+
+  color: color-mix(in oklab, var(--fr-text) 66%, transparent);
 }
 
 .big-avatar-fallback mat-icon {
-  font-size: 56px;
   width: 56px;
   height: 56px;
-  opacity: .7;
+
+  font-size: 56px;
+  line-height: 56px;
+
+  opacity: 0.72;
 }
 
-/* Ícones/legendas */
-.type-icon {
-  font-size: 18px;
-  vertical-align: -2px;
-  margin-right: .2rem;
-}
-
-.type-icon.recebidas {
-  color: var(--snackbar-success);
-}
-
-.type-icon.enviadas {
-  color: var(--primary-color);
-}
-
-.tab-legend,
-.panel-head {
-  font-weight: 900;
-  letter-spacing: .06em;
-}
-
-.tab-legend.recebidas,
-.panel-head.recebidas {
-  color: var(--snackbar-success);
-}
-
-.tab-legend.enviadas,
-.panel-head.enviadas {
-  color: var(--primary-color);
-}
-
-.empty-inline {
-  margin: 1rem 0;
-  opacity: .9;
-}
-
-/* Galeria de fotos (área 'media') – oculta por padrão, só aparece em ≥1200px */
+/* Galeria lateral: oculta no mobile e aparece em telas largas */
 .media-rail {
   grid-area: media;
   display: none;
@@ -284,156 +451,446 @@ mat-card-actions {
 
 .thumb {
   display: block;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid var(--surface-border);
+
   aspect-ratio: 1 / 1;
-  background: color-mix(in oklab, var(--text-color) 10%, transparent);
+
+  overflow: hidden;
+
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--fr-border) 90%, transparent);
+
+  background: color-mix(in oklab, var(--fr-text) 10%, transparent);
 }
 
 .thumb img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+
   display: block;
+
+  object-fit: cover;
 }
 
-/* empurra o “Bloquear” pra direita das ações */
-mat-card-actions .btn-block {
-  margin-left: 0 !important;
-}
+/* ============================================================================
+   Ações das solicitações
+   ----------------------------------------------------------------------------
+   - Aceitar/Recusar/Cancelar mantêm texto visível.
+   - Bloquear fica icon-only, com aria-label no HTML.
+   ============================================================================ */
 
-/* fantasma com tom de atenção, mas discreto */
-mat-card-actions .btn-ghost.warn {
-  color: var(--danger-color) !important;
-  border-color: color-mix(in oklab, var(--danger-color) 40%, var(--surface-border)) !important;
-  opacity: .9;
-}
-
-mat-card-actions .btn-ghost.warn:hover,
-mat-card-actions .btn-ghost.warn:focus-visible {
-  opacity: 1;
-}
-
-/* ícone um tico menor pra ficar sutil */
-mat-card-actions {
+.request-actions,
+mat-card-actions.request-actions {
   grid-area: actions;
+
   display: flex;
-  gap: .5rem;
-  justify-content: flex-start;
+  flex-wrap: wrap;
   align-items: center;
-  padding: 0 12px 12px 0;
+  justify-content: flex-start;
 
-}
-.mat-mdc-card-actions {
-  justify-content: flex-start !important;
-  /* 👈 override do default */
+  gap: 0.5rem;
+  padding: 0 0.82rem 0.82rem 0;
 }
 
-/* ============================================================================
-   DESKTOP MÉDIO (≥ 992px)
-   - Avatar alarga mantendo retrato
-   ============================================================================ */
-@media (min-width: 992px) {
-  mat-card {
-    grid-template-columns: var(--avatar-col-desktop) 1fr;
-  }
+.request-action {
+  appearance: none;
+  -webkit-appearance: none;
+
+  min-height: 40px;
+  padding: 0 0.82rem;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+
+  border-radius: 999px;
+  border: 1px solid var(--fr-border);
+
+  background: color-mix(in oklab, var(--fr-bg) 88%, var(--fr-text) 5%);
+  color: var(--fr-text);
+
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 850;
+  line-height: 1;
+
+  text-decoration: none;
+  cursor: pointer;
+
+  transition:
+    transform 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease,
+    opacity 150ms ease;
 }
 
-/* ============================================================================
-   DESKTOP GRANDE (≥ 1200px)
-   - Ativa a terceira coluna “media” e reduz levemente alturas/espaçamentos
-   ============================================================================ */
-@media (min-width: 1200px) {
-
-  /* leve “trim” global em telas grandes */
-  :host {
-    /* avatar um pouco menor (mantém 3:4) e thumbs mais compactos */
-    --avatar-col-desktop: clamp(148px, 10.2vw, 184px);
-    --rail-thumb: clamp(68px, 5vw, 86px);
-    --rail-gap: 6px;
-  }
-
-  mat-card {
-    /* calcula a largura fixa do rail de fotos */
-    --media-width: calc(var(--rail-cols) * var(--rail-thumb) + (var(--rail-cols) - 1) * var(--rail-gap));
-    grid-template-columns: var(--avatar-col-desktop) 1fr var(--media-width);
-    grid-template-areas:
-      "avatar header  media"
-      "avatar content media"
-      "avatar actions media";
-    column-gap: 10px;
-    /* um tico mais junto */
-  }
-
-  .hdr,
-  .info-block,
-  mat-card-actions {
-    padding-right: 8px;
-  }
-
-  .name {
-    font-size: 1.02rem;
-  }
-
-  /* um degrauzinho menor */
-  .meta-chip {
-    font-size: .76rem;
-  }
-
-  /* idem chips */
-  .info-block {
-    gap: .4rem;
-  }
-
-  /* compacta um pouco as linhas */
-
-  .media-rail {
-    display: grid;
-    grid-template-columns: repeat(var(--rail-cols), 1fr);
-    grid-auto-rows: var(--rail-thumb);
-    gap: var(--rail-gap);
-    align-content: start;
-    overflow: auto;
-    padding: 6px 6px 6px 0;
-    /* respiro menor */
-    scrollbar-gutter: stable;
-  }
+.request-action:hover {
+  transform: translateY(-1px);
 }
 
-/* ============================================================================
-   DESKTOP MUITO GRANDE (≥ 1600px)
-   - Mais uma “fechadinha” suave sem distorcer proporções
-   ============================================================================ */
-@media (min-width: 1600px) {
-  :host {
-    --avatar-col-desktop: clamp(140px, 9.6vw, 176px);
-    --rail-thumb: clamp(64px, 4.6vw, 82px);
-    --rail-gap: 6px;
-  }
-
-  mat-card {
-    column-gap: 8px;
-  }
-
-  .hdr,
-  .info-block,
-  mat-card-actions {
-    padding-right: 6px;
-  }
+.request-action:active {
+  transform: translateY(0);
 }
 
-/* ---------------- Acessibilidade / foco ---------------- */
+.request-action mat-icon {
+  width: 18px;
+  height: 18px;
+
+  font-size: 18px;
+  line-height: 18px;
+}
+
+.request-action--accept {
+  background: color-mix(in oklab, var(--fr-success) 18%, var(--fr-bg));
+  color: color-mix(in oklab, var(--fr-success) 72%, var(--fr-text));
+  border-color: color-mix(in oklab, var(--fr-success) 42%, var(--fr-border));
+}
+
+.request-action--accept:hover,
+.request-action--accept:focus-visible {
+  background: var(--fr-success);
+  color: #ffffff;
+  border-color: var(--fr-success);
+
+  box-shadow: 0 12px 24px color-mix(in oklab, var(--fr-success) 28%, transparent);
+}
+
+.request-action--decline,
+.request-action--cancel {
+  background: color-mix(in oklab, var(--fr-primary) 12%, var(--fr-bg));
+  color: var(--fr-primary);
+  border-color: color-mix(in oklab, var(--fr-primary) 34%, var(--fr-border));
+}
+
+.request-action--decline:hover,
+.request-action--decline:focus-visible,
+.request-action--cancel:hover,
+.request-action--cancel:focus-visible {
+  background: color-mix(in oklab, var(--fr-primary) 92%, #000 8%);
+  color: #ffffff;
+  border-color: var(--fr-primary);
+
+  box-shadow: 0 12px 24px color-mix(in oklab, var(--fr-primary) 24%, transparent);
+}
+
+.request-action--block {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+
+  color: var(--fr-danger);
+  background: color-mix(in oklab, var(--fr-danger) 8%, var(--fr-bg));
+  border-color: color-mix(in oklab, var(--fr-danger) 30%, var(--fr-border));
+
+  opacity: 0.82;
+}
+
+.request-action--block:hover,
+.request-action--block:focus-visible {
+  opacity: 1;
+
+  background: var(--fr-danger);
+  color: #ffffff;
+  border-color: var(--fr-danger);
+}
+
+.request-action:focus-visible,
 mat-card-actions button:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
 
-/* ---------------- Alto contraste ---------------- */
+/* ============================================================================
+   Títulos de abas / painéis
+   ============================================================================ */
+
+.tab-legend,
+.panel-head {
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.tab-legend.recebidas,
+.panel-head.recebidas {
+  color: var(--fr-success);
+}
+
+.tab-legend.enviadas,
+.panel-head.enviadas {
+  color: var(--fr-primary);
+}
+
+.panel-head {
+  margin: 0.8rem 0 0.65rem;
+
+  font-size: 0.82rem;
+  line-height: 1;
+}
+
+.empty-inline {
+  margin: 1rem 0;
+  padding: 1rem;
+
+  border-radius: 14px;
+  border: 1px dashed color-mix(in oklab, var(--fr-border) 88%, transparent);
+
+  color: var(--fr-muted);
+  background: color-mix(in oklab, var(--fr-bg) 88%, var(--fr-text) 3%);
+
+  font-weight: 680;
+}
+
+/* Spinner dentro da tela */
+mat-spinner {
+  margin: 1rem auto;
+}
+
+/* ============================================================================
+   Responsividade
+   ============================================================================ */
+
+@media (min-width: 992px) {
+  mat-card {
+    grid-template-columns: var(--fr-avatar-desktop) minmax(0, 1fr);
+  }
+}
+
+@media (min-width: 1200px) {
+  :host {
+    --fr-media-width: calc(
+      var(--fr-rail-cols) * var(--fr-rail-thumb) +
+      (var(--fr-rail-cols) - 1) * var(--fr-rail-gap)
+    );
+  }
+
+  mat-card {
+    grid-template-columns: var(--fr-avatar-desktop) minmax(0, 1fr) var(--fr-media-width);
+    grid-template-areas:
+      "avatar header  media"
+      "avatar content media"
+      "avatar actions media";
+
+    column-gap: 0.72rem;
+  }
+
+  .media-rail {
+    display: grid;
+    grid-template-columns: repeat(var(--fr-rail-cols), 1fr);
+    grid-auto-rows: var(--fr-rail-thumb);
+    gap: var(--fr-rail-gap);
+    align-content: start;
+
+    overflow: auto;
+    padding: 0.5rem 0.5rem 0.5rem 0;
+
+    scrollbar-gutter: stable;
+  }
+
+  .hdr,
+  .info-block,
+  .request-actions,
+  mat-card-actions.request-actions {
+    padding-right: 0.5rem;
+  }
+}
+
+@media (min-width: 1600px) {
+  :host {
+    --fr-avatar-desktop: clamp(140px, 9.6vw, 176px);
+    --fr-rail-thumb: clamp(64px, 4.6vw, 82px);
+  }
+
+  mat-card {
+    column-gap: 0.58rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .friend-requests {
+    margin: 0.75rem;
+    padding: 0.85rem;
+    border-radius: 14px;
+  }
+
+  mat-card {
+    grid-template-columns: var(--fr-avatar-mobile) minmax(0, 1fr);
+    column-gap: 0.72rem;
+    border-radius: 16px;
+  }
+
+  .hdr {
+    padding-top: 0.7rem;
+    padding-right: 0.72rem;
+  }
+
+  .info-block {
+    padding-right: 0.72rem;
+  }
+
+  .request-actions,
+  mat-card-actions.request-actions {
+    gap: 0.42rem;
+    padding-right: 0.72rem;
+  }
+
+  .request-action {
+    min-height: 42px;
+    padding-inline: 0.72rem;
+  }
+
+  .request-action--block {
+    width: 42px;
+    min-width: 42px;
+    padding: 0;
+  }
+}
+
+@media (max-width: 430px) {
+  :host {
+    --fr-avatar-mobile: 82px;
+  }
+
+  .friend-requests {
+    margin: 0.5rem;
+    padding: 0.72rem;
+  }
+
+  mat-card {
+    column-gap: 0.58rem;
+  }
+
+  .name {
+    max-width: 12rem;
+    font-size: 0.98rem;
+  }
+
+  .meta-chip {
+    font-size: 0.7rem;
+    padding-inline: 0.42rem;
+  }
+
+  .when {
+    font-size: 0.78rem;
+  }
+
+  .msg {
+    font-size: 0.88rem;
+  }
+
+  .request-action {
+    font-size: 0.8rem;
+    padding-inline: 0.64rem;
+  }
+}
+
+/* ============================================================================
+   Tema escuro
+   ============================================================================ */
+
+:host-context(.dark-mode) .friend-requests,
+html.dark-mode .friend-requests {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color) 92%, var(--fr-primary) 4%),
+      var(--surface-color) 48%
+    );
+}
+
+:host-context(.dark-mode) mat-card,
+html.dark-mode mat-card {
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--surface-color) 88%, #000 12%),
+      var(--surface-color)
+    );
+
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.36),
+    0 4px 14px rgba(0, 0, 0, 0.24);
+}
+
+:host-context(.dark-mode) .meta-chip,
+html.dark-mode .meta-chip {
+  background: color-mix(in oklab, var(--surface-color) 78%, #ffffff 7%);
+}
+
+:host-context(.dark-mode) .request-action,
+html.dark-mode .request-action {
+  background: color-mix(in oklab, var(--surface-color) 84%, #ffffff 7%);
+  border-color: color-mix(in oklab, var(--surface-border) 82%, #ffffff 8%);
+}
+
+/* ============================================================================
+   Alto contraste
+   ============================================================================ */
+
+:host-context(.high-contrast) .friend-requests,
+:host-context(.high-contrast) mat-card,
 html.high-contrast .friend-requests,
 html.high-contrast mat-card {
   background: var(--background-color) !important;
   color: var(--text-color) !important;
   border: 2px solid currentColor !important;
   box-shadow: none !important;
+}
+
+:host-context(.high-contrast) mat-card:hover,
+html.high-contrast mat-card:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+:host-context(.high-contrast) .meta-chip,
+:host-context(.high-contrast) .role-pill,
+:host-context(.high-contrast) .empty-inline,
+html.high-contrast .meta-chip,
+html.high-contrast .role-pill,
+html.high-contrast .empty-inline {
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  border: 2px solid currentColor !important;
+}
+
+:host-context(.high-contrast) .request-action,
+html.high-contrast .request-action {
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  border: 2px solid currentColor !important;
+  box-shadow: none !important;
+}
+
+:host-context(.high-contrast) .request-action--accept,
+html.high-contrast .request-action--accept {
+  background: var(--text-color) !important;
+  color: var(--background-color) !important;
+}
+
+:host-context(.high-contrast) .request-action--decline,
+:host-context(.high-contrast) .request-action--cancel,
+:host-context(.high-contrast) .request-action--block,
+html.high-contrast .request-action--decline,
+html.high-contrast .request-action--cancel,
+html.high-contrast .request-action--block {
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+}
+
+/* ============================================================================
+   Movimento reduzido
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  mat-card,
+  .request-action {
+    transition: none !important;
+  }
+
+  mat-card:hover,
+  .request-action:hover {
+    transform: none !important;
+  }
 }

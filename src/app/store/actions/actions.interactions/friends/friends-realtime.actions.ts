@@ -1,6 +1,7 @@
 //src\app\store\actions\actions.interactions\friends\friends-realtime.actions.ts
 import { createAction, props } from '@ngrx/store';
 import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
+import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 
 // -----------------------------
 // Realtime (inbound requests)
@@ -30,4 +31,21 @@ export const stopOutboundRequestsListener = createAction(
 export const outboundRequestsChanged = createAction(
   '[Friendship] Outbound Requests Changed',
   props<{ requests: (FriendRequest & { id: string })[] }>()
+);
+
+// -----------------------------
+// Realtime friends
+// -----------------------------
+export const startFriendsListener = createAction(
+  '[Friendship] Start Friends Listener',
+  props<{ uid: string }>()
+);
+
+export const stopFriendsListener = createAction(
+  '[Friendship] Stop Friends Listener'
+);
+
+export const friendsChanged = createAction(
+  '[Friendship] Friends Changed',
+  props<{ friends: Friend[] }>()
 );

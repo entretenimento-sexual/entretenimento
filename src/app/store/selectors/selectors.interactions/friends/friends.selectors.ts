@@ -30,3 +30,13 @@ export const selectSendFriendRequestSuccess = createSelector(
   selectFriendsStateSafe,
   s => !!s.sendFriendRequestSuccess
 );
+
+export const selectEndingFriendshipUid = createSelector(
+  selectFriendsStateSafe,
+  s => s.endingFriendshipUid ?? null
+);
+
+export const selectEndingFriendshipError = createSelector(
+  selectFriendsStateSafe,
+  s => s.endingFriendshipError ?? null
+);

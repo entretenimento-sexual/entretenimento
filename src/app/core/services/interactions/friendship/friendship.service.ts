@@ -31,6 +31,16 @@ interface AcceptFriendRequestCallableResponse {
   status: 'accepted';
 }
 
+interface EndFriendshipCallablePayload {
+  friendUid: string;
+}
+
+interface EndFriendshipCallableResponse {
+  actorUid: string;
+  friendUid: string;
+  status: 'ended';
+}
+
 @Injectable({ providedIn: 'root' })
 export class FriendshipService {
   private repo = inject(FriendshipRepo);
@@ -46,9 +56,14 @@ private readonly acceptFriendRequestCallable = httpsCallable<
   AcceptFriendRequestCallableResponse
 >(this.functions, 'acceptFriendRequest');
 
-  private dbg(msg: string, extra?: unknown) {
+private readonly endFriendshipCallable = httpsCallable<
+  EndFriendshipCallablePayload,
+  EndFriendshipCallableResponse
+>(this.functions, 'endFriendship');
+
+private dbg(msg: string, extra?: unknown) {
     if (!environment.production) console.log(`[FRIENDSHIP] ${msg}`, extra ?? '');
-  }
+}
 
   // =======================
   // Regras + delegação para o repo
@@ -133,6 +148,35 @@ acceptRequest(
   listFriends(uid: string): Observable<Friend[]> {
     return this.repo.listFriends(uid);
   }
+
+  /** Amigos do usuário em tempo real. */
+watchFriends(uid: string): Observable<Friend[]> {
+  return this.repo.watchFriends(uid);
+}
+
+  /** Desfazer amizade de forma segura via callable. */
+endFriendship(ownerUid: string, friendUid: string): Observable<void> {
+  const safeFriendUid = String(friendUid ?? '').trim();
+
+  if (!safeFriendUid) {
+    return defer(() => {
+      throw new Error('[FRIENDSHIP] friendUid inválido');
+    });
+  }
+
+  this.dbg('endFriendship: callable', {
+    ownerUid,
+    friendUid: safeFriendUid,
+  });
+
+  return defer(() =>
+    from(
+      this.endFriendshipCallable({
+        friendUid: safeFriendUid,
+      })
+    )
+  ).pipe(map(() => void 0));
+}
 
   /** Bloquear / Desbloquear / Listar bloqueados */
   blockUser(ownerUid: string, targetUid: string, reason?: string): Observable<void> {

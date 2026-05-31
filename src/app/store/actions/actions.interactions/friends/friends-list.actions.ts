@@ -19,3 +19,18 @@ export const loadFriendsFailure = createAction(
   '[Friendship] Load Friends Failure',
   props<{ error: string }>()
 );
+
+export const endFriendship = createAction(
+  '[Friendship] End Friendship',
+  props<{ ownerUid: string; friendUid: string }>()
+);
+
+export const endFriendshipSuccess = createAction(
+  '[Friendship] End Friendship Success',
+  props<{ ownerUid: string; friendUid: string }>()
+);
+
+export const endFriendshipFailure = createAction(
+  '[Friendship] End Friendship Failure',
+  props<{ error: string }>()
+);

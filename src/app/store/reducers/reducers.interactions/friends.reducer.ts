@@ -13,6 +13,31 @@ export const friendsReducer = createReducer(
   on(A.loadFriends, (s): FriendsState => ({ ...s, loading: true, error: null })),
   on(A.loadFriendsSuccess, (s, { friends }): FriendsState => ({ ...s, loading: false, friends })),
   on(A.loadFriendsFailure, (s, { error }): FriendsState => ({ ...s, loading: false, error })),
+on(A.endFriendship, (s, { friendUid }): FriendsState => ({
+  ...s,
+  endingFriendshipUid: String(friendUid ?? '').trim() || null,
+  endingFriendshipError: null,
+})),
+
+on(A.endFriendshipSuccess, (s, { friendUid }): FriendsState => {
+  const safeFriendUid = String(friendUid ?? '').trim();
+
+  return {
+    ...s,
+    endingFriendshipUid: null,
+    endingFriendshipError: null,
+    friends: s.friends.filter(friend =>
+      String(friend.friendUid ?? '').trim() !== safeFriendUid
+    ),
+  };
+}),
+
+on(A.endFriendshipFailure, (s, { error }): FriendsState => ({
+  ...s,
+  endingFriendshipUid: null,
+  endingFriendshipError: error,
+  error,
+})),
 
   /* ✉️ Send Friend Request */
   on(A.sendFriendRequest, (s): FriendsState => ({
@@ -146,6 +171,23 @@ export const friendsReducer = createReducer(
  on(RT.stopOutboundRequestsListener, (s) => ({
    ...s, loadingOutboundRequests: false
  })),
+
+ on(RT.startFriendsListener, (s): FriendsState => ({
+  ...s,
+  loading: true,
+  error: null,
+})),
+
+on(RT.friendsChanged, (s, { friends }): FriendsState => ({
+  ...s,
+  loading: false,
+  friends,
+})),
+
+on(RT.stopFriendsListener, (s): FriendsState => ({
+  ...s,
+  loading: false,
+})),
 
   on(logoutSuccess, () => initialState),
 
