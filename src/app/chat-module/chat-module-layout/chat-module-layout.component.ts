@@ -42,7 +42,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
-import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
 import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { DirectThreadService } from 'src/app/messaging/direct-chat/services/direct-thread.service';
@@ -145,7 +144,6 @@ constructor(
   private readonly authSession: AuthSessionService,
   private readonly currentUserStore: CurrentUserStoreService,
   private readonly accessControl: AccessControlService,
-  private readonly chatService: ChatService,
   private readonly directChatService: DirectChatService,
   private readonly directThreadService: DirectThreadService,
   private readonly roomMessages: RoomMessagesService,
@@ -385,8 +383,6 @@ constructor(
           } else {
             this.clearActiveChatPeer();
           }
-
-          this.chatService.refreshParticipantDetailsIfNeeded(resolved.chatId);
 
           this.dbg('observeChatDeepLink() -> selected chat', {
             selectedChatId: this.selectedChatId,

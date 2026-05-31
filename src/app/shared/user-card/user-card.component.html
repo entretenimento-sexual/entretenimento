@@ -151,39 +151,74 @@
         }
       </div>
 
-      <div class="user-card__actions" aria-label="Ações do perfil">
-        <a
-          class="user-card__action user-card__action--neutral"
-          [routerLink]="['/perfil', profile.uid]"
-          [attr.aria-label]="'Ver perfil de ' + (profile.nickname || 'usuário')"
-          title="Ver perfil"
-        >
-          <i class="fas fa-user" aria-hidden="true"></i>
-          <span class="sr-only">Ver perfil</span>
-        </a>
+@if (relationshipVm(); as relationship) {
+  <div class="user-card__actions" aria-label="Ações do perfil">
+    <a
+      class="user-card__action user-card__action--neutral"
+      [routerLink]="['/perfil', profile.uid]"
+      [attr.aria-label]="'Ver perfil de ' + (profile.nickname || 'usuário')"
+      title="Ver perfil"
+    >
+      <i class="fas fa-user" aria-hidden="true"></i>
+      <span class="sr-only">Ver perfil</span>
+    </a>
 
-        <button
-          type="button"
-          class="user-card__action user-card__action--primary"
-          (click)="abrirDM($event)"
-          [attr.aria-label]="'Enviar mensagem para ' + (profile.nickname || 'usuário')"
-          title="Enviar mensagem"
-        >
-          <i class="fas fa-paper-plane" aria-hidden="true"></i>
-          <span>Mensagem</span>
-        </button>
-
-        <button
-          type="button"
-          class="user-card__action user-card__action--neutral"
-          (click)="adicionarAmigo()"
-          [attr.aria-label]="'Adicionar ' + (profile.nickname || 'usuário') + ' como amigo'"
-          title="Adicionar amigo"
-        >
-          <i class="fas fa-user-plus" aria-hidden="true"></i>
-          <span class="sr-only">Adicionar amigo</span>
-        </button>
-      </div>
+    @if (relationship.canMessage) {
+      <button
+        type="button"
+        class="user-card__action user-card__action--primary"
+        (click)="abrirDM($event)"
+        [attr.aria-label]="'Enviar mensagem para ' + (profile.nickname || 'usuário')"
+        title="Enviar mensagem"
+      >
+        <i class="fas fa-paper-plane" aria-hidden="true"></i>
+        <span>Mensagem</span>
+      </button>
+    } @else if (relationship.canRespond) {
+      <a
+        class="user-card__action user-card__action--primary"
+        routerLink="/friends/requests"
+        [attr.aria-label]="'Responder solicitação de ' + (profile.nickname || 'usuário')"
+        title="Responder solicitação"
+      >
+        <i class="fas fa-user-check" aria-hidden="true"></i>
+        <span>Responder</span>
+      </a>
+    } @else if (relationship.state === 'outgoing_pending') {
+      <button
+        type="button"
+        class="user-card__action user-card__action--neutral"
+        disabled
+        [attr.aria-label]="'Solicitação já enviada para ' + (profile.nickname || 'usuário')"
+        title="Solicitação enviada"
+      >
+        <i class="fas fa-clock" aria-hidden="true"></i>
+        <span>Enviada</span>
+      </button>
+    } @else if (relationship.state === 'blocked_by_me') {
+      <a
+        class="user-card__action user-card__action--neutral"
+        routerLink="/friends/blocked"
+        [attr.aria-label]="'Perfil bloqueado'"
+        title="Perfil bloqueado"
+      >
+        <i class="fas fa-ban" aria-hidden="true"></i>
+        <span>Bloqueado</span>
+      </a>
+    } @else if (relationship.canConnect) {
+      <button
+        type="button"
+        class="user-card__action user-card__action--neutral"
+        (click)="adicionarAmigo()"
+        [attr.aria-label]="'Conectar com ' + (profile.nickname || 'usuário')"
+        title="Conectar"
+      >
+        <i class="fas fa-user-plus" aria-hidden="true"></i>
+        <span>Conectar</span>
+      </button>
+    }
+  </div>
+}
     </div>
   </article>
 } @else {

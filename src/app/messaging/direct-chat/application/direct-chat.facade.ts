@@ -7,8 +7,7 @@
 // - manter a seleção atual do chat direto
 // - resolver a abertura de chat por participant uid
 // - derivar item selecionado / estado da lista
-// ============================================================================
-
+// =======================================================================
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, combineLatest, Observable, of } from 'rxjs';
 import {
@@ -29,6 +28,7 @@ import {
 
 import { DirectChatService } from '../services/direct-chat.service';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { environment } from 'src/environments/environment';
 
@@ -54,9 +54,13 @@ export class DirectChatFacade {
     this.chats$,
     this.authSession.uid$,
   ]).pipe(
-    map(([chats, currentUid]) =>
-      (chats ?? []).map((chat) => this.toListItem(chat, currentUid))
-    ),
+    switchMap(([chats, currentUid]) => {
+      const items = (chats ?? [])
+        .map((chat) => this.toListItem(chat, currentUid))
+        .filter((item) => !!item.id);
+
+      return this.enrichListItemsWithPublicProfiles$(items);
+    }),
     catchError((error) => {
       this.reportSilent(error, 'DirectChatFacade.items$');
       return of([] as DirectChatListItem[]);
@@ -140,27 +144,16 @@ export class DirectChatFacade {
   );
 
   constructor(
-    private readonly directChatService: DirectChatService,
-    private readonly authSession: AuthSessionService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService
-  ) {}
+  private readonly directChatService: DirectChatService,
+  private readonly authSession: AuthSessionService,
+  private readonly firestoreUserQuery: FirestoreUserQueryService,
+  private readonly globalErrorHandler: GlobalErrorHandlerService
+) {}
 
-  selectChat(chatId: string | null | undefined): void {
-    const safeChatId = (chatId ?? '').trim() || null;
-
-    this.selectedChatIdSubject.next(safeChatId);
-
-    if (!safeChatId) return;
-
-    try {
-      this.directChatService.refreshParticipantDetailsIfNeeded(safeChatId);
-    } catch (error) {
-      this.reportSilent(
-        error,
-        'DirectChatFacade.selectChat.refreshParticipantDetailsIfNeeded'
-      );
-    }
-  }
+ selectChat(chatId: string | null | undefined): void {
+  const safeChatId = (chatId ?? '').trim() || null;
+  this.selectedChatIdSubject.next(safeChatId);
+}
 
   /**
    * Novo comando:
@@ -186,23 +179,90 @@ export class DirectChatFacade {
     this.selectedChatIdSubject.next(null);
   }
 
-  private toListItem(chat: IChat, currentUid: string | null): DirectChatListItem {
+  /**
+   * Resolve somente informações públicas necessárias à apresentação da lista.
+   *
+   * Segurança:
+   * - não consulta o documento privado /users do participante;
+   * - não grava snapshot do perfil dentro do documento de chat;
+   * - mantém fallback somente de leitura para conversas legadas já existentes.
+   */
+  private enrichListItemsWithPublicProfiles$(
+    items: DirectChatListItem[]
+  ): Observable<DirectChatListItem[]> {
+    const participantUids = Array.from(
+      new Set(
+        items
+          .map((item) => String(item.otherParticipantUid ?? '').trim())
+          .filter((uid) => uid.length > 0)
+      )
+    );
+
+    if (!participantUids.length) {
+      return of(items);
+    }
+
+    return this.firestoreUserQuery.getUsersPublicMap$(participantUids).pipe(
+      map((publicProfiles) =>
+        items.map((item) => {
+          const participantUid = String(
+            item.otherParticipantUid ?? ''
+          ).trim();
+
+          const publicProfile = participantUid
+            ? publicProfiles[participantUid]
+            : undefined;
+
+return {
+  ...item,
+  otherParticipantNickname:
+    String(publicProfile?.nickname ?? '').trim() || null,
+  otherParticipantPhotoURL:
+    String(publicProfile?.avatarUrl ?? '').trim() || null,
+};
+        })
+      ),
+      catchError((error) => {
+        this.reportSilent(
+          error,
+          'DirectChatFacade.enrichListItemsWithPublicProfiles$'
+        );
+
+        return of(items);
+      })
+    );
+  }
+
+  private toListItem(
+    chat: IChat,
+    currentUid: string | null
+  ): DirectChatListItem {
     const safeCurrentUid = (currentUid ?? '').trim() || null;
 
     const otherParticipantUid =
-      (chat?.participants ?? []).find((uid: string) => uid !== safeCurrentUid) ?? null;
+      (chat?.participants ?? []).find(
+        (uid: string) => uid !== safeCurrentUid
+      ) ?? null;
 
-    const lastMessagePreview = (chat?.lastMessage?.content ?? '').trim() || null;
+    const lastMessagePreview =
+      (chat?.lastMessage?.content ?? '').trim() || null;
 
     return {
       id: (chat?.id ?? '').trim(),
       chat,
       otherParticipantUid,
-      otherParticipantNickname: chat?.otherParticipantDetails?.nickname?.trim() || null,
-      otherParticipantPhotoURL: (chat?.otherParticipantDetails as any)?.photoURL ?? null,
+
+      /**
+       * Dados de apresentação serão preenchidos somente pela projeção
+       * pública atualmente acessível em public_profiles.
+       */
+      otherParticipantNickname: null,
+      otherParticipantPhotoURL: null,
+
       unreadCount: Number((chat as any)?.unreadCount ?? 0),
       lastMessagePreview,
-      lastMessageAt: chat?.lastMessage?.timestamp?.toDate?.()?.getTime?.() ?? null,
+      lastMessageAt:
+        chat?.lastMessage?.timestamp?.toDate?.()?.getTime?.() ?? null,
       canOpen: !!chat?.id,
       availability: 'open',
       blockedReason: null,

@@ -152,6 +152,20 @@ export class UserProfileViewComponent implements OnInit {
       .subscribe();
   }
 
+    onAvatarImageError(event: Event): void {
+    const image = event.target as HTMLImageElement | null;
+
+    if (!image) {
+      return;
+    }
+
+    const fallback = 'assets/imagem-padrao.webp';
+
+    if (!image.src.endsWith(fallback)) {
+      image.src = fallback;
+    }
+  }
+
   objectKeys(obj: any): string[] {
     if (!obj) return [];
     return Object.keys(obj).filter((key) => obj[key] && obj[key].value);

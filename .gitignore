@@ -54,3 +54,10 @@ scripts/service-account.json
 scripts/check-auth-user.mjs
 # Estado local persistido do Firebase Emulator
 .firebase/emulator-data/
+.emulator-data/
+firebase-debug.log
+firestore-debug.log
+database-debug.log
+pubsub-debug.log
+storage-debug.log
+ui-debug.log

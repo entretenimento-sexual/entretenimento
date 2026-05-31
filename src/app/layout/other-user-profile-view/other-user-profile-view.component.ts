@@ -23,7 +23,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
-import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
+import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 
 @Component({
   selector: 'app-other-user-profile-view',
@@ -57,7 +57,7 @@ export class OtherUserProfileViewComponent implements OnInit {
     private firestoreUserQuery: FirestoreUserQueryService,
     private authSession: AuthSessionService,
     private friendshipService: FriendshipService,
-    private chatService: ChatService,
+    private directChatService: DirectChatService,
     private cdr: ChangeDetectorRef,
     private globalErrorHandler: GlobalErrorHandlerService,
     private errorNotification: ErrorNotificationService
@@ -194,35 +194,27 @@ get discoveryLink(): any[] {
   }
 
   /**
-   * Ação REAL:
-   * cria ou reutiliza um chat 1:1.
+   * Abre ou recupera uma conversa direta pelo fluxo seguro do backend.
    *
-   * Observação honesta:
-   * - a conversa é preparada de verdade;
-   * - a navegação segue para /chat, que é a área operacional atual do módulo.
+   * Segurança:
+   * - o frontend informa somente o UID do perfil desejado;
+   * - autenticação, vínculo permitido, lifecycle e criação canônica
+   *   são tratados pela callable ensureDirectChat;
+   * - não cria documentos diretamente em /chats pelo navegador.
    */
   startDirectChat(): void {
     const targetUid = (this.uid ?? '').trim();
-    if (!targetUid || this.directChatBusy$.value) return;
+
+    if (!targetUid || this.directChatBusy$.value) {
+      return;
+    }
 
     this.directChatBusy$.next(true);
 
-    this.authSession.uid$
+    this.directChatService
+      .ensureDirectChatIdWithUser$(targetUid)
       .pipe(
         take(1),
-        switchMap((loggedUid) => {
-          const safeLoggedUid = (loggedUid ?? '').trim();
-
-          if (!safeLoggedUid) {
-            return throwError(() => new Error('Sessão não identificada para iniciar chat.'));
-          }
-
-          if (safeLoggedUid === targetUid) {
-            return throwError(() => new Error('Você não pode iniciar um chat com seu próprio perfil.'));
-          }
-
-          return this.chatService.getOrCreateChatId([safeLoggedUid, targetUid]);
-        }),
         finalize(() => {
           this.directChatBusy$.next(false);
           this.cdr.detectChanges();
@@ -233,27 +225,33 @@ get discoveryLink(): any[] {
             { op: 'startDirectChat', targetUid },
             error
           );
+
           return of(null);
         })
       )
       .subscribe((chatId) => {
-        if (!chatId) return;
+        if (!chatId) {
+          return;
+        }
 
-        this.chatService.refreshParticipantDetailsIfNeeded(chatId);
-        this.errorNotification.showSuccess('Conversa preparada. Abrindo área de chats.');
+        this.errorNotification.showSuccess(
+          'Conversa disponível. Abrindo área de chats.'
+        );
 
-        this.router.navigate(['/chat'], {
-          queryParams: {
-            openChatId: chatId,
-            withUser: targetUid,
-          },
-        }).catch((error) => {
-          this.reportError(
-            'A conversa foi criada, mas a navegação para chats falhou.',
-            { op: 'navigateToChat', chatId, targetUid },
-            error
-          );
-        });
+        this.router
+          .navigate(['/chat'], {
+            queryParams: {
+              openChatId: chatId,
+              withUser: targetUid,
+            },
+          })
+          .catch((error) => {
+            this.reportError(
+              'A conversa foi aberta, mas a navegação para chats falhou.',
+              { op: 'navigateToChat', chatId, targetUid },
+              error
+            );
+          });
       });
   }
-} // Linha 260
+} // Linha 257

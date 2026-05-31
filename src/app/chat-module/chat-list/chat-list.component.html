@@ -1,175 +1,219 @@
 <!-- src/app/chat-module/chat-list/chat-list.component.html -->
+
 <div class="conversation-list">
-  <section class="conversation-list__search" aria-label="Buscar conversas">
-    <div class="conversation-list__search-box">
-      <span class="conversation-list__search-icon" aria-hidden="true">⌕</span>
+  @if (vm$ | async; as vm) {
+    <section class="conversation-list__search" aria-label="Buscar conversas">
+      <div class="conversation-list__search-box">
+        <span class="conversation-list__search-icon" aria-hidden="true">⌕</span>
 
-      <input
-        type="text"
-        [(ngModel)]="searchTerm"
-        placeholder="Buscar conversas..."
-        aria-label="Buscar conversas"
-      />
+        <input
+          type="text"
+          [ngModel]="vm.searchTerm"
+          (ngModelChange)="setSearchTerm($event)"
+          placeholder="Buscar conversas..."
+          aria-label="Buscar conversas"
+        />
 
-      @if (hasSearch) {
-        <button
-          type="button"
-          class="conversation-list__search-clear"
-          aria-label="Limpar busca"
-          (click)="clearSearch()"
+        @if (vm.hasSearch) {
+          <button
+            type="button"
+            class="conversation-list__search-clear"
+            aria-label="Limpar busca"
+            (click)="clearSearch()"
+          >
+            ✕
+          </button>
+        }
+      </div>
+    </section>
+
+    <section
+      class="conversation-list__filters"
+      aria-label="Filtros da caixa de entrada"
+    >
+      <button
+        type="button"
+        class="conversation-list__chip"
+        [class.conversation-list__chip--active]="vm.activeFilter === 'all'"
+        [attr.aria-pressed]="vm.activeFilter === 'all'"
+        (click)="setActiveFilter('all')"
+      >
+        Todas
+      </button>
+
+      <button
+        type="button"
+        class="conversation-list__chip"
+        [class.conversation-list__chip--active]="vm.activeFilter === 'direct'"
+        [attr.aria-pressed]="vm.activeFilter === 'direct'"
+        (click)="setActiveFilter('direct')"
+      >
+        Diretas
+      </button>
+
+      <button
+        type="button"
+        class="conversation-list__chip"
+        [class.conversation-list__chip--active]="vm.activeFilter === 'rooms'"
+        [attr.aria-pressed]="vm.activeFilter === 'rooms'"
+        (click)="setActiveFilter('rooms')"
+      >
+        {{ vm.roomsChipLabel }}
+      </button>
+    </section>
+
+    <div class="conversation-list__scroll">
+      @if (vm.showDirectChats && vm.filteredDirectChats.length > 0) {
+        <section
+          class="conversation-list__section"
+          aria-labelledby="direct-chats-title"
         >
-          ✕
-        </button>
-      }
-    </div>
-  </section>
-
-  <section class="conversation-list__filters" aria-label="Filtros da caixa de entrada">
-    <button
-      type="button"
-      class="conversation-list__chip"
-      [class.conversation-list__chip--active]="activeFilter === 'all'"
-      [attr.aria-pressed]="activeFilter === 'all'"
-      (click)="setActiveFilter('all')"
-    >
-      Todas
-    </button>
-
-    <button
-      type="button"
-      class="conversation-list__chip"
-      [class.conversation-list__chip--active]="activeFilter === 'direct'"
-      [attr.aria-pressed]="activeFilter === 'direct'"
-      (click)="setActiveFilter('direct')"
-    >
-      Diretas
-    </button>
-
-    <button
-      type="button"
-      class="conversation-list__chip"
-      [class.conversation-list__chip--active]="activeFilter === 'rooms'"
-      [attr.aria-pressed]="activeFilter === 'rooms'"
-      (click)="setActiveFilter('rooms')"
-    >
-      {{ roomsChipLabel }}
-    </button>
-  </section>
-
-  <div class="conversation-list__scroll">
-    @if (showDirectChats && hasVisibleDirectChats) {
-      <section class="conversation-list__section" aria-labelledby="direct-chats-title">
-        <header class="conversation-list__section-header">
-          <h3 id="direct-chats-title" class="conversation-list__section-title">
-            Conversas diretas
-          </h3>
-        </header>
-
-        <div class="conversation-list__items">
-          @for (chat of filteredDirectChats; track chat.id ?? $index) {
-            <button
-              type="button"
-              class="conversation-card"
-              (click)="selectChat(chat)"
-              [ngClass]="{ 'conversation-card--selected': isDirectChatSelected(chat.id) }"
-              [attr.aria-pressed]="isDirectChatSelected(chat.id)"
+          <header class="conversation-list__section-header">
+            <h3
+              id="direct-chats-title"
+              class="conversation-list__section-title"
             >
-              <img
-                class="conversation-card__avatar"
-                [src]="getOptimizedPhotoURL(chat.otherParticipantDetails?.photoURL) || 'assets/imagem-padrao.webp'"
-                [alt]="'Foto de ' + (chat.otherParticipantDetails?.nickname || 'usuário')"
-                loading="lazy"
-              />
+              Conversas diretas
+            </h3>
+          </header>
 
-              <div class="conversation-card__content">
-                <p class="conversation-card__name">
-                  {{ chat.otherParticipantDetails?.nickname || 'Usuário' }}
-                </p>
-
-                <p class="conversation-card__meta">
-                  {{ chat.lastMessage?.content || 'Nenhuma mensagem recente.' }}
-                </p>
-              </div>
-            </button>
-          }
-        </div>
-      </section>
-    }
-
-    @if (showRooms && hasVisibleRooms) {
-      <section class="conversation-list__section conversation-list__section--rooms" aria-labelledby="rooms-title">
-        <header class="conversation-list__section-header">
-          <h3 id="rooms-title" class="conversation-list__section-title">
-            Salas
-          </h3>
-        </header>
-
-        <div class="conversation-list__items conversation-list__items--rooms">
-          @for (room of filteredRooms; track room.id) {
-            <article class="room-card">
+          <div class="conversation-list__items">
+            @for (chat of vm.filteredDirectChats; track chat.id) {
               <button
                 type="button"
-                class="room-card__main"
-                (click)="selectRoom(room.id)"
-                [ngClass]="{ 'room-card__main--selected': isRoomSelected(room.id) }"
-                [attr.aria-pressed]="isRoomSelected(room.id)"
+                class="conversation-card"
+                (click)="selectChat(chat)"
+                [class.conversation-card--selected]="isDirectChatSelected(chat.id)"
+                [attr.aria-pressed]="isDirectChatSelected(chat.id)"
               >
-                <div class="room-card__content">
-                  <span class="room-card__name">{{ room.roomName }}</span>
+                <img
+                  class="conversation-card__avatar"
+                  [src]="getDirectChatPhotoURL(chat)"
+                  [alt]="'Foto de ' + (chat.otherParticipantNickname || 'usuário')"
+                  loading="lazy"
+                />
 
-                  <span class="room-card__meta">
-                    {{ room.description || 'Sala ativa para interação em grupo.' }}
-                  </span>
+                <div class="conversation-card__content">
+                  <p class="conversation-card__name">
+                    {{ chat.otherParticipantNickname || 'Usuário' }}
+                  </p>
+
+                  <p class="conversation-card__meta">
+                    {{ chat.lastMessagePreview || 'Nenhuma mensagem recente.' }}
+                  </p>
                 </div>
               </button>
+            }
+          </div>
+        </section>
+      }
 
-              @if (isOwner(room) && activeFilter === 'rooms') {
-                <div class="room-card__actions">
-                  <button
-                    type="button"
-                    class="btn btn-ghost room-card__action"
-                    (click)="editRoom(room.id, $event)"
-                  >
-                    Editar
-                  </button>
+      @if (vm.showRooms && vm.filteredRooms.length > 0) {
+        <section
+          class="conversation-list__section conversation-list__section--rooms"
+          aria-labelledby="rooms-title"
+        >
+          <header class="conversation-list__section-header">
+            <h3 id="rooms-title" class="conversation-list__section-title">
+              Salas
+            </h3>
+          </header>
 
-                  <button
-                    type="button"
-                    class="btn btn-ghost room-card__action"
-                    (click)="sendInvite(room.id, $event)"
-                  >
-                    Convidar
-                  </button>
+          <div class="conversation-list__items conversation-list__items--rooms">
+            @for (room of vm.filteredRooms; track room.id) {
+              <article class="room-card">
+                <button
+                  type="button"
+                  class="room-card__main"
+                  (click)="selectRoom(room.id)"
+                  [class.room-card__main--selected]="isRoomSelected(room.id)"
+                  [attr.aria-pressed]="isRoomSelected(room.id)"
+                >
+                  <div class="room-card__content">
+                    <span class="room-card__name">
+                      {{ room.roomName }}
+                    </span>
 
-                  <button
-                    type="button"
-                    class="btn btn-ghost room-card__action room-card__action--danger"
-                    (click)="deleteRoom(room.id, $event)"
-                  >
-                    Excluir
-                  </button>
-                </div>
-              }
-            </article>
+                    <span class="room-card__meta">
+                      {{ room.description || 'Sala ativa para interação em grupo.' }}
+                    </span>
+                  </div>
+                </button>
+
+                @if (isOwner(room) && vm.activeFilter === 'rooms') {
+                  <div class="room-card__actions">
+                    <button
+                      type="button"
+                      class="btn btn-ghost room-card__action"
+                      (click)="editRoom(room.id, $event)"
+                    >
+                      Editar
+                    </button>
+
+                    <button
+                      type="button"
+                      class="btn btn-ghost room-card__action"
+                      (click)="sendInvite(room.id, $event)"
+                    >
+                      Convidar
+                    </button>
+
+                    <button
+                      type="button"
+                      class="btn btn-ghost room-card__action room-card__action--danger"
+                      (click)="deleteRoom(room.id, $event)"
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                }
+              </article>
+            }
+          </div>
+        </section>
+      }
+
+      @if (vm.showLoadingState) {
+        <section
+          class="conversation-list__empty"
+          role="status"
+          aria-live="polite"
+        >
+          <p class="conversation-list__empty-title">
+            Carregando conversas...
+          </p>
+
+          <p class="conversation-list__empty-text">
+            Aguarde enquanto atualizamos suas mensagens.
+          </p>
+        </section>
+      }
+
+      @if (vm.shouldShowEmptyState) {
+        <section
+          class="conversation-list__empty"
+          role="status"
+          aria-live="polite"
+        >
+          @if (vm.hasSearch || vm.activeFilter !== 'all') {
+            <p class="conversation-list__empty-title">
+              Nenhum resultado encontrado.
+            </p>
+
+            <p class="conversation-list__empty-text">
+              Ajuste o filtro ou limpe a busca para localizar conversas.
+            </p>
+          } @else {
+            <p class="conversation-list__empty-title">
+              Nenhuma conversa ainda.
+            </p>
+
+            <p class="conversation-list__empty-text">
+              Suas conversas diretas e salas aparecerão aqui.
+            </p>
           }
-        </div>
-      </section>
-    }
-
-@if (shouldShowEmptyState) {
-  <section class="conversation-list__empty" role="status" aria-live="polite">
-    @if (hasSearch || activeFilter !== 'all') {
-      <p class="conversation-list__empty-title">Nenhum resultado encontrado.</p>
-      <p class="conversation-list__empty-text">
-        Ajuste o filtro ou limpe a busca para localizar conversas.
-      </p>
-    } @else {
-      <p class="conversation-list__empty-title">Nenhuma conversa ainda.</p>
-      <p class="conversation-list__empty-text">
-        Suas conversas diretas e salas aparecerão aqui.
-      </p>
-    }
-  </section>
-}
-  </div>
+        </section>
+      }
+    </div>
+  }
 </div>

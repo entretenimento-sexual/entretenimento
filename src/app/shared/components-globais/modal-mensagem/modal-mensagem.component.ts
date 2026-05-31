@@ -15,7 +15,6 @@
 // - identidade, nickname, lifecycle, bloqueios e persistência são validados
 //   pelo backend.
 // -----------------------------------------------------------------------------
-
 import {
   Component,
   EventEmitter,
@@ -30,6 +29,7 @@ import {
   catchError,
   filter,
   finalize,
+  map,
   switchMap,
   take,
 } from 'rxjs/operators';
@@ -40,6 +40,13 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { DirectThreadService } from 'src/app/messaging/direct-chat/services/direct-thread.service';
+
+export interface ModalMensagemResult {
+  ok: true;
+  chatId: string;
+  targetUid: string;
+  messageId: string;
+}
 
 @Component({
   selector: 'app-modal-mensagem',
@@ -92,15 +99,27 @@ export class ModalMensagemComponent {
       .pipe(
         take(1),
 
-        switchMap((chatId) => {
-          if (!chatId) {
-            return EMPTY;
-          }
+      switchMap((chatId) => {
+        if (!chatId) {
+          return EMPTY;
+        }
 
-          return this.directThreadService.sendMessage$(chatId, content);
-        }),
+        return this.directThreadService.sendMessage$(chatId, content).pipe(
+          map((messageId) => ({
+            chatId,
+            targetUid: profileUid,
+            messageId,
+          }))
+        );
+      }),
 
-        filter((messageId): messageId is string => !!messageId),
+      filter((result): result is {
+        chatId: string;
+        targetUid: string;
+        messageId: string;
+      } => {
+        return !!result.chatId && !!result.targetUid && !!result.messageId;
+      }),
 
         catchError((error: unknown) => {
           this.handleUnexpectedError(error, {
@@ -117,10 +136,16 @@ export class ModalMensagemComponent {
         })
       )
       .subscribe({
-        next: () => {
+        next: (result) => {
           this.errorNotifier.showSuccess('Mensagem enviada.');
           this.mensagemEnviada.emit(profileUid);
-          this.dialogRef.close(true);
+
+          this.dialogRef.close({
+            ok: true,
+            chatId: result.chatId,
+            targetUid: result.targetUid,
+            messageId: result.messageId,
+          } satisfies ModalMensagemResult);
         },
 
         error: () => {

@@ -1,7 +1,8 @@
 //src\app\core\services\interactions\friendship\friendship.service.ts
 // Não esquecer comentários e ferramentas de debug
 import { Injectable, inject } from '@angular/core';
-import { switchMap, forkJoin, throwError, Observable } from 'rxjs';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+import { defer, from, map, Observable } from 'rxjs';
 import { environment } from 'src/environments/environment';
 import { FriendshipRepo } from './friendship.repo';
 import { Friend } from '../../../interfaces/friendship/friend.interface';
@@ -9,9 +10,41 @@ import { FriendRequest } from '../../../interfaces/friendship/friend-request.int
 import { BlockedUserActive } from '../../../interfaces/friendship/blocked-user.interface';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 
+interface SendFriendRequestCallablePayload {
+  targetUid: string;
+  message?: string;
+}
+
+interface SendFriendRequestCallableResponse {
+  requestId: string;
+  status: 'pending';
+}
+
+interface AcceptFriendRequestCallablePayload {
+  requestId: string;
+}
+
+interface AcceptFriendRequestCallableResponse {
+  requestId: string;
+  requesterUid: string;
+  targetUid: string;
+  status: 'accepted';
+}
+
 @Injectable({ providedIn: 'root' })
 export class FriendshipService {
   private repo = inject(FriendshipRepo);
+private functions = inject(Functions);
+
+private readonly sendFriendRequestCallable = httpsCallable<
+  SendFriendRequestCallablePayload,
+  SendFriendRequestCallableResponse
+>(this.functions, 'sendFriendRequest');
+
+private readonly acceptFriendRequestCallable = httpsCallable<
+  AcceptFriendRequestCallablePayload,
+  AcceptFriendRequestCallableResponse
+>(this.functions, 'acceptFriendRequest');
 
   private dbg(msg: string, extra?: unknown) {
     if (!environment.production) console.log(`[FRIENDSHIP] ${msg}`, extra ?? '');
@@ -22,34 +55,34 @@ export class FriendshipService {
   // =======================
 
   /** Enviar solicitação de amizade (valida amizade/bloqueios/duplicata) */
-  sendRequest(requesterUid: string, targetUid: string, message?: string): Observable<void> {
-    if (!requesterUid || !targetUid || requesterUid === targetUid) {
-      return throwError(() => new Error('[FRIENDSHIP] requesterUid/targetUid inválidos'));
-    }
-    this.dbg('sendRequest: validating', { requesterUid, targetUid });
+sendRequest(
+  requesterUid: string,
+  targetUid: string,
+  message?: string
+): Observable<void> {
+  const safeTargetUid = String(targetUid ?? '').trim();
+  const safeMessage = String(message ?? '').trim();
 
-    return this.repo.isAlreadyFriends(requesterUid, targetUid).pipe(
-      switchMap(friendSnap => {
-        if (friendSnap.exists()) {
-          return throwError(() => new Error('Vocês já são amigos.'));
-        }
-        // 👉 objeto em vez de array para tipagem estável
-        return forkJoin({
-          iBlockedSnap: this.repo.isBlockedByA(requesterUid, targetUid),
-          blockedMeSnap: this.repo.isBlockedByA(targetUid, requesterUid),
-        });
-      }),
-      switchMap(({ iBlockedSnap, blockedMeSnap }) => {
-        if (iBlockedSnap.exists()) return throwError(() => new Error('Você bloqueou este usuário.'));
-        if (blockedMeSnap.exists()) return throwError(() => new Error('Você foi bloqueado por este usuário.'));
-        return this.repo.findDuplicatePending(requesterUid, targetUid);
-      }),
-      switchMap(snap => {
-        if (!snap.empty) return throwError(() => new Error('Já existe uma solicitação pendente.'));
-        return this.repo.createRequest(requesterUid, targetUid, message);
-      })
-    );
+  if (!safeTargetUid) {
+    return defer(() => {
+      throw new Error('[FRIENDSHIP] targetUid inválido');
+    });
   }
+
+  this.dbg('sendRequest: callable', {
+    requesterUid,
+    targetUid: safeTargetUid,
+  });
+
+  return defer(() =>
+    from(
+      this.sendFriendRequestCallable({
+        targetUid: safeTargetUid,
+        ...(safeMessage ? { message: safeMessage } : {}),
+      })
+    )
+  ).pipe(map(() => void 0));
+}
 
   /** Minhas solicitações enviadas (pendentes) */
   listOutboundRequests(uid: string): Observable<(FriendRequest & { id: string })[]> {
@@ -57,10 +90,33 @@ export class FriendshipService {
   }
 
   /** Aceitar: amizade bilateral + status accepted */
-  acceptRequest(requestId: string, requesterUid: string, targetUid: string): Observable<void> {
-    this.dbg('acceptRequest', { requestId, requesterUid, targetUid });
-    return this.repo.acceptRequestBatch(requestId, requesterUid, targetUid);
+acceptRequest(
+  requestId: string,
+  requesterUid: string,
+  targetUid: string
+): Observable<void> {
+  const safeRequestId = String(requestId ?? '').trim();
+
+  if (!safeRequestId) {
+    return defer(() => {
+      throw new Error('[FRIENDSHIP] requestId inválido');
+    });
   }
+
+  this.dbg('acceptRequest: callable', {
+    requestId: safeRequestId,
+    requesterUid,
+    targetUid,
+  });
+
+  return defer(() =>
+    from(
+      this.acceptFriendRequestCallable({
+        requestId: safeRequestId,
+      })
+    )
+  ).pipe(map(() => void 0));
+}
 
   /** Recusar */
   declineRequest(requestId: string): Observable<void> {

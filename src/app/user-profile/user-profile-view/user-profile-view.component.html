@@ -6,22 +6,35 @@
       @if ((usuario$ | async); as usuario) {
         @if (usuario) {
           <section class="profile-card" aria-label="Dados do perfil">
-            <header class="profile-header">
-              <div class="profile-title">
-                <h2 class="category-title">Meus dados de perfil</h2>
+<header class="profile-header">
+  <div class="profile-identity">
+    <img
+      class="profile-avatar"
+      [src]="usuario.photoURL || 'assets/imagem-padrao.webp'"
+      [alt]="usuario.nickname ? ('Foto de perfil de ' + usuario.nickname) : 'Foto de perfil'"
+      width="84"
+      height="84"
+      loading="eager"
+      decoding="async"
+      (error)="onAvatarImageError($event)"
+    />
 
-                @if (usuario.nickname) {
-                  <p class="profile-lead">
-                    @if (isCouple(usuario.gender)) {
-                      <span>Somos o casal <strong>{{ usuario.nickname }}</strong></span>
-                    } @else {
-                      <span>Sou <strong>{{ usuario.nickname }}</strong></span>
-                    }
-                  </p>
-                }
-              </div>
+    <div class="profile-title">
+      <h2 class="category-title">Meus dados de perfil</h2>
 
-              <div class="profile-actions" role="group" aria-label="Ações do perfil">
+      @if (usuario.nickname) {
+        <p class="profile-lead">
+          @if (isCouple(usuario.gender)) {
+            <span>Somos o casal <strong>{{ usuario.nickname }}</strong></span>
+          } @else {
+            <span>Sou <strong>{{ usuario.nickname }}</strong></span>
+          }
+        </p>
+      }
+    </div>
+  </div>
+
+  <div class="profile-actions" role="group" aria-label="Ações do perfil">
                 <a
                   class="btn btn-secondary"
                   [routerLink]="['/perfil', uid, 'editar-dados-pessoais']"

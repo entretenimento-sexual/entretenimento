@@ -4,21 +4,32 @@
 // -----------------------------------------------------------------------------
 // Envia mensagem em conversa direta existente.
 //
-// Segurança:
-// - actorUid vem exclusivamente de request.auth.uid;
-// - conteúdo e clientRequestId são validados no backend;
+// Papel desta callable:
+// - o cliente informa somente `chatId`, `content` e `clientRequestId`;
+// - actorUid vem exclusivamente de `request.auth.uid`;
+// - conteúdo é validado no backend;
 // - o usuário precisa participar da conversa;
 // - lifecycle dos dois perfis é validado no momento do envio;
 // - bloqueio bilateral impede nova mensagem;
+// - amizade/conexão bilateral ativa é obrigatória para enviar;
 // - mensagem e preview do chat são gravados em transação;
-// - clientRequestId torna retry da mesma ação idempotente.
+// - clientRequestId torna retry idempotente.
 //
-// Não pertence a esta primeira etapa:
-// - push notification;
-// - contador consolidado de não lidas;
-// - confirmação delivered/read pelo backend;
-// - limitação avançada por rajada de mensagens.
+// Segurança digital:
+// - histórico antigo não equivale a autorização permanente de contato;
+// - se a conexão for removida, o histórico pode existir, mas nova mensagem
+//   passa a ser bloqueada;
+// - amizade unilateral não libera envio;
+// - bloqueio bilateral continua tendo prioridade de proteção;
+// - o cliente não escreve diretamente em `/chats/{chatId}/messages`.
+//
+// Expansão futura:
+// - compatível com app mobile usando a mesma callable;
+// - base pronta para unread counters, push notification, rate limit,
+//   antiflood, denúncia e moderação;
+// - clientRequestId evita duplicidade por retry em redes móveis instáveis.
 // -----------------------------------------------------------------------------
+
 import { createHash } from 'node:crypto';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -28,6 +39,7 @@ import { FUNCTIONS_REGION } from '../../../config/functions-region';
 import {
   assertMessagingAccountOperational,
 } from '../../shared/messaging-account.policy';
+
 import type {
   MessagingUserDoc,
 } from '../../shared/messaging.types';
@@ -39,6 +51,7 @@ import {
   normalizeDirectMessageRequestId,
   resolveDirectMessageTargetUid,
 } from '../domain/direct-message.policy';
+
 import type {
   DirectChatDocumentForSend,
 } from '../domain/direct-message.policy';
@@ -86,6 +99,27 @@ function resolveNickname(user: MessagingUserDoc | undefined): string {
 
 function isBlocked(block: StoredBlockDoc | undefined): boolean {
   return block?.isBlocked === true;
+}
+
+/**
+ * Validação de consentimento social para envio de mensagem.
+ *
+ * A existência de chat não basta.
+ * Para nova mensagem, a conexão precisa estar aceita dos dois lados:
+ *
+ * /users/{actorUid}/friends/{targetUid}
+ * /users/{targetUid}/friends/{actorUid}
+ */
+function assertAcceptedFriendshipForDirectMessage(params: {
+  actorFriendExists: boolean;
+  targetFriendExists: boolean;
+}): void {
+  if (!params.actorFriendExists || !params.targetFriendExists) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A conexão precisa estar aceita para enviar mensagens.'
+    );
+  }
 }
 
 function isSameIdempotentMessage(
@@ -141,10 +175,20 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
 
     return db.runTransaction(async (transaction) => {
       const chatSnapshot = await transaction.get(chatRef);
+
       const chat = chatSnapshot.exists
         ? chatSnapshot.data() as DirectChatDocumentForSend
         : undefined;
 
+      /**
+       * Esta função deve validar:
+       * - se o chat existe;
+       * - se actorUid participa;
+       * - quem é o outro participante.
+       *
+       * Se o cliente informar um chat que não pertence a ele, a policy deve
+       * lançar erro. O cliente nunca deve conseguir forçar targetUid.
+       */
       const targetUid = resolveDirectMessageTargetUid(chat, actorUid);
 
       const actorRef = db.collection('users').doc(actorUid);
@@ -153,17 +197,24 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
       const actorBlockRef = actorRef.collection('blocks').doc(targetUid);
       const targetBlockRef = targetRef.collection('blocks').doc(actorUid);
 
+      const actorFriendRef = actorRef.collection('friends').doc(targetUid);
+      const targetFriendRef = targetRef.collection('friends').doc(actorUid);
+
       const [
         actorSnapshot,
         targetSnapshot,
         actorBlockSnapshot,
         targetBlockSnapshot,
+        actorFriendSnapshot,
+        targetFriendSnapshot,
         existingMessageSnapshot,
       ] = await Promise.all([
         transaction.get(actorRef),
         transaction.get(targetRef),
         transaction.get(actorBlockRef),
         transaction.get(targetBlockRef),
+        transaction.get(actorFriendRef),
+        transaction.get(targetFriendRef),
         transaction.get(messageRef),
       ]);
 
@@ -189,6 +240,25 @@ export const sendDirectMessage = onCall<SendDirectMessageRequest>(
         ),
       });
 
+      /**
+       * CONSENTIMENTO BILATERAL OBRIGATÓRIO.
+       *
+       * Mesmo que o chat já exista, nova mensagem exige amizade ativa dos dois
+       * lados. Isso protege usuários contra recontato por chats antigos,
+       * dados legados ou documentos criados manualmente no Emulator.
+       */
+      assertAcceptedFriendshipForDirectMessage({
+        actorFriendExists: actorFriendSnapshot.exists,
+        targetFriendExists: targetFriendSnapshot.exists,
+      });
+
+      /**
+       * Idempotência.
+       *
+       * Em mobile e redes instáveis, o usuário pode reenviar a mesma intenção
+       * por retry. Se `clientRequestId` e conteúdo forem iguais, retornamos o
+       * mesmo messageId sem criar duplicidade.
+       */
       if (existingMessageSnapshot.exists) {
         const existingMessage =
           existingMessageSnapshot.data() as StoredDirectMessageDoc;

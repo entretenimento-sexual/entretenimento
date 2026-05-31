@@ -42,6 +42,23 @@
   margin-bottom: var(--space-3, 16px);
 }
 
+.profile-identity {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 16px);
+}
+
+.profile-avatar {
+  width: 84px;
+  height: 84px;
+  flex: 0 0 84px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 1px solid var(--surface-border);
+  background: var(--input-background);
+}
+
 .profile-title {
   min-width: 0;
 }
@@ -157,6 +174,16 @@
   .profile-header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+    .profile-identity {
+    align-items: flex-start;
+  }
+
+  .profile-avatar {
+    width: 72px;
+    height: 72px;
+    flex-basis: 72px;
   }
 
   .profile-actions {

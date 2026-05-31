@@ -19,7 +19,6 @@
 // - removida a dependência de blocos explicativos duplicados
 // - removida a lógica de seção de rooms sempre exposta como bloco pesado
 // ============================================================================
-
 import {
   Component,
   DestroyRef,
@@ -36,6 +35,7 @@ import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
 
 import {
+  BehaviorSubject,
   combineLatest,
   forkJoin,
   Observable,
@@ -52,18 +52,17 @@ import {
   switchMap,
   take,
   tap,
+  startWith,
 } from 'rxjs/operators';
 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { environment } from 'src/environments/environment';
 import { Timestamp } from '@firebase/firestore';
 
-import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { IRoom } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 import { Invite } from 'src/app/core/interfaces/interfaces-chat/invite.interface';
 
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
-import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
 import { DirectChatListItem } from 'src/app/messaging/direct-chat/models/direct-chat.models';
 
 import { RoomService } from 'src/app/core/services/batepapo/room-services/room.service';
@@ -93,6 +92,24 @@ type ChatSelection = {
 
 type ConversationFilter = 'all' | 'direct' | 'rooms';
 
+type ConversationCollectionState<T> = {
+  items: T[];
+  loading: boolean;
+};
+
+type ChatListViewModel = {
+  activeFilter: ConversationFilter;
+  searchTerm: string;
+  hasSearch: boolean;
+  showDirectChats: boolean;
+  showRooms: boolean;
+  filteredDirectChats: DirectChatListItem[];
+  filteredRooms: IRoom[];
+  roomsChipLabel: string;
+  showLoadingState: boolean;
+  shouldShowEmptyState: boolean;
+};
+
 @Component({
   selector: 'app-chat-list',
   templateUrl: './chat-list.component.html',
@@ -100,26 +117,22 @@ type ConversationFilter = 'all' | 'direct' | 'rooms';
   standalone: false,
 })
 export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
-  rooms: IRoom[] = [];
-  regularChats: IChat[] = [];
+  private roomsSnapshot: IRoom[] = [];
 
   rooms$!: Observable<IRoom[]>;
-  regularChats$!: Observable<IChat[]>;
+  directChatItems$!: Observable<DirectChatListItem[]>;
+  vm$!: Observable<ChatListViewModel>;
 
   @Input() activeChatId: string | undefined;
   @Input() activeType: 'room' | 'chat' | undefined;
 
   @Output() chatSelected = new EventEmitter<ChatSelection>();
 
-  /**
-   * Filtro ativo da lateral.
-   */
-  activeFilter: ConversationFilter = 'all';
+  private readonly activeFilterSubject =
+    new BehaviorSubject<ConversationFilter>('all');
 
-  /**
-   * Busca textual real da lateral.
-   */
-  searchTerm = '';
+  private readonly searchTermSubject =
+    new BehaviorSubject<string>('');
 
   private currentUserUid: string | null = null;
 
@@ -137,8 +150,6 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
     private readonly access: AccessControlService,
 
     private readonly directChatFacade: DirectChatFacade,
-    private readonly directChatService: DirectChatService,
-
     private readonly roomService: RoomService,
     private readonly roomMessages: RoomMessagesService,
     private readonly chatnotification: ChatNotificationService,
@@ -159,97 +170,48 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
     this.bindAuthFallbackRedirect();
     this.bindRoomsStream();
     this.bindDirectChatsStream();
+    this.bindViewModel();
     this.bindActiveRoomMonitor();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['activeType']) {
-      if (this.activeType === 'room') {
-        this.activeFilter = 'rooms';
-      }
+    if (changes['activeType'] && this.activeType === 'room') {
+      this.setActiveFilter('rooms');
     }
   }
 
   ngOnDestroy(): void {}
 
   setActiveFilter(filter: ConversationFilter): void {
-    this.activeFilter = filter;
+    this.activeFilterSubject.next(filter);
+  }
+
+  setSearchTerm(value: string | null | undefined): void {
+    this.searchTermSubject.next(String(value ?? ''));
   }
 
   clearSearch(): void {
-    this.searchTerm = '';
-  }
-
-  get hasSearch(): boolean {
-    return this.normalizeText(this.searchTerm).length > 0;
-  }
-
-  get showDirectChats(): boolean {
-    return this.activeFilter === 'all' || this.activeFilter === 'direct';
-  }
-
-  get showRooms(): boolean {
-    return this.activeFilter === 'all' || this.activeFilter === 'rooms';
-  }
-
-  get roomsChipLabel(): string {
-    const count = this.filteredRooms.length;
-    return count > 0 ? `Salas ${count}` : 'Salas';
-  }
-
-  get filteredDirectChats(): IChat[] {
-    const term = this.normalizeText(this.searchTerm);
-    const source = this.regularChats ?? [];
-
-    if (!term) {
-      return source;
-    }
-
-    return source.filter((chat) => {
-      const nickname = this.normalizeText((chat as any)?.otherParticipantDetails?.nickname);
-      const preview = this.normalizeText(chat?.lastMessage?.content);
-      return nickname.includes(term) || preview.includes(term);
-    });
-  }
-
-  get filteredRooms(): IRoom[] {
-    const term = this.normalizeText(this.searchTerm);
-    const source = this.rooms ?? [];
-
-    if (!term) {
-      return source;
-    }
-
-    return source.filter((room) => {
-      const roomName = this.normalizeText(room?.roomName);
-      const description = this.normalizeText(room?.description);
-      return roomName.includes(term) || description.includes(term);
-    });
-  }
-
-  get hasVisibleDirectChats(): boolean {
-    return this.filteredDirectChats.length > 0;
-  }
-
-  get hasVisibleRooms(): boolean {
-    return this.filteredRooms.length > 0;
-  }
-
-  get shouldShowEmptyState(): boolean {
-    const noDirectWhenExpected = this.showDirectChats && !this.hasVisibleDirectChats && !this.showRooms;
-    const noRoomsWhenExpected = this.showRooms && !this.hasVisibleRooms && !this.showDirectChats;
-    const noAnything = !this.hasVisibleDirectChats && !this.hasVisibleRooms;
-    return noDirectWhenExpected || noRoomsWhenExpected || noAnything;
+    this.searchTermSubject.next('');
   }
 
   isDirectChatSelected(chatId: string | undefined): boolean {
     const safeId = (chatId ?? '').trim();
-    return this.activeType === 'chat' && !!safeId && this.activeChatId === safeId;
+
+    return (
+      this.activeType === 'chat' &&
+      !!safeId &&
+      this.activeChatId === safeId
+    );
   }
 
   isRoomSelected(roomId: string | undefined): boolean {
     const safeId = (roomId ?? '').trim();
-    return this.activeType === 'room' && !!safeId && this.activeChatId === safeId;
+
+    return (
+      this.activeType === 'room' &&
+      !!safeId &&
+      this.activeChatId === safeId
+    );
   }
 
   private bindCurrentUid(): void {
@@ -294,38 +256,161 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
         return this.roomService.getRooms(uid);
       }),
       map((rooms) => this.sortRoomsByActivity(rooms)),
-      tap((rooms) => this.dbg('Rooms loaded', { count: rooms.length })),
+      tap((rooms) => {
+        this.roomsSnapshot = rooms;
+        this.dbg('Rooms loaded', { count: rooms.length });
+      }),
       catchError((err) => {
         this.handleError('ChatList.rooms$', err, true);
+        this.roomsSnapshot = [];
         return of([] as IRoom[]);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
-
-    this.rooms$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((rooms) => {
-        this.rooms = rooms;
-      });
   }
 
   private bindDirectChatsStream(): void {
-    this.regularChats$ = this.directChatFacade.items$.pipe(
-      switchMap((items) => this.enrichDirectChatsForLegacyTemplate$(items)),
-      map((chats) => this.sortChatsByLastMessage(chats)),
-      tap((chats) => this.dbg('Direct chats loaded', { count: chats.length })),
+    this.directChatItems$ = this.directChatFacade.items$.pipe(
+      tap((items) => this.dbg('Direct chats loaded', { count: items.length })),
       catchError((err) => {
-        this.handleError('ChatList.regularChats$', err, false);
-        return of([] as IChat[]);
+        this.handleError('ChatList.directChatItems$', err, false);
+        return of([] as DirectChatListItem[]);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+  }
 
-    this.regularChats$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((chats) => {
-        this.regularChats = chats;
-      });
+  private bindViewModel(): void {
+    const directChatsState$ = this.createLoadGate$(
+      this.access.canListenRealtime$
+    ).pipe(
+      switchMap((canLoad) => {
+        if (!canLoad) {
+          return of({
+            items: [],
+            loading: true,
+          } as ConversationCollectionState<DirectChatListItem>);
+        }
+
+        return this.directChatItems$.pipe(
+          map((items) => ({
+            items,
+            loading: false,
+          })),
+          startWith({
+            items: [],
+            loading: true,
+          } as ConversationCollectionState<DirectChatListItem>)
+        );
+      })
+    );
+
+    const roomsState$ = this.createLoadGate$(
+      this.access.canRunChatRealtime$
+    ).pipe(
+      switchMap((canLoad) => {
+        if (!canLoad) {
+          return of({
+            items: [],
+            loading: true,
+          } as ConversationCollectionState<IRoom>);
+        }
+
+        return this.rooms$.pipe(
+          map((items) => ({
+            items,
+            loading: false,
+          })),
+          startWith({
+            items: [],
+            loading: true,
+          } as ConversationCollectionState<IRoom>)
+        );
+      })
+    );
+
+    this.vm$ = combineLatest([
+      directChatsState$,
+      roomsState$,
+      this.activeFilterSubject.pipe(distinctUntilChanged()),
+      this.searchTermSubject.pipe(distinctUntilChanged()),
+    ]).pipe(
+      map(([directChatsState, roomsState, activeFilter, searchTerm]) => {
+        const term = this.normalizeText(searchTerm);
+
+        const filteredDirectChats = !term
+          ? directChatsState.items
+          : directChatsState.items.filter((item) => {
+              const nickname = this.normalizeText(
+                item.otherParticipantNickname
+              );
+              const preview = this.normalizeText(item.lastMessagePreview);
+
+              return nickname.includes(term) || preview.includes(term);
+            });
+
+        const filteredRooms = !term
+          ? roomsState.items
+          : roomsState.items.filter((room) => {
+              const roomName = this.normalizeText(room?.roomName);
+              const description = this.normalizeText(room?.description);
+
+              return (
+                roomName.includes(term) ||
+                description.includes(term)
+              );
+            });
+
+        const showDirectChats =
+          activeFilter === 'all' || activeFilter === 'direct';
+
+        const showRooms =
+          activeFilter === 'all' || activeFilter === 'rooms';
+
+        const hasVisibleContent =
+          (showDirectChats && filteredDirectChats.length > 0) ||
+          (showRooms && filteredRooms.length > 0);
+
+        const loading =
+          directChatsState.loading || roomsState.loading;
+
+        return {
+          activeFilter,
+          searchTerm,
+          hasSearch: term.length > 0,
+          showDirectChats,
+          showRooms,
+          filteredDirectChats,
+          filteredRooms,
+          roomsChipLabel:
+            filteredRooms.length > 0
+              ? `Salas ${filteredRooms.length}`
+              : 'Salas',
+          showLoadingState: loading && !hasVisibleContent,
+          shouldShowEmptyState: !loading && !hasVisibleContent,
+        } satisfies ChatListViewModel;
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
+  private createLoadGate$(
+    capability$: Observable<boolean>
+  ): Observable<boolean> {
+    return combineLatest([
+      this.authSession.ready$,
+      this.authSession.uid$,
+      capability$,
+    ]).pipe(
+      map(([ready, uid, canLoad]) => {
+        return (
+          ready === true &&
+          !!String(uid ?? '').trim() &&
+          canLoad === true
+        );
+      }),
+      distinctUntilChanged()
+    );
   }
 
   private bindActiveRoomMonitor(): void {
@@ -367,21 +452,6 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
       .subscribe();
   }
 
-  private enrichDirectChatsForLegacyTemplate$(
-    items: DirectChatListItem[]
-  ): Observable<IChat[]> {
-    const chats = (items ?? []).map((item) => item.chat);
-
-    for (const chat of chats) {
-      if (!chat?.id) continue;
-
-      if (!(chat as any)?.otherParticipantDetails) {
-        this.directChatService.refreshParticipantDetailsIfNeeded(chat.id);
-      }
-    }
-
-    return of(chats);
-  }
 
   sendInvite(roomId: string | undefined, event: MouseEvent): void {
     event.stopPropagation();
@@ -432,7 +502,7 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
 
         const { uid: senderId, selectedUsers } = result;
         const roomName =
-          this.rooms.find((room) => room.id === safeRoomId)?.roomName ?? '';
+          this.roomsSnapshot.find((room) => room.id === safeRoomId)?.roomName ?? '';
 
         const now = new Date();
         const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
@@ -469,8 +539,9 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
       });
   }
 
-  selectChat(chat: IChat): void {
-    const safeChatId = (chat?.id ?? '').trim();
+  selectChat(chat: DirectChatListItem): void {
+    const safeChatId = String(chat?.id ?? '').trim();
+
     if (!safeChatId) {
       this.dbg('selectChat: chatId undefined');
       return;
@@ -482,14 +553,12 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
 
     this.directChatFacade.selectChat(safeChatId);
 
-    const peer = (chat as any)?.otherParticipantDetails;
-
     this.chatSelected.emit({
       id: safeChatId,
       type: 'chat',
-      peerUid: (peer?.uid ?? '').trim() || null,
-      peerName: (peer?.nickname ?? '').trim() || null,
-      peerPhotoURL: (peer?.photoURL ?? '').trim() || null,
+      peerUid: String(chat.otherParticipantUid ?? '').trim() || null,
+      peerName: String(chat.otherParticipantNickname ?? '').trim() || null,
+      peerPhotoURL: this.extractDirectChatPhotoURL(chat),
     });
   }
 
@@ -504,7 +573,7 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
       return;
     }
 
-    this.activeFilter = 'rooms';
+    this.setActiveFilter('rooms');
     this.chatSelected.emit({ id: safeRoomId, type: 'room' });
     this.activeRoomSelection$.next(safeRoomId);
   }
@@ -550,7 +619,9 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
       return;
     }
 
-    const roomData = this.rooms.find((room) => room.id === safeRoomId);
+    const roomData = this.roomsSnapshot.find(
+  (room) => room.id === safeRoomId
+);
     if (!roomData) {
       this.dbg('editRoom: sala não encontrada', { roomId: safeRoomId });
       return;
@@ -568,9 +639,29 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
     });
   }
 
+  getDirectChatPhotoURL(chat: DirectChatListItem): string {
+    const photoURL = this.extractDirectChatPhotoURL(chat);
+
+    return (
+      this.getOptimizedPhotoURL(photoURL) ||
+      'assets/imagem-padrao.webp'
+    );
+  }
+
+  private extractDirectChatPhotoURL(chat: DirectChatListItem): string | null {
+    return String(chat.otherParticipantPhotoURL ?? '').trim() || null;
+  }
+
   getOptimizedPhotoURL(originalURL: string | null | undefined): string {
-    if (!originalURL) return '';
-    return `${originalURL}&w=52&h=52&fit=crop`;
+    const safeURL = String(originalURL ?? '').trim();
+
+    if (!safeURL) {
+      return '';
+    }
+
+    const separator = safeURL.includes('?') ? '&' : '?';
+
+    return `${safeURL}${separator}w=52&h=52&fit=crop`;
   }
 
   private applyRoomReadReceipts$(
@@ -704,15 +795,6 @@ export class ChatListComponent implements OnInit, OnDestroy, OnChanges {
         this.coerceEpochMs(b?.lastMessage?.timestamp) ||
         this.coerceEpochMs(b?.lastActivity) ||
         this.coerceEpochMs(b?.creationTime);
-
-      return timeB - timeA;
-    });
-  }
-
-  private sortChatsByLastMessage(chats: IChat[]): IChat[] {
-    return (chats ?? []).slice().sort((a, b) => {
-      const timeA = this.coerceEpochMs(a?.lastMessage?.timestamp);
-      const timeB = this.coerceEpochMs(b?.lastMessage?.timestamp);
 
       return timeB - timeA;
     });
