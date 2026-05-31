@@ -161,13 +161,6 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
       throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
     }
 
-    console.log('[ensureDirectChat][debug]', {
-      actorUid,
-      targetUid,
-      hasAuth: !!request.auth,
-      emailVerified: request.auth?.token?.email_verified ?? null,
-    });
-
     if (request.auth?.token?.email_verified !== true) {
       throw new HttpsError(
         'failed-precondition',
@@ -246,27 +239,6 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
       const actor = actorSnapshot.data() as MessagingUserDoc | undefined;
       const target = targetSnapshot.data() as MessagingUserDoc | undefined;
 
-      console.log('[ensureDirectChat][users]', {
-  actorExists: actorSnapshot.exists,
-  targetExists: targetSnapshot.exists,
-  actor: {
-    uid: actor?.uid ?? null,
-    profileCompleted: actor?.profileCompleted ?? null,
-    accountStatus: actor?.accountStatus ?? null,
-    interactionBlocked: actor?.interactionBlocked ?? null,
-    accountLocked: actor?.accountLocked ?? null,
-    loginAllowed: actor?.loginAllowed ?? null,
-  },
-  target: {
-    uid: target?.uid ?? null,
-    profileCompleted: target?.profileCompleted ?? null,
-    accountStatus: target?.accountStatus ?? null,
-    interactionBlocked: target?.interactionBlocked ?? null,
-    accountLocked: target?.accountLocked ?? null,
-    loginAllowed: target?.loginAllowed ?? null,
-  },
-});
-
       assertMessagingAccountOperational(actor, {
         operation: 'ensure-direct-chat',
         perspective: 'actor',
@@ -275,6 +247,17 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
       assertMessagingAccountOperational(target, {
         operation: 'ensure-direct-chat',
         perspective: 'target',
+      });
+
+      /**
+       * CONSENTIMENTO BILATERAL OBRIGATÓRIO.
+       *
+       * A amizade precisa existir dos dois lados antes de retornar chat registrado,
+       * adotar chat legado, recuperar chat determinístico ou criar conversa nova.
+       */
+      assertCanCreateNewDirectChat({
+        actorHasAcceptedFriendEdge: actorFriendSnapshot.exists,
+        targetHasAcceptedFriendEdge: targetFriendSnapshot.exists,
       });
 
       const registry =
@@ -387,11 +370,6 @@ export const ensureDirectChat = onCall<EnsureDirectChatRequest>(
           resolution: 'deterministic-recovered',
         };
       }
-
-      assertCanCreateNewDirectChat({
-        actorHasAcceptedFriendEdge: actorFriendSnapshot.exists,
-        targetHasAcceptedFriendEdge: targetFriendSnapshot.exists,
-      });
 
       transaction.set(deterministicChatRef, {
         participants,
