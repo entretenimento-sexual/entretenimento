@@ -24,10 +24,15 @@
   "include": [
     "src/**/*.spec.ts",
     "src/**/*.d.ts",
+    "src/app/**/*.ts",
+    "src/environments/**/*.ts",
     "src/test/setup-vitest.ts",
     "src/test/jest-stubs/**/*.ts"
   ],
   "exclude": [
-    "src/test/setup-jest.ts"
+    "src/main.ts",
+    "src/test/setup-jest.ts",
+    "src/test/_setup-jest.legacy.ts",
+    "src/test/**/*.legacy.ts"
   ]
 }
