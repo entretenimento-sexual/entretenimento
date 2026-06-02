@@ -204,16 +204,25 @@
               class="request-actions"
               aria-label="Ações da solicitação enviada"
             >
-              <button
-                type="button"
-                class="request-action request-action--cancel"
-                (click)="cancelRequest(req)"
-                [attr.aria-label]="'Cancelar solicitação enviada para ' + (req.nickname || 'usuário')"
-                title="Cancelar solicitação"
-              >
-                <mat-icon fontIcon="undo"></mat-icon>
-                <span>Cancelar</span>
-              </button>
+
+            @let cancelingIds = (cancelingOutboundRequestIds$ | async) || [];
+            @let isCanceling = isCancelingRequest(cancelingIds, req.id);
+            <button
+              type="button"
+              class="request-action request-action--cancel"
+              (click)="cancelRequest(req)"
+              [disabled]="isCanceling"
+              [attr.aria-busy]="isCanceling ? 'true' : null"
+              [attr.aria-label]="
+                isCanceling
+                  ? 'Cancelando solicitação enviada para ' + (req.nickname || 'usuário')
+                  : 'Cancelar solicitação enviada para ' + (req.nickname || 'usuário')
+              "
+              [title]="isCanceling ? 'Cancelando solicitação' : 'Cancelar solicitação'"
+            >
+              <mat-icon [fontIcon]="isCanceling ? 'hourglass_empty' : 'undo'"></mat-icon>
+              <span>{{ isCanceling ? 'Cancelando' : 'Cancelar' }}</span>
+            </button>
 
               <button
                 type="button"

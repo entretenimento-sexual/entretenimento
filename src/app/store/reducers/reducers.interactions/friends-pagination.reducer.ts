@@ -19,6 +19,26 @@ function dedupeByFriendUid(list: Friend[]): Friend[] {
   return Array.from(map.values());
 }
 
+function normalizeUid(value: unknown): string {
+  return String(value ?? '').trim();
+}
+
+function isSameFriend(item: Friend, friendUid: string): boolean {
+  const target = normalizeUid(friendUid);
+
+  if (!target) {
+    return false;
+  }
+
+  const candidates = [
+    (item as any).friendUid,
+    (item as any).uid,
+    (item as any).id,
+  ];
+
+  return candidates.some(candidate => normalizeUid(candidate) === target);
+}
+
 export const friendsPaginationReducer = createReducer(
   initialFriendsPaginationState,
 
@@ -72,6 +92,31 @@ export const friendsPaginationReducer = createReducer(
       byUid: { ...state.byUid, [uid]: { ...current, loading: false, error } },
     };
   }),
+
+  /**
+ * Remove localmente o amigo da lista paginada.
+ *
+ * Motivo:
+ * - a tela /friends/list consome selectFriendsPageItems(uid);
+ * - endFriendshipSuccess atualizava apenas o FriendsState principal;
+ * - sem este handler, o card podia continuar visível até refresh/reload.
+ */
+on(P.removeFriendFromFriendsPage, (state, { uid, friendUid }) => {
+  const current = ensureSlice(state, uid);
+
+  return {
+    ...state,
+    byUid: {
+      ...state.byUid,
+      [uid]: {
+        ...current,
+        items: current.items.filter(item => !isSameFriend(item, friendUid)),
+        loading: false,
+        error: null,
+      },
+    },
+  };
+}),
 
   // Reset
   on(P.resetFriendsPagination, (state, { uid }) => {

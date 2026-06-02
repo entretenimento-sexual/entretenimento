@@ -46,5 +46,18 @@ export const resetFriendsPagination = createAction(
   props<{ uid: string }>()
 );
 
+/**
+ * Remove localmente um amigo da página paginada.
+ *
+ * Uso:
+ * - após endFriendshipSuccess;
+ * - evita que a UI continue exibindo um card stale vindo do slice paginado;
+ * - não substitui a validação backend, apenas sincroniza a tela.
+ */
+export const removeFriendFromFriendsPage = createAction(
+  '[Friends Page] Remove Friend Locally',
+  props<{ uid: string; friendUid: string }>()
+);
+
 //Timestamp não é serializável
 //src\app\store\utils\user-store.serializer.ts

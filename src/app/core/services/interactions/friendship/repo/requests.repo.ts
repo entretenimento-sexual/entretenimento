@@ -21,7 +21,7 @@ import {
   Timestamp,
   DocumentData
 } from 'firebase/firestore';
-import { Observable, map, switchMap } from 'rxjs';
+import { Observable, map, switchMap, throwError } from 'rxjs';
 
 import { FirestoreRepoBase } from './base.repo';
 import { Friend, FriendDocWrite } from '../../../../interfaces/friendship/friend.interface';
@@ -194,20 +194,34 @@ export class RequestsRepo extends FirestoreRepoBase {
   }
 
   /** Cancelar enviada (soft por padrão; passe soft=false p/ hard delete) */
-  cancelOutboundRequest(requestId: string, soft = true) {
-    if (!soft) {
-      return this.inCtx$(() => deleteDoc(doc(this.db, `friendRequests/${requestId}`)))
-        .pipe(map(() => void 0));
-    }
-    return this.inCtx$(() => {
-      const reqRef = doc(this.db, `friendRequests/${requestId}`);
-      return updateDoc(reqRef, {
-        status: 'canceled',
-        respondedAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      });
-    }).pipe(map(() => void 0));
+/**
+ * Cancela uma solicitação enviada pelo requester.
+ *
+ * Importante:
+ * - as Firestore Rules atuais NÃO permitem que o requester atualize
+ *   status para "canceled";
+ * - elas permitem DELETE quando:
+ *   resource.data.status == "pending"
+ *   uid() == resource.data.requesterUid
+ *
+ * Portanto, neste MVP o cancelamento client-side é hard delete.
+ *
+ * Futuro ideal:
+ * - migrar para Cloud Function cancelFriendRequest;
+ * - registrar auditoria;
+ * - marcar status "canceled" via Admin SDK.
+ */
+cancelOutboundRequest(requestId: string) {
+  const safeRequestId = String(requestId ?? '').trim();
+
+  if (!safeRequestId) {
+    return throwError(() => new Error('Solicitação inválida para cancelamento.'));
   }
+
+  return this.inCtx$(() =>
+    deleteDoc(doc(this.db, `friendRequests/${safeRequestId}`))
+  ).pipe(map(() => void 0));
+}
 
   /* =========================
    * REALTIME WATCHERS

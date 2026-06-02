@@ -41,7 +41,7 @@ import { ChatNotificationService } from 'src/app/core/services/batepapo/chat-not
 
 import * as InviteActions from 'src/app/store/actions/actions.chat/invite.actions';
 import { selectPendingInvitesCount } from 'src/app/store/selectors/selectors.chat/invite.selectors';
-import { selectInboundRequestsCount } from 'src/app/store/selectors/selectors.interactions/friends';
+import { selectInboundRequestsCount, selectOutboundRequestsCount } from 'src/app/store/selectors/selectors.interactions/friends';
 
 type ShellMode = 'guest' | 'onboarding' | 'auth';
 
@@ -138,8 +138,10 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     this.sidebarShouldOverlay$,
     this.sidebarShouldCompact$,
     this.store.select(selectInboundRequestsCount).pipe(distinctUntilChanged()),
+    this.store.select(selectOutboundRequestsCount).pipe(distinctUntilChanged()),
   ]).pipe(
-    map(([sidebar, navVm, sidebarShouldOverlay, sidebarShouldCompact, friendRequestsCount]): LayoutShellVm => {
+    map(([sidebar, navVm, sidebarShouldOverlay, 
+          sidebarShouldCompact, inboundRequestsCount, outboundRequestsCount]): LayoutShellVm => {
       const currentUrl = sidebar.currentUrl;
       const shellMode = this.resolveShellMode(currentUrl);
       const sidebarUser = this.mapSidebarUser(navVm);
@@ -150,7 +152,7 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
        * - não depende de query string
        */
       const isChatLayout = /^\/chat(\/|$)/.test(this.normalizeUrl(currentUrl));
-      const safeFriendRequestsCount = this.normalizeBadgeCount(friendRequestsCount);
+      const safeFriendRequestsCount = this.normalizeBadgeCount(inboundRequestsCount + outboundRequestsCount);
       const sidebarWithBadges = this.applySidebarBadges(
         sidebar,
         safeFriendRequestsCount
@@ -322,24 +324,36 @@ private applySidebarBadges(
     return sidebar;
   }
 
+  const badgeText = this.buildFriendRequestsBadgeLabel(friendRequestsCount);
+
   return {
     ...sidebar,
     sections: sidebar.sections.map((section) => ({
       ...section,
       items: section.items.map((item) => {
-        if (item.id !== 'friends') {
+        if (item.id !== 'friend-requests') {
           return item;
         }
 
         return {
           ...item,
           badgeCount: friendRequestsCount,
-          badgeLabel: `${friendRequestsCount} solicitação de amizade pendente`,
-          ariaLabel: `Ir para amizades. Você tem ${friendRequestsCount} solicitação de amizade pendente.`,
+          badgeLabel: badgeText,
+          ariaLabel: `Consultar solicitações de amizade. ${badgeText}.`,
         };
       }),
     })),
   };
+}
+
+private buildFriendRequestsBadgeLabel(count: number): string {
+  const safeCount = this.normalizeBadgeCount(count);
+
+  if (safeCount === 1) {
+    return '1 solicitação de amizade pendente';
+  }
+
+  return `${safeCount} solicitações de amizade pendentes`;
 }
 
 private buildShellContextActions(
@@ -371,10 +385,10 @@ private buildShellContextActions(
 
   actions.push({
     id: 'friend-requests',
-    label: `Pedidos (${formattedCount})`,
+    label: `Solicitações (${formattedCount})`,
     route: ['/friends/requests'],
     icon: '🤝',
-    ariaLabel: `Você tem ${friendRequestsCount} solicitação de amizade pendente`,
+    ariaLabel: `Abrir solicitações de amizade. ${this.buildFriendRequestsBadgeLabel(friendRequestsCount)}.`,
     variant: 'primary',
     badgeCount: friendRequestsCount,
     badgeLabel: `${friendRequestsCount} solicitação de amizade pendente`,
@@ -484,4 +498,4 @@ private buildShellContextActions(
     }
     return raw;
   }
-}
+} // Linha 501, final do arquivo LayoutShellComponent

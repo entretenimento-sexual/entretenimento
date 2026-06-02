@@ -11,3 +11,7 @@ export const selectOutboundRequestsCount = createSelector(
 export const selectOutboundRequestsLoading = createSelector(
   selectFriendsStateSafe, s => s.loadingOutboundRequests
 );
+export const selectCancelingOutboundRequestIds = createSelector(
+  selectFriendsStateSafe,
+  s => s.cancelingOutboundRequestIds ?? []
+);

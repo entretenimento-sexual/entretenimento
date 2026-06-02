@@ -18,7 +18,7 @@ import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 
 import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { selectRequestsLoading } from 'src/app/store/selectors/selectors.interactions/friends/inbound.selectors';
-import { selectOutboundRequestsLoading } from 'src/app/store/selectors/selectors.interactions/friends/outbound.selectors';
+import { selectCancelingOutboundRequestIds, selectOutboundRequestsLoading } from 'src/app/store/selectors/selectors.interactions/friends/outbound.selectors';
 import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
 
 import {
@@ -67,13 +67,36 @@ export class FriendRequestsComponent {
     );
   }
 
+  cancelingOutboundRequestIds$ = this.store.select(
+  selectCancelingOutboundRequestIds
+);
+
+isCancelingRequest(
+  ids: readonly string[] | null | undefined,
+  requestId: string | null | undefined
+): boolean {
+  const safeRequestId = String(requestId ?? '').trim();
+
+  if (!safeRequestId) {
+    return false;
+  }
+
+  return (ids ?? []).includes(safeRequestId);
+}
+
   declineRequest(req: { id: string }) {
     this.store.dispatch(A.declineFriendRequest({ requestId: req.id }));
   }
 
   cancelRequest(req: { id: string }) {
-    this.store.dispatch(A.cancelFriendRequest({ requestId: req.id }));
+  const requestId = String(req?.id ?? '').trim();
+
+  if (!requestId) {
+    return;
   }
+
+  this.store.dispatch(A.cancelFriendRequest({ requestId }));
+}
 
   async blockUser(req: { requesterUid?: string; targetUid?: string }) {
     const uid = await firstValueFrom(this.uid$.pipe(filter(Boolean), take(1)));

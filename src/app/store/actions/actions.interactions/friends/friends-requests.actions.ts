@@ -62,7 +62,7 @@ export const cancelFriendRequestSuccess = createAction(
 
 export const cancelFriendRequestFailure = createAction(
   '[Friendship] Cancel Outbound Request Failure',
-  props<{ error: string }>()
+  props<{ requestId: string; error: string }>()
 );
 
 // Aceitar / Recusar (inbound)

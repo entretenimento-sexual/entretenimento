@@ -6,6 +6,60 @@ import { FriendsState, initialState } from '../../states/states.interactions/fri
 import { BlockedUserActive } from 'src/app/core/interfaces/friendship/blocked-user.interface';
 import { authSessionChanged, logoutSuccess } from '../../actions/actions.user/auth.actions';
 
+function normalizeUid(value: unknown): string {
+  return String(value ?? '').trim();
+}
+
+function getFriendCandidateUids(friend: unknown): string[] {
+  const f = friend as Record<string, unknown>;
+
+  return [
+    f?.['friendUid'],
+    f?.['uid'],
+    f?.['id'],
+  ]
+    .map(normalizeUid)
+    .filter(Boolean);
+}
+
+function isSameFriend(friend: unknown, targetUid: string): boolean {
+  const safeTargetUid = normalizeUid(targetUid);
+
+  if (!safeTargetUid) {
+    return false;
+  }
+
+  return getFriendCandidateUids(friend).includes(safeTargetUid);
+}
+
+function uniqueUidList(values: string[]): string[] {
+  return Array.from(new Set(values.map(normalizeUid).filter(Boolean)));
+}
+
+function normalizeId(value: unknown): string {
+  return String(value ?? '').trim();
+}
+
+function addUniqueId(list: string[], id: string): string[] {
+  const safeId = normalizeId(id);
+
+  if (!safeId || list.includes(safeId)) {
+    return list;
+  }
+
+  return [...list, safeId];
+}
+
+function removeId(list: string[], id: string): string[] {
+  const safeId = normalizeId(id);
+
+  if (!safeId) {
+    return list;
+  }
+
+  return list.filter(item => item !== safeId);
+}
+
 export const friendsReducer = createReducer(
   initialState,
 
@@ -20,15 +74,19 @@ on(A.endFriendship, (s, { friendUid }): FriendsState => ({
 })),
 
 on(A.endFriendshipSuccess, (s, { friendUid }): FriendsState => {
-  const safeFriendUid = String(friendUid ?? '').trim();
+  const safeFriendUid = normalizeUid(friendUid);
 
   return {
     ...s,
     endingFriendshipUid: null,
     endingFriendshipError: null,
-    friends: s.friends.filter(friend =>
-      String(friend.friendUid ?? '').trim() !== safeFriendUid
-    ),
+
+    locallyRemovedFriendUids: uniqueUidList([
+      ...s.locallyRemovedFriendUids,
+      safeFriendUid,
+    ]),
+
+    friends: s.friends.filter(friend => !isSameFriend(friend, safeFriendUid)),
   };
 }),
 
@@ -101,10 +159,35 @@ on(A.endFriendshipFailure, (s, { error }): FriendsState => ({
   })),
 
   /* ❌ Cancel outbound (remove da lista enviada local) */
-  on(A.cancelFriendRequestSuccess, (s, { requestId }): FriendsState => ({
-    ...s,
-    outboundRequests: s.outboundRequests.filter(r => r.id !== requestId),
-  })),
+on(A.cancelFriendRequest, (s, { requestId }): FriendsState => ({
+  ...s,
+  loadingOutboundRequests: true,
+  error: null,
+  cancelingOutboundRequestIds: addUniqueId(
+    s.cancelingOutboundRequestIds,
+    requestId
+  ),
+})),
+
+on(A.cancelFriendRequestSuccess, (s, { requestId }): FriendsState => ({
+  ...s,
+  loadingOutboundRequests: false,
+  cancelingOutboundRequestIds: removeId(
+    s.cancelingOutboundRequestIds,
+    requestId
+  ),
+  outboundRequests: s.outboundRequests.filter(r => r.id !== requestId),
+})),
+
+on(A.cancelFriendRequestFailure, (s, { requestId, error }): FriendsState => ({
+  ...s,
+  loadingOutboundRequests: false,
+  cancelingOutboundRequestIds: removeId(
+    s.cancelingOutboundRequestIds,
+    requestId
+  ),
+  error,
+})),
 
   /* 🚫 Block list */
   // loading + sucesso + erro da lista bloqueada
@@ -178,11 +261,37 @@ on(A.endFriendshipFailure, (s, { error }): FriendsState => ({
   error: null,
 })),
 
-on(RT.friendsChanged, (s, { friends }): FriendsState => ({
-  ...s,
-  loading: false,
-  friends,
-})),
+on(RT.friendsChanged, (s, { friends }): FriendsState => {
+  const tombstones = uniqueUidList(s.locallyRemovedFriendUids);
+
+  if (!tombstones.length) {
+    return {
+      ...s,
+      loading: false,
+      friends,
+    };
+  }
+
+  /**
+   * Proteção contra snapshot atrasado:
+   * - se o realtime ainda trouxer um amigo recém-removido, filtramos;
+   * - se o realtime já não trouxer esse amigo, removemos a tombstone.
+   */
+  const filteredFriends = friends.filter(friend =>
+    !tombstones.some(uid => isSameFriend(friend, uid))
+  );
+
+  const stillPresentInSnapshot = tombstones.filter(uid =>
+    friends.some(friend => isSameFriend(friend, uid))
+  );
+
+  return {
+    ...s,
+    loading: false,
+    friends: filteredFriends,
+    locallyRemovedFriendUids: stillPresentInSnapshot,
+  };
+}),
 
 on(RT.stopFriendsListener, (s): FriendsState => ({
   ...s,

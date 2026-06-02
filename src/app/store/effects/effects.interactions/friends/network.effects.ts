@@ -10,6 +10,7 @@ import { FriendshipService } from 'src/app/core/services/interactions/friendship
 import { environment } from 'src/environments/environment';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import * as P from '../../../actions/actions.interactions/friends/friends-pagination.actions';
 
 @Injectable()
 export class FriendsNetworkEffects {
@@ -108,10 +109,24 @@ export class FriendsNetworkEffects {
         mergeMap(() => {
           this.notifier.showSuccess('Amizade desfeita.');
 
-          return of(
-            A.endFriendshipSuccess({ ownerUid, friendUid }),
-            A.loadFriends({ uid: ownerUid })
-          );
+         return of(
+  A.endFriendshipSuccess({ ownerUid, friendUid }),
+
+  /**
+   * Atualiza a tela paginada imediatamente.
+   * A lista de amigos visual usa friendsPagination, não apenas FriendsState.
+   */
+  P.removeFriendFromFriendsPage({
+    uid: ownerUid,
+    friendUid,
+  }),
+
+  /**
+   * Mantém o estado principal sincronizado com leitura canônica pós-callable.
+   * Isso ajuda caso algum listener realtime emita snapshot antigo durante a hidratação.
+   */
+  A.loadFriends({ uid: ownerUid })
+);
         }),
         catchError(err => {
           const msg = String(err?.message ?? 'Não foi possível desfazer a amizade.');

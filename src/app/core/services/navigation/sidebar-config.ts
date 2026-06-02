@@ -155,6 +155,14 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         exact: false,
         ariaLabel: 'Ir para gerenciamento de amizades',
       },
+      {
+        id: 'friend-requests',
+        label: 'Solicitações',
+        route: '/friends/requests',
+        icon: '🤝',
+        exact: false,
+        ariaLabel: 'Consultar solicitações de amizade recebidas e enviadas',
+      },
     ],
   },
   {
