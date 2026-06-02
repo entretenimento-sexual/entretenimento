@@ -26,7 +26,7 @@ import {
   selectOutboundRequests,
   selectEndingFriendshipUid,
 } from 'src/app/store/selectors/selectors.interactions/friends';
-
+import { selectCancelingOutboundRequestIds } from 'src/app/store/selectors/selectors.interactions/friends/outbound.selectors';
 import {
   ModalMensagemComponent,
   ModalMensagemResult,
@@ -46,10 +46,23 @@ interface UserCardRelationshipVm {
   state: UserRelationshipState;
   currentUid: string | null;
   targetUid: string | null;
+
+  /**
+   * Solicitação recebida pendente.
+   * Usada para responder em /friends/requests.
+   */
   inboundRequestId: string | null;
+
+  /**
+   * Solicitação enviada pendente.
+   * Usada para cancelar diretamente pelo card.
+   */
+  outboundRequestId: string | null;
+
   canMessage: boolean;
   canConnect: boolean;
   canRespond: boolean;
+  canCancelRequest: boolean;
   isPending: boolean;
   isBlocked: boolean;
   label: string;
@@ -100,6 +113,11 @@ export class UserCardComponent {
   private readonly endingFriendshipUid = toSignal(
     this.store.select(selectEndingFriendshipUid),
     { initialValue: null }
+  );
+
+  private readonly cancelingOutboundRequestIds = toSignal(
+    this.store.select(selectCancelingOutboundRequestIds),
+    { initialValue: [] }
   );
 
   readonly nicknameClass = computed(() =>
@@ -173,7 +191,9 @@ export class UserCardComponent {
       return this.buildRelationshipVm(
         'outgoing_pending',
         currentUid,
-        targetUid
+        targetUid,
+        null,
+        String(outboundRequest.id ?? '').trim() || null
       );
     }
 
@@ -185,6 +205,16 @@ export class UserCardComponent {
   const endingUid = String(this.endingFriendshipUid() ?? '').trim();
 
   return !!targetUid && !!endingUid && targetUid === endingUid;
+});
+
+readonly isCancelingOutgoingRequest = computed(() => {
+  const requestId = String(this.relationshipVm().outboundRequestId ?? '').trim();
+
+  if (!requestId) {
+    return false;
+  }
+
+  return (this.cancelingOutboundRequestIds() ?? []).includes(requestId);
 });
 
   abrirDM(event: Event): void {
@@ -321,6 +351,36 @@ desfazerAmizade(event: Event): void {
     });
 }
 
+cancelarSolicitacaoEnviada(event: Event): void {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const relationship = this.relationshipVm();
+  const requestId = String(relationship.outboundRequestId ?? '').trim();
+
+  if (relationship.state !== 'outgoing_pending') {
+    this.notifier.showInfo('Não há solicitação enviada pendente para este perfil.');
+    return;
+  }
+
+  if (!requestId) {
+    this.notifier.showInfo('Não foi possível identificar a solicitação enviada.');
+    this.router.navigate(['/friends/requests']).catch(() => undefined);
+    return;
+  }
+
+  if (this.isCancelingOutgoingRequest()) {
+    this.notifier.showInfo('Aguarde. Estamos cancelando esta solicitação.');
+    return;
+  }
+
+  this.store.dispatch(
+    FriendActions.cancelFriendRequest({
+      requestId,
+    })
+  );
+}
+
   adicionarAmigo(): void {
     const target = this.user();
 
@@ -445,12 +505,13 @@ desfazerAmizade(event: Event): void {
     return 'nickname-offline';
   }
 
-  private buildRelationshipVm(
-    state: UserRelationshipState,
-    currentUid: string | null,
-    targetUid: string | null,
-    inboundRequestId: string | null = null
-  ): UserCardRelationshipVm {
+private buildRelationshipVm(
+  state: UserRelationshipState,
+  currentUid: string | null,
+  targetUid: string | null,
+  inboundRequestId: string | null = null,
+  outboundRequestId: string | null = null
+): UserCardRelationshipVm {
     switch (state) {
       case 'self':
         return {
@@ -458,11 +519,13 @@ desfazerAmizade(event: Event): void {
           currentUid,
           targetUid,
           inboundRequestId,
+          outboundRequestId,
           canMessage: false,
           canConnect: false,
           canRespond: false,
           isPending: false,
           isBlocked: false,
+          canCancelRequest: false,
           label: 'Meu perfil',
         };
 
@@ -472,11 +535,13 @@ desfazerAmizade(event: Event): void {
           currentUid,
           targetUid,
           inboundRequestId,
+          outboundRequestId,
           canMessage: true,
           canConnect: false,
           canRespond: false,
           isPending: false,
           isBlocked: false,
+          canCancelRequest: false,
           label: 'Mensagem',
         };
 
@@ -486,27 +551,31 @@ desfazerAmizade(event: Event): void {
           currentUid,
           targetUid,
           inboundRequestId,
+          outboundRequestId,
           canMessage: false,
           canConnect: false,
           canRespond: true,
           isPending: true,
           isBlocked: false,
+          canCancelRequest: false,
           label: 'Responder',
         };
 
-      case 'outgoing_pending':
-        return {
-          state,
-          currentUid,
-          targetUid,
-          inboundRequestId,
-          canMessage: false,
-          canConnect: false,
-          canRespond: false,
-          isPending: true,
-          isBlocked: false,
-          label: 'Solicitação enviada',
-        };
+case 'outgoing_pending':
+  return {
+    state,
+    currentUid,
+    targetUid,
+    inboundRequestId,
+    outboundRequestId,
+    canMessage: false,
+    canConnect: false,
+    canRespond: false,
+    canCancelRequest: true,
+    isPending: true,
+    isBlocked: false,
+    label: 'Aguardando resposta',
+  };
 
       case 'blocked_by_me':
         return {
@@ -514,11 +583,13 @@ desfazerAmizade(event: Event): void {
           currentUid,
           targetUid,
           inboundRequestId,
+          outboundRequestId,
           canMessage: false,
           canConnect: false,
           canRespond: false,
           isPending: false,
           isBlocked: true,
+          canCancelRequest: false,
           label: 'Bloqueado',
         };
 
@@ -529,11 +600,13 @@ desfazerAmizade(event: Event): void {
           currentUid,
           targetUid,
           inboundRequestId,
+          outboundRequestId,
           canMessage: false,
           canConnect: true,
           canRespond: false,
           isPending: false,
           isBlocked: false,
+          canCancelRequest: false,
           label: 'Conectar',
         };
     }
