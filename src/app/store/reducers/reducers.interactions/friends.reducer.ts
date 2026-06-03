@@ -1,13 +1,65 @@
-// src/app/store/reducers/reducers.interactions/friends.reduce.ts
+// src/app/store/reducers/reducers.interactions/friends.reducer.ts
+// -----------------------------------------------------------------------------
+// FRIENDS REDUCER
+// -----------------------------------------------------------------------------
+// Estado social principal da plataforma.
+//
+// Responsabilidades atuais:
+// - lista de amigos;
+// - solicitações recebidas;
+// - solicitações enviadas;
+// - bloqueios;
+// - busca;
+// - estados de loading/erro;
+// - proteções locais contra snapshots atrasados.
+//
+// Observação arquitetural:
+// Este reducer ainda concentra muitos domínios sociais. Ele está sendo
+// estabilizado agora para segurança e reatividade, mas a evolução ideal antes
+// do deploy é separar gradualmente em stores/facades mais específicos:
+//
+// - socialRequestsStore;
+// - socialGraphStore;
+// - socialBlocksStore;
+// - socialDiscoveryStore.
+//
+// Por ora, mantemos compatibilidade e corrigimos a reatividade sem big-bang.
+// -----------------------------------------------------------------------------
+
 import { createReducer, on } from '@ngrx/store';
+
 import * as A from '../../actions/actions.interactions/actions.friends';
 import * as RT from '../../actions/actions.interactions/friends/friends-realtime.actions';
-import { FriendsState, initialState } from '../../states/states.interactions/friends.state';
+
+import {
+  FriendsState,
+  initialState,
+} from '../../states/states.interactions/friends.state';
+
 import { BlockedUserActive } from 'src/app/core/interfaces/friendship/blocked-user.interface';
-import { authSessionChanged, logoutSuccess } from '../../actions/actions.user/auth.actions';
+
+import {
+  authSessionChanged,
+  logoutSuccess,
+} from '../../actions/actions.user/auth.actions';
+
+/* ============================================================================
+ * Helpers de normalização
+ * ============================================================================
+ * Mantêm comparações previsíveis e evitam falhas quando algum objeto vier com
+ * uid/friendUid/id dependendo da origem: Firestore, serializer, VM ou cache.
+ */
 
 function normalizeUid(value: unknown): string {
   return String(value ?? '').trim();
+}
+
+function normalizeId(value: unknown): string {
+  return String(value ?? '').trim();
+}
+
+function uniqueUidList(values: string[]): string[] {
+  return Array.from(new Set(values.map(normalizeUid).filter(Boolean)));
 }
 
 function getFriendCandidateUids(friend: unknown): string[] {
@@ -32,12 +84,16 @@ function isSameFriend(friend: unknown, targetUid: string): boolean {
   return getFriendCandidateUids(friend).includes(safeTargetUid);
 }
 
-function uniqueUidList(values: string[]): string[] {
-  return Array.from(new Set(values.map(normalizeUid).filter(Boolean)));
-}
+function filterRemovedFriends<T>(friends: T[], tombstones: string[]): T[] {
+  const safeTombstones = uniqueUidList(tombstones);
 
-function normalizeId(value: unknown): string {
-  return String(value ?? '').trim();
+  if (!safeTombstones.length) {
+    return friends;
+  }
+
+  return friends.filter((friend) =>
+    !safeTombstones.some((uid) => isSameFriend(friend, uid))
+  );
 }
 
 function addUniqueId(list: string[], id: string): string[] {
@@ -57,251 +113,442 @@ function removeId(list: string[], id: string): string[] {
     return list;
   }
 
-  return list.filter(item => item !== safeId);
+  return list.filter((item) => item !== safeId);
 }
+
+/* ============================================================================
+ * Reducer
+ * ============================================================================ */
 
 export const friendsReducer = createReducer(
   initialState,
 
-  /* 👥 Friends */
-  on(A.loadFriends, (s): FriendsState => ({ ...s, loading: true, error: null })),
-  on(A.loadFriendsSuccess, (s, { friends }): FriendsState => ({ ...s, loading: false, friends })),
-  on(A.loadFriendsFailure, (s, { error }): FriendsState => ({ ...s, loading: false, error })),
-on(A.endFriendship, (s, { friendUid }): FriendsState => ({
-  ...s,
-  endingFriendshipUid: String(friendUid ?? '').trim() || null,
-  endingFriendshipError: null,
-})),
+  /* ==========================================================================
+   * Amigos
+   * ========================================================================== */
 
-on(A.endFriendshipSuccess, (s, { friendUid }): FriendsState => {
-  const safeFriendUid = normalizeUid(friendUid);
+  on(A.loadFriends, (state): FriendsState => ({
+    ...state,
+    loading: true,
+    error: null,
+  })),
 
-  return {
-    ...s,
-    endingFriendshipUid: null,
+  on(A.loadFriendsSuccess, (state, { friends }): FriendsState => ({
+    ...state,
+    loading: false,
+
+    /**
+     * Importante:
+     * Também aplicamos tombstones no load manual.
+     *
+     * Motivo:
+     * - após desfazer amizade, o effect dispara loadFriends;
+     * - se qualquer leitura canônica ainda trouxer snapshot antigo, o amigo
+     *   removido não deve reaparecer visualmente.
+     */
+    friends: filterRemovedFriends(
+      friends,
+      state.locallyRemovedFriendUids
+    ),
+  })),
+
+  on(A.loadFriendsFailure, (state, { error }): FriendsState => ({
+    ...state,
+    loading: false,
+    error,
+  })),
+
+  on(A.endFriendship, (state, { friendUid }): FriendsState => ({
+    ...state,
+    endingFriendshipUid: normalizeUid(friendUid) || null,
     endingFriendshipError: null,
+    error: null,
+  })),
 
-    locallyRemovedFriendUids: uniqueUidList([
-      ...s.locallyRemovedFriendUids,
-      safeFriendUid,
-    ]),
+  on(A.endFriendshipSuccess, (state, { friendUid }): FriendsState => {
+    const safeFriendUid = normalizeUid(friendUid);
 
-    friends: s.friends.filter(friend => !isSameFriend(friend, safeFriendUid)),
-  };
-}),
+    return {
+      ...state,
+      endingFriendshipUid: null,
+      endingFriendshipError: null,
 
-on(A.endFriendshipFailure, (s, { error }): FriendsState => ({
-  ...s,
-  endingFriendshipUid: null,
-  endingFriendshipError: error,
-  error,
-})),
+      /**
+       * Tombstone local temporária.
+       *
+       * Motivo:
+       * - evita que snapshots atrasados do realtime reintroduzam visualmente
+       *   uma amizade que o usuário acabou de desfazer;
+       * - a limpeza é feita por effect com timer controlado.
+       */
+      locallyRemovedFriendUids: uniqueUidList([
+        ...state.locallyRemovedFriendUids,
+        safeFriendUid,
+      ]),
 
-  /* ✉️ Send Friend Request */
-  on(A.sendFriendRequest, (s): FriendsState => ({
-    ...s,
+      friends: state.friends.filter(
+        (friend) => !isSameFriend(friend, safeFriendUid)
+      ),
+    };
+  }),
+
+  on(A.endFriendshipFailure, (state, { error }): FriendsState => ({
+    ...state,
+    endingFriendshipUid: null,
+    endingFriendshipError: error,
+    error,
+  })),
+
+  on(A.clearLocallyRemovedFriendTombstone, (state, { friendUid }): FriendsState => ({
+    ...state,
+    locallyRemovedFriendUids: state.locallyRemovedFriendUids.filter(
+      (uid) => uid !== normalizeUid(friendUid)
+    ),
+  })),
+
+  /* ==========================================================================
+   * Envio de solicitação
+   * ========================================================================== */
+
+  on(A.sendFriendRequest, (state): FriendsState => ({
+    ...state,
     sendingFriendRequest: true,
     sendFriendRequestError: null,
     sendFriendRequestSuccess: false,
+    error: null,
   })),
-  on(A.sendFriendRequestSuccess, (s): FriendsState => ({
-    ...s,
+
+  on(A.sendFriendRequestSuccess, (state): FriendsState => ({
+    ...state,
     sendingFriendRequest: false,
     sendFriendRequestSuccess: true,
   })),
-  on(A.sendFriendRequestFailure, (s, { error }): FriendsState => ({
-    ...s,
+
+  on(A.sendFriendRequestFailure, (state, { error }): FriendsState => ({
+    ...state,
     sendingFriendRequest: false,
     sendFriendRequestError: error,
     sendFriendRequestSuccess: false,
+    error,
   })),
-  on(A.resetSendFriendRequestStatus, (s): FriendsState => ({
-    ...s,
+
+  on(A.resetSendFriendRequestStatus, (state): FriendsState => ({
+    ...state,
     sendFriendRequestSuccess: false,
     sendFriendRequestError: null,
   })),
 
-  /* 📥 Inbound (Recebidas) */
-  on(A.loadInboundRequests, (s): FriendsState => ({
-    ...s, loadingRequests: true, error: null
-  })),
-  on(A.loadInboundRequestsSuccess, (s, { requests }): FriendsState => ({
-    ...s, loadingRequests: false, requests
-  })),
-  on(A.loadInboundRequestsFailure, (s, { error }): FriendsState => ({
-    ...s, loadingRequests: false, error
+  /* ==========================================================================
+   * Solicitações recebidas
+   * ========================================================================== */
+
+  on(A.loadInboundRequests, (state): FriendsState => ({
+    ...state,
+    loadingRequests: true,
+    error: null,
   })),
 
-  /* 📤 Outbound (Enviadas) */
-  on(A.loadOutboundRequests, (s): FriendsState => ({
-    ...s, loadingOutboundRequests: true, error: null
-  })),
-  on(A.loadOutboundRequestsSuccess, (s, { requests }): FriendsState => ({
-    ...s, loadingOutboundRequests: false, outboundRequests: requests
-  })),
-  on(A.loadOutboundRequestsFailure, (s, { error }): FriendsState => ({
-    ...s, loadingOutboundRequests: false, error
+  on(A.loadInboundRequestsSuccess, (state, { requests }): FriendsState => ({
+    ...state,
+    loadingRequests: false,
+    requests,
   })),
 
-  on(A.loadRequesterProfilesSuccess, (s, { map }) => ({
-    ...s,
-    requestersMap: { ...s.requestersMap, ...map }
+  on(A.loadInboundRequestsFailure, (state, { error }): FriendsState => ({
+    ...state,
+    loadingRequests: false,
+    error,
   })),
 
-  /* ✅ Accept / Decline (limpa da lista inbound localmente) */
-  on(A.acceptFriendRequestSuccess, (s, { requestId }): FriendsState => ({
-    ...s,
-    requests: s.requests.filter(r => r.id !== requestId),
-  })),
-  on(A.declineFriendRequestSuccess, (s, { requestId }): FriendsState => ({
-    ...s,
-    requests: s.requests.filter(r => r.id !== requestId),
-  })),
+  /* ==========================================================================
+   * Solicitações enviadas
+   * ========================================================================== */
 
-  /* ❌ Cancel outbound (remove da lista enviada local) */
-on(A.cancelFriendRequest, (s, { requestId }): FriendsState => ({
-  ...s,
-  loadingOutboundRequests: true,
-  error: null,
-  cancelingOutboundRequestIds: addUniqueId(
-    s.cancelingOutboundRequestIds,
-    requestId
-  ),
-})),
-
-on(A.cancelFriendRequestSuccess, (s, { requestId }): FriendsState => ({
-  ...s,
-  loadingOutboundRequests: false,
-  cancelingOutboundRequestIds: removeId(
-    s.cancelingOutboundRequestIds,
-    requestId
-  ),
-  outboundRequests: s.outboundRequests.filter(r => r.id !== requestId),
-})),
-
-on(A.cancelFriendRequestFailure, (s, { requestId, error }): FriendsState => ({
-  ...s,
-  loadingOutboundRequests: false,
-  cancelingOutboundRequestIds: removeId(
-    s.cancelingOutboundRequestIds,
-    requestId
-  ),
-  error,
-})),
-
-  /* 🚫 Block list */
-  // loading + sucesso + erro da lista bloqueada
-  on(A.loadBlockedUsers, (s): FriendsState => ({
-    ...s, loadingBlocked: true, blockError: null
-  })),
-  on(A.loadBlockedUsersSuccess, (s, { blocked }): FriendsState => ({
-    ...s, loadingBlocked: false, blocked
-  })),
-  on(A.loadBlockedUsersFailure, (s, { error }): FriendsState => ({
-    ...s, loadingBlocked: false, blockError: error
+  on(A.loadOutboundRequests, (state): FriendsState => ({
+    ...state,
+    loadingOutboundRequests: true,
+    error: null,
   })),
 
-  // 🔒 Block (somente no Success para evitar rollback)
-  on(A.blockUserSuccess, (s, { ownerUid, targetUid }): FriendsState => {
-    const exists = s.blocked.some(b => b.uid === targetUid);
-    if (exists) return { ...s, blockError: null };
+  on(A.loadOutboundRequestsSuccess, (state, { requests }): FriendsState => ({
+    ...state,
+    loadingOutboundRequests: false,
+    outboundRequests: requests,
+  })),
+
+  on(A.loadOutboundRequestsFailure, (state, { error }): FriendsState => ({
+    ...state,
+    loadingOutboundRequests: false,
+    error,
+  })),
+
+  /* ==========================================================================
+   * Perfis auxiliares de solicitações
+   * ========================================================================== */
+
+  on(A.loadRequesterProfilesSuccess, (state, { map }): FriendsState => ({
+    ...state,
+    requestersMap: {
+      ...state.requestersMap,
+      ...map,
+    },
+  })),
+
+  /* ==========================================================================
+   * Aceitar / recusar solicitação recebida
+   * ========================================================================== */
+
+  on(A.acceptFriendRequestSuccess, (state, { requestId }): FriendsState => ({
+    ...state,
+
+    /**
+     * Remoção local imediata.
+     *
+     * Depois o effect faz sincronização curta e o listener realtime confirma
+     * o estado canônico.
+     */
+    requests: state.requests.filter((request) => request.id !== requestId),
+  })),
+
+  on(A.acceptFriendRequestFailure, (state, { error }): FriendsState => ({
+    ...state,
+    error,
+  })),
+
+  on(A.declineFriendRequestSuccess, (state, { requestId }): FriendsState => ({
+    ...state,
+
+    /**
+     * Recusa também remove localmente da aba RECEBIDAS.
+     */
+    requests: state.requests.filter((request) => request.id !== requestId),
+  })),
+
+  on(A.declineFriendRequestFailure, (state, { error }): FriendsState => ({
+    ...state,
+    error,
+  })),
+
+  /* ==========================================================================
+   * Cancelar solicitação enviada
+   * ========================================================================== */
+
+  on(A.cancelFriendRequest, (state, { requestId }): FriendsState => ({
+    ...state,
+    error: null,
+
+    /**
+     * Loading fino por requestId.
+     *
+     * Evita bloquear visualmente a lista inteira e permite botão específico
+     * mostrar estado "cancelando".
+     */
+    cancelingOutboundRequestIds: addUniqueId(
+      state.cancelingOutboundRequestIds,
+      requestId
+    ),
+  })),
+
+  on(A.cancelFriendRequestSuccess, (state, { requestId }): FriendsState => ({
+    ...state,
+    cancelingOutboundRequestIds: removeId(
+      state.cancelingOutboundRequestIds,
+      requestId
+    ),
+
+    /**
+     * Remove localmente da aba ENVIADAS.
+     * A sincronização curta pós-mutação e o realtime confirmam em seguida.
+     */
+    outboundRequests: state.outboundRequests.filter(
+      (request) => request.id !== requestId
+    ),
+  })),
+
+  on(A.cancelFriendRequestFailure, (state, { requestId, error }): FriendsState => ({
+    ...state,
+    cancelingOutboundRequestIds: removeId(
+      state.cancelingOutboundRequestIds,
+      requestId
+    ),
+    error,
+  })),
+
+  /* ==========================================================================
+   * Bloqueios
+   * ========================================================================== */
+
+  on(A.loadBlockedUsers, (state): FriendsState => ({
+    ...state,
+    loadingBlocked: true,
+    blockError: null,
+  })),
+
+  on(A.loadBlockedUsersSuccess, (state, { blocked }): FriendsState => ({
+    ...state,
+    loadingBlocked: false,
+    blocked,
+  })),
+
+  on(A.loadBlockedUsersFailure, (state, { error }): FriendsState => ({
+    ...state,
+    loadingBlocked: false,
+    blockError: error,
+  })),
+
+  on(A.blockUserSuccess, (state, { ownerUid, targetUid }): FriendsState => {
+    const safeTargetUid = normalizeUid(targetUid);
+
+    const exists = state.blocked.some(
+      (blockedUser) => blockedUser.uid === safeTargetUid
+    );
+
+    if (exists) {
+      return {
+        ...state,
+        blockError: null,
+      };
+    }
+
+    /**
+     * Entrada otimista local.
+     *
+     * O backend/Firestore deve trazer os timestamps reais depois.
+     */
     const entry: BlockedUserActive = {
-     uid: targetUid,
-          isBlocked: true,
-            reason: undefined,
-              blockedAt: null,       // na UI podemos exibir “agora”; no backend virá timestamp real
-                unblockedAt: null,
-                  actorUid: ownerUid ?? '',   // quem executou a ação (o próprio usuário)
-                    updatedAt: null
-                    };
-    return { ...s, blocked: [...s.blocked, entry], blockError: null };
-   }),
-  on(A.blockUserFailure, (s, { error }): FriendsState => ({
-    ...s, blockError: error
-  })),
-
-  // 🔓 Unblock (somente no Success para evitar rollback)
-  on(A.unblockUserSuccess, (s, { targetUid }): FriendsState => ({
-    ...s, blocked: s.blocked.filter(b => b.uid !== targetUid), blockError: null
-  })),
-  on(A.unblockUserFailure, (s, { error }): FriendsState => ({
-    ...s, blockError: error
-  })),
-
-  /* 🔎 Search */
-  on(A.loadSearchResultsSuccess, (s, { results }): FriendsState => ({ ...s, searchResults: results })),
-  on(A.loadSearchResultsFailure, (s, { error }): FriendsState => ({ ...s, error })),
-
-  /* ⚙️ Settings */
-  on(A.updateFriendSettings, (s, { settings }): FriendsState => ({ ...s, settings })),
-
-  /* 🔴 Realtime inbound listener */
-  on(RT.startInboundRequestsListener, (s): FriendsState => ({
-    ...s, loadingRequests: true, error: null
-  })),
-  on(RT.inboundRequestsChanged, (s, { requests }): FriendsState => ({
-    ...s, loadingRequests: false, requests
-  })),
-  on(RT.stopInboundRequestsListener, (s): FriendsState => ({
-    ...s, loadingRequests: false
-  })),
-   on(RT.startOutboundRequestsListener, (s) => ({
-   ...s, loadingOutboundRequests: true, error: null
-   })),
- on(RT.outboundRequestsChanged, (s, { requests }) => ({
-   ...s, loadingOutboundRequests: false, outboundRequests: requests
- })),
- on(RT.stopOutboundRequestsListener, (s) => ({
-   ...s, loadingOutboundRequests: false
- })),
-
- on(RT.startFriendsListener, (s): FriendsState => ({
-  ...s,
-  loading: true,
-  error: null,
-})),
-
-on(RT.friendsChanged, (s, { friends }): FriendsState => {
-  const tombstones = uniqueUidList(s.locallyRemovedFriendUids);
-
-  if (!tombstones.length) {
-    return {
-      ...s,
-      loading: false,
-      friends,
+      uid: safeTargetUid,
+      isBlocked: true,
+      reason: undefined,
+      blockedAt: null,
+      unblockedAt: null,
+      actorUid: ownerUid ?? '',
+      updatedAt: null,
     };
-  }
 
-  /**
-   * Proteção contra snapshot atrasado:
-   * - se o realtime ainda trouxer um amigo recém-removido, filtramos;
-   * - se o realtime já não trouxer esse amigo, removemos a tombstone.
-   */
-  const filteredFriends = friends.filter(friend =>
-    !tombstones.some(uid => isSameFriend(friend, uid))
-  );
+    return {
+      ...state,
+      blocked: [...state.blocked, entry],
+      blockError: null,
+    };
+  }),
 
-  const stillPresentInSnapshot = tombstones.filter(uid =>
-    friends.some(friend => isSameFriend(friend, uid))
-  );
+  on(A.blockUserFailure, (state, { error }): FriendsState => ({
+    ...state,
+    blockError: error,
+  })),
 
-  return {
-    ...s,
+  on(A.unblockUserSuccess, (state, { targetUid }): FriendsState => ({
+    ...state,
+    blocked: state.blocked.filter(
+      (blockedUser) => blockedUser.uid !== normalizeUid(targetUid)
+    ),
+    blockError: null,
+  })),
+
+  on(A.unblockUserFailure, (state, { error }): FriendsState => ({
+    ...state,
+    blockError: error,
+  })),
+
+  /* ==========================================================================
+   * Busca e configurações
+   * ========================================================================== */
+
+  on(A.loadSearchResultsSuccess, (state, { results }): FriendsState => ({
+    ...state,
+    searchResults: results,
+  })),
+
+  on(A.loadSearchResultsFailure, (state, { error }): FriendsState => ({
+    ...state,
+    error,
+  })),
+
+  on(A.updateFriendSettings, (state, { settings }): FriendsState => ({
+    ...state,
+    settings,
+  })),
+
+  /* ==========================================================================
+   * Realtime — solicitações recebidas
+   * ========================================================================== */
+
+  on(RT.startInboundRequestsListener, (state): FriendsState => ({
+    ...state,
+    loadingRequests: true,
+    error: null,
+  })),
+
+  on(RT.inboundRequestsChanged, (state, { requests }): FriendsState => ({
+    ...state,
+    loadingRequests: false,
+    requests,
+  })),
+
+  on(RT.stopInboundRequestsListener, (state): FriendsState => ({
+    ...state,
+    loadingRequests: false,
+  })),
+
+  /* ==========================================================================
+   * Realtime — solicitações enviadas
+   * ========================================================================== */
+
+  on(RT.startOutboundRequestsListener, (state): FriendsState => ({
+    ...state,
+    loadingOutboundRequests: true,
+    error: null,
+  })),
+
+  on(RT.outboundRequestsChanged, (state, { requests }): FriendsState => ({
+    ...state,
+    loadingOutboundRequests: false,
+    outboundRequests: requests,
+  })),
+
+  on(RT.stopOutboundRequestsListener, (state): FriendsState => ({
+    ...state,
+    loadingOutboundRequests: false,
+  })),
+
+  /* ==========================================================================
+   * Realtime — amigos
+   * ========================================================================== */
+
+  on(RT.startFriendsListener, (state): FriendsState => ({
+    ...state,
+    loading: true,
+    error: null,
+  })),
+
+  on(RT.friendsChanged, (state, { friends }): FriendsState => ({
+    ...state,
     loading: false,
-    friends: filteredFriends,
-    locallyRemovedFriendUids: stillPresentInSnapshot,
-  };
-}),
 
-on(RT.stopFriendsListener, (s): FriendsState => ({
-  ...s,
-  loading: false,
-})),
+    /**
+     * Proteção contra snapshot atrasado.
+     *
+     * Não limpamos tombstones aqui.
+     * A limpeza acontece em effect com timer após endFriendshipSuccess.
+     */
+    friends: filterRemovedFriends(
+      friends,
+      state.locallyRemovedFriendUids
+    ),
+  })),
 
-  on(logoutSuccess, () => initialState),
+  on(RT.stopFriendsListener, (state): FriendsState => ({
+    ...state,
+    loading: false,
+  })),
 
-  // opcional: se a sessão virar nula por qualquer motivo
-  on(authSessionChanged, (s, { uid }) => (uid ? s : initialState)),
+  /* ==========================================================================
+   * Reset de sessão
+   * ========================================================================== */
+
+  on(logoutSuccess, (): FriendsState => initialState),
+
+  on(authSessionChanged, (state, { uid }): FriendsState =>
+    uid ? state : initialState
+  )
 );
-
-

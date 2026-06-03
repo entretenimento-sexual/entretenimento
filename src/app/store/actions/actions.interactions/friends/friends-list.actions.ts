@@ -34,3 +34,8 @@ export const endFriendshipFailure = createAction(
   '[Friendship] End Friendship Failure',
   props<{ error: string }>()
 );
+
+export const clearLocallyRemovedFriendTombstone = createAction(
+  '[Friendship] Clear Locally Removed Friend Tombstone',
+  props<{ friendUid: string }>()
+);

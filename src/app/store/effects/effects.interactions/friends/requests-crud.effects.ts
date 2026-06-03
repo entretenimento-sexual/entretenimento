@@ -1,5 +1,4 @@
 // src/app/store/effects/effects.interactions/friends/requests-crud.effects.ts
-
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Store } from '@ngrx/store';
@@ -110,31 +109,21 @@ export class FriendsRequestsCrudEffects {
     )
   );
 
-  /**
-   * Após enviar solicitação, recarrega a lista de enviadas.
-   */
-  refreshOutboundAfterSend$ = createEffect(() =>
-    this.actions$.pipe(
-      ofType(A.sendFriendRequestSuccess),
-      withLatestFrom(this.store.select(selectCurrentUserUid)),
-      filter(([, uid]) => !!uid),
-      map(([, uid]) => A.loadOutboundRequests({ uid: uid! }))
-    )
-  );
 
   /**
-   * Cancela solicitação enviada.
-   *
-   * Observação importante:
-   * - o service/repo precisa executar hard delete no documento pendente,
-   *   porque as Firestore Rules atuais permitem delete pelo requester,
-   *   mas não permitem update para status "canceled".
-   *
-   * Este effect:
-   * - bloqueia repetição por requestId;
-   * - libera o lock em success ou failure;
-   * - mostra erro via ErrorNotificationService.
-   */
+ * Cancela solicitação enviada.
+ *
+ * Agora o cancelamento passa por Cloud Function:
+ * - somente quem enviou pode cancelar;
+ * - somente solicitação pending pode ser cancelada;
+ * - o documento é preservado como "canceled" para auditoria;
+ * - a UI remove o item localmente no success e sincroniza em seguida.
+ *
+ * Este effect:
+ * - bloqueia repetição por requestId;
+ * - libera o lock em success ou failure;
+ * - mostra erro via ErrorNotificationService.
+ */
   cancelOutbound$ = createEffect(() =>
     this.actions$.pipe(
       ofType(A.cancelFriendRequest),
@@ -172,22 +161,7 @@ export class FriendsRequestsCrudEffects {
     )
   );
 
-  /**
-   * Após enviar ou cancelar, sincroniza a aba ENVIADAS.
-   */
-  refreshOutboundAfterSendOrCancel$ = createEffect(() =>
-    this.actions$.pipe(
-      ofType(
-        A.sendFriendRequestSuccess,
-        A.cancelFriendRequestSuccess
-      ),
-      withLatestFrom(this.store.select(selectCurrentUserUid)),
-      filter(([, uid]) => !!uid),
-      map(([, uid]) => A.loadOutboundRequests({ uid: uid! }))
-    )
-  );
-
-  /**
+   /**
    * Carrega solicitações recebidas pendentes.
    */
   loadInboundRequests$ = createEffect(() =>
@@ -258,24 +232,49 @@ export class FriendsRequestsCrudEffects {
   );
 
   /**
-   * Após aceitar/recusar:
-   * - recarrega recebidas;
-   * - recarrega amigos.
-   */
-  afterAcceptOrDeclineRefresh$ = createEffect(() =>
-    this.actions$.pipe(
-      ofType(
-        A.acceptFriendRequestSuccess,
-        A.declineFriendRequestSuccess
-      ),
-      withLatestFrom(this.store.select(selectCurrentUserUid)),
-      filter(([, uid]) => !!uid),
-      mergeMap(([, uid]) =>
-        of(
-          A.loadInboundRequests({ uid: uid! }),
-          A.loadFriends({ uid: uid! })
-        )
-      )
-    )
-  );
-} // Linha 281, fim do arquivo
+ * Sincronização curta após mutações sociais de solicitação.
+ *
+ * Motivo:
+ * - o realtime continua sendo a fonte principal;
+ * - mas, após uma ação social sensível, a UI precisa reagir imediatamente;
+ * - isso reduz atraso visual entre enviar, cancelar, aceitar e recusar;
+ * - também mantém badges e abas coerentes sem depender apenas da ordem
+ *   em que os snapshots realtime chegam.
+ *
+ * Atualiza sempre:
+ * - RECEBIDAS;
+ * - ENVIADAS.
+ *
+ * Atualiza também AMIGOS quando:
+ * - uma solicitação é aceita.
+ */
+syncAfterRequestMutation$ = createEffect(() =>
+  this.actions$.pipe(
+    ofType(
+      A.sendFriendRequestSuccess,
+      A.cancelFriendRequestSuccess,
+      A.acceptFriendRequestSuccess,
+      A.declineFriendRequestSuccess
+    ),
+    withLatestFrom(this.store.select(selectCurrentUserUid)),
+    filter(([, uid]) => !!uid),
+    mergeMap(([action, uid]) => {
+      const safeUid = uid!;
+
+      const refreshRequests = [
+        A.loadInboundRequests({ uid: safeUid }),
+        A.loadOutboundRequests({ uid: safeUid }),
+      ];
+
+      if (action.type === A.acceptFriendRequestSuccess.type) {
+        return of(
+          ...refreshRequests,
+          A.loadFriends({ uid: safeUid })
+        );
+      }
+
+      return of(...refreshRequests);
+    })
+  )
+);
+} // Linha 232, fim do arquivo

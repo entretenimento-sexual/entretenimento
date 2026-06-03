@@ -1,7 +1,7 @@
 // src/app/store/effects/effects.interactions/friends/network.effects.ts
 import { Injectable } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
-import { of, combineLatest } from 'rxjs';
+import { of, combineLatest, timer } from 'rxjs';
 import { catchError, distinctUntilChanged, map, mergeMap, switchMap, tap } from 'rxjs/operators';
 
 import * as A from '../../../actions/actions.interactions/actions.friends';
@@ -179,4 +179,19 @@ export class FriendsNetworkEffects {
       )
     )
   );
+
+  clearFriendTombstoneAfterEnd$ = createEffect(() =>
+  this.actions$.pipe(
+    ofType(A.endFriendshipSuccess),
+    mergeMap(({ friendUid }) =>
+      timer(8000).pipe(
+        map(() =>
+          A.clearLocallyRemovedFriendTombstone({
+            friendUid,
+          })
+        )
+      )
+    )
+  )
+);
 }

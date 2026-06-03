@@ -1,33 +1,35 @@
     // =========================================================================
     // FRIEND.REQUESTS.RULES
     // - Solicitações de amizade (privado)
-    // - Regras:
-    //  - Leitura: somente envolvidos (requester ou target)
+    //
+    // Modelo de segurança:
+    // - Leitura: somente envolvidos na solicitação.
+    // - Escrita: somente via Cloud Functions.
+    //
+    // Callables responsáveis:
+    // - sendFriendRequest
+    // - acceptFriendRequest
+    // - cancelFriendRequest
+    // - declineFriendRequest
+    //
+    // Motivo:
+    // - o cliente Angular/web/mobile não deve criar, aceitar, recusar,
+    //   cancelar ou apagar solicitações diretamente no Firestore;
+    // - Cloud Functions usam Admin SDK, validam request.auth.uid,
+    //   e-mail verificado, ownership, status pending e auditoria;
+    // - isso reduz bypass, spam social e inconsistência de estado.
+    //
     // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
     // uso de helpers globais
     // =========================================================================
     match /friendRequests/{reqId} {
       allow read: if signedIn() &&
         (resource.data.requesterUid == uid() ||
-         resource.data.targetUid    == uid());
+         resource.data.targetUid == uid());
 
-      allow create: if signedIn()
-        && request.resource.data.requesterUid == uid()
-        && request.resource.data.targetUid    != uid()
-        && request.resource.data.status       == 'pending'
-        && request.resource.data.createdAt    is timestamp;
-
-      allow update: if signedIn()
-        && resource.data.status == 'pending'
-        && request.resource.data.status in ['accepted','declined']
-        && uid() == resource.data.targetUid
-        && request.resource.data.respondedAt is timestamp
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(['status','respondedAt']);
-
-      allow delete: if signedIn()
-        && resource.data.status == 'pending'
-        && uid() == resource.data.requesterUid;
+      allow create, update, delete: if false;
     }
-// ====================================================================
-//                        FIM DO FRIEND.REQUESTS.RULES
-// ====================================================================
+
+    // ====================================================================
+    //                        FIM DO FRIEND.REQUESTS.RULES
+    // ====================================================================
