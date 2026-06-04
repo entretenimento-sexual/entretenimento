@@ -34,13 +34,11 @@ import { GlobalErrorHandlerService } from '@core/services/error-handler/global-e
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
 import { PresenceService } from './presence.service';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from '../privacy/privacy-debug-logger.service';
 
 @Injectable({ providedIn: 'root' })
 export class PresenceOrchestratorService {
   private readonly destroyRef = inject(DestroyRef);
-  private readonly debug = !environment.production;
-
   private started = false;
   private lastNotifyAt = 0;
 
@@ -49,6 +47,7 @@ export class PresenceOrchestratorService {
     private readonly presence: PresenceService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly notify: ErrorNotificationService,
+    private readonly privacyDebug: PrivacyDebugLoggerService
   ) { }
 
   start(): void {
@@ -160,12 +159,20 @@ export class PresenceOrchestratorService {
     }
   }
 
-  private dbg(msg: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[PresenceOrchestrator] ${msg}`, extra ?? '');
-  }
-}// linha 170, fim do PresenceOrchestratorService
+  /**
+ * Debug seguro da orquestração de presença.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_PRESENCE', '1');
+ *
+ * Este service decide quando a presença deve iniciar/parar.
+ * Isso revela UID, sessão ativa e estado operacional do usuário.
+ * Por isso, não deve usar console.log direto.
+ */
+private dbg(msg: string, extra?: unknown): void {
+  this.privacyDebug.log('presence', `PresenceOrchestrator: ${msg}`, extra);
+}
+}// linha 175, fim do PresenceOrchestratorService
 // - O PresenceOrchestratorService é responsável por iniciar e parar o PresenceService de forma idempotente, reagindo a mudanças no estado de acesso do usuário (canRunPresence$ e authUid$). Ele também centraliza o tratamento de erros e notificação para falhas relacionadas à presença.
 // - Ele deve ser iniciado preferencialmente no AppComponent para garantir que a presença seja gerenciada durante todo o ciclo de vida do app, mas pode ser chamado em outros lugares desde que seja garantido que start() seja chamado apenas uma vez.
 

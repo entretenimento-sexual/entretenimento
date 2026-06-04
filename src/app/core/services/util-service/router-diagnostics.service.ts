@@ -4,7 +4,7 @@
 // - log detalhado (dev-only)
 // - detecção real de loop de navegação (redirect/cancel repetitivo)
 // - roteamento centralizado de erros (GlobalErrorHandler) + notificação com throttle
-import { DestroyRef, Injectable, inject, isDevMode } from '@angular/core';
+import { DestroyRef, Injectable, inject } from '@angular/core';
 import {
   Router,
   NavigationStart,
@@ -22,11 +22,13 @@ import { EMPTY, Subscription } from 'rxjs';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { environment } from 'src/environments/environment';
 
 @Injectable({ providedIn: 'root' })
 export class RouterDiagnosticsService {
   private readonly destroyRef = inject(DestroyRef);
-  private readonly debug = isDevMode();
+  private readonly privacyLogging = environment.privacyLogging;
+  private readonly debug = this.isRouterDiagnosticsDebugEnabled();
 
   private lastNotifyAt = 0;
   private started = false;
@@ -50,11 +52,164 @@ export class RouterDiagnosticsService {
     this.startInternal();
   }
 
-  private dbg(msg: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[RouterDiagnostics] ${msg}`, extra ?? '');
+private isRouterDiagnosticsDebugEnabled(): boolean {
+  if (environment.production) {
+    return false;
   }
+
+  if (this.privacyLogging?.enabled !== true) {
+    return false;
+  }
+
+  /**
+   * Router carrega URLs e pode expor UID em rotas.
+   *
+   * Portanto, debug detalhado do router deve ser opt-in manual.
+   *
+   * Para ativar:
+   * localStorage.setItem('ROUTER_DIAGNOSTICS_DEBUG', '1')
+   */
+  try {
+    return localStorage.getItem('ROUTER_DIAGNOSTICS_DEBUG') === '1';
+  } catch {
+    return false;
+  }
+}
+
+private canLogSensitiveConsoleData(): boolean {
+  if (environment.production) {
+    return false;
+  }
+
+  if (this.privacyLogging?.allowSensitiveConsoleData !== true) {
+    return false;
+  }
+
+  try {
+    return localStorage.getItem('ALLOW_SENSITIVE_CONSOLE_DATA') === '1';
+  } catch {
+    return false;
+  }
+}
+
+private looksLikeFirebaseUid(value: string): boolean {
+  return /^[A-Za-z0-9_-]{18,80}$/.test(value);
+}
+
+private looksLikeDirectChatId(value: string): boolean {
+  return /^direct_[a-f0-9]{32,128}$/i.test(value);
+}
+
+private maskUid(value: unknown): string | null {
+  const uid = String(value ?? '').trim();
+
+  if (!uid) {
+    return null;
+  }
+
+  if (this.canLogSensitiveConsoleData()) {
+    return uid;
+  }
+
+  if (uid.length <= 8) {
+    return 'masked';
+  }
+
+  return `${uid.slice(0, 4)}...${uid.slice(-4)}`;
+}
+
+private maskDirectChatId(value: string): string {
+  if (this.canLogSensitiveConsoleData()) {
+    return value;
+  }
+
+  return `${value.slice(0, 13)}...${value.slice(-6)}`;
+}
+
+private maskSensitiveString(value: unknown): string {
+  const text = String(value ?? '');
+
+  if (!text) {
+    return text;
+  }
+
+  return text
+    .split(/([:/?&=|,\s]+)/)
+    .map((token) => {
+      const cleanToken = token.trim();
+
+      if (!cleanToken) {
+        return token;
+      }
+
+      if (this.looksLikeDirectChatId(cleanToken)) {
+        return this.maskDirectChatId(cleanToken);
+      }
+
+      if (this.looksLikeFirebaseUid(cleanToken)) {
+        return this.maskUid(cleanToken) ?? 'masked';
+      }
+
+      return token;
+    })
+    .join('');
+}
+
+private sanitizeRouterEvent(event: any): Record<string, unknown> {
+  const payload: Record<string, unknown> = {
+    id: event?.id ?? null,
+    type: event?.constructor?.name ?? 'RouterEvent',
+  };
+
+  if (event?.url !== undefined) {
+    payload['url'] = this.maskSensitiveString(event.url);
+  }
+
+  if (event?.urlAfterRedirects !== undefined) {
+    payload['urlAfterRedirects'] = this.maskSensitiveString(event.urlAfterRedirects);
+  }
+
+  if (event?.navigationTrigger !== undefined) {
+    payload['navigationTrigger'] = event.navigationTrigger;
+  }
+
+  if (event?.restoredState !== undefined) {
+    payload['hasRestoredState'] = !!event.restoredState;
+  }
+
+  if (event?.shouldActivate !== undefined) {
+    payload['shouldActivate'] = event.shouldActivate;
+  }
+
+  if (event?.reason !== undefined) {
+    payload['reason'] = this.maskSensitiveString(event.reason);
+  }
+
+  if (event?.error !== undefined) {
+    const error = event.error instanceof Error
+      ? event.error
+      : new Error(String(event.error ?? 'unknown navigation error'));
+
+    payload['error'] = {
+      name: error.name,
+      message: this.maskSensitiveString(error.message),
+    };
+  }
+
+  return payload;
+}
+
+private dbg(msg: string, extra?: unknown): void {
+  if (!this.debug) {
+    return;
+  }
+
+  // eslint-disable-next-line no-console
+  console.log(
+    `[RouterDiagnostics] ${msg}`,
+    typeof extra === 'string' ? this.maskSensitiveString(extra) : extra ?? ''
+  );
+}
 
   private startInternal(): void {
     const relevant$ = this.router.events.pipe(
@@ -94,9 +249,13 @@ export class RouterDiagnosticsService {
     // 2) Log detalhado (dev-only)
     if (this.debug) {
       const subLog = relevant$.pipe(
-        tap((e: any) => {
+        tap((event: any) => {
           // eslint-disable-next-line no-console
-          console.log('[ROUTER]', e.constructor?.name, e);
+          console.log(
+            '[ROUTER]',
+            event.constructor?.name,
+            this.sanitizeRouterEvent(event)
+          );
         }),
         catchError(err => {
           this.dbg('log stream error', err);

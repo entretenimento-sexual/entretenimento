@@ -35,9 +35,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { defer, from, map, Observable } from 'rxjs';
-
-import { environment } from 'src/environments/environment';
-
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { FriendshipRepo } from './friendship.repo';
 import { Friend } from '../../../interfaces/friendship/friend.interface';
 import { FriendRequest } from '../../../interfaces/friendship/friend-request.interface';
@@ -106,6 +104,7 @@ interface EndFriendshipCallableResponse {
 
 @Injectable({ providedIn: 'root' })
 export class FriendshipService {
+  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly repo = inject(FriendshipRepo);
   private readonly functions = inject(Functions);
 
@@ -134,11 +133,9 @@ export class FriendshipService {
     EndFriendshipCallableResponse
   >(this.functions, 'endFriendship');
 
-  private dbg(msg: string, extra?: unknown): void {
-    if (!environment.production) {
-      console.log(`[FRIENDSHIP] ${msg}`, extra ?? '');
-    }
-  }
+private dbg(msg: string, extra?: unknown): void {
+  this.privacyDebug.log('friends', msg, extra);
+}
 
   /* ==========================================================================
    * Solicitações de amizade

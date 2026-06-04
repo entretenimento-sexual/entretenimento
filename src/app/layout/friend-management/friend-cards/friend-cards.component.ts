@@ -5,7 +5,7 @@
 // - Componente focado em apresentação: não faz chamadas, não acessa store.
 // - Reatividade: usa Signals (input()) + toObservable() para reagir a alterações.
 // - Debug: logs apenas em modo dev para facilitar manutenção futura.
-import { ChangeDetectionStrategy, Component, input, isDevMode } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { combineLatest, Observable } from 'rxjs';
@@ -14,6 +14,7 @@ import { map, shareReplay, tap } from 'rxjs/operators';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UserCardComponent } from 'src/app/shared/user-card/user-card.component';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 type SortKey = 'none' | 'recent' | 'online' | 'distance' | 'alpha';
 
@@ -57,19 +58,21 @@ export class FriendCardsComponent {
   // =========================
   // Debug (dev only)
   // =========================
+private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
-  /** Tag usada nos logs para facilitar rastreio no console. */
-  private readonly debugTag = '[FriendCards]';
-
-  /**
-   * Log controlado por isDevMode().
-   * Não "polui" produção e ajuda bastante a rastrear recomputações.
-   */
-  private debugLog(message: string, extra?: unknown): void {
-    if (!isDevMode()) return;
-    // eslint-disable-next-line no-console
-    console.log(`${this.debugTag} ${message}`, extra ?? '');
-  }
+/**
+ * Debug seguro dos cards de amigos.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_FRIENDS', '1');
+ *
+ * Este componente pode revelar quantidade de amigos, filtros ativos e,
+ * se for expandido futuramente, dados de cards. Por isso, não deve usar
+ * console.log direto.
+ */
+private debugLog(message: string, extra?: unknown): void {
+  this.privacyDebug.log('friends', `FriendCards: ${message}`, extra);
+}
 
   // =========================
   // Observables derivados

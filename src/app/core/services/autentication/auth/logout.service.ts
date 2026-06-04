@@ -40,19 +40,18 @@ import {
 import { PresenceService } from '@core/services/presence/presence.service';
 import { CurrentUserStoreService } from './current-user-store.service';
 import { AuthAppBlockService } from './auth-app-block.service';
+import { CacheService } from '@core/services/general/cache/cache.service';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { inRegistrationFlow as isRegFlow, type TerminateReason } from './auth.types';
-
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 type SignOutMode = 'strict' | 'best-effort';
 
 @Injectable({ providedIn: 'root' })
 export class LogoutService {
-  private readonly debug = !environment.production;
-  private running = false;
+   private running = false;
 
   constructor(
     private readonly auth: Auth,
@@ -62,7 +61,9 @@ export class LogoutService {
     private readonly appBlock: AuthAppBlockService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly envInjector: EnvironmentInjector
+    private readonly envInjector: EnvironmentInjector,
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+    private readonly cache: CacheService,
   ) {}
 
   /**
@@ -82,11 +83,7 @@ export class LogoutService {
 
     return this.stopPresenceBestEffort$().pipe(
       switchMap(() => this.executeSignOut$('strict')),
-      map(() => {
-        this.appBlock.clear();
-        this.currentUserStore.clear();
-        return void 0;
-      }),
+      switchMap(() => this.clearLocalSessionDataBestEffort$()),
       switchMap(() => this.navigateBestEffort$('/login')),
       catchError((err) => {
         this.reportSilent(err, { phase: 'logout$' });
@@ -132,11 +129,7 @@ export class LogoutService {
 
     return this.stopPresenceBestEffort$().pipe(
       switchMap(() => this.executeSignOut$('best-effort')),
-      map(() => {
-        this.appBlock.clear();
-        this.currentUserStore.clear();
-        return void 0;
-      }),
+      switchMap(() => this.clearLocalSessionDataBestEffort$()),
       switchMap(() => this.navigateToWelcomeBestEffort$(reason)),
       catchError((err) => {
         this.reportSilent(err, { phase: 'hardSignOutToWelcome$', reason });
@@ -232,12 +225,26 @@ export class LogoutService {
     );
   }
 
+  /**
+ * Debug seguro do encerramento de sessão.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_AUTH', '1');
+ *
+ * Logout pode revelar motivo de encerramento, rota, modo de signOut,
+ * falhas de presença e erros de navegação. Por isso, não deve usar
+ * console.log direto.
+ */
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('auth', `LogoutService: ${message}`, extra, 'warn');
+}
+
   private reportSilent(err: unknown, context: Record<string, unknown>): void {
     try {
-      if (this.debug) {
-        // eslint-disable-next-line no-console
-        console.log('[LogoutService]', context, err);
-      }
+          this.dbg('reportSilent()', {
+            context,
+            error: err,
+          });
 
       const error = new Error('[LogoutService] internal error');
       (error as any).silent = true;
@@ -250,6 +257,31 @@ export class LogoutService {
       // noop
     }
   }
+
+  /**
+ * Limpeza local pós-logout.
+ *
+ * Mantém a regra:
+ * - logout é responsabilidade do LogoutService;
+ * - cache sensível não deve sobreviver à sessão;
+ * - falha de limpeza não deve impedir navegação/signOut.
+ */
+private clearLocalSessionDataBestEffort$(): Observable<void> {
+  return this.cache.clearSensitiveSessionCache$().pipe(
+    catchError((err) => {
+      this.reportSilent(err, {
+        phase: 'clearLocalSessionDataBestEffort$',
+      });
+
+      return of(void 0);
+    }),
+    map(() => {
+      this.appBlock.clear();
+      this.currentUserStore.clear();
+      return void 0;
+    })
+  );
+}
 } // Linha 253, fim do logout.service.ts
 // Verificar migrações de responsabilidades para o:
 // 1 - auth-route-context.service.ts, e;

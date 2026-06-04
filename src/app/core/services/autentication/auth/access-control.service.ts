@@ -45,7 +45,7 @@ import { AuthRouteContextService } from './auth-route-context.service';
 
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 
 export type UserRole = IUserDados['role'];
 
@@ -82,14 +82,16 @@ export class AccessControlService {
 
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly notify = inject(ErrorNotificationService);
+  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   private _lastNotifyAt = 0;
-  private readonly debug = !environment.production;
+
+  private canDebug(): boolean {
+    return this.privacyDebug.canLog('access-control');
+  }
 
   private dbg(msg: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[AccessControl] ${msg}`, extra ?? '');
+    this.privacyDebug.log('access-control', msg, extra);
   }
 
   private safeRank(role: unknown): number {
@@ -177,6 +179,7 @@ export class AccessControlService {
       this.globalError.handleError(e);
 
       const now = Date.now();
+
       if (now - this._lastNotifyAt > 15_000) {
         this._lastNotifyAt = now;
         this.notify.showError('Falha ao validar acesso. Tente novamente.');
@@ -190,24 +193,25 @@ export class AccessControlService {
   // Router context
   // ---------------------------------------------------------------------------
 
-  private readonly routeCtx$: Observable<AuthRouteContext> = this.routeContext.context$.pipe(
-    distinctUntilChanged(
-      (a, b) =>
-        a.routerReady === b.routerReady &&
-        a.currentUrl === b.currentUrl &&
-        a.navPath === b.navPath &&
-        a.inRegistrationFlow === b.inRegistrationFlow
-    ),
-    shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(
-      this.handleStreamError<AuthRouteContext>('routeCtx$', {
-        routerReady: false,
-        currentUrl: '/',
-        navPath: null,
-        inRegistrationFlow: true,
-      })
-    )
-  );
+  private readonly routeCtx$: Observable<AuthRouteContext> =
+    this.routeContext.context$.pipe(
+      distinctUntilChanged(
+        (a, b) =>
+          a.routerReady === b.routerReady &&
+          a.currentUrl === b.currentUrl &&
+          a.navPath === b.navPath &&
+          a.inRegistrationFlow === b.inRegistrationFlow
+      ),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(
+        this.handleStreamError<AuthRouteContext>('routeCtx$', {
+          routerReady: false,
+          currentUrl: '/',
+          navPath: null,
+          inRegistrationFlow: true,
+        })
+      )
+    );
 
   readonly currentUrl$: Observable<string> = this.routeCtx$.pipe(
     map((ctx) => ctx.currentUrl),
@@ -296,11 +300,12 @@ export class AccessControlService {
     catchError(this.handleStreamError('appUserAvailable$', false))
   );
 
-  readonly blockedReason$: Observable<TerminateReason | null> = this.appBlock.reason$.pipe(
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(this.handleStreamError('blockedReason$', null))
-  );
+  readonly blockedReason$: Observable<TerminateReason | null> =
+    this.appBlock.reason$.pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('blockedReason$', null))
+    );
 
   // ---------------------------------------------------------------------------
   // Lifecycle da conta
@@ -313,9 +318,10 @@ export class AccessControlService {
     ),
     distinctUntilChanged(),
     tap((accountStatus) => {
-      if (!this.debug) return;
+      if (!this.canDebug()) return;
 
       const user = this.currentUserStore.getSnapshot() as any;
+
       this.dbg('accountStatus$', {
         accountStatus,
         uid: user?.uid,
@@ -373,7 +379,9 @@ export class AccessControlService {
     this.ready$,
     this.authUser$,
   ]).pipe(
-    map(([ready, user]) => ready === true && !!user?.uid && user.emailVerified === true),
+    map(([ready, user]) =>
+      ready === true && !!user?.uid && user.emailVerified === true
+    ),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('emailVerified$', false))
@@ -398,9 +406,10 @@ export class AccessControlService {
     }),
     distinctUntilChanged(),
     tap((completed) => {
-      if (!this.debug) return;
+      if (!this.canDebug()) return;
 
       const user = this.currentUserStore.getSnapshot() as any;
+
       this.dbg('profileCompleted$', {
         completed,
         uid: user?.uid,
@@ -425,9 +434,10 @@ export class AccessControlService {
     }),
     distinctUntilChanged(),
     tap((hasMin) => {
-      if (!this.debug) return;
+      if (!this.canDebug()) return;
 
       const user = this.currentUserStore.getSnapshot() as any;
+
       this.dbg('hasMinimalProfileData$', {
         hasMin,
         uid: user?.uid,
@@ -470,7 +480,7 @@ export class AccessControlService {
     catchError(this.handleStreamError('state$', 'GUEST' as AccessState))
   );
 
-    /**
+  /**
    * Indica quando a rota atual realmente consome a listagem de perfis online.
    *
    * A presença do próprio usuário continua sendo infraestrutura global.
@@ -497,6 +507,7 @@ export class AccessControlService {
       normalizedUrl.startsWith('/dashboard/online-users/')
     );
   }
+
   // ---------------------------------------------------------------------------
   // Gates
   // ---------------------------------------------------------------------------
@@ -508,9 +519,10 @@ export class AccessControlService {
     map(([routerReady, blocked]) => routerReady === true && blocked === false),
     distinctUntilChanged(),
     tap((canRunApp) => {
-      if (!this.debug) return;
+      if (!this.canDebug()) return;
 
       const user = this.currentUserStore.getSnapshot() as any;
+
       this.dbg('canRunApp$', {
         canRunApp,
         uid: user?.uid,
@@ -620,9 +632,7 @@ export class AccessControlService {
       distinctUntilChanged(),
 
       tap((can) => {
-        if (!this.debug) {
-          return;
-        }
+        if (!this.canDebug()) return;
 
         const user = this.currentUserStore.getSnapshot() as any;
 
@@ -677,9 +687,7 @@ export class AccessControlService {
     ),
 
     tap(({ can, url, routerReady, routeConsumesOnlineUsers }) => {
-      if (!this.debug || !routerReady) {
-        return;
-      }
+      if (!this.canDebug() || !routerReady) return;
 
       const user = this.currentUserStore.getSnapshot() as any;
 
@@ -731,11 +739,12 @@ export class AccessControlService {
    * Mantido apontando para produto sensível.
    * Quando precisar de listeners não sensíveis, use canRunDiscoveryRealtime$.
    */
-  readonly canListenRealtime$: Observable<boolean> = this.canRunProductRealtime$.pipe(
-    distinctUntilChanged(),
-    shareReplay({ bufferSize: 1, refCount: true }),
-    catchError(this.handleStreamError('canListenRealtime$', false))
-  );
+  readonly canListenRealtime$: Observable<boolean> =
+    this.canRunProductRealtime$.pipe(
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true }),
+      catchError(this.handleStreamError('canListenRealtime$', false))
+    );
 
   /**
    * Etapas de registro/onboarding:
@@ -791,7 +800,9 @@ export class AccessControlService {
     map(([isAuth, user]) => {
       if (!isAuth) return true;
 
-      const subscriptionStatus = this.normalizeSubscriptionStatus(user as IUserDados | null);
+      const subscriptionStatus = this.normalizeSubscriptionStatus(
+        user as IUserDados | null
+      );
       const isSubscriber = (user as any)?.isSubscriber === true;
 
       return !(isSubscriber || subscriptionStatus === 'active');
@@ -803,11 +814,17 @@ export class AccessControlService {
 
   readonly isSubscriber$: Observable<boolean> = this.appUser$.pipe(
     map((user) => {
-      const subscriptionStatus = this.normalizeSubscriptionStatus(user as IUserDados | null);
-      return (user as any)?.isSubscriber === true || subscriptionStatus === 'active';
+      const subscriptionStatus = this.normalizeSubscriptionStatus(
+        user as IUserDados | null
+      );
+
+      return (
+        (user as any)?.isSubscriber === true ||
+        subscriptionStatus === 'active'
+      );
     }),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true }),
     catchError(this.handleStreamError('isSubscriber$', false))
   );
-} // Linha 783
+}

@@ -26,7 +26,7 @@ import {
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-
+import { environment } from 'src/environments/environment';
 import { Subscription, combineLatest, EMPTY, from, defer, of } from 'rxjs';
 import {
   catchError,
@@ -75,6 +75,168 @@ export class AuthDebugService {
   // Config: opt-in via localStorage (útil em dev sem recompilar)
   private readonly cfg = this.readConfig();
 
+  private readonly privacyLogging = environment.privacyLogging;
+
+private canRunAuthDebug(): boolean {
+  if (environment.production) {
+    return false;
+  }
+
+  if (this.privacyLogging?.enabled !== true) {
+    return false;
+  }
+
+  /**
+   * Diagnóstico de autenticação é muito ruidoso e revela ciclo de sessão,
+   * mesmo com UID/e-mail mascarados.
+   *
+   * Portanto, fica opt-in.
+   *
+   * Para ativar temporariamente:
+   * localStorage.setItem('DEBUG_AUTH_DIAGNOSTICS', '1');
+   */
+  try {
+    return localStorage.getItem('DEBUG_AUTH_DIAGNOSTICS') === '1';
+  } catch {
+    return false;
+  }
+}
+
+private canLogSensitiveConsoleData(): boolean {
+  if (environment.production) {
+    return false;
+  }
+
+  if (this.privacyLogging?.allowSensitiveConsoleData !== true) {
+    return false;
+  }
+
+  try {
+    return localStorage.getItem('ALLOW_SENSITIVE_CONSOLE_DATA') === '1';
+  } catch {
+    return false;
+  }
+}
+
+private looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+private looksLikeFirebaseUid(value: string): boolean {
+  /**
+   * Firebase UID costuma ser uma string sem espaços, longa,
+   * com letras/números e alguns símbolos seguros.
+   *
+   * Não queremos mascarar frases de log como:
+   * - "authSession.uid$ →"
+   * - "angularfire.authState$ →"
+   */
+  return /^[A-Za-z0-9_-]{18,80}$/.test(value);
+}
+
+private maskPotentialSensitiveString(value: string): string {
+  const text = String(value ?? '').trim();
+
+  if (!text) {
+    return text;
+  }
+
+  if (this.looksLikeEmail(text)) {
+    return this.maskEmail(text) ?? 'masked-email';
+  }
+
+  if (this.looksLikeFirebaseUid(text)) {
+    return this.maskUid(text) ?? 'masked';
+  }
+
+  return value;
+}
+
+private maskUid(value: unknown): string | null {
+  const uid = String(value ?? '').trim();
+
+  if (!uid) {
+    return null;
+  }
+
+  if (this.canLogSensitiveConsoleData()) {
+    return uid;
+  }
+
+  if (uid.length <= 8) {
+    return 'masked';
+  }
+
+  return `${uid.slice(0, 4)}...${uid.slice(-4)}`;
+}
+
+private maskEmail(value: unknown): string | null {
+  const email = String(value ?? '').trim();
+
+  if (!email) {
+    return null;
+  }
+
+  if (this.canLogSensitiveConsoleData()) {
+    return email;
+  }
+
+  const [name, domain] = email.split('@');
+
+  if (!name || !domain) {
+    return 'masked-email';
+  }
+
+  return `${name.slice(0, 1)}***@${domain}`;
+}
+
+private maskAuthSnapshot<T extends Record<string, unknown> | null>(snapshot: T): T | Record<string, unknown> | null {
+  if (!snapshot) {
+    return null;
+  }
+
+  return {
+    ...snapshot,
+    uid: this.maskUid(snapshot['uid']),
+    email: this.maskEmail(snapshot['email']),
+  };
+}
+
+private maskAuthPayload(value: unknown): unknown {
+  if (value === null || value === undefined) {
+    return value;
+  }
+
+if (typeof value === 'string') {
+  return this.maskPotentialSensitiveString(value);
+}
+
+  if (typeof value !== 'object') {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  const masked: Record<string, unknown> = { ...record };
+
+  if ('uid' in masked) {
+    masked['uid'] = this.maskUid(masked['uid']);
+  }
+
+  if ('email' in masked) {
+    masked['email'] = this.maskEmail(masked['email']);
+  }
+
+  if ('sessionUid' in masked) {
+    masked['sessionUid'] = this.maskUid(masked['sessionUid']);
+  }
+
+  if ('ngrxUid' in masked) {
+    masked['ngrxUid'] = this.maskUid(masked['ngrxUid']);
+  }
+
+  return masked;
+}
+
   constructor(private readonly auth: Auth) {
     // Em serviços de debug: NÃO abra listeners no constructor.
     // start()/stop() controlam o ciclo e evitam duplicidades (HMR/hot reload).
@@ -83,7 +245,7 @@ export class AuthDebugService {
 
   /** Inicia os logs e watchers (idempotente). */
   start(): void {
-    if (this.started) return;
+    if (this.started || !this.canRunAuthDebug()) return;
     this.started = true;
 
     // Reinicia container de subs (importante em HMR)
@@ -94,8 +256,8 @@ export class AuthDebugService {
       this.subs.add(
         authState(this.auth).pipe(
           map(u => u ? ({
-            uid: u.uid,
-            email: u.email,
+            uid: this.maskUid(u.uid),
+            email: this.maskEmail(u.email),
             verified: u.emailVerified,
             prov: u.providerData?.map(p => p?.providerId),
           }) : null),
@@ -109,7 +271,7 @@ export class AuthDebugService {
       // Nota: NÃO chama getIdToken(true). Apenas observa mudanças.
       this.subs.add(
         idToken(this.auth).pipe(
-          map(() => this.auth.currentUser?.uid ?? null),
+          map(() => this.maskUid(this.auth.currentUser?.uid ?? null)),
           distinctUntilChanged(),
           tap(uid => this.log('info', 'af.idToken', 'angularfire.idToken$ changed →', { uid })),
           catchError(err => this.handle('AuthDebugService: falha no angularfire.idToken()', err))
@@ -127,11 +289,16 @@ export class AuthDebugService {
 
           if (uid !== this.lastNativeUid) {
             this.lastNativeUid = uid;
-            this.log('info', 'sdk.onIdTokenChanged', 'firebase.onIdTokenChanged(cb) →', uid ? { uid } : null);
+            this.log(
+                'info',
+                'sdk.onIdTokenChanged',
+                'firebase.onIdTokenChanged(cb) →',
+                uid ? { uid: this.maskUid(uid) } : null
+              );
           } else {
             // Se estiver “batendo” várias vezes com mesmo uid, só loga em modo debug (e com rate-limit).
             this.logOnce('debug', 'sdk.onIdTokenChanged.sameUid', 2000,
-              'firebase.onIdTokenChanged (same uid) →', uid ? { uid } : null
+              'firebase.onIdTokenChanged (same uid) →', uid ? { uid: this.maskUid(uid) } : null
             );
           }
         },
@@ -142,7 +309,11 @@ export class AuthDebugService {
       this.subs.add(
         this.authSession.uid$.pipe(
           distinctUntilChanged(),
-          tap(uid => this.log('info', 'session.uid', 'authSession.uid$ →', { uid })),
+          tap(uid =>
+                this.log('info', 'session.uid', 'authSession.uid$ →', {
+                  uid: this.maskUid(uid),
+                })
+              ),
           catchError(err => this.handle('AuthDebugService: falha no authSession.uid$', err))
         ).subscribe()
       );
@@ -155,7 +326,11 @@ export class AuthDebugService {
 
       this.subs.add(storeReady$.subscribe(ready => this.log('info', 'ngrx.ready', 'ngrx.auth.ready →', ready)));
       this.subs.add(storeAuthed$.subscribe(isAuth => this.log('info', 'ngrx.authed', 'ngrx.auth.isAuthenticated →', isAuth)));
-      this.subs.add(storeUid$.subscribe(uid => this.log('info', 'ngrx.uid', 'ngrx.auth.userId(uid) →', uid)));
+      this.subs.add(
+          storeUid$.subscribe(uid =>
+            this.log('info', 'ngrx.uid', 'ngrx.auth.userId(uid) →', this.maskUid(uid))
+          )
+        );
       this.subs.add(storeVerified$.subscribe(v => this.log('info', 'ngrx.verified', 'ngrx.auth.emailVerified →', v)));
 
       // 5) Cross-check: AuthSession vs NgRx
@@ -187,7 +362,11 @@ export class AuthDebugService {
         ),
         tap(({ sessionUid, ngrxUid, ngrxAuthed }) => {
           if (sessionUid !== ngrxUid) {
-            this.log('warn', 'cross.uidMismatch', 'UID MISMATCH (session vs ngrx)', { sessionUid, ngrxUid, ngrxAuthed });
+            this.log('warn', 'cross.uidMismatch', 'UID MISMATCH (session vs ngrx)', {
+              sessionUid: this.maskUid(sessionUid),
+              ngrxUid: this.maskUid(ngrxUid),
+              ngrxAuthed,
+            });
           }
         }),
         catchError(err => this.handle('AuthDebugService: falha no cross-check uid', err))
@@ -246,21 +425,33 @@ export class AuthDebugService {
     return order[level] >= order[this.cfg.level];
   }
 
-  private log(level: LogLevel, key: string, ...args: any[]): void {
-    if (!this.canLog(level)) return;
-
-    // Em produção, normalmente nem chamar start(); mas mesmo assim, segurança:
-    // (deixar para você controlar via environment)
-    // Aqui só faz log.
-    const prefix = `[AUTH][${ts()}]`;
-
-    switch (level) {
-      case 'debug': console.debug(prefix, ...args); break;
-      case 'info': console.log(prefix, ...args); break;
-      case 'warn': console.warn(prefix, ...args); break;
-      case 'error': console.error(prefix, ...args); break;
-    }
+private log(level: LogLevel, key: string, ...args: any[]): void {
+  if (!this.canRunAuthDebug()) {
+    return;
   }
+
+  if (!this.canLog(level)) {
+    return;
+  }
+
+  const prefix = `[AUTH][${ts()}]`;
+  const safeArgs = args.map((arg) => this.maskAuthPayload(arg));
+
+  switch (level) {
+    case 'debug':
+      console.debug(prefix, ...safeArgs);
+      break;
+    case 'info':
+      console.log(prefix, ...safeArgs);
+      break;
+    case 'warn':
+      console.warn(prefix, ...safeArgs);
+      break;
+    case 'error':
+      console.error(prefix, ...safeArgs);
+      break;
+  }
+}
 
   private logOnce(level: LogLevel, key: string, ms: number, ...args: any[]): void {
     if (!this.canLog(level)) return;

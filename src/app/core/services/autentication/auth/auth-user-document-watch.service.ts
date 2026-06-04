@@ -42,8 +42,7 @@ import {
 } from 'rxjs/operators';
 
 import { FirestoreUserQueryService } from '@core/services/data-handling/firestore-user-query.service';
-import { environment } from 'src/environments/environment';
-
+import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 export type AuthUserDocumentWatchSource = 'doc' | 'deleted-flag';
 
 export type AuthUserDocumentWatchEvent =
@@ -67,20 +66,28 @@ export type AuthUserDocumentWatchEvent =
 
 @Injectable({ providedIn: 'root' })
 export class AuthUserDocumentWatchService {
-  private readonly debug = !environment.production;
   private readonly streams = new Map<string, Observable<AuthUserDocumentWatchEvent>>();
 
   constructor(
     private readonly db: Firestore,
     private readonly injector: Injector,
     private readonly userQuery: FirestoreUserQueryService,
+    private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {}
 
-  private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[AuthUserDocumentWatch] ${message}`, extra ?? '');
-  }
+/**
+ * Debug seguro da vigilância defensiva do documento users/{uid}.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_AUTH', '1');
+ *
+ * Este service revela se o documento privado users/{uid} existe,
+ * sumiu, foi deletado ou retornou erro de permissão. Isso é sensível
+ * e não deve aparecer em console comum.
+ */
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('auth', `AuthUserDocumentWatch: ${message}`, extra);
+}
 
   watch$(uid: string): Observable<AuthUserDocumentWatchEvent> {
     const cleanUid = this.normalizeUid(uid);

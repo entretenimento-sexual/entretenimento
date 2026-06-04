@@ -28,23 +28,30 @@ import type { User } from 'firebase/auth';
 import { FirestoreUserWriteService } from '../../data-handling/firestore-user-write.service';
 import { GeolocationTrackingService } from '../../geolocation/geolocation-tracking.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthPostLoginEffectsService {
-  private readonly debug = !environment.production;
-
+  
   constructor(
     private readonly userWrite: FirestoreUserWriteService,
     private readonly geoloc: GeolocationTrackingService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {}
 
-  private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[AuthPostLoginEffects] ${message}`, extra ?? '');
-  }
+/**
+ * Debug seguro dos efeitos pós-login.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_AUTH', '1');
+ *
+ * Este service revela UID, seed de usuário, lastLogin e tentativa de
+ * geolocalização. Portanto, não deve usar console.log direto.
+ */
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('auth', `AuthPostLoginEffects: ${message}`, extra);
+}
 
   /**
    * Executa o pipeline completo de efeitos pós-login.

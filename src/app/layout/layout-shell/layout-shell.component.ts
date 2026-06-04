@@ -32,7 +32,6 @@ import {
   type UniversalSidebarQuickAction,
   type UniversalSidebarUserSummary,
 } from '../../shared/components-globais/universal-sidebar/universal-sidebar.component';
-import { environment } from 'src/environments/environment';
 
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
@@ -42,6 +41,7 @@ import { ChatNotificationService } from 'src/app/core/services/batepapo/chat-not
 import * as InviteActions from 'src/app/store/actions/actions.chat/invite.actions';
 import { selectPendingInvitesCount } from 'src/app/store/selectors/selectors.chat/invite.selectors';
 import { selectInboundRequestsCount, selectOutboundRequestsCount } from 'src/app/store/selectors/selectors.interactions/friends';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 type ShellMode = 'guest' | 'onboarding' | 'auth';
 
@@ -96,12 +96,50 @@ interface LayoutShellVm {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class LayoutShellComponent implements OnInit, OnDestroy {
-  private readonly debug = !environment.production;
-
   private readonly destroyRef = inject(DestroyRef);
   private readonly store = inject<Store<AppState>>(Store as any);
   private readonly authSession = inject(AuthSessionService);
   private readonly chatNotification = inject(ChatNotificationService);
+  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
+
+  /**
+ * Debug seguro do shell/layout autenticado.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_LAYOUT', '1');
+ *
+ * O LayoutShell pode revelar rota atual, UID, e-mail resumido do usuário
+ * e modo visual do app. Por isso, não deve usar console.log direto.
+ */
+private canDebug(): boolean {
+  return this.privacyDebug.canLog('layout');
+}
+
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('layout', `LayoutShell: ${message}`, extra);
+}
+
+private summarizeVmForDebug(vm: LayoutShellVm): Record<string, unknown> {
+  return {
+    currentUrl: vm.currentUrl,
+    shellMode: vm.shellMode,
+    showSidebar: vm.showSidebar,
+    showFooter: vm.showFooter,
+    isChatLayout: vm.isChatLayout,
+    friendRequestsCount: vm.friendRequestsCount,
+    sidebarShouldOverlay: vm.sidebarShouldOverlay,
+    sidebarShouldCompact: vm.sidebarShouldCompact,
+    sidebarCurrentSection: vm.sidebar.currentSection,
+    sidebarIsMobile: vm.sidebar.isMobile,
+    sidebarIsOpen: vm.sidebar.isOpen,
+    sidebarIsCollapsed: vm.sidebar.isCollapsed,
+    hasSidebarUser: !!vm.sidebarUser,
+    sidebarUserUid: vm.sidebarUser?.uid ?? null,
+    sidebarUserHasEmail: !!vm.sidebarUser?.email,
+    navbarContextActionsTotal: vm.navbarContextActions.length,
+    sidebarQuickActionsTotal: vm.sidebarQuickActions.length,
+  };
+}
 
   private readonly shellUid$ = this.authSession.uid$.pipe(
     map((uid) => (uid ?? '').trim() || null),
@@ -205,10 +243,11 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
       (a.sidebarUser?.photoURL ?? null) === (b.sidebarUser?.photoURL ?? null) &&
       JSON.stringify(a.sidebarUser?.profileRoute ?? null) === JSON.stringify(b.sidebarUser?.profileRoute ?? null)
     ),
-    tap((vm) => {
-      if (!this.debug) return;
-      console.log('[LayoutShell] vm$', vm);
-    }),
+tap((vm) => {
+  if (!this.canDebug()) return;
+
+  this.dbg('vm$', this.summarizeVmForDebug(vm));
+}),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -252,19 +291,14 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
         tap((uid) => {
           if (uid) {
             this.store.dispatch(InviteActions.LoadInvites({ userId: uid }));
-
-            if (this.debug) {
-              console.log('[LayoutShell] invites:start', { uid });
-            }
+this.dbg('invites:start', { uid });
             return;
           }
 
           this.store.dispatch(InviteActions.StopInvites());
           this.chatNotification.resetPendingInvites();
 
-          if (this.debug) {
-            console.log('[LayoutShell] invites:stop');
-          }
+this.dbg('invites:stop');
         }),
         takeUntilDestroyed(this.destroyRef)
       )

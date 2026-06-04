@@ -3,7 +3,6 @@
 import { createAction, props } from '@ngrx/store';
 import { IChat } from 'src/app/core/interfaces/interfaces-chat/chat.interface';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
-import { environment } from 'src/environments/environment';
 
 // **Carregar conversas do usuário**
 export const loadChats = createAction('[Chat] Load Chats');
@@ -168,20 +167,3 @@ export const watchMessagesStopped = createAction(
 // =============================================================================
 export const resetChatState = createAction('[Chat] Reset Chat State');
 
-if (!environment.production) {
-  console.log('Ações de Chat carregadas:', {
-    loadChats, loadChatsSuccess, loadChatsFailure,
-    createChat, createChatSuccess, createChatFailure,
-    updateChat, updateChatSuccess, updateChatFailure,
-    sendMessage, sendMessageSuccess, sendMessageFailure,
-    deleteChat, deleteChatSuccess, deleteChatFailure,
-    monitorChat, newMessageReceived, monitorChatFailure,
-    addMessage, addMessageSuccess, addMessageFailure,
-    deleteMessage, deleteMessageSuccess, deleteMessageFailure,
-    addParticipants, addParticipantsSuccess, addParticipantsFailure,
-    removeParticipants, removeParticipantsSuccess, removeParticipantsFailure,
-    watchChatsRequested, watchChatsStopped,
-    watchMessagesRequested, watchMessagesStopped,
-    resetChatState,
-  });
-}

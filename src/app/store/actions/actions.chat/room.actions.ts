@@ -51,16 +51,14 @@ export const SendRoomMessage = createAction(
   '[Room] Send Room Message',
   props<{ roomId: string; message: Message }>()
 );
-console.log('SendRoomMessage action criada:', SendRoomMessage);
 
 export const SendRoomMessageSuccess = createAction(
   '[Room] Send Room Message Success',
   props<{ message: Message }>()
 );
-console.log('SendRoomMessageSuccess action criada:', SendRoomMessageSuccess);
 
 export const SendRoomMessageFailure = createAction(
   '[Room] Send Room Message Failure',
   props<{ error: string }>()
 );
-console.log('SendRoomMessageFailure action criada:', SendRoomMessageFailure);
+

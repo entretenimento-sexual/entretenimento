@@ -12,7 +12,6 @@
 // - mantém paginação de amigos por UID
 // - preserva filtros/toolbar existentes
 // -----------------------------------------------------------------------------
-
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -55,7 +54,7 @@ import {
 
 import * as P from 'src/app/store/actions/actions.interactions/friends/friends-pagination.actions';
 import { PAGE_SIZES } from 'src/app/shared/pagination/page.constants';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 @Component({
   selector: 'app-principal',
@@ -74,12 +73,20 @@ import { environment } from 'src/environments/environment';
 })
 export class PrincipalComponent implements OnInit {
   private store = inject<Store<AppState>>(Store as any);
+  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
-  private readonly debug = !environment.production;
-  private dbg(msg: string, extra?: unknown) {
-    if (!this.debug) return;
-    console.log('[Principal]', msg, extra ?? '');
-  }
+/**
+ * Debug seguro do dashboard principal.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_FRIENDS', '1');
+ *
+ * Este componente dispara paginação de amigos usando o UID autenticado.
+ * Por isso, não deve usar console.log direto.
+ */
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('friends', `Principal: ${message}`, extra);
+}
 
   // ---------------------------------------------------------------------------
   // Estado de usuário para UI
@@ -94,7 +101,7 @@ export class PrincipalComponent implements OnInit {
   private uid$ = this.store.select(selectCurrentUserUid).pipe(
     map(uid => uid?.trim() || null),
     distinctUntilChanged(),
-    tap(uid => this.dbg('authUid$', uid)),
+    tap((uid) => this.dbg('authUid$', { uid })),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 

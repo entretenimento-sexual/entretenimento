@@ -44,6 +44,7 @@ import {
 } from 'src/app/store/actions/actions.user/user.actions';
 import { IUserDados } from '@core/interfaces/iuser-dados';
 import { IUserRegistrationData } from '@core/interfaces/iuser-registration-data';
+import { sanitizeUserForStore } from 'src/app/store/utils/user-store.serializer';
 import { environment } from 'src/environments/environment';
 
 /**
@@ -298,54 +299,67 @@ export class UserStateCacheService {
   // Upsert do usuário completo
   // ---------------------------------------------------------------------------
 
-  /**
-   * Upsert semântico:
-   * - se não existe snapshot, adiciona no state
-   * - se já existe e mudou, atualiza no state
-   * - sempre mantém cache alinhado
-   */
-  upsertUser(user: IUserDados, ttlMs = 300_000): void {
-    if (!user?.uid) return;
+/**
+ * Upsert semântico:
+ * - se não existe snapshot, adiciona no state;
+ * - se já existe e mudou, atualiza no state;
+ * - sempre mantém cache alinhado com versão serializável;
+ * - nunca envia Timestamp/Date/FieldValue para actions NgRx.
+ */
+upsertUser(user: IUserDados, ttlMs = 300_000): void {
+  if (!user?.uid) return;
 
-    try {
-      const current = this.getCachedUserSnapshot(user.uid);
+  try {
+    const safeUser = sanitizeUserForStore(user);
+    const current = this.getCachedUserSnapshot(safeUser.uid);
 
-      if (!this.hasMeaningfulUserChanges(current, user)) {
-        this.dbg('upsertUser ignorado (sem mudanças relevantes)', {
-          uid: user.uid,
-        });
-        return;
-      }
-
-      const isNew = current === undefined || current === null;
-
-      if (isNew) {
-        this.store.dispatch(addUserToState({ user }));
-        this.dbg('addUserToState disparado', { uid: user.uid });
-      } else {
-        this.store.dispatch(
-          updateUserInState({
-            uid: user.uid,
-            updatedData: user,
-          })
-        );
-        this.dbg('updateUserInState disparado via upsertUser', { uid: user.uid });
-      }
-
-      this.cache.set(this.key(user.uid), user, ttlMs);
-      this.dbg('cache atualizado via upsertUser', {
-        uid: user.uid,
-        ttlMs,
+    if (!this.hasMeaningfulUserChanges(current, safeUser)) {
+      this.dbg('upsertUser ignorado (sem mudanças relevantes)', {
+        uid: safeUser.uid,
       });
-    } catch (error) {
-      this.reportError(
-        'Erro ao fazer upsert do usuário em state/cache.',
-        error,
-        { op: 'upsertUser', uid: user?.uid ?? null }
-      );
+      return;
     }
-  }
 
+    const isNew = current === undefined || current === null;
+
+    if (isNew) {
+      this.store.dispatch(addUserToState({ user: safeUser }));
+      this.dbg('addUserToState disparado', { uid: safeUser.uid });
+    } else {
+      this.store.dispatch(
+        updateUserInState({
+          uid: safeUser.uid,
+          updatedData: safeUser,
+        })
+      );
+
+      this.dbg('updateUserInState disparado via upsertUser', {
+        uid: safeUser.uid,
+      });
+    }
+
+    /**
+     * Cache também recebe versão serializável.
+     *
+     * Motivo:
+     * - evita reidratar Timestamp antigo depois;
+     * - mantém IndexedDB/local cache compatível com NgRx;
+     * - reduz risco de erro voltar após reload.
+     */
+    this.cache.set(this.key(safeUser.uid), safeUser, ttlMs);
+
+    this.dbg('cache atualizado via upsertUser', {
+      uid: safeUser.uid,
+      ttlMs,
+    });
+  } catch (error) {
+    this.reportError(
+      'Erro ao fazer upsert do usuário em state/cache.',
+      error,
+      { op: 'upsertUser', uid: user?.uid ?? null }
+    );
+  }
+}
   // ---------------------------------------------------------------------------
   // Invalidação
   // ---------------------------------------------------------------------------

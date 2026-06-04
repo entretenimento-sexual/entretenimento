@@ -24,19 +24,23 @@ import {
 } from '../../actions/actions.user/auth.actions';
 
 import * as ChatActions from 'src/app/store/actions/actions.chat/chat.actions';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 @Injectable()
 export class AuthStatusSyncEffects {
   constructor(
     private readonly actions$: Actions,
     private readonly presence: PresenceService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService,
   ) { }
 
   // ===========================================================================
   // Helpers (best-effort)
   // ===========================================================================
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('auth', `AuthStatusSyncEffects: ${message}`, extra);
+}
 
   /**
    * reportSilent()
@@ -45,11 +49,11 @@ export class AuthStatusSyncEffects {
    */
   private reportSilent(err: unknown, context: Record<string, unknown>): void {
     try {
-      if (!environment.production) {
-        // eslint-disable-next-line no-console
-        console.log('[AUTH][SYNC_EFFECT][ERROR]', context, err);
-      }
-      const e = err instanceof Error ? err : new Error('AuthStatusSyncEffects internal error');
+        this.dbg('reportSilent()', {
+          context,
+          error: err,
+        });
+              const e = err instanceof Error ? err : new Error('AuthStatusSyncEffects internal error');
       (e as any).silent = true;
       (e as any).context = context;
       (e as any).original = err;
@@ -125,10 +129,7 @@ export class AuthStatusSyncEffects {
       pairwise(),
       filter(([prevUid, currUid]) => !!prevUid && !currUid),
       concatMap(() => {
-        if (!environment.production) {
-          // eslint-disable-next-line no-console
-          console.log('[AUTH][SYNC_EFFECT] session ended (uid -> null) -> stop chat watchers + reset chat state');
-        }
+          this.dbg('session ended (uid -> null) -> stop chat watchers + reset chat state');
         return of(ChatActions.watchChatsStopped());
       }),
       catchError((err) => {

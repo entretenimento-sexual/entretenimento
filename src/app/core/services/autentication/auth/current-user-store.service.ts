@@ -25,7 +25,7 @@ import { distinctUntilChanged, filter, map, take } from 'rxjs/operators';
 import { IUserDados } from '@core/interfaces/iuser-dados';
 import { CacheService } from '@core/services/general/cache/cache.service';
 import { AuthSessionService } from './auth-session.service';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 type UserTriState = IUserDados | null | undefined;
 
@@ -37,13 +37,30 @@ export class CurrentUserStoreService {
   private readonly userSubject = new BehaviorSubject<UserTriState>(undefined);
   readonly user$: Observable<UserTriState> = this.userSubject.asObservable();
 
-  private readonly debug = !environment.production;
-
   constructor(
     private readonly cache: CacheService,
     private readonly authSession: AuthSessionService,
     private readonly auth: Auth,
+    private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
+
+  /**
+ * Debug seguro do runtime do usuário atual.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_PROFILE', '1');
+ *
+ * Este service lida com:
+ * - UID autenticado;
+ * - perfil runtime;
+ * - cache de currentUser/currentUserUid;
+ * - estado tri-state do usuário atual.
+ *
+ * Por isso, não deve usar console.log direto.
+ */
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('profile', `CurrentUserStore: ${message}`, extra);
+}
 
   // ---------------------------------------------------------------------------
   // Perfil runtime
@@ -303,14 +320,5 @@ private areUsersEquivalent(
     current.deletedAt === incoming.deletedAt
   );
 }
-
-  private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[CurrentUserStore] ${message}`, extra ?? '');
-  }
 } // Linha 304, fim do current-user-store.service.ts
-// Verificar migrações de responsabilidades para o:
-// 1 - auth-route-context.service.ts, e;
-// 2 - auth-user-document-watch.service.ts, e;
-// 3 - auth-session-monitor.service.ts.
+

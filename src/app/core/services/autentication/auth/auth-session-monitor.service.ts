@@ -19,7 +19,6 @@
 // - O AuthOrchestratorService continua decidindo quando esse monitor deve
 //   iniciar e parar.
 // =============================================================================
-
 import { Injectable } from '@angular/core';
 import { from, of, Subscription, timer } from 'rxjs';
 import { catchError, exhaustMap, map } from 'rxjs/operators';
@@ -27,26 +26,33 @@ import { catchError, exhaustMap, map } from 'rxjs/operators';
 import { AuthSessionService } from './auth-session.service';
 import { LogoutService } from './logout.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthSessionMonitorService {
   private static readonly MONITOR_INTERVAL_MS = 600_000;
 
   private keepAliveSub: Subscription | null = null;
-  private readonly debug = !environment.production;
 
   constructor(
     private readonly authSession: AuthSessionService,
     private readonly logoutService: LogoutService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {}
 
-  private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[AuthSessionMonitor] ${message}`, extra ?? '');
-  }
+/**
+ * Debug seguro do monitor técnico da sessão.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_AUTH', '1');
+ *
+ * Este service não costuma logar UID, mas lida com validade de token,
+ * usuário desabilitado e sessão inválida. Fica no canal auth.
+ */
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('auth', `AuthSessionMonitor: ${message}`, extra);
+}
 
   /**
    * Inicia o monitor periódico da sessão.

@@ -7,10 +7,10 @@ import { catchError, distinctUntilChanged, map, mergeMap, switchMap, tap } from 
 import * as A from '../../../actions/actions.interactions/actions.friends';
 import * as RT from '../../../actions/actions.interactions/friends/friends-realtime.actions';
 import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
-import { environment } from 'src/environments/environment';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import * as P from '../../../actions/actions.interactions/friends/friends-pagination.actions';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 @Injectable()
 export class FriendsNetworkEffects {
@@ -19,14 +19,12 @@ export class FriendsNetworkEffects {
     private svc: FriendshipService,
     private access: AccessControlService,
     private notifier: ErrorNotificationService,
-  ) { }
+    private privacyDebug: PrivacyDebugLoggerService
+  ) {}
 
-  private dbg(msg: string, extra?: unknown) {
-    if (!environment.production) {
-      // eslint-disable-next-line no-console
-      console.log(`[FRIENDS_NET] ${msg}`, extra ?? '');
-    }
-  }
+private dbg(msg: string, extra?: unknown): void {
+  this.privacyDebug.log('friends', `NET: ${msg}`, extra);
+}
 
   /**
    * Gate único da feature Friends.

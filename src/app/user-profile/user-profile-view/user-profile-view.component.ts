@@ -46,7 +46,7 @@ import { SocialLinksAccordionComponent } from './user-social-links-accordion/use
 import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 @Component({
   selector: 'app-user-profile-view',
@@ -70,6 +70,7 @@ export class UserProfileViewComponent implements OnInit {
 
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly errorNotification = inject(ErrorNotificationService);
+  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   /** UID efetivo do perfil exibido (routeUid ?? authUid) */
   public uid: string | null = null;
@@ -83,12 +84,23 @@ export class UserProfileViewComponent implements OnInit {
   /** Stream do usuário exibido */
   public usuario$: Observable<IUserDados | null> = of(null);
 
-  private dbg(...args: any[]) {
-    if (!environment.production) {
-      // eslint-disable-next-line no-console
-      console.log('[UserProfileView]', ...args);
-    }
-  }
+/**
+ * Debug seguro da tela de perfil.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_PROFILE', '1');
+ *
+ * Esta tela pode revelar:
+ * - UID do perfil visualizado;
+ * - UID do usuário autenticado;
+ * - status de hidratação do perfil;
+ * - frequência de emissão do usuário no store.
+ *
+ * Por isso, não deve usar console.log direto.
+ */
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('profile', `UserProfileView: ${message}`, extra);
+}
 
   ngOnInit(): void {
     const authUid$ = this.store.select(selectCurrentUserUid).pipe(
@@ -128,7 +140,7 @@ export class UserProfileViewComponent implements OnInit {
     effectiveUid$
       .pipe(
         auditTime(500),
-        tap((uid) => this.dbg('effectiveUid$', uid)),
+        tap((uid) => this.dbg('effectiveUid$', { uid })),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();

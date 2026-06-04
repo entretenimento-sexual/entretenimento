@@ -43,6 +43,41 @@ export interface FeaturesConfig {
   restrictedRoutesWhenUnverified?: string[];
 }
 
+// ---------------------------
+// Privacy / logging
+// ---------------------------
+export interface PrivacyLoggingConfig {
+  /**
+   * Permite logs técnicos não sensíveis.
+   *
+   * Produção ainda deve manter isso false.
+   */
+  enabled: boolean;
+
+  /**
+   * Permite dados pessoais em claro no console.
+   *
+   * Deve ficar false por padrão em todos os ambientes.
+   * Só deve ser usado em investigação muito específica.
+   */
+  allowSensitiveConsoleData: boolean;
+
+  /**
+   * Permite trace detalhado de cache de usuário.
+   *
+   * Mesmo quando true, o CacheService ainda exigirá ativação manual
+   * via localStorage para evitar vazamento acidental.
+   */
+  allowCacheTrace: boolean;
+
+  /**
+   * Permite stack trace nos logs de cache.
+   *
+   * Deve ficar false por padrão.
+   */
+  includeStackTrace?: boolean;
+}
+
 export interface AppEnvironment {
   production: boolean;
   stage: boolean;
@@ -63,6 +98,7 @@ export interface AppEnvironment {
   authActionHandlerBaseUrl?: string;
   apiEndpoint?: string;
   enableDebugTools?: boolean;
+  privacyLogging?: PrivacyLoggingConfig;
 
   useEmulators: boolean;
   emulators?: EmulatorsConfig;

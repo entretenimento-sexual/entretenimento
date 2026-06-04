@@ -4,7 +4,13 @@
 // Qualquer função relacionada à manipulação de datas, epoch ou timestamps deve ser colocada aqui, para garantir consistência e facilitar a manutenção.
 import { Timestamp } from 'firebase/firestore';
 
-export type TimestampLike = { seconds: number; nanoseconds?: number };
+export type TimestampLike = {
+  seconds?: number;
+  nanoseconds?: number;
+  _seconds?: number;
+  _nanoseconds?: number;
+};
+
 export type AnyDateLike =
   | Timestamp
   | TimestampLike
@@ -33,13 +39,25 @@ export function toEpoch(v: AnyDateLike): number | null {
     return Number.isFinite(ms) ? ms : null;
   }
 
-  // Objeto { seconds, nanoseconds? }
-  if (typeof (v as any)?.seconds === 'number') {
-    const sec = (v as any).seconds as number;
-    const ns = (v as any).nanoseconds as number | undefined;
-    const ms = sec * 1000 + (ns ? Math.floor(ns / 1_000_000) : 0);
-    return Number.isFinite(ms) ? ms : null;
-  }
+// Objeto { seconds, nanoseconds? } ou { _seconds, _nanoseconds? }
+const seconds =
+  typeof (v as any)?.seconds === 'number'
+    ? (v as any).seconds
+    : typeof (v as any)?._seconds === 'number'
+      ? (v as any)._seconds
+      : null;
+
+if (seconds !== null) {
+  const nanoseconds =
+    typeof (v as any)?.nanoseconds === 'number'
+      ? (v as any).nanoseconds
+      : typeof (v as any)?._nanoseconds === 'number'
+        ? (v as any)._nanoseconds
+        : 0;
+
+  const ms = seconds * 1000 + Math.floor(nanoseconds / 1_000_000);
+  return Number.isFinite(ms) ? ms : null;
+}
 
   // string: numeric-like => epoch; senão, Date parse
   if (typeof v === 'string') {

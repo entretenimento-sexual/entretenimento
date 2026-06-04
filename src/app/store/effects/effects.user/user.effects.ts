@@ -47,13 +47,10 @@ import {
   switchMap,
   tap,
 } from 'rxjs/operators';
-
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 @Injectable()
 export class UserEffects {
-  private readonly debug = !environment.production;
-
   /**
    * Janela curta para confirmar ausência real do doc.
    *
@@ -67,26 +64,28 @@ export class UserEffects {
    */
   private readonly UNAVAILABLE_CONFIRM_DELAY_MS = 450;
 
-  private dbg(msg: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[UserEffects] ${msg}`, extra ?? '');
-  }
+private canDebug(): boolean {
+  return this.privacyDebug.canLog('profile');
+}
 
-  constructor(
-    private readonly actions$: Actions,
-    private readonly firestoreQuery: FirestoreQueryService,
-    private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly currentUserStore: CurrentUserStoreService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService
-  ) {}
+private dbg(msg: string, extra?: unknown): void {
+  this.privacyDebug.log('profile', `UserEffects: ${msg}`, extra);
+}
 
+constructor(
+  private readonly actions$: Actions,
+  private readonly firestoreQuery: FirestoreQueryService,
+  private readonly firestoreUserQuery: FirestoreUserQueryService,
+  private readonly currentUserStore: CurrentUserStoreService,
+  private readonly globalErrorHandler: GlobalErrorHandlerService,
+  private readonly privacyDebug: PrivacyDebugLoggerService
+) {}
 
   private buildUnavailableAction(uid: string) {
     return setCurrentUserUnavailable({
       error: toStoreError(
         null,
-        `Usuário ${uid} não encontrado.`,
+        `Usuário não encontrado.`,
         'UserEffects.observeUserChanges$',
         { uid }
       ),
@@ -180,10 +179,12 @@ export class UserEffects {
           // noop
         }
 
-        this.dbg('observeUserChanges -> subscribe', {
-          uid,
-          runtimeSnapshot: this.currentUserStore.getSnapshot(),
-        });
+if (this.canDebug()) {
+  this.dbg('observeUserChanges -> subscribe', {
+    uid,
+    runtimeSnapshot: this.currentUserStore.getSnapshot(),
+  });
+}
 
         return this.firestoreUserQuery.getUser(uid).pipe(
           distinctUntilChanged((a, b) =>

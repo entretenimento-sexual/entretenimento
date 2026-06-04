@@ -35,8 +35,7 @@ import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 interface SendDirectMessagePayload {
   chatId: string;
@@ -52,20 +51,23 @@ interface SendDirectMessageResponse {
 
 @Injectable({ providedIn: 'root' })
 export class DirectThreadService {
-  private readonly debug = !environment.production;
-
-  private readonly sendDirectMessageCallable = httpsCallable<
-    SendDirectMessagePayload,
-    SendDirectMessageResponse
-  >(this.functions, 'sendDirectMessage');
+   private readonly sendDirectMessageCallable: ReturnType<
+  typeof httpsCallable<SendDirectMessagePayload, SendDirectMessageResponse>
+>;
 
   constructor(
     private readonly functions: Functions,
     private readonly chatService: ChatService,
     private readonly accessControl: AccessControlService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly errorNotifier: ErrorNotificationService
-  ) {}
+    private readonly errorNotifier: ErrorNotificationService,
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+  ) {
+    this.sendDirectMessageCallable = httpsCallable<
+    SendDirectMessagePayload,
+    SendDirectMessageResponse
+  >(this.functions, 'sendDirectMessage');
+  }
 
   // ---------------------------------------------------------------------------
   // Observe
@@ -301,11 +303,20 @@ private getSendMessageUserMessage(error: unknown): string {
   return 'Não foi possível enviar a mensagem.';
 }
 
-  private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[DirectThreadService] ${message}`, extra ?? '');
-  }
+/**
+ * Debug seguro do chat direto.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_CHAT', '1');
+ *
+ * Regra:
+ * - nunca logar conteúdo da mensagem;
+ * - permitir apenas metadados operacionais, como chatId/messageId/count;
+ * - o PrivacyDebugLoggerService mascara identificadores sensíveis.
+ */
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('chat', `DirectThreadService: ${message}`, extra);
+}
 
   private reportSilent(
     error: unknown,

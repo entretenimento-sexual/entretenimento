@@ -29,7 +29,6 @@
 // - nenhum método duplicado;
 // - sem effect temporário de debug;
 // - compatível com fluxo atual NgRx sem criar reducer novo.
-
 import { inject, Injectable } from '@angular/core';
 
 import { Actions, createEffect, ofType } from '@ngrx/effects';
@@ -48,8 +47,6 @@ import {
   tap,
 } from 'rxjs/operators';
 
-import { environment } from 'src/environments/environment';
-
 import { AppState } from '../../states/app.state';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
@@ -64,7 +61,7 @@ import { toStoreError } from 'src/app/store/utils/store-error.serializer';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { UserPresenceQueryService } from '@core/services/data-handling/queries/user-presence.query.service';
 import { UserDiscoveryQueryService } from '@core/services/data-handling/queries/user-discovery.query.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
@@ -105,8 +102,8 @@ export class OnlineUsersEffects {
 
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
   private readonly errorNotifier = inject(ErrorNotificationService);
+  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
-  private readonly debug = !environment.production;
   private lastNotifyAt = 0;
 
   /**
@@ -153,15 +150,13 @@ export class OnlineUsersEffects {
   // ===========================================================================
   // Logs controlados / erros
   // ===========================================================================
+private canDebug(): boolean {
+  return this.privacyDebug.canLog('online-users');
+}
 
-  private dbg(msg: string, extra?: unknown): void {
-    if (!this.debug) {
-      return;
-    }
-
-    // eslint-disable-next-line no-console
-    console.log(`[OnlineUsersEffects] ${msg}`, extra ?? '');
-  }
+private dbg(msg: string, extra?: unknown): void {
+  this.privacyDebug.log('online-users', msg, extra);
+}
 
   private notifyOnce(msg: string): void {
     const now = Date.now();
@@ -818,27 +813,39 @@ lastStateChangeAt: this.toSerializableStoreValue(
                 : addUserToState({ user: profile });
             });
 
-          this.dbg('hydrateProfilesForOnlineUsers$', {
-            presenceTotal: normalizedPresence.length,
-            profilesTotal: publicProfiles.length,
-            hydratedOnlineTotal: hydratedOnlineUsers.length,
-            profileActionsTotal: profileActions.length,
-            uids,
-            hydrated: hydratedOnlineUsers.map((profile) => ({
-              uid: profile.uid,
-              nickname: profile.nickname,
-              isOnline: (profile as any).isOnline,
-              presenceState: (profile as any).presenceState,
-              latitude: (profile as any).latitude,
-              longitude: (profile as any).longitude,
-              geohash: (profile as any).geohash,
-              gender: (profile as any).gender,
-              orientation: (profile as any).orientation,
-              estado: (profile as any).estado,
-              municipio: (profile as any).municipio,
-              role: (profile as any).role,
-            })),
-          });
+          if (this.canDebug()) {
+            this.dbg('hydrateProfilesForOnlineUsers$', {
+              presenceTotal: normalizedPresence.length,
+              profilesTotal: publicProfiles.length,
+              hydratedOnlineTotal: hydratedOnlineUsers.length,
+              profileActionsTotal: profileActions.length,
+
+              /**
+               * Mantém uids apenas no modo debug opt-in.
+               * O PrivacyDebugLoggerService mascara os valores.
+               */
+              uids,
+
+              /**
+               * Não logamos localização precisa.
+               * Para debug do card, basta saber se os campos existem.
+               */
+              hydrated: hydratedOnlineUsers.map((profile) => ({
+                uid: profile.uid,
+                hasNickname: !!profile.nickname,
+                isOnline: (profile as any).isOnline,
+                presenceState: (profile as any).presenceState,
+                hasCoordinates:
+                  typeof (profile as any).latitude === 'number' &&
+                  typeof (profile as any).longitude === 'number',
+                hasGeohash: !!(profile as any).geohash,
+                hasGender: !!(profile as any).gender,
+                hasOrientation: !!(profile as any).orientation,
+                hasLocation: !!(profile as any).estado || !!(profile as any).municipio,
+                role: (profile as any).role,
+              })),
+            });
+          }
 
           return from([
             ...profileActions,
@@ -886,13 +893,13 @@ this.presenceQuery.getOnlineUsers$().pipe(
     (previous, current) => previous.fingerprint === current.fingerprint
   ),
 
-  tap(({ presenceUsers, fingerprint }) =>
-    this.dbg('presence emission accepted', {
-      uid: gate.uid,
-      fingerprint,
-      total: Array.isArray(presenceUsers) ? presenceUsers.length : 0,
-    })
-  ),
+tap(({ presenceUsers, fingerprint }) =>
+  this.dbg('presence emission accepted', {
+    uid: gate.uid,
+    fingerprintLength: fingerprint.length,
+    total: Array.isArray(presenceUsers) ? presenceUsers.length : 0,
+  })
+),
 
   switchMap(({ presenceUsers }) =>
     this.hydrateProfilesForOnlineUsers$(presenceUsers, gate.uid)
@@ -1059,4 +1066,4 @@ this.presenceQuery.getOnlineUsers$().pipe(
       })
     )
   );
-} // fim da classe OnlineUsersEffects com 1027 linhas
+} // fim da classe OnlineUsersEffects com 1069 linhas

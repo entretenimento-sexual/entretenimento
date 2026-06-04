@@ -145,11 +145,4 @@ const metaReducers = environment.production
       ]),
   ],
 })
-export class AppStoreModule {
-  constructor() {
-    if (!environment.production) {
-      // eslint-disable-next-line no-console
-      console.log('[NgRx] AppStoreModule inicializado (reducers/effects/runtimeChecks/devtools).');
-    }
-  }
-}
+export class AppStoreModule { }

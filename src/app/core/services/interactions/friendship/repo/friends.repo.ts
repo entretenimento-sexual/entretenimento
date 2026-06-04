@@ -52,8 +52,7 @@ import type {
   FriendDoc,
   Friend,
 } from '../../../../interfaces/friendship/friend.interface';
-
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { sanitizeFriendForStore } from 'src/app/store/utils/friend-store.serializer';
 import { toEpoch } from '../../../../utils/epoch-utils';
 
@@ -77,17 +76,17 @@ type FriendForCard = Friend & {
 
 @Injectable({ providedIn: 'root' })
 export class FriendsRepo extends FirestoreRepoBase {
-  constructor(db: Firestore, env: EnvironmentInjector) {
-    super(db, env);
-  }
+  constructor(
+  db: Firestore,
+  env: EnvironmentInjector,
+  private readonly privacyDebug: PrivacyDebugLoggerService
+) {
+  super(db, env);
+}
 
-  private readonly debug = !environment.production;
-
-  private dbg(msg: string, extra?: unknown): void {
-    if (this.debug) {
-      console.log(`[FriendsRepo] ${msg}`, extra ?? '');
-    }
-  }
+private dbg(msg: string, extra?: unknown): void {
+  this.privacyDebug.log('friends', msg, extra);
+}
 
   /**
    * Mantido por compatibilidade com chamadas antigas.

@@ -4,7 +4,7 @@
 // - Métodos para set, get e delete
 // - Não esquecer os comentários explicativos.
 import { Injectable } from '@angular/core';
-import { set, get, del } from 'idb-keyval';
+import { set, get, del, keys as idbKeys } from 'idb-keyval';
 import { from, Observable } from 'rxjs';
 
 @Injectable({
@@ -23,6 +23,62 @@ export class CachePersistenceService {
   deletePersistent(key: string): Observable<void> {
     return from(del(key)); // ✅ Mantendo a padronização com `Observable`
   }
+
+  /**
+ * Remove várias chaves explícitas do IndexedDB.
+ *
+ * Uso:
+ * - limpeza de sessão;
+ * - logout;
+ * - troca de conta;
+ * - remoção de caches sensíveis conhecidos.
+ */
+deletePersistentMany(keys: string[]): Observable<number> {
+  const safeKeys = Array.from(
+    new Set(
+      (keys ?? [])
+        .map((key) => String(key ?? '').trim())
+        .filter(Boolean)
+    )
+  );
+
+  if (!safeKeys.length) {
+    return from(Promise.resolve(0));
+  }
+
+  return from(
+    Promise.all(safeKeys.map((key) => del(key))).then(() => safeKeys.length)
+  );
+}
+
+/**
+ * Remove do IndexedDB todas as chaves que começam com determinado prefixo.
+ *
+ * Importante:
+ * - usado para limpar cache user-scoped;
+ * - evita manter dados de perfil/chat/social links após logout;
+ * - mantém API pública baseada em Observable.
+ */
+deletePersistentByPrefix(prefix: string): Observable<number> {
+  const safePrefix = String(prefix ?? '').trim();
+
+  if (!safePrefix) {
+    return from(Promise.resolve(0));
+  }
+
+  return from(
+    idbKeys().then((allKeys) => {
+      const matchingKeys = allKeys.filter(
+        (key): key is string =>
+          typeof key === 'string' && key.startsWith(safePrefix)
+      );
+
+      return Promise.all(matchingKeys.map((key) => del(key))).then(
+        () => matchingKeys.length
+      );
+    })
+  );
+}
 }
 // lembrar sempre da padronização em uid para usuários, o identificador canônico.
 // AUTH ORCHESTRATOR SERVICE (Efeitos colaterais e ciclo de vida)

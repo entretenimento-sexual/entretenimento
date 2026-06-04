@@ -15,7 +15,7 @@ import {
 
 import { inRegistrationFlow as isRegistrationFlow } from './auth.types';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 export type AuthRouteContext = {
   routerReady: boolean;
@@ -29,13 +29,11 @@ export class AuthRouteContextService {
   private readonly router = inject(Router);
   private readonly globalError = inject(GlobalErrorHandlerService);
 
-  private readonly debug = !environment.production;
+private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
-  private dbg(msg: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[AuthRouteContext] ${msg}`, extra ?? '');
-  }
+private dbg(msg: string, extra?: unknown): void {
+  this.privacyDebug.log('router', msg, extra);
+}
 
   private stripQueryAndHash(url: string): string {
     const raw = (url ?? '/').trim() || '/';

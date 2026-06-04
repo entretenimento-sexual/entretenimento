@@ -20,6 +20,7 @@ import {
   finalize,
   map,
   shareReplay,
+  forkJoin,
 } from 'rxjs';
 
 import { AppState } from 'src/app/store/states/app.state';
@@ -29,6 +30,7 @@ import { CachePersistenceService } from './cache-persistence.service';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 
 import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 
 interface CacheItem<T> {
@@ -42,12 +44,11 @@ const HOT_KEYS: ReadonlySet<string> = new Set(['currentUser', 'currentUserUid'])
 export class CacheService {
   private cache: Map<string, CacheItem<any>> = new Map();
   private readonly defaultTTL = 300_000;
-  private readonly verbose = !environment.production;
+  private readonly traceUserKeys = this.isCacheTraceEnabled();
   private readonly logNoopDeletes = false;
   private readonly inFlightGets = new Map<string, Observable<any>>();
   private readonly noisyPrefixes: ReadonlyArray<string> = ['validation:'];
-  private readonly traceUserKeys = !environment.production;
-
+ 
   private readonly tracedUserKeyPrefixes: ReadonlyArray<string> = [
     'user:',
   ];
@@ -57,10 +58,39 @@ export class CacheService {
     'currentUserUid',
   ]);
 
+  /**
+ * Chaves exatas que não devem sobreviver ao encerramento de sessão.
+ */
+private readonly sensitiveSessionExactKeys: ReadonlyArray<string> = [
+  'currentUser',
+  'currentUserUid',
+  'discovery:public_profiles:all',
+];
+
+/**
+ * Prefixos que podem guardar dados ligados a usuário, perfil, chat,
+ * vínculos sociais ou descoberta.
+ *
+ * Decisão de segurança:
+ * - em logout, preferimos recarregar dados depois;
+ * - não vale manter rastros locais de perfis vistos, chats ou social links.
+ */
+private readonly sensitiveSessionPrefixes: ReadonlyArray<string> = [
+  'user:',
+  'socialLinks:',
+  'chats:',
+  'chat:',
+  'rooms:',
+  'room:',
+  'direct_',
+  'discovery:public_profiles:uids:',
+];
+
   constructor(
     private store: Store<AppState>,
     private cachePersistence: CachePersistenceService,
     private globalErrorHandler: GlobalErrorHandlerService,
+    private privacyDebug: PrivacyDebugLoggerService,
   ) {
     this.log('Serviço inicializado.');
   }
@@ -311,6 +341,70 @@ set<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
     this.log('clear → memória limpa.');
   }
 
+  /**
+ * Limpa caches locais sensíveis ao encerrar sessão.
+ *
+ * Remove:
+ * - HOT_KEYS do usuário atual;
+ * - perfis cacheados em user:{uid};
+ * - social links;
+ * - caches de chat/salas;
+ * - caches de descoberta por UID;
+ * - parte persistente no IndexedDB;
+ * - espelhos em localStorage.
+ *
+ * Observação:
+ * - este método não substitui signOut;
+ * - ele só limpa rastros locais da sessão anterior.
+ */
+clearSensitiveSessionCache$(): Observable<void> {
+  const exactKeys = this.sensitiveSessionExactKeys.map((key) =>
+    this.normalizeKey(key)
+  );
+
+  const prefixes = this.sensitiveSessionPrefixes.map((prefix) =>
+    this.normalizeKey(prefix)
+  );
+
+  for (const key of exactKeys) {
+    this.cache.delete(key);
+    this.removeLocalStorageKeyBestEffort(key);
+  }
+
+  const memoryDeletedByPrefix = prefixes.map((prefix) => ({
+    prefix: this.maskCacheKey(prefix),
+    deleted: this.deleteMemoryByPrefix(prefix),
+  }));
+
+  const persistentPrefixDeletes$ = prefixes.map((prefix) =>
+    this.cachePersistence.deletePersistentByPrefix(prefix).pipe(
+      map((deleted) => ({
+        prefix: this.maskCacheKey(prefix),
+        deleted,
+      }))
+    )
+  );
+
+  return forkJoin([
+    this.cachePersistence.deletePersistentMany(exactKeys),
+    ...persistentPrefixDeletes$,
+  ]).pipe(
+    map(([exactDeleted, ...prefixDeleted]) => {
+      this.log('clearSensitiveSessionCache$ → concluído', {
+        exactDeleted,
+        memoryDeletedByPrefix,
+        persistentDeletedByPrefix: prefixDeleted,
+      });
+
+      return void 0;
+    }),
+    catchError((err) => {
+      this.safeHandle(err, 'CacheService.clearSensitiveSessionCache$');
+      return of(void 0);
+    })
+  );
+}
+
   removeExpired(): void {
     const now = Date.now();
     const expiredKeys = Array.from(this.cache.entries())
@@ -350,6 +444,218 @@ set<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
     return expiration !== null && Date.now() > expiration;
   }
 
+private isCacheTraceEnabled(): boolean {
+  if (environment.production) {
+    return false;
+  }
+
+  /**
+   * Trace de cache exige o canal geral de cache ativo.
+   * Assim evitamos um segundo sistema de log paralelo.
+   */
+  if (!this.privacyDebug.canLog('cache')) {
+    return false;
+  }
+
+  if (environment.privacyLogging?.allowCacheTrace !== true) {
+    return false;
+  }
+
+  /**
+   * Segunda trava manual.
+   *
+   * Motivo:
+   * - mesmo em dev/staging, trace de user/cache é sensível;
+   * - só deve aparecer quando o dev ativar conscientemente no navegador.
+   */
+  try {
+    return localStorage.getItem('CACHE_TRACE_USER_KEYS') === '1';
+  } catch {
+    return false;
+  }
+}
+
+private canLogSensitiveConsoleData(): boolean {
+  if (environment.production) {
+    return false;
+  }
+
+  if (environment.privacyLogging?.allowSensitiveConsoleData !== true) {
+    return false;
+  }
+
+  /**
+   * Segunda trava manual para dados pessoais em claro.
+   */
+  try {
+    return localStorage.getItem('ALLOW_SENSITIVE_CONSOLE_DATA') === '1';
+  } catch {
+    return false;
+  }
+}
+
+private canIncludeCacheTraceStack(): boolean {
+  if (!this.traceUserKeys) {
+    return false;
+  }
+
+  if (environment.privacyLogging?.includeStackTrace !== true) {
+    return false;
+  }
+
+  try {
+    return localStorage.getItem('CACHE_TRACE_STACK') === '1';
+  } catch {
+    return false;
+  }
+}
+
+private maskCacheText(value: unknown): string {
+  const text = String(value ?? '');
+
+  if (!text) {
+    return text;
+  }
+
+  return text
+    .split(/([:/?&=|,()"'\s]+)/)
+    .map((token) => this.maskCacheToken(token))
+    .join('');
+}
+
+private maskUid(value: unknown): string | null {
+  const uid = String(value ?? '').trim();
+
+  if (!uid) {
+    return null;
+  }
+
+  if (this.canLogSensitiveConsoleData()) {
+    return uid;
+  }
+
+  if (uid.length <= 8) {
+    return 'masked';
+  }
+
+  return `${uid.slice(0, 4)}...${uid.slice(-4)}`;
+}
+
+private maskEmail(value: unknown): string | null {
+  const email = String(value ?? '').trim();
+
+  if (!email) {
+    return null;
+  }
+
+  if (this.canLogSensitiveConsoleData()) {
+    return email;
+  }
+
+  const [name, domain] = email.split('@');
+
+  if (!name || !domain) {
+    return 'masked-email';
+  }
+
+  return `${name.slice(0, 1)}***@${domain}`;
+}
+
+private maskTextPresence(value: unknown): string | null {
+  const text = String(value ?? '').trim();
+
+  if (!text) {
+    return null;
+  }
+
+  return this.canLogSensitiveConsoleData() ? text : 'present';
+}
+
+private looksLikeFirebaseUid(value: string): boolean {
+  /**
+   * Firebase UID costuma ser uma string longa, sem espaços,
+   * com letras, números, "_" ou "-".
+   *
+   * Esse filtro evita mascarar textos comuns de log.
+   */
+  return /^[A-Za-z0-9_-]{18,80}$/.test(value);
+}
+
+private looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+private looksLikeDirectChatId(value: string): boolean {
+  /**
+   * Chats diretos também são identificadores sensíveis:
+   * revelam vínculo entre usuários ou canal de conversa.
+   */
+  return /^direct_[a-f0-9]{32,128}$/i.test(value);
+}
+
+private maskDirectChatId(value: string): string {
+  if (this.canLogSensitiveConsoleData()) {
+    return value;
+  }
+
+  return `${value.slice(0, 13)}...${value.slice(-6)}`;
+}
+
+private maskCacheToken(token: string): string {
+  const safeToken = String(token ?? '').trim();
+
+  if (!safeToken) {
+    return token;
+  }
+
+  if (this.looksLikeEmail(safeToken)) {
+    return this.maskEmail(safeToken) ?? 'masked-email';
+  }
+
+  if (this.looksLikeDirectChatId(safeToken)) {
+    return this.maskDirectChatId(safeToken);
+  }
+
+  if (this.looksLikeFirebaseUid(safeToken)) {
+    return this.maskUid(safeToken) ?? 'masked';
+  }
+
+  return token;
+}
+
+private maskCacheKey(key: string): string {
+  const safeKey = this.normalizeKey(key);
+
+  if (!safeKey) {
+    return safeKey;
+  }
+
+  /**
+   * Divide preservando separadores comuns de chave:
+   * - socialLinks:{uid}
+   * - chats:{uid}
+   * - discovery:public_profiles:uids:{uid}
+   * - presence_leader:{uid}
+   *
+   * Os separadores continuam iguais; apenas tokens sensíveis são mascarados.
+   */
+  return safeKey
+    .split(/([:/?&=|,]+)/)
+    .map((token) => this.maskCacheToken(token))
+    .join('');
+}
+
+private maskMessageForKey(key: string, message: string): string {
+  const rawKey = this.normalizeKey(key);
+  const safeKey = this.maskCacheKey(rawKey);
+
+  if (!rawKey || rawKey === safeKey) {
+    return message;
+  }
+
+  return message.split(rawKey).join(safeKey);
+}
+
   private deepEqual(a: any, b: any): boolean {
     if (a === b) return true;
     try {
@@ -367,33 +673,76 @@ set<T>(key: string, data: T, ttl?: number, opts?: { persist?: boolean }): void {
 }
 
 private summarizeUserLikeData(data: unknown): unknown {
-  if (!data || typeof data !== 'object') return data;
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
 
   const value = data as Record<string, unknown>;
+
   return {
-    uid: value['uid'] ?? null,
-    email: value['email'] ?? null,
+    uid: this.maskUid(value['uid']),
+    email: this.maskEmail(value['email']),
     emailVerified: value['emailVerified'] ?? null,
-    nickname: value['nickname'] ?? null,
+    nickname: this.maskTextPresence(value['nickname']),
     profileCompleted: value['profileCompleted'] ?? null,
-    role: value['role'] ?? null,
+    role: this.maskTextPresence(value['role']),
   };
 }
 
-    private traceUserWrite(key: string, data: unknown, meta?: Record<string, unknown>): void {
-      if (!this.shouldTraceUserKey(key)) return;
-
-      const stack = new Error(`[CacheService][TRACE] ${key}`).stack
-        ?.split('\n')
-        .slice(1, 7);
-
-      // eslint-disable-next-line no-console
-      console.log(`[CacheService][TRACE] ${key}`, {
-        meta,
-        summary: this.summarizeUserLikeData(data),
-        stack,
-      });
+  private traceUserWrite(
+    key: string,
+    data: unknown,
+    meta?: Record<string, unknown>
+  ): void {
+    if (!this.shouldTraceUserKey(key)) {
+      return;
     }
+
+    const safeKey = this.maskCacheKey(key);
+
+    const stack = this.canIncludeCacheTraceStack()
+      ? new Error(`[CacheService][TRACE] ${safeKey}`).stack
+          ?.split('\n')
+          .slice(1, 7)
+      : undefined;
+
+this.privacyDebug.log(
+  'cache',
+  `CacheService TRACE ${safeKey}`,
+  {
+    meta,
+    summary: this.summarizeUserLikeData(data),
+    ...(stack ? { stack } : {}),
+  },
+  'debug'
+);
+  }
+
+  private removeLocalStorageKeyBestEffort(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // noop
+  }
+}
+
+private deleteMemoryByPrefix(prefix: string): number {
+  const safePrefix = this.normalizeKey(prefix);
+
+  if (!safePrefix) {
+    return 0;
+  }
+
+  const matchingKeys = Array.from(this.cache.keys()).filter((key) =>
+    key.startsWith(safePrefix)
+  );
+
+  for (const key of matchingKeys) {
+    this.cache.delete(key);
+  }
+
+  return matchingKeys.length;
+}
 
   private mirrorHotKeyToLocalStorage(key: string, data: any): void {
     try {
@@ -403,23 +752,24 @@ private summarizeUserLikeData(data: unknown): unknown {
     }
   }
 
-  private log(message: string, extra?: any): void {
-    if (!this.verbose) return;
-    // eslint-disable-next-line no-console
-    extra !== undefined
-      ? console.log(`[CacheService] ${message}`, extra)
-      : console.log(`[CacheService] ${message}`);
+private log(message: string, extra?: unknown): void {
+  this.privacyDebug.log('cache', `CacheService: ${message}`, extra);
+}
+
+private logKey(key: string, message: string, extra?: unknown): void {
+  if (!this.privacyDebug.canLog('cache')) {
+    return;
   }
 
-  private logKey(key: string, message: string, extra?: any): void {
-    if (!this.verbose) return;
+  const allowNoisy = this.isNoisyLoggingEnabled();
+  const isNoisy = this.noisyPrefixes.some((prefix) => key.startsWith(prefix));
 
-    const allowNoisy = this.isNoisyLoggingEnabled();
-    const isNoisy = this.noisyPrefixes.some((prefix) => key.startsWith(prefix));
-
-    if (isNoisy && !allowNoisy) return;
-    this.log(message, extra);
+  if (isNoisy && !allowNoisy) {
+    return;
   }
+
+  this.log(this.maskMessageForKey(key, message), extra);
+}
 
   private isNoisyLoggingEnabled(): boolean {
     try {
@@ -429,15 +779,17 @@ private summarizeUserLikeData(data: unknown): unknown {
     }
   }
 
-  private safeHandle(err: unknown, context: string): void {
-    try {
-      const e = err instanceof Error ? err : new Error(String(err ?? 'unknown error'));
-      this.globalErrorHandler.handleError(new Error(`[${context}] ${e.message}`));
-    } catch {
-      // noop
-    }
-  }
+private safeHandle(err: unknown, context: string): void {
+  try {
+    const e = err instanceof Error ? err : new Error(String(err ?? 'unknown error'));
+    const safeContext = this.maskCacheText(context);
+    const safeMessage = this.maskCacheText(e.message);
 
+    this.globalErrorHandler.handleError(new Error(`[${safeContext}] ${safeMessage}`));
+  } catch {
+    // noop
+  }
+}
   // ===========================================================================
   // Conveniências
   // ===========================================================================
@@ -483,4 +835,4 @@ private summarizeUserLikeData(data: unknown): unknown {
 
     this.logKey(key, `syncCurrentUserWithUid → ${key} + currentUser + currentUserUid`);
   }
-} // Linha 406, fim do cache.service.ts
+} // Linha 838, fim do cache.service.ts

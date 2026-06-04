@@ -28,6 +28,13 @@ export const environment: AppEnvironment = {
   apiEndpoint: 'https://api.staging.seuprojeto.com',
   enableDebugTools: true,
 
+  privacyLogging: {
+  enabled: true,
+  allowSensitiveConsoleData: false,
+  allowCacheTrace: false,
+  includeStackTrace: false,
+},
+
   integrations: {
     virusTotal: {
       enabled: false,

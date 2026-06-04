@@ -50,6 +50,7 @@ import {
 import { AuthSessionMonitorService } from './auth-session-monitor.service';
 import { AuthPostLoginEffectsService } from './auth-post-login-effects.service';
 import { AuthAppBlockService } from './auth-app-block.service';
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
@@ -102,7 +103,6 @@ export class AuthOrchestratorService {
   private started = false;
 
   private missingDocProbeId: ReturnType<typeof setTimeout> | null = null;
-  private readonly debug = !environment.production;
 
   /**
    * true:
@@ -127,13 +127,28 @@ export class AuthOrchestratorService {
     private readonly errorNotifier: ErrorNotificationService,
     private readonly appBlock: AuthAppBlockService,
     private readonly currentUserStore: CurrentUserStoreService,
+    private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
-  private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[AuthOrchestrator] ${message}`, extra ?? '');
-  }
+  /**
+ * Debug seguro do orquestrador de autenticação.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_AUTH_ORCHESTRATOR', '1');
+ *
+ * O AuthOrchestrator revela dados sensíveis:
+ * - UID da sessão;
+ * - rota atual;
+ * - navPath;
+ * - estado de bloqueio;
+ * - ciclo de vida da conta;
+ * - início/parada de watchers.
+ *
+ * Por isso, o log passa pelo PrivacyDebugLoggerService.
+ */
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('auth-orchestrator', message, extra);
+}
 
   private normalizeAccountStatus(user: any): OrchestratorLifecycleStatus {
   const raw = String(user?.accountStatus ?? '').trim().toLowerCase();

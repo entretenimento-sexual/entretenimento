@@ -23,6 +23,13 @@ export const environment: AppEnvironment = {
   apiEndpoint: 'http://localhost:3000',
   enableDebugTools: true,
 
+  privacyLogging: {
+  enabled: true,
+  allowSensitiveConsoleData: false,
+  allowCacheTrace: false,
+  includeStackTrace: false,
+},
+
   appCheck: {
     enabled: false,
     provider: 'reCaptchaV3',

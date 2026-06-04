@@ -21,7 +21,6 @@ import { AuthDebugService } from './core/services/util-service/auth-debug.servic
 import { environment } from 'src/environments/environment';
 import { PresenceOrchestratorService } from './core/services/presence/presence-orchestrator.service';
 import { RouterDiagnosticsService } from './core/services/util-service/router-diagnostics.service';
-import { getApps } from 'firebase/app';
 
 @Component({
   selector: 'app-root',
@@ -57,13 +56,9 @@ export class AppComponent implements OnInit {
   ngOnInit(): void {
     this.routerDiag.start();
 
-    if (!environment.production) {
-      this.authDebug.start();
-
-      const apps = getApps();
-      // eslint-disable-next-line no-console
-      console.log('[FIREBASE] apps count =', apps.length, apps.map(a => a.name));
-    }
+if (!environment.production) {
+  this.authDebug.start();
+}
 
     this.orchestrator.start();
     this.presenceOrchestrator.start();

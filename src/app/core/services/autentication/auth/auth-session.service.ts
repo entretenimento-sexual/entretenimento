@@ -33,8 +33,8 @@ import {
   signOut,
   User,
 } from '@angular/fire/auth';
-import { environment } from 'src/environments/environment';
 import { onIdTokenChanged } from 'firebase/auth';
+import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {
@@ -73,12 +73,25 @@ export class AuthSessionService {
    */
   private readyPromise: Promise<void> | null = null;
 
-  private readonly debug = !environment.production;
+  /**
+ * Debug seguro da sessão Firebase/Auth.
+ *
+ * Canal:
+ * localStorage.setItem('DEBUG_AUTH', '1');
+ *
+ * Este service lida com UID real da sessão. Portanto, não deve usar
+ * console.log direto. O PrivacyDebugLoggerService mascara UID/e-mail
+ * e só exibe logs quando o canal está ativo.
+ */
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('auth', `AuthSessionService: ${message}`, extra);
+}
 
-  constructor(
-    private readonly auth: Auth,
-    private readonly envInjector: EnvironmentInjector
-  ) {
+    constructor(
+      private readonly auth: Auth,
+      private readonly envInjector: EnvironmentInjector,
+      private readonly privacyDebug: PrivacyDebugLoggerService
+    ) {
     this.authUser$ = new Observable<User | null>((subscriber) => {
       const unsub = onIdTokenChanged(
         this.auth,
@@ -134,12 +147,6 @@ export class AuthSessionService {
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
-  }
-
-  private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[AuthSessionService] ${message}`, extra ?? '');
   }
 
   /**

@@ -5,6 +5,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { tap } from 'rxjs/operators';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 import * as Auth from 'src/app/store/actions/actions.user/auth.actions';
 import {
@@ -12,18 +13,18 @@ import {
   __friendsPaginationSelectorsDebug,
 } from 'src/app/store/selectors/selectors.interactions/friends/pagination.selectors';
 
-import { environment } from 'src/environments/environment';
-
 @Injectable()
 export class FriendsPaginationSelectorsCacheCleanupEffects {
   private readonly actions$ = inject(Actions);
+  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
-  private readonly debug = !environment.production && !!(environment as any)?.enableDebugTools;
-  private dbg(msg: string, extra?: unknown) {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log('[FriendsSelectorsCleanup]', msg, extra ?? '');
-  }
+  private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log(
+    'friends',
+    `FriendsSelectorsCleanup: ${message}`,
+    extra
+  );
+}
 
   clearOnLogout$ = createEffect(
     () =>

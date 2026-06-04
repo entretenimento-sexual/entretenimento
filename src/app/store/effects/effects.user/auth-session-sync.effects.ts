@@ -15,26 +15,32 @@ import {
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { authSessionChanged } from 'src/app/store/actions/actions.user/auth.actions';
 import {
   observeUserChanges,
   stopObserveUserChanges,
 } from 'src/app/store/actions/actions.user/user.actions';
-import { environment } from 'src/environments/environment';
 
 @Injectable()
 export class AuthSessionSyncEffects {
-  private readonly debug = !environment.production;
-
   constructor(
     private readonly authSession: AuthSessionService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
+  /**
+   * Debug seguro da sincronização entre AuthSession e NgRx Store.
+   *
+   * Canal:
+   * localStorage.setItem('DEBUG_AUTH', '1');
+   *
+   * Este effect lida com UID e estado de verificação de e-mail.
+   * Por isso, não deve usar console.log direto.
+   */
   private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[AUTH][SYNC_EFFECT] ${message}`, extra ?? '');
+    this.privacyDebug.log('auth', `SYNC_EFFECT: ${message}`, extra);
   }
 
   /**
