@@ -69,27 +69,43 @@ export class DirectChatService {
    * Lista apenas chats diretos 1:1.
    * Não traz salas.
    */
-  getMyDirectChats$(): Observable<IChat[]> {
-    return combineLatest([
-      this.accessControl.canListenRealtime$,
-      this.authSession.uid$,
-    ]).pipe(
-      switchMap(([canListen, uid]) => {
-        if (!canListen || !uid) {
-          return of([] as IChat[]);
-        }
+/**
+ * Lista chats diretos 1:1 em tempo real.
+ *
+ * Regra desta versão:
+ * - usa watchChats$ para refletir novas mensagens e novos chats sem depender
+ *   de cache local;
+ * - mantém filtro contra salas;
+ * - respeita gate de realtime e autenticação;
+ * - retorna [] em estado bloqueado, deslogado ou erro.
+ */
+getMyDirectChats$(): Observable<IChat[]> {
+  return combineLatest([
+    this.accessControl.canListenRealtime$,
+    this.authSession.uid$,
+  ]).pipe(
+    switchMap(([canListen, uid]) => {
+      const safeUid = (uid ?? '').trim();
 
-        return this.chatService.getChats(uid).pipe(
-          map((items) => (items ?? []).filter((chat) => !chat?.isRoom))
-        );
-      }),
-      catchError((error) => {
-        this.reportSilent(error, 'DirectChatService.getMyDirectChats$');
+      if (!canListen || !safeUid) {
         return of([] as IChat[]);
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-  }
+      }
+
+      return this.chatService.watchChats$(safeUid, 50).pipe(
+        map((items) => {
+          return (items ?? []).filter((chat) => !chat?.isRoom);
+        })
+      );
+    }),
+
+    catchError((error) => {
+      this.reportSilent(error, 'DirectChatService.getMyDirectChats$');
+      return of([] as IChat[]);
+    }),
+
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+}
 
   /**
    * Resolve ou cria o chat direto 1:1 com outro usuário.

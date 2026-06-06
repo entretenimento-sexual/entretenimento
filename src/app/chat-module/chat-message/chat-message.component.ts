@@ -24,7 +24,6 @@
 // - isso evita misturar regras de moderação/ownership de room
 //   com regras simples de delete da própria mensagem em chat direto
 // ============================================================================
-
 import { Component, DestroyRef, inject, input, OnInit } from '@angular/core';
 import { Observable, from, isObservable, of } from 'rxjs';
 import {
@@ -45,7 +44,7 @@ import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/f
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 type ChatMessageType = 'chat' | 'room';
 
@@ -59,19 +58,21 @@ export class ChatMessageComponent implements OnInit {
   readonly message = input.required<Message>();
   readonly chatId = input<string>();
   readonly type = input<ChatMessageType>('chat');
+  private readonly destroyRef = inject(DestroyRef);
+  readonly previousMessage = input<Message | null>(null);
+  readonly nextMessage = input<Message | null>(null);
+  
 
   senderName = 'Usuário desconhecido';
   currentUserUid: string | null = null;
-
-  private readonly debug = !environment.production;
-  private readonly destroyRef = inject(DestroyRef);
-
+  
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly authSession: AuthSessionService,
     private readonly chatService: ChatService,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService
+    private readonly globalError: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {}
 
   private readonly message$ = toObservable(this.message).pipe(
@@ -92,7 +93,6 @@ export class ChatMessageComponent implements OnInit {
   // ---------------------------------------------------------------------------
   // Session
   // ---------------------------------------------------------------------------
-
   private observeCurrentUserUid(): void {
     this.authSession.uid$
       .pipe(
@@ -165,7 +165,7 @@ private observeSenderName(): void {
     .subscribe();
 }
 
-  // ---------------------------------------------------------------------------
+   // ---------------------------------------------------------------------------
   // UI helpers
   // ---------------------------------------------------------------------------
 
@@ -181,19 +181,64 @@ private observeSenderName(): void {
     return (this.message().senderId ?? null) === this.currentUserUid;
   }
 
+  isSameSenderAsPrevious(): boolean {
+    const currentSenderId = (this.message().senderId ?? '').trim();
+    const previousSenderId = (this.previousMessage()?.senderId ?? '').trim();
+
+    return !!currentSenderId && currentSenderId === previousSenderId;
+  }
+
+  isSameSenderAsNext(): boolean {
+    const currentSenderId = (this.message().senderId ?? '').trim();
+    const nextSenderId = (this.nextMessage()?.senderId ?? '').trim();
+
+    return !!currentSenderId && currentSenderId === nextSenderId;
+  }
+
+  isFirstInGroup(): boolean {
+    return !this.isSameSenderAsPrevious();
+  }
+
+  isLastInGroup(): boolean {
+    return !this.isSameSenderAsNext();
+  }
+
+  isSingleMessageGroup(): boolean {
+    return this.isFirstInGroup() && this.isLastInGroup();
+  }
+
   canDeleteMessage(): boolean {
     /**
      * Regra atual:
-     * - delete só no chat direto 1:1
-     * - apenas da própria mensagem
-     *
-     * Room fica propositalmente fora por enquanto.
+     * - delete só no chat direto 1:1;
+     * - apenas da própria mensagem;
+     * - room fica fora nesta etapa.
      */
     return this.isDirectChat() && this.isMessageSent() && !!this.message().id;
   }
 
+  shouldShowSenderName(): boolean {
+    /**
+     * Em chat 1:1, o header já mostra o interlocutor.
+     * Em sala, o nome continua necessário.
+     */
+    return this.isRoomMessage() && this.isFirstInGroup();
+  }
+
+  shouldShowMessageHeader(): boolean {
+    return this.shouldShowSenderName() || this.canDeleteMessage();
+  }
+
+  shouldShowTail(): boolean {
+    return this.isLastInGroup();
+  }
+
   getStatusText(): string {
-    if (this.isRoomMessage()) {
+    /**
+     * Status só faz sentido para quem enviou.
+     * Mensagem recebida não deve mostrar "Enviada".
+     */
+    if (this.isRoomMessage() || !this.isMessageSent()) {
       return '';
     }
 
@@ -209,6 +254,36 @@ private observeSenderName(): void {
     }
   }
 
+  shouldShowDeliveryStatus(): boolean {
+  return this.isDirectChat() && this.isMessageSent() && !!this.getStatusText();
+}
+
+getStatusSymbol(): string {
+  if (!this.shouldShowDeliveryStatus()) {
+    return '';
+  }
+
+  switch (this.message().status) {
+    case 'read':
+      return '✓✓';
+    case 'delivered':
+      return '✓✓';
+    case 'sent':
+    default:
+      return '✓';
+  }
+}
+
+getStatusClass(): string {
+  if (!this.shouldShowDeliveryStatus()) {
+    return '';
+  }
+
+  const status = this.message().status ?? 'sent';
+
+  return `thread-message__status--${status}`;
+}
+
   getAriaLabel(): string {
     const sender = this.senderName || 'Usuário';
     const content = this.message().content ?? '';
@@ -221,6 +296,21 @@ private observeSenderName(): void {
     return 'Excluir esta mensagem';
   }
 
+  getDisplayedSenderName(): string {
+    if (this.isMessageSent()) {
+      return 'Você';
+    }
+
+    return this.senderName || 'Usuário';
+  }
+
+  getTimeTitle(): string {
+    try {
+      return this.message().timestamp?.toDate?.()?.toLocaleString?.('pt-BR') ?? '';
+    } catch {
+      return '';
+    }
+  }
   // ---------------------------------------------------------------------------
   // Delete
   // ---------------------------------------------------------------------------
@@ -285,12 +375,9 @@ private observeSenderName(): void {
   // ---------------------------------------------------------------------------
   // Debug / Error
   // ---------------------------------------------------------------------------
-
-  private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[ChatMessage] ${message}`, extra ?? '');
-  }
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('chat', `ChatMessage: ${message}`, extra);
+}
 
   private reportError(
     userMessage: string,

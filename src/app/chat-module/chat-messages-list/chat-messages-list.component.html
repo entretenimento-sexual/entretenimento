@@ -3,17 +3,34 @@
   @if (type; as safeType) {
     @if (messages.length > 0) {
       <div class="thread-shell__stack">
-        @for (message of messages; track message.id ?? $index) {
-          <app-chat-message
-            [message]="message"
-            [chatId]="chatId"
-            [type]="safeType">
-          </app-chat-message>
+        @for (item of threadItems; track item.id) {
+          @if (item.kind === 'date-separator') {
+            <div
+              class="thread-shell__date-separator"
+              role="separator"
+              [attr.aria-label]="'Mensagens de ' + item.label"
+            >
+              <span>{{ item.label }}</span>
+            </div>
+          } @else {
+            @if (item.message; as message) {
+              <app-chat-message
+                [message]="message"
+                [previousMessage]="item.previousMessage ?? null"
+                [nextMessage]="item.nextMessage ?? null"
+                [chatId]="chatId"
+                [type]="safeType">
+              </app-chat-message>
+            }
+          }
         }
       </div>
     } @else {
       <div class="thread-shell__empty" role="status" aria-live="polite">
-        <p class="thread-shell__empty-title">Ainda não há mensagens nesta conversa.</p>
+        <p class="thread-shell__empty-title">
+          Ainda não há mensagens nesta conversa.
+        </p>
+
         <p class="thread-shell__empty-text">
           Envie a primeira mensagem para iniciar a interação.
         </p>
@@ -21,7 +38,10 @@
     }
   } @else {
     <div class="thread-shell__empty" role="status" aria-live="polite">
-      <p class="thread-shell__empty-title">Nenhuma conversa ativa.</p>
+      <p class="thread-shell__empty-title">
+        Nenhuma conversa ativa.
+      </p>
+
       <p class="thread-shell__empty-text">
         Selecione um chat ou uma sala para visualizar a thread.
       </p>

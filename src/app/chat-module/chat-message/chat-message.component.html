@@ -1,49 +1,70 @@
-<!-- src\app\chat-module\chat-message\chat-message.component.html -->
+<!-- src/app/chat-module/chat-message/chat-message.component.html -->
 <div
   class="thread-message"
   [ngClass]="{
     'thread-message--sent': isMessageSent(),
     'thread-message--received': !isMessageSent(),
     'thread-message--room': isRoomMessage(),
-    'thread-message--direct': isDirectChat()
+    'thread-message--direct': isDirectChat(),
+
+    'thread-message--group-start': isFirstInGroup(),
+    'thread-message--group-middle': !isFirstInGroup() && !isLastInGroup(),
+    'thread-message--group-end': isLastInGroup(),
+    'thread-message--group-single': isSingleMessageGroup()
   }"
   [attr.aria-label]="getAriaLabel()"
 >
   <div class="thread-message__rail">
-    <div class="thread-message__bubble">
-      <div class="thread-message__header">
-        <p class="thread-message__sender">
-          {{ senderName }}
-        </p>
-
-        @if (canDeleteMessage()) {
-          <button
-            class="thread-message__delete"
-            (click)="deleteThisMessage()"
-            [attr.title]="getDeleteAriaLabel()"
-            [attr.aria-label]="getDeleteAriaLabel()"
-            type="button"
-          >
-            <i class="fas fa-trash" aria-hidden="true"></i>
-          </button>
-        }
-      </div>
+    <article class="thread-message__bubble">
+      @if (shouldShowSenderName()) {
+        <header class="thread-message__header">
+          <p class="thread-message__sender">
+            {{ getDisplayedSenderName() }}
+          </p>
+        </header>
+      }
 
       <p class="thread-message__content">
         {{ message().content }}
       </p>
 
-      <div class="thread-message__footer">
-        <p class="thread-message__time">
-          {{ message().timestamp.toDate() | date:'short' }}
-        </p>
+      <footer class="thread-message__footer">
+        <time
+          class="thread-message__time"
+          [attr.title]="message().timestamp | dateFormat:'datetime'"
+        >
+          {{ message().timestamp | dateFormat:'time' }}
+        </time>
 
-        @if (isDirectChat() && getStatusText()) {
-          <p class="thread-message__status" [ngClass]="message().status">
-            {{ getStatusText() }}
-          </p>
+        @if (shouldShowDeliveryStatus()) {
+          <span
+            class="thread-message__status"
+            [ngClass]="getStatusClass()"
+            [attr.title]="getStatusText()"
+            [attr.aria-label]="'Status: ' + getStatusText()"
+          >
+            <span aria-hidden="true">
+              {{ getStatusSymbol() }}
+            </span>
+
+            <span class="thread-message__status-text">
+              {{ getStatusText() }}
+            </span>
+          </span>
         }
-      </div>
-    </div>
+      </footer>
+
+      @if (canDeleteMessage()) {
+        <button
+          class="thread-message__delete"
+          (click)="deleteThisMessage()"
+          [attr.title]="getDeleteAriaLabel()"
+          [attr.aria-label]="getDeleteAriaLabel()"
+          type="button"
+        >
+          <i class="fas fa-trash" aria-hidden="true"></i>
+        </button>
+      }
+    </article>
   </div>
 </div>

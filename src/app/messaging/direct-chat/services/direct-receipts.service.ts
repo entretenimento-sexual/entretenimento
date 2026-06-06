@@ -2,44 +2,60 @@
 // ============================================================================
 // DIRECT RECEIPTS SERVICE
 //
-// Responsabilidade deste service:
-// - marcar como lidas mensagens diretas 1:1 que estavam em delivered
+// Responsabilidade:
+// - avançar recibos de leitura de mensagens diretas 1:1;
+// - respeitar as Firestore Rules:
+//   sent      -> delivered
+//   delivered -> read
 //
-// Observação arquitetural:
-// - nesta fase ainda usa ChatService como adapter legado
-// - o serviço é best-effort por definição
-// - falha de receipts não deve quebrar renderização da thread
-//
-// Restrições:
-// - só marca mensagens recebidas
-// - só marca mensagens com id válido
-// - limita updates por tick para evitar rajadas desnecessárias
+// Importante:
+// - o cliente NÃO pode fazer sent -> read diretamente;
+// - por isso o avanço precisa ser progressivo;
+// - falha de receipts é best-effort e não deve quebrar a thread.
 // ============================================================================
 
 import { Injectable } from '@angular/core';
+
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, tap } from 'rxjs/operators';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
+
 import { ChatService } from '@core/services/batepapo/chat-service/chat.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
+
+type ReceiptTransitionTarget = 'delivered' | 'read';
+
+type ReceiptTransition = {
+  messageId: string;
+  nextStatus: ReceiptTransitionTarget;
+};
 
 @Injectable({ providedIn: 'root' })
 export class DirectReceiptsService {
   private readonly maxUpdatesPerTick = 50;
-  private readonly debug = !environment.production;
 
   constructor(
     private readonly chatService: ChatService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
   /**
-   * Marca como read apenas mensagens:
-   * - recebidas
-   * - em status delivered
-   * - com id válido
+   * Avança recibos das mensagens recebidas.
+   *
+   * Regras:
+   * - mensagem minha: nunca altera;
+   * - mensagem sem id: ignora;
+   * - read: ignora;
+   * - sent: avança para delivered;
+   * - delivered: avança para read.
+   *
+   * Observação:
+   * - uma mensagem sent não vira read diretamente por causa das Rules;
+   * - depois que o snapshot atualizar para delivered, esta função pode avançar
+   *   novamente para read.
    */
   markDeliveredAsRead$(
     chatId: string,
@@ -54,16 +70,20 @@ export class DirectReceiptsService {
       return of(0);
     }
 
-    const toMark = this.pickMessagesToMark(safeUid, safeMessages);
+    const transitions = this.pickReceiptTransitions(safeUid, safeMessages);
 
-    if (!toMark.length) {
+    if (!transitions.length) {
       return of(0);
     }
 
     return forkJoin(
-      toMark.map((message) =>
+      transitions.map((transition) =>
         this.chatService
-          .updateMessageStatus(safeChatId, String(message.id), 'read')
+          .updateMessageStatus(
+            safeChatId,
+            transition.messageId,
+            transition.nextStatus
+          )
           .pipe(
             catchError((error) => {
               this.reportSilent(
@@ -71,9 +91,11 @@ export class DirectReceiptsService {
                 'DirectReceiptsService.markDeliveredAsRead$.updateMessageStatus',
                 {
                   chatId: safeChatId,
-                  messageId: String(message.id),
+                  messageId: transition.messageId,
+                  nextStatus: transition.nextStatus,
                 }
               );
+
               return of(void 0);
             })
           )
@@ -82,16 +104,23 @@ export class DirectReceiptsService {
       tap(() => {
         this.dbg('markDeliveredAsRead$', {
           chatId: safeChatId,
-          count: toMark.length,
+          count: transitions.length,
+          deliveredCount: transitions.filter(
+            (transition) => transition.nextStatus === 'delivered'
+          ).length,
+          readCount: transitions.filter(
+            (transition) => transition.nextStatus === 'read'
+          ).length,
         });
       }),
-      map(() => toMark.length),
+      map(() => transitions.length),
       catchError((error) => {
         this.reportSilent(
           error,
           'DirectReceiptsService.markDeliveredAsRead$',
           { chatId: safeChatId }
         );
+
         return of(0);
       })
     );
@@ -101,25 +130,46 @@ export class DirectReceiptsService {
   // Helpers
   // ---------------------------------------------------------------------------
 
-  private pickMessagesToMark(
+  private pickReceiptTransitions(
     currentUserUid: string,
     messages: Message[]
-  ): Message[] {
+  ): ReceiptTransition[] {
     return messages
-      .filter((message) => {
-        return (
-          message?.status === 'delivered' &&
-          message?.senderId !== currentUserUid &&
-          !!message?.id
-        );
+      .map((message): ReceiptTransition | null => {
+        const messageId = String(message?.id ?? '').trim();
+
+        if (!messageId) {
+          return null;
+        }
+
+        if (message?.senderId === currentUserUid) {
+          return null;
+        }
+
+        const status = message?.status ?? 'sent';
+
+        if (status === 'sent') {
+          return {
+            messageId,
+            nextStatus: 'delivered',
+          };
+        }
+
+        if (status === 'delivered') {
+          return {
+            messageId,
+            nextStatus: 'read',
+          };
+        }
+
+        return null;
       })
+      .filter((transition): transition is ReceiptTransition => !!transition)
       .slice(0, this.maxUpdatesPerTick);
   }
 
   private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[DirectReceiptsService] ${message}`, extra ?? '');
+    this.privacyDebug.log('chat', `DirectReceiptsService: ${message}`, extra);
   }
 
   private reportSilent(

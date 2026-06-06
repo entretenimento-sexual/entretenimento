@@ -2,27 +2,25 @@
 // ============================================================================
 // CHAT MESSAGES LIST COMPONENT
 //
-// Responsabilidade atual (fase de transição):
-// - renderizar mensagens da thread selecionada
-// - consumir DirectThreadFacade para chat 1:1
-// - manter compat temporária com RoomMessagesService para rooms
-// - manter scroll automático
-// - manter tratamento de erro centralizado
+// Responsabilidade:
+// - renderizar mensagens da thread selecionada;
+// - consumir DirectThreadFacade para chat 1:1;
+// - manter compat temporária com RoomMessagesService para rooms;
+// - manter auto-scroll inteligente;
+// - manter tratamento de erro centralizado;
+// - manter debug seguro via PrivacyDebugLoggerService.
 //
 // SUPRESSÕES EXPLÍCITAS NESTA FASE:
-// - foi removida a dependência direta de ChatService no eixo 1:1
-// - foi removida a função local markDeliveredMessagesAsRead(...)
-// - foi removida a função local coerceToVoid$(...)
+// - não há uso direto de ChatService no eixo 1:1;
+// - não há função local markDeliveredMessagesAsRead(...);
+// - não há console.log direto;
+// - não há exposição de payload sensível de mensagens em debug.
 //
 // Motivo:
-// - receipts do 1:1 agora pertencem à DirectThreadFacade
-// - a thread 1:1 agora pertence ao eixo direct-chat
-// - o componente deixa de carregar responsabilidade de domínio
-//
-// Observação arquitetural:
-// - chat 1:1 -> DirectThreadFacade
-// - room      -> RoomMessagesService (compat temporária)
-// ==============================================================
+// - receipts do 1:1 pertencem à DirectThreadFacade;
+// - a thread 1:1 pertence ao eixo direct-chat;
+// - logs precisam respeitar a camada central de privacidade/debug.
+// ============================================================================
 import {
   ChangeDetectorRef,
   Component,
@@ -30,22 +28,36 @@ import {
   ElementRef,
   Input,
   OnChanges,
+  OnDestroy,
+  OnInit,
   SimpleChanges,
   ViewChild,
   inject,
 } from '@angular/core';
-
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { Observable, Subscription, of } from 'rxjs';
 import { catchError, map, switchMap, take, tap } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
+import { DateTimeService } from 'src/app/core/services/general/date-time.service';
 import { DirectChatFacade } from 'src/app/messaging/direct-chat/application/direct-chat.facade';
 import { DirectThreadFacade } from 'src/app/messaging/direct-chat/application/direct-thread.facade';
+
 import { RoomMessagesService } from 'src/app/core/services/batepapo/room-services/room-messages.service';
+
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
+
+type ThreadViewItem = {
+  kind: 'date-separator' | 'message';
+  id: string;
+  label?: string;
+  message?: Message;
+  previousMessage?: Message | null;
+  nextMessage?: Message | null;
+};
 
 @Component({
   selector: 'app-chat-messages-list',
@@ -53,7 +65,7 @@ import { environment } from 'src/environments/environment';
   styleUrls: ['./chat-messages-list.component.css'],
   standalone: false,
 })
-export class ChatMessagesListComponent implements OnChanges {
+export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
   @ViewChild('messagesContainer')
   private messagesContainer?: ElementRef<HTMLDivElement>;
 
@@ -61,11 +73,22 @@ export class ChatMessagesListComponent implements OnChanges {
   @Input() type: 'chat' | 'room' | undefined;
 
   messages: Message[] = [];
+  threadItems: ThreadViewItem[] = [];
 
-  private readonly debug = !environment.production;
   private readonly destroyRef = inject(DestroyRef);
+  private readonly hostRef = inject<ElementRef<HTMLElement>>(ElementRef);
+  private currentUserUid: string | null = null;
 
   private activeThreadSub?: Subscription;
+  private scheduledScrollFrame: number | null = null;
+  private scheduledScrollTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  private activeThreadKey = '';
+  private forceScrollOnNextRender = false;
+  private lastRenderedMessageCount = 0;
+  private lastRenderedLastMessageKey = '';
+
+  private readonly nearBottomThresholdPx = 220;
 
   constructor(
     private readonly directChatFacade: DirectChatFacade,
@@ -73,15 +96,42 @@ export class ChatMessagesListComponent implements OnChanges {
     private readonly roomMessage: RoomMessagesService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly globalError: GlobalErrorHandlerService,
-    private readonly cdRef: ChangeDetectorRef
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+    private readonly authSession: AuthSessionService,
+    private readonly dateTime: DateTimeService,
+    private readonly cdRef: ChangeDetectorRef,
   ) {}
+  
+ngOnInit(): void {
+  this.bindCurrentUserUid();
+}
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes['chatId'] || changes['type']) {
-      this.rebindThread();
-    }
+ngOnChanges(changes: SimpleChanges): void {
+  if (changes['chatId'] || changes['type']) {
+    this.rebindThread();
   }
+}
 
+ngOnDestroy(): void {
+  this.activeThreadSub?.unsubscribe();
+  this.activeThreadSub = undefined;
+  this.cancelScheduledScroll();
+}
+
+// ---------------------------------------------------------------------------
+// Session binding
+// ---------------------------------------------------------------------------
+
+private bindCurrentUserUid(): void {
+  this.authSession.uid$
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe((uid) => {
+      this.currentUserUid = String(uid ?? '').trim() || null;
+    });
+}
+  // ---------------------------------------------------------------------------
+  // Thread binding
+  // ---------------------------------------------------------------------------
   private rebindThread(): void {
     const safeChatId = (this.chatId ?? '').trim();
     const safeType = this.type ?? null;
@@ -90,9 +140,16 @@ export class ChatMessagesListComponent implements OnChanges {
     this.activeThreadSub = undefined;
 
     if (!safeChatId || (safeType !== 'chat' && safeType !== 'room')) {
-      this.messages = [];
-      this.cdRef.detectChanges();
+      this.resetThreadState();
       return;
+    }
+
+    const nextThreadKey = `${safeType}:${safeChatId}`;
+
+    if (this.activeThreadKey !== nextThreadKey) {
+      this.activeThreadKey = nextThreadKey;
+      this.resetRenderTracking();
+      this.forceScrollOnNextRender = true;
     }
 
     const source$ =
@@ -103,10 +160,7 @@ export class ChatMessagesListComponent implements OnChanges {
     this.activeThreadSub = source$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((messages) => {
-        this.messages = Array.isArray(messages) ? messages : [];
-        this.cdRef.detectChanges();
-
-        queueMicrotask(() => this.scrollToBottom());
+        this.renderMessages(Array.isArray(messages) ? messages : []);
       });
   }
 
@@ -133,9 +187,10 @@ export class ChatMessagesListComponent implements OnChanges {
             this.reportError(
               'Falha ao atualizar status das mensagens.',
               error,
-              { op: 'bindDirectChatThread', chatId },
+              { op: 'bindDirectChatThread.markVisibleMessagesAsRead', chatId },
               false
             );
+
             return of(messages);
           })
         );
@@ -152,6 +207,7 @@ export class ChatMessagesListComponent implements OnChanges {
           error,
           { op: 'bindDirectChatThread', chatId }
         );
+
         return of([] as Message[]);
       })
     );
@@ -172,28 +228,433 @@ export class ChatMessagesListComponent implements OnChanges {
           error,
           { op: 'bindRoomThread', chatId }
         );
+
         return of([] as Message[]);
       })
     );
   }
 
-  private scrollToBottom(): void {
-    if (!this.messagesContainer) {
-      return;
+    // ---------------------------------------------------------------------------
+  // Template helpers
+  // ---------------------------------------------------------------------------
+
+  getPreviousMessage(index: number): Message | null {
+    if (!Number.isInteger(index) || index <= 0) {
+      return null;
     }
 
-    const container = this.messagesContainer.nativeElement;
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const nearBottom = scrollHeight - scrollTop - clientHeight < 200;
+    return this.messages[index - 1] ?? null;
+  }
 
-    if (nearBottom) {
-      container.scrollTop = scrollHeight;
+  getNextMessage(index: number): Message | null {
+    if (!Number.isInteger(index) || index < 0) {
+      return null;
+    }
+
+    return this.messages[index + 1] ?? null;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render / scroll
+  // ---------------------------------------------------------------------------
+
+private renderMessages(nextMessages: Message[]): void {
+  const shouldScroll = this.shouldScrollAfterRender(nextMessages);
+
+  this.messages = nextMessages;
+  this.threadItems = this.buildThreadItems(nextMessages);
+  this.storeRenderTracking(nextMessages);
+
+  this.cdRef.detectChanges();
+
+  if (shouldScroll) {
+    this.scheduleScrollToBottom();
+  }
+}
+
+private shouldScrollAfterRender(nextMessages: Message[]): boolean {
+  if (this.forceScrollOnNextRender) {
+    this.forceScrollOnNextRender = false;
+    return true;
+  }
+
+  if (!nextMessages.length) {
+    return false;
+  }
+
+  const nextLastMessageKey = this.getLastMessageKey(nextMessages);
+  const hasNewMessage = nextMessages.length > this.lastRenderedMessageCount;
+  const lastMessageChanged =
+    !!nextLastMessageKey &&
+    nextLastMessageKey !== this.lastRenderedLastMessageKey;
+
+  if (!hasNewMessage && !lastMessageChanged) {
+    return false;
+  }
+
+  const lastMessage = nextMessages[nextMessages.length - 1];
+
+  /**
+   * Regra de UX:
+   * Se a nova última mensagem foi enviada pelo usuário atual,
+   * sempre acompanha a base da conversa.
+   *
+   * Isso cobre o caso em que a conversa estava rolada para cima
+   * artificialmente e o próprio usuário envia uma nova mensagem.
+   */
+  if (this.isMessageFromCurrentUser(lastMessage)) {
+    return true;
+  }
+
+  /**
+   * Se a mensagem nova veio de outra pessoa, não arrancar o usuário
+   * do ponto onde ele está lendo histórico antigo.
+   */
+  return this.isNearBottom();
+}
+
+private isMessageFromCurrentUser(message: Message | null | undefined): boolean {
+  if (!message || !this.currentUserUid) {
+    return false;
+  }
+
+  const senderUid = String(
+    message.senderUid ??
+    message.senderId ??
+    ''
+  ).trim();
+
+  return !!senderUid && senderUid === this.currentUserUid;
+}
+
+private scheduleScrollToBottom(): void {
+  this.cancelScheduledScroll();
+
+  if (typeof requestAnimationFrame === 'function') {
+    this.scheduledScrollFrame = requestAnimationFrame(() => {
+      this.scheduledScrollFrame = null;
+
+      this.scheduledScrollTimeout = setTimeout(() => {
+        this.scheduledScrollTimeout = null;
+        this.scrollToBottom();
+      }, 0);
+    });
+
+    return;
+  }
+
+  this.scheduledScrollTimeout = setTimeout(() => {
+    this.scheduledScrollTimeout = null;
+    this.scrollToBottom();
+  }, 0);
+}
+
+private cancelScheduledScroll(): void {
+  if (
+    this.scheduledScrollFrame !== null &&
+    typeof cancelAnimationFrame === 'function'
+  ) {
+    cancelAnimationFrame(this.scheduledScrollFrame);
+  }
+
+  if (this.scheduledScrollTimeout !== null) {
+    clearTimeout(this.scheduledScrollTimeout);
+  }
+
+  this.scheduledScrollFrame = null;
+  this.scheduledScrollTimeout = null;
+}
+
+private scrollToBottom(): void {
+  const container = this.getScrollContainer();
+
+  if (!container) {
+    this.dbg('scrollToBottom: scroll container não encontrado');
+    return;
+  }
+
+  const before = {
+    scrollTop: Math.round(container.scrollTop),
+    scrollHeight: Math.round(container.scrollHeight),
+    clientHeight: Math.round(container.clientHeight),
+  };
+
+  container.scrollTop = container.scrollHeight;
+
+  const after = {
+    scrollTop: Math.round(container.scrollTop),
+    scrollHeight: Math.round(container.scrollHeight),
+    clientHeight: Math.round(container.clientHeight),
+  };
+
+  this.dbg('scrollToBottom', {
+    before,
+    after,
+    moved: after.scrollTop !== before.scrollTop,
+  });
+}
+
+private isNearBottom(): boolean {
+  const container = this.getScrollContainer();
+
+  if (!container) {
+    return true;
+  }
+
+  const distanceFromBottom =
+    container.scrollHeight - container.scrollTop - container.clientHeight;
+
+  return distanceFromBottom <= this.nearBottomThresholdPx;
+}
+
+private getScrollContainer(): HTMLElement | null {
+  const host = this.hostRef.nativeElement;
+
+  /**
+   * O scroll real fica no layout:
+   * .chat-shell__thread
+   *
+   * O #messagesContainer está no thread-shell, que é apenas a estrutura interna.
+   */
+  const layoutScrollContainer = host.closest(
+    '.chat-shell__thread'
+  ) as HTMLElement | null;
+
+  if (layoutScrollContainer) {
+    return layoutScrollContainer;
+  }
+
+  const nearestScrollable = this.findScrollableAncestor(host);
+
+  if (nearestScrollable) {
+    return nearestScrollable;
+  }
+
+  return this.messagesContainer?.nativeElement ?? null;
+}
+
+private findScrollableAncestor(start: HTMLElement): HTMLElement | null {
+  let current: HTMLElement | null = start.parentElement;
+
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const overflowY = style.overflowY;
+
+    const canScroll =
+      (overflowY === 'auto' || overflowY === 'scroll') &&
+      current.scrollHeight > current.clientHeight;
+
+    if (canScroll) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return null;
+}
+
+  private resetThreadState(): void {
+    this.activeThreadKey = '';
+    this.messages = [];
+    this.threadItems = [];
+    this.resetRenderTracking();
+    this.cancelScheduledScroll();
+    this.cdRef.detectChanges();
+  }
+
+  private resetRenderTracking(): void {
+    this.forceScrollOnNextRender = false;
+    this.lastRenderedMessageCount = 0;
+    this.lastRenderedLastMessageKey = '';
+  }
+
+  private storeRenderTracking(messages: Message[]): void {
+    this.lastRenderedMessageCount = messages.length;
+    this.lastRenderedLastMessageKey = this.getLastMessageKey(messages);
+  }
+
+  private getLastMessageKey(messages: Message[]): string {
+    const lastMessage = messages[messages.length - 1];
+
+    if (!lastMessage) {
+      return '';
+    }
+
+    const id = String(lastMessage.id ?? '').trim();
+
+    if (id) {
+      return id;
+    }
+
+    const senderId = String(lastMessage.senderId ?? lastMessage.senderUid ?? '').trim();
+    const content = String(lastMessage.content ?? '').trim();
+    const timestamp = this.coerceTimestampKey(lastMessage.timestamp);
+
+    return `${senderId}:${timestamp}:${content}`;
+  }
+
+  private coerceTimestampKey(value: unknown): string {
+    try {
+      const maybeAny = value as any;
+
+      if (typeof maybeAny?.toMillis === 'function') {
+        return String(maybeAny.toMillis());
+      }
+
+      if (typeof maybeAny?.toDate === 'function') {
+        const date = maybeAny.toDate();
+        return date instanceof Date ? String(date.getTime()) : '';
+      }
+
+      if (value instanceof Date) {
+        return String(value.getTime());
+      }
+
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        return String(value);
+      }
+
+      if (typeof value === 'string') {
+        return value.trim();
+      }
+
+      if (typeof maybeAny?.seconds === 'number') {
+        return String(
+          maybeAny.seconds * 1000 +
+            Math.floor((maybeAny.nanoseconds ?? 0) / 1_000_000)
+        );
+      }
+
+      if (typeof maybeAny?._seconds === 'number') {
+        return String(
+          maybeAny._seconds * 1000 +
+            Math.floor((maybeAny._nanoseconds ?? 0) / 1_000_000)
+        );
+      }
+
+      return '';
+    } catch {
+      return '';
     }
   }
 
+  // ---------------------------------------------------------------------------
+// Date separators
+// ---------------------------------------------------------------------------
+
+private buildThreadItems(messages: Message[]): ThreadViewItem[] {
+  const items: ThreadViewItem[] = [];
+
+  for (let index = 0; index < messages.length; index++) {
+    const message = messages[index];
+    const previousMessage = messages[index - 1] ?? null;
+    const nextMessage = messages[index + 1] ?? null;
+
+    const currentDate = this.getMessageDate(message);
+    const previousDate = this.getMessageDate(previousMessage);
+
+    if (currentDate && this.shouldInsertDateSeparator(currentDate, previousDate)) {
+      items.push({
+        kind: 'date-separator',
+        id: `date:${this.getDateKey(currentDate)}`,
+        label: this.getDateSeparatorLabel(currentDate),
+      });
+    }
+
+    items.push({
+      kind: 'message',
+      id: String(message?.id ?? `message:${index}`),
+      message,
+      previousMessage,
+      nextMessage,
+    });
+  }
+
+  return items;
+}
+
+private shouldInsertDateSeparator(
+  currentDate: Date,
+  previousDate: Date | null
+): boolean {
+  if (!previousDate) {
+    return true;
+  }
+
+  return !this.isSameLocalDay(currentDate, previousDate);
+}
+
+private getMessageDate(message: Message | null | undefined): Date | null {
+  if (!message?.timestamp) {
+    return null;
+  }
+
+  try {
+    return this.dateTime.convertToDate(message.timestamp as any);
+  } catch {
+    return null;
+  }
+}
+
+private getDateSeparatorLabel(date: Date): string {
+  const today = new Date();
+
+  if (this.isSameLocalDay(date, today)) {
+    return 'Hoje';
+  }
+
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+
+  if (this.isSameLocalDay(date, yesterday)) {
+    return 'Ontem';
+  }
+
+  const diffDays = Math.floor(
+    (this.startOfDay(today).getTime() - this.startOfDay(date).getTime()) /
+      86_400_000
+  );
+
+  if (diffDays > 1 && diffDays < 7) {
+    return date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+    });
+  }
+
+  return date.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+private getDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+private isSameLocalDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+private startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+  // ---------------------------------------------------------------------------
+  // Error / debug
+  // ---------------------------------------------------------------------------
+
   private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    console.log(`[ChatMessagesList] ${message}`, extra ?? '');
+    this.privacyDebug.log('chat', `ChatMessagesList: ${message}`, extra);
   }
 
   private reportError(
@@ -210,12 +671,15 @@ export class ChatMessagesListComponent implements OnChanges {
 
     try {
       const err = error instanceof Error ? error : new Error(userMessage);
+
       (err as any).original = error;
       (err as any).context = {
         scope: 'ChatMessagesListComponent',
         ...(context ?? {}),
       };
       (err as any).skipUserNotification = true;
+      (err as any).silent = !notifyUser;
+
       this.globalError.handleError(err);
     } catch {}
   }

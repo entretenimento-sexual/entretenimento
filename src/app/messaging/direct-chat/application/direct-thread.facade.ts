@@ -29,7 +29,6 @@
 //   chatId, messages, loading
 // - a prioridade agora é compatibilidade estável e sem erro de tipagem
 // ============================================================================
-
 import { Injectable } from '@angular/core';
 import { combineLatest, Observable, of } from 'rxjs';
 import {
@@ -52,12 +51,11 @@ import { DirectChatFacade } from './direct-chat.facade';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { environment } from 'src/environments/environment';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 @Injectable({ providedIn: 'root' })
 export class DirectThreadFacade {
-  private readonly debug = !environment.production;
-
+  
   /**
    * Chat ativo selecionado pela DirectChatFacade.
    */
@@ -173,7 +171,8 @@ export class DirectThreadFacade {
     private readonly directReceiptsService: DirectReceiptsService,
     private readonly authSession: AuthSessionService,
     private readonly accessControl: AccessControlService,
-    private readonly globalErrorHandler: GlobalErrorHandlerService
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -276,11 +275,9 @@ export class DirectThreadFacade {
   // Internals
   // ---------------------------------------------------------------------------
 
-  private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[DirectThreadFacade] ${message}`, extra ?? '');
-  }
+private dbg(message: string, extra?: unknown): void {
+  this.privacyDebug.log('chat', `DirectThreadFacade: ${message}`, extra);
+}
 
   private reportSilent(error: unknown, context: string): void {
     try {

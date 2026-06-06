@@ -1,4 +1,6 @@
+//src\app\chat-module\chat-list\chat-list.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ChatListComponent } from './chat-list.component';
 

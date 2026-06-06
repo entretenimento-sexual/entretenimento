@@ -1,4 +1,5 @@
 //src\app\chat-module\chat-message\chat-message.component.spec.ts
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
 import { ChatMessageComponent } from './chat-message.component';

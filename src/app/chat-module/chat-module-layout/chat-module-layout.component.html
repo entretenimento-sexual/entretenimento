@@ -1,4 +1,5 @@
 <!-- src/app/chat-module/chat-module-layout/chat-module-layout.component.html -->
+
 <div class="chat-shell">
   <aside class="chat-shell__sidebar" aria-label="Lista de conversas">
     <section class="chat-shell__sidebar-body">
@@ -11,44 +12,44 @@
   </aside>
 
   <main class="chat-shell__main" aria-label="Área principal da conversa">
-@if (selectedType && selectedChatId) {
-  <header class="chat-shell__main-header">
-    @if (selectedType === 'chat') {
-      <div class="chat-shell__main-context chat-shell__main-context--direct">
-        <img
-          [src]="activeChatPeerPhotoURL || '/assets/imagem-padrao.webp'"
-          alt="Foto do perfil da conversa ativa"
-          class="chat-shell__main-avatar"
-          loading="lazy"
-        />
+    @if (selectedType && selectedChatId) {
+      <header class="chat-shell__main-header">
+        @if (selectedType === 'chat') {
+          <div class="chat-shell__main-context chat-shell__main-context--direct">
+            <img
+              [src]="activeChatPeerPhotoURL || '/assets/imagem-padrao.webp'"
+              alt="Foto do perfil da conversa ativa"
+              class="chat-shell__main-avatar"
+              loading="lazy"
+            />
 
-        <div class="chat-shell__main-context-copy">
-          <p class="chat-shell__main-kicker">Conversa direta</p>
-          <h2 class="chat-shell__main-title">{{ activeDirectChatTitle }}</h2>
-          <p class="chat-shell__main-subtitle">
-            {{ activeDirectChatSubtitle }}
-          </p>
-        </div>
-      </div>
+            <div class="chat-shell__main-context-copy">
+              <p class="chat-shell__main-kicker">Conversa direta</p>
+              <h2 class="chat-shell__main-title">{{ activeDirectChatTitle }}</h2>
+              <p class="chat-shell__main-subtitle">
+                {{ activeDirectChatSubtitle }}
+              </p>
+            </div>
+          </div>
+        }
+
+        @if (selectedType === 'room') {
+          <div class="chat-shell__main-context">
+            <p class="chat-shell__main-kicker">Sala</p>
+            <h2 class="chat-shell__main-title">Sala de bate-papo</h2>
+            <p class="chat-shell__main-subtitle">
+              Interação em grupo mantida em compatibilidade.
+            </p>
+          </div>
+        }
+      </header>
     }
 
-    @if (selectedType === 'room') {
-      <div class="chat-shell__main-context">
-        <p class="chat-shell__main-kicker">Sala</p>
-        <h2 class="chat-shell__main-title">Sala de bate-papo</h2>
-        <p class="chat-shell__main-subtitle">
-          Interação em grupo mantida em compatibilidade.
-        </p>
-      </div>
-    }
-  </header>
-}
-
-<section class="chat-shell__content">
-  <div
-    class="chat-shell__thread"
-    [class.chat-shell__thread--empty]="!selectedType || !selectedChatId"
-  >
+    <section class="chat-shell__content">
+      <div
+        class="chat-shell__thread"
+        [class.chat-shell__thread--empty]="!selectedType || !selectedChatId"
+      >
         @if (selectedType === 'room') {
           @if (selectedChatId; as activeRoomId) {
             <app-room-interaction [roomId]="activeRoomId"></app-room-interaction>
@@ -59,53 +60,81 @@
           @if (selectedChatId; as activeChatId) {
             <app-chat-messages-list
               [chatId]="activeChatId"
-              [type]="'chat'">
-            </app-chat-messages-list>
+              [type]="'chat'"
+            ></app-chat-messages-list>
           }
         }
 
         @if (!selectedType || !selectedChatId) {
           <div class="chat-shell__empty-state" role="status" aria-live="polite">
             <p class="chat-shell__empty-title">Nenhuma conversa aberta ainda.</p>
-<p class="chat-shell__empty-text">
-  Selecione uma conversa na lateral ou acompanhe seus convites.
-</p>
 
-<div class="chat-shell__empty-actions">
-  <a class="btn btn-primary" routerLink="/chat/invite-list">
-    Ver convites
-  </a>
-</div>
+            <p class="chat-shell__empty-text">
+              Selecione uma conversa na lateral ou acompanhe seus convites.
+            </p>
+
+            <div class="chat-shell__empty-actions">
+              <a class="btn btn-primary" routerLink="/chat/invite-list">
+                Ver convites
+              </a>
+            </div>
           </div>
         }
       </div>
 
       @if (selectedType && selectedChatId) {
-<footer
-  class="chat-shell__input"
-  aria-label="Área de envio de mensagem"
-  [attr.aria-busy]="isSendingMessage()"
->
-  <textarea
-    [(ngModel)]="messageContent"
-    (keydown.enter)="!isSendingMessage() && sendMessage(); $event.preventDefault()"
-    placeholder="Digite sua mensagem..."
-    aria-label="Digite sua mensagem"
-    [readOnly]="isSendingMessage()"
-    [attr.aria-readonly]="isSendingMessage()"
-    [attr.maxlength]="selectedType === 'chat' ? 1000 : null">
-  </textarea>
+  <footer
+    class="chat-shell__input"
+    aria-label="Área de envio de mensagem"
+    [attr.aria-busy]="isSendingMessage()"
+  >
+    @let canSendMessageNow = canSendCurrentMessage();
 
-  <button
-    type="button"
-    class="chat-shell__send"
-    (click)="sendMessage()"
-    [disabled]="isSendingMessage() || !messageContent.trim()"
-    [attr.aria-busy]="isSendingMessage()">
-    {{ isSendingMessage() ? 'Enviando...' : 'Enviar' }}
-  </button>
-</footer>
-      }
+    <div class="chat-shell__composer-main">
+      <textarea
+        [(ngModel)]="messageContent"
+        (keydown)="onComposerKeydown($event)"
+        placeholder="Digite sua mensagem..."
+        aria-label="Digite sua mensagem. Pressione Enter para enviar ou Shift mais Enter para quebrar linha."
+        [attr.aria-describedby]="shouldShowComposerHelp ? 'chat-composer-help' : null"
+        rows="1"
+        [readOnly]="isSendingMessage()"
+        [attr.aria-readonly]="isSendingMessage()"
+        [attr.aria-invalid]="isMessageTooLong"
+        [attr.maxlength]="maxMessageLength + 1"
+      ></textarea>
+
+      <button
+        type="button"
+        class="chat-shell__send"
+        (click)="sendMessage()"
+        [disabled]="!canSubmitMessage"
+        [attr.aria-disabled]="!canSubmitMessage"
+        [attr.aria-busy]="isSendingMessage()"
+      >
+        {{ isSendingMessage() ? 'Enviando...' : 'Enviar' }}
+      </button>
+    </div>
+
+@if (shouldShowComposerHelp) {
+  <p
+    id="chat-composer-help"
+    class="chat-shell__composer-help"
+    [class.chat-shell__composer-help--danger]="isMessageTooLong || !canSendMessageNow"
+    role="status"
+    aria-live="polite"
+  >
+    @if (!canSendMessageNow) {
+      {{ sendStatusMessage }}
+    } @else if (isMessageTooLong) {
+      Mensagem muito longa. Limite: {{ maxMessageLength }} caracteres.
+    } @else if (isNearMessageLimit) {
+      {{ messageLengthLabel }}
+    }
+  </p>
+}
+  </footer>
+}
     </section>
   </main>
 </div>

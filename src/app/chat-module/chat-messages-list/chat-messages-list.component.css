@@ -1,60 +1,185 @@
 /* src/app/chat-module/chat-messages-list/chat-messages-list.component.css */
 /* -------------------------------------------------------------------------- */
 /* Thread de mensagens                                                        */
-/* Objetivos desta versão:                                                    */
-/* - dar estrutura visual à área central                                      */
-/* - substituir vazios crus por estados dignos                                */
-/* - criar respiro vertical entre mensagens                                   */
 /* -------------------------------------------------------------------------- */
+
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 100%;
+}
 
 .thread-shell {
   display: flex;
   flex-direction: column;
+
+  width: 100%;
+  min-width: 0;
   min-height: 100%;
-  width: min(100%, 980px);
-  margin-inline: auto;
+
+  margin: 0;
   box-sizing: border-box;
 }
 
 .thread-shell__stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+
+  width: 100%;
+  min-width: 0;
   min-height: 100%;
+
+  gap: 0;
+  box-sizing: border-box;
+
+  /*
+    Não usamos justify-content: flex-end.
+    O pseudo-elemento abaixo empurra o conteúdo para a base
+    apenas quando há espaço livre.
+  */
+  justify-content: flex-start;
 }
 
+.thread-shell__stack::before {
+  content: '';
+  display: block;
+  margin-top: auto;
+  flex: 0 0 auto;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Separador de data                                                          */
+/* -------------------------------------------------------------------------- */
+
+.thread-shell__date-separator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  width: 100%;
+  margin: 14px 0 10px;
+
+  pointer-events: none;
+  user-select: none;
+}
+
+.thread-shell__date-separator span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  max-width: min(100%, 280px);
+  padding: 5px 12px;
+
+  border: 1px solid color-mix(in oklab, var(--surface-border) 76%, transparent);
+  border-radius: 999px;
+
+  background: color-mix(in oklab, var(--surface-color) 92%, var(--background-color));
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+
+  font-size: 0.72rem;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.015em;
+
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Empty state                                                                */
+/* -------------------------------------------------------------------------- */
+
 .thread-shell__empty {
-  max-width: 620px;
-  margin: 2rem auto;
+  width: min(100%, 620px);
+  margin: auto;
   padding: 22px 20px;
+
   border: 1px dashed var(--surface-border);
   border-radius: 18px;
+
   background: color-mix(in oklab, var(--surface-color) 94%, transparent);
   text-align: center;
+
   box-shadow: var(--box-shadow);
+  box-sizing: border-box;
 }
 
 .thread-shell__empty-title {
   margin: 0 0 8px;
+
   font-size: 1.02rem;
-  font-weight: 700;
+  font-weight: 800;
+
   color: var(--text-color);
 }
 
 .thread-shell__empty-text {
   margin: 0;
+
   line-height: 1.55;
+
   color: color-mix(in oklab, var(--text-color) 72%, transparent);
 }
 
-@media (max-width: 768px) {
-  .thread-shell__stack {
-    gap: 10px;
-  }
+/* -------------------------------------------------------------------------- */
+/* Dark mode                                                                  */
+/* -------------------------------------------------------------------------- */
 
+:host-context(html.dark-mode) .thread-shell__empty {
+  background: #101722;
+  border-color: rgba(240, 246, 252, 0.12);
+  box-shadow: 0 18px 46px rgba(0, 0, 0, 0.34);
+}
+
+:host-context(html.dark-mode) .thread-shell__date-separator span {
+  background: #101722;
+  border-color: rgba(240, 246, 252, 0.12);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Alto contraste                                                             */
+/* -------------------------------------------------------------------------- */
+
+:host-context(html.high-contrast) .thread-shell__empty,
+:host-context(html.high-contrast) .thread-shell__date-separator span {
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  border: 2px solid currentColor !important;
+  box-shadow: none !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsividade                                                             */
+/* -------------------------------------------------------------------------- */
+
+@media (max-width: 768px) {
   .thread-shell__empty {
-    margin: 1rem auto;
+    width: min(100%, 560px);
     padding: 18px 16px;
     border-radius: 14px;
+  }
+
+  .thread-shell__date-separator {
+    margin: 12px 0 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .thread-shell__empty {
+    padding: 16px 14px;
+  }
+
+  .thread-shell__empty-title {
+    font-size: 0.98rem;
+  }
+
+  .thread-shell__empty-text {
+    font-size: 0.9rem;
+  }
+
+  .thread-shell__date-separator span {
+    font-size: 0.68rem;
+    padding: 5px 10px;
   }
 }

@@ -1,21 +1,83 @@
 /* src/app/chat-module/chat-message/chat-message.component.css */
 /* -------------------------------------------------------------------------- */
-/* Mensagem individual                                                        */
-/* Objetivos desta versão:                                                    */
-/* - aproximar a thread do padrão de plataformas maiores                      */
-/* - reforçar distinção entre enviada e recebida                              */
-/* - reduzir ruído no header/footer                                           */
-/* - manter acessibilidade e delete discreto                                  */
+/* Mensagem individual — corredor operacional estilo WhatsApp Web              */
+/* -------------------------------------------------------------------------- */
+
+:host {
+  display: block;
+
+  /*
+    A conversa ocupa a tela toda, mas as mensagens vivem dentro
+    de uma faixa operacional. A faixa NÃO é centralizada:
+    ela nasce à esquerda da área de conversa e limita o excesso
+    de distância entre mensagens recebidas e enviadas.
+  */
+  --message-lane-max: 1120px;
+  --message-side-gutter: clamp(18px, 2.2vw, 42px);
+
+  --message-bubble-max: min(58ch, 68%);
+  --message-bubble-radius: 16px;
+  --message-bubble-radius-tight: 7px;
+
+  --message-sent-bg: color-mix(
+    in oklab,
+    var(--primary-color) 9%,
+    var(--surface-color)
+  );
+
+  --message-sent-border: color-mix(
+    in oklab,
+    var(--primary-color) 18%,
+    var(--surface-border)
+  );
+
+  --message-received-bg: color-mix(
+    in oklab,
+    var(--surface-color) 97%,
+    var(--background-color)
+  );
+
+  --message-received-border: color-mix(
+    in oklab,
+    var(--surface-border) 76%,
+    transparent
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Linha                                                                       */
 /* -------------------------------------------------------------------------- */
 
 .thread-message {
   display: flex;
   width: 100%;
+  min-width: 0;
+  padding-block: 1px;
+  box-sizing: border-box;
 }
 
+.thread-message--group-start,
+.thread-message--group-single {
+  margin-top: 9px;
+}
+
+.thread-message--group-middle,
+.thread-message--group-end {
+  margin-top: 2px;
+}
+
+/*
+  Mudança principal:
+  - antes: mensagens usavam a largura toda ou lane centralizada;
+  - agora: corredor com largura máxima, ancorado à esquerda.
+*/
 .thread-message__rail {
   display: flex;
   width: 100%;
+  min-width: 0;
+  margin-inline: auto;
+  padding-inline: var(--message-side-gutter);
+  box-sizing: border-box;
 }
 
 .thread-message--sent .thread-message__rail {
@@ -26,147 +88,341 @@
   justify-content: flex-start;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Bolha                                                                       */
+/* -------------------------------------------------------------------------- */
+
 .thread-message__bubble {
+  position: relative;
+
   width: fit-content;
-  max-width: min(100%, 720px);
-  min-width: 160px;
+  max-width: var(--message-bubble-max);
+  min-width: 0;
+
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px 12px;
-  border-radius: 18px;
-  border: 1px solid var(--surface-border);
-  box-shadow: var(--box-shadow);
+  gap: 4px;
+
+  padding: 8px 10px 6px;
+
+  border: 1px solid transparent;
+  border-radius: var(--message-bubble-radius);
+
+  color: var(--text-color);
+  box-shadow: none;
   box-sizing: border-box;
-  position: relative;
+  overflow: visible;
 }
 
 .thread-message--sent .thread-message__bubble {
-  background: color-mix(in oklab, var(--primary-color) 12%, var(--surface-color));
-  border-color: color-mix(in oklab, var(--primary-color) 28%, var(--surface-border));
-  border-bottom-right-radius: 8px;
+  background: var(--message-sent-bg);
+  border-color: var(--message-sent-border);
 }
 
 .thread-message--received .thread-message__bubble {
-  background: var(--surface-color);
-  border-bottom-left-radius: 8px;
+  background: var(--message-received-bg);
+  border-color: var(--message-received-border);
 }
 
-.thread-message--room.thread-message--received .thread-message__bubble,
-.thread-message--room.thread-message--sent .thread-message__bubble {
-  background: color-mix(in oklab, var(--surface-color) 88%, transparent);
+/* -------------------------------------------------------------------------- */
+/* Agrupamento                                                                 */
+/* -------------------------------------------------------------------------- */
+
+.thread-message--sent.thread-message--group-start:not(.thread-message--group-single)
+  .thread-message__bubble {
+  border-bottom-right-radius: var(--message-bubble-radius-tight);
 }
+
+.thread-message--sent.thread-message--group-middle .thread-message__bubble {
+  border-top-right-radius: var(--message-bubble-radius-tight);
+  border-bottom-right-radius: var(--message-bubble-radius-tight);
+}
+
+.thread-message--sent.thread-message--group-end:not(.thread-message--group-single)
+  .thread-message__bubble {
+  border-top-right-radius: var(--message-bubble-radius-tight);
+}
+
+.thread-message--received.thread-message--group-start:not(.thread-message--group-single)
+  .thread-message__bubble {
+  border-bottom-left-radius: var(--message-bubble-radius-tight);
+}
+
+.thread-message--received.thread-message--group-middle .thread-message__bubble {
+  border-top-left-radius: var(--message-bubble-radius-tight);
+  border-bottom-left-radius: var(--message-bubble-radius-tight);
+}
+
+.thread-message--received.thread-message--group-end:not(.thread-message--group-single)
+  .thread-message__bubble {
+  border-top-left-radius: var(--message-bubble-radius-tight);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Header                                                                      */
+/* -------------------------------------------------------------------------- */
 
 .thread-message__header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  min-height: 0;
 }
 
 .thread-message__sender {
   margin: 0;
-  font-size: 0.88rem;
-  font-weight: 700;
+  max-width: 100%;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 0.73rem;
+  font-weight: 800;
   line-height: 1.2;
-  color: color-mix(in oklab, var(--text-color) 84%, transparent);
+
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
 }
 
+/* -------------------------------------------------------------------------- */
+/* Conteúdo                                                                    */
+/* -------------------------------------------------------------------------- */
+
+.thread-message__content {
+  margin: 0;
+
+  font-size: 0.94rem;
+  line-height: 1.42;
+  font-weight: 500;
+
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: anywhere;
+
+  color: var(--text-color);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Rodapé                                                                      */
+/* -------------------------------------------------------------------------- */
+
+.thread-message__footer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  align-self: flex-end;
+  gap: 5px;
+
+  min-height: 13px;
+  margin-top: -1px;
+  padding-left: 22px;
+}
+
+.thread-message__time {
+  font-size: 0.66rem;
+  line-height: 1;
+  white-space: nowrap;
+
+  color: color-mix(in oklab, var(--text-color) 48%, transparent);
+}
+
+.thread-message__status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 18px;
+
+  font-size: 0.72rem;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.1em;
+  white-space: nowrap;
+}
+
+.thread-message__status--sent {
+  color: color-mix(in oklab, var(--text-color) 44%, transparent);
+}
+
+.thread-message__status--delivered {
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+}
+
+.thread-message__status--read {
+  color: #4da3ff;
+  text-shadow: 0 0 10px rgba(77, 163, 255, 0.22);
+}
+
+.thread-message__status-text {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Delete discreto                                                             */
+/* -------------------------------------------------------------------------- */
+
 .thread-message__delete {
-  flex: 0 0 auto;
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  z-index: 2;
+
+  width: 28px;
+  height: 28px;
+
+  display: inline-grid;
+  place-items: center;
+
   border: none;
-  background: transparent;
+  border-radius: 999px;
+
+  background: color-mix(in oklab, var(--surface-color) 88%, transparent);
   color: var(--danger-color, #d1005c);
+
   cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.18s ease, transform 0.18s ease;
-  padding: 0;
-  min-width: 28px;
-  min-height: 28px;
+
+  opacity: 0;
+  transform: scale(0.96);
+
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.thread-message__bubble:hover .thread-message__delete,
+.thread-message__bubble:focus-within .thread-message__delete,
+.thread-message__delete:focus-visible {
+  opacity: 0.86;
+  transform: scale(1);
 }
 
 .thread-message__delete:hover,
 .thread-message__delete:focus-visible {
   opacity: 1;
-  transform: scale(1.05);
+  background: color-mix(
+    in oklab,
+    var(--danger-color, #d1005c) 14%,
+    var(--surface-color)
+  );
 }
 
-.thread-message__content {
-  margin: 0;
-  font-size: 0.97rem;
-  line-height: 1.58;
-  word-break: break-word;
-  white-space: pre-wrap;
-  color: var(--text-color);
+.thread-message__delete:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
-.thread-message__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.thread-message--sent .thread-message__footer {
-  justify-content: flex-end;
-}
-
-.thread-message__time,
-.thread-message__status {
-  margin: 0;
-  font-size: 0.74rem;
-  line-height: 1.2;
-}
-
-.thread-message__time {
-  color: color-mix(in oklab, var(--text-color) 58%, transparent);
-}
-
-.thread-message__status {
-  color: color-mix(in oklab, var(--text-color) 60%, transparent);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 52px;
-  justify-content: flex-end;
-}
-
-.thread-message__status.sent::before {
-  content: '✓';
-  font-weight: 700;
-}
-
-.thread-message__status.delivered::before {
-  content: '✓✓';
-  font-weight: 700;
-}
-
-.thread-message__status.read::before {
-  content: '✓✓';
-  font-weight: 700;
-  color: var(--primary-color);
-}
-
-@media (max-width: 768px) {
-  .thread-message__bubble {
-    max-width: 100%;
-    padding: 12px 14px 10px;
-    border-radius: 16px;
+@media (hover: none) {
+  .thread-message__delete {
+    opacity: 0.56;
   }
 }
 
-@media (max-width: 480px) {
+/* -------------------------------------------------------------------------- */
+/* Dark mode                                                                   */
+/* -------------------------------------------------------------------------- */
+
+:host-context(html.dark-mode) {
+  --message-sent-bg: color-mix(in oklab, var(--primary-color) 8%, #1a1721);
+  --message-sent-border: color-mix(
+    in oklab,
+    var(--primary-color) 18%,
+    rgba(255, 255, 255, 0.08)
+  );
+
+  --message-received-bg: #101722;
+  --message-received-border: rgba(255, 255, 255, 0.08);
+}
+
+:host-context(html.dark-mode) .thread-message__delete {
+  background: rgba(15, 22, 32, 0.92);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Alto contraste                                                              */
+/* -------------------------------------------------------------------------- */
+
+:host-context(html.high-contrast) .thread-message__bubble {
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  border: 2px solid currentColor !important;
+  box-shadow: none !important;
+}
+
+:host-context(html.high-contrast) .thread-message__delete {
+  opacity: 1;
+  background: var(--background-color);
+  color: var(--text-color);
+  border: 2px solid currentColor;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Responsividade                                                              */
+/* -------------------------------------------------------------------------- */
+
+@media (min-width: 1600px) {
+  :host {
+    --message-lane-max: 1180px;
+    --message-side-gutter: 38px;
+    --message-bubble-max: min(66ch, 66%);
+  }
+}
+
+@media (max-width: 1200px) {
+  :host {
+    --message-lane-max: 100%;
+    --message-side-gutter: clamp(14px, 3vw, 36px);
+    --message-bubble-max: min(62ch, 72%);
+  }
+}
+
+@media (max-width: 900px) {
+  :host {
+    --message-side-gutter: 12px;
+    --message-bubble-max: 78%;
+  }
+}
+
+@media (max-width: 560px) {
+  :host {
+    --message-side-gutter: 8px;
+    --message-bubble-max: 88%;
+  }
+
+  .thread-message--group-start,
+  .thread-message--group-single {
+    margin-top: 8px;
+  }
+
   .thread-message__bubble {
-    min-width: 0;
-    width: 100%;
+    padding: 8px 9px 6px;
+    border-radius: 15px;
+  }
+
+  .thread-message__content {
+    font-size: 0.93rem;
+    line-height: 1.4;
   }
 
   .thread-message__footer {
-    align-items: flex-start;
+    padding-left: 18px;
+  }
+}
+
+@media (max-width: 360px) {
+  :host {
+    --message-side-gutter: 6px;
+    --message-bubble-max: 92%;
   }
 
-  .thread-message--sent .thread-message__footer {
-    align-items: flex-end;
+  .thread-message__bubble {
+    padding-inline: 8px;
   }
 }

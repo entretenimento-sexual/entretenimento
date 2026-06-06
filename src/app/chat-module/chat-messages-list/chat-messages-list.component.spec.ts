@@ -1,4 +1,5 @@
 // src/app/chat-module/chat-messages-list/chat-messages-list.component.spec.ts
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 

@@ -2,65 +2,79 @@
 
 <div class="conversation-list">
   @if (vm$ | async; as vm) {
-    <section class="conversation-list__search" aria-label="Buscar conversas">
-      <div class="conversation-list__search-box">
-        <span class="conversation-list__search-icon" aria-hidden="true">⌕</span>
+    <header class="conversation-list__toolbar">
+      <section class="conversation-list__search" aria-label="Buscar conversas">
+        <div class="conversation-list__search-box">
+          <span class="conversation-list__search-icon" aria-hidden="true">⌕</span>
 
-        <input
-          type="text"
-          [ngModel]="vm.searchTerm"
-          (ngModelChange)="setSearchTerm($event)"
-          placeholder="Buscar conversas..."
-          aria-label="Buscar conversas"
-        />
+          <input
+            type="text"
+            [ngModel]="vm.searchTerm"
+            (ngModelChange)="setSearchTerm($event)"
+            placeholder="Buscar conversas..."
+            aria-label="Buscar conversas"
+            autocomplete="off"
+          />
 
-        @if (vm.hasSearch) {
-          <button
-            type="button"
-            class="conversation-list__search-clear"
-            aria-label="Limpar busca"
-            (click)="clearSearch()"
-          >
-            ✕
-          </button>
-        }
-      </div>
-    </section>
+          @if (vm.hasSearch) {
+            <button
+              type="button"
+              class="conversation-list__search-clear"
+              aria-label="Limpar busca"
+              (click)="clearSearch()"
+            >
+              ✕
+            </button>
+          }
+        </div>
+      </section>
 
-    <section
-      class="conversation-list__filters"
-      aria-label="Filtros da caixa de entrada"
-    >
-      <button
-        type="button"
-        class="conversation-list__chip"
-        [class.conversation-list__chip--active]="vm.activeFilter === 'all'"
-        [attr.aria-pressed]="vm.activeFilter === 'all'"
-        (click)="setActiveFilter('all')"
+      <section
+        class="conversation-list__filters"
+        aria-label="Filtros da caixa de entrada"
       >
-        Todas
-      </button>
+        <button
+          type="button"
+          class="conversation-list__chip"
+          [class.conversation-list__chip--active]="vm.activeFilter === 'all'"
+          [attr.aria-pressed]="vm.activeFilter === 'all'"
+          (click)="setActiveFilter('all')"
+        >
+          Todas
+        </button>
 
-      <button
-        type="button"
-        class="conversation-list__chip"
-        [class.conversation-list__chip--active]="vm.activeFilter === 'direct'"
-        [attr.aria-pressed]="vm.activeFilter === 'direct'"
-        (click)="setActiveFilter('direct')"
-      >
-        Diretas
-      </button>
+        <button
+          type="button"
+          class="conversation-list__chip"
+          [class.conversation-list__chip--active]="vm.activeFilter === 'direct'"
+          [attr.aria-pressed]="vm.activeFilter === 'direct'"
+          (click)="setActiveFilter('direct')"
+        >
+          {{ vm.directChipLabel }}
+        </button>
 
-      <button
-        type="button"
-        class="conversation-list__chip"
-        [class.conversation-list__chip--active]="vm.activeFilter === 'rooms'"
-        [attr.aria-pressed]="vm.activeFilter === 'rooms'"
-        (click)="setActiveFilter('rooms')"
-      >
-        {{ vm.roomsChipLabel }}
-      </button>
-    </section>
+        <button
+          type="button"
+          class="conversation-list__chip"
+          [class.conversation-list__chip--active]="vm.activeFilter === 'rooms'"
+          [attr.aria-pressed]="vm.activeFilter === 'rooms'"
+          (click)="setActiveFilter('rooms')"
+        >
+          {{ vm.roomsChipLabel }}
+        </button>
+
+        <button
+          type="button"
+          class="conversation-list__chip conversation-list__chip--privacy"
+          [class.conversation-list__chip--active]="vm.hideMessagePreviews"
+          [attr.aria-pressed]="vm.hideMessagePreviews"
+          [attr.aria-label]="vm.hideMessagePreviews ? 'Mostrar prévias de mensagens' : 'Ocultar prévias de mensagens'"
+          (click)="toggleMessagePreviews()"
+        >
+          {{ vm.hideMessagePreviews ? 'Discreto ON' : 'Discreto' }}
+        </button>
+      </section>
+    </header>
 
     <div class="conversation-list__scroll">
       @if (vm.showDirectChats && vm.filteredDirectChats.length > 0) {
@@ -75,6 +89,15 @@
             >
               Conversas diretas
             </h3>
+
+            @if (vm.directUnreadCount > 0) {
+              <span
+                class="conversation-list__section-badge"
+                [attr.aria-label]="vm.directUnreadCount + ' mensagens diretas não lidas'"
+              >
+                {{ vm.directUnreadCount > 99 ? '99+' : vm.directUnreadCount }}
+              </span>
+            }
           </header>
 
           <div class="conversation-list__items">
@@ -84,24 +107,61 @@
                 class="conversation-card"
                 (click)="selectChat(chat)"
                 [class.conversation-card--selected]="isDirectChatSelected(chat.id)"
+                [class.conversation-card--unread]="hasUnread(chat)"
+                [attr.aria-label]="getDirectChatAriaLabel(chat)"
                 [attr.aria-pressed]="isDirectChatSelected(chat.id)"
               >
-                <img
-                  class="conversation-card__avatar"
-                  [src]="getDirectChatPhotoURL(chat)"
-                  [alt]="'Foto de ' + (chat.otherParticipantNickname || 'usuário')"
-                  loading="lazy"
-                />
+                <span class="conversation-card__avatar-wrap">
+                  <img
+                    class="conversation-card__avatar"
+                    [src]="getDirectChatPhotoURL(chat)"
+                    [alt]="'Foto de ' + getDirectChatTitle(chat)"
+                    loading="lazy"
+                  />
 
-                <div class="conversation-card__content">
-                  <p class="conversation-card__name">
-                    {{ chat.otherParticipantNickname || 'Usuário' }}
-                  </p>
+                  @if (hasUnread(chat)) {
+                    <span
+                      class="conversation-card__unread-dot"
+                      aria-hidden="true"
+                    ></span>
+                  }
+                </span>
 
-                  <p class="conversation-card__meta">
-                    {{ chat.lastMessagePreview || 'Nenhuma mensagem recente.' }}
-                  </p>
-                </div>
+                <span class="conversation-card__content">
+                  <span class="conversation-card__topline">
+                    <span class="conversation-card__name">
+                      {{ getDirectChatTitle(chat) }}
+                    </span>
+
+                    @if (getDirectChatActivityEpoch(chat); as activityEpoch) {
+                      <time
+                        class="conversation-card__time"
+                        [attr.title]="activityEpoch | dateFormat:'datetime'"
+                      >
+                        {{ activityEpoch | timeAgo }}
+                      </time>
+                    }
+                  </span>
+
+                  <span class="conversation-card__bottomline">
+                    <span class="conversation-card__meta">
+                      {{ getDirectChatPreview(chat) }}
+                    </span>
+
+                    @if (hasUnread(chat)) {
+                      <span
+                        class="conversation-card__badge"
+                        [attr.aria-label]="chat.unreadCount + ' mensagens não lidas'"
+                      >
+                        {{ getUnreadLabel(chat.unreadCount) }}
+                      </span>
+                    }
+                  </span>
+
+                  <span class="conversation-card__status">
+                    {{ getDirectChatStatusLabel(chat) }}
+                  </span>
+                </span>
               </button>
             }
           </div>
@@ -127,17 +187,29 @@
                   class="room-card__main"
                   (click)="selectRoom(room.id)"
                   [class.room-card__main--selected]="isRoomSelected(room.id)"
+                  [attr.aria-label]="getRoomAriaLabel(room)"
                   [attr.aria-pressed]="isRoomSelected(room.id)"
                 >
-                  <div class="room-card__content">
-                    <span class="room-card__name">
-                      {{ room.roomName }}
+                  <span class="room-card__content">
+                    <span class="room-card__topline">
+                      <span class="room-card__name">
+                        {{ getRoomTitle(room) }}
+                      </span>
+
+                      @if (getRoomActivityEpoch(room); as roomActivityEpoch) {
+                        <time
+                          class="room-card__time"
+                          [attr.title]="roomActivityEpoch | dateFormat:'datetime'"
+                        >
+                          {{ roomActivityEpoch | timeAgo }}
+                        </time>
+                      }
                     </span>
 
                     <span class="room-card__meta">
-                      {{ room.description || 'Sala ativa para interação em grupo.' }}
+                      {{ getRoomPreview(room) }}
                     </span>
-                  </div>
+                  </span>
                 </button>
 
                 @if (isOwner(room) && vm.activeFilter === 'rooms') {

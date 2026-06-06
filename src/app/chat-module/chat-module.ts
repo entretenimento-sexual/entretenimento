@@ -26,6 +26,8 @@ import { RoomsModule } from './rooms/rooms.module';
 import { CommunitiesModule } from './communities/communities.module';
 import { CreateRoomModalComponent } from './modals/create-room-modal/create-room-modal.component';
 import { BaseModalComponent } from './modals/base-modal/base-modal.component';
+import { TimeAgoPipe } from 'src/app/shared/pipes/time-ago.pipe';
+import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 
 @NgModule({
   declarations: [
@@ -56,6 +58,8 @@ import { BaseModalComponent } from './modals/base-modal/base-modal.component';
     CommunitiesModule,
     NgOptimizedImage,
     BaseModalComponent,
+    TimeAgoPipe,
+    DateFormatPipe,
   ],
 })
 export class ChatModule {}
