@@ -24,6 +24,7 @@
 import { Injectable } from '@angular/core';
 import { environment } from 'src/environments/environment';
 
+// privacy-debug-logger.service.ts
 export type PrivacyDebugChannel =
   | 'cache'
   | 'auth'
@@ -37,6 +38,7 @@ export type PrivacyDebugChannel =
   | 'layout'
   | 'profile'
   | 'storage'
+  | 'media'
   | 'generic';
 
 type ConsoleLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -54,6 +56,7 @@ const CHANNEL_FLAGS: Record<PrivacyDebugChannel, string> = {
   layout: 'DEBUG_LAYOUT',
   profile: 'DEBUG_PROFILE',
   storage: 'DEBUG_STORAGE',
+  media: 'DEBUG_MEDIA',
   generic: 'DEBUG_GENERIC',
 };
 
@@ -70,6 +73,7 @@ const CHANNEL_PREFIXES: Record<PrivacyDebugChannel, string> = {
   layout: 'Layout',
   profile: 'Profile',
   storage: 'Storage',
+  media: 'Media',
   generic: 'Debug',
 };
 
