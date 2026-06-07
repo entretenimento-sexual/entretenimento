@@ -1,4 +1,12 @@
-<!-- src\app\layout\other-user-profile-view\other-user-profile-view.component.html -->
+<!-- src/app/layout/other-user-profile-view/other-user-profile-view.component.html -->
+<!--
+  PERFIL ALHEIO / PÚBLICO
+
+  Este template não contém edição.
+  Este template não usa UserPhotoManagerComponent.
+  Fotos levam para a galeria pública aprovada.
+-->
+
 <section
   class="other-profile-page"
   aria-labelledby="profile-heading"
@@ -14,139 +22,163 @@
     </a>
   </header>
 
-  <section class="other-profile-page__hero" *ngIf="userProfile as profile">
-    <div class="other-profile-page__hero-main">
-      <figure class="other-profile-page__photo-wrap">
-        <img
-          [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
-          [attr.alt]="profile.nickname ? ('Foto de perfil de ' + profile.nickname) : 'Foto de perfil padrão'"
-          class="other-profile-page__photo"
-          width="160"
-          height="160"
-          loading="lazy"
-          decoding="async"
-        />
-        <figcaption class="visually-hidden">
-          {{ displayName }}
-        </figcaption>
-      </figure>
+  @if (isLoading) {
+    <section class="other-profile-page__panel" role="status" aria-live="polite">
+      <p>Carregando perfil...</p>
+    </section>
+  } @else {
+    @if (userProfile; as profile) {
+      <section class="other-profile-page__hero">
+        <div class="other-profile-page__hero-main">
+          <figure class="other-profile-page__photo-wrap">
+            <img
+              [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
+              [attr.alt]="profile.nickname ? ('Foto de perfil de ' + profile.nickname) : 'Foto de perfil padrão'"
+              class="other-profile-page__photo"
+              width="160"
+              height="160"
+              loading="lazy"
+              decoding="async"
+            />
 
-      <div class="other-profile-page__identity">
-        <p class="other-profile-page__eyebrow">Perfil público</p>
-        <h1 id="profile-heading" class="other-profile-page__title">
-          {{ displayName }}
-        </h1>
+            <figcaption class="visually-hidden">
+              {{ displayName }}
+            </figcaption>
+          </figure>
 
-        <p class="other-profile-page__location" *ngIf="hasLocation">
-          <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
-          {{ profile.municipio }}, {{ profile.estado }}
-        </p>
+          <div class="other-profile-page__identity">
+            <p class="other-profile-page__eyebrow">Perfil</p>
 
-        <div class="other-profile-page__meta">
-          <span class="other-profile-page__chip">
-            {{ profile.gender ? (profile.gender | titlecase) : 'Gênero não informado' }}
-          </span>
+            <h1 id="profile-heading" class="other-profile-page__title">
+              {{ displayName }}
+            </h1>
 
-          <span class="other-profile-page__chip">
-            {{ profile.orientation || 'Orientação não informada' }}
-          </span>
+            @if (hasLocation) {
+              <p class="other-profile-page__location">
+                <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
+                {{ profile.municipio }}, {{ profile.estado }}
+              </p>
+            }
+
+            <div class="other-profile-page__meta">
+              <span class="other-profile-page__chip">
+                {{ profile.gender ? (profile.gender | titlecase) : 'Gênero não informado' }}
+              </span>
+
+              <span class="other-profile-page__chip">
+                {{ profile.orientation || 'Orientação não informada' }}
+              </span>
+            </div>
+
+            <p class="other-profile-page__description">
+              {{ hasDescription ? profile.descricao : 'Este usuário ainda não adicionou uma descrição pública.' }}
+            </p>
+          </div>
         </div>
 
-        <p class="other-profile-page__description">
-          {{ hasDescription ? profile.descricao : 'Este usuário ainda não adicionou uma descrição pública.' }}
-        </p>
-      </div>
-    </div>
+        <aside class="other-profile-page__actions-card" aria-label="Ações rápidas do perfil">
+          <h2 class="other-profile-page__actions-title">Ações do perfil</h2>
 
-    <aside class="other-profile-page__actions-card" aria-label="Ações rápidas do perfil">
-      <h2 class="other-profile-page__actions-title">Ações do perfil</h2>
+          <div class="other-profile-page__actions">
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="sendFriendRequest()"
+              [disabled]="(friendRequestBusy$ | async) === true || !uid"
+            >
+              {{ (friendRequestBusy$ | async) ? 'Enviando...' : 'Solicitar amizade' }}
+            </button>
 
-      <div class="other-profile-page__actions">
-        <button
-          type="button"
-          class="btn btn-primary"
-          (click)="sendFriendRequest()"
-          [disabled]="(friendRequestBusy$ | async) === true || !uid"
-        >
-          {{ (friendRequestBusy$ | async) ? 'Enviando...' : 'Solicitar amizade' }}
-        </button>
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="startDirectChat()"
+              [disabled]="(directChatBusy$ | async) === true || !uid"
+            >
+              {{ (directChatBusy$ | async) ? 'Preparando...' : 'Iniciar chat' }}
+            </button>
 
-        <button
-          type="button"
-          class="btn btn-secondary"
-          (click)="startDirectChat()"
-          [disabled]="(directChatBusy$ | async) === true || !uid"
-        >
-          {{ (directChatBusy$ | async) ? 'Preparando...' : 'Iniciar chat' }}
-        </button>
+            @if (photosLink) {
+              <a
+                class="btn btn-secondary"
+                [routerLink]="photosLink"
+              >
+                Ver fotos públicas
+              </a>
+            }
 
-        <a
-          class="btn btn-secondary"
-          *ngIf="photosLink"
-          [routerLink]="photosLink"
-        >
-          Ver fotos
+            <a
+              class="btn btn-ghost"
+              [routerLink]="invitesLink"
+            >
+              Meus convites
+            </a>
+          </div>
+
+          <p class="other-profile-page__actions-helper">
+            Solicite amizade, inicie conversa direta quando permitido ou veja as fotos públicas aprovadas.
+          </p>
+        </aside>
+      </section>
+
+      <section class="other-profile-page__content">
+        <article class="other-profile-page__panel">
+          <header class="other-profile-page__panel-header">
+            <div>
+              <p class="other-profile-page__eyebrow">Apresentação</p>
+              <h2>Resumo do perfil</h2>
+            </div>
+          </header>
+
+          <dl class="other-profile-page__facts">
+            <div class="other-profile-page__fact">
+              <dt>Apelido</dt>
+              <dd>{{ profile.nickname || 'Não informado' }}</dd>
+            </div>
+
+            <div class="other-profile-page__fact">
+              <dt>Gênero</dt>
+              <dd>{{ profile.gender ? (profile.gender | titlecase) : 'Não informado' }}</dd>
+            </div>
+
+            <div class="other-profile-page__fact">
+              <dt>Orientação</dt>
+              <dd>{{ profile.orientation || 'Não informada' }}</dd>
+            </div>
+
+            @if (hasLocation) {
+              <div class="other-profile-page__fact">
+                <dt>Localização</dt>
+                <dd>{{ profile.municipio }}, {{ profile.estado }}</dd>
+              </div>
+            }
+          </dl>
+        </article>
+
+        <article class="other-profile-page__panel" role="region" aria-labelledby="social-heading">
+          <header class="other-profile-page__panel-header">
+            <div>
+              <p class="other-profile-page__eyebrow">Contato público</p>
+              <h2 id="social-heading">Redes sociais</h2>
+            </div>
+          </header>
+
+          <app-social-links-accordion
+            [uid]="uid"
+            [isOwner]="false"
+            aria-label="Links sociais públicos do usuário"
+          ></app-social-links-accordion>
+        </article>
+      </section>
+    } @else {
+      <section class="other-profile-page__panel" role="status" aria-live="polite">
+        <h1 id="profile-heading">Perfil indisponível</h1>
+        <p>Não foi possível carregar este perfil no momento.</p>
+
+        <a class="btn btn-secondary" [routerLink]="discoveryLink">
+          Voltar para descoberta
         </a>
-
-        <a
-          class="btn btn-ghost"
-          [routerLink]="invitesLink"
-        >
-          Meus convites
-        </a>
-      </div>
-
-      <p class="other-profile-page__actions-helper">
-        Solicite amizade ou prepare uma conversa direta. Convites disponíveis hoje continuam ligados ao fluxo de salas.
-      </p>
-    </aside>
-  </section>
-
-  <section class="other-profile-page__content" *ngIf="hasProfile">
-    <article class="other-profile-page__panel">
-      <header class="other-profile-page__panel-header">
-        <div>
-          <p class="other-profile-page__eyebrow">Apresentação</p>
-          <h2>Resumo do perfil</h2>
-        </div>
-      </header>
-
-      <dl class="other-profile-page__facts">
-        <div class="other-profile-page__fact">
-          <dt>Apelido</dt>
-          <dd>{{ userProfile?.nickname || 'Não informado' }}</dd>
-        </div>
-
-        <div class="other-profile-page__fact">
-          <dt>Gênero</dt>
-          <dd>{{ userProfile?.gender ? (userProfile?.gender | titlecase) : 'Não informado' }}</dd>
-        </div>
-
-        <div class="other-profile-page__fact">
-          <dt>Orientação</dt>
-          <dd>{{ userProfile?.orientation || 'Não informada' }}</dd>
-        </div>
-
-        <div class="other-profile-page__fact" *ngIf="hasLocation">
-          <dt>Localização</dt>
-          <dd>{{ userProfile?.municipio }}, {{ userProfile?.estado }}</dd>
-        </div>
-      </dl>
-    </article>
-
-    <article class="other-profile-page__panel" role="region" aria-labelledby="social-heading">
-      <header class="other-profile-page__panel-header">
-        <div>
-          <p class="other-profile-page__eyebrow">Contato público</p>
-          <h2 id="social-heading">Redes sociais</h2>
-        </div>
-      </header>
-
-      <app-social-links-accordion
-        [uid]="uid"
-        [isOwner]="false"
-        aria-label="Links sociais do usuário"
-      ></app-social-links-accordion>
-    </article>
-  </section>
+      </section>
+    }
+  }
 </section>

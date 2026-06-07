@@ -1,15 +1,31 @@
 // src/app/user-profile/user-profile-routing.module.ts
-// Rotas do perfil.
+// -----------------------------------------------------------------------------
+// ROTAS DO PERFIL
+// -----------------------------------------------------------------------------
 //
-// Regras:
-// - /perfil -> próprio perfil
-// - /perfil/:uid -> visualização do perfil informado
-// - rotas de edição ficam acima da rota genérica :uid
-// - edição do próprio perfil exige apenas autenticação + ownership
+// Regra definitiva:
 //
-// Observação:
-// - não usamos mais duplicações inúteis com :id e :uid ao mesmo tempo,
-//   porque :uid já cobre o path e evita ambiguidade.
+// - /perfil
+//   Abre o perfil do usuário autenticado.
+//
+// - /perfil/:uid
+//   Abre o perfil de outro usuário usando OtherUserProfileViewComponent.
+//
+// - /perfil/:uid/editar-dados-pessoais
+// - /perfil/:uid/edit-profile-preferences
+// - /perfil/:uid/edit-profile-social-links
+//   Rotas de edição protegidas por ownership.
+//
+// Motivo:
+//
+// O perfil próprio usa dados privados/controlados pelo estado autenticado.
+// O perfil de outro usuário usa a projeção pública/visível daquele perfil.
+//
+// Importante:
+//
+// As rotas de edição precisam ficar ANTES da rota genérica ':uid'.
+// Se a rota genérica vier antes, ela engole caminhos de edição.
+
 import { NgModule } from '@angular/core';
 import { RouterModule, Routes } from '@angular/router';
 
@@ -18,6 +34,8 @@ import { EditUserProfileComponent } from './user-profile-edit/edit-user-profile/
 import { EditProfileSocialLinksComponent } from './user-profile-edit/edit-profile-social-links/edit-profile-social-links.component';
 
 import { UserOwnerGuard } from '../core/guards/ownership-guard/user.owner.guard';
+import { emailVerifiedGuard } from '../core/guards/profile-guard/email-verified.guard';
+import { profileCompletedGuard } from '../core/guards/profile-guard/profile-completed.guard';
 
 const routes: Routes = [
   {
@@ -37,14 +55,36 @@ const routes: Routes = [
     component: EditProfileSocialLinksComponent,
     canActivate: [UserOwnerGuard],
   },
+
+  /**
+   * Meu perfil.
+   *
+   * A navegação principal "Meu Perfil" deve apontar para /perfil.
+   */
   {
     path: '',
     component: UserProfileViewComponent,
     pathMatch: 'full',
   },
+
+  /**
+   * Perfil de outro usuário.
+   *
+   * Mantém a URL natural:
+   * /perfil/:uid
+   *
+   * Mas usa o componente correto para perfil alheio.
+   */
   {
     path: ':uid',
-    component: UserProfileViewComponent,
+    loadComponent: () =>
+      import('../layout/other-user-profile-view/other-user-profile-view.component')
+        .then(c => c.OtherUserProfileViewComponent),
+    canActivate: [emailVerifiedGuard, profileCompletedGuard],
+    data: {
+      requireVerified: true,
+      requireProfileCompleted: true,
+    },
   },
 ];
 
