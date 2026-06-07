@@ -1,25 +1,36 @@
 // src/app/core/services/media/media-reactions.service.ts
-// Reações reais do domínio Media.
+// Reações públicas do domínio Media.
 //
-// AJUSTES DESTA VERSÃO:
-// - deixa de ser no-op
-// - usa Firestore real com subcoleção likes
-// - expõe contagem reativa
-// - expõe estado "curtido pelo usuário atual"
-// - toggle real com setDoc/deleteDoc
-//
-// OBSERVAÇÃO:
-// - pelas regras atuais e pela policy atual de fotos, as reações continuam owner-only.
-// - isso é coerente com o estado atual do domínio.
+// Objetivo:
+// - usar apenas a projeção pública da foto;
+// - não gravar curtidas na coleção privada users/{uid}/photos;
+// - permitir reação somente em foto pública, aprovada e com reações habilitadas;
+// - manter contagem reativa por campo agregado na foto pública;
+// - manter estado "curtido pelo usuário atual" por subdocumento;
+// - usar transaction para evitar inconsistência básica de contagem;
+// - centralizar erros;
+// - manter debug sanitizado via PrivacyDebugLoggerService.
 
 import { Injectable, inject } from '@angular/core';
-import { Firestore, collection, collectionData, deleteDoc, doc, docData, setDoc } from '@angular/fire/firestore';
-import { Observable, from, of } from 'rxjs';
+import {
+  Firestore,
+  doc,
+  docData,
+  runTransaction,
+} from '@angular/fire/firestore';
+import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay, switchMap, take } from 'rxjs/operators';
 
+import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+
+type PublicPhotoReactionDoc = {
+  uid: string;
+  createdAt: number;
+};
 
 @Injectable({ providedIn: 'root' })
 export class MediaReactionsService {
@@ -28,34 +39,45 @@ export class MediaReactionsService {
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
     private readonly errorNotifier: ErrorNotificationService,
-    private readonly errorHandler: GlobalErrorHandlerService
+    private readonly errorHandler: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
   getPhotoLikesCount$(ownerUid: string, photoId: string): Observable<number> {
-    const safeOwnerUid = (ownerUid ?? '').trim();
-    const safePhotoId = (photoId ?? '').trim();
+    const safeOwnerUid = this.cleanId(ownerUid);
+    const safePhotoId = this.cleanId(photoId);
 
     if (!safeOwnerUid || !safePhotoId) {
       return of(0);
     }
 
     return this.firestoreCtx.deferObservable$(() => {
-      const likesCollection = collection(
+      const photoRef = doc(
         this.firestore,
-        `users/${safeOwnerUid}/photos/${safePhotoId}/likes`
+        this.publicPhotoPath(safeOwnerUid, safePhotoId)
       );
 
-      return collectionData(likesCollection, { idField: 'id' }).pipe(
-        map((items) => items.length)
+      return docData(photoRef).pipe(
+        map((value) => {
+          const photo = value as Partial<IPublicPhotoItem> | undefined;
+          const count = Number(photo?.reactionsCount ?? photo?.likesCount ?? 0);
+
+          return Number.isFinite(count) && count > 0 ? count : 0;
+        })
       );
     }).pipe(
       catchError((error) => {
         this.reportError(
           'Erro ao carregar curtidas da foto.',
           error,
-          { op: 'getPhotoLikesCount$', ownerUid: safeOwnerUid, photoId: safePhotoId },
+          {
+            op: 'getPhotoLikesCount$',
+            hasOwnerUid: !!safeOwnerUid,
+            hasPhotoId: !!safePhotoId,
+          },
           true
         );
+
         return of(0);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -67,31 +89,35 @@ export class MediaReactionsService {
     photoId: string,
     viewerUid: string | null
   ): Observable<boolean> {
-    const safeOwnerUid = (ownerUid ?? '').trim();
-    const safePhotoId = (photoId ?? '').trim();
-    const safeViewerUid = (viewerUid ?? '').trim();
+    const safeOwnerUid = this.cleanId(ownerUid);
+    const safePhotoId = this.cleanId(photoId);
+    const safeViewerUid = this.cleanId(viewerUid);
 
     if (!safeOwnerUid || !safePhotoId || !safeViewerUid) {
       return of(false);
     }
 
     return this.firestoreCtx.deferObservable$(() => {
-      const likeDocRef = doc(
+      const likeRef = doc(
         this.firestore,
-        `users/${safeOwnerUid}/photos/${safePhotoId}/likes/${safeViewerUid}`
+        this.publicPhotoLikePath(safeOwnerUid, safePhotoId, safeViewerUid)
       );
 
-      return docData(likeDocRef, { idField: 'id' }).pipe(
-        map((value) => !!value)
-      );
+      return docData(likeRef).pipe(map((value) => !!value));
     }).pipe(
       catchError((error) => {
         this.reportError(
           'Erro ao verificar curtida da foto.',
           error,
-          { op: 'isPhotoLikedByViewer$', ownerUid: safeOwnerUid, photoId: safePhotoId, viewerUid: safeViewerUid },
+          {
+            op: 'isPhotoLikedByViewer$',
+            hasOwnerUid: !!safeOwnerUid,
+            hasPhotoId: !!safePhotoId,
+            hasViewerUid: !!safeViewerUid,
+          },
           true
         );
+
         return of(false);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
@@ -103,45 +129,144 @@ export class MediaReactionsService {
     photoId: string,
     viewerUid: string | null
   ): Observable<void> {
-    const safeOwnerUid = (ownerUid ?? '').trim();
-    const safePhotoId = (photoId ?? '').trim();
-    const safeViewerUid = (viewerUid ?? '').trim();
+    const safeOwnerUid = this.cleanId(ownerUid);
+    const safePhotoId = this.cleanId(photoId);
+    const safeViewerUid = this.cleanId(viewerUid);
 
     if (!safeOwnerUid || !safePhotoId || !safeViewerUid) {
       return of(void 0);
     }
 
-    return this.isPhotoLikedByViewer$(safeOwnerUid, safePhotoId, safeViewerUid).pipe(
-      take(1),
-      switchMap((liked) => {
-        const likeDocRef = doc(
-          this.firestore,
-          `users/${safeOwnerUid}/photos/${safePhotoId}/likes/${safeViewerUid}`
+    return this.firestoreCtx.deferPromise$(async () => {
+      const photoRef = doc(
+        this.firestore,
+        this.publicPhotoPath(safeOwnerUid, safePhotoId)
+      );
+
+      const likeRef = doc(
+        this.firestore,
+        this.publicPhotoLikePath(safeOwnerUid, safePhotoId, safeViewerUid)
+      );
+
+      await runTransaction(this.firestore, async (transaction) => {
+        const photoSnap = await transaction.get(photoRef);
+
+        if (!photoSnap.exists()) {
+          throw new Error('Foto pública não encontrada.');
+        }
+
+        const photo = photoSnap.data() as IPublicPhotoItem;
+
+        if (photo.visibility !== 'PUBLIC') {
+          throw new Error('Esta foto não está pública.');
+        }
+
+        if (photo.moderationStatus !== 'APPROVED') {
+          throw new Error('Esta foto ainda não está aprovada para reações.');
+        }
+
+        if (photo.reactionsEnabled !== true) {
+          throw new Error('Reações desabilitadas nesta foto.');
+        }
+
+        const likeSnap = await transaction.get(likeRef);
+
+        const currentCount = this.normalizeCount(
+          photo.reactionsCount ?? photo.likesCount ?? 0
         );
 
-        return this.firestoreCtx.deferPromise$(() => {
-          if (liked) {
-            return deleteDoc(likeDocRef);
-          }
+        if (likeSnap.exists()) {
+          const nextCount = Math.max(0, currentCount - 1);
 
-          return setDoc(likeDocRef, {
-            uid: safeViewerUid,
-            createdAt: new Date(),
+          transaction.delete(likeRef);
+          transaction.update(photoRef, {
+            reactionsCount: nextCount,
+            likesCount: nextCount,
+            updatedAt: Date.now(),
           });
-        }).pipe(
-          map(() => void 0)
-        );
-      }),
+
+          this.debug('like removed', {
+            hasOwnerUid: !!safeOwnerUid,
+            hasPhotoId: !!safePhotoId,
+            hasViewerUid: !!safeViewerUid,
+            nextCount,
+          });
+
+          return;
+        }
+
+        const now = Date.now();
+
+        const reaction: PublicPhotoReactionDoc = {
+          uid: safeViewerUid,
+          createdAt: now,
+        };
+
+        const nextCount = currentCount + 1;
+
+        transaction.set(likeRef, reaction);
+        transaction.update(photoRef, {
+          reactionsCount: nextCount,
+          likesCount: nextCount,
+          updatedAt: now,
+        });
+
+        this.debug('like added', {
+          hasOwnerUid: !!safeOwnerUid,
+          hasPhotoId: !!safePhotoId,
+          hasViewerUid: !!safeViewerUid,
+          nextCount,
+        });
+      });
+    }).pipe(
+      take(1),
+      switchMap(() => of(void 0)),
       catchError((error) => {
         this.reportError(
           'Erro ao atualizar curtida da foto.',
           error,
-          { op: 'toggleLikePhoto$', ownerUid: safeOwnerUid, photoId: safePhotoId, viewerUid: safeViewerUid },
+          {
+            op: 'toggleLikePhoto$',
+            hasOwnerUid: !!safeOwnerUid,
+            hasPhotoId: !!safePhotoId,
+            hasViewerUid: !!safeViewerUid,
+          },
           false
         );
+
         return of(void 0);
       })
     );
+  }
+
+  private publicPhotoPath(ownerUid: string, photoId: string): string {
+    return `public_profiles/${ownerUid}/public_photos/${photoId}`;
+  }
+
+  private publicPhotoLikePath(
+    ownerUid: string,
+    photoId: string,
+    viewerUid: string
+  ): string {
+    return `${this.publicPhotoPath(ownerUid, photoId)}/likes/${viewerUid}`;
+  }
+
+  private cleanId(value: string | null | undefined): string {
+    return String(value ?? '').trim();
+  }
+
+  private normalizeCount(value: unknown): number {
+    const count = Number(value ?? 0);
+
+    if (!Number.isFinite(count) || count < 0) {
+      return 0;
+    }
+
+    return Math.floor(count);
+  }
+
+  private debug(message: string, extra?: unknown): void {
+    this.privacyDebug.log('media', `MediaReactionsService: ${message}`, extra);
   }
 
   private reportError(
