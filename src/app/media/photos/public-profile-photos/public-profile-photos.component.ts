@@ -138,8 +138,13 @@ export class PublicProfilePhotosComponent {
       // noop
     }
 
-    this.debug('reportError', { userMessage, context, error });
-  }
+      this.debug('reportError', {
+      userMessage,
+      op: context?.['op'] ?? 'unknown',
+      hasContext: !!context,
+      errorMessage: error instanceof Error ? error.message : String(error ?? ''),
+    });
+   }
 
   private debug(msg: string, data?: unknown): void {
     if (!this.DEBUG) return;

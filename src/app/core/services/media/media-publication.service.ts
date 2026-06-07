@@ -35,6 +35,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { IPhotoItem } from 'src/app/core/interfaces/media/i-photo-item';
 import {
   IPhotoPublicationConfig,
+  TPhotoCommentsPolicy,
   TPhotoVisibility,
 } from 'src/app/core/interfaces/media/i-photo-publication-config';
 
@@ -44,7 +45,17 @@ export interface IPublishPhotoCommand {
   visibility: Exclude<TPhotoVisibility, 'PRIVATE'>;
   isCover?: boolean;
   orderIndex?: number;
+
+  /**
+   * Comentários já entram no contrato, mas começam desligados por padrão.
+   * A UI pode habilitar depois conforme moderação, assinatura e regras.
+   */
   commentsEnabled?: boolean;
+  commentsPolicy?: TPhotoCommentsPolicy;
+
+  /**
+   * Reações também começam desligadas até a camada pública estar consolidada.
+   */
   reactionsEnabled?: boolean;
 }
 
@@ -87,12 +98,32 @@ export class MediaPublicationService {
             ownerUid: item.ownerUid,
             isPublished: !!item.isPublished,
             visibility: item.visibility ?? 'PRIVATE',
+
             isCover: !!item.isCover,
             orderIndex: item.orderIndex ?? 0,
+
             commentsEnabled: item.commentsEnabled ?? false,
+            commentsPolicy: item.commentsPolicy ?? 'OFF',
+            commentsCount: item.commentsCount ?? 0,
+
             reactionsEnabled: item.reactionsEnabled ?? false,
+            reactionsCount: item.reactionsCount ?? 0,
+
+            moderationStatus: item.moderationStatus ?? 'PRIVATE',
+            moderationReason: item.moderationReason ?? null,
+            reportsCount: item.reportsCount ?? 0,
+
+            score: item.score ?? 0,
+            scoreBreakdown: item.scoreBreakdown ?? {
+              rankingScore: 0,
+              qualityScore: 0,
+              engagementScore: 0,
+              safetyScore: 100,
+            },
+
             publishedAt: item.publishedAt ?? null,
             updatedAt: item.updatedAt,
+            lastModeratedAt: item.lastModeratedAt ?? null,
           };
 
           return acc;
@@ -111,20 +142,39 @@ export class MediaPublicationService {
     );
   }
 
-  buildDefaultConfig(
-    ownerUid: string,
-    photoId: string
-  ): IPhotoPublicationConfig {
+  buildDefaultConfig(ownerUid: string, photoId: string): IPhotoPublicationConfig {
     return {
-      ownerUid: (ownerUid ?? '').trim(),
-      photoId: (photoId ?? '').trim(),
+      photoId,
+      ownerUid,
+
       isPublished: false,
       visibility: 'PRIVATE',
+
       isCover: false,
       orderIndex: 0,
+
       commentsEnabled: false,
+      commentsPolicy: 'OFF',
+      commentsCount: 0,
+
       reactionsEnabled: false,
+      reactionsCount: 0,
+
+      moderationStatus: 'PRIVATE',
+      moderationReason: null,
+      reportsCount: 0,
+
+      score: 0,
+      scoreBreakdown: {
+        rankingScore: 0,
+        qualityScore: 0,
+        engagementScore: 0,
+        safetyScore: 100,
+      },
+
       publishedAt: null,
+      updatedAt: Date.now(),
+      lastModeratedAt: null,
     };
   }
 
@@ -139,49 +189,93 @@ export class MediaPublicationService {
     return this.firestoreCtx.deferPromise$(async () => {
       const batch = writeBatch(this.firestore);
       const now = Date.now();
+      const commentsEnabled = command.commentsEnabled ?? false;
+
+      const commentsPolicy: TPhotoCommentsPolicy = commentsEnabled
+        ? command.commentsPolicy ?? 'EVERYONE'
+        : 'OFF';
+
+      const reactionsEnabled = command.reactionsEnabled ?? false;
+
+      const initialScoreBreakdown = {
+        rankingScore: 0,
+        qualityScore: 0,
+        engagementScore: 0,
+        safetyScore: 100,
+      };
 
       const publicationRef = doc(
         this.firestore,
         `users/${safeOwnerUid}/photo_publications/${safePhotoId}`
       );
 
-      batch.set(
-        publicationRef,
-        {
-          ownerUid: safeOwnerUid,
-          photoId: safePhotoId,
-          isPublished: true,
-          visibility: command.visibility,
-          isCover: !!command.isCover,
-          orderIndex: command.orderIndex ?? 0,
-          commentsEnabled: command.commentsEnabled ?? false,
-          reactionsEnabled: command.reactionsEnabled ?? false,
-          publishedAt: now,
-          updatedAt: now,
-        },
-        { merge: true }
-      );
+        batch.set(
+          publicationRef,
+          {
+            ownerUid: safeOwnerUid,
+            photoId: safePhotoId,
+
+            isPublished: true,
+            visibility: command.visibility,
+
+            isCover: !!command.isCover,
+            orderIndex: command.orderIndex ?? 0,
+
+            commentsEnabled,
+            commentsPolicy,
+            commentsCount: 0,
+
+            reactionsEnabled,
+            reactionsCount: 0,
+
+            moderationStatus: 'PENDING_REVIEW',
+            moderationReason: null,
+            reportsCount: 0,
+
+            score: 0,
+            scoreBreakdown: initialScoreBreakdown,
+
+            publishedAt: now,
+            updatedAt: now,
+            lastModeratedAt: null,
+          },
+          { merge: true }
+        );
 
       const publicRef = this.getPublicPhotoRef(safeOwnerUid, safePhotoId);
 
-      batch.set(
-        publicRef,
-        {
-          id: safePhotoId,
-          ownerUid: safeOwnerUid,
-          url: command.photo.url,
-          alt: command.photo.alt ?? command.photo.fileName ?? 'Foto do perfil',
-          createdAt: command.photo.createdAt,
-          publishedAt: now,
-          updatedAt: now,
-          visibility: command.visibility,
-          isCover: !!command.isCover,
-          orderIndex: command.orderIndex ?? 0,
-          commentsEnabled: command.commentsEnabled ?? false,
-          reactionsEnabled: command.reactionsEnabled ?? false,
-        },
-        { merge: true }
-      );
+batch.set(
+  publicRef,
+  {
+    id: safePhotoId,
+    ownerUid: safeOwnerUid,
+
+    url: command.photo.url,
+    alt: command.photo.alt ?? command.photo.fileName ?? 'Foto do perfil',
+    createdAt: command.photo.createdAt,
+
+    publishedAt: now,
+    updatedAt: now,
+
+    visibility: command.visibility,
+    isCover: !!command.isCover,
+    orderIndex: command.orderIndex ?? 0,
+
+    commentsEnabled,
+    commentsPolicy,
+    commentsCount: 0,
+
+    reactionsEnabled,
+    reactionsCount: 0,
+
+    moderationStatus: 'PENDING_REVIEW',
+    reportsCount: 0,
+
+    score: 0,
+    scoreBreakdown: initialScoreBreakdown,
+  },
+  { merge: true }
+);
 
       await batch.commit();
     }).pipe(
@@ -418,4 +512,4 @@ export class MediaPublicationService {
       // noop
     }
   }
-} // Linha 421
+} // Linha 440

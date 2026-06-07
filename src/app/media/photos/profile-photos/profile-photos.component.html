@@ -18,7 +18,7 @@
       </p>
     </div>
 
-    @if (ownerUid) {
+    @if (ownerUid && isOwner) {
       <div class="actions">
         <button
           type="button"
@@ -48,12 +48,14 @@
           <p>Envie sua primeira foto para começar a montar sua biblioteca privada.</p>
         </div>
 
-        <button
-          type="button"
-          class="btn btn-secondary"
-          (click)="openUpload(ownerUid || '')">
-          Fazer upload
-        </button>
+        @if (ownerUid && isOwner) {
+          <button
+            type="button"
+            class="btn btn-secondary"
+            (click)="openUpload(ownerUid)">
+            Fazer upload
+          </button>
+        }
       </div>
     } @else {
       <div class="gallery-meta" aria-live="polite">

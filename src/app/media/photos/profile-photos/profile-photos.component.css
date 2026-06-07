@@ -10,7 +10,6 @@
      notebooks, monitores ultrawide e telas grandes
    - visual limpo, estável e inspirado em plataformas grandes
    ========================================================================== */
-
 :host {
   display: block;
   width: 100%;
@@ -139,12 +138,12 @@
    - um único item não cresce para ocupar a linha inteira
    - grid fica alinhado à esquerda e organizado
    ========================================================================== */
-
 .photos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(clamp(180px, 20vw, 230px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 230px));
   gap: clamp(12px, 1.6vw, 20px);
   align-items: start;
+  justify-content: start;
 }
 
 /* wrapper do card */
@@ -347,7 +346,6 @@
 /* ==========================================================================
    Melhorias para telas muito pequenas
    ========================================================================== */
-
 @media (max-width: 599px) {
   .photos-page {
     padding:
@@ -434,10 +432,9 @@
 /* ==========================================================================
    Tablets / notebooks menores
    ========================================================================== */
-
 @media (min-width: 600px) and (max-width: 1023px) {
   .photos-grid {
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 210px));
   }
 
   .photo {
@@ -452,7 +449,7 @@
 
 @media (min-width: 1024px) {
   .photos-grid {
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 220px));
   }
 
   .photo {
@@ -471,7 +468,7 @@
   }
 
   .photos-grid {
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 240px));
     gap: 20px;
   }
 

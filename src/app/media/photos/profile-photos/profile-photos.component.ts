@@ -71,6 +71,7 @@ import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/
 import { IPhotoPublicationConfig } from 'src/app/core/interfaces/media/i-photo-publication-config';
 
 import { PhotoViewerComponent, IProfilePhotoItem } from '../photo-viewer/photo-viewer.component';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 type IManageablePhotoItem = IProfilePhotoItem & {
   path?: string;
@@ -109,7 +110,7 @@ export class ProfilePhotosComponent {
   private readonly photoEditorSession = inject(PhotoEditorSessionService);
 
   // Troque para true só depois de deployar as novas rules da camada de publicação.
-  readonly publicationFeatureReady = true;
+  readonly publicationFeatureReady = false;
 
   private readonly confirmDeleteIdSubject = new BehaviorSubject<string | null>(null);
   readonly confirmDeleteId$ = this.confirmDeleteIdSubject.asObservable();
@@ -120,18 +121,20 @@ export class ProfilePhotosComponent {
   private readonly publishingPhotoIdSubject = new BehaviorSubject<string | null>(null);
   readonly publishingPhotoId$ = this.publishingPhotoIdSubject.asObservable();
 
-  private readonly DEBUG = true;
+  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
-  private debug(msg: string, data?: unknown): void {
-    if (!this.DEBUG) return;
-    // eslint-disable-next-line no-console
-    console.debug(`[ProfilePhotos] ${msg}`, data ?? '');
+  private debug(message: string, extra?: unknown): void {
+    this.privacyDebug.log('media', `ProfilePhotos: ${message}`, extra);
   }
 
   readonly viewerUid$: Observable<string | null> = this.currentUserStore.user$.pipe(
     map((u) => u?.uid ?? null),
     distinctUntilChanged(),
-    tap((uid) => this.debug('viewerUid$', uid)),
+    tap((uid) =>
+      this.debug('viewerUid$', {
+        hasViewerUid: !!uid,
+      })
+    ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -144,7 +147,12 @@ export class ProfilePhotosComponent {
   ]).pipe(
     map(([routeId, viewerUid]) => routeId ?? viewerUid ?? ''),
     distinctUntilChanged(),
-    tap((id) => this.debug('ownerUid$', id)),
+    tap((id) =>
+      this.debug('ownerUid$', {
+        hasOwnerUid: !!id,
+        sameAsRouteOrSession: true,
+      })
+    ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -370,78 +378,182 @@ editPhoto(item: IPhotoCardVm, event?: Event): void {
       });
   }
 
-  publishPhoto(item: IPhotoCardVm, event?: Event): void {
-    event?.stopPropagation();
+  private canManagePhotoPublication$(): Observable<{
+  canManage: boolean;
+  ownerUid: string;
+}> {
+  return combineLatest([this.isOwner$, this.ownerUid$]).pipe(
+    take(1),
+    map(([isOwner, ownerUid]) => ({
+      canManage: !!isOwner && !!ownerUid?.trim(),
+      ownerUid: ownerUid ?? '',
+    }))
+  );
+}
 
-    if (!this.publicationFeatureReady) {
-      this.errorNotifier.showWarning('Publique as rules da camada photo_publications/public_profiles antes de habilitar esta ação.');
-      return;
-    }
+publishPhoto(item: IPhotoCardVm, event?: Event): void {
+  event?.stopPropagation();
 
-    this.ownerUid$.pipe(take(1)).subscribe((ownerUid) => {
-      this.publishingPhotoIdSubject.next(item.id);
+  if (!this.publicationFeatureReady) {
+    this.errorNotifier.showWarning(
+      'A publicação de fotos ainda está desabilitada até a camada pública estar pronta.'
+    );
+    return;
+  }
 
-      this.mediaPublicationService.publishPhoto$({
-        ownerUid,
-        photo: {
-          id: item.id,
+  this.canManagePhotoPublication$()
+    .pipe(
+      switchMap(({ canManage, ownerUid }) => {
+        if (!canManage) {
+          this.errorNotifier.showError('Você não tem permissão para publicar esta foto.');
+          return EMPTY;
+        }
+
+        if (!item.id?.trim() || !item.url?.trim()) {
+          this.errorNotifier.showWarning('Metadados insuficientes para publicar esta foto.');
+          return EMPTY;
+        }
+
+        this.publishingPhotoIdSubject.next(item.id);
+
+        return this.mediaPublicationService.publishPhoto$({
           ownerUid,
-          url: item.url,
-          alt: item.alt,
-          createdAt: item.createdAt ?? Date.now(),
-          path: item.path,
-          fileName: item.fileName,
-        },
-        visibility: 'PUBLIC',
-        isCover: !!item.publication.isCover,
-        orderIndex: item.publication.orderIndex ?? 0,
-        commentsEnabled: true,
-        reactionsEnabled: false,
+          photo: {
+            id: item.id,
+            ownerUid,
+            url: item.url,
+            alt: item.alt,
+            createdAt: item.createdAt ?? Date.now(),
+            path: item.path,
+            fileName: item.fileName,
+          },
+          visibility: 'PUBLIC',
+          isCover: !!item.publication.isCover,
+          orderIndex: item.publication.orderIndex ?? 0,
+          commentsEnabled: false,
+          commentsPolicy: 'OFF',
+          reactionsEnabled: false,
+        }).pipe(
+          tap(() => {
+            this.errorNotifier.showSuccess('Foto publicada com sucesso.');
+          }),
+          catchError((error) => {
+            this.reportError(
+              'Erro ao publicar a foto.',
+              error,
+              {
+                op: 'publishPhoto',
+                ownerUid,
+                photoId: item.id,
+              }
+            );
+
+            return EMPTY;
+          }),
+          finalize(() => this.publishingPhotoIdSubject.next(null))
+        );
       })
-      .pipe(finalize(() => this.publishingPhotoIdSubject.next(null)))
-      .subscribe(() => {
-        this.errorNotifier.showSuccess('Foto publicada com sucesso.');
-      });
-    });
+    )
+    .subscribe();
+}
+
+unpublishPhoto(item: IPhotoCardVm, event?: Event): void {
+  event?.stopPropagation();
+
+  if (!this.publicationFeatureReady) {
+    this.errorNotifier.showWarning(
+      'A publicação de fotos ainda está desabilitada até a camada pública estar pronta.'
+    );
+    return;
   }
 
-  unpublishPhoto(item: IPhotoCardVm, event?: Event): void {
-    event?.stopPropagation();
+  this.canManagePhotoPublication$()
+    .pipe(
+      switchMap(({ canManage, ownerUid }) => {
+        if (!canManage) {
+          this.errorNotifier.showError('Você não tem permissão para despublicar esta foto.');
+          return EMPTY;
+        }
 
-    if (!this.publicationFeatureReady) {
-      this.errorNotifier.showWarning('Publique as rules da camada photo_publications/public_profiles antes de habilitar esta ação.');
-      return;
-    }
+        if (!item.id?.trim()) {
+          this.errorNotifier.showWarning('Metadados insuficientes para despublicar esta foto.');
+          return EMPTY;
+        }
 
-    this.ownerUid$.pipe(take(1)).subscribe((ownerUid) => {
-      this.publishingPhotoIdSubject.next(item.id);
+        this.publishingPhotoIdSubject.next(item.id);
 
-      this.mediaPublicationService.unpublishPhoto$(ownerUid, item.id)
-        .pipe(finalize(() => this.publishingPhotoIdSubject.next(null)))
-        .subscribe(() => {
-          this.errorNotifier.showSuccess('Foto despublicada com sucesso.');
-        });
-    });
+        return this.mediaPublicationService.unpublishPhoto$(ownerUid, item.id).pipe(
+          tap(() => {
+            this.errorNotifier.showSuccess('Foto despublicada com sucesso.');
+          }),
+          catchError((error) => {
+            this.reportError(
+              'Erro ao despublicar a foto.',
+              error,
+              {
+                op: 'unpublishPhoto',
+                ownerUid,
+                photoId: item.id,
+              }
+            );
+
+            return EMPTY;
+          }),
+          finalize(() => this.publishingPhotoIdSubject.next(null))
+        );
+      })
+    )
+    .subscribe();
+}
+
+setCoverPhoto(item: IPhotoCardVm, event?: Event): void {
+  event?.stopPropagation();
+
+  if (!this.publicationFeatureReady) {
+    this.errorNotifier.showWarning(
+      'A publicação de fotos ainda está desabilitada até a camada pública estar pronta.'
+    );
+    return;
   }
 
-  setCoverPhoto(item: IPhotoCardVm, event?: Event): void {
-    event?.stopPropagation();
+  this.canManagePhotoPublication$()
+    .pipe(
+      switchMap(({ canManage, ownerUid }) => {
+        if (!canManage) {
+          this.errorNotifier.showError('Você não tem permissão para definir capa.');
+          return EMPTY;
+        }
 
-    if (!this.publicationFeatureReady) {
-      this.errorNotifier.showWarning('Publique as rules da camada photo_publications/public_profiles antes de habilitar esta ação.');
-      return;
-    }
+        if (!item.id?.trim()) {
+          this.errorNotifier.showWarning('Metadados insuficientes para definir capa.');
+          return EMPTY;
+        }
 
-    this.ownerUid$.pipe(take(1)).subscribe((ownerUid) => {
-      this.publishingPhotoIdSubject.next(item.id);
+        this.publishingPhotoIdSubject.next(item.id);
 
-      this.mediaPublicationService.setCoverPhoto$(ownerUid, item.id)
-        .pipe(finalize(() => this.publishingPhotoIdSubject.next(null)))
-        .subscribe(() => {
-          this.errorNotifier.showSuccess('Foto de capa atualizada.');
-        });
-    });
-  }
+        return this.mediaPublicationService.setCoverPhoto$(ownerUid, item.id).pipe(
+          tap(() => {
+            this.errorNotifier.showSuccess('Foto de capa atualizada.');
+          }),
+          catchError((error) => {
+            this.reportError(
+              'Erro ao definir foto de capa.',
+              error,
+              {
+                op: 'setCoverPhoto',
+                ownerUid,
+                photoId: item.id,
+              }
+            );
+
+            return EMPTY;
+          }),
+          finalize(() => this.publishingPhotoIdSubject.next(null))
+        );
+      })
+    )
+    .subscribe();
+}
 
   private reportError(
     userMessage: string,
@@ -467,6 +579,11 @@ editPhoto(item: IPhotoCardVm, event?: Event): void {
       // noop
     }
 
-    this.debug('reportError', { userMessage, context, error });
+      this.debug('reportError', {
+      userMessage,
+      op: context?.['op'] ?? 'unknown',
+      hasContext: !!context,
+      errorMessage: error instanceof Error ? error.message : String(error ?? ''),
+    });
   }
 }
