@@ -1,60 +1,125 @@
 /* src/app/media/photos/photo-viewer/photo-viewer.component.css */
+/*
+  PhotoViewer
+  - Visual limpo para foto + interação.
+  - Comentários ficam no detalhe da foto, não no grid.
+  - Mobile primeiro.
+  - Compatível com tema escuro e alto contraste.
+  - Não muda lógica, apenas apresentação.
+*/
+
+:host {
+  display: block;
+}
+
+/* Container principal do modal */
 .viewer {
-  width: min(980px, 96vw);
-  max-height: 92vh;
+  width: min(1040px, 96vw);
+  max-height: min(92vh, 920px);
   display: flex;
   flex-direction: column;
-  border-radius: 18px;
   overflow: hidden;
-  background: var(--surface-color);
+
+  border-radius: 22px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 88%, transparent);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color) 96%, var(--background-color, #000) 4%),
+      var(--surface-color)
+    );
   color: var(--text-color);
-  border: 1px solid var(--surface-border);
   box-shadow: var(--box-shadow);
 }
 
+/* Cabeçalho e rodapé */
 .viewer-header,
 .viewer-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+
   padding: 12px 14px;
   background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+  border-color: color-mix(in oklab, var(--surface-border) 80%, transparent);
+}
+
+.viewer-header {
+  border-bottom: 1px solid color-mix(in oklab, var(--surface-border) 75%, transparent);
+}
+
+.viewer-footer {
+  border-top: 1px solid color-mix(in oklab, var(--surface-border) 75%, transparent);
 }
 
 .viewer-title {
+  min-width: 0;
   display: flex;
-  gap: 10px;
   align-items: baseline;
+  gap: 10px;
+}
+
+.viewer-title strong {
+  max-width: 42vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: clamp(0.98rem, 1vw, 1.08rem);
+  font-weight: 750;
 }
 
 .counter {
-  opacity: 0.7;
-  font-size: 0.95rem;
+  flex: 0 0 auto;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.92rem;
 }
 
+/* Área da imagem */
 .viewer-body {
-  padding: 12px;
+  min-height: 0;
   display: grid;
   place-items: center;
-  background: color-mix(in oklab, var(--surface-color) 90%, transparent);
+
+  padding: clamp(8px, 1.4vw, 16px);
+  background:
+    radial-gradient(
+      circle at center,
+      color-mix(in oklab, var(--surface-color) 88%, #000 12%),
+      color-mix(in oklab, var(--surface-color) 76%, #000 24%)
+    );
 }
 
 .viewer-img {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: auto;
-  max-height: 52vh;
-  object-fit: contain;
+  max-height: 54vh;
   display: block;
-  border-radius: 12px;
+
+  object-fit: contain;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--surface-color) 70%, #000 30%);
+  box-shadow: 0 12px 38px rgb(0 0 0 / 24%);
 }
 
+.empty {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+}
+
+/* Interações */
 .engagement-section,
 .comments-section {
-  padding: 14px;
   display: grid;
   gap: 12px;
-  border-top: 1px solid var(--surface-border);
+
+  padding: clamp(12px, 1.6vw, 18px);
+  border-top: 1px solid color-mix(in oklab, var(--surface-border) 70%, transparent);
+}
+
+.engagement-section {
+  background: color-mix(in oklab, var(--surface-color) 97%, transparent);
 }
 
 .reaction-row {
@@ -66,18 +131,35 @@
 }
 
 .reaction-btn {
-  min-width: 120px;
+  min-width: 128px;
+  min-height: 40px;
+}
+
+.reaction-btn[aria-pressed='true'] {
+  font-weight: 800;
 }
 
 .reaction-count {
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
   font-size: 0.92rem;
+}
+
+/* Comentários */
+.comments-section {
+  min-height: 0;
+  background: color-mix(in oklab, var(--surface-color) 98%, transparent);
 }
 
 .comments-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+}
+
+.comments-header strong {
+  font-size: 0.98rem;
+  font-weight: 780;
 }
 
 .comment-form {
@@ -87,26 +169,44 @@
 
 .comment-input {
   width: 100%;
-  min-height: 96px;
+  min-height: 84px;
+  max-height: 180px;
   resize: vertical;
+
   padding: 12px 14px;
-  border: 1px solid var(--surface-border);
-  border-radius: 14px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 86%, transparent);
+  border-radius: 16px;
   background: var(--input-background);
   color: var(--text-color);
   font: inherit;
+  line-height: 1.45;
+
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background-color 160ms ease;
+}
+
+.comment-input::placeholder {
+  color: color-mix(in oklab, var(--text-color) 48%, transparent);
+}
+
+.comment-input:hover {
+  border-color: color-mix(in oklab, var(--primary-color, var(--text-color)) 34%, var(--surface-border));
 }
 
 .comment-input:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
+  border-color: color-mix(in oklab, var(--primary-color, var(--text-color)) 54%, var(--surface-border));
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color, var(--text-color)) 16%, transparent);
 }
 
 .comment-meta {
   display: flex;
   justify-content: flex-end;
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
-  font-size: 0.88rem;
+  color: color-mix(in oklab, var(--text-color) 64%, transparent);
+  font-size: 0.84rem;
 }
 
 .comment-form-actions {
@@ -114,48 +214,193 @@
   justify-content: flex-end;
 }
 
+/* Estado bloqueado/desativado */
+.comments-disabled {
+  margin: 0;
+  padding: 12px 14px;
+
+  border: 1px dashed color-mix(in oklab, var(--surface-border) 86%, transparent);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--surface-color) 94%, var(--text-color) 6%);
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+/* Lista */
 .comments-list {
   display: grid;
   gap: 10px;
-  max-height: 220px;
+
+  max-height: min(240px, 28vh);
   overflow: auto;
   padding-right: 4px;
+  scroll-behavior: smooth;
 }
 
 .comment-item {
-  border: 1px solid var(--surface-border);
-  border-radius: 14px;
-  padding: 12px;
-  background: color-mix(in oklab, var(--surface-color) 96%, transparent);
+  display: grid;
+  gap: 6px;
+
+  padding: 11px 12px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color) 98%, var(--text-color) 2%),
+      color-mix(in oklab, var(--surface-color) 96%, var(--text-color) 4%)
+    );
 }
 
 .comment-text {
-  margin: 0 0 8px;
+  margin: 0;
+  color: var(--text-color);
+  line-height: 1.42;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .comment-date,
-.comments-empty,
-.empty {
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+.comments-empty {
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  font-size: 0.82rem;
 }
 
+.comments-empty {
+  margin: 0;
+  padding: 8px 2px;
+}
+
+/* Scrollbar discreta */
+.comments-list {
+  scrollbar-width: thin;
+  scrollbar-color:
+    color-mix(in oklab, var(--text-color) 24%, transparent)
+    transparent;
+}
+
+.comments-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.comments-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.comments-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--text-color) 24%, transparent);
+}
+
+.comments-list::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--text-color) 34%, transparent);
+}
+
+/* Botão fechar */
 .btn.icon {
   width: 42px;
   height: 42px;
+  flex: 0 0 auto;
   padding: 0;
+  border-radius: 999px;
 }
 
+/* Tema escuro por classe global */
+:host-context(.dark-mode) .viewer {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color) 90%, #000 10%),
+      color-mix(in oklab, var(--surface-color) 82%, #000 18%)
+    );
+  box-shadow: 0 18px 70px rgb(0 0 0 / 42%);
+}
+
+:host-context(.dark-mode) .viewer-body {
+  background:
+    radial-gradient(
+      circle at center,
+      color-mix(in oklab, var(--surface-color) 74%, #000 26%),
+      color-mix(in oklab, var(--surface-color) 54%, #000 46%)
+    );
+}
+
+:host-context(.dark-mode) .comment-item {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color) 92%, #fff 3%),
+      color-mix(in oklab, var(--surface-color) 88%, #000 12%)
+    );
+}
+
+:host-context(.dark-mode) .comments-disabled {
+  background: color-mix(in oklab, var(--surface-color) 88%, #fff 4%);
+}
+
+/* Alto contraste */
+@media (prefers-contrast: more) {
+  .viewer,
+  .comment-input,
+  .comment-item,
+  .comments-disabled {
+    border-width: 2px;
+  }
+
+  .counter,
+  .reaction-count,
+  .comment-date,
+  .comments-empty,
+  .comments-disabled {
+    color: var(--text-color);
+  }
+
+  .comment-input:focus-visible {
+    outline-width: 3px;
+  }
+}
+
+/* Movimento reduzido */
+@media (prefers-reduced-motion: reduce) {
+  .comment-input,
+  .comments-list {
+    transition: none;
+    scroll-behavior: auto;
+  }
+}
+
+/* Mobile */
 @media (max-width: 700px) {
   .viewer {
     width: 100%;
-    max-height: 100vh;
+    max-height: 100dvh;
     border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .viewer-header,
+  .viewer-footer {
+    padding: 10px 12px;
+  }
+
+  .viewer-title strong {
+    max-width: 62vw;
+  }
+
+  .viewer-body {
+    padding: 8px;
   }
 
   .viewer-img {
-    max-height: 40vh;
+    max-height: 42vh;
+    border-radius: 12px;
+  }
+
+  .engagement-section,
+  .comments-section {
+    padding: 12px;
   }
 
   .reaction-row,
@@ -168,5 +413,35 @@
   .comment-form-actions .btn,
   .reaction-btn {
     width: 100%;
+  }
+
+  .comment-input {
+    min-height: 76px;
+    border-radius: 14px;
+  }
+
+  .comments-list {
+    max-height: 24vh;
+  }
+}
+
+/* Telas muito pequenas */
+@media (max-width: 380px) {
+  .viewer-title {
+    gap: 6px;
+  }
+
+  .counter {
+    font-size: 0.82rem;
+  }
+
+  .viewer-img {
+    max-height: 38vh;
+  }
+
+  .comment-item,
+  .comments-disabled,
+  .comment-input {
+    border-radius: 12px;
   }
 }
