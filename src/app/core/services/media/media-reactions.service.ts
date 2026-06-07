@@ -10,7 +10,6 @@
 // - usar transaction para evitar inconsistência básica de contagem;
 // - centralizar erros;
 // - manter debug sanitizado via PrivacyDebugLoggerService.
-
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
@@ -26,6 +25,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { IPhotoPublicationScore } from '../../interfaces/media/i-photo-publication-config';
 
 type PublicPhotoReactionDoc = {
   uid: string;
@@ -178,10 +178,17 @@ export class MediaReactionsService {
         if (likeSnap.exists()) {
           const nextCount = Math.max(0, currentCount - 1);
 
+          const nextScore = this.buildNextScore(photo, nextCount);
+
           transaction.delete(likeRef);
           transaction.update(photoRef, {
             reactionsCount: nextCount,
             likesCount: nextCount,
+
+            engagementScore: nextScore.engagementScore,
+            score: nextScore.score,
+            scoreBreakdown: nextScore.scoreBreakdown,
+
             updatedAt: Date.now(),
           });
 
@@ -203,11 +210,17 @@ export class MediaReactionsService {
         };
 
         const nextCount = currentCount + 1;
+        const nextScore = this.buildNextScore(photo, nextCount);
 
         transaction.set(likeRef, reaction);
         transaction.update(photoRef, {
           reactionsCount: nextCount,
           likesCount: nextCount,
+
+          engagementScore: nextScore.engagementScore,
+          score: nextScore.score,
+          scoreBreakdown: nextScore.scoreBreakdown,
+
           updatedAt: now,
         });
 
@@ -295,5 +308,90 @@ export class MediaReactionsService {
     } catch {
       // noop
     }
+  }
+
+  private buildNextScore(
+  photo: IPublicPhotoItem,
+  nextReactionsCount: number
+): {
+  score: number;
+  engagementScore: number;
+  scoreBreakdown: IPhotoPublicationScore;
+} {
+  const currentBreakdown = photo.scoreBreakdown ?? {
+    rankingScore: 0,
+    qualityScore: 0,
+    engagementScore: 0,
+    safetyScore: 100,
+  };
+
+  const commentsCount = this.normalizeCount(photo.commentsCount ?? 0);
+
+  const engagementScore = this.calculateEngagementScore({
+    reactionsCount: nextReactionsCount,
+    commentsCount,
+  });
+
+  const scoreBreakdown: IPhotoPublicationScore = {
+    qualityScore: this.normalizeScore(currentBreakdown.qualityScore ?? 0),
+    safetyScore: this.normalizeScore(currentBreakdown.safetyScore ?? 100),
+    engagementScore,
+    rankingScore: 0,
+  };
+
+  scoreBreakdown.rankingScore = this.calculateRankingScore(scoreBreakdown);
+
+  return {
+    score: scoreBreakdown.rankingScore,
+    engagementScore,
+    scoreBreakdown,
+  };
+}
+
+private calculateEngagementScore(input: {
+  reactionsCount: number;
+  commentsCount: number;
+}): number {
+  const weightedEngagement =
+    input.reactionsCount * 2 +
+    input.commentsCount * 4;
+
+  /*
+    Escala logarítmica:
+    - evita que uma foto com muitos likes destrua o ranking;
+    - ainda recompensa crescimento real;
+    - reduz incentivo a spam.
+  */
+  return this.normalizeScore(Math.round(Math.log1p(weightedEngagement) * 18));
+}
+
+  private calculateRankingScore(score: IPhotoPublicationScore): number {
+    const quality = this.normalizeScore(score.qualityScore);
+    const engagement = this.normalizeScore(score.engagementScore);
+    const safety = this.normalizeScore(score.safetyScore);
+
+    /*
+      Ranking inicial:
+      - segurança pesa bastante;
+      - engajamento positivo ajuda;
+      - qualidade evita que só curtida mande no ranking.
+    */
+    return this.normalizeScore(
+      Math.round(
+        quality * 0.25 +
+        engagement * 0.45 +
+        safety * 0.30
+      )
+    );
+  }
+
+  private normalizeScore(value: unknown): number {
+    const score = Number(value ?? 0);
+
+    if (!Number.isFinite(score)) {
+      return 0;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(score)));
   }
 }
