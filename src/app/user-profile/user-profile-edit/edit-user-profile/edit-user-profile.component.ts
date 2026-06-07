@@ -16,7 +16,6 @@ import { UserSocialLinksService } from 'src/app/core/services/user-profile/user-
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { IUserSocialLinks } from 'src/app/core/interfaces/interfaces-user-dados/iuser-social-links';
-import { environment } from 'src/environments/environment';
 
 type IbgeEstado = {
   id: number;
@@ -79,7 +78,7 @@ export class EditUserProfileComponent implements OnInit, OnDestroy {
     this.editForm = this.formBuilder.group({
       nickname: ['', [Validators.minLength(3)]],
       estado: [''],
-      municipio: [''],
+      municipio: [{ value: '', disabled: true }],
       gender: [''],
       orientation: [''],
       partner1Orientation: [''],
@@ -134,7 +133,10 @@ export class EditUserProfileComponent implements OnInit, OnDestroy {
         return this.loadEstados$().pipe(
           tap(est => (this.estados = est)),
           switchMap(() => user?.estado ? this.loadMunicipios$(user.estado) : of([])),
-          tap(muns => (this.municipios = muns)),
+          tap((muns) => {
+            this.municipios = muns;
+            this.syncMunicipioControlState(muns);
+          }),
           tap(() => this.patchFormFromUser(this.userData)),
           // 3) social links canônico (profileData/socialLinks)
           switchMap(() => this.userSocialLinks.getSocialLinks(this.uid, { allowAnonymousRead: false }).pipe(take(1))),
@@ -159,12 +161,21 @@ export class EditUserProfileComponent implements OnInit, OnDestroy {
       map(v => (v ?? '').toString().trim()),
       distinctUntilChanged(),
       switchMap(sigla => (sigla ? this.loadMunicipios$(sigla) : of([]))),
-      tap(muns => {
-        this.municipios = muns;
-        const selected = (this.editForm.get('municipio')?.value ?? '').toString();
-        if (selected && muns.some(m => m.nome === selected)) return;
-        this.editForm.patchValue({ municipio: muns[0]?.nome ?? '' }, { emitEvent: false });
-      }),
+        tap((muns) => {
+          this.municipios = muns;
+          this.syncMunicipioControlState(muns);
+
+          const selected = (this.editForm.get('municipio')?.value ?? '').toString();
+
+          if (selected && muns.some((m) => m.nome === selected)) {
+            return;
+          }
+
+          this.editForm.patchValue(
+            { municipio: muns[0]?.nome ?? '' },
+            { emitEvent: false }
+          );
+        }),
       catchError(err => this.handleError$(err, 'estadoChange', 'Falha ao carregar municípios.')),
       takeUntil(this.destroy$),
     ).subscribe();
@@ -191,8 +202,7 @@ export class EditUserProfileComponent implements OnInit, OnDestroy {
 
     this.storageService.uploadProfileAvatar(file, this.uid, (progress: number) => {
       this.progressValue = progress;
-      if (environment.enableDebugTools) console.debug('[EditUserProfile] upload progress', progress);
-    }).pipe(
+      }).pipe(
       tap((imageUrl: string) => {
         this.userData = { ...this.userData, photoURL: imageUrl };
       }),
@@ -222,7 +232,7 @@ export class EditUserProfileComponent implements OnInit, OnDestroy {
 
     this.isSaving = true;
 
-    const v = this.editForm.value;
+    const v = this.editForm.getRawValue();
 
     // ✅ patch “whitelist” para users/{uid}
     const profilePatch: Partial<IUserDados> = {
@@ -380,4 +390,20 @@ export class EditUserProfileComponent implements OnInit, OnDestroy {
 
     return EMPTY;
   }
+
+  private syncMunicipioControlState(municipios: IbgeMunicipio[]): void {
+  const municipioControl = this.editForm.get('municipio');
+
+  if (!municipioControl) {
+    return;
+  }
+
+  if (municipios.length > 0) {
+    municipioControl.enable({ emitEvent: false });
+    return;
+  }
+
+  municipioControl.disable({ emitEvent: false });
+  municipioControl.patchValue('', { emitEvent: false });
+}
 } // Linha 368, fim EditUserProfileComponent

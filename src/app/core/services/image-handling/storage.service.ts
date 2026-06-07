@@ -1,67 +1,79 @@
-// C:\entretenimento\src\app\core\services\image-handling\storage.service.ts
-// Serviço de Storage endurecido para alinhar com as storage.rules novas.
+// src/app/core/services/image-handling/storage.service.ts
+// =============================================================================
+// StorageService
 //
-// Objetivos desta revisão:
-// - parar de confiar em path arbitrário vindo de fora
-// - alinhar os uploads ao namespace seguro do usuário
-// - manter os nomes dos métodos públicos para reduzir impacto no restante do app
-// - centralizar validações básicas de arquivo e path
-// - usar AngularFire Storage já configurado no AppModule
-// - manter tratamento de erro centralizado via GlobalErrorHandlerService
+// Serviço de Storage endurecido para a plataforma.
 //
-// OBSERVAÇÃO IMPORTANTE:
-// - A área users/{uid}/uploads/... agora representa upload bruto.
-// - Pelas rules atuais, essa área NÃO tem leitura direta.
-// - Portanto, quando getDownloadURL() falhar por regra, o upload continua sendo
-//   considerado concluído, e o método devolve o storage path para a próxima etapa.
+// Objetivos:
+// - impedir escrita em paths arbitrários;
+// - manter uploads brutos privados no namespace do próprio usuário;
+// - manter avatar em área publicada/controlada;
+// - preparar a base para monetização futura: mídia publicada deve passar por
+//   camada própria de publicação/moderação, não sair direto do upload bruto;
+// - manter nomes públicos dos métodos para reduzir impacto no restante do app;
+// - manter fluxo reativo com Observable;
+// - manter tratamento de erro centralizado;
+// - manter debug útil em dev sem expor UID bruto, path completo ou nome original.
 //
-// SUPRESSÕES EXPLÍCITAS:
-// 1) uploadFile(file, path, userId):
-//    - o parâmetro "path" foi mantido apenas por compatibilidade de assinatura
-//    - o uso dele como caminho real foi SUPRIMIDO
-//    - motivo: impedir gravação arbitrária no bucket
-//
-// 2) uploadProfileAvatar(...):
-//    - o caminho antigo "avatars/{userId}.jpg" foi SUPRIMIDO
-//    - motivo: incompatível com as rules novas e fora do namespace do usuário
-//
-// 3) getStorage():
-//    - foi SUPRIMIDO
-//    - motivo: o app já fornece Storage no AppModule e conecta o emulador lá
-//
-// COMPATIBILIDADE TEMPORÁRIA:
-// - Alguns métodos ainda devolvem string no campo/fluxo "url" por compatibilidade,
-//   mas essa string pode ser:
-//   a) uma download URL, quando a leitura for permitida
-//   b) um storage path bruto, quando a leitura direta não for permitida
-//
-// Próxima etapa recomendada:
-// - separar "uploads" (bruto) de "published/avatar" e "published/media"
-// - publicar apenas mídia aprovada/controlada
+// Observação estrutural:
+// - users/{uid}/uploads/... representa mídia bruta/privada.
+// - users/{uid}/published/... representa mídia que pode ser lida conforme rules.
+// - Fotos/vídeos públicos ou premium devem ser promovidos por fluxo próprio,
+//   preferencialmente Cloud Function ou service específico de publicação.
+// =============================================================================
+
 import { Injectable, inject } from '@angular/core';
-import { Storage } from '@angular/fire/storage';
 import { Auth } from '@angular/fire/auth';
+import { Storage } from '@angular/fire/storage';
 import {
+  deleteObject,
+  getDownloadURL,
   ref,
   uploadBytes,
   uploadBytesResumable,
-  getDownloadURL,
-  deleteObject,
 } from 'firebase/storage';
-import { firstValueFrom, from, Observable, of, throwError } from 'rxjs';
+import {
+  Observable,
+  defer,
+  firstValueFrom,
+  from,
+  of,
+  throwError,
+} from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
+import { Store } from '@ngrx/store';
+
+import { AppState } from 'src/app/store/states/app.state';
+import {
+  uploadError,
+  uploadProgress,
+  uploadSuccess,
+} from '../../../store/actions/actions.user/file.actions';
 
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
-import { Store } from '@ngrx/store';
-import {
-  uploadSuccess,
-  uploadError,
-  uploadProgress,
-} from '../../../store/actions/actions.user/file.actions';
-import { AppState } from 'src/app/store/states/app.state';
+import { PrivacyDebugLoggerService } from '../privacy/privacy-debug-logger.service';
 import { UsuarioService } from '../user-profile/usuario.service';
-import { environment } from 'src/environments/environment';
+
+type UploadKind = 'image' | 'video';
+type StorageDebugKind = UploadKind | 'avatar';
+
+const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_AVATAR_SIZE_BYTES = 8 * 1024 * 1024;
+const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
+
+const ALLOWED_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+]);
+
+const ALLOWED_VIDEO_TYPES = new Set([
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+]);
 
 @Injectable({
   providedIn: 'root',
@@ -69,27 +81,33 @@ import { environment } from 'src/environments/environment';
 export class StorageService {
   private readonly storage = inject(Storage);
   private readonly auth = inject(Auth);
-  private readonly debug = !environment.production;
 
   constructor(
     private readonly errorNotifier: ErrorNotificationService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly store: Store<AppState>,
-    private readonly usuarioService: UsuarioService
+    private readonly usuarioService: UsuarioService,
+    private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
+  /**
+   * Mantido por compatibilidade com chamadas antigas.
+   *
+   * Importante:
+   * - este método monta path seguro no namespace do usuário;
+   * - o nome original do arquivo não é preservado no path final;
+   * - usamos apenas a extensão segura inferida.
+   */
   public buildOwnedImageUploadPath(userId: string, fileName: string): string {
-  return this.buildImageUploadPath(userId, fileName);
-}
+    return this.buildImageUploadPath(userId, fileName);
+  }
 
   // ---------------------------------------------------------------------------
-  // Debug / erro centralizado
+  // Debug e erro centralizado
   // ---------------------------------------------------------------------------
 
   private dbg(message: string, extra?: unknown): void {
-    if (!this.debug) return;
-    // eslint-disable-next-line no-console
-    console.log(`[StorageService] ${message}`, extra ?? '');
+    this.privacyDebug.log('storage', `StorageService: ${message}`, extra);
   }
 
   private routeError(
@@ -100,6 +118,7 @@ export class StorageService {
   ): void {
     try {
       const error = new Error(message);
+
       (error as any).original = original;
       (error as any).meta = meta;
       (error as any).silent = notifyUser === false;
@@ -107,19 +126,54 @@ export class StorageService {
 
       this.globalErrorHandler.handleError(error);
     } catch {
-      // noop
+      // Evita que o tratamento de erro quebre o fluxo principal.
     }
   }
 
   private extractErrorMessage(error: unknown): string {
     if (typeof error === 'object' && error !== null && 'message' in error) {
-      return (error as { message: string }).message;
+      return String((error as { message: unknown }).message);
     }
+
     return String(error);
   }
 
+  private getSafeFileDebugMeta(
+    file: File | null | undefined
+  ): Record<string, unknown> {
+    const type = String(file?.type ?? '').trim().toLowerCase();
+    const size = Number(file?.size ?? 0);
+
+    return {
+      hasFile: !!file,
+      sizeBytes: Number.isFinite(size) ? size : 0,
+      type: type || 'unknown',
+      extension: file ? this.guessExtension(file, 'image') : 'unknown',
+    };
+  }
+
+  private getSafeStorageDebugMeta(
+    kind: StorageDebugKind,
+    file?: File | null,
+    extra?: Record<string, unknown>
+  ): Record<string, unknown> {
+    return {
+      kind,
+      ...this.getSafeFileDebugMeta(file),
+      ...(extra ?? {}),
+    };
+  }
+
+  private normalizeProgress(progress: number): number {
+    if (!Number.isFinite(progress)) {
+      return 0;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(progress)));
+  }
+
   // ---------------------------------------------------------------------------
-  // Helpers de sessão / path / arquivo
+  // Sessão, UID e paths
   // ---------------------------------------------------------------------------
 
   private get currentUid(): string | null {
@@ -127,11 +181,36 @@ export class StorageService {
   }
 
   private sanitizeUid(userId: string): string {
-    return (userId ?? '').trim();
+    return String(userId ?? '').trim();
+  }
+
+  private isValidUid(uid: string): boolean {
+    return /^[A-Za-z0-9_-]{1,128}$/.test(uid);
+  }
+
+  private requireAuthenticatedOwnerUid(userId: string): string {
+    const safeUid = this.sanitizeUid(userId);
+    const currentUid = this.currentUid;
+
+    if (!safeUid || !this.isValidUid(safeUid)) {
+      throw new Error('UID inválido para operação de storage.');
+    }
+
+    if (!currentUid) {
+      throw new Error('Sessão não encontrada para operação de storage.');
+    }
+
+    if (currentUid !== safeUid) {
+      throw new Error(
+        'A operação de storage deve ocorrer apenas no namespace do usuário autenticado.'
+      );
+    }
+
+    return safeUid;
   }
 
   private sanitizeFileName(fileName: string): string {
-    const raw = (fileName ?? '').trim().toLowerCase();
+    const raw = String(fileName ?? '').trim().toLowerCase();
 
     return (
       raw
@@ -139,98 +218,180 @@ export class StorageService {
         .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9._-]+/g, '-')
         .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '') || `file-${Date.now()}`
+        .replace(/^-|-$/g, '') || 'file'
     );
   }
 
-  private guessImageExtension(file: File): string {
-    const type = (file?.type ?? '').toLowerCase();
+  private createObjectName(extension: string): string {
+    const safeExtension = String(extension || 'bin')
+      .replace(/[^a-z0-9]/gi, '')
+      .toLowerCase();
+
+    const random =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    return `media-${Date.now()}-${random}.${safeExtension || 'bin'}`;
+  }
+
+  private guessExtension(file: File, fallbackKind: UploadKind): string {
+    const type = String(file?.type ?? '').toLowerCase();
+    const name = this.sanitizeFileName(file?.name ?? '');
 
     if (type === 'image/png') return 'png';
     if (type === 'image/webp') return 'webp';
-    if (type === 'image/gif') return 'gif';
-    if (type === 'image/jpeg') return 'jpg';
-    if (type === 'image/jpg') return 'jpg';
+    if (type === 'image/jpeg' || type === 'image/jpg') return 'jpg';
 
-    const name = (file?.name ?? '').toLowerCase();
+    if (type === 'video/webm') return 'webm';
+    if (type === 'video/quicktime') return 'mov';
+    if (type === 'video/mp4') return 'mp4';
+
     if (name.endsWith('.png')) return 'png';
     if (name.endsWith('.webp')) return 'webp';
-    if (name.endsWith('.gif')) return 'gif';
+    if (name.endsWith('.jpeg') || name.endsWith('.jpg')) return 'jpg';
+    if (name.endsWith('.webm')) return 'webm';
+    if (name.endsWith('.mov')) return 'mov';
+    if (name.endsWith('.mp4')) return 'mp4';
 
-    return 'jpg';
+    return fallbackKind === 'video' ? 'mp4' : 'jpg';
   }
 
   private buildImageUploadPath(userId: string, fileName: string): string {
     const safeUid = this.sanitizeUid(userId);
-    const safeName = this.sanitizeFileName(fileName);
 
-    return `users/${safeUid}/uploads/images/${safeName}`;
+    if (!this.isValidUid(safeUid)) {
+      throw new Error('UID inválido para path de imagem.');
+    }
+
+    const extensionFromName = this.guessExtension(
+      new File([], this.sanitizeFileName(fileName), { type: 'image/jpeg' }),
+      'image'
+    );
+
+    return `users/${safeUid}/uploads/images/${this.createObjectName(
+      extensionFromName
+    )}`;
   }
 
-  private buildVideoUploadPath(userId: string, fileName: string): string {
+  private buildVideoUploadPath(userId: string, file: File): string {
     const safeUid = this.sanitizeUid(userId);
-    const safeName = this.sanitizeFileName(fileName);
 
-    return `users/${safeUid}/uploads/videos/${safeName}`;
+    if (!this.isValidUid(safeUid)) {
+      throw new Error('UID inválido para path de vídeo.');
+    }
+
+    return `users/${safeUid}/uploads/videos/${this.createObjectName(
+      this.guessExtension(file, 'video')
+    )}`;
   }
 
   private buildAvatarUploadPath(userId: string, file: File): string {
     const safeUid = this.sanitizeUid(userId);
-    const ext = this.guessImageExtension(file);
 
-    return `users/${safeUid}/published/avatar/avatar-${Date.now()}.${ext}`;
+    if (!this.isValidUid(safeUid)) {
+      throw new Error('UID inválido para path de avatar.');
+    }
+
+    return `users/${safeUid}/published/avatar/avatar-${Date.now()}.${this.guessExtension(
+      file,
+      'image'
+    )}`;
   }
 
   private isHttpUrl(value: string): boolean {
-    return /^https?:\/\//i.test((value ?? '').trim());
+    return /^https?:\/\//i.test(String(value ?? '').trim());
   }
 
   private isOwnUploadPath(path: string, uid: string): boolean {
-    const clean = (path ?? '').trim();
-    if (!clean || !uid) return false;
+    const clean = String(path ?? '').trim();
+
+    if (!clean || !uid || !this.isValidUid(uid)) {
+      return false;
+    }
 
     const escapedUid = uid.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(
+
+    return new RegExp(
       `^users/${escapedUid}/uploads/(images|videos)/[^/]+$`,
       'i'
-    );
-
-    return re.test(clean);
+    ).test(clean);
   }
 
   private isPublishedReadablePath(path: string): boolean {
-    const clean = (path ?? '').trim();
-    if (!clean) return false;
+    const clean = String(path ?? '').trim();
 
-    return /^users\/[^/]+\/published\/(avatar|images|videos)\/[^/]+$/i.test(clean);
+    if (!clean) {
+      return false;
+    }
+
+    return /^users\/[^/]+\/published\/(avatar|images|videos)\/[^/]+$/i.test(
+      clean
+    );
   }
 
   private validateMutableOwnedPath(path: string): Observable<string> {
-    const cleanPath = (path ?? '').trim();
+    const cleanPath = String(path ?? '').trim();
     const uid = this.currentUid;
 
     if (!uid) {
-      return throwError(() => new Error('Sessão não encontrada para manipular o arquivo.'));
+      return throwError(
+        () => new Error('Sessão não encontrada para manipular o arquivo.')
+      );
     }
 
     if (!this.isOwnUploadPath(cleanPath, uid)) {
-      return throwError(() => new Error('Path inválido ou não pertence ao usuário autenticado.'));
+      return throwError(
+        () => new Error('Path inválido ou não pertence ao usuário autenticado.')
+      );
     }
 
     return of(cleanPath);
   }
+
+  // ---------------------------------------------------------------------------
+  // Validação de arquivos
+  // ---------------------------------------------------------------------------
 
   private validateImageFile(file: File): Observable<void> {
     if (!file) {
       return throwError(() => new Error('Arquivo inválido.'));
     }
 
-    if (!String(file.type || '').startsWith('image/')) {
-      return throwError(() => new Error('Apenas imagens são permitidas neste fluxo.'));
+    const type = String(file.type || '').toLowerCase();
+
+    if (!ALLOWED_IMAGE_TYPES.has(type)) {
+      return throwError(
+        () => new Error('Apenas imagens JPG, PNG ou WEBP são permitidas.')
+      );
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      return throwError(() => new Error('A imagem excede o limite de 10 MB.'));
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      return throwError(
+        () => new Error('A imagem excede o limite de 10 MB.')
+      );
+    }
+
+    return of(void 0);
+  }
+
+  private validateAvatarFile(file: File): Observable<void> {
+    if (!file) {
+      return throwError(() => new Error('Arquivo inválido.'));
+    }
+
+    const type = String(file.type || '').toLowerCase();
+
+    if (!ALLOWED_IMAGE_TYPES.has(type)) {
+      return throwError(
+        () => new Error('O avatar deve ser JPG, PNG ou WEBP.')
+      );
+    }
+
+    if (file.size > MAX_AVATAR_SIZE_BYTES) {
+      return throwError(
+        () => new Error('O avatar excede o limite de 8 MB.')
+      );
     }
 
     return of(void 0);
@@ -241,18 +402,24 @@ export class StorageService {
       return throwError(() => new Error('Arquivo inválido.'));
     }
 
-    if (!String(file.type || '').startsWith('video/')) {
-      return throwError(() => new Error('Apenas vídeos são permitidos neste fluxo.'));
+    const type = String(file.type || '').toLowerCase();
+
+    if (!ALLOWED_VIDEO_TYPES.has(type)) {
+      return throwError(
+        () => new Error('Apenas vídeos MP4, WEBM ou MOV são permitidos.')
+      );
     }
 
-    if (file.size > 500 * 1024 * 1024) {
-      return throwError(() => new Error('O vídeo excede o limite de 500 MB.'));
+    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+      return throwError(
+        () => new Error('O vídeo excede o limite de 500 MB.')
+      );
     }
 
     return of(void 0);
   }
 
-  private resolveUploadKind(file: File, requestedPath?: string): 'image' | 'video' {
+  private resolveUploadKind(file: File, requestedPath?: string): UploadKind {
     const type = String(file?.type || '').toLowerCase();
     const requested = String(requestedPath || '').toLowerCase();
 
@@ -263,26 +430,79 @@ export class StorageService {
     return 'image';
   }
 
+  // ---------------------------------------------------------------------------
+  // Upload baixo nível
+  // ---------------------------------------------------------------------------
+
+  private uploadResumablePath$(
+    storagePath: string,
+    file: File,
+    kind: StorageDebugKind,
+    progressCallback?: (progress: number) => void,
+    dispatchStoreProgress = false
+  ): Observable<string> {
+    return new Observable<string>((observer) => {
+      const storageRef = ref(this.storage, storagePath);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+
+      const unsubscribe = uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = snapshot.totalBytes
+            ? (snapshot.bytesTransferred / snapshot.totalBytes) * 100
+            : 0;
+
+          const normalizedProgress = this.normalizeProgress(progress);
+
+          this.dbg('upload progress', {
+            kind,
+            progress: normalizedProgress,
+          });
+
+          if (dispatchStoreProgress) {
+            this.store.dispatch(uploadProgress({ progress }));
+          }
+
+          progressCallback?.(progress);
+        },
+        (error) => {
+          const errorMsg = this.extractErrorMessage(error);
+
+          this.dbg('upload failed', {
+            kind,
+            errorMsg,
+          });
+
+          if (dispatchStoreProgress) {
+            this.store.dispatch(uploadError({ error: errorMsg }));
+          }
+
+          observer.error(error);
+        },
+        () => {
+          observer.next(storagePath);
+          observer.complete();
+        }
+      );
+
+      return () => unsubscribe();
+    });
+  }
+
   /**
-   * Tenta obter a download URL.
+   * Tenta obter uma URL legível.
    *
-   * Importante:
-   * - Em uploads brutos, as rules podem negar leitura direta.
-   * - Nesses casos, NÃO tratamos como falha do upload.
-   * - Fazemos fallback para o próprio storage path.
+   * Se as rules negarem leitura direta em upload bruto, não tratamos isso como
+   * falha do upload. Retornamos o storage path para a próxima etapa.
    */
   private resolveReadableLocation$(storagePath: string): Observable<string> {
     const storageRef = ref(this.storage, storagePath);
 
     return from(getDownloadURL(storageRef)).pipe(
-      map((url) => url),
-      catchError((err) => {
-        this.routeError(
-          '[StorageService] getDownloadURL bloqueado ou indisponível; usando storage path.',
-          err,
-          { storagePath },
-          false
-        );
+      catchError(() => {
+        this.dbg('readable URL unavailable; using storage path fallback', {
+          hasStoragePath: !!storagePath,
+        });
 
         return of(storagePath);
       })
@@ -295,277 +515,197 @@ export class StorageService {
 
   /**
    * uploadFile:
-   * - assinatura preservada por compatibilidade
-   * - o path externo continua chegando, mas o uso operacional dele foi suprimido
-   * - o caminho real é decidido internamente, de forma segura
-   *
-   * Retorno:
-   * - pode devolver download URL (quando legível)
-   * - ou storage path bruto (quando a leitura direta não é permitida)
+   * - mantém a assinatura antiga;
+   * - não usa o path externo como destino real;
+   * - decide internamente o namespace seguro;
+   * - retorna download URL quando legível, ou storage path bruto quando privado.
    */
-uploadFile(
-  file: File,
-  path: string,
-  userId: string,
-  progressCallback?: (progress: number) => void
-): Observable<string> {
-  const safeUid = this.sanitizeUid(userId);
-  if (!safeUid) {
-    return throwError(() => new Error('UID inválido para upload.'));
-  }
+  uploadFile(
+    file: File,
+    path: string,
+    userId: string,
+    progressCallback?: (progress: number) => void
+  ): Observable<string> {
+    let safeUid = '';
+    let kind: UploadKind = 'image';
 
-  const currentUid = this.currentUid;
-  if (currentUid && currentUid !== safeUid) {
-    return throwError(() => new Error('O upload deve ocorrer apenas no namespace do usuário autenticado.'));
-  }
+    return defer(() => {
+      safeUid = this.requireAuthenticatedOwnerUid(userId);
+      kind = this.resolveUploadKind(file, path);
 
-  const kind = this.resolveUploadKind(file, path);
-  const validation$ = kind === 'video'
-    ? this.validateVideoFile(file)
-    : this.validateImageFile(file);
+      const validation$ =
+        kind === 'video' ? this.validateVideoFile(file) : this.validateImageFile(file);
 
-  return validation$.pipe(
-    switchMap(() => {
-      const resolvedPath =
-        kind === 'video'
-          ? this.buildVideoUploadPath(safeUid, file.name)
-          : this.buildImageUploadPath(safeUid, file.name);
+      return validation$.pipe(
+        switchMap(() => {
+          const resolvedPath =
+            kind === 'video'
+              ? this.buildVideoUploadPath(safeUid, file)
+              : this.buildImageUploadPath(safeUid, file.name);
 
-      this.dbg('Iniciando uploadFile', {
-        fileName: file.name,
-        kind,
-        requestedPath: path,
-        resolvedPath,
-        userId: safeUid,
-      });
+          this.dbg(
+            'uploadFile started',
+            this.getSafeStorageDebugMeta(kind, file, {
+              hasRequestedPath: !!String(path ?? '').trim(),
+              hasResolvedPath: !!resolvedPath,
+              sameAuthenticatedUser: true,
+            })
+          );
 
-      const storageRef = ref(this.storage, resolvedPath);
-      const uploadTask = uploadBytesResumable(storageRef, file);
+          return this.uploadResumablePath$(
+            resolvedPath,
+            file,
+            kind,
+            progressCallback,
+            true
+          ).pipe(
+            switchMap((uploadedPath) => this.resolveReadableLocation$(uploadedPath)),
+            map((location) => {
+              this.store.dispatch(uploadSuccess({ url: location }));
 
-      return new Observable<string>((observer) => {
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const progress =
-              (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+              this.dbg('uploadFile completed', {
+                kind,
+                hasLocation: !!location,
+                readableLocation: this.isHttpUrl(location),
+              });
 
-            this.dbg('Progresso do upload', { progress, resolvedPath });
-            this.store.dispatch(uploadProgress({ progress }));
-            progressCallback?.(progress);
-          },
-          (error) => {
-            const errorMsg = this.extractErrorMessage(error);
-
-            this.dbg('Erro durante uploadFile', { errorMsg, resolvedPath });
-            this.store.dispatch(uploadError({ error: errorMsg }));
-            this.routeError(
-              '[StorageService] Falha durante uploadFile.',
-              error,
-              { resolvedPath, fileName: file.name, kind },
-              false
-            );
-            this.errorNotifier.showError(
-              kind === 'video' ? 'Erro no upload do vídeo.' : 'Erro no upload da foto.'
-            );
-            observer.error(error);
-          },
-          () => {
-            this.resolveReadableLocation$(resolvedPath).subscribe({
-              next: (location) => {
-                this.store.dispatch(uploadSuccess({ url: location }));
-                observer.next(location);
-                observer.complete();
-              },
-              error: (error) => {
-                const errorMsg = this.extractErrorMessage(error);
-
-                this.dbg('Erro ao resolver localização legível', {
-                  errorMsg,
-                  resolvedPath,
-                });
-
-                this.store.dispatch(uploadError({ error: errorMsg }));
-                observer.error(error);
-              },
-            });
-          }
-        );
-      });
-    }),
-    catchError((error) => {
-      const errorMsg = this.extractErrorMessage(error);
-
-      this.dbg('Erro no fluxo uploadFile', { errorMsg, path, userId });
-      this.routeError(
-        '[StorageService] Erro no fluxo do Observable uploadFile.',
-        error,
-        { path, userId, fileName: file?.name },
-        false
+              return location;
+            })
+          );
+        })
       );
+    }).pipe(
+      catchError((error) => {
+        const errorMsg = this.extractErrorMessage(error);
 
-      return throwError(() => error);
-    })
-  );
-}
+        this.dbg('uploadFile flow failed', {
+          kind,
+          errorMsg,
+          hasRequestedPath: !!String(path ?? '').trim(),
+          hasUserId: !!safeUid,
+        });
+
+        this.store.dispatch(uploadError({ error: errorMsg }));
+
+        this.routeError(
+          '[StorageService] Erro no fluxo de uploadFile.',
+          error,
+          this.getSafeStorageDebugMeta(kind, file, {
+            hasRequestedPath: !!String(path ?? '').trim(),
+            hasUserId: !!safeUid,
+          }),
+          false
+        );
+
+        this.errorNotifier.showError(
+          kind === 'video' ? 'Erro no upload do vídeo.' : 'Erro no upload da foto.'
+        );
+
+        return throwError(() => error);
+      })
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Avatar
   // ---------------------------------------------------------------------------
 
   /**
-   * uploadProfileAvatar:
-   * - alinha o upload de avatar ao namespace seguro do usuário
-   * - tenta obter URL legível
-   * - se não houver leitura direta pelas rules atuais, retorna o storage path
+   * Avatar é publicado em namespace próprio.
    *
-   * IMPORTANTE:
-   * - a atualização automática de photoURL só ocorre quando a localização obtida
-   *   for uma URL HTTP(S) real
-   * - se o retorno for storage path bruto, não forçamos atualizar photoURL com
-   *   um valor que quebraria as telas que esperam URL
+   * Se a URL HTTP(S) for obtida, atualizamos photoURL.
+   * Se não for, retornamos o storage path e não quebramos o perfil com path bruto.
    */
   uploadProfileAvatar(
     file: File,
     userId: string,
     progressCallback?: (progress: number) => void
   ): Observable<string> {
-    const safeUid = this.sanitizeUid(userId);
-    if (!safeUid) {
-      return throwError(() => new Error('UID inválido para upload de avatar.'));
-    }
+    let safeUid = '';
 
-    const currentUid = this.currentUid;
-    if (currentUid && currentUid !== safeUid) {
-      return throwError(() => new Error('O avatar só pode ser enviado pelo usuário autenticado.'));
-    }
+    return defer(() => {
+      safeUid = this.requireAuthenticatedOwnerUid(userId);
 
-    return this.validateImageFile(file).pipe(
-      switchMap(() => {
-        const avatarPath = this.buildAvatarUploadPath(safeUid, file);
+      return this.validateAvatarFile(file).pipe(
+        switchMap(() => {
+          const avatarPath = this.buildAvatarUploadPath(safeUid, file);
 
-        this.dbg('Iniciando uploadProfileAvatar', {
-          userId: safeUid,
-          resolvedPath: avatarPath,
-        });
-
-        const storageRef = ref(this.storage, avatarPath);
-        const uploadTask = uploadBytesResumable(storageRef, file);
-
-        return new Observable<string>((observer) => {
-          uploadTask.on(
-            'state_changed',
-            (snapshot) => {
-              if (progressCallback) {
-                const progress =
-                  (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-
-                this.dbg('Progresso uploadProfileAvatar', { progress, avatarPath });
-                progressCallback(progress);
-              }
-            },
-            (error) => {
-              const errorMsg = this.extractErrorMessage(error);
-
-              this.dbg('Erro uploadProfileAvatar', { errorMsg, avatarPath });
-              this.routeError(
-                '[StorageService] Falha durante uploadProfileAvatar.',
-                error,
-                { avatarPath, userId: safeUid, fileName: file.name },
-                false
-              );
-              this.errorNotifier.showError('Erro no upload do avatar.');
-              observer.error(error);
-            },
-            () => {
-              this.resolveReadableLocation$(avatarPath).subscribe({
-                next: async (location) => {
-                  try {
-                    if (this.isHttpUrl(location)) {
-                      await firstValueFrom(
-                        this.usuarioService.atualizarUsuario(safeUid, {
-                          photoURL: location,
-                        })
-                      );
-
-                      this.dbg('Avatar atualizado com URL pública/legível', {
-                        userId: safeUid,
-                        location,
-                      });
-
-                      this.errorNotifier.showSuccess('Avatar atualizado com sucesso!');
-                    } else {
-                      /**
-                       * SUPRESSÃO EXPLÍCITA:
-                       * - não gravamos photoURL com storage path bruto
-                       * - motivo: as telas atuais usam photoURL como src direto
-                       * - gravar o path aqui quebraria a renderização e esconderia o problema
-                       */
-                      this.dbg('Avatar enviado, mas sem URL legível imediata', {
-                        userId: safeUid,
-                        storagePath: location,
-                      });
-
-                      this.errorNotifier.showSuccess(
-                        'Avatar enviado com sucesso. A URL pública dependerá da próxima etapa de publicação.'
-                      );
-                    }
-
-                    observer.next(location);
-                    observer.complete();
-                  } catch (error) {
-                    const errorMsg = this.extractErrorMessage(error);
-
-                    this.dbg('Erro ao atualizar perfil após uploadProfileAvatar', {
-                      errorMsg,
-                      avatarPath,
-                    });
-
-                    this.routeError(
-                      '[StorageService] Erro ao atualizar perfil com o novo avatar.',
-                      error,
-                      { userId: safeUid, avatarPath },
-                      false
-                    );
-
-                    this.errorNotifier.showError(
-                      'Erro ao atualizar o perfil com a nova foto.'
-                    );
-
-                    observer.error(error);
-                  }
-                },
-                error: (error) => {
-                  const errorMsg = this.extractErrorMessage(error);
-
-                  this.dbg('Erro ao resolver localização do avatar', {
-                    errorMsg,
-                    avatarPath,
-                  });
-
-                  observer.error(error);
-                },
-              });
-            }
+          this.dbg(
+            'uploadProfileAvatar started',
+            this.getSafeStorageDebugMeta('avatar', file, {
+              hasResolvedPath: !!avatarPath,
+              sameAuthenticatedUser: true,
+            })
           );
-        });
-      }),
+
+          return this.uploadResumablePath$(
+            avatarPath,
+            file,
+            'avatar',
+            progressCallback,
+            false
+          ).pipe(
+            switchMap((uploadedPath) => this.resolveReadableLocation$(uploadedPath)),
+            switchMap((location) =>
+              from(this.updateAvatarProfileIfReadable$(safeUid, location)).pipe(
+                map(() => location)
+              )
+            )
+          );
+        })
+      );
+    }).pipe(
       catchError((error) => {
         const errorMsg = this.extractErrorMessage(error);
 
-        this.dbg('Erro no fluxo uploadProfileAvatar', {
+        this.dbg('uploadProfileAvatar flow failed', {
           errorMsg,
-          userId: safeUid,
-          fileName: file?.name,
+          hasUserId: !!safeUid,
         });
 
         this.routeError(
-          '[StorageService] Erro no fluxo do Observable uploadProfileAvatar.',
+          '[StorageService] Erro no fluxo de uploadProfileAvatar.',
           error,
-          { userId: safeUid, fileName: file?.name },
+          this.getSafeStorageDebugMeta('avatar', file, {
+            hasUserId: !!safeUid,
+          }),
           false
         );
 
+        this.errorNotifier.showError('Erro no upload do avatar.');
+
         return throwError(() => error);
       })
+    );
+  }
+
+  private async updateAvatarProfileIfReadable$(
+    userId: string,
+    location: string
+  ): Promise<void> {
+    if (this.isHttpUrl(location)) {
+      await firstValueFrom(
+        this.usuarioService.atualizarUsuario(userId, {
+          photoURL: location,
+        })
+      );
+
+      this.dbg('avatar profile updated with readable URL', {
+        hasUserId: !!userId,
+        hasReadableUrl: true,
+      });
+
+      this.errorNotifier.showSuccess('Avatar atualizado com sucesso!');
+      return;
+    }
+
+    this.dbg('avatar uploaded without immediate readable URL', {
+      hasUserId: !!userId,
+      hasStoragePath: !!location,
+    });
+
+    this.errorNotifier.showSuccess(
+      'Avatar enviado com sucesso. A publicação final dependerá da próxima etapa.'
     );
   }
 
@@ -575,14 +715,18 @@ uploadFile(
 
   /**
    * getPhotoUrl:
-   * - se receber uma URL HTTP(S), devolve como está
-   * - se receber um path de área publicada, tenta resolver URL
-   * - se receber um path bruto do próprio usuário, tenta resolver
-   * - qualquer outro path é rejeitado defensivamente
+   * - URL HTTP(S): devolve como está;
+   * - published path: tenta resolver;
+   * - own upload path: tenta resolver;
+   * - qualquer outro path: bloqueia defensivamente.
    */
   getPhotoUrl(path: string): Observable<string> {
-    const cleanPath = (path ?? '').trim();
-    this.dbg('Buscando localização da foto', { path: cleanPath });
+    const cleanPath = String(path ?? '').trim();
+
+    this.dbg('getPhotoUrl requested', {
+      hasPath: !!cleanPath,
+      isHttpUrl: this.isHttpUrl(cleanPath),
+    });
 
     if (!cleanPath) {
       return of('');
@@ -598,8 +742,8 @@ uploadFile(
       (!!uid && this.isOwnUploadPath(cleanPath, uid));
 
     if (!canReadKnownPath) {
-      this.dbg('getPhotoUrl bloqueado por path desconhecido/não autorizado', {
-        path: cleanPath,
+      this.dbg('getPhotoUrl blocked by unauthorized path', {
+        hasPath: !!cleanPath,
       });
 
       return of('');
@@ -609,21 +753,29 @@ uploadFile(
 
     return from(getDownloadURL(storageRef)).pipe(
       map((url) => {
-        this.dbg('URL da foto obtida', { path: cleanPath, url });
+        this.dbg('getPhotoUrl resolved', {
+          hasPath: !!cleanPath,
+          hasUrl: !!url,
+        });
+
         return url;
       }),
       catchError((error) => {
         const errorMsg = this.extractErrorMessage(error);
 
-        this.dbg('Erro ao carregar a foto', {
-          path: cleanPath,
+        this.dbg('getPhotoUrl failed', {
           errorMsg,
+          hasPath: !!cleanPath,
         });
 
         this.routeError(
           '[StorageService] Erro ao carregar foto por path.',
           error,
-          { path: cleanPath },
+          {
+            hasPath: !!cleanPath,
+            isPublishedPath: this.isPublishedReadablePath(cleanPath),
+            isOwnUploadPath: !!uid && this.isOwnUploadPath(cleanPath, uid),
+          },
           false
         );
 
@@ -637,22 +789,19 @@ uploadFile(
   // ---------------------------------------------------------------------------
 
   /**
-   * replaceFile:
-   * - continua existindo com o mesmo nome
-   * - agora valida se o path pertence ao usuário autenticado
-   * - restringe replace para namespace seguro do próprio usuário
+   * Substituição restrita a upload bruto do próprio usuário.
    *
-   * Retorno:
-   * - tenta URL legível
-   * - fallback para o próprio storage path
+   * Publicações finais devem ter fluxo próprio.
    */
   replaceFile(file: File, path: string): Observable<string> {
-    this.dbg('Iniciando replaceFile', { path });
-
     const kind = this.resolveUploadKind(file, path);
-    const validation$ = kind === 'video'
-      ? this.validateVideoFile(file)
-      : this.validateImageFile(file);
+    const validation$ =
+      kind === 'video' ? this.validateVideoFile(file) : this.validateImageFile(file);
+
+    this.dbg('replaceFile started', {
+      kind,
+      hasPath: !!String(path ?? '').trim(),
+    });
 
     return this.validateMutableOwnedPath(path).pipe(
       switchMap((safePath) => validation$.pipe(map(() => safePath))),
@@ -662,9 +811,11 @@ uploadFile(
         return from(uploadBytes(storageRef, file)).pipe(
           switchMap(() => this.resolveReadableLocation$(safePath)),
           map((location) => {
-            this.dbg('Arquivo substituído com sucesso', {
-              path: safePath,
-              location,
+            this.dbg('replaceFile completed', {
+              kind,
+              hasPath: !!safePath,
+              hasLocation: !!location,
+              readableLocation: this.isHttpUrl(location),
             });
 
             this.errorNotifier.showSuccess(
@@ -680,11 +831,19 @@ uploadFile(
       catchError((error) => {
         const errorMsg = this.extractErrorMessage(error);
 
-        this.dbg('Erro ao substituir arquivo', { path, errorMsg });
+        this.dbg('replaceFile failed', {
+          kind,
+          errorMsg,
+          hasPath: !!String(path ?? '').trim(),
+        });
+
         this.routeError(
           '[StorageService] Erro ao substituir arquivo.',
           error,
-          { path, fileName: file?.name },
+          {
+            kind,
+            hasPath: !!String(path ?? '').trim(),
+          },
           false
         );
 
@@ -704,12 +863,14 @@ uploadFile(
   // ---------------------------------------------------------------------------
 
   /**
-   * deleteFile:
-   * - agora só permite exclusão em path próprio e permitido
-   * - evita que callers apaguem caminhos arbitrários
+   * Exclusão restrita a upload bruto do próprio usuário.
+   *
+   * Exclusão de conteúdo publicado/moderado deve passar por fluxo específico.
    */
   deleteFile(path: string): Observable<void> {
-    this.dbg('Iniciando deleteFile', { path });
+    this.dbg('deleteFile started', {
+      hasPath: !!String(path ?? '').trim(),
+    });
 
     return this.validateMutableOwnedPath(path).pipe(
       switchMap((safePath) => {
@@ -717,19 +878,28 @@ uploadFile(
 
         return from(deleteObject(storageRef)).pipe(
           map(() => {
-            this.dbg('Arquivo deletado com sucesso', { path: safePath });
-            this.errorNotifier.showSuccess('Arquivo deletado com sucesso!');
+            this.dbg('deleteFile completed', {
+              hasPath: !!safePath,
+            });
+
+            this.errorNotifier.showSuccess('Arquivo deletado com sucesso.');
           })
         );
       }),
       catchError((error) => {
         const errorMsg = this.extractErrorMessage(error);
 
-        this.dbg('Erro ao deletar arquivo', { path, errorMsg });
+        this.dbg('deleteFile failed', {
+          errorMsg,
+          hasPath: !!String(path ?? '').trim(),
+        });
+
         this.routeError(
           '[StorageService] Erro ao deletar arquivo.',
           error,
-          { path },
+          {
+            hasPath: !!String(path ?? '').trim(),
+          },
           false
         );
 
@@ -738,4 +908,4 @@ uploadFile(
       })
     );
   }
-} // Linha 738, gigante
+}

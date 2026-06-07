@@ -36,6 +36,7 @@ export type PrivacyDebugChannel =
   | 'chat'
   | 'layout'
   | 'profile'
+  | 'storage'
   | 'generic';
 
 type ConsoleLevel = 'debug' | 'info' | 'warn' | 'error';
@@ -52,6 +53,7 @@ const CHANNEL_FLAGS: Record<PrivacyDebugChannel, string> = {
   chat: 'DEBUG_CHAT',
   layout: 'DEBUG_LAYOUT',
   profile: 'DEBUG_PROFILE',
+  storage: 'DEBUG_STORAGE',
   generic: 'DEBUG_GENERIC',
 };
 
@@ -67,6 +69,7 @@ const CHANNEL_PREFIXES: Record<PrivacyDebugChannel, string> = {
   chat: 'Chat',
   layout: 'Layout',
   profile: 'Profile',
+  storage: 'Storage',
   generic: 'Debug',
 };
 
@@ -190,15 +193,18 @@ console[level](prefix, message, safeExtra ?? '');
       return this.maskEmail(value);
     }
 
-    if (
-      normalizedKey === 'url' ||
-      normalizedKey === 'currenturl' ||
-      normalizedKey === 'navpath' ||
-      normalizedKey === 'path' ||
-      normalizedKey === 'route'
-    ) {
-      return this.maskSensitiveString(value);
-    }
+if (
+  normalizedKey === 'url' ||
+  normalizedKey === 'downloadurl' ||
+  normalizedKey === 'currenturl' ||
+  normalizedKey === 'navpath' ||
+  normalizedKey === 'path' ||
+  normalizedKey === 'route' ||
+  normalizedKey.endsWith('path') ||
+  normalizedKey.endsWith('url')
+) {
+  return this.maskSensitiveString(value);
+}
 
     if (
       normalizedKey === 'chatid' ||
