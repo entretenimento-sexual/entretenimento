@@ -18,3 +18,4 @@ export * from './payments';
 export * from './account_lifecycle';
 export * from './chat';
 export * from './friendship';
+export * from './media';
