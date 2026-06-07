@@ -58,6 +58,7 @@ export class MediaPublicQueryService {
       const q = query(
         publicPhotosCollection,
         where('visibility', '==', 'PUBLIC'),
+        where('moderationStatus', '==', 'APPROVED'),
         orderBy('orderIndex', 'asc'),
         orderBy('publishedAt', 'desc')
       );
@@ -85,6 +86,7 @@ export class MediaPublicQueryService {
       const q = query(
         cg,
         where('visibility', '==', 'PUBLIC'),
+        where('moderationStatus', '==', 'APPROVED'),
         orderBy('publishedAt', 'desc'),
         limit(takeCount)
       );
@@ -112,7 +114,8 @@ export class MediaPublicQueryService {
       const q = query(
         cg,
         where('visibility', '==', 'PUBLIC'),
-        orderBy('engagementScore', 'desc'),
+        where('moderationStatus', '==', 'APPROVED'),
+        orderBy('score', 'desc'),
         orderBy('publishedAt', 'desc'),
         limit(takeCount)
       );
@@ -140,6 +143,7 @@ export class MediaPublicQueryService {
       const q = query(
         cg,
         where('visibility', '==', 'PUBLIC'),
+        where('moderationStatus', '==', 'APPROVED'),
         where('boostActive', '==', true),
         where('boostedUntil', '>', nowMs),
         orderBy('boostedUntil', 'desc'),

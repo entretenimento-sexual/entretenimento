@@ -5,7 +5,7 @@
 // - leitura por outros usuários
 // - perfil público / perfil de terceiros
 // - não deve carregar metadados privados como path bruto do upload
-import type { TPhotoVisibility } from './i-photo-publication-config';
+import type { IPhotoPublicationScore, TPhotoCommentsPolicy, TPhotoModerationStatus, TPhotoVisibility } from './i-photo-publication-config';
 
 export interface IPublicPhotoItem {
   id: string;
@@ -24,14 +24,23 @@ export interface IPublicPhotoItem {
   orderIndex: number;
 
   commentsEnabled?: boolean;
-  reactionsEnabled?: boolean;
-
-  // métricas / vitrines públicas
-  likesCount?: number;
+  commentsPolicy?: TPhotoCommentsPolicy;
   commentsCount?: number;
+
+  reactionsEnabled?: boolean;
+  reactionsCount?: number;
+
+  moderationStatus?: TPhotoModerationStatus;
+  reportsCount?: number;
+
+  score?: number;
+  scoreBreakdown?: IPhotoPublicationScore;
+
+  // Métricas públicas futuras
+  likesCount?: number;
   engagementScore?: number;
 
-  // turbo / promoção
+  // Turbo / promoção
   boostActive?: boolean;
   boostPriority?: number;
   boostedUntil?: number | null;
