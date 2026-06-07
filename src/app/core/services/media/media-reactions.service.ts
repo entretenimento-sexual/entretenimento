@@ -19,6 +19,7 @@ import {
 } from '@angular/fire/firestore';
 import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay, switchMap, take } from 'rxjs/operators';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -35,13 +36,14 @@ type PublicPhotoReactionDoc = {
 @Injectable({ providedIn: 'root' })
 export class MediaReactionsService {
   private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly errorHandler: GlobalErrorHandlerService,
-    private readonly privacyDebug: PrivacyDebugLoggerService
-  ) {}
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+    ) {}
 
   getPhotoLikesCount$(ownerUid: string, photoId: string): Observable<number> {
     const safeOwnerUid = this.cleanId(ownerUid);
@@ -137,119 +139,34 @@ export class MediaReactionsService {
       return of(void 0);
     }
 
-    return this.firestoreCtx.deferPromise$(async () => {
-      const photoRef = doc(
-        this.firestore,
-        this.publicPhotoPath(safeOwnerUid, safePhotoId)
-      );
+return this.firestoreCtx.deferPromise$(async () => {
+  const callable = httpsCallable<
+    { ownerUid: string; photoId: string },
+    { liked: boolean; reactionsCount: number; score: number }
+  >(this.functions, 'togglePhotoReaction');
 
-      const likeRef = doc(
-        this.firestore,
-        this.publicPhotoLikePath(safeOwnerUid, safePhotoId, safeViewerUid)
-      );
-
-      await runTransaction(this.firestore, async (transaction) => {
-        const photoSnap = await transaction.get(photoRef);
-
-        if (!photoSnap.exists()) {
-          throw new Error('Foto pública não encontrada.');
-        }
-
-        const photo = photoSnap.data() as IPublicPhotoItem;
-
-        if (photo.visibility !== 'PUBLIC') {
-          throw new Error('Esta foto não está pública.');
-        }
-
-        if (photo.moderationStatus !== 'APPROVED') {
-          throw new Error('Esta foto ainda não está aprovada para reações.');
-        }
-
-        if (photo.reactionsEnabled !== true) {
-          throw new Error('Reações desabilitadas nesta foto.');
-        }
-
-        const likeSnap = await transaction.get(likeRef);
-
-        const currentCount = this.normalizeCount(
-          photo.reactionsCount ?? photo.likesCount ?? 0
-        );
-
-        if (likeSnap.exists()) {
-          const nextCount = Math.max(0, currentCount - 1);
-
-          const nextScore = this.buildNextScore(photo, nextCount);
-
-          transaction.delete(likeRef);
-          transaction.update(photoRef, {
-            reactionsCount: nextCount,
-            likesCount: nextCount,
-
-            engagementScore: nextScore.engagementScore,
-            score: nextScore.score,
-            scoreBreakdown: nextScore.scoreBreakdown,
-
-            updatedAt: Date.now(),
-          });
-
-          this.debug('like removed', {
-            hasOwnerUid: !!safeOwnerUid,
-            hasPhotoId: !!safePhotoId,
-            hasViewerUid: !!safeViewerUid,
-            nextCount,
-          });
-
-          return;
-        }
-
-        const now = Date.now();
-
-        const reaction: PublicPhotoReactionDoc = {
-          uid: safeViewerUid,
-          createdAt: now,
-        };
-
-        const nextCount = currentCount + 1;
-        const nextScore = this.buildNextScore(photo, nextCount);
-
-        transaction.set(likeRef, reaction);
-        transaction.update(photoRef, {
-          reactionsCount: nextCount,
-          likesCount: nextCount,
-
-          engagementScore: nextScore.engagementScore,
-          score: nextScore.score,
-          scoreBreakdown: nextScore.scoreBreakdown,
-
-          updatedAt: now,
-        });
-
-        this.debug('like added', {
-          hasOwnerUid: !!safeOwnerUid,
-          hasPhotoId: !!safePhotoId,
-          hasViewerUid: !!safeViewerUid,
-          nextCount,
-        });
-      });
-    }).pipe(
-      take(1),
-      switchMap(() => of(void 0)),
-      catchError((error) => {
-        this.reportError(
-          'Erro ao atualizar curtida da foto.',
-          error,
-          {
-            op: 'toggleLikePhoto$',
-            hasOwnerUid: !!safeOwnerUid,
-            hasPhotoId: !!safePhotoId,
-            hasViewerUid: !!safeViewerUid,
-          },
-          false
-        );
-
-        return of(void 0);
-      })
+  await callable({
+    ownerUid: safeOwnerUid,
+    photoId: safePhotoId,
+  });
+}).pipe(
+  map(() => void 0),
+  catchError((error) => {
+    this.reportError(
+      'Erro ao atualizar curtida da foto.',
+      error,
+      {
+        op: 'toggleLikePhoto$',
+        hasOwnerUid: !!safeOwnerUid,
+        hasPhotoId: !!safePhotoId,
+        hasViewerUid: !!safeViewerUid,
+      },
+      false
     );
+
+    return of(void 0);
+  })
+);
   }
 
   private publicPhotoPath(ownerUid: string, photoId: string): string {
