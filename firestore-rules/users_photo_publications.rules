@@ -1,30 +1,21 @@
 // firestore-rules/users_photo_publications.rules
 // ==============================================================
 // USERS / photo_publications
-// - Configuração privada de publicação das fotos
-// - Somente o dono lê/escreve
-// - Separada de users/{uid}/photos para não contaminar o acervo privado
-// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+//
+// Configuração privada de publicação das fotos.
+// O dono pode ler e solicitar configuração, mas campos estratégicos
+// precisam ser bem controlados.
+//
+// Observação:
+// - Esta regra ainda permite o dono escrever configuração de publicação.
+// - Para produção, o ideal é mover publish/unpublish/moderação/score para
+//   Cloud Functions auditadas.
 // ==============================================================
+
 match /users/{userId}/photo_publications/{photoId} {
 
   function hasField(field) {
     return request.resource.data.keys().hasAny([field]);
-  }
-
-  function allowedKeys() {
-    return request.resource.data.keys().hasOnly([
-      "photoId",
-      "ownerUid",
-      "isPublished",
-      "visibility",
-      "isCover",
-      "orderIndex",
-      "commentsEnabled",
-      "reactionsEnabled",
-      "publishedAt",
-      "updatedAt"
-    ]);
   }
 
   function optBool(field) {
@@ -39,32 +30,127 @@ match /users/{userId}/photo_publications/{photoId} {
       || request.resource.data[field] is number;
   }
 
+  function optStringOrNull(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is string;
+  }
+
   function validVisibility() {
-    return !hasField("visibility")
-      || request.resource.data.visibility in [
+    return hasField("visibility")
+      && request.resource.data.visibility in [
         "PRIVATE",
         "FRIENDS",
         "SUBSCRIBERS",
+        "PREMIUM",
         "PUBLIC"
       ];
+  }
+
+  function validCommentsPolicy() {
+    return !hasField("commentsPolicy")
+      || request.resource.data.commentsPolicy in [
+        "OFF",
+        "FRIENDS",
+        "SUBSCRIBERS",
+        "EVERYONE"
+      ];
+  }
+
+  function validModerationStatus() {
+    return !hasField("moderationStatus")
+      || request.resource.data.moderationStatus in [
+        "PRIVATE",
+        "PENDING_REVIEW",
+        "APPROVED",
+        "REJECTED",
+        "FLAGGED",
+        "HIDDEN"
+      ];
+  }
+
+  function validScoreBreakdown() {
+    return !hasField("scoreBreakdown")
+      || (
+        request.resource.data.scoreBreakdown is map
+        && request.resource.data.scoreBreakdown.keys().hasOnly([
+          "rankingScore",
+          "qualityScore",
+          "engagementScore",
+          "safetyScore"
+        ])
+        && request.resource.data.scoreBreakdown.rankingScore is number
+        && request.resource.data.scoreBreakdown.qualityScore is number
+        && request.resource.data.scoreBreakdown.engagementScore is number
+        && request.resource.data.scoreBreakdown.safetyScore is number
+      );
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "photoId",
+      "ownerUid",
+
+      "isPublished",
+      "visibility",
+      "isCover",
+      "orderIndex",
+
+      "commentsEnabled",
+      "commentsPolicy",
+      "commentsCount",
+
+      "reactionsEnabled",
+      "reactionsCount",
+
+      "moderationStatus",
+      "moderationReason",
+      "reportsCount",
+
+      "score",
+      "scoreBreakdown",
+
+      "publishedAt",
+      "updatedAt",
+      "lastModeratedAt"
+    ]);
   }
 
   function validPayload() {
     return allowedKeys()
       && request.resource.data.photoId == photoId
       && request.resource.data.ownerUid == userId
+
       && optBool("isPublished")
       && validVisibility()
       && optBool("isCover")
       && optNumber("orderIndex")
+
       && optBool("commentsEnabled")
+      && validCommentsPolicy()
+      && optNumber("commentsCount")
+
       && optBool("reactionsEnabled")
+      && optNumber("reactionsCount")
+
+      && validModerationStatus()
+      && optStringOrNull("moderationReason")
+      && optNumber("reportsCount")
+
+      && optNumber("score")
+      && validScoreBreakdown()
+
       && optNumber("publishedAt")
-      && optNumber("updatedAt");
+      && optNumber("updatedAt")
+      && optNumber("lastModeratedAt");
   }
 
   allow get, list: if isSelf(userId);
-  allow create, update, delete: if isSelf(userId) && validPayload();
+
+  allow create, update: if isSelf(userId)
+    && validPayload();
+
+  allow delete: if isSelf(userId);
 }
 // ==============================================================
 //           FIM DO USERS_PHOTO_PUBLICATIONS.RULES
