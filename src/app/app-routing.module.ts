@@ -124,6 +124,18 @@ const routes: Routes = [
       },
 
       {
+        path: 'outro-perfil/:id',
+        loadComponent: () =>
+          import('./layout/other-user-profile-view/other-user-profile-view.component')
+            .then(c => c.OtherUserProfileViewComponent),
+        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+      },
+
+      {
         path: 'perfil',
         loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule),
         canActivate: [authGuard, accountLifecycleGuard],

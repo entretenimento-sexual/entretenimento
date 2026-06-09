@@ -1,53 +1,106 @@
 <!-- src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.html -->
+<!--
+  Accordion de redes sociais.
+
+  - Em perfil próprio, também mostra editor.
+  - Em perfil visitado, mostra somente links públicos disponíveis.
+  - Visual controlado pelo CSS do próprio componente para não quebrar tema escuro.
+-->
+
 <mat-accordion class="social-links-accordion">
-  <mat-expansion-panel [expanded]="true">
+  <mat-expansion-panel [expanded]="anyLinks() || canEdit()">
     <mat-expansion-panel-header>
       <mat-panel-title>
-        <i class="fas fa-user-edit" aria-hidden="true"></i>
-        Redes Sociais
+        @if (canEdit()) {
+          <i class="fas fa-user-edit" aria-hidden="true"></i>
+        } @else {
+          <i class="fas fa-share-nodes" aria-hidden="true"></i>
+        }
+
+        <span>Redes sociais</span>
       </mat-panel-title>
     </mat-expansion-panel-header>
 
     @if (anyLinks()) {
-    <div class="social-link-list">
-      <div class="social-link-item" *ngFor="let p of socialMediaPlatforms; trackBy: trackByKey"
-        [class.hidden]="!socialLinks?.[p.key]">
-        <i [class]="p.icon" aria-hidden="true"></i>
-        <span class="sr-only">{{ p.label }}:</span>
-        <span class="social-link-label">{{ p.label }}:</span>
+      <div class="social-link-list">
+        <div
+          class="social-link-item"
+          *ngFor="let p of socialMediaPlatforms; trackBy: trackByKey"
+          [class.hidden]="!socialLinks?.[p.key]"
+        >
+          <i class="social-link-icon" [class]="p.icon" aria-hidden="true"></i>
 
-        <a *ngIf="normalizedLinks[p.key] as href" class="social-link-value" [href]="href" target="_blank"
-          rel="noopener noreferrer" [attr.aria-label]="'Abrir ' + p.label + ' em nova aba'">
-          {{ socialLinks?.[p.key] }}
-          <i class="fas fa-external-link-alt" aria-hidden="true" style="margin-left:.35rem;"></i>
-        </a>
+          <span class="sr-only">{{ p.label }}:</span>
+          <span class="social-link-label">{{ p.label }}</span>
+
+          <a
+            *ngIf="normalizedLinks[p.key] as href"
+            class="social-link-value"
+            [href]="href"
+            target="_blank"
+            rel="noopener noreferrer"
+            [attr.aria-label]="'Abrir ' + p.label + ' em nova aba'"
+          >
+            <span>{{ socialLinks?.[p.key] }}</span>
+            <i class="fas fa-external-link-alt" aria-hidden="true"></i>
+          </a>
+        </div>
       </div>
-    </div>
     } @else {
-    <p class="no-links-info">Nenhuma rede social adicionada.</p>
+      <p class="no-links-info">
+        @if (canEdit()) {
+          Nenhuma rede social adicionada.
+        } @else {
+          Este perfil ainda não adicionou redes sociais.
+        }
+      </p>
     }
 
     @if (canEdit()) {
-    <div class="inline-editor">
-      <h4 class="inline-editor-title">Editar aqui mesmo</h4>
+      <div class="inline-editor">
+        <h4 class="inline-editor-title">Editar aqui mesmo</h4>
 
-      <div class="edit-row" *ngFor="let p of socialMediaPlatforms; trackBy: trackByKey">
-        <label class="edit-label" [for]="'social-'+p.key">{{ p.label }}</label>
+        <div class="edit-row" *ngFor="let p of socialMediaPlatforms; trackBy: trackByKey">
+          <label class="edit-label" [for]="'social-'+p.key">
+            {{ p.label }}
+          </label>
 
-        <input class="input-field edit-input" [id]="'social-'+p.key" [value]="socialLinks?.[p.key] || ''" #val
-          placeholder="URL ou @handle" />
+          <input
+            class="input-field edit-input"
+            [id]="'social-'+p.key"
+            [value]="socialLinks?.[p.key] || ''"
+            #val
+            placeholder="URL ou @handle"
+          />
 
-        <div class="edit-actions">
-          <button type="button" class="btn btn-primary" (click)="updateSocialLink(p.key, val.value)">Salvar</button>
-          <button type="button" class="btn btn-danger" [disabled]="!socialLinks?.[p.key]"
-            (click)="removeLink(p.key)">Remover</button>
+          <div class="edit-actions">
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="updateSocialLink(p.key, val.value)"
+            >
+              Salvar
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-danger"
+              [disabled]="!socialLinks?.[p.key]"
+              (click)="removeLink(p.key)"
+            >
+              Remover
+            </button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <button type="button" class="btn btn-secondary" (click)="goToEditSocialLinks()">
-      Abrir página de edição
-    </button>
+      <button
+        type="button"
+        class="btn btn-secondary open-editor-page"
+        (click)="goToEditSocialLinks()"
+      >
+        Abrir página de edição
+      </button>
     }
   </mat-expansion-panel>
 </mat-accordion>

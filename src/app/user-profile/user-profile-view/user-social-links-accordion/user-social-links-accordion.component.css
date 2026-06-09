@@ -1,120 +1,261 @@
-/* src\app\user-profile\user-profile-view\user-social-links-accordion\user-social-links-accordion.component.css */
-.social-links-accordion{
-  width: 100%;
-}
+/* src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component.css */
+/*
+  Accordion de redes sociais.
+
+  Corrige o visual antigo do Angular Material:
+  - remove fundo branco;
+  - remove header coral pesado;
+  - adapta ao tema escuro;
+  - funciona em perfil próprio e perfil visitado;
+  - mantém editor inline discreto quando isOwner=true.
+*/
 
 :host {
   display: block;
-  margin: 16px 0;
+  width: 100%;
+  margin: 0;
+}
+
+.social-links-accordion {
   width: 100%;
 }
 
-/* Sobrescrever mat-expansion-panel (Material) */
-::ng-deep .mat-expansion-panel {
-  background-color: #fff;
-  border-radius: 8px;
-  margin: 10px 0;
-  box-shadow: var(--box-shadow);
+:host ::ng-deep .mat-expansion-panel {
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 88%, transparent);
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color) 96%, var(--text-color) 4%),
+      var(--surface-color)
+    );
+  color: var(--text-color);
+  box-shadow: none;
 }
 
-::ng-deep .mat-expansion-panel-header {
-  background-color: var(--primary-color);
-  color: #fff;
-  border-radius: 8px 8px 0 0;
-  padding: 0.75rem 1rem;
+:host ::ng-deep .mat-expansion-panel:not([class*='mat-elevation-z']) {
+  box-shadow: none;
 }
 
-::ng-deep .mat-expansion-panel-header:hover {
-  background-color: var(--primary-hover);
+:host ::ng-deep .mat-expansion-panel-header {
+  min-height: 54px;
+  padding: 0 16px;
+  border-bottom: 1px solid color-mix(in oklab, var(--surface-border) 80%, transparent);
+  background: color-mix(in oklab, var(--surface-color) 88%, var(--text-color) 10%);
+  color: var(--text-color) !important;
 }
 
-::ng-deep .mat-panel-title {
-  font-size: 1.1rem;
-  font-weight: bold;
-  display: flex;
+:host ::ng-deep .mat-expansion-panel-header:hover {
+  background: color-mix(in oklab, var(--surface-color) 82%, var(--text-color) 16%);
+}
+
+:host ::ng-deep .mat-panel-title,
+:host ::ng-deep .mat-panel-title * {
+  color: var(--text-color) !important;
+}
+
+:host ::ng-deep .mat-panel-title {
+  display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 10px;
+  min-width: 0;
+  font-size: 0.96rem;
+  font-weight: 850;
 }
 
-::ng-deep .mat-expansion-panel-body {
-  padding: 1rem;
+:host ::ng-deep .mat-panel-title i {
+  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 72%, var(--text-color) 28%) !important;
 }
 
-/* Lista de links */
+:host ::ng-deep .mat-expansion-indicator::after {
+  color: var(--text-color) !important;
+}
+
+:host ::ng-deep .mat-expansion-panel-body {
+  padding: 14px 16px 16px;
+  background: transparent;
+}
+
 .social-link-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  display: grid;
+  gap: 10px;
+  margin: 0;
 }
 
 .social-link-item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 24px minmax(84px, 116px) minmax(0, 1fr);
   align-items: center;
-  gap: 0.5rem;
-  color: var(--secondary-color);
-  font-size: 0.95rem;
-  font-weight: 500;
-}
+  gap: 10px;
 
-.social-link-value {
-  font-weight: normal;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--surface-color) 92%, var(--text-color) 8%);
   color: var(--text-color);
 }
 
-/* Se quiser ocultar itens que não estejam definidos */
+.social-link-icon {
+  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 70%, var(--text-color) 30%);
+  text-align: center;
+}
+
+.social-link-label {
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.social-link-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-color);
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.social-link-value:hover {
+  text-decoration: underline;
+}
+
 .hidden {
   display: none;
 }
 
 .no-links-info {
-  font-style: italic;
-  color: var(--text-color);
-  margin-bottom: 1rem;
+  margin: 0;
+  padding: 13px 14px;
+  border: 1px dashed color-mix(in oklab, var(--surface-border) 82%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--surface-color) 92%, var(--text-color) 8%);
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+  font-style: normal;
+  line-height: 1.45;
 }
 
-.no-access-warning {
-  font-style: italic;
-  color: var(--danger-color);
-  margin-top: 1rem;
-}
 .inline-editor {
-  margin-top: 1rem;
-  padding-top: .5rem;
-  border-top: 1px solid var(--surface-border);
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
 }
 
 .inline-editor-title {
-  font-size: 1rem;
-  margin-bottom: .5rem;
+  margin: 0;
   color: var(--text-color);
+  font-size: 0.95rem;
+  font-weight: 800;
 }
 
 .edit-row {
   display: grid;
-  grid-template-columns: 140px 1fr auto;
+  grid-template-columns: minmax(90px, 132px) minmax(0, 1fr) auto;
   align-items: center;
-  gap: .5rem;
-  margin: .4rem 0;
+  gap: 10px;
+  margin: 0;
 }
 
 .edit-label {
-  font-weight: 600;
-  color: var(--text-color);
+  color: color-mix(in oklab, var(--text-color) 78%, transparent);
+  font-size: 0.9rem;
+  font-weight: 760;
+}
+
+.edit-input {
+  min-height: 42px;
+  border-radius: 12px;
 }
 
 .edit-actions {
   display: inline-flex;
-  gap: .4rem;
+  gap: 8px;
 }
 
-@media (max-width: 640px) {
+.edit-actions .btn,
+.open-editor-page {
+  min-height: 40px;
+  padding-inline: 12px;
+}
+
+.open-editor-page {
+  margin-top: 12px;
+}
+
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (prefers-contrast: more) {
+  :host ::ng-deep .mat-expansion-panel,
+  .social-link-item,
+  .no-links-info {
+    border-width: 2px;
+  }
+
+  .social-link-label,
+  .no-links-info {
+    color: var(--text-color);
+  }
+}
+
+@media (max-width: 700px) {
+  :host ::ng-deep .mat-expansion-panel-header {
+    min-height: 50px;
+    padding-inline: 14px;
+  }
+
+  :host ::ng-deep .mat-expansion-panel-body {
+    padding: 12px;
+  }
+
+  .social-link-item {
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 8px 10px;
+  }
+
+  .social-link-label,
+  .social-link-value {
+    grid-column: 2;
+  }
+
   .edit-row {
     grid-template-columns: 1fr;
-    gap: .35rem;
+    gap: 7px;
   }
 
   .edit-actions {
-    justify-content: flex-end;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .edit-actions .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  :host ::ng-deep .mat-expansion-panel,
+  .social-link-item,
+  .no-links-info {
+    border-radius: 12px;
+  }
+
+  .edit-actions {
+    grid-template-columns: 1fr;
   }
 }

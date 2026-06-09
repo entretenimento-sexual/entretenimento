@@ -1,10 +1,13 @@
 <!-- src/app/layout/other-user-profile-view/other-user-profile-view.component.html -->
 <!--
-  PERFIL ALHEIO / PÚBLICO
+  PERFIL VISITADO
 
-  Este template não contém edição.
-  Este template não usa UserPhotoManagerComponent.
-  Fotos levam para a galeria pública aprovada.
+  Objetivo:
+  - ser a tela principal de navegação para visualizar outro usuário;
+  - não parecer área administrativa;
+  - não usar linguagem "perfil público" na interface;
+  - concentrar ações úteis: amizade, chat e fotos;
+  - manter a leitura visual limpa, adulta, responsiva e compatível com tema escuro.
 -->
 
 <section
@@ -14,29 +17,31 @@
 >
   <header class="other-profile-page__topbar">
     <a
-      class="btn btn-ghost"
+      class="other-profile-page__back"
       [routerLink]="discoveryLink"
       aria-label="Voltar para descoberta"
     >
-      ← Voltar para descoberta
+      <span aria-hidden="true">←</span>
+      <span>Voltar para descoberta</span>
     </a>
   </header>
 
   @if (isLoading) {
-    <section class="other-profile-page__panel" role="status" aria-live="polite">
+    <section class="other-profile-page__panel other-profile-page__loading" role="status" aria-live="polite">
+      <div class="other-profile-page__loading-dot" aria-hidden="true"></div>
       <p>Carregando perfil...</p>
     </section>
   } @else {
     @if (userProfile; as profile) {
       <section class="other-profile-page__hero">
-        <div class="other-profile-page__hero-main">
+        <article class="other-profile-page__hero-main" aria-labelledby="profile-heading">
           <figure class="other-profile-page__photo-wrap">
             <img
               [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
-              [attr.alt]="profile.nickname ? ('Foto de perfil de ' + profile.nickname) : 'Foto de perfil padrão'"
+              [attr.alt]="profile.nickname ? ('Foto de perfil de ' + profile.nickname) : 'Foto de perfil'"
               class="other-profile-page__photo"
-              width="160"
-              height="160"
+              width="180"
+              height="180"
               loading="lazy"
               decoding="async"
             />
@@ -56,11 +61,11 @@
             @if (hasLocation) {
               <p class="other-profile-page__location">
                 <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
-                {{ profile.municipio }}, {{ profile.estado }}
+                <span>{{ profile.municipio }}, {{ profile.estado }}</span>
               </p>
             }
 
-            <div class="other-profile-page__meta">
+            <div class="other-profile-page__meta" aria-label="Informações rápidas do perfil">
               <span class="other-profile-page__chip">
                 {{ profile.gender ? (profile.gender | titlecase) : 'Gênero não informado' }}
               </span>
@@ -71,58 +76,61 @@
             </div>
 
             <p class="other-profile-page__description">
-              {{ hasDescription ? profile.descricao : 'Este usuário ainda não adicionou uma descrição pública.' }}
+              {{ hasDescription ? profile.descricao : 'Este usuário ainda não adicionou uma descrição.' }}
             </p>
           </div>
-        </div>
+        </article>
 
-        <aside class="other-profile-page__actions-card" aria-label="Ações rápidas do perfil">
-          <h2 class="other-profile-page__actions-title">Ações do perfil</h2>
+        <aside class="other-profile-page__actions-card" aria-label="Ações do perfil">
+          <div class="other-profile-page__actions-heading">
+            <p class="other-profile-page__eyebrow">Interação</p>
+            <h2 class="other-profile-page__actions-title">Ações do perfil</h2>
+          </div>
 
           <div class="other-profile-page__actions">
             <button
               type="button"
-              class="btn btn-primary"
+              class="btn btn-primary other-profile-page__action"
               (click)="sendFriendRequest()"
               [disabled]="(friendRequestBusy$ | async) === true || !uid"
             >
-              {{ (friendRequestBusy$ | async) ? 'Enviando...' : 'Solicitar amizade' }}
+              <i class="fas fa-user-plus" aria-hidden="true"></i>
+              <span>
+                {{ (friendRequestBusy$ | async) ? 'Enviando...' : 'Solicitar amizade' }}
+              </span>
             </button>
 
             <button
               type="button"
-              class="btn btn-secondary"
+              class="btn btn-secondary other-profile-page__action"
               (click)="startDirectChat()"
               [disabled]="(directChatBusy$ | async) === true || !uid"
             >
-              {{ (directChatBusy$ | async) ? 'Preparando...' : 'Iniciar chat' }}
+              <i class="fas fa-comment-dots" aria-hidden="true"></i>
+              <span>
+                {{ (directChatBusy$ | async) ? 'Preparando...' : 'Iniciar chat' }}
+              </span>
             </button>
 
             @if (photosLink) {
               <a
-                class="btn btn-secondary"
+                class="btn btn-secondary other-profile-page__action"
                 [routerLink]="photosLink"
               >
-                Ver fotos públicas
+                <i class="fas fa-images" aria-hidden="true"></i>
+                <span>Ver fotos</span>
               </a>
             }
-
-            <a
-              class="btn btn-ghost"
-              [routerLink]="invitesLink"
-            >
-              Meus convites
-            </a>
           </div>
 
           <p class="other-profile-page__actions-helper">
-            Solicite amizade, inicie conversa direta quando permitido ou veja as fotos públicas aprovadas.
+            Interaja com o perfil, acompanhe as fotos e inicie conversa quando permitido.
           </p>
         </aside>
       </section>
 
-      <section class="other-profile-page__content">
-        <article class="other-profile-page__panel">
+      <section class="other-profile-page__content" aria-label="Detalhes do perfil">
+        <article class="other-profile-page__panel other-profile-page__panel--summary">
           <header class="other-profile-page__panel-header">
             <div>
               <p class="other-profile-page__eyebrow">Apresentação</p>
@@ -155,10 +163,10 @@
           </dl>
         </article>
 
-        <article class="other-profile-page__panel" role="region" aria-labelledby="social-heading">
+        <article class="other-profile-page__panel other-profile-page__panel--social" role="region" aria-labelledby="social-heading">
           <header class="other-profile-page__panel-header">
             <div>
-              <p class="other-profile-page__eyebrow">Contato público</p>
+              <p class="other-profile-page__eyebrow">Contato</p>
               <h2 id="social-heading">Redes sociais</h2>
             </div>
           </header>
@@ -166,12 +174,12 @@
           <app-social-links-accordion
             [uid]="uid"
             [isOwner]="false"
-            aria-label="Links sociais públicos do usuário"
+            aria-label="Links sociais do usuário"
           ></app-social-links-accordion>
         </article>
       </section>
     } @else {
-      <section class="other-profile-page__panel" role="status" aria-live="polite">
+      <section class="other-profile-page__panel other-profile-page__empty" role="status" aria-live="polite">
         <h1 id="profile-heading">Perfil indisponível</h1>
         <p>Não foi possível carregar este perfil no momento.</p>
 

@@ -1,19 +1,31 @@
 // src/app/user-profile/user-profile-view/user-profile-view.component.ts
-// Objetivo: exibir perfil do usuário SEM depender de fontes paralelas.
-// - UID “quem sou eu”: vem do AUTH (store -> selectCurrentUserUid)
-// - Perfil “dados do usuário”: vem do usersMap (store -> selectUserByIdOrNull / selectCurrentUser)
-// - Listener do usuário atual (users/{uid}) é controlado por AuthSessionSyncEffects.
-// - Este componente NÃO inicia observeUserChanges() para não cancelar listener do usuário atual via switchMap.
+// -----------------------------------------------------------------------------
+// PERFIL PRÓPRIO
+// -----------------------------------------------------------------------------
 //
-// Ajuste desta revisão:
-// - suprime a renderização do sidebar local do perfil
-// - o sidebar autenticado passa a ser responsabilidade exclusiva do LayoutShellComponent
-// - evita duplicidade visual em /perfil/:uid
-// apreciar deixar mais ostensivo para o usuário o status da verificação de email e o a oferta deste
-import { Component, OnInit, DestroyRef, inject } from '@angular/core';
-import { ActivatedRoute, RouterModule } from '@angular/router';
+// Este componente deve exibir SOMENTE o perfil do usuário autenticado.
+//
+// Regra definitiva:
+// - /perfil               -> meu perfil
+// - /perfil/:meuUid       -> meu perfil
+// - /perfil/:uidDeOutro   -> redireciona para /outro-perfil/:uidDeOutro
+//
+// Motivo:
+// - Perfil próprio pode usar selectCurrentUser, pois vem do estado autenticado.
+// - Perfil alheio deve usar projeção pública.
+// - Isso evita tela travada em "Carregando..." quando o outro usuário não está
+//   previamente hidratado no usersMap do NgRx.
+//
+// Supressão explícita:
+// - Este componente NÃO usa selectUserByIdOrNull.
+// - Este componente NÃO busca public_profiles.
+// - Este componente NÃO renderiza edição/social/fotos se detectar perfil alheio.
+// - Perfil alheio pertence ao OtherUserProfileViewComponent.
+
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { Observable, of, combineLatest } from 'rxjs';
+import { Observable, combineLatest, of } from 'rxjs';
 import {
   auditTime,
   catchError,
@@ -30,9 +42,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AppState } from 'src/app/store/states/app.state';
 import {
-  selectCurrentUserUid,
-  selectUserByIdOrNull,
+  selectCurrentUser,
   selectCurrentUserStatus,
+  selectCurrentUserUid,
   type CurrentUserStatus,
 } from 'src/app/store/selectors/selectors.user/user.selectors';
 
@@ -40,13 +52,12 @@ import type { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 import { SocialLinksAccordionComponent } from './user-social-links-accordion/user-social-links-accordion.component';
-//import { UserProfilePreferencesComponent } from './user-profile-preferences/user-profile-preferences.component';
 import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
-import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
 @Component({
   selector: 'app-user-profile-view',
@@ -57,7 +68,6 @@ import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy
     CommonModule,
     RouterModule,
     SocialLinksAccordionComponent,
-    //UserProfilePreferencesComponent,
     UserPhotoManagerComponent,
     DateFormatPipe,
     CapitalizePipe,
@@ -65,6 +75,7 @@ import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy
 })
 export class UserProfileViewComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly store = inject<Store<AppState>>(Store as any);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -72,75 +83,108 @@ export class UserProfileViewComponent implements OnInit {
   private readonly errorNotification = inject(ErrorNotificationService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
-  /** UID efetivo do perfil exibido (routeUid ?? authUid) */
   public uid: string | null = null;
-
-  /** UID do usuário logado (AUTH) — usado p/ isOwner */
   private authUid: string | null = null;
 
-  /** Status útil p/ debug e UX (boot/signed_out/loading_profile/ready) */
-  public status$: Observable<CurrentUserStatus> = this.store.select(selectCurrentUserStatus);
+  public readonly status$: Observable<CurrentUserStatus> =
+    this.store.select(selectCurrentUserStatus);
 
-  /** Stream do usuário exibido */
   public usuario$: Observable<IUserDados | null> = of(null);
-
-/**
- * Debug seguro da tela de perfil.
- *
- * Canal:
- * localStorage.setItem('DEBUG_PROFILE', '1');
- *
- * Esta tela pode revelar:
- * - UID do perfil visualizado;
- * - UID do usuário autenticado;
- * - status de hidratação do perfil;
- * - frequência de emissão do usuário no store.
- *
- * Por isso, não deve usar console.log direto.
- */
-private dbg(message: string, extra?: unknown): void {
-  this.privacyDebug.log('profile', `UserProfileView: ${message}`, extra);
-}
+  public redirectingToOtherProfile = false;
 
   ngOnInit(): void {
     const authUid$ = this.store.select(selectCurrentUserUid).pipe(
-      tap((uid) => (this.authUid = uid ?? null)),
+      map((uid) => (uid ?? '').trim() || null),
+      tap((uid) => {
+        this.authUid = uid;
+      }),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
     const routeUid$ = this.route.paramMap.pipe(
-      map((p) => (p.get('uid') ?? p.get('id'))?.trim() || null),
+      map((params) => {
+        const uid = params.get('uid') ?? params.get('id');
+        return uid?.trim() || null;
+      }),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    const effectiveUid$ = combineLatest([routeUid$, authUid$]).pipe(
-      map(([rid, auid]) => rid ?? auid ?? null),
-      distinctUntilChanged(),
-      tap((uid) => (this.uid = uid)),
+    const context$ = combineLatest([routeUid$, authUid$]).pipe(
+      tap(([routeUid, authUid]) => {
+        const isExternal =
+          !!routeUid &&
+          !!authUid &&
+          routeUid !== authUid;
+
+        this.redirectingToOtherProfile = isExternal;
+        this.uid = isExternal ? authUid : routeUid ?? authUid ?? null;
+      }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    this.usuario$ = effectiveUid$.pipe(
-      switchMap((uid) => (uid ? this.store.select(selectUserByIdOrNull(uid)) : of(null))),
-      catchError((err) => {
-        this.globalError.handleError(
-          err instanceof Error ? err : new Error('Erro ao carregar perfil')
-        );
-        this.errorNotification.showError(
+    context$
+      .pipe(
+        filter(([routeUid, authUid]) => !!routeUid && !!authUid && routeUid !== authUid),
+        tap(([routeUid]) => {
+          const targetUid = routeUid ?? '';
+
+          this.dbg('external profile detected; redirecting to OtherUserProfileView', {
+            hasTargetUid: !!targetUid,
+          });
+
+          this.router.navigate(['/outro-perfil', targetUid], { replaceUrl: true })
+            .catch((error) => {
+              this.reportError(
+                'Não foi possível redirecionar para o perfil público.',
+                error,
+                {
+                  op: 'redirectExternalProfile',
+                  hasTargetUid: !!targetUid,
+                }
+              );
+            });
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+
+    this.usuario$ = context$.pipe(
+      switchMap(([routeUid, authUid]) => {
+        if (!authUid) {
+          return of(null);
+        }
+
+        if (routeUid && routeUid !== authUid) {
+          return of(null);
+        }
+
+        return this.store.select(selectCurrentUser);
+      }),
+      catchError((error) => {
+        this.reportError(
           'Não foi possível carregar seu perfil no momento.',
-          String((err as any)?.message ?? '')
+          error,
+          { op: 'usuario$' }
         );
+
         return of(null);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    effectiveUid$
+    context$
       .pipe(
         auditTime(500),
-        tap((uid) => this.dbg('effectiveUid$', { uid })),
+        tap(([routeUid, authUid]) => {
+          this.dbg('context$', {
+            hasRouteUid: !!routeUid,
+            hasAuthUid: !!authUid,
+            isOwnProfile: !!authUid && (!routeUid || routeUid === authUid),
+            redirectingToOtherProfile: !!routeUid && !!authUid && routeUid !== authUid,
+          });
+        }),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
@@ -148,7 +192,7 @@ private dbg(message: string, extra?: unknown): void {
     this.status$
       .pipe(
         auditTime(500),
-        tap((s) => this.dbg('currentUserStatus$', s)),
+        tap((status) => this.dbg('currentUserStatus$', status)),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
@@ -156,7 +200,7 @@ private dbg(message: string, extra?: unknown): void {
     this.usuario$
       .pipe(
         filter(Boolean),
-        scan((acc) => acc + 1, 0),
+        scan((count) => count + 1, 0),
         auditTime(1000),
         tap((count) => this.dbg('usuario$ emits/sec', count)),
         takeUntilDestroyed(this.destroyRef)
@@ -164,23 +208,15 @@ private dbg(message: string, extra?: unknown): void {
       .subscribe();
   }
 
-    onAvatarImageError(event: Event): void {
+  onAvatarImageError(event: Event): void {
     const image = event.target as HTMLImageElement | null;
-
-    if (!image) {
-      return;
-    }
+    if (!image) return;
 
     const fallback = 'assets/imagem-padrao.webp';
 
     if (!image.src.endsWith(fallback)) {
       image.src = fallback;
     }
-  }
-
-  objectKeys(obj: any): string[] {
-    if (!obj) return [];
-    return Object.keys(obj).filter((key) => obj[key] && obj[key].value);
   }
 
   isCouple(gender: string | undefined): boolean {
@@ -217,8 +253,38 @@ private dbg(message: string, extra?: unknown): void {
     }
   }
 
-  /** Dono do perfil = uid exibido igual ao uid do AUTH */
   isOnOwnProfile(): boolean {
-    return !!this.authUid && this.authUid === this.uid;
+    return !!this.authUid && !!this.uid && this.authUid === this.uid && !this.redirectingToOtherProfile;
+  }
+
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('profile', `UserProfileView: ${message}`, extra);
+  }
+
+  private reportError(
+    userMessage: string,
+    error: unknown,
+    context?: Record<string, unknown>
+  ): void {
+    try {
+      this.errorNotification.showError(userMessage);
+    } catch {
+      // noop
+    }
+
+    try {
+      const err = error instanceof Error ? error : new Error(userMessage);
+
+      (err as any).original = error;
+      (err as any).context = {
+        scope: 'UserProfileViewComponent',
+        ...(context ?? {}),
+      };
+      (err as any).skipUserNotification = true;
+
+      this.globalError.handleError(err);
+    } catch {
+      // noop
+    }
   }
 }

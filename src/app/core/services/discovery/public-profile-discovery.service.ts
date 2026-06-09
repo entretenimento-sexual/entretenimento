@@ -1,11 +1,12 @@
 // src/app/core/services/discovery/public-profile-discovery.service.ts
-
 import { Injectable, inject } from '@angular/core';
 
 import {
   Firestore,
   collection,
   collectionData,
+  doc,
+  docData,
   limit,
   orderBy,
   query,
@@ -66,6 +67,37 @@ export class PublicProfileDiscoveryService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
+
+  getPublicProfileByUid$(uid: string | null | undefined): Observable<IUserDados | null> {
+  const safeUid = String(uid ?? '').trim();
+
+  if (!safeUid) {
+    return of(null);
+  }
+
+  const ref = doc(this.firestore, `public_profiles/${safeUid}`);
+
+  return docData(ref, { idField: 'uid' }).pipe(
+    map((raw) => {
+      if (!raw) {
+        return null;
+      }
+
+      const profile = this.toUserDadosFromPublicProfile(raw);
+
+      return profile?.uid ? profile : null;
+    }),
+    catchError((err) => {
+      this.reportSilentError(
+        'PublicProfileDiscoveryService.getPublicProfileByUid$',
+        err
+      );
+
+      return of(null);
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+}
 
   private toUserDadosFromPublicProfile(raw: any): IUserDados {
     const uid = String(raw?.uid ?? '').trim();
