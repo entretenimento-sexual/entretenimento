@@ -3,27 +3,29 @@
 //
 // Objetivo:
 // - listar comentários visíveis de uma foto pública;
-// - criar comentário apenas quando a foto permite comentários;
-// - preparar moderação futura;
+// - criar comentário via Callable segura;
+// - responder comentário via Callable segura;
+// - moderar comentário via Callable segura;
 // - manter Observable na API pública;
 // - centralizar erro no GlobalErrorHandlerService;
 // - evitar logs/dados sensíveis.
-
+//
+// Segurança:
+// - cliente não grava comentário direto;
+// - cliente não atualiza commentsCount/score;
+// - cliente não modera por updateDoc;
+// - backend valida Auth, foto pública/aprovada, política e dono da foto.
 import { Injectable, inject } from '@angular/core';
-import { Auth } from '@angular/fire/auth';
 import {
   Firestore,
-  addDoc,
   collection,
   collectionData,
-  doc,
-  getDoc,
   limit,
   orderBy,
   query,
-  updateDoc,
   where,
 } from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 
@@ -31,21 +33,53 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
-import { IPhotoComment } from 'src/app/core/interfaces/media/i-photo-comment';
-import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { IPhotoComment, TPhotoCommentStatus } from 'src/app/core/interfaces/media/i-photo-comment';
 
 export interface ICreatePhotoCommentCommand {
   ownerUid: string;
   photoId: string;
-  authorUid: string;
-  authorNickname: string;
+  authorUid?: string;
+  authorNickname?: string;
   content: string;
+}
+
+export interface IReplyToPhotoCommentCommand {
+  ownerUid: string;
+  photoId: string;
+  parentCommentId: string;
+  content: string;
+}
+
+export type TModeratePhotoCommentAction = 'HIDE' | 'RESTORE' | 'DELETE';
+
+interface CreatePhotoCommentCallableRequest {
+  ownerUid: string;
+  photoId: string;
+  content: string;
+  parentCommentId?: string | null;
+}
+
+interface CreatePhotoCommentCallableResponse {
+  commentId: string;
+}
+
+interface ModeratePhotoCommentCallableRequest {
+  ownerUid: string;
+  photoId: string;
+  commentId: string;
+  action: TModeratePhotoCommentAction;
+}
+
+interface ModeratePhotoCommentCallableResponse {
+  status: TPhotoCommentStatus;
+  commentsCount: number;
+  score: number;
 }
 
 @Injectable({ providedIn: 'root' })
 export class MediaPhotoCommentsService {
   private readonly firestore = inject(Firestore);
-  private readonly auth = inject(Auth);
+  private readonly functions = inject(Functions);
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
@@ -102,86 +136,28 @@ export class MediaPhotoCommentsService {
     );
   }
 
+  /**
+   * Cria comentário via Callable.
+   *
+   * Mantém a assinatura anterior para reduzir impacto no PhotoViewer.
+   * authorUid/authorNickname ficam aceitos por compatibilidade, mas a autoridade
+   * passa a ser o backend autenticado.
+   */
   createComment$(command: ICreatePhotoCommentCommand): Observable<string | null> {
     const safeOwnerUid = this.cleanId(command.ownerUid);
     const safePhotoId = this.cleanId(command.photoId);
-    const safeAuthorUid = this.cleanId(command.authorUid);
-    const safeNickname = this.cleanNickname(command.authorNickname);
     const safeContent = this.cleanCommentContent(command.content);
 
-    if (!safeOwnerUid || !safePhotoId || !safeAuthorUid || !safeContent) {
+    if (!safeOwnerUid || !safePhotoId || !safeContent) {
       this.errorNotifier.showWarning('Comentário inválido.');
       return of(null);
     }
 
-    if (this.auth.currentUser?.uid !== safeAuthorUid) {
-      this.errorNotifier.showError('Sessão inválida para comentar.');
-      return of(null);
-    }
-
-    return this.firestoreCtx.deferPromise$(async () => {
-      const photoRef = doc(
-        this.firestore,
-        `public_profiles/${safeOwnerUid}/public_photos/${safePhotoId}`
-      );
-
-      const photoSnap = await getDoc(photoRef);
-
-      if (!photoSnap.exists()) {
-        throw new Error('Foto pública não encontrada.');
-      }
-
-      const photo = photoSnap.data() as IPublicPhotoItem;
-
-      if (photo.visibility !== 'PUBLIC') {
-        throw new Error('Esta foto não está pública.');
-      }
-
-      if (photo.moderationStatus !== 'APPROVED') {
-        throw new Error('Esta foto ainda não está aprovada para comentários.');
-      }
-
-      if (photo.commentsEnabled !== true) {
-        throw new Error('Comentários desabilitados nesta foto.');
-      }
-
-      if (photo.commentsPolicy !== 'EVERYONE') {
-        throw new Error('A política atual da foto não permite comentários públicos.');
-      }
-
-      const now = Date.now();
-
-      const commentsCollection = collection(
-        this.firestore,
-        this.commentsPath(safeOwnerUid, safePhotoId)
-      );
-
-      const created = await addDoc(commentsCollection, {
-        ownerUid: safeOwnerUid,
-        photoId: safePhotoId,
-
-        authorUid: safeAuthorUid,
-        authorNickname: safeNickname,
-
-        content: safeContent,
-
-        status: 'VISIBLE',
-
-        likesCount: 0,
-        reportsCount: 0,
-
-        createdAt: now,
-        updatedAt: now,
-        deletedAt: null,
-      } satisfies Omit<IPhotoComment, 'id'>);
-
-      this.debug('comment created', {
-        hasOwnerUid: !!safeOwnerUid,
-        hasPhotoId: !!safePhotoId,
-        hasAuthorUid: !!safeAuthorUid,
-      });
-
-      return created.id;
+    return this.callCreateComment$({
+      ownerUid: safeOwnerUid,
+      photoId: safePhotoId,
+      content: safeContent,
+      parentCommentId: null,
     }).pipe(
       catchError((error) => {
         this.reportError(
@@ -191,7 +167,6 @@ export class MediaPhotoCommentsService {
             op: 'createComment$',
             hasOwnerUid: !!safeOwnerUid,
             hasPhotoId: !!safePhotoId,
-            hasAuthorUid: !!safeAuthorUid,
           },
           false
         );
@@ -201,68 +176,151 @@ export class MediaPhotoCommentsService {
     );
   }
 
+  /**
+   * Resposta do dono da foto a um comentário.
+   *
+   * O backend valida se o usuário autenticado é o dono da foto.
+   */
+  replyToComment$(command: IReplyToPhotoCommentCommand): Observable<string | null> {
+    const safeOwnerUid = this.cleanId(command.ownerUid);
+    const safePhotoId = this.cleanId(command.photoId);
+    const safeParentCommentId = this.cleanId(command.parentCommentId);
+    const safeContent = this.cleanCommentContent(command.content);
+
+    if (!safeOwnerUid || !safePhotoId || !safeParentCommentId || !safeContent) {
+      this.errorNotifier.showWarning('Resposta inválida.');
+      return of(null);
+    }
+
+    return this.callCreateComment$({
+      ownerUid: safeOwnerUid,
+      photoId: safePhotoId,
+      content: safeContent,
+      parentCommentId: safeParentCommentId,
+    }).pipe(
+      catchError((error) => {
+        this.reportError(
+          'Erro ao responder comentário.',
+          error,
+          {
+            op: 'replyToComment$',
+            hasOwnerUid: !!safeOwnerUid,
+            hasPhotoId: !!safePhotoId,
+            hasParentCommentId: !!safeParentCommentId,
+          },
+          false
+        );
+
+        return of(null);
+      })
+    );
+  }
+
+  hideComment$(
+    ownerUid: string,
+    photoId: string,
+    commentId: string
+  ): Observable<TPhotoCommentStatus | null> {
+    return this.moderateComment$(ownerUid, photoId, commentId, 'HIDE');
+  }
+
+  restoreComment$(
+    ownerUid: string,
+    photoId: string,
+    commentId: string
+  ): Observable<TPhotoCommentStatus | null> {
+    return this.moderateComment$(ownerUid, photoId, commentId, 'RESTORE');
+  }
+
+  deleteComment$(
+    ownerUid: string,
+    photoId: string,
+    commentId: string
+  ): Observable<TPhotoCommentStatus | null> {
+    return this.moderateComment$(ownerUid, photoId, commentId, 'DELETE');
+  }
+
+  /**
+   * Mantido para compatibilidade com chamadas antigas.
+   *
+   * Agora usa Callable em vez de updateDoc direto.
+   */
   softDeleteComment$(
     ownerUid: string,
     photoId: string,
     commentId: string,
-    requesterUid: string
+    _requesterUid: string
   ): Observable<void> {
+    return this.deleteComment$(ownerUid, photoId, commentId).pipe(
+      map(() => void 0)
+    );
+  }
+
+  private callCreateComment$(
+    payload: CreatePhotoCommentCallableRequest
+  ): Observable<string | null> {
+    return this.firestoreCtx.deferPromise$(async () => {
+      const callable = httpsCallable<
+        CreatePhotoCommentCallableRequest,
+        CreatePhotoCommentCallableResponse
+      >(this.functions, 'createPhotoComment');
+
+      const response = await callable(payload);
+
+      this.debug('comment callable success', {
+        hasOwnerUid: !!payload.ownerUid,
+        hasPhotoId: !!payload.photoId,
+        isReply: !!payload.parentCommentId,
+      });
+
+      return response.data?.commentId ?? null;
+    });
+  }
+
+  private moderateComment$(
+    ownerUid: string,
+    photoId: string,
+    commentId: string,
+    action: TModeratePhotoCommentAction
+  ): Observable<TPhotoCommentStatus | null> {
     const safeOwnerUid = this.cleanId(ownerUid);
     const safePhotoId = this.cleanId(photoId);
     const safeCommentId = this.cleanId(commentId);
-    const safeRequesterUid = this.cleanId(requesterUid);
 
-    if (!safeOwnerUid || !safePhotoId || !safeCommentId || !safeRequesterUid) {
-      return of(void 0);
-    }
-
-    if (this.auth.currentUser?.uid !== safeRequesterUid) {
-      this.errorNotifier.showError('Sessão inválida para remover comentário.');
-      return of(void 0);
+    if (!safeOwnerUid || !safePhotoId || !safeCommentId) {
+      this.errorNotifier.showWarning('Comentário inválido.');
+      return of(null);
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
-      const commentRef = doc(
-        this.firestore,
-        `${this.commentsPath(safeOwnerUid, safePhotoId)}/${safeCommentId}`
-      );
+      const callable = httpsCallable<
+        ModeratePhotoCommentCallableRequest,
+        ModeratePhotoCommentCallableResponse
+      >(this.functions, 'moderatePhotoComment');
 
-      const snap = await getDoc(commentRef);
-
-      if (!snap.exists()) {
-        return;
-      }
-
-      const comment = snap.data() as IPhotoComment;
-      const canDelete =
-        comment.authorUid === safeRequesterUid || safeOwnerUid === safeRequesterUid;
-
-      if (!canDelete) {
-        throw new Error('Você não tem permissão para remover este comentário.');
-      }
-
-      const now = Date.now();
-
-      await updateDoc(commentRef, {
-        status: 'DELETED',
-        content: '',
-        updatedAt: now,
-        deletedAt: now,
+      const response = await callable({
+        ownerUid: safeOwnerUid,
+        photoId: safePhotoId,
+        commentId: safeCommentId,
+        action,
       });
 
-      this.debug('comment soft deleted', {
+      this.debug('comment moderation callable success', {
+        action,
         hasOwnerUid: !!safeOwnerUid,
         hasPhotoId: !!safePhotoId,
         hasCommentId: !!safeCommentId,
       });
+
+      return response.data?.status ?? null;
     }).pipe(
-      map(() => void 0),
       catchError((error) => {
         this.reportError(
-          'Erro ao remover comentário.',
+          this.resolveModerationErrorMessage(action),
           error,
           {
-            op: 'softDeleteComment$',
+            op: 'moderateComment$',
+            action,
             hasOwnerUid: !!safeOwnerUid,
             hasPhotoId: !!safePhotoId,
             hasCommentId: !!safeCommentId,
@@ -270,7 +328,7 @@ export class MediaPhotoCommentsService {
           false
         );
 
-        return of(void 0);
+        return of(null);
       })
     );
   }
@@ -281,16 +339,6 @@ export class MediaPhotoCommentsService {
 
   private cleanId(value: string | null | undefined): string {
     return String(value ?? '').trim();
-  }
-
-  private cleanNickname(value: string | null | undefined): string {
-    const text = String(value ?? '').trim();
-
-    if (!text) {
-      return 'Usuário';
-    }
-
-    return text.slice(0, 40);
   }
 
   private cleanCommentContent(value: string | null | undefined): string {
@@ -317,6 +365,11 @@ export class MediaPhotoCommentsService {
 
       status: item.status ?? 'VISIBLE',
 
+      parentCommentId: item.parentCommentId ?? null,
+      isOwnerReply: item.isOwnerReply ?? false,
+      replyToAuthorUid: item.replyToAuthorUid ?? null,
+      replyToAuthorNickname: item.replyToAuthorNickname ?? null,
+
       likesCount: item.likesCount ?? 0,
       reportsCount: item.reportsCount ?? 0,
 
@@ -324,6 +377,18 @@ export class MediaPhotoCommentsService {
       updatedAt: item.updatedAt,
       deletedAt: item.deletedAt ?? null,
     };
+  }
+
+  private resolveModerationErrorMessage(action: TModeratePhotoCommentAction): string {
+    if (action === 'HIDE') {
+      return 'Erro ao ocultar comentário.';
+    }
+
+    if (action === 'RESTORE') {
+      return 'Erro ao restaurar comentário.';
+    }
+
+    return 'Erro ao remover comentário.';
   }
 
   private debug(message: string, extra?: unknown): void {
@@ -346,12 +411,14 @@ export class MediaPhotoCommentsService {
 
     try {
       const err = error instanceof Error ? error : new Error(userMessage);
+
       (err as any).original = error;
       (err as any).context = {
         scope: 'MediaPhotoCommentsService',
         ...(context ?? {}),
       };
       (err as any).skipUserNotification = silent;
+
       this.errorHandler.handleError(err);
     } catch {
       // noop

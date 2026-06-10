@@ -7,16 +7,9 @@
 // Regras atuais:
 // - leitura por usuários autenticados somente se PUBLIC + APPROVED;
 // - escrita do documento público fica bloqueada para cliente comum;
-// - likes: usuário autenticado pode criar/deletar somente o próprio like;
-// - comments: usuário autenticado pode criar comentário próprio se a foto permitir;
-// - score, contadores e moderação NÃO devem ser manipulados livremente pelo cliente.
-//
-// Observação:
-// - enquanto o MediaReactionsService ainda atualiza reactionsCount/score pelo cliente,
-//   estas rules mais rígidas podem bloquear o toggleLike.
-// - Ideal de produção: Cloud Function atualiza contadores e score.
-// - Para MVP sem Function, podemos abrir uma exceção temporária depois, mas não recomendo
-//   abrir update geral do documento público.
+// - likes: leitura do próprio estado de like; escrita via Cloud Function;
+// - comments: leitura de comentários visíveis; escrita/moderação via Cloud Function;
+// - score, contadores e moderação NÃO são manipulados pelo cliente.
 // ===============================================================
 
 match /public_profiles/{userId}/public_photos/{photoId} {
@@ -43,21 +36,6 @@ match /public_profiles/{userId}/public_photos/{photoId} {
       && resource.data.moderationStatus == "APPROVED";
   }
 
-  function photoAllowsLikes() {
-    return photoExists()
-      && photoData().visibility == "PUBLIC"
-      && photoData().moderationStatus == "APPROVED"
-      && photoData().reactionsEnabled == true;
-  }
-
-  function photoAllowsComments() {
-    return photoExists()
-      && photoData().visibility == "PUBLIC"
-      && photoData().moderationStatus == "APPROVED"
-      && photoData().commentsEnabled == true
-      && photoData().commentsPolicy == "EVERYONE";
-  }
-
   allow get: if signedIn() && (isSelf(userId) || isPublicReadable());
 
   allow list: if signedIn()
@@ -65,7 +43,7 @@ match /public_profiles/{userId}/public_photos/{photoId} {
     && resource.data.moderationStatus == "APPROVED";
 
   // Documento público da foto não deve ser editado diretamente pelo cliente.
-  // Publicação/moderação/score idealmente migram para Cloud Function.
+  // Publicação/moderação/score/contadores devem vir de fluxo controlado.
   allow create, update, delete: if false;
 
   // ------------------------------------------------------------
@@ -73,31 +51,12 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   // public_profiles/{ownerUid}/public_photos/{photoId}/likes/{viewerUid}
   // ------------------------------------------------------------
   match /likes/{viewerUid} {
-    function validLikeCreate() {
-      return request.resource.data.keys().hasOnly([
-          "uid",
-          "createdAt"
-        ])
-        && request.resource.data.uid == uid()
-        && (
-          request.resource.data.createdAt is number
-          || request.resource.data.createdAt == request.time
-        );
-    }
-
     allow get: if signedIn() && request.auth.uid == viewerUid;
 
     allow list: if false;
 
-    allow create: if signedIn()
-      && request.auth.uid == viewerUid
-      && photoAllowsLikes()
-      && validLikeCreate();
-
-    allow delete: if signedIn()
-      && request.auth.uid == viewerUid;
-
-    allow update: if false;
+    // Escrita via Cloud Function togglePhotoReaction.
+    allow create, update, delete: if false;
   }
 
   // ------------------------------------------------------------
@@ -105,50 +64,29 @@ match /public_profiles/{userId}/public_photos/{photoId} {
   // public_profiles/{ownerUid}/public_photos/{photoId}/comments/{commentId}
   // ------------------------------------------------------------
   match /comments/{commentId} {
-    function validCommentCreate() {
-      return request.resource.data.keys().hasOnly([
-          "ownerUid",
-          "photoId",
-          "authorUid",
-          "authorNickname",
-          "content",
-          "status",
-          "likesCount",
-          "reportsCount",
-          "createdAt",
-          "updatedAt",
-          "deletedAt"
-        ])
-        && request.resource.data.ownerUid == userId
-        && request.resource.data.photoId == photoId
-        && request.resource.data.authorUid == uid()
-        && request.resource.data.authorNickname is string
-        && request.resource.data.authorNickname.size() >= 1
-        && request.resource.data.authorNickname.size() <= 40
-        && request.resource.data.content is string
-        && request.resource.data.content.size() >= 1
-        && request.resource.data.content.size() <= 500
-        && request.resource.data.status == "VISIBLE"
-        && request.resource.data.likesCount == 0
-        && request.resource.data.reportsCount == 0
-        && request.resource.data.createdAt is number
-        && request.resource.data.updatedAt is number
-        && request.resource.data.deletedAt == null;
-    }
+    allow get: if signedIn()
+      && (
+        isSelf(userId)
+        || (
+          resource.data.status == "VISIBLE"
+          && photoExists()
+          && isApprovedPublicPhotoData(photoData())
+        )
+      );
 
-    allow get, list: if signedIn()
-      && resource.data.status == "VISIBLE"
-      && photoExists()
-      && isApprovedPublicPhotoData(photoData());
+    allow list: if signedIn()
+      && (
+        isSelf(userId)
+        || (
+          resource.data.status == "VISIBLE"
+          && photoExists()
+          && isApprovedPublicPhotoData(photoData())
+        )
+      );
 
-    allow create: if signedIn()
-      && photoAllowsComments()
-      && validCommentCreate();
-
-    // Soft delete por cliente fica para etapa separada.
-    // Hoje o service tenta update para DELETED; se mantivermos isso,
-    // precisamos abrir regra específica e restrita.
-    allow update, delete: if false;
+    // Criação, resposta, ocultação, restauração e remoção suave
+    // via Cloud Functions createPhotoComment / moderatePhotoComment.
+    allow create, update, delete: if false;
   }
 }
 // ==============================================================
