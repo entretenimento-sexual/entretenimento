@@ -325,8 +325,11 @@ export const createPhotoComment = onCall<CreatePhotoCommentRequest>(
       }
 
       const now = Date.now();
+      const isRootComment = !parentCommentId;
       const currentCommentsCount = normalizeCount(photo.commentsCount ?? 0);
-      const nextCommentsCount = currentCommentsCount + 1;
+      const nextCommentsCount = isRootComment
+        ? currentCommentsCount + 1
+        : currentCommentsCount;
       const nextScore = buildNextScore(photo, nextCommentsCount);
 
       const commentDoc: PhotoCommentDoc = {
@@ -382,6 +385,7 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
     const photoId = cleanId(request.data?.photoId);
     const commentId = cleanId(request.data?.commentId);
     const action = String(request.data?.action ?? '').trim().toUpperCase();
+
 
     if (!ownerUid || !photoId || !commentId) {
       throw new HttpsError('invalid-argument', 'Comentário inválido.');
@@ -448,10 +452,12 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
       let nextStatus: CommentStatus = comment.status;
       let nextContent = comment.content;
       let deletedAt: number | null = comment.deletedAt ?? null;
+
+      const affectsPublicCommentCount = !comment.parentCommentId;
       let countDelta = 0;
 
       if (action === 'HIDE') {
-        if (comment.status === 'VISIBLE') {
+        if (affectsPublicCommentCount && comment.status === 'VISIBLE') {
           countDelta = -1;
         }
 
@@ -466,12 +472,15 @@ export const moderatePhotoComment = onCall<ModeratePhotoCommentRequest>(
           );
         }
 
+        if (affectsPublicCommentCount) {
+          countDelta = 1;
+        }
+
         nextStatus = 'VISIBLE';
-        countDelta = 1;
       }
 
       if (action === 'DELETE') {
-        if (comment.status === 'VISIBLE') {
+        if (affectsPublicCommentCount && comment.status === 'VISIBLE') {
           countDelta = -1;
         }
 

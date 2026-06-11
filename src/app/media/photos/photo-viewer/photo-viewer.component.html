@@ -1,6 +1,5 @@
 <!-- src/app/media/photos/photo-viewer/photo-viewer.component.html -->
-
-@let comments = (comments$ | async);
+@let commentThreads = (commentThreads$ | async);
 @let submittingComment = (submittingComment$ | async);
 @let submittingReply = (submittingReply$ | async);
 @let togglingLike = (togglingLike$ | async);
@@ -18,19 +17,20 @@
 
 <section class="viewer" aria-label="Visualizador de foto">
   <header class="viewer-header">
-    <div class="viewer-title" aria-live="polite">
-      <span class="viewer-eyebrow">Foto pública</span>
-      <strong>{{ index + 1 }}/{{ data.items.length }}</strong>
-    </div>
+    <strong class="viewer-counter" aria-live="polite">
+      {{ index + 1 }}/{{ data.items.length }}
+    </strong>
 
-    <button
-      type="button"
-      class="viewer-close-btn"
-      (click)="close()"
-      aria-label="Fechar visualizador"
-    >
-      ✕
-    </button>
+<button
+  type="button"
+  class="viewer-close-btn"
+  (click)="close()"
+  aria-label="Fechar visualizador"
+>
+  ✕
+</button>
+
+
   </header>
 
   <div class="viewer-shell">
@@ -49,259 +49,283 @@
         }
       </div>
 
-      <nav class="viewer-nav" aria-label="Navegação entre fotos">
-        <button
-          type="button"
-          class="viewer-nav-btn"
-          (click)="prev()"
-          [disabled]="!hasPrev"
-          aria-label="Foto anterior"
-        >
-          ← Anterior
-        </button>
 
-        <button
-          type="button"
-          class="viewer-nav-btn"
-          (click)="next()"
-          [disabled]="!hasNext"
-          aria-label="Próxima foto"
-        >
-          Próxima →
-        </button>
-      </nav>
-    </main>
+  <nav class="viewer-nav" aria-label="Navegação entre fotos">
+    <button
+      type="button"
+      class="viewer-nav-btn viewer-nav-btn--prev"
+      (click)="prev()"
+      [disabled]="!hasPrev"
+      aria-label="Foto anterior"
+    >
+      ‹
+    </button>
 
-    <aside class="viewer-social-panel" aria-label="Interações da foto">
-      <section class="social-card reaction-card" aria-label="Reações">
-        <div class="section-heading">
-          <div>
-            <span class="viewer-eyebrow">Interação</span>
-            <h2>Reações</h2>
-          </div>
+    <button
+      type="button"
+      class="viewer-nav-btn viewer-nav-btn--next"
+      (click)="next()"
+      [disabled]="!hasNext"
+      aria-label="Próxima foto"
+    >
+      ›
+    </button>
+  </nav>
+</main>
 
-          <span class="reaction-total" aria-live="polite">
-            {{ likesCount || 0 }}
-          </span>
-        </div>
+<aside class="viewer-social-panel" aria-label="Comentários e reações da foto">
+  <section class="comments-section" aria-label="Comentários da foto">
+    <header class="comments-header">
+      <h2>Comentários</h2>
 
-        <button
-          type="button"
-          class="reaction-button"
-          (click)="toggleLike()"
-          [disabled]="!!togglingLike || !canReact"
-          [attr.aria-pressed]="likedByViewer ? 'true' : 'false'"
-          aria-label="Curtir foto"
-        >
-          <span class="reaction-icon" aria-hidden="true">
-            @if (likedByViewer) {
-              ♥
-            } @else {
-              ♡
-            }
-          </span>
+      <span class="comments-count" aria-live="polite">
+        {{ commentThreads?.length || 0 }}
+      </span>
+    </header>
 
-          <span>
-            @if (likedByViewer) {
-              Curtido
-            } @else {
-              Curtir
-            }
-          </span>
-        </button>
-
-        @if (!canReact) {
-          <p class="interaction-note">
-            Reações indisponíveis nesta foto.
-          </p>
-        }
-      </section>
-
-      <section class="social-card comments-section" aria-label="Comentários da foto">
-        <div class="section-heading">
-          <div>
-            <span class="viewer-eyebrow">Conversa</span>
-            <h2>Comentários</h2>
-          </div>
-
-          <span class="comment-total" aria-live="polite">
-            {{ comments?.length || 0 }}
-          </span>
-        </div>
-
-        @if (viewerIsOwner) {
-          <div class="owner-tools-label" role="note">
-            <i class="fas fa-shield-alt" aria-hidden="true"></i>
-            <span>Você pode responder, ocultar ou remover comentários nesta foto.</span>
-          </div>
-        }
-
-        @if (canComment) {
-          <section class="comment-form" aria-label="Novo comentário">
-            <label for="photo-comment" class="visually-hidden">
-              Escreva um comentário
-            </label>
-
-            <textarea
-              id="photo-comment"
-              class="comment-input"
-              rows="3"
-              maxlength="500"
-              [formControl]="commentControl"
-              placeholder="Escreva um comentário"
-              (keydown.control.enter)="submitComment($event)"
-            ></textarea>
-
-            <div class="comment-form-footer">
-              <span class="comment-meta">{{ commentLength || 0 }}/500</span>
-
-              <button
-                type="button"
-                class="btn-send-comment"
-                (click)="submitComment($event)"
-                [disabled]="commentControl.invalid || !!submittingComment"
-              >
-                @if (submittingComment) {
-                  Enviando...
-                } @else {
-                  Comentar
-                }
-              </button>
-            </div>
-          </section>
-        } @else {
-          <p class="comments-disabled" role="status" aria-live="polite">
-            {{ commentDisabledReason || 'Comentários indisponíveis nesta foto.' }}
-          </p>
-        }
-
-        @if ((comments?.length || 0) > 0) {
-          <div class="comments-list" role="list" aria-label="Lista de comentários">
-            @for (comment of (comments || []); track comment.id) {
-              <article
-                class="comment-item"
-                role="listitem"
-                [class.comment-item--reply]="!!comment.parentCommentId"
-                [class.comment-item--owner-reply]="!!comment.isOwnerReply"
-              >
-                <header class="comment-item__header">
-                  <div class="comment-author">
-                    <strong>{{ comment.authorNickname || 'Usuário' }}</strong>
-
-                    @if (comment.isOwnerReply) {
-                      <span class="owner-reply-badge">
-                        Resposta do perfil
-                      </span>
-                    }
-                  </div>
-
-                  <small class="comment-date">
-                    {{ comment.createdAt | date:'dd/MM HH:mm' }}
-                  </small>
-                </header>
-
-                @if (comment.replyToAuthorNickname) {
-                  <small class="reply-context">
-                    Respondendo {{ comment.replyToAuthorNickname }}
-                  </small>
-                }
-
-                <p class="comment-text">{{ comment.content }}</p>
-
-                <div class="comment-actions" aria-label="Ações do comentário">
-                  @if (canShowReplyAction(comment, viewerIsOwner)) {
-                    <button
-                      type="button"
-                      class="comment-action"
-                      (click)="startReply(comment)"
-                      [disabled]="!!moderatingCommentId"
-                    >
-                      Responder
-                    </button>
-                  }
-
-                  @if (canShowHideAction(viewerIsOwner)) {
-                    <button
-                      type="button"
-                      class="comment-action"
-                      (click)="hideComment(comment)"
-                      [disabled]="moderatingCommentId === comment.id"
-                    >
-                      @if (moderatingCommentId === comment.id) {
-                        Ocultando...
-                      } @else {
-                        Ocultar
-                      }
-                    </button>
-                  }
-
-                  @if (canShowDeleteAction(comment, viewerUid, viewerIsOwner)) {
-                    <button
-                      type="button"
-                      class="comment-action comment-action--danger"
-                      (click)="deleteComment(comment)"
-                      [disabled]="moderatingCommentId === comment.id"
-                    >
-                      @if (moderatingCommentId === comment.id) {
-                        Removendo...
-                      } @else {
-                        Remover
-                      }
-                    </button>
-                  }
+    @if ((commentThreads?.length || 0) > 0) {
+      <div class="comments-list" role="list" aria-label="Lista de comentários">
+        @for (thread of (commentThreads || []); track thread.root.id) {
+          <article class="comment-thread" role="listitem">
+            <section class="comment-item">
+              <header class="comment-header">
+                <div class="comment-author">
+                  <a
+                    class="comment-author-link"
+                    [routerLink]="['/outro-perfil', thread.root.authorUid]"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {{ thread.root.authorNickname || 'Usuário' }}
+                  </a>
                 </div>
 
-                @if (isReplyingTo(comment, replyingToCommentId)) {
-                  <section class="reply-form" aria-label="Resposta ao comentário">
-                    <label class="visually-hidden" for="photo-reply">
-                      Responder comentário
-                    </label>
+                <small class="comment-date">
+                  {{ thread.root.createdAt | date:'dd/MM HH:mm' }}
+                </small>
+              </header>
 
-                    <textarea
-                      id="photo-reply"
-                      class="comment-input reply-input"
-                      rows="2"
-                      maxlength="500"
-                      [formControl]="replyControl"
-                      [placeholder]="'Responder ' + (comment.authorNickname || 'usuário')"
-                    ></textarea>
+              <p class="comment-text">{{ thread.root.content }}</p>
 
-                    <div class="comment-form-footer">
-                      <span class="comment-meta">{{ replyLength || 0 }}/500</span>
+              <div class="comment-actions" aria-label="Ações do comentário">
+                @if (canShowReplyAction(thread.root, viewerIsOwner)) {
+                  <button
+                    type="button"
+                    class="comment-action"
+                    (click)="startReply(thread.root)"
+                    [disabled]="!!moderatingCommentId"
+                  >
+                    Responder
+                  </button>
+                }
 
-                      <div class="reply-actions">
+                @if (canShowHideAction(viewerIsOwner)) {
+                  <button
+                    type="button"
+                    class="comment-action"
+                    (click)="hideComment(thread.root)"
+                    [disabled]="moderatingCommentId === thread.root.id"
+                  >
+                    @if (moderatingCommentId === thread.root.id) {
+                      Ocultando...
+                    } @else {
+                      Ocultar
+                    }
+                  </button>
+                }
+
+                @if (canShowDeleteAction(thread.root, viewerUid, viewerIsOwner)) {
+                  <button
+                    type="button"
+                    class="comment-action comment-action--danger"
+                    (click)="deleteComment(thread.root)"
+                    [disabled]="moderatingCommentId === thread.root.id"
+                  >
+                    @if (moderatingCommentId === thread.root.id) {
+                      Removendo...
+                    } @else {
+                      Remover
+                    }
+                  </button>
+                }
+              </div>
+
+              @if (isReplyingTo(thread.root, replyingToCommentId)) {
+                <section class="reply-form" aria-label="Resposta ao comentário">
+                  <label class="visually-hidden" for="photo-reply">
+                    Responder comentário
+                  </label>
+
+                  <textarea
+                    id="photo-reply"
+                    class="comment-input reply-input"
+                    rows="2"
+                    maxlength="500"
+                    [formControl]="replyControl"
+                    [placeholder]="'Responder ' + (thread.root.authorNickname || 'usuário')"
+                  ></textarea>
+
+                  <div class="comment-form-footer">
+                    <span class="comment-meta">{{ replyLength || 0 }}/500</span>
+
+                    <div class="reply-actions">
+                      <button
+                        type="button"
+                        class="btn-cancel-reply"
+                        (click)="cancelReply()"
+                        [disabled]="!!submittingReply"
+                      >
+                        Cancelar
+                      </button>
+
+                      <button
+                        type="button"
+                        class="btn-send-comment"
+                        (click)="submitReply(thread.root, $event)"
+                        [disabled]="replyControl.invalid || !!submittingReply"
+                      >
+                        @if (submittingReply) {
+                          Respondendo...
+                        } @else {
+                          Responder
+                        }
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              }
+            </section>
+
+            @if (thread.replies.length > 0) {
+              <div class="comment-replies" aria-label="Respostas do perfil">
+                @for (reply of thread.replies; track reply.id) {
+                  <section class="comment-item comment-item--reply comment-item--owner-reply">
+                    <header class="comment-header">
+                      <span class="comment-author-link comment-author-link--owner">
+                        Perfil
+                      </span>
+
+                      <small class="comment-date">
+                        {{ reply.createdAt | date:'dd/MM HH:mm' }}
+                      </small>
+                    </header>
+
+                    <p class="comment-text">{{ reply.content }}</p>
+
+                    <div class="comment-actions" aria-label="Ações da resposta">
+                      @if (canShowHideAction(viewerIsOwner)) {
                         <button
                           type="button"
-                          class="btn-cancel-reply"
-                          (click)="cancelReply()"
-                          [disabled]="!!submittingReply"
+                          class="comment-action"
+                          (click)="hideComment(reply)"
+                          [disabled]="moderatingCommentId === reply.id"
                         >
-                          Cancelar
-                        </button>
-
-                        <button
-                          type="button"
-                          class="btn-send-comment"
-                          (click)="submitReply(comment, $event)"
-                          [disabled]="replyControl.invalid || !!submittingReply"
-                        >
-                          @if (submittingReply) {
-                            Respondendo...
+                          @if (moderatingCommentId === reply.id) {
+                            Ocultando...
                           } @else {
-                            Responder
+                            Ocultar
                           }
                         </button>
-                      </div>
+                      }
+
+                      @if (canShowDeleteAction(reply, viewerUid, viewerIsOwner)) {
+                        <button
+                          type="button"
+                          class="comment-action comment-action--danger"
+                          (click)="deleteComment(reply)"
+                          [disabled]="moderatingCommentId === reply.id"
+                        >
+                          @if (moderatingCommentId === reply.id) {
+                            Removendo...
+                          } @else {
+                            Remover
+                          }
+                        </button>
+                      }
                     </div>
                   </section>
                 }
-              </article>
+              </div>
             }
-          </div>
-        } @else {
-          <p class="comments-empty">Nenhum comentário visível ainda.</p>
+          </article>
         }
+      </div>
+    } @else {
+      <p class="comments-empty">Nenhum comentário visível ainda.</p>
+    }
+
+    @if (canComment) {
+      <section class="comment-form" aria-label="Novo comentário">
+        <label for="photo-comment" class="visually-hidden">
+          Escreva um comentário
+        </label>
+
+        <textarea
+          id="photo-comment"
+          class="comment-input"
+          rows="2"
+          maxlength="500"
+          [formControl]="commentControl"
+          placeholder="Escreva um comentário"
+          (keydown.control.enter)="submitComment($event)"
+        ></textarea>
+
+        <div class="comment-form-footer">
+          <span class="comment-meta">{{ commentLength || 0 }}/500</span>
+
+          <button
+            type="button"
+            class="btn-send-comment"
+            (click)="submitComment($event)"
+            [disabled]="commentControl.invalid || !!submittingComment"
+          >
+            @if (submittingComment) {
+              Enviando...
+            } @else {
+              Comentar
+            }
+          </button>
+        </div>
       </section>
-    </aside>
+    } @else {
+      <p class="comments-disabled" role="status" aria-live="polite">
+        {{ commentDisabledReason || 'Comentários indisponíveis nesta foto.' }}
+      </p>
+    }
+  </section>
+
+  <section class="reaction-bar" aria-label="Reação da foto">
+    <button
+      type="button"
+      class="reaction-button"
+      (click)="toggleLike()"
+      [disabled]="!!togglingLike || !canReact"
+      [attr.aria-pressed]="likedByViewer ? 'true' : 'false'"
+      aria-label="Curtir foto"
+    >
+      <span class="reaction-icon" aria-hidden="true">
+        @if (likedByViewer) {
+          ♥
+        } @else {
+          ♡
+        }
+      </span>
+
+      <span>
+        @if (likedByViewer) {
+          Curtido
+        } @else {
+          Curtir
+        }
+      </span>
+
+      <span class="reaction-count">{{ likesCount || 0 }}</span>
+    </button>
+
+    @if (!canReact) {
+      <span class="interaction-note">Reações indisponíveis</span>
+    }
+  </section>
+</aside>
   </div>
 </section>
