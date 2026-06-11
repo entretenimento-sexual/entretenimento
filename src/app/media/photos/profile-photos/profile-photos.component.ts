@@ -240,10 +240,14 @@ export class ProfilePhotosComponent {
 
         this.dialog.open(PhotoViewerComponent, {
           data: { ownerUid, items, startIndex },
-          autoFocus: true,
+          autoFocus: false,
           restoreFocus: true,
-          maxWidth: '96vw',
-          panelClass: 'photo-viewer-dialog',
+          width: '100vw',
+          height: '100vh',
+          maxWidth: '100vw',
+          maxHeight: '100vh',
+          panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
+          backdropClass: 'photo-viewer-backdrop',
         });
 
         return EMPTY;

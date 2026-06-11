@@ -1,4 +1,5 @@
 <!-- src/app/media/shared/components/public-photo-card/public-photo-card.component.html -->
+
 @let item = photo();
 @let mode = variant();
 
@@ -16,45 +17,39 @@
       loading="lazy"
       referrerpolicy="no-referrer"
     />
+
+    <span class="photo-overlay" aria-hidden="true">
+      <span class="photo-stats">
+        <span class="stat-chip">♥ {{ item.reactionsCount ?? item.likesCount ?? 0 }}</span>
+        <span class="stat-chip">💬 {{ item.commentsCount ?? 0 }}</span>
+      </span>
+
+      @if (item.isCover) {
+        <span class="cover-chip">Capa</span>
+      }
+    </span>
   </button>
 
-  <div class="photo-meta">
-    @switch (mode) {
-      @case ('latest') {
-        <span class="meta-chip">Publicada</span>
-        <span class="meta-chip">{{ item.publishedAt | date:'dd/MM/yyyy HH:mm' }}</span>
-      }
+  @if (mode === 'latest' || mode === 'top' || mode === 'boosted') {
+    <div class="photo-meta">
+      @switch (mode) {
+        @case ('latest') {
+          <span class="meta-chip">Publicada</span>
+          <span class="meta-chip">{{ item.publishedAt | date:'dd/MM/yyyy HH:mm' }}</span>
+        }
 
-      @case ('top') {
-        <span class="meta-chip">Score: {{ item.engagementScore ?? item.score ?? 0 }}</span>
-        <span class="meta-chip">♥ {{ item.reactionsCount ?? item.likesCount ?? 0 }}</span>
-        <span class="meta-chip">💬 {{ item.commentsCount ?? 0 }}</span>
-      }
+        @case ('top') {
+          <span class="meta-chip">Score: {{ item.engagementScore ?? item.score ?? 0 }}</span>
+        }
 
-      @case ('boosted') {
-        <span class="meta-chip meta-boost">Turbo ativo</span>
+        @case ('boosted') {
+          <span class="meta-chip meta-boost">Turbo ativo</span>
 
-        @if (item.boostPriority !== undefined) {
-          <span class="meta-chip">Prioridade: {{ item.boostPriority }}</span>
+          @if (item.boostPriority !== undefined) {
+            <span class="meta-chip">Prioridade: {{ item.boostPriority }}</span>
+          }
         }
       }
-
-      @default {
-        <span class="meta-chip">♥ {{ item.reactionsCount ?? item.likesCount ?? 0 }}</span>
-        <span class="meta-chip">💬 {{ item.commentsCount ?? 0 }}</span>
-
-        @if (item.isCover) {
-          <span class="meta-chip meta-cover">Capa</span>
-        }
-      }
-    }
-
-    <button
-      type="button"
-      class="open-photo-btn"
-      (click)="onPreview()"
-    >
-      Abrir
-    </button>
-  </div>
+    </div>
+  }
 </article>

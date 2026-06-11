@@ -2,94 +2,220 @@
 
 .public-photos-page {
   width: 100%;
-  max-width: var(--content-wide, 1360px);
+  max-width: min(1280px, 100%);
   margin: 0 auto;
-  padding: var(--space-4, 24px);
+  padding:
+    clamp(12px, 1.4vw, 22px)
+    clamp(12px, 2vw, 28px)
+    clamp(28px, 4vw, 48px);
 }
 
 .public-photos-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-3, 16px);
-  margin-bottom: var(--space-4, 24px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "back summary"
+    "title summary";
+  gap: 10px clamp(14px, 2vw, 24px);
+  align-items: end;
+  margin-bottom: clamp(16px, 2.2vw, 28px);
+}
+
+.back-link {
+  grid-area: back;
+  justify-self: start;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  font-size: 0.92rem;
+  font-weight: 780;
+  text-decoration: none;
+}
+
+.back-link:hover,
+.back-link:focus-visible {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
+.title-block {
+  grid-area: title;
+  min-width: 0;
 }
 
 .title-block h2 {
   margin: 0;
-  font-size: clamp(1.55rem, 1.5vw + 1rem, 2.25rem);
-  line-height: 1.12;
+  color: var(--text-color);
+  font-size: clamp(1.6rem, 1.25rem + 1.35vw, 2.45rem);
+  line-height: 1.05;
+  letter-spacing: -0.03em;
 }
 
 .eyebrow {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   margin-bottom: 8px;
-  font-size: 0.78rem;
-  font-weight: 800;
+  color: var(--primary-color);
+  font-size: 0.76rem;
+  font-weight: 850;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--primary-color);
 }
 
 .subtitle {
-  max-width: 680px;
+  max-width: 620px;
   margin: 8px 0 0;
-  color: color-mix(in oklab, var(--text-color) 78%, transparent);
-  font-size: 0.98rem;
-  line-height: 1.5;
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  font-size: clamp(0.94rem, 0.9rem + 0.16vw, 1rem);
+  line-height: 1.48;
 }
 
-.gallery-meta {
-  margin-bottom: 14px;
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
-  font-size: 0.92rem;
-}
-
-/*
-  Importante:
-  - não usar 1fr ocupando a largura toda quando só existe 1 foto;
-  - galeria deve manter cara de grid social;
-  - auto-fill + coluna limitada evita foto gigante.
-*/
-.photos-grid {
+.gallery-summary {
+  grid-area: summary;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 240px));
-  justify-content: start;
-  align-items: start;
-  gap: clamp(12px, 1.7vw, 20px);
-}
-
-.empty-state {
-  border: 1px solid var(--surface-border);
-  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+  place-items: center;
+  min-width: 82px;
+  min-height: 70px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 88%, transparent);
   border-radius: 20px;
-  padding: var(--space-4, 24px);
+  background:
+    radial-gradient(
+      circle at 20% 20%,
+      color-mix(in oklab, var(--primary-color) 14%, transparent),
+      transparent 48%
+    ),
+    color-mix(in oklab, var(--surface-color) 94%, var(--text-color) 4%);
   box-shadow: var(--box-shadow);
 }
 
+.gallery-summary strong {
+  color: var(--text-color);
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.gallery-summary span {
+  color: color-mix(in oklab, var(--text-color) 64%, transparent);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.gallery-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: clamp(12px, 1.6vw, 18px);
+}
+
+.gallery-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 5px 11px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 76%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  font-size: 0.82rem;
+  font-weight: 760;
+}
+
+/*
+  Galeria social:
+  - item único não estoura largura;
+  - em desktop, card fica com tamanho controlado;
+  - em mobile, vira grade compacta.
+*/
+.photos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 164px), 220px));
+  justify-content: start;
+  align-items: start;
+  gap: clamp(10px, 1.35vw, 16px);
+}
+
+.empty-state {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  max-width: 640px;
+  border: 1px solid var(--surface-border);
+  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+  border-radius: 22px;
+  padding: clamp(16px, 2vw, 24px);
+  box-shadow: var(--box-shadow);
+}
+
+.empty-state__icon {
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--primary-color) 14%, transparent);
+  color: var(--primary-color);
+  font-size: 1.25rem;
+}
+
 .empty-state h3 {
-  margin: 0 0 8px;
-  font-size: 1.15rem;
+  margin: 0 0 6px;
+  color: var(--text-color);
+  font-size: 1.1rem;
 }
 
 .empty-state p {
   margin: 0;
-  color: color-mix(in oklab, var(--text-color) 80%, transparent);
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+  line-height: 1.45;
 }
 
 @media (max-width: 700px) {
   .public-photos-page {
-    padding: var(--space-3, 16px);
+    padding: 12px 12px 28px;
+  }
+
+  .public-photos-header {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "back"
+      "title"
+      "summary";
+    align-items: stretch;
+  }
+
+  .gallery-summary {
+    display: flex;
+    justify-content: flex-start;
+    gap: 6px;
+    min-height: 44px;
+    min-width: 0;
+    width: fit-content;
+    border-radius: 999px;
+  }
+
+  .gallery-summary strong {
+    font-size: 1rem;
   }
 
   .photos-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     justify-content: stretch;
-    gap: 12px;
+    gap: 7px;
+  }
+
+  .gallery-strip {
+    display: none;
   }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 460px) {
+  .photos-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+}
+
+@media (max-width: 340px) {
   .photos-grid {
     grid-template-columns: 1fr;
   }

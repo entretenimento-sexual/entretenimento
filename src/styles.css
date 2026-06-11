@@ -1,6 +1,24 @@
 /* src/styles.css */
-.send-request-dialog-panel .mat-mdc-dialog-surface {
-  border-radius: 16px;
-  box-shadow: var(--box-shadow);
-  background: var(--modal-background);
+.photo-viewer-backdrop {
+  background: rgb(0 0 0 / 88%);
+}
+
+.photo-viewer-dialog--immersive {
+  max-width: 100vw !important;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+.photo-viewer-dialog--immersive .mat-mdc-dialog-container,
+.photo-viewer-dialog--immersive .mdc-dialog__container,
+.photo-viewer-dialog--immersive .mdc-dialog__surface {
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
 }

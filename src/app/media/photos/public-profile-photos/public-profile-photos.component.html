@@ -1,28 +1,49 @@
 <!-- src/app/media/photos/public-profile-photos/public-profile-photos.component.html -->
 
+@let ownerUid = (ownerUid$ | async);
 @let items = (publicPhotos$ | async);
 
 <section class="public-photos-page" aria-label="Galeria pública do perfil">
   <header class="public-photos-header">
-    <div class="title-block">
-      <span class="eyebrow">Galeria pública</span>
+    <a
+      class="back-link"
+      [routerLink]="['/perfil', ownerUid || '']"
+      aria-label="Voltar ao perfil"
+    >
+      ← Voltar ao perfil
+    </a>
 
-      <h2>Fotos do perfil</h2>
+    <div class="title-block">
+      <span class="eyebrow">Galeria</span>
+
+      <h2>Fotos públicas</h2>
 
       <p class="subtitle">
-        Fotos publicadas pelo perfil. Abra uma foto para reagir, comentar ou acompanhar a conversa.
+        Veja as fotos publicadas pelo perfil. Toque em uma imagem para abrir, reagir e comentar.
       </p>
+    </div>
+
+    <div class="gallery-summary" aria-live="polite">
+      <strong>{{ items?.length || 0 }}</strong>
+      <span>foto(s)</span>
     </div>
   </header>
 
   @if (isEmpty$ | async) {
     <div class="empty-state" role="status" aria-live="polite">
-      <h3>Nenhuma foto pública disponível</h3>
-      <p>Este perfil ainda não publicou fotos para exibição pública.</p>
+      <div class="empty-state__icon" aria-hidden="true">
+        <i class="fas fa-images"></i>
+      </div>
+
+      <div>
+        <h3>Nenhuma foto pública disponível</h3>
+        <p>Este perfil ainda não publicou fotos para exibição pública.</p>
+      </div>
     </div>
   } @else {
-    <div class="gallery-meta" aria-live="polite">
-      <span>{{ items?.length || 0 }} foto(s) pública(s)</span>
+    <div class="gallery-strip" aria-label="Resumo da galeria">
+      <span class="gallery-pill">Fotos aprovadas</span>
+      <span class="gallery-pill">Comentários e reações ao abrir</span>
     </div>
 
     <div class="photos-grid" role="list" aria-label="Fotos públicas do perfil">
