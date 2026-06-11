@@ -1,4 +1,5 @@
-/* src/app/media/photos/shared/public-photo-card/public-photo-card.component.css */
+/* src/app/media/shared/components/public-photo-card/public-photo-card.component.css */
+
 .photo-tile {
   border: 1px solid var(--surface-border);
   border-radius: 18px;
@@ -23,7 +24,7 @@
 }
 
 .photo-card-link:focus-visible,
-.profile-link:focus-visible {
+.open-photo-btn:focus-visible {
   outline: var(--focus-ring);
   outline-offset: var(--focus-offset);
 }
@@ -41,36 +42,53 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  padding: 12px;
+  padding: 10px;
 }
 
 .meta-chip {
   display: inline-flex;
   align-items: center;
-  min-height: 28px;
-  padding: 4px 10px;
+  min-height: 26px;
+  padding: 3px 9px;
   border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  font-weight: 750;
   border: 1px solid var(--surface-border);
   background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+  color: color-mix(in oklab, var(--text-color) 82%, transparent);
 }
 
-.meta-boost {
+.meta-boost,
+.meta-cover {
   color: var(--primary-color);
   border-color: color-mix(in oklab, var(--primary-color) 32%, var(--surface-border));
 }
 
-.profile-link {
+.open-photo-btn {
   margin-left: auto;
-  text-decoration: none;
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 34%, var(--surface-border));
+  border-radius: 999px;
+  background: transparent;
   color: var(--primary-color);
-  font-weight: 600;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.open-photo-btn:hover {
+  background: color-mix(in oklab, var(--primary-color) 12%, transparent);
 }
 
 @media (max-width: 480px) {
-  .profile-link {
-    margin-left: 0;
+  .photo-meta {
+    padding: 8px;
+  }
+
+  .open-photo-btn {
     width: 100%;
+    margin-left: 0;
   }
 }

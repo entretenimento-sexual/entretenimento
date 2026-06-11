@@ -445,3 +445,149 @@
     border-radius: 12px;
   }
 }
+/* ==========================================================================
+   Comentários — moderação e respostas do dono da foto
+   ========================================================================== */
+
+.owner-tools-label {
+  display: block;
+  margin-top: 3px;
+  color: color-mix(in oklab, var(--primary-color, var(--text-color)) 72%, var(--text-color) 28%);
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.comment-item__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.comment-author {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.comment-author strong {
+  min-width: 0;
+  color: var(--text-color);
+  font-size: 0.92rem;
+  font-weight: 820;
+  overflow-wrap: anywhere;
+}
+
+.owner-reply-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 8px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, var(--text-color)) 36%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, var(--text-color)) 14%, transparent);
+  color: color-mix(in oklab, var(--primary-color, var(--text-color)) 78%, var(--text-color) 22%);
+  font-size: 0.72rem;
+  font-weight: 820;
+  line-height: 1;
+}
+
+.reply-context {
+  color: color-mix(in oklab, var(--text-color) 58%, transparent);
+  font-size: 0.78rem;
+}
+
+.comment-item--reply {
+  margin-left: clamp(12px, 2vw, 28px);
+  border-left: 3px solid color-mix(in oklab, var(--primary-color, var(--text-color)) 34%, transparent);
+}
+
+.comment-item--owner-reply {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--primary-color, var(--text-color)) 10%, var(--surface-color) 90%),
+      color-mix(in oklab, var(--surface-color) 94%, var(--text-color) 4%)
+    );
+}
+
+.comment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.comment-action {
+  min-height: 32px;
+  padding: 4px 9px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 80%, transparent);
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.comment-action:hover,
+.comment-action:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color, var(--text-color)) 44%, var(--surface-border));
+  color: var(--primary-color);
+}
+
+.comment-action--danger:hover,
+.comment-action--danger:focus-visible {
+  border-color: color-mix(in oklab, var(--danger-color) 50%, var(--surface-border));
+  color: var(--danger-color);
+}
+
+.comment-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.reply-form {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 10px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 76%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--surface-color) 92%, var(--text-color) 5%);
+}
+
+.reply-input {
+  min-height: 72px;
+}
+
+.reply-actions {
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 700px) {
+  .comment-item__header,
+  .reply-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .comment-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .comment-action,
+  .reply-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .comment-item--reply {
+    margin-left: 8px;
+  }
+}

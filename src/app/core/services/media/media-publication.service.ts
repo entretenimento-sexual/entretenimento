@@ -2,30 +2,24 @@
 // Serviço da camada de publicação.
 //
 // OBJETIVO:
-// - separar publicação da biblioteca privada
-// - escrever config privada + projeção pública
-// - manter Observable na API pública
-// - usar FirestoreContextService para evitar chamadas fora do Injection Context
+// - separar publicação da biblioteca privada;
+// - ler configuração privada de publicação;
+// - solicitar publicação/despublicação/capa via Cloud Functions;
+// - manter Observable na API pública;
+// - impedir escrita direta do cliente na projeção pública.
 //
-// AJUSTE DESTA VERSÃO:
-// - SUPRIMIDOS os paths literais antigos da projeção pública em:
-//   public_profiles/{uid}/photos/{photoId}
-// - PADRONIZADO o uso de:
-//   public_profiles/{uid}/public_photos/{photoId}
-// - isso harmoniza a escrita com o MediaPublicQueryService,
-//   que já lê da subcoleção public_photos.
+// Segurança:
+// - cliente não escreve public_profiles/{uid}/public_photos;
+// - cliente não atualiza score/contadores/moderação;
+// - publicação passa pelo backend.
+
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
   collection,
   collectionData,
-  doc,
-  getDocs,
-  query,
-  where,
-  writeBatch,
-  type DocumentReference,
 } from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
 
@@ -45,23 +39,36 @@ export interface IPublishPhotoCommand {
   visibility: Exclude<TPhotoVisibility, 'PRIVATE'>;
   isCover?: boolean;
   orderIndex?: number;
-
-  /**
-   * Comentários já entram no contrato, mas começam desligados por padrão.
-   * A UI pode habilitar depois conforme moderação, assinatura e regras.
-   */
   commentsEnabled?: boolean;
   commentsPolicy?: TPhotoCommentsPolicy;
-
-  /**
-   * Reações também começam desligadas até a camada pública estar consolidada.
-   */
   reactionsEnabled?: boolean;
+}
+
+interface PublishPhotoCallableRequest {
+  ownerUid: string;
+  photoId: string;
+  visibility: Exclude<TPhotoVisibility, 'PRIVATE'>;
+  isCover: boolean;
+  orderIndex: number;
+  commentsEnabled: boolean;
+  commentsPolicy: TPhotoCommentsPolicy;
+  reactionsEnabled: boolean;
+}
+
+interface PublishPhotoCallableResponse {
+  photoId: string;
+  moderationStatus: 'PENDING_REVIEW' | 'APPROVED';
+}
+
+interface PhotoIdCallableRequest {
+  ownerUid: string;
+  photoId: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class MediaPublicationService {
   private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
@@ -187,104 +194,32 @@ export class MediaPublicationService {
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
-      const batch = writeBatch(this.firestore);
-      const now = Date.now();
-      const commentsEnabled = command.commentsEnabled ?? false;
+      const callable = httpsCallable<
+        PublishPhotoCallableRequest,
+        PublishPhotoCallableResponse
+      >(this.functions, 'publishPhoto');
 
-      const commentsPolicy: TPhotoCommentsPolicy = commentsEnabled
-        ? command.commentsPolicy ?? 'EVERYONE'
-        : 'OFF';
-
-      const reactionsEnabled = command.reactionsEnabled ?? false;
-
-      const initialScoreBreakdown = {
-        rankingScore: 0,
-        qualityScore: 0,
-        engagementScore: 0,
-        safetyScore: 100,
-      };
-
-      const publicationRef = doc(
-        this.firestore,
-        `users/${safeOwnerUid}/photo_publications/${safePhotoId}`
-      );
-
-        batch.set(
-          publicationRef,
-          {
-            ownerUid: safeOwnerUid,
-            photoId: safePhotoId,
-
-            isPublished: true,
-            visibility: command.visibility,
-
-            isCover: !!command.isCover,
-            orderIndex: command.orderIndex ?? 0,
-
-            commentsEnabled,
-            commentsPolicy,
-            commentsCount: 0,
-
-            reactionsEnabled,
-            reactionsCount: 0,
-
-            moderationStatus: 'PENDING_REVIEW',
-            moderationReason: null,
-            reportsCount: 0,
-
-            score: 0,
-            scoreBreakdown: initialScoreBreakdown,
-
-            publishedAt: now,
-            updatedAt: now,
-            lastModeratedAt: null,
-          },
-          { merge: true }
-        );
-
-      const publicRef = this.getPublicPhotoRef(safeOwnerUid, safePhotoId);
-
-batch.set(
-  publicRef,
-  {
-    id: safePhotoId,
-    ownerUid: safeOwnerUid,
-
-    url: command.photo.url,
-    alt: command.photo.alt ?? command.photo.fileName ?? 'Foto do perfil',
-    createdAt: command.photo.createdAt,
-
-    publishedAt: now,
-    updatedAt: now,
-
-    visibility: command.visibility,
-    isCover: !!command.isCover,
-    orderIndex: command.orderIndex ?? 0,
-
-    commentsEnabled,
-    commentsPolicy,
-    commentsCount: 0,
-
-    reactionsEnabled,
-    reactionsCount: 0,
-
-    moderationStatus: 'PENDING_REVIEW',
-    reportsCount: 0,
-
-    score: 0,
-    scoreBreakdown: initialScoreBreakdown,
-  },
-  { merge: true }
-);
-
-      await batch.commit();
+      await callable({
+        ownerUid: safeOwnerUid,
+        photoId: safePhotoId,
+        visibility: command.visibility,
+        isCover: !!command.isCover,
+        orderIndex: command.orderIndex ?? 0,
+        commentsEnabled: command.commentsEnabled ?? true,
+        commentsPolicy: command.commentsPolicy ?? 'EVERYONE',
+        reactionsEnabled: command.reactionsEnabled ?? true,
+      });
     }).pipe(
       map(() => void 0),
       catchError((error) => {
         this.reportError(
           'Erro ao publicar a foto.',
           error,
-          { op: 'publishPhoto$', command },
+          {
+            op: 'publishPhoto$',
+            ownerUid: safeOwnerUid,
+            photoId: safePhotoId,
+          },
           false
         );
         return of(void 0);
@@ -301,31 +236,15 @@ batch.set(
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
-      const batch = writeBatch(this.firestore);
-      const now = Date.now();
-
-      const publicationRef = doc(
-        this.firestore,
-        `users/${safeOwnerUid}/photo_publications/${safePhotoId}`
+      const callable = httpsCallable<PhotoIdCallableRequest, { photoId: string }>(
+        this.functions,
+        'unpublishPhoto'
       );
 
-      batch.set(
-        publicationRef,
-        {
-          ownerUid: safeOwnerUid,
-          photoId: safePhotoId,
-          isPublished: false,
-          visibility: 'PRIVATE',
-          isCover: false,
-          updatedAt: now,
-        },
-        { merge: true }
-      );
-
-      const publicRef = this.getPublicPhotoRef(safeOwnerUid, safePhotoId);
-      batch.delete(publicRef);
-
-      await batch.commit();
+      await callable({
+        ownerUid: safeOwnerUid,
+        photoId: safePhotoId,
+      });
     }).pipe(
       map(() => void 0),
       catchError((error) => {
@@ -353,45 +272,15 @@ batch.set(
     }
 
     return this.firestoreCtx.deferPromise$(async () => {
-      const publicationCollection = collection(
-        this.firestore,
-        `users/${safeOwnerUid}/photo_publications`
+      const callable = httpsCallable<PhotoIdCallableRequest, { photoId: string }>(
+        this.functions,
+        'setCoverPhoto'
       );
 
-      const publicationQuery = query(
-        publicationCollection,
-        where('isPublished', '==', true)
-      );
-
-      const snapshot = await getDocs(publicationQuery);
-      const batch = writeBatch(this.firestore);
-      const now = Date.now();
-
-      snapshot.docs.forEach((docSnap) => {
-        const isTarget = docSnap.id === safePhotoId;
-
-        batch.set(
-          docSnap.ref,
-          {
-            isCover: isTarget,
-            updatedAt: now,
-          },
-          { merge: true }
-        );
-
-        const publicRef = this.getPublicPhotoRef(safeOwnerUid, docSnap.id);
-
-        batch.set(
-          publicRef,
-          {
-            isCover: isTarget,
-            updatedAt: now,
-          },
-          { merge: true }
-        );
+      await callable({
+        ownerUid: safeOwnerUid,
+        photoId: safePhotoId,
       });
-
-      await batch.commit();
     }).pipe(
       map(() => void 0),
       catchError((error) => {
@@ -411,78 +300,14 @@ batch.set(
   }
 
   reorderPublishedPhotos$(
-    ownerUid: string,
-    orderedPhotoIds: string[]
+    _ownerUid: string,
+    _orderedPhotoIds: string[]
   ): Observable<void> {
-    const safeOwnerUid = (ownerUid ?? '').trim();
-    const safeOrderedIds = (orderedPhotoIds ?? [])
-      .map((id) => (id ?? '').trim())
-      .filter(Boolean);
-
-    if (!safeOwnerUid || safeOrderedIds.length === 0) {
-      return of(void 0);
-    }
-
-    return this.firestoreCtx.deferPromise$(async () => {
-      const batch = writeBatch(this.firestore);
-      const now = Date.now();
-
-      safeOrderedIds.forEach((photoId, index) => {
-        const publicationRef = doc(
-          this.firestore,
-          `users/${safeOwnerUid}/photo_publications/${photoId}`
-        );
-
-        batch.set(
-          publicationRef,
-          {
-            ownerUid: safeOwnerUid,
-            photoId,
-            orderIndex: index,
-            updatedAt: now,
-          },
-          { merge: true }
-        );
-
-        const publicRef = this.getPublicPhotoRef(safeOwnerUid, photoId);
-
-        batch.set(
-          publicRef,
-          {
-            orderIndex: index,
-            updatedAt: now,
-          },
-          { merge: true }
-        );
-      });
-
-      await batch.commit();
-    }).pipe(
-      map(() => void 0),
-      catchError((error) => {
-        this.reportError(
-          'Erro ao reordenar fotos publicadas.',
-          error,
-          {
-            op: 'reorderPublishedPhotos$',
-            ownerUid: safeOwnerUid,
-            orderedPhotoIds: safeOrderedIds,
-          },
-          false
-        );
-        return of(void 0);
-      })
+    this.errorNotifier.showWarning(
+      'Reordenação pública ainda será migrada para função segura.'
     );
-  }
 
-  private getPublicPhotoRef(
-    ownerUid: string,
-    photoId: string
-  ): DocumentReference {
-    return doc(
-      this.firestore,
-      `public_profiles/${ownerUid}/public_photos/${photoId}`
-    );
+    return of(void 0);
   }
 
   private reportError(
@@ -501,15 +326,17 @@ batch.set(
 
     try {
       const err = error instanceof Error ? error : new Error(userMessage);
+
       (err as any).original = error;
       (err as any).context = {
         scope: 'MediaPublicationService',
         ...(context ?? {}),
       };
       (err as any).skipUserNotification = silent;
+
       this.errorHandler.handleError(err);
     } catch {
       // noop
     }
   }
-} // Linha 440
+}

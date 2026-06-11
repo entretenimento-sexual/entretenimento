@@ -1,8 +1,19 @@
 // src/app/media/photos/public-profile-photos/public-profile-photos.component.ts
+// Galeria pública de fotos do perfil.
+//
+// Ajustes desta versão:
+// - mantém leitura somente da projeção pública;
+// - transforma a página em galeria real, não foto gigante;
+// - abre PhotoViewerComponent para reações, comentários e respostas;
+// - remove o uso do lightbox simples nesta tela;
+// - mantém Observable e tratamento centralizado de erro.
+
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { BehaviorSubject, Observable, of } from 'rxjs';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+
+import { Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -16,10 +27,14 @@ import {
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
-import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
-import { PublicPhotoLightboxComponent } from '../../shared/components/public-photo-lightbox/public-photo-lightbox.component';
 
+import {
+  IProfilePhotoItem,
+  PhotoViewerComponent,
+} from '../photo-viewer/photo-viewer.component';
+import { PublicPhotoCardComponent } from '../../shared/components/public-photo-card/public-photo-card.component';
 
 @Component({
   selector: 'app-public-profile-photos',
@@ -27,8 +42,8 @@ import { PublicPhotoLightboxComponent } from '../../shared/components/public-pho
   imports: [
     CommonModule,
     RouterModule,
+    MatDialogModule,
     PublicPhotoCardComponent,
-    PublicPhotoLightboxComponent,
   ],
   templateUrl: './public-profile-photos.component.html',
   styleUrls: ['./public-profile-photos.component.css'],
@@ -36,19 +51,22 @@ import { PublicPhotoLightboxComponent } from '../../shared/components/public-pho
 })
 export class PublicProfilePhotosComponent {
   private readonly route = inject(ActivatedRoute);
+  private readonly dialog = inject(MatDialog);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
+  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
-  private readonly selectedIndexSubject = new BehaviorSubject<number | null>(null);
-  readonly selectedIndex$ = this.selectedIndexSubject.asObservable();
-
-  private readonly DEBUG = true;
+  private readonly DEBUG = false;
 
   readonly ownerUid$: Observable<string> = this.route.paramMap.pipe(
     map((params) => (params.get('id') ?? '').trim()),
     distinctUntilChanged(),
-    tap((ownerUid) => this.debug('ownerUid$', ownerUid)),
+    tap((ownerUid) =>
+      this.debug('ownerUid$', {
+        hasOwnerUid: !!ownerUid,
+      })
+    ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -66,6 +84,7 @@ export class PublicProfilePhotosComponent {
         error,
         { op: 'publicPhotos$' }
       );
+
       return of([] as IPublicPhotoItem[]);
     }),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -77,41 +96,48 @@ export class PublicProfilePhotosComponent {
   );
 
   openPhoto(index: number): void {
-    this.selectedIndexSubject.next(index);
-  }
-
-  closeViewer(): void {
-    this.selectedIndexSubject.next(null);
-  }
-
-  prev(): void {
     this.publicPhotos$
       .pipe(take(1))
       .subscribe((items) => {
-        const currentIndex = this.selectedIndexSubject.value;
-        if (currentIndex === null || currentIndex <= 0 || items.length === 0) {
+        if (!items.length) {
+          this.errorNotifier.showWarning('Nenhuma foto pública disponível.');
           return;
         }
 
-        this.selectedIndexSubject.next(currentIndex - 1);
-      });
-  }
+        const safeIndex = Math.max(0, Math.min(index, items.length - 1));
+        const viewerItems = items.map((item) => this.toViewerPhotoItem(item));
 
-  next(): void {
-    this.publicPhotos$
-      .pipe(take(1))
-      .subscribe((items) => {
-        const currentIndex = this.selectedIndexSubject.value;
-        if (currentIndex === null || currentIndex >= items.length - 1 || items.length === 0) {
-          return;
-        }
-
-        this.selectedIndexSubject.next(currentIndex + 1);
+        this.dialog.open(PhotoViewerComponent, {
+          data: {
+            ownerUid: viewerItems[safeIndex]?.ownerUid ?? '',
+            items: viewerItems,
+            startIndex: safeIndex,
+          },
+          autoFocus: true,
+          restoreFocus: true,
+          maxWidth: '96vw',
+          panelClass: 'photo-viewer-dialog',
+        });
       });
   }
 
   trackByPhotoId(_index: number, item: IPublicPhotoItem): string {
     return item.id;
+  }
+
+  private toViewerPhotoItem(item: IPublicPhotoItem): IProfilePhotoItem {
+    return {
+      id: item.id,
+      ownerUid: item.ownerUid,
+      url: item.url,
+      alt: item.alt,
+      createdAt: item.createdAt,
+
+      commentsEnabled: item.commentsEnabled ?? false,
+      commentsPolicy: item.commentsPolicy ?? 'OFF',
+      reactionsEnabled: item.reactionsEnabled ?? false,
+      moderationStatus: item.moderationStatus ?? 'PRIVATE',
+    };
   }
 
   private reportError(
@@ -127,28 +153,29 @@ export class PublicProfilePhotosComponent {
 
     try {
       const err = error instanceof Error ? error : new Error(userMessage);
+
       (err as any).original = error;
       (err as any).context = {
         scope: 'PublicProfilePhotosComponent',
         ...(context ?? {}),
       };
       (err as any).skipUserNotification = true;
+
       this.errorHandler.handleError(err);
     } catch {
       // noop
     }
 
-      this.debug('reportError', {
+    this.debug('reportError', {
       userMessage,
       op: context?.['op'] ?? 'unknown',
       hasContext: !!context,
       errorMessage: error instanceof Error ? error.message : String(error ?? ''),
     });
-   }
+  }
 
-  private debug(msg: string, data?: unknown): void {
+  private debug(message: string, extra?: unknown): void {
     if (!this.DEBUG) return;
-    // eslint-disable-next-line no-console
-    console.debug(`[PublicProfilePhotos] ${msg}`, data ?? '');
+    this.privacyDebug.log('media', `PublicProfilePhotos: ${message}`, extra);
   }
 }

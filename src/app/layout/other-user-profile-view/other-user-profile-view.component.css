@@ -2,11 +2,13 @@
 /*
   Perfil visitado
 
-  Esta tela é estratégica:
-  - é a principal tela de navegação entre usuários;
-  - precisa ser visualmente mais forte que uma tela administrativa;
-  - deve funcionar bem em mobile;
-  - deve respeitar tema escuro, alto contraste e acessibilidade.
+  Direção visual:
+  - vitrine do usuário;
+  - mídia pública aprovada em destaque;
+  - afinidade antes de ficha técnica;
+  - monetização discreta;
+  - sem bloqueios visuais punitivos;
+  - responsivo de verdade.
 */
 
 :host {
@@ -37,14 +39,12 @@
   gap: 8px;
   min-height: 42px;
   padding: 0 14px;
-
   border: 1px solid color-mix(in oklab, var(--surface-border) 88%, transparent);
   border-radius: 12px;
   background: color-mix(in oklab, var(--surface-color) 94%, transparent);
   color: var(--text-color);
   text-decoration: none;
   font-weight: 750;
-
   transition:
     transform 160ms ease,
     border-color 160ms ease,
@@ -66,14 +66,16 @@
 
 .other-profile-page__hero-main,
 .other-profile-page__actions-card,
-.other-profile-page__panel {
+.other-profile-page__panel,
+.other-profile-page__media-panel,
+.other-profile-page__intentions-panel {
   border: 1px solid color-mix(in oklab, var(--surface-border) 88%, transparent);
   border-radius: var(--visited-profile-card-radius);
   background:
     radial-gradient(
       circle at 12% 12%,
-      color-mix(in oklab, var(--primary-color, #ff6b6b) 13%, transparent),
-      transparent 32%
+      color-mix(in oklab, var(--primary-color, #ff6b6b) 11%, transparent),
+      transparent 30%
     ),
     linear-gradient(
       180deg,
@@ -89,7 +91,7 @@
   grid-template-columns: 190px minmax(0, 1fr);
   gap: clamp(18px, 2.6vw, 32px);
   align-items: center;
-  min-height: 260px;
+  min-height: 240px;
   padding: clamp(22px, 3vw, 34px);
 }
 
@@ -103,7 +105,6 @@
   width: clamp(150px, 13vw, 190px);
   height: clamp(150px, 13vw, 190px);
   display: block;
-
   border-radius: 999px;
   object-fit: cover;
   border: 3px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 58%, var(--surface-border));
@@ -117,6 +118,27 @@
   display: grid;
   gap: 12px;
   min-width: 0;
+}
+
+.other-profile-page__identity-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.other-profile-page__subscriber-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 34%, var(--surface-border));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 12%, transparent);
+  color: var(--text-color);
+  font-size: 0.78rem;
+  font-weight: 820;
 }
 
 .other-profile-page__eyebrow {
@@ -171,7 +193,6 @@
   align-items: center;
   min-height: 36px;
   padding: 0 13px;
-
   border: 1px solid color-mix(in oklab, var(--surface-border) 86%, transparent);
   border-radius: 999px;
   background: color-mix(in oklab, var(--surface-color) 86%, var(--text-color) 8%);
@@ -203,15 +224,13 @@
 }
 
 .other-profile-page__action {
+  display: inline-flex;
+  align-items: center;
   width: 100%;
   min-height: 46px;
   justify-content: center;
   gap: 9px;
   font-weight: 850;
-}
-
-.other-profile-page__action i {
-  font-size: 0.95rem;
 }
 
 .other-profile-page__actions-helper {
@@ -220,6 +239,271 @@
   font-size: 0.94rem;
 }
 
+/* Experiência principal */
+.other-profile-page__experience {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(280px, 0.88fr);
+  gap: var(--visited-profile-gap);
+  align-items: stretch;
+}
+
+.other-profile-page__media-panel {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.82fr) minmax(0, 1.18fr);
+  overflow: hidden;
+}
+
+.other-profile-page__media-visual {
+  position: relative;
+  min-height: 300px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--surface-color) 86%, black 14%);
+}
+
+/* Prévia real da galeria */
+.other-profile-page__gallery-preview {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+}
+
+.other-profile-page__gallery-preview--single {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+
+.other-profile-page__gallery-item {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--surface-color) 84%, black 16%);
+}
+
+.other-profile-page__gallery-item:first-child {
+  grid-row: span 2;
+}
+
+.other-profile-page__gallery-preview--single .other-profile-page__gallery-item:first-child {
+  grid-row: auto;
+}
+
+.other-profile-page__gallery-item img,
+.other-profile-page__gallery-empty img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  filter: saturate(1.04) contrast(1.03);
+}
+
+.other-profile-page__gallery-item::after,
+.other-profile-page__gallery-empty::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, transparent 32%, rgb(0 0 0 / 64%)),
+    radial-gradient(circle at 20% 10%, rgb(255 255 255 / 10%), transparent 35%);
+  pointer-events: none;
+}
+
+.other-profile-page__gallery-empty {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+}
+
+.other-profile-page__gallery-empty-copy {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 48%);
+  color: #fff;
+  font-weight: 850;
+  backdrop-filter: blur(10px);
+}
+
+.other-profile-page__media-overlay {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 18px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 48%);
+  color: #fff;
+  font-weight: 850;
+  backdrop-filter: blur(10px);
+}
+
+.other-profile-page__media-copy {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  padding: clamp(20px, 2.5vw, 30px);
+}
+
+.other-profile-page__media-copy h2,
+.other-profile-page__intentions-panel h2 {
+  margin: 0;
+  font-size: clamp(1.42rem, 1.9vw, 1.95rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.other-profile-page__media-copy p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 82%, transparent);
+  line-height: 1.55;
+}
+
+.other-profile-page__media-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  min-height: 46px;
+  gap: 9px;
+  padding-inline: 18px;
+  font-weight: 850;
+}
+
+.other-profile-page__plan-note {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.other-profile-page__plan-note a {
+  color: var(--primary-color);
+  font-weight: 850;
+  text-decoration: underline;
+}
+
+.other-profile-page__plan-note--active {
+  color: color-mix(in oklab, var(--text-color) 82%, transparent);
+  font-weight: 720;
+}
+
+/* Afinidades */
+.other-profile-page__intentions-panel {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: clamp(20px, 2.2vw, 26px);
+}
+
+.other-profile-page__preference-cloud {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.other-profile-page__preference-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 24%, var(--surface-border));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 10%, transparent);
+  color: var(--text-color);
+  font-weight: 740;
+}
+
+.other-profile-page__soft-empty {
+  margin: 0;
+  padding: 13px 14px;
+  border: 1px dashed color-mix(in oklab, var(--surface-border) 82%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--surface-color) 92%, var(--text-color) 8%);
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  line-height: 1.45;
+}
+
+.other-profile-page__interaction-signals {
+  display: grid;
+  gap: 10px;
+}
+
+.other-profile-page__signal {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--surface-color) 91%, var(--text-color) 7%);
+}
+
+.other-profile-page__signal i {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-border) 50%, transparent);
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+}
+
+.other-profile-page__signal span,
+.other-profile-page__signal strong {
+  display: block;
+}
+
+.other-profile-page__signal span {
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.other-profile-page__signal strong {
+  color: var(--text-color);
+  line-height: 1.35;
+}
+
+.other-profile-page__signal--strong {
+  border-color: color-mix(in oklab, var(--primary-color, #ff6b6b) 38%, var(--surface-border));
+  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 10%, var(--surface-color));
+}
+
+.other-profile-page__signal--strong i {
+  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 20%, transparent);
+  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 78%, var(--text-color) 22%);
+}
+
+.other-profile-page__signal--muted {
+  opacity: 0.78;
+}
+
+/* Detalhes */
 .other-profile-page__content {
   display: grid;
   grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
@@ -230,7 +514,7 @@
   display: grid;
   align-content: start;
   gap: 18px;
-  min-height: 260px;
+  min-height: 240px;
   padding: clamp(18px, 2vw, 24px);
 }
 
@@ -337,14 +621,18 @@
   .other-profile-page__hero-main,
   .other-profile-page__actions-card,
   .other-profile-page__panel,
+  .other-profile-page__media-panel,
+  .other-profile-page__intentions-panel,
   .other-profile-page__back,
-  .other-profile-page__chip {
+  .other-profile-page__chip,
+  .other-profile-page__subscriber-badge {
     border-width: 2px;
   }
 
   .other-profile-page__eyebrow,
   .other-profile-page__actions-helper,
-  .other-profile-page__fact dt {
+  .other-profile-page__fact dt,
+  .other-profile-page__plan-note {
     color: var(--text-color);
   }
 }
@@ -364,16 +652,18 @@
 
 /* Responsivo */
 @media (max-width: 1180px) {
-  .other-profile-page__hero {
+  .other-profile-page__hero,
+  .other-profile-page__experience,
+  .other-profile-page__content {
     grid-template-columns: 1fr;
-  }
-
-  .other-profile-page__actions-card {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .other-profile-page__actions {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .other-profile-page__media-panel {
+    grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr);
   }
 
   .other-profile-page__actions-helper {
@@ -391,6 +681,7 @@
     text-align: center;
   }
 
+  .other-profile-page__identity-top,
   .other-profile-page__location,
   .other-profile-page__meta {
     justify-content: center;
@@ -400,8 +691,17 @@
     margin-inline: auto;
   }
 
-  .other-profile-page__content {
+  .other-profile-page__media-panel {
     grid-template-columns: 1fr;
+  }
+
+  .other-profile-page__media-visual {
+    min-height: 260px;
+  }
+
+  .other-profile-page__media-cta {
+    width: 100%;
+    justify-content: center;
   }
 }
 
@@ -413,7 +713,9 @@
 
   .other-profile-page__hero-main,
   .other-profile-page__actions-card,
-  .other-profile-page__panel {
+  .other-profile-page__panel,
+  .other-profile-page__media-panel,
+  .other-profile-page__intentions-panel {
     border-radius: 16px;
   }
 
@@ -429,6 +731,24 @@
     width: 142px;
     height: 142px;
   }
+
+  .other-profile-page__media-visual {
+    min-height: 220px;
+  }
+
+  .other-profile-page__gallery-preview {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(2, minmax(100px, 1fr));
+  }
+
+  .other-profile-page__gallery-item:first-child {
+    grid-row: auto;
+  }
+
+  .other-profile-page__media-copy,
+  .other-profile-page__intentions-panel {
+    padding: 16px;
+  }
 }
 
 @media (max-width: 380px) {
@@ -438,7 +758,9 @@
 
   .other-profile-page__hero-main,
   .other-profile-page__actions-card,
-  .other-profile-page__panel {
+  .other-profile-page__panel,
+  .other-profile-page__media-copy,
+  .other-profile-page__intentions-panel {
     padding: 16px;
   }
 

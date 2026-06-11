@@ -3,13 +3,16 @@
 //
 // Objetivos desta versão:
 // - manter navegação anterior/próxima;
-// - trocar comentários antigos pela nova camada pública MediaPhotoCommentsService;
-// - só permitir comentário quando a foto estiver APPROVED + commentsEnabled;
-// - manter reações existentes, mas já respeitando reactionsEnabled/moderação;
+// - manter comentários via camada pública MediaPhotoCommentsService;
+// - permitir comentário quando a foto estiver APPROVED + commentsEnabled;
+// - permitir reação quando a foto estiver APPROVED + reactionsEnabled;
+// - permitir que o dono da foto responda comentários;
+// - permitir que o dono da foto oculte comentários;
+// - permitir que o dono da foto ou o autor removam comentários;
+// - destacar respostas do dono da foto;
 // - remover console.debug direto;
 // - usar PrivacyDebugLoggerService;
 // - preservar acessibilidade básica e fluxo reativo.
-
 import { ChangeDetectionStrategy, Component, Inject, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -84,6 +87,8 @@ type PhotoInteractionState = {
   moderationStatus: TPhotoModerationStatus;
 };
 
+type TCommentModerationAction = 'HIDE' | 'DELETE';
+
 @Component({
   selector: 'app-photo-viewer',
   standalone: true,
@@ -103,6 +108,11 @@ export class PhotoViewerComponent {
     validators: [Validators.required, Validators.maxLength(500)],
   });
 
+  readonly replyControl = new FormControl('', {
+    nonNullable: true,
+    validators: [Validators.required, Validators.maxLength(500)],
+  });
+
   private readonly currentPhotoIdSubject = new BehaviorSubject<string>('');
   readonly currentPhotoId$ = this.currentPhotoIdSubject.asObservable().pipe(
     distinctUntilChanged()
@@ -111,8 +121,21 @@ export class PhotoViewerComponent {
   private readonly submittingCommentSubject = new BehaviorSubject<boolean>(false);
   readonly submittingComment$ = this.submittingCommentSubject.asObservable();
 
+  private readonly submittingReplySubject = new BehaviorSubject<boolean>(false);
+  readonly submittingReply$ = this.submittingReplySubject.asObservable();
+
   private readonly togglingLikeSubject = new BehaviorSubject<boolean>(false);
   readonly togglingLike$ = this.togglingLikeSubject.asObservable();
+
+  private readonly replyingToCommentIdSubject = new BehaviorSubject<string | null>(null);
+  readonly replyingToCommentId$ = this.replyingToCommentIdSubject.asObservable().pipe(
+    distinctUntilChanged()
+  );
+
+  private readonly moderatingCommentIdSubject = new BehaviorSubject<string | null>(null);
+  readonly moderatingCommentId$ = this.moderatingCommentIdSubject.asObservable().pipe(
+    distinctUntilChanged()
+  );
 
   readonly viewerUser$ = this.currentUserStore.user$.pipe(
     shareReplay({ bufferSize: 1, refCount: true })
@@ -120,6 +143,12 @@ export class PhotoViewerComponent {
 
   readonly viewerUid$: Observable<string | null> = this.viewerUser$.pipe(
     map((user) => (user as ViewerUserLike | null)?.uid ?? null),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly viewerIsOwner$: Observable<boolean> = this.viewerUid$.pipe(
+    map((uid) => !!uid && uid === this.data.ownerUid),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -191,26 +220,29 @@ export class PhotoViewerComponent {
     distinctUntilChanged()
   );
 
-  readonly comments$: Observable<IPhotoComment[]> = combineLatest([
-    this.currentPhotoId$,
-    this.currentCanComment$,
-  ]).pipe(
-    switchMap(([photoId, canComment]) => {
-      if (!photoId || !canComment) {
-        return of([] as IPhotoComment[]);
-      }
-
-      return this.mediaPhotoCommentsService.watchVisibleComments$(
-        this.data.ownerUid,
-        photoId
-      );
-    }),
-    catchError(() => {
-      this.errorNotifier.showError('Erro ao carregar os comentários.');
-      return of([] as IPhotoComment[]);
-    }),
-    shareReplay({ bufferSize: 1, refCount: true })
+  readonly replyLength$: Observable<number> = this.replyControl.valueChanges.pipe(
+    startWith(this.replyControl.value),
+    map((value) => (value ?? '').trim().length),
+    distinctUntilChanged()
   );
+
+  readonly comments$: Observable<IPhotoComment[]> = this.currentPhotoId$.pipe(
+  switchMap((photoId) => {
+    if (!photoId) {
+      return of([] as IPhotoComment[]);
+    }
+
+    return this.mediaPhotoCommentsService.watchVisibleComments$(
+      this.data.ownerUid,
+      photoId
+    );
+  }),
+  catchError(() => {
+    this.errorNotifier.showError('Erro ao carregar os comentários.');
+    return of([] as IPhotoComment[]);
+  }),
+  shareReplay({ bufferSize: 1, refCount: true })
+);
 
   constructor(
     private readonly dialogRef: MatDialogRef<PhotoViewerComponent>,
@@ -254,6 +286,7 @@ export class PhotoViewerComponent {
 
     this.index -= 1;
     this.commentControl.setValue('');
+    this.cancelReply();
     this.syncCurrentPhotoId();
   }
 
@@ -262,6 +295,7 @@ export class PhotoViewerComponent {
 
     this.index += 1;
     this.commentControl.setValue('');
+    this.cancelReply();
     this.syncCurrentPhotoId();
   }
 
@@ -300,37 +334,129 @@ export class PhotoViewerComponent {
       .subscribe();
   }
 
-  submitComment(): void {
-    const current = this.current;
-    const safeComment = (this.commentControl.value ?? '').replace(/\s+/g, ' ').trim();
+submitComment(event?: Event): void {
+  event?.preventDefault();
+  event?.stopPropagation();
 
-    if (!current?.id) {
-      this.errorNotifier.showWarning('Nenhuma foto ativa para comentar.');
+  const current = this.current;
+  const safeComment = (this.commentControl.value ?? '').replace(/\s+/g, ' ').trim();
+
+  this.debug('submitComment clicked', {
+    hasCurrentPhoto: !!current?.id,
+    photoId: current?.id ?? null,
+    ownerUid: this.data.ownerUid,
+    commentLength: safeComment.length,
+  });
+
+  if (!current?.id) {
+    this.errorNotifier.showWarning('Nenhuma foto ativa para comentar.');
+    return;
+  }
+
+  if (!safeComment) {
+    this.errorNotifier.showWarning('Digite um comentário antes de enviar.');
+    return;
+  }
+
+  if (safeComment.length > 500) {
+    this.errorNotifier.showWarning('O comentário excede o limite de 500 caracteres.');
+    return;
+  }
+
+  this.submittingCommentSubject.next(true);
+
+  combineLatest([
+    this.viewerUid$,
+    this.viewerNickname$,
+    this.currentCanComment$,
+  ])
+    .pipe(
+      take(1),
+      switchMap(([viewerUid, viewerNickname, canComment]) => {
+        if (!viewerUid) {
+          this.errorNotifier.showWarning('Entre na sua conta para comentar.');
+          return of(null);
+        }
+
+        if (!canComment) {
+          this.errorNotifier.showWarning('Comentários indisponíveis nesta foto.');
+          return of(null);
+        }
+
+        return this.mediaPhotoCommentsService.createComment$({
+          ownerUid: this.data.ownerUid,
+          photoId: current.id,
+          authorUid: viewerUid,
+          authorNickname: viewerNickname,
+          content: safeComment,
+        });
+      }),
+      finalize(() => this.submittingCommentSubject.next(false))
+    )
+    .subscribe((commentId) => {
+      this.debug('submitComment result', {
+        hasCommentId: !!commentId,
+        commentId,
+      });
+
+      if (!commentId) {
+        return;
+      }
+
+      this.commentControl.setValue('');
+      this.errorNotifier.showSuccess('Comentário adicionado.');
+    });
+}
+
+  startReply(comment: IPhotoComment): void {
+    if (!comment?.id) {
       return;
     }
 
-    if (!safeComment) {
-      this.errorNotifier.showWarning('Digite um comentário antes de enviar.');
+    if (comment.parentCommentId) {
+      this.errorNotifier.showWarning('Respostas encadeadas não são permitidas.');
       return;
     }
 
-    if (safeComment.length > 500) {
-      this.errorNotifier.showWarning('O comentário excede o limite de 500 caracteres.');
+    this.replyControl.setValue('');
+    this.replyingToCommentIdSubject.next(comment.id);
+  }
+
+  cancelReply(): void {
+    this.replyControl.setValue('');
+    this.replyingToCommentIdSubject.next(null);
+  }
+
+submitReply(comment: IPhotoComment, event?: Event): void {
+  event?.preventDefault();
+  event?.stopPropagation();
+
+  const current = this.current;
+  const safeReply = (this.replyControl.value ?? '').replace(/\s+/g, ' ').trim();
+
+  if (!current?.id || !comment?.id) {
+    this.errorNotifier.showWarning('Comentário inválido para resposta.');
+    return;
+  }
+
+    if (!safeReply) {
+      this.errorNotifier.showWarning('Digite uma resposta antes de enviar.');
       return;
     }
 
-    this.submittingCommentSubject.next(true);
+    if (safeReply.length > 500) {
+      this.errorNotifier.showWarning('A resposta excede o limite de 500 caracteres.');
+      return;
+    }
 
-    combineLatest([
-      this.viewerUid$,
-      this.viewerNickname$,
-      this.currentCanComment$,
-    ])
+    this.submittingReplySubject.next(true);
+
+    combineLatest([this.viewerIsOwner$, this.currentCanComment$])
       .pipe(
         take(1),
-        switchMap(([viewerUid, viewerNickname, canComment]) => {
-          if (!viewerUid) {
-            this.errorNotifier.showWarning('Entre na sua conta para comentar.');
+        switchMap(([viewerIsOwner, canComment]) => {
+          if (!viewerIsOwner) {
+            this.errorNotifier.showWarning('Somente o dono da foto pode responder como perfil.');
             return of(null);
           }
 
@@ -339,23 +465,114 @@ export class PhotoViewerComponent {
             return of(null);
           }
 
-          return this.mediaPhotoCommentsService.createComment$({
+          return this.mediaPhotoCommentsService.replyToComment$({
             ownerUid: this.data.ownerUid,
             photoId: current.id,
-            authorUid: viewerUid,
-            authorNickname: viewerNickname,
-            content: safeComment,
+            parentCommentId: comment.id,
+            content: safeReply,
           });
         }),
-        finalize(() => this.submittingCommentSubject.next(false))
+        finalize(() => this.submittingReplySubject.next(false))
       )
-      .subscribe((commentId) => {
-        if (!commentId) {
+      .subscribe((replyId) => {
+        if (!replyId) {
           return;
         }
 
-        this.commentControl.setValue('');
-        this.errorNotifier.showSuccess('Comentário adicionado.');
+        this.cancelReply();
+        this.errorNotifier.showSuccess('Resposta adicionada.');
+      });
+  }
+
+  hideComment(comment: IPhotoComment): void {
+    this.moderateComment(comment, 'HIDE');
+  }
+
+  deleteComment(comment: IPhotoComment): void {
+    this.moderateComment(comment, 'DELETE');
+  }
+
+  canShowReplyAction(comment: IPhotoComment, viewerIsOwner: boolean | null): boolean {
+    return !!viewerIsOwner && !!comment?.id && !comment.parentCommentId;
+  }
+
+  canShowHideAction(viewerIsOwner: boolean | null): boolean {
+    return !!viewerIsOwner;
+  }
+
+  canShowDeleteAction(
+    comment: IPhotoComment,
+    viewerUid: string | null,
+    viewerIsOwner: boolean | null
+  ): boolean {
+    return !!comment?.id && (!!viewerIsOwner || (!!viewerUid && viewerUid === comment.authorUid));
+  }
+
+  isReplyingTo(
+    comment: IPhotoComment,
+    replyingToCommentId: string | null | undefined
+  ): boolean {
+    return !!comment?.id && comment.id === replyingToCommentId;
+  }
+
+  private moderateComment(
+    comment: IPhotoComment,
+    action: TCommentModerationAction
+  ): void {
+    const current = this.current;
+
+    if (!current?.id || !comment?.id) {
+      this.errorNotifier.showWarning('Comentário inválido.');
+      return;
+    }
+
+    this.moderatingCommentIdSubject.next(comment.id);
+
+    combineLatest([this.viewerUid$, this.viewerIsOwner$])
+      .pipe(
+        take(1),
+        switchMap(([viewerUid, viewerIsOwner]) => {
+          if (action === 'HIDE' && !viewerIsOwner) {
+            this.errorNotifier.showWarning('Somente o dono da foto pode ocultar comentários.');
+            return of(null);
+          }
+
+          if (
+            action === 'DELETE' &&
+            !viewerIsOwner &&
+            (!viewerUid || viewerUid !== comment.authorUid)
+          ) {
+            this.errorNotifier.showWarning('Você não tem permissão para remover este comentário.');
+            return of(null);
+          }
+
+          if (action === 'HIDE') {
+            return this.mediaPhotoCommentsService.hideComment$(
+              this.data.ownerUid,
+              current.id,
+              comment.id
+            );
+          }
+
+          return this.mediaPhotoCommentsService.deleteComment$(
+            this.data.ownerUid,
+            current.id,
+            comment.id
+          );
+        }),
+        finalize(() => this.moderatingCommentIdSubject.next(null))
+      )
+      .subscribe((status) => {
+        if (!status) {
+          return;
+        }
+
+        if (action === 'HIDE') {
+          this.errorNotifier.showSuccess('Comentário ocultado.');
+          return;
+        }
+
+        this.errorNotifier.showSuccess('Comentário removido.');
       });
   }
 
@@ -434,4 +651,4 @@ export class PhotoViewerComponent {
   private debug(message: string, extra?: unknown): void {
     this.privacyDebug.log('media', `PhotoViewer: ${message}`, extra);
   }
-}
+} // line 636, file end

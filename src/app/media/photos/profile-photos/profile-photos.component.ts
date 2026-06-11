@@ -110,7 +110,7 @@ export class ProfilePhotosComponent {
   private readonly photoEditorSession = inject(PhotoEditorSessionService);
 
   // Troque para true só depois de deployar as novas rules da camada de publicação.
-  readonly publicationFeatureReady = false;
+  readonly publicationFeatureReady = true;
 
   private readonly confirmDeleteIdSubject = new BehaviorSubject<string | null>(null);
   readonly confirmDeleteId$ = this.confirmDeleteIdSubject.asObservable();
@@ -430,9 +430,9 @@ publishPhoto(item: IPhotoCardVm, event?: Event): void {
           visibility: 'PUBLIC',
           isCover: !!item.publication.isCover,
           orderIndex: item.publication.orderIndex ?? 0,
-          commentsEnabled: false,
-          commentsPolicy: 'OFF',
-          reactionsEnabled: false,
+          commentsEnabled: true,
+          commentsPolicy: 'EVERYONE',
+          reactionsEnabled: true,
         }).pipe(
           tap(() => {
             this.errorNotifier.showSuccess('Foto publicada com sucesso.');

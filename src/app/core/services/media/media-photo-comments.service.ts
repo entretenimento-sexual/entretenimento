@@ -333,9 +333,9 @@ export class MediaPhotoCommentsService {
     );
   }
 
-  private commentsPath(ownerUid: string, photoId: string): string {
-    return `public_profiles/${ownerUid}/public_photos/${photoId}/comments`;
-  }
+private commentsPath(ownerUid: string, photoId: string): string {
+  return `public_profiles/${ownerUid}/public_photos/${photoId}/comments`;
+}
 
   private cleanId(value: string | null | undefined): string {
     return String(value ?? '').trim();

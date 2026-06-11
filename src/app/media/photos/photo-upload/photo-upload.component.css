@@ -1,138 +1,310 @@
 /* src/app/media/photos/photo-upload/photo-upload.component.css */
-.upload-page {
+
+:host {
+  display: block;
   width: 100%;
-  max-width: var(--content-wide, 1360px);
-  margin: 0 auto;
-  padding: var(--space-4, 24px);
+}
+
+.upload-page {
+  display: grid;
+  gap: clamp(16px, 2vw, 24px);
+  width: min(100%, var(--content-wide, 1360px));
+  margin-inline: auto;
+  padding: clamp(12px, 2vw, 24px);
+  color: var(--text-color);
 }
 
 .upload-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-3, 16px);
-  margin-bottom: var(--space-4, 24px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  gap: clamp(14px, 2vw, 22px);
+  align-items: stretch;
 }
 
-.title-block h2 {
-  margin: 0;
-  font-size: clamp(1.35rem, 1vw + 1rem, 1.9rem);
-  line-height: 1.15;
+.upload-header__copy,
+.upload-header__privacy-card,
+.upload-card,
+.upload-blocked {
+  border: 1px solid color-mix(in oklab, var(--surface-border) 88%, transparent);
+  border-radius: 22px;
+  background:
+    radial-gradient(
+      circle at 12% 12%,
+      color-mix(in oklab, var(--primary-color, #ff6b6b) 11%, transparent),
+      transparent 30%
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color) 96%, var(--text-color) 4%),
+      var(--surface-color)
+    );
+  box-shadow: var(--box-shadow);
 }
 
-.eyebrow {
+.upload-header__copy {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  min-height: 176px;
+  padding: clamp(20px, 3vw, 34px);
+}
+
+.upload-header__back-link {
+  justify-self: start;
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.upload-header__back-link:hover,
+.upload-header__back-link:focus-visible {
+  color: var(--primary-color);
+  text-decoration: underline;
+}
+
+.upload-eyebrow {
   display: inline-block;
-  margin-bottom: 8px;
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 850;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--primary-color);
 }
 
-.subtitle {
-  margin: 8px 0 0;
+.upload-header h1,
+.upload-panel__header h2,
+.upload-done__copy h2 {
+  margin: 0;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.upload-header h1 {
+  font-size: clamp(1.75rem, 2.7vw, 2.8rem);
+}
+
+.upload-header p,
+.upload-panel__header p,
+.upload-done__copy p {
+  margin: 0;
+  max-width: 72ch;
   color: color-mix(in oklab, var(--text-color) 78%, transparent);
-  font-size: 0.96rem;
+  line-height: 1.55;
 }
 
-.card {
-  border: 1px solid var(--surface-border);
-  border-radius: 20px;
-  padding: var(--space-4, 24px);
-  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
-  box-shadow: var(--box-shadow);
+.upload-header__privacy-card {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: clamp(18px, 2vw, 24px);
+}
+
+.upload-header__privacy-card i {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 16%, transparent);
+  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 76%, var(--text-color) 24%);
+}
+
+.upload-header__privacy-card strong,
+.upload-header__privacy-card span {
+  display: block;
+}
+
+.upload-header__privacy-card strong {
+  margin-bottom: 3px;
+  font-weight: 880;
+}
+
+.upload-header__privacy-card span {
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  line-height: 1.4;
+}
+
+.upload-card {
+  padding: clamp(14px, 2vw, 24px);
 }
 
 .upload-grid {
   display: grid;
-  grid-template-columns: minmax(280px, 380px) 1fr;
-  gap: var(--space-4, 24px);
-  align-items: start;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(0, 1.18fr);
+  gap: clamp(16px, 2vw, 24px);
+  align-items: stretch;
 }
 
-.upload-panel,
-.preview-panel {
+.upload-panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
   min-width: 0;
 }
 
-.file-label {
-  display: inline-block;
-  margin-bottom: 10px;
-  font-weight: 600;
-  color: var(--text-color);
+.upload-panel__header {
+  display: grid;
+  gap: 8px;
+}
+
+.upload-panel__header h2 {
+  font-size: clamp(1.35rem, 1.6vw, 1.85rem);
+}
+
+.file-drop {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 178px;
+  padding: 20px;
+  border: 1px dashed color-mix(in oklab, var(--surface-border) 90%, transparent);
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color) 92%, var(--text-color) 6%),
+      color-mix(in oklab, var(--surface-color) 96%, transparent)
+    );
+  text-align: center;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.file-drop:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--primary-color, #ff6b6b) 48%, var(--surface-border));
+}
+
+.file-drop:focus-within {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 .native-file-input {
-  width: 100%;
-  min-height: var(--tap-target, 44px);
-  padding: 10px 12px;
-  border: 1px dashed var(--surface-border);
-  border-radius: 14px;
-  background: var(--input-background);
-  color: var(--text-color);
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
-.upload-hints {
-  margin-top: 12px;
+.native-file-input:disabled {
+  cursor: not-allowed;
+}
+
+.file-drop__icon {
   display: grid;
-  gap: 6px;
-  color: color-mix(in oklab, var(--text-color) 78%, transparent);
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 16%, transparent);
+  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 78%, var(--text-color) 22%);
+  font-size: 1.35rem;
+}
+
+.file-drop__title {
+  color: var(--text-color);
+  font-weight: 880;
+}
+
+.file-drop__hint {
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
   font-size: 0.92rem;
 }
 
+.selected-file,
+.privacy-callout {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 14px;
+}
+
 .selected-file {
-  margin-top: 6px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 82%, transparent);
+  background: color-mix(in oklab, var(--surface-color) 92%, var(--text-color) 6%);
+}
+
+.privacy-callout {
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 28%, var(--surface-border));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--primary-color, #ff6b6b) 12%, transparent),
+      color-mix(in oklab, var(--surface-color) 94%, var(--text-color) 5%)
+    );
+}
+
+.selected-file i,
+.privacy-callout i {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 18%, transparent);
+  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 78%, var(--text-color) 22%);
+}
+
+.selected-file strong,
+.selected-file span,
+.privacy-callout strong,
+.privacy-callout span {
+  display: block;
+  min-width: 0;
   word-break: break-word;
 }
 
-.preview {
-  border: 1px solid var(--surface-border);
-  border-radius: 18px;
-  overflow: hidden;
-  background: var(--surface-color);
-  min-height: 320px;
-  display: grid;
-  place-items: center;
+.selected-file span,
+.privacy-callout span {
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  line-height: 1.42;
+  font-size: 0.93rem;
 }
 
-.preview img {
-  width: 100%;
-  height: auto;
-  max-height: 520px;
-  object-fit: contain;
-  display: block;
+.privacy-callout strong {
+  margin-bottom: 3px;
+  font-weight: 880;
 }
 
-.preview-empty {
-  min-height: 320px;
-  border: 1px dashed var(--surface-border);
-  border-radius: 18px;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  padding: var(--space-4, 24px);
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
-  background: color-mix(in oklab, var(--surface-color) 88%, transparent);
-}
-
-.actions {
+.upload-actions {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
-  margin-top: var(--space-3, 16px);
+  gap: 10px;
 }
 
-.progress {
+.upload-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding-inline: 16px;
+  font-weight: 850;
+}
+
+.upload-progress-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.upload-progress {
   position: relative;
   height: 12px;
   border-radius: 999px;
   overflow: hidden;
-  margin-top: 12px;
   background: color-mix(in oklab, var(--surface-border) 65%, transparent);
 }
 
-.bar {
+.upload-progress__bar {
   height: 100%;
   width: 0%;
   border-radius: inherit;
@@ -141,108 +313,278 @@
     color-mix(in oklab, var(--primary-color) 72%, white 28%),
     var(--primary-color)
   );
-  transition: width 0.18s linear;
+  transition: width 180ms linear;
 }
 
-.progress-bar-indeterminate {
-  position: absolute;
-  inset: 0;
-  width: 38%;
-  border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    color-mix(in oklab, var(--primary-color) 35%, transparent),
-    var(--primary-color),
-    color-mix(in oklab, var(--primary-color) 35%, transparent)
-  );
-  animation: uploadSlide 1.15s linear infinite;
+.upload-progress__label {
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  font-size: 0.92rem;
 }
 
-.pct {
-  display: inline-block;
-  margin-top: 8px;
-  opacity: 0.86;
-  font-size: 0.95rem;
-}
-
-.blocked {
-  border: 1px solid var(--surface-border);
-  border-radius: 18px;
-  padding: var(--space-4, 24px);
-  background: color-mix(in oklab, var(--surface-color) 92%, transparent);
-  box-shadow: var(--box-shadow);
-}
-
-.done {
+.upload-hints {
   display: grid;
-  gap: 16px;
-  justify-items: start;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.done-badge {
-  width: 56px;
-  height: 56px;
-  border-radius: 999px;
+.upload-hints li {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 11px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 76%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--surface-color) 91%, var(--text-color) 6%);
+}
+
+.upload-hints i {
   display: grid;
   place-items: center;
-  font-size: 1.5rem;
-  font-weight: 700;
-  background: color-mix(in oklab, var(--success-color) 18%, transparent);
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-border) 48%, transparent);
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+}
+
+.upload-hints span {
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  line-height: 1.4;
+}
+
+.preview-panel {
+  min-width: 0;
+}
+
+.preview-card,
+.preview-empty {
+  min-height: 520px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 86%, transparent);
+  border-radius: 20px;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--surface-color) 88%, black 8%);
+}
+
+.preview-card {
+  position: relative;
+  display: grid;
+  margin: 0;
+}
+
+.preview-card img {
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  display: block;
+  object-fit: contain;
+  background:
+    radial-gradient(circle at 50% 20%, rgb(255 255 255 / 8%), transparent 30%),
+    color-mix(in oklab, var(--surface-color) 86%, black 14%);
+}
+
+.preview-card figcaption {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 14px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 48%);
+  color: #fff;
+  font-weight: 850;
+  backdrop-filter: blur(10px);
+}
+
+.preview-empty {
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  padding: clamp(20px, 3vw, 34px);
+  text-align: center;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+}
+
+.preview-empty i {
+  display: grid;
+  place-items: center;
+  width: 66px;
+  height: 66px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 14%, transparent);
+  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 76%, var(--text-color) 24%);
+  font-size: 1.55rem;
+}
+
+.preview-empty strong,
+.preview-empty span {
+  display: block;
+}
+
+.preview-empty strong {
+  color: var(--text-color);
+  font-size: 1.05rem;
+}
+
+.preview-empty span {
+  margin-top: 4px;
+}
+
+.upload-blocked {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: clamp(18px, 2vw, 24px);
+}
+
+.upload-blocked__icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--danger-color) 14%, transparent);
+  color: var(--danger-color);
+}
+
+.upload-blocked strong,
+.upload-blocked p {
+  margin: 0;
+}
+
+.upload-blocked p {
+  margin-top: 4px;
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+  line-height: 1.45;
+}
+
+.upload-done {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.2fr);
+  gap: clamp(16px, 2vw, 24px);
+  align-items: stretch;
+}
+
+.upload-done__visual {
+  min-height: 360px;
+  overflow: hidden;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 84%, transparent);
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--surface-color) 88%, black 10%);
+}
+
+.upload-done__visual img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+}
+
+.upload-done__fallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
   color: var(--success-color);
-  border: 1px solid color-mix(in oklab, var(--success-color) 35%, transparent);
+  font-size: 2rem;
 }
 
-.done-copy h3 {
-  margin: 0 0 6px;
-  font-size: 1.2rem;
+.upload-done__copy {
+  display: grid;
+  align-content: center;
+  gap: 12px;
 }
 
-.done-copy p {
-  margin: 0 0 6px;
-  color: color-mix(in oklab, var(--text-color) 82%, transparent);
-}
-
-.done-copy small {
-  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+.upload-done__copy small {
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
   word-break: break-all;
 }
 
-.done-actions {
-  width: 100%;
+.upload-actions--done {
+  margin-top: 8px;
 }
 
-@keyframes uploadSlide {
-  0% {
-    transform: translateX(-120%);
-  }
+:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
 
-  100% {
-    transform: translateX(320%);
+@media (prefers-contrast: more) {
+  .upload-header__copy,
+  .upload-header__privacy-card,
+  .upload-card,
+  .upload-blocked,
+  .file-drop,
+  .selected-file,
+  .privacy-callout,
+  .upload-hints li,
+  .preview-card,
+  .preview-empty,
+  .upload-done__visual {
+    border-width: 2px;
   }
 }
 
-@media (max-width: 900px) {
-  .upload-grid {
+@media (prefers-reduced-motion: reduce) {
+  .file-drop,
+  .upload-progress__bar {
+    transition: none;
+  }
+
+  .file-drop:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 1020px) {
+  .upload-header,
+  .upload-grid,
+  .upload-done {
     grid-template-columns: 1fr;
+  }
+
+  .preview-card,
+  .preview-empty {
+    min-height: 420px;
   }
 }
 
 @media (max-width: 650px) {
-  .upload-header {
-    flex-direction: column;
-    align-items: stretch;
+  .upload-page {
+    padding: 10px;
   }
 
-  .actions .btn {
+  .upload-header__copy,
+  .upload-header__privacy-card,
+  .upload-card,
+  .upload-blocked {
+    border-radius: 16px;
+  }
+
+  .upload-actions .btn {
     width: 100%;
+    justify-content: center;
   }
 
-  .card {
-    padding: var(--space-3, 16px);
+  .file-drop {
+    min-height: 160px;
   }
 
-  .preview,
+  .preview-card,
   .preview-empty {
-    min-height: 240px;
+    min-height: 300px;
+  }
+
+  .upload-done__visual {
+    min-height: 300px;
   }
 }

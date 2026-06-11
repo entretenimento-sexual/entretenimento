@@ -1,4 +1,5 @@
 /* src/app/media/photos/public-profile-photos/public-profile-photos.component.css */
+
 .public-photos-page {
   width: 100%;
   max-width: var(--content-wide, 1360px);
@@ -16,24 +17,26 @@
 
 .title-block h2 {
   margin: 0;
-  font-size: clamp(1.35rem, 1vw + 1rem, 1.9rem);
-  line-height: 1.15;
+  font-size: clamp(1.55rem, 1.5vw + 1rem, 2.25rem);
+  line-height: 1.12;
 }
 
 .eyebrow {
   display: inline-block;
   margin-bottom: 8px;
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--primary-color);
 }
 
 .subtitle {
+  max-width: 680px;
   margin: 8px 0 0;
   color: color-mix(in oklab, var(--text-color) 78%, transparent);
-  font-size: 0.96rem;
+  font-size: 0.98rem;
+  line-height: 1.5;
 }
 
 .gallery-meta {
@@ -42,10 +45,18 @@
   font-size: 0.92rem;
 }
 
+/*
+  Importante:
+  - não usar 1fr ocupando a largura toda quando só existe 1 foto;
+  - galeria deve manter cara de grid social;
+  - auto-fill + coluna limitada evita foto gigante.
+*/
 .photos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-3, 16px);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 240px));
+  justify-content: start;
+  align-items: start;
+  gap: clamp(12px, 1.7vw, 20px);
 }
 
 .empty-state {
@@ -73,11 +84,12 @@
 
   .photos-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
     gap: 12px;
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 380px) {
   .photos-grid {
     grid-template-columns: 1fr;
   }

@@ -7,13 +7,15 @@
     type="button"
     class="photo-card-link"
     (click)="onPreview()"
-    [attr.aria-label]="'Abrir foto pública ' + (item.alt || item.id)">
+    [attr.aria-label]="'Abrir foto pública ' + (item.alt || item.id)"
+  >
     <img
       class="photo"
       [src]="item.url"
       [alt]="item.alt || 'Foto pública'"
       loading="lazy"
-      referrerpolicy="no-referrer" />
+      referrerpolicy="no-referrer"
+    />
   </button>
 
   <div class="photo-meta">
@@ -24,9 +26,9 @@
       }
 
       @case ('top') {
-        <span class="meta-chip">Score: {{ item.engagementScore ?? 0 }}</span>
-        <span class="meta-chip">Curtidas: {{ item.likesCount ?? 0 }}</span>
-        <span class="meta-chip">Comentários: {{ item.commentsCount ?? 0 }}</span>
+        <span class="meta-chip">Score: {{ item.engagementScore ?? item.score ?? 0 }}</span>
+        <span class="meta-chip">♥ {{ item.reactionsCount ?? item.likesCount ?? 0 }}</span>
+        <span class="meta-chip">💬 {{ item.commentsCount ?? 0 }}</span>
       }
 
       @case ('boosted') {
@@ -38,14 +40,21 @@
       }
 
       @default {
-        <span class="meta-chip">Galeria pública</span>
+        <span class="meta-chip">♥ {{ item.reactionsCount ?? item.likesCount ?? 0 }}</span>
+        <span class="meta-chip">💬 {{ item.commentsCount ?? 0 }}</span>
+
+        @if (item.isCover) {
+          <span class="meta-chip meta-cover">Capa</span>
+        }
       }
     }
 
-    <a
-      class="profile-link"
-      [routerLink]="galleryLink()">
-      Ver galeria
-    </a>
+    <button
+      type="button"
+      class="open-photo-btn"
+      (click)="onPreview()"
+    >
+      Abrir
+    </button>
   </div>
 </article>

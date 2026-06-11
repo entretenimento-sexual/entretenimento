@@ -1,14 +1,16 @@
 <!-- src/app/media/photos/public-profile-photos/public-profile-photos.component.html -->
+
 @let items = (publicPhotos$ | async);
-@let selectedIndex = (selectedIndex$ | async);
 
 <section class="public-photos-page" aria-label="Galeria pública do perfil">
   <header class="public-photos-header">
     <div class="title-block">
       <span class="eyebrow">Galeria pública</span>
+
       <h2>Fotos do perfil</h2>
+
       <p class="subtitle">
-        Exibição pública das fotos publicadas pelo usuário.
+        Fotos publicadas pelo perfil. Abra uma foto para reagir, comentar ou acompanhar a conversa.
       </p>
     </div>
   </header>
@@ -28,18 +30,9 @@
         <app-public-photo-card
           [photo]="item"
           variant="profile"
-          (preview)="openPhoto(i)" />
+          (preview)="openPhoto(i)"
+        />
       }
     </div>
-  }
-
-  @if (selectedIndex !== null) {
-    <app-public-photo-lightbox
-      [items]="items || []"
-      [activeIndex]="selectedIndex"
-      title="Foto pública"
-      (closed)="closeViewer()"
-      (prevRequested)="prev()"
-      (nextRequested)="next()" />
   }
 </section>
