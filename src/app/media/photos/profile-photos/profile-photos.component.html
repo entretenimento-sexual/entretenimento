@@ -1,4 +1,15 @@
 <!-- src/app/media/photos/profile-photos/profile-photos.component.html -->
+<!--
+  Galeria privada do dono do perfil.
+
+  Objetivo desta versão:
+  - manter o fluxo funcional já existente;
+  - reduzir aparência administrativa;
+  - usar linguagem clara para usuário comum;
+  - preservar ações de publicação, capa, edição e exclusão;
+  - manter a imagem como ação principal do card.
+-->
+
 @let ownerUid = (ownerUid$ | async);
 @let canView = (canView$ | async);
 @let isOwner = (isOwner$ | async);
@@ -11,10 +22,13 @@
 <section class="photos-page" aria-label="Galeria de fotos do perfil">
   <header class="photos-header">
     <div class="photos-title">
-      <span class="eyebrow">Mídia</span>
+      <span class="eyebrow">Mídia privada</span>
+
       <h2>Minhas fotos</h2>
+
       <p class="subtitle">
-        Biblioteca privada de gestão das suas fotos. A publicação para terceiros fica em uma camada separada.
+        Organize sua biblioteca e escolha quais fotos aparecem para outros perfis.
+        Fotos privadas ficam visíveis apenas para você.
       </p>
     </div>
 
@@ -22,9 +36,10 @@
       <div class="actions">
         <button
           type="button"
-          class="btn btn-primary"
+          class="btn btn-primary add-photo-btn"
           (click)="openUpload(ownerUid)"
-          aria-label="Adicionar nova foto">
+          aria-label="Adicionar nova foto"
+        >
           + Adicionar foto
         </button>
       </div>
@@ -34,140 +49,177 @@
   @if (!canView) {
     <div class="blocked" role="status" aria-live="polite">
       <strong>Acesso negado.</strong>
+
       <p class="subtitle">
-        @if (policy?.reason === 'NOT_AUTHENTICATED') { Faça login para ver suas fotos. }
-        @else if (policy?.reason === 'NOT_OWNER') { Você só pode ver fotos do seu próprio perfil por enquanto. }
-        @else { Bloqueado por política. }
+        @if (policy?.reason === 'NOT_AUTHENTICATED') {
+          Faça login para ver suas fotos.
+        } @else if (policy?.reason === 'NOT_OWNER') {
+          Você só pode ver fotos do seu próprio perfil por enquanto.
+        } @else {
+          Bloqueado por política.
+        }
       </p>
     </div>
   } @else {
     @if (isEmpty$ | async) {
       <div class="empty-state" role="status" aria-live="polite">
         <div class="empty-copy">
-          <h3>Nenhuma foto ainda</h3>
-          <p>Envie sua primeira foto para começar a montar sua biblioteca privada.</p>
+          <span class="empty-icon" aria-hidden="true">🖼️</span>
+
+          <div>
+            <h3>Nenhuma foto ainda</h3>
+            <p>Envie sua primeira foto para começar a montar sua presença no perfil.</p>
+          </div>
         </div>
 
         @if (ownerUid && isOwner) {
           <button
             type="button"
             class="btn btn-secondary"
-            (click)="openUpload(ownerUid)">
+            (click)="openUpload(ownerUid)"
+          >
             Fazer upload
           </button>
         }
       </div>
     } @else {
-      <div class="gallery-meta" aria-live="polite">
+      <div class="gallery-toolbar" aria-live="polite">
         <span>{{ items?.length || 0 }} foto(s)</span>
+        <span>Toque em uma foto para visualizar.</span>
       </div>
 
       <div class="photos-grid" role="list" aria-label="Lista de fotos">
         @for (item of (items || []); track item.id) {
-          <article class="photo-tile" role="listitem">
+          <article
+            class="photo-tile"
+            role="listitem"
+            [class.photo-tile--published]="item.publication.isPublished"
+            [class.photo-tile--cover]="item.publication.isCover"
+          >
             <button
               type="button"
               class="photo-card"
               (click)="openPhoto(item.id)"
-              [attr.aria-label]="'Abrir foto ' + (item.alt || item.id)">
-              <img
-                class="photo"
-                [src]="item.url"
-                [alt]="item.alt || 'Foto do perfil'"
-                loading="lazy"
-                referrerpolicy="no-referrer" />
+              [attr.aria-label]="'Abrir foto ' + (item.alt || item.id)"
+            >
+              <span class="photo-frame">
+                <img
+                  class="photo"
+                  [src]="item.url"
+                  [alt]="item.alt || 'Foto do perfil'"
+                  loading="lazy"
+                  referrerpolicy="no-referrer"
+                />
+              </span>
             </button>
 
-            <div class="photo-status-row">
-              <span
-                class="status-badge"
-                [class.status-published]="item.publication.isPublished"
-                [class.status-private]="!item.publication.isPublished">
+            <div class="photo-card-body">
+              <div class="photo-status-row">
                 @if (item.publication.isPublished) {
-                  Publicada
+                  <span class="status-badge status-published">
+                    Visível no perfil
+                  </span>
                 } @else {
-                  Privada
+                  <span class="status-badge status-private">
+                    Só você
+                  </span>
                 }
-              </span>
 
-              @if (item.publication.isCover) {
-                <span class="status-badge status-cover">Capa</span>
-              }
-
-              @if (item.publication.isPublished) {
-                <span class="status-badge status-visibility">
-                  {{ item.publication.visibility }}
-                </span>
-              }
-            </div>
-
-            @if (isOwner) {
-              <div class="photo-actions">
-                <button
-                  type="button"
-                  class="btn btn-ghost photo-action-btn"
-                  (click)="editPhoto(item, $event)"
-                  [disabled]="deletingPhotoId === item.id || publishingPhotoId === item.id"
-                  [attr.aria-label]="'Editar foto ' + (item.alt || item.id)">
-                  Editar
-                </button>
-
-                @if (!item.publication.isPublished) {
-                  <button
-                    type="button"
-                    class="btn btn-ghost photo-action-btn"
-                    (click)="publishPhoto(item, $event)"
-                    [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
-                    aria-label="Publicar foto">
-                    @if (publishingPhotoId === item.id) {
-                      Publicando...
-                    } @else {
-                      Publicar
-                    }
-                  </button>
-                } @else {
-                  <button
-                    type="button"
-                    class="btn btn-ghost photo-action-btn"
-                    (click)="unpublishPhoto(item, $event)"
-                    [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
-                    aria-label="Despublicar foto">
-                    @if (publishingPhotoId === item.id) {
-                      Atualizando...
-                    } @else {
-                      Despublicar
-                    }
-                  </button>
-
-                  <button
-                    type="button"
-                    class="btn btn-ghost photo-action-btn"
-                    (click)="setCoverPhoto(item, $event)"
-                    [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
-                    aria-label="Definir foto como capa">
+                @if (item.publication.isCover) {
+                  <span class="status-badge status-cover">
                     Capa
-                  </button>
+                  </span>
                 }
+              </div>
 
-                @if (confirmDeleteId !== item.id) {
+              <div class="photo-copy">
+                @if (item.publication.isPublished) {
+                  <strong>Foto publicada</strong>
+                  <p>Aparece para outros perfis e pode receber interações.</p>
+                } @else {
+                  <strong>Foto privada</strong>
+                  <p>Está salva na sua biblioteca. Publique quando quiser exibir.</p>
+                }
+              </div>
+
+              @if (isOwner) {
+                <div class="photo-actions" aria-label="Ações da foto">
                   <button
                     type="button"
-                    class="btn btn-ghost photo-action-btn danger-ghost"
-                    (click)="requestDelete(item, $event)"
+                    class="photo-action-btn photo-action-btn--neutral"
+                    (click)="editPhoto(item, $event)"
                     [disabled]="deletingPhotoId === item.id || publishingPhotoId === item.id"
-                    [attr.aria-label]="'Excluir foto ' + (item.alt || item.id)">
-                    Excluir
+                    [attr.aria-label]="'Editar foto ' + (item.alt || item.id)"
+                  >
+                    Editar
                   </button>
-                } @else {
+
+                  @if (!item.publication.isPublished) {
+                    <button
+                      type="button"
+                      class="photo-action-btn photo-action-btn--primary"
+                      (click)="publishPhoto(item, $event)"
+                      [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
+                      aria-label="Publicar foto"
+                    >
+                      @if (publishingPhotoId === item.id) {
+                        Publicando...
+                      } @else {
+                        Publicar
+                      }
+                    </button>
+                  } @else {
+                    @if (!item.publication.isCover) {
+                      <button
+                        type="button"
+                        class="photo-action-btn photo-action-btn--neutral"
+                        (click)="setCoverPhoto(item, $event)"
+                        [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
+                        aria-label="Definir foto como capa"
+                      >
+                        Usar como capa
+                      </button>
+                    }
+
+                    <button
+                      type="button"
+                      class="photo-action-btn photo-action-btn--neutral"
+                      (click)="unpublishPhoto(item, $event)"
+                      [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
+                      aria-label="Tornar foto privada"
+                    >
+                      @if (publishingPhotoId === item.id) {
+                        Atualizando...
+                      } @else {
+                        Tornar privada
+                      }
+                    </button>
+                  }
+
+                  @if (confirmDeleteId !== item.id) {
+                    <button
+                      type="button"
+                      class="photo-action-btn photo-action-btn--danger"
+                      (click)="requestDelete(item, $event)"
+                      [disabled]="deletingPhotoId === item.id || publishingPhotoId === item.id"
+                      [attr.aria-label]="'Excluir foto ' + (item.alt || item.id)"
+                    >
+                      Excluir
+                    </button>
+                  }
+                </div>
+
+                @if (confirmDeleteId === item.id) {
                   <div class="delete-confirm-box" role="alert" aria-live="polite">
-                    <p>Excluir esta foto?</p>
+                    <p>Excluir esta foto da sua biblioteca?</p>
 
                     <div class="delete-confirm-actions">
                       <button
                         type="button"
-                        class="btn btn-danger"
+                        class="photo-action-btn photo-action-btn--danger photo-action-btn--solid"
                         (click)="confirmDelete(item, $event)"
-                        [disabled]="deletingPhotoId === item.id">
+                        [disabled]="deletingPhotoId === item.id"
+                      >
                         @if (deletingPhotoId === item.id) {
                           Excluindo...
                         } @else {
@@ -177,26 +229,26 @@
 
                       <button
                         type="button"
-                        class="btn btn-ghost"
+                        class="photo-action-btn photo-action-btn--neutral"
                         (click)="cancelDelete($event)"
-                        [disabled]="deletingPhotoId === item.id">
+                        [disabled]="deletingPhotoId === item.id"
+                      >
                         Cancelar
                       </button>
                     </div>
                   </div>
                 }
-              </div>
-
-              @if (!publicationFeatureReady) {
-                <p class="publication-note">
-                  As ações de publicação já estão ligadas na UI, mas seguem desabilitadas até você
-                  publicar as rules de <code>photo_publications</code> e <code>public_profiles</code>.
-                </p>
               }
-            }
+            </div>
           </article>
         }
       </div>
+
+      @if (!publicationFeatureReady) {
+        <p class="publication-note">
+          A publicação de fotos está preparada na interface, mas ainda depende da camada pública ativa.
+        </p>
+      }
     }
   }
 </section>
