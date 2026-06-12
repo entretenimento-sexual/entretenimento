@@ -2,13 +2,12 @@
 /*
   Galeria privada de fotos.
 
-  Diretrizes de manutenção:
-  - esta tela é uma biblioteca de gestão do dono do perfil;
-  - o usuário comum não deve sentir que está em um painel técnico;
-  - imagem é a ação principal;
-  - ações de gestão existem, mas com hierarquia visual discreta;
-  - não usar larguras explosivas em desktop;
-  - manter mobile-first e alvos de toque confortáveis.
+  Objetivo visual:
+  - padronizar com o card público;
+  - imagem como foco principal;
+  - status em overlay;
+  - gestão compacta abaixo da imagem;
+  - exclusão escondida em menu secundário.
 */
 
 :host {
@@ -155,13 +154,20 @@
   width: 100%;
   min-width: 0;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
+  border-radius: 18px;
+  background: var(--surface-color, #0e1624);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease;
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 20px;
-  background: color-mix(in oklab, var(--surface-color, #0e1624) 96%, transparent);
-  box-shadow: var(--box-shadow, 0 10px 30px rgba(0, 0, 0, 0.18));
   isolation: isolate;
+}
+
+.photo-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px rgb(0 0 0 / 24%);
 }
 
 .photo-tile--published {
@@ -174,11 +180,12 @@
 
 .photo-tile--cover {
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--success-color, #5ed39a) 28%, transparent),
-    var(--box-shadow, 0 10px 30px rgba(0, 0, 0, 0.18));
+    0 0 0 1px color-mix(in oklab, var(--success-color, #5ed39a) 30%, transparent),
+    0 12px 32px rgb(0 0 0 / 22%);
 }
 
-.photo-card {
+.photo-card-link {
+  position: relative;
   display: block;
   width: 100%;
   min-width: 0;
@@ -186,128 +193,112 @@
   border: 0;
   background: transparent;
   cursor: pointer;
+  text-align: inherit;
   -webkit-tap-highlight-color: transparent;
 }
 
-.photo-frame {
-  position: relative;
-  display: block;
-  width: 100%;
-  overflow: hidden;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--surface-color, #0e1624) 92%, white 8%),
-      color-mix(in oklab, var(--surface-color, #0e1624) 82%, black 18%)
-    );
+.photo-card-link:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 .photo {
   width: 100%;
-  display: block;
   aspect-ratio: 4 / 5;
-  min-height: 180px;
-  max-height: 360px;
   object-fit: cover;
   object-position: center;
+  display: block;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color, #0e1624) 92%, white 6%),
+      color-mix(in oklab, var(--surface-color, #0e1624) 80%, black 18%)
+    );
   transition:
     transform 180ms ease,
     filter 180ms ease;
 }
 
-.photo-card:hover .photo,
-.photo-card:focus-visible .photo {
+.photo-card-link:hover .photo,
+.photo-card-link:focus-visible .photo {
   transform: scale(1.025);
-  filter: brightness(1.04);
+  filter: brightness(1.03);
 }
 
-.photo-card-body {
-  display: grid;
-  gap: 10px;
-  padding: 12px;
+.photo-overlay {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 34px 9px 9px;
+  background:
+    linear-gradient(
+      180deg,
+      transparent,
+      rgb(0 0 0 / 60%)
+    );
+  pointer-events: none;
 }
 
-.photo-status-row {
+.photo-status-stack {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
 }
 
-.status-badge {
-  min-height: 24px;
+.status-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 9px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  min-height: 25px;
+  padding: 3px 8px;
+  border: 1px solid rgb(255 255 255 / 20%);
   border-radius: 999px;
-  background: color-mix(in oklab, var(--surface-color, #0e1624) 94%, transparent);
-  font-size: 0.72rem;
-  font-weight: 760;
+  background: rgb(0 0 0 / 38%);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 820;
   line-height: 1;
-  white-space: nowrap;
+  backdrop-filter: blur(8px);
 }
 
-.status-private {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
+.status-chip--published {
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 62%, rgb(0 0 0 / 35%));
 }
 
-.status-published {
-  color: var(--primary-color, #ff6b81);
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff6b81) 34%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
+.status-chip--private {
+  background: rgb(0 0 0 / 44%);
+  color: rgb(255 255 255 / 88%);
 }
 
-.status-cover {
-  color: var(--success-color, #5ed39a);
-  border-color: color-mix(
-    in oklab,
-    var(--success-color, #5ed39a) 34%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
+.status-chip--cover {
+  background: color-mix(in oklab, var(--success-color, #5ed39a) 58%, rgb(0 0 0 / 35%));
 }
 
-.photo-copy {
-  display: grid;
-  gap: 3px;
-  min-height: 48px;
-}
-
-.photo-copy strong {
-  color: var(--text-color, #f5f7fb);
-  font-size: 0.92rem;
-  line-height: 1.2;
-}
-
-.photo-copy p {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
-  font-size: 0.8rem;
-  line-height: 1.35;
-}
-
-.photo-actions {
+.management-bar {
+  position: relative;
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding-top: 2px;
+  align-items: stretch;
+  gap: 7px;
+  padding: 9px;
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  background: color-mix(in oklab, var(--surface-color, #0e1624) 96%, transparent);
 }
 
-.photo-action-btn {
-  min-height: 34px;
+.management-action {
+  min-width: 0;
+  min-height: 32px;
   flex: 1 1 auto;
-  padding: 0 10px;
+  padding: 0 9px;
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 11px;
+  border-radius: 10px;
   background: transparent;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 86%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 84%, transparent);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 760;
   line-height: 1;
   cursor: pointer;
@@ -318,20 +309,20 @@
     transform 140ms ease;
 }
 
-.photo-action-btn:hover,
-.photo-action-btn:focus-visible {
+.management-action:hover,
+.management-action:focus-visible {
   background: color-mix(in oklab, var(--text-color, #f5f7fb) 7%, transparent);
   border-color: color-mix(in oklab, var(--text-color, #f5f7fb) 22%, transparent);
   transform: translateY(-1px);
 }
 
-.photo-action-btn:disabled {
+.management-action:disabled {
   cursor: not-allowed;
   opacity: 0.55;
   transform: none;
 }
 
-.photo-action-btn--primary {
+.management-action--primary {
   border-color: color-mix(
     in oklab,
     var(--primary-color, #ff6b81) 46%,
@@ -341,11 +332,11 @@
   color: color-mix(in oklab, var(--primary-color, #ff6b81) 76%, #fff 24%);
 }
 
-.photo-action-btn--neutral {
+.management-action--neutral {
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
 }
 
-.photo-action-btn--danger {
+.management-action--danger {
   border-color: color-mix(
     in oklab,
     var(--danger-color, #ff6b6b) 34%,
@@ -354,33 +345,45 @@
   color: var(--danger-color, #ff6b6b);
 }
 
-.photo-action-btn--danger:hover,
-.photo-action-btn--danger:focus-visible {
+.management-action--danger:hover,
+.management-action--danger:focus-visible {
   background: color-mix(in oklab, var(--danger-color, #ff6b6b) 10%, transparent);
 }
 
-.photo-action-btn--solid {
+.management-action--solid {
   background: color-mix(in oklab, var(--danger-color, #ff6b6b) 20%, transparent);
 }
 
+.management-action--icon {
+  flex: 0 0 34px;
+  width: 34px;
+  padding: 0;
+  font-size: 0.95rem;
+}
+
+.management-action--icon span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 .delete-confirm-box {
-  margin-top: 2px;
   display: grid;
   gap: 10px;
-  padding: 12px;
-  border: 1px solid color-mix(
+  padding: 10px;
+  border-top: 1px solid color-mix(
     in oklab,
     var(--danger-color, #ff6b6b) 30%,
     var(--surface-border, rgba(255, 255, 255, 0.12))
   );
-  border-radius: 16px;
   background: color-mix(in oklab, var(--danger-color, #ff6b6b) 7%, transparent);
 }
 
 .delete-confirm-box p {
   margin: 0;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 88%, transparent);
-  font-size: 0.88rem;
+  font-size: 0.82rem;
   line-height: 1.4;
 }
 
@@ -397,12 +400,20 @@
   line-height: 1.45;
 }
 
-.photo-card:focus-visible,
-.photo-action-btn:focus-visible,
-.actions .btn:focus-visible,
-.delete-confirm-actions .btn:focus-visible {
-  outline: var(--focus-ring, 2px solid rgba(255, 107, 129, 0.95));
-  outline-offset: var(--focus-offset, 3px);
+@media (prefers-reduced-motion: reduce) {
+  .photo-tile,
+  .photo,
+  .management-action {
+    transition: none;
+  }
+
+  .photo-tile:hover,
+  .photo-card-link:hover .photo,
+  .photo-card-link:focus-visible .photo,
+  .management-action:hover,
+  .management-action:focus-visible {
+    transform: none;
+  }
 }
 
 @media (max-width: 720px) {
@@ -439,42 +450,46 @@
     gap: 12px;
   }
 
-  .photo {
-    min-height: 160px;
-    max-height: 240px;
+  .photo-tile {
+    border-radius: 14px;
+    box-shadow: none;
   }
 
-  .photo-card-body {
-    padding: 10px;
+  .photo-overlay {
+    padding: 28px 6px 6px;
   }
 
-  .photo-actions,
-  .delete-confirm-actions {
-    gap: 7px;
-  }
-
-  .photo-action-btn {
-    min-height: 34px;
-    padding-inline: 8px;
-    font-size: 0.78rem;
-  }
-
-  .photo-copy {
-    min-height: 54px;
-  }
-
-  .status-badge {
+  .status-chip {
+    min-height: 22px;
+    padding: 2px 6px;
     font-size: 0.68rem;
-    padding-inline: 8px;
+  }
+
+  .management-bar {
+    gap: 6px;
+    padding: 7px;
+  }
+
+  .management-action {
+    min-height: 32px;
+    padding-inline: 7px;
+    font-size: 0.72rem;
+  }
+
+  .more-actions summary {
+    width: 32px;
+    min-height: 32px;
+  }
+
+    .management-action--icon {
+    flex-basis: 32px;
+    width: 32px;
+    font-size: 0.88rem;
   }
 }
 
 @media (max-width: 380px) {
   .photos-grid {
     grid-template-columns: 1fr;
-  }
-
-  .photo {
-    max-height: 360px;
   }
 }
