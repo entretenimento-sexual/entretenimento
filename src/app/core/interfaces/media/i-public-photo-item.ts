@@ -39,7 +39,11 @@ export interface IPublicPhotoItem {
   // Métricas públicas futuras
   likesCount?: number;
   engagementScore?: number;
-
+  viewsCount?: number;
+  uniqueViewersCount?: number;
+  lastViewedAt?: number;
+  viewScore?: number;
+  
   // Turbo / promoção
   boostActive?: boolean;
   boostPriority?: number;

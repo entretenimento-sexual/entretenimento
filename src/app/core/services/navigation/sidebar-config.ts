@@ -20,6 +20,7 @@
 // - amplia a seção "Conta" com atalhos coerentes
 export type SidebarSectionKey =
   | 'dashboard'
+  | 'explore'
   | 'profiles'
   | 'chat'
   | 'media'
@@ -91,6 +92,10 @@ const SECTION_MATCHERS: ReadonlyArray<{
     ],
   },
   {
+  key: 'explore',
+  prefixes: ['/descobrir'],
+  },
+  {
     key: 'chat',
     prefixes: ['/chat'],
   },
@@ -134,6 +139,20 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         ariaLabel: 'Ir para a página principal',
       },
     ],
+  },
+  {
+  key: 'explore',
+  title: 'Descoberta',
+  items: [
+    {
+      id: 'discover',
+      label: 'Descobrir',
+      route: '/descobrir',
+      icon: '✨',
+      exact: false,
+      ariaLabel: 'Descobrir conteúdos, perfis, salas e tendências',
+    },
+  ],
   },
   {
     key: 'profiles',

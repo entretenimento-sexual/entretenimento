@@ -1,0 +1,136 @@
+<!-- src\app\explore\pages\social-explore-page\social-explore-page.component.html -->
+
+@if (vm$ | async; as vm) {
+  @let lightboxState = (lightboxState$ | async);
+  @let activeLightboxItems = ((activeLightboxItems$ | async) || []);
+
+  <section class="social-explore-page" aria-label="Descobrir conteúdo público">
+    <header class="explore-hero">
+      <div class="hero-copy">
+        <span class="eyebrow">Descobrir</span>
+
+        <h1>O que está movimentando a plataforma</h1>
+
+        <p>
+          Conteúdos, perfis, salas e tendências reunidos em uma vitrine atualizada
+          para facilitar sua próxima interação.
+        </p>
+      </div>
+
+      <div class="hero-summary" aria-label="Resumo da vitrine">
+        <span>
+          <strong>{{ vm.boostedPhotos.length }}</strong>
+          turbinadas
+        </span>
+
+        <span>
+          <strong>{{ vm.topPhotos.length }}</strong>
+          top
+        </span>
+
+        <span>
+          <strong>{{ vm.latestPhotos.length }}</strong>
+          recentes
+        </span>
+      </div>
+    </header>
+
+    @if (vm.boostedPhotos.length > 0) {
+      <app-explore-section
+        eyebrow="Turbo"
+        title="Fotos turbinadas"
+        tone="boosted"
+        [routeCommands]="['/media', 'fotos-turbinadas']"
+      >
+        <div class="featured-grid" role="list" aria-label="Fotos públicas turbinadas">
+          @for (item of vm.boostedPhotos; track trackByPhotoId($index, item); let i = $index) {
+            <app-public-photo-card
+              role="listitem"
+              [photo]="item"
+              variant="boosted"
+              (preview)="openPhoto('boosted', i)"
+            />
+          }
+        </div>
+      </app-explore-section>
+    }
+
+    @if (vm.mostViewedPhotos.length > 0) {
+  <app-explore-section
+    eyebrow="Visualizações"
+    title="Mídias mais vistas"
+    note="Mais vistas"
+  >
+    <div class="photos-grid" role="list" aria-label="Mídias públicas mais vistas">
+      @for (item of vm.mostViewedPhotos; track trackByPhotoId($index, item); let i = $index) {
+        <app-public-photo-card
+          role="listitem"
+          [photo]="item"
+          variant="top"
+          (preview)="openPhoto('mostViewed', i)"
+        />
+      }
+    </div>
+  </app-explore-section>
+}
+
+    @if (vm.topPhotos.length > 0) {
+      <app-explore-section
+        eyebrow="Destaques"
+        title="Top fotos"
+        [routeCommands]="['/media', 'fotos-top']"
+      >
+        <div class="photos-grid photos-grid--top" role="list" aria-label="Fotos públicas em destaque">
+          @for (item of vm.topPhotos; track trackByPhotoId($index, item); let i = $index) {
+            <app-public-photo-card
+              role="listitem"
+              [photo]="item"
+              variant="top"
+              (preview)="openPhoto('top', i)"
+            />
+          }
+        </div>
+      </app-explore-section>
+    }
+
+    @if (vm.latestPhotos.length > 0) {
+      <app-explore-section
+        eyebrow="Atualizações"
+        title="Últimas fotos"
+        [routeCommands]="['/media', 'ultimas-fotos']"
+      >
+        <div class="photos-grid" role="list" aria-label="Últimas fotos públicas">
+          @for (item of vm.latestPhotos; track trackByPhotoId($index, item); let i = $index) {
+            <app-public-photo-card
+              role="listitem"
+              [photo]="item"
+              variant="latest"
+              (preview)="openPhoto('latest', i)"
+            />
+          }
+        </div>
+      </app-explore-section>
+    }
+
+    @if (!vm.hasAnyContent) {
+      <div class="empty-state" role="status" aria-live="polite">
+        <h2>Nenhuma publicação pública disponível</h2>
+
+        <p>
+          Quando os perfis publicarem conteúdos aprovados, eles aparecerão aqui.
+        </p>
+      </div>
+    }
+
+    @if (lightboxState) {
+      <app-public-photo-lightbox
+        [items]="activeLightboxItems"
+        [activeIndex]="lightboxState.index"
+        title="Descobrir"
+        (closed)="closeViewer()"
+        (prevRequested)="prev()"
+        (nextRequested)="next()"
+      />
+    }
+  </section>
+}

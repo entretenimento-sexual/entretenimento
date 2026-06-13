@@ -3,13 +3,19 @@
 @let item = photo();
 @let mode = variant();
 
-<article class="photo-tile" role="listitem">
+<article
+  class="photo-tile"
+  role="listitem"
+  [class.photo-tile--cover]="item.isCover"
+  [class.photo-tile--boosted]="mode === 'boosted'"
+>
   <button
-    type="button"
-    class="photo-card-link"
-    (click)="onPreview()"
-    [attr.aria-label]="'Abrir foto pública ' + (item.alt || item.id)"
-  >
+  type="button"
+  class="photo-card-link"
+  (click)="onPreview()"
+  [attr.aria-label]="'Abrir foto pública ' + (item.alt || item.id)"
+  title="Abrir foto"
+>
     <img
       class="photo"
       [src]="item.url"
@@ -20,8 +26,15 @@
 
     <span class="photo-overlay" aria-hidden="true">
       <span class="photo-stats">
-        <span class="stat-chip">♥ {{ item.reactionsCount ?? item.likesCount ?? 0 }}</span>
-        <span class="stat-chip">💬 {{ item.commentsCount ?? 0 }}</span>
+      <span class="stat-chip" aria-label="Curtidas">
+        <span aria-hidden="true">♥</span>
+        {{ item.reactionsCount ?? item.likesCount ?? 0 }}
+      </span>
+
+      <span class="stat-chip" aria-label="Comentários">
+        <span aria-hidden="true">💬</span>
+        {{ item.commentsCount ?? 0 }}
+      </span>
       </span>
 
       @if (item.isCover) {

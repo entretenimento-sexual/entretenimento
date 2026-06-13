@@ -118,6 +118,16 @@ const routes: Routes = [
       },
 
       {
+        path: 'descobrir',
+        loadChildren: () =>
+          import('./explore/explore.routes').then((m) => m.EXPLORE_ROUTES),
+        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard],
+        data: {
+          requireVerified: true,
+        },
+      },
+
+      {
         path: 'dashboard',
         loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
         canActivate: [authGuard, accountLifecycleGuard],

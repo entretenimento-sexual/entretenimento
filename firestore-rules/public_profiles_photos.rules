@@ -1,15 +1,6 @@
 // firestore-rules/public_profiles_photos.rules
 // ===============================================================
 // PUBLIC_PROFILES / public_photos
-//
-// Projeção pública de fotos publicadas.
-//
-// Regras atuais:
-// - leitura por usuários autenticados somente se PUBLIC + APPROVED;
-// - escrita do documento público fica bloqueada para cliente comum;
-// - likes: leitura do próprio estado de like; escrita via Cloud Function;
-// - comments: leitura de comentários visíveis; escrita/moderação via Cloud Function;
-// - score, contadores e moderação NÃO são manipulados pelo cliente.
 // ===============================================================
 
 match /public_profiles/{userId}/public_photos/{photoId} {
@@ -42,27 +33,14 @@ match /public_profiles/{userId}/public_photos/{photoId} {
     && resource.data.visibility == "PUBLIC"
     && resource.data.moderationStatus == "APPROVED";
 
-  // Documento público da foto não deve ser editado diretamente pelo cliente.
-  // Publicação/moderação/score/contadores devem vir de fluxo controlado.
   allow create, update, delete: if false;
 
-  // ------------------------------------------------------------
-  // Likes / reações positivas
-  // public_profiles/{ownerUid}/public_photos/{photoId}/likes/{viewerUid}
-  // ------------------------------------------------------------
   match /likes/{viewerUid} {
     allow get: if signedIn() && request.auth.uid == viewerUid;
-
     allow list: if false;
-
-    // Escrita via Cloud Function togglePhotoReaction.
     allow create, update, delete: if false;
   }
 
-  // ------------------------------------------------------------
-  // Comentários
-  // public_profiles/{ownerUid}/public_photos/{photoId}/comments/{commentId}
-  // ------------------------------------------------------------
   match /comments/{commentId} {
     allow get: if signedIn()
       && (
@@ -84,11 +62,26 @@ match /public_profiles/{userId}/public_photos/{photoId} {
         )
       );
 
-    // Criação, resposta, ocultação, restauração e remoção suave
-    // via Cloud Functions createPhotoComment / moderatePhotoComment.
     allow create, update, delete: if false;
   }
 }
+
+// ------------------------------------------------------------
+// Collection group: public_photos
+// Necessário para queries globais de Descobrir, Top, Últimas e Turbo.
+// ------------------------------------------------------------
+match /{path=**}/public_photos/{photoId} {
+  allow list: if signedIn()
+    && resource.data.visibility == "PUBLIC"
+    && resource.data.moderationStatus == "APPROVED";
+
+  allow get: if signedIn()
+    && resource.data.visibility == "PUBLIC"
+    && resource.data.moderationStatus == "APPROVED";
+
+  allow create, update, delete: if false;
+}
+
 // ==============================================================
 //           FIM DO PUBLIC_PROFILES_PHOTOS.RULES
 // ==============================================================

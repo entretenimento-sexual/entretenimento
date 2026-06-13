@@ -38,8 +38,10 @@
 
 .photos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: var(--space-3, 16px);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 230px));
+  justify-content: start;
+  align-items: start;
+  gap: clamp(12px, 1.6vw, 20px);
 }
 
 .feed-actions {
@@ -71,18 +73,24 @@
     padding: var(--space-3, 16px);
   }
 
-  .photos-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-  }
+.photos-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-content: stretch;
+  gap: 10px;
+}
 }
 
 @media (max-width: 480px) {
-  .photos-grid {
-    grid-template-columns: 1fr;
-  }
+.photos-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 
   .feed-actions .btn {
     width: 100%;
+  }
+}
+@media (max-width: 340px) {
+  .photos-grid {
+    grid-template-columns: 1fr;
   }
 }

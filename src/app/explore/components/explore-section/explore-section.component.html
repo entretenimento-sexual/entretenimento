@@ -1,0 +1,24 @@
+<!-- src\app\explore\components\explore-section\explore-section.component.html -->
+<section
+  class="explore-section"
+  [class.explore-section--boosted]="tone() === 'boosted'"
+>
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">{{ eyebrow() }}</span>
+      <h2>{{ title() }}</h2>
+    </div>
+
+    @if (routeCommands(); as commands) {
+      <a class="section-link" [routerLink]="commands">
+        Ver mais
+      </a>
+    } @else if (note()) {
+      <span class="section-note">
+        {{ note() }}
+      </span>
+    }
+  </div>
+
+  <ng-content />
+</section>

@@ -23,7 +23,7 @@ import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-i
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PublicPhotoLightboxComponent implements AfterViewInit {
-  readonly items = input.required<IPublicPhotoItem[]>();
+  readonly items = input.required<readonly IPublicPhotoItem[]>();
   readonly activeIndex = input<number>(0);
   readonly title = input<string>('Foto pública');
 

@@ -17,6 +17,20 @@
   box-shadow: 0 16px 36px rgb(0 0 0 / 24%);
 }
 
+.photo-tile--cover {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--success-color, #5ed39a) 30%, transparent),
+    0 12px 32px rgb(0 0 0 / 22%);
+}
+
+.photo-tile--boosted {
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color, #ff6b81) 36%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+}
+
 .photo-card-link {
   position: relative;
   display: block;
@@ -51,7 +65,8 @@
     filter 180ms ease;
 }
 
-.photo-card-link:hover .photo {
+.photo-card-link:hover .photo,
+.photo-card-link:focus-visible .photo {
   transform: scale(1.025);
   filter: brightness(1.03);
 }
@@ -85,13 +100,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 5px;
   min-height: 25px;
   padding: 3px 8px;
   border: 1px solid rgb(255 255 255 / 20%);
   border-radius: 999px;
   background: rgb(0 0 0 / 38%);
   color: #fff;
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   font-weight: 820;
   line-height: 1;
   backdrop-filter: blur(8px);
@@ -99,7 +115,7 @@
 
 .cover-chip {
   color: #fff;
-  background: color-mix(in oklab, var(--primary-color) 62%, rgb(0 0 0 / 35%));
+  background: color-mix(in oklab, var(--success-color, #5ed39a) 58%, rgb(0 0 0 / 35%));
 }
 
 .photo-meta {
@@ -148,6 +164,16 @@
   .photo-overlay {
     padding: 28px 6px 6px;
   }
+
+  .photo-meta {
+  gap: 6px;
+  padding: 8px;
+}
+
+.meta-chip {
+  min-height: 24px;
+  font-size: 0.72rem;
+}
 
   .stat-chip,
   .cover-chip {
