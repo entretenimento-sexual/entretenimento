@@ -94,6 +94,20 @@
   font-size: 0.88rem;
 }
 
+.publication-guide span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color, #0e1624) 94%, transparent);
+}
+
+.publication-guide strong {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 92%, transparent);
+}
+
 .empty-state,
 .blocked {
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
@@ -276,6 +290,26 @@
 
 .status-chip--cover {
   background: color-mix(in oklab, var(--success-color, #5ed39a) 58%, rgb(0 0 0 / 35%));
+}
+
+.status-chip--pending {
+  background: color-mix(in oklab, var(--warning-color, #ffca6a) 62%, rgb(0 0 0 / 35%));
+  color: #fff;
+}
+
+.status-chip--rejected {
+  background: color-mix(in oklab, var(--danger-color, #ff6b6b) 68%, rgb(0 0 0 / 35%));
+  color: #fff;
+}
+
+.status-chip--flagged {
+  background: color-mix(in oklab, var(--warning-color, #ff9f43) 68%, rgb(0 0 0 / 35%));
+  color: #fff;
+}
+
+.status-chip--hidden {
+  background: rgb(0 0 0 / 58%);
+  color: rgb(255 255 255 / 82%);
 }
 
 .management-bar {
@@ -464,6 +498,10 @@
     padding: 2px 6px;
     font-size: 0.68rem;
   }
+
+.publication-guide span {
+  width: 100%;
+}
 
   .management-bar {
     gap: 6px;

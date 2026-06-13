@@ -20,7 +20,7 @@ import {
   collectionData,
 } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
@@ -220,9 +220,10 @@ export class MediaPublicationService {
             ownerUid: safeOwnerUid,
             photoId: safePhotoId,
           },
-          false
+          true
         );
-        return of(void 0);
+
+        return throwError(() => error);
       })
     );
   }
@@ -256,9 +257,10 @@ export class MediaPublicationService {
             ownerUid: safeOwnerUid,
             privatePhotoId: safePhotoId,
           },
-          false
+          true
         );
-        return of(void 0);
+
+        return throwError(() => error);
       })
     );
   }
@@ -292,9 +294,10 @@ export class MediaPublicationService {
             ownerUid: safeOwnerUid,
             privatePhotoId: safePhotoId,
           },
-          false
+          true
         );
-        return of(void 0);
+
+        return throwError(() => error);
       })
     );
   }

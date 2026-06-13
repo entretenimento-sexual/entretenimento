@@ -83,7 +83,6 @@
     } @else {
       <div class="gallery-toolbar" aria-live="polite">
         <span>{{ items?.length || 0 }} foto(s)</span>
-        <span>Toque em uma foto para visualizar.</span>
       </div>
 
       <div class="photos-grid" role="list" aria-label="Lista de fotos">
@@ -110,21 +109,49 @@
 
               <span class="photo-overlay" aria-hidden="true">
                 <span class="photo-status-stack">
-                  @if (item.publication.isPublished) {
-                    <span class="status-chip status-chip--published">
-                      Visível
-                    </span>
-                  } @else {
-                    <span class="status-chip status-chip--private">
-                      Só você
-                    </span>
-                  }
+@if (item.publication.isPublished) {
+  @switch (item.publication.moderationStatus) {
+    @case ('PENDING_REVIEW') {
+      <span class="status-chip status-chip--pending">
+        Em análise
+      </span>
+    }
 
-                  @if (item.publication.isCover) {
-                    <span class="status-chip status-chip--cover">
-                      Capa
-                    </span>
-                  }
+    @case ('REJECTED') {
+      <span class="status-chip status-chip--rejected">
+        Reprovada
+      </span>
+    }
+
+    @case ('FLAGGED') {
+      <span class="status-chip status-chip--flagged">
+        Sinalizada
+      </span>
+    }
+
+    @case ('HIDDEN') {
+      <span class="status-chip status-chip--hidden">
+        Oculta
+      </span>
+    }
+
+    @default {
+      <span class="status-chip status-chip--published">
+        Visível
+      </span>
+    }
+  }
+} @else {
+  <span class="status-chip status-chip--private">
+    Só você
+  </span>
+}
+
+@if (item.publication.isCover) {
+  <span class="status-chip status-chip--cover">
+    Capa
+  </span>
+}
                 </span>
               </span>
             </button>
@@ -148,7 +175,8 @@
                     class="management-action management-action--primary"
                     (click)="publishPhoto(item, $event)"
                     [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
-                    aria-label="Publicar foto"
+                    aria-label="Publicar foto no perfil"
+                    title="Publicar no perfil"
                   >
                     @if (publishingPhotoId === item.id) {
                       Publicando...
@@ -163,7 +191,8 @@
                       class="management-action management-action--neutral"
                       (click)="setCoverPhoto(item, $event)"
                       [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
-                      aria-label="Definir foto como capa"
+                      aria-label="Definir foto como capa do perfil"
+                      title="Usar como capa"
                     >
                       Capa
                     </button>
@@ -174,7 +203,8 @@
                     class="management-action management-action--neutral"
                     (click)="unpublishPhoto(item, $event)"
                     [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
-                    aria-label="Tornar foto privada"
+                    aria-label="Remover foto do perfil público e tornar privada"
+                    title="Tornar privada"
                   >
                     @if (publishingPhotoId === item.id) {
                       Atualizando...
