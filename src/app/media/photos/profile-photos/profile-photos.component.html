@@ -87,16 +87,19 @@
 
       <div class="photos-grid" role="list" aria-label="Lista de fotos">
         @for (item of (items || []); track item.id) {
-          <article
-            class="photo-tile"
-            role="listitem"
-            [class.photo-tile--published]="item.publication.isPublished"
-            [class.photo-tile--cover]="item.publication.isCover"
-          >
+            <article
+              class="photo-tile"
+              role="listitem"
+              [class.photo-tile--published]="item.publication.isPublished"
+              [class.photo-tile--cover]="item.publication.isCover"
+              [class.photo-tile--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id"
+            >
             <button
               type="button"
               class="photo-card-link"
               (click)="openPhoto(item.id)"
+              [disabled]="publishingPhotoId === item.id || deletingPhotoId === item.id"
+              [attr.aria-busy]="publishingPhotoId === item.id || deletingPhotoId === item.id"
               [attr.aria-label]="'Abrir foto ' + (item.alt || item.id)"
             >
               <img
@@ -109,6 +112,20 @@
 
               <span class="photo-overlay" aria-hidden="true">
                 <span class="photo-status-stack">
+
+                  @if (publishingPhotoId === item.id || deletingPhotoId === item.id) {
+  <span class="photo-busy-overlay" aria-live="polite">
+    <span class="busy-spinner" aria-hidden="true"></span>
+
+    <span>
+      @if (deletingPhotoId === item.id) {
+        Excluindo...
+      } @else {
+        Atualizando...
+      }
+    </span>
+  </span>
+}
 @if (item.publication.isPublished) {
   @switch (item.publication.moderationStatus) {
     @case ('PENDING_REVIEW') {
@@ -157,7 +174,11 @@
             </button>
 
             @if (isOwner) {
-              <div class="management-bar" aria-label="Ações da foto">
+              <div
+                class="management-bar"
+                [class.management-bar--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id"
+                aria-label="Ações da foto"
+              >
                 <button
                   type="button"
                   class="management-action management-action--icon management-action--neutral"

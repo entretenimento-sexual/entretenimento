@@ -198,6 +198,24 @@
     0 12px 32px rgb(0 0 0 / 22%);
 }
 
+.photo-tile--busy {
+  transform: none;
+}
+
+.photo-tile--busy:hover {
+  transform: none;
+  box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
+}
+
+.photo-card-link:disabled {
+  cursor: wait;
+}
+
+.photo-card-link:disabled .photo {
+  transform: none;
+  filter: brightness(0.72) saturate(0.88);
+}
+
 .photo-card-link {
   position: relative;
   display: block;
@@ -254,6 +272,38 @@
       rgb(0 0 0 / 60%)
     );
   pointer-events: none;
+}
+
+.photo-busy-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 16px;
+  background: rgb(0 0 0 / 42%);
+  color: #fff;
+  font-size: 0.86rem;
+  font-weight: 820;
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(2px);
+}
+
+.busy-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgb(255 255 255 / 42%);
+  border-top-color: #fff;
+  border-radius: 999px;
+  animation: busy-spin 800ms linear infinite;
+}
+
+@keyframes busy-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .photo-status-stack {
@@ -320,6 +370,10 @@
   padding: 9px;
   border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
   background: color-mix(in oklab, var(--surface-color, #0e1624) 96%, transparent);
+}
+
+.management-bar--busy {
+  opacity: 0.82;
 }
 
 .management-action {
@@ -440,6 +494,10 @@
   .management-action {
     transition: none;
   }
+
+  .busy-spinner {
+  animation: none;
+}
 
   .photo-tile:hover,
   .photo-card-link:hover .photo,
