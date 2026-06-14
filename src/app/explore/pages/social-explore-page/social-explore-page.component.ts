@@ -11,6 +11,7 @@ import { PublicPhotoLightboxComponent } from 'src/app/media/shared/components/pu
 import { ExploreFeedFacade } from '../../facades/explore-feed.facade';
 import { IExploreFeedVm } from '../../services/explore-feed.service';
 import { TExploreSectionId } from '../../models/i-explore-section';
+import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view-tracking.service';
 
 type TExplorePhotoSection = Extract<
   TExploreSectionId,
@@ -38,6 +39,7 @@ interface IExploreLightboxState {
 })
 export class SocialExplorePageComponent {
   private readonly exploreFeedFacade = inject(ExploreFeedFacade);
+  private readonly photoViewTracking = inject(PhotoViewTrackingService);
 
   private readonly lightboxStateSubject = new BehaviorSubject<IExploreLightboxState | null>(null);
 
@@ -73,9 +75,24 @@ export class SocialExplorePageComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  openPhoto(section: TExplorePhotoSection, index: number): void {
-    this.lightboxStateSubject.next({ section, index });
-  }
+openPhoto(section: TExplorePhotoSection, index: number): void {
+  this.lightboxStateSubject.next({ section, index });
+
+  this.activeLightboxItems$
+    .pipe(take(1))
+    .subscribe((items) => {
+      const item = items[index];
+
+      if (!item) {
+        return;
+      }
+
+      this.photoViewTracking
+        .recordPhotoView$(item.ownerUid, item.id, this.resolveViewSource(section))
+        .pipe(take(1))
+        .subscribe();
+    });
+}
 
   closeViewer(): void {
     this.lightboxStateSubject.next(null);
@@ -118,4 +135,23 @@ export class SocialExplorePageComponent {
   trackByPhotoId(_index: number, item: IPublicPhotoItem): string {
     return item.id;
   }
+
+  private resolveViewSource(section: TExplorePhotoSection) {
+  switch (section) {
+    case 'boosted':
+      return 'boosted';
+
+    case 'top':
+      return 'top';
+
+    case 'latest':
+      return 'latest';
+
+    case 'mostViewed':
+      return 'discover';
+
+    default:
+      return 'unknown';
+  }
+}
 }

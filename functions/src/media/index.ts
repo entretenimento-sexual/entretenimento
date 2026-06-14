@@ -11,3 +11,5 @@ export {
   unpublishPhoto,
   setCoverPhoto,
 } from './application/manage-photo-publication.handler';
+
+export { recordPhotoView } from './application/record-photo-view.handler';
