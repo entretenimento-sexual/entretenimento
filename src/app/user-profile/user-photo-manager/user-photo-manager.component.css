@@ -26,6 +26,73 @@
   font-weight: 850;
 }
 
+.photo-manager__copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.photo-manager__copy span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.78rem;
+  line-height: 1.3;
+}
+
+.photo-manager__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.photo-manager__link {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 11px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, black 8%);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 82%, transparent);
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.photo-manager__link:hover,
+.photo-manager__link:focus-visible {
+  color: var(--text-color, #f5f7fb);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 34%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 14%, transparent);
+}
+
+.photo-manager__link:focus-visible {
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+.photo-manager__link--primary {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 44%, transparent);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 20%, transparent);
+  color: var(--text-color, #f5f7fb);
+}
+
+.photo-manager--summary .photo-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 96px), 118px));
+}
+
+.photo-manager--summary .photo-item {
+  border-radius: 13px;
+  box-shadow: none;
+}
+
 .photo-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 104px), 132px));
@@ -207,6 +274,15 @@
     flex-direction: column;
     align-items: flex-start;
   }
+
+  .photo-manager__toolbar {
+  width: 100%;
+  justify-content: stretch;
+}
+
+.photo-manager__link {
+  flex: 1 1 auto;
+}
 
   .photo-sort {
   width: 100%;

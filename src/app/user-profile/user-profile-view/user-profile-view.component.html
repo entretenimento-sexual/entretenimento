@@ -200,11 +200,20 @@
             </section>
 
             <section class="profile-card" aria-label="Fotos do perfil">
-              <header class="profile-header">
-                <h3 class="block-title">Minhas fotos</h3>
-              </header>
-
-              <app-user-photo-manager></app-user-photo-manager>
+              @if (uid; as currentUid) {
+                <app-user-photo-manager
+                  title="Minhas fotos"
+                  mode="summary"
+                  [limit]="6"
+                  [showSort]="false"
+                  [showActions]="false"
+                  [showDate]="true"
+                  [collapsible]="true"
+                  [startCollapsed]="true"
+                  [galleryLink]="['/media', 'perfil', currentUid, 'fotos']"
+                  [uploadLink]="['/media', 'perfil', currentUid, 'fotos', 'upload']"
+                />
+              }
             </section>
 
           } @else {

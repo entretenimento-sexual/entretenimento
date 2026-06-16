@@ -9,7 +9,7 @@
 // - centraliza tratamento de erro com GlobalErrorHandlerService + ErrorNotificationService
 // - preserva compatibilidade com o template atual
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { Component, input, OnInit, signal } from '@angular/core';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import {
   catchError,
@@ -27,20 +27,34 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { RouterModule } from '@angular/router';
 
 type TPhotoSortMode = 'newest' | 'oldest';
+type TPhotoManagerMode = 'summary' | 'manager';
 
 @Component({
   selector: 'app-user-photo-manager',
   templateUrl: './user-photo-manager.component.html',
   styleUrls: ['./user-photo-manager.component.css'],
   standalone: true,
-  imports: [CommonModule]
+  imports: [CommonModule, RouterModule]
 })
 export class UserPhotoManagerComponent implements OnInit {
   userPhotos$: Observable<Photo[]> = of([]);
+  readonly mode = input<TPhotoManagerMode>('manager');
+  readonly limit = input<number | null>(null);
+  readonly showSort = input<boolean>(true);
+  readonly showDate = input<boolean>(true);
+  readonly showActions = input<boolean>(true);
+  readonly galleryLink = input<readonly unknown[] | null>(null);
+  readonly uploadLink = input<readonly unknown[] | null>(null);
+  readonly title = input<string>('Fotos do perfil');
+  readonly collapsible = input<boolean>(false);
+  readonly startCollapsed = input<boolean>(false);
+
+  readonly collapsed = signal(false);
   private readonly sortModeSubject = new BehaviorSubject<TPhotoSortMode>('newest');
-readonly sortMode$ = this.sortModeSubject.asObservable();
+  readonly sortMode$ = this.sortModeSubject.asObservable();
   userId = '';
 
   constructor(
@@ -51,8 +65,9 @@ readonly sortMode$ = this.sortModeSubject.asObservable();
   ) {}
 
   ngOnInit(): void {
-    this.loadUserPhotos();
-  }
+  this.collapsed.set(this.startCollapsed());
+  this.loadUserPhotos();
+}
 
   loadUserPhotos(): void {
     this.userPhotos$ = this.authSession.uid$.pipe(
@@ -92,6 +107,32 @@ readonly sortMode$ = this.sortModeSubject.asObservable();
 
 getSortModeSnapshot(): TPhotoSortMode {
   return this.sortModeSubject.value;
+}
+
+getVisiblePhotos(photos: readonly Photo[]): Photo[] {
+  const max = this.limit();
+
+  if (!max || max < 1) {
+    return [...photos];
+  }
+
+  return photos.slice(0, max);
+}
+
+shouldShowSort(photos: readonly Photo[]): boolean {
+  return this.showSort() && photos.length > 1;
+}
+
+shouldShowDate(): boolean {
+  return this.showDate();
+}
+
+shouldShowActions(): boolean {
+  return this.showActions();
+}
+
+isSummaryMode(): boolean {
+  return this.mode() === 'summary';
 }
 
 getPhotoDateLabel(photo: Photo): string {
@@ -188,6 +229,18 @@ private toMillis(value: unknown): number {
       });
   }
 
+  toggleCollapsed(): void {
+  this.collapsed.update((value) => !value);
+}
+
+isCollapsed(): boolean {
+  return this.collapsible() && this.collapsed();
+}
+
+getCollapseLabel(): string {
+  return this.isCollapsed() ? 'Expandir' : 'Recolher';
+}
+
   private reportError(
     userMessage: string,
     error: unknown,
@@ -212,4 +265,4 @@ private toMillis(value: unknown): number {
       // noop
     }
   }
-} // Linha 132
+} // Linha 268

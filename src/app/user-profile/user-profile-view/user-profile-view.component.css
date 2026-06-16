@@ -6,7 +6,6 @@
   - Sem sidebar local duplicado
   - O sidebar estrutural pertence ao LayoutShellComponent
 */
-
 .profile-page {
   width: 100%;
   min-height: calc(100dvh - var(--header-height, 100px));
@@ -40,6 +39,32 @@
   justify-content: space-between;
   gap: var(--space-3, 16px);
   margin-bottom: var(--space-3, 16px);
+}
+
+.photo-manager__copy h3 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1rem, 0.94rem + 0.25vw, 1.18rem);
+  line-height: 1.2;
+}
+
+.photo-manager__collapsed-text {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 13px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, transparent);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.photo-manager__toggle {
+  cursor: pointer;
+}
+
+.photo-manager--collapsed {
+  gap: 12px;
 }
 
 .profile-identity {
