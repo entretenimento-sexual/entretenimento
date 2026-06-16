@@ -10,7 +10,7 @@
 // - preserva compatibilidade com o template atual
 import { CommonModule } from '@angular/common';
 import { Component, OnInit } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { BehaviorSubject, Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -28,6 +28,8 @@ import { AuthSessionService } from 'src/app/core/services/autentication/auth/aut
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
+type TPhotoSortMode = 'newest' | 'oldest';
+
 @Component({
   selector: 'app-user-photo-manager',
   templateUrl: './user-photo-manager.component.html',
@@ -37,6 +39,8 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 })
 export class UserPhotoManagerComponent implements OnInit {
   userPhotos$: Observable<Photo[]> = of([]);
+  private readonly sortModeSubject = new BehaviorSubject<TPhotoSortMode>('newest');
+readonly sortMode$ = this.sortModeSubject.asObservable();
   userId = '';
 
   constructor(
@@ -63,7 +67,12 @@ export class UserPhotoManagerComponent implements OnInit {
         }
 
         return this.photoService.getPhotosByUser(uid).pipe(
-          catchError((error) => {
+            switchMap((photos) =>
+              this.sortMode$.pipe(
+                map((mode) => this.sortPhotos(photos, mode))
+              )
+            ),
+            catchError((error) => {
             this.reportError(
               'Erro ao carregar fotos do usuário.',
               error,
@@ -76,6 +85,80 @@ export class UserPhotoManagerComponent implements OnInit {
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
+
+  setSortMode(mode: TPhotoSortMode): void {
+  this.sortModeSubject.next(mode);
+}
+
+getSortModeSnapshot(): TPhotoSortMode {
+  return this.sortModeSubject.value;
+}
+
+getPhotoDateLabel(photo: Photo): string {
+  const createdAt = this.toMillis(photo.createdAt);
+
+  if (!createdAt) {
+    return 'data não informada';
+  }
+
+  const diffMs = Math.max(0, Date.now() - createdAt);
+  const minutes = Math.floor(diffMs / 60_000);
+
+  if (minutes < 1) {
+    return 'agora';
+  }
+
+  if (minutes < 60) {
+    return `há ${minutes} min`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours < 24) {
+    return `há ${hours} h`;
+  }
+
+  const days = Math.floor(hours / 24);
+
+  if (days < 7) {
+    return `há ${days} dia${days > 1 ? 's' : ''}`;
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(createdAt));
+}
+
+private sortPhotos(photos: readonly Photo[], mode: TPhotoSortMode): Photo[] {
+  return [...photos].sort((a, b) => {
+    const aCreatedAt = this.toMillis(a.createdAt);
+    const bCreatedAt = this.toMillis(b.createdAt);
+
+    return mode === 'oldest'
+      ? aCreatedAt - bCreatedAt
+      : bCreatedAt - aCreatedAt;
+  });
+}
+
+private toMillis(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  const maybeTimestamp = value as { toMillis?: () => number } | null | undefined;
+
+  if (typeof maybeTimestamp?.toMillis === 'function') {
+    return maybeTimestamp.toMillis();
+  }
+
+  return 0;
+}
 
   deleteFile(photoId: string, photoPath: string): void {
     const uid = (this.userId ?? '').trim();

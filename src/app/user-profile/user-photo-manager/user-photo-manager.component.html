@@ -1,25 +1,70 @@
 <!-- src/app/user-profile/user-photo-manager/user-photo-manager.component.html -->
-<div class="photo-manager">
-  <h3>Gerenciamento de Fotos</h3>
 
-  @if ((userPhotos$ | async)?.length) {
-    <div>
-      <div class="photo-grid">
-        @for (photo of userPhotos$ | async; track photo.id) {
-          <div class="photo-item">
-            <div class="photo-wrapper">
-              <img [src]="photo.url" alt="Foto do usuário" class="user-photo">
+<section class="photo-manager" aria-label="Fotos do perfil">
+  @if ((userPhotos$ | async); as photos) {
+    <header class="photo-manager__summary">
+      <p>
+        <strong>{{ photos.length }}</strong>
+        {{ photos.length === 1 ? 'foto publicada' : 'fotos publicadas' }} no perfil
+      </p>
+
+      @if (photos.length > 1) {
+        <div class="photo-sort" aria-label="Ordenar fotos">
+          <button
+            type="button"
+            class="photo-sort__button"
+            [class.photo-sort__button--active]="getSortModeSnapshot() === 'newest'"
+            (click)="setSortMode('newest')"
+          >
+            Recentes
+          </button>
+
+          <button
+            type="button"
+            class="photo-sort__button"
+            [class.photo-sort__button--active]="getSortModeSnapshot() === 'oldest'"
+            (click)="setSortMode('oldest')"
+          >
+            Antigas
+          </button>
+        </div>
+      }
+    </header>
+
+    @if (photos.length) {
+      <div class="photo-grid" role="list" aria-label="Fotos cadastradas no perfil">
+        @for (photo of photos; track photo.id) {
+          <article class="photo-item" role="listitem">
+            <img
+              [src]="photo.url"
+              alt="Foto do usuário"
+              class="user-photo"
+              loading="lazy"
+              referrerpolicy="no-referrer"
+            />
+
+            <span class="photo-date">
+              {{ getPhotoDateLabel(photo) }}
+            </span>
+
+            <div class="photo-actions">
               <button
+                type="button"
                 class="delete-button"
-                (click)="deleteFile(photo.id, photo.path ? photo.path : '')">
-                Excluir
+                (click)="deleteFile(photo.id, photo.path ? photo.path : '')"
+                aria-label="Remover foto do perfil"
+                title="Remover foto"
+              >
+                Remover
               </button>
             </div>
-          </div>
+          </article>
         }
       </div>
-    </div>
+    } @else {
+      <p class="empty-state">Nenhuma foto disponível.</p>
+    }
   } @else {
-    <p>Nenhuma foto disponível.</p>
+    <p class="empty-state">Carregando fotos...</p>
   }
-</div>
+</section>

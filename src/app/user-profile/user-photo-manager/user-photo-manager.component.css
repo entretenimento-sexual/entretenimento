@@ -1,65 +1,277 @@
-/* src\app\user-profile\user-photo-manager\user-photo-manager.component.css */
+/* src/app/user-profile/user-photo-manager/user-photo-manager.component.css */
 .photo-manager {
-  text-align: center;
-  margin-top: 20px;
+  display: grid;
+  gap: var(--space-3, 16px);
+  width: 100%;
+  min-width: 0;
+}
+
+.photo-manager__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 16px);
+  min-width: 0;
+}
+
+.photo-manager__summary p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.photo-manager__summary strong {
+  color: var(--text-color, #f5f7fb);
+  font-weight: 850;
 }
 
 .photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 20px;
-  padding: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 104px), 132px));
+  gap: clamp(8px, 1.2vw, 14px);
+  align-items: start;
+  justify-content: start;
 }
 
 .photo-item {
   position: relative;
-  border-radius: 10px;
+  min-width: 0;
   overflow: hidden;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 15px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 94%,
+    black 6%
+  );
+  box-shadow: 0 8px 22px rgb(0 0 0 / 16%);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
 }
 
-.photo-item:hover {
-  transform: scale(1.05);
-}
-
-.photo-wrapper {
-  position: relative;
-  overflow: hidden;
+.photo-item:hover,
+.photo-item:focus-within {
+  transform: translateY(-1px);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 26%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  box-shadow: 0 12px 28px rgb(0 0 0 / 22%);
 }
 
 .user-photo {
-  width: 100%;
-  height: auto;
   display: block;
-  transition: transform 0.3s ease;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  object-position: center;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color, #101923) 92%, white 5%),
+      color-mix(in oklab, var(--surface-color, #101923) 82%, black 16%)
+    );
 }
 
-.photo-item:hover .user-photo {
-  transform: scale(1.1);
+.photo-actions {
+  position: absolute;
+  inset: 8px 8px auto auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+  pointer-events: none;
+}
+
+.photo-item:hover .photo-actions,
+.photo-item:focus-within .photo-actions {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .delete-button {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background-color: rgba(255, 0, 0, 0.7);
-  color: white;
-  border: none;
-  padding: 8px;
-  border-radius: 50%;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--danger-color, #dc3545) 46%,
+    transparent
+  );
+  border-radius: 999px;
+  background: rgb(0 0 0 / 62%);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 850;
+  line-height: 1;
   cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.2s ease;
+  box-shadow: 0 8px 18px rgb(0 0 0 / 26%);
+  backdrop-filter: blur(8px);
+  -webkit-tap-highlight-color: transparent;
 }
 
-.delete-button:hover {
-  background-color: rgba(255, 0, 0, 1);
-  transform: scale(1.2);
+.delete-button:hover,
+.delete-button:focus-visible {
+  background: var(--danger-color, #dc3545);
 }
 
-@media (max-width: 600px) {
+.delete-button:focus-visible {
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+.empty-state {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 94%,
+    transparent
+  );
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.photo-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, black 8%);
+}
+
+.photo-sort__button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.photo-sort__button:hover,
+.photo-sort__button:focus-visible,
+.photo-sort__button--active {
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent);
+  color: var(--text-color, #f5f7fb);
+}
+
+.photo-sort__button:focus-visible {
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+.photo-date {
+  position: absolute;
+  inset: auto auto 8px 8px;
+  max-width: calc(100% - 16px);
+  min-height: 24px;
+  padding: 4px 7px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 46%);
+  color: rgb(255 255 255 / 88%);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+@media (max-width: 700px) {
+  .photo-manager {
+    gap: 12px;
+  }
+
+  .photo-manager__summary {
+    align-items: flex-start;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .photo-sort {
+  width: 100%;
+}
+
+.photo-sort__button {
+  flex: 1 1 0;
+}
+
+.photo-date {
+  inset: auto auto 6px 6px;
+  min-height: 22px;
+  padding: 3px 6px;
+  font-size: 0.62rem;
+}
+
+  .photo-manager__summary p {
+    font-size: 0.84rem;
+  }
+
   .photo-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 15px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .photo-item {
+    border-radius: 12px;
+    box-shadow: none;
+  }
+
+  .photo-item:hover,
+  .photo-item:focus-within {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .photo-actions {
+    inset: 6px 6px auto auto;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .delete-button {
+    min-height: 26px;
+    padding: 4px 7px;
+    font-size: 0.66rem;
+  }
+}
+
+@media (max-width: 420px) {
+  .photo-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-item,
+  .photo-actions,
+  .delete-button {
+    transition: none !important;
+  }
+
+  .photo-item:hover,
+  .photo-item:focus-within {
+    transform: none;
   }
 }
