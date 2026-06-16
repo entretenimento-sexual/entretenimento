@@ -41,6 +41,7 @@
               "src/styles/variables.css",
               "src/styles/global-layout.css",
               "src/styles/global-components.css",
+              "src/styles/cards.css",
               "src/styles/global-forms.css",
               "src/styles/global-animations.css",
               "node_modules/@pqina/pintura/pintura.css",

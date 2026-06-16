@@ -1,0 +1,446 @@
+/* src\styles\cards.css
+   ----------------------------------------------------------------------------
+   Card system global da plataforma.
+   Objetivo:
+   - padronizar superfícies, cards, chips, toolbars e ações;
+   - manter mobile-first;
+   - respeitar dark mode, high contrast e tokens globais;
+   - servir como base gradual, sem obrigar refatoração total de HTML.
+   ----------------------------------------------------------------------------
+*/
+
+.app-card {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--app-card-radius, 18px);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color) 98%, white 2%),
+      color-mix(in oklab, var(--surface-color) 94%, black 6%)
+    );
+  color: var(--text-color);
+  box-shadow: var(--app-card-shadow, 0 10px 28px rgb(0 0 0 / 18%));
+}
+
+.app-card--flat {
+  box-shadow: none;
+}
+
+.app-card--compact {
+  border-radius: var(--app-card-radius-compact, 14px);
+}
+
+.app-card--interactive {
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.app-card--interactive:hover,
+.app-card--interactive:focus-within {
+  transform: translateY(-1px);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color) 30%,
+    var(--surface-border)
+  );
+  box-shadow: var(--app-card-shadow-hover, 0 14px 34px rgb(0 0 0 / 24%));
+}
+
+.app-card--media {
+  background: var(--surface-color);
+}
+
+.app-card__header,
+.app-card__body,
+.app-card__footer {
+  min-width: 0;
+}
+
+.app-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.app-card__body {
+  padding: var(--space-3);
+}
+
+.app-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-top: 1px solid var(--surface-border);
+  background: color-mix(in oklab, var(--surface-color) 96%, transparent);
+}
+
+.app-card__title {
+  margin: 0;
+  color: var(--text-color);
+  font-size: clamp(1rem, 0.94rem + 0.3vw, 1.2rem);
+  font-weight: 850;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+.app-card__subtitle {
+  margin: 4px 0 0;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.app-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: clamp(12px, 1.6vw, 20px);
+  align-items: start;
+}
+
+.app-card-grid--compact {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 132px), 160px));
+  justify-content: start;
+}
+
+.app-card-grid--media {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 230px));
+  justify-content: start;
+}
+
+.app-media-frame {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color) 92%, white 6%),
+      color-mix(in oklab, var(--surface-color) 80%, black 18%)
+    );
+}
+
+.app-media-frame--portrait {
+  aspect-ratio: 4 / 5;
+}
+
+.app-media-frame--square {
+  aspect-ratio: 1;
+}
+
+.app-media-frame img,
+.app-media-frame video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.app-media-overlay {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 34px 9px 9px;
+  background:
+    linear-gradient(
+      180deg,
+      transparent,
+      rgb(0 0 0 / 60%)
+    );
+  pointer-events: none;
+}
+
+.app-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  max-width: 100%;
+  padding: 4px 9px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 82%, white 8%);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color) 86%, transparent);
+  color: color-mix(in oklab, var(--text-color) 84%, transparent);
+  font-size: 0.76rem;
+  font-weight: 820;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.app-chip--overlay {
+  border-color: rgb(255 255 255 / 18%);
+  background: rgb(0 0 0 / 42%);
+  color: #fff;
+  backdrop-filter: blur(8px);
+}
+
+.app-chip--primary {
+  border-color: color-mix(in oklab, var(--primary-color) 50%, transparent);
+  background: color-mix(in oklab, var(--primary-color) 18%, transparent);
+  color: color-mix(in oklab, var(--primary-color) 74%, var(--text-color) 26%);
+}
+
+.app-chip--success {
+  border-color: color-mix(in oklab, var(--success-color) 50%, transparent);
+  background: color-mix(in oklab, var(--success-color) 18%, transparent);
+  color: color-mix(in oklab, var(--success-color) 74%, var(--text-color) 26%);
+}
+
+.app-chip--danger {
+  border-color: color-mix(in oklab, var(--danger-color) 50%, transparent);
+  background: color-mix(in oklab, var(--danger-color) 14%, transparent);
+  color: var(--danger-color);
+}
+
+.app-chip--muted {
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+}
+
+.app-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--surface-color) 92%, transparent);
+}
+
+.app-toolbar__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex-wrap: wrap;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  font-size: 0.88rem;
+}
+
+.app-toolbar__summary strong {
+  color: var(--text-color);
+  font-weight: 850;
+}
+
+.app-toolbar__controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 12%);
+}
+
+.app-segmented__button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.app-segmented__button:hover,
+.app-segmented__button:focus-visible,
+.app-segmented__button--active {
+  background: color-mix(in oklab, var(--primary-color) 18%, transparent);
+  color: var(--text-color);
+}
+
+.app-action {
+  min-height: var(--tap-target-sm, 40px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface-color) 92%, black 8%);
+  color: color-mix(in oklab, var(--text-color) 86%, transparent);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 820;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.app-action:hover,
+.app-action:focus-visible {
+  color: var(--text-color);
+  border-color: color-mix(in oklab, var(--primary-color) 34%, var(--surface-border));
+  background: color-mix(in oklab, var(--primary-color) 12%, transparent);
+}
+
+.app-action--primary {
+  border-color: color-mix(in oklab, var(--primary-color) 46%, transparent);
+  background: var(--primary-color);
+  color: #fff;
+}
+
+.app-action--primary:hover,
+.app-action--primary:focus-visible {
+  background: var(--primary-hover);
+  color: #fff;
+}
+
+.app-action--ghost {
+  background: transparent;
+}
+
+.app-action--danger {
+  border-color: color-mix(in oklab, var(--danger-color) 38%, var(--surface-border));
+  color: var(--danger-color);
+}
+
+.app-action--danger:hover,
+.app-action--danger:focus-visible {
+  background: color-mix(in oklab, var(--danger-color) 10%, transparent);
+}
+
+.app-empty-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--surface-border);
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
+  box-shadow: var(--box-shadow);
+}
+
+.app-empty-card__title {
+  margin: 0 0 4px;
+  color: var(--text-color);
+  font-size: 1.05rem;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.app-empty-card__text {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 70%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+.app-card :where(button, a, [role="button"]):focus-visible,
+.app-toolbar :where(button, a, [role="button"]):focus-visible,
+.app-action:focus-visible,
+.app-segmented__button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+@media (max-width: 720px) {
+  .app-card__header,
+  .app-card__footer,
+  .app-toolbar,
+  .app-empty-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .app-card__actions,
+  .app-toolbar__controls {
+    justify-content: stretch;
+  }
+
+  .app-action {
+    flex: 1 1 auto;
+  }
+
+  .app-segmented {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .app-segmented__button {
+    flex: 1 0 auto;
+  }
+
+  .app-card-grid,
+  .app-card-grid--media {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-card-grid--compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .app-card-grid,
+  .app-card-grid--media,
+  .app-card-grid--compact {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-card--interactive,
+  .app-action,
+  .app-segmented__button {
+    transition: none !important;
+  }
+
+  .app-card--interactive:hover,
+  .app-card--interactive:focus-within {
+    transform: none;
+  }
+}
+
+html.high-contrast .app-card,
+html.high-contrast .app-toolbar,
+html.high-contrast .app-empty-card,
+html.high-contrast .app-action,
+html.high-contrast .app-chip,
+html.high-contrast .app-segmented {
+  border-color: currentColor !important;
+  box-shadow: none !important;
+}
+
+html.high-contrast .app-action--primary,
+html.high-contrast .app-segmented__button--active {
+  background: var(--text-color) !important;
+  color: var(--background-color) !important;
+}
