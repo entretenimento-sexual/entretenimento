@@ -21,7 +21,6 @@
 // - Este componente NÃO busca public_profiles.
 // - Este componente NÃO renderiza edição/social/fotos se detectar perfil alheio.
 // - Perfil alheio pertence ao OtherUserProfileViewComponent.
-
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -54,7 +53,6 @@ import { GlobalErrorHandlerService } from '@core/services/error-handler/global-e
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 
-import { SocialLinksAccordionComponent } from './user-social-links-accordion/user-social-links-accordion.component';
 import { UserPhotoManagerComponent } from '../user-photo-manager/user-photo-manager.component';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
@@ -67,7 +65,6 @@ import { CapitalizePipe } from 'src/app/shared/pipes/capitalize.pipe';
   imports: [
     CommonModule,
     RouterModule,
-    SocialLinksAccordionComponent,
     UserPhotoManagerComponent,
     DateFormatPipe,
     CapitalizePipe,

@@ -73,7 +73,7 @@
                     [routerLink]="['/perfil', uid, 'edit-profile-social-links']"
                     aria-label="Editar redes sociais"
                   >
-                    Editar redes sociais
+                    Gerenciar redes sociais
                   </a>
                 </div>
               </header>
@@ -207,16 +207,6 @@
               <app-user-photo-manager></app-user-photo-manager>
             </section>
 
-            <section class="profile-card" aria-label="Editar links sociais do usuário">
-              <header class="profile-header">
-                <h3 class="block-title">Editar redes sociais</h3>
-              </header>
-
-              <app-social-links-accordion
-                [uid]="uid"
-                [isOwner]="true"
-              ></app-social-links-accordion>
-            </section>
           } @else {
             <section class="profile-card" aria-label="Carregando perfil">
               <p class="muted">Carregando seu perfil...</p>
