@@ -430,6 +430,24 @@ if (
         this.toNullableText(anyUser.orientation2) ??
         this.toNullableText(anyUser.orientacaoParceiro2),
 
+        preferences: Array.isArray(anyUser.preferences)
+          ? anyUser.preferences
+          : Array.isArray(anyUser.preferencias)
+            ? anyUser.preferencias
+            : null,
+
+        interestedInGenders: Array.isArray(anyUser.interestedInGenders)
+          ? anyUser.interestedInGenders
+          : Array.isArray(anyUser.generosDeInteresse)
+            ? anyUser.generosDeInteresse
+            : null,
+
+        interestedInOrientations: Array.isArray(anyUser.interestedInOrientations)
+          ? anyUser.interestedInOrientations
+          : Array.isArray(anyUser.orientacoesDeInteresse)
+            ? anyUser.orientacoesDeInteresse
+            : null,
+
       estado:
         this.toNullableText(anyUser.estado) ??
         this.toNullableText(anyUser.uf) ??

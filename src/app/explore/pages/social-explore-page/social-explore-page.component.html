@@ -1,5 +1,4 @@
 <!-- src\app\explore\pages\social-explore-page\social-explore-page.component.html -->
-
 @if (vm$ | async; as vm) {
   @let lightboxState = (lightboxState$ | async);
   @let activeLightboxItems = ((activeLightboxItems$ | async) || []);
@@ -32,8 +31,27 @@
           <strong>{{ vm.latestPhotos.length }}</strong>
           recentes
         </span>
+
+        <span>
+          <strong>{{ vm.compatibleProfiles.length }}</strong>
+          perfis
+        </span>
       </div>
     </header>
+
+    @if (vm.compatibleProfiles.length > 0) {
+  <app-explore-section
+    eyebrow="Afinidade"
+    title="Perfis compatíveis"
+    [routeCommands]="['/dashboard', 'explorar']"
+  >
+    <app-public-profiles-list
+      [profiles]="vm.compatibleProfiles"
+      [loading]="false"
+      [errorMessage]="null"
+    />
+  </app-explore-section>
+}
 
     @if (vm.boostedPhotos.length > 0) {
       <app-explore-section

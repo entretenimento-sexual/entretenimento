@@ -29,7 +29,6 @@
 // - mantém Observable;
 // - helpers pequenos e reaproveitáveis;
 // - sem dependência de Router, Presence ou NgRx.
-
 import { Injectable, DestroyRef, inject } from '@angular/core';
 import { defer, forkJoin, from, Observable, of } from 'rxjs';
 import {
@@ -132,6 +131,27 @@ export class UserDiscoveryQueryService {
 
     return null;
   }
+
+  private firstStringArray(source: any, keys: readonly string[]): readonly string[] | null {
+  for (const key of keys) {
+    const value = source?.[key];
+
+    if (!Array.isArray(value)) {
+      continue;
+    }
+
+    const cleaned = value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+
+    if (cleaned.length) {
+      return cleaned;
+    }
+  }
+
+  return null;
+}
 
   private toOptionalNumber(value: unknown): number | null {
     const n =
@@ -268,6 +288,31 @@ export class UserDiscoveryQueryService {
         'orientation2',
         'orientacaoParceiro2',
       ]),
+
+      preferences: this.firstStringArray(raw, [
+  'preferences',
+  'preferencias',
+  'interests',
+  'interesses',
+  'lookingFor',
+  'buscando',
+]),
+
+interestedInGenders: this.firstStringArray(raw, [
+  'interestedInGenders',
+  'interestedInGender',
+  'targetGenders',
+  'preferredGenders',
+  'generosDeInteresse',
+]),
+
+interestedInOrientations: this.firstStringArray(raw, [
+  'interestedInOrientations',
+  'interestedInOrientation',
+  'targetOrientations',
+  'preferredOrientations',
+  'orientacoesDeInteresse',
+]),
 
       municipio: this.firstText(raw, [
         'municipio',
@@ -727,4 +772,4 @@ export class UserDiscoveryQueryService {
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
-}
+} // line 730, fim do arquivo

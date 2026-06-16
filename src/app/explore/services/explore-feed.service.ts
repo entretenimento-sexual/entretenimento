@@ -8,6 +8,9 @@ import { MediaPublicQueryService } from 'src/app/core/services/media/media-publi
 import { IExploreSection } from '../models/i-explore-section';
 import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-profile-card.model';
+import { DiscoveryCardEnrichmentService } from 'src/app/dashboard/discovery/application/discovery-card-enrichment.service';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 
 export interface IExploreFeedVm {
   readonly boostedPhotos: readonly IPublicPhotoItem[];
@@ -15,6 +18,7 @@ export interface IExploreFeedVm {
   readonly topPhotos: readonly IPublicPhotoItem[];
   readonly latestPhotos: readonly IPublicPhotoItem[];
   readonly sections: readonly IExploreSection<IPublicPhotoItem>[];
+  readonly compatibleProfiles: readonly PublicProfileCard[];
   readonly totalItems: number;
   readonly hasAnyContent: boolean;
 }
@@ -23,6 +27,8 @@ export interface IExploreFeedVm {
 export class ExploreFeedService {
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
   private readonly discoveryQuery = inject(UserDiscoveryQueryService);
+  private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly cardEnrichment = inject(DiscoveryCardEnrichmentService);
 
   readonly boostedPhotos$: Observable<IPublicPhotoItem[]> = this.mediaPublicQuery
   .getBoostedPublicPhotos$(8)
@@ -45,12 +51,35 @@ private readonly publicPool$: Observable<IPublicPhotoItem[]> = this.mediaPublicQ
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  readonly compatibleProfiles$: Observable<PublicProfileCard[]> = combineLatest([
+  this.discoveryQuery.getAllUsers$(),
+  this.currentUserStore.user$,
+]).pipe(
+  map(([profiles, currentUser]) => {
+    if (!currentUser?.uid) {
+      return [];
+    }
+
+    const result = this.cardEnrichment.buildCardsResult({
+      profiles: profiles ?? [],
+      currentUser,
+      currentUid: currentUser.uid,
+      mode: 'compatible',
+      applyVisibility: true,
+    });
+
+    return result.profiles.slice(0, 6);
+  }),
+  shareReplay({ bufferSize: 1, refCount: true })
+);
+
   readonly vm$: Observable<IExploreFeedVm> = combineLatest([
-    this.boostedPhotos$,
-    this.topPhotos$,
-    this.publicPool$,
-  ]).pipe(
-    map(([boostedPhotos, topPhotos, publicPool]) => {
+  this.boostedPhotos$,
+  this.topPhotos$,
+  this.publicPool$,
+  this.compatibleProfiles$,
+]).pipe(
+  map(([boostedPhotos, topPhotos, publicPool, compatibleProfiles]) => {
       const latestPhotos = this.rankByPublishedAt(publicPool).slice(0, 16);
 
       const safeTopPhotos =
@@ -107,16 +136,19 @@ private readonly publicPool$: Observable<IPublicPhotoItem[]> = this.mediaPublicQ
 
       const visibleSections = sections.filter((section) => section.items.length > 0);
 
-      const totalItems = visibleSections.reduce(
-        (total, section) => total + section.items.length,
-        0
-      );
+      const totalItems =
+          compatibleProfiles.length +
+          visibleSections.reduce(
+            (total, section) => total + section.items.length,
+            0
+          );
 
       return {
         boostedPhotos,
         mostViewedPhotos,
         topPhotos: safeTopPhotos,
         latestPhotos,
+        compatibleProfiles,
         sections: visibleSections,
         totalItems,
         hasAnyContent: totalItems > 0,

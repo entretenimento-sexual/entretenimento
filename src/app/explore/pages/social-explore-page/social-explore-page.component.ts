@@ -12,6 +12,7 @@ import { ExploreFeedFacade } from '../../facades/explore-feed.facade';
 import { IExploreFeedVm } from '../../services/explore-feed.service';
 import { TExploreSectionId } from '../../models/i-explore-section';
 import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view-tracking.service';
+import { PublicProfilesListComponent } from 'src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component';
 
 type TExplorePhotoSection = Extract<
   TExploreSectionId,
@@ -32,6 +33,7 @@ interface IExploreLightboxState {
     PublicPhotoCardComponent,
     PublicPhotoLightboxComponent,
     ExploreSectionComponent,
+    PublicProfilesListComponent,
   ],
   templateUrl: './social-explore-page.component.html',
   styleUrls: ['./social-explore-page.component.css'],
