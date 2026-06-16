@@ -1,11 +1,13 @@
 //src\app\explore\services\explore-feed.service.ts
 import { Injectable, inject } from '@angular/core';
-import { combineLatest, Observable } from 'rxjs';
-import { map, shareReplay } from 'rxjs/operators';
+import { combineLatest, Observable, of } from 'rxjs';
+import { map, shareReplay, switchMap } from 'rxjs/operators';
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import { IExploreSection } from '../models/i-explore-section';
+import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
 export interface IExploreFeedVm {
   readonly boostedPhotos: readonly IPublicPhotoItem[];
@@ -20,18 +22,28 @@ export interface IExploreFeedVm {
 @Injectable({ providedIn: 'root' })
 export class ExploreFeedService {
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
+  private readonly discoveryQuery = inject(UserDiscoveryQueryService);
 
   readonly boostedPhotos$: Observable<IPublicPhotoItem[]> = this.mediaPublicQuery
-    .getBoostedPublicPhotos$(8)
-    .pipe(shareReplay({ bufferSize: 1, refCount: true }));
+  .getBoostedPublicPhotos$(8)
+  .pipe(
+    switchMap((photos) => this.enrichPublicPhotos$(photos)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
-  readonly topPhotos$: Observable<IPublicPhotoItem[]> = this.mediaPublicQuery
-    .getTopPublicPhotos$(12)
-    .pipe(shareReplay({ bufferSize: 1, refCount: true }));
+readonly topPhotos$: Observable<IPublicPhotoItem[]> = this.mediaPublicQuery
+  .getTopPublicPhotos$(12)
+  .pipe(
+    switchMap((photos) => this.enrichPublicPhotos$(photos)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
-  private readonly publicPool$: Observable<IPublicPhotoItem[]> = this.mediaPublicQuery
-    .getLatestPublicPhotos$(48)
-    .pipe(shareReplay({ bufferSize: 1, refCount: true }));
+private readonly publicPool$: Observable<IPublicPhotoItem[]> = this.mediaPublicQuery
+  .getLatestPublicPhotos$(48)
+  .pipe(
+    switchMap((photos) => this.enrichPublicPhotos$(photos)),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   readonly vm$: Observable<IExploreFeedVm> = combineLatest([
     this.boostedPhotos$,
@@ -178,6 +190,59 @@ export class ExploreFeedService {
       this.toNumber(item.lastViewedAt) / 1_000_000_000
     );
   }
+
+  private enrichPublicPhotos$(
+  photos: readonly IPublicPhotoItem[]
+): Observable<IPublicPhotoItem[]> {
+  const ownerUids = Array.from(
+    new Set(
+      (photos ?? [])
+        .map((photo) => photo.ownerUid)
+        .filter((uid): uid is string => typeof uid === 'string' && uid.trim().length > 0)
+    )
+  );
+
+  if (!ownerUids.length) {
+    return of([...(photos ?? [])]);
+  }
+
+  return this.discoveryQuery.getProfilesByUids$(ownerUids, {
+    cacheTTL: 300_000,
+  }).pipe(
+    map((profiles) => {
+      const byUid = new Map<string, IUserDados>();
+
+      for (const profile of profiles ?? []) {
+        if (profile?.uid) {
+          byUid.set(profile.uid, profile);
+        }
+      }
+
+      return (photos ?? []).map((photo) =>
+        this.withOwnerProfile(photo, byUid.get(photo.ownerUid) ?? null)
+      );
+    })
+  );
+}
+
+private withOwnerProfile(
+  photo: IPublicPhotoItem,
+  owner: IUserDados | null
+): IPublicPhotoItem {
+  if (!owner) {
+    return photo;
+  }
+
+  return {
+    ...photo,
+    ownerNickname: owner.nickname ?? null,
+    ownerPhotoURL: owner.photoURL ?? null,
+    ownerGender: owner.gender ?? null,
+    ownerOrientation: owner.orientation ?? null,
+    ownerMunicipio: owner.municipio ?? null,
+    ownerEstado: owner.estado ?? null,
+  };
+}
 
   private toNumber(value: unknown): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;

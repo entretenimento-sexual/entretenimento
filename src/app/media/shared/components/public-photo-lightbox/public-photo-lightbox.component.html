@@ -18,6 +18,31 @@
         <span>{{ activeIndex() + 1 }}/{{ items().length }}</span>
       </div>
 
+      @if (photo && profileLink()) {
+  <a
+    class="lightbox-owner"
+    [routerLink]="profileLink()"
+    (click)="close()"
+    [attr.aria-label]="'Abrir perfil de ' + getOwnerName(photo)"
+  >
+    @if (photo.ownerPhotoURL) {
+      <img
+        class="lightbox-owner__avatar"
+        [src]="photo.ownerPhotoURL"
+        [alt]="'Avatar de ' + getOwnerName(photo)"
+      />
+    }
+
+    <span>
+      <strong>{{ getOwnerName(photo) }}</strong>
+
+      @if (getOwnerLocation(photo)) {
+        <small>{{ getOwnerLocation(photo) }}</small>
+      }
+    </span>
+  </a>
+}
+
       <button
         type="button"
         class="btn btn-ghost icon"

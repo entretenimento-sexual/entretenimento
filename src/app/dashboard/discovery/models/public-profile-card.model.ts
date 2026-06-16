@@ -36,4 +36,6 @@ export interface PublicProfileCard {
 
   updatedAt?: unknown;
   createdAt?: unknown;
+  compatibilityScore?: number | null;
+  compatibilityReason?: string | null;
 }

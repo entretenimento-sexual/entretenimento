@@ -10,12 +10,12 @@
   [class.photo-tile--boosted]="mode === 'boosted'"
 >
   <button
-  type="button"
-  class="photo-card-link"
-  (click)="onPreview()"
-  [attr.aria-label]="'Abrir foto pública ' + (item.alt || item.id)"
-  title="Abrir foto"
->
+    type="button"
+    class="photo-card-link"
+    (click)="onPreview()"
+    [attr.aria-label]="'Abrir foto pública de ' + getOwnerName(item)"
+    title="Abrir foto"
+  >
     <img
       class="photo"
       [src]="item.url"
@@ -23,9 +23,26 @@
       loading="lazy"
       referrerpolicy="no-referrer"
     />
+  </button>
 
-    <span class="photo-overlay" aria-hidden="true">
-      <span class="photo-stats">
+  <div class="photo-overlay">
+    <a
+      class="photo-owner-link"
+      [routerLink]="profileLink()"
+      [attr.aria-label]="'Abrir perfil de ' + getOwnerName(item)"
+    >
+      <strong>{{ getOwnerName(item) }}</strong>
+
+      @if (getOwnerMeta(item)) {
+        <small>{{ getOwnerMeta(item) }}</small>
+      }
+
+      @if (getOwnerLocation(item)) {
+        <small>{{ getOwnerLocation(item) }}</small>
+      }
+    </a>
+
+    <span class="photo-stats" aria-label="Métricas públicas da foto">
       <span class="stat-chip" aria-label="Curtidas">
         <span aria-hidden="true">♥</span>
         {{ item.reactionsCount ?? item.likesCount ?? 0 }}
@@ -35,32 +52,37 @@
         <span aria-hidden="true">💬</span>
         {{ item.commentsCount ?? 0 }}
       </span>
-      </span>
 
-      @if (item.isCover) {
-        <span class="cover-chip">Capa</span>
+      @if (item.viewsCount !== undefined) {
+        <span class="stat-chip" aria-label="Visualizações">
+          <span aria-hidden="true">👁</span>
+          {{ item.viewsCount }}
+        </span>
       }
-    </span>
-  </button>
 
-  @if (mode === 'latest' || mode === 'top' || mode === 'boosted') {
+       <span
+    class="stat-chip stat-chip--time"
+    [attr.aria-label]="'Publicado ' + getPublishedLabel(item)"
+  >
+    <span aria-hidden="true">⏱</span>
+    {{ getPublishedLabel(item) }}
+  </span>
+    </span>
+
+    @if (item.isCover) {
+      <span class="cover-chip">Capa</span>
+    }
+  </div>
+
+  @if (mode === 'latest' || mode === 'boosted') {
     <div class="photo-meta">
       @switch (mode) {
         @case ('latest') {
-          <span class="meta-chip">Publicada</span>
-          <span class="meta-chip">{{ item.publishedAt | date:'dd/MM/yyyy HH:mm' }}</span>
-        }
-
-        @case ('top') {
-          <span class="meta-chip">Score: {{ item.engagementScore ?? item.score ?? 0 }}</span>
+          <span class="meta-chip">{{ getPublishedLabel(item) }}</span>
         }
 
         @case ('boosted') {
           <span class="meta-chip meta-boost">Turbo ativo</span>
-
-          @if (item.boostPriority !== undefined) {
-            <span class="meta-chip">Prioridade: {{ item.boostPriority }}</span>
-          }
         }
       }
     </div>

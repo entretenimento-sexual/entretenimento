@@ -60,6 +60,7 @@ import {
 } from '../models/discovery-mode.model';
 
 import { PublicProfileCard } from '../models/public-profile-card.model';
+import { evaluateProfileCompatibility, ProfileCompatibilityResult } from 'src/app/core/utils/discovery/profile-compatibility.util';
 
 export interface DiscoveryCardEnrichmentInput {
   profiles: readonly IUserDados[];
@@ -102,7 +103,11 @@ export interface DiscoveryCardEnrichmentInput {
 export interface DiscoveryCardRejectedItem {
   uid: string | null;
   nickname: string | null;
-  reason: PublicDiscoveryProfileRejectionReason | 'current_user' | 'outside_radius';
+  reason:
+    | PublicDiscoveryProfileRejectionReason
+    | 'current_user'
+    | 'outside_radius'
+    | 'incompatible_profile';
 }
 
 export interface DiscoveryCardScoreDebug {
@@ -144,11 +149,12 @@ export class DiscoveryCardEnrichmentService {
 
     const rejected: DiscoveryCardRejectedItem[] = [];
 
-    const candidates = (input.profiles ?? [])
-      .map((profile) => this.toPublicProfileCard(profile))
-      .filter((profile): profile is PublicProfileCard => !!profile)
-      .map((profile) => this.withPresence(profile, input.onlinePresenceByUid ?? null))
-      .map((profile) => this.withDistance(profile, viewerCoords));
+const candidates = (input.profiles ?? [])
+  .map((profile) => this.toPublicProfileCard(profile))
+  .filter((profile): profile is PublicProfileCard => !!profile)
+  .map((profile) => this.withPresence(profile, input.onlinePresenceByUid ?? null))
+  .map((profile) => this.withDistance(profile, viewerCoords))
+  .map((profile) => this.withCompatibility(profile, input.currentUser));
 
     const eligible = candidates.filter((profile) => {
       if (currentUid && profile.uid === currentUid) {
@@ -160,6 +166,32 @@ export class DiscoveryCardEnrichmentService {
 
         return false;
       }
+
+      if (
+  mode === 'compatible' &&
+  profile.compatibilityScore === 0
+) {
+  rejected.push({
+    uid: profile.uid ?? null,
+    nickname: profile.nickname ?? null,
+    reason: 'incompatible_profile',
+  });
+
+  return false;
+}
+
+if (
+  mode === 'all' &&
+  profile.compatibilityScore === 0
+) {
+  rejected.push({
+    uid: profile.uid ?? null,
+    nickname: profile.nickname ?? null,
+    reason: 'incompatible_profile',
+  });
+
+  return false;
+}
 
       if (applyVisibility) {
         const reason = getPublicDiscoveryProfileRejectionReason(profile as any, {
@@ -230,6 +262,22 @@ export class DiscoveryCardEnrichmentService {
 
     return extractValidGeoCoordinates(fallbackLocation);
   }
+
+  private withCompatibility(
+  profile: PublicProfileCard,
+  currentUser: IUserDados | null
+): PublicProfileCard {
+  const result: ProfileCompatibilityResult = evaluateProfileCompatibility(
+    currentUser,
+    profile
+  );
+
+  return {
+    ...profile,
+    compatibilityScore: result.score,
+    compatibilityReason: result.reason,
+  };
+}
 
   private withPresence(
     profile: PublicProfileCard,

@@ -43,9 +43,18 @@ export interface IPublicPhotoItem {
   uniqueViewersCount?: number;
   lastViewedAt?: number;
   viewScore?: number;
-  
+
   // Turbo / promoção
   boostActive?: boolean;
   boostPriority?: number;
   boostedUntil?: number | null;
+
+  // Dono público da mídia — preenchido por enriquecimento no front.
+// Não vem necessariamente do documento public_photos.
+ownerNickname?: string | null;
+ownerPhotoURL?: string | null;
+ownerGender?: string | null;
+ownerOrientation?: string | null;
+ownerMunicipio?: string | null;
+ownerEstado?: string | null;
 }

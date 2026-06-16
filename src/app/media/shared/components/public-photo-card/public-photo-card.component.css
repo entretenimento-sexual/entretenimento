@@ -1,32 +1,45 @@
 /* src/app/media/shared/components/public-photo-card/public-photo-card.component.css */
 
 .photo-tile {
+  position: relative;
   width: 100%;
   min-width: 0;
-  border-radius: 18px;
   overflow: hidden;
-  background: var(--surface-color);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 18px;
+  background: var(--surface-color, #0f1620);
   box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
   transition:
     transform 160ms ease,
-    box-shadow 160ms ease;
+    box-shadow 160ms ease,
+    border-color 160ms ease;
 }
 
 .photo-tile:hover {
   transform: translateY(-2px);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 28%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
   box-shadow: 0 16px 36px rgb(0 0 0 / 24%);
 }
 
 .photo-tile--cover {
+  border-color: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 32%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--success-color, #5ed39a) 30%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--success-color, #5ed39a) 28%, transparent),
     0 12px 32px rgb(0 0 0 / 22%);
 }
 
 .photo-tile--boosted {
-  border: 1px solid color-mix(
+  border-color: color-mix(
     in oklab,
-    var(--primary-color, #ff6b81) 36%,
+    var(--primary-color, #ff7070) 42%,
     var(--surface-border, rgba(255, 255, 255, 0.12))
   );
 }
@@ -35,64 +48,117 @@
   position: relative;
   display: block;
   width: 100%;
+  min-width: 0;
   padding: 0;
+  overflow: hidden;
   border: 0;
   background: transparent;
+  color: inherit;
   cursor: pointer;
   text-align: inherit;
   -webkit-tap-highlight-color: transparent;
 }
 
 .photo-card-link:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: var(--focus-offset, 2px);
 }
 
 .photo {
+  display: block;
   width: 100%;
   aspect-ratio: 4 / 5;
   object-fit: cover;
   object-position: center;
-  display: block;
   background:
     linear-gradient(
       180deg,
-      color-mix(in oklab, var(--surface-color) 92%, white 6%),
-      color-mix(in oklab, var(--surface-color) 80%, black 18%)
+      color-mix(in oklab, var(--surface-color, #0f1620) 92%, white 6%),
+      color-mix(in oklab, var(--surface-color, #0f1620) 80%, black 18%)
     );
-  transition:
-    transform 180ms ease,
-    filter 180ms ease;
+  transition: filter 180ms ease;
 }
 
 .photo-card-link:hover .photo,
 .photo-card-link:focus-visible .photo {
-  transform: scale(1.025);
-  filter: brightness(1.03);
+  filter: brightness(1.05);
 }
 
 .photo-overlay {
   position: absolute;
   inset: auto 0 0;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 34px 9px 9px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "owner owner"
+    "stats cover";
+  gap: 6px 8px;
+  align-items: end;
+  min-width: 0;
+  padding: 46px 9px 9px;
   background:
     linear-gradient(
       180deg,
-      transparent,
-      rgb(0 0 0 / 58%)
+      transparent 0%,
+      rgb(0 0 0 / 38%) 36%,
+      rgb(0 0 0 / 78%) 100%
     );
   pointer-events: none;
 }
 
+.photo-owner-link {
+  grid-area: owner;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  color: #fff;
+  text-decoration: none;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 72%);
+  pointer-events: auto;
+}
+
+.photo-owner-link:hover,
+.photo-owner-link:focus-visible {
+  color: #fff;
+  text-decoration: underline;
+  outline: none;
+}
+
+.photo-owner-link:focus-visible {
+  border-radius: 8px;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 72%);
+}
+
+.photo-owner-link strong,
+.photo-owner-link small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-owner-link strong {
+  font-size: 0.8rem;
+  font-weight: 900;
+  line-height: 1.08;
+}
+
+.photo-owner-link small {
+  color: rgb(255 255 255 / 84%);
+  font-size: 0.66rem;
+  font-weight: 720;
+  line-height: 1.08;
+}
+
 .photo-stats {
+  grid-area: stats;
   display: flex;
-  align-items: center;
-  gap: 6px;
   flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  pointer-events: none;
 }
 
 .stat-chip,
@@ -105,7 +171,7 @@
   padding: 3px 8px;
   border: 1px solid rgb(255 255 255 / 20%);
   border-radius: 999px;
-  background: rgb(0 0 0 / 38%);
+  background: rgb(0 0 0 / 42%);
   color: #fff;
   font-size: 0.74rem;
   font-weight: 820;
@@ -114,8 +180,14 @@
 }
 
 .cover-chip {
-  color: #fff;
-  background: color-mix(in oklab, var(--success-color, #5ed39a) 58%, rgb(0 0 0 / 35%));
+  grid-area: cover;
+  justify-self: end;
+  background: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 58%,
+    rgb(0 0 0 / 35%)
+  );
+  pointer-events: none;
 }
 
 .photo-meta {
@@ -123,25 +195,48 @@
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  min-width: 0;
   padding: 10px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #0f1620) 94%,
+    black 6%
+  );
 }
 
 .meta-chip {
   display: inline-flex;
   align-items: center;
   min-height: 26px;
+  max-width: 100%;
   padding: 3px 9px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
   border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #0f1620) 94%,
+    transparent
+  );
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 82%,
+    transparent
+  );
   font-size: 0.78rem;
   font-weight: 760;
-  border: 1px solid var(--surface-border);
-  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
-  color: color-mix(in oklab, var(--text-color) 82%, transparent);
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .meta-boost {
-  color: var(--primary-color);
-  border-color: color-mix(in oklab, var(--primary-color) 32%, var(--surface-border));
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 32%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  color: var(--primary-color, #ff7070);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -150,7 +245,7 @@
     transition: none;
   }
 
-  .photo-card-link:hover .photo {
+  .photo-tile:hover {
     transform: none;
   }
 }
@@ -161,24 +256,52 @@
     box-shadow: none;
   }
 
-  .photo-overlay {
-    padding: 28px 6px 6px;
+  .photo-tile:hover {
+    transform: none;
+    box-shadow: none;
   }
 
-  .photo-meta {
-  gap: 6px;
-  padding: 8px;
-}
+  .photo-overlay {
+    gap: 5px 6px;
+    padding: 40px 6px 6px;
+  }
 
-.meta-chip {
-  min-height: 24px;
-  font-size: 0.72rem;
-}
+  .photo-owner-link strong {
+    font-size: 0.72rem;
+  }
+
+  .photo-owner-link small {
+    font-size: 0.61rem;
+  }
 
   .stat-chip,
   .cover-chip {
     min-height: 22px;
     padding: 2px 6px;
     font-size: 0.7rem;
+  }
+
+  .photo-meta {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .meta-chip {
+    min-height: 24px;
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 340px) {
+  .photo-overlay {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "owner"
+      "stats"
+      "cover";
+  }
+
+  .cover-chip {
+    justify-self: start;
   }
 }
