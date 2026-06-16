@@ -30,18 +30,26 @@
       </p>
     </div>
 
-    @if (ownerUid && isOwner) {
-      <div class="actions">
-        <button
-          type="button"
-          class="btn btn-primary add-photo-btn"
-          (click)="openUpload(ownerUid)"
-          aria-label="Adicionar nova foto"
-        >
-          + Adicionar foto
-        </button>
-      </div>
-    }
+@if (ownerUid && isOwner) {
+  <div class="actions">
+    <a
+      class="gallery-action gallery-action--ghost"
+      [routerLink]="['/perfil']"
+      aria-label="Voltar ao meu perfil"
+    >
+      Voltar ao perfil
+    </a>
+
+    <button
+      type="button"
+      class="gallery-action gallery-action--primary"
+      (click)="openUpload(ownerUid)"
+      aria-label="Adicionar nova foto"
+    >
+      + Adicionar foto
+    </button>
+  </div>
+}
   </header>
 
   @if (!canView) {
@@ -81,9 +89,80 @@
         }
       </div>
     } @else {
-      <div class="gallery-toolbar" aria-live="polite">
-        <span>{{ items?.length || 0 }} foto(s)</span>
-      </div>
+<div class="gallery-toolbar" aria-live="polite">
+  <div class="gallery-toolbar__summary">
+    @let total = (totalPhotos$ | async) || 0;
+
+    <strong>{{ total }}</strong>
+    {{ total === 1 ? 'foto na biblioteca' : 'fotos na biblioteca' }}
+
+    @if ((items?.length || 0) !== total) {
+      <span>
+        · {{ items?.length || 0 }} exibida{{ (items?.length || 0) === 1 ? '' : 's' }}
+      </span>
+    }
+  </div>
+
+  <div class="gallery-toolbar__controls" aria-label="Filtros e ordenação das fotos">
+    <div class="gallery-filter-group" aria-label="Filtrar fotos">
+      <button
+        type="button"
+        class="gallery-filter"
+        [class.gallery-filter--active]="getFilterModeSnapshot() === 'all'"
+        (click)="setFilterMode('all')"
+      >
+        Todas
+      </button>
+
+      <button
+        type="button"
+        class="gallery-filter"
+        [class.gallery-filter--active]="getFilterModeSnapshot() === 'published'"
+        (click)="setFilterMode('published')"
+      >
+        Visíveis
+      </button>
+
+      <button
+        type="button"
+        class="gallery-filter"
+        [class.gallery-filter--active]="getFilterModeSnapshot() === 'private'"
+        (click)="setFilterMode('private')"
+      >
+        Privadas
+      </button>
+
+      <button
+        type="button"
+        class="gallery-filter"
+        [class.gallery-filter--active]="getFilterModeSnapshot() === 'cover'"
+        (click)="setFilterMode('cover')"
+      >
+        Capa
+      </button>
+    </div>
+
+    <div class="gallery-filter-group" aria-label="Ordenar fotos">
+      <button
+        type="button"
+        class="gallery-filter"
+        [class.gallery-filter--active]="getSortModeSnapshot() === 'newest'"
+        (click)="setSortMode('newest')"
+      >
+        Recentes
+      </button>
+
+      <button
+        type="button"
+        class="gallery-filter"
+        [class.gallery-filter--active]="getSortModeSnapshot() === 'oldest'"
+        (click)="setSortMode('oldest')"
+      >
+        Antigas
+      </button>
+    </div>
+  </div>
+</div>
 
       <div class="photos-grid" role="list" aria-label="Lista de fotos">
         @for (item of (items || []); track item.id) {
@@ -114,62 +193,67 @@
                 <span class="photo-status-stack">
 
                   @if (publishingPhotoId === item.id || deletingPhotoId === item.id) {
-  <span class="photo-busy-overlay" aria-live="polite">
-    <span class="busy-spinner" aria-hidden="true"></span>
+              <span class="photo-busy-overlay" aria-live="polite">
+                <span class="busy-spinner" aria-hidden="true"></span>
 
-    <span>
-      @if (deletingPhotoId === item.id) {
-        Excluindo...
-      } @else {
-        Atualizando...
-      }
-    </span>
-  </span>
-}
-@if (item.publication.isPublished) {
-  @switch (item.publication.moderationStatus) {
-    @case ('PENDING_REVIEW') {
-      <span class="status-chip status-chip--pending">
-        Em análise
-      </span>
-    }
-
-    @case ('REJECTED') {
-      <span class="status-chip status-chip--rejected">
-        Reprovada
-      </span>
-    }
-
-    @case ('FLAGGED') {
-      <span class="status-chip status-chip--flagged">
-        Sinalizada
-      </span>
-    }
-
-    @case ('HIDDEN') {
-      <span class="status-chip status-chip--hidden">
-        Oculta
-      </span>
-    }
-
-    @default {
-      <span class="status-chip status-chip--published">
-        Visível
-      </span>
-    }
-  }
-} @else {
-  <span class="status-chip status-chip--private">
-    Só você
-  </span>
-}
-
-@if (item.publication.isCover) {
-  <span class="status-chip status-chip--cover">
-    Capa
-  </span>
-}
+                <span>
+                  @if (deletingPhotoId === item.id) {
+                    Excluindo...
+                  } @else {
+                    Atualizando...
+                  }
                 </span>
+              </span>
+            }
+            @if (item.publication.isPublished) {
+              @switch (item.publication.moderationStatus) {
+                @case ('PENDING_REVIEW') {
+                  <span class="status-chip status-chip--pending">
+                    Em análise
+                  </span>
+                }
+
+                @case ('REJECTED') {
+                  <span class="status-chip status-chip--rejected">
+                    Reprovada
+                  </span>
+                }
+
+                @case ('FLAGGED') {
+                  <span class="status-chip status-chip--flagged">
+                    Sinalizada
+                  </span>
+                }
+
+                @case ('HIDDEN') {
+                  <span class="status-chip status-chip--hidden">
+                    Oculta
+                  </span>
+                }
+
+                @default {
+                  <span class="status-chip status-chip--published">
+                    Visível
+                  </span>
+                }
+              }
+            } @else {
+              <span class="status-chip status-chip--private">
+                Só você
+              </span>
+            }
+
+            @if (item.publication.isCover) {
+              <span class="status-chip status-chip--cover">
+                Capa
+              </span>
+            }
+                </span>
+
+                <span class="photo-date-chip">
+                  {{ getPhotoDateLabel(item) }}
+                </span>
+
               </span>
             </button>
 

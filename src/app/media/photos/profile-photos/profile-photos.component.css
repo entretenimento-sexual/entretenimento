@@ -71,27 +71,137 @@
 
 .actions {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: flex-end;
+  gap: 10px;
   flex: 0 0 auto;
+  flex-wrap: wrap;
 }
 
-.add-photo-btn {
-  min-height: 42px;
-  padding-inline: 16px;
+.gallery-action {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
   border-radius: 12px;
-  font-weight: 780;
+  background: color-mix(in oklab, var(--surface-color, #0e1624) 92%, black 8%);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 86%, transparent);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 820;
+  line-height: 1;
+  text-decoration: none;
   white-space: nowrap;
+  cursor: pointer;
+}
+
+.gallery-action:hover,
+.gallery-action:focus-visible {
+  color: var(--text-color, #f5f7fb);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b81) 34%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 12%, transparent);
+}
+
+.gallery-action:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
+.gallery-action--primary {
+  border-color: color-mix(in oklab, var(--primary-color, #ff6b81) 46%, transparent);
+  background: var(--primary-color, #ff6b81);
+  color: #fff;
+}
+
+.gallery-action--primary:hover,
+.gallery-action--primary:focus-visible {
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 86%, white 14%);
+  color: #fff;
+}
+
+.gallery-action--ghost {
+  background: color-mix(in oklab, var(--surface-color, #0e1624) 94%, transparent);
 }
 
 .gallery-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 10px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--surface-color, #0e1624) 92%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
   font-size: 0.88rem;
+}
+
+.gallery-toolbar__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.gallery-toolbar__summary strong {
+  color: var(--text-color, #f5f7fb);
+  font-weight: 850;
+}
+
+.gallery-toolbar__summary span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+}
+
+.gallery-toolbar__controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gallery-filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: rgb(0 0 0 / 16%);
+}
+
+.gallery-filter {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gallery-filter:hover,
+.gallery-filter:focus-visible,
+.gallery-filter--active {
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 18%, transparent);
+  color: var(--text-color, #f5f7fb);
+}
+
+.gallery-filter:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
 }
 
 .publication-guide span {
@@ -362,6 +472,22 @@
   color: rgb(255 255 255 / 82%);
 }
 
+.photo-date-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 38%);
+  color: rgb(255 255 255 / 82%);
+  font-size: 0.7rem;
+  font-weight: 780;
+  line-height: 1;
+  backdrop-filter: blur(8px);
+}
+
 .management-bar {
   position: relative;
   display: flex;
@@ -520,16 +646,28 @@
     justify-content: stretch;
   }
 
-  .actions .btn,
-  .empty-state .btn {
-    width: 100%;
-  }
+  .actions .gallery-action,
+.empty-state .btn {
+  width: 100%;
+}
 
   .gallery-toolbar {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 4px;
-  }
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.gallery-toolbar__controls {
+  justify-content: stretch;
+}
+
+.gallery-filter-group {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.gallery-filter {
+  flex: 1 0 auto;
+}
 }
 
 @media (max-width: 599px) {

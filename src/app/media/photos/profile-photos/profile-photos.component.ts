@@ -83,6 +83,9 @@ type IPhotoCardVm = IManageablePhotoItem & {
   publication: IPhotoPublicationConfig;
 };
 
+type TProfilePhotoFilterMode = 'all' | 'published' | 'private' | 'cover';
+type TProfilePhotoSortMode = 'newest' | 'oldest';
+
 const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
 
 @Component({
@@ -120,6 +123,12 @@ export class ProfilePhotosComponent {
 
   private readonly publishingPhotoIdSubject = new BehaviorSubject<string | null>(null);
   readonly publishingPhotoId$ = this.publishingPhotoIdSubject.asObservable();
+
+  private readonly filterModeSubject = new BehaviorSubject<TProfilePhotoFilterMode>('all');
+  readonly filterMode$ = this.filterModeSubject.asObservable();
+
+  private readonly sortModeSubject = new BehaviorSubject<TProfilePhotoSortMode>('newest');
+  readonly sortMode$ = this.sortModeSubject.asObservable();
 
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
@@ -200,26 +209,120 @@ export class ProfilePhotosComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly photoCards$: Observable<IPhotoCardVm[]> = combineLatest([
-    this.ownerUid$,
-    this.photos$,
-    this.publicationConfigs$,
-  ]).pipe(
-    map(([ownerUid, photos, publicationConfigs]) =>
-      photos.map((photo) => ({
-        ...photo,
-        publication:
-          publicationConfigs[photo.id] ??
-          this.mediaPublicationService.buildDefaultConfig(ownerUid, photo.id),
-      }))
-    ),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+readonly photoCards$: Observable<IPhotoCardVm[]> = combineLatest([
+  this.ownerUid$,
+  this.photos$,
+  this.publicationConfigs$,
+  this.filterMode$,
+  this.sortMode$,
+]).pipe(
+  map(([ownerUid, photos, publicationConfigs, filterMode, sortMode]) => {
+    const cards = photos.map((photo) => ({
+      ...photo,
+      publication:
+        publicationConfigs[photo.id] ??
+        this.mediaPublicationService.buildDefaultConfig(ownerUid, photo.id),
+    }));
+
+    return this.sortPhotoCards(
+      this.filterPhotoCards(cards, filterMode),
+      sortMode
+    );
+  }),
+  shareReplay({ bufferSize: 1, refCount: true })
+);
 
   readonly isEmpty$: Observable<boolean> = this.photoCards$.pipe(
     map((items) => items.length === 0),
     distinctUntilChanged()
   );
+
+  readonly totalPhotos$: Observable<number> = this.photos$.pipe(
+  map((items) => items.length),
+  distinctUntilChanged(),
+  shareReplay({ bufferSize: 1, refCount: true })
+);
+
+setFilterMode(mode: TProfilePhotoFilterMode): void {
+  this.filterModeSubject.next(mode);
+}
+
+setSortMode(mode: TProfilePhotoSortMode): void {
+  this.sortModeSubject.next(mode);
+}
+
+getFilterModeSnapshot(): TProfilePhotoFilterMode {
+  return this.filterModeSubject.value;
+}
+
+getSortModeSnapshot(): TProfilePhotoSortMode {
+  return this.sortModeSubject.value;
+}
+
+getPhotoDateLabel(item: IPhotoCardVm): string {
+  const createdAt = this.toMillis(item.createdAt);
+
+  if (!createdAt) {
+    return 'data não informada';
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(createdAt));
+}
+
+private filterPhotoCards(
+  items: readonly IPhotoCardVm[],
+  mode: TProfilePhotoFilterMode
+): IPhotoCardVm[] {
+  switch (mode) {
+    case 'published':
+      return items.filter((item) => item.publication.isPublished);
+
+    case 'private':
+      return items.filter((item) => !item.publication.isPublished);
+
+    case 'cover':
+      return items.filter((item) => item.publication.isCover);
+
+    default:
+      return [...items];
+  }
+}
+
+private sortPhotoCards(
+  items: readonly IPhotoCardVm[],
+  mode: TProfilePhotoSortMode
+): IPhotoCardVm[] {
+  return [...items].sort((a, b) => {
+    const aCreatedAt = this.toMillis(a.createdAt);
+    const bCreatedAt = this.toMillis(b.createdAt);
+
+    return mode === 'oldest'
+      ? aCreatedAt - bCreatedAt
+      : bCreatedAt - aCreatedAt;
+  });
+}
+
+private toMillis(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return value.getTime();
+  }
+
+  const maybeTimestamp = value as { toMillis?: () => number } | null | undefined;
+
+  if (typeof maybeTimestamp?.toMillis === 'function') {
+    return maybeTimestamp.toMillis();
+  }
+
+  return 0;
+}
 
   openUpload(ownerUid: string): void {
     this.router.navigate(['/media', 'perfil', ownerUid, 'fotos', 'upload']).catch(() => {
