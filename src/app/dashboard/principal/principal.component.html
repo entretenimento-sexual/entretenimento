@@ -4,8 +4,9 @@
 
   Diretriz:
   - visual de rede social/profissional;
-  - cada ação principal aparece em um único bloco;
-  - o topo apresenta contexto, não repete botões;
+  - sem subtítulo que repete o título do card;
+  - sem bloco final redundante;
+  - ajustes de presença ficam no resumo da conta;
   - mantém observables, métricas e rotas já existentes.
 -->
 
@@ -35,7 +36,7 @@
   </header>
 
   <section class="principal-overview app-card-grid" *ngIf="currentUserStatus$ | async as currentStatus" aria-label="Resumo da conta e da rede">
-    <article class="principal-metric app-card app-card--compact">
+    <article class="principal-metric principal-metric--account app-card app-card--compact">
       <span class="principal-metric__label">Conta</span>
       <strong class="principal-metric__value">
         {{ currentStatus === 'ready' ? 'Pronta' : 'Sincronizando' }}
@@ -43,6 +44,20 @@
       <span class="principal-metric__hint">
         {{ currentStatus === 'ready' ? 'Recursos principais liberados.' : 'Aguardando atualização de estado.' }}
       </span>
+
+      <div class="principal-metric__actions" aria-label="Ajustes da conta">
+        @if (preferencesLink$ | async; as preferencesLink) {
+          <a class="principal-action principal-action--ghost principal-action--small" [routerLink]="preferencesLink">
+            Preferências
+          </a>
+        }
+
+        @if (profileLink$ | async; as profileLink) {
+          <a class="principal-action principal-action--ghost principal-action--small" [routerLink]="profileLink">
+            Editar perfil
+          </a>
+        }
+      </div>
     </article>
 
     <article class="principal-metric app-card app-card--compact">
@@ -65,10 +80,7 @@
   <section class="principal-section-grid app-card-grid" aria-label="Atalhos principais da rede">
     <article class="principal-panel principal-panel--highlight app-card app-card--interactive">
       <div class="principal-panel__header app-card__header">
-        <div>
-          <p class="principal-panel__eyebrow">Recomendado</p>
-          <h2>Perfis sugeridos</h2>
-        </div>
+        <h2>Perfis sugeridos</h2>
         <span class="principal-panel__badge app-chip app-chip--primary">Novo</span>
       </div>
 
@@ -86,10 +98,7 @@
 
     <article class="principal-panel app-card app-card--interactive">
       <div class="principal-panel__header app-card__header">
-        <div>
-          <p class="principal-panel__eyebrow">Exploração</p>
-          <h2>Explorar rede</h2>
-        </div>
+        <h2>Explorar rede</h2>
       </div>
 
       <p class="principal-panel__description">
@@ -106,10 +115,7 @@
 
     <article class="principal-panel app-card app-card--interactive">
       <div class="principal-panel__header app-card__header">
-        <div>
-          <p class="principal-panel__eyebrow">Relacionamentos</p>
-          <h2>Amizades e conversas</h2>
-        </div>
+        <h2>Amizades e conversas</h2>
       </div>
 
       <p class="principal-panel__description">
@@ -125,29 +131,5 @@
         </a>
       </div>
     </article>
-  </section>
-
-  <section class="principal-next-steps app-card" aria-label="Ajustes do seu perfil">
-    <div class="principal-next-steps__copy">
-      <p class="principal-panel__eyebrow">Presença</p>
-      <h2>Fortaleça seu perfil na rede</h2>
-      <p>
-        Perfil consistente e preferências atualizadas melhoram a qualidade das conexões sugeridas.
-      </p>
-    </div>
-
-    <div class="principal-next-steps__actions app-card__actions">
-      @if (preferencesLink$ | async; as preferencesLink) {
-        <a class="principal-action principal-action--ghost" [routerLink]="preferencesLink">
-          Preferências
-        </a>
-      }
-
-      @if (profileLink$ | async; as profileLink) {
-        <a class="principal-action principal-action--ghost" [routerLink]="profileLink">
-          Editar perfil
-        </a>
-      }
-    </div>
   </section>
 </section>
