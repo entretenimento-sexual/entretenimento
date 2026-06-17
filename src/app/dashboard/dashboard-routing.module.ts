@@ -36,7 +36,7 @@ const routes: Routes = [
         canActivate: [authGuard],
       },
 
-            /**
+      /**
        * Página pai de descoberta de perfis.
        *
        * Esta rota será o novo ponto canônico para:
@@ -60,12 +60,39 @@ const routes: Routes = [
             .then((m) => m.ProfilesDiscoveryPageComponent),
       },
 
-/**
- * Rota legada/específica de perfis online.
- *
- * Mantida por compatibilidade enquanto /dashboard/explorar
- * passa a ser a página pai de descoberta da plataforma.
- */
+      /**
+       * Rota canônica para visualização dos perfis sugeridos.
+       *
+       * Mantida separada de /dashboard/explorar porque esta tela usa o motor de
+       * recomendações personalizado de SuggestionService.
+       */
+      {
+        path: 'perfis-sugeridos',
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+        loadComponent: () =>
+          import('./suggested-profiles/suggested-profiles.component')
+            .then((m) => m.SuggestedProfilesComponent),
+      },
+
+      /**
+       * Alias legado/inglês para evitar quebra de links antigos.
+       */
+      {
+        path: 'suggested-profiles',
+        redirectTo: 'perfis-sugeridos',
+        pathMatch: 'full',
+      },
+
+      /**
+       * Rota legada/específica de perfis online.
+       *
+       * Mantida por compatibilidade enquanto /dashboard/explorar
+       * passa a ser a página pai de descoberta da plataforma.
+       */
       {
         path: 'online',
         component: OnlineUsersFullComponent,
