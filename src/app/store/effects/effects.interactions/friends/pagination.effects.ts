@@ -1,8 +1,8 @@
 // src/app/store/effects/effects.interactions/friends/pagination.effects.ts
-// Não esquecer comentários e ferramentas de debug
 // Efeitos de paginação da lista de amigos
-// - ✅ loadFirstOrRefresh: carrega a primeira página ou recarrega (replace)
-// - ✅ loadNext: carrega a próxima página (append)
+// - loadFirstOrRefresh: carrega a primeira página ou recarrega (replace)
+// - loadNext: carrega a próxima página (append)
+// - debug fica atrás de flag local para não poluir console nem expor diagnóstico em fluxo normal
 import { Injectable, inject, isDevMode } from '@angular/core';
 import { Actions, createEffect, ofType } from '@ngrx/effects';
 import { Store } from '@ngrx/store';
@@ -30,10 +30,10 @@ export class FriendsPaginationEffects {
   private readonly svc = inject(FriendshipService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
-  // ---------------------------------------------------------------------------
-  // Debug (habilitado só em dev)
-  // ---------------------------------------------------------------------------
-  private readonly debugEnabled = isDevMode(); // ou amarre em environment.flag se preferir
+  private readonly debugEnabled =
+    isDevMode() &&
+    typeof localStorage !== 'undefined' &&
+    localStorage.getItem('debug.friends-pagination') === '1';
 
   private debug(label: string, data?: Record<string, unknown>): void {
     if (!this.debugEnabled) return;
@@ -43,9 +43,8 @@ export class FriendsPaginationEffects {
 
   /** normaliza cursor para Store: number | null (epoch) */
   private normalizeCursor(v: unknown): number | null {
-    // aceita number | Timestamp | Date | null
     const epoch = toEpoch(v as any);
-    return typeof epoch === 'number' ? epoch : null; // garante contract number|null
+    return typeof epoch === 'number' ? epoch : null;
   }
 
   private report(err: unknown, context: Record<string, unknown>): void {
@@ -62,13 +61,8 @@ export class FriendsPaginationEffects {
   loadFirstOrRefresh$ = createEffect(() =>
     this.actions$.pipe(
       ofType(P.loadFriendsFirstPage, P.refreshFriendsPage),
-
-      // evita query com uid inválido
       filter(({ uid }) => !!(uid ?? '').trim()),
-
       tap(({ uid, pageSize }) => this.debug('first-or-refresh:action', { uid, pageSize })),
-
-      // switchMap aqui faz sentido: refresh cancela a anterior (última intenção vence)
       switchMap(({ uid, pageSize }) => {
         const size = pageSize ?? 24;
 
@@ -86,7 +80,6 @@ export class FriendsPaginationEffects {
             P.loadFriendsPageSuccess({
               uid,
               items,
-              // ✅ Store sempre epoch
               nextOrderValue: this.normalizeCursor(nextAfter),
               reachedEnd,
               append: false,
@@ -106,35 +99,24 @@ export class FriendsPaginationEffects {
   loadNext$ = createEffect(() =>
     this.actions$.pipe(
       ofType(P.loadFriendsNextPage),
-
       tap(({ uid, pageSize }) => this.debug('next:action', { uid, pageSize })),
-
-      // pega os 3 pedaços do store diretamente (sem reemitir action)
       concatLatestFrom((action) => [
         this.store.select(selectFriendsPageLoading(action.uid)),
         this.store.select(selectFriendsPageReachedEnd(action.uid)),
         this.store.select(selectFriendsPageNextOrder(action.uid)),
       ]),
-
-      // se já está carregando ou já acabou, não faz nada
       filter(([action, loading, reachedEnd]) => {
         const uidOk = !!(action.uid ?? '').trim();
         const canRun = uidOk && !loading && !reachedEnd;
+
         if (!canRun) {
-          // útil pra diagnosticar "scroll chamando demais"
-          // (não é erro; é comportamento esperado)
-          // log somente em dev
-          // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-          this.debugEnabled && this.debug('next:skipped', { uid: action.uid, loading, reachedEnd });
+          this.debug('next:skipped', { uid: action.uid, loading, reachedEnd });
         }
+
         return canRun;
       }),
-
-      // IMPORTANTe:
-      // - exhaustMap evita cancelamento da página em voo (switchMap poderia cancelar)
-      // - com seu "loading" no store, isso vira um “filtro + trava” robusto
       exhaustMap(([action, _loading, _reachedEnd, nextOrderValue]) => {
-        const afterEpoch = this.normalizeCursor(nextOrderValue); // ✅ number|null
+        const afterEpoch = this.normalizeCursor(nextOrderValue);
         const size = action.pageSize ?? 24;
 
         this.debug('next:svc:call', { uid: action.uid, size, afterEpoch });
