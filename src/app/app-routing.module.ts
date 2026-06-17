@@ -236,12 +236,6 @@ const routes: Routes = [
             (m) => m.PAYMENTS_CORE_ROUTES
           ),
       },
-      {
-        path: 'perfil-debug/:id',
-        loadComponent: () =>
-          import('./perfil-debug.component').then(c => c.PerfilDebugComponent),
-        canActivate: [authGuard],
-      },
 
       {
         path: 'conta',
