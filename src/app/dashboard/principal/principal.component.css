@@ -4,7 +4,7 @@
 
    Objetivos:
    - visual de rede social/profissional;
-   - cada ação principal aparece em um único bloco;
+   - sem subtítulo que repete o título do card;
    - botões com microinteração perceptível, sem exagero;
    - responsividade real em mobile.
    ----------------------------------------------------------------------------
@@ -54,8 +54,7 @@
   padding: 0;
 }
 
-.principal-hero__eyebrow,
-.principal-panel__eyebrow {
+.principal-hero__eyebrow {
   margin: 0;
   color: color-mix(in oklab, var(--primary-color, #ff7070) 72%, var(--text-color, #f5f7fb));
   font-size: 0.76rem;
@@ -66,8 +65,7 @@
 }
 
 .principal-hero h1,
-.principal-panel h2,
-.principal-next-steps h2 {
+.principal-panel h2 {
   margin: 0;
   color: var(--text-color, #f5f7fb);
   line-height: 1.08;
@@ -81,8 +79,7 @@
 }
 
 .principal-hero__description,
-.principal-panel__description,
-.principal-next-steps p {
+.principal-panel__description {
   margin: 0;
   max-width: 70ch;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
@@ -179,6 +176,12 @@
   background: color-mix(in oklab, var(--surface-color, #101923) 88%, var(--text-color, #f5f7fb) 5%);
 }
 
+.principal-action--small {
+  min-height: 34px;
+  padding-inline: 12px;
+  font-size: 0.8rem;
+}
+
 .principal-action__icon {
   display: inline-grid;
   place-items: center;
@@ -219,6 +222,10 @@
   border-radius: 18px;
 }
 
+.principal-metric--account {
+  align-content: start;
+}
+
 .principal-metric__label {
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
   font-size: 0.84rem;
@@ -237,6 +244,13 @@
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 60%, transparent);
   font-size: 0.8rem;
   line-height: 1.35;
+}
+
+.principal-metric__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .principal-inline-link {
@@ -288,8 +302,7 @@
   padding: 0;
 }
 
-.principal-panel h2,
-.principal-next-steps h2 {
+.principal-panel h2 {
   font-size: clamp(1.18rem, 1.7vw, 1.55rem);
 }
 
@@ -318,54 +331,12 @@
   justify-content: flex-start;
 }
 
-/* Próximos passos ---------------------------------------------------------- */
-
-.principal-next-steps,
-.principal-next-steps.app-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
-  gap: clamp(14px, 2vw, 24px);
-  align-items: center;
-  padding: clamp(16px, 2.4vw, 24px);
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 20px;
-  background:
-    linear-gradient(135deg, color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent), transparent 54%),
-    var(--surface-color, #101923);
-  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
-}
-
-.principal-next-steps__copy {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.principal-next-steps__actions,
-.principal-next-steps__actions.app-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 0;
-}
-
 /* Mobile ------------------------------------------------------------------- */
 
 @media (max-width: 1100px) {
-  .principal-next-steps,
-  .principal-next-steps.app-card {
-    grid-template-columns: 1fr;
-  }
-
   .principal-overview,
   .principal-section-grid {
     grid-template-columns: 1fr;
-  }
-
-  .principal-next-steps__actions,
-  .principal-next-steps__actions.app-card__actions {
-    justify-content: flex-start;
   }
 }
 
@@ -377,11 +348,9 @@
   .principal-hero,
   .principal-metric,
   .principal-panel,
-  .principal-next-steps,
   .principal-hero.app-card,
   .principal-metric.app-card,
-  .principal-panel.app-card,
-  .principal-next-steps.app-card {
+  .principal-panel.app-card {
     padding: 16px;
     border-radius: 16px;
     box-shadow: none;
@@ -389,8 +358,7 @@
 
   .principal-panel__actions,
   .principal-panel__actions.app-card__actions,
-  .principal-next-steps__actions,
-  .principal-next-steps__actions.app-card__actions {
+  .principal-metric__actions {
     display: grid;
     grid-template-columns: 1fr;
     width: 100%;
@@ -429,7 +397,6 @@
 html.high-contrast .principal-hero,
 html.high-contrast .principal-metric,
 html.high-contrast .principal-panel,
-html.high-contrast .principal-next-steps,
 html.high-contrast .principal-action {
   border-color: currentColor !important;
   box-shadow: none !important;
