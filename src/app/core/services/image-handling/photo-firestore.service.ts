@@ -21,6 +21,7 @@ export interface Photo {
   url: string;
   fileName: string;
   createdAt: Date;
+  displayDate?: number | null;
   path?: string;
 }
 
@@ -31,7 +32,7 @@ export interface PhotoComment {
 }
 
 export type PhotoUpdateData =
-  Partial<Pick<Photo, 'url' | 'fileName' | 'createdAt' | 'path'>> &
+  Partial<Pick<Photo, 'url' | 'fileName' | 'createdAt' | 'displayDate' | 'path'>> &
   Record<string, unknown>;
 
 @Injectable({
@@ -155,6 +156,30 @@ export class PhotoFirestoreService {
     );
   }
 
+  async updatePhotoDisplayDate(
+    userId: string,
+    photoId: string,
+    displayDate: number | null
+  ): Promise<void> {
+    const safeUserId = this.requireUserId(userId);
+    const safePhotoId = photoId?.trim();
+
+    if (!safePhotoId) {
+      throw this.normalizeHandledError(
+        new Error('Foto inválida.'),
+        'Foto inválida.',
+        { op: 'updatePhotoDisplayDate', userId: safeUserId, photoId }
+      );
+    }
+
+    const normalizedDisplayDate = this.normalizeDisplayDate(displayDate);
+
+    await this.updatePhotoMetadata(safeUserId, safePhotoId, {
+      displayDate: normalizedDisplayDate,
+      updatedAt: new Date(),
+    });
+  }
+
   async addComment(userId: string, photoId: string, comment: string): Promise<void> {
     const safeUserId = this.requireUserId(userId);
 
@@ -225,6 +250,19 @@ getComments(userId: string, photoId: string): Observable<PhotoComment[]> {
       'Erro ao deletar a foto ou metadados.',
       { op: 'deletePhoto', userId: safeUserId, photoId, photoPath }
     );
+  }
+
+  private normalizeDisplayDate(value: number | null): number | null {
+    if (value === null) {
+      return null;
+    }
+
+    if (!Number.isFinite(value) || value < 0) {
+      return null;
+    }
+
+    const maxSupportedDate = new Date('2100-12-31T23:59:59.999Z').getTime();
+    return Math.min(Math.trunc(value), maxSupportedDate);
   }
 
   private getSafeUserId(userId: string | null | undefined): string | null {
