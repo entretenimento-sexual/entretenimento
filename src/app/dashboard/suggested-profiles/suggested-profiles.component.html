@@ -1,45 +1,112 @@
-<!-- src\app\dashboard\suggested-profiles\suggested-profiles.component.html -->
-<main class="app-page suggested-profiles-page">
-  <section class="container-wide stack">
-    @if (matchingProfilesCount) {
-      <p class="profile-count">
-        Foram encontrados {{ matchingProfilesCount }} perfis que correspondem aos seus desejos.
-      </p>
-    }
+<!-- src/app/dashboard/suggested-profiles/suggested-profiles.component.html -->
+<!--
+  Lista de perfis sugeridos.
 
-    <div class="profiles-grid">
-      @for (profile of suggestedProfiles; track trackByUid($index, profile)) {
-        <mat-card class="profile-card">
-          <mat-card-header>
-            <div
-              mat-card-avatar
-              class="profile-avatar"
-              [style.background-image]="'url(' + profile.photoURL + ')'"
-              aria-hidden="true">
+  Diretriz:
+  - remove dependência visual do mat-card nesta tela;
+  - usa o card system global: app-card, app-card-grid, app-media-frame, app-chip e app-action;
+  - melhora navegação mobile e torna o CTA "Ver perfil" funcional via routerLink.
+-->
+
+<main class="app-page suggested-profiles-page">
+  <section class="container-wide suggested-profiles-shell" aria-labelledby="suggested-profiles-title">
+    <header class="suggested-profiles-hero app-card app-card--flat">
+      <div class="suggested-profiles-hero__copy">
+        <span class="suggested-profiles-hero__eyebrow">Descoberta</span>
+        <h1 id="suggested-profiles-title">Perfis sugeridos</h1>
+
+        @if (matchingProfilesCount) {
+          <p class="profile-count">
+            Encontramos <strong>{{ matchingProfilesCount }}</strong>
+            {{ matchingProfilesCount === 1 ? 'perfil compatível' : 'perfis compatíveis' }} com seus desejos.
+          </p>
+        } @else {
+          <p class="profile-count profile-count--muted">
+            Sugestões personalizadas aparecem aqui conforme seu perfil e preferências evoluem.
+          </p>
+        }
+      </div>
+    </header>
+
+    @if (suggestedProfiles.length) {
+      <div class="profiles-grid app-card-grid" role="list" aria-label="Perfis sugeridos">
+        @for (profile of suggestedProfiles; track trackByUid($index, profile)) {
+          <article class="profile-card app-card app-card--interactive" role="listitem">
+            <a
+              class="profile-card__media app-media-frame app-media-frame--portrait"
+              [routerLink]="['/outro-perfil', profile.uid]"
+              [attr.aria-label]="'Abrir perfil de ' + (profile.nickname || profile.nome || 'usuário')"
+            >
+              @if (profile.photoURL) {
+                <img
+                  class="profile-card__photo"
+                  [src]="profile.photoURL"
+                  [alt]="'Foto de perfil de ' + (profile.nickname || profile.nome || 'usuário')"
+                  loading="lazy"
+                  referrerpolicy="no-referrer"
+                />
+              } @else {
+                <span class="profile-card__placeholder" aria-hidden="true">
+                  {{ (profile.nickname || profile.nome || '?').slice(0, 1).toUpperCase() }}
+                </span>
+              }
+
+              <span class="profile-card__status app-chip app-chip--overlay" [class.profile-card__status--online]="profile.isOnline">
+                {{ profile.isOnline ? 'Online' : 'Perfil' }}
+              </span>
+            </a>
+
+            <div class="profile-card__body app-card__body">
+              <div class="profile-card__heading">
+                <h2>{{ profile.nickname || profile.nome || 'Perfil sem apelido' }}</h2>
+
+                @if (profile.idade) {
+                  <span class="profile-card__age app-chip app-chip--muted">
+                    {{ profile.idade }} anos
+                  </span>
+                }
+              </div>
+
+              <div class="profile-card__meta" aria-label="Dados do perfil sugerido">
+                @if (profile.municipio || profile.estado) {
+                  <span>
+                    {{ profile.municipio || 'Cidade não informada' }}@if (profile.estado) {, {{ profile.estado }} }
+                  </span>
+                }
+
+                @if (profile.distanciaKm !== undefined) {
+                  <span>{{ profile.distanciaKm | number: '1.0-1' }} km de distância</span>
+                }
+
+                @if (profile.orientation || profile.gender) {
+                  <span>{{ profile.orientation || profile.gender }}</span>
+                }
+              </div>
+
+              <div class="profile-card__chips" aria-label="Sinais do perfil">
+                @if (profile.isSubscriber || profile.subscriptionStatus === 'active') {
+                  <span class="app-chip app-chip--primary">Assinante</span>
+                }
+
+                @if (profile.profileCompleted) {
+                  <span class="app-chip app-chip--success">Completo</span>
+                }
+              </div>
             </div>
 
-            <mat-card-title>{{ profile.nickname }}</mat-card-title>
-            <mat-card-subtitle>
-              {{ profile.email }}
-            </mat-card-subtitle>
-          </mat-card-header>
-
-          <img
-            mat-card-image
-            [src]="profile.photoURL"
-            [alt]="'Foto de perfil de ' + profile.nickname">
-
-          <mat-card-actions>
-            <button type="button" mat-button class="btn-link">
-              Ver perfil
-            </button>
-          </mat-card-actions>
-        </mat-card>
-      }
-    </div>
-
-    @if (noProfilesMessage) {
-      <p class="no-profile-message">
+            <footer class="profile-card__footer app-card__footer">
+              <a
+                class="profile-card__action app-action app-action--primary"
+                [routerLink]="['/outro-perfil', profile.uid]"
+              >
+                Ver perfil
+              </a>
+            </footer>
+          </article>
+        }
+      </div>
+    } @else if (noProfilesMessage) {
+      <p class="no-profile-message app-empty-card">
         {{ noProfilesMessage }}
       </p>
     }
