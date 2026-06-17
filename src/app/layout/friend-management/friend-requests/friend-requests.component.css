@@ -26,17 +26,7 @@
 
 .friend-requests__header,
 .friend-requests__header.app-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 14px;
-  align-items: center;
   padding: 14px 16px;
-}
-
-.friend-requests__copy {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
 }
 
 .friend-requests h1 {
@@ -48,42 +38,11 @@
   letter-spacing: -0.02em;
 }
 
-.friend-requests__copy p,
 .friend-requests__state p {
   margin: 0;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
   font-size: 0.9rem;
   line-height: 1.4;
-}
-
-.friend-requests__summary {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.friend-requests__summary-item {
-  display: grid;
-  gap: 2px;
-  min-width: 82px;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 82%, transparent);
-  border-radius: 12px;
-  background: color-mix(in oklab, var(--surface-color, #101923) 92%, var(--text-color, #f5f7fb) 5%);
-}
-
-.friend-requests__summary-item strong {
-  color: var(--text-color, #f5f7fb);
-  font-size: clamp(1rem, 1.4vw, 1.18rem);
-  font-weight: 900;
-  line-height: 1;
-}
-
-.friend-requests__summary-item span {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
-  font-size: 0.72rem;
-  font-weight: 800;
 }
 
 .friend-requests__badge {
@@ -403,15 +362,6 @@
 }
 
 @media (max-width: 760px) {
-  .friend-requests__header,
-  .friend-requests__header.app-card {
-    grid-template-columns: 1fr;
-  }
-
-  .friend-requests__summary {
-    justify-content: flex-start;
-  }
-
   .request-card,
   .request-card.mat-mdc-card {
     grid-template-columns: 92px minmax(0, 1fr);
