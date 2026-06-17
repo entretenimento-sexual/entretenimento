@@ -8,7 +8,8 @@ export interface IPhotoItem {
   url: string;        // No MVP pode ser asset/preview; no futuro: downloadURL do Storage
   alt?: string;
 
-  createdAt: number;  // epoch ms
+  createdAt: number;  // epoch ms: data técnica de criação/upload
+  displayDate?: number | null; // epoch ms: data escolhida pelo usuário para organizar a galeria
 
    path?: string;
    fileName?: string;
