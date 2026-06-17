@@ -30,6 +30,11 @@
                 "glob": "**/*",
                 "input": "node_modules/@fortawesome/fontawesome-free/webfonts",
                 "output": "assets/webfonts"
+              },
+              {
+                "glob": "pintura.css",
+                "input": "node_modules/@pqina/pintura",
+                "output": "assets/pintura"
               }
             ],
             "styles": [
@@ -44,7 +49,6 @@
               "src/styles/cards.css",
               "src/styles/global-forms.css",
               "src/styles/global-animations.css",
-              "node_modules/@pqina/pintura/pintura.css",
               "src/styles.css"
             ],
             "scripts": [],
