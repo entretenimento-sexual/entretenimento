@@ -4,8 +4,8 @@
 // - edit: foto já persistida, aberta da galeria
 //
 // AJUSTES DESTA VERSÃO:
-// - resolve dados a partir de inputs OU sessão efêmera
-// - suporta replace real a partir da galeria
+// - torna o componente standalone para carregamento tardio real via import()
+// - carrega o CSS do Pintura sob demanda como asset
 // - mantém upload/replace reais via PhotoUploadFlowService
 // - mantém tratamento centralizado de erro
 // - limpa sessão e blob URL no destroy
@@ -29,6 +29,7 @@
 // - evitar uso estrutural fora de fluxos explicitamente opt-in
 // - documentar qualquer novo erro de runtime antes de aprofundar refactors
 // ============================================================================
+import { CommonModule, DOCUMENT } from '@angular/common';
 import {
   AfterViewInit,
   ChangeDetectionStrategy,
@@ -41,10 +42,11 @@ import {
   inject,
   input,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
 import {
   PinturaEditorDefaultOptions,
-  PinturaEditorOptions,
   PinturaImageState,
   appendDefaultEditor,
   createDefaultImageReader,
@@ -80,15 +82,17 @@ type TPinturaEditorInstance = {
 
 @Component({
   selector: 'app-photo-editor',
+  standalone: true,
+  imports: [CommonModule, FormsModule, MatProgressSpinnerModule],
   templateUrl: './photo-editor.component.html',
   styleUrls: ['./photo-editor.component.css'],
-  standalone: false,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PhotoEditorComponent implements OnInit, AfterViewInit {
   private readonly destroyRef = inject(DestroyRef);
   private readonly photoEditorSession = inject(PhotoEditorSessionService);
   private readonly ngZone = inject(NgZone);
+  private readonly document = inject(DOCUMENT);
 
   @ViewChild('editorHost', { static: true })
   private readonly editorHostRef!: ElementRef<HTMLDivElement>;
@@ -116,6 +120,7 @@ export class PhotoEditorComponent implements OnInit, AfterViewInit {
 
   private editorInstance: TPinturaEditorInstance | null = null;
   private viewReady = false;
+  private pinturaStylesReady = false;
 
   private readonly isLoadingSubject = new BehaviorSubject<boolean>(true);
   private readonly isEditorReadySubject = new BehaviorSubject<boolean>(false);
@@ -227,6 +232,7 @@ export class PhotoEditorComponent implements OnInit, AfterViewInit {
             effectiveIsEditMode: this.effectiveIsEditMode,
           });
 
+          await this.ensurePinturaStylesLoaded();
           await this.preloadImage(this.src);
 
           const parsedImageState = this.safeParseImageState(
@@ -438,7 +444,7 @@ export class PhotoEditorComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    if (!this.src || !this.options) {
+    if (!this.src || !this.options || !this.pinturaStylesReady) {
       return;
     }
 
@@ -496,32 +502,67 @@ export class PhotoEditorComponent implements OnInit, AfterViewInit {
     }
   }
 
-private buildEditorOptions(
-  imageState?: PinturaImageState
-): ReturnType<typeof getEditorDefaults> {
-  return getEditorDefaults({
-    imageReader: createDefaultImageReader({ orientImage: true }),
-    imageWriter: createDefaultImageWriter({
-      copyImageHead: false,
-      quality: 0.8,
-    }),
-    locale: locale_pt_br,
-    enableToolbar: true,
-    enableButtonExport: true,
-    enableButtonRevert: true,
-    enableDropImage: true,
-    enableBrowseImage: false,
-    enablePan: true,
-    enableZoom: true,
-    zoomLevel: 1,
-    previewUpscale: true,
-    enableTransparencyGrid: true,
-    imageCropAspectRatio: undefined,
-    imageCrop: undefined,
-    imageBackgroundColor: [255, 255, 255, 0],
-    imageState,
-  });
-}
+  private async ensurePinturaStylesLoaded(): Promise<void> {
+    const id = 'pintura-editor-styles';
+    const existing = this.document.getElementById(id) as HTMLLinkElement | null;
+
+    if (existing) {
+      if (existing.dataset['loaded'] === 'true') {
+        this.pinturaStylesReady = true;
+        return;
+      }
+
+      await new Promise<void>((resolve, reject) => {
+        existing.addEventListener('load', () => resolve(), { once: true });
+        existing.addEventListener('error', () => reject(new Error('Falha ao carregar CSS do Pintura.')), { once: true });
+      });
+      this.pinturaStylesReady = true;
+      return;
+    }
+
+    const link = this.document.createElement('link');
+    link.id = id;
+    link.rel = 'stylesheet';
+    link.href = 'assets/pintura/pintura.css';
+
+    await new Promise<void>((resolve, reject) => {
+      link.addEventListener('load', () => {
+        link.dataset['loaded'] = 'true';
+        resolve();
+      }, { once: true });
+      link.addEventListener('error', () => reject(new Error('Falha ao carregar CSS do Pintura.')), { once: true });
+      this.document.head.appendChild(link);
+    });
+
+    this.pinturaStylesReady = true;
+  }
+
+  private buildEditorOptions(
+    imageState?: PinturaImageState
+  ): ReturnType<typeof getEditorDefaults> {
+    return getEditorDefaults({
+      imageReader: createDefaultImageReader({ orientImage: true }),
+      imageWriter: createDefaultImageWriter({
+        copyImageHead: false,
+        quality: 0.8,
+      }),
+      locale: locale_pt_br,
+      enableToolbar: true,
+      enableButtonExport: true,
+      enableButtonRevert: true,
+      enableDropImage: true,
+      enableBrowseImage: false,
+      enablePan: true,
+      enableZoom: true,
+      zoomLevel: 1,
+      previewUpscale: true,
+      enableTransparencyGrid: true,
+      imageCropAspectRatio: undefined,
+      imageCrop: undefined,
+      imageBackgroundColor: [255, 255, 255, 0],
+      imageState,
+    });
+  }
 
   private validateDraftOwnership(
     sessionDraft: IPhotoEditorDraft | null,
@@ -619,73 +660,48 @@ private buildEditorOptions(
       this.extractFileNameFromUrl(storedUrl) ||
       `${safePhotoId || Date.now()}.jpg`;
 
-    const fallbackMimeType = this.inferMimeTypeFromFileName(fallbackName);
-
     return {
       fileName: fallbackName,
-      mimeType: fallbackMimeType,
+      mimeType: this.guessMimeType(fallbackName),
     };
   }
 
-  private extractFileNameFromPath(path: string): string | null {
-    if (!path) return null;
-
-    const normalized = path.replace(/\\/g, '/');
-    const lastSegment = normalized.split('/').pop()?.trim() ?? '';
-
-    return lastSegment || null;
+  private extractFileNameFromPath(path: string): string {
+    const safe = path.trim();
+    if (!safe) return '';
+    return safe.split('/').pop() ?? '';
   }
 
-  private extractFileNameFromUrl(url: string): string | null {
-    if (!url) return null;
+  private extractFileNameFromUrl(url: string): string {
+    if (!url) return '';
 
     try {
       const parsed = new URL(url);
-      const pathname = decodeURIComponent(parsed.pathname ?? '');
-      const lastSegment = pathname.split('/').pop()?.trim() ?? '';
-      return lastSegment || null;
+      const pathname = decodeURIComponent(parsed.pathname);
+      return pathname.split('/').pop() ?? '';
     } catch {
-      return null;
+      return url.split('/').pop()?.split('?')[0] ?? '';
     }
   }
 
-  private inferMimeTypeFromFileName(fileName: string): string {
-    const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
-
-    switch (ext) {
-      case 'png':
-        return 'image/png';
-      case 'webp':
-        return 'image/webp';
-      case 'jpg':
-      case 'jpeg':
-      default:
-        return 'image/jpeg';
-    }
+  private guessMimeType(fileName: string): string {
+    const lower = fileName.toLowerCase();
+    if (lower.endsWith('.png')) return 'image/png';
+    if (lower.endsWith('.webp')) return 'image/webp';
+    return 'image/jpeg';
   }
 
-  private safeParseImageState(
-    str: string | null | undefined
-  ): PinturaImageState | undefined {
-    const safe = (str ?? '').trim();
-    if (!safe) return undefined;
+  private safeParseImageState(value: string | null): PinturaImageState | undefined {
+    if (!value) return undefined;
 
     try {
-      return this.parseImageState(safe);
+      return this.parseImageState(value);
     } catch (error) {
-      this.reportError(
-        'Não foi possível restaurar o estado anterior da imagem.',
+      this.debug('safeParseImageState:error', {
+        instanceId: this.instanceId,
         error,
-        { op: 'safeParseImageState' }
-      );
+      });
       return undefined;
-    }
-  }
-
-  private revokeSourceObjectUrl(): void {
-    if (this.sourceObjectUrl) {
-      URL.revokeObjectURL(this.sourceObjectUrl);
-      this.sourceObjectUrl = null;
     }
   }
 
@@ -693,33 +709,19 @@ private buildEditorOptions(
     reason: 'uploadSuccess' | 'updateSuccess',
     photo: IPhotoFlowResult
   ): void {
-    if (this.isClosingSubject.value) {
-      this.debug('closeWithSuccess:ignored', {
-        instanceId: this.instanceId,
-        reason,
-      });
-      return;
-    }
-
-    this.debug('closeWithSuccess:start', {
-      instanceId: this.instanceId,
-      href: typeof window !== 'undefined' ? window.location.href : '',
-      reason,
-      photoId: photo?.photoId ?? null,
-    });
-
     this.isClosingSubject.next(true);
     this.activeModal.close({ reason, photo });
   }
 
   private failAndDismiss(
-    userMessage: string,
+    message: string,
     error: unknown,
-    dismissReason: string,
+    reason: string,
     context?: Record<string, unknown>
   ): void {
-    this.reportError(userMessage, error, context);
-    this.activeModal.dismiss(dismissReason);
+    this.reportError(message, error, context);
+    this.isClosingSubject.next(true);
+    this.activeModal.dismiss(reason);
   }
 
   private reportError(
@@ -740,6 +742,7 @@ private buildEditorOptions(
       (err as any).original = error;
       (err as any).context = {
         scope: 'PhotoEditorComponent',
+        instanceId: this.instanceId,
         ...(context ?? {}),
       };
       (err as any).skipUserNotification = true;
@@ -748,16 +751,19 @@ private buildEditorOptions(
       // noop
     }
 
-    this.debug('reportError', {
-      userMessage,
-      context,
-      error,
-    });
+    this.debug('reportError', { userMessage, context, error });
+  }
+
+  private revokeSourceObjectUrl(): void {
+    if (this.sourceObjectUrl) {
+      URL.revokeObjectURL(this.sourceObjectUrl);
+      this.sourceObjectUrl = null;
+    }
   }
 
   private debug(msg: string, data?: unknown): void {
     if (!this.DEBUG) return;
     // eslint-disable-next-line no-console
-    console.debug(`[PhotoEditor] ${msg}`, data ?? '');
+    console.debug(`[PhotoEditor:${this.instanceId}] ${msg}`, data ?? '');
   }
-} // Linha 742
+}
