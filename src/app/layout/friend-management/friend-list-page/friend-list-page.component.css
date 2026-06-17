@@ -6,7 +6,7 @@
 
 .friends-page {
   display: grid;
-  gap: clamp(14px, 2vw, 22px);
+  gap: clamp(12px, 1.6vw, 18px);
   width: min(100%, var(--content-wide, 1360px));
   min-width: 0;
   margin-inline: auto;
@@ -19,37 +19,31 @@
 .friends-controls.app-card {
   min-width: 0;
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 22px;
+  border-radius: 16px;
   background: var(--surface-color, #101923);
-  box-shadow: var(--box-shadow, 0 14px 34px rgb(0 0 0 / 18%));
+  box-shadow: var(--box-shadow, 0 10px 24px rgb(0 0 0 / 14%));
 }
 
 .friends-page__hero,
 .friends-page__hero.app-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: clamp(16px, 2.5vw, 28px);
+  gap: 14px;
   align-items: center;
-  padding: clamp(18px, 2.6vw, 30px);
-  background:
-    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 14%, transparent), transparent 36%),
-    linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--surface-color, #101923) 96%, var(--text-color, #f5f7fb) 4%),
-      color-mix(in oklab, var(--surface-color, #101923) 90%, black 10%)
-    );
+  padding: 14px 16px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 96%, var(--text-color, #f5f7fb) 4%);
 }
 
 .friends-page__copy {
   display: grid;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
 }
 
 .friends-page__eyebrow {
-  color: color-mix(in oklab, var(--primary-color, #ff7070) 74%, var(--text-color, #f5f7fb));
-  font-size: 0.76rem;
-  font-weight: 900;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.68rem;
+  font-weight: 850;
   letter-spacing: 0.08em;
   line-height: 1.1;
   text-transform: uppercase;
@@ -58,50 +52,52 @@
 .friends-page h1 {
   margin: 0;
   color: var(--text-color, #f5f7fb);
-  font-size: clamp(1.65rem, 3vw, 2.55rem);
-  font-weight: 950;
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-weight: 900;
   line-height: 1.08;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 
 .friends-page__copy p {
   margin: 0;
-  max-width: 68ch;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
-  line-height: 1.5;
+  max-width: 62ch;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
 .friends-page__metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(96px, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .friends-page__metric {
   display: grid;
-  gap: 4px;
-  min-width: 0;
-  padding: 13px 14px;
+  gap: 2px;
+  min-width: 76px;
+  padding: 8px 10px;
   border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 82%, transparent);
-  border-radius: 16px;
-  background: color-mix(in oklab, var(--surface-color, #101923) 86%, var(--text-color, #f5f7fb) 7%);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, var(--text-color, #f5f7fb) 5%);
 }
 
 .friends-page__metric strong {
   color: var(--text-color, #f5f7fb);
-  font-size: clamp(1.25rem, 2vw, 1.65rem);
-  font-weight: 950;
+  font-size: clamp(1rem, 1.4vw, 1.18rem);
+  font-weight: 900;
   line-height: 1;
 }
 
 .friends-page__metric span {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
-  font-size: 0.8rem;
-  font-weight: 850;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .friends-page__metric--online {
-  border-color: color-mix(in oklab, var(--success-color, #36d399) 38%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  border-color: color-mix(in oklab, var(--success-color, #36d399) 30%, var(--surface-border, rgba(255, 255, 255, 0.12)));
 }
 
 .friends-controls,
@@ -110,7 +106,7 @@
   grid-template-columns: minmax(220px, 1fr) minmax(180px, 240px) auto;
   gap: 12px;
   align-items: center;
-  padding: 14px;
+  padding: 12px;
 }
 
 .friends-controls__field {
@@ -159,7 +155,7 @@
   }
 
   .friends-page__metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: flex-start;
   }
 
   .friends-controls__toggle {
@@ -176,13 +172,23 @@
   .friends-controls,
   .friends-page__hero.app-card,
   .friends-controls.app-card {
-    padding: 16px;
-    border-radius: 16px;
+    padding: 12px;
+    border-radius: 14px;
     box-shadow: none;
   }
 
+  .friends-page__copy p {
+    font-size: 0.84rem;
+  }
+
   .friends-page__metrics {
-    grid-template-columns: 1fr;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .friends-page__metric {
+    min-width: 0;
   }
 }
 
