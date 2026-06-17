@@ -3,6 +3,33 @@
   Pular para o conteúdo principal
 </a>
 
+<nav class="dashboard-quick-nav app-toolbar" aria-label="Atalhos do dashboard">
+  <a
+    class="dashboard-quick-nav__link app-action app-action--ghost"
+    routerLink="/dashboard/principal"
+    routerLinkActive="dashboard-quick-nav__link--active"
+    [routerLinkActiveOptions]="{ exact: true }"
+  >
+    Principal
+  </a>
+
+  <a
+    class="dashboard-quick-nav__link app-action app-action--ghost"
+    routerLink="/dashboard/explorar"
+    routerLinkActive="dashboard-quick-nav__link--active"
+  >
+    Explorar
+  </a>
+
+  <a
+    class="dashboard-quick-nav__link app-action app-action--primary"
+    routerLink="/dashboard/perfis-sugeridos"
+    routerLinkActive="dashboard-quick-nav__link--active"
+  >
+    Sugeridos
+  </a>
+</nav>
+
 <main
   id="dashboard-main"
   class="dashboard-content"
