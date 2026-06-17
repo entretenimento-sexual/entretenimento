@@ -12,6 +12,8 @@
     "build:emu": "ng build -c dev-emu",
     "build:staging": "ng build -c staging",
     "build:prod": "ng build -c production",
+    "build:safe": "npm run rules:build && npm run rules:check && ng build",
+    "validate:local": "npm run rules:build && npm run rules:check && npm run functions:build && npm run build:emu",
     "test": "ng test",
     "functions:build": "npm --prefix functions run build",
     "emu:pre": "kill-port 4000 4400 4500 9099 8080 5001 8087 9000 9199 9150 || exit 0",
