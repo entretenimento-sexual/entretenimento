@@ -1,896 +1,489 @@
-/* src\app\layout\friend-management\friend-requests\friend-requests.component.css */
-/* ============================================================================
-   FRIEND REQUESTS COMPONENT
-   ----------------------------------------------------------------------------
-   Tela: /friends/requests
-
-   Objetivo visual:
-   - transformar a tela de solicitações em uma área de produto, não de painel cru;
-   - manter decisão de consentimento clara: aceitar, recusar, cancelar e bloquear;
-   - valorizar foto, nome, mensagem enviada e metadados públicos;
-   - funcionar bem em desktop, notebook, tablet e mobile;
-   - respeitar tema claro, escuro, alto contraste e foco acessível.
-
-   Observação importante:
-   - Nos cards de perfil usamos ações icon-only.
-   - Nesta tela, mantemos texto em Aceitar/Recusar/Cancelar porque são decisões
-     sensíveis de consentimento. Isso reduz clique acidental.
-   ============================================================================ */
+/* src/app/layout/friend-management/friend-requests/friend-requests.component.css */
 :host {
-  /* Dimensões base */
-  --fr-avatar-mobile: clamp(84px, 24vw, 112px);
-  --fr-avatar-desktop: clamp(140px, 10.2vw, 184px);
-  --fr-avatar-aspect: 3 / 4;
-
-  /* Galeria opcional */
-  --fr-rail-cols: 2;
-  --fr-rail-thumb: clamp(68px, 5vw, 86px);
-  --fr-rail-gap: 6px;
-
-  /* Cores locais com fallback nos tokens globais */
-  --fr-bg: var(--surface-color);
-  --fr-border: var(--surface-border);
-  --fr-text: var(--text-color);
-  --fr-muted: color-mix(in oklab, var(--text-color) 68%, transparent);
-  --fr-soft: color-mix(in oklab, var(--surface-color) 88%, var(--text-color) 5%);
-  --fr-primary: var(--primary-color);
-  --fr-danger: var(--danger-color);
-  --fr-success: var(--snackbar-success, #2e7d32);
-
   display: block;
-  box-sizing: border-box;
+  min-width: 0;
 }
-
-/* ============================================================================
-   Container da página
-   ============================================================================ */
 
 .friend-requests {
-  width: 100%;
-  min-height: clamp(480px, 60svh, 800px);
-
-  margin: 1rem;
-  padding: clamp(1rem, 2vw, 1.25rem);
-
-  display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
-
-  border-radius: var(--radius-lg, 12px);
-  border: 1px solid var(--fr-border);
-
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--fr-bg) 96%, var(--fr-primary) 4%),
-      var(--fr-bg) 42%
-    );
-  color: var(--fr-text);
-
-  box-sizing: border-box;
+  display: grid;
+  gap: clamp(12px, 1.6vw, 18px);
+  width: min(100%, var(--content-wide, 1360px));
+  min-width: 0;
+  margin-inline: auto;
+  color: var(--text-color, #f5f7fb);
 }
 
-.friend-requests h4 {
+.friend-requests__header,
+.friend-requests__header.app-card,
+.friend-requests__state,
+.friend-requests__state.app-card {
+  min-width: 0;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  background: var(--surface-color, #101923);
+  box-shadow: var(--box-shadow, 0 10px 24px rgb(0 0 0 / 14%));
+}
+
+.friend-requests__header,
+.friend-requests__header.app-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+}
+
+.friend-requests__copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.friend-requests h1 {
   margin: 0;
-  font-size: clamp(1rem, 1.4vw, 1.18rem);
-  font-weight: 850;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-weight: 900;
+  line-height: 1.08;
   letter-spacing: -0.02em;
 }
 
-/* ============================================================================
-   Angular Material tabs - ajuste leve
-   ============================================================================ */
+.friend-requests__copy p,
+.friend-requests__state p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
 
-:host ::ng-deep .mat-mdc-tab-group {
-  color: var(--fr-text);
+.friend-requests__summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.friend-requests__summary-item {
+  display: grid;
+  gap: 2px;
+  min-width: 82px;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 82%, transparent);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, var(--text-color, #f5f7fb) 5%);
+}
+
+.friend-requests__summary-item strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1rem, 1.4vw, 1.18rem);
+  font-weight: 900;
+  line-height: 1;
+}
+
+.friend-requests__summary-item span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.friend-requests__badge {
+  margin-left: 8px;
+}
+
+.tab-legend {
+  font-weight: 850;
+  text-transform: none;
 }
 
 :host ::ng-deep .mat-mdc-tab-header {
-  border-bottom-color: color-mix(in oklab, var(--fr-border) 86%, transparent);
+  border-bottom-color: color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 86%, transparent);
 }
 
 :host ::ng-deep .mat-mdc-tab .mdc-tab__text-label {
-  color: var(--fr-muted) !important;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent) !important;
 }
 
 :host ::ng-deep .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
-  color: var(--fr-primary) !important;
+  color: var(--primary-color, #ff7070) !important;
 }
 
 :host ::ng-deep .mat-mdc-tab-body-content {
   overflow: visible;
+  padding-top: 14px;
 }
 
-/* ============================================================================
-   Conteúdo do mat-card
-   ----------------------------------------------------------------------------
-   O Angular Material envolve o conteúdo em .mat-mdc-card-content.
-   Usamos display: contents para permitir que avatar, header, texto e ações
-   participem da mesma grid do card.
-   ============================================================================ */
-
-.friend-requests mat-card .mat-mdc-card-content {
-  padding: 0 !important;
-  display: contents;
-}
-
-/* Fallback para casos em que o encapsulamento do Angular Material impeça a regra. */
-:host ::ng-deep .mat-mdc-card-content {
-  padding: 0 !important;
-  display: contents;
-}
-
-/* ============================================================================
-   Listas
-   ============================================================================ */
-
-.cards {
-  display: flex;
-  flex-direction: column;
-  gap: 0.82rem;
-
+.request-list {
+  display: grid;
+  gap: 12px;
   padding: 0;
   margin: 0;
-
   list-style: none;
 }
 
-.cards > li {
+.request-list > li {
   min-width: 0;
 }
 
-/* ============================================================================
-   Card da solicitação
-   ----------------------------------------------------------------------------
-   Layout base:
-   - avatar à esquerda;
-   - header, mensagem e ações à direita;
-   - em desktop largo pode existir uma terceira coluna de fotos.
-   ============================================================================ */
-
-mat-card {
-  position: relative;
-  overflow: hidden;
-
+.request-card,
+.request-card.mat-mdc-card {
   display: grid;
-  grid-template-columns: var(--fr-avatar-mobile) minmax(0, 1fr);
-  grid-template-areas:
-    "avatar header"
-    "avatar content"
-    "avatar actions";
-
-  column-gap: clamp(0.75rem, 1.4vw, 1rem);
-  align-items: start;
-
+  grid-template-columns: clamp(84px, 14vw, 124px) minmax(0, 1fr);
+  gap: 14px;
   min-width: 0;
-
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-left-width: 3px;
   border-radius: 18px;
-  border: 1px solid color-mix(in oklab, var(--fr-border) 90%, transparent);
-
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--fr-bg) 94%, var(--fr-primary) 3%),
-      var(--fr-bg)
-    );
-  color: var(--fr-text);
-
-  box-shadow:
-    0 14px 34px rgba(0, 0, 0, 0.12),
-    0 4px 12px rgba(0, 0, 0, 0.06);
-
+  background: var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 14%));
   transition:
-    transform 160ms ease,
-    border-color 160ms ease,
-    background-color 160ms ease,
-    box-shadow 160ms ease;
+    transform 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
-mat-card:hover {
-  transform: translateY(-1px);
-  border-color: color-mix(in oklab, var(--fr-primary) 34%, var(--fr-border));
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--fr-bg) 90%, var(--fr-primary) 7%),
-      var(--fr-bg)
-    );
-  box-shadow:
-    0 18px 44px rgba(0, 0, 0, 0.16),
-    0 5px 14px rgba(0, 0, 0, 0.08);
+.request-card:hover,
+.request-card:focus-within {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 34%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  box-shadow: 0 16px 34px rgb(0 0 0 / 20%);
 }
 
-mat-card.is-recebida {
-  border-left: 3px solid color-mix(in oklab, var(--fr-success) 76%, transparent);
+.request-card--inbound {
+  border-left-color: var(--success-color, #36d399);
 }
 
-mat-card.is-enviada {
-  border-left: 3px solid color-mix(in oklab, var(--fr-primary) 76%, transparent);
+.request-card--outbound {
+  border-left-color: var(--primary-color, #ff7070);
 }
 
-/* ============================================================================
-   Header
-   ============================================================================ */
-
-.hdr {
-  grid-area: header;
-
+.request-card__avatar {
   min-width: 0;
-  overflow: hidden;
-
-  padding: 0.78rem 0.82rem 0.24rem 0;
-}
-
-.hdr-main {
-  min-width: 0;
-
-  display: grid;
-  gap: 0.42rem;
-}
-
-.title-row {
-  min-width: 0;
-
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.46rem;
-}
-
-.name {
-  min-width: 0;
-  max-width: min(100%, 22rem);
-
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-
-  color: var(--fr-text);
-
-  font-size: clamp(1rem, 1.2vw, 1.1rem);
-  font-weight: 900;
-  line-height: 1.1;
-  letter-spacing: -0.025em;
-}
-
-.type-icon {
-  width: 18px;
-  height: 18px;
-
-  color: var(--fr-primary);
-
-  font-size: 18px;
-  line-height: 18px;
-}
-
-.type-icon.recebidas {
-  color: var(--fr-success);
-}
-
-.type-icon.enviadas {
-  color: var(--fr-primary);
-}
-
-/* Status online discreto */
-.status-dot {
-  width: 0.55rem;
-  height: 0.55rem;
-
-  flex: 0 0 auto;
-
-  border-radius: 999px;
-  background: #9ca3af;
-
-  box-shadow: 0 0 0 2px color-mix(in oklab, var(--fr-bg) 72%, transparent);
-}
-
-.status-dot.online {
-  background: #22c55e;
-  box-shadow:
-    0 0 0 2px color-mix(in oklab, var(--fr-bg) 72%, transparent),
-    0 0 12px rgba(34, 197, 94, 0.62);
-}
-
-.role-pill {
-  min-height: 1.35rem;
-  padding: 0.18rem 0.48rem;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--fr-primary) 28%, var(--fr-border));
-
-  background: color-mix(in oklab, var(--fr-primary) 12%, var(--fr-bg));
-  color: var(--fr-text);
-
-  font-size: 0.72rem;
-  font-weight: 820;
-  line-height: 1;
-}
-
-.role-pill[data-role="premium"],
-.role-pill[data-role="vip"] {
-  background: color-mix(in oklab, gold 26%, var(--fr-bg));
-  border-color: color-mix(in oklab, gold 46%, var(--fr-border));
-}
-
-.meta-line {
-  min-width: 0;
-
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.48rem;
-}
-
-.meta-chip {
-  min-height: 1.42rem;
-  padding: 0.2rem 0.52rem;
-
-  display: inline-flex;
-  align-items: center;
-
-  border-radius: 999px;
-  border: 1px solid color-mix(in oklab, var(--fr-border) 90%, transparent);
-
-  background: color-mix(in oklab, var(--fr-soft) 88%, transparent);
-  color: color-mix(in oklab, var(--fr-text) 78%, transparent);
-
-  font-size: 0.76rem;
-  font-weight: 760;
-  line-height: 1;
-}
-
-/* ============================================================================
-   Informação / mensagem
-   ============================================================================ */
-
-.info-block {
-  grid-area: content;
-
-  min-width: 0;
-
-  padding: 0.38rem 0.82rem 0.55rem 0;
-
-  display: grid;
-  gap: 0.42rem;
-}
-
-.when {
-  color: var(--fr-muted);
-
-  font-size: 0.86rem;
-  font-weight: 650;
-  line-height: 1.25;
-}
-
-.msg {
-  margin: 0;
-  max-width: 60ch;
-
-  color: var(--fr-text);
-
-  font-size: 0.95rem;
-  font-weight: 620;
-  line-height: 1.35;
-}
-
-.msg::first-letter {
-  text-transform: none;
-}
-
-/* ============================================================================
-   Avatar / mídia
-   ============================================================================ */
-
-.content-with-rail,
-.aside-rail {
-  display: contents;
-}
-
-.big-avatar {
-  grid-area: avatar;
-
-  width: 100%;
-  height: 100%;
   min-height: 100%;
-
-  aspect-ratio: var(--fr-avatar-aspect);
-
-  overflow: hidden;
-
-  border-radius: 0;
-  border-right: 1px solid color-mix(in oklab, var(--fr-border) 88%, transparent);
-
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--fr-text) 16%, transparent),
-      color-mix(in oklab, var(--fr-primary) 10%, transparent)
-    );
+  background: color-mix(in oklab, var(--surface-color, #101923) 82%, #000 18%);
 }
 
-.big-avatar img {
-  width: 100%;
-  height: 100%;
-
+.request-card__avatar img,
+.request-card__avatar-fallback {
   display: block;
-
-  object-fit: cover;
-  object-position: center;
-
-  filter: saturate(1.03) contrast(1.02);
-}
-
-.big-avatar-fallback {
   width: 100%;
   height: 100%;
+  min-height: 180px;
+  object-fit: cover;
+}
 
+.request-card__avatar-fallback {
   display: grid;
   place-items: center;
-
-  color: color-mix(in oklab, var(--fr-text) 66%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 60%, transparent);
 }
 
-.big-avatar-fallback mat-icon {
-  width: 56px;
-  height: 56px;
-
-  font-size: 56px;
-  line-height: 56px;
-
-  opacity: 0.72;
+.request-card__avatar-fallback mat-icon {
+  width: 44px;
+  height: 44px;
+  font-size: 44px;
 }
 
-/* Galeria lateral: oculta no mobile e aparece em telas largas */
-.media-rail {
-  grid-area: media;
-  display: none;
+.request-card__body {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px 14px 14px 0;
 }
 
-.thumb {
-  display: block;
+.request-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
 
-  aspect-ratio: 1 / 1;
+.request-card__identity {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
 
+.request-card__identity h2 {
+  margin: 0;
   overflow: hidden;
-
-  border-radius: 10px;
-  border: 1px solid color-mix(in oklab, var(--fr-border) 90%, transparent);
-
-  background: color-mix(in oklab, var(--fr-text) 10%, transparent);
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.02rem, 1.5vw, 1.22rem);
+  font-weight: 950;
+  line-height: 1.12;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.thumb img {
+.request-card__presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.request-card__presence::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--text-color, #f5f7fb) 46%, transparent);
+}
+
+.request-card__presence--online::before {
+  background: var(--success-color, #36d399);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--success-color, #36d399) 18%, transparent);
+}
+
+.request-card__role {
+  flex: 0 0 auto;
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 28%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent);
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.72rem;
+  font-weight: 850;
+  line-height: 26px;
+}
+
+.request-card__role[data-role='premium'],
+.request-card__role[data-role='vip'] {
+  border-color: color-mix(in oklab, gold 46%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  background: color-mix(in oklab, gold 24%, transparent);
+}
+
+.request-card__meta,
+.request-card__photos,
+.request-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.request-card__meta span {
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 88%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 90%, var(--text-color, #f5f7fb) 6%);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
+  font-size: 0.76rem;
+  font-weight: 760;
+  line-height: 26px;
+}
+
+.request-card__time,
+.request-card__message {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.request-card__time {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.request-card__message {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 82%, transparent);
+  font-weight: 650;
+}
+
+.request-card__thumb {
+  display: block;
+  width: 54px;
+  height: 54px;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 82%, transparent);
+}
+
+.request-card__thumb img {
+  display: block;
   width: 100%;
   height: 100%;
-
-  display: block;
-
   object-fit: cover;
 }
 
-/* ============================================================================
-   Ações das solicitações
-   ----------------------------------------------------------------------------
-   - Aceitar/Recusar/Cancelar mantêm texto visível.
-   - Bloquear fica icon-only, com aria-label no HTML.
-   ============================================================================ */
-
-.request-actions,
-mat-card-actions.request-actions {
-  grid-area: actions;
-
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-start;
-
-  gap: 0.5rem;
-  padding: 0 0.82rem 0.82rem 0;
+.request-card__actions {
+  margin-top: 2px;
 }
 
 .request-action {
-  appearance: none;
-  -webkit-appearance: none;
-
-  min-height: 40px;
-  padding: 0 0.82rem;
-
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.42rem;
-
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 88%, transparent);
   border-radius: 999px;
-  border: 1px solid var(--fr-border);
-
-  background: color-mix(in oklab, var(--fr-bg) 88%, var(--fr-text) 5%);
-  color: var(--fr-text);
-
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, var(--text-color, #f5f7fb) 6%);
+  color: var(--text-color, #f5f7fb);
+  cursor: pointer;
   font: inherit;
   font-size: 0.86rem;
-  font-weight: 850;
-  line-height: 1;
-
-  text-decoration: none;
-  cursor: pointer;
-
+  font-weight: 900;
   transition:
-    transform 150ms ease,
-    background-color 150ms ease,
-    border-color 150ms ease,
-    color 150ms ease,
-    box-shadow 150ms ease,
-    opacity 150ms ease;
+    transform 140ms ease,
+    border-color 140ms ease,
+    background-color 140ms ease,
+    opacity 140ms ease;
 }
 
-.request-action:hover {
+.request-action:hover,
+.request-action:focus-visible {
   transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 42%, var(--surface-border, rgba(255, 255, 255, 0.12)));
 }
 
-.request-action:active {
-  transform: translateY(0);
+.request-action[disabled] {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .request-action mat-icon {
   width: 18px;
   height: 18px;
-
   font-size: 18px;
-  line-height: 18px;
 }
 
 .request-action--accept {
-  background: color-mix(in oklab, var(--fr-success) 18%, var(--fr-bg));
-  color: color-mix(in oklab, var(--fr-success) 72%, var(--fr-text));
-  border-color: color-mix(in oklab, var(--fr-success) 42%, var(--fr-border));
-}
-
-.request-action--accept:hover,
-.request-action--accept:focus-visible {
-  background: var(--fr-success);
-  color: #ffffff;
-  border-color: var(--fr-success);
-
-  box-shadow: 0 12px 24px color-mix(in oklab, var(--fr-success) 28%, transparent);
+  border-color: color-mix(in oklab, var(--success-color, #36d399) 42%, transparent);
+  background: color-mix(in oklab, var(--success-color, #36d399) 16%, transparent);
 }
 
 .request-action--decline,
 .request-action--cancel {
-  background: color-mix(in oklab, var(--fr-primary) 12%, var(--fr-bg));
-  color: var(--fr-primary);
-  border-color: color-mix(in oklab, var(--fr-primary) 34%, var(--fr-border));
-}
-
-.request-action--decline:hover,
-.request-action--decline:focus-visible,
-.request-action--cancel:hover,
-.request-action--cancel:focus-visible {
-  background: color-mix(in oklab, var(--fr-primary) 92%, #000 8%);
-  color: #ffffff;
-  border-color: var(--fr-primary);
-
-  box-shadow: 0 12px 24px color-mix(in oklab, var(--fr-primary) 24%, transparent);
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 32%, transparent);
 }
 
 .request-action--block {
-  width: 40px;
-  min-width: 40px;
-  padding: 0;
-
-  color: var(--fr-danger);
-  background: color-mix(in oklab, var(--fr-danger) 8%, var(--fr-bg));
-  border-color: color-mix(in oklab, var(--fr-danger) 30%, var(--fr-border));
-
-  opacity: 0.82;
+  border-color: color-mix(in oklab, var(--danger-color, #ef4444) 36%, transparent);
+  color: color-mix(in oklab, var(--danger-color, #ef4444) 76%, var(--text-color, #f5f7fb) 24%);
 }
 
-.request-action--block:hover,
-.request-action--block:focus-visible {
-  opacity: 1;
-
-  background: var(--fr-danger);
-  color: #ffffff;
-  border-color: var(--fr-danger);
+.friend-requests__state,
+.friend-requests__state.app-card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: clamp(22px, 4vw, 34px);
+  text-align: center;
 }
 
-.request-action:focus-visible,
-mat-card-actions button:focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
-}
-
-/* ============================================================================
-   Títulos de abas / painéis
-   ============================================================================ */
-
-.tab-legend,
-.panel-head {
+.friend-requests__state h2 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.08rem, 1.8vw, 1.28rem);
   font-weight: 900;
-  letter-spacing: 0.06em;
 }
 
-.tab-legend.recebidas,
-.panel-head.recebidas {
-  color: var(--fr-success);
+.friend-requests__loader {
+  width: 32px;
+  height: 32px;
+  border: 3px solid color-mix(in oklab, var(--primary-color, #ff7070) 24%, transparent);
+  border-top-color: var(--primary-color, #ff7070);
+  border-radius: 999px;
+  animation: friend-requests-spin 850ms linear infinite;
 }
 
-.tab-legend.enviadas,
-.panel-head.enviadas {
-  color: var(--fr-primary);
-}
-
-.panel-head {
-  margin: 0.8rem 0 0.65rem;
-
-  font-size: 0.82rem;
-  line-height: 1;
-}
-
-.empty-inline {
-  margin: 1rem 0;
-  padding: 1rem;
-
-  border-radius: 14px;
-  border: 1px dashed color-mix(in oklab, var(--fr-border) 88%, transparent);
-
-  color: var(--fr-muted);
-  background: color-mix(in oklab, var(--fr-bg) 88%, var(--fr-text) 3%);
-
-  font-weight: 680;
-}
-
-/* Spinner dentro da tela */
-mat-spinner {
-  margin: 1rem auto;
-}
-
-/* ============================================================================
-   Responsividade
-   ============================================================================ */
-
-@media (min-width: 992px) {
-  mat-card {
-    grid-template-columns: var(--fr-avatar-desktop) minmax(0, 1fr);
+@keyframes friend-requests-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
-@media (min-width: 1200px) {
-  :host {
-    --fr-media-width: calc(
-      var(--fr-rail-cols) * var(--fr-rail-thumb) +
-      (var(--fr-rail-cols) - 1) * var(--fr-rail-gap)
-    );
+@media (max-width: 760px) {
+  .friend-requests__header,
+  .friend-requests__header.app-card {
+    grid-template-columns: 1fr;
   }
 
-  mat-card {
-    grid-template-columns: var(--fr-avatar-desktop) minmax(0, 1fr) var(--fr-media-width);
-    grid-template-areas:
-      "avatar header  media"
-      "avatar content media"
-      "avatar actions media";
-
-    column-gap: 0.72rem;
+  .friend-requests__summary {
+    justify-content: flex-start;
   }
 
-  .media-rail {
-    display: grid;
-    grid-template-columns: repeat(var(--fr-rail-cols), 1fr);
-    grid-auto-rows: var(--fr-rail-thumb);
-    gap: var(--fr-rail-gap);
-    align-content: start;
-
-    overflow: auto;
-    padding: 0.5rem 0.5rem 0.5rem 0;
-
-    scrollbar-gutter: stable;
+  .request-card,
+  .request-card.mat-mdc-card {
+    grid-template-columns: 92px minmax(0, 1fr);
   }
 
-  .hdr,
-  .info-block,
-  .request-actions,
-  mat-card-actions.request-actions {
-    padding-right: 0.5rem;
+  .request-card__avatar img,
+  .request-card__avatar-fallback {
+    min-height: 100%;
   }
 }
 
-@media (min-width: 1600px) {
-  :host {
-    --fr-avatar-desktop: clamp(140px, 9.6vw, 176px);
-    --fr-rail-thumb: clamp(64px, 4.6vw, 82px);
-  }
-
-  mat-card {
-    column-gap: 0.58rem;
-  }
-}
-
-@media (max-width: 640px) {
+@media (max-width: 560px) {
   .friend-requests {
-    margin: 0.75rem;
-    padding: 0.85rem;
+    gap: 12px;
+  }
+
+  .friend-requests__header,
+  .friend-requests__state,
+  .friend-requests__header.app-card,
+  .friend-requests__state.app-card,
+  .request-card,
+  .request-card.mat-mdc-card {
     border-radius: 14px;
+    box-shadow: none;
   }
 
-  mat-card {
-    grid-template-columns: var(--fr-avatar-mobile) minmax(0, 1fr);
-    column-gap: 0.72rem;
-    border-radius: 16px;
+  .request-card,
+  .request-card.mat-mdc-card {
+    grid-template-columns: 1fr;
   }
 
-  .hdr {
-    padding-top: 0.7rem;
-    padding-right: 0.72rem;
+  .request-card__avatar {
+    height: 220px;
   }
 
-  .info-block {
-    padding-right: 0.72rem;
+  .request-card__body {
+    padding: 14px;
   }
 
-  .request-actions,
-  mat-card-actions.request-actions {
-    gap: 0.42rem;
-    padding-right: 0.72rem;
+  .request-card:hover,
+  .request-card:focus-within,
+  .request-action:hover,
+  .request-action:focus-visible {
+    transform: none;
+    box-shadow: none;
   }
 
-  .request-action {
-    min-height: 42px;
-    padding-inline: 0.72rem;
-  }
-
-  .request-action--block {
-    width: 42px;
-    min-width: 42px;
-    padding: 0;
-  }
-}
-
-@media (max-width: 430px) {
-  :host {
-    --fr-avatar-mobile: 82px;
-  }
-
-  .friend-requests {
-    margin: 0.5rem;
-    padding: 0.72rem;
-  }
-
-  mat-card {
-    column-gap: 0.58rem;
-  }
-
-  .name {
-    max-width: 12rem;
-    font-size: 0.98rem;
-  }
-
-  .meta-chip {
-    font-size: 0.7rem;
-    padding-inline: 0.42rem;
-  }
-
-  .when {
-    font-size: 0.78rem;
-  }
-
-  .msg {
-    font-size: 0.88rem;
+  .request-card__actions {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 
   .request-action {
-    font-size: 0.8rem;
-    padding-inline: 0.64rem;
+    width: 100%;
   }
 }
-
-/* ============================================================================
-   Tema escuro
-   ============================================================================ */
-
-:host-context(.dark-mode) .friend-requests,
-html.dark-mode .friend-requests {
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--surface-color) 92%, var(--fr-primary) 4%),
-      var(--surface-color) 48%
-    );
-}
-
-:host-context(.dark-mode) mat-card,
-html.dark-mode mat-card {
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in oklab, var(--surface-color) 88%, #000 12%),
-      var(--surface-color)
-    );
-
-  box-shadow:
-    0 18px 44px rgba(0, 0, 0, 0.36),
-    0 4px 14px rgba(0, 0, 0, 0.24);
-}
-
-:host-context(.dark-mode) .meta-chip,
-html.dark-mode .meta-chip {
-  background: color-mix(in oklab, var(--surface-color) 78%, #ffffff 7%);
-}
-
-:host-context(.dark-mode) .request-action,
-html.dark-mode .request-action {
-  background: color-mix(in oklab, var(--surface-color) 84%, #ffffff 7%);
-  border-color: color-mix(in oklab, var(--surface-border) 82%, #ffffff 8%);
-}
-
-/* ============================================================================
-   Alto contraste
-   ============================================================================ */
-
-:host-context(.high-contrast) .friend-requests,
-:host-context(.high-contrast) mat-card,
-html.high-contrast .friend-requests,
-html.high-contrast mat-card {
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-  border: 2px solid currentColor !important;
-  box-shadow: none !important;
-}
-
-:host-context(.high-contrast) mat-card:hover,
-html.high-contrast mat-card:hover {
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-:host-context(.high-contrast) .meta-chip,
-:host-context(.high-contrast) .role-pill,
-:host-context(.high-contrast) .empty-inline,
-html.high-contrast .meta-chip,
-html.high-contrast .role-pill,
-html.high-contrast .empty-inline {
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-  border: 2px solid currentColor !important;
-}
-
-:host-context(.high-contrast) .request-action,
-html.high-contrast .request-action {
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-  border: 2px solid currentColor !important;
-  box-shadow: none !important;
-}
-
-:host-context(.high-contrast) .request-action--accept,
-html.high-contrast .request-action--accept {
-  background: var(--text-color) !important;
-  color: var(--background-color) !important;
-}
-
-:host-context(.high-contrast) .request-action--decline,
-:host-context(.high-contrast) .request-action--cancel,
-:host-context(.high-contrast) .request-action--block,
-html.high-contrast .request-action--decline,
-html.high-contrast .request-action--cancel,
-html.high-contrast .request-action--block {
-  background: var(--background-color) !important;
-  color: var(--text-color) !important;
-}
-
-/* ============================================================================
-   Movimento reduzido
-   ============================================================================ */
 
 @media (prefers-reduced-motion: reduce) {
-  mat-card,
-  .request-action {
+  .request-card,
+  .request-action,
+  .friend-requests__loader {
     transition: none !important;
+    animation: none !important;
   }
+}
 
-  mat-card:hover,
-  .request-action:hover {
-    transform: none !important;
-  }
+html.high-contrast .friend-requests__header,
+html.high-contrast .friend-requests__state,
+html.high-contrast .request-card,
+html.high-contrast .request-action,
+html.high-contrast .request-card__meta span,
+html.high-contrast .friend-requests__summary-item {
+  border-color: currentColor !important;
+  box-shadow: none !important;
 }
