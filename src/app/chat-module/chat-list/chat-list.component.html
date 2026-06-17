@@ -80,25 +80,28 @@
       @if (vm.showDirectChats && vm.filteredDirectChats.length > 0) {
         <section
           class="conversation-list__section"
-          aria-labelledby="direct-chats-title"
+          [attr.aria-labelledby]="vm.activeFilter === 'all' ? 'direct-chats-title' : null"
+          [attr.aria-label]="vm.activeFilter !== 'all' ? 'Conversas diretas' : null"
         >
-          <header class="conversation-list__section-header">
-            <h3
-              id="direct-chats-title"
-              class="conversation-list__section-title"
-            >
-              Conversas diretas
-            </h3>
-
-            @if (vm.directUnreadCount > 0) {
-              <span
-                class="conversation-list__section-badge"
-                [attr.aria-label]="vm.directUnreadCount + ' mensagens diretas não lidas'"
+          @if (vm.activeFilter === 'all') {
+            <header class="conversation-list__section-header">
+              <h3
+                id="direct-chats-title"
+                class="conversation-list__section-title"
               >
-                {{ vm.directUnreadCount > 99 ? '99+' : vm.directUnreadCount }}
-              </span>
-            }
-          </header>
+                Conversas diretas
+              </h3>
+
+              @if (vm.directUnreadCount > 0) {
+                <span
+                  class="conversation-list__section-badge"
+                  [attr.aria-label]="vm.directUnreadCount + ' mensagens diretas não lidas'"
+                >
+                  {{ vm.directUnreadCount > 99 ? '99+' : vm.directUnreadCount }}
+                </span>
+              }
+            </header>
+          }
 
           <div class="conversation-list__items">
             @for (chat of vm.filteredDirectChats; track chat.id) {
@@ -171,13 +174,16 @@
       @if (vm.showRooms && vm.filteredRooms.length > 0) {
         <section
           class="conversation-list__section conversation-list__section--rooms"
-          aria-labelledby="rooms-title"
+          [attr.aria-labelledby]="vm.activeFilter === 'all' ? 'rooms-title' : null"
+          [attr.aria-label]="vm.activeFilter !== 'all' ? 'Salas' : null"
         >
-          <header class="conversation-list__section-header">
-            <h3 id="rooms-title" class="conversation-list__section-title">
-              Salas
-            </h3>
-          </header>
+          @if (vm.activeFilter === 'all') {
+            <header class="conversation-list__section-header">
+              <h3 id="rooms-title" class="conversation-list__section-title">
+                Salas
+              </h3>
+            </header>
+          }
 
           <div class="conversation-list__items conversation-list__items--rooms">
             @for (room of vm.filteredRooms; track room.id) {
