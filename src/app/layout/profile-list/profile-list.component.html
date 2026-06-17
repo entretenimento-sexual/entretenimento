@@ -1,36 +1,86 @@
 <!-- src/app/layout/profile-list/profile-list.component.html -->
 @if (loading) {
-  <div class="profile-list-state" aria-live="polite">
-    <p>Carregando perfis...</p>
-  </div>
+  <section class="profile-list-state app-card" aria-live="polite">
+    <span class="profile-list-state__icon" aria-hidden="true"></span>
+    <h2>Carregando perfis</h2>
+    <p>Atualizando a lista da rede.</p>
+  </section>
 } @else if (loadError) {
-  <div class="profile-list-state profile-list-state--error" aria-live="assertive">
-    <p>Não foi possível carregar os perfis agora.</p>
-    <p>Tente novamente em instantes.</p>
-  </div>
+  <section class="profile-list-state profile-list-state--error app-card" aria-live="assertive">
+    <span class="profile-list-state__icon" aria-hidden="true"></span>
+    <h2>Perfis indisponíveis</h2>
+    <p>Não foi possível carregar a lista agora. Tente novamente em instantes.</p>
+  </section>
 } @else if (profiles && profiles.length) {
-  <div class="profile-list-container">
+  <section class="profile-list-container app-card-grid" aria-label="Perfis disponíveis na rede">
     @for (profile of profiles; track trackByUid($index, profile)) {
-      <div class="profile-item">
-        @if (profile.photoURL) {
+      <article
+        class="profile-card app-card app-card--interactive"
+        [class.profile-card--online]="profile.isOnline"
+      >
+        <a
+          class="profile-card__media"
+          [routerLink]="['/perfil', profile.uid]"
+          [attr.aria-label]="'Abrir perfil de ' + displayName(profile)"
+        >
           <img
-            [src]="profile.photoURL"
-            [alt]="displayName(profile)"
-            class="profile-photo"
+            class="profile-card__photo"
+            [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
+            [alt]="'Foto de ' + displayName(profile)"
+            loading="lazy"
+            decoding="async"
+            referrerpolicy="no-referrer"
           />
-        }
 
-        <h3>{{ displayName(profile) }}</h3>
-        <p>{{ profile.descricao || 'Descrição não disponível' }}</p>
+          <span class="profile-card__shade" aria-hidden="true"></span>
 
-        @if (profile.isOnline) {
-          <p class="online-status">Online agora</p>
-        }
-      </div>
+          <span
+            class="profile-card__status"
+            [class.profile-card__status--online]="profile.isOnline"
+          >
+            <span class="profile-card__status-dot" aria-hidden="true"></span>
+            {{ profile.isOnline ? 'Online' : 'Offline' }}
+          </span>
+        </a>
+
+        <div class="profile-card__body">
+          <header class="profile-card__header">
+            <h3>{{ displayName(profile) }}</h3>
+
+            @if (profile.idade) {
+              <span class="profile-card__chip app-chip app-chip--muted">
+                {{ profile.idade }} anos
+              </span>
+            }
+          </header>
+
+          <p class="profile-card__meta">
+            @if (profile.municipio || profile.estado) {
+              {{ profile.municipio }}@if (profile.municipio && profile.estado) {, }{{ profile.estado }}
+            } @else {
+              Localização não informada
+            }
+          </p>
+
+          <p class="profile-card__description">
+            {{ profile.descricao || 'Perfil sem descrição pública no momento.' }}
+          </p>
+
+          <a
+            class="profile-card__action app-action app-action--primary"
+            [routerLink]="['/perfil', profile.uid]"
+            [attr.aria-label]="'Ver perfil de ' + displayName(profile)"
+          >
+            Abrir perfil
+          </a>
+        </div>
+      </article>
     }
-  </div>
+  </section>
 } @else {
-  <div class="no-profiles" aria-live="polite">
-    <p>Nenhum perfil encontrado.</p>
-  </div>
+  <section class="profile-list-state app-card" aria-live="polite">
+    <span class="profile-list-state__icon" aria-hidden="true"></span>
+    <h2>Nenhum perfil encontrado</h2>
+    <p>A lista será atualizada quando houver perfis disponíveis na rede.</p>
+  </section>
 }
