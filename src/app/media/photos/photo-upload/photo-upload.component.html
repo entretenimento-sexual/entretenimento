@@ -5,50 +5,34 @@
 @let policy = (policyResult$ | async);
 @let preview = (previewUrl$ | async);
 @let phase = (phase$ | async);
-@let uploadedPhotoId = (uploadedPhotoId$ | async);
 @let selectedFileName = (selectedFileName$ | async);
 @let selectedFileSizeLabel = (selectedFileSizeLabel$ | async);
 @let uploadPercent = (uploadPercent$ | async);
 
 <section class="upload-page" aria-label="Envio de foto do perfil">
-  <header class="upload-header">
+  <header class="upload-header app-card">
+    <a
+      class="upload-header__back-link"
+      [routerLink]="['/media', 'perfil', ownerUid || '', 'fotos']"
+      aria-label="Voltar para minhas fotos"
+    >
+      ← Minhas fotos
+    </a>
+
     <div class="upload-header__copy">
-      <a
-        class="upload-header__back-link"
-        [routerLink]="['/media', 'perfil', ownerUid || '', 'fotos']"
-        aria-label="Voltar para minhas fotos"
-      >
-        ← Voltar para minhas fotos
-      </a>
-
-      <span class="upload-eyebrow">Mídia do perfil</span>
-
       <h1>Adicionar foto</h1>
-
-      <p>
-        Escolha uma imagem, confira a prévia e edite antes de enviar para proteger sua identidade.
-        A exibição pública depende das regras de publicação e moderação.
-      </p>
+      <p>Selecione uma imagem, revise a prévia e escolha como enviar.</p>
     </div>
-
-    <aside class="upload-header__privacy-card" aria-label="Privacidade no envio">
-      <i class="fas fa-user-shield" aria-hidden="true"></i>
-
-      <div>
-        <strong>Privacidade primeiro</strong>
-        <span>Corte, oculte ou ajuste partes sensíveis antes de publicar.</span>
-      </div>
-    </aside>
   </header>
 
   @if (!canUpload) {
-    <article class="upload-blocked" role="status" aria-live="polite">
+    <article class="upload-blocked app-card" role="status" aria-live="polite">
       <div class="upload-blocked__icon" aria-hidden="true">
         <i class="fas fa-lock"></i>
       </div>
 
       <div>
-        <strong>Acesso negado.</strong>
+        <strong>Acesso bloqueado</strong>
 
         <p>
           @if (policy?.reason === 'NOT_AUTHENTICATED') {
@@ -62,21 +46,10 @@
       </div>
     </article>
   } @else {
-    <article class="upload-card">
+    <article class="upload-card app-card">
       @if (phase !== 'DONE') {
         <div class="upload-grid">
           <section class="upload-panel" aria-label="Selecionar e enviar foto">
-            <div class="upload-panel__header">
-              <span class="upload-eyebrow">Seleção</span>
-
-              <h2>Escolha a imagem</h2>
-
-              <p>
-                Uma boa foto melhora a vitrine do perfil. Antes de enviar, você pode
-                cortar, ajustar ou ocultar áreas sensíveis.
-              </p>
-            </div>
-
             <label class="file-drop" for="fileInput">
               <input
                 #fileInput
@@ -114,10 +87,8 @@
               <i class="fas fa-user-shield" aria-hidden="true"></i>
 
               <div>
-                <strong>Proteja sua identidade antes de publicar</strong>
-                <span>
-                  Use o editor para cortar rosto, ajustar enquadramento ou ocultar partes sensíveis.
-                </span>
+                <strong>Privacidade antes da publicação</strong>
+                <span>Use o editor para cortar, ajustar ou ocultar áreas sensíveis.</span>
               </div>
             </div>
 
@@ -129,7 +100,7 @@
                 [disabled]="phase !== 'READY'"
               >
                 <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
-                <span>Editar com privacidade</span>
+                <span>Editar</span>
               </button>
 
               <button
@@ -170,45 +141,24 @@
                 </div>
 
                 <span class="upload-progress__label">
-                  Enviando imagem... {{ uploadPercent || 0 }}%
+                  Enviando... {{ uploadPercent || 0 }}%
                 </span>
               </div>
             }
-
-            <ul class="upload-hints" aria-label="Informações do envio">
-              <li>
-                <i class="fas fa-shield-alt" aria-hidden="true"></i>
-                <span>O envio respeita as permissões do seu perfil.</span>
-              </li>
-
-              <li>
-                <i class="fas fa-eye-slash" aria-hidden="true"></i>
-                <span>Edite a imagem antes de publicar para reduzir exposição.</span>
-              </li>
-
-              <li>
-                <i class="fas fa-images" aria-hidden="true"></i>
-                <span>Depois, gerencie publicação e visibilidade na sua galeria.</span>
-              </li>
-            </ul>
           </section>
 
           <section class="preview-panel" aria-label="Pré-visualização da foto">
             @if (preview) {
               <figure class="preview-card">
                 <img [src]="preview" alt="Pré-visualização da foto selecionada" />
-
-                <figcaption>
-                  Prévia da foto selecionada
-                </figcaption>
               </figure>
             } @else {
               <div class="preview-empty" role="status" aria-live="polite">
                 <i class="fas fa-images" aria-hidden="true"></i>
 
                 <div>
-                  <strong>Nenhuma imagem selecionada.</strong>
-                  <span>A pré-visualização aparecerá aqui antes do envio.</span>
+                  <strong>Nenhuma imagem selecionada</strong>
+                  <span>A prévia aparecerá aqui.</span>
                 </div>
               </div>
             }
@@ -229,18 +179,11 @@
           </div>
 
           <div class="upload-done__copy">
-            <span class="upload-eyebrow">Concluído</span>
-
             <h2>Foto enviada</h2>
 
             <p>
-              Sua foto foi salva na área de mídia do perfil. Para aparecer para outras
-              pessoas, ela precisa seguir o fluxo de publicação e moderação pública.
+              A foto foi salva na mídia do perfil. A exibição pública segue as regras de publicação e moderação.
             </p>
-
-            @if (uploadedPhotoId) {
-              <small>ID da foto: {{ uploadedPhotoId }}</small>
-            }
 
             <div class="upload-actions upload-actions--done">
               <button
