@@ -1,1 +1,252 @@
-/* src\app\chat-module\invite-list\invite-list.component.css */
+/* src/app/chat-module/invite-list/invite-list.component.css */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.invite-list-page {
+  display: grid;
+  gap: clamp(12px, 1.8vw, 18px);
+  width: min(100%, var(--content-wide, 1180px));
+  min-width: 0;
+  margin-inline: auto;
+  color: var(--text-color, #f5f7fb);
+}
+
+.invite-list-page__header,
+.invite-list-page__header.app-card,
+.invite-list-page__state,
+.invite-list-page__state.app-card,
+.invite-card,
+.invite-card.app-card {
+  min-width: 0;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  background: var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 10px 24px rgb(0 0 0 / 14%));
+}
+
+.invite-list-page__header,
+.invite-list-page__header.app-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.invite-list-page h1,
+.invite-list-page__state h2 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-weight: 900;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.invite-list-page h1 {
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
+}
+
+.invite-list-page__state h2 {
+  font-size: clamp(1.08rem, 1.7vw, 1.24rem);
+}
+
+.invite-list-page__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 30%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent);
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.78rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.invite-list-page__state,
+.invite-list-page__state.app-card {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: clamp(22px, 4vw, 34px);
+  text-align: center;
+}
+
+.invite-list-page__state p {
+  margin: 0;
+  max-width: 42rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  line-height: 1.45;
+}
+
+.invite-list-page__state--error {
+  border-color: color-mix(in oklab, var(--danger-color, #ef4444) 36%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+}
+
+.invite-list-page__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 12px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.invite-card,
+.invite-card.app-card {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  overflow: hidden;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.invite-card:hover,
+.invite-card:focus-within {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 34%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  box-shadow: 0 16px 34px rgb(0 0 0 / 20%);
+}
+
+.invite-card__header,
+.invite-card .mat-mdc-card-header {
+  display: grid;
+  gap: 4px;
+  padding: 0;
+}
+
+.invite-card mat-card-title,
+.invite-card .mat-mdc-card-title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.05rem, 1.6vw, 1.26rem);
+  font-weight: 950;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invite-card mat-card-subtitle,
+.invite-card .mat-mdc-card-subtitle {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  font-size: 0.86rem;
+  font-weight: 760;
+}
+
+.invite-card__body,
+.invite-card .mat-mdc-card-content {
+  padding: 0;
+}
+
+.invite-card__details {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.invite-card__details p {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 82%, transparent);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, var(--text-color, #f5f7fb) 5%);
+}
+
+.invite-card__details span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 56%, transparent);
+  font-size: 0.74rem;
+  font-weight: 820;
+}
+
+.invite-card__details strong {
+  overflow-wrap: anywhere;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.invite-card__actions,
+.invite-card .mat-mdc-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: auto;
+  padding: 2px 0 0;
+}
+
+.invite-card__actions button {
+  min-height: 38px;
+  border-radius: 999px;
+  font-weight: 850;
+}
+
+.invite-card__actions button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+@media (max-width: 640px) {
+  .invite-list-page {
+    gap: 12px;
+  }
+
+  .invite-list-page__header,
+  .invite-list-page__header.app-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .invite-list-page__header,
+  .invite-list-page__state,
+  .invite-card,
+  .invite-list-page__header.app-card,
+  .invite-list-page__state.app-card,
+  .invite-card.app-card {
+    border-radius: 14px;
+    box-shadow: none;
+  }
+
+  .invite-card__actions,
+  .invite-card .mat-mdc-card-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .invite-card__actions button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .invite-card {
+    transition: none !important;
+  }
+
+  .invite-card:hover,
+  .invite-card:focus-within {
+    transform: none;
+  }
+}
+
+html.high-contrast .invite-list-page__header,
+html.high-contrast .invite-list-page__state,
+html.high-contrast .invite-card,
+html.high-contrast .invite-list-page__count,
+html.high-contrast .invite-card__details p {
+  border-color: currentColor !important;
+  box-shadow: none !important;
+}
