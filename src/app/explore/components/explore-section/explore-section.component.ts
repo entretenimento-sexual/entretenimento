@@ -13,7 +13,7 @@ export type TExploreSectionTone = 'default' | 'boosted';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ExploreSectionComponent {
-  readonly eyebrow = input.required<string>();
+  readonly eyebrow = input<string | null>(null);
   readonly title = input.required<string>();
   readonly note = input<string | null>(null);
   readonly routeCommands = input<readonly unknown[] | null>(null);
