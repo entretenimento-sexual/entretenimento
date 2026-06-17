@@ -1,19 +1,20 @@
-/* src/app/layout/other-user-profile-view/other-user-profile-view.component.css */
-/*
-  Perfil visitado
+/* src/app/layout/other-user-profile-view/other-user-profile-view.component.css
+   ----------------------------------------------------------------------------
+   Perfil visitado.
 
-  Direção visual:
-  - vitrine do usuário;
-  - mídia pública aprovada em destaque;
-  - afinidade antes de ficha técnica;
-  - monetização discreta;
-  - sem bloqueios visuais punitivos;
-  - responsivo de verdade.
+   Estratégia:
+   - vitrine principal do usuário visitado;
+   - usa o card system global com fallback local completo;
+   - prioriza mídia pública aprovada, afinidades e ações de interação;
+   - mantém a rota /outro-perfil/:id como destino dos cards sugeridos;
+   - responsivo de verdade, com estados de foco, alto contraste e movimento reduzido.
+   ----------------------------------------------------------------------------
 */
 
 :host {
   display: block;
   width: 100%;
+  min-width: 0;
 }
 
 .other-profile-page {
@@ -23,26 +24,36 @@
   display: grid;
   gap: var(--visited-profile-gap);
   width: min(100%, var(--content-wide, 1360px));
+  min-width: 0;
   margin-inline: auto;
   padding: clamp(12px, 2vw, 24px);
 }
 
-.other-profile-page__topbar {
+/* Topbar ------------------------------------------------------------------- */
+
+.other-profile-page__topbar,
+.other-profile-page__topbar.app-toolbar {
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
-.other-profile-page__back {
+.other-profile-page__back,
+.other-profile-page__back.app-action {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   min-height: 42px;
   padding: 0 14px;
-  border: 1px solid color-mix(in oklab, var(--surface-border) 88%, transparent);
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 88%, transparent);
   border-radius: 12px;
-  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
-  color: var(--text-color);
+  background: color-mix(in oklab, var(--surface-color, #101923) 94%, transparent);
+  color: var(--text-color, #f5f7fb);
   text-decoration: none;
   font-weight: 750;
   transition:
@@ -51,25 +62,52 @@
     background-color 160ms ease;
 }
 
-.other-profile-page__back:hover {
+.other-profile-page__back:hover,
+.other-profile-page__back:focus-visible {
   transform: translateY(-1px);
-  border-color: color-mix(in oklab, var(--primary-color, #ff6b6b) 45%, var(--surface-border));
-  background: color-mix(in oklab, var(--surface-color) 88%, var(--primary-color, #ff6b6b) 12%);
+  border-color: color-mix(in oklab, var(--primary-color, #ff6b6b) 45%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  background: color-mix(in oklab, var(--surface-color, #101923) 88%, var(--primary-color, #ff6b6b) 12%);
 }
+
+/* Layout principal --------------------------------------------------------- */
 
 .other-profile-page__hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
   gap: var(--visited-profile-gap);
   align-items: stretch;
+  min-width: 0;
 }
+
+.other-profile-page__experience {
+  display: grid;
+  grid-template-columns: minmax(0, 1.12fr) minmax(280px, 0.88fr);
+  gap: var(--visited-profile-gap);
+  align-items: stretch;
+  min-width: 0;
+}
+
+.other-profile-page__content {
+  display: grid;
+  grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
+  gap: var(--visited-profile-gap);
+  min-width: 0;
+}
+
+/* Cards -------------------------------------------------------------------- */
 
 .other-profile-page__hero-main,
 .other-profile-page__actions-card,
 .other-profile-page__panel,
 .other-profile-page__media-panel,
-.other-profile-page__intentions-panel {
-  border: 1px solid color-mix(in oklab, var(--surface-border) 88%, transparent);
+.other-profile-page__intentions-panel,
+.other-profile-page__hero-main.app-card,
+.other-profile-page__actions-card.app-card,
+.other-profile-page__panel.app-card,
+.other-profile-page__media-panel.app-card,
+.other-profile-page__intentions-panel.app-card {
+  min-width: 0;
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 88%, transparent);
   border-radius: var(--visited-profile-card-radius);
   background:
     radial-gradient(
@@ -79,14 +117,17 @@
     ),
     linear-gradient(
       180deg,
-      color-mix(in oklab, var(--surface-color) 96%, var(--text-color) 4%),
-      var(--surface-color)
+      color-mix(in oklab, var(--surface-color, #101923) 96%, var(--text-color, #f5f7fb) 4%),
+      var(--surface-color, #101923)
     );
-  color: var(--text-color);
-  box-shadow: var(--box-shadow);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 14px 34px rgb(0 0 0 / 18%));
 }
 
-.other-profile-page__hero-main {
+/* Hero --------------------------------------------------------------------- */
+
+.other-profile-page__hero-main,
+.other-profile-page__hero-main.app-card {
   display: grid;
   grid-template-columns: 190px minmax(0, 1fr);
   gap: clamp(18px, 2.6vw, 32px);
@@ -95,29 +136,36 @@
   padding: clamp(22px, 3vw, 34px);
 }
 
-.other-profile-page__photo-wrap {
+.other-profile-page__photo-wrap,
+.other-profile-page__photo-wrap.app-media-frame {
   display: grid;
   place-items: center;
+  width: auto;
+  aspect-ratio: 1;
   margin: 0;
+  overflow: visible;
+  background: transparent;
 }
 
 .other-profile-page__photo {
+  display: block;
   width: clamp(150px, 13vw, 190px);
   height: clamp(150px, 13vw, 190px);
-  display: block;
+  border: 3px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 58%, var(--surface-border, rgba(255, 255, 255, 0.12)));
   border-radius: 999px;
-  object-fit: cover;
-  border: 3px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 58%, var(--surface-border));
-  background: var(--input-background);
+  background: var(--input-background, #0f1620);
   box-shadow:
     0 18px 45px rgb(0 0 0 / 28%),
-    0 0 0 8px color-mix(in oklab, var(--surface-color) 80%, transparent);
+    0 0 0 8px color-mix(in oklab, var(--surface-color, #101923) 80%, transparent);
+  object-fit: cover;
 }
 
-.other-profile-page__identity {
+.other-profile-page__identity,
+.other-profile-page__identity.app-card__body {
   display: grid;
   gap: 12px;
   min-width: 0;
+  padding: 0;
 }
 
 .other-profile-page__identity-top {
@@ -125,33 +173,37 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+  min-width: 0;
 }
 
-.other-profile-page__subscriber-badge {
+.other-profile-page__eyebrow {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  font-size: 0.78rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.other-profile-page__subscriber-badge,
+.other-profile-page__subscriber-badge.app-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 34%, var(--surface-border));
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 34%, var(--surface-border, rgba(255, 255, 255, 0.12)));
   border-radius: 999px;
   background: color-mix(in oklab, var(--primary-color, #ff6b6b) 12%, transparent);
-  color: var(--text-color);
+  color: var(--text-color, #f5f7fb);
   font-size: 0.78rem;
   font-weight: 820;
 }
 
-.other-profile-page__eyebrow {
-  margin: 0;
-  color: color-mix(in oklab, var(--text-color) 62%, transparent);
-  font-size: 0.78rem;
-  font-weight: 850;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 .other-profile-page__title {
   margin: 0;
+  color: var(--text-color, #f5f7fb);
   font-size: clamp(1.7rem, 2.4vw, 2.55rem);
   line-height: 1.05;
   letter-spacing: -0.03em;
@@ -168,17 +220,17 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: color-mix(in oklab, var(--text-color) 86%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 86%, transparent);
   font-weight: 700;
 }
 
 .other-profile-page__location i {
-  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 76%, var(--text-color) 24%);
+  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 76%, var(--text-color, #f5f7fb) 24%);
 }
 
 .other-profile-page__description {
   max-width: 68ch;
-  color: color-mix(in oklab, var(--text-color) 88%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 88%, transparent);
   font-size: 1rem;
 }
 
@@ -186,30 +238,37 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
 }
 
-.other-profile-page__chip {
+.other-profile-page__chip,
+.other-profile-page__chip.app-chip {
   display: inline-flex;
   align-items: center;
   min-height: 36px;
   padding: 0 13px;
-  border: 1px solid color-mix(in oklab, var(--surface-border) 86%, transparent);
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 86%, transparent);
   border-radius: 999px;
-  background: color-mix(in oklab, var(--surface-color) 86%, var(--text-color) 8%);
-  color: var(--text-color);
+  background: color-mix(in oklab, var(--surface-color, #101923) 86%, var(--text-color, #f5f7fb) 8%);
+  color: var(--text-color, #f5f7fb);
   font-weight: 700;
 }
 
-.other-profile-page__actions-card {
+/* Ações -------------------------------------------------------------------- */
+
+.other-profile-page__actions-card,
+.other-profile-page__actions-card.app-card {
   display: grid;
   align-content: start;
   gap: 16px;
   padding: clamp(18px, 2vw, 24px);
 }
 
-.other-profile-page__actions-heading {
+.other-profile-page__actions-heading,
+.other-profile-page__actions-heading.app-card__header {
   display: grid;
   gap: 4px;
+  padding: 0;
 }
 
 .other-profile-page__actions-title {
@@ -221,46 +280,48 @@
 .other-profile-page__actions {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
-.other-profile-page__action {
+.other-profile-page__action,
+.other-profile-page__action.app-action {
   display: inline-flex;
   align-items: center;
-  width: 100%;
-  min-height: 46px;
   justify-content: center;
   gap: 9px;
+  width: 100%;
+  min-height: 46px;
   font-weight: 850;
+}
+
+.other-profile-page__action[disabled] {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 
 .other-profile-page__actions-helper {
   padding-top: 2px;
-  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
   font-size: 0.94rem;
 }
 
-/* Experiência principal */
-.other-profile-page__experience {
-  display: grid;
-  grid-template-columns: minmax(0, 1.12fr) minmax(280px, 0.88fr);
-  gap: var(--visited-profile-gap);
-  align-items: stretch;
-}
+/* Mídia -------------------------------------------------------------------- */
 
-.other-profile-page__media-panel {
+.other-profile-page__media-panel,
+.other-profile-page__media-panel.app-card {
   display: grid;
   grid-template-columns: minmax(230px, 0.82fr) minmax(0, 1.18fr);
   overflow: hidden;
 }
 
-.other-profile-page__media-visual {
+.other-profile-page__media-visual,
+.other-profile-page__media-visual.app-media-frame {
   position: relative;
   min-height: 300px;
   overflow: hidden;
-  background: color-mix(in oklab, var(--surface-color) 86%, black 14%);
+  background: color-mix(in oklab, var(--surface-color, #101923) 86%, black 14%);
 }
 
-/* Prévia real da galeria */
 .other-profile-page__gallery-preview {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
@@ -276,13 +337,17 @@
   grid-template-rows: 1fr;
 }
 
-.other-profile-page__gallery-item {
+.other-profile-page__gallery-item,
+.other-profile-page__gallery-item.app-card {
   position: relative;
   min-width: 0;
   min-height: 0;
   margin: 0;
   overflow: hidden;
-  background: color-mix(in oklab, var(--surface-color) 84%, black 16%);
+  border: 0;
+  border-radius: 0;
+  background: color-mix(in oklab, var(--surface-color, #101923) 84%, black 16%);
+  box-shadow: none;
 }
 
 .other-profile-page__gallery-item:first-child {
@@ -295,9 +360,9 @@
 
 .other-profile-page__gallery-item img,
 .other-profile-page__gallery-empty img {
+  display: block;
   width: 100%;
   height: 100%;
-  display: block;
   object-fit: cover;
   filter: saturate(1.04) contrast(1.03);
 }
@@ -320,33 +385,12 @@
   min-height: inherit;
 }
 
-.other-profile-page__gallery-empty-copy {
+.other-profile-page__gallery-empty-copy,
+.other-profile-page__gallery-empty-copy.app-chip,
+.other-profile-page__media-overlay,
+.other-profile-page__media-overlay.app-media-overlay {
   position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 18px;
-  z-index: 1;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-
-  min-height: 44px;
-  padding: 0 16px;
-  border: 1px solid rgb(255 255 255 / 20%);
-  border-radius: 999px;
-  background: rgb(0 0 0 / 48%);
-  color: #fff;
-  font-weight: 850;
-  backdrop-filter: blur(10px);
-}
-
-.other-profile-page__media-overlay {
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: 18px;
+  inset: auto 18px 18px;
   z-index: 1;
   display: inline-flex;
   align-items: center;
@@ -362,7 +406,8 @@
   backdrop-filter: blur(10px);
 }
 
-.other-profile-page__media-copy {
+.other-profile-page__media-copy,
+.other-profile-page__media-copy.app-card__body {
   display: grid;
   align-content: center;
   gap: 14px;
@@ -379,71 +424,91 @@
 
 .other-profile-page__media-copy p {
   margin: 0;
-  color: color-mix(in oklab, var(--text-color) 82%, transparent);
-  line-height: 1.55;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 82%, transparent);
+  line-height: 1.5;
 }
 
-.other-profile-page__media-cta {
+.other-profile-page__media-cta,
+.other-profile-page__media-cta.app-action {
   display: inline-flex;
   align-items: center;
   justify-self: start;
-  min-height: 46px;
   gap: 9px;
+  min-height: 46px;
   padding-inline: 18px;
   font-weight: 850;
 }
 
 .other-profile-page__plan-note {
   margin: 0;
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
   font-size: 0.92rem;
   line-height: 1.45;
 }
 
 .other-profile-page__plan-note a {
-  color: var(--primary-color);
+  color: var(--primary-color, #ff6b6b);
   font-weight: 850;
   text-decoration: underline;
 }
 
 .other-profile-page__plan-note--active {
-  color: color-mix(in oklab, var(--text-color) 82%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 82%, transparent);
   font-weight: 720;
 }
 
-/* Afinidades */
-.other-profile-page__intentions-panel {
+/* Afinidades --------------------------------------------------------------- */
+
+.other-profile-page__intentions-panel,
+.other-profile-page__intentions-panel.app-card {
   display: grid;
   align-content: start;
   gap: 18px;
   padding: clamp(20px, 2.2vw, 26px);
 }
 
+.other-profile-page__panel-header,
+.other-profile-page__panel-header.app-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 0;
+}
+
+.other-profile-page__panel-header h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 1.55vw, 1.65rem);
+  line-height: 1.12;
+}
+
 .other-profile-page__preference-cloud {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
 }
 
-.other-profile-page__preference-chip {
+.other-profile-page__preference-chip,
+.other-profile-page__preference-chip.app-chip {
   display: inline-flex;
   align-items: center;
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 24%, var(--surface-border));
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 24%, var(--surface-border, rgba(255, 255, 255, 0.12)));
   border-radius: 999px;
   background: color-mix(in oklab, var(--primary-color, #ff6b6b) 10%, transparent);
-  color: var(--text-color);
+  color: var(--text-color, #f5f7fb);
   font-weight: 740;
 }
 
 .other-profile-page__soft-empty {
   margin: 0;
   padding: 13px 14px;
-  border: 1px dashed color-mix(in oklab, var(--surface-border) 82%, transparent);
+  border: 1px dashed color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 82%, transparent);
   border-radius: 14px;
-  background: color-mix(in oklab, var(--surface-color) 92%, var(--text-color) 8%);
-  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, var(--text-color, #f5f7fb) 8%);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
   line-height: 1.45;
 }
 
@@ -452,15 +517,17 @@
   gap: 10px;
 }
 
-.other-profile-page__signal {
+.other-profile-page__signal,
+.other-profile-page__signal.app-card {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   padding: 12px;
-  border: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 78%, transparent);
   border-radius: 14px;
-  background: color-mix(in oklab, var(--surface-color) 91%, var(--text-color) 7%);
+  background: color-mix(in oklab, var(--surface-color, #101923) 91%, var(--text-color, #f5f7fb) 7%);
+  box-shadow: none;
 }
 
 .other-profile-page__signal i {
@@ -469,8 +536,8 @@
   width: 34px;
   height: 34px;
   border-radius: 999px;
-  background: color-mix(in oklab, var(--surface-border) 50%, transparent);
-  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  background: color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 50%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
 }
 
 .other-profile-page__signal span,
@@ -479,56 +546,39 @@
 }
 
 .other-profile-page__signal span {
-  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
   font-size: 0.82rem;
   font-weight: 800;
 }
 
 .other-profile-page__signal strong {
-  color: var(--text-color);
+  color: var(--text-color, #f5f7fb);
   line-height: 1.35;
 }
 
 .other-profile-page__signal--strong {
-  border-color: color-mix(in oklab, var(--primary-color, #ff6b6b) 38%, var(--surface-border));
-  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 10%, var(--surface-color));
+  border-color: color-mix(in oklab, var(--primary-color, #ff6b6b) 38%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 10%, var(--surface-color, #101923));
 }
 
 .other-profile-page__signal--strong i {
   background: color-mix(in oklab, var(--primary-color, #ff6b6b) 20%, transparent);
-  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 78%, var(--text-color) 22%);
+  color: color-mix(in oklab, var(--primary-color, #ff6b6b) 78%, var(--text-color, #f5f7fb) 22%);
 }
 
 .other-profile-page__signal--muted {
   opacity: 0.78;
 }
 
-/* Detalhes */
-.other-profile-page__content {
-  display: grid;
-  grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
-  gap: var(--visited-profile-gap);
-}
+/* Detalhes ----------------------------------------------------------------- */
 
-.other-profile-page__panel {
+.other-profile-page__panel,
+.other-profile-page__panel.app-card {
   display: grid;
   align-content: start;
   gap: 18px;
   min-height: 240px;
   padding: clamp(18px, 2vw, 24px);
-}
-
-.other-profile-page__panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-
-.other-profile-page__panel-header h2 {
-  margin: 0;
-  font-size: clamp(1.25rem, 1.55vw, 1.65rem);
-  line-height: 1.12;
 }
 
 .other-profile-page__facts {
@@ -541,7 +591,7 @@
   display: grid;
   gap: 5px;
   padding: 14px 0;
-  border-top: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 78%, transparent);
 }
 
 .other-profile-page__fact:first-child {
@@ -550,21 +600,25 @@
 }
 
 .other-profile-page__fact dt {
-  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
   font-size: 0.88rem;
   font-weight: 850;
 }
 
 .other-profile-page__fact dd {
   margin: 0;
-  color: var(--text-color);
+  color: var(--text-color, #f5f7fb);
   font-size: 1rem;
   font-weight: 760;
   line-height: 1.45;
 }
 
+/* Loading/vazio ------------------------------------------------------------ */
+
 .other-profile-page__loading,
-.other-profile-page__empty {
+.other-profile-page__empty,
+.other-profile-page__loading.app-card,
+.other-profile-page__empty.app-card {
   min-height: 180px;
   place-items: center;
   text-align: center;
@@ -585,6 +639,8 @@
   animation: other-profile-pulse 1100ms ease-in-out infinite;
 }
 
+/* Utilitários -------------------------------------------------------------- */
+
 .visually-hidden,
 .sr-only {
   position: absolute !important;
@@ -599,8 +655,8 @@
 }
 
 :focus-visible {
-  outline: var(--focus-ring);
-  outline-offset: var(--focus-offset);
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: var(--focus-offset, 2px);
 }
 
 @keyframes other-profile-pulse {
@@ -616,41 +672,8 @@
   }
 }
 
-/* Alto contraste */
-@media (prefers-contrast: more) {
-  .other-profile-page__hero-main,
-  .other-profile-page__actions-card,
-  .other-profile-page__panel,
-  .other-profile-page__media-panel,
-  .other-profile-page__intentions-panel,
-  .other-profile-page__back,
-  .other-profile-page__chip,
-  .other-profile-page__subscriber-badge {
-    border-width: 2px;
-  }
+/* Responsivo --------------------------------------------------------------- */
 
-  .other-profile-page__eyebrow,
-  .other-profile-page__actions-helper,
-  .other-profile-page__fact dt,
-  .other-profile-page__plan-note {
-    color: var(--text-color);
-  }
-}
-
-/* Movimento reduzido */
-@media (prefers-reduced-motion: reduce) {
-  .other-profile-page__back,
-  .other-profile-page__loading-dot {
-    transition: none;
-    animation: none;
-  }
-
-  .other-profile-page__back:hover {
-    transform: none;
-  }
-}
-
-/* Responsivo */
 @media (max-width: 1180px) {
   .other-profile-page__hero,
   .other-profile-page__experience,
@@ -662,7 +685,8 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .other-profile-page__media-panel {
+  .other-profile-page__media-panel,
+  .other-profile-page__media-panel.app-card {
     grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1.28fr);
   }
 
@@ -676,7 +700,8 @@
     padding: 12px;
   }
 
-  .other-profile-page__hero-main {
+  .other-profile-page__hero-main,
+  .other-profile-page__hero-main.app-card {
     grid-template-columns: 1fr;
     text-align: center;
   }
@@ -691,7 +716,8 @@
     margin-inline: auto;
   }
 
-  .other-profile-page__media-panel {
+  .other-profile-page__media-panel,
+  .other-profile-page__media-panel.app-card {
     grid-template-columns: 1fr;
   }
 
@@ -699,7 +725,8 @@
     min-height: 260px;
   }
 
-  .other-profile-page__media-cta {
+  .other-profile-page__media-cta,
+  .other-profile-page__media-cta.app-action {
     width: 100%;
     justify-content: center;
   }
@@ -715,15 +742,22 @@
   .other-profile-page__actions-card,
   .other-profile-page__panel,
   .other-profile-page__media-panel,
-  .other-profile-page__intentions-panel {
+  .other-profile-page__intentions-panel,
+  .other-profile-page__hero-main.app-card,
+  .other-profile-page__actions-card.app-card,
+  .other-profile-page__panel.app-card,
+  .other-profile-page__media-panel.app-card,
+  .other-profile-page__intentions-panel.app-card {
     border-radius: 16px;
+    box-shadow: none;
   }
 
   .other-profile-page__actions {
     grid-template-columns: 1fr;
   }
 
-  .other-profile-page__action {
+  .other-profile-page__action,
+  .other-profile-page__action.app-action {
     min-height: 48px;
   }
 
@@ -746,7 +780,9 @@
   }
 
   .other-profile-page__media-copy,
-  .other-profile-page__intentions-panel {
+  .other-profile-page__intentions-panel,
+  .other-profile-page__media-copy.app-card__body,
+  .other-profile-page__intentions-panel.app-card {
     padding: 16px;
   }
 }
@@ -760,12 +796,68 @@
   .other-profile-page__actions-card,
   .other-profile-page__panel,
   .other-profile-page__media-copy,
-  .other-profile-page__intentions-panel {
+  .other-profile-page__intentions-panel,
+  .other-profile-page__hero-main.app-card,
+  .other-profile-page__actions-card.app-card,
+  .other-profile-page__panel.app-card,
+  .other-profile-page__media-copy.app-card__body,
+  .other-profile-page__intentions-panel.app-card {
     padding: 16px;
   }
 
-  .other-profile-page__back {
+  .other-profile-page__back,
+  .other-profile-page__back.app-action {
     width: 100%;
     justify-content: center;
   }
+}
+
+/* Acessibilidade ----------------------------------------------------------- */
+
+@media (prefers-contrast: more) {
+  .other-profile-page__hero-main,
+  .other-profile-page__actions-card,
+  .other-profile-page__panel,
+  .other-profile-page__media-panel,
+  .other-profile-page__intentions-panel,
+  .other-profile-page__back,
+  .other-profile-page__chip,
+  .other-profile-page__subscriber-badge {
+    border-width: 2px;
+  }
+
+  .other-profile-page__eyebrow,
+  .other-profile-page__actions-helper,
+  .other-profile-page__fact dt,
+  .other-profile-page__plan-note {
+    color: var(--text-color, #f5f7fb);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .other-profile-page__back,
+  .other-profile-page__loading-dot,
+  .other-profile-page__gallery-item img,
+  .other-profile-page__gallery-empty img {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .other-profile-page__back:hover {
+    transform: none;
+  }
+}
+
+html.high-contrast .other-profile-page__hero-main,
+html.high-contrast .other-profile-page__actions-card,
+html.high-contrast .other-profile-page__panel,
+html.high-contrast .other-profile-page__media-panel,
+html.high-contrast .other-profile-page__intentions-panel,
+html.high-contrast .other-profile-page__back,
+html.high-contrast .other-profile-page__chip,
+html.high-contrast .other-profile-page__subscriber-badge,
+html.high-contrast .other-profile-page__preference-chip,
+html.high-contrast .other-profile-page__signal {
+  border-color: currentColor !important;
+  box-shadow: none !important;
 }
