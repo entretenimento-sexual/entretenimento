@@ -1,22 +1,7 @@
 <!-- src/app/layout/friend-management/friend-requests/friend-requests.component.html -->
 <section class="friend-requests" aria-labelledby="fr-title" aria-live="polite">
   <header class="friend-requests__header app-card">
-    <div class="friend-requests__copy">
-      <h1 id="fr-title">Solicitações</h1>
-      <p>Revise convites recebidos e acompanhe pedidos enviados.</p>
-    </div>
-
-    <div class="friend-requests__summary" aria-label="Resumo de solicitações">
-      <span class="friend-requests__summary-item">
-        <strong>{{ (inboundCount$ | async) || 0 }}</strong>
-        <span>Recebidas</span>
-      </span>
-
-      <span class="friend-requests__summary-item">
-        <strong>{{ (outboundCount$ | async) || 0 }}</strong>
-        <span>Enviadas</span>
-      </span>
-    </div>
+    <h1 id="fr-title">Solicitações</h1>
   </header>
 
   <mat-tab-group aria-labelledby="fr-title">
