@@ -6,6 +6,7 @@
   - usa o card system global: app-card, app-toolbar, app-action, app-chip;
   - mantém classes locais para compatibilidade visual durante a migração gradual;
   - preserva as ações atuais: editar, publicar, ocultar, definir capa e excluir;
+  - adiciona organização por data sem criar pastas ou eventos;
   - prioriza mobile, acessibilidade e leitura clara dos estados.
 -->
 
@@ -17,6 +18,8 @@
 @let confirmDeleteId = (confirmDeleteId$ | async);
 @let deletingPhotoId = (deletingPhotoId$ | async);
 @let publishingPhotoId = (publishingPhotoId$ | async);
+@let savingDisplayDateId = (savingDisplayDateId$ | async);
+@let canUsePhotoDate = (canUsePhotoDate$ | async);
 
 <section class="photos-page" aria-label="Fotos do perfil">
   <header class="photos-header">
@@ -26,9 +29,8 @@
       <h2>Fotos do perfil</h2>
 
       <p class="subtitle">
-        Escolha as fotos que aparecem no seu perfil. Em seguida, a organização por
-        data escolhida pelo usuário pode virar um recurso para assinantes, sem criar
-        pastas ou eventos neste primeiro momento.
+        Escolha as fotos que aparecem no seu perfil. Assinantes podem definir a
+        data de cada foto para organizar a galeria sem criar pastas ou eventos.
       </p>
     </div>
 
@@ -191,14 +193,14 @@
             role="listitem"
             [class.photo-tile--published]="item.publication.isPublished"
             [class.photo-tile--cover]="item.publication.isCover"
-            [class.photo-tile--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id"
+            [class.photo-tile--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
           >
             <button
               type="button"
               class="photo-card-link app-media-frame app-media-frame--portrait"
               (click)="openPhoto(item.id)"
               [disabled]="publishingPhotoId === item.id || deletingPhotoId === item.id"
-              [attr.aria-busy]="publishingPhotoId === item.id || deletingPhotoId === item.id"
+              [attr.aria-busy]="publishingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
               [attr.aria-label]="'Abrir foto ' + (item.alt || item.id)"
             >
               <img
@@ -211,13 +213,15 @@
 
               <span class="photo-overlay app-media-overlay">
                 <span class="photo-status-stack">
-                  @if (publishingPhotoId === item.id || deletingPhotoId === item.id) {
+                  @if (publishingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id) {
                     <span class="photo-busy-overlay" aria-live="polite">
                       <span class="busy-spinner" aria-hidden="true"></span>
 
                       <span>
                         @if (deletingPhotoId === item.id) {
                           Excluindo...
+                        } @else if (savingDisplayDateId === item.id) {
+                          Salvando data...
                         } @else {
                           Atualizando...
                         }
@@ -279,14 +283,52 @@
             @if (isOwner) {
               <div
                 class="management-bar app-card__footer"
-                [class.management-bar--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id"
+                [class.management-bar--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
+                aria-label="Organização da foto"
+              >
+                @if (canUsePhotoDate) {
+                  <span
+                    class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
+                    aria-hidden="true"
+                    title="Data da foto"
+                  >
+                    📅
+                  </span>
+
+                  <input
+                    type="date"
+                    class="management-action management-action--neutral app-action app-action--ghost"
+                    [value]="getDisplayDateInputValue(item)"
+                    (click)="$event.stopPropagation()"
+                    (change)="updatePhotoDisplayDate(item, $event, canUsePhotoDate === true)"
+                    [disabled]="savingDisplayDateId === item.id || deletingPhotoId === item.id || publishingPhotoId === item.id"
+                    [attr.aria-label]="'Data da foto ' + (item.alt || item.id)"
+                    title="Definir data da foto"
+                  />
+                } @else {
+                  <button
+                    type="button"
+                    class="management-action management-action--neutral app-action app-action--ghost"
+                    (click)="notifyPhotoDateUpgrade($event)"
+                    [disabled]="deletingPhotoId === item.id || publishingPhotoId === item.id"
+                    aria-label="Organização por data disponível para assinantes"
+                    title="Organização por data é recurso para assinantes"
+                  >
+                    Data para assinantes
+                  </button>
+                }
+              </div>
+
+              <div
+                class="management-bar app-card__footer"
+                [class.management-bar--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id || savingDisplayDateId === item.id"
                 aria-label="Ações da foto"
               >
                 <button
                   type="button"
                   class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
                   (click)="editPhoto(item, $event)"
-                  [disabled]="deletingPhotoId === item.id || publishingPhotoId === item.id"
+                  [disabled]="deletingPhotoId === item.id || publishingPhotoId === item.id || savingDisplayDateId === item.id"
                   [attr.aria-label]="'Editar foto ' + (item.alt || item.id)"
                   title="Editar foto"
                 >
@@ -298,7 +340,7 @@
                     type="button"
                     class="management-action management-action--primary app-action app-action--primary"
                     (click)="publishPhoto(item, $event)"
-                    [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
+                    [disabled]="!publicationFeatureReady || publishingPhotoId === item.id || savingDisplayDateId === item.id"
                     aria-label="Mostrar foto no perfil"
                     title="Mostrar no perfil"
                   >
@@ -314,7 +356,7 @@
                       type="button"
                       class="management-action management-action--neutral app-action app-action--ghost"
                       (click)="setCoverPhoto(item, $event)"
-                      [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
+                      [disabled]="!publicationFeatureReady || publishingPhotoId === item.id || savingDisplayDateId === item.id"
                       aria-label="Definir foto como capa do perfil"
                       title="Definir como capa"
                     >
@@ -326,7 +368,7 @@
                     type="button"
                     class="management-action management-action--neutral app-action app-action--ghost"
                     (click)="unpublishPhoto(item, $event)"
-                    [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
+                    [disabled]="!publicationFeatureReady || publishingPhotoId === item.id || savingDisplayDateId === item.id"
                     aria-label="Ocultar foto do perfil público"
                     title="Ocultar do perfil"
                   >
@@ -343,7 +385,7 @@
                     type="button"
                     class="management-action management-action--icon management-action--danger app-action app-action--danger"
                     (click)="requestDelete(item, $event)"
-                    [disabled]="deletingPhotoId === item.id || publishingPhotoId === item.id"
+                    [disabled]="deletingPhotoId === item.id || publishingPhotoId === item.id || savingDisplayDateId === item.id"
                     [attr.aria-label]="'Excluir foto ' + (item.alt || item.id)"
                     title="Excluir foto"
                   >
