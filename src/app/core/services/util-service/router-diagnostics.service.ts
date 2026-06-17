@@ -1,9 +1,9 @@
 // src/app/core/services/util-service/router-diagnostics.service.ts
 // Diagnóstico avançado do Router:
-// - taxa de eventos (dev-only)
-// - log detalhado (dev-only)
-// - detecção real de loop de navegação (redirect/cancel repetitivo)
-// - roteamento centralizado de erros (GlobalErrorHandler) + notificação com throttle
+// - taxa de eventos e log detalhado apenas em debug opt-in
+// - detecção real de loop de navegação
+// - roteamento centralizado de erros com payload sanitizado
+// - notificação profissional e controlada por throttle
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import {
   Router,
@@ -18,7 +18,7 @@ import {
   ResolveEnd,
 } from '@angular/router';
 import { filter, map, pairwise, scan, share, startWith, tap, auditTime, catchError } from 'rxjs/operators';
-import { EMPTY, Subscription } from 'rxjs';
+import { EMPTY } from 'rxjs';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
@@ -33,12 +33,10 @@ export class RouterDiagnosticsService {
   private lastNotifyAt = 0;
   private started = false;
 
-  // =========================
-  // Loop detector state
-  // =========================
-  private redirectCancelWindow: number[] = []; // timestamps
-  private readonly LOOP_WINDOW_MS = 3000;      // janela curta
-  private readonly LOOP_THRESHOLD = 6;         // 6 cancels em 3s é forte sinal de loop
+  private redirectCancelWindow: number[] = [];
+  private readonly LOOP_WINDOW_MS = 3000;
+  private readonly LOOP_THRESHOLD = 6;
+  private readonly NOTIFICATION_THROTTLE_MS = 10_000;
 
   constructor(
     private readonly router: Router,
@@ -52,164 +50,163 @@ export class RouterDiagnosticsService {
     this.startInternal();
   }
 
-private isRouterDiagnosticsDebugEnabled(): boolean {
-  if (environment.production) {
-    return false;
+  private isRouterDiagnosticsDebugEnabled(): boolean {
+    if (environment.production) {
+      return false;
+    }
+
+    if (this.privacyLogging?.enabled !== true) {
+      return false;
+    }
+
+    /**
+     * Router carrega URLs e pode expor UID em rotas.
+     * Debug detalhado fica opt-in manual.
+     *
+     * Para ativar:
+     * localStorage.setItem('ROUTER_DIAGNOSTICS_DEBUG', '1')
+     */
+    try {
+      return localStorage.getItem('ROUTER_DIAGNOSTICS_DEBUG') === '1';
+    } catch {
+      return false;
+    }
   }
 
-  if (this.privacyLogging?.enabled !== true) {
-    return false;
+  private canLogSensitiveConsoleData(): boolean {
+    if (environment.production) {
+      return false;
+    }
+
+    if (this.privacyLogging?.allowSensitiveConsoleData !== true) {
+      return false;
+    }
+
+    try {
+      return localStorage.getItem('ALLOW_SENSITIVE_CONSOLE_DATA') === '1';
+    } catch {
+      return false;
+    }
   }
 
-  /**
-   * Router carrega URLs e pode expor UID em rotas.
-   *
-   * Portanto, debug detalhado do router deve ser opt-in manual.
-   *
-   * Para ativar:
-   * localStorage.setItem('ROUTER_DIAGNOSTICS_DEBUG', '1')
-   */
-  try {
-    return localStorage.getItem('ROUTER_DIAGNOSTICS_DEBUG') === '1';
-  } catch {
-    return false;
-  }
-}
-
-private canLogSensitiveConsoleData(): boolean {
-  if (environment.production) {
-    return false;
+  private looksLikeFirebaseUid(value: string): boolean {
+    return /^[A-Za-z0-9_-]{18,80}$/.test(value);
   }
 
-  if (this.privacyLogging?.allowSensitiveConsoleData !== true) {
-    return false;
+  private looksLikeDirectChatId(value: string): boolean {
+    return /^direct_[a-f0-9]{32,128}$/i.test(value);
   }
 
-  try {
-    return localStorage.getItem('ALLOW_SENSITIVE_CONSOLE_DATA') === '1';
-  } catch {
-    return false;
-  }
-}
+  private maskUid(value: unknown): string | null {
+    const uid = String(value ?? '').trim();
 
-private looksLikeFirebaseUid(value: string): boolean {
-  return /^[A-Za-z0-9_-]{18,80}$/.test(value);
-}
+    if (!uid) {
+      return null;
+    }
 
-private looksLikeDirectChatId(value: string): boolean {
-  return /^direct_[a-f0-9]{32,128}$/i.test(value);
-}
+    if (this.canLogSensitiveConsoleData()) {
+      return uid;
+    }
 
-private maskUid(value: unknown): string | null {
-  const uid = String(value ?? '').trim();
+    if (uid.length <= 8) {
+      return 'masked';
+    }
 
-  if (!uid) {
-    return null;
+    return `${uid.slice(0, 4)}...${uid.slice(-4)}`;
   }
 
-  if (this.canLogSensitiveConsoleData()) {
-    return uid;
+  private maskDirectChatId(value: string): string {
+    if (this.canLogSensitiveConsoleData()) {
+      return value;
+    }
+
+    return `${value.slice(0, 13)}...${value.slice(-6)}`;
   }
 
-  if (uid.length <= 8) {
-    return 'masked';
-  }
+  private maskSensitiveString(value: unknown): string {
+    const text = String(value ?? '');
 
-  return `${uid.slice(0, 4)}...${uid.slice(-4)}`;
-}
+    if (!text) {
+      return text;
+    }
 
-private maskDirectChatId(value: string): string {
-  if (this.canLogSensitiveConsoleData()) {
-    return value;
-  }
+    return text
+      .split(/([:/?&=|,\s]+)/)
+      .map((token) => {
+        const cleanToken = token.trim();
 
-  return `${value.slice(0, 13)}...${value.slice(-6)}`;
-}
+        if (!cleanToken) {
+          return token;
+        }
 
-private maskSensitiveString(value: unknown): string {
-  const text = String(value ?? '');
+        if (this.looksLikeDirectChatId(cleanToken)) {
+          return this.maskDirectChatId(cleanToken);
+        }
 
-  if (!text) {
-    return text;
-  }
+        if (this.looksLikeFirebaseUid(cleanToken)) {
+          return this.maskUid(cleanToken) ?? 'masked';
+        }
 
-  return text
-    .split(/([:/?&=|,\s]+)/)
-    .map((token) => {
-      const cleanToken = token.trim();
-
-      if (!cleanToken) {
         return token;
-      }
-
-      if (this.looksLikeDirectChatId(cleanToken)) {
-        return this.maskDirectChatId(cleanToken);
-      }
-
-      if (this.looksLikeFirebaseUid(cleanToken)) {
-        return this.maskUid(cleanToken) ?? 'masked';
-      }
-
-      return token;
-    })
-    .join('');
-}
-
-private sanitizeRouterEvent(event: any): Record<string, unknown> {
-  const payload: Record<string, unknown> = {
-    id: event?.id ?? null,
-    type: event?.constructor?.name ?? 'RouterEvent',
-  };
-
-  if (event?.url !== undefined) {
-    payload['url'] = this.maskSensitiveString(event.url);
+      })
+      .join('');
   }
 
-  if (event?.urlAfterRedirects !== undefined) {
-    payload['urlAfterRedirects'] = this.maskSensitiveString(event.urlAfterRedirects);
-  }
-
-  if (event?.navigationTrigger !== undefined) {
-    payload['navigationTrigger'] = event.navigationTrigger;
-  }
-
-  if (event?.restoredState !== undefined) {
-    payload['hasRestoredState'] = !!event.restoredState;
-  }
-
-  if (event?.shouldActivate !== undefined) {
-    payload['shouldActivate'] = event.shouldActivate;
-  }
-
-  if (event?.reason !== undefined) {
-    payload['reason'] = this.maskSensitiveString(event.reason);
-  }
-
-  if (event?.error !== undefined) {
-    const error = event.error instanceof Error
-      ? event.error
-      : new Error(String(event.error ?? 'unknown navigation error'));
-
-    payload['error'] = {
-      name: error.name,
-      message: this.maskSensitiveString(error.message),
+  private sanitizeRouterEvent(event: any): Record<string, unknown> {
+    const payload: Record<string, unknown> = {
+      id: event?.id ?? null,
+      type: event?.constructor?.name ?? 'RouterEvent',
     };
+
+    if (event?.url !== undefined) {
+      payload['url'] = this.maskSensitiveString(event.url);
+    }
+
+    if (event?.urlAfterRedirects !== undefined) {
+      payload['urlAfterRedirects'] = this.maskSensitiveString(event.urlAfterRedirects);
+    }
+
+    if (event?.navigationTrigger !== undefined) {
+      payload['navigationTrigger'] = event.navigationTrigger;
+    }
+
+    if (event?.restoredState !== undefined) {
+      payload['hasRestoredState'] = !!event.restoredState;
+    }
+
+    if (event?.shouldActivate !== undefined) {
+      payload['shouldActivate'] = event.shouldActivate;
+    }
+
+    if (event?.reason !== undefined) {
+      payload['reason'] = this.maskSensitiveString(event.reason);
+    }
+
+    if (event?.error !== undefined) {
+      const error = event.error instanceof Error
+        ? event.error
+        : new Error(String(event.error ?? 'unknown navigation error'));
+
+      payload['error'] = {
+        name: error.name,
+        message: this.maskSensitiveString(error.message),
+      };
+    }
+
+    return payload;
   }
 
-  return payload;
-}
+  private dbg(msg: string, extra?: unknown): void {
+    if (!this.debug) {
+      return;
+    }
 
-private dbg(msg: string, extra?: unknown): void {
-  if (!this.debug) {
-    return;
+    // eslint-disable-next-line no-console
+    console.log(
+      `[RouterDiagnostics] ${msg}`,
+      typeof extra === 'string' ? this.maskSensitiveString(extra) : extra ?? ''
+    );
   }
-
-  // eslint-disable-next-line no-console
-  console.log(
-    `[RouterDiagnostics] ${msg}`,
-    typeof extra === 'string' ? this.maskSensitiveString(extra) : extra ?? ''
-  );
-}
 
   private startInternal(): void {
     const relevant$ = this.router.events.pipe(
@@ -227,7 +224,6 @@ private dbg(msg: string, extra?: unknown): void {
       share()
     );
 
-    // 1) Taxa de eventos por segundo (dev-only)
     if (this.debug) {
       const subRate = relevant$.pipe(
         map(() => 1),
@@ -246,7 +242,6 @@ private dbg(msg: string, extra?: unknown): void {
       this.destroyRef.onDestroy(() => subRate.unsubscribe());
     }
 
-    // 2) Log detalhado (dev-only)
     if (this.debug) {
       const subLog = relevant$.pipe(
         tap((event: any) => {
@@ -266,7 +261,6 @@ private dbg(msg: string, extra?: unknown): void {
       this.destroyRef.onDestroy(() => subLog.unsubscribe());
     }
 
-    // 3) Detector de falhas/cancelamentos relevantes (sempre ativo)
     const subErrors = relevant$.pipe(
       filter(e => e instanceof NavigationCancel || e instanceof NavigationError),
       tap((e: any) => this.handleNavigationFailure(e))
@@ -280,37 +274,26 @@ private dbg(msg: string, extra?: unknown): void {
       const reason = String((e as any).reason ?? '');
       const isRedirect = reason.includes('Redirecting to');
 
-      // Redirect isolado é normal.
-      // O que importa é REDIRECT EM LOOP (muitos em janela curta).
       if (isRedirect) {
         this.bumpRedirectCancelLoopCounter();
         return;
       }
 
-      // Cancel “não redirect” pode ser sinal de problema (guard/resolve).
-      // Mantém log (dev) e reporta como silent para não spammar.
-      this.reportSilent('NavigationCancel (non-redirect)', e);
+      this.reportSilent('NavigationCancel', e, e);
       return;
     }
 
-    // NavigationError sempre é relevante
     if (e instanceof NavigationError) {
-      this.reportNotSilent('NavigationError', e?.error ?? e);
-      this.notifyThrottled('Falha de navegação detectada. Veja o console.');
+      this.reportNotSilent('NavigationError', e?.error ?? e, e);
+      this.notifyThrottled('Não foi possível concluir a navegação. Tente novamente.');
       return;
     }
   }
 
-  /**
-   * Detector real de loop:
-   * - Conta NavigationCancel por redirect em uma janela curta.
-   * - Se ultrapassar limiar, reporta e notifica 1x.
-   */
   private bumpRedirectCancelLoopCounter(): void {
     const now = Date.now();
     this.redirectCancelWindow.push(now);
 
-    // Mantém somente eventos dentro da janela
     this.redirectCancelWindow = this.redirectCancelWindow.filter(t => (now - t) <= this.LOOP_WINDOW_MS);
 
     if (this.redirectCancelWindow.length >= this.LOOP_THRESHOLD) {
@@ -319,33 +302,46 @@ private dbg(msg: string, extra?: unknown): void {
       );
       (err as any).context = { threshold: this.LOOP_THRESHOLD, windowMs: this.LOOP_WINDOW_MS };
 
-      // Isso NÃO é "contorno": é detecção objetiva de bug.
       this.reportNotSilent('RedirectLoopSuspected', err);
-      this.notifyThrottled('Loop de navegação suspeito detectado. Verifique guards/redirects.');
+      this.notifyThrottled('A navegação ficou instável. Recarregue a página se persistir.');
 
-      // Zera para não notificar em avalanche
       this.redirectCancelWindow = [];
     }
   }
 
-  private reportSilent(context: string, err: unknown): void {
+  private reportSilent(context: string, err: unknown, event?: unknown): void {
     const e = err instanceof Error ? err : new Error(String(err));
     (e as any).silent = true;
-    (e as any).context = context;
+    (e as any).skipUserNotification = true;
+    (e as any).context = this.buildErrorContext(context, event);
     try { this.geh.handleError(e); } catch { }
   }
 
-  private reportNotSilent(context: string, err: unknown): void {
+  private reportNotSilent(context: string, err: unknown, event?: unknown): void {
     const e = err instanceof Error ? err : new Error(String(err));
     (e as any).silent = false;
-    (e as any).context = context;
+    (e as any).skipUserNotification = true;
+    (e as any).context = this.buildErrorContext(context, event);
     try { this.geh.handleError(e); } catch { }
+  }
+
+  private buildErrorContext(context: string, event?: unknown): Record<string, unknown> {
+    return {
+      scope: 'RouterDiagnosticsService',
+      context,
+      ...(event ? { routerEvent: this.sanitizeRouterEvent(event) } : {}),
+    };
   }
 
   private notifyThrottled(msg: string): void {
     const now = Date.now();
-    if (now - this.lastNotifyAt < 10_000) return;
+    if (now - this.lastNotifyAt < this.NOTIFICATION_THROTTLE_MS) return;
     this.lastNotifyAt = now;
-    this.notify.showError(msg);
+
+    try {
+      this.notify.showError(msg);
+    } catch {
+      // noop
+    }
   }
 }
