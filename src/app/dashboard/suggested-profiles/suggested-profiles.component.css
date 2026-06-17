@@ -1,51 +1,374 @@
-/* src\app\dashboard\suggested-profiles\suggested-profiles.component.css */
+/* src/app/dashboard/suggested-profiles/suggested-profiles.component.css
+   ----------------------------------------------------------------------------
+   Lista de perfis sugeridos.
+
+   Estratégia:
+   - remove visual legado baseado em mat-card;
+   - usa o card system global com fallback local;
+   - torna a grade mais limpa, responsiva e orientada a conversão.
+   ----------------------------------------------------------------------------
+*/
+
 :host {
   display: block;
+  min-width: 0;
 }
 
 .suggested-profiles-page {
   width: 100%;
 }
 
+.suggested-profiles-shell {
+  display: grid;
+  gap: clamp(14px, 2vw, 22px);
+  min-width: 0;
+}
+
+/* Hero --------------------------------------------------------------------- */
+
+.suggested-profiles-hero,
+.suggested-profiles-hero.app-card {
+  padding: clamp(14px, 2vw, 20px);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent), transparent 36%),
+    color-mix(in oklab, var(--surface-color, #101923) 96%, black 4%);
+  box-shadow: var(--box-shadow, 0 14px 34px rgb(0 0 0 / 18%));
+}
+
+.suggested-profiles-hero__copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.suggested-profiles-hero__eyebrow {
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 74%, var(--text-color, #f5f7fb));
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.suggested-profiles-hero h1 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.25rem, 3vw, 1.7rem);
+  font-weight: 950;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+}
+
 .profile-count,
 .no-profile-message {
-  color: var(--text-color);
-  font-size: 1rem;
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
+  font-size: 0.95rem;
+  line-height: 1.45;
 }
 
-.profiles-grid {
+.profile-count strong {
+  color: var(--text-color, #f5f7fb);
+  font-weight: 900;
+}
+
+.profile-count--muted {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+}
+
+.no-profile-message,
+.no-profile-message.app-empty-card {
+  padding: 16px;
+  border: 1px dashed var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 94%, transparent);
+}
+
+/* Grid --------------------------------------------------------------------- */
+
+.profiles-grid,
+.profiles-grid.app-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: clamp(12px, 2vw, 18px);
+  align-items: stretch;
+  min-width: 0;
 }
 
-.profile-card {
-  background: var(--surface-color);
-  color: var(--text-color);
-  border: 1px solid var(--surface-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--box-shadow);
+/* Card --------------------------------------------------------------------- */
+
+.profile-card,
+.profile-card.app-card {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-width: 0;
   overflow: hidden;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 20px;
+  background: var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
-.profile-avatar {
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+.profile-card:hover,
+.profile-card:focus-within {
+  transform: translateY(-2px);
+  border-color: color-mix(
+    in oklab,
+    var(--primary-color, #ff7070) 32%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  box-shadow: 0 16px 36px rgb(0 0 0 / 24%);
 }
 
-mat-card-title,
-mat-card-subtitle {
-  color: var(--text-color);
+.profile-card__media,
+.profile-card__media.app-media-frame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  aspect-ratio: 4 / 5;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color, #101923) 90%, white 7%),
+      color-mix(in oklab, var(--surface-color, #101923) 78%, black 18%)
+    );
+  color: inherit;
+  text-decoration: none;
 }
 
-mat-card-actions {
-  padding-inline: 16px;
-  padding-bottom: 16px;
+.profile-card__media:focus-visible {
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: calc(var(--focus-offset, 2px) * -1);
 }
 
-@media (max-width: 350px) {
-  .profiles-grid {
+.profile-card__photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
+}
+
+.profile-card:hover .profile-card__photo,
+.profile-card:focus-within .profile-card__photo {
+  transform: scale(1.025);
+  filter: brightness(1.05);
+}
+
+.profile-card__placeholder {
+  display: grid;
+  place-items: center;
+  width: clamp(64px, 35%, 96px);
+  aspect-ratio: 1;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 24%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 16%, transparent);
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.6rem, 6vw, 2.4rem);
+  font-weight: 950;
+}
+
+.profile-card__status,
+.profile-card__status.app-chip {
+  position: absolute;
+  inset: 10px 10px auto auto;
+  min-height: 26px;
+  padding: 4px 9px;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 44%);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 860;
+  line-height: 1;
+  backdrop-filter: blur(8px);
+}
+
+.profile-card__status--online {
+  background: color-mix(in oklab, var(--success-color, #5ed39a) 54%, rgb(0 0 0 / 35%));
+}
+
+.profile-card__body,
+.profile-card__body.app-card__body {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px;
+}
+
+.profile-card__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.profile-card__heading h2 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-color, #f5f7fb);
+  font-size: 1rem;
+  font-weight: 920;
+  line-height: 1.14;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-card__age,
+.profile-card__age.app-chip {
+  flex: 0 0 auto;
+  min-height: 24px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 820;
+}
+
+.profile-card__meta {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.8rem;
+  font-weight: 650;
+  line-height: 1.28;
+}
+
+.profile-card__meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-card__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-card__footer,
+.profile-card__footer.app-card__footer {
+  display: flex;
+  justify-content: stretch;
+  padding: 0 13px 13px;
+  border-top: 0;
+}
+
+.profile-card__action,
+.profile-card__action.app-action {
+  width: 100%;
+  min-height: 38px;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+/* Mobile ------------------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  .suggested-profiles-shell {
+    gap: 12px;
+  }
+
+  .suggested-profiles-hero,
+  .suggested-profiles-hero.app-card {
+    border-radius: 16px;
+    box-shadow: none;
+  }
+
+  .profiles-grid,
+  .profiles-grid.app-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .profile-card,
+  .profile-card.app-card {
+    border-radius: 15px;
+    box-shadow: none;
+  }
+
+  .profile-card:hover,
+  .profile-card:focus-within {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .profile-card__body,
+  .profile-card__body.app-card__body {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .profile-card__footer,
+  .profile-card__footer.app-card__footer {
+    padding: 0 10px 10px;
+  }
+
+  .profile-card__heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .profile-card__heading h2 {
+    width: 100%;
+    font-size: 0.92rem;
+  }
+
+  .profile-card__meta {
+    font-size: 0.74rem;
+  }
+
+  .profile-card__action,
+  .profile-card__action.app-action {
+    min-height: 34px;
+    font-size: 0.78rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .profiles-grid,
+  .profiles-grid.app-card-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Acessibilidade ----------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-card,
+  .profile-card__photo {
+    transition: none !important;
+  }
+
+  .profile-card:hover,
+  .profile-card:focus-within,
+  .profile-card:hover .profile-card__photo,
+  .profile-card:focus-within .profile-card__photo {
+    transform: none;
+  }
+}
+
+html.high-contrast .profile-card,
+html.high-contrast .suggested-profiles-hero,
+html.high-contrast .profile-card__placeholder,
+html.high-contrast .profile-card__status {
+  border-color: currentColor !important;
+  box-shadow: none !important;
 }
