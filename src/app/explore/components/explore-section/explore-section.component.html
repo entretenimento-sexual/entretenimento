@@ -5,7 +5,9 @@
 >
   <div class="section-heading">
     <div>
-      <span class="eyebrow">{{ eyebrow() }}</span>
+      @if (eyebrow()) {
+        <span class="eyebrow">{{ eyebrow() }}</span>
+      }
       <h2>{{ title() }}</h2>
     </div>
 
