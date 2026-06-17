@@ -4,7 +4,7 @@
 // AJUSTES DESTA VERSÃO:
 // - continua sem store fake
 // - continua lendo do PhotoFirestoreService
-// - agora expõe path e fileName para gestão direta na galeria
+// - agora expõe path, fileName e displayDate para gestão direta na galeria
 // - mantém stream reativa e contrato de leitura
 
 import { Injectable } from '@angular/core';
@@ -53,6 +53,7 @@ export class MediaQueryService {
       url: photo.url,
       alt: photo.fileName || 'Foto do perfil',
       createdAt: this.normalizeCreatedAt(photo.createdAt),
+      displayDate: this.normalizeOptionalDateMs(photo.displayDate),
       path: photo.path,
       fileName: photo.fileName,
     };
@@ -93,6 +94,14 @@ export class MediaQueryService {
     return Date.now();
   }
 
+  private normalizeOptionalDateMs(value: unknown): number | null {
+    if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+      return Math.trunc(value);
+    }
+
+    return null;
+  }
+
   private sameItems(a: IPhotoItem[], b: IPhotoItem[]): boolean {
     if (a === b) return true;
     if (a.length !== b.length) return false;
@@ -103,6 +112,7 @@ export class MediaQueryService {
         item?.id === other?.id &&
         item?.url === other?.url &&
         item?.createdAt === other?.createdAt &&
+        item?.displayDate === other?.displayDate &&
         item?.path === other?.path &&
         item?.fileName === other?.fileName
       );
