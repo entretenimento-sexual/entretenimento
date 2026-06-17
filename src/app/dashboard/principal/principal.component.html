@@ -1,54 +1,83 @@
 <!-- src/app/dashboard/principal/principal.component.html -->
+<!--
+  Home operacional do dashboard.
+
+  Diretriz:
+  - usa o card system global de forma progressiva;
+  - deixa os atalhos realmente visíveis na primeira dobra;
+  - prioriza rotas de descoberta, perfis sugeridos, amizades e perfil;
+  - mantém todos os observables e métricas já existentes.
+-->
+
 <section class="principal-page" *ngIf="currentUser$ | async as currentUser">
-  <header class="principal-hero">
-    <div class="principal-hero__copy">
-      <p class="principal-hero__eyebrow">Painel principal</p>
-      <h1>Bem-vindo de volta, {{ currentUser.nickname || 'usuário' }}!</h1>
+  <header class="principal-hero app-card">
+    <div class="principal-hero__copy app-card__body">
+      <span class="principal-hero__eyebrow">Painel principal</span>
+      <h1>Bem-vindo de volta, {{ currentUser.nickname || 'usuário' }}.</h1>
       <p class="principal-hero__description">
-        Use a home para entender seu estado atual, ver o que exige atenção e entrar direto na descoberta.
+        Acesse descoberta, perfis sugeridos, amizades e conversas sem depender de atalhos escondidos.
       </p>
+
+      <div class="principal-hero__chips" aria-label="Resumo rápido da conta">
+        <span class="app-chip app-chip--primary">
+          {{ currentUser.profileCompleted ? 'Perfil completo' : 'Perfil em andamento' }}
+        </span>
+
+        <span class="app-chip" [class.app-chip--success]="currentUser.emailVerified">
+          {{ currentUser.emailVerified ? 'E-mail verificado' : 'Verificação pendente' }}
+        </span>
+
+        <span class="app-chip app-chip--muted">
+          {{ currentUser.isSubscriber ? 'Assinante' : 'Plano gratuito' }}
+        </span>
+      </div>
     </div>
 
-    <div class="principal-hero__actions">
-      <a class="btn btn-primary" routerLink="/dashboard/explorar">
-        Ver perfis agora
+    <nav class="principal-hero__actions app-card__actions" aria-label="Ações principais">
+      <a class="app-action app-action--primary" routerLink="/dashboard/explorar">
+        Explorar perfis
       </a>
 
-      <a class="btn btn-secondary" routerLink="/chat/invite-list">
-        Meus convites
+      <a class="app-action app-action--primary principal-hero__action--accent" routerLink="/dashboard/perfis-sugeridos">
+        Ver sugeridos
       </a>
 
-      <a class="btn btn-secondary" routerLink="/friends/list">
-        Minhas amizades
-      </a>
-    </div>
+      @if (profileLink$ | async; as profileLink) {
+        <a class="app-action app-action--ghost" [routerLink]="profileLink">
+          Meu perfil
+        </a>
+      }
+    </nav>
   </header>
 
-  <section class="principal-status-strip" *ngIf="currentUserStatus$ | async as currentStatus">
-    <div class="principal-status-strip__item">
+  <section class="principal-status-strip app-card-grid" *ngIf="currentUserStatus$ | async as currentStatus" aria-label="Estado da plataforma">
+    <article class="principal-status-strip__item app-card app-card--compact">
       <span class="principal-status-strip__label">Conta</span>
       <strong class="principal-status-strip__value">
-        {{ currentStatus === 'ready' ? 'Pronta para uso' : 'Sincronizando' }}
+        {{ currentStatus === 'ready' ? 'Pronta' : 'Sincronizando' }}
       </strong>
-    </div>
+      <span class="principal-status-strip__hint">
+        {{ currentStatus === 'ready' ? 'Você já pode usar os recursos principais.' : 'Alguns recursos podem estar carregando.' }}
+      </span>
+    </article>
 
-    <div class="principal-status-strip__item">
+    <article class="principal-status-strip__item app-card app-card--compact">
       <span class="principal-status-strip__label">Descoberta</span>
       <strong class="principal-status-strip__value">
-        {{ currentStatus === 'ready' ? 'Disponível' : 'Aguardando liberação' }}
+        {{ currentStatus === 'ready' ? 'Disponível' : 'Aguardando' }}
       </strong>
-    </div>
+      <a routerLink="/dashboard/explorar" class="principal-status-strip__link">Abrir agora</a>
+    </article>
 
-    <div class="principal-status-strip__item">
-      <span class="principal-status-strip__label">Próximo passo</span>
-      <strong class="principal-status-strip__value">
-        Explorar perfis
-      </strong>
-    </div>
+    <article class="principal-status-strip__item app-card app-card--compact principal-status-strip__item--highlight">
+      <span class="principal-status-strip__label">Sugestões</span>
+      <strong class="principal-status-strip__value">Compatíveis</strong>
+      <a routerLink="/dashboard/perfis-sugeridos" class="principal-status-strip__link">Ver sugeridos</a>
+    </article>
   </section>
 
-  <section class="principal-summary">
-    <article class="principal-summary__card">
+  <section class="principal-summary app-card-grid" aria-label="Resumo de interações">
+    <article class="principal-summary__card app-card app-card--compact">
       <span class="principal-summary__label">Solicitações pendentes</span>
       <strong class="principal-summary__value">
         {{ (pendingRequestsCount$ | async) ?? 0 }}
@@ -58,7 +87,7 @@
       </a>
     </article>
 
-    <article class="principal-summary__card">
+    <article class="principal-summary__card app-card app-card--compact">
       <span class="principal-summary__label">Amigos</span>
       <strong class="principal-summary__value">
         {{ (friendsCount$ | async) ?? 0 }}
@@ -68,7 +97,7 @@
       </a>
     </article>
 
-    <article class="principal-summary__card">
+    <article class="principal-summary__card app-card app-card--compact">
       <span class="principal-summary__label">Descoberta</span>
       <strong class="principal-summary__value">Agora</strong>
       <a routerLink="/dashboard/explorar" class="principal-summary__link">
@@ -77,24 +106,31 @@
     </article>
   </section>
 
-  <section class="principal-section-grid">
-    <article class="principal-panel principal-panel--highlight">
-      <div class="principal-panel__header">
+  <section class="principal-section-grid app-card-grid" aria-label="Áreas principais">
+    <article class="principal-panel principal-panel--highlight app-card app-card--interactive">
+      <div class="principal-panel__header app-card__header">
         <div>
           <p class="principal-panel__eyebrow">Descoberta</p>
-         
+          <h2>Encontrar pessoas</h2>
         </div>
       </div>
 
-      <div class="principal-panel__actions">
-        <a class="btn btn-primary" routerLink="/dashboard/explorar">
+      <p class="principal-panel__description">
+        Acesse a área de descoberta para navegar por perfis próximos, online e compatíveis.
+      </p>
+
+      <div class="principal-panel__actions app-card__actions">
+        <a class="app-action app-action--primary" routerLink="/dashboard/explorar">
           Abrir descoberta
+        </a>
+        <a class="app-action app-action--ghost" routerLink="/dashboard/perfis-sugeridos">
+          Ver sugeridos
         </a>
       </div>
     </article>
 
-    <article class="principal-panel">
-      <div class="principal-panel__header">
+    <article class="principal-panel app-card app-card--interactive">
+      <div class="principal-panel__header app-card__header">
         <div>
           <p class="principal-panel__eyebrow">Relacionamentos</p>
           <h2>Amizades e convites</h2>
@@ -105,18 +141,18 @@
         Gerencie solicitações, acompanhe convites recebidos e veja sua lista de amigos.
       </p>
 
-      <div class="principal-panel__actions">
-        <a class="btn btn-secondary" routerLink="/friends/list">
+      <div class="principal-panel__actions app-card__actions">
+        <a class="app-action app-action--ghost" routerLink="/friends/list">
           Amizades
         </a>
-        <a class="btn btn-secondary" routerLink="/chat/invite-list">
+        <a class="app-action app-action--ghost" routerLink="/chat/invite-list">
           Convites
         </a>
       </div>
     </article>
 
-    <article class="principal-panel">
-      <div class="principal-panel__header">
+    <article class="principal-panel app-card app-card--interactive">
+      <div class="principal-panel__header app-card__header">
         <div>
           <p class="principal-panel__eyebrow">Conversas</p>
           <h2>Chats e salas</h2>
@@ -127,14 +163,42 @@
         Entre nas conversas em andamento e acesse rapidamente suas salas.
       </p>
 
-      <div class="principal-panel__actions">
-        <a class="btn btn-secondary" routerLink="/chat-list">
+      <div class="principal-panel__actions app-card__actions">
+        <a class="app-action app-action--ghost" routerLink="/chat-list">
           Chats
         </a>
-        <a class="btn btn-secondary" routerLink="/chat-rooms">
+        <a class="app-action app-action--ghost" routerLink="/chat-rooms">
           Salas
         </a>
       </div>
     </article>
+  </section>
+
+  <section class="principal-next-steps app-card" aria-label="Próximos passos recomendados">
+    <div class="principal-next-steps__copy">
+      <p class="principal-panel__eyebrow">Próximo passo</p>
+      <h2>Melhore suas chances de conexão</h2>
+      <p>
+        Ajuste preferências, mantenha o perfil atualizado e use os perfis sugeridos como atalho principal de descoberta.
+      </p>
+    </div>
+
+    <div class="principal-next-steps__actions app-card__actions">
+      @if (preferencesLink$ | async; as preferencesLink) {
+        <a class="app-action app-action--ghost" [routerLink]="preferencesLink">
+          Preferências
+        </a>
+      }
+
+      @if (profileLink$ | async; as profileLink) {
+        <a class="app-action app-action--ghost" [routerLink]="profileLink">
+          Editar perfil
+        </a>
+      }
+
+      <a class="app-action app-action--primary" routerLink="/dashboard/perfis-sugeridos">
+        Ver sugeridos
+      </a>
+    </div>
   </section>
 </section>
