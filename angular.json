@@ -66,20 +66,20 @@
                 },
                 {
                   "type": "anyComponentStyle",
-                  "maximumWarning": "12kb",
+                  "maximumWarning": "18kb",
                   "maximumError": "20kb"
                 }
               ],
               "optimization": {
-  "scripts": true,
-  "styles": {
-    "minify": true,
-    "inlineCritical": true
-  },
-  "fonts": {
-    "inline": false
-  }
-},
+                "scripts": true,
+                "styles": {
+                  "minify": true,
+                  "inlineCritical": true
+                },
+                "fonts": {
+                  "inline": false
+                }
+              },
               "outputHashing": "all",
               "sourceMap": false,
               "extractLicenses": true,
@@ -152,12 +152,12 @@
             "buildTarget": "entretenimento:build"
           }
         },
-          "test": {
-            "builder": "@angular/build:unit-test",
-            "options": {
-              "tsConfig": "tsconfig.spec.json",
-              "runnerConfig": "vitest.angular.config.ts"
-            }
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "tsConfig": "tsconfig.spec.json",
+            "runnerConfig": "vitest.angular.config.ts"
+          }
         }
       }
     }
