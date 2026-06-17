@@ -1,17 +1,25 @@
 <!-- src/app/media/shared/components/public-photo-card/public-photo-card.component.html -->
+<!--
+  Card público de foto.
+
+  Diretriz:
+  - usa o card system global: app-card, app-media-frame, app-media-overlay, app-chip;
+  - mantém classes locais para compatibilidade e ajustes finos;
+  - preserva preview, link de perfil, métricas públicas, data, capa e destaque turbo.
+-->
 
 @let item = photo();
 @let mode = variant();
 
 <article
-  class="photo-tile"
+  class="photo-tile app-card app-card--media app-card--interactive"
   role="listitem"
   [class.photo-tile--cover]="item.isCover"
   [class.photo-tile--boosted]="mode === 'boosted'"
 >
   <button
     type="button"
-    class="photo-card-link"
+    class="photo-card-link app-media-frame app-media-frame--portrait"
     (click)="onPreview()"
     [attr.aria-label]="'Abrir foto pública de ' + getOwnerName(item)"
     title="Abrir foto"
@@ -25,7 +33,7 @@
     />
   </button>
 
-  <div class="photo-overlay">
+  <div class="photo-overlay app-media-overlay">
     <a
       class="photo-owner-link"
       [routerLink]="profileLink()"
@@ -43,46 +51,52 @@
     </a>
 
     <span class="photo-stats" aria-label="Métricas públicas da foto">
-      <span class="stat-chip" aria-label="Curtidas">
+      <span class="stat-chip app-chip app-chip--overlay" aria-label="Curtidas">
         <span aria-hidden="true">♥</span>
         {{ item.reactionsCount ?? item.likesCount ?? 0 }}
       </span>
 
-      <span class="stat-chip" aria-label="Comentários">
+      <span class="stat-chip app-chip app-chip--overlay" aria-label="Comentários">
         <span aria-hidden="true">💬</span>
         {{ item.commentsCount ?? 0 }}
       </span>
 
       @if (item.viewsCount !== undefined) {
-        <span class="stat-chip" aria-label="Visualizações">
+        <span class="stat-chip app-chip app-chip--overlay" aria-label="Visualizações">
           <span aria-hidden="true">👁</span>
           {{ item.viewsCount }}
         </span>
       }
 
-       <span
-    class="stat-chip stat-chip--time"
-    [attr.aria-label]="'Publicado ' + getPublishedLabel(item)"
-  >
-    <span aria-hidden="true">⏱</span>
-    {{ getPublishedLabel(item) }}
-  </span>
+      <span
+        class="stat-chip stat-chip--time app-chip app-chip--overlay app-chip--muted"
+        [attr.aria-label]="'Publicado ' + getPublishedLabel(item)"
+      >
+        <span aria-hidden="true">⏱</span>
+        {{ getPublishedLabel(item) }}
+      </span>
     </span>
 
     @if (item.isCover) {
-      <span class="cover-chip">Capa</span>
+      <span class="cover-chip app-chip app-chip--overlay app-chip--success">
+        Capa
+      </span>
     }
   </div>
 
   @if (mode === 'latest' || mode === 'boosted') {
-    <div class="photo-meta">
+    <div class="photo-meta app-card__footer">
       @switch (mode) {
         @case ('latest') {
-          <span class="meta-chip">{{ getPublishedLabel(item) }}</span>
+          <span class="meta-chip app-chip app-chip--muted">
+            {{ getPublishedLabel(item) }}
+          </span>
         }
 
         @case ('boosted') {
-          <span class="meta-chip meta-boost">Turbo ativo</span>
+          <span class="meta-chip meta-boost app-chip app-chip--primary">
+            Turbo ativo
+          </span>
         }
       }
     </div>
