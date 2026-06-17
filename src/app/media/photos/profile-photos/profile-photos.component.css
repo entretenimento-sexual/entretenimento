@@ -1,15 +1,4 @@
-/* src/app/media/photos/profile-photos/profile-photos.component.css
-   ----------------------------------------------------------------------------
-   Central privada de fotos do perfil.
-
-   Estratégia:
-   - mantém compatibilidade com o card system global (.app-card, .app-action etc.);
-   - mantém fallback local completo para evitar tela sem estilo;
-   - padroniza a central de mídia sem depender de uma migração global perfeita;
-   - prioriza mobile, acessibilidade, foco visível e estados claros.
-   ----------------------------------------------------------------------------
-*/
-
+/* src/app/media/photos/profile-photos/profile-photos.component.css */
 :host {
   display: block;
   width: 100%;
@@ -18,23 +7,31 @@
 }
 
 .photos-page {
+  --photos-surface: var(--surface-color, #0e1624);
+  --photos-border: var(--surface-border, rgba(255, 255, 255, 0.12));
+  --photos-text: var(--text-color, #f5f7fb);
+  --photos-primary: var(--primary-color, #ff6b81);
+  --photos-danger: var(--danger-color, #ff6b6b);
+  --photos-success: var(--success-color, #5ed39a);
+  --photos-muted: color-mix(in oklab, var(--photos-text) 70%, transparent);
+
   width: 100%;
   max-width: min(var(--content-wide, 1360px), 100%);
   margin: 0 auto;
-  padding:
-    clamp(14px, 1.4vw, 22px)
-    clamp(12px, 2vw, 28px)
-    clamp(28px, 3vw, 44px);
+  padding: clamp(14px, 1.4vw, 22px) clamp(12px, 2vw, 28px) clamp(28px, 3vw, 44px);
   box-sizing: border-box;
 }
 
-/* Header ------------------------------------------------------------------- */
+.photos-header,
+.gallery-toolbar,
+.empty-state {
+  display: flex;
+  gap: var(--space-3, 16px);
+}
 
 .photos-header {
-  display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: clamp(14px, 2vw, 24px);
   margin-bottom: clamp(16px, 2vw, 26px);
 }
 
@@ -45,9 +42,8 @@
 
 .eyebrow {
   display: inline-flex;
-  align-items: center;
   margin-bottom: 8px;
-  color: var(--primary-color, #ff6b81);
+  color: var(--photos-primary);
   font-size: 0.74rem;
   font-weight: 850;
   letter-spacing: 0.08em;
@@ -57,7 +53,7 @@
 
 .photos-title h2 {
   margin: 0;
-  color: var(--text-color, #f5f7fb);
+  color: var(--photos-text);
   font-size: clamp(1.5rem, 1.05rem + 1.1vw, 2.15rem);
   line-height: 1.08;
   letter-spacing: -0.03em;
@@ -66,32 +62,41 @@
 .subtitle {
   margin: 10px 0 0;
   max-width: 68ch;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 74%, transparent);
+  color: color-mix(in oklab, var(--photos-text) 74%, transparent);
   font-size: clamp(0.94rem, 0.9rem + 0.14vw, 1.02rem);
   line-height: 1.5;
 }
 
-.actions {
+.actions,
+.gallery-toolbar__controls,
+.gallery-filter-group,
+.photo-status-stack,
+.status-chip,
+.photo-date-chip,
+.management-bar,
+.delete-confirm-actions {
   display: flex;
   align-items: center;
+}
+
+.actions {
   justify-content: flex-end;
   gap: 10px;
   flex: 0 0 auto;
   flex-wrap: wrap;
 }
 
-.gallery-action,
-.gallery-action.app-action {
+.gallery-action {
   min-height: var(--tap-target-sm, 40px);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   padding: 8px 14px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--photos-border);
   border-radius: 12px;
-  background: color-mix(in oklab, var(--surface-color, #0e1624) 92%, black 8%);
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 86%, transparent);
+  background: color-mix(in oklab, var(--photos-surface) 92%, black 8%);
+  color: color-mix(in oklab, var(--photos-text) 86%, transparent);
   font: inherit;
   font-size: 0.86rem;
   font-weight: 820;
@@ -103,19 +108,14 @@
 
 .gallery-action:hover,
 .gallery-action:focus-visible {
-  color: var(--text-color, #f5f7fb);
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff6b81) 34%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
-  background: color-mix(in oklab, var(--primary-color, #ff6b81) 12%, transparent);
+  color: var(--photos-text);
+  border-color: color-mix(in oklab, var(--photos-primary) 34%, var(--photos-border));
+  background: color-mix(in oklab, var(--photos-primary) 12%, transparent);
 }
 
-.gallery-action--primary,
-.gallery-action--primary.app-action {
-  border-color: color-mix(in oklab, var(--primary-color, #ff6b81) 46%, transparent);
-  background: var(--primary-color, #ff6b81);
+.gallery-action--primary {
+  border-color: color-mix(in oklab, var(--photos-primary) 46%, transparent);
+  background: var(--photos-primary);
   color: #fff;
   font-weight: 860;
 }
@@ -130,13 +130,11 @@
   background: transparent;
 }
 
-/* Estados bloqueado / vazio ------------------------------------------------ */
-
 .blocked,
 .empty-state {
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--photos-border);
   border-radius: 18px;
-  background: color-mix(in oklab, var(--surface-color, #0e1624) 94%, transparent);
+  background: color-mix(in oklab, var(--photos-surface) 94%, transparent);
   box-shadow: var(--box-shadow, 0 10px 30px rgba(0, 0, 0, 0.18));
 }
 
@@ -147,16 +145,14 @@
 .blocked strong {
   display: block;
   margin: 0 0 6px;
-  color: var(--text-color, #f5f7fb);
+  color: var(--photos-text);
   font-size: 1rem;
   font-weight: 860;
 }
 
 .empty-state {
-  display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3, 16px);
   padding: var(--space-4, 24px);
 }
 
@@ -175,14 +171,14 @@
   display: grid;
   place-items: center;
   border-radius: 16px;
-  background: color-mix(in oklab, var(--primary-color, #ff6b81) 14%, transparent);
+  background: color-mix(in oklab, var(--photos-primary) 14%, transparent);
   font-size: 1.35rem;
 }
 
 .empty-copy h3,
 .app-empty-card__title {
   margin: 0 0 4px;
-  color: var(--text-color, #f5f7fb);
+  color: var(--photos-text);
   font-size: 1.05rem;
   font-weight: 850;
   line-height: 1.2;
@@ -191,77 +187,64 @@
 .empty-copy p,
 .app-empty-card__text {
   margin: 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+  color: var(--photos-muted);
   font-size: 0.92rem;
   line-height: 1.4;
 }
 
-/* Toolbar ------------------------------------------------------------------ */
-
-.gallery-toolbar,
-.gallery-toolbar.app-toolbar {
-  display: flex;
+.gallery-toolbar {
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3, 16px);
   min-width: 0;
   margin-bottom: 16px;
   padding: 10px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--photos-border);
   border-radius: 16px;
-  background: color-mix(in oklab, var(--surface-color, #0e1624) 92%, transparent);
+  background: color-mix(in oklab, var(--photos-surface) 92%, transparent);
 }
 
-.gallery-toolbar__summary,
-.gallery-toolbar__summary.app-toolbar__summary {
+.gallery-toolbar__summary {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   min-width: 0;
   flex-wrap: wrap;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+  color: var(--photos-muted);
   font-size: 0.88rem;
 }
 
 .gallery-toolbar__summary strong {
-  color: var(--text-color, #f5f7fb);
+  color: var(--photos-text);
   font-weight: 850;
 }
 
 .gallery-toolbar__summary span {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  color: color-mix(in oklab, var(--photos-text) 58%, transparent);
 }
 
-.gallery-toolbar__controls,
-.gallery-toolbar__controls.app-toolbar__controls {
-  display: flex;
-  align-items: center;
+.gallery-toolbar__controls {
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
   flex-wrap: wrap;
 }
 
-.gallery-filter-group,
-.gallery-filter-group.app-segmented {
-  display: inline-flex;
-  align-items: center;
+.gallery-filter-group {
   gap: 4px;
   max-width: 100%;
   padding: 4px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--photos-border);
   border-radius: 999px;
   background: rgb(0 0 0 / 12%);
 }
 
-.gallery-filter,
-.gallery-filter.app-segmented__button {
+.gallery-filter {
   min-height: 30px;
   padding: 5px 10px;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  color: color-mix(in oklab, var(--photos-text) 72%, transparent);
   font: inherit;
   font-size: 0.76rem;
   font-weight: 800;
@@ -274,15 +257,11 @@
 .gallery-filter:focus-visible,
 .gallery-filter--active,
 .app-segmented__button--active {
-  background: color-mix(in oklab, var(--primary-color, #ff6b81) 18%, transparent);
-  color: var(--text-color, #f5f7fb);
+  background: color-mix(in oklab, var(--photos-primary) 18%, transparent);
+  color: var(--photos-text);
 }
 
-/* Grid / card de foto ------------------------------------------------------ */
-
-.photos-grid,
-.photos-grid.app-card-grid,
-.photos-grid.app-card-grid--media {
+.photos-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 230px));
   justify-content: start;
@@ -290,44 +269,32 @@
   gap: clamp(12px, 1.6vw, 20px);
 }
 
-.photo-tile,
-.photo-tile.app-card {
+.photo-tile {
   width: 100%;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--photos-border);
   border-radius: 18px;
-  background: var(--surface-color, #0e1624);
+  background: var(--photos-surface);
   box-shadow: 0 10px 28px rgb(0 0 0 / 18%);
   isolation: isolate;
-  transition:
-    border-color 140ms ease,
-    box-shadow 140ms ease,
-    transform 140ms ease;
+  transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 
 .photo-tile:hover,
 .photo-tile:focus-within {
   transform: translateY(-1px);
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff6b81) 30%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
+  border-color: color-mix(in oklab, var(--photos-primary) 30%, var(--photos-border));
   box-shadow: 0 14px 34px rgb(0 0 0 / 24%);
 }
 
 .photo-tile--published {
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff6b81) 26%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
+  border-color: color-mix(in oklab, var(--photos-primary) 26%, var(--photos-border));
 }
 
 .photo-tile--cover {
   box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--success-color, #5ed39a) 30%, transparent),
+    0 0 0 1px color-mix(in oklab, var(--photos-success) 30%, transparent),
     0 12px 32px rgb(0 0 0 / 22%);
 }
 
@@ -337,8 +304,7 @@
   transform: none;
 }
 
-.photo-card-link,
-.photo-card-link.app-media-frame {
+.photo-card-link {
   position: relative;
   display: block;
   width: 100%;
@@ -347,12 +313,11 @@
   aspect-ratio: 4 / 5;
   border: 0;
   padding: 0;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--surface-color, #0e1624) 92%, white 6%),
-      color-mix(in oklab, var(--surface-color, #0e1624) 80%, black 18%)
-    );
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--photos-surface) 92%, white 6%),
+    color-mix(in oklab, var(--photos-surface) 80%, black 18%)
+  );
   cursor: pointer;
   text-align: inherit;
   -webkit-tap-highlight-color: transparent;
@@ -372,9 +337,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition:
-    transform 180ms ease,
-    filter 180ms ease;
+  transition: transform 180ms ease, filter 180ms ease;
 }
 
 .photo-card-link:hover .photo,
@@ -383,8 +346,7 @@
   filter: brightness(1.03);
 }
 
-.photo-overlay,
-.photo-overlay.app-media-overlay {
+.photo-overlay {
   position: absolute;
   inset: auto 0 0;
   z-index: 1;
@@ -393,24 +355,15 @@
   justify-content: space-between;
   gap: 8px;
   padding: 34px 9px 9px;
-  background:
-    linear-gradient(
-      180deg,
-      transparent,
-      rgb(0 0 0 / 60%)
-    );
+  background: linear-gradient(180deg, transparent, rgb(0 0 0 / 60%));
   pointer-events: none;
 }
 
 .photo-status-stack {
-  display: flex;
-  align-items: center;
   flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
 }
-
-/* Busy overlay ------------------------------------------------------------- */
 
 .photo-busy-overlay {
   position: absolute;
@@ -439,19 +392,11 @@
 }
 
 @keyframes busy-spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 
-/* Chips -------------------------------------------------------------------- */
-
 .status-chip,
-.photo-date-chip,
-.status-chip.app-chip,
-.photo-date-chip.app-chip {
-  display: inline-flex;
-  align-items: center;
+.photo-date-chip {
   justify-content: center;
   min-height: 25px;
   max-width: 100%;
@@ -468,7 +413,7 @@
 }
 
 .status-chip--published {
-  background: color-mix(in oklab, var(--primary-color, #ff6b81) 62%, rgb(0 0 0 / 35%));
+  background: color-mix(in oklab, var(--photos-primary) 62%, rgb(0 0 0 / 35%));
 }
 
 .status-chip--private {
@@ -477,22 +422,19 @@
 }
 
 .status-chip--cover {
-  background: color-mix(in oklab, var(--success-color, #5ed39a) 58%, rgb(0 0 0 / 35%));
+  background: color-mix(in oklab, var(--photos-success) 58%, rgb(0 0 0 / 35%));
 }
 
 .status-chip--pending {
   background: color-mix(in oklab, var(--warning-color, #ffca6a) 62%, rgb(0 0 0 / 35%));
-  color: #fff;
 }
 
 .status-chip--rejected {
-  background: color-mix(in oklab, var(--danger-color, #ff6b6b) 68%, rgb(0 0 0 / 35%));
-  color: #fff;
+  background: color-mix(in oklab, var(--photos-danger) 68%, rgb(0 0 0 / 35%));
 }
 
 .status-chip--flagged {
   background: color-mix(in oklab, var(--warning-color, #ff9f43) 68%, rgb(0 0 0 / 35%));
-  color: #fff;
 }
 
 .status-chip--hidden {
@@ -504,50 +446,41 @@
   flex: 0 0 auto;
 }
 
-/* Ações do card ------------------------------------------------------------ */
-
-.management-bar,
-.management-bar.app-card__footer {
+.management-bar {
   position: relative;
-  display: flex;
   align-items: stretch;
   justify-content: space-between;
   gap: 7px;
   padding: 9px;
-  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  background: color-mix(in oklab, var(--surface-color, #0e1624) 96%, transparent);
+  border-top: 1px solid var(--photos-border);
+  background: color-mix(in oklab, var(--photos-surface) 96%, transparent);
 }
 
 .management-bar--busy {
   opacity: 0.82;
 }
 
-.management-action,
-.management-action.app-action {
+.management-action {
   min-width: 0;
   min-height: 34px;
   flex: 1 1 auto;
   padding: 0 10px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border: 1px solid var(--photos-border);
   border-radius: 10px;
   background: transparent;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 84%, transparent);
+  color: color-mix(in oklab, var(--photos-text) 84%, transparent);
   font: inherit;
   font-size: 0.78rem;
   font-weight: 760;
   line-height: 1;
   cursor: pointer;
-  transition:
-    background 140ms ease,
-    border-color 140ms ease,
-    color 140ms ease,
-    transform 140ms ease;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
 }
 
 .management-action:hover,
 .management-action:focus-visible {
-  background: color-mix(in oklab, var(--text-color, #f5f7fb) 7%, transparent);
-  border-color: color-mix(in oklab, var(--text-color, #f5f7fb) 22%, transparent);
+  background: color-mix(in oklab, var(--photos-text) 7%, transparent);
+  border-color: color-mix(in oklab, var(--photos-text) 22%, transparent);
   transform: translateY(-1px);
 }
 
@@ -557,43 +490,32 @@
   transform: none;
 }
 
-.management-action--primary,
-.management-action--primary.app-action {
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color, #ff6b81) 46%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
-  background: color-mix(in oklab, var(--primary-color, #ff6b81) 16%, transparent);
-  color: color-mix(in oklab, var(--primary-color, #ff6b81) 76%, #fff 24%);
+.management-action--primary {
+  border-color: color-mix(in oklab, var(--photos-primary) 46%, var(--photos-border));
+  background: color-mix(in oklab, var(--photos-primary) 16%, transparent);
+  color: color-mix(in oklab, var(--photos-primary) 76%, #fff 24%);
   font-weight: 820;
 }
 
 .management-action--neutral {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
+  color: color-mix(in oklab, var(--photos-text) 76%, transparent);
 }
 
-.management-action--danger,
-.management-action--danger.app-action {
-  border-color: color-mix(
-    in oklab,
-    var(--danger-color, #ff6b6b) 34%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
-  color: var(--danger-color, #ff6b6b);
+.management-action--danger {
+  border-color: color-mix(in oklab, var(--photos-danger) 34%, var(--photos-border));
+  color: var(--photos-danger);
 }
 
 .management-action--danger:hover,
 .management-action--danger:focus-visible {
-  background: color-mix(in oklab, var(--danger-color, #ff6b6b) 10%, transparent);
+  background: color-mix(in oklab, var(--photos-danger) 10%, transparent);
 }
 
 .management-action--solid {
-  background: color-mix(in oklab, var(--danger-color, #ff6b6b) 20%, transparent);
+  background: color-mix(in oklab, var(--photos-danger) 20%, transparent);
 }
 
-.management-action--icon,
-.management-action--icon.app-action {
+.management-action--icon {
   flex: 0 0 34px;
   width: 34px;
   padding: 0;
@@ -607,29 +529,27 @@
   line-height: 1;
 }
 
-/* Confirmação de exclusão -------------------------------------------------- */
+.management-action[type='date'] {
+  min-width: 8rem;
+}
 
 .delete-confirm-box {
   display: grid;
   gap: 10px;
   padding: 10px;
-  border-top: 1px solid color-mix(
-    in oklab,
-    var(--danger-color, #ff6b6b) 30%,
-    var(--surface-border, rgba(255, 255, 255, 0.12))
-  );
-  background: color-mix(in oklab, var(--danger-color, #ff6b6b) 7%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--photos-danger) 30%, var(--photos-border));
+  background: color-mix(in oklab, var(--photos-danger) 7%, transparent);
 }
 
-.delete-confirm-box p {
+.delete-confirm-box p,
+.publication-note {
   margin: 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 88%, transparent);
+  color: color-mix(in oklab, var(--photos-text) 88%, transparent);
   font-size: 0.82rem;
   line-height: 1.4;
 }
 
 .delete-confirm-actions {
-  display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
@@ -638,46 +558,35 @@
   flex: 1 1 auto;
 }
 
-/* Nota operacional --------------------------------------------------------- */
-
 .publication-note {
-  margin: 16px 0 0;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  margin-top: 16px;
+  color: color-mix(in oklab, var(--photos-text) 68%, transparent);
   font-size: 0.86rem;
   line-height: 1.45;
 }
 
-/* Mobile ------------------------------------------------------------------- */
-
 @media (max-width: 720px) {
   .photos-header,
-  .empty-state {
+  .empty-state,
+  .gallery-toolbar {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .actions {
+  .actions,
+  .gallery-toolbar__controls {
     width: 100%;
     justify-content: stretch;
   }
 
   .actions .gallery-action,
   .empty-state .gallery-action,
-  .empty-state .app-action {
+  .empty-state .app-action,
+  .gallery-filter-group {
     width: 100%;
-  }
-
-  .gallery-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .gallery-toolbar__controls {
-    justify-content: stretch;
   }
 
   .gallery-filter-group {
-    width: 100%;
     overflow-x: auto;
   }
 
@@ -687,13 +596,9 @@
 }
 
 @media (max-width: 599px) {
-  .photos-page {
-    padding: 12px 12px 24px;
-  }
+  .photos-page { padding: 12px 12px 24px; }
 
-  .photos-grid,
-  .photos-grid.app-card-grid,
-  .photos-grid.app-card-grid--media {
+  .photos-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
@@ -703,9 +608,7 @@
     box-shadow: none;
   }
 
-  .photo-overlay {
-    padding: 28px 6px 6px;
-  }
+  .photo-overlay { padding: 28px 6px 6px; }
 
   .status-chip,
   .photo-date-chip {
@@ -719,15 +622,13 @@
     padding: 7px;
   }
 
-  .management-action,
-  .management-action.app-action {
+  .management-action {
     min-height: 32px;
     padding-inline: 7px;
     font-size: 0.72rem;
   }
 
-  .management-action--icon,
-  .management-action--icon.app-action {
+  .management-action--icon {
     flex-basis: 32px;
     width: 32px;
     font-size: 0.88rem;
@@ -735,18 +636,9 @@
 }
 
 @media (max-width: 380px) {
-  .photos-grid,
-  .photos-grid.app-card-grid,
-  .photos-grid.app-card-grid--media {
-    grid-template-columns: 1fr;
-  }
-
-  .photo-status-stack {
-    gap: 4px;
-  }
+  .photos-grid { grid-template-columns: 1fr; }
+  .photo-status-stack { gap: 4px; }
 }
-
-/* Acessibilidade ----------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
   .photo-tile,
@@ -755,9 +647,7 @@
     transition: none;
   }
 
-  .busy-spinner {
-    animation: none;
-  }
+  .busy-spinner { animation: none; }
 
   .photo-tile:hover,
   .photo-card-link:hover .photo,
@@ -775,10 +665,6 @@ html.high-contrast .management-action,
 html.high-contrast .status-chip,
 html.high-contrast .photo-date-chip {
   border-color: currentColor !important;
-  box-shadow: none !important;
-}
-
-html.high-contrast .photo-tile--cover {
   box-shadow: none !important;
 }
 
