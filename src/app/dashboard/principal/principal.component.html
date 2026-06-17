@@ -4,8 +4,8 @@
 
   Diretriz:
   - visual de rede social/profissional;
-  - sem duplicar "descoberta" em vários blocos;
-  - CTA principal claro: explorar rede e ver perfis sugeridos;
+  - cada ação principal aparece em um único bloco;
+  - o topo apresenta contexto, não repete botões;
   - mantém observables, métricas e rotas já existentes.
 -->
 
@@ -15,7 +15,7 @@
       <span class="principal-hero__eyebrow">Hub de conexões</span>
       <h1>Bem-vindo de volta, {{ currentUser.nickname || 'usuário' }}.</h1>
       <p class="principal-hero__description">
-        Gerencie sua presença, veja perfis compatíveis e avance nas interações em um só painel.
+        Gerencie sua presença, acompanhe sua rede e escolha o próximo caminho sem atalhos duplicados.
       </p>
 
       <div class="principal-hero__chips" aria-label="Resumo rápido da conta">
@@ -32,25 +32,6 @@
         </span>
       </div>
     </div>
-
-    <nav class="principal-hero__actions app-card__actions" aria-label="Ações principais">
-      <a class="principal-action principal-action--primary" routerLink="/dashboard/explorar">
-        <span class="principal-action__icon" aria-hidden="true">🔎</span>
-        <span>Explorar rede</span>
-      </a>
-
-      <a class="principal-action principal-action--accent" routerLink="/dashboard/perfis-sugeridos">
-        <span class="principal-action__icon" aria-hidden="true">✨</span>
-        <span>Perfis sugeridos</span>
-      </a>
-
-      @if (profileLink$ | async; as profileLink) {
-        <a class="principal-action principal-action--ghost" [routerLink]="profileLink">
-          <span class="principal-action__icon" aria-hidden="true">👤</span>
-          <span>Meu perfil</span>
-        </a>
-      }
-    </nav>
   </header>
 
   <section class="principal-overview app-card-grid" *ngIf="currentUserStatus$ | async as currentStatus" aria-label="Resumo da conta e da rede">
@@ -92,11 +73,12 @@
       </div>
 
       <p class="principal-panel__description">
-        Veja perfis compatíveis com seu contexto e abra a vitrine de cada pessoa com menos passos.
+        Abra uma seleção de perfis compatíveis e acesse a vitrine de cada pessoa com menos passos.
       </p>
 
       <div class="principal-panel__actions app-card__actions">
         <a class="principal-action principal-action--accent" routerLink="/dashboard/perfis-sugeridos">
+          <span class="principal-action__icon" aria-hidden="true">✨</span>
           <span>Ver sugeridos</span>
         </a>
       </div>
@@ -111,11 +93,12 @@
       </div>
 
       <p class="principal-panel__description">
-        Navegue por perfis próximos, online e disponíveis para novas conexões.
+        Navegue livremente por perfis próximos, online e disponíveis para novas conexões.
       </p>
 
       <div class="principal-panel__actions app-card__actions">
         <a class="principal-action principal-action--primary" routerLink="/dashboard/explorar">
+          <span class="principal-action__icon" aria-hidden="true">🔎</span>
           <span>Abrir rede</span>
         </a>
       </div>
@@ -130,7 +113,7 @@
       </div>
 
       <p class="principal-panel__description">
-        Acompanhe amizades, convites e conversas em andamento sem perder o contexto da rede.
+        Acompanhe amizades, solicitações e conversas em andamento sem perder o contexto da rede.
       </p>
 
       <div class="principal-panel__actions app-card__actions principal-panel__actions--split">
@@ -144,12 +127,12 @@
     </article>
   </section>
 
-  <section class="principal-next-steps app-card" aria-label="Próximos passos recomendados">
+  <section class="principal-next-steps app-card" aria-label="Ajustes do seu perfil">
     <div class="principal-next-steps__copy">
-      <p class="principal-panel__eyebrow">Próximo passo</p>
-      <h2>Fortaleça sua presença na rede</h2>
+      <p class="principal-panel__eyebrow">Presença</p>
+      <h2>Fortaleça seu perfil na rede</h2>
       <p>
-        Perfil consistente e preferências atualizadas melhoram o contexto dos perfis sugeridos.
+        Perfil consistente e preferências atualizadas melhoram a qualidade das conexões sugeridas.
       </p>
     </div>
 
@@ -165,10 +148,6 @@
           Editar perfil
         </a>
       }
-
-      <a class="principal-action principal-action--accent" routerLink="/dashboard/perfis-sugeridos">
-        Ver sugeridos
-      </a>
     </div>
   </section>
 </section>
