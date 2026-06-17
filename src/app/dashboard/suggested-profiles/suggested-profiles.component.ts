@@ -1,19 +1,19 @@
-//src\app\dashboard\suggested-profiles\suggested-profiles.component.ts
-import { Component, OnInit, DestroyRef, inject, ChangeDetectionStrategy } from '@angular/core';
+// src/app/dashboard/suggested-profiles/suggested-profiles.component.ts
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
+import { of } from 'rxjs';
+import { catchError, filter, switchMap } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { catchError, filter, switchMap } from 'rxjs/operators';
-import { of } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SuggestionService } from 'src/app/core/services/user-profile/recommendations/suggestion.service';
-import { CommonModule } from '@angular/common';
-import { MatCardModule } from '@angular/material/card';
-import { MatButtonModule } from '@angular/material/button';
 
 @Component({
   selector: 'app-suggested-profiles',
   standalone: true,
-  imports: [CommonModule, MatCardModule, MatButtonModule],
+  imports: [CommonModule, RouterModule],
   templateUrl: './suggested-profiles.component.html',
   styleUrls: ['./suggested-profiles.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -33,10 +33,7 @@ export class SuggestedProfilesComponent implements OnInit {
         filter((u): u is IUserDados => !!u && !!u.uid),
         switchMap((currentUser) =>
           this.suggestionService.getSuggestedProfilesForUser(currentUser).pipe(
-            catchError(() => {
-              // depois substitua pelo tratamento centralizado do projeto
-              return of<IUserDados[]>([]);
-            })
+            catchError(() => of<IUserDados[]>([]))
           )
         ),
         takeUntilDestroyed(this.destroyRef)
