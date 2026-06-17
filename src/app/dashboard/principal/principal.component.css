@@ -1,145 +1,308 @@
-/* src/app/dashboard/principal/principal.component.css */
-/* -------------------------------------------------------------------------- */
-/* Dashboard principal                                                        */
-/* Objetivos desta versão:                                                    */
-/* - tornar a home mais operacional                                           */
-/* - remover sensação de conteúdo "fake"                                      */
-/* - melhorar leitura e navegação                                             */
-/* - manter responsividade forte                                              */
-/* -------------------------------------------------------------------------- */
+/* src/app/dashboard/principal/principal.component.css
+   ----------------------------------------------------------------------------
+   Dashboard principal.
+
+   Objetivos:
+   - tornar a home mais operacional e visível;
+   - usar card system global com fallback local;
+   - destacar descoberta e perfis sugeridos sem criar barra duplicada;
+   - manter responsividade real em mobile.
+   ----------------------------------------------------------------------------
+*/
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
 .principal-page {
   display: grid;
-  gap: 18px;
-
+  gap: clamp(14px, 2vw, 22px);
   width: min(100%, var(--content-ultrawide, 1600px));
+  min-width: 0;
   margin-inline: auto;
 }
 
-.principal-hero {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 18px;
-  padding: 22px;
-  border: 1px solid var(--surface-border);
-  border-radius: 18px;
-  background: var(--surface-color);
-  box-shadow: var(--box-shadow);
+/* Hero --------------------------------------------------------------------- */
+
+.principal-hero,
+.principal-hero.app-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 360px);
+  gap: clamp(16px, 2.4vw, 28px);
+  align-items: stretch;
+  padding: clamp(18px, 2.6vw, 30px);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent), transparent 34%),
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--surface-color, #101923) 96%, var(--text-color, #f5f7fb) 4%),
+      color-mix(in oklab, var(--surface-color, #101923) 90%, black 10%)
+    );
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 14px 34px rgb(0 0 0 / 18%));
 }
 
-.principal-hero__copy {
+.principal-hero__copy,
+.principal-hero__copy.app-card__body {
   display: grid;
-  gap: 8px;
+  align-content: center;
+  gap: 10px;
   min-width: 0;
+  padding: 0;
 }
 
 .principal-hero__eyebrow,
 .principal-panel__eyebrow {
   margin: 0;
-  font-size: 0.82rem;
-  letter-spacing: 0.04em;
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 72%, var(--text-color, #f5f7fb));
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
   text-transform: uppercase;
-  opacity: 0.8;
 }
 
 .principal-hero h1,
-.principal-panel h2 {
+.principal-panel h2,
+.principal-next-steps h2 {
   margin: 0;
-  line-height: 1.12;
+  color: var(--text-color, #f5f7fb);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.principal-hero h1 {
+  max-width: 15ch;
+  font-size: clamp(1.65rem, 4vw, 3rem);
+  font-weight: 950;
 }
 
 .principal-hero__description,
-.principal-panel__description {
+.principal-panel__description,
+.principal-next-steps p {
   margin: 0;
-  line-height: 1.55;
   max-width: 70ch;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
+  line-height: 1.55;
+}
+
+.principal-hero__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .principal-hero__actions,
-.principal-panel__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+.principal-hero__actions.app-card__actions {
+  display: grid;
+  align-content: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
 }
 
-.principal-status-strip {
+.principal-hero__actions .app-action,
+.principal-next-steps__actions .app-action,
+.principal-panel__actions .app-action {
+  min-height: 42px;
+  border-radius: 999px;
+  font-weight: 900;
+}
+
+.principal-hero__action--accent {
+  box-shadow: 0 12px 26px color-mix(in oklab, var(--primary-color, #ff7070) 24%, transparent);
+}
+
+/* Status ------------------------------------------------------------------- */
+
+.principal-status-strip,
+.principal-status-strip.app-card-grid,
+.principal-summary,
+.principal-summary.app-card-grid,
+.principal-section-grid,
+.principal-section-grid.app-card-grid {
   display: grid;
+  gap: clamp(10px, 1.5vw, 16px);
+  min-width: 0;
+}
+
+.principal-status-strip,
+.principal-summary {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  padding: 16px 18px;
-  border: 1px solid var(--surface-border);
-  border-radius: 16px;
-  background: var(--surface-color);
 }
 
-.principal-status-strip__item {
+.principal-status-strip__item,
+.principal-status-strip__item.app-card,
+.principal-summary__card,
+.principal-summary__card.app-card,
+.principal-panel,
+.principal-panel.app-card {
+  min-width: 0;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  background: var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
+}
+
+.principal-status-strip__item,
+.principal-status-strip__item.app-card,
+.principal-summary__card,
+.principal-summary__card.app-card {
   display: grid;
-  gap: 4px;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 18px;
+}
+
+.principal-status-strip__item--highlight {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 36%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  background:
+    radial-gradient(circle at top right, color-mix(in oklab, var(--primary-color, #ff7070) 16%, transparent), transparent 42%),
+    var(--surface-color, #101923);
 }
 
 .principal-status-strip__label,
 .principal-summary__label {
-  font-size: 0.9rem;
-  opacity: 0.8;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.84rem;
+  font-weight: 840;
+  line-height: 1.2;
 }
 
 .principal-status-strip__value,
 .principal-summary__value {
-  font-size: 1.45rem;
-  font-weight: 700;
-  line-height: 1.1;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.22rem, 2vw, 1.5rem);
+  font-weight: 950;
+  line-height: 1.05;
 }
 
-.principal-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+.principal-status-strip__hint {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 60%, transparent);
+  font-size: 0.8rem;
+  line-height: 1.35;
 }
 
-.principal-summary__card,
-.principal-panel {
-  padding: 20px;
-  border: 1px solid var(--surface-border);
-  border-radius: 18px;
-  background: var(--surface-color);
-  box-shadow: var(--box-shadow);
-}
-
-.principal-summary__card {
-  display: grid;
-  gap: 10px;
-}
-
+.principal-status-strip__link,
 .principal-summary__link {
-  font-weight: 600;
+  justify-self: start;
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 82%, var(--text-color, #f5f7fb));
+  font-size: 0.84rem;
+  font-weight: 900;
   text-decoration: none;
 }
 
+.principal-status-strip__link:hover,
+.principal-summary__link:hover,
+.principal-status-strip__link:focus-visible,
+.principal-summary__link:focus-visible {
+  text-decoration: underline;
+}
+
+/* Painéis ------------------------------------------------------------------ */
+
 .principal-section-grid {
-  display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
 }
 
-.principal-panel {
+.principal-panel,
+.principal-panel.app-card {
   display: grid;
+  align-content: start;
   gap: 14px;
+  padding: 20px;
+  border-radius: 20px;
+  transition:
+    transform 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease;
 }
 
-.principal-panel__header {
+.principal-panel:hover,
+.principal-panel:focus-within {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 28%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  box-shadow: 0 16px 34px rgb(0 0 0 / 22%);
+}
+
+.principal-panel__header,
+.principal-panel__header.app-card__header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
+  padding: 0;
+}
+
+.principal-panel h2,
+.principal-next-steps h2 {
+  font-size: clamp(1.18rem, 1.7vw, 1.55rem);
 }
 
 .principal-panel--highlight {
-  border-color: color-mix(in oklab, var(--primary-color) 35%, var(--surface-border));
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 42%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 16%, transparent), transparent 40%),
+    var(--surface-color, #101923);
 }
 
+.principal-panel__actions,
+.principal-panel__actions.app-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0;
+}
+
+/* Próximos passos ---------------------------------------------------------- */
+
+.principal-next-steps,
+.principal-next-steps.app-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 420px);
+  gap: clamp(14px, 2vw, 24px);
+  align-items: center;
+  padding: clamp(16px, 2.4vw, 24px);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 20px;
+  background:
+    linear-gradient(135deg, color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent), transparent 54%),
+    var(--surface-color, #101923);
+  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
+}
+
+.principal-next-steps__copy {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.principal-next-steps__actions,
+.principal-next-steps__actions.app-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0;
+}
+
+/* Mobile ------------------------------------------------------------------- */
+
 @media (max-width: 1100px) {
-  .principal-hero {
-    flex-direction: column;
+  .principal-hero,
+  .principal-hero.app-card,
+  .principal-next-steps,
+  .principal-next-steps.app-card {
+    grid-template-columns: 1fr;
+  }
+
+  .principal-hero__actions,
+  .principal-hero__actions.app-card__actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .principal-status-strip,
@@ -147,31 +310,77 @@
   .principal-section-grid {
     grid-template-columns: 1fr;
   }
+
+  .principal-next-steps__actions,
+  .principal-next-steps__actions.app-card__actions {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 640px) {
+  .principal-page {
+    gap: 12px;
+  }
+
   .principal-hero,
-  .principal-status-strip,
+  .principal-status-strip__item,
   .principal-summary__card,
-  .principal-panel {
+  .principal-panel,
+  .principal-next-steps,
+  .principal-hero.app-card,
+  .principal-status-strip__item.app-card,
+  .principal-summary__card.app-card,
+  .principal-panel.app-card,
+  .principal-next-steps.app-card {
     padding: 16px;
-    border-radius: 14px;
+    border-radius: 16px;
+    box-shadow: none;
   }
 
   .principal-hero__actions,
-  .principal-panel__actions {
+  .principal-hero__actions.app-card__actions,
+  .principal-panel__actions,
+  .principal-panel__actions.app-card__actions,
+  .principal-next-steps__actions,
+  .principal-next-steps__actions.app-card__actions {
+    display: grid;
+    grid-template-columns: 1fr;
     width: 100%;
   }
 
-  .principal-hero__actions .btn,
-  .principal-panel__actions .btn {
+  .principal-hero__actions .app-action,
+  .principal-panel__actions .app-action,
+  .principal-next-steps__actions .app-action {
     width: 100%;
     justify-content: center;
   }
+
+  .principal-panel:hover,
+  .principal-panel:focus-within {
+    transform: none;
+    box-shadow: none;
+  }
 }
-/* Considerar sempre futuras versões .apk, mobile,
-Tentativa de inspiração no melhor das grandes plataformas e a super, ultra, mega, responsividade.
-De forma que considere das menores e diversas telas de smartphones,
-diversos tipos de monitores, de notebook, e telas gigantes de televisões monitores,
-tanto em retrato ou paisagem.
-*/
+
+@media (prefers-reduced-motion: reduce) {
+  .principal-panel,
+  .principal-hero__actions .app-action,
+  .principal-panel__actions .app-action,
+  .principal-next-steps__actions .app-action {
+    transition: none !important;
+  }
+
+  .principal-panel:hover,
+  .principal-panel:focus-within {
+    transform: none;
+  }
+}
+
+html.high-contrast .principal-hero,
+html.high-contrast .principal-status-strip__item,
+html.high-contrast .principal-summary__card,
+html.high-contrast .principal-panel,
+html.high-contrast .principal-next-steps {
+  border-color: currentColor !important;
+  box-shadow: none !important;
+}
