@@ -1,10 +1,9 @@
 // src/app/store/store.module.ts
-// Não esqueça os comentários explicativos sobre a configuração do StoreModule, EffectsModule e StoreDevtoolsModule, especialmente sobre os meta-reducers e runtime checks. Isso ajuda a contextualizar as escolhas feitas e a orientar futuros desenvolvedores que possam trabalhar nesse código.
-// - O StoreModule é configurado com os reducers e meta-reducers, garantindo a imutabilidade e serializabilidade do estado e das ações.
-// - O EffectsModule registra todos os efeitos relacionados a usuários, chat, interações e localização, centralizando a lógica de efeitos colaterais da aplicação.
-// - O StoreDevtoolsModule é incluído apenas em ambiente de desenvolvimento para facilitar o debug do estado e das ações.
+// Configuração central do NgRx.
+// Mantém reducers, meta-reducers, runtime checks e effects em um ponto único.
+// Logs de estado não ficam embutidos aqui para evitar exposição acidental de dados.
 import { NgModule } from '@angular/core';
-import { StoreModule, ActionReducer } from '@ngrx/store';
+import { StoreModule } from '@ngrx/store';
 import { EffectsModule } from '@ngrx/effects';
 import { StoreDevtoolsModule } from '@ngrx/store-devtools';
 import { environment } from '../../environments/environment';
@@ -12,7 +11,7 @@ import { environment } from '../../environments/environment';
 // ROOT reducers
 import { reducers } from './reducers';
 
-// ✅ metaReducers centralizados
+// metaReducers centralizados
 import { metaReducers as appMetaReducers } from './reducers/meta-reducers';
 
 // EFFECTS - USER
@@ -43,48 +42,7 @@ import { FriendsPaginationSelectorsCacheCleanupEffects } from
 import { NearbyProfilesEffects } from './effects/effects.location/nearby-profiles.effects';
 import { LocationEffects } from './effects/effects.location/location.effects';
 
-/**
- * Logger meta-reducer (opcional) — DEV only.
- * - Deixe comentado na maioria do tempo.
- * - Quando precisar rastrear ação/estado, ative no array final.
- */
-function loggerMetaReducer<S>(reducer: ActionReducer<S>): ActionReducer<S> {
-  if (environment.production) return reducer;
-
-  return (state, action) => {
-    const t0 = performance?.now?.() ?? Date.now();
-    const next = reducer(state, action);
-    const t1 = performance?.now?.() ?? Date.now();
-
-    // eslint-disable-next-line no-console
-    console.groupCollapsed?.(`[NGRX] ${action.type} +${(t1 - t0).toFixed(2)}ms`);
-    // eslint-disable-next-line no-console
-    console.log('prev:', state);
-    // eslint-disable-next-line no-console
-    console.log('action:', action);
-    // eslint-disable-next-line no-console
-    console.log('next:', next);
-    // eslint-disable-next-line no-console
-    console.groupEnd?.();
-
-    return next;
-  };
-}
-
-/**
- * Meta reducers finais:
- * - Em prod: somente os metaReducers do app.
- * - Em dev: pode adicionar logger por fora (para enxergar inclusive os resets).
- *
- * Observação de ordem:
- * - logger primeiro => ele “envolve” os demais e loga o resultado final.
- */
-const metaReducers = environment.production
-  ? appMetaReducers
-  : [
-    // loggerMetaReducer,
-    ...appMetaReducers,
-  ];
+const metaReducers = appMetaReducers;
 
 @NgModule({
   imports: [
@@ -95,9 +53,9 @@ const metaReducers = environment.production
         strictActionImmutability: true,
 
         /**
-         * ⚠️ Serializability:
-         * Se você guardar Timestamp/Date na Store, isso pode falhar.
-         * O ideal (padrão grande) é guardar epoch(number) e converter na borda (converter/repository).
+         * Serializability:
+         * Store deve receber dados serializáveis. Datas/Timestamps devem ser
+         * convertidos para epoch na borda de entrada.
          */
         strictStateSerializability: true,
         strictActionSerializability: true,
@@ -122,7 +80,7 @@ const metaReducers = environment.production
       RoomEffects,
 
       // INTERACTIONS
-      FriendsNetworkEffects, // ⚠️ não duplicar
+      FriendsNetworkEffects,
       FriendsRequestsCrudEffects,
       FriendsRequestsRealtimeEffects,
       FriendsRequestsProfilesEffects,
@@ -133,7 +91,7 @@ const metaReducers = environment.production
       LocationEffects,
     ]),
 
-    // Devtools só em dev
+    // Devtools só em dev.
     ...(environment.production
       ? []
       : [
