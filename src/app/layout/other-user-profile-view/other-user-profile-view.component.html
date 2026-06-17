@@ -8,6 +8,11 @@
   - manter monetização discreta;
   - não punir o dono do perfil assinante escondendo sua exposição;
   - manter botões claros, acessíveis e responsivos.
+
+  Diretriz visual:
+  - usa o card system global: app-card, app-toolbar, app-action, app-chip,
+    app-media-frame, app-media-overlay e app-empty-card;
+  - mantém classes locais para preservar layout específico da vitrine.
 -->
 
 <section
@@ -15,9 +20,9 @@
   aria-labelledby="profile-heading"
   [attr.aria-busy]="isLoading ? 'true' : 'false'"
 >
-  <header class="other-profile-page__topbar">
+  <header class="other-profile-page__topbar app-toolbar">
     <a
-      class="other-profile-page__back"
+      class="other-profile-page__back app-action app-action--ghost"
       [routerLink]="discoveryLink"
       aria-label="Voltar para descoberta"
     >
@@ -28,7 +33,7 @@
 
   @if (isLoading) {
     <section
-      class="other-profile-page__panel other-profile-page__loading"
+      class="other-profile-page__panel other-profile-page__loading app-card app-empty-card"
       role="status"
       aria-live="polite"
     >
@@ -38,8 +43,8 @@
   } @else {
     @if (userProfile; as profile) {
       <section class="other-profile-page__hero">
-        <article class="other-profile-page__hero-main" aria-labelledby="profile-heading">
-          <figure class="other-profile-page__photo-wrap">
+        <article class="other-profile-page__hero-main app-card" aria-labelledby="profile-heading">
+          <figure class="other-profile-page__photo-wrap app-media-frame app-media-frame--square">
             <img
               [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
               [attr.alt]="profile.nickname ? ('Foto de perfil de ' + profile.nickname) : 'Foto de perfil'"
@@ -55,12 +60,12 @@
             </figcaption>
           </figure>
 
-          <div class="other-profile-page__identity">
+          <div class="other-profile-page__identity app-card__body">
             <div class="other-profile-page__identity-top">
               <p class="other-profile-page__eyebrow">Perfil</p>
 
               @if (ownerIsSubscriber) {
-                <span class="other-profile-page__subscriber-badge">
+                <span class="other-profile-page__subscriber-badge app-chip app-chip--primary">
                   <i class="fas fa-star" aria-hidden="true"></i>
                   Em destaque
                 </span>
@@ -79,11 +84,11 @@
             }
 
             <div class="other-profile-page__meta" aria-label="Informações rápidas do perfil">
-              <span class="other-profile-page__chip">
+              <span class="other-profile-page__chip app-chip app-chip--muted">
                 {{ profile.gender ? (profile.gender | titlecase) : 'Gênero não informado' }}
               </span>
 
-              <span class="other-profile-page__chip">
+              <span class="other-profile-page__chip app-chip app-chip--muted">
                 {{ profile.orientation || 'Orientação não informada' }}
               </span>
             </div>
@@ -94,8 +99,8 @@
           </div>
         </article>
 
-        <aside class="other-profile-page__actions-card" aria-label="Ações do perfil">
-          <div class="other-profile-page__actions-heading">
+        <aside class="other-profile-page__actions-card app-card app-card--compact" aria-label="Ações do perfil">
+          <div class="other-profile-page__actions-heading app-card__header">
             <p class="other-profile-page__eyebrow">Interação</p>
             <h2 class="other-profile-page__actions-title">Ações do perfil</h2>
           </div>
@@ -103,7 +108,7 @@
           <div class="other-profile-page__actions">
             @if (photosLink) {
               <a
-                class="btn btn-primary other-profile-page__action"
+                class="other-profile-page__action app-action app-action--primary"
                 [routerLink]="photosLink"
               >
                 <i class="fas fa-images" aria-hidden="true"></i>
@@ -113,7 +118,7 @@
 
             <button
               type="button"
-              class="btn btn-secondary other-profile-page__action"
+              class="other-profile-page__action app-action app-action--ghost"
               (click)="sendFriendRequest()"
               [disabled]="(friendRequestBusy$ | async) === true || !uid"
             >
@@ -125,7 +130,7 @@
 
             <button
               type="button"
-              class="btn btn-secondary other-profile-page__action"
+              class="other-profile-page__action app-action app-action--ghost"
               (click)="startDirectChat()"
               [disabled]="(directChatBusy$ | async) === true || !uid"
             >
@@ -143,8 +148,8 @@
       </section>
 
       <section class="other-profile-page__experience" aria-label="Mídia e interesses do perfil">
-        <article class="other-profile-page__media-panel">
-          <div class="other-profile-page__media-visual">
+        <article class="other-profile-page__media-panel app-card app-card--media">
+          <div class="other-profile-page__media-visual app-media-frame">
             @if (publicPhotoPreview$ | async; as previewPhotos) {
               @if (previewPhotos.length > 0) {
                 <div
@@ -153,7 +158,7 @@
                   aria-label="Prévia da galeria do perfil"
                 >
                   @for (photo of previewPhotos; track trackPhotoById($index, photo)) {
-                    <figure class="other-profile-page__gallery-item">
+                    <figure class="other-profile-page__gallery-item app-card app-card--media">
                       <img
                         [src]="photo.url"
                         [attr.alt]="photo.alt || 'Foto publicada no perfil'"
@@ -164,7 +169,7 @@
                   }
                 </div>
 
-                <div class="other-profile-page__media-overlay">
+                <div class="other-profile-page__media-overlay app-media-overlay">
                   <i class="fas fa-images" aria-hidden="true"></i>
                   <span>Prévia da galeria</span>
                 </div>
@@ -180,7 +185,7 @@
                     decoding="async"
                   />
 
-                  <div class="other-profile-page__gallery-empty-copy">
+                  <div class="other-profile-page__gallery-empty-copy app-chip app-chip--overlay">
                     <i class="fas fa-images" aria-hidden="true"></i>
                     <span>Galeria ainda sem fotos aprovadas</span>
                   </div>
@@ -189,7 +194,7 @@
             }
           </div>
 
-          <div class="other-profile-page__media-copy">
+          <div class="other-profile-page__media-copy app-card__body">
             <p class="other-profile-page__eyebrow">Conteúdo</p>
 
             <h2>Fotos e vídeos</h2>
@@ -200,7 +205,7 @@
             </p>
 
             @if (photosLink) {
-              <a class="btn btn-primary other-profile-page__media-cta" [routerLink]="photosLink">
+              <a class="other-profile-page__media-cta app-action app-action--primary" [routerLink]="photosLink">
                 <i class="fas fa-images" aria-hidden="true"></i>
                 <span>Ver galeria</span>
               </a>
@@ -221,8 +226,8 @@
           </div>
         </article>
 
-        <article class="other-profile-page__intentions-panel">
-          <header class="other-profile-page__panel-header">
+        <article class="other-profile-page__intentions-panel app-card app-card--compact">
+          <header class="other-profile-page__panel-header app-card__header">
             <div>
               <p class="other-profile-page__eyebrow">Afinidades</p>
               <h2>Desejos e interesses</h2>
@@ -232,13 +237,13 @@
           @if (hasPreferenceChips) {
             <div class="other-profile-page__preference-cloud" aria-label="Interesses declarados">
               @for (preference of preferenceChips; track preference) {
-                <span class="other-profile-page__preference-chip">
+                <span class="other-profile-page__preference-chip app-chip">
                   {{ preference }}
                 </span>
               }
             </div>
           } @else {
-            <p class="other-profile-page__soft-empty">
+            <p class="other-profile-page__soft-empty app-empty-card__text">
               Este perfil ainda mantém os interesses mais discretos.
             </p>
           }
@@ -246,7 +251,7 @@
           <div class="other-profile-page__interaction-signals" aria-label="Sinais de interação">
             @for (signal of profileSignals; track signal.label) {
               <div
-                class="other-profile-page__signal"
+                class="other-profile-page__signal app-card app-card--flat"
                 [class.other-profile-page__signal--strong]="signal.tone === 'strong'"
                 [class.other-profile-page__signal--muted]="signal.tone === 'muted'"
               >
@@ -263,8 +268,8 @@
       </section>
 
       <section class="other-profile-page__content" aria-label="Detalhes do perfil">
-        <article class="other-profile-page__panel other-profile-page__panel--summary">
-          <header class="other-profile-page__panel-header">
+        <article class="other-profile-page__panel other-profile-page__panel--summary app-card">
+          <header class="other-profile-page__panel-header app-card__header">
             <div>
               <p class="other-profile-page__eyebrow">Apresentação</p>
               <h2>Resumo do perfil</h2>
@@ -297,11 +302,11 @@
         </article>
 
         <article
-          class="other-profile-page__panel other-profile-page__panel--social"
+          class="other-profile-page__panel other-profile-page__panel--social app-card"
           role="region"
           aria-labelledby="social-heading"
         >
-          <header class="other-profile-page__panel-header">
+          <header class="other-profile-page__panel-header app-card__header">
             <div>
               <p class="other-profile-page__eyebrow">Contato</p>
               <h2 id="social-heading">Redes sociais</h2>
@@ -317,14 +322,14 @@
       </section>
     } @else {
       <section
-        class="other-profile-page__panel other-profile-page__empty"
+        class="other-profile-page__panel other-profile-page__empty app-card app-empty-card"
         role="status"
         aria-live="polite"
       >
         <h1 id="profile-heading">Perfil indisponível</h1>
         <p>Não foi possível carregar este perfil no momento.</p>
 
-        <a class="btn btn-secondary" [routerLink]="discoveryLink">
+        <a class="app-action app-action--ghost" [routerLink]="discoveryLink">
           Voltar para descoberta
         </a>
       </section>
