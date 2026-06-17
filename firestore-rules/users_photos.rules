@@ -2,6 +2,7 @@
 // USERS / photos + imageStates + comments
 // - Fluxo atual: metadado da foto salva id, url, path, fileName, createdAt
 // - Somente o dono lê/escreve
+// - displayDate é metadado privado de organização e só pode ser alterado por assinantes
 // - Sem scraping, sem enumeração
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // uso de helpers globais
@@ -14,6 +15,22 @@ match /users/{userId}/photos/{photoId} {
     return request.resource.data.keys().hasAny([field]);
   }
 
+  function userDoc() {
+    return get(/databases/$(database)/documents/users/$(userId)).data;
+  }
+
+  function hasPaidPhotoDateAccess() {
+    let user = userDoc();
+    return user.monthlyPayer == true
+      && user.subscriptionStatus == "active"
+      && (
+        user.role == "basic" ||
+        user.role == "premium" ||
+        user.role == "vip" ||
+        user.role == "admin"
+      );
+  }
+
   function allowedKeys() {
     return request.resource.data.keys().hasOnly([
       "id",
@@ -21,8 +38,30 @@ match /users/{userId}/photos/{photoId} {
       "path",
       "fileName",
       "createdAt",
+      "displayDate",
       "updatedAt"
     ]);
+  }
+
+  function validDisplayDate() {
+    return !hasField("displayDate")
+      || request.resource.data.displayDate == null
+      || (
+        request.resource.data.displayDate is number
+        && request.resource.data.displayDate >= 0
+        && request.resource.data.displayDate <= 4133980799999
+      );
+  }
+
+  function displayDateCreateAllowed() {
+    return !hasField("displayDate")
+      || request.resource.data.displayDate == null
+      || hasPaidPhotoDateAccess();
+  }
+
+  function displayDateUpdateAllowed() {
+    return !request.resource.data.diff(resource.data).changedKeys().hasAny(["displayDate"])
+      || hasPaidPhotoDateAccess();
   }
 
   function validPhotoPayload() {
@@ -32,13 +71,20 @@ match /users/{userId}/photos/{photoId} {
       && (!hasField("path") || request.resource.data.path is string)
       && (!hasField("fileName") || request.resource.data.fileName is string)
       && optTimestamp("createdAt")
+      && validDisplayDate()
       && optTimestamp("updatedAt");
   }
 
   allow get, list: if isSelf(userId);
 
-  allow create: if isSelf(userId) && validPhotoPayload();
-  allow update: if isSelf(userId) && validPhotoPayload();
+  allow create: if isSelf(userId)
+    && validPhotoPayload()
+    && displayDateCreateAllowed();
+
+  allow update: if isSelf(userId)
+    && validPhotoPayload()
+    && displayDateUpdateAllowed();
+
   allow delete: if isSelf(userId);
 
   match /comments/{commentId} {
