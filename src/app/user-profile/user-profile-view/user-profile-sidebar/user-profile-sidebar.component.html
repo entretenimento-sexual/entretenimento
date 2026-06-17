@@ -9,7 +9,7 @@
   <header class="profile-context-card__header">
     <img
       [src]="vm?.usuario?.photoURL || 'assets/imagem-padrao.webp'"
-      [alt]="vm?.usuario?.nickname || 'Foto do perfil'"
+      [alt]="'Foto de ' + (vm?.usuario?.nickname || 'perfil')"
       class="profile-context-card__picture"
       loading="lazy"
       decoding="async"
@@ -20,14 +20,6 @@
       <h2 class="profile-context-card__title">
         {{ vm?.usuario?.nickname || 'Meu perfil' }}
       </h2>
-
-      <p class="profile-context-card__subtitle">
-        @if (vm?.isOwnProfileRoute) {
-          Atalhos do seu perfil
-        } @else {
-          Ações disponíveis neste perfil
-        }
-      </p>
     </div>
   </header>
 
