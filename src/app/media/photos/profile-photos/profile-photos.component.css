@@ -12,7 +12,6 @@
   --photos-text: var(--text-color, #f5f7fb);
   --photos-primary: var(--primary-color, #ff6b81);
   --photos-danger: var(--danger-color, #ff6b6b);
-  --photos-success: var(--success-color, #5ed39a);
   --photos-muted: color-mix(in oklab, var(--photos-text) 70%, transparent);
 
   width: 100%;
@@ -292,12 +291,6 @@
   border-color: color-mix(in oklab, var(--photos-primary) 26%, var(--photos-border));
 }
 
-.photo-tile--cover {
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--photos-success) 30%, transparent),
-    0 12px 32px rgb(0 0 0 / 22%);
-}
-
 .photo-tile--busy,
 .photo-tile--busy:hover,
 .photo-tile--busy:focus-within {
@@ -419,10 +412,6 @@
 .status-chip--private {
   background: rgb(0 0 0 / 44%);
   color: rgb(255 255 255 / 88%);
-}
-
-.status-chip--cover {
-  background: color-mix(in oklab, var(--photos-success) 58%, rgb(0 0 0 / 35%));
 }
 
 .status-chip--pending {
