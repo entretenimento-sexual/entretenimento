@@ -4,7 +4,7 @@
 
    Objetivos:
    - visual de rede social/profissional;
-   - menos redundância entre descoberta, exploração e sugestões;
+   - cada ação principal aparece em um único bloco;
    - botões com microinteração perceptível, sem exagero;
    - responsividade real em mobile.
    ----------------------------------------------------------------------------
@@ -28,7 +28,7 @@
 .principal-hero,
 .principal-hero.app-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  grid-template-columns: minmax(0, 1fr);
   gap: clamp(16px, 2.4vw, 28px);
   align-items: stretch;
   padding: clamp(18px, 2.6vw, 30px);
@@ -75,7 +75,7 @@
 }
 
 .principal-hero h1 {
-  max-width: 15ch;
+  max-width: 18ch;
   font-size: clamp(1.65rem, 4vw, 3rem);
   font-weight: 950;
 }
@@ -94,15 +94,6 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 4px;
-}
-
-.principal-hero__actions,
-.principal-hero__actions.app-card__actions {
-  display: grid;
-  align-content: center;
-  gap: 10px;
-  min-width: 0;
-  padding: 0;
 }
 
 /* Botões / microinteração -------------------------------------------------- */
@@ -332,7 +323,7 @@
 .principal-next-steps,
 .principal-next-steps.app-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(240px, 420px);
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 360px);
   gap: clamp(14px, 2vw, 24px);
   align-items: center;
   padding: clamp(16px, 2.4vw, 24px);
@@ -362,16 +353,9 @@
 /* Mobile ------------------------------------------------------------------- */
 
 @media (max-width: 1100px) {
-  .principal-hero,
-  .principal-hero.app-card,
   .principal-next-steps,
   .principal-next-steps.app-card {
     grid-template-columns: 1fr;
-  }
-
-  .principal-hero__actions,
-  .principal-hero__actions.app-card__actions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .principal-overview,
@@ -403,8 +387,6 @@
     box-shadow: none;
   }
 
-  .principal-hero__actions,
-  .principal-hero__actions.app-card__actions,
   .principal-panel__actions,
   .principal-panel__actions.app-card__actions,
   .principal-next-steps__actions,
