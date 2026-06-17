@@ -70,15 +70,25 @@ const routes: Routes = [
         pathMatch: 'full',
       },
       {
-  path: 'profile-list',
-  redirectTo: 'dashboard/explorar',
-  pathMatch: 'full',
-},
-{
-  path: 'perfis-proximos',
-  redirectTo: 'dashboard/explorar',
-  pathMatch: 'full',
-},
+        path: 'profile-list',
+        redirectTo: 'dashboard/explorar',
+        pathMatch: 'full',
+      },
+      {
+        path: 'perfis-proximos',
+        redirectTo: 'dashboard/explorar',
+        pathMatch: 'full',
+      },
+      {
+        path: 'perfis-sugeridos',
+        redirectTo: 'dashboard/perfis-sugeridos',
+        pathMatch: 'full',
+      },
+      {
+        path: 'suggested-profiles',
+        redirectTo: 'dashboard/perfis-sugeridos',
+        pathMatch: 'full',
+      },
       {
         path: 'register',
         loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),
@@ -258,10 +268,10 @@ const routes: Routes = [
     RouterModule.forRoot(routes, {
       preloadingStrategy: NoPreloading,
       bindToComponentInputs: true,
-      initialNavigation: 'enabledNonBlocking',
-      enableTracing: false,
-    }),
+      scrollPositionRestoration: 'enabled',
+      anchorScrolling: 'enabled',
+    })
   ],
-  exports: [RouterModule],
+  exports: [RouterModule]
 })
-export class AppRoutingModule {}
+export class AppRoutingModule { }
