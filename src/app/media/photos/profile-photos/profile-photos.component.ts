@@ -4,7 +4,7 @@
 // AJUSTES DESTA VERSÃO:
 // - mantém viewer, edição e exclusão
 // - adiciona VM de publicação para badges
-// - adiciona ações de publicação / despublicação / capa
+// - adiciona ações de publicação / despublicação / capa discreta
 // - adiciona organização por data escolhida pelo usuário para assinantes
 // - continua tratando users/{uid}/photos como biblioteca privada
 // - não mistura estado de publicação no documento privado
@@ -85,7 +85,7 @@ type IPhotoCardVm = IManageablePhotoItem & {
   publication: IPhotoPublicationConfig;
 };
 
-type TProfilePhotoFilterMode = 'all' | 'published' | 'private' | 'cover';
+type TProfilePhotoFilterMode = 'all' | 'published' | 'private';
 type TProfilePhotoSortMode = 'newest' | 'oldest';
 
 type TPhotoDateAccessUser = {
@@ -400,9 +400,6 @@ export class ProfilePhotosComponent {
 
       case 'private':
         return items.filter((item) => !item.publication.isPublished);
-
-      case 'cover':
-        return items.filter((item) => item.publication.isCover);
 
       default:
         return [...items];
