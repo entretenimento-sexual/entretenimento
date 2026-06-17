@@ -1,6 +1,24 @@
-/* src/app/media/shared/components/public-photo-card/public-photo-card.component.css */
+/* src/app/media/shared/components/public-photo-card/public-photo-card.component.css
+   ----------------------------------------------------------------------------
+   Card público de foto.
 
-.photo-tile {
+   Estratégia:
+   - alinhado ao card system global;
+   - fallback local completo para não depender exclusivamente do global;
+   - mantém overlay rico com dono, métricas, data e capa;
+   - pensado para listas públicas, descoberta, top fotos e fotos recentes.
+   ----------------------------------------------------------------------------
+*/
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+/* Card --------------------------------------------------------------------- */
+
+.photo-tile,
+.photo-tile.app-card {
   position: relative;
   width: 100%;
   min-width: 0;
@@ -15,7 +33,8 @@
     border-color 160ms ease;
 }
 
-.photo-tile:hover {
+.photo-tile:hover,
+.photo-tile:focus-within {
   transform: translateY(-2px);
   border-color: color-mix(
     in oklab,
@@ -44,15 +63,24 @@
   );
 }
 
-.photo-card-link {
+/* Imagem ------------------------------------------------------------------- */
+
+.photo-card-link,
+.photo-card-link.app-media-frame {
   position: relative;
   display: block;
   width: 100%;
   min-width: 0;
-  padding: 0;
   overflow: hidden;
+  aspect-ratio: 4 / 5;
+  padding: 0;
   border: 0;
-  background: transparent;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color, #0f1620) 92%, white 6%),
+      color-mix(in oklab, var(--surface-color, #0f1620) 80%, black 18%)
+    );
   color: inherit;
   cursor: pointer;
   text-align: inherit;
@@ -67,24 +95,24 @@
 .photo {
   display: block;
   width: 100%;
-  aspect-ratio: 4 / 5;
+  height: 100%;
   object-fit: cover;
   object-position: center;
-  background:
-    linear-gradient(
-      180deg,
-      color-mix(in oklab, var(--surface-color, #0f1620) 92%, white 6%),
-      color-mix(in oklab, var(--surface-color, #0f1620) 80%, black 18%)
-    );
-  transition: filter 180ms ease;
+  transition:
+    transform 180ms ease,
+    filter 180ms ease;
 }
 
 .photo-card-link:hover .photo,
 .photo-card-link:focus-visible .photo {
+  transform: scale(1.025);
   filter: brightness(1.05);
 }
 
-.photo-overlay {
+/* Overlay ------------------------------------------------------------------ */
+
+.photo-overlay,
+.photo-overlay.app-media-overlay {
   position: absolute;
   inset: auto 0 0;
   display: grid;
@@ -151,6 +179,8 @@
   line-height: 1.08;
 }
 
+/* Métricas ----------------------------------------------------------------- */
+
 .photo-stats {
   grid-area: stats;
   display: flex;
@@ -162,12 +192,17 @@
 }
 
 .stat-chip,
-.cover-chip {
+.cover-chip,
+.meta-chip,
+.stat-chip.app-chip,
+.cover-chip.app-chip,
+.meta-chip.app-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 5px;
   min-height: 25px;
+  max-width: 100%;
   padding: 3px 8px;
   border: 1px solid rgb(255 255 255 / 20%);
   border-radius: 999px;
@@ -176,7 +211,12 @@
   font-size: 0.74rem;
   font-weight: 820;
   line-height: 1;
+  white-space: nowrap;
   backdrop-filter: blur(8px);
+}
+
+.stat-chip--time {
+  color: rgb(255 255 255 / 86%);
 }
 
 .cover-chip {
@@ -190,13 +230,17 @@
   pointer-events: none;
 }
 
-.photo-meta {
+/* Meta inferior ------------------------------------------------------------ */
+
+.photo-meta,
+.photo-meta.app-card__footer {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   min-width: 0;
   padding: 10px;
+  border-top: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
   background: color-mix(
     in oklab,
     var(--surface-color, #0f1620) 94%,
@@ -204,51 +248,26 @@
   );
 }
 
-.meta-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  max-width: 100%;
-  padding: 3px 9px;
-  overflow: hidden;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 999px;
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #0f1620) 94%,
-    transparent
-  );
+.photo-meta .meta-chip {
   color: color-mix(
     in oklab,
     var(--text-color, #f5f7fb) 82%,
     transparent
   );
-  font-size: 0.78rem;
-  font-weight: 760;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.meta-boost {
+.meta-boost,
+.meta-boost.app-chip {
   border-color: color-mix(
     in oklab,
     var(--primary-color, #ff7070) 32%,
     var(--surface-border, rgba(255, 255, 255, 0.12))
   );
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 16%, transparent);
   color: var(--primary-color, #ff7070);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .photo-tile,
-  .photo {
-    transition: none;
-  }
-
-  .photo-tile:hover {
-    transform: none;
-  }
-}
+/* Mobile ------------------------------------------------------------------- */
 
 @media (max-width: 700px) {
   .photo-tile {
@@ -256,7 +275,8 @@
     box-shadow: none;
   }
 
-  .photo-tile:hover {
+  .photo-tile:hover,
+  .photo-tile:focus-within {
     transform: none;
     box-shadow: none;
   }
@@ -275,7 +295,8 @@
   }
 
   .stat-chip,
-  .cover-chip {
+  .cover-chip,
+  .meta-chip {
     min-height: 22px;
     padding: 2px 6px;
     font-size: 0.7rem;
@@ -284,11 +305,6 @@
   .photo-meta {
     gap: 6px;
     padding: 8px;
-  }
-
-  .meta-chip {
-    min-height: 24px;
-    font-size: 0.72rem;
   }
 }
 
@@ -304,4 +320,31 @@
   .cover-chip {
     justify-self: start;
   }
+}
+
+/* Acessibilidade ----------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-tile,
+  .photo {
+    transition: none;
+  }
+
+  .photo-tile:hover,
+  .photo-card-link:hover .photo,
+  .photo-card-link:focus-visible .photo {
+    transform: none;
+  }
+}
+
+html.high-contrast .photo-tile,
+html.high-contrast .stat-chip,
+html.high-contrast .cover-chip,
+html.high-contrast .meta-chip {
+  border-color: currentColor !important;
+  box-shadow: none !important;
+}
+
+html.high-contrast .photo-tile--cover {
+  box-shadow: none !important;
 }
