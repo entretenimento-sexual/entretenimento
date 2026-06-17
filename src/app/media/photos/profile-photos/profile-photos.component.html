@@ -1,12 +1,12 @@
 <!-- src/app/media/photos/profile-photos/profile-photos.component.html -->
 <!--
-  Galeria privada do dono do perfil.
+  Central privada de mídia do dono do perfil.
 
-  Esta versão usa a mesma linguagem visual da galeria pública:
-  - foto como peça principal;
-  - chips sobre a imagem;
-  - ações de gestão em barra compacta;
-  - exclusão escondida em "mais ações" para reduzir ruído.
+  Diretriz visual:
+  - usa o card system global: app-card, app-toolbar, app-action, app-chip;
+  - mantém classes locais para compatibilidade visual durante a migração gradual;
+  - preserva as ações atuais: editar, publicar, privar, definir capa e excluir;
+  - prioriza mobile, acessibilidade e leitura clara dos estados.
 -->
 
 @let ownerUid = (ownerUid$ | async);
@@ -30,30 +30,30 @@
       </p>
     </div>
 
-@if (ownerUid && isOwner) {
-  <div class="actions">
-    <a
-      class="gallery-action gallery-action--ghost"
-      [routerLink]="['/perfil']"
-      aria-label="Voltar ao meu perfil"
-    >
-      Voltar ao perfil
-    </a>
+    @if (ownerUid && isOwner) {
+      <div class="actions">
+        <a
+          class="gallery-action gallery-action--ghost app-action app-action--ghost"
+          [routerLink]="['/perfil']"
+          aria-label="Voltar ao meu perfil"
+        >
+          Voltar ao perfil
+        </a>
 
-    <button
-      type="button"
-      class="gallery-action gallery-action--primary"
-      (click)="openUpload(ownerUid)"
-      aria-label="Adicionar nova foto"
-    >
-      + Adicionar foto
-    </button>
-  </div>
-}
+        <button
+          type="button"
+          class="gallery-action gallery-action--primary app-action app-action--primary"
+          (click)="openUpload(ownerUid)"
+          aria-label="Adicionar nova foto"
+        >
+          + Adicionar foto
+        </button>
+      </div>
+    }
   </header>
 
   @if (!canView) {
-    <div class="blocked" role="status" aria-live="polite">
+    <div class="blocked app-card" role="status" aria-live="polite">
       <strong>Acesso negado.</strong>
 
       <p class="subtitle">
@@ -68,20 +68,23 @@
     </div>
   } @else {
     @if (isEmpty$ | async) {
-      <div class="empty-state" role="status" aria-live="polite">
+      <div class="empty-state app-empty-card" role="status" aria-live="polite">
         <div class="empty-copy">
           <span class="empty-icon" aria-hidden="true">🖼️</span>
 
           <div>
-            <h3>Nenhuma foto ainda</h3>
-            <p>Envie sua primeira foto para começar a montar sua presença no perfil.</p>
+            <h3 class="app-empty-card__title">Nenhuma foto ainda</h3>
+
+            <p class="app-empty-card__text">
+              Envie sua primeira foto para começar a montar sua presença no perfil.
+            </p>
           </div>
         </div>
 
         @if (ownerUid && isOwner) {
           <button
             type="button"
-            class="btn btn-secondary"
+            class="btn btn-secondary app-action"
             (click)="openUpload(ownerUid)"
           >
             Fazer upload
@@ -89,93 +92,108 @@
         }
       </div>
     } @else {
-<div class="gallery-toolbar" aria-live="polite">
-  <div class="gallery-toolbar__summary">
-    @let total = (totalPhotos$ | async) || 0;
+      <!-- Toolbar principal: contador, filtros e ordenação. -->
+      <div class="gallery-toolbar app-toolbar" aria-live="polite">
+        <div class="gallery-toolbar__summary app-toolbar__summary">
+          @let total = (totalPhotos$ | async) || 0;
 
-    <strong>{{ total }}</strong>
-    {{ total === 1 ? 'foto na biblioteca' : 'fotos na biblioteca' }}
+          <strong>{{ total }}</strong>
+          {{ total === 1 ? 'foto na biblioteca' : 'fotos na biblioteca' }}
 
-    @if ((items?.length || 0) !== total) {
-      <span>
-        · {{ items?.length || 0 }} exibida{{ (items?.length || 0) === 1 ? '' : 's' }}
-      </span>
-    }
-  </div>
+          @if ((items?.length || 0) !== total) {
+            <span>
+              · {{ items?.length || 0 }} exibida{{ (items?.length || 0) === 1 ? '' : 's' }}
+            </span>
+          }
+        </div>
 
-  <div class="gallery-toolbar__controls" aria-label="Filtros e ordenação das fotos">
-    <div class="gallery-filter-group" aria-label="Filtrar fotos">
-      <button
-        type="button"
-        class="gallery-filter"
-        [class.gallery-filter--active]="getFilterModeSnapshot() === 'all'"
-        (click)="setFilterMode('all')"
-      >
-        Todas
-      </button>
-
-      <button
-        type="button"
-        class="gallery-filter"
-        [class.gallery-filter--active]="getFilterModeSnapshot() === 'published'"
-        (click)="setFilterMode('published')"
-      >
-        Visíveis
-      </button>
-
-      <button
-        type="button"
-        class="gallery-filter"
-        [class.gallery-filter--active]="getFilterModeSnapshot() === 'private'"
-        (click)="setFilterMode('private')"
-      >
-        Privadas
-      </button>
-
-      <button
-        type="button"
-        class="gallery-filter"
-        [class.gallery-filter--active]="getFilterModeSnapshot() === 'cover'"
-        (click)="setFilterMode('cover')"
-      >
-        Capa
-      </button>
-    </div>
-
-    <div class="gallery-filter-group" aria-label="Ordenar fotos">
-      <button
-        type="button"
-        class="gallery-filter"
-        [class.gallery-filter--active]="getSortModeSnapshot() === 'newest'"
-        (click)="setSortMode('newest')"
-      >
-        Recentes
-      </button>
-
-      <button
-        type="button"
-        class="gallery-filter"
-        [class.gallery-filter--active]="getSortModeSnapshot() === 'oldest'"
-        (click)="setSortMode('oldest')"
-      >
-        Antigas
-      </button>
-    </div>
-  </div>
-</div>
-
-      <div class="photos-grid" role="list" aria-label="Lista de fotos">
-        @for (item of (items || []); track item.id) {
-            <article
-              class="photo-tile"
-              role="listitem"
-              [class.photo-tile--published]="item.publication.isPublished"
-              [class.photo-tile--cover]="item.publication.isCover"
-              [class.photo-tile--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id"
-            >
+        <div
+          class="gallery-toolbar__controls app-toolbar__controls"
+          aria-label="Filtros e ordenação das fotos"
+        >
+          <div class="gallery-filter-group app-segmented" aria-label="Filtrar fotos">
             <button
               type="button"
-              class="photo-card-link"
+              class="gallery-filter app-segmented__button"
+              [class.gallery-filter--active]="getFilterModeSnapshot() === 'all'"
+              [class.app-segmented__button--active]="getFilterModeSnapshot() === 'all'"
+              (click)="setFilterMode('all')"
+            >
+              Todas
+            </button>
+
+            <button
+              type="button"
+              class="gallery-filter app-segmented__button"
+              [class.gallery-filter--active]="getFilterModeSnapshot() === 'published'"
+              [class.app-segmented__button--active]="getFilterModeSnapshot() === 'published'"
+              (click)="setFilterMode('published')"
+            >
+              Visíveis
+            </button>
+
+            <button
+              type="button"
+              class="gallery-filter app-segmented__button"
+              [class.gallery-filter--active]="getFilterModeSnapshot() === 'private'"
+              [class.app-segmented__button--active]="getFilterModeSnapshot() === 'private'"
+              (click)="setFilterMode('private')"
+            >
+              Privadas
+            </button>
+
+            <button
+              type="button"
+              class="gallery-filter app-segmented__button"
+              [class.gallery-filter--active]="getFilterModeSnapshot() === 'cover'"
+              [class.app-segmented__button--active]="getFilterModeSnapshot() === 'cover'"
+              (click)="setFilterMode('cover')"
+            >
+              Capa
+            </button>
+          </div>
+
+          <div class="gallery-filter-group app-segmented" aria-label="Ordenar fotos">
+            <button
+              type="button"
+              class="gallery-filter app-segmented__button"
+              [class.gallery-filter--active]="getSortModeSnapshot() === 'newest'"
+              [class.app-segmented__button--active]="getSortModeSnapshot() === 'newest'"
+              (click)="setSortMode('newest')"
+            >
+              Recentes
+            </button>
+
+            <button
+              type="button"
+              class="gallery-filter app-segmented__button"
+              [class.gallery-filter--active]="getSortModeSnapshot() === 'oldest'"
+              [class.app-segmented__button--active]="getSortModeSnapshot() === 'oldest'"
+              (click)="setSortMode('oldest')"
+            >
+              Antigas
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de cards de mídia. -->
+      <div
+        class="photos-grid app-card-grid app-card-grid--media"
+        role="list"
+        aria-label="Lista de fotos"
+      >
+        @for (item of (items || []); track item.id) {
+          <article
+            class="photo-tile app-card app-card--media app-card--interactive"
+            role="listitem"
+            [class.photo-tile--published]="item.publication.isPublished"
+            [class.photo-tile--cover]="item.publication.isCover"
+            [class.photo-tile--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id"
+          >
+            <button
+              type="button"
+              class="photo-card-link app-media-frame app-media-frame--portrait"
               (click)="openPhoto(item.id)"
               [disabled]="publishingPhotoId === item.id || deletingPhotoId === item.id"
               [attr.aria-busy]="publishingPhotoId === item.id || deletingPhotoId === item.id"
@@ -189,83 +207,82 @@
                 referrerpolicy="no-referrer"
               />
 
-              <span class="photo-overlay" aria-hidden="true">
+              <span class="photo-overlay app-media-overlay">
                 <span class="photo-status-stack">
-
                   @if (publishingPhotoId === item.id || deletingPhotoId === item.id) {
-              <span class="photo-busy-overlay" aria-live="polite">
-                <span class="busy-spinner" aria-hidden="true"></span>
+                    <span class="photo-busy-overlay" aria-live="polite">
+                      <span class="busy-spinner" aria-hidden="true"></span>
 
-                <span>
-                  @if (deletingPhotoId === item.id) {
-                    Excluindo...
+                      <span>
+                        @if (deletingPhotoId === item.id) {
+                          Excluindo...
+                        } @else {
+                          Atualizando...
+                        }
+                      </span>
+                    </span>
+                  }
+
+                  @if (item.publication.isPublished) {
+                    @switch (item.publication.moderationStatus) {
+                      @case ('PENDING_REVIEW') {
+                        <span class="status-chip status-chip--pending app-chip app-chip--overlay">
+                          Em análise
+                        </span>
+                      }
+
+                      @case ('REJECTED') {
+                        <span class="status-chip status-chip--rejected app-chip app-chip--overlay app-chip--danger">
+                          Reprovada
+                        </span>
+                      }
+
+                      @case ('FLAGGED') {
+                        <span class="status-chip status-chip--flagged app-chip app-chip--overlay">
+                          Sinalizada
+                        </span>
+                      }
+
+                      @case ('HIDDEN') {
+                        <span class="status-chip status-chip--hidden app-chip app-chip--overlay app-chip--muted">
+                          Oculta
+                        </span>
+                      }
+
+                      @default {
+                        <span class="status-chip status-chip--published app-chip app-chip--overlay app-chip--primary">
+                          Visível
+                        </span>
+                      }
+                    }
                   } @else {
-                    Atualizando...
+                    <span class="status-chip status-chip--private app-chip app-chip--overlay app-chip--muted">
+                      Só você
+                    </span>
+                  }
+
+                  @if (item.publication.isCover) {
+                    <span class="status-chip status-chip--cover app-chip app-chip--overlay app-chip--success">
+                      Capa
+                    </span>
                   }
                 </span>
-              </span>
-            }
-            @if (item.publication.isPublished) {
-              @switch (item.publication.moderationStatus) {
-                @case ('PENDING_REVIEW') {
-                  <span class="status-chip status-chip--pending">
-                    Em análise
-                  </span>
-                }
 
-                @case ('REJECTED') {
-                  <span class="status-chip status-chip--rejected">
-                    Reprovada
-                  </span>
-                }
-
-                @case ('FLAGGED') {
-                  <span class="status-chip status-chip--flagged">
-                    Sinalizada
-                  </span>
-                }
-
-                @case ('HIDDEN') {
-                  <span class="status-chip status-chip--hidden">
-                    Oculta
-                  </span>
-                }
-
-                @default {
-                  <span class="status-chip status-chip--published">
-                    Visível
-                  </span>
-                }
-              }
-            } @else {
-              <span class="status-chip status-chip--private">
-                Só você
-              </span>
-            }
-
-            @if (item.publication.isCover) {
-              <span class="status-chip status-chip--cover">
-                Capa
-              </span>
-            }
-                </span>
-
-                <span class="photo-date-chip">
+                <span class="photo-date-chip app-chip app-chip--overlay app-chip--muted">
                   {{ getPhotoDateLabel(item) }}
                 </span>
-
               </span>
             </button>
 
             @if (isOwner) {
               <div
-                class="management-bar"
+                class="management-bar app-card__footer"
                 [class.management-bar--busy]="publishingPhotoId === item.id || deletingPhotoId === item.id"
                 aria-label="Ações da foto"
               >
                 <button
                   type="button"
-                  class="management-action management-action--icon management-action--neutral"
+                  class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
                   (click)="editPhoto(item, $event)"
                   [disabled]="deletingPhotoId === item.id || publishingPhotoId === item.id"
                   [attr.aria-label]="'Editar foto ' + (item.alt || item.id)"
@@ -277,7 +294,7 @@
                 @if (!item.publication.isPublished) {
                   <button
                     type="button"
-                    class="management-action management-action--primary"
+                    class="management-action management-action--primary app-action app-action--primary"
                     (click)="publishPhoto(item, $event)"
                     [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
                     aria-label="Publicar foto no perfil"
@@ -293,7 +310,7 @@
                   @if (!item.publication.isCover) {
                     <button
                       type="button"
-                      class="management-action management-action--neutral"
+                      class="management-action management-action--neutral app-action app-action--ghost"
                       (click)="setCoverPhoto(item, $event)"
                       [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
                       aria-label="Definir foto como capa do perfil"
@@ -305,7 +322,7 @@
 
                   <button
                     type="button"
-                    class="management-action management-action--neutral"
+                    class="management-action management-action--neutral app-action app-action--ghost"
                     (click)="unpublishPhoto(item, $event)"
                     [disabled]="!publicationFeatureReady || publishingPhotoId === item.id"
                     aria-label="Remover foto do perfil público e tornar privada"
@@ -322,7 +339,7 @@
                 @if (confirmDeleteId !== item.id) {
                   <button
                     type="button"
-                    class="management-action management-action--icon management-action--danger"
+                    class="management-action management-action--icon management-action--danger app-action app-action--danger"
                     (click)="requestDelete(item, $event)"
                     [disabled]="deletingPhotoId === item.id || publishingPhotoId === item.id"
                     [attr.aria-label]="'Excluir foto ' + (item.alt || item.id)"
@@ -331,7 +348,7 @@
                     <span aria-hidden="true">🗑</span>
                   </button>
                 }
-               </div> <!-- management-bar -->
+              </div>
 
               @if (confirmDeleteId === item.id) {
                 <div class="delete-confirm-box" role="alert" aria-live="polite">
@@ -340,7 +357,7 @@
                   <div class="delete-confirm-actions">
                     <button
                       type="button"
-                      class="management-action management-action--danger management-action--solid"
+                      class="management-action management-action--danger management-action--solid app-action app-action--danger"
                       (click)="confirmDelete(item, $event)"
                       [disabled]="deletingPhotoId === item.id"
                     >
@@ -353,7 +370,7 @@
 
                     <button
                       type="button"
-                      class="management-action management-action--neutral"
+                      class="management-action management-action--neutral app-action app-action--ghost"
                       (click)="cancelDelete($event)"
                       [disabled]="deletingPhotoId === item.id"
                     >
@@ -365,7 +382,7 @@
             }
           </article>
         }
-       </div> <!-- fim do photos-grid -->
+      </div>
 
       @if (!publicationFeatureReady) {
         <p class="publication-note">

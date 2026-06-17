@@ -7,8 +7,7 @@
    - respeitar dark mode, high contrast e tokens globais;
    - servir como base gradual, sem obrigar refatoração total de HTML.
    ----------------------------------------------------------------------------
-*/
-
+   */
 .app-card {
   width: 100%;
   min-width: 0;
