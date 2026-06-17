@@ -7,12 +7,8 @@
   - priorizar prévia real de fotos/vídeos, desejos e sinais básicos de interação;
   - manter monetização discreta;
   - não punir o dono do perfil assinante escondendo sua exposição;
-  - manter botões claros, acessíveis e responsivos.
-
-  Diretriz visual:
-  - usa o card system global: app-card, app-toolbar, app-action, app-chip,
-    app-media-frame, app-media-overlay e app-empty-card;
-  - mantém classes locais para preservar layout específico da vitrine.
+  - manter botões claros, acessíveis e responsivos;
+  - evitar subtítulos e CTAs duplicados na mesma tela.
 -->
 
 <section
@@ -27,7 +23,7 @@
       aria-label="Voltar para descoberta"
     >
       <span aria-hidden="true">←</span>
-      <span>Voltar para descoberta</span>
+      <span>Voltar</span>
     </a>
   </header>
 
@@ -61,16 +57,12 @@
           </figure>
 
           <div class="other-profile-page__identity app-card__body">
-            <div class="other-profile-page__identity-top">
-              <p class="other-profile-page__eyebrow">Perfil</p>
-
-              @if (ownerIsSubscriber) {
-                <span class="other-profile-page__subscriber-badge app-chip app-chip--primary">
-                  <i class="fas fa-star" aria-hidden="true"></i>
-                  Em destaque
-                </span>
-              }
-            </div>
+            @if (ownerIsSubscriber) {
+              <span class="other-profile-page__subscriber-badge app-chip app-chip--primary">
+                <i class="fas fa-star" aria-hidden="true"></i>
+                Em destaque
+              </span>
+            }
 
             <h1 id="profile-heading" class="other-profile-page__title">
               {{ displayName }}
@@ -100,25 +92,10 @@
         </article>
 
         <aside class="other-profile-page__actions-card app-card app-card--compact" aria-label="Ações do perfil">
-          <div class="other-profile-page__actions-heading app-card__header">
-            <p class="other-profile-page__eyebrow">Interação</p>
-            <h2 class="other-profile-page__actions-title">Ações do perfil</h2>
-          </div>
-
           <div class="other-profile-page__actions">
-            @if (photosLink) {
-              <a
-                class="other-profile-page__action app-action app-action--primary"
-                [routerLink]="photosLink"
-              >
-                <i class="fas fa-images" aria-hidden="true"></i>
-                <span>Ver galeria</span>
-              </a>
-            }
-
             <button
               type="button"
-              class="other-profile-page__action app-action app-action--ghost"
+              class="other-profile-page__action app-action app-action--primary"
               (click)="sendFriendRequest()"
               [disabled]="(friendRequestBusy$ | async) === true || !uid"
             >
@@ -140,10 +117,6 @@
               </span>
             </button>
           </div>
-
-          <p class="other-profile-page__actions-helper">
-            Veja a galeria, solicite amizade ou inicie conversa quando permitido.
-          </p>
         </aside>
       </section>
 
@@ -195,9 +168,7 @@
           </div>
 
           <div class="other-profile-page__media-copy app-card__body">
-            <p class="other-profile-page__eyebrow">Conteúdo</p>
-
-            <h2>Fotos e vídeos</h2>
+            <h2>Galeria</h2>
 
             <p>
               Conheça melhor este perfil pelas mídias aprovadas e pelas
@@ -228,10 +199,7 @@
 
         <article class="other-profile-page__intentions-panel app-card app-card--compact">
           <header class="other-profile-page__panel-header app-card__header">
-            <div>
-              <p class="other-profile-page__eyebrow">Afinidades</p>
-              <h2>Desejos e interesses</h2>
-            </div>
+            <h2>Afinidades</h2>
           </header>
 
           @if (hasPreferenceChips) {
@@ -270,10 +238,7 @@
       <section class="other-profile-page__content" aria-label="Detalhes do perfil">
         <article class="other-profile-page__panel other-profile-page__panel--summary app-card">
           <header class="other-profile-page__panel-header app-card__header">
-            <div>
-              <p class="other-profile-page__eyebrow">Apresentação</p>
-              <h2>Resumo do perfil</h2>
-            </div>
+            <h2>Dados básicos</h2>
           </header>
 
           <dl class="other-profile-page__facts">
@@ -307,10 +272,7 @@
           aria-labelledby="social-heading"
         >
           <header class="other-profile-page__panel-header app-card__header">
-            <div>
-              <p class="other-profile-page__eyebrow">Contato</p>
-              <h2 id="social-heading">Redes sociais</h2>
-            </div>
+            <h2 id="social-heading">Redes sociais</h2>
           </header>
 
           <app-social-links-accordion
@@ -330,7 +292,7 @@
         <p>Não foi possível carregar este perfil no momento.</p>
 
         <a class="app-action app-action--ghost" [routerLink]="discoveryLink">
-          Voltar para descoberta
+          Voltar
         </a>
       </section>
     }
