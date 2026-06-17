@@ -1,246 +1,260 @@
 <!-- src/app/layout/friend-management/friend-requests/friend-requests.component.html -->
-<div class="friend-requests" aria-live="polite">
-  <h4 id="fr-title">Solicitações de Amizade</h4>
+<section class="friend-requests" aria-labelledby="fr-title" aria-live="polite">
+  <header class="friend-requests__header app-card">
+    <div class="friend-requests__copy">
+      <h1 id="fr-title">Solicitações</h1>
+      <p>Revise convites recebidos e acompanhe pedidos enviados.</p>
+    </div>
+
+    <div class="friend-requests__summary" aria-label="Resumo de solicitações">
+      <span class="friend-requests__summary-item">
+        <strong>{{ (inboundCount$ | async) || 0 }}</strong>
+        <span>Recebidas</span>
+      </span>
+
+      <span class="friend-requests__summary-item">
+        <strong>{{ (outboundCount$ | async) || 0 }}</strong>
+        <span>Enviadas</span>
+      </span>
+    </div>
+  </header>
 
   <mat-tab-group aria-labelledby="fr-title">
-    <!-- ==================== RECEBIDAS ==================== -->
     <mat-tab>
       <ng-template mat-tab-label>
-        <span class="tab-legend recebidas">RECEBIDAS</span>
-        <span matBadge="{{ (inboundCount$ | async) || 0 }}" matBadgeOverlap="false" matBadgeSize="small"
-          class="ms-2"></span>
+        <span class="tab-legend">Recebidas</span>
+        <span
+          matBadge="{{ (inboundCount$ | async) || 0 }}"
+          matBadgeOverlap="false"
+          matBadgeSize="small"
+          class="friend-requests__badge"
+        ></span>
       </ng-template>
 
-      @if (loadingInbound$ | async) { <mat-spinner></mat-spinner> }
-
-      <h5 class="panel-head recebidas" aria-hidden="true">RECEBIDAS</h5>
+      @if (loadingInbound$ | async) {
+        <section class="friend-requests__state app-card" role="status" aria-live="polite">
+          <span class="friend-requests__loader" aria-hidden="true"></span>
+          <p>Carregando solicitações recebidas...</p>
+        </section>
+      }
 
       @if (inbound$ | async; as requests) {
-      @if (requests.length === 0) {
-      <p class="empty-inline">Nenhuma solicitação pendente.</p>
-      } @else {
-      <ul class="cards">
-        @for (req of requests; track trackById($index, req)) {
-        <li>
-          <mat-card class="is-recebida" aria-label="Solicitação recebida de {{ req.nickname || req.requesterUid }}">
-            <!-- Cabeçalho (sem avatar à esquerda) -->
-            <mat-card-header class="hdr">
-              <div class="hdr-main">
-                <div class="title-row">
-                  <mat-icon class="type-icon recebidas" fontIcon="inbox"></mat-icon>
-                  <span class="name">{{ req.nickname || req.requesterUid }}</span>
-                  <span class="status-dot" [class.online]="req.isOnline" aria-hidden="true"></span>
-                  @if (req.role) { <span class="role-pill" [attr.data-role]="req.role">{{ req.role }}</span> }
-
-                </div><!--title-row-->
-
-                <div class="meta-line">
-                  @if (req.gender) { <span class="meta-chip">{{ req.gender }}</span> }
-                  @if (req.age) { <span class="meta-chip">{{ req.age }} anos</span> }
-                  @if (req.orientation) { <span class="meta-chip">{{ req.orientation }}</span> }
-                  @if (req.municipio || req.estado) {
-                  <span class="meta-chip">
-                    {{ req.municipio }}<ng-container *ngIf="req.municipio && req.estado"> - </ng-container>{{ req.estado
-                    }}
-                  </span>
-                  }
-                </div>
-              </div>
-            </mat-card-header>
-
-            <mat-card-content>
-              <div class="content-with-rail">
-                <!-- bloco de info (governa a altura) -->
-                <div class="info-block">
-                  <div class="when">
-                    {{ req.createdAt | dateFormat:'datetime' }} · {{ req.createdAt | dateFormat:'elapsed' }}
-                  </div>
-                  @if (req.message) { <p class="msg">“{{ req.message }}”</p> }
-                </div>
-
-                <!-- resolve a coleção de fotos com fallback -->
-                @let media = req.photos || [];
-                <div class="aside-rail" *ngIf="true">
-                  <!-- Avatar grandão à direita -->
-                  <div class="big-avatar">
-                    @if (req.avatarUrl) { <img [src]="req.avatarUrl" alt="Avatar de {{ req.nickname || 'usuário' }}" />
-                    }
-                    @else { <div class="big-avatar-fallback"><mat-icon>person</mat-icon></div> }
-                  </div>
-
-                  <!-- grade de fotos (se houver) -->
-                  @if (media.length) {
-                  <div class="media-rail" role="region" [attr.aria-label]="'Fotos de ' + (req.nickname || 'usuário')">
-                    @for (p of (media | slice:0:12); track $index) {
-                    <a class="thumb" [href]="p" target="_blank" rel="noopener">
-                      <img [src]="p" alt="Foto recente de {{ req.nickname || 'usuário' }}" />
-                    </a>
+        @if (requests.length === 0) {
+          <section class="friend-requests__state app-card">
+            <h2>Nenhuma solicitação recebida</h2>
+            <p>Novos convites aparecerão aqui.</p>
+          </section>
+        } @else {
+          <ul class="request-list">
+            @for (req of requests; track trackById($index, req)) {
+              <li>
+                <mat-card class="request-card request-card--inbound" aria-label="Solicitação recebida de {{ req.nickname || req.requesterUid }}">
+                  <div class="request-card__avatar">
+                    @if (req.avatarUrl) {
+                      <img [src]="req.avatarUrl" alt="Avatar de {{ req.nickname || 'usuário' }}" loading="lazy" decoding="async" />
+                    } @else {
+                      <div class="request-card__avatar-fallback"><mat-icon>person</mat-icon></div>
                     }
                   </div>
-                  }
-                </div>
-              </div>
-            </mat-card-content>
 
-            <mat-card-actions
-              class="request-actions"
-              aria-label="Ações da solicitação recebida"
-            >
-              <button
-                type="button"
-                class="request-action request-action--accept"
-                (click)="acceptRequest(req)"
-                [attr.aria-label]="'Aceitar solicitação de ' + (req.nickname || 'usuário')"
-                title="Aceitar solicitação"
-              >
-                <mat-icon fontIcon="check"></mat-icon>
-                <span>Aceitar</span>
-              </button>
+                  <div class="request-card__body">
+                    <header class="request-card__header">
+                      <div class="request-card__identity">
+                        <h2>{{ req.nickname || req.requesterUid }}</h2>
+                        <span class="request-card__presence" [class.request-card__presence--online]="req.isOnline">
+                          {{ req.isOnline ? 'Online' : 'Offline' }}
+                        </span>
+                      </div>
 
-              <button
-                type="button"
-                class="request-action request-action--decline"
-                (click)="declineRequest(req)"
-                [attr.aria-label]="'Recusar solicitação de ' + (req.nickname || 'usuário')"
-                title="Recusar solicitação"
-              >
-                <mat-icon fontIcon="close"></mat-icon>
-                <span>Recusar</span>
-              </button>
+                      @if (req.role) {
+                        <span class="request-card__role" [attr.data-role]="req.role">{{ req.role }}</span>
+                      }
+                    </header>
 
-              <button
-                type="button"
-                class="request-action request-action--block"
-                (click)="blockUser(req)"
-                [attr.aria-label]="'Bloquear ' + (req.nickname || 'usuário')"
-                title="Bloquear usuário"
-              >
-                <mat-icon fontIcon="block"></mat-icon>
-                <span class="sr-only">Bloquear</span>
-              </button>
-            </mat-card-actions>
-          </mat-card>
-        </li>
+                    <div class="request-card__meta" aria-label="Informações públicas">
+                      @if (req.gender) { <span>{{ req.gender }}</span> }
+                      @if (req.age) { <span>{{ req.age }} anos</span> }
+                      @if (req.orientation) { <span>{{ req.orientation }}</span> }
+                      @if (req.municipio || req.estado) {
+                        <span>{{ req.municipio }}<ng-container *ngIf="req.municipio && req.estado"> - </ng-container>{{ req.estado }}</span>
+                      }
+                    </div>
+
+                    <p class="request-card__time">
+                      {{ req.createdAt | dateFormat:'datetime' }} · {{ req.createdAt | dateFormat:'elapsed' }}
+                    </p>
+
+                    @if (req.message) {
+                      <p class="request-card__message">“{{ req.message }}”</p>
+                    }
+
+                    @let media = req.photos || [];
+                    @if (media.length) {
+                      <div class="request-card__photos" role="region" [attr.aria-label]="'Fotos de ' + (req.nickname || 'usuário')">
+                        @for (p of (media | slice:0:4); track $index) {
+                          <a class="request-card__thumb" [href]="p" target="_blank" rel="noopener">
+                            <img [src]="p" alt="Foto recente de {{ req.nickname || 'usuário' }}" loading="lazy" decoding="async" />
+                          </a>
+                        }
+                      </div>
+                    }
+
+                    <div class="request-card__actions" aria-label="Ações da solicitação recebida">
+                      <button
+                        type="button"
+                        class="request-action request-action--accept"
+                        (click)="acceptRequest(req)"
+                        [attr.aria-label]="'Aceitar solicitação de ' + (req.nickname || 'usuário')"
+                      >
+                        <mat-icon fontIcon="check"></mat-icon>
+                        <span>Aceitar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        class="request-action request-action--decline"
+                        (click)="declineRequest(req)"
+                        [attr.aria-label]="'Recusar solicitação de ' + (req.nickname || 'usuário')"
+                      >
+                        <mat-icon fontIcon="close"></mat-icon>
+                        <span>Recusar</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        class="request-action request-action--block"
+                        (click)="blockUser(req)"
+                        [attr.aria-label]="'Bloquear ' + (req.nickname || 'usuário')"
+                      >
+                        <mat-icon fontIcon="block"></mat-icon>
+                        <span>Bloquear</span>
+                      </button>
+                    </div>
+                  </div>
+                </mat-card>
+              </li>
+            }
+          </ul>
         }
-      </ul>
-      }
       }
     </mat-tab>
 
-    <!-- ==================== ENVIADAS ==================== -->
     <mat-tab>
       <ng-template mat-tab-label>
-        <span class="tab-legend enviadas">ENVIADAS</span>
-        <span matBadge="{{ (outboundCount$ | async) || 0 }}" matBadgeOverlap="false" matBadgeSize="small"
-          class="ms-2"></span>
+        <span class="tab-legend">Enviadas</span>
+        <span
+          matBadge="{{ (outboundCount$ | async) || 0 }}"
+          matBadgeOverlap="false"
+          matBadgeSize="small"
+          class="friend-requests__badge"
+        ></span>
       </ng-template>
 
-      @if (loadingOutbound$ | async) { <mat-spinner></mat-spinner> }
-
-      <h5 class="panel-head enviadas" aria-hidden="true">ENVIADAS</h5>
+      @if (loadingOutbound$ | async) {
+        <section class="friend-requests__state app-card" role="status" aria-live="polite">
+          <span class="friend-requests__loader" aria-hidden="true"></span>
+          <p>Carregando solicitações enviadas...</p>
+        </section>
+      }
 
       @if (outbound$ | async; as sent) {
-      @if (sent.length === 0) {
-      <p class="empty-inline">Você não tem solicitações enviadas pendentes.</p>
-      } @else {
-      <ul class="cards">
-        @for (req of sent; track trackById($index, req)) {
-        <li>
-          <mat-card class="is-enviada" aria-label="Solicitação enviada para {{ req.nickname || req.targetUid }}">
-             <mat-card-header class="hdr">
-              <div class="hdr-main">
-                <div class="title-row">
-                  <mat-icon class="type-icon enviadas" fontIcon="outbox"></mat-icon>
-                  <span class="name">{{ req.nickname || req.targetUid }}</span>
-                  <span class="status-dot" [class.online]="req.isOnline" aria-hidden="true"></span>
-                  @if (req.role) { <span class="role-pill" [attr.data-role]="req.role">{{ req.role }}</span> }
-                </div>
-
-                <div class="meta-line">
-                  @if (req.gender) { <span class="meta-chip">{{ req.gender }}</span> }
-                  @if (req.age) { <span class="meta-chip">{{ req.age }} anos</span> }
-                  @if (req.orientation) { <span class="meta-chip">{{ req.orientation }}</span> }
-                  @if (req.municipio || req.estado) {
-                  <span class="meta-chip">
-                    {{ req.municipio }}<ng-container *ngIf="req.municipio && req.estado"> - </ng-container>{{ req.estado
-                    }}
-                  </span>
-                  }
-                </div>
-              </div>
-            </mat-card-header>
-
-            <mat-card-content>
-              <div class="content-with-rail">
-                <div class="info-block">
-                  <div class="when">
-                    {{ req.createdAt | dateFormat:'datetime' }} · {{ req.createdAt | dateFormat:'elapsed' }}
-                  </div>
-                  @if (req.message) { <p class="msg">“{{ req.message }}”</p> }
-                </div>
-
-                @let media = req.photos || [];
-                <div class="aside-rail" *ngIf="true">
-                  <div class="big-avatar">
-                    @if (req.avatarUrl) { <img [src]="req.avatarUrl" alt="Avatar de {{ req.nickname || 'usuário' }}" />
-                    }
-                    @else { <div class="big-avatar-fallback"><mat-icon>person</mat-icon></div> }
-                  </div>
-
-                  @if (media.length) {
-                  <div class="media-rail" role="region" [attr.aria-label]="'Fotos de ' + (req.nickname || 'usuário')">
-                    @for (p of (media | slice:0:12); track $index) {
-                    <a class="thumb" [href]="p" target="_blank" rel="noopener">
-                      <img [src]="p" alt="Foto recente de {{ req.nickname || 'usuário' }}" />
-                    </a>
+        @if (sent.length === 0) {
+          <section class="friend-requests__state app-card">
+            <h2>Nenhuma solicitação enviada</h2>
+            <p>Pedidos pendentes enviados por você aparecerão aqui.</p>
+          </section>
+        } @else {
+          <ul class="request-list">
+            @for (req of sent; track trackById($index, req)) {
+              <li>
+                <mat-card class="request-card request-card--outbound" aria-label="Solicitação enviada para {{ req.nickname || req.targetUid }}">
+                  <div class="request-card__avatar">
+                    @if (req.avatarUrl) {
+                      <img [src]="req.avatarUrl" alt="Avatar de {{ req.nickname || 'usuário' }}" loading="lazy" decoding="async" />
+                    } @else {
+                      <div class="request-card__avatar-fallback"><mat-icon>person</mat-icon></div>
                     }
                   </div>
-                  }
-                </div>
-              </div>
-            </mat-card-content>
 
-            <mat-card-actions
-              class="request-actions"
-              aria-label="Ações da solicitação enviada"
-            >
+                  <div class="request-card__body">
+                    <header class="request-card__header">
+                      <div class="request-card__identity">
+                        <h2>{{ req.nickname || req.targetUid }}</h2>
+                        <span class="request-card__presence" [class.request-card__presence--online]="req.isOnline">
+                          {{ req.isOnline ? 'Online' : 'Offline' }}
+                        </span>
+                      </div>
 
-            @let cancelingIds = (cancelingOutboundRequestIds$ | async) || [];
-            @let isCanceling = isCancelingRequest(cancelingIds, req.id);
-            <button
-              type="button"
-              class="request-action request-action--cancel"
-              (click)="cancelRequest(req)"
-              [disabled]="isCanceling"
-              [attr.aria-busy]="isCanceling ? 'true' : null"
-              [attr.aria-label]="
-                isCanceling
-                  ? 'Cancelando solicitação enviada para ' + (req.nickname || 'usuário')
-                  : 'Cancelar solicitação enviada para ' + (req.nickname || 'usuário')
-              "
-              [title]="isCanceling ? 'Cancelando solicitação' : 'Cancelar solicitação'"
-            >
-              <mat-icon [fontIcon]="isCanceling ? 'hourglass_empty' : 'undo'"></mat-icon>
-              <span>{{ isCanceling ? 'Cancelando' : 'Cancelar' }}</span>
-            </button>
+                      @if (req.role) {
+                        <span class="request-card__role" [attr.data-role]="req.role">{{ req.role }}</span>
+                      }
+                    </header>
 
-              <button
-                type="button"
-                class="request-action request-action--block"
-                (click)="blockUser(req)"
-                [attr.aria-label]="'Bloquear ' + (req.nickname || 'usuário')"
-                title="Bloquear usuário"
-              >
-                <mat-icon fontIcon="block"></mat-icon>
-                <span class="sr-only">Bloquear</span>
-              </button>
-            </mat-card-actions>
-          </mat-card>
-        </li>
+                    <div class="request-card__meta" aria-label="Informações públicas">
+                      @if (req.gender) { <span>{{ req.gender }}</span> }
+                      @if (req.age) { <span>{{ req.age }} anos</span> }
+                      @if (req.orientation) { <span>{{ req.orientation }}</span> }
+                      @if (req.municipio || req.estado) {
+                        <span>{{ req.municipio }}<ng-container *ngIf="req.municipio && req.estado"> - </ng-container>{{ req.estado }}</span>
+                      }
+                    </div>
+
+                    <p class="request-card__time">
+                      {{ req.createdAt | dateFormat:'datetime' }} · {{ req.createdAt | dateFormat:'elapsed' }}
+                    </p>
+
+                    @if (req.message) {
+                      <p class="request-card__message">“{{ req.message }}”</p>
+                    }
+
+                    @let media = req.photos || [];
+                    @if (media.length) {
+                      <div class="request-card__photos" role="region" [attr.aria-label]="'Fotos de ' + (req.nickname || 'usuário')">
+                        @for (p of (media | slice:0:4); track $index) {
+                          <a class="request-card__thumb" [href]="p" target="_blank" rel="noopener">
+                            <img [src]="p" alt="Foto recente de {{ req.nickname || 'usuário' }}" loading="lazy" decoding="async" />
+                          </a>
+                        }
+                      </div>
+                    }
+
+                    <div class="request-card__actions" aria-label="Ações da solicitação enviada">
+                      @let cancelingIds = (cancelingOutboundRequestIds$ | async) || [];
+                      @let isCanceling = isCancelingRequest(cancelingIds, req.id);
+
+                      <button
+                        type="button"
+                        class="request-action request-action--cancel"
+                        (click)="cancelRequest(req)"
+                        [disabled]="isCanceling"
+                        [attr.aria-busy]="isCanceling ? 'true' : null"
+                        [attr.aria-label]="
+                          isCanceling
+                            ? 'Cancelando solicitação enviada para ' + (req.nickname || 'usuário')
+                            : 'Cancelar solicitação enviada para ' + (req.nickname || 'usuário')
+                        "
+                      >
+                        <mat-icon [fontIcon]="isCanceling ? 'hourglass_empty' : 'undo'"></mat-icon>
+                        <span>{{ isCanceling ? 'Cancelando' : 'Cancelar' }}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        class="request-action request-action--block"
+                        (click)="blockUser(req)"
+                        [attr.aria-label]="'Bloquear ' + (req.nickname || 'usuário')"
+                      >
+                        <mat-icon fontIcon="block"></mat-icon>
+                        <span>Bloquear</span>
+                      </button>
+                    </div>
+                  </div>
+                </mat-card>
+              </li>
+            }
+          </ul>
         }
-      </ul>
-      }
       }
     </mat-tab>
   </mat-tab-group>
-</div>
+</section>
