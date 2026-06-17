@@ -6,6 +6,7 @@
   - usa o card system global: app-card, app-toolbar, app-action, app-chip;
   - mantém classes locais para compatibilidade visual durante a migração gradual;
   - preserva as ações atuais: editar, publicar, ocultar, definir capa e excluir;
+  - mantém capa como recurso discreto de destaque, fora dos filtros principais;
   - adiciona organização por data sem criar pastas ou eventos;
   - prioriza mobile, acessibilidade e leitura clara dos estados.
 -->
@@ -144,16 +145,6 @@
               (click)="setFilterMode('private')"
             >
               Só eu
-            </button>
-
-            <button
-              type="button"
-              class="gallery-filter app-segmented__button"
-              [class.gallery-filter--active]="getFilterModeSnapshot() === 'cover'"
-              [class.app-segmented__button--active]="getFilterModeSnapshot() === 'cover'"
-              (click)="setFilterMode('cover')"
-            >
-              Capa
             </button>
           </div>
 
@@ -354,13 +345,13 @@
                   @if (!item.publication.isCover) {
                     <button
                       type="button"
-                      class="management-action management-action--neutral app-action app-action--ghost"
+                      class="management-action management-action--icon management-action--neutral app-action app-action--ghost"
                       (click)="setCoverPhoto(item, $event)"
                       [disabled]="!publicationFeatureReady || publishingPhotoId === item.id || savingDisplayDateId === item.id"
                       aria-label="Definir foto como capa do perfil"
                       title="Definir como capa"
                     >
-                      Definir capa
+                      <span aria-hidden="true">☆</span>
                     </button>
                   }
 
