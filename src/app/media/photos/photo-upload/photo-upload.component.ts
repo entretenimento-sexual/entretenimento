@@ -60,6 +60,7 @@ import {
   IPhotoUploadFlowEvent,
 } from 'src/app/core/services/image-handling/photo-upload-flow.service';
 import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/photo-editor-session.service';
+import { environment } from 'src/environments/environment';
 
 type UploadPhase = 'IDLE' | 'READY' | 'UPLOADING' | 'DONE';
 
@@ -84,7 +85,9 @@ export class PhotoUploadComponent {
   private readonly photoUploadFlow = inject(PhotoUploadFlowService);
   private readonly photoEditorSession = inject(PhotoEditorSessionService);
 
-  private readonly DEBUG = true;
+  private readonly DEBUG =
+    !environment.production &&
+    localStorage.getItem('debug.photo-upload') === '1';
 
   private readonly allowedMimeTypes = new Set([
     'image/jpeg',
@@ -430,4 +433,4 @@ export class PhotoUploadComponent {
     // eslint-disable-next-line no-console
     console.debug(`[PhotoUpload] ${msg}`, data ?? '');
   }
-} // Linha 416
+}
