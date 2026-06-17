@@ -3,19 +3,19 @@
   Home operacional do dashboard.
 
   Diretriz:
-  - usa o card system global de forma progressiva;
-  - deixa os atalhos realmente visíveis na primeira dobra;
-  - prioriza rotas de descoberta, perfis sugeridos, amizades e perfil;
-  - mantém todos os observables e métricas já existentes.
+  - visual de rede social/profissional;
+  - sem duplicar "descoberta" em vários blocos;
+  - CTA principal claro: explorar rede e ver perfis sugeridos;
+  - mantém observables, métricas e rotas já existentes.
 -->
 
 <section class="principal-page" *ngIf="currentUser$ | async as currentUser">
   <header class="principal-hero app-card">
     <div class="principal-hero__copy app-card__body">
-      <span class="principal-hero__eyebrow">Painel principal</span>
+      <span class="principal-hero__eyebrow">Hub de conexões</span>
       <h1>Bem-vindo de volta, {{ currentUser.nickname || 'usuário' }}.</h1>
       <p class="principal-hero__description">
-        Acesse descoberta, perfis sugeridos, amizades e conversas sem depender de atalhos escondidos.
+        Gerencie sua presença, veja perfis compatíveis e avance nas interações em um só painel.
       </p>
 
       <div class="principal-hero__chips" aria-label="Resumo rápido da conta">
@@ -34,97 +34,89 @@
     </div>
 
     <nav class="principal-hero__actions app-card__actions" aria-label="Ações principais">
-      <a class="app-action app-action--primary" routerLink="/dashboard/explorar">
-        Explorar perfis
+      <a class="principal-action principal-action--primary" routerLink="/dashboard/explorar">
+        <span class="principal-action__icon" aria-hidden="true">🔎</span>
+        <span>Explorar rede</span>
       </a>
 
-      <a class="app-action app-action--primary principal-hero__action--accent" routerLink="/dashboard/perfis-sugeridos">
-        Ver sugeridos
+      <a class="principal-action principal-action--accent" routerLink="/dashboard/perfis-sugeridos">
+        <span class="principal-action__icon" aria-hidden="true">✨</span>
+        <span>Perfis sugeridos</span>
       </a>
 
       @if (profileLink$ | async; as profileLink) {
-        <a class="app-action app-action--ghost" [routerLink]="profileLink">
-          Meu perfil
+        <a class="principal-action principal-action--ghost" [routerLink]="profileLink">
+          <span class="principal-action__icon" aria-hidden="true">👤</span>
+          <span>Meu perfil</span>
         </a>
       }
     </nav>
   </header>
 
-  <section class="principal-status-strip app-card-grid" *ngIf="currentUserStatus$ | async as currentStatus" aria-label="Estado da plataforma">
-    <article class="principal-status-strip__item app-card app-card--compact">
-      <span class="principal-status-strip__label">Conta</span>
-      <strong class="principal-status-strip__value">
+  <section class="principal-overview app-card-grid" *ngIf="currentUserStatus$ | async as currentStatus" aria-label="Resumo da conta e da rede">
+    <article class="principal-metric app-card app-card--compact">
+      <span class="principal-metric__label">Conta</span>
+      <strong class="principal-metric__value">
         {{ currentStatus === 'ready' ? 'Pronta' : 'Sincronizando' }}
       </strong>
-      <span class="principal-status-strip__hint">
-        {{ currentStatus === 'ready' ? 'Você já pode usar os recursos principais.' : 'Alguns recursos podem estar carregando.' }}
+      <span class="principal-metric__hint">
+        {{ currentStatus === 'ready' ? 'Recursos principais liberados.' : 'Aguardando atualização de estado.' }}
       </span>
     </article>
 
-    <article class="principal-status-strip__item app-card app-card--compact">
-      <span class="principal-status-strip__label">Descoberta</span>
-      <strong class="principal-status-strip__value">
-        {{ currentStatus === 'ready' ? 'Disponível' : 'Aguardando' }}
+    <article class="principal-metric app-card app-card--compact">
+      <span class="principal-metric__label">Rede</span>
+      <strong class="principal-metric__value">
+        {{ (friendsCount$ | async) ?? 0 }} amigos
       </strong>
-      <a routerLink="/dashboard/explorar" class="principal-status-strip__link">Abrir agora</a>
+      <a routerLink="/friends/list" class="principal-inline-link">Ver lista</a>
     </article>
 
-    <article class="principal-status-strip__item app-card app-card--compact principal-status-strip__item--highlight">
-      <span class="principal-status-strip__label">Sugestões</span>
-      <strong class="principal-status-strip__value">Compatíveis</strong>
-      <a routerLink="/dashboard/perfis-sugeridos" class="principal-status-strip__link">Ver sugeridos</a>
+    <article class="principal-metric app-card app-card--compact">
+      <span class="principal-metric__label">Solicitações</span>
+      <strong class="principal-metric__value">
+        {{ (pendingRequestsCount$ | async) ?? 0 }} pendentes
+      </strong>
+      <a routerLink="/friends/list" class="principal-inline-link">Gerenciar</a>
     </article>
   </section>
 
-  <section class="principal-summary app-card-grid" aria-label="Resumo de interações">
-    <article class="principal-summary__card app-card app-card--compact">
-      <span class="principal-summary__label">Solicitações pendentes</span>
-      <strong class="principal-summary__value">
-        {{ (pendingRequestsCount$ | async) ?? 0 }}
-      </strong>
-      <a routerLink="/friends/list" class="principal-summary__link">
-        Abrir amizades
-      </a>
-    </article>
-
-    <article class="principal-summary__card app-card app-card--compact">
-      <span class="principal-summary__label">Amigos</span>
-      <strong class="principal-summary__value">
-        {{ (friendsCount$ | async) ?? 0 }}
-      </strong>
-      <a routerLink="/friends/list" class="principal-summary__link">
-        Ver lista
-      </a>
-    </article>
-
-    <article class="principal-summary__card app-card app-card--compact">
-      <span class="principal-summary__label">Descoberta</span>
-      <strong class="principal-summary__value">Agora</strong>
-      <a routerLink="/dashboard/explorar" class="principal-summary__link">
-        Ver perfis
-      </a>
-    </article>
-  </section>
-
-  <section class="principal-section-grid app-card-grid" aria-label="Áreas principais">
+  <section class="principal-section-grid app-card-grid" aria-label="Atalhos principais da rede">
     <article class="principal-panel principal-panel--highlight app-card app-card--interactive">
       <div class="principal-panel__header app-card__header">
         <div>
-          <p class="principal-panel__eyebrow">Descoberta</p>
-          <h2>Encontrar pessoas</h2>
+          <p class="principal-panel__eyebrow">Recomendado</p>
+          <h2>Perfis sugeridos</h2>
+        </div>
+        <span class="principal-panel__badge app-chip app-chip--primary">Novo</span>
+      </div>
+
+      <p class="principal-panel__description">
+        Veja perfis compatíveis com seu contexto e abra a vitrine de cada pessoa com menos passos.
+      </p>
+
+      <div class="principal-panel__actions app-card__actions">
+        <a class="principal-action principal-action--accent" routerLink="/dashboard/perfis-sugeridos">
+          <span>Ver sugeridos</span>
+        </a>
+      </div>
+    </article>
+
+    <article class="principal-panel app-card app-card--interactive">
+      <div class="principal-panel__header app-card__header">
+        <div>
+          <p class="principal-panel__eyebrow">Exploração</p>
+          <h2>Explorar rede</h2>
         </div>
       </div>
 
       <p class="principal-panel__description">
-        Acesse a área de descoberta para navegar por perfis próximos, online e compatíveis.
+        Navegue por perfis próximos, online e disponíveis para novas conexões.
       </p>
 
       <div class="principal-panel__actions app-card__actions">
-        <a class="app-action app-action--primary" routerLink="/dashboard/explorar">
-          Abrir descoberta
-        </a>
-        <a class="app-action app-action--ghost" routerLink="/dashboard/perfis-sugeridos">
-          Ver sugeridos
+        <a class="principal-action principal-action--primary" routerLink="/dashboard/explorar">
+          <span>Abrir rede</span>
         </a>
       </div>
     </article>
@@ -133,42 +125,20 @@
       <div class="principal-panel__header app-card__header">
         <div>
           <p class="principal-panel__eyebrow">Relacionamentos</p>
-          <h2>Amizades e convites</h2>
+          <h2>Amizades e conversas</h2>
         </div>
       </div>
 
       <p class="principal-panel__description">
-        Gerencie solicitações, acompanhe convites recebidos e veja sua lista de amigos.
+        Acompanhe amizades, convites e conversas em andamento sem perder o contexto da rede.
       </p>
 
-      <div class="principal-panel__actions app-card__actions">
-        <a class="app-action app-action--ghost" routerLink="/friends/list">
+      <div class="principal-panel__actions app-card__actions principal-panel__actions--split">
+        <a class="principal-action principal-action--ghost" routerLink="/friends/list">
           Amizades
         </a>
-        <a class="app-action app-action--ghost" routerLink="/chat/invite-list">
-          Convites
-        </a>
-      </div>
-    </article>
-
-    <article class="principal-panel app-card app-card--interactive">
-      <div class="principal-panel__header app-card__header">
-        <div>
-          <p class="principal-panel__eyebrow">Conversas</p>
-          <h2>Chats e salas</h2>
-        </div>
-      </div>
-
-      <p class="principal-panel__description">
-        Entre nas conversas em andamento e acesse rapidamente suas salas.
-      </p>
-
-      <div class="principal-panel__actions app-card__actions">
-        <a class="app-action app-action--ghost" routerLink="/chat-list">
+        <a class="principal-action principal-action--ghost" routerLink="/chat-list">
           Chats
-        </a>
-        <a class="app-action app-action--ghost" routerLink="/chat-rooms">
-          Salas
         </a>
       </div>
     </article>
@@ -177,26 +147,26 @@
   <section class="principal-next-steps app-card" aria-label="Próximos passos recomendados">
     <div class="principal-next-steps__copy">
       <p class="principal-panel__eyebrow">Próximo passo</p>
-      <h2>Melhore suas chances de conexão</h2>
+      <h2>Fortaleça sua presença na rede</h2>
       <p>
-        Ajuste preferências, mantenha o perfil atualizado e use os perfis sugeridos como atalho principal de descoberta.
+        Perfil consistente e preferências atualizadas melhoram o contexto dos perfis sugeridos.
       </p>
     </div>
 
     <div class="principal-next-steps__actions app-card__actions">
       @if (preferencesLink$ | async; as preferencesLink) {
-        <a class="app-action app-action--ghost" [routerLink]="preferencesLink">
+        <a class="principal-action principal-action--ghost" [routerLink]="preferencesLink">
           Preferências
         </a>
       }
 
       @if (profileLink$ | async; as profileLink) {
-        <a class="app-action app-action--ghost" [routerLink]="profileLink">
+        <a class="principal-action principal-action--ghost" [routerLink]="profileLink">
           Editar perfil
         </a>
       }
 
-      <a class="app-action app-action--primary" routerLink="/dashboard/perfis-sugeridos">
+      <a class="principal-action principal-action--accent" routerLink="/dashboard/perfis-sugeridos">
         Ver sugeridos
       </a>
     </div>
