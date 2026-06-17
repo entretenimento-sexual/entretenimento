@@ -1,17 +1,79 @@
-/* src/app/user-profile/user-photo-manager/user-photo-manager.component.css */
-.photo-manager {
-  display: grid;
-  gap: var(--space-3, 16px);
+/* src/app/user-profile/user-photo-manager/user-photo-manager.component.css
+   ----------------------------------------------------------------------------
+   Gerenciador/resumo de fotos do perfil.
+
+   Estratégia:
+   - adota o card system global de forma progressiva;
+   - mantém fallback local completo para evitar quebra visual;
+   - preserva modo summary, modo manager, ordenação, recolhimento e remoção;
+   - mobile-first para uso dentro do /perfil e em telas pequenas.
+   ----------------------------------------------------------------------------
+*/
+
+:host {
+  display: block;
   width: 100%;
   min-width: 0;
 }
 
-.photo-manager__summary {
+/* Container ---------------------------------------------------------------- */
+
+.photo-manager,
+.photo-manager.app-card {
+  display: grid;
+  gap: var(--space-3, 16px);
+  width: 100%;
+  min-width: 0;
+  border-radius: 18px;
+}
+
+.photo-manager.app-card--flat {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.photo-manager--collapsed {
+  gap: 10px;
+}
+
+/* Cabeçalho ---------------------------------------------------------------- */
+
+.photo-manager__summary,
+.photo-manager__summary.app-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3, 16px);
   min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.photo-manager__copy,
+.photo-manager__copy.app-toolbar__summary {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.photo-manager__eyebrow {
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 74%, var(--text-color, #f5f7fb));
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.photo-manager__copy h3 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1rem, 2vw, 1.18rem);
+  font-weight: 900;
+  line-height: 1.15;
 }
 
 .photo-manager__summary p {
@@ -26,40 +88,41 @@
   font-weight: 850;
 }
 
-.photo-manager__copy {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.photo-manager__copy span {
+.photo-manager__copy span:not(.photo-manager__eyebrow) {
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
   font-size: 0.78rem;
   line-height: 1.3;
 }
 
-.photo-manager__toolbar {
+/* Toolbar ------------------------------------------------------------------ */
+
+.photo-manager__toolbar,
+.photo-manager__toolbar.app-toolbar__controls {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
-.photo-manager__link {
-  min-height: 32px;
+.photo-manager__link,
+.photo-manager__link.app-action {
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 11px;
+  padding: 7px 12px;
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
   border-radius: 999px;
   background: color-mix(in oklab, var(--surface-color, #101923) 92%, black 8%);
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 82%, transparent);
+  cursor: pointer;
   font-size: 0.78rem;
   font-weight: 850;
   line-height: 1;
   text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .photo-manager__link:hover,
@@ -78,30 +141,101 @@
   outline-offset: var(--focus-offset, 2px);
 }
 
-.photo-manager__link--primary {
-  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 44%, transparent);
-  background: color-mix(in oklab, var(--primary-color, #ff7070) 20%, transparent);
+.photo-manager__link--primary,
+.photo-manager__link--primary.app-action {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 48%, transparent);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 22%, transparent);
   color: var(--text-color, #f5f7fb);
 }
 
-.photo-manager--summary .photo-grid {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 96px), 118px));
+.photo-manager__toggle {
+  appearance: none;
 }
 
-.photo-manager--summary .photo-item {
-  border-radius: 13px;
-  box-shadow: none;
+/* Ordenação ---------------------------------------------------------------- */
+
+.photo-sort,
+.photo-sort.app-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, black 8%);
 }
 
-.photo-grid {
+.photo-sort__button,
+.photo-sort__button.app-segmented__button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  cursor: pointer;
+  font-size: 0.76rem;
+  font-weight: 800;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.photo-sort__button:hover,
+.photo-sort__button:focus-visible,
+.photo-sort__button--active,
+.photo-sort__button.app-segmented__button--active {
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent);
+  color: var(--text-color, #f5f7fb);
+}
+
+.photo-sort__button:focus-visible {
+  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+/* Estados ------------------------------------------------------------------ */
+
+.photo-manager__collapsed-text {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.empty-state,
+.empty-state.app-empty-card {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 94%,
+    transparent
+  );
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.4;
+}
+
+/* Grid --------------------------------------------------------------------- */
+
+.photo-grid,
+.photo-grid.app-card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 104px), 132px));
   gap: clamp(8px, 1.2vw, 14px);
   align-items: start;
   justify-content: start;
+  min-width: 0;
 }
 
-.photo-item {
+.photo-manager--summary .photo-grid,
+.photo-manager--summary .photo-grid.app-card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 96px), 118px));
+}
+
+.photo-item,
+.photo-item.app-card {
   position: relative;
   min-width: 0;
   overflow: hidden;
@@ -119,6 +253,12 @@
     transform 140ms ease;
 }
 
+.photo-manager--summary .photo-item,
+.photo-manager--summary .photo-item.app-card {
+  border-radius: 13px;
+  box-shadow: none;
+}
+
 .photo-item:hover,
 .photo-item:focus-within {
   transform: translateY(-1px);
@@ -130,18 +270,51 @@
   box-shadow: 0 12px 28px rgb(0 0 0 / 22%);
 }
 
-.user-photo {
+.photo-media,
+.photo-media.app-media-frame {
+  position: relative;
   display: block;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
   aspect-ratio: 4 / 5;
-  object-fit: cover;
-  object-position: center;
   background:
     linear-gradient(
       180deg,
       color-mix(in oklab, var(--surface-color, #101923) 92%, white 5%),
       color-mix(in oklab, var(--surface-color, #101923) 82%, black 16%)
     );
+}
+
+.user-photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+/* Overlays ----------------------------------------------------------------- */
+
+.photo-date,
+.photo-date.app-chip {
+  position: absolute;
+  inset: auto auto 8px 8px;
+  max-width: calc(100% - 16px);
+  min-height: 24px;
+  padding: 4px 7px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 999px;
+  background: rgb(0 0 0 / 46%);
+  color: rgb(255 255 255 / 88%);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
 }
 
 .photo-actions {
@@ -165,7 +338,8 @@
   pointer-events: auto;
 }
 
-.delete-button {
+.delete-button,
+.delete-button.app-action {
   min-height: 28px;
   padding: 4px 8px;
   border: 1px solid color-mix(
@@ -176,10 +350,10 @@
   border-radius: 999px;
   background: rgb(0 0 0 / 62%);
   color: #fff;
+  cursor: pointer;
   font-size: 0.7rem;
   font-weight: 850;
   line-height: 1;
-  cursor: pointer;
   box-shadow: 0 8px 18px rgb(0 0 0 / 26%);
   backdrop-filter: blur(8px);
   -webkit-tap-highlight-color: transparent;
@@ -195,120 +369,54 @@
   outline-offset: var(--focus-offset, 2px);
 }
 
-.empty-state {
-  margin: 0;
-  padding: 14px;
-  border: 1px dashed var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 14px;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
-  background: color-mix(
-    in oklab,
-    var(--surface-color, #101923) 94%,
-    transparent
-  );
-  font-size: 0.92rem;
-  line-height: 1.4;
-}
-
-.photo-sort {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 999px;
-  background: color-mix(in oklab, var(--surface-color, #101923) 92%, black 8%);
-}
-
-.photo-sort__button {
-  min-height: 30px;
-  padding: 5px 10px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
-  cursor: pointer;
-  font-size: 0.76rem;
-  font-weight: 800;
-}
-
-.photo-sort__button:hover,
-.photo-sort__button:focus-visible,
-.photo-sort__button--active {
-  background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent);
-  color: var(--text-color, #f5f7fb);
-}
-
-.photo-sort__button:focus-visible {
-  outline: var(--focus-ring, 2px solid rgba(255, 112, 112, 0.9));
-  outline-offset: var(--focus-offset, 2px);
-}
-
-.photo-date {
-  position: absolute;
-  inset: auto auto 8px 8px;
-  max-width: calc(100% - 16px);
-  min-height: 24px;
-  padding: 4px 7px;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 16%);
-  border-radius: 999px;
-  background: rgb(0 0 0 / 46%);
-  color: rgb(255 255 255 / 88%);
-  font-size: 0.68rem;
-  font-weight: 800;
-  line-height: 1;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  backdrop-filter: blur(8px);
-  pointer-events: none;
-}
+/* Mobile ------------------------------------------------------------------- */
 
 @media (max-width: 700px) {
   .photo-manager {
     gap: 12px;
   }
 
-  .photo-manager__summary {
+  .photo-manager__summary,
+  .photo-manager__summary.app-toolbar {
     align-items: flex-start;
     flex-direction: column;
-    align-items: flex-start;
   }
 
-  .photo-manager__toolbar {
-  width: 100%;
-  justify-content: stretch;
-}
+  .photo-manager__toolbar,
+  .photo-manager__toolbar.app-toolbar__controls {
+    width: 100%;
+    justify-content: stretch;
+  }
 
-.photo-manager__link {
-  flex: 1 1 auto;
-}
+  .photo-manager__link,
+  .photo-manager__link.app-action {
+    flex: 1 1 auto;
+  }
 
-  .photo-sort {
-  width: 100%;
-}
+  .photo-sort,
+  .photo-sort.app-segmented {
+    width: 100%;
+  }
 
-.photo-sort__button {
-  flex: 1 1 0;
-}
-
-.photo-date {
-  inset: auto auto 6px 6px;
-  min-height: 22px;
-  padding: 3px 6px;
-  font-size: 0.62rem;
-}
+  .photo-sort__button,
+  .photo-sort__button.app-segmented__button {
+    flex: 1 1 0;
+  }
 
   .photo-manager__summary p {
     font-size: 0.84rem;
   }
 
-  .photo-grid {
+  .photo-grid,
+  .photo-grid.app-card-grid,
+  .photo-manager--summary .photo-grid,
+  .photo-manager--summary .photo-grid.app-card-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
   }
 
-  .photo-item {
+  .photo-item,
+  .photo-item.app-card {
     border-radius: 12px;
     box-shadow: none;
   }
@@ -326,18 +434,32 @@
     pointer-events: auto;
   }
 
-  .delete-button {
+  .delete-button,
+  .delete-button.app-action {
     min-height: 26px;
     padding: 4px 7px;
     font-size: 0.66rem;
   }
+
+  .photo-date,
+  .photo-date.app-chip {
+    inset: auto auto 6px 6px;
+    min-height: 22px;
+    padding: 3px 6px;
+    font-size: 0.62rem;
+  }
 }
 
 @media (max-width: 420px) {
-  .photo-grid {
+  .photo-grid,
+  .photo-grid.app-card-grid,
+  .photo-manager--summary .photo-grid,
+  .photo-manager--summary .photo-grid.app-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Acessibilidade ----------------------------------------------------------- */
 
 @media (prefers-reduced-motion: reduce) {
   .photo-item,
@@ -350,4 +472,13 @@
   .photo-item:focus-within {
     transform: none;
   }
+}
+
+html.high-contrast .photo-item,
+html.high-contrast .photo-date,
+html.high-contrast .delete-button,
+html.high-contrast .photo-sort,
+html.high-contrast .photo-manager__link {
+  border-color: currentColor !important;
+  box-shadow: none !important;
 }
