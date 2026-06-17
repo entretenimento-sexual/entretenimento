@@ -13,12 +13,6 @@
 // - O src/main.ts continua sendo a camada de bootstrap + debug global.
 // - Este AppModule apenas consome as convenções definidas lá,
 //   especialmente a chave de persistência do Auth Emulator.
-//
-// Ajuste desta versão:
-// - adiciona provider global de Cloud Functions
-// - conecta o Functions Emulator de forma defensiva
-// - mantém a mesma estratégia robusta já adotada para Auth, Firestore,
-//   Realtime Database e Storage
 // =============================================================================
 
 import {
@@ -45,7 +39,6 @@ import { AppComponent } from './app.component';
 import { AppRoutingModule } from './app-routing.module';
 import { HeaderModule } from './header/header.module';
 import { FooterModule } from './footer/footer.module';
-import { PhotoEditorModule } from './photo-editor/photo-editor.module';
 import { AppStoreModule } from './store/store.module';
 
 import { GlobalErrorHandlerService } from './core/services/error-handler/global-error-handler.service';
@@ -119,42 +112,15 @@ registerLocaleData(localePt, 'pt-BR');
 // Constantes compartilhadas com src/main.ts
 // =============================================================================
 
-/**
- * Chave usada para controlar o modo de persistência do Auth Emulator.
- *
- * Valores válidos:
- * - "memory"
- * - "session"
- *
- * Importante:
- * - deve permanecer sincronizada com src/main.ts
- */
 const EMU_AUTH_PERSIST_KEY = '__EMU_AUTH_PERSIST__';
-/**
- * Região canônica das callables consumidas pelo frontend.
- *
- * Deve permanecer alinhada com:
- * functions/src/config/functions-region.ts
- *
- * O Firestore principal está em `nam5`, cuja região de Functions mais próxima
- * indicada pelo Firebase é `us-central1`.
- */
 const CALLABLE_FUNCTIONS_REGION = 'us-central1' as const;
 
 type EmuPersistMode = 'memory' | 'session';
-
-// =============================================================================
-// Helpers utilitários
-// =============================================================================
 
 function isBrowser(): boolean {
   return typeof window !== 'undefined';
 }
 
-/**
- * Log mínimo, respeitando o helper DBG definido no main.ts.
- * Não quebra o bootstrap se o DBG não existir.
- */
 function safeDbg(message: string, extra?: unknown): void {
   try {
     if (!isBrowser()) return;
@@ -192,30 +158,10 @@ function isUsingStorageEmulator(): boolean {
   return isUsingEmulators() && hasEmulatorTarget('storage');
 }
 
-/**
- * Functions Emulator só deve ser usado quando:
- * - o ambiente realmente estiver em modo emulator
- * - existir host/port configurados especificamente para functions
- *
- * Isso evita acessar cfg.emulators.functions em ambientes onde esse alvo
- * não foi configurado.
- */
 function isUsingFunctionsEmulator(): boolean {
   return isUsingEmulators() && hasEmulatorTarget('functions');
 }
 
-/**
- * Helper único para evitar divergência entre initializer e provider.
- *
- * REGRA DO PROJETO:
- * - a sessão deve sobreviver ao refresh em qualquer ambiente
- * - no emulator, o default é "session"
- * - "memory" existe apenas como ferramenta manual de troubleshooting
- *
- * Isso mantém o comportamento esperado de grandes plataformas:
- * - usuário autenticado não “cai” no refresh
- * - a restauração da sessão continua previsível
- */
 function getEmuPersistMode(): EmuPersistMode {
   if (!isBrowser()) return 'session';
 
@@ -226,104 +172,57 @@ function getEmuPersistMode(): EmuPersistMode {
   return raw === 'memory' ? 'memory' : 'session';
 }
 
-/**
- * Conecta o Auth Emulator apenas uma vez.
- * Isso evita ruído em HMR / re-bootstrap.
- */
 function connectAuthEmulatorOnce(auth: Auth, url: string): void {
   const marker = '__authEmulatorConnected__';
-
   if ((auth as any)[marker] === true) return;
-
   connectAuthEmulator(auth, url, { disableWarnings: true });
   (auth as any)[marker] = true;
 }
 
-/**
- * Marca defensiva para Firestore Emulator.
- */
 function connectFirestoreEmulatorOnce(
   db: any,
   host: string,
   port: number
 ): void {
   const marker = '__firestoreEmulatorConnected__';
-
   if ((db as any)[marker] === true) return;
-
   connectFirestoreEmulator(db, host, port);
   (db as any)[marker] = true;
 }
 
-/**
- * Marca defensiva para RTDB Emulator.
- */
 function connectDatabaseEmulatorOnce(
   db: any,
   host: string,
   port: number
 ): void {
   const marker = '__databaseEmulatorConnected__';
-
   if ((db as any)[marker] === true) return;
-
   connectDatabaseEmulator(db, host, port);
   (db as any)[marker] = true;
 }
 
-/**
- * Marca defensiva para Storage Emulator.
- */
 function connectStorageEmulatorOnce(
   storage: any,
   host: string,
   port: number
 ): void {
   const marker = '__storageEmulatorConnected__';
-
   if ((storage as any)[marker] === true) return;
-
   connectStorageEmulator(storage, host, port);
   (storage as any)[marker] = true;
 }
 
-/**
- * Marca defensiva para Functions Emulator.
- *
- * Mantém coerência com o padrão já adotado para os demais serviços Firebase.
- */
 function connectFunctionsEmulatorOnce(
   functions: any,
   host: string,
   port: number
 ): void {
   const marker = '__functionsEmulatorConnected__';
-
   if ((functions as any)[marker] === true) return;
-
   connectFunctionsEmulator(functions, host, port);
   (functions as any)[marker] = true;
 }
 
-// =============================================================================
-// APP_INITIALIZER
-// =============================================================================
-
-/**
- * Segura o bootstrap lógico da aplicação até o Firebase Auth resolver
- * a restauração da sessão atual.
- *
- * Por que isso importa?
- * - evita flash de auth.currentUser = null no boot
- * - evita guards e router decidirem cedo demais
- * - reduz redirect indevido para /login em refresh/cold start
- *
- * Regras:
- * - fora do emulator: apenas aguardamos authStateReady()
- * - no emulator:
- *   - session: mantemos a sessão e validamos via reload()
- *   - memory: não restaura por definição; se houver currentUser, tratamos como ghost
- */
 export function authRestoreInitializer(
   auth: Auth,
   geh: GlobalErrorHandlerService
@@ -342,13 +241,10 @@ export function authRestoreInitializer(
         currentUserUid: auth.currentUser?.uid ?? null,
       });
 
-      // Fora do emulator, basta esperar o restore natural do SDK.
       if (!usingEmu) return;
 
       const currentUser = auth.currentUser;
 
-      // Em "memory", não esperamos restore persistido.
-      // Se houver usuário aqui, tratamos como sessão fantasma.
       if (persistMode === 'memory' && currentUser) {
         safeDbg('[AUTH][INIT] memory-mode ghost -> signOut()', {
           uid: currentUser.uid,
@@ -360,7 +256,6 @@ export function authRestoreInitializer(
 
       if (!currentUser) return;
 
-      // Em "session", validamos a sessão restaurada contra o emulator.
       try {
         await currentUser.reload();
 
@@ -391,10 +286,6 @@ export function authRestoreInitializer(
   };
 }
 
-// =============================================================================
-// Module
-// =============================================================================
-
 @NgModule({
   declarations: [AppComponent],
 
@@ -412,43 +303,18 @@ export function authRestoreInitializer(
 
     HeaderModule,
     FooterModule,
-    PhotoEditorModule,
-
     AppStoreModule,
 
     ...(environment.production
       ? []
       : [StoreDevtoolsModule.instrument({ maxAge: 25, trace: true })]),
 
-    // Standalone import
     AdminLinkComponent,
   ],
 
   providers: [
-    // =========================================================================
-    // Firebase App
-    //
-    // Deve vir antes dos providers específicos do ecossistema Firebase.
-    // Isso deixa a ordem de bootstrap mais clara e reduz ambiguidade.
-    // =========================================================================
     provideFirebaseApp(() => initializeApp(environment.firebase)),
 
-    // =========================================================================
-    // Cloud Functions
-    //
-    // Necessário para checkout, billing e lifecycle de conta via callable.
-    //
-    // Estratégia:
-    // - cliente e backend utilizam a mesma região canônica;
-    // - em dev-emu, o mesmo provider é conectado ao Functions Emulator;
-    // - em dev-real/prod, as callables apontam para a região implantada;
-    // - protege contra reconexão em HMR/rebootstrap.
-    //
-    // Segurança:
-    // - utilizar o provider não significa que toda function esteja pronta para
-    //   produção; pagamentos mock devem permanecer restritos ao emulator até
-    //   validação real do gateway/webhook.
-    // =========================================================================
     provideFunctions(() => {
       const functions = getFunctions(getApp(), CALLABLE_FUNCTIONS_REGION);
 
@@ -474,10 +340,6 @@ export function authRestoreInitializer(
       }
       return functions;
     }),
-    // =========================================================================
-    // APP_INITIALIZER
-    // Garante que o Auth seja resolvido antes do app decidir navegação crítica
-    // =========================================================================
     {
       provide: APP_INITIALIZER,
       useFactory: authRestoreInitializer,
@@ -485,18 +347,6 @@ export function authRestoreInitializer(
       multi: true,
     },
 
-    // =========================================================================
-    // Auth
-    //
-    // Estratégia:
-    // - emulator: default = session (mantém sessão no refresh)
-    // - cloud/prod: persistência forte
-    //
-    // Ordem de persistência fora do emulator:
-    // - IndexedDB
-    // - localStorage
-    // - sessionStorage
-    // =========================================================================
     provideAuth(() => {
       const app = getApp();
       const usingEmu = isUsingAuthEmulator();
@@ -523,11 +373,8 @@ export function authRestoreInitializer(
           popupRedirectResolver: browserPopupRedirectResolver,
         });
       } catch {
-        // HMR / rebootstrap / já inicializado
         auth = getAuth(app);
 
-        // Reforço best-effort da persistência.
-        // Não bloqueia bootstrap.
         const fallbackPersistence = usingEmu
           ? emuPersistence
           : browserLocalPersistence;
@@ -543,7 +390,6 @@ export function authRestoreInitializer(
 
         connectAuthEmulatorOnce(auth, url);
 
-        // Ping best-effort, útil em ambiente local.
         try {
           fetch(url, { mode: 'no-cors' }).catch(() => {
             // noop
@@ -562,13 +408,6 @@ export function authRestoreInitializer(
       return auth;
     }),
 
-    // =========================================================================
-    // Firestore
-    //
-    // Estratégia:
-    // - long polling em dev melhora robustez em ambientes locais/restritivos
-    // - fallback para getFirestore em HMR/rebootstrap
-    // =========================================================================
     provideFirestore(() => {
       const app = getApp();
 
@@ -596,9 +435,6 @@ export function authRestoreInitializer(
       return db;
     }),
 
-    // =========================================================================
-    // Realtime Database
-    // =========================================================================
     provideDatabase(() => {
       const db = getDatabase(getApp());
 
@@ -614,9 +450,6 @@ export function authRestoreInitializer(
       return db;
     }),
 
-    // =========================================================================
-    // Storage
-    // =========================================================================
     provideStorage(() => {
       const storage = getStorage(getApp());
 
@@ -632,9 +465,6 @@ export function authRestoreInitializer(
       return storage;
     }),
 
-    // =========================================================================
-    // Erro global / notificação / locale
-    // =========================================================================
     { provide: ErrorHandler, useClass: GlobalErrorHandlerService },
     ErrorNotificationService,
     { provide: LOCALE_ID, useValue: 'pt-BR' },
