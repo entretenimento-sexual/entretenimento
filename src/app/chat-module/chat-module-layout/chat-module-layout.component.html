@@ -24,22 +24,14 @@
             />
 
             <div class="chat-shell__main-context-copy">
-              <p class="chat-shell__main-kicker">Conversa direta</p>
               <h2 class="chat-shell__main-title">{{ activeDirectChatTitle }}</h2>
-              <p class="chat-shell__main-subtitle">
-                {{ activeDirectChatSubtitle }}
-              </p>
             </div>
           </div>
         }
 
         @if (selectedType === 'room') {
           <div class="chat-shell__main-context">
-            <p class="chat-shell__main-kicker">Sala</p>
-            <h2 class="chat-shell__main-title">Sala de bate-papo</h2>
-            <p class="chat-shell__main-subtitle">
-              Interação em grupo mantida em compatibilidade.
-            </p>
+            <h2 class="chat-shell__main-title">Sala</h2>
           </div>
         }
       </header>
@@ -67,10 +59,10 @@
 
         @if (!selectedType || !selectedChatId) {
           <div class="chat-shell__empty-state" role="status" aria-live="polite">
-            <p class="chat-shell__empty-title">Nenhuma conversa aberta ainda.</p>
+            <p class="chat-shell__empty-title">Nenhuma conversa aberta.</p>
 
             <p class="chat-shell__empty-text">
-              Selecione uma conversa na lateral ou acompanhe seus convites.
+              Selecione uma conversa na lateral.
             </p>
 
             <div class="chat-shell__empty-actions">
@@ -83,58 +75,58 @@
       </div>
 
       @if (selectedType && selectedChatId) {
-  <footer
-    class="chat-shell__input"
-    aria-label="Área de envio de mensagem"
-    [attr.aria-busy]="isSendingMessage()"
-  >
-    @let canSendMessageNow = canSendCurrentMessage();
+        <footer
+          class="chat-shell__input"
+          aria-label="Área de envio de mensagem"
+          [attr.aria-busy]="isSendingMessage()"
+        >
+          @let canSendMessageNow = canSendCurrentMessage();
 
-    <div class="chat-shell__composer-main">
-      <textarea
-        [(ngModel)]="messageContent"
-        (keydown)="onComposerKeydown($event)"
-        placeholder="Digite sua mensagem..."
-        aria-label="Digite sua mensagem. Pressione Enter para enviar ou Shift mais Enter para quebrar linha."
-        [attr.aria-describedby]="shouldShowComposerHelp ? 'chat-composer-help' : null"
-        rows="1"
-        [readOnly]="isSendingMessage()"
-        [attr.aria-readonly]="isSendingMessage()"
-        [attr.aria-invalid]="isMessageTooLong"
-        [attr.maxlength]="maxMessageLength + 1"
-      ></textarea>
+          <div class="chat-shell__composer-main">
+            <textarea
+              [(ngModel)]="messageContent"
+              (keydown)="onComposerKeydown($event)"
+              placeholder="Digite sua mensagem..."
+              aria-label="Digite sua mensagem. Pressione Enter para enviar ou Shift mais Enter para quebrar linha."
+              [attr.aria-describedby]="shouldShowComposerHelp ? 'chat-composer-help' : null"
+              rows="1"
+              [readOnly]="isSendingMessage()"
+              [attr.aria-readonly]="isSendingMessage()"
+              [attr.aria-invalid]="isMessageTooLong"
+              [attr.maxlength]="maxMessageLength + 1"
+            ></textarea>
 
-      <button
-        type="button"
-        class="chat-shell__send"
-        (click)="sendMessage()"
-        [disabled]="!canSubmitMessage"
-        [attr.aria-disabled]="!canSubmitMessage"
-        [attr.aria-busy]="isSendingMessage()"
-      >
-        {{ isSendingMessage() ? 'Enviando...' : 'Enviar' }}
-      </button>
-    </div>
+            <button
+              type="button"
+              class="chat-shell__send"
+              (click)="sendMessage()"
+              [disabled]="!canSubmitMessage"
+              [attr.aria-disabled]="!canSubmitMessage"
+              [attr.aria-busy]="isSendingMessage()"
+            >
+              {{ isSendingMessage() ? 'Enviando...' : 'Enviar' }}
+            </button>
+          </div>
 
-@if (shouldShowComposerHelp) {
-  <p
-    id="chat-composer-help"
-    class="chat-shell__composer-help"
-    [class.chat-shell__composer-help--danger]="isMessageTooLong || !canSendMessageNow"
-    role="status"
-    aria-live="polite"
-  >
-    @if (!canSendMessageNow) {
-      {{ sendStatusMessage }}
-    } @else if (isMessageTooLong) {
-      Mensagem muito longa. Limite: {{ maxMessageLength }} caracteres.
-    } @else if (isNearMessageLimit) {
-      {{ messageLengthLabel }}
-    }
-  </p>
-}
-  </footer>
-}
+          @if (shouldShowComposerHelp) {
+            <p
+              id="chat-composer-help"
+              class="chat-shell__composer-help"
+              [class.chat-shell__composer-help--danger]="isMessageTooLong || !canSendMessageNow"
+              role="status"
+              aria-live="polite"
+            >
+              @if (!canSendMessageNow) {
+                {{ sendStatusMessage }}
+              } @else if (isMessageTooLong) {
+                Mensagem muito longa. Limite: {{ maxMessageLength }} caracteres.
+              } @else if (isNearMessageLimit) {
+                {{ messageLengthLabel }}
+              }
+            </p>
+          }
+        </footer>
+      }
     </section>
   </main>
 </div>
