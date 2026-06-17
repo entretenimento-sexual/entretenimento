@@ -1,169 +1,94 @@
 /* src/app/chat-module/chat-module-layout/chat-module-layout.component.css */
-/* ==========================================================================
-   CHAT MODULE LAYOUT
-
-   Responsabilidade deste CSS:
-   - estruturar o shell principal do chat;
-   - manter sidebar + conversa em layout de tela cheia;
-   - deixar header, thread e composer consistentes;
-   - não controlar aparência das bolhas individualmente;
-   - preservar dark mode, alto contraste e responsividade real.
-
-   Supressões nesta versão:
-   - removido .chat-shell__send-actions, pois não existe mais no HTML atual;
-   - removido .chat-shell__send-status, substituído por .chat-shell__composer-help;
-   - removidas duplicações de .chat-shell__send;
-   - removidas duplicações de textarea fora de .chat-shell__composer-main;
-   - removido bloco incorreto :host-context(html.dark-mode) com background/border
-     soltos no host.
-   ========================================================================== */
-
-/* -------------------------------------------------------------------------- */
-/* Host / tokens locais                                                       */
-/* -------------------------------------------------------------------------- */
-
 :host {
   display: block;
-
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
-
   --chat-sidebar-width: clamp(340px, 26vw, 420px);
   --chat-content-gutter: clamp(14px, 1.8vw, 28px);
   --chat-composer-gap: 12px;
   --chat-send-width: 96px;
-
   --chat-shell-bg: var(--background-color);
-  --chat-sidebar-bg: color-mix(
-    in oklab,
-    var(--surface-color) 98%,
-    var(--background-color)
-  );
+  --chat-sidebar-bg: color-mix(in oklab, var(--surface-color) 98%, var(--background-color));
   --chat-main-bg: var(--background-color);
-  --chat-header-bg: color-mix(
-    in oklab,
-    var(--surface-color) 96%,
-    var(--background-color)
-  );
-  --chat-composer-bg: color-mix(
-    in oklab,
-    var(--surface-color) 96%,
-    var(--background-color)
-  );
-
-  --chat-border-soft: color-mix(
-    in oklab,
-    var(--surface-border) 86%,
-    transparent
-  );
-
-  --chat-muted-text: color-mix(
-    in oklab,
-    var(--text-color) 62%,
-    transparent
-  );
-
-  --chat-input-bg: color-mix(
-    in oklab,
-    var(--input-background) 92%,
-    var(--background-color)
-  );
-
-  --chat-focus-shadow: 0 0 0 3px
-    color-mix(in oklab, var(--primary-color) 15%, transparent);
-
-  --chat-danger-shadow: 0 0 0 3px
-    color-mix(in oklab, var(--danger-color, #ff5c7a) 16%, transparent);
+  --chat-header-bg: color-mix(in oklab, var(--surface-color) 96%, var(--background-color));
+  --chat-composer-bg: color-mix(in oklab, var(--surface-color) 96%, var(--background-color));
+  --chat-border-soft: color-mix(in oklab, var(--surface-border) 86%, transparent);
+  --chat-muted-text: color-mix(in oklab, var(--text-color) 62%, transparent);
+  --chat-input-bg: color-mix(in oklab, var(--input-background) 92%, var(--background-color));
+  --chat-focus-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 15%, transparent);
+  --chat-danger-shadow: 0 0 0 3px color-mix(in oklab, var(--danger-color, #ff5c7a) 16%, transparent);
 }
-
-/* -------------------------------------------------------------------------- */
-/* Shell geral                                                                */
-/* -------------------------------------------------------------------------- */
 
 .chat-shell {
   display: grid;
   grid-template-columns: var(--chat-sidebar-width) minmax(0, 1fr);
-
   width: 100%;
   height: 100%;
   min-width: 0;
   min-height: 0;
-
   margin: 0;
   overflow: hidden;
-
   background: var(--chat-shell-bg);
   color: var(--text-color);
-
   border-left: 1px solid var(--surface-border);
-
   box-sizing: border-box;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Sidebar                                                                    */
-/* -------------------------------------------------------------------------- */
-
-.chat-shell__sidebar {
-  display: flex;
-  flex-direction: column;
-
+.chat-shell__sidebar,
+.chat-shell__main,
+.chat-shell__content,
+.chat-shell__input {
   min-width: 0;
   min-height: 0;
+  box-sizing: border-box;
+}
 
+.chat-shell__sidebar,
+.chat-shell__main,
+.chat-shell__content,
+.chat-shell__input,
+.chat-shell__composer-main,
+.chat-shell__empty-actions {
+  display: flex;
+}
+
+.chat-shell__sidebar,
+.chat-shell__main,
+.chat-shell__content,
+.chat-shell__input {
+  flex-direction: column;
+}
+
+.chat-shell__sidebar {
   background: var(--chat-sidebar-bg);
   border-right: 1px solid var(--surface-border);
-
-  box-sizing: border-box;
 }
 
 .chat-shell__sidebar-body {
   flex: 1 1 auto;
-
   min-width: 0;
   min-height: 0;
-
   overflow: hidden;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Área principal                                                             */
-/* -------------------------------------------------------------------------- */
-
 .chat-shell__main {
-  display: flex;
-  flex-direction: column;
-
-  min-width: 0;
-  min-height: 0;
-
   background: var(--chat-main-bg);
-
-  box-sizing: border-box;
 }
-
-/* -------------------------------------------------------------------------- */
-/* Header da conversa                                                         */
-/* -------------------------------------------------------------------------- */
 
 .chat-shell__main-header {
   flex: 0 0 auto;
-
   min-height: 68px;
   padding: 10px var(--chat-content-gutter);
-
   border-bottom: 1px solid var(--surface-border);
   background: var(--chat-header-bg);
-
   box-sizing: border-box;
 }
 
 .chat-shell__main-context {
   width: 100%;
   min-width: 0;
-
   display: grid;
   gap: 4px;
 }
@@ -176,7 +101,6 @@
 
 .chat-shell__main-context-copy {
   min-width: 0;
-
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -186,145 +110,93 @@
   width: 46px;
   height: 46px;
   flex: 0 0 46px;
-
   border-radius: 50%;
   object-fit: cover;
-
   border: 1px solid var(--chat-border-soft);
   background: var(--input-background);
 }
 
-.chat-shell__main-kicker {
+.chat-shell__main-kicker,
+.chat-shell__main-title,
+.chat-shell__main-subtitle,
+.chat-shell__empty-title,
+.chat-shell__empty-text,
+.chat-shell__composer-help {
   margin: 0;
+}
 
+.chat-shell__main-kicker {
+  color: color-mix(in oklab, var(--text-color) 58%, transparent);
   font-size: 0.7rem;
   line-height: 1.1;
   letter-spacing: 0.045em;
   text-transform: uppercase;
   font-weight: 800;
-
-  color: color-mix(in oklab, var(--text-color) 58%, transparent);
 }
 
 .chat-shell__main-title {
-  margin: 0;
-
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
+  color: var(--text-color);
   font-size: clamp(1rem, 0.35vw + 0.95rem, 1.18rem);
   line-height: 1.15;
   font-weight: 800;
-
-  color: var(--text-color);
 }
 
 .chat-shell__main-subtitle,
 .chat-shell__empty-text {
-  margin: 0;
+  color: var(--chat-muted-text);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
 
+.chat-shell__main-title,
+.chat-shell__main-subtitle,
+.chat-shell__empty-text {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-
-  font-size: 0.86rem;
-  line-height: 1.35;
-
-  color: var(--chat-muted-text);
 }
-
-/* -------------------------------------------------------------------------- */
-/* Conteúdo / thread                                                          */
-/* -------------------------------------------------------------------------- */
 
 .chat-shell__content {
   flex: 1 1 auto;
-
-  display: flex;
-  flex-direction: column;
-
-  min-width: 0;
-  min-height: 0;
-
   overflow: hidden;
-
-  background:
-    radial-gradient(
-      circle at top right,
-      color-mix(in oklab, var(--primary-color) 3%, transparent),
-      transparent 34%
-    ),
-    var(--chat-main-bg);
-
-  box-sizing: border-box;
+  background: radial-gradient(circle at top right, color-mix(in oklab, var(--primary-color) 3%, transparent), transparent 34%), var(--chat-main-bg);
 }
 
 .chat-shell__thread {
   flex: 1 1 auto;
-
   min-width: 0;
   min-height: 0;
-
   overflow-x: hidden;
   overflow-y: auto;
-
-  /*
-    A thread não cria gutter horizontal.
-    O respiro lateral das bolhas pertence ao chat-message.component.css.
-  */
   padding: 14px 0 18px;
-
   box-sizing: border-box;
-
   scrollbar-width: thin;
-  scrollbar-color:
-    color-mix(in oklab, var(--text-color) 22%, transparent)
-    transparent;
+  scrollbar-color: color-mix(in oklab, var(--text-color) 22%, transparent) transparent;
 }
 
-.chat-shell__thread::-webkit-scrollbar {
-  width: 8px;
-}
-
-.chat-shell__thread::-webkit-scrollbar-track {
-  background: transparent;
-}
-
+.chat-shell__thread::-webkit-scrollbar { width: 8px; }
+.chat-shell__thread::-webkit-scrollbar-track { background: transparent; }
 .chat-shell__thread::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: color-mix(in oklab, var(--text-color) 18%, transparent);
 }
-
 .chat-shell__thread::-webkit-scrollbar-thumb:hover {
   background: color-mix(in oklab, var(--text-color) 28%, transparent);
 }
 
-/*
-  O componente da lista ocupa toda a thread.
-  A largura máxima das bolhas continua fora deste arquivo.
-*/
 .chat-shell__thread app-chat-messages-list {
   display: block;
-
   width: 100%;
   min-width: 0;
   min-height: 100%;
-
   margin: 0;
 }
-
-/* -------------------------------------------------------------------------- */
-/* Estado vazio                                                               */
-/* -------------------------------------------------------------------------- */
 
 .chat-shell__thread--empty {
   display: flex;
   align-items: center;
   justify-content: center;
-
   padding-inline: var(--chat-content-gutter);
 }
 
@@ -336,101 +208,62 @@
 .chat-shell__empty-state {
   max-width: 620px;
   padding: 24px 22px;
-
   border: 1px solid var(--chat-border-soft);
   border-radius: 20px;
-
-  background: color-mix(
-    in oklab,
-    var(--surface-color) 94%,
-    var(--background-color)
-  );
-
+  background: color-mix(in oklab, var(--surface-color) 94%, var(--background-color));
   text-align: center;
-
   box-shadow: 0 18px 46px rgba(0, 0, 0, 0.22);
-
   box-sizing: border-box;
 }
 
 .chat-shell__empty-title {
-  margin: 0 0 10px;
-
+  margin-bottom: 10px;
+  color: var(--text-color);
   font-size: 1.06rem;
   line-height: 1.25;
   font-weight: 800;
-
-  color: var(--text-color);
 }
 
 .chat-shell__empty-actions {
-  display: flex;
   flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
-
   margin-top: 16px;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Composer                                                                   */
-/* -------------------------------------------------------------------------- */
-
 .chat-shell__input {
   flex: 0 0 auto;
-
-  display: flex;
-  flex-direction: column;
   gap: 6px;
-
   width: 100%;
-  min-width: 0;
-
   padding: 10px var(--chat-content-gutter);
-
   border-top: 1px solid var(--surface-border);
   background: var(--chat-composer-bg);
-
-  box-sizing: border-box;
 }
 
 .chat-shell__composer-main {
-  display: flex;
   align-items: flex-end;
   gap: var(--chat-composer-gap);
-
   width: 100%;
   min-width: 0;
 }
 
 .chat-shell__composer-main textarea {
   flex: 1 1 auto;
-
   width: 100%;
   min-width: 0;
   min-height: 46px;
   max-height: 144px;
-
   resize: none;
-
   padding: 0.78rem 0.95rem;
-
   border: 1px solid color-mix(in oklab, var(--surface-border) 82%, transparent);
   border-radius: 16px;
-
   background: var(--chat-input-bg);
   color: var(--text-color);
-
   font: inherit;
   font-size: 0.94rem;
   line-height: 1.38;
-
   box-sizing: border-box;
-
-  transition:
-    border-color 0.16s ease,
-    box-shadow 0.16s ease,
-    background-color 0.16s ease;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
 }
 
 .chat-shell__composer-main textarea::placeholder {
@@ -438,22 +271,12 @@
 }
 
 .chat-shell__composer-main textarea:hover:not(:disabled):not([readonly]) {
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color) 34%,
-    var(--surface-border)
-  );
+  border-color: color-mix(in oklab, var(--primary-color) 34%, var(--surface-border));
 }
 
 .chat-shell__composer-main textarea:focus {
   outline: none;
-
-  border-color: color-mix(
-    in oklab,
-    var(--primary-color) 74%,
-    var(--surface-border)
-  );
-
+  border-color: color-mix(in oklab, var(--primary-color) 74%, var(--surface-border));
   box-shadow: var(--chat-focus-shadow);
 }
 
@@ -469,43 +292,25 @@
 
 .chat-shell__send {
   flex: 0 0 var(--chat-send-width);
-
   width: var(--chat-send-width);
   min-width: var(--chat-send-width);
   min-height: 46px;
-
   padding: 0 0.95rem;
-
   border: none;
   border-radius: 14px;
-
   background: var(--primary-color);
   color: #fff;
-
   font: inherit;
   font-size: 0.92rem;
   line-height: 1;
   font-weight: 800;
-
   cursor: pointer;
-
   box-sizing: border-box;
-
-  transition:
-    transform 0.16s ease,
-    opacity 0.16s ease,
-    background-color 0.16s ease,
-    filter 0.16s ease;
+  transition: transform 0.16s ease, opacity 0.16s ease, background-color 0.16s ease, filter 0.16s ease;
 }
 
-.chat-shell__send:hover:not(:disabled) {
-  background: var(--primary-hover);
-}
-
-.chat-shell__send:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
+.chat-shell__send:hover:not(:disabled) { background: var(--primary-hover); }
+.chat-shell__send:active:not(:disabled) { transform: translateY(1px); }
 .chat-shell__send:focus-visible {
   outline: var(--focus-ring, 3px solid color-mix(in oklab, var(--primary-color) 58%, white));
   outline-offset: var(--focus-offset, 2px);
@@ -519,14 +324,11 @@
 
 .chat-shell__composer-help {
   min-height: 0;
-  margin: 0;
   padding-inline: 2px;
-
+  color: color-mix(in oklab, var(--text-color) 58%, transparent);
   font-size: 0.72rem;
   line-height: 1.25;
   text-align: left;
-
-  color: color-mix(in oklab, var(--text-color) 58%, transparent);
 }
 
 .chat-shell__composer-help--danger {
@@ -534,21 +336,15 @@
   font-weight: 800;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Dark mode                                                                  */
-/* -------------------------------------------------------------------------- */
-
 :host-context(html.dark-mode) {
   --chat-shell-bg: #080d12;
   --chat-sidebar-bg: #0f1620;
   --chat-main-bg: #080d12;
   --chat-header-bg: #0f1620;
   --chat-composer-bg: #0f1620;
-
   --chat-border-soft: rgba(240, 246, 252, 0.12);
   --chat-muted-text: rgba(240, 246, 252, 0.68);
   --chat-input-bg: #111821;
-
   --chat-focus-shadow: 0 0 0 3px rgba(255, 91, 132, 0.16);
   --chat-danger-shadow: 0 0 0 3px rgba(255, 92, 122, 0.18);
 }
@@ -582,10 +378,6 @@
 :host-context(html.dark-mode) .chat-shell__thread::-webkit-scrollbar-thumb:hover {
   background: rgba(240, 246, 252, 0.26);
 }
-
-/* -------------------------------------------------------------------------- */
-/* Alto contraste                                                             */
-/* -------------------------------------------------------------------------- */
 
 :host-context(html.high-contrast) .chat-shell,
 :host-context(html.high-contrast) .chat-shell__main,
@@ -636,24 +428,11 @@
   text-decoration: line-through;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Movimento reduzido                                                         */
-/* -------------------------------------------------------------------------- */
-
 @media (prefers-reduced-motion: reduce) {
   .chat-shell__composer-main textarea,
-  .chat-shell__send {
-    transition: none;
-  }
-
-  .chat-shell__send:active:not(:disabled) {
-    transform: none;
-  }
+  .chat-shell__send { transition: none; }
+  .chat-shell__send:active:not(:disabled) { transform: none; }
 }
-
-/* -------------------------------------------------------------------------- */
-/* Responsividade                                                             */
-/* -------------------------------------------------------------------------- */
 
 @media (max-width: 1280px) {
   :host {
@@ -663,13 +442,8 @@
 }
 
 @media (max-width: 1100px) {
-  :host {
-    --chat-sidebar-width: 320px;
-  }
-
-  .chat-shell {
-    grid-template-columns: var(--chat-sidebar-width) minmax(0, 1fr);
-  }
+  :host { --chat-sidebar-width: 320px; }
+  .chat-shell { grid-template-columns: var(--chat-sidebar-width) minmax(0, 1fr); }
 }
 
 @media (max-width: 768px) {
@@ -682,25 +456,19 @@
   .chat-shell {
     display: flex;
     flex-direction: column;
-
     height: 100%;
     min-height: 0;
-
     border-left: none;
     overflow: hidden;
   }
 
   .chat-shell__sidebar {
     flex: 0 0 auto;
-
     border-right: none;
     border-bottom: 1px solid var(--surface-border);
   }
 
-  .chat-shell__sidebar-body {
-    max-height: 38vh;
-  }
-
+  .chat-shell__sidebar-body { max-height: 38vh; }
   .chat-shell__main {
     flex: 1 1 auto;
     min-height: 0;
@@ -717,19 +485,13 @@
     flex-basis: 42px;
   }
 
-  .chat-shell__thread {
-    padding: 12px 8px;
-  }
-
+  .chat-shell__thread { padding: 12px 8px; }
   .chat-shell__input {
     gap: 5px;
     padding: 10px 12px;
   }
 
-  .chat-shell__composer-main {
-    gap: var(--chat-composer-gap);
-  }
-
+  .chat-shell__composer-main { gap: var(--chat-composer-gap); }
   .chat-shell__composer-main textarea {
     min-height: 46px;
     padding: 0.74rem 0.85rem;
@@ -743,10 +505,7 @@
     padding-inline: 0.75rem;
   }
 
-  .chat-shell__empty-actions {
-    width: 100%;
-  }
-
+  .chat-shell__empty-actions { width: 100%; }
   .chat-shell__empty-actions .btn {
     flex: 1 1 100%;
     justify-content: center;
@@ -759,14 +518,8 @@
     --chat-send-width: 82px;
   }
 
-  .chat-shell__sidebar-body {
-    max-height: 36vh;
-  }
-
-  .chat-shell__main-header {
-    padding: 10px;
-  }
-
+  .chat-shell__sidebar-body { max-height: 36vh; }
+  .chat-shell__main-header { padding: 10px; }
   .chat-shell__main-context--direct {
     align-items: flex-start;
     gap: 10px;
@@ -778,39 +531,18 @@
     flex-basis: 40px;
   }
 
-  .chat-shell__main-kicker {
-    font-size: 0.66rem;
-  }
-
-  .chat-shell__main-title {
-    font-size: 1rem;
-  }
-
-  .chat-shell__main-subtitle {
-    font-size: 0.82rem;
-  }
-
-  .chat-shell__thread {
-    padding: 10px 6px;
-  }
-
-  .chat-shell__input {
-    padding: 8px;
-  }
-
-  .chat-shell__composer-main textarea {
-    font-size: 0.92rem;
-  }
-
+  .chat-shell__main-kicker { font-size: 0.66rem; }
+  .chat-shell__main-title { font-size: 1rem; }
+  .chat-shell__main-subtitle { font-size: 0.82rem; }
+  .chat-shell__thread { padding: 10px 6px; }
+  .chat-shell__input { padding: 8px; }
+  .chat-shell__composer-main textarea { font-size: 0.92rem; }
   .chat-shell__send {
     font-size: 0.86rem;
     border-radius: 13px;
   }
 
-  .chat-shell__composer-help {
-    font-size: 0.68rem;
-  }
-
+  .chat-shell__composer-help { font-size: 0.68rem; }
   .chat-shell__empty-state {
     margin: 1rem auto;
     padding: 18px 16px;
@@ -819,26 +551,11 @@
 }
 
 @media (max-width: 360px) {
-  :host {
-    --chat-send-width: 74px;
-  }
-
-  .chat-shell__thread {
-    padding-inline: 4px;
-  }
-
-  .chat-shell__input {
-    padding-inline: 6px;
-  }
-
-  .chat-shell__composer-main {
-    gap: 6px;
-  }
-
-  .chat-shell__composer-main textarea {
-    padding-inline: 0.72rem;
-  }
-
+  :host { --chat-send-width: 74px; }
+  .chat-shell__thread { padding-inline: 4px; }
+  .chat-shell__input { padding-inline: 6px; }
+  .chat-shell__composer-main { gap: 6px; }
+  .chat-shell__composer-main textarea { padding-inline: 0.72rem; }
   .chat-shell__send {
     padding-inline: 0.5rem;
     font-size: 0.8rem;
