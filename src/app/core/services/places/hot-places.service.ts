@@ -20,6 +20,7 @@
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
+  QueryConstraint,
   collection,
   collectionData,
   limit as firestoreLimit,
@@ -91,7 +92,11 @@ export class HotPlacesService {
     return this.regionFilter.getUserRegion(safeUid).pipe(
       switchMap((region) => this.watchHotPlacesForRegion$(region, options)),
       catchError((error) =>
-        this.handleReadError(error, 'watchHotPlacesForUserRegion', { uid: safeUid })
+        this.handleReadError<IHotPlaceCardVm>(
+          error,
+          'watchHotPlacesForUserRegion',
+          { uid: safeUid }
+        )
       )
     );
   }
@@ -115,7 +120,7 @@ export class HotPlacesService {
 
     return this.firestoreContext.deferObservable$(() => {
       const hotPlacesRef = collection(this.firestore, 'regional_hot_places');
-      const constraints = [
+      const constraints: QueryConstraint[] = [
         where('region.uf', '==', normalizedRegion.uf),
         where('region.city', '==', normalizedRegion.city),
         where('moderation.visibility', '==', 'visible'),
@@ -140,10 +145,14 @@ export class HotPlacesService {
           .filter((item): item is IHotPlaceCardVm => !!item)
       ),
       catchError((error) =>
-        this.handleReadError(error, 'watchHotPlacesForRegion', {
-          region: normalizedRegion,
-          options,
-        })
+        this.handleReadError<IHotPlaceCardVm>(
+          error,
+          'watchHotPlacesForRegion',
+          {
+            region: normalizedRegion,
+            options,
+          }
+        )
       )
     );
   }
@@ -281,9 +290,13 @@ export class HotPlacesService {
       'subscriber_boost',
     ]);
 
-    return value.filter(
-      (signal): signal is IHotPlaceCompatibilitySignal => allowed.has(signal)
-    );
+    return value.filter((signal): signal is IHotPlaceCompatibilitySignal => {
+      if (typeof signal !== 'string') {
+        return false;
+      }
+
+      return allowed.has(signal as IHotPlaceCompatibilitySignal);
+    });
   }
 
   private normalizeOptionalText(value: unknown): string | null {
