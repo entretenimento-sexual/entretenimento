@@ -173,23 +173,23 @@ export class UserIntentStatusService {
 
     const now = Date.now();
     const resultLimit = this.normalizeLimit(options.limit);
-    const constraints: QueryConstraint[] = [
-      where('destination.region.uf', '==', normalizedRegion.uf),
-      where('destination.region.city', '==', normalizedRegion.city),
-      where('moderation.state', '==', 'active'),
-      where('visibility', '==', 'public_discovery'),
-      where('expiresAt', '>', now),
-      orderBy('expiresAt', 'asc'),
-      firestoreLimit(resultLimit),
-    ];
-
     const venueId = String(options.includeVenueId ?? '').trim();
 
-    if (venueId) {
-      constraints.splice(4, 0, where('destination.venueId', '==', venueId));
-    }
-
     return this.firestoreContext.deferObservable$(() => {
+      const constraints: QueryConstraint[] = [
+        where('destination.region.uf', '==', normalizedRegion.uf),
+        where('destination.region.city', '==', normalizedRegion.city),
+        where('moderation.state', '==', 'active'),
+        where('visibility', '==', 'public_discovery'),
+        where('expiresAt', '>', now),
+        orderBy('expiresAt', 'asc'),
+        firestoreLimit(resultLimit),
+      ];
+
+      if (venueId) {
+        constraints.splice(4, 0, where('destination.venueId', '==', venueId));
+      }
+
       const statusesRef = collection(this.firestore, 'user_intent_statuses');
       const statusesQuery = query(statusesRef, ...constraints);
 
