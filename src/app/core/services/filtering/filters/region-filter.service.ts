@@ -4,6 +4,7 @@
 // AJUSTES DESTA VERSÃO:
 // - SUPRIMIDO o uso do FirestoreService legado
 // - Firestore agora é injetado diretamente via AngularFire
+// - getDoc/getDocs passam pelo FirestoreContextService
 // - removido Observable manual em getUserRegion()
 // - removidos console.log espalhados
 // - erros passam pelo GlobalErrorHandlerService + ErrorNotificationService
@@ -26,11 +27,12 @@ import {
   QueryDocumentSnapshot,
   where,
 } from '@angular/fire/firestore';
-import { catchError, from, map, Observable, of, throwError } from 'rxjs';
+import { catchError, map, Observable, of, throwError } from 'rxjs';
 
 import { IBGELocationService } from '../../general/api/ibge-location.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
+import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
 
 export interface UserRegion {
   uf: string;
@@ -46,6 +48,7 @@ export type RegionUserResult = {
 })
 export class RegionFilterService {
   private readonly firestore = inject(Firestore);
+  private readonly firestoreContext = inject(FirestoreContextService);
 
   constructor(
     private readonly ibgeLocationService: IBGELocationService,
@@ -64,9 +67,10 @@ export class RegionFilterService {
       return of(null);
     }
 
-    const userDocRef = doc(this.firestore, `users/${safeUid}`);
-
-    return from(getDoc(userDocRef)).pipe(
+    return this.firestoreContext.deferPromise$(() => {
+      const userDocRef = doc(this.firestore, `users/${safeUid}`);
+      return getDoc(userDocRef);
+    }).pipe(
       map((docSnap) => {
         if (!docSnap.exists()) {
           return null;
@@ -121,11 +125,13 @@ export class RegionFilterService {
    * @returns Observable com a lista de usuários.
    */
   getUsersInRegion(uf?: string, city?: string): Observable<RegionUserResult[]> {
-    const constraints = this.applyRegionFilters(uf, city);
-    const usersCollection = collection(this.firestore, 'users');
-    const q = query(usersCollection, ...constraints);
+    return this.firestoreContext.deferPromise$(() => {
+      const constraints = this.applyRegionFilters(uf, city);
+      const usersCollection = collection(this.firestore, 'users');
+      const q = query(usersCollection, ...constraints);
 
-    return from(getDocs(q)).pipe(
+      return getDocs(q);
+    }).pipe(
       map((snapshot) =>
         snapshot.docs.map((docSnap: QueryDocumentSnapshot) => ({
           id: docSnap.id,
