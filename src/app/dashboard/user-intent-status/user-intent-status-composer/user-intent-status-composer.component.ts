@@ -7,6 +7,7 @@
 // Objetivo:
 // - permitir que o usuário publique disponibilidade/intenção por até 12h;
 // - mostrar o status ativo atual e permitir encerramento manual;
+// - permitir seleção de estabelecimento gerenciado quando existir;
 // - usar região/destino sem coordenada precisa;
 // - preservar UX mobile-first e feedback direto;
 // - manter escrita centralizada no UserIntentStatusService.
@@ -26,8 +27,8 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
-import { Observable, of } from 'rxjs';
-import { finalize } from 'rxjs/operators';
+import { Observable, combineLatest, of } from 'rxjs';
+import { finalize, map, shareReplay, startWith } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import {
@@ -36,12 +37,15 @@ import {
   UserIntentDestinationKind,
   UserIntentVisibility,
 } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
+import { IVenueCardVm } from 'src/app/core/interfaces/venues/venue.interface';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
+import { VenueService } from 'src/app/core/services/venues/venue.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 type IntentStatusForm = FormGroup<{
   availability: FormControl<UserIntentAvailability>;
   destinationKind: FormControl<UserIntentDestinationKind>;
+  venueId: FormControl<string>;
   destinationLabel: FormControl<string>;
   uf: FormControl<string>;
   city: FormControl<string>;
@@ -62,6 +66,8 @@ export class UserIntentStatusComposerComponent implements OnChanges {
   hiding = false;
 
   activeStatus$: Observable<IUserIntentStatusCardVm | null> = of(null);
+  venues$: Observable<IVenueCardVm[]> = of([]);
+  selectedVenue$: Observable<IVenueCardVm | null> = of(null);
 
   readonly form: IntentStatusForm = new FormGroup({
     availability: new FormControl<UserIntentAvailability>('available_today', {
@@ -72,9 +78,16 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       nonNullable: true,
       validators: [Validators.required],
     }),
+    venueId: new FormControl<string>('', {
+      nonNullable: true,
+    }),
     destinationLabel: new FormControl<string>('', {
       nonNullable: true,
-      validators: [Validators.required, Validators.minLength(2), Validators.maxLength(80)],
+      validators: [
+        Validators.required,
+        Validators.minLength(2),
+        Validators.maxLength(80),
+      ],
     }),
     uf: new FormControl<string>('', {
       nonNullable: true,
@@ -82,7 +95,11 @@ export class UserIntentStatusComposerComponent implements OnChanges {
     }),
     city: new FormControl<string>('', {
       nonNullable: true,
-      validators: [Validators.required, Validators.minLength(1), Validators.maxLength(80)],
+      validators: [
+        Validators.required,
+        Validators.minLength(1),
+        Validators.maxLength(80),
+      ],
     }),
     visibility: new FormControl<UserIntentVisibility>('public_discovery', {
       nonNullable: true,
@@ -90,7 +107,13 @@ export class UserIntentStatusComposerComponent implements OnChanges {
     }),
   });
 
+  readonly destinationKind$ = this.form.controls.destinationKind.valueChanges.pipe(
+    startWith(this.form.controls.destinationKind.value),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
   private readonly statusService = inject(UserIntentStatusService);
+  private readonly venueService = inject(VenueService);
   private readonly notifications = inject(ErrorNotificationService);
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -102,6 +125,8 @@ export class UserIntentStatusComposerComponent implements OnChanges {
 
     if (!user?.uid) {
       this.activeStatus$ = of(null);
+      this.venues$ = of([]);
+      this.selectedVenue$ = of(null);
       return;
     }
 
@@ -112,9 +137,24 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       uf,
       city,
       destinationLabel: city || uf || '',
+      venueId: '',
     }, { emitEvent: false });
 
     this.activeStatus$ = this.statusService.watchCurrentStatus$(user.uid);
+    this.venues$ = this.venueService.watchVenuesForUserRegion$(user.uid, {
+      limit: 20,
+    }).pipe(shareReplay({ bufferSize: 1, refCount: true }));
+    this.selectedVenue$ = combineLatest([
+      this.venues$,
+      this.form.controls.venueId.valueChanges.pipe(
+        startWith(this.form.controls.venueId.value)
+      ),
+    ]).pipe(
+      map(([venues, venueId]) =>
+        venues.find((venue) => venue.id === venueId) ?? null
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
 
   publish(): void {
@@ -143,6 +183,11 @@ export class UserIntentStatusComposerComponent implements OnChanges {
     }
 
     const value = this.form.getRawValue();
+    const selectedVenueId =
+      value.destinationKind === 'venue'
+        ? String(value.venueId ?? '').trim()
+        : '';
+
     this.publishing = true;
 
     this.statusService.publishStatus$({
@@ -158,7 +203,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       destination: {
         kind: value.destinationKind,
         label: value.destinationLabel.trim(),
-        venueId: null,
+        venueId: selectedVenueId || null,
         region: {
           uf: value.uf.trim().toUpperCase(),
           city: value.city.trim().toLowerCase(),
@@ -177,6 +222,20 @@ export class UserIntentStatusComposerComponent implements OnChanges {
         this.notifications.showError('Não foi possível publicar seu status agora.');
       },
     });
+  }
+
+  applyVenue(venue: IVenueCardVm): void {
+    this.form.patchValue({
+      destinationKind: 'venue',
+      venueId: venue.id,
+      destinationLabel: venue.name,
+      uf: venue.region.uf,
+      city: venue.region.city,
+    });
+  }
+
+  clearVenueSelection(): void {
+    this.form.patchValue({ venueId: '' });
   }
 
   hideCurrentStatus(): void {
