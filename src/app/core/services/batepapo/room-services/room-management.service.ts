@@ -44,6 +44,7 @@ import { catchError } from 'rxjs/operators';
 import {
   IRoom,
   IRoomPlaceIntent,
+  IRoomPlaceIntentInput,
 } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
@@ -51,8 +52,12 @@ import { GlobalErrorHandlerService } from '../../error-handler/global-error-hand
 interface CreatePrivateRoomPayload {
   roomName: string;
   description: string | null;
-  placeIntent?: Omit<IRoomPlaceIntent, 'source' | 'createdAt' | 'updatedAt'> | null;
+  placeIntent?: IRoomPlaceIntentInput | null;
 }
+
+type CreateRoomDetails = Partial<Omit<IRoom, 'placeIntent'>> & {
+  placeIntent?: IRoomPlaceIntent | IRoomPlaceIntentInput | null;
+};
 
 interface CreatePrivateRoomResponse {
   roomId: string;
@@ -86,7 +91,7 @@ export class RoomManagementService {
    * utilizado como identidade nem enviado à Function.
    */
   createRoom(
-    roomDetails: Partial<IRoom>,
+    roomDetails: CreateRoomDetails,
     _legacyCreatorId?: string
   ): Observable<IRoom> {
     void _legacyCreatorId;
@@ -94,7 +99,16 @@ export class RoomManagementService {
     const payload: CreatePrivateRoomPayload = {
       roomName: String(roomDetails.roomName ?? '').trim(),
       description: String(roomDetails.description ?? '').trim() || null,
-      placeIntent: roomDetails.placeIntent ?? null,
+      placeIntent: roomDetails.placeIntent
+        ? {
+            mode: roomDetails.placeIntent.mode,
+            visibility: roomDetails.placeIntent.visibility,
+            region: roomDetails.placeIntent.region,
+            label: roomDetails.placeIntent.label,
+            startsAt: roomDetails.placeIntent.startsAt,
+            endsAt: roomDetails.placeIntent.endsAt ?? null,
+          }
+        : null,
     };
 
     return defer(() =>
