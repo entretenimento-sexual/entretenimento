@@ -2,6 +2,7 @@
 @if (vm$ | async; as vm) {
   @let lightboxState = (lightboxState$ | async);
   @let activeLightboxItems = ((activeLightboxItems$ | async) || []);
+  @let currentUser = (currentUser$ | async);
 
   <section class="social-explore-page" aria-label="Explorar conteúdo público">
     <header class="explore-hero">
@@ -9,10 +10,16 @@
         <h1>Explorar</h1>
 
         <p>
-          Conteúdos públicos e perfis compatíveis para novas interações.
+          Conteúdos públicos, status ativos e perfis compatíveis para novas interações.
         </p>
       </div>
     </header>
+
+    @if (currentUser) {
+      <div class="explore-intent-radar">
+        <app-user-intent-status-radar [user]="currentUser" />
+      </div>
+    }
 
     @if (vm.compatibleProfiles.length > 0) {
       <app-explore-section
