@@ -31,10 +31,11 @@ const parts = [
   'users.rules',
   'billing.rules',
 
-  // Discovery e presença.
+  // Discovery, presença e vitrines regionais moderadas.
   'public_profiles.rules',
   'public_profiles_photos.rules',
   'presence.rules',
+  'regional_hot_places.rules',
 
   // Relações e comunicação.
   'friendRequests.rules',
