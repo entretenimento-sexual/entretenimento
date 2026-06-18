@@ -386,12 +386,12 @@ export const createPrivateRoom = onCall<CreatePrivateRoomRequest>(
 
         ...(createdPlaceIntent
           ? {
-              placeIntent: {
-                ...createdPlaceIntent,
-                createdAt: FieldValue.serverTimestamp(),
-                updatedAt: FieldValue.serverTimestamp(),
-              },
-            }
+            placeIntent: {
+              ...createdPlaceIntent,
+              createdAt: FieldValue.serverTimestamp(),
+              updatedAt: FieldValue.serverTimestamp(),
+            },
+          }
           : {}),
 
         policyVersion: PRIVATE_ROOM_POLICY_VERSION,
