@@ -10,7 +10,8 @@
 // - snapshots públicos vêm do documento users/{uid};
 // - startsAt/expiresAt são definidos no servidor para evitar erro de relógio;
 // - localização continua regional, sem coordenada precisa;
-// - venueId só é aceito quando aponta para estabelecimento ativo e visível.
+// - venueId só é aceito quando aponta para estabelecimento ativo e visível;
+// - notificações de status começam pelo próprio usuário para evitar spam.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -225,6 +226,18 @@ function publicProfileFromUser(uid: string, user: MessagingUserDoc): {
   };
 }
 
+function buildStatusPublishedNotificationId(uid: string): string {
+  return `user_intent_status_active_${uid}`;
+}
+
+function buildStatusPublishedNotificationBody(destination: NormalizedDestination): string {
+  if (destination.kind === 'venue') {
+    return `Seu status está ativo em ${destination.label}.`;
+  }
+
+  return `Seu status está ativo em ${destination.region.city}.`;
+}
+
 export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<UserIntentStatusResponse> => {
@@ -248,6 +261,9 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
     const statusId = `current_${uid}`;
     const statusRef = db.collection('user_intent_statuses').doc(statusId);
     const auditRef = db.collection('user_intent_status_audit').doc();
+    const notificationRef = db
+      .collection('notifications')
+      .doc(buildStatusPublishedNotificationId(uid));
 
     const availability = normalizeEnum(
       request.data?.availability,
@@ -293,6 +309,20 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
         visibility,
         createdAt: FieldValue.serverTimestamp(),
       });
+
+      tx.set(notificationRef, {
+        userId: uid,
+        type: 'user_intent_status.published',
+        title: 'Status publicado',
+        body: buildStatusPublishedNotificationBody(destination),
+        statusId,
+        destinationKind: destination.kind,
+        destinationVenueId: destination.venueId,
+        route: '/descobrir',
+        readAt: null,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
     });
 
     return {
