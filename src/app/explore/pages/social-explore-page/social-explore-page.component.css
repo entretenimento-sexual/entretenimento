@@ -35,6 +35,11 @@
   line-height: 1.45;
 }
 
+.explore-intent-radar {
+  display: block;
+  margin-bottom: clamp(20px, 2.8vw, 34px);
+}
+
 .explore-section {
   display: grid;
   gap: 12px;
