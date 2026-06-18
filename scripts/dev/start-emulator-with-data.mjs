@@ -6,15 +6,18 @@
 //
 // Decisões de segurança operacional:
 // - NÃO mata portas automaticamente;
+// - cria backup automático de .emulator-data antes de iniciar;
 // - usa --export-on-exit para salvar estado ao sair com Ctrl+C;
 // - usa --import somente quando .emulator-data já tem export válido;
-// - evita sobrescrever um export antigo quando o usuário só quer testar;
+// - evita sobrescrever um export antigo sem snapshot prévio;
 // - permite escolher o conjunto de emuladores via FIREBASE_EMULATORS_ONLY.
 //
 // Variáveis:
 // - FIREBASE_EMULATORS_ONLY=auth,firestore,functions
 // - FIREBASE_PROJECT_ID=entretenimento-sexual
 // - FIREBASE_EMULATOR_DATA_DIR=.emulator-data
+// - FIREBASE_EMULATOR_BACKUP_DIR=.emulator-data-backups
+// - FIREBASE_EMULATOR_SKIP_BACKUP=1 para pular backup manualmente
 // -----------------------------------------------------------------------------
 
 import fs from 'node:fs';
@@ -24,9 +27,52 @@ import { spawn } from 'node:child_process';
 const projectId = process.env.FIREBASE_PROJECT_ID || 'entretenimento-sexual';
 const only = process.env.FIREBASE_EMULATORS_ONLY || 'auth,firestore,functions';
 const dataDir = process.env.FIREBASE_EMULATOR_DATA_DIR || '.emulator-data';
+const backupRootDir = process.env.FIREBASE_EMULATOR_BACKUP_DIR || '.emulator-data-backups';
+const skipBackup = process.env.FIREBASE_EMULATOR_SKIP_BACKUP === '1';
 const root = process.cwd();
 const dataPath = path.resolve(root, dataDir);
 const metadataPath = path.join(dataPath, 'firebase-export-metadata.json');
+const backupRootPath = path.resolve(root, backupRootDir);
+
+function timestampForPath(): string {
+  return new Date()
+    .toISOString()
+    .replace(/[:.]/g, '-')
+    .replace('T', '_')
+    .replace('Z', '');
+}
+
+function copyDirectory(source: string, target: string): void {
+  fs.cpSync(source, target, {
+    recursive: true,
+    force: false,
+    errorOnExist: true,
+  });
+}
+
+function backupExistingData(): void {
+  if (skipBackup) {
+    console.warn('[emu:safe] Backup automático ignorado por FIREBASE_EMULATOR_SKIP_BACKUP=1.');
+    return;
+  }
+
+  if (!fs.existsSync(dataPath)) {
+    console.warn(`[emu:safe] ${dataDir} não existe. Nada para copiar antes do start.`);
+    return;
+  }
+
+  fs.mkdirSync(backupRootPath, { recursive: true });
+
+  const backupPath = path.join(
+    backupRootPath,
+    `${path.basename(dataDir)}-${timestampForPath()}`
+  );
+
+  copyDirectory(dataPath, backupPath);
+  console.log(`[emu:safe] Backup criado em ${path.relative(root, backupPath)}`);
+}
+
+backupExistingData();
 
 const args = [
   'firebase',
