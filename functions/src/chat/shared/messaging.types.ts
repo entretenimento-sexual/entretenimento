@@ -6,6 +6,7 @@
 //
 // Escopo atual:
 // - salas privadas;
+// - status de intenção;
 // - conversas diretas;
 // - futuros pedidos de mensagem.
 //
@@ -24,6 +25,8 @@ export type MessagingAccountStatus =
 export type MessagingOperation =
   | 'create-private-room'
   | 'close-private-room'
+  | 'publish-user-intent-status'
+  | 'hide-user-intent-status'
   | 'ensure-direct-chat'
   | 'send-direct-message'
   | 'create-message-request';
