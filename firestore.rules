@@ -1,6 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-06-18T02:02:06.001Z
+// Generated at: 2026-06-18T02:43:29.284Z
 
 // ===== _helpers.rules =====
 // ===============================================================
@@ -32,11 +32,6 @@ service cloud.firestore {
     function signedIn() { return request.auth != null; }
     function uid() { return request.auth.uid; }
     function isSelf(userId) { return signedIn() && uid() == userId; }
-
-    // ===============================================================
-    // Type helper (usado em chats/rooms/messages)
-    // ===============================================================
-    function isStr(v) { return v is string; }
 
     // ===============================================================
     // Timestamp helpers (timestamp real OU serverTimestamp() == request.time)
@@ -2239,10 +2234,6 @@ match /invites/{inviteId} {
       "roomId",
       "roomName"
     ]);
-  }
-
-  function isV2() {
-    return hasField("type") && hasField("targetId");
   }
 
   function validCreateV2() {
