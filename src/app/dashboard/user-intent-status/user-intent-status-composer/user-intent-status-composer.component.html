@@ -1,0 +1,96 @@
+<!-- src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.html -->
+
+<section class="intent-composer app-card" aria-labelledby="intent-composer-title">
+  <header class="intent-composer__header">
+    <div>
+      <span class="intent-composer__eyebrow">Status de hoje</span>
+      <h2 id="intent-composer-title">Mostre sua intenção por 12h</h2>
+    </div>
+
+    <span class="intent-composer__badge">Temporário</span>
+  </header>
+
+  <p class="intent-composer__description">
+    Informe se está disponível e onde talvez vá hoje. Seu status pode aparecer em Descobertas
+    com seu nickname e dados públicos básicos.
+  </p>
+
+  <form class="intent-composer__form" [formGroup]="form" (ngSubmit)="publish()">
+    <label class="intent-composer__field">
+      <span>Disponibilidade</span>
+      <select formControlName="availability">
+        <option value="available_now">Disponível agora</option>
+        <option value="available_today">Disponível hoje</option>
+        <option value="planning_later">Planejando ir depois</option>
+      </select>
+    </label>
+
+    <label class="intent-composer__field">
+      <span>Tipo de destino</span>
+      <select formControlName="destinationKind">
+        <option value="region">Região</option>
+        <option value="venue">Local/estabelecimento</option>
+        <option value="event">Evento</option>
+        <option value="undecided">Ainda decidindo</option>
+      </select>
+    </label>
+
+    <label class="intent-composer__field intent-composer__field--wide">
+      <span>Destino ou região possível</span>
+      <input
+        type="text"
+        formControlName="destinationLabel"
+        maxlength="80"
+        placeholder="Ex.: Centro, Zona Sul, Bar X, evento de hoje"
+        autocomplete="off"
+      />
+    </label>
+
+    <div class="intent-composer__row" aria-label="Região do status">
+      <label class="intent-composer__field">
+        <span>UF</span>
+        <input
+          type="text"
+          formControlName="uf"
+          maxlength="2"
+          placeholder="RJ"
+          autocomplete="address-level1"
+        />
+      </label>
+
+      <label class="intent-composer__field">
+        <span>Cidade</span>
+        <input
+          type="text"
+          formControlName="city"
+          maxlength="80"
+          placeholder="rio de janeiro"
+          autocomplete="address-level2"
+        />
+      </label>
+    </div>
+
+    <label class="intent-composer__field intent-composer__field--wide">
+      <span>Visibilidade</span>
+      <select formControlName="visibility">
+        <option value="public_discovery">Aparecer em Descobertas</option>
+        <option value="members_only">Somente membros</option>
+        <option value="friends_only">Somente amigos</option>
+      </select>
+    </label>
+
+    <footer class="intent-composer__footer">
+      <p>
+        Sem localização precisa. O status expira automaticamente em até 12 horas.
+      </p>
+
+      <button
+        type="submit"
+        class="btn btn-primary intent-composer__submit"
+        [disabled]="publishing"
+      >
+        {{ publishing ? 'Publicando...' : 'Publicar status' }}
+      </button>
+    </footer>
+  </form>
+</section>
