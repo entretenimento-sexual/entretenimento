@@ -5,20 +5,21 @@
 //
 // Responsabilidade atual:
 // - solicitar criação segura de sala privada via Cloud Function;
+// - solicitar encerramento seguro de sala privada via Cloud Function;
 // - manter, temporariamente, assinaturas legadas de update/delete para não
 //   romper consumidores ainda existentes.
 //
 // Segurança:
-// - createRoom() não grava diretamente no Firestore;
+// - createRoom() e closeRoom() não gravam diretamente no Firestore;
 // - creatorId recebido por consumidores legados não é enviado ao backend;
-// - o UID real é obtido exclusivamente pela callable em request.auth.uid;
+// - o UID real é obtido exclusivamente pelas callables em request.auth.uid;
 // - participants, visibility, status e regras de plano são definidos no backend;
 // - placeIntent é opcional e validado novamente pelo backend.
 //
 // Migração pendente:
 // - updateRoom() e deleteRoom() ainda são métodos legados;
 // - as Rules passam a bloquear mutações estruturais diretas;
-// - edição/encerramento deverão ganhar callables próprias.
+// - edição deverá ganhar callable própria.
 
 import { Injectable, inject } from '@angular/core';
 import {
@@ -71,6 +72,16 @@ interface CreatePrivateRoomResponse {
   placeIntent?: IRoomPlaceIntent | null;
 }
 
+interface ClosePrivateRoomPayload {
+  roomId: string;
+}
+
+interface ClosePrivateRoomResponse {
+  roomId: string;
+  status: 'closed';
+  slotReleased: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RoomManagementService {
   private readonly db = inject(Firestore);
@@ -82,6 +93,11 @@ export class RoomManagementService {
     CreatePrivateRoomPayload,
     CreatePrivateRoomResponse
   >(this.functions, 'createPrivateRoom');
+
+  private readonly closePrivateRoomCallable = httpsCallable<
+    ClosePrivateRoomPayload,
+    ClosePrivateRoomResponse
+  >(this.functions, 'closePrivateRoom');
 
   /**
    * Cria uma sala privada por backend confiável.
@@ -152,6 +168,31 @@ export class RoomManagementService {
   }
 
   /**
+   * Encerra logicamente uma sala privada pelo backend.
+   *
+   * Não apaga documento, não altera status pelo cliente e libera o slot do
+   * owner apenas quando a callable confirma a operação.
+   */
+  closeRoom(roomId: string): Observable<ClosePrivateRoomResponse> {
+    const safeRoomId = String(roomId ?? '').trim();
+
+    if (!safeRoomId) {
+      return throwError(() => new Error('roomId inválido.'));
+    }
+
+    return defer(() =>
+      from(this.closePrivateRoomCallable({ roomId: safeRoomId }))
+    ).pipe(
+      map((result) => result.data),
+      catchError((error) => {
+        this.reportError(error, 'closeRoom');
+        this.notify.showError(this.getCloseRoomUserMessage(error));
+        return throwError(() => error);
+      })
+    );
+  }
+
+  /**
    * Método legado mantido apenas para preservar consumidores atuais.
    *
    * Após a atualização das Rules abaixo, alterações diretas estruturais serão
@@ -187,7 +228,7 @@ export class RoomManagementService {
    * Método legado mantido para compatibilidade.
    *
    * A exclusão direta já deve permanecer bloqueada por Rules. A evolução
-   * correta será uma callable `closeRoom`, com fechamento lógico e auditoria.
+   * correta é closeRoom(), com fechamento lógico e auditoria.
    */
   async deleteRoom(roomId: string): Promise<void> {
     try {
@@ -228,6 +269,30 @@ export class RoomManagementService {
     }
 
     return 'Não foi possível criar a sala.';
+  }
+
+  private getCloseRoomUserMessage(error: unknown): string {
+    const code = String(
+      (error as { code?: unknown } | null)?.code ?? ''
+    ).toLowerCase();
+
+    if (code.includes('unauthenticated')) {
+      return 'Entre novamente para encerrar a sala.';
+    }
+
+    if (code.includes('permission-denied')) {
+      return 'Você não pode encerrar esta sala.';
+    }
+
+    if (code.includes('not-found')) {
+      return 'Sala não encontrada.';
+    }
+
+    if (code.includes('failed-precondition')) {
+      return 'Esta sala não pode ser encerrada no estado atual.';
+    }
+
+    return 'Não foi possível encerrar a sala.';
   }
 
   private reportError(error: unknown, operation: string): void {
