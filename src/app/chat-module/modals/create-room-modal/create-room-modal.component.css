@@ -34,6 +34,79 @@ textarea.input-field {
   color: var(--error-color, #b42318);
 }
 
+.place-intent {
+  display: grid;
+  gap: 0.875rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in oklab, var(--border-color, #ccc) 82%, transparent);
+  border-radius: 0.875rem;
+  background: color-mix(in oklab, var(--surface-color, #fff) 92%, var(--primary-color, #ff7070) 8%);
+}
+
+.place-intent__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.place-intent__header h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+  font-weight: 900;
+  color: var(--text-color, #222);
+}
+
+.place-intent__header p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #222) 72%, transparent);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.place-intent__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.75rem;
+  padding-inline: 0.625rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 16%, transparent);
+  color: var(--primary-color, #ff7070);
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.place-intent__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.place-intent__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(76px, 0.42fr) minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.place-intent__wide {
+  grid-column: 1 / -1;
+}
+
+.place-intent__locked {
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: color-mix(in oklab, var(--surface-color, #fff) 88%, #000 6%);
+  color: color-mix(in oklab, var(--text-color, #222) 72%, transparent);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -49,6 +122,22 @@ textarea.input-field {
 button[type='submit']:disabled {
   opacity: 0.65;
   cursor: not-allowed;
+}
+
+@media (max-width: 640px) {
+  .place-intent {
+    padding: 0.875rem;
+    border-radius: 0.75rem;
+  }
+
+  .place-intent__header {
+    display: grid;
+  }
+
+  .place-intent__grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
 }
 
 @media (max-width: 480px) {
