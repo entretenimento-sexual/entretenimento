@@ -13,6 +13,9 @@ import { IExploreFeedVm } from '../../services/explore-feed.service';
 import { TExploreSectionId } from '../../models/i-explore-section';
 import { PhotoViewTrackingService } from 'src/app/core/services/media/photo-view-tracking.service';
 import { PublicProfilesListComponent } from 'src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component';
+import { UserIntentStatusRadarComponent } from 'src/app/dashboard/user-intent-status/user-intent-status-radar/user-intent-status-radar.component';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 
 type TExplorePhotoSection = Extract<
   TExploreSectionId,
@@ -34,6 +37,7 @@ interface IExploreLightboxState {
     PublicPhotoLightboxComponent,
     ExploreSectionComponent,
     PublicProfilesListComponent,
+    UserIntentStatusRadarComponent,
   ],
   templateUrl: './social-explore-page.component.html',
   styleUrls: ['./social-explore-page.component.css'],
@@ -42,10 +46,15 @@ interface IExploreLightboxState {
 export class SocialExplorePageComponent {
   private readonly exploreFeedFacade = inject(ExploreFeedFacade);
   private readonly photoViewTracking = inject(PhotoViewTrackingService);
+  private readonly currentUserStore = inject(CurrentUserStoreService);
 
   private readonly lightboxStateSubject = new BehaviorSubject<IExploreLightboxState | null>(null);
 
   readonly vm$: Observable<IExploreFeedVm> = this.exploreFeedFacade.vm$;
+  readonly currentUser$: Observable<IUserDados | null> = this.currentUserStore.user$.pipe(
+    map((user) => user ?? null),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
   readonly lightboxState$ = this.lightboxStateSubject.asObservable();
 
   readonly activeLightboxItems$: Observable<readonly IPublicPhotoItem[]> = combineLatest([
@@ -58,21 +67,21 @@ export class SocialExplorePageComponent {
       }
 
       switch (state.section) {
-  case 'boosted':
-    return vm.boostedPhotos;
+   case 'boosted':
+     return vm.boostedPhotos;
 
-  case 'mostViewed':
-    return vm.mostViewedPhotos;
+   case 'mostViewed':
+     return vm.mostViewedPhotos;
 
-  case 'top':
-    return vm.topPhotos;
+   case 'top':
+     return vm.topPhotos;
 
-  case 'latest':
-    return vm.latestPhotos;
+   case 'latest':
+     return vm.latestPhotos;
 
-  default:
-    return [];
-}
+   default:
+     return [];
+ }
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
