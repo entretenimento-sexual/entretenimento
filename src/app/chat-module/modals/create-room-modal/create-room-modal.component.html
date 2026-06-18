@@ -47,6 +47,132 @@
           rows="3"
         ></textarea>
       </div>
+
+      <section class="place-intent" aria-labelledby="place-intent-title">
+        <div class="place-intent__header">
+          <div>
+            <h3 id="place-intent-title">Local da room</h3>
+            <p>
+              Informe onde você está ou estará. A plataforma usa esse dado para
+              organizar salas e sinais regionais, sem divulgar coordenada precisa.
+            </p>
+          </div>
+
+          <span class="place-intent__badge">Premium</span>
+        </div>
+
+        @if (canUsePlaceIntent) {
+          <label class="place-intent__toggle">
+            <input type="checkbox" formControlName="placeEnabled" />
+            <span>Adicionar local nesta sala</span>
+          </label>
+
+          @if (roomForm.controls.placeEnabled.value) {
+            <div class="place-intent__grid">
+              <div class="form-group">
+                <label for="placeMode">Quando?</label>
+                <select
+                  id="placeMode"
+                  class="input-field"
+                  formControlName="placeMode"
+                >
+                  <option value="now">Estou aqui agora</option>
+                  <option value="scheduled">Estarei lá depois</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="placeUf">UF</label>
+                <input
+                  id="placeUf"
+                  type="text"
+                  class="input-field"
+                  formControlName="placeUf"
+                  maxlength="2"
+                  autocapitalize="characters"
+                  autocomplete="address-level1"
+                  [attr.aria-invalid]="
+                    roomForm.controls.placeUf.touched &&
+                    roomForm.controls.placeUf.invalid
+                  "
+                />
+
+                @if (roomForm.controls.placeUf.touched && roomForm.controls.placeUf.invalid) {
+                  <p class="form-error" role="alert">Informe a UF com 2 letras.</p>
+                }
+              </div>
+
+              <div class="form-group">
+                <label for="placeCity">Cidade</label>
+                <input
+                  id="placeCity"
+                  type="text"
+                  class="input-field"
+                  formControlName="placeCity"
+                  autocomplete="address-level2"
+                  [attr.aria-invalid]="
+                    roomForm.controls.placeCity.touched &&
+                    roomForm.controls.placeCity.invalid
+                  "
+                />
+
+                @if (roomForm.controls.placeCity.touched && roomForm.controls.placeCity.invalid) {
+                  <p class="form-error" role="alert">Informe a cidade.</p>
+                }
+              </div>
+
+              <div class="form-group place-intent__wide">
+                <label for="placeLabel">Local ou área</label>
+                <input
+                  id="placeLabel"
+                  type="text"
+                  class="input-field"
+                  formControlName="placeLabel"
+                  maxlength="80"
+                  autocomplete="off"
+                  placeholder="Ex.: Centro, Zona Sul, evento privado"
+                  [attr.aria-invalid]="
+                    roomForm.controls.placeLabel.touched &&
+                    roomForm.controls.placeLabel.invalid
+                  "
+                />
+
+                @if (roomForm.controls.placeLabel.touched && roomForm.controls.placeLabel.invalid) {
+                  <p class="form-error" role="alert">
+                    Informe um local ou área entre 3 e 80 caracteres.
+                  </p>
+                }
+              </div>
+
+              @if (roomForm.controls.placeMode.value === 'scheduled') {
+                <div class="form-group place-intent__wide">
+                  <label for="placeStartsAt">Data e horário</label>
+                  <input
+                    id="placeStartsAt"
+                    type="datetime-local"
+                    class="input-field"
+                    formControlName="placeStartsAt"
+                    [attr.aria-invalid]="
+                      roomForm.controls.placeStartsAt.touched &&
+                      roomForm.controls.placeStartsAt.invalid
+                    "
+                  />
+
+                  @if (roomForm.controls.placeStartsAt.touched && roomForm.controls.placeStartsAt.invalid) {
+                    <p class="form-error" role="alert">
+                      Informe quando você estará nesse local.
+                    </p>
+                  }
+                </div>
+              }
+            </div>
+          }
+        } @else {
+          <div class="place-intent__locked" role="note">
+            Esse preenchimento será liberado para plano premium ou superior.
+          </div>
+        }
+      </section>
     </form>
   </div>
 
