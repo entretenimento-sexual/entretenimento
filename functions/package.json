@@ -7,11 +7,11 @@
     "node": "22"
   },
   "scripts": {
-"lint": "eslint -c eslint.config.js \"src/**/*.ts\"",
-"lint:fix": "eslint -c eslint.config.js \"src/**/*.ts\" --fix",
-"lint:deploy": "eslint -c eslint.config.js \"src/chat/**/*.ts\" \"src/index.ts\"",
-"lint:fix:chat": "eslint -c eslint.config.js \"src/chat/**/*.ts\" \"src/index.ts\" --fix",
-"build": "tsc",
+    "lint": "eslint -c eslint.config.js \"src/**/*.ts\"",
+    "lint:fix": "eslint -c eslint.config.js \"src/**/*.ts\" --fix",
+    "lint:deploy": "eslint -c eslint.config.js \"src/**/*.ts\"",
+    "lint:fix:chat": "eslint -c eslint.config.js \"src/**/*.ts\" --fix",
+    "build": "tsc",
     "build:watch": "tsc --watch",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
