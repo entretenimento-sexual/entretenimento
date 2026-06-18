@@ -32,14 +32,14 @@ import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
 import {
+  HotPlaceAudience,
+  HotPlaceCompatibilitySignal,
+  HotPlaceKind,
+  HotPlaceVisibility,
   IHotPlace,
-  IHotPlaceAudience,
   IHotPlaceCardVm,
-  IHotPlaceCompatibilitySignal,
-  IHotPlaceKind,
   IHotPlaceQueryOptions,
   IHotPlaceRegion,
-  IHotPlaceVisibility,
 } from 'src/app/core/interfaces/places/hot-place.interface';
 import {
   RegionFilterService,
@@ -52,7 +52,7 @@ const DEFAULT_LIMIT = 12;
 const DEFAULT_MINIMUM_SCORE = 1;
 const MAX_LIMIT = 30;
 
-interface HotPlaceFirestoreDocument extends Partial<IHotPlace> {
+interface HotPlaceFirestoreDocument {
   id?: unknown;
   title?: unknown;
   subtitle?: unknown;
@@ -237,7 +237,7 @@ export class HotPlacesService {
     };
   }
 
-  private normalizeVisibility(value: unknown): IHotPlaceVisibility {
+  private normalizeVisibility(value: unknown): HotPlaceVisibility {
     if (value === 'visible' || value === 'hidden' || value === 'moderation_hold') {
       return value;
     }
@@ -245,7 +245,7 @@ export class HotPlacesService {
     return 'hidden';
   }
 
-  private normalizeKind(value: unknown): IHotPlaceKind {
+  private normalizeKind(value: unknown): HotPlaceKind {
     if (
       value === 'city_area' ||
       value === 'venue' ||
@@ -259,7 +259,7 @@ export class HotPlacesService {
     return 'city_area';
   }
 
-  private normalizeAudience(value: unknown): IHotPlaceAudience {
+  private normalizeAudience(value: unknown): HotPlaceAudience {
     if (
       value === 'all' ||
       value === 'singles' ||
@@ -275,12 +275,12 @@ export class HotPlacesService {
 
   private normalizeCompatibilitySignals(
     value: unknown
-  ): IHotPlaceCompatibilitySignal[] {
+  ): HotPlaceCompatibilitySignal[] {
     if (!Array.isArray(value)) {
       return [];
     }
 
-    const allowed = new Set<IHotPlaceCompatibilitySignal>([
+    const allowed = new Set<HotPlaceCompatibilitySignal>([
       'same_city',
       'same_state',
       'available_now',
@@ -290,12 +290,12 @@ export class HotPlacesService {
       'subscriber_boost',
     ]);
 
-    return value.filter((signal): signal is IHotPlaceCompatibilitySignal => {
+    return value.filter((signal): signal is HotPlaceCompatibilitySignal => {
       if (typeof signal !== 'string') {
         return false;
       }
 
-      return allowed.has(signal as IHotPlaceCompatibilitySignal);
+      return allowed.has(signal as HotPlaceCompatibilitySignal);
     });
   }
 
