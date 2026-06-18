@@ -12,6 +12,7 @@
 // - adiciona lockCollapsed para o modo chat
 // - suprime perfil expandido e quick actions quando o rail estiver travado
 // - impede expansão manual do sidebar no modo chat
+// - adiciona fallback visual quando avatar remoto falhar
 //
 // Observação arquitetural:
 // - este componente NÃO consulta sessão diretamente
@@ -101,6 +102,8 @@ export class UniversalSidebarComponent {
   @ViewChild('sidebarRoot', { read: ElementRef })
   private sidebarRoot?: ElementRef<HTMLElement>;
 
+  private readonly fallbackAvatarSrc = 'assets/imagem-padrao.webp';
+
   trackSection(_: number, section: SidebarSection): string {
     return section.key;
   }
@@ -114,19 +117,19 @@ export class UniversalSidebarComponent {
   }
 
   formatBadgeCount(count: number | null | undefined): string {
-  const safeCount = Number(count ?? 0);
+    const safeCount = Number(count ?? 0);
 
-  if (!Number.isFinite(safeCount) || safeCount <= 0) {
-    return '';
+    if (!Number.isFinite(safeCount) || safeCount <= 0) {
+      return '';
+    }
+
+    return safeCount > 99 ? '99+' : String(safeCount);
   }
 
-  return safeCount > 99 ? '99+' : String(safeCount);
-}
-
-hasBadge(count: number | null | undefined): boolean {
-  const safeCount = Number(count ?? 0);
-  return Number.isFinite(safeCount) && safeCount > 0;
-}
+  hasBadge(count: number | null | undefined): boolean {
+    const safeCount = Number(count ?? 0);
+    return Number.isFinite(safeCount) && safeCount > 0;
+  }
 
   get isOverlayMode(): boolean {
     return this.forceOverlay;
@@ -157,7 +160,7 @@ hasBadge(count: number | null | undefined): boolean {
   }
 
   get avatarSrc(): string {
-    return this.user?.photoURL?.trim() || 'assets/imagem-padrao.webp';
+    return this.user?.photoURL?.trim() || this.fallbackAvatarSrc;
   }
 
   get userSecondaryText(): string | null {
@@ -166,6 +169,16 @@ hasBadge(count: number | null | undefined): boolean {
 
     const email = this.user?.email?.trim();
     return email || null;
+  }
+
+  onAvatarError(event: Event): void {
+    const image = event.target as HTMLImageElement | null;
+
+    if (!image || image.src.endsWith(this.fallbackAvatarSrc)) {
+      return;
+    }
+
+    image.src = this.fallbackAvatarSrc;
   }
 
   onItemActivated(): void {
