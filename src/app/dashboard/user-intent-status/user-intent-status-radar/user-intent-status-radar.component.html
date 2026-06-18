@@ -1,21 +1,31 @@
 <!-- src/app/dashboard/user-intent-status/user-intent-status-radar/user-intent-status-radar.component.html -->
 
-<section class="intent-radar app-card" aria-labelledby="intent-radar-title">
-  <header class="intent-radar__header">
-    <div>
-      <span class="intent-radar__eyebrow">Radar de hoje</span>
-      <h2 id="intent-radar-title">Status ativos na sua região</h2>
-    </div>
-  </header>
-
+<section class="intent-radar" aria-labelledby="intent-radar-title">
   @if (vm$ | async; as vm) {
+    <header class="intent-radar__header">
+      <div class="intent-radar__heading">
+        <span class="intent-radar__eyebrow">Status ao vivo</span>
+        <h2 id="intent-radar-title">Pessoas disponíveis hoje</h2>
+        <p>
+          Perfis da sua região com intenção ativa. Escolha com calma: veja o perfil antes de chamar.
+        </p>
+      </div>
+
+      @if (!vm.loading) {
+        <span class="intent-radar__count" aria-label="{{ vm.items.length }} status ativos">
+          {{ vm.items.length }} {{ vm.items.length === 1 ? 'ativo' : 'ativos' }}
+        </span>
+      }
+    </header>
+
     @if (vm.loading) {
       <div class="intent-radar__state" role="status" aria-live="polite">
         Carregando status ativos...
       </div>
     } @else if (vm.items.length === 0) {
-      <div class="intent-radar__state" role="status">
-        Ainda não há status ativos próximos. Publique o seu para começar o movimento.
+      <div class="intent-radar__state intent-radar__state--empty" role="status">
+        <strong>Ninguém disponível na sua região agora.</strong>
+        <span>Publique seu status para aparecer em Descobrir e iniciar movimento.</span>
       </div>
     } @else {
       <div class="intent-radar__rail" aria-label="Status de intenção ativos">
@@ -34,17 +44,23 @@
                 </span>
               }
 
-              <div>
+              <div class="intent-status-card__identity">
                 <h3>{{ status.profile.nickname }}</h3>
                 <span>{{ status.availabilityLabel }}</span>
               </div>
             </header>
 
-            <p class="intent-status-card__destination">
-              {{ status.destinationLabel }}
-            </p>
+            <div class="intent-status-card__body">
+              <span class="intent-status-card__label">
+                {{ status.destination.kind === 'venue' ? 'Local de interesse' : 'Região de interesse' }}
+              </span>
 
-            <footer class="intent-status-card__footer">
+              <p class="intent-status-card__destination">
+                {{ status.destinationLabel }}
+              </p>
+            </div>
+
+            <footer class="intent-status-card__meta">
               <span>{{ status.expiresInLabel }}</span>
               <span>{{ status.destination.kind === 'venue' ? 'Local' : 'Região' }}</span>
             </footer>
