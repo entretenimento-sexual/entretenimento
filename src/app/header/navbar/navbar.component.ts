@@ -7,6 +7,7 @@
 // - limpar resíduos de integração com LinksInteractionComponent
 // - preservar uid como fonte canônica do header
 // - manter toggle da sidebar, responsividade e debug útil
+// - exibir contador reativo de notificações sem escrita direta no cliente
 //
 // Supressões explícitas desta versão:
 // 1) canShowLinksInteraction
@@ -48,6 +49,7 @@ import { SidebarService } from 'src/app/core/services/navigation/sidebar.service
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
 
 import { Auth, user as afUser } from '@angular/fire/auth';
 import type { User } from 'firebase/auth';
@@ -87,6 +89,9 @@ export class NavbarComponent implements OnInit, OnDestroy {
    */
   public isMobileMenuViewport = false;
   public isMobileMenuOpen = false;
+
+  public readonly unreadNotificationsCount$ = inject(AppNotificationService)
+    .currentUserUnreadCount$;
 
   private _isDarkModeActive = false;
   private _isHighContrastActive = false;
