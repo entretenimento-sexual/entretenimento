@@ -9,7 +9,8 @@
 // - a Function usa request.auth.uid como identidade real;
 // - snapshots públicos vêm do documento users/{uid};
 // - startsAt/expiresAt são definidos no servidor para evitar erro de relógio;
-// - localização continua regional, sem coordenada precisa.
+// - localização continua regional, sem coordenada precisa;
+// - venueId só é aceito quando aponta para estabelecimento ativo e visível.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -60,6 +61,13 @@ interface UserIntentStatusDestinationInput {
 interface UserIntentStatusRegionInput {
   uf?: unknown;
   city?: unknown;
+}
+
+interface NormalizedDestination {
+  kind: string;
+  label: string;
+  venueId: string | null;
+  region: { uf: string; city: string };
 }
 
 interface UserIntentStatusResponse {
@@ -122,12 +130,7 @@ function normalizeRegion(raw: unknown, user: MessagingUserDoc): {
   return { uf, city };
 }
 
-function normalizeDestination(raw: unknown, user: MessagingUserDoc): {
-  kind: string;
-  label: string;
-  venueId: string | null;
-  region: { uf: string; city: string };
-} {
+function normalizeDestination(raw: unknown, user: MessagingUserDoc): NormalizedDestination {
   const source = raw as UserIntentStatusDestinationInput | null | undefined;
   const region = normalizeRegion(source?.region, user);
   const kind = normalizeEnum(
@@ -145,8 +148,60 @@ function normalizeDestination(raw: unknown, user: MessagingUserDoc): {
   return {
     kind,
     label,
-    venueId: venueId ? venueId.slice(0, 120) : null,
+    venueId: kind === 'venue' && venueId ? venueId.slice(0, 120) : null,
     region,
+  };
+}
+
+async function resolveVenueDestination(
+  destination: NormalizedDestination
+): Promise<NormalizedDestination> {
+  if (destination.kind !== 'venue' || !destination.venueId) {
+    return {
+      ...destination,
+      venueId: null,
+    };
+  }
+
+  const venueSnapshot = await db.collection('venues').doc(destination.venueId).get();
+
+  if (!venueSnapshot.exists) {
+    throw new HttpsError('not-found', 'Estabelecimento não encontrado.');
+  }
+
+  const venue = venueSnapshot.data() as {
+    name?: unknown;
+    region?: { uf?: unknown; city?: unknown };
+    visibility?: unknown;
+    moderation?: { state?: unknown };
+  };
+
+  if (
+    venue.moderation?.state !== 'active' ||
+    (venue.visibility !== 'public' && venue.visibility !== 'members_only')
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Estabelecimento indisponível para status.'
+    );
+  }
+
+  const uf = String(venue.region?.uf ?? '').trim().toUpperCase();
+  const city = String(venue.region?.city ?? '').trim().toLowerCase();
+  const label = normalizeText(venue.name, { min: 2, max: 80 });
+
+  if (!/^[A-Z]{2}$/.test(uf) || city.length < 1 || city.length > 80) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Estabelecimento sem região válida.'
+    );
+  }
+
+  return {
+    kind: 'venue',
+    label,
+    venueId: destination.venueId,
+    region: { uf, city },
   };
 }
 
@@ -204,7 +259,9 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
       ALLOWED_VISIBILITY,
       'public_discovery'
     );
-    const destination = normalizeDestination(request.data?.destination, user!);
+    const destination = await resolveVenueDestination(
+      normalizeDestination(request.data?.destination, user!)
+    );
     const profile = publicProfileFromUser(uid, user!);
 
     await db.runTransaction(async (tx) => {
@@ -231,6 +288,7 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
         actorUid: uid,
         statusId,
         destinationKind: destination.kind,
+        destinationVenueId: destination.venueId,
         destinationRegion: destination.region,
         visibility,
         createdAt: FieldValue.serverTimestamp(),
@@ -273,7 +331,7 @@ export const hideUserIntentStatus = onCall(
         throw new HttpsError('not-found', 'Status não encontrado.');
       }
 
-      const status = statusSnapshot.data() as { uid?: unknown; expiresAt?: unknown };
+      const status = statusSnapshot.data() as { uid?: unknown };
 
       if (status.uid !== uid) {
         throw new HttpsError('permission-denied', 'Status não pertence ao usuário.');
