@@ -36,6 +36,7 @@ const parts = [
   'public_profiles_photos.rules',
   'presence.rules',
   'user_intent_statuses.rules',
+  'venues.rules',
   'regional_hot_places.rules',
 
   // Relações e comunicação.
