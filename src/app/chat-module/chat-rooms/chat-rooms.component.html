@@ -161,6 +161,20 @@
                   </div>
                 </dl>
 
+                @if (room.placeIntent; as place) {
+                  <section class="chat-rooms__place" aria-label="Local declarado da sala">
+                    <span class="chat-rooms__place-marker" aria-hidden="true">Local</span>
+
+                    <div class="chat-rooms__place-copy">
+                      <strong>{{ place.label }}</strong>
+                      <span>
+                        {{ place.region.city }}, {{ place.region.uf }} ·
+                        {{ place.mode === 'scheduled' ? 'programado' : 'agora' }}
+                      </span>
+                    </div>
+                  </section>
+                }
+
                 <p class="chat-rooms__pending-feature">
                   Conversas e convites nesta sala serão disponibilizados após
                   a conclusão da camada segura de participação.
