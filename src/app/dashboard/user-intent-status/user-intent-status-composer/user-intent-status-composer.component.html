@@ -54,6 +54,60 @@
       </select>
     </label>
 
+    @if ((destinationKind$ | async) === 'venue') {
+      <section class="intent-composer__venues" aria-label="Estabelecimentos disponíveis na região">
+        <div class="intent-composer__venues-header">
+          <div>
+            <strong>Estabelecimentos da sua região</strong>
+            <span>Selecione um local gerenciado ou mantenha o texto livre abaixo.</span>
+          </div>
+
+          @if (form.controls.venueId.value) {
+            <button
+              type="button"
+              class="btn btn-ghost intent-composer__clear-venue"
+              (click)="clearVenueSelection()"
+            >
+              Usar texto livre
+            </button>
+          }
+        </div>
+
+        @if (venues$ | async; as venues) {
+          @if (venues.length === 0) {
+            <p class="intent-composer__venues-empty">
+              Nenhum estabelecimento cadastrado para sua região ainda. Você pode publicar
+              com texto livre; depois vincularemos ao cadastro oficial.
+            </p>
+          } @else {
+            <div class="intent-composer__venue-list" role="list">
+              @for (venue of venues; track venue.id) {
+                <button
+                  type="button"
+                  class="intent-composer__venue-option"
+                  [class.intent-composer__venue-option--selected]="form.controls.venueId.value === venue.id"
+                  (click)="applyVenue(venue)"
+                >
+                  <strong>{{ venue.name }}</strong>
+                  <span>{{ venue.kindLabel }} · {{ venue.regionLabel }}</span>
+
+                  @if (venue.sponsorshipLabel) {
+                    <small>{{ venue.sponsorshipLabel }}</small>
+                  }
+                </button>
+              }
+            </div>
+          }
+        }
+
+        @if (selectedVenue$ | async; as selectedVenue) {
+          <p class="intent-composer__venue-selected" role="status">
+            Local selecionado: <strong>{{ selectedVenue.name }}</strong>
+          </p>
+        }
+      </section>
+    }
+
     <label class="intent-composer__field intent-composer__field--wide">
       <span>Destino ou região possível</span>
       <input
