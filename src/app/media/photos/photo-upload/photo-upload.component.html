@@ -39,8 +39,16 @@
             Faça login para enviar fotos.
           } @else if (policy?.reason === 'NOT_OWNER') {
             Você só pode enviar fotos do seu próprio perfil.
+          } @else if (policy?.reason === 'EMAIL_UNVERIFIED') {
+            Confirme seu e-mail antes de enviar fotos.
+          } @else if (policy?.reason === 'PROFILE_INCOMPLETE') {
+            Finalize seu cadastro antes de enviar fotos.
+          } @else if (policy?.reason === 'INTERACTION_BLOCKED' || policy?.reason === 'BLOCKED') {
+            Sua conta não pode enviar fotos no momento.
+          } @else if (policy?.reason === 'SUBSCRIPTION_REQUIRED') {
+            Assinatura necessária para enviar fotos.
           } @else {
-            Ação bloqueada por política.
+            Não foi possível autorizar o envio de fotos agora.
           }
         </p>
       </div>
