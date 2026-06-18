@@ -23,6 +23,7 @@ export type MessagingAccountStatus =
 
 export type MessagingOperation =
   | 'create-private-room'
+  | 'close-private-room'
   | 'ensure-direct-chat'
   | 'send-direct-message'
   | 'create-message-request';
