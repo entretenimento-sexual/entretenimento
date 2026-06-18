@@ -7,6 +7,7 @@
    - clicando no hambúrguer, o menu mobile desce
    - o hambúrguer fica à direita da logo no mobile
    - navbar fica mais baixa sem mexer no token global
+   - sininho de notificações com badge reativo
    ============================================================================
 */
 :host {
@@ -92,7 +93,8 @@
 .navbar-item a.navbar-link,
 .navbar-item button.navbar-link,
 .dark-toggle,
-.contrast-toggle {
+.contrast-toggle,
+.navbar-icon-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -118,6 +120,31 @@
     transform .18s ease;
 }
 
+.navbar-icon-link {
+  position: relative;
+  min-width: 38px;
+  padding-inline: 9px;
+}
+
+.navbar-badge {
+  position: absolute;
+  top: 0;
+  right: 1px;
+  min-width: 17px;
+  height: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border: 2px solid var(--header-bg);
+  border-radius: 999px;
+  background: var(--primary-color, #ff7070);
+  color: #fff;
+  font-size: 0.64rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
 .navbar-item a.navbar-link:hover,
 .navbar-item a.navbar-link:focus-visible,
 .navbar-item button.navbar-link:hover,
@@ -125,7 +152,9 @@
 .dark-toggle:hover,
 .dark-toggle:focus-visible,
 .contrast-toggle:hover,
-.contrast-toggle:focus-visible {
+.contrast-toggle:focus-visible,
+.navbar-icon-link:hover,
+.navbar-icon-link:focus-visible {
   background: var(--header-hover-bg);
   color: var(--header-fg);
   outline: none;
@@ -134,11 +163,13 @@
 .navbar-item a.navbar-link:active,
 .navbar-item button.navbar-link:active,
 .dark-toggle:active,
-.contrast-toggle:active {
+.contrast-toggle:active,
+.navbar-icon-link:active {
   transform: scale(0.98);
 }
 
-.navbar-item a.navbar-link.active {
+.navbar-item a.navbar-link.active,
+.navbar-icon-link.active {
   background: color-mix(in oklab, var(--primary-color) 16%, transparent);
 }
 
@@ -229,7 +260,8 @@
   .navbar-item a.navbar-link,
   .navbar-item button.navbar-link,
   .dark-toggle,
-  .contrast-toggle {
+  .contrast-toggle,
+  .navbar-icon-link {
     font-size: 14px;
     padding: 5px 8px;
   }
@@ -255,7 +287,8 @@
   .navbar-item a.navbar-link,
   .navbar-item button.navbar-link,
   .dark-toggle,
-  .contrast-toggle {
+  .contrast-toggle,
+  .navbar-icon-link {
     min-height: 34px;
     padding: 4px 7px;
     font-size: 13px;
@@ -328,6 +361,21 @@
     appearance: none;
   }
 
+  .navbar-mobile-badge {
+    margin-left: auto;
+    min-width: 22px;
+    min-height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: var(--primary-color, #ff7070);
+    color: #fff;
+    font-size: 0.74rem;
+    font-weight: 950;
+  }
+
   .navbar-mobile-actions {
     display: grid;
     gap: 8px;
@@ -357,24 +405,3 @@
     padding: 10px 12px 14px;
   }
 }
-
-/* Alto contraste */
-html.high-contrast .navbar {
-  border-bottom: 2px solid currentColor;
-}
-
-html.high-contrast .navbar-item a.navbar-link,
-html.high-contrast .navbar-item button.navbar-link,
-html.high-contrast .dark-toggle,
-html.high-contrast .contrast-toggle,
-html.high-contrast .hamburger-btn,
-html.high-contrast .navbar-mobile-link {
-  border: 2px solid currentColor;
-  background: transparent !important;
-}
-/* Considerar sempre futuras versões .apk, mobile,
-Tentativa de inspiração no melhor das grandes plataformas e a super, ultra, mega, responsividade.
-De forma que considere das menores e diversas telas de smartphones,
-diversos tipos de monitores, de notebook, e telas gigantes de televisões monitores,
-tanto em retrato ou paisagem.
-*/
