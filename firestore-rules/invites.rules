@@ -48,10 +48,6 @@ match /invites/{inviteId} {
     ]);
   }
 
-  function isV2() {
-    return hasField("type") && hasField("targetId");
-  }
-
   function validCreateV2() {
     return allowedKeys()
       && request.resource.data.senderId == uid()
