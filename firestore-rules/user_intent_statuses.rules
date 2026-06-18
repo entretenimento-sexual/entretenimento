@@ -36,10 +36,6 @@ match /user_intent_statuses/{statusId} {
 
   allow delete: if signedIn() && resource.data.uid == uid();
 
-  function hasField(field) {
-    return request.resource.data.keys().hasAny([field]);
-  }
-
   function allowedKeys() {
     return request.resource.data.keys().hasOnly([
       "uid",
