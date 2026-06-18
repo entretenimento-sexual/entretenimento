@@ -21,14 +21,16 @@
 .intent-composer__header,
 .intent-composer__footer,
 .intent-composer__row,
-.intent-composer__active {
+.intent-composer__active,
+.intent-composer__venues-header {
   display: flex;
   gap: 12px;
 }
 
 .intent-composer__header,
 .intent-composer__footer,
-.intent-composer__active {
+.intent-composer__active,
+.intent-composer__venues-header {
   align-items: flex-start;
   justify-content: space-between;
 }
@@ -132,7 +134,8 @@
 }
 
 .intent-composer__field--wide,
-.intent-composer__footer {
+.intent-composer__footer,
+.intent-composer__venues {
   grid-column: 1 / -1;
 }
 
@@ -159,6 +162,92 @@
 .intent-composer__field input:focus,
 .intent-composer__field select:focus {
   border-color: var(--primary-color, #ff7070);
+}
+
+.intent-composer__venues {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  background: var(--background-color, #0b1118);
+}
+
+.intent-composer__venues-header div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.intent-composer__venues-header strong,
+.intent-composer__venue-selected strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.88rem;
+  font-weight: 920;
+}
+
+.intent-composer__venues-header span,
+.intent-composer__venues-empty,
+.intent-composer__venue-selected {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  opacity: 0.72;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.intent-composer__clear-venue {
+  min-height: 36px;
+  white-space: nowrap;
+}
+
+.intent-composer__venue-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.intent-composer__venue-option {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  background: var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  text-align: left;
+  cursor: pointer;
+}
+
+.intent-composer__venue-option:hover,
+.intent-composer__venue-option:focus-visible,
+.intent-composer__venue-option--selected {
+  border-color: var(--primary-color, #ff7070);
+}
+
+.intent-composer__venue-option strong {
+  overflow: hidden;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.84rem;
+  font-weight: 920;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.intent-composer__venue-option span,
+.intent-composer__venue-option small {
+  color: var(--text-color, #f5f7fb);
+  opacity: 0.7;
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+
+.intent-composer__venue-option small {
+  color: var(--primary-color, #ff7070);
+  font-weight: 900;
+  opacity: 1;
 }
 
 .intent-composer__row {
@@ -192,12 +281,14 @@
 
   .intent-composer__header,
   .intent-composer__footer,
-  .intent-composer__active {
+  .intent-composer__active,
+  .intent-composer__venues-header {
     flex-direction: column;
   }
 
   .intent-composer__submit,
-  .intent-composer__hide {
+  .intent-composer__hide,
+  .intent-composer__clear-venue {
     width: 100%;
   }
 }
