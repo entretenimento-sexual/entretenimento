@@ -9,7 +9,8 @@
 // - leitura pública do app só para documentos visíveis;
 // - escrita direta pelo cliente comum é bloqueada;
 // - escrita administrativa exige claim admin;
-// - documentos não devem carregar UIDs, participantes ou coordenadas precisas.
+// - documentos não devem carregar UIDs, participantes ou coordenadas precisas;
+// - affinityMix é apenas agrupamento agregado, com piso mínimo.
 //
 // Observação:
 // - a UI consulta com where('moderation.visibility', '==', 'visible');
@@ -39,6 +40,7 @@ match /regional_hot_places/{placeId} {
       "metrics",
       "moderation",
       "compatibilitySignals",
+      "affinityMix",
       "createdAt",
       "updatedAt"
     ]);
@@ -136,6 +138,65 @@ match /regional_hot_places/{placeId} {
         && request.resource.data.moderation[field].size() <= max);
   }
 
+  function validAffinityMix() {
+    return !hasField("affinityMix")
+      || request.resource.data.affinityMix == null
+      || (
+        request.resource.data.affinityMix is map
+        && request.resource.data.affinityMix.keys().hasOnly([
+          "sampleFloor",
+          "primarySegments",
+          "secondarySegments",
+          "confidence",
+          "generatedAt"
+        ])
+        && request.resource.data.affinityMix.sampleFloor is number
+        && request.resource.data.affinityMix.sampleFloor >= 5
+        && request.resource.data.affinityMix.sampleFloor <= 1000000
+        && request.resource.data.affinityMix.primarySegments is list
+        && request.resource.data.affinityMix.primarySegments.size() >= 1
+        && request.resource.data.affinityMix.primarySegments.size() <= 6
+        && validAffinitySegmentList(request.resource.data.affinityMix.primarySegments)
+        && validOptionalAffinitySegments()
+        && request.resource.data.affinityMix.confidence in ["low", "medium", "high"]
+        && validOptionalAffinityTime("generatedAt")
+      );
+  }
+
+  function validAffinitySegmentList(items) {
+    return items.hasOnly([
+      "h_m",
+      "m_h",
+      "h_h",
+      "m_m",
+      "casais",
+      "casais_solos",
+      "misto",
+      "aberto"
+    ]);
+  }
+
+  function hasAffinityField(field) {
+    return request.resource.data.affinityMix.keys().hasAny([field]);
+  }
+
+  function validOptionalAffinitySegments() {
+    return !hasAffinityField("secondarySegments")
+      || request.resource.data.affinityMix.secondarySegments == null
+      || (
+        request.resource.data.affinityMix.secondarySegments is list
+        && request.resource.data.affinityMix.secondarySegments.size() <= 6
+        && validAffinitySegmentList(request.resource.data.affinityMix.secondarySegments)
+      );
+  }
+
+  function validOptionalAffinityTime(field) {
+    return !hasAffinityField(field)
+      || request.resource.data.affinityMix[field] == null
+      || request.resource.data.affinityMix[field] is number
+      || request.resource.data.affinityMix[field] is timestamp;
+  }
+
   function validHotPlacePayload() {
     return allowedKeys()
       && request.resource.data.title is string
@@ -159,6 +220,7 @@ match /regional_hot_places/{placeId} {
       && validRegion()
       && validMetrics()
       && validModeration()
+      && validAffinityMix()
       && request.resource.data.compatibilitySignals is list
       && request.resource.data.compatibilitySignals.size() <= 12
       && optTimestamp("createdAt")
