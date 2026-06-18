@@ -50,6 +50,16 @@ function copyDirectory(source, target) {
   });
 }
 
+function quoteWindowsArg(value) {
+  const normalized = String(value ?? '');
+
+  if (/^[A-Za-z0-9_/:=.,@+\-]+$/.test(normalized)) {
+    return normalized;
+  }
+
+  return `"${normalized.replace(/"/g, '\\"')}"`;
+}
+
 function backupExistingData() {
   if (skipBackup) {
     console.warn('[emu:safe] Backup automático ignorado por FIREBASE_EMULATOR_SKIP_BACKUP=1.');
@@ -70,6 +80,26 @@ function backupExistingData() {
 
   copyDirectory(dataPath, backupPath);
   console.log(`[emu:safe] Backup criado em ${path.relative(root, backupPath)}`);
+}
+
+function spawnFirebaseEmulator(args, env) {
+  if (process.platform !== 'win32') {
+    return spawn('npx', args, {
+      stdio: 'inherit',
+      env,
+      shell: false,
+    });
+  }
+
+  const commandLine = ['npx', ...args]
+    .map((arg) => quoteWindowsArg(arg))
+    .join(' ');
+
+  return spawn('cmd.exe', ['/d', '/s', '/c', commandLine], {
+    stdio: 'inherit',
+    env,
+    shell: false,
+  });
 }
 
 backupExistingData();
@@ -111,12 +141,7 @@ console.log(`[emu:safe] Emuladores=${only}`);
 console.log(`[emu:safe] Export-on-exit=${dataDir}`);
 console.log('[emu:safe] Para resetar portas, rode manualmente: npm run emu:pre');
 
-const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
-const child = spawn(command, args, {
-  stdio: 'inherit',
-  env,
-  shell: false,
-});
+const child = spawnFirebaseEmulator(args, env);
 
 child.on('exit', (code, signal) => {
   if (signal) {
