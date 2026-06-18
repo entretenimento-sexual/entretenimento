@@ -2,7 +2,7 @@
 // -----------------------------------------------------------------------------
 // USER INTENT STATUS SERVICE
 // -----------------------------------------------------------------------------
-// Leitura e publicação reativa dos status temporários de intenção.
+// Leitura reativa e publicação segura dos status temporários de intenção.
 //
 // Produto:
 // - status de disponibilidade/intenção com expiração curta;
@@ -11,7 +11,8 @@
 //
 // Segurança:
 // - lê somente documentos liberados pelas Rules;
-// - publicação usa documento determinístico por usuário para evitar spam inicial;
+// - publicação/ocultação usam Cloud Functions;
+// - o backend usa request.auth.uid e snapshot confiável de users/{uid};
 // - não usa fallback global quando região está ausente;
 // - erros técnicos vão para GlobalErrorHandlerService sem vazar para a UI.
 // -----------------------------------------------------------------------------
@@ -27,10 +28,12 @@ import {
   limit as firestoreLimit,
   orderBy,
   query,
-  setDoc,
   where,
 } from '@angular/fire/firestore';
-import { serverTimestamp } from 'firebase/firestore';
+import {
+  Functions,
+  httpsCallable,
+} from '@angular/fire/functions';
 import { Observable, defer, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
@@ -71,12 +74,41 @@ interface UserIntentStatusFirestoreDocument {
   updatedAt?: unknown;
 }
 
+interface PublishUserIntentStatusPayload {
+  availability: UserIntentAvailability;
+  visibility: UserIntentVisibility;
+  destination: {
+    kind: UserIntentDestinationKind;
+    label: string;
+    venueId?: string | null;
+    region: IUserIntentStatusRegion;
+  };
+  durationHours: number;
+}
+
+interface UserIntentStatusCallableResponse {
+  statusId: string;
+  expiresAt: number;
+  state: 'active' | 'hidden';
+}
+
 @Injectable({ providedIn: 'root' })
 export class UserIntentStatusService {
   private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly regionFilter = inject(RegionFilterService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+
+  private readonly publishStatusCallable = httpsCallable<
+    PublishUserIntentStatusPayload,
+    UserIntentStatusCallableResponse
+  >(this.functions, 'publishUserIntentStatus');
+
+  private readonly hideStatusCallable = httpsCallable<
+    Record<string, never>,
+    UserIntentStatusCallableResponse
+  >(this.functions, 'hideUserIntentStatus');
 
   watchCurrentStatus$(uid: string): Observable<IUserIntentStatusCardVm | null> {
     const safeUid = String(uid ?? '').trim();
@@ -187,31 +219,14 @@ export class UserIntentStatusService {
       return throwError(() => new Error('Status de intenção inválido.'));
     }
 
-    return defer(() => {
-      const statusRef = doc(
-        this.firestore,
-        'user_intent_statuses',
-        `current_${normalizedInput.uid}`
-      );
+    const payload: PublishUserIntentStatusPayload = {
+      availability: normalizedInput.availability,
+      visibility: normalizedInput.visibility,
+      destination: normalizedInput.destination,
+      durationHours: normalizedInput.durationHours ?? DEFAULT_STATUS_DURATION_HOURS,
+    };
 
-      return from(setDoc(statusRef, {
-        uid: normalizedInput.uid,
-        profile: normalizedInput.profile,
-        availability: normalizedInput.availability,
-        visibility: normalizedInput.visibility,
-        destination: normalizedInput.destination,
-        moderation: {
-          state: 'active',
-          reviewedAt: null,
-          reviewedBy: null,
-          reason: null,
-        },
-        startsAt: normalizedInput.startsAt,
-        expiresAt: normalizedInput.expiresAt,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      }, { merge: true }));
-    }).pipe(
+    return defer(() => from(this.publishStatusCallable(payload))).pipe(
       map(() => undefined),
       catchError((error) => {
         this.handleWriteError(error, 'publishStatus', {
@@ -230,24 +245,7 @@ export class UserIntentStatusService {
       return throwError(() => new Error('UID ausente para ocultar status.'));
     }
 
-    return defer(() => {
-      const statusRef = doc(
-        this.firestore,
-        'user_intent_statuses',
-        `current_${safeUid}`
-      );
-
-      return from(setDoc(statusRef, {
-        uid: safeUid,
-        moderation: {
-          state: 'hidden',
-          reviewedAt: null,
-          reviewedBy: null,
-          reason: null,
-        },
-        updatedAt: serverTimestamp(),
-      }, { merge: true }));
-    }).pipe(
+    return defer(() => from(this.hideStatusCallable({}))).pipe(
       map(() => undefined),
       catchError((error) => {
         this.handleWriteError(error, 'hideCurrentStatus', { uid: safeUid });
