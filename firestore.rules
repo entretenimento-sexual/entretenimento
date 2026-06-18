@@ -1,6 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-06-18T00:56:51.093Z
+// Generated at: 2026-06-18T01:40:23.048Z
 
 // ===== _helpers.rules =====
 // ===============================================================
@@ -831,6 +831,175 @@ match /presence/{presenceUid} {
 // ================================================================
                         // FIM DO PRESENCE.RULES
 // ================================================================
+
+// ===== regional_hot_places.rules =====
+// firestore-rules/regional_hot_places.rules
+// ============================================================================
+// REGIONAL HOT PLACES / LOCAIS BOMBANDO
+// ============================================================================
+// Projeção agregada e moderada para exibição regional.
+//
+// Segurança:
+// - leitura exige login;
+// - leitura pública do app só para documentos visíveis;
+// - escrita direta pelo cliente comum é bloqueada;
+// - escrita administrativa exige claim admin;
+// - documentos não devem carregar UIDs, participantes ou coordenadas precisas.
+//
+// Observação:
+// - a UI consulta com where('moderation.visibility', '==', 'visible');
+// - a geração de score deve vir de backend/admin, não do cliente comum.
+// ============================================================================
+match /regional_hot_places/{placeId} {
+  function isVisibleHotPlace() {
+    return resource.data.moderation.visibility == "visible";
+  }
+
+  allow get, list: if signedIn() && isVisibleHotPlace();
+
+  allow create, update: if isAdmin() && validHotPlacePayload();
+  allow delete: if isAdmin();
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "title",
+      "subtitle",
+      "kind",
+      "audience",
+      "region",
+      "metrics",
+      "moderation",
+      "compatibilitySignals",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  function optStringSized(field, min, max) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+        && request.resource.data[field].size() >= min
+        && request.resource.data[field].size() <= max);
+  }
+
+  function validRegion() {
+    return request.resource.data.region is map
+      && request.resource.data.region.keys().hasOnly(["uf", "city"])
+      && request.resource.data.region.uf is string
+      && request.resource.data.region.uf.matches('^[A-Z]{2}$')
+      && request.resource.data.region.city is string
+      && request.resource.data.region.city.size() >= 1
+      && request.resource.data.region.city.size() <= 80;
+  }
+
+  function validMetrics() {
+    return request.resource.data.metrics is map
+      && request.resource.data.metrics.keys().hasOnly([
+        "score",
+        "activeNowCount",
+        "roomCount",
+        "compatibleProfileCount",
+        "lastActivityAt"
+      ])
+      && request.resource.data.metrics.score is number
+      && request.resource.data.metrics.score >= 0
+      && request.resource.data.metrics.score <= 100000
+      && validOptionalMetricNumber("activeNowCount")
+      && validOptionalMetricNumber("roomCount")
+      && validOptionalMetricNumber("compatibleProfileCount")
+      && validOptionalMetricTime("lastActivityAt");
+  }
+
+  function hasMetric(field) {
+    return request.resource.data.metrics.keys().hasAny([field]);
+  }
+
+  function validOptionalMetricNumber(field) {
+    return !hasMetric(field)
+      || request.resource.data.metrics[field] == null
+      || (request.resource.data.metrics[field] is number
+        && request.resource.data.metrics[field] >= 0
+        && request.resource.data.metrics[field] <= 1000000);
+  }
+
+  function validOptionalMetricTime(field) {
+    return !hasMetric(field)
+      || request.resource.data.metrics[field] == null
+      || request.resource.data.metrics[field] is number
+      || request.resource.data.metrics[field] is timestamp;
+  }
+
+  function validModeration() {
+    return request.resource.data.moderation is map
+      && request.resource.data.moderation.keys().hasOnly([
+        "visibility",
+        "reviewedAt",
+        "reviewedBy",
+        "reason"
+      ])
+      && request.resource.data.moderation.visibility in [
+        "visible",
+        "hidden",
+        "moderation_hold"
+      ]
+      && validOptionalModerationTime("reviewedAt")
+      && validOptionalModerationString("reviewedBy", 1, 128)
+      && validOptionalModerationString("reason", 1, 240);
+  }
+
+  function hasModerationField(field) {
+    return request.resource.data.moderation.keys().hasAny([field]);
+  }
+
+  function validOptionalModerationTime(field) {
+    return !hasModerationField(field)
+      || request.resource.data.moderation[field] == null
+      || request.resource.data.moderation[field] is number
+      || request.resource.data.moderation[field] is timestamp;
+  }
+
+  function validOptionalModerationString(field, min, max) {
+    return !hasModerationField(field)
+      || request.resource.data.moderation[field] == null
+      || (request.resource.data.moderation[field] is string
+        && request.resource.data.moderation[field].size() >= min
+        && request.resource.data.moderation[field].size() <= max);
+  }
+
+  function validHotPlacePayload() {
+    return allowedKeys()
+      && request.resource.data.title is string
+      && request.resource.data.title.size() >= 3
+      && request.resource.data.title.size() <= 80
+      && optStringSized("subtitle", 1, 160)
+      && request.resource.data.kind in [
+        "city_area",
+        "venue",
+        "event",
+        "room_cluster",
+        "online_pulse"
+      ]
+      && request.resource.data.audience in [
+        "all",
+        "singles",
+        "couples",
+        "verified",
+        "subscribers"
+      ]
+      && validRegion()
+      && validMetrics()
+      && validModeration()
+      && request.resource.data.compatibilitySignals is list
+      && request.resource.data.compatibilitySignals.size() <= 12
+      && optTimestamp("createdAt")
+      && optTimestamp("updatedAt");
+  }
+}
 
 // ===== friendRequests.rules =====
     // =========================================================================
