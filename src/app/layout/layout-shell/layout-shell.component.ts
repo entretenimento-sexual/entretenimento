@@ -103,43 +103,43 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
 
   /**
- * Debug seguro do shell/layout autenticado.
- *
- * Canal:
- * localStorage.setItem('DEBUG_LAYOUT', '1');
- *
- * O LayoutShell pode revelar rota atual, UID, e-mail resumido do usuário
- * e modo visual do app. Por isso, não deve usar console.log direto.
- */
-private canDebug(): boolean {
-  return this.privacyDebug.canLog('layout');
-}
+   * Debug seguro do shell/layout autenticado.
+   *
+   * Canal:
+   * localStorage.setItem('DEBUG_LAYOUT', '1');
+   *
+   * O LayoutShell pode revelar rota atual, UID, e-mail resumido do usuário
+   * e modo visual do app. Por isso, não deve usar console.log direto.
+   */
+  private canDebug(): boolean {
+    return this.privacyDebug.canLog('layout');
+  }
 
-private dbg(message: string, extra?: unknown): void {
-  this.privacyDebug.log('layout', `LayoutShell: ${message}`, extra);
-}
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('layout', `LayoutShell: ${message}`, extra);
+  }
 
-private summarizeVmForDebug(vm: LayoutShellVm): Record<string, unknown> {
-  return {
-    currentUrl: vm.currentUrl,
-    shellMode: vm.shellMode,
-    showSidebar: vm.showSidebar,
-    showFooter: vm.showFooter,
-    isChatLayout: vm.isChatLayout,
-    friendRequestsCount: vm.friendRequestsCount,
-    sidebarShouldOverlay: vm.sidebarShouldOverlay,
-    sidebarShouldCompact: vm.sidebarShouldCompact,
-    sidebarCurrentSection: vm.sidebar.currentSection,
-    sidebarIsMobile: vm.sidebar.isMobile,
-    sidebarIsOpen: vm.sidebar.isOpen,
-    sidebarIsCollapsed: vm.sidebar.isCollapsed,
-    hasSidebarUser: !!vm.sidebarUser,
-    sidebarUserUid: vm.sidebarUser?.uid ?? null,
-    sidebarUserHasEmail: !!vm.sidebarUser?.email,
-    navbarContextActionsTotal: vm.navbarContextActions.length,
-    sidebarQuickActionsTotal: vm.sidebarQuickActions.length,
-  };
-}
+  private summarizeVmForDebug(vm: LayoutShellVm): Record<string, unknown> {
+    return {
+      currentUrl: vm.currentUrl,
+      shellMode: vm.shellMode,
+      showSidebar: vm.showSidebar,
+      showFooter: vm.showFooter,
+      isChatLayout: vm.isChatLayout,
+      friendRequestsCount: vm.friendRequestsCount,
+      sidebarShouldOverlay: vm.sidebarShouldOverlay,
+      sidebarShouldCompact: vm.sidebarShouldCompact,
+      sidebarCurrentSection: vm.sidebar.currentSection,
+      sidebarIsMobile: vm.sidebar.isMobile,
+      sidebarIsOpen: vm.sidebar.isOpen,
+      sidebarIsCollapsed: vm.sidebar.isCollapsed,
+      hasSidebarUser: !!vm.sidebarUser,
+      sidebarUserUid: vm.sidebarUser?.uid ?? null,
+      sidebarUserHasEmail: !!vm.sidebarUser?.email,
+      navbarContextActionsTotal: vm.navbarContextActions.length,
+      sidebarQuickActionsTotal: vm.sidebarQuickActions.length,
+    };
+  }
 
   private readonly shellUid$ = this.authSession.uid$.pipe(
     map((uid) => (uid ?? '').trim() || null),
@@ -178,8 +178,14 @@ private summarizeVmForDebug(vm: LayoutShellVm): Record<string, unknown> {
     this.store.select(selectInboundRequestsCount).pipe(distinctUntilChanged()),
     this.store.select(selectOutboundRequestsCount).pipe(distinctUntilChanged()),
   ]).pipe(
-    map(([sidebar, navVm, sidebarShouldOverlay, 
-          sidebarShouldCompact, inboundRequestsCount, outboundRequestsCount]): LayoutShellVm => {
+    map(([
+      sidebar,
+      navVm,
+      sidebarShouldOverlay,
+      sidebarShouldCompact,
+      inboundRequestsCount,
+      outboundRequestsCount,
+    ]): LayoutShellVm => {
       const currentUrl = sidebar.currentUrl;
       const shellMode = this.resolveShellMode(currentUrl);
       const sidebarUser = this.mapSidebarUser(navVm);
@@ -190,20 +196,22 @@ private summarizeVmForDebug(vm: LayoutShellVm): Record<string, unknown> {
        * - não depende de query string
        */
       const isChatLayout = /^\/chat(\/|$)/.test(this.normalizeUrl(currentUrl));
-      const safeFriendRequestsCount = this.normalizeBadgeCount(inboundRequestsCount + outboundRequestsCount);
+      const safeFriendRequestsCount = this.normalizeBadgeCount(
+        inboundRequestsCount + outboundRequestsCount
+      );
       const sidebarWithBadges = this.applySidebarBadges(
         sidebar,
         safeFriendRequestsCount
       );
 
       const shellContextActions =
-      shellMode === 'auth'
-        ? this.buildShellContextActions(
-            currentUrl,
-            navVm,
-            safeFriendRequestsCount
-          )
-        : [];
+        shellMode === 'auth'
+          ? this.buildShellContextActions(
+              currentUrl,
+              navVm,
+              safeFriendRequestsCount
+            )
+          : [];
 
       return {
         currentUrl,
@@ -241,13 +249,14 @@ private summarizeVmForDebug(vm: LayoutShellVm): Record<string, unknown> {
       (a.sidebarUser?.email ?? null) === (b.sidebarUser?.email ?? null) &&
       (a.sidebarUser?.subtitle ?? null) === (b.sidebarUser?.subtitle ?? null) &&
       (a.sidebarUser?.photoURL ?? null) === (b.sidebarUser?.photoURL ?? null) &&
-      JSON.stringify(a.sidebarUser?.profileRoute ?? null) === JSON.stringify(b.sidebarUser?.profileRoute ?? null)
+      JSON.stringify(a.sidebarUser?.profileRoute ?? null) ===
+        JSON.stringify(b.sidebarUser?.profileRoute ?? null)
     ),
-tap((vm) => {
-  if (!this.canDebug()) return;
+    tap((vm) => {
+      if (!this.canDebug()) return;
 
-  this.dbg('vm$', this.summarizeVmForDebug(vm));
-}),
+      this.dbg('vm$', this.summarizeVmForDebug(vm));
+    }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -291,14 +300,14 @@ tap((vm) => {
         tap((uid) => {
           if (uid) {
             this.store.dispatch(InviteActions.LoadInvites({ userId: uid }));
-this.dbg('invites:start', { uid });
+            this.dbg('invites:start', { uid });
             return;
           }
 
           this.store.dispatch(InviteActions.StopInvites());
           this.chatNotification.resetPendingInvites();
 
-this.dbg('invites:stop');
+          this.dbg('invites:stop');
         }),
         takeUntilDestroyed(this.destroyRef)
       )
@@ -337,64 +346,75 @@ this.dbg('invites:stop');
   }
 
   private normalizeBadgeCount(count: unknown): number {
-  const safeCount = Number(count ?? 0);
+    const safeCount = Number(count ?? 0);
 
-  if (!Number.isFinite(safeCount) || safeCount <= 0) {
-    return 0;
+    if (!Number.isFinite(safeCount) || safeCount <= 0) {
+      return 0;
+    }
+
+    return Math.floor(safeCount);
   }
 
-  return Math.floor(safeCount);
-}
-
-private formatBadgeCount(count: number): string {
-  return count > 99 ? '99+' : String(count);
-}
-
-private applySidebarBadges(
-  sidebar: SidebarVm,
-  friendRequestsCount: number
-): SidebarVm {
-  if (!friendRequestsCount) {
-    return sidebar;
+  private formatBadgeCount(count: number): string {
+    return count > 99 ? '99+' : String(count);
   }
 
-  const badgeText = this.buildFriendRequestsBadgeLabel(friendRequestsCount);
+  private applySidebarBadges(
+    sidebar: SidebarVm,
+    friendRequestsCount: number
+  ): SidebarVm {
+    if (!friendRequestsCount) {
+      return sidebar;
+    }
 
-  return {
-    ...sidebar,
-    sections: sidebar.sections.map((section) => ({
-      ...section,
-      items: section.items.map((item) => {
-        if (item.id !== 'friend-requests') {
-          return item;
-        }
+    const badgeText = this.buildFriendRequestsBadgeLabel(friendRequestsCount);
 
-        return {
-          ...item,
-          badgeCount: friendRequestsCount,
-          badgeLabel: badgeText,
-          ariaLabel: `Consultar solicitações de amizade. ${badgeText}.`,
-        };
-      }),
-    })),
-  };
-}
+    return {
+      ...sidebar,
+      sections: sidebar.sections.map((section) => ({
+        ...section,
+        items: section.items.map((item) => {
+          if (item.id !== 'friend-requests') {
+            return item;
+          }
 
-private buildFriendRequestsBadgeLabel(count: number): string {
-  const safeCount = this.normalizeBadgeCount(count);
-
-  if (safeCount === 1) {
-    return '1 solicitação de amizade pendente';
+          return {
+            ...item,
+            badgeCount: friendRequestsCount,
+            badgeLabel: badgeText,
+            ariaLabel: `Consultar solicitações de amizade. ${badgeText}.`,
+          };
+        }),
+      })),
+    };
   }
 
-  return `${safeCount} solicitações de amizade pendentes`;
-}
+  private buildFriendRequestsBadgeLabel(count: number): string {
+    const safeCount = this.normalizeBadgeCount(count);
 
-private buildShellContextActions(
-  currentUrl: string,
-  navVm: AuthenticatedNavigationVm,
-  friendRequestsCount: number
-): UniversalSidebarQuickAction[] {
+    if (safeCount === 1) {
+      return '1 solicitação de amizade pendente';
+    }
+
+    return `${safeCount} solicitações de amizade pendentes`;
+  }
+
+  /**
+   * Ações rápidas ficam reservadas para pendências reais.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - removidos daqui os atalhos estáticos "Editar preferências" e "Ver planos".
+   *
+   * Motivo:
+   * - esses destinos já existem na navegação principal da sidebar;
+   * - duplicar esses links criava ruído visual e aparência de bug;
+   * - a área superior deve destacar apenas ação contextual ou urgente.
+   */
+  private buildShellContextActions(
+    currentUrl: string,
+    navVm: AuthenticatedNavigationVm,
+    friendRequestsCount: number
+  ): UniversalSidebarQuickAction[] {
     const uid = navVm.uid?.trim() || '';
     const usuario = navVm.usuario as any | null;
     const clean = this.normalizeUrl(currentUrl);
@@ -410,24 +430,24 @@ private buildShellContextActions(
     const needsEmailVerification = usuario.emailVerified !== true;
 
     if (
-  friendRequestsCount > 0 &&
-  !needsProfileCompletion &&
-  !needsEmailVerification &&
-  clean !== '/friends/requests'
-) {
-  const formattedCount = this.formatBadgeCount(friendRequestsCount);
+      friendRequestsCount > 0 &&
+      !needsProfileCompletion &&
+      !needsEmailVerification &&
+      clean !== '/friends/requests'
+    ) {
+      const formattedCount = this.formatBadgeCount(friendRequestsCount);
 
-  actions.push({
-    id: 'friend-requests',
-    label: `Solicitações (${formattedCount})`,
-    route: ['/friends/requests'],
-    icon: '🤝',
-    ariaLabel: `Abrir solicitações de amizade. ${this.buildFriendRequestsBadgeLabel(friendRequestsCount)}.`,
-    variant: 'primary',
-    badgeCount: friendRequestsCount,
-    badgeLabel: `${friendRequestsCount} solicitação de amizade pendente`,
-  });
-}
+      actions.push({
+        id: 'friend-requests',
+        label: `Solicitações (${formattedCount})`,
+        route: ['/friends/requests'],
+        icon: '🤝',
+        ariaLabel: `Abrir solicitações de amizade. ${this.buildFriendRequestsBadgeLabel(friendRequestsCount)}.`,
+        variant: 'primary',
+        badgeCount: friendRequestsCount,
+        badgeLabel: `${friendRequestsCount} solicitação de amizade pendente`,
+      });
+    }
 
     if (needsProfileCompletion && clean !== '/register/finalizar-cadastro') {
       actions.push({
@@ -456,28 +476,6 @@ private buildShellContextActions(
         icon: '✉️',
         ariaLabel: 'Ir para a tela de verificação de e-mail',
         variant: 'secondary',
-      });
-    }
-
-    if (!clean.startsWith('/preferencias/')) {
-      actions.push({
-        id: 'edit-preferences',
-        label: 'Editar preferências',
-        route: ['/preferencias', 'editar', uid],
-        icon: '⚙️',
-        ariaLabel: 'Editar preferências da conta',
-        variant: 'ghost',
-      });
-    }
-
-    if (clean !== '/subscription-plan') {
-      actions.push({
-        id: 'subscription-plan',
-        label: 'Ver planos',
-        route: ['/subscription-plan'],
-        icon: '⭐',
-        ariaLabel: 'Ver planos de assinatura',
-        variant: 'ghost',
       });
     }
 
@@ -532,4 +530,4 @@ private buildShellContextActions(
     }
     return raw;
   }
-} // Linha 501, final do arquivo LayoutShellComponent
+}
