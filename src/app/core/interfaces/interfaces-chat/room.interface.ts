@@ -29,6 +29,11 @@ export interface IRoomPlaceIntent {
   updatedAt?: Timestamp | Date | number | null;
 }
 
+export type IRoomPlaceIntentInput = Omit<
+  IRoomPlaceIntent,
+  'source' | 'createdAt' | 'updatedAt'
+>;
+
 export interface IRoom {
   id: string;
   roomName: string;
