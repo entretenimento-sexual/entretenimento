@@ -1,0 +1,211 @@
+// firestore-rules/venues.rules
+// ============================================================================
+// VENUES / ESTABELECIMENTOS
+// ============================================================================
+// Locais gerenciáveis para Status de Hoje, salas de local e patrocínio futuro.
+//
+// Segurança:
+// - leitura exige login;
+// - leitura comum apenas de locais ativos e visíveis;
+// - escrita inicial apenas por admin;
+// - sem coordenada precisa nesta fase;
+// - chat/sponsorship são configuração moderada, não decisão do cliente comum.
+// ============================================================================
+match /venues/{venueId} {
+  function isVisibleVenue() {
+    return resource.data.moderation.state == "active"
+      && resource.data.visibility in ["public", "members_only"];
+  }
+
+  allow get, list: if signedIn() && isVisibleVenue();
+
+  allow create, update: if isAdmin() && validVenuePayload();
+  allow delete: if isAdmin();
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedVenueKeys() {
+    return request.resource.data.keys().hasOnly([
+      "name",
+      "slug",
+      "kind",
+      "description",
+      "region",
+      "addressHint",
+      "visibility",
+      "moderation",
+      "sponsorship",
+      "chat",
+      "ownerUid",
+      "adminUids",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  function optStringSized(field, min, max) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+        && request.resource.data[field].size() >= min
+        && request.resource.data[field].size() <= max);
+  }
+
+  function validRegion() {
+    return request.resource.data.region is map
+      && request.resource.data.region.keys().hasOnly(["uf", "city", "district"])
+      && request.resource.data.region.uf is string
+      && request.resource.data.region.uf.matches('^[A-Z]{2}$')
+      && request.resource.data.region.city is string
+      && request.resource.data.region.city.size() >= 1
+      && request.resource.data.region.city.size() <= 80
+      && validOptionalRegionString("district", 1, 80);
+  }
+
+  function hasRegionField(field) {
+    return request.resource.data.region.keys().hasAny([field]);
+  }
+
+  function validOptionalRegionString(field, min, max) {
+    return !hasRegionField(field)
+      || request.resource.data.region[field] == null
+      || (request.resource.data.region[field] is string
+        && request.resource.data.region[field].size() >= min
+        && request.resource.data.region[field].size() <= max);
+  }
+
+  function validModeration() {
+    return request.resource.data.moderation is map
+      && request.resource.data.moderation.keys().hasOnly([
+        "state",
+        "reviewedAt",
+        "reviewedBy",
+        "reason"
+      ])
+      && request.resource.data.moderation.state in [
+        "active",
+        "pending_review",
+        "hidden",
+        "rejected"
+      ]
+      && validOptionalModerationTime("reviewedAt")
+      && validOptionalModerationString("reviewedBy", 1, 128)
+      && validOptionalModerationString("reason", 1, 240);
+  }
+
+  function hasModerationField(field) {
+    return request.resource.data.moderation.keys().hasAny([field]);
+  }
+
+  function validOptionalModerationTime(field) {
+    return !hasModerationField(field)
+      || request.resource.data.moderation[field] == null
+      || request.resource.data.moderation[field] is number
+      || request.resource.data.moderation[field] is timestamp;
+  }
+
+  function validOptionalModerationString(field, min, max) {
+    return !hasModerationField(field)
+      || request.resource.data.moderation[field] == null
+      || (request.resource.data.moderation[field] is string
+        && request.resource.data.moderation[field].size() >= min
+        && request.resource.data.moderation[field].size() <= max);
+  }
+
+  function validSponsorship() {
+    return request.resource.data.sponsorship is map
+      && request.resource.data.sponsorship.keys().hasOnly([
+        "state",
+        "priority",
+        "startsAt",
+        "endsAt"
+      ])
+      && request.resource.data.sponsorship.state in [
+        "none",
+        "eligible",
+        "sponsored",
+        "paused"
+      ]
+      && validOptionalSponsorNumber("priority", 0, 100000)
+      && validOptionalSponsorTime("startsAt")
+      && validOptionalSponsorTime("endsAt");
+  }
+
+  function hasSponsorField(field) {
+    return request.resource.data.sponsorship.keys().hasAny([field]);
+  }
+
+  function validOptionalSponsorNumber(field, min, max) {
+    return !hasSponsorField(field)
+      || request.resource.data.sponsorship[field] == null
+      || (request.resource.data.sponsorship[field] is number
+        && request.resource.data.sponsorship[field] >= min
+        && request.resource.data.sponsorship[field] <= max);
+  }
+
+  function validOptionalSponsorTime(field) {
+    return !hasSponsorField(field)
+      || request.resource.data.sponsorship[field] == null
+      || request.resource.data.sponsorship[field] is number
+      || request.resource.data.sponsorship[field] is timestamp;
+  }
+
+  function validChatConfig() {
+    return request.resource.data.chat is map
+      && request.resource.data.chat.keys().hasOnly(["enabled", "mode", "roomId"])
+      && request.resource.data.chat.enabled is bool
+      && request.resource.data.chat.mode in [
+        "public_preview",
+        "frequenters_only",
+        "hybrid"
+      ]
+      && validOptionalChatRoomId();
+  }
+
+  function validOptionalChatRoomId() {
+    return !request.resource.data.chat.keys().hasAny(["roomId"])
+      || request.resource.data.chat.roomId == null
+      || (request.resource.data.chat.roomId is string
+        && request.resource.data.chat.roomId.size() >= 3
+        && request.resource.data.chat.roomId.size() <= 160);
+  }
+
+  function validOwnerFields() {
+    return optStringSized("ownerUid", 1, 128)
+      && (!hasField("adminUids")
+        || request.resource.data.adminUids is list
+        && request.resource.data.adminUids.size() <= 20);
+  }
+
+  function validVenuePayload() {
+    return allowedVenueKeys()
+      && request.resource.data.name is string
+      && request.resource.data.name.size() >= 2
+      && request.resource.data.name.size() <= 80
+      && request.resource.data.slug is string
+      && request.resource.data.slug.matches('^[a-z0-9]+(-[a-z0-9]+)*$')
+      && request.resource.data.slug.size() >= 2
+      && request.resource.data.slug.size() <= 100
+      && request.resource.data.kind in [
+        "bar",
+        "club",
+        "restaurant",
+        "pub",
+        "event_space",
+        "hotel",
+        "other"
+      ]
+      && optStringSized("description", 1, 240)
+      && optStringSized("addressHint", 1, 160)
+      && request.resource.data.visibility in ["public", "members_only", "hidden"]
+      && validRegion()
+      && validModeration()
+      && validSponsorship()
+      && validChatConfig()
+      && validOwnerFields()
+      && optTimestamp("createdAt")
+      && optTimestamp("updatedAt");
+  }
+}
