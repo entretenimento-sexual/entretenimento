@@ -6,11 +6,13 @@
 // Responsabilidade:
 // - renderizar a área "Minhas salas";
 // - observar salas em tempo real por participação;
-// - iniciar o fluxo seguro de criação privada.
+// - iniciar o fluxo seguro de criação privada;
+// - iniciar o fluxo seguro de encerramento da sala própria.
 //
 // Segurança:
 // - a UI oferece orientação, loading e bloqueio visual de limite;
 // - a autoridade da criação permanece na callable createPrivateRoom;
+// - a autoridade de encerramento permanece na callable closePrivateRoom;
 // - não são expostas ações de convite ou mensagens até a migração segura
 //   desses fluxos para Functions;
 // - local da room é UX premium, mas a autorização real permanece no backend.
@@ -76,6 +78,7 @@ import {
 
 type RoomCardViewModel = RoomListItem & {
   isOwner: boolean;
+  canClose: boolean;
 };
 
 interface ChatRoomsViewModel {
@@ -100,6 +103,7 @@ export class ChatRoomsComponent implements OnInit {
 
   currentUser: IUserDados | null = null;
   creatingRoom = false;
+  closingRoomId: string | null = null;
 
   private latestVm: ChatRoomsViewModel = {
     uid: null,
@@ -316,6 +320,44 @@ export class ChatRoomsComponent implements OnInit {
       .subscribe();
   }
 
+  closeRoom(room: RoomCardViewModel): void {
+    if (!room.canClose || this.closingRoomId) {
+      return;
+    }
+
+    const roomId = String(room.id ?? '').trim();
+
+    if (!roomId) {
+      this.errorNotifier.showWarning('Sala inválida para encerramento.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Encerrar esta sala? A conversa ficará indisponível para novas ações e você poderá criar outra sala depois.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.closingRoomId = roomId;
+
+    this.roomManagement.closeRoom(roomId).pipe(
+      tap(() => {
+        this.errorNotifier.showSuccess('Sala encerrada com segurança.');
+      }),
+      finalize(() => {
+        this.closingRoomId = null;
+      }),
+      catchError(() => of(null)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
+  }
+
+  isClosingRoom(roomId: string): boolean {
+    return this.closingRoomId === roomId;
+  }
+
   /**
    * Abre a confirmação respeitando o contrato canônico do modal.
    */
@@ -363,6 +405,11 @@ export class ChatRoomsComponent implements OnInit {
     const roomCards: RoomCardViewModel[] = (rooms ?? []).map((room) => ({
       ...room,
       isOwner: !!uid && room.createdBy === uid,
+      canClose:
+        !!uid &&
+        room.createdBy === uid &&
+        room.status !== 'closed' &&
+        room.status !== 'archived',
     }));
 
     const ownedActiveRoomCount = roomCards.filter(
