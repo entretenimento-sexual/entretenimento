@@ -39,13 +39,14 @@ const parts = [
   'venues.rules',
   'regional_hot_places.rules',
 
-  // Relações e comunicação.
+  // Relações, comunicação e notificações.
   'friendRequests.rules',
   'friends_root.rules',
   'chats.rules',
   'rooms.rules',
   'rooms_participants.rules',
   'public_index.rules',
+  'notifications.rules',
 
   // Dados privados/públicos complementares de perfil.
   'users_profile_socialLinks.rules',
@@ -102,7 +103,7 @@ function build() {
   if (opens !== closes) {
     throw new Error(
       `[rules] Unbalanced braces: opens=${opens}, closes=${closes}. ` +
-        'Check fragments/_footer.'
+      'Check fragments/_footer.'
     );
   }
 
