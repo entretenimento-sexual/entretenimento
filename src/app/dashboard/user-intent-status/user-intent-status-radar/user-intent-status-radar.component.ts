@@ -5,11 +5,12 @@
 // Lista status temporários ativos na região do usuário.
 //
 // Objetivo:
-// - fechar o fluxo mínimo publicar -> descobrir;
+// - fechar o fluxo mínimo publicar -> descobrir -> interagir;
 // - exibir cards leves, parecidos com status/stories;
 // - manter leitura regional e sem localização precisa;
 // - preservar reatividade com async pipe;
-// - evitar duplicar o próprio status no radar de descoberta.
+// - evitar duplicar o próprio status no radar de descoberta;
+// - direcionar interação para rotas/Cloud Functions já existentes.
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
@@ -20,6 +21,7 @@ import {
   SimpleChanges,
   inject,
 } from '@angular/core';
+import { RouterModule } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { map, shareReplay, startWith } from 'rxjs/operators';
 
@@ -35,7 +37,7 @@ interface UserIntentStatusRadarVm {
 @Component({
   selector: 'app-user-intent-status-radar',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterModule],
   templateUrl: './user-intent-status-radar.component.html',
   styleUrls: ['./user-intent-status-radar.component.css'],
 })
