@@ -14,11 +14,13 @@
 //
 // Observação:
 // - a UI consulta com where('moderation.visibility', '==', 'visible');
-// - a geração de score deve vir de backend/admin, não do cliente comum.
+// - a geração de score deve vir de backend/admin, não do cliente comum;
+// - documentos antigos ou incompletos não devem quebrar a avaliação da rule.
 // ============================================================================
 match /regional_hot_places/{placeId} {
   function isVisibleHotPlace() {
-    return resource.data.moderation.visibility == "visible";
+    return resource.data.moderation is map
+      && resource.data.moderation.visibility == "visible";
   }
 
   allow get, list: if signedIn() && isVisibleHotPlace();
@@ -138,92 +140,33 @@ match /regional_hot_places/{placeId} {
         && request.resource.data.moderation[field].size() <= max);
   }
 
+  function validCompatibilitySignals() {
+    return !hasField("compatibilitySignals")
+      || request.resource.data.compatibilitySignals == null
+      || request.resource.data.compatibilitySignals is map;
+  }
+
   function validAffinityMix() {
     return !hasField("affinityMix")
       || request.resource.data.affinityMix == null
       || (
-        request.resource.data.affinityMix is map
-        && request.resource.data.affinityMix.keys().hasOnly([
-          "sampleFloor",
-          "primarySegments",
-          "secondarySegments",
-          "confidence",
-          "generatedAt"
-        ])
-        && request.resource.data.affinityMix.sampleFloor is number
-        && request.resource.data.affinityMix.sampleFloor >= 5
-        && request.resource.data.affinityMix.sampleFloor <= 1000000
-        && request.resource.data.affinityMix.primarySegments is list
-        && request.resource.data.affinityMix.primarySegments.size() >= 1
-        && request.resource.data.affinityMix.primarySegments.size() <= 6
-        && validAffinitySegmentList(request.resource.data.affinityMix.primarySegments)
-        && validOptionalAffinitySegments()
-        && request.resource.data.affinityMix.confidence in ["low", "medium", "high"]
-        && validOptionalAffinityTime("generatedAt")
+        request.resource.data.affinityMix is list
+        && request.resource.data.affinityMix.size() <= 12
       );
-  }
-
-  function validAffinitySegmentList(items) {
-    return items.hasOnly([
-      "h_m",
-      "m_h",
-      "h_h",
-      "m_m",
-      "casais",
-      "casais_solos",
-      "misto",
-      "aberto"
-    ]);
-  }
-
-  function hasAffinityField(field) {
-    return request.resource.data.affinityMix.keys().hasAny([field]);
-  }
-
-  function validOptionalAffinitySegments() {
-    return !hasAffinityField("secondarySegments")
-      || request.resource.data.affinityMix.secondarySegments == null
-      || (
-        request.resource.data.affinityMix.secondarySegments is list
-        && request.resource.data.affinityMix.secondarySegments.size() <= 6
-        && validAffinitySegmentList(request.resource.data.affinityMix.secondarySegments)
-      );
-  }
-
-  function validOptionalAffinityTime(field) {
-    return !hasAffinityField(field)
-      || request.resource.data.affinityMix[field] == null
-      || request.resource.data.affinityMix[field] is number
-      || request.resource.data.affinityMix[field] is timestamp;
   }
 
   function validHotPlacePayload() {
     return allowedKeys()
       && request.resource.data.title is string
-      && request.resource.data.title.size() >= 3
+      && request.resource.data.title.size() >= 2
       && request.resource.data.title.size() <= 80
-      && optStringSized("subtitle", 1, 160)
-      && request.resource.data.kind in [
-        "city_area",
-        "venue",
-        "event",
-        "room_cluster",
-        "online_pulse"
-      ]
-      && request.resource.data.audience in [
-        "all",
-        "singles",
-        "couples",
-        "verified",
-        "subscribers"
-      ]
+      && optStringSized("subtitle", 0, 160)
+      && request.resource.data.kind in ["venue", "region", "route", "event", "mixed"]
+      && request.resource.data.audience in ["mixed", "men", "women", "couples", "lgbtqia"]
       && validRegion()
       && validMetrics()
       && validModeration()
-      && validAffinityMix()
-      && request.resource.data.compatibilitySignals is list
-      && request.resource.data.compatibilitySignals.size() <= 12
-      && optTimestamp("createdAt")
-      && optTimestamp("updatedAt");
+      && validCompatibilitySignals()
+      && validAffinityMix();
   }
 }
