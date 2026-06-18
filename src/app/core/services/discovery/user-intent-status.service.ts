@@ -23,6 +23,7 @@ import {
   collection,
   collectionData,
   doc,
+  docData,
   limit as firestoreLimit,
   orderBy,
   query,
@@ -76,6 +77,35 @@ export class UserIntentStatusService {
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly regionFilter = inject(RegionFilterService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+
+  watchCurrentStatus$(uid: string): Observable<IUserIntentStatusCardVm | null> {
+    const safeUid = String(uid ?? '').trim();
+
+    if (!safeUid) {
+      return of(null);
+    }
+
+    return this.firestoreContext.deferObservable$(() => {
+      const statusRef = doc(
+        this.firestore,
+        'user_intent_statuses',
+        `current_${safeUid}`
+      );
+
+      return docData(statusRef, { idField: 'id' }) as Observable<
+        UserIntentStatusFirestoreDocument | undefined
+      >;
+    }).pipe(
+      map((status) => status ? this.toStatusCardVm(status) : null),
+      catchError((error) =>
+        this.handleSingleReadError(
+          error,
+          'watchCurrentStatus',
+          { uid: safeUid }
+        )
+      )
+    );
+  }
 
   watchActiveStatusesForUserRegion$(
     uid: string,
@@ -491,6 +521,15 @@ export class UserIntentStatusService {
     }
 
     return `Expira em ${remainingHours}h`;
+  }
+
+  private handleSingleReadError(
+    error: unknown,
+    operation: string,
+    context: Record<string, unknown>
+  ): Observable<null> {
+    this.handleWriteError(error, operation, context);
+    return of(null);
   }
 
   private handleReadError<T>(
