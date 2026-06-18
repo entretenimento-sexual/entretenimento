@@ -12,6 +12,7 @@
 // - mantém paginação de amigos por UID
 // - preserva filtros/toolbar existentes
 // - adiciona composer do Status de Hoje
+// - adiciona radar regional do Status de Hoje
 // - adiciona widget regional de Locais bombando
 // -----------------------------------------------------------------------------
 import { Component, OnInit, signal, inject } from '@angular/core';
@@ -59,6 +60,7 @@ import { PAGE_SIZES } from 'src/app/shared/pagination/page.constants';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { HotPlacesWidgetComponent } from '../hot-places/hot-places-widget/hot-places-widget.component';
 import { UserIntentStatusComposerComponent } from '../user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
+import { UserIntentStatusRadarComponent } from '../user-intent-status/user-intent-status-radar/user-intent-status-radar.component';
 
 @Component({
   selector: 'app-principal',
@@ -74,6 +76,7 @@ import { UserIntentStatusComposerComponent } from '../user-intent-status/user-in
     MatSelectModule,
     HotPlacesWidgetComponent,
     UserIntentStatusComposerComponent,
+    UserIntentStatusRadarComponent,
 
   ],
 })
