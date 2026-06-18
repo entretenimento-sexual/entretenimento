@@ -3,7 +3,7 @@
 // SEED DEV/EMULATOR - REGIONAL HOT PLACES
 // -----------------------------------------------------------------------------
 // Uso seguro:
-// - destinado ao Firebase Emulator;
+// - destinado ao Firebase Emulator do app;
 // - exige FIRESTORE_EMULATOR_HOST para evitar escrita acidental em produção;
 // - usa set(..., { merge: true }) para NÃO apagar dados manuais já criados;
 // - popula apenas documentos fictícios e moderados em regional_hot_places;
@@ -13,13 +13,13 @@
 //   npm run seed:hot-places:emu
 //
 // Pré-requisito:
-//   emulador Firestore rodando.
+//   emulador Firestore rodando com o mesmo projectId usado pelo app.
 // -----------------------------------------------------------------------------
 
 import { initializeApp, applicationDefault } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 
-const DEFAULT_PROJECT_ID = 'demo-entretenimento-rules';
+const DEFAULT_PROJECT_ID = 'entretenimento-sexual';
 const projectId = process.env.FIREBASE_PROJECT_ID || DEFAULT_PROJECT_ID;
 const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST;
 
