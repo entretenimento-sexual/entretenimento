@@ -9,13 +9,8 @@
 // - o cálculo de score deve ficar fora do componente visual;
 // - os documentos não devem conter UIDs, participantes ou coordenadas precisas;
 // - a exibição é regional e respeita visibilidade/moderação;
+// - sinais de afinidade aparecem somente como códigos agregados;
 // - a camada é reativa e cacheável por shareReplay no consumidor.
-//
-// Integração futura:
-// - Dashboard / Descobrir: exibir cards regionais;
-// - Rooms: transformar `room_cluster` em entrada para salas ativas;
-// - Compatibilidade: usar compatibilitySignals e filtros por perfil atual;
-// - Cloud Functions: alimentar a projeção com score agregado e anonimizado.
 
 import { Injectable, inject } from '@angular/core';
 import {
@@ -32,11 +27,13 @@ import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
 import {
+  HotPlaceAffinitySegment,
   HotPlaceAudience,
   HotPlaceCompatibilitySignal,
   HotPlaceKind,
   HotPlaceVisibility,
   IHotPlace,
+  IHotPlaceAffinityMix,
   IHotPlaceCardVm,
   IHotPlaceQueryOptions,
   IHotPlaceRegion,
@@ -51,6 +48,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 const DEFAULT_LIMIT = 12;
 const DEFAULT_MINIMUM_SCORE = 1;
 const MAX_LIMIT = 30;
+const MIN_AFFINITY_SAMPLE_FLOOR = 5;
 
 interface HotPlaceFirestoreDocument {
   id?: unknown;
@@ -62,6 +60,7 @@ interface HotPlaceFirestoreDocument {
   metrics?: unknown;
   moderation?: unknown;
   compatibilitySignals?: unknown;
+  affinityMix?: unknown;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -73,12 +72,6 @@ export class HotPlacesService {
   private readonly regionFilter = inject(RegionFilterService);
   private readonly globalError = inject(GlobalErrorHandlerService);
 
-  /**
-   * Observa locais bombando na região do usuário.
-   *
-   * Retorna vazio quando o usuário não tem região válida, evitando fallback amplo
-   * que poderia expor conteúdo fora de contexto regional.
-   */
   watchHotPlacesForUserRegion$(
     uid: string,
     options: IHotPlaceQueryOptions = {}
@@ -101,9 +94,6 @@ export class HotPlacesService {
     );
   }
 
-  /**
-   * Observa locais bombando por região explícita.
-   */
   watchHotPlacesForRegion$(
     region: UserRegion | IHotPlaceRegion | null,
     options: IHotPlaceQueryOptions = {}
@@ -148,10 +138,7 @@ export class HotPlacesService {
         this.handleReadError<IHotPlaceCardVm>(
           error,
           'watchHotPlacesForRegion',
-          {
-            region: normalizedRegion,
-            options,
-          }
+          { region: normalizedRegion, options }
         )
       )
     );
@@ -165,6 +152,7 @@ export class HotPlacesService {
     const region = this.normalizeRegion(raw.region as IHotPlaceRegion | null);
     const metrics = this.normalizeMetrics(raw.metrics);
     const moderation = this.normalizeModeration(raw.moderation);
+    const affinityMix = this.normalizeAffinityMix(raw.affinityMix);
 
     if (!id || !title || !region || !metrics || moderation.visibility !== 'visible') {
       return null;
@@ -182,15 +170,22 @@ export class HotPlacesService {
       compatibilitySignals: this.normalizeCompatibilitySignals(
         raw.compatibilitySignals
       ),
+      affinityMix,
       createdAt: this.toMillis(raw.createdAt),
       updatedAt: this.toMillis(raw.updatedAt),
     };
+
+    const affinitySegmentLabels = this.formatAffinitySegments(affinityMix);
 
     return {
       ...item,
       scoreLabel: this.formatScore(item.metrics.score),
       activityLabel: this.formatActivity(item.metrics.activeNowCount),
       regionLabel: `${item.region.city}, ${item.region.uf}`,
+      affinitySummaryLabel: affinitySegmentLabels.length > 0
+        ? `Afinidade: ${affinitySegmentLabels.slice(0, 2).join(' / ')}`
+        : null,
+      affinitySegmentLabels,
       isVisible: item.moderation.visibility === 'visible',
     };
   }
@@ -237,6 +232,30 @@ export class HotPlacesService {
     };
   }
 
+  private normalizeAffinityMix(raw: unknown): IHotPlaceAffinityMix | null {
+    const source = raw as Partial<IHotPlaceAffinityMix> | null | undefined;
+    const sampleFloor = this.toNullableNumber(source?.sampleFloor) ?? 0;
+
+    if (!source || sampleFloor < MIN_AFFINITY_SAMPLE_FLOOR) {
+      return null;
+    }
+
+    const primarySegments = this.normalizeAffinitySegments(source.primarySegments);
+    const secondarySegments = this.normalizeAffinitySegments(source.secondarySegments);
+
+    if (primarySegments.length === 0) {
+      return null;
+    }
+
+    return {
+      sampleFloor,
+      primarySegments,
+      secondarySegments,
+      confidence: this.normalizeAffinityConfidence(source.confidence),
+      generatedAt: this.toMillis(source.generatedAt),
+    };
+  }
+
   private normalizeVisibility(value: unknown): HotPlaceVisibility {
     if (value === 'visible' || value === 'hidden' || value === 'moderation_hold') {
       return value;
@@ -271,6 +290,43 @@ export class HotPlacesService {
     }
 
     return 'all';
+  }
+
+  private normalizeAffinityConfidence(value: unknown): IHotPlaceAffinityMix['confidence'] {
+    if (value === 'low' || value === 'medium' || value === 'high') {
+      return value;
+    }
+
+    return 'low';
+  }
+
+  private normalizeAffinitySegments(value: unknown): HotPlaceAffinitySegment[] {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    const allowed = new Set<HotPlaceAffinitySegment>([
+      'h_m',
+      'm_h',
+      'h_h',
+      'm_m',
+      'casais',
+      'casais_solos',
+      'misto',
+      'lgbtq',
+      'bi',
+      'aberto',
+    ]);
+
+    return value
+      .filter((segment): segment is HotPlaceAffinitySegment => {
+        if (typeof segment !== 'string') {
+          return false;
+        }
+
+        return allowed.has(segment as HotPlaceAffinitySegment);
+      })
+      .slice(0, 6);
   }
 
   private normalizeCompatibilitySignals(
@@ -359,6 +415,19 @@ export class HotPlacesService {
     }
 
     return `${activeNowCount} pessoas ativas agora`;
+  }
+
+  private formatAffinitySegments(
+    mix: IHotPlaceAffinityMix | null
+  ): string[] {
+    if (!mix) {
+      return [];
+    }
+
+    return [...mix.primarySegments, ...(mix.secondarySegments ?? [])]
+      .map((segment) => segment.toUpperCase().replace('_', '-'))
+      .filter((label, index, labels) => !!label && labels.indexOf(label) === index)
+      .slice(0, 4);
   }
 
   private handleReadError<T>(
