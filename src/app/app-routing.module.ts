@@ -245,6 +245,7 @@ const routes: Routes = [
         path: 'conta',
         loadChildren: () =>
           import('./account/account.routes').then((m) => m.ACCOUNT_ROUTES),
+        canActivate: [authGuard],
       },
 
       {
