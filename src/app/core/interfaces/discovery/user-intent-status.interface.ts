@@ -80,6 +80,16 @@ export interface IUserIntentStatus {
   updatedAt?: number | null;
 }
 
+export interface IUserIntentStatusPublishInput {
+  uid: string;
+  profile: IUserIntentStatusPublicProfile;
+  availability: UserIntentAvailability;
+  visibility: UserIntentVisibility;
+  destination: IUserIntentStatusDestination;
+  startsAt?: number | null;
+  durationHours?: number | null;
+}
+
 export interface IUserIntentStatusCardVm extends IUserIntentStatus {
   destinationLabel: string;
   availabilityLabel: string;
