@@ -12,7 +12,8 @@
 // - a UI oferece orientação, loading e bloqueio visual de limite;
 // - a autoridade da criação permanece na callable createPrivateRoom;
 // - não são expostas ações de convite ou mensagens até a migração segura
-//   desses fluxos para Functions.
+//   desses fluxos para Functions;
+// - local da room é UX premium, mas a autorização real permanece no backend.
 //
 // Reatividade:
 // - a view consome roomsVm$ pelo async pipe;
@@ -48,7 +49,7 @@ import {
 } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { IUserDados, UserTierRole } from 'src/app/core/interfaces/iuser-dados';
 import {
   IRoom,
   RoomCreationConfirmation,
@@ -258,6 +259,11 @@ export class ChatRoomsComponent implements OnInit {
             maxWidth: '92vw',
             data: {
               isEditing: false,
+              canUsePlaceIntent: this.canUsePlaceIntent(profileSnapshot),
+              defaultRegion: {
+                uf: profileSnapshot.estado ?? null,
+                city: profileSnapshot.municipio ?? null,
+              },
             },
           });
 
@@ -374,6 +380,12 @@ export class ChatRoomsComponent implements OnInit {
       hasOwnedActiveRoom: ownedActiveRoomCount > 0,
       ownedActiveRoomCount,
     };
+  }
+
+  private canUsePlaceIntent(user: IUserDados): boolean {
+    const role = String(user.tier ?? user.role ?? '') as UserTierRole;
+
+    return role === 'premium' || role === 'vip' || role === 'admin';
   }
 
   /**
