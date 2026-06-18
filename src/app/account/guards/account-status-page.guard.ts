@@ -6,35 +6,10 @@ import { filter, map, take } from 'rxjs/operators';
 
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '@core/services/autentication/auth/current-user-store.service';
-
-type LifecycleAccountStatus =
-  | 'active'
-  | 'self_suspended'
-  | 'moderation_suspended'
-  | 'pending_deletion'
-  | 'deleted';
-
-function normalizeAccountStatus(user: any): LifecycleAccountStatus | 'unresolved' {
-  if (user === undefined) return 'unresolved';
-
-  const raw = String(user?.accountStatus ?? '')
-    .trim()
-    .toLowerCase();
-
-  if (raw === 'active') return 'active';
-  if (raw === 'self_suspended') return 'self_suspended';
-  if (raw === 'moderation_suspended') return 'moderation_suspended';
-  if (raw === 'pending_deletion') return 'pending_deletion';
-  if (raw === 'deleted') return 'deleted';
-
-  if (user?.suspended === true) {
-    return user?.suspensionSource === 'self'
-      ? 'self_suspended'
-      : 'moderation_suspended';
-  }
-
-  return 'active';
-}
+import {
+  isRestrictedAccountStatus,
+  normalizeAccountStatus,
+} from './account-lifecycle-status.util';
 
 /**
  * Guard da rota /conta/status
@@ -65,12 +40,7 @@ export const accountStatusPageGuard: CanActivateFn = (): Observable<boolean | Ur
 
       const status = normalizeAccountStatus(appUser);
 
-      if (
-        status === 'self_suspended' ||
-        status === 'moderation_suspended' ||
-        status === 'pending_deletion' ||
-        status === 'deleted'
-      ) {
+      if (isRestrictedAccountStatus(status)) {
         return true;
       }
 
