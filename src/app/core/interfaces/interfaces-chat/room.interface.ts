@@ -2,6 +2,33 @@
 import { Timestamp } from 'firebase/firestore';
 import { Message } from './message.interface';
 
+export type RoomPlaceIntentMode = 'now' | 'scheduled';
+export type RoomPlaceIntentVisibility = 'room_members' | 'regional_teaser';
+
+/**
+ * Intenção operacional de local da sala.
+ *
+ * Regras de privacidade:
+ * - não armazena coordenada precisa;
+ * - não armazena lista de usuários presentes;
+ * - serve para rooms, sugestões e projeções agregadas regionais;
+ * - a autorização final para preencher esse bloco é validada no backend.
+ */
+export interface IRoomPlaceIntent {
+  mode: RoomPlaceIntentMode;
+  visibility: RoomPlaceIntentVisibility;
+  region: {
+    uf: string;
+    city: string;
+  };
+  label: string;
+  startsAt: number;
+  endsAt?: number | null;
+  source: 'owner_declared';
+  createdAt?: Timestamp | Date | number | null;
+  updatedAt?: Timestamp | Date | number | null;
+}
+
 export interface IRoom {
   id: string;
   roomName: string;
@@ -15,6 +42,7 @@ export interface IRoom {
   roomType?: 'public' | 'private' | 'event';
   lastActivity?: Timestamp | Date;
   visibility?: 'public' | 'restricted' | 'hidden';
+  placeIntent?: IRoomPlaceIntent | null;
 
   // Para o sort no ChatList:
   lastMessage?: Message;
