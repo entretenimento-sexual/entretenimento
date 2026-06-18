@@ -6,15 +6,14 @@
 //
 // Segurança:
 // - leitura pública do app exige login e status ativo/visível;
-// - escrita comum é limitada ao próprio uid;
-// - expiração máxima: 12 horas;
-// - sem coordenadas precisas;
-// - sem endereço privado;
-// - snapshots públicos são mínimos.
+// - o usuário pode ler o próprio status atual;
+// - escrita comum direta é bloqueada;
+// - publicação/ocultação devem passar pelas Cloud Functions;
+// - expiração máxima e snapshots públicos são definidos pelo backend.
 // ============================================================================
 match /user_intent_statuses/{statusId} {
-  function statusMaxLifetimeMs() {
-    return 12 * 60 * 60 * 1000;
+  function isOwnerStatus() {
+    return signedIn() && resource.data.uid == uid();
   }
 
   function isVisibleStatus() {
@@ -23,177 +22,8 @@ match /user_intent_statuses/{statusId} {
       && resource.data.expiresAt > request.time.toMillis();
   }
 
-  allow get, list: if signedIn() && isVisibleStatus();
+  allow get: if signedIn() && (isVisibleStatus() || isOwnerStatus());
+  allow list: if signedIn() && isVisibleStatus();
 
-  allow create: if signedIn()
-    && request.resource.data.uid == uid()
-    && validUserIntentStatusCreate();
-
-  allow update: if signedIn()
-    && resource.data.uid == uid()
-    && request.resource.data.uid == resource.data.uid
-    && validUserIntentStatusUpdate();
-
-  allow delete: if signedIn() && resource.data.uid == uid();
-
-  function allowedKeys() {
-    return request.resource.data.keys().hasOnly([
-      "uid",
-      "profile",
-      "availability",
-      "visibility",
-      "destination",
-      "moderation",
-      "startsAt",
-      "expiresAt",
-      "createdAt",
-      "updatedAt"
-    ]);
-  }
-
-  function validUserIntentStatusCreate() {
-    return allowedKeys()
-      && validProfile()
-      && validAvailability()
-      && validVisibility()
-      && validDestination()
-      && validOwnerModerationCreate()
-      && validTimeWindow()
-      && optTimestamp("createdAt")
-      && optTimestamp("updatedAt");
-  }
-
-  function validUserIntentStatusUpdate() {
-    return allowedKeys()
-      && validProfile()
-      && validAvailability()
-      && validVisibility()
-      && validDestination()
-      && validOwnerModerationUpdate()
-      && validTimeWindow()
-      && optTimestamp("createdAt")
-      && optTimestamp("updatedAt");
-  }
-
-  function validProfile() {
-    return request.resource.data.profile is map
-      && request.resource.data.profile.keys().hasOnly([
-        "uid",
-        "nickname",
-        "photoURL",
-        "age"
-      ])
-      && request.resource.data.profile.uid == uid()
-      && request.resource.data.profile.nickname is string
-      && request.resource.data.profile.nickname.size() >= 2
-      && request.resource.data.profile.nickname.size() <= 40
-      && validOptionalProfilePhoto()
-      && validOptionalProfileAge();
-  }
-
-  function validOptionalProfilePhoto() {
-    return !request.resource.data.profile.keys().hasAny(["photoURL"])
-      || request.resource.data.profile.photoURL == null
-      || (request.resource.data.profile.photoURL is string
-        && request.resource.data.profile.photoURL.size() <= 600);
-  }
-
-  function validOptionalProfileAge() {
-    return !request.resource.data.profile.keys().hasAny(["age"])
-      || request.resource.data.profile.age == null
-      || (request.resource.data.profile.age is number
-        && request.resource.data.profile.age >= 18
-        && request.resource.data.profile.age <= 120);
-  }
-
-  function validAvailability() {
-    return request.resource.data.availability in [
-      "available_now",
-      "available_today",
-      "planning_later"
-    ];
-  }
-
-  function validVisibility() {
-    return request.resource.data.visibility in [
-      "public_discovery",
-      "members_only",
-      "friends_only"
-    ];
-  }
-
-  function validDestination() {
-    return request.resource.data.destination is map
-      && request.resource.data.destination.keys().hasOnly([
-        "kind",
-        "label",
-        "venueId",
-        "region"
-      ])
-      && request.resource.data.destination.kind in [
-        "region",
-        "venue",
-        "event",
-        "undecided"
-      ]
-      && request.resource.data.destination.label is string
-      && request.resource.data.destination.label.size() >= 2
-      && request.resource.data.destination.label.size() <= 80
-      && validOptionalVenueId()
-      && validRegion();
-  }
-
-  function validOptionalVenueId() {
-    return !request.resource.data.destination.keys().hasAny(["venueId"])
-      || request.resource.data.destination.venueId == null
-      || (request.resource.data.destination.venueId is string
-        && request.resource.data.destination.venueId.size() >= 3
-        && request.resource.data.destination.venueId.size() <= 120);
-  }
-
-  function validRegion() {
-    return request.resource.data.destination.region is map
-      && request.resource.data.destination.region.keys().hasOnly(["uf", "city"])
-      && request.resource.data.destination.region.uf is string
-      && request.resource.data.destination.region.uf.matches('^[A-Z]{2}$')
-      && request.resource.data.destination.region.city is string
-      && request.resource.data.destination.region.city.size() >= 1
-      && request.resource.data.destination.region.city.size() <= 80;
-  }
-
-  function validOwnerModerationCreate() {
-    return request.resource.data.moderation is map
-      && request.resource.data.moderation.keys().hasOnly([
-        "state",
-        "reviewedAt",
-        "reviewedBy",
-        "reason"
-      ])
-      && request.resource.data.moderation.state == "active"
-      && request.resource.data.moderation.reviewedAt == null
-      && request.resource.data.moderation.reviewedBy == null
-      && request.resource.data.moderation.reason == null;
-  }
-
-  function validOwnerModerationUpdate() {
-    return request.resource.data.moderation is map
-      && request.resource.data.moderation.keys().hasOnly([
-        "state",
-        "reviewedAt",
-        "reviewedBy",
-        "reason"
-      ])
-      && request.resource.data.moderation.state in ["active", "hidden"]
-      && request.resource.data.moderation.reviewedAt == resource.data.moderation.reviewedAt
-      && request.resource.data.moderation.reviewedBy == resource.data.moderation.reviewedBy
-      && request.resource.data.moderation.reason == resource.data.moderation.reason;
-  }
-
-  function validTimeWindow() {
-    return request.resource.data.startsAt is number
-      && request.resource.data.expiresAt is number
-      && request.resource.data.startsAt <= request.resource.data.expiresAt
-      && request.resource.data.startsAt >= request.time.toMillis() - (10 * 60 * 1000)
-      && request.resource.data.expiresAt <= request.resource.data.startsAt + statusMaxLifetimeMs();
-  }
+  allow create, update, delete: if false;
 }
