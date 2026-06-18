@@ -6,9 +6,10 @@
    Ele não possui card próprio: usa UserCardComponent.
 
    Objetivos:
-   - centralizar os cards no mesmo eixo da barra de descoberta;
-   - manter dois cards confortáveis em telas médias;
-   - cair para um card em mobile;
+   - evitar cards soltos no centro com espaço morto lateral;
+   - preencher melhor a área útil de Descobrir;
+   - manter largura previsível dos cards no desktop;
+   - preservar queda para scroll/uma coluna em mobile;
    - preservar estados de loading, vazio e erro.
 ----------------------------------------------------------------------------- */
 
@@ -28,11 +29,11 @@
   min-width: 0;
 
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(252px, 252px));
-  justify-content: center;
+  grid-template-columns: repeat(auto-fill, minmax(236px, 248px));
+  justify-content: start;
   align-items: start;
 
-  gap: clamp(1rem, 2vw, 1.35rem);
+  gap: clamp(0.95rem, 1.7vw, 1.25rem);
 
   padding-top: 0.25rem;
   padding-inline: 0;
@@ -50,7 +51,7 @@
 
 .public-profiles__state {
   width: min(100%, 560px);
-  margin-inline: auto;
+  margin-inline: 0 auto;
 
   display: flex;
   align-items: center;
@@ -131,27 +132,23 @@ html.high-contrast .public-profiles__state--error {
    Responsividade
    -------------------------------------------------------------------------- */
 
-/* Em larguras médias, mantém dois cards bem alinhados */
-@media (min-width: 768px) and (max-width: 1100px) {
+@media (min-width: 1320px) {
   .public-profiles__grid {
-    grid-template-columns: repeat(auto-fit, minmax(246px, 246px));
-    gap: 1.1rem;
+    grid-template-columns: repeat(auto-fill, minmax(244px, 252px));
   }
 }
 
-/* Tablet/mobile: permite card mais fluido */
-@media (max-width: 767.98px) {
+@media (max-width: 900px) {
   .public-profiles__grid {
-    grid-template-columns: repeat(auto-fit, minmax(232px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(224px, 1fr));
+    justify-content: stretch;
     gap: 0.95rem;
   }
 }
 
-/* Mobile estreito: um card por linha */
 @media (max-width: 560px) {
   .public-profiles__grid {
     grid-template-columns: minmax(0, 1fr);
-    justify-content: stretch;
   }
 
   .public-profiles__state {
