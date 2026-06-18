@@ -66,7 +66,7 @@
 .intent-radar__rail {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(210px, 72%);
+  grid-auto-columns: minmax(230px, 76%);
   gap: 12px;
   margin-inline: -4px;
   padding: 2px 4px 6px;
@@ -147,6 +147,52 @@
   gap: 8px;
 }
 
+.intent-status-card__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+
+.intent-status-card__action {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.62rem 0.75rem;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 999px;
+  text-align: center;
+  text-decoration: none;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.82rem;
+  font-weight: 900;
+  line-height: 1.1;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.intent-status-card__action:hover,
+.intent-status-card__action:focus-visible {
+  background: var(--header-hover-bg, rgba(255, 255, 255, 0.08));
+  outline: none;
+}
+
+.intent-status-card__action:active {
+  transform: scale(0.98);
+}
+
+.intent-status-card__action--primary {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 42%, transparent);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent);
+}
+
+.intent-status-card__action--secondary {
+  background: transparent;
+}
+
 @media (min-width: 860px) {
   .intent-radar__rail {
     grid-auto-flow: initial;
@@ -162,5 +208,21 @@
   .intent-radar.app-card {
     border-radius: 16px;
     box-shadow: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .intent-radar__rail {
+    grid-auto-columns: minmax(220px, 88%);
+  }
+
+  .intent-status-card__actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intent-status-card__action {
+    transition: none !important;
   }
 }
