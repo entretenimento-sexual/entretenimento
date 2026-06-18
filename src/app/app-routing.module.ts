@@ -138,6 +138,17 @@ const routes: Routes = [
       },
 
       {
+        path: 'notificacoes',
+        loadComponent: () =>
+          import('./notifications/notifications-page/notifications-page.component')
+            .then((m) => m.NotificationsPageComponent),
+        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard],
+        data: {
+          requireVerified: true,
+        },
+      },
+
+      {
         path: 'dashboard',
         loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
         canActivate: [authGuard, accountLifecycleGuard],
