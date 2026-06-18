@@ -45,6 +45,8 @@ Thumbs.db
 firebase-debug.log*
 firestore-debug.log*
 database-debug.log*
+pubsub-debug.log*
+storage-debug.log*
 ui-debug.log*
 tree*.txt
 tree*.txt
@@ -57,6 +59,8 @@ scripts/check-auth-user.mjs
 .firebase/emulator-data/
 .emulator-data/
 .emulator-data-backups/
+.emulator-data-backup*/
+.emulator-data-freeze*/
 firebase-debug.log
 firestore-debug.log
 database-debug.log
