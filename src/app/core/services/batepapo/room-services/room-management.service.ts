@@ -12,7 +12,8 @@
 // - createRoom() não grava diretamente no Firestore;
 // - creatorId recebido por consumidores legados não é enviado ao backend;
 // - o UID real é obtido exclusivamente pela callable em request.auth.uid;
-// - participants, visibility, status e regras de plano são definidos no backend.
+// - participants, visibility, status e regras de plano são definidos no backend;
+// - placeIntent é opcional e validado novamente pelo backend.
 //
 // Migração pendente:
 // - updateRoom() e deleteRoom() ainda são métodos legados;
@@ -40,13 +41,17 @@ import {
 } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
-import { IRoom } from 'src/app/core/interfaces/interfaces-chat/room.interface';
+import {
+  IRoom,
+  IRoomPlaceIntent,
+} from 'src/app/core/interfaces/interfaces-chat/room.interface';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 
 interface CreatePrivateRoomPayload {
   roomName: string;
   description: string | null;
+  placeIntent?: Omit<IRoomPlaceIntent, 'source' | 'createdAt' | 'updatedAt'> | null;
 }
 
 interface CreatePrivateRoomResponse {
@@ -58,6 +63,7 @@ interface CreatePrivateRoomResponse {
   visibility: 'hidden';
   roomType: 'private';
   status: 'active';
+  placeIntent?: IRoomPlaceIntent | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -88,6 +94,7 @@ export class RoomManagementService {
     const payload: CreatePrivateRoomPayload = {
       roomName: String(roomDetails.roomName ?? '').trim(),
       description: String(roomDetails.description ?? '').trim() || null,
+      placeIntent: roomDetails.placeIntent ?? null,
     };
 
     return defer(() =>
@@ -118,6 +125,7 @@ export class RoomManagementService {
           isPrivate: true,
           roomType: data.roomType,
           visibility: data.visibility,
+          placeIntent: data.placeIntent ?? null,
           isRoom: true,
         } as IRoom;
       }),
@@ -194,11 +202,11 @@ export class RoomManagementService {
     }
 
     if (code.includes('invalid-argument')) {
-      return 'Verifique o nome e a descrição da sala.';
+      return 'Verifique o nome, a descrição e o local da sala.';
     }
 
     if (code.includes('permission-denied')) {
-      return 'Sua conta ou plano atual não permite criar salas.';
+      return 'Sua conta ou plano atual não permite criar salas com essas opções.';
     }
 
     if (code.includes('failed-precondition')) {
