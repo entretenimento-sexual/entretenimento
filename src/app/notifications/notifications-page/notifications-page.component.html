@@ -1,6 +1,9 @@
 <!-- src/app/notifications/notifications-page/notifications-page.component.html -->
 
 @if (vm$ | async; as vm) {
+  @let busyIds = ((busyIds$ | async) || []);
+  @let markAllBusy = ((markAllBusy$ | async) || false);
+
   <section class="notifications-page" aria-labelledby="notifications-title">
     <header class="notifications-hero">
       <div>
@@ -12,9 +15,22 @@
       </div>
 
       @if (!vm.loading) {
-        <span class="notifications-hero__count">
-          {{ vm.unreadCount }} {{ vm.unreadCount === 1 ? 'não lida' : 'não lidas' }}
-        </span>
+        <div class="notifications-hero__actions">
+          <span class="notifications-hero__count">
+            {{ vm.unreadCount }} {{ vm.unreadCount === 1 ? 'não lida' : 'não lidas' }}
+          </span>
+
+          @if (vm.unreadCount > 0) {
+            <button
+              type="button"
+              class="notifications-hero__button"
+              (click)="markAllAsRead()"
+              [disabled]="markAllBusy"
+            >
+              {{ markAllBusy ? 'Marcando...' : 'Marcar todas como lidas' }}
+            </button>
+          }
+        </div>
       }
     </header>
 
@@ -47,11 +63,26 @@
 
               <p>{{ item.body }}</p>
 
-              @if (notificationRoute(item); as route) {
-                <a class="notification-card__link" [routerLink]="route">
-                  Abrir
-                </a>
-              }
+              <div class="notification-card__actions">
+                @if (notificationRoute(item); as route) {
+                  <a class="notification-card__link" [routerLink]="route">
+                    Abrir
+                  </a>
+                }
+
+                @if (item.readAt === null) {
+                  <button
+                    type="button"
+                    class="notification-card__link notification-card__link--button"
+                    (click)="markAsRead(item)"
+                    [disabled]="busyIds.has(item.id)"
+                  >
+                    {{ busyIds.has(item.id) ? 'Marcando...' : 'Marcar como lida' }}
+                  </button>
+                } @else {
+                  <span class="notification-card__read-state">Lida</span>
+                }
+              </div>
             </div>
           </article>
         }
