@@ -12,7 +12,9 @@
 // - este contrato NÃO deve carregar lista de participantes, UIDs ou coordenadas
 //   precisas de usuários;
 // - o dado ideal para leitura pública/regional deve ser uma projeção agregada;
-// - documentos devem ser moderáveis e removíveis da vitrine sem apagar histórico.
+// - documentos devem ser moderáveis e removíveis da vitrine sem apagar histórico;
+// - sinais de afinidade devem ser exibidos apenas como agrupamento agregado,
+//   com piso mínimo de anonimização e sem identificar indivíduos.
 
 export type HotPlaceKind =
   | 'city_area'
@@ -38,6 +40,18 @@ export type HotPlaceCompatibilitySignal =
   | 'practice_overlap'
   | 'verified_only'
   | 'subscriber_boost';
+
+export type HotPlaceAffinitySegment =
+  | 'h_m'
+  | 'm_h'
+  | 'h_h'
+  | 'm_m'
+  | 'casais'
+  | 'casais_solos'
+  | 'misto'
+  | 'lgbtq'
+  | 'bi'
+  | 'aberto';
 
 export interface IHotPlaceRegion {
   /** UF em formato canônico: RJ, SP, MG etc. */
@@ -71,6 +85,23 @@ export interface IHotPlaceModeration {
   reason?: string | null;
 }
 
+export interface IHotPlaceAffinityMix {
+  /** Piso mínimo aplicado antes de exibir qualquer segmento agregado. */
+  sampleFloor: number;
+
+  /** Segmentos predominantes já agregados e seguros para exibição. */
+  primarySegments: HotPlaceAffinitySegment[];
+
+  /** Segmentos secundários, também agregados. */
+  secondarySegments?: HotPlaceAffinitySegment[] | null;
+
+  /** Selo operacional para a UI. Nunca deve conter texto livre de usuário. */
+  confidence: 'low' | 'medium' | 'high';
+
+  /** Quando a projeção foi gerada. */
+  generatedAt?: number | null;
+}
+
 export interface IHotPlace {
   id: string;
   title: string;
@@ -81,6 +112,7 @@ export interface IHotPlace {
   metrics: IHotPlaceMetrics;
   moderation: IHotPlaceModeration;
   compatibilitySignals: HotPlaceCompatibilitySignal[];
+  affinityMix?: IHotPlaceAffinityMix | null;
   createdAt?: number | null;
   updatedAt?: number | null;
 }
@@ -89,6 +121,8 @@ export interface IHotPlaceCardVm extends IHotPlace {
   scoreLabel: string;
   activityLabel: string;
   regionLabel: string;
+  affinitySummaryLabel: string | null;
+  affinitySegmentLabels: string[];
   isVisible: boolean;
 }
 
