@@ -6,6 +6,7 @@
 //
 // Objetivo:
 // - permitir que o usuário publique disponibilidade/intenção por até 12h;
+// - mostrar o status ativo atual e permitir encerramento manual;
 // - usar região/destino sem coordenada precisa;
 // - preservar UX mobile-first e feedback direto;
 // - manter escrita centralizada no UserIntentStatusService.
@@ -25,10 +26,12 @@ import {
   ReactiveFormsModule,
   Validators,
 } from '@angular/forms';
+import { Observable, of } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import {
+  IUserIntentStatusCardVm,
   UserIntentAvailability,
   UserIntentDestinationKind,
   UserIntentVisibility,
@@ -56,6 +59,9 @@ export class UserIntentStatusComposerComponent implements OnChanges {
   @Input() user: IUserDados | null = null;
 
   publishing = false;
+  hiding = false;
+
+  activeStatus$: Observable<IUserIntentStatusCardVm | null> = of(null);
 
   readonly form: IntentStatusForm = new FormGroup({
     availability: new FormControl<UserIntentAvailability>('available_today', {
@@ -88,11 +94,17 @@ export class UserIntentStatusComposerComponent implements OnChanges {
   private readonly notifications = inject(ErrorNotificationService);
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (!changes['user']?.currentValue) {
+    if (!changes['user']) {
       return;
     }
 
-    const user = changes['user'].currentValue as IUserDados;
+    const user = changes['user'].currentValue as IUserDados | null;
+
+    if (!user?.uid) {
+      this.activeStatus$ = of(null);
+      return;
+    }
+
     const uf = String(user.estado ?? '').trim().toUpperCase();
     const city = String(user.municipio ?? '').trim().toLowerCase();
 
@@ -101,6 +113,8 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       city,
       destinationLabel: city || uf || '',
     }, { emitEvent: false });
+
+    this.activeStatus$ = this.statusService.watchCurrentStatus$(user.uid);
   }
 
   publish(): void {
@@ -161,6 +175,34 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       },
       error: () => {
         this.notifications.showError('Não foi possível publicar seu status agora.');
+      },
+    });
+  }
+
+  hideCurrentStatus(): void {
+    if (this.hiding) {
+      return;
+    }
+
+    const uid = String(this.user?.uid ?? '').trim();
+
+    if (!uid) {
+      this.notifications.showWarning('Entre novamente para encerrar seu status.');
+      return;
+    }
+
+    this.hiding = true;
+
+    this.statusService.hideCurrentStatus$(uid).pipe(
+      finalize(() => {
+        this.hiding = false;
+      })
+    ).subscribe({
+      next: () => {
+        this.notifications.showSuccess('Status encerrado.');
+      },
+      error: () => {
+        this.notifications.showError('Não foi possível encerrar seu status agora.');
       },
     });
   }
