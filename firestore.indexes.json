@@ -41,6 +41,64 @@
         }
       ],
       "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "regional_hot_places",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "region.uf",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "region.city",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "moderation.visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "metrics.score",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "regional_hot_places",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "region.uf",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "region.city",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "moderation.visibility",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "audience",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "metrics.score",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
     }
   ],
   "fieldOverrides": []
