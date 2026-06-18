@@ -44,6 +44,20 @@
               <p>{{ place.subtitle }}</p>
             }
 
+            @if (place.affinitySummaryLabel) {
+              <div class="hot-place-card__affinity" aria-label="Afinidade agregada do local">
+                <strong>{{ place.affinitySummaryLabel }}</strong>
+
+                @if (place.affinitySegmentLabels.length > 0) {
+                  <div class="hot-place-card__segments" aria-label="Segmentos agregados">
+                    @for (label of place.affinitySegmentLabels; track label) {
+                      <span>{{ label }}</span>
+                    }
+                  </div>
+                }
+              </div>
+            }
+
             <footer class="hot-place-card__footer">
               <span>{{ place.activityLabel }}</span>
 
