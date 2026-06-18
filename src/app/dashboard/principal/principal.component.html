@@ -7,7 +7,8 @@
   - sem subtítulo que repete o título do card;
   - sem bloco final redundante;
   - ajustes de presença ficam no resumo da conta;
-  - mantém observables, métricas e rotas já existentes.
+  - mantém observables, métricas e rotas já existentes;
+  - exibe Locais bombando como vitrine regional moderada.
 -->
 
 <section class="principal-page" *ngIf="currentUser$ | async as currentUser">
@@ -76,6 +77,8 @@
       <a routerLink="/friends/list" class="principal-inline-link">Gerenciar</a>
     </article>
   </section>
+
+  <app-hot-places-widget />
 
   <section class="principal-section-grid app-card-grid" aria-label="Atalhos principais da rede">
     <article class="principal-panel principal-panel--highlight app-card app-card--interactive">
