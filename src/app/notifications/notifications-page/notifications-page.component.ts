@@ -1,21 +1,12 @@
-// src/app/notifications/notifications-page/notifications-page.component.ts
-// -----------------------------------------------------------------------------
-// NOTIFICATIONS PAGE
-// -----------------------------------------------------------------------------
-// Central de notificações internas.
-//
-// Segurança:
-// - apenas lê o stream já protegido por Rules;
-// - não marca como lida nesta etapa;
-// - links usam route interna validada pelo Angular Router.
-// -----------------------------------------------------------------------------
-
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
+import { finalize, take } from 'rxjs/operators';
 
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
 import { IAppNotification } from 'src/app/core/interfaces/app-notification.interface';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 @Component({
   selector: 'app-notifications-page',
@@ -27,8 +18,14 @@ import { IAppNotification } from 'src/app/core/interfaces/app-notification.inter
 })
 export class NotificationsPageComponent {
   private readonly notificationService = inject(AppNotificationService);
+  private readonly notifier = inject(ErrorNotificationService);
+
+  private readonly busyIdsSubject = new BehaviorSubject<ReadonlySet<string>>(new Set());
+  private readonly markAllBusySubject = new BehaviorSubject(false);
 
   readonly vm$ = this.notificationService.currentUserVm$;
+  readonly busyIds$ = this.busyIdsSubject.asObservable();
+  readonly markAllBusy$ = this.markAllBusySubject.asObservable();
 
   trackNotification(_index: number, item: IAppNotification): string {
     return item.id;
@@ -61,5 +58,57 @@ export class NotificationsPageComponent {
     }
 
     return route;
+  }
+
+  markAsRead(item: IAppNotification): void {
+    if (item.readAt !== null || this.isBusy(item.id)) {
+      return;
+    }
+
+    this.setBusy(item.id, true);
+
+    this.notificationService.markAsRead$(item.id).pipe(
+      take(1),
+      finalize(() => this.setBusy(item.id, false))
+    ).subscribe({
+      next: () => undefined,
+      error: () => this.notifier.showError('Não foi possível marcar a notificação como lida.'),
+    });
+  }
+
+  markAllAsRead(): void {
+    if (this.markAllBusySubject.value) {
+      return;
+    }
+
+    this.markAllBusySubject.next(true);
+
+    this.notificationService.markAllAsRead$().pipe(
+      take(1),
+      finalize(() => this.markAllBusySubject.next(false))
+    ).subscribe({
+      next: (updated) => {
+        if (updated > 0) {
+          this.notifier.showSuccess('Notificações marcadas como lidas.');
+        }
+      },
+      error: () => this.notifier.showError('Não foi possível marcar as notificações como lidas.'),
+    });
+  }
+
+  isBusy(id: string): boolean {
+    return this.busyIdsSubject.value.has(id);
+  }
+
+  private setBusy(id: string, busy: boolean): void {
+    const next = new Set(this.busyIdsSubject.value);
+
+    if (busy) {
+      next.add(id);
+    } else {
+      next.delete(id);
+    }
+
+    this.busyIdsSubject.next(next);
   }
 }
