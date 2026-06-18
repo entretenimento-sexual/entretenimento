@@ -1,0 +1,166 @@
+/* src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.css */
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.intent-composer,
+.intent-composer.app-card {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  padding: clamp(16px, 2vw, 22px);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 22px;
+  background: var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
+}
+
+.intent-composer__header,
+.intent-composer__footer,
+.intent-composer__row {
+  display: flex;
+  gap: 12px;
+}
+
+.intent-composer__header,
+.intent-composer__footer {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.intent-composer__eyebrow {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--primary-color, #ff7070);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.intent-composer h2 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.1rem, 1.8vw, 1.45rem);
+  font-weight: 950;
+  line-height: 1.1;
+}
+
+.intent-composer__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding-inline: 10px;
+  border: 1px solid rgba(255, 112, 112, 0.35);
+  border-radius: 999px;
+  color: var(--primary-color, #ff7070);
+  font-size: 0.72rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.intent-composer__description,
+.intent-composer__footer p {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  opacity: 0.74;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.intent-composer__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  min-width: 0;
+}
+
+.intent-composer__field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.intent-composer__field--wide,
+.intent-composer__footer {
+  grid-column: 1 / -1;
+}
+
+.intent-composer__field span {
+  color: var(--text-color, #f5f7fb);
+  opacity: 0.78;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.intent-composer__field input,
+.intent-composer__field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 14px;
+  background: var(--background-color, #0b1118);
+  color: var(--text-color, #f5f7fb);
+  font: inherit;
+  outline: none;
+}
+
+.intent-composer__field input:focus,
+.intent-composer__field select:focus {
+  border-color: var(--primary-color, #ff7070);
+}
+
+.intent-composer__row {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.intent-composer__row .intent-composer__field:first-child {
+  flex: 0 0 84px;
+}
+
+.intent-composer__row .intent-composer__field:last-child {
+  flex: 1 1 auto;
+}
+
+.intent-composer__submit {
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .intent-composer,
+  .intent-composer.app-card {
+    border-radius: 16px;
+    box-shadow: none;
+  }
+
+  .intent-composer__form {
+    grid-template-columns: 1fr;
+  }
+
+  .intent-composer__header,
+  .intent-composer__footer {
+    flex-direction: column;
+  }
+
+  .intent-composer__submit {
+    width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .intent-composer__row {
+    flex-direction: column;
+  }
+
+  .intent-composer__row .intent-composer__field:first-child {
+    flex-basis: auto;
+  }
+}
