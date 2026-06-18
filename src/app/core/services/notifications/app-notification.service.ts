@@ -5,8 +5,9 @@
 // Leitura reativa das notificações internas do usuário autenticado.
 //
 // Decisões:
-// - não grava no Firestore pelo cliente;
-// - não marca como lida nesta fase porque as Rules bloqueiam update;
+// - leitura reativa via Firestore;
+// - escrita de leitura passa por Cloud Functions;
+// - cliente segue sem updateDoc direto em /notifications;
 // - usa GlobalErrorHandlerService para debug centralizado;
 // - falhas de leitura são silenciosas para não poluir a navegação.
 // -----------------------------------------------------------------------------
@@ -21,7 +22,8 @@ import {
   query,
   where,
 } from '@angular/fire/firestore';
-import { Observable, of } from 'rxjs';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+import { Observable, defer, from, of, throwError } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -52,15 +54,34 @@ interface AppNotificationFirestoreDocument {
   updatedAt?: unknown;
 }
 
+interface MarkNotificationReadPayload {
+  notificationId: string;
+}
+
+interface MarkAllNotificationsReadResponse {
+  updated: number;
+}
+
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
 
 @Injectable({ providedIn: 'root' })
 export class AppNotificationService {
   private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
   private readonly session = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+
+  private readonly markNotificationReadCallable = httpsCallable<
+    MarkNotificationReadPayload,
+    { ok: true }
+  >(this.functions, 'markNotificationRead');
+
+  private readonly markAllNotificationsReadCallable = httpsCallable<
+    Record<string, never>,
+    MarkAllNotificationsReadResponse
+  >(this.functions, 'markAllNotificationsRead');
 
   readonly currentUserNotifications$: Observable<IAppNotification[]> =
     this.session.uid$.pipe(
@@ -118,6 +139,34 @@ export class AppNotificationService {
       catchError((error) => {
         this.reportReadError(error, 'watchForUser', { uid: safeUid });
         return of([]);
+      })
+    );
+  }
+
+  markAsRead$(notificationId: string): Observable<void> {
+    const safeNotificationId = String(notificationId ?? '').trim();
+
+    if (!safeNotificationId) {
+      return throwError(() => new Error('Notificação inválida.'));
+    }
+
+    return defer(() => from(this.markNotificationReadCallable({
+      notificationId: safeNotificationId,
+    }))).pipe(
+      map(() => undefined),
+      catchError((error) => {
+        this.reportWriteError(error, 'markAsRead', { notificationId: safeNotificationId });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  markAllAsRead$(): Observable<number> {
+    return defer(() => from(this.markAllNotificationsReadCallable({}))).pipe(
+      map((response) => Number(response.data?.updated ?? 0)),
+      catchError((error) => {
+        this.reportWriteError(error, 'markAllAsRead', {});
+        return throwError(() => error);
       })
     );
   }
@@ -214,6 +263,28 @@ export class AppNotificationService {
       (err as any).extra = extra;
       (err as any).skipUserNotification = true;
       (err as any).silent = true;
+
+      this.globalError.handleError(err);
+    } catch {
+      // noop
+    }
+  }
+
+  private reportWriteError(
+    error: unknown,
+    operation: string,
+    extra: Record<string, unknown>
+  ): void {
+    try {
+      const err = error instanceof Error
+        ? error
+        : new Error('[AppNotificationService] write failed');
+
+      (err as any).context = 'AppNotificationService';
+      (err as any).operation = operation;
+      (err as any).extra = extra;
+      (err as any).original = error;
+      (err as any).skipUserNotification = true;
 
       this.globalError.handleError(err);
     } catch {
