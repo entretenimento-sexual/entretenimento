@@ -32,6 +32,7 @@ import {
 
 import {
   IRoomPlaceIntent,
+  IRoomPlaceIntentInput,
   RoomPlaceIntentMode,
 } from 'src/app/core/interfaces/interfaces-chat/room.interface';
 
@@ -57,7 +58,7 @@ export interface CreateRoomModalResult {
   roomDetails: {
     roomName: string;
     description: string;
-    placeIntent?: Omit<IRoomPlaceIntent, 'source' | 'createdAt' | 'updatedAt'> | null;
+    placeIntent?: IRoomPlaceIntentInput | null;
   };
 }
 
@@ -176,7 +177,7 @@ export class CreateRoomModalComponent implements OnInit {
 
   private buildPlaceIntent(
     rawValue: ReturnType<CreateRoomFormGroup['getRawValue']>
-  ): Omit<IRoomPlaceIntent, 'source' | 'createdAt' | 'updatedAt'> | null | undefined {
+  ): IRoomPlaceIntentInput | null | undefined {
     if (!this.canUsePlaceIntent || !rawValue.placeEnabled) {
       return null;
     }
