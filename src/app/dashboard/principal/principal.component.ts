@@ -11,6 +11,7 @@
 // - adiciona links reativos para perfil e preferências
 // - mantém paginação de amigos por UID
 // - preserva filtros/toolbar existentes
+// - adiciona composer do Status de Hoje
 // - adiciona widget regional de Locais bombando
 // -----------------------------------------------------------------------------
 import { Component, OnInit, signal, inject } from '@angular/core';
@@ -57,6 +58,7 @@ import * as P from 'src/app/store/actions/actions.interactions/friends/friends-p
 import { PAGE_SIZES } from 'src/app/shared/pagination/page.constants';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
 import { HotPlacesWidgetComponent } from '../hot-places/hot-places-widget/hot-places-widget.component';
+import { UserIntentStatusComposerComponent } from '../user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
 
 @Component({
   selector: 'app-principal',
@@ -71,6 +73,7 @@ import { HotPlacesWidgetComponent } from '../hot-places/hot-places-widget/hot-pl
     MatOptionModule,
     MatSelectModule,
     HotPlacesWidgetComponent,
+    UserIntentStatusComposerComponent,
 
   ],
 })
