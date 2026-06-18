@@ -138,9 +138,15 @@
                       Privada
                     </span>
 
-                    <span class="chat-rooms__badge chat-rooms__badge--active">
-                      Ativa
-                    </span>
+                    @if (room.status === 'closed') {
+                      <span class="chat-rooms__badge chat-rooms__badge--closed">
+                        Encerrada
+                      </span>
+                    } @else {
+                      <span class="chat-rooms__badge chat-rooms__badge--active">
+                        Ativa
+                      </span>
+                    }
                   </div>
                 </header>
 
@@ -181,14 +187,25 @@
                 </p>
 
                 <footer class="chat-rooms__card-footer">
-                  <button
-                    type="button"
-                    class="btn btn-ghost chat-rooms__disabled-action"
-                    disabled
-                    aria-disabled="true"
-                  >
-                    Conversas em validação
-                  </button>
+                  @if (room.canClose) {
+                    <button
+                      type="button"
+                      class="btn btn-ghost chat-rooms__close-action"
+                      [disabled]="isClosingRoom(room.id)"
+                      (click)="closeRoom(room)"
+                    >
+                      {{ isClosingRoom(room.id) ? 'Encerrando...' : 'Encerrar sala' }}
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="btn btn-ghost chat-rooms__disabled-action"
+                      disabled
+                      aria-disabled="true"
+                    >
+                      Conversas em validação
+                    </button>
+                  }
                 </footer>
               </article>
             </li>
