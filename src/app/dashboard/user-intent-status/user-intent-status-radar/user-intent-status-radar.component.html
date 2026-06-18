@@ -48,6 +48,25 @@
               <span>{{ status.expiresInLabel }}</span>
               <span>{{ status.destination.kind === 'venue' ? 'Local' : 'Região' }}</span>
             </footer>
+
+            <div class="intent-status-card__actions" aria-label="Ações do status">
+              <a
+                class="intent-status-card__action intent-status-card__action--secondary"
+                [routerLink]="['/perfil', status.uid]"
+                [attr.aria-label]="'Ver perfil de ' + status.profile.nickname"
+              >
+                Ver perfil
+              </a>
+
+              <a
+                class="intent-status-card__action intent-status-card__action--primary"
+                [routerLink]="['/chat']"
+                [queryParams]="{ withUser: status.uid }"
+                [attr.aria-label]="'Abrir conversa com ' + status.profile.nickname"
+              >
+                Conversar
+              </a>
+            </div>
           </article>
         }
       </div>
