@@ -8,7 +8,8 @@
 // - fechar o fluxo mínimo publicar -> descobrir;
 // - exibir cards leves, parecidos com status/stories;
 // - manter leitura regional e sem localização precisa;
-// - preservar reatividade com async pipe.
+// - preservar reatividade com async pipe;
+// - evitar duplicar o próprio status no radar de descoberta.
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
@@ -65,7 +66,7 @@ export class UserIntentStatusRadarComponent implements OnChanges {
     }).pipe(
       map((items) => ({
         loading: false,
-        items,
+        items: items.filter((item) => item.uid !== uid),
       })),
       startWith({
         loading: true,
