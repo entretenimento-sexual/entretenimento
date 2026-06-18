@@ -4,7 +4,7 @@
 // PACOTE DE INTEGRAÇÃO DO EDITOR:
 // - mantém upload direto com progresso real
 // - adiciona fluxo "Editar antes de enviar"
-// - usa canUploadProfilePhotos$ (policy correta de upload)
+// - usa canUploadProfilePhotosForViewer$ (policy endurecida de upload)
 // - mantém preview local e pós-upload com escolha do usuário
 // - mantém tratamento centralizado de erro
 // - limpa a sessão efêmera do editor com segurança
@@ -52,8 +52,10 @@ import { CurrentUserStoreService } from 'src/app/core/services/autentication/aut
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import {
-  MediaPolicyService,
   IMediaPolicyResult,
+  IMediaPolicyViewerSnapshot,
+  MediaPolicyDenyReason,
+  MediaPolicyService,
 } from 'src/app/core/services/media/media-policy.service';
 import {
   PhotoUploadFlowService,
@@ -61,6 +63,8 @@ import {
 } from 'src/app/core/services/image-handling/photo-upload-flow.service';
 import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/photo-editor-session.service';
 import { environment } from 'src/environments/environment';
+
+const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
 
 type UploadPhase = 'IDLE' | 'READY' | 'UPLOADING' | 'DONE';
 
@@ -111,7 +115,40 @@ export class PhotoUploadComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly viewerUid$: Observable<string | null> = this.currentUserStore.user$.pipe(
+  readonly viewer$: Observable<IMediaPolicyViewerSnapshot | null | undefined> =
+    this.currentUserStore.user$.pipe(
+      map((user) =>
+        user
+          ? {
+              uid: user.uid,
+              emailVerified: user.emailVerified === true,
+              profileCompleted: user.profileCompleted === true,
+              interactionBlocked: user.interactionBlocked === true,
+            }
+          : user
+      ),
+      distinctUntilChanged((previous, current) =>
+        previous === current ||
+        (!!previous &&
+          !!current &&
+          previous.uid === current.uid &&
+          previous.emailVerified === current.emailVerified &&
+          previous.profileCompleted === current.profileCompleted &&
+          previous.interactionBlocked === current.interactionBlocked)
+      ),
+      tap((viewer) =>
+        this.debug('viewer$', {
+          resolved: viewer !== undefined,
+          hasViewerUid: !!viewer?.uid,
+          emailVerified: viewer?.emailVerified === true,
+          profileCompleted: viewer?.profileCompleted === true,
+          interactionBlocked: viewer?.interactionBlocked === true,
+        })
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly viewerUid$: Observable<string | null> = this.viewer$.pipe(
     map((u) => u?.uid ?? null),
     distinctUntilChanged(),
     tap((uid) => this.debug('viewerUid$', uid)),
@@ -119,13 +156,13 @@ export class PhotoUploadComponent {
   );
 
   readonly policyResult$: Observable<IMediaPolicyResult> = combineLatest([
-    this.viewerUid$,
+    this.viewer$,
     this.ownerUid$,
   ]).pipe(
     switchMap(([viewer, owner]) =>
       owner
-        ? this.policy.canUploadProfilePhotos$(viewer, owner)
-        : of<IMediaPolicyResult>({ decision: 'DENY', reason: 'UNKNOWN' })
+        ? this.policy.canUploadProfilePhotosForViewer$(viewer, owner)
+        : of(DENY_UNKNOWN)
     ),
     tap((r) => this.debug('policyResult$', r)),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -199,16 +236,18 @@ export class PhotoUploadComponent {
   }
 
   startUpload(): void {
-    combineLatest([this.canUpload$, this.file$, this.ownerUid$, this.phase$])
+    combineLatest([this.policyResult$, this.file$, this.ownerUid$, this.phase$])
       .pipe(
         take(1),
-        switchMap(([can, file, ownerUid, phase]) => {
+        switchMap(([policyResult, file, ownerUid, phase]) => {
           if (phase === 'UPLOADING') {
             return EMPTY;
           }
 
-          if (!can) {
-            this.errorNotifier.showError('Você não tem permissão para enviar fotos.');
+          if (policyResult.decision !== 'ALLOW') {
+            this.errorNotifier.showError(
+              this.getPolicyDeniedMessage(policyResult.reason, 'enviar fotos')
+            );
             return EMPTY;
           }
 
@@ -276,15 +315,17 @@ export class PhotoUploadComponent {
   }
 
   editBeforeUpload(): void {
-    combineLatest([this.canUpload$, this.file$, this.ownerUid$, this.phase$])
+    combineLatest([this.policyResult$, this.file$, this.ownerUid$, this.phase$])
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
-      .subscribe(([canUpload, file, ownerUid, phase]) => {
+      .subscribe(([policyResult, file, ownerUid, phase]) => {
         if (phase === 'UPLOADING') {
           return;
         }
 
-        if (!canUpload) {
-          this.errorNotifier.showError('Você não tem permissão para editar e enviar fotos.');
+        if (policyResult.decision !== 'ALLOW') {
+          this.errorNotifier.showError(
+            this.getPolicyDeniedMessage(policyResult.reason, 'editar e enviar fotos')
+          );
           return;
         }
 
@@ -399,6 +440,29 @@ export class PhotoUploadComponent {
     const value = bytes / Math.pow(1024, index);
 
     return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
+  }
+
+  private getPolicyDeniedMessage(
+    reason: MediaPolicyDenyReason | undefined,
+    actionLabel: string
+  ): string {
+    switch (reason) {
+      case 'NOT_AUTHENTICATED':
+        return `Faça login para ${actionLabel}.`;
+      case 'NOT_OWNER':
+        return `Você só pode ${actionLabel} no seu próprio perfil.`;
+      case 'EMAIL_UNVERIFIED':
+        return `Confirme seu e-mail antes de ${actionLabel}.`;
+      case 'PROFILE_INCOMPLETE':
+        return `Finalize seu cadastro antes de ${actionLabel}.`;
+      case 'INTERACTION_BLOCKED':
+      case 'BLOCKED':
+        return `Sua conta não pode ${actionLabel} no momento.`;
+      case 'SUBSCRIPTION_REQUIRED':
+        return `Assinatura necessária para ${actionLabel}.`;
+      default:
+        return `Não foi possível autorizar ${actionLabel} agora.`;
+    }
   }
 
   private reportError(
