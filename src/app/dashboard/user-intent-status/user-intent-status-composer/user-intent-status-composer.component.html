@@ -15,6 +15,25 @@
     com seu nickname e dados públicos básicos.
   </p>
 
+  @if (activeStatus$ | async; as activeStatus) {
+    <aside class="intent-composer__active" aria-label="Seu status atual">
+      <div>
+        <span>Seu status está ativo</span>
+        <strong>{{ activeStatus.availabilityLabel }}</strong>
+        <p>{{ activeStatus.destinationLabel }} · {{ activeStatus.expiresInLabel }}</p>
+      </div>
+
+      <button
+        type="button"
+        class="btn btn-ghost intent-composer__hide"
+        [disabled]="hiding"
+        (click)="hideCurrentStatus()"
+      >
+        {{ hiding ? 'Encerrando...' : 'Encerrar status' }}
+      </button>
+    </aside>
+  }
+
   <form class="intent-composer__form" [formGroup]="form" (ngSubmit)="publish()">
     <label class="intent-composer__field">
       <span>Disponibilidade</span>
