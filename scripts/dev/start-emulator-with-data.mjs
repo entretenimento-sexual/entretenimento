@@ -34,7 +34,7 @@ const dataPath = path.resolve(root, dataDir);
 const metadataPath = path.join(dataPath, 'firebase-export-metadata.json');
 const backupRootPath = path.resolve(root, backupRootDir);
 
-function timestampForPath(): string {
+function timestampForPath() {
   return new Date()
     .toISOString()
     .replace(/[:.]/g, '-')
@@ -42,7 +42,7 @@ function timestampForPath(): string {
     .replace('Z', '');
 }
 
-function copyDirectory(source: string, target: string): void {
+function copyDirectory(source, target) {
   fs.cpSync(source, target, {
     recursive: true,
     force: false,
@@ -50,7 +50,7 @@ function copyDirectory(source: string, target: string): void {
   });
 }
 
-function backupExistingData(): void {
+function backupExistingData() {
   if (skipBackup) {
     console.warn('[emu:safe] Backup automático ignorado por FIREBASE_EMULATOR_SKIP_BACKUP=1.');
     return;
