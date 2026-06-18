@@ -1,0 +1,61 @@
+<!-- src/app/notifications/notifications-page/notifications-page.component.html -->
+
+@if (vm$ | async; as vm) {
+  <section class="notifications-page" aria-labelledby="notifications-title">
+    <header class="notifications-hero">
+      <div>
+        <span class="notifications-hero__eyebrow">Central</span>
+        <h1 id="notifications-title">Notificações</h1>
+        <p>
+          Atualizações da plataforma, status e interações importantes sem ruído desnecessário.
+        </p>
+      </div>
+
+      @if (!vm.loading) {
+        <span class="notifications-hero__count">
+          {{ vm.unreadCount }} {{ vm.unreadCount === 1 ? 'não lida' : 'não lidas' }}
+        </span>
+      }
+    </header>
+
+    @if (vm.loading) {
+      <div class="notifications-state" role="status" aria-live="polite">
+        Carregando notificações...
+      </div>
+    } @else if (vm.items.length === 0) {
+      <div class="notifications-state notifications-state--empty" role="status">
+        <strong>Nenhuma notificação por enquanto.</strong>
+        <span>Quando houver algo relevante, vai aparecer aqui.</span>
+      </div>
+    } @else {
+      <div class="notifications-list" role="list" aria-label="Lista de notificações">
+        @for (item of vm.items; track trackNotification($index, item)) {
+          <article
+            class="notification-card"
+            role="listitem"
+            [class.notification-card--unread]="item.readAt === null"
+          >
+            <div class="notification-card__icon" aria-hidden="true">
+              {{ item.type === 'user_intent_status.published' ? '📍' : '🔔' }}
+            </div>
+
+            <div class="notification-card__body">
+              <header class="notification-card__header">
+                <h2>{{ item.title }}</h2>
+                <time>{{ formatNotificationDate(item.createdAt) }}</time>
+              </header>
+
+              <p>{{ item.body }}</p>
+
+              @if (notificationRoute(item); as route) {
+                <a class="notification-card__link" [routerLink]="route">
+                  Abrir
+                </a>
+              }
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
+}
