@@ -7,7 +7,8 @@
 // - exige FIRESTORE_EMULATOR_HOST para evitar escrita acidental em produção;
 // - usa set(..., { merge: true }) para NÃO apagar dados manuais já criados;
 // - popula apenas documentos fictícios e moderados em regional_hot_places;
-// - não grava UIDs, participantes ou coordenadas precisas.
+// - não grava UIDs, participantes ou coordenadas precisas;
+// - affinityMix usa apenas agrupamentos agregados com piso mínimo.
 //
 // Execução sugerida:
 //   npm run seed:hot-places:emu
@@ -61,6 +62,13 @@ const seedItems = [
       reason: 'seed-dev-emulator',
     },
     compatibilitySignals: ['same_city', 'available_now', 'intent_overlap'],
+    affinityMix: {
+      sampleFloor: 8,
+      primarySegments: ['h_h'],
+      secondarySegments: ['misto'],
+      confidence: 'high',
+      generatedAt: now,
+    },
     createdAt: now,
     updatedAt: now,
   },
@@ -85,6 +93,13 @@ const seedItems = [
       reason: 'seed-dev-emulator',
     },
     compatibilitySignals: ['same_city', 'verified_only', 'available_now'],
+    affinityMix: {
+      sampleFloor: 6,
+      primarySegments: ['casais'],
+      secondarySegments: ['h_m'],
+      confidence: 'medium',
+      generatedAt: now,
+    },
     createdAt: now,
     updatedAt: now,
   },
@@ -109,6 +124,13 @@ const seedItems = [
       reason: 'seed-dev-emulator',
     },
     compatibilitySignals: ['same_city', 'practice_overlap'],
+    affinityMix: {
+      sampleFloor: 7,
+      primarySegments: ['h_m'],
+      secondarySegments: ['m_h'],
+      confidence: 'medium',
+      generatedAt: now,
+    },
     createdAt: now,
     updatedAt: now,
   },
@@ -133,6 +155,13 @@ const seedItems = [
       reason: 'deve ficar fora da leitura do app',
     },
     compatibilitySignals: ['same_city'],
+    affinityMix: {
+      sampleFloor: 10,
+      primarySegments: ['misto'],
+      secondarySegments: [],
+      confidence: 'low',
+      generatedAt: now,
+    },
     createdAt: now,
     updatedAt: now,
   },
