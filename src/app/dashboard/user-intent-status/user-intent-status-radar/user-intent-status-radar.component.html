@@ -1,0 +1,56 @@
+<!-- src/app/dashboard/user-intent-status/user-intent-status-radar/user-intent-status-radar.component.html -->
+
+<section class="intent-radar app-card" aria-labelledby="intent-radar-title">
+  <header class="intent-radar__header">
+    <div>
+      <span class="intent-radar__eyebrow">Radar de hoje</span>
+      <h2 id="intent-radar-title">Status ativos na sua região</h2>
+    </div>
+  </header>
+
+  @if (vm$ | async; as vm) {
+    @if (vm.loading) {
+      <div class="intent-radar__state" role="status" aria-live="polite">
+        Carregando status ativos...
+      </div>
+    } @else if (vm.items.length === 0) {
+      <div class="intent-radar__state" role="status">
+        Ainda não há status ativos próximos. Publique o seu para começar o movimento.
+      </div>
+    } @else {
+      <div class="intent-radar__rail" aria-label="Status de intenção ativos">
+        @for (status of vm.items; track trackByStatusId($index, status)) {
+          <article class="intent-status-card">
+            <header class="intent-status-card__header">
+              @if (status.profile.photoURL) {
+                <img
+                  [src]="status.profile.photoURL"
+                  [alt]="'Foto de ' + status.profile.nickname"
+                  loading="lazy"
+                />
+              } @else {
+                <span class="intent-status-card__avatar" aria-hidden="true">
+                  {{ status.profile.nickname.slice(0, 1).toUpperCase() }}
+                </span>
+              }
+
+              <div>
+                <h3>{{ status.profile.nickname }}</h3>
+                <span>{{ status.availabilityLabel }}</span>
+              </div>
+            </header>
+
+            <p class="intent-status-card__destination">
+              {{ status.destinationLabel }}
+            </p>
+
+            <footer class="intent-status-card__footer">
+              <span>{{ status.expiresInLabel }}</span>
+              <span>{{ status.destination.kind === 'venue' ? 'Local' : 'Região' }}</span>
+            </footer>
+          </article>
+        }
+      </div>
+    }
+  }
+</section>
