@@ -329,6 +329,55 @@
   font-weight: 600;
 }
 
+.chat-rooms__place {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-width: 0;
+  padding: 0.72rem;
+  border: 1px solid var(--surface-border);
+  border-radius: var(--radius-md);
+  background: var(--background-color);
+}
+
+.chat-rooms__place-marker {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  min-height: 1.55rem;
+  padding-inline: 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 112, 112, 0.12);
+  color: var(--primary-color);
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.chat-rooms__place-copy {
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+}
+
+.chat-rooms__place-copy strong,
+.chat-rooms__place-copy span {
+  overflow-wrap: anywhere;
+}
+
+.chat-rooms__place-copy strong {
+  font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.chat-rooms__place-copy span {
+  color: var(--text-color);
+  opacity: 0.68;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-transform: capitalize;
+}
+
 .chat-rooms__pending-feature {
   color: var(--text-color);
   opacity: 0.7;
@@ -405,6 +454,7 @@ html.high-contrast .chat-rooms__hero,
 html.high-contrast .chat-rooms__security,
 html.high-contrast .chat-rooms__empty,
 html.high-contrast .chat-rooms__card,
+html.high-contrast .chat-rooms__place,
 html.high-contrast .chat-rooms__count,
 html.high-contrast .chat-rooms__badge {
   border: 2px solid var(--text-color);
@@ -414,6 +464,7 @@ html.high-contrast .chat-rooms__badge {
 html.high-contrast .chat-rooms__eyebrow,
 html.high-contrast .chat-rooms__security-badge,
 html.high-contrast .chat-rooms__empty-icon,
+html.high-contrast .chat-rooms__place-marker,
 html.high-contrast .chat-rooms__badge--active {
   background: var(--background-color);
   color: var(--text-color);
