@@ -41,6 +41,9 @@ function actorProfileIncompleteMessage(operation: MessagingOperation): string {
   case 'create-private-room':
     return 'Complete seu perfil antes de criar uma sala.';
 
+  case 'close-private-room':
+    return 'Complete seu perfil antes de encerrar uma sala.';
+
   case 'ensure-direct-chat':
     return 'Complete seu perfil antes de iniciar conversas.';
 
@@ -56,6 +59,9 @@ function actorUnavailableMessage(operation: MessagingOperation): string {
   switch (operation) {
   case 'create-private-room':
     return 'Sua conta não está disponível para criar salas.';
+
+  case 'close-private-room':
+    return 'Sua conta não está disponível para encerrar salas.';
 
   case 'ensure-direct-chat':
     return 'Sua conta não está disponível para iniciar conversas.';
