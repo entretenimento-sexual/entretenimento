@@ -1,0 +1,206 @@
+/* src/app/notifications/notifications-page/notifications-page.component.css */
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.notifications-page {
+  width: 100%;
+  max-width: min(980px, 100%);
+  margin: 0 auto;
+  padding:
+    clamp(16px, 2vw, 28px)
+    clamp(12px, 2vw, 28px)
+    clamp(34px, 4vw, 58px);
+}
+
+.notifications-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: clamp(18px, 2.4vw, 28px);
+}
+
+.notifications-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  margin-bottom: 7px;
+  padding: 0 9px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 28%, transparent);
+  border-radius: 999px;
+  color: var(--primary-color, #ff7070);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 9%, transparent);
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.notifications-hero h1 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.45rem, 1.16rem + 1vw, 2rem);
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+
+.notifications-hero p {
+  max-width: 620px;
+  margin: 8px 0 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.notifications-hero__count {
+  flex: 0 0 auto;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 30%, transparent);
+  border-radius: 999px;
+  color: var(--primary-color, #ff7070);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent);
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.notifications-state {
+  min-height: 128px;
+  display: grid;
+  place-items: center;
+  gap: 5px;
+  padding: 18px;
+  border: 1px dashed var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 20px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  background: color-mix(in oklab, var(--surface-color, #101923) 94%, transparent);
+  text-align: center;
+}
+
+.notifications-state strong {
+  color: var(--text-color, #f5f7fb);
+}
+
+.notifications-state span {
+  display: block;
+}
+
+.notifications-list {
+  display: grid;
+  gap: 12px;
+}
+
+.notification-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: clamp(14px, 1.8vw, 18px);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 96%, transparent);
+  color: var(--text-color, #f5f7fb);
+}
+
+.notification-card--unread {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 34%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  background:
+    radial-gradient(
+      circle at top right,
+      color-mix(in oklab, var(--primary-color, #ff7070) 7%, transparent),
+      transparent 46%
+    ),
+    color-mix(in oklab, var(--surface-color, #101923) 96%, transparent);
+}
+
+.notification-card__icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 13%, transparent);
+  font-size: 1rem;
+}
+
+.notification-card__body {
+  min-width: 0;
+  display: grid;
+  gap: 7px;
+}
+
+.notification-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.notification-card h2 {
+  margin: 0;
+  color: var(--text-color, #f5f7fb);
+  font-size: 1rem;
+  font-weight: 920;
+  line-height: 1.2;
+}
+
+.notification-card time {
+  flex: 0 0 auto;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 56%, transparent);
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.notification-card p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.notification-card__link {
+  width: fit-content;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 38%, transparent);
+  border-radius: 999px;
+  color: var(--primary-color, #ff7070);
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.notification-card__link:hover,
+.notification-card__link:focus-visible {
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent);
+  outline: none;
+}
+
+@media (max-width: 640px) {
+  .notifications-page {
+    padding: 12px 12px 34px;
+  }
+
+  .notifications-hero {
+    flex-direction: column;
+  }
+
+  .notifications-hero__count {
+    align-self: flex-start;
+  }
+
+  .notification-card {
+    grid-template-columns: 1fr;
+  }
+
+  .notification-card__header {
+    flex-direction: column;
+  }
+}
