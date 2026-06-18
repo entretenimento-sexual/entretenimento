@@ -399,17 +399,6 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
     return `${safeCount} solicitações de amizade pendentes`;
   }
 
-  /**
-   * Ações rápidas ficam reservadas para pendências reais.
-   *
-   * SUPRESSÃO EXPLÍCITA:
-   * - removidos daqui os atalhos estáticos "Editar preferências" e "Ver planos".
-   *
-   * Motivo:
-   * - esses destinos já existem na navegação principal da sidebar;
-   * - duplicar esses links criava ruído visual e aparência de bug;
-   * - a área superior deve destacar apenas ação contextual ou urgente.
-   */
   private buildShellContextActions(
     currentUrl: string,
     navVm: AuthenticatedNavigationVm,
@@ -476,6 +465,28 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
         icon: '✉️',
         ariaLabel: 'Ir para a tela de verificação de e-mail',
         variant: 'secondary',
+      });
+    }
+
+    if (!clean.startsWith('/preferencias/')) {
+      actions.push({
+        id: 'edit-preferences',
+        label: 'Editar preferências',
+        route: ['/preferencias', 'editar', uid],
+        icon: '⚙️',
+        ariaLabel: 'Editar preferências da conta',
+        variant: 'ghost',
+      });
+    }
+
+    if (clean !== '/subscription-plan') {
+      actions.push({
+        id: 'subscription-plan',
+        label: 'Ver planos',
+        route: ['/subscription-plan'],
+        icon: '⭐',
+        ariaLabel: 'Ver planos de assinatura',
+        variant: 'ghost',
       });
     }
 
