@@ -2,7 +2,7 @@
 // -----------------------------------------------------------------------------
 // USER INTENT STATUS SERVICE
 // -----------------------------------------------------------------------------
-// Leitura reativa dos status temporários de intenção.
+// Leitura e publicação reativa dos status temporários de intenção.
 //
 // Produto:
 // - status de disponibilidade/intenção com expiração curta;
@@ -11,6 +11,7 @@
 //
 // Segurança:
 // - lê somente documentos liberados pelas Rules;
+// - publicação usa documento determinístico por usuário para evitar spam inicial;
 // - não usa fallback global quando região está ausente;
 // - erros técnicos vão para GlobalErrorHandlerService sem vazar para a UI.
 // -----------------------------------------------------------------------------
@@ -21,17 +22,21 @@ import {
   QueryConstraint,
   collection,
   collectionData,
+  doc,
   limit as firestoreLimit,
   orderBy,
   query,
+  setDoc,
   where,
 } from '@angular/fire/firestore';
-import { Observable, of } from 'rxjs';
+import { serverTimestamp } from 'firebase/firestore';
+import { Observable, defer, from, of, throwError } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 
 import {
   IUserIntentStatus,
   IUserIntentStatusCardVm,
+  IUserIntentStatusPublishInput,
   IUserIntentStatusQueryOptions,
   IUserIntentStatusRegion,
   UserIntentAvailability,
@@ -48,6 +53,8 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 60;
+const DEFAULT_STATUS_DURATION_HOURS = 12;
+const MAX_STATUS_DURATION_HOURS = 12;
 
 interface UserIntentStatusFirestoreDocument {
   id?: unknown;
@@ -141,6 +148,128 @@ export class UserIntentStatusService {
         )
       )
     );
+  }
+
+  publishStatus$(input: IUserIntentStatusPublishInput): Observable<void> {
+    const normalizedInput = this.normalizePublishInput(input);
+
+    if (!normalizedInput) {
+      return throwError(() => new Error('Status de intenção inválido.'));
+    }
+
+    return defer(() => {
+      const statusRef = doc(
+        this.firestore,
+        'user_intent_statuses',
+        `current_${normalizedInput.uid}`
+      );
+
+      return from(setDoc(statusRef, {
+        uid: normalizedInput.uid,
+        profile: normalizedInput.profile,
+        availability: normalizedInput.availability,
+        visibility: normalizedInput.visibility,
+        destination: normalizedInput.destination,
+        moderation: {
+          state: 'active',
+          reviewedAt: null,
+          reviewedBy: null,
+          reason: null,
+        },
+        startsAt: normalizedInput.startsAt,
+        expiresAt: normalizedInput.expiresAt,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true }));
+    }).pipe(
+      map(() => undefined),
+      catchError((error) => {
+        this.handleWriteError(error, 'publishStatus', {
+          uid: normalizedInput.uid,
+          destination: normalizedInput.destination,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  hideCurrentStatus$(uid: string): Observable<void> {
+    const safeUid = String(uid ?? '').trim();
+
+    if (!safeUid) {
+      return throwError(() => new Error('UID ausente para ocultar status.'));
+    }
+
+    return defer(() => {
+      const statusRef = doc(
+        this.firestore,
+        'user_intent_statuses',
+        `current_${safeUid}`
+      );
+
+      return from(setDoc(statusRef, {
+        uid: safeUid,
+        moderation: {
+          state: 'hidden',
+          reviewedAt: null,
+          reviewedBy: null,
+          reason: null,
+        },
+        updatedAt: serverTimestamp(),
+      }, { merge: true }));
+    }).pipe(
+      map(() => undefined),
+      catchError((error) => {
+        this.handleWriteError(error, 'hideCurrentStatus', { uid: safeUid });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private normalizePublishInput(
+    input: IUserIntentStatusPublishInput
+  ):
+    | (IUserIntentStatusPublishInput & {
+      startsAt: number;
+      expiresAt: number;
+    })
+    | null {
+    const uid = String(input.uid ?? '').trim();
+    const nickname = String(input.profile?.nickname ?? '').trim();
+    const region = this.normalizeRegion(input.destination?.region ?? null);
+    const label = String(input.destination?.label ?? '').trim();
+    const now = Date.now();
+    const startsAt = Math.trunc(input.startsAt || now);
+    const durationHours = Math.min(
+      Math.max(Math.trunc(input.durationHours || DEFAULT_STATUS_DURATION_HOURS), 1),
+      MAX_STATUS_DURATION_HOURS
+    );
+    const expiresAt = startsAt + durationHours * 60 * 60 * 1000;
+
+    if (!uid || nickname.length < 2 || !region || label.length < 2) {
+      return null;
+    }
+
+    return {
+      uid,
+      profile: {
+        uid,
+        nickname: nickname.slice(0, 40),
+        photoURL: this.normalizeOptionalText(input.profile.photoURL),
+        age: this.toNullableNumber(input.profile.age),
+      },
+      availability: this.normalizeAvailability(input.availability),
+      visibility: this.normalizeVisibility(input.visibility),
+      destination: {
+        kind: this.normalizeDestinationKind(input.destination.kind),
+        label: label.slice(0, 80),
+        venueId: this.normalizeOptionalText(input.destination.venueId),
+        region,
+      },
+      startsAt,
+      expiresAt,
+      durationHours,
+    };
   }
 
   private toStatusCardVm(
@@ -387,5 +516,28 @@ export class UserIntentStatusService {
     }
 
     return of([]);
+  }
+
+  private handleWriteError(
+    error: unknown,
+    operation: string,
+    context: Record<string, unknown>
+  ): void {
+    try {
+      const normalizedError =
+        error instanceof Error
+          ? error
+          : new Error(`[UserIntentStatusService.${operation}] escrita falhou.`);
+
+      (normalizedError as any).feature = 'user_intent_statuses';
+      (normalizedError as any).operation = operation;
+      (normalizedError as any).context = context;
+      (normalizedError as any).original = error;
+      (normalizedError as any).skipUserNotification = true;
+
+      this.globalError.handleError(normalizedError);
+    } catch {
+      // noop
+    }
   }
 }
