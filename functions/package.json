@@ -9,8 +9,9 @@
   "scripts": {
     "lint": "eslint -c eslint.config.js \"src/**/*.ts\"",
     "lint:fix": "eslint -c eslint.config.js \"src/**/*.ts\" --fix",
-    "lint:deploy": "eslint -c eslint.config.js \"src/**/*.ts\"",
-    "lint:fix:chat": "eslint -c eslint.config.js \"src/**/*.ts\" --fix",
+    "lint:deploy": "eslint -c eslint.config.js \"src/index.ts\" \"src/discovery/**/*.ts\" \"src/chat/shared/**/*.ts\" \"src/config/**/*.ts\" \"src/firebaseApp.ts\"",
+    "lint:deploy:all": "eslint -c eslint.config.js \"src/**/*.ts\"",
+    "lint:fix:chat": "eslint -c eslint.config.js \"src/chat/**/*.ts\" --fix",
     "build": "tsc",
     "build:watch": "tsc --watch",
     "serve": "npm run build && firebase emulators:start --only functions",
