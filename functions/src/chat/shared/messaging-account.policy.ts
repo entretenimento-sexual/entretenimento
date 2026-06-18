@@ -44,6 +44,12 @@ function actorProfileIncompleteMessage(operation: MessagingOperation): string {
   case 'close-private-room':
     return 'Complete seu perfil antes de encerrar uma sala.';
 
+  case 'publish-user-intent-status':
+    return 'Complete seu perfil antes de publicar seu status.';
+
+  case 'hide-user-intent-status':
+    return 'Complete seu perfil antes de encerrar seu status.';
+
   case 'ensure-direct-chat':
     return 'Complete seu perfil antes de iniciar conversas.';
 
@@ -62,6 +68,12 @@ function actorUnavailableMessage(operation: MessagingOperation): string {
 
   case 'close-private-room':
     return 'Sua conta não está disponível para encerrar salas.';
+
+  case 'publish-user-intent-status':
+    return 'Sua conta não está disponível para publicar status.';
+
+  case 'hide-user-intent-status':
+    return 'Sua conta não está disponível para encerrar status.';
 
   case 'ensure-direct-chat':
     return 'Sua conta não está disponível para iniciar conversas.';
