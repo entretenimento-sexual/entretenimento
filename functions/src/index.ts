@@ -17,5 +17,6 @@ export {
 export * from './payments';
 export * from './account_lifecycle';
 export * from './chat';
+export * from './discovery';
 export * from './friendship';
 export * from './media';
