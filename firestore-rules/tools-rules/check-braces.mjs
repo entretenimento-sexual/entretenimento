@@ -42,6 +42,7 @@ const parts = [
   'rooms.rules',
   'rooms_participants.rules',
   'public_index.rules',
+  'notifications.rules',
 
   'users_profile_socialLinks.rules',
   'public_social_links.rules',
