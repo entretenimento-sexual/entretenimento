@@ -2,41 +2,32 @@
 
 @if (vm$ | async; as vm) {
   @if (vm.actions.length > 0) {
-    <section
-      class="activity-hub"
-      aria-labelledby="activity-hub-title"
+    <nav
+      class="activity-bar"
+      aria-label="Atividades e notificações"
       aria-live="polite"
     >
-      <div class="activity-hub__intro">
-        <span class="activity-hub__eyebrow">Agora</span>
-        <h2 id="activity-hub-title">Atividades para revisar</h2>
-      </div>
-
-      <div class="activity-hub__rail" role="list">
+      <div class="activity-bar__rail" role="list">
         @for (action of vm.actions; track trackAction($index, action)) {
           <a
-            class="activity-hub__card"
+            class="activity-bar__item"
             role="listitem"
             [routerLink]="action.route"
             [attr.aria-label]="action.label + ': ' + action.description + '. ' + action.count + ' pendente(s).'"
           >
-            <span class="activity-hub__icon" aria-hidden="true">{{ action.icon }}</span>
-
-            <span class="activity-hub__content">
-              <strong>{{ action.label }}</strong>
-              <small>{{ action.description }}</small>
-            </span>
-
-            <span class="activity-hub__badge" aria-hidden="true">
+            <span class="activity-bar__icon" aria-hidden="true">{{ action.icon }}</span>
+            <span class="activity-bar__label">{{ action.label }}</span>
+            <span class="activity-bar__badge" aria-hidden="true">
               {{ action.count > 99 ? '99+' : action.count }}
             </span>
           </a>
         }
-      </div>
 
-      <a class="activity-hub__all" routerLink="/notificacoes">
-        Ver central
-      </a>
-    </section>
+        <a class="activity-bar__item activity-bar__item--muted" routerLink="/notificacoes">
+          <span class="activity-bar__icon" aria-hidden="true">🔔</span>
+          <span class="activity-bar__label">Central</span>
+        </a>
+      </div>
+    </nav>
   }
 }
