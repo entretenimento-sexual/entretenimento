@@ -1,33 +1,29 @@
 <!-- src/app/notifications/user-activity-hub/user-activity-hub.component.html -->
 
 @if (vm$ | async; as vm) {
-  @if (vm.actions.length > 0) {
-    <nav
-      class="activity-bar"
-      aria-label="Atividades e notificações"
-      aria-live="polite"
-    >
-      <div class="activity-bar__rail" role="list">
-        @for (action of vm.actions; track trackAction($index, action)) {
-          <a
-            class="activity-bar__item"
-            role="listitem"
-            [routerLink]="action.route"
-            [attr.aria-label]="action.label + ': ' + action.description + '. ' + action.count + ' pendente(s).'"
-          >
-            <span class="activity-bar__icon" aria-hidden="true">{{ action.icon }}</span>
-            <span class="activity-bar__label">{{ action.label }}</span>
+  <nav
+    class="activity-bar"
+    aria-label="Atividades e notificações"
+    aria-live="polite"
+  >
+    <div class="activity-bar__rail" role="list">
+      @for (action of vm.actions; track trackAction($index, action)) {
+        <a
+          class="activity-bar__item"
+          role="listitem"
+          [routerLink]="action.route"
+          [attr.aria-label]="action.label + ': ' + action.description + '. ' + action.count + ' pendente(s).'"
+        >
+          <span class="activity-bar__icon" aria-hidden="true">{{ action.icon }}</span>
+          <span class="activity-bar__label">{{ action.label }}</span>
+
+          @if (action.count > 0) {
             <span class="activity-bar__badge" aria-hidden="true">
               {{ action.count > 99 ? '99+' : action.count }}
             </span>
-          </a>
-        }
-
-        <a class="activity-bar__item activity-bar__item--muted" routerLink="/notificacoes">
-          <span class="activity-bar__icon" aria-hidden="true">🔔</span>
-          <span class="activity-bar__label">Central</span>
+          }
         </a>
-      </div>
-    </nav>
-  }
+      }
+    </div>
+  </nav>
 }
