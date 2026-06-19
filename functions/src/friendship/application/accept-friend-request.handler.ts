@@ -10,7 +10,7 @@
 // - cria as duas arestas bilateralmente no backend;
 // - atualiza a solicitação como accepted;
 // - registra auditoria;
-// - notifica o solicitante quando a conexão é aceita.
+// - notificação social respeita preferências do solicitante.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -45,6 +45,12 @@ interface FriendshipUserDoc {
   loginAllowed?: unknown;
 }
 
+interface PreferencesDoc {
+  notificationPreferences?: {
+    connections?: unknown;
+  };
+}
+
 function normalizeText(value: unknown): string {
   return String(value ?? '').trim();
 }
@@ -56,6 +62,10 @@ function buildAcceptedNotificationId(requestId: string): string {
 function displayNickname(user: FriendshipUserDoc | undefined): string {
   const nickname = String(user?.nickname ?? '').replace(/\s+/g, ' ').trim();
   return nickname ? nickname.slice(0, 40) : 'Seu novo contato';
+}
+
+function allowsConnectionNotifications(preferences: PreferencesDoc | undefined): boolean {
+  return preferences?.notificationPreferences?.connections !== false;
 }
 
 function assertUserCanUseFriendship(
@@ -180,6 +190,7 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
 
       const requesterBlockRef = requesterRef.collection('blocks').doc(targetUid);
       const targetBlockRef = targetRef.collection('blocks').doc(requesterUid);
+      const requesterPreferencesRef = db.collection('preferences').doc(requesterUid);
       const notificationRef = db
         .collection('notifications')
         .doc(buildAcceptedNotificationId(requestId));
@@ -191,6 +202,7 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
         targetFriendSnapshot,
         requesterBlockSnapshot,
         targetBlockSnapshot,
+        requesterPreferencesSnapshot,
       ] = await Promise.all([
         transaction.get(requesterRef),
         transaction.get(targetRef),
@@ -198,10 +210,12 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
         transaction.get(targetFriendRef),
         transaction.get(requesterBlockRef),
         transaction.get(targetBlockRef),
+        transaction.get(requesterPreferencesRef),
       ]);
 
       const requester = requesterSnapshot.data() as FriendshipUserDoc | undefined;
       const target = targetSnapshot.data() as FriendshipUserDoc | undefined;
+      const requesterPreferences = requesterPreferencesSnapshot.data() as PreferencesDoc | undefined;
 
       assertUserCanUseFriendship(target, 'actor');
       assertUserCanUseFriendship(requester, 'target');
@@ -218,6 +232,7 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
 
       const now = FieldValue.serverTimestamp();
       const targetNickname = displayNickname(target);
+      const shouldNotifyRequester = allowsConnectionNotifications(requesterPreferences);
 
       transaction.set(
         requesterFriendRef,
@@ -250,18 +265,20 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
         updatedAt: now,
       });
 
-      transaction.set(notificationRef, {
-        userId: requesterUid,
-        type: 'social',
-        title: 'Conexão aceita',
-        body: `${targetNickname} aceitou sua solicitação de conexão.`,
-        route: `/perfil/${targetUid}`,
-        requestId,
-        actorUid: targetUid,
-        readAt: null,
-        createdAt: now,
-        updatedAt: now,
-      }, { merge: true });
+      if (shouldNotifyRequester) {
+        transaction.set(notificationRef, {
+          userId: requesterUid,
+          type: 'social',
+          title: 'Conexão aceita',
+          body: `${targetNickname} aceitou sua solicitação de conexão.`,
+          route: `/perfil/${targetUid}`,
+          requestId,
+          actorUid: targetUid,
+          readAt: null,
+          createdAt: now,
+          updatedAt: now,
+        }, { merge: true });
+      }
 
       transaction.set(db.collection('friendship_audit').doc(), {
         action: 'accept-friend-request',
@@ -269,6 +286,7 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
         targetUid,
         acceptedBy: actorUid,
         requestId,
+        notificationSuppressed: !shouldNotifyRequester,
         createdAt: now,
         source: 'callable',
         alreadyHadRequesterEdge: requesterFriendSnapshot.exists,
