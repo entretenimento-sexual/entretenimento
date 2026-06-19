@@ -211,6 +211,7 @@ export class AppNotificationService {
 
     switch (raw) {
       case 'user_intent_status.published':
+      case 'user_intent_status.compatible':
       case 'system':
       case 'social':
       case 'chat':
@@ -257,13 +258,11 @@ export class AppNotificationService {
       const err = error instanceof Error
         ? error
         : new Error('[AppNotificationService] read failed');
-
       (err as any).context = 'AppNotificationService';
       (err as any).operation = operation;
       (err as any).extra = extra;
+      (err as any).original = error;
       (err as any).skipUserNotification = true;
-      (err as any).silent = true;
-
       this.globalError.handleError(err);
     } catch {
       // noop
@@ -279,13 +278,10 @@ export class AppNotificationService {
       const err = error instanceof Error
         ? error
         : new Error('[AppNotificationService] write failed');
-
       (err as any).context = 'AppNotificationService';
       (err as any).operation = operation;
       (err as any).extra = extra;
       (err as any).original = error;
-      (err as any).skipUserNotification = true;
-
       this.globalError.handleError(err);
     } catch {
       // noop
