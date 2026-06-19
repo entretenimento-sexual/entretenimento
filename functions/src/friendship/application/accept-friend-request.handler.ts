@@ -9,7 +9,8 @@
 // - somente o target da solicitação pode aceitar;
 // - cria as duas arestas bilateralmente no backend;
 // - atualiza a solicitação como accepted;
-// - registra auditoria.
+// - registra auditoria;
+// - notifica o solicitante quando a conexão é aceita.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -36,6 +37,7 @@ interface FriendRequestDoc {
 
 interface FriendshipUserDoc {
   uid?: unknown;
+  nickname?: unknown;
   profileCompleted?: unknown;
   accountStatus?: unknown;
   interactionBlocked?: unknown;
@@ -45,6 +47,15 @@ interface FriendshipUserDoc {
 
 function normalizeText(value: unknown): string {
   return String(value ?? '').trim();
+}
+
+function buildAcceptedNotificationId(requestId: string): string {
+  return `friend_request_accepted_${requestId}`;
+}
+
+function displayNickname(user: FriendshipUserDoc | undefined): string {
+  const nickname = String(user?.nickname ?? '').replace(/\s+/g, ' ').trim();
+  return nickname ? nickname.slice(0, 40) : 'Seu novo contato';
 }
 
 function assertUserCanUseFriendship(
@@ -169,6 +180,9 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
 
       const requesterBlockRef = requesterRef.collection('blocks').doc(targetUid);
       const targetBlockRef = targetRef.collection('blocks').doc(requesterUid);
+      const notificationRef = db
+        .collection('notifications')
+        .doc(buildAcceptedNotificationId(requestId));
 
       const [
         requesterSnapshot,
@@ -203,6 +217,7 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
       }
 
       const now = FieldValue.serverTimestamp();
+      const targetNickname = displayNickname(target);
 
       transaction.set(
         requesterFriendRef,
@@ -234,6 +249,19 @@ export const acceptFriendRequest = onCall<AcceptFriendRequestPayload>(
         respondedAt: now,
         updatedAt: now,
       });
+
+      transaction.set(notificationRef, {
+        userId: requesterUid,
+        type: 'social',
+        title: 'Conexão aceita',
+        body: `${targetNickname} aceitou sua solicitação de conexão.`,
+        route: `/perfil/${targetUid}`,
+        requestId,
+        actorUid: targetUid,
+        readAt: null,
+        createdAt: now,
+        updatedAt: now,
+      }, { merge: true });
 
       transaction.set(db.collection('friendship_audit').doc(), {
         action: 'accept-friend-request',
