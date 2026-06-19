@@ -13,7 +13,7 @@
 // - impede duplicidade pendente;
 // - impede solicitação quando já existe amizade;
 // - respeita bloqueios bilaterais;
-// - notificação social é criada no backend para o destinatário.
+// - notificação social respeita preferências do destinatário.
 // -----------------------------------------------------------------------------
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -46,6 +46,12 @@ interface FriendRequestDoc {
   status?: unknown;
 }
 
+interface PreferencesDoc {
+  notificationPreferences?: {
+    connections?: unknown;
+  };
+}
+
 function normalizeUid(value: unknown): string {
   return String(value ?? '').trim();
 }
@@ -61,6 +67,10 @@ function buildFriendRequestNotificationId(requestId: string): string {
 function displayNickname(user: FriendshipUserDoc | undefined): string {
   const nickname = String(user?.nickname ?? '').replace(/\s+/g, ' ').trim();
   return nickname ? nickname.slice(0, 40) : 'Alguém';
+}
+
+function allowsConnectionNotifications(preferences: PreferencesDoc | undefined): boolean {
+  return preferences?.notificationPreferences?.connections !== false;
 }
 
 function normalizeMessage(value: unknown): string | null {
@@ -177,6 +187,7 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
       const reverseRequestRef = db
         .collection('friendRequests')
         .doc(buildRequestId(targetUid, requesterUid));
+      const targetPreferencesRef = db.collection('preferences').doc(targetUid);
       const notificationRef = db
         .collection('notifications')
         .doc(buildFriendRequestNotificationId(requestId));
@@ -190,6 +201,7 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
         targetBlockSnapshot,
         requestSnapshot,
         reverseRequestSnapshot,
+        targetPreferencesSnapshot,
       ] = await Promise.all([
         transaction.get(requesterRef),
         transaction.get(targetRef),
@@ -199,10 +211,12 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
         transaction.get(targetBlockRef),
         transaction.get(requestRef),
         transaction.get(reverseRequestRef),
+        transaction.get(targetPreferencesRef),
       ]);
 
       const requester = requesterSnapshot.data() as FriendshipUserDoc | undefined;
       const target = targetSnapshot.data() as FriendshipUserDoc | undefined;
+      const targetPreferences = targetPreferencesSnapshot.data() as PreferencesDoc | undefined;
 
       assertUserCanUseFriendship(requester, 'actor');
       assertUserCanUseFriendship(target, 'target');
@@ -260,24 +274,27 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
         source: 'callable',
       });
 
-      transaction.set(notificationRef, {
-        userId: targetUid,
-        type: 'social',
-        title: 'Nova solicitação de conexão',
-        body: `${requesterNickname} quer se conectar com você.`,
-        route: '/chat/invite-list',
-        requestId,
-        actorUid: requesterUid,
-        readAt: null,
-        createdAt: now,
-        updatedAt: now,
-      }, { merge: true });
+      if (allowsConnectionNotifications(targetPreferences)) {
+        transaction.set(notificationRef, {
+          userId: targetUid,
+          type: 'social',
+          title: 'Nova solicitação de conexão',
+          body: `${requesterNickname} quer se conectar com você.`,
+          route: '/chat/invite-list',
+          requestId,
+          actorUid: requesterUid,
+          readAt: null,
+          createdAt: now,
+          updatedAt: now,
+        }, { merge: true });
+      }
 
       transaction.set(db.collection('friendship_audit').doc(), {
         action: 'send-friend-request',
         requesterUid,
         targetUid,
         requestId,
+        notificationSuppressed: !allowsConnectionNotifications(targetPreferences),
         createdAt: now,
         source: 'callable',
       });
