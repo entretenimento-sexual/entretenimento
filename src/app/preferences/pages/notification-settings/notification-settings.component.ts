@@ -12,6 +12,7 @@ import { BehaviorSubject } from 'rxjs';
 import { finalize, take } from 'rxjs/operators';
 
 import {
+  INotificationPreferences,
   NotificationPreferenceEditableKey,
 } from 'src/app/core/interfaces/notification-preferences.interface';
 import { NotificationPreferencesService } from 'src/app/core/services/notifications/notification-preferences.service';
@@ -89,7 +90,10 @@ export class NotificationSettingsComponent {
     return this.busySubject.value.has(key);
   }
 
-  isEnabled(preferences: Record<string, unknown>, key: string): boolean {
+  isEnabled(
+    preferences: INotificationPreferences,
+    key: NotificationSettingOption['key']
+  ): boolean {
     if (key === 'accountSecurity') {
       return true;
     }
