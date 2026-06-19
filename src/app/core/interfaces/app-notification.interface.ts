@@ -1,5 +1,6 @@
 export type AppNotificationType =
   | 'user_intent_status.published'
+  | 'user_intent_status.compatible'
   | 'system'
   | 'social'
   | 'chat'
