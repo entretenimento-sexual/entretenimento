@@ -12,7 +12,8 @@
 // - impede auto-solicitação;
 // - impede duplicidade pendente;
 // - impede solicitação quando já existe amizade;
-// - respeita bloqueios bilaterais.
+// - respeita bloqueios bilaterais;
+// - notificação social é criada no backend para o destinatário.
 // -----------------------------------------------------------------------------
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -31,6 +32,7 @@ interface SendFriendRequestResponse {
 
 interface FriendshipUserDoc {
   uid?: unknown;
+  nickname?: unknown;
   profileCompleted?: unknown;
   accountStatus?: unknown;
   interactionBlocked?: unknown;
@@ -50,6 +52,15 @@ function normalizeUid(value: unknown): string {
 
 function buildRequestId(requesterUid: string, targetUid: string): string {
   return `${requesterUid}_${targetUid}`;
+}
+
+function buildFriendRequestNotificationId(requestId: string): string {
+  return `friend_request_received_${requestId}`;
+}
+
+function displayNickname(user: FriendshipUserDoc | undefined): string {
+  const nickname = String(user?.nickname ?? '').replace(/\s+/g, ' ').trim();
+  return nickname ? nickname.slice(0, 40) : 'Alguém';
 }
 
 function normalizeMessage(value: unknown): string | null {
@@ -166,6 +177,9 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
       const reverseRequestRef = db
         .collection('friendRequests')
         .doc(buildRequestId(targetUid, requesterUid));
+      const notificationRef = db
+        .collection('notifications')
+        .doc(buildFriendRequestNotificationId(requestId));
 
       const [
         requesterSnapshot,
@@ -232,23 +246,39 @@ export const sendFriendRequest = onCall<SendFriendRequestPayload>(
         );
       }
 
+      const now = FieldValue.serverTimestamp();
+      const requesterNickname = displayNickname(requester);
+
       transaction.set(requestRef, {
         requesterUid,
         targetUid,
         message,
         status: 'pending',
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
+        createdAt: now,
+        updatedAt: now,
         policyVersion: 1,
         source: 'callable',
       });
+
+      transaction.set(notificationRef, {
+        userId: targetUid,
+        type: 'social',
+        title: 'Nova solicitação de conexão',
+        body: `${requesterNickname} quer se conectar com você.`,
+        route: '/chat/invite-list',
+        requestId,
+        actorUid: requesterUid,
+        readAt: null,
+        createdAt: now,
+        updatedAt: now,
+      }, { merge: true });
 
       transaction.set(db.collection('friendship_audit').doc(), {
         action: 'send-friend-request',
         requesterUid,
         targetUid,
         requestId,
-        createdAt: FieldValue.serverTimestamp(),
+        createdAt: now,
         source: 'callable',
       });
     });
