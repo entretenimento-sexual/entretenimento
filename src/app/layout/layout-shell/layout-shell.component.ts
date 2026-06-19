@@ -32,6 +32,7 @@ import {
   type UniversalSidebarQuickAction,
   type UniversalSidebarUserSummary,
 } from '../../shared/components-globais/universal-sidebar/universal-sidebar.component';
+import { UserActivityHubComponent } from '../../notifications/user-activity-hub/user-activity-hub.component';
 
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
@@ -90,6 +91,7 @@ interface LayoutShellVm {
     FooterModule,
     UniversalSidebarComponent,
     EmailVerificationGateBannerComponent,
+    UserActivityHubComponent,
   ],
   templateUrl: './layout-shell.component.html',
   styleUrls: ['./layout-shell.component.css'],
