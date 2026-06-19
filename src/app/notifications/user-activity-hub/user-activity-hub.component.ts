@@ -6,7 +6,8 @@
 //
 // Decisões:
 // - não duplica a página /notificacoes;
-// - separa notificações não lidas por tipo operacional;
+// - exibe categorias fixas para navegação previsível;
+// - badges aparecem apenas quando houver pendência;
 // - usa o stream reativo já protegido por Rules;
 // - não escreve no Firestore;
 // - ações de leitura seguem nas callables da central de notificações.
@@ -22,7 +23,7 @@ import { IAppNotification } from 'src/app/core/interfaces/app-notification.inter
 import { AppNotificationService } from 'src/app/core/services/notifications/app-notification.service';
 
 interface UserActivityHubAction {
-  id: string;
+  id: ActivityKind;
   label: string;
   description: string;
   count: number;
@@ -42,8 +43,7 @@ type ActivityKind =
   | 'rooms'
   | 'places'
   | 'status'
-  | 'account'
-  | 'general';
+  | 'central';
 
 @Component({
   selector: 'app-user-activity-hub',
@@ -56,6 +56,63 @@ type ActivityKind =
 export class UserActivityHubComponent {
   private readonly notifications = inject(AppNotificationService);
 
+  private readonly baseActions: UserActivityHubAction[] = [
+    {
+      id: 'messages',
+      label: 'Mensagens',
+      description: 'Conversas novas aguardando resposta',
+      count: 0,
+      icon: '💬',
+      route: '/chat',
+      priority: 100,
+    },
+    {
+      id: 'connections',
+      label: 'Conexões',
+      description: 'Solicitações e conexões aceitas',
+      count: 0,
+      icon: '🤝',
+      route: '/chat/invite-list',
+      priority: 90,
+    },
+    {
+      id: 'rooms',
+      label: 'Salas',
+      description: 'Convites e salas com movimento',
+      count: 0,
+      icon: '🚪',
+      route: '/chat/rooms',
+      priority: 80,
+    },
+    {
+      id: 'places',
+      label: 'Locais',
+      description: 'Pontos relevantes para sua região',
+      count: 0,
+      icon: '📍',
+      route: '/descobrir',
+      priority: 70,
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      description: 'Status de hoje e radar regional',
+      count: 0,
+      icon: '⚡',
+      route: '/descobrir',
+      priority: 60,
+    },
+    {
+      id: 'central',
+      label: 'Central',
+      description: 'Todas as notificações',
+      count: 0,
+      icon: '🔔',
+      route: '/notificacoes',
+      priority: 10,
+    },
+  ];
+
   readonly vm$: Observable<UserActivityHubVm> =
     this.notifications.currentUserNotifications$.pipe(
       map((items) => this.toVm(items))
@@ -67,27 +124,18 @@ export class UserActivityHubComponent {
 
   private toVm(items: IAppNotification[]): UserActivityHubVm {
     const unreadItems = (items ?? []).filter((item) => item.readAt === null);
-    const groups = new Map<ActivityKind, UserActivityHubAction>();
+    const counts = new Map<ActivityKind, number>();
 
     unreadItems.forEach((item) => {
-      const seed = this.toActionSeed(item);
-      const current = groups.get(seed.id as ActivityKind);
-
-      if (!current) {
-        groups.set(seed.id as ActivityKind, seed);
-        return;
-      }
-
-      groups.set(seed.id as ActivityKind, {
-        ...current,
-        count: current.count + 1,
-        route: current.route || seed.route,
-      });
+      const kind = this.toActivityKind(item);
+      counts.set(kind, (counts.get(kind) ?? 0) + 1);
+      counts.set('central', (counts.get('central') ?? 0) + 1);
     });
 
-    const actions = Array.from(groups.values())
-      .sort((a, b) => b.priority - a.priority || b.count - a.count)
-      .slice(0, 6);
+    const actions = this.baseActions.map((action) => ({
+      ...action,
+      count: counts.get(action.id) ?? 0,
+    }));
 
     return {
       actions,
@@ -95,91 +143,31 @@ export class UserActivityHubComponent {
     };
   }
 
-  private toActionSeed(item: IAppNotification): UserActivityHubAction {
+  private toActivityKind(item: IAppNotification): ActivityKind {
     const route = this.safeRoute(item.route) ?? this.defaultRouteFor(item);
     const searchable = this.searchableText(item);
 
     if (this.isMessageActivity(item, route, searchable)) {
-      return this.buildAction({
-        id: 'messages',
-        label: 'Mensagens',
-        description: 'Conversas novas aguardando resposta',
-        icon: '💬',
-        route: '/chat',
-        priority: 100,
-      });
+      return 'messages';
     }
 
     if (this.isConnectionActivity(route, searchable)) {
-      return this.buildAction({
-        id: 'connections',
-        label: 'Conexões',
-        description: 'Solicitações e conexões aceitas',
-        icon: '🤝',
-        route: route.startsWith('/perfil/') ? route : '/chat/invite-list',
-        priority: 90,
-      });
+      return 'connections';
     }
 
     if (this.isRoomActivity(route, searchable)) {
-      return this.buildAction({
-        id: 'rooms',
-        label: 'Salas',
-        description: 'Convites e salas com movimento',
-        icon: '🚪',
-        route: route.startsWith('/chat') ? route : '/chat/rooms',
-        priority: 80,
-      });
+      return 'rooms';
     }
 
     if (this.isPlaceActivity(route, searchable)) {
-      return this.buildAction({
-        id: 'places',
-        label: 'Locais',
-        description: 'Pontos relevantes para sua região',
-        icon: '📍',
-        route: route.startsWith('/descobrir') ? route : '/descobrir',
-        priority: 70,
-      });
+      return 'places';
     }
 
     if (this.isStatusActivity(item, searchable)) {
-      return this.buildAction({
-        id: 'status',
-        label: 'Status',
-        description: 'Status de hoje e radar regional',
-        icon: '⚡',
-        route: '/descobrir',
-        priority: 60,
-      });
+      return 'status';
     }
 
-    if (item.type === 'billing') {
-      return this.buildAction({
-        id: 'account',
-        label: 'Conta',
-        description: 'Assinatura, cobrança ou plano',
-        icon: '⭐',
-        route: '/subscription-plan',
-        priority: 50,
-      });
-    }
-
-    return this.buildAction({
-      id: 'general',
-      label: 'Avisos',
-      description: 'Atualizações importantes da plataforma',
-      icon: '🔔',
-      route: '/notificacoes',
-      priority: 10,
-    });
-  }
-
-  private buildAction(input: Omit<UserActivityHubAction, 'count'>): UserActivityHubAction {
-    return {
-      ...input,
-      count: 1,
-    };
+    return 'central';
   }
 
   private searchableText(item: IAppNotification): string {
@@ -233,12 +221,11 @@ export class UserActivityHubComponent {
     switch (item.type) {
       case 'chat':
         return '/chat';
-      case 'social':
-        return '/notificacoes';
       case 'billing':
         return '/subscription-plan';
       case 'user_intent_status.published':
         return '/descobrir';
+      case 'social':
       case 'system':
       default:
         return '/notificacoes';
