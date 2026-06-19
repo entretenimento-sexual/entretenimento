@@ -19,6 +19,10 @@
             {{ vm.unreadCount }} {{ vm.unreadCount === 1 ? 'não lida' : 'não lidas' }}
           </span>
 
+          <a class="notifications-hero__button" routerLink="/preferencias/notificacoes">
+            Preferências
+          </a>
+
           @if (vm.unreadCount > 0) {
             <button
               type="button"
