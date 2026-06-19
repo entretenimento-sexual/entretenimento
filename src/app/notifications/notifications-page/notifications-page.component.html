@@ -1,7 +1,6 @@
 <!-- src/app/notifications/notifications-page/notifications-page.component.html -->
 
 @if (vm$ | async; as vm) {
-  @let busyIds = ((busyIds$ | async) || []);
   @let markAllBusy = ((markAllBusy$ | async) || false);
 
   <section class="notifications-page" aria-labelledby="notifications-title">
@@ -75,9 +74,9 @@
                     type="button"
                     class="notification-card__link notification-card__link--button"
                     (click)="markAsRead(item)"
-                    [disabled]="busyIds.has(item.id)"
+                    [disabled]="isBusy(item.id)"
                   >
-                    {{ busyIds.has(item.id) ? 'Marcando...' : 'Marcar como lida' }}
+                    {{ isBusy(item.id) ? 'Marcando...' : 'Marcar como lida' }}
                   </button>
                 } @else {
                   <span class="notification-card__read-state">Lida</span>
