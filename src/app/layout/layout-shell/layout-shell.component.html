@@ -9,6 +9,10 @@
 
   <app-email-verification-gate-banner></app-email-verification-gate-banner>
 
+  <app-user-activity-hub
+    *ngIf="vm.shellMode === 'auth' && !vm.isChatLayout"
+  ></app-user-activity-hub>
+
   <div
     class="auth-shell__body"
     [class.auth-shell__body--sidebar-overlay-open]="vm.showSidebar && vm.sidebarShouldOverlay && vm.sidebar.isOpen"
