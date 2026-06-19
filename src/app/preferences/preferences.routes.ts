@@ -26,6 +26,13 @@ export const PREFERENCES_ROUTES: Routes = [
       ),
   },
   {
+    path: 'notificacoes',
+    loadComponent: () =>
+      import('./pages/notification-settings/notification-settings.component').then(
+        (m) => m.NotificationSettingsComponent
+      ),
+  },
+  {
     path: 'match-profile',
     loadComponent: () =>
       import('./pages/match-profile-lab/match-profile-lab.component').then(
