@@ -1,0 +1,54 @@
+<!-- src/app/preferences/pages/notification-settings/notification-settings.component.html -->
+
+<main class="notification-settings-page app-page" aria-label="Preferências de notificação">
+  <section class="notification-settings-shell stack">
+    <app-preferences-page-header
+      title="Notificações"
+      subtitle="Escolha quais alertas devem chamar sua atenção. Alertas essenciais de conta continuam ativos."
+    >
+      <a page-actions class="btn btn-secondary" routerLink="/notificacoes">
+        Voltar à central
+      </a>
+    </app-preferences-page-header>
+
+    <app-preferences-domain-nav></app-preferences-domain-nav>
+
+    @if (vm$ | async; as vm) {
+      @let busyKeys = ((busyKeys$ | async) || null);
+
+      <section class="notification-settings-panel" aria-label="Tipos de notificação">
+        @if (vm.loading) {
+          <p class="notification-settings-state">Carregando preferências...</p>
+        } @else {
+          @for (option of options; track trackOption($index, option)) {
+            <article class="notification-option">
+              <div class="notification-option__copy">
+                <h2>{{ option.title }}</h2>
+                <p>{{ option.description }}</p>
+
+                @if (option.locked) {
+                  <span class="notification-option__locked">Sempre ativo</span>
+                }
+              </div>
+
+              <label class="notification-toggle">
+                <input
+                  type="checkbox"
+                  [checked]="isEnabled(vm.preferences, option.key)"
+                  [disabled]="option.locked || busyKeys?.has(option.key)"
+                  (change)="onToggle(option.key, $any($event.target).checked)"
+                />
+                <span class="notification-toggle__track" aria-hidden="true">
+                  <span class="notification-toggle__thumb"></span>
+                </span>
+                <span class="sr-only">
+                  {{ isEnabled(vm.preferences, option.key) ? 'Desativar' : 'Ativar' }} {{ option.title }}
+                </span>
+              </label>
+            </article>
+          }
+        }
+      </section>
+    }
+  </section>
+</main>
