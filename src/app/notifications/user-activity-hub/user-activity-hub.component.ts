@@ -2,11 +2,11 @@
 // -----------------------------------------------------------------------------
 // USER ACTIVITY HUB
 // -----------------------------------------------------------------------------
-// Faixa compacta de ações logo abaixo do header.
+// Barra discreta de atalhos vivos logo abaixo do header.
 //
 // Decisões:
 // - não duplica a página /notificacoes;
-// - agrega notificações não lidas por tipo/rota;
+// - separa notificações não lidas por tipo operacional;
 // - usa o stream reativo já protegido por Rules;
 // - não escreve no Firestore;
 // - ações de leitura seguem nas callables da central de notificações.
@@ -36,6 +36,15 @@ interface UserActivityHubVm {
   totalUnread: number;
 }
 
+type ActivityKind =
+  | 'messages'
+  | 'connections'
+  | 'rooms'
+  | 'places'
+  | 'status'
+  | 'account'
+  | 'general';
+
 @Component({
   selector: 'app-user-activity-hub',
   standalone: true,
@@ -58,18 +67,18 @@ export class UserActivityHubComponent {
 
   private toVm(items: IAppNotification[]): UserActivityHubVm {
     const unreadItems = (items ?? []).filter((item) => item.readAt === null);
-    const groups = new Map<string, UserActivityHubAction>();
+    const groups = new Map<ActivityKind, UserActivityHubAction>();
 
     unreadItems.forEach((item) => {
       const seed = this.toActionSeed(item);
-      const current = groups.get(seed.id);
+      const current = groups.get(seed.id as ActivityKind);
 
       if (!current) {
-        groups.set(seed.id, seed);
+        groups.set(seed.id as ActivityKind, seed);
         return;
       }
 
-      groups.set(seed.id, {
+      groups.set(seed.id as ActivityKind, {
         ...current,
         count: current.count + 1,
         route: current.route || seed.route,
@@ -78,7 +87,7 @@ export class UserActivityHubComponent {
 
     const actions = Array.from(groups.values())
       .sort((a, b) => b.priority - a.priority || b.count - a.count)
-      .slice(0, 5);
+      .slice(0, 6);
 
     return {
       actions,
@@ -88,103 +97,136 @@ export class UserActivityHubComponent {
 
   private toActionSeed(item: IAppNotification): UserActivityHubAction {
     const route = this.safeRoute(item.route) ?? this.defaultRouteFor(item);
-    const title = `${item.title ?? ''}`.toLowerCase();
-    const body = `${item.body ?? ''}`.toLowerCase();
-    const searchable = `${title} ${body}`;
+    const searchable = this.searchableText(item);
 
-    if (item.type === 'chat' || route.startsWith('/chat') && !route.includes('invite-list')) {
-      return {
+    if (this.isMessageActivity(item, route, searchable)) {
+      return this.buildAction({
         id: 'messages',
         label: 'Mensagens',
         description: 'Conversas novas aguardando resposta',
-        count: 1,
         icon: '💬',
         route: '/chat',
         priority: 100,
-      };
+      });
     }
 
-    if (route.includes('/chat/invite-list') || searchable.includes('solicitação de conexão')) {
-      return {
-        id: 'friend-requests',
+    if (this.isConnectionActivity(route, searchable)) {
+      return this.buildAction({
+        id: 'connections',
         label: 'Conexões',
-        description: 'Solicitações pendentes para revisar',
-        count: 1,
+        description: 'Solicitações e conexões aceitas',
         icon: '🤝',
-        route: '/chat/invite-list',
+        route: route.startsWith('/perfil/') ? route : '/chat/invite-list',
         priority: 90,
-      };
+      });
     }
 
-    if (item.type === 'social') {
-      return {
-        id: 'social',
-        label: 'Interações',
-        description: 'Novas respostas e conexões aceitas',
-        count: 1,
-        icon: '✨',
-        route,
-        priority: 80,
-      };
-    }
-
-    if (searchable.includes('sala') || searchable.includes('convite')) {
-      return {
-        id: 'room-invites',
+    if (this.isRoomActivity(route, searchable)) {
+      return this.buildAction({
+        id: 'rooms',
         label: 'Salas',
-        description: 'Convites e salas com atividade',
-        count: 1,
+        description: 'Convites e salas com movimento',
         icon: '🚪',
         route: route.startsWith('/chat') ? route : '/chat/rooms',
-        priority: 70,
-      };
+        priority: 80,
+      });
     }
 
-    if (searchable.includes('local') || searchable.includes('estabelecimento')) {
-      return {
+    if (this.isPlaceActivity(route, searchable)) {
+      return this.buildAction({
         id: 'places',
         label: 'Locais',
-        description: 'Novos pontos relevantes para você',
-        count: 1,
+        description: 'Pontos relevantes para sua região',
         icon: '📍',
         route: route.startsWith('/descobrir') ? route : '/descobrir',
-        priority: 60,
-      };
+        priority: 70,
+      });
     }
 
-    if (item.type === 'user_intent_status.published') {
-      return {
-        id: 'today-status',
-        label: 'Status de hoje',
-        description: 'Disponibilidade e radar regional ativos',
-        count: 1,
+    if (this.isStatusActivity(item, searchable)) {
+      return this.buildAction({
+        id: 'status',
+        label: 'Status',
+        description: 'Status de hoje e radar regional',
         icon: '⚡',
         route: '/descobrir',
-        priority: 50,
-      };
+        priority: 60,
+      });
     }
 
     if (item.type === 'billing') {
-      return {
-        id: 'billing',
+      return this.buildAction({
+        id: 'account',
         label: 'Conta',
         description: 'Assinatura, cobrança ou plano',
-        count: 1,
         icon: '⭐',
         route: '/subscription-plan',
-        priority: 40,
-      };
+        priority: 50,
+      });
     }
 
-    return {
-      id: 'notifications',
-      label: 'Notificações',
+    return this.buildAction({
+      id: 'general',
+      label: 'Avisos',
       description: 'Atualizações importantes da plataforma',
-      count: 1,
       icon: '🔔',
       route: '/notificacoes',
       priority: 10,
+    });
+  }
+
+  private buildAction(input: Omit<UserActivityHubAction, 'count'>): UserActivityHubAction {
+    return {
+      ...input,
+      count: 1,
     };
+  }
+
+  private searchableText(item: IAppNotification): string {
+    return `${item.title ?? ''} ${item.body ?? ''}`
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+  }
+
+  private isMessageActivity(
+    item: IAppNotification,
+    route: string,
+    searchable: string
+  ): boolean {
+    return item.type === 'chat' ||
+      (route.startsWith('/chat') && !route.includes('invite-list')) ||
+      searchable.includes('mensagem') ||
+      searchable.includes('conversa');
+  }
+
+  private isConnectionActivity(route: string, searchable: string): boolean {
+    return route.includes('/chat/invite-list') ||
+      route.startsWith('/friends/requests') ||
+      route.startsWith('/perfil/') && searchable.includes('conexao') ||
+      searchable.includes('solicitacao de conexao') ||
+      searchable.includes('conexao aceita') ||
+      searchable.includes('amizade');
+  }
+
+  private isRoomActivity(route: string, searchable: string): boolean {
+    return route.startsWith('/chat/rooms') ||
+      searchable.includes('sala') ||
+      searchable.includes('convite');
+  }
+
+  private isPlaceActivity(route: string, searchable: string): boolean {
+    return route.startsWith('/locais') ||
+      searchable.includes('local') ||
+      searchable.includes('locais') ||
+      searchable.includes('estabelecimento');
+  }
+
+  private isStatusActivity(item: IAppNotification, searchable: string): boolean {
+    return item.type === 'user_intent_status.published' ||
+      searchable.includes('status') ||
+      searchable.includes('radar') ||
+      searchable.includes('disponivel hoje');
   }
 
   private defaultRouteFor(item: IAppNotification): string {
