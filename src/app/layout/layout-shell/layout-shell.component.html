@@ -9,10 +9,6 @@
 
   <app-email-verification-gate-banner></app-email-verification-gate-banner>
 
-  <app-user-activity-hub
-    *ngIf="vm.shellMode === 'auth' && !vm.isChatLayout"
-  ></app-user-activity-hub>
-
   <div
     class="auth-shell__body"
     [class.auth-shell__body--sidebar-overlay-open]="vm.showSidebar && vm.sidebarShouldOverlay && vm.sidebar.isOpen"
@@ -37,6 +33,10 @@
       [class.auth-shell__content-area--full]="!vm.showSidebar"
       [class.auth-shell__content-area--overlay]="vm.showSidebar && vm.sidebarShouldOverlay"
     >
+      <app-user-activity-hub
+        *ngIf="vm.shellMode === 'auth' && !vm.isChatLayout"
+      ></app-user-activity-hub>
+
       <main
         class="auth-shell__content"
         [attr.inert]="vm.showSidebar && vm.sidebarShouldOverlay && vm.sidebar.isOpen ? '' : null"
