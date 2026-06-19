@@ -11,7 +11,8 @@
 // - startsAt/expiresAt são definidos no servidor para evitar erro de relógio;
 // - localização continua regional, sem coordenada precisa;
 // - venueId só é aceito quando aponta para estabelecimento ativo e visível;
-// - notificações de status começam pelo próprio usuário para evitar spam.
+// - notificação própria confirma publicação;
+// - notificação compatível exige opt-in, região igual, elegibilidade e anti-spam.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
@@ -25,6 +26,7 @@ import type { MessagingUserDoc } from '../chat/shared/messaging.types';
 
 const MAX_STATUS_DURATION_HOURS = 12;
 const DEFAULT_STATUS_DURATION_HOURS = 12;
+const MAX_COMPATIBLE_STATUS_NOTIFICATIONS = 10;
 
 const ALLOWED_AVAILABILITY = new Set([
   'available_now',
@@ -75,6 +77,17 @@ interface UserIntentStatusResponse {
   statusId: string;
   expiresAt: number;
   state: 'active' | 'hidden';
+}
+
+interface NotificationPreferencesDoc {
+  notificationPreferences?: {
+    compatibleStatus?: unknown;
+  };
+}
+
+interface CompatibleNotificationCandidate {
+  targetUid: string;
+  targetUser: MessagingUserDoc;
 }
 
 function normalizeEnum(
@@ -230,12 +243,185 @@ function buildStatusPublishedNotificationId(uid: string): string {
   return `user_intent_status_active_${uid}`;
 }
 
+function buildCompatibleStatusNotificationId(
+  targetUid: string,
+  actorUid: string,
+  statusId: string
+): string {
+  return `compatible_status_${targetUid}_${actorUid}_${statusId}`;
+}
+
 function buildStatusPublishedNotificationBody(destination: NormalizedDestination): string {
   if (destination.kind === 'venue') {
     return `Seu status está ativo em ${destination.label}.`;
   }
 
   return `Seu status está ativo em ${destination.region.city}.`;
+}
+
+function buildCompatibleStatusBody(destination: NormalizedDestination): string {
+  if (destination.kind === 'venue') {
+    return `Há um status compatível ativo em ${destination.label}.`;
+  }
+
+  return `Há um status compatível ativo na sua região.`;
+}
+
+function normalizeUserRegion(user: MessagingUserDoc | undefined): {
+  uf: string;
+  city: string;
+} {
+  return {
+    uf: String((user as any)?.estado ?? '').trim().toUpperCase(),
+    city: String((user as any)?.municipio ?? '').trim().toLowerCase(),
+  };
+}
+
+function isOperationalCandidate(user: MessagingUserDoc | undefined): boolean {
+  if (!user?.uid || (user as any).profileCompleted !== true) {
+    return false;
+  }
+
+  const accountStatus = String((user as any).accountStatus ?? 'active')
+    .trim()
+    .toLowerCase();
+
+  return accountStatus === 'active' &&
+    (user as any).interactionBlocked !== true &&
+    (user as any).accountLocked !== true &&
+    (user as any).loginAllowed !== false;
+}
+
+function isSameRegion(
+  user: MessagingUserDoc | undefined,
+  destination: NormalizedDestination
+): boolean {
+  const userRegion = normalizeUserRegion(user);
+  return userRegion.uf === destination.region.uf &&
+    userRegion.city === destination.region.city;
+}
+
+function shouldNotifyCompatibleStatus(visibility: string): boolean {
+  return visibility === 'public_discovery';
+}
+
+async function hasActiveBlockBetween(actorUid: string, targetUid: string): Promise<boolean> {
+  const [actorBlockSnapshot, targetBlockSnapshot] = await Promise.all([
+    db.collection('users').doc(actorUid).collection('blocks').doc(targetUid).get(),
+    db.collection('users').doc(targetUid).collection('blocks').doc(actorUid).get(),
+  ]);
+
+  return actorBlockSnapshot.data()?.['isBlocked'] === true ||
+    targetBlockSnapshot.data()?.['isBlocked'] === true;
+}
+
+async function findCompatibleNotificationCandidates(
+  actorUid: string,
+  destination: NormalizedDestination
+): Promise<CompatibleNotificationCandidate[]> {
+  const preferencesSnapshot = await db
+    .collection('preferences')
+    .where('notificationPreferences.compatibleStatus', '==', true)
+    .limit(MAX_COMPATIBLE_STATUS_NOTIFICATIONS * 3)
+    .get();
+
+  const candidates: CompatibleNotificationCandidate[] = [];
+
+  for (const preferenceDoc of preferencesSnapshot.docs) {
+    const targetUid = preferenceDoc.id;
+
+    if (targetUid === actorUid) {
+      continue;
+    }
+
+    const preferences = preferenceDoc.data() as NotificationPreferencesDoc;
+
+    if (preferences.notificationPreferences?.compatibleStatus !== true) {
+      continue;
+    }
+
+    const targetSnapshot = await db.collection('users').doc(targetUid).get();
+    const targetUser = targetSnapshot.data() as MessagingUserDoc | undefined;
+
+    if (!isOperationalCandidate(targetUser) || !isSameRegion(targetUser, destination)) {
+      continue;
+    }
+
+    if (await hasActiveBlockBetween(actorUid, targetUid)) {
+      continue;
+    }
+
+    candidates.push({ targetUid, targetUser: targetUser! });
+
+    if (candidates.length >= MAX_COMPATIBLE_STATUS_NOTIFICATIONS) {
+      break;
+    }
+  }
+
+  return candidates;
+}
+
+async function notifyCompatibleStatusSubscribers(params: {
+  actorUid: string;
+  statusId: string;
+  destination: NormalizedDestination;
+  visibility: string;
+}): Promise<number> {
+  if (!shouldNotifyCompatibleStatus(params.visibility)) {
+    return 0;
+  }
+
+  const candidates = await findCompatibleNotificationCandidates(
+    params.actorUid,
+    params.destination
+  );
+
+  let created = 0;
+
+  for (const candidate of candidates) {
+    const notificationId = buildCompatibleStatusNotificationId(
+      candidate.targetUid,
+      params.actorUid,
+      params.statusId
+    );
+    const notificationRef = db.collection('notifications').doc(notificationId);
+    const existingNotification = await notificationRef.get();
+
+    if (existingNotification.exists) {
+      continue;
+    }
+
+    await notificationRef.set({
+      userId: candidate.targetUid,
+      type: 'user_intent_status.compatible',
+      title: 'Status compatível ativo',
+      body: buildCompatibleStatusBody(params.destination),
+      route: '/descobrir',
+      statusId: params.statusId,
+      actorUid: params.actorUid,
+      destinationKind: params.destination.kind,
+      destinationVenueId: params.destination.venueId,
+      destinationRegion: params.destination.region,
+      readAt: null,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    }, { merge: false });
+
+    created += 1;
+  }
+
+  if (created > 0) {
+    await db.collection('user_intent_status_audit').add({
+      action: 'notify_compatible_user_intent_status',
+      actorUid: params.actorUid,
+      statusId: params.statusId,
+      destinationRegion: params.destination.region,
+      notificationsCreated: created,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+  }
+
+  return created;
 }
 
 export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
@@ -324,6 +510,17 @@ export const publishUserIntentStatus = onCall<PublishUserIntentStatusRequest>(
         updatedAt: FieldValue.serverTimestamp(),
       }, { merge: true });
     });
+
+    try {
+      await notifyCompatibleStatusSubscribers({
+        actorUid: uid,
+        statusId,
+        destination,
+        visibility,
+      });
+    } catch (error) {
+      console.warn('[publishUserIntentStatus] compatible notifications skipped', error);
+    }
 
     return {
       statusId,
