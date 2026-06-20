@@ -9,17 +9,17 @@
 // -----------------------------------------------------------------------------
 
 export type NormalizedDiscoveryGender =
-  | "man"
-  | "woman"
-  | "couple"
-  | "unknown";
+  | 'man'
+  | 'woman'
+  | 'couple'
+  | 'unknown';
 
 export type NormalizedDiscoveryOrientation =
-  | "heterosexual"
-  | "homosexual"
-  | "bisexual"
-  | "pansexual"
-  | "unknown";
+  | 'heterosexual'
+  | 'homosexual'
+  | 'bisexual'
+  | 'pansexual'
+  | 'unknown';
 
 export interface CanonicalProfileDiscoveryFields {
   normalizedGender: NormalizedDiscoveryGender;
@@ -45,9 +45,9 @@ interface ProfileDiscoverySource {
 }
 
 function normalizeText(value: unknown): string {
-  return typeof value === "string"
-    ? value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    : "";
+  return typeof value === 'string'
+    ? value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    : '';
 }
 
 function unique<T>(values: readonly T[]): readonly T[] {
@@ -59,44 +59,44 @@ function asArray(value: unknown): readonly unknown[] {
 }
 
 export function normalizeDiscoveryGender(value: unknown): NormalizedDiscoveryGender {
-  const text = normalizeText(value).replace(/_/g, "-");
+  const text = normalizeText(value).replace(/_/g, '-');
 
   if (
-    text === "homem" ||
-    text === "homens" ||
-    text === "masculino" ||
-    text === "male" ||
-    text === "man" ||
-    text === "men"
+    text === 'homem' ||
+    text === 'homens' ||
+    text === 'masculino' ||
+    text === 'male' ||
+    text === 'man' ||
+    text === 'men'
   ) {
-    return "man";
+    return 'man';
   }
 
   if (
-    text === "mulher" ||
-    text === "mulheres" ||
-    text === "feminino" ||
-    text === "female" ||
-    text === "woman" ||
-    text === "women"
+    text === 'mulher' ||
+    text === 'mulheres' ||
+    text === 'feminino' ||
+    text === 'female' ||
+    text === 'woman' ||
+    text === 'women'
   ) {
-    return "woman";
+    return 'woman';
   }
 
   if (
-    text === "casal" ||
-    text === "casais" ||
-    text === "couple" ||
-    text === "couples" ||
-    text === "dupla" ||
-    text === "casal-ele-ele" ||
-    text === "casal-ele-ela" ||
-    text === "casal-ela-ela"
+    text === 'casal' ||
+    text === 'casais' ||
+    text === 'couple' ||
+    text === 'couples' ||
+    text === 'dupla' ||
+    text === 'casal-ele-ele' ||
+    text === 'casal-ele-ela' ||
+    text === 'casal-ela-ela'
   ) {
-    return "couple";
+    return 'couple';
   }
 
-  return "unknown";
+  return 'unknown';
 }
 
 export function normalizeDiscoveryOrientation(
@@ -105,46 +105,46 @@ export function normalizeDiscoveryOrientation(
   const text = normalizeText(value);
 
   if (
-    text === "heterossexual" ||
-    text === "heterosexual" ||
-    text === "hetero" ||
-    text === "heteros" ||
-    text === "straight"
+    text === 'heterossexual' ||
+    text === 'heterosexual' ||
+    text === 'hetero' ||
+    text === 'heteros' ||
+    text === 'straight'
   ) {
-    return "heterosexual";
+    return 'heterosexual';
   }
 
   if (
-    text === "homossexual" ||
-    text === "homosexual" ||
-    text === "homo" ||
-    text === "gay" ||
-    text === "lesbica" ||
-    text === "lesbian"
+    text === 'homossexual' ||
+    text === 'homosexual' ||
+    text === 'homo' ||
+    text === 'gay' ||
+    text === 'lesbica' ||
+    text === 'lesbian'
   ) {
-    return "homosexual";
+    return 'homosexual';
   }
 
   if (
-    text === "bissexual" ||
-    text === "bisexual" ||
-    text === "bi"
+    text === 'bissexual' ||
+    text === 'bisexual' ||
+    text === 'bi'
   ) {
-    return "bisexual";
+    return 'bisexual';
   }
 
   if (
-    text === "pansexual" ||
-    text === "pan"
+    text === 'pansexual' ||
+    text === 'pan'
   ) {
-    return "pansexual";
+    return 'pansexual';
   }
 
-  return "unknown";
+  return 'unknown';
 }
 
 function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
-  const text = normalizeText(value).replace(/_/g, "-");
+  const text = normalizeText(value).replace(/_/g, '-');
   const genders: NormalizedDiscoveryGender[] = [];
 
   if (
@@ -154,7 +154,7 @@ function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
     /\bmale\b/.test(text) ||
     /\bmen\b/.test(text)
   ) {
-    genders.push("man");
+    genders.push('man');
   }
 
   if (
@@ -164,7 +164,7 @@ function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
     /\bfemale\b/.test(text) ||
     /\bwomen\b/.test(text)
   ) {
-    genders.push("woman");
+    genders.push('woman');
   }
 
   if (
@@ -177,7 +177,7 @@ function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
     /\bcasal-ele-ela\b/.test(text) ||
     /\bcasal-ela-ela\b/.test(text)
   ) {
-    genders.push("couple");
+    genders.push('couple');
   }
 
   return genders;
@@ -194,7 +194,7 @@ function orientationsFromFreeText(value: unknown): NormalizedDiscoveryOrientatio
     /\bheterosexual\b/.test(text) ||
     /\bstraight\b/.test(text)
   ) {
-    orientations.push("heterosexual");
+    orientations.push('heterosexual');
   }
 
   if (
@@ -205,7 +205,7 @@ function orientationsFromFreeText(value: unknown): NormalizedDiscoveryOrientatio
     /\blesbica\b/.test(text) ||
     /\blesbian\b/.test(text)
   ) {
-    orientations.push("homosexual");
+    orientations.push('homosexual');
   }
 
   if (
@@ -213,14 +213,14 @@ function orientationsFromFreeText(value: unknown): NormalizedDiscoveryOrientatio
     /\bbissexual\b/.test(text) ||
     /\bbisexual\b/.test(text)
   ) {
-    orientations.push("bisexual");
+    orientations.push('bisexual');
   }
 
   if (
     /\bpan\b/.test(text) ||
     /\bpansexual\b/.test(text)
   ) {
-    orientations.push("pansexual");
+    orientations.push('pansexual');
   }
 
   return orientations;
@@ -232,9 +232,9 @@ function normalizeGenderList(values: unknown): readonly NormalizedDiscoveryGende
       .flatMap((value) => {
         const direct = normalizeDiscoveryGender(value);
 
-        return direct !== "unknown" ? [direct] : gendersFromFreeText(value);
+        return direct !== 'unknown' ? [direct] : gendersFromFreeText(value);
       })
-      .filter((value): value is NormalizedDiscoveryGender => value !== "unknown")
+      .filter((value): value is NormalizedDiscoveryGender => value !== 'unknown')
   );
 }
 
@@ -246,9 +246,9 @@ function normalizeOrientationList(
       .flatMap((value) => {
         const direct = normalizeDiscoveryOrientation(value);
 
-        return direct !== "unknown" ? [direct] : orientationsFromFreeText(value);
+        return direct !== 'unknown' ? [direct] : orientationsFromFreeText(value);
       })
-      .filter((value): value is NormalizedDiscoveryOrientation => value !== "unknown")
+      .filter((value): value is NormalizedDiscoveryOrientation => value !== 'unknown')
   );
 }
 
@@ -256,28 +256,28 @@ function acceptedTargetGendersByOrientation(
   selfGender: NormalizedDiscoveryGender,
   selfOrientation: NormalizedDiscoveryOrientation
 ): readonly NormalizedDiscoveryGender[] {
-  if (selfOrientation === "bisexual" || selfOrientation === "pansexual") {
-    return ["man", "woman", "couple"];
+  if (selfOrientation === 'bisexual' || selfOrientation === 'pansexual') {
+    return ['man', 'woman', 'couple'];
   }
 
-  if (selfGender === "man" && selfOrientation === "heterosexual") {
-    return ["woman"];
+  if (selfGender === 'man' && selfOrientation === 'heterosexual') {
+    return ['woman'];
   }
 
-  if (selfGender === "woman" && selfOrientation === "heterosexual") {
-    return ["man"];
+  if (selfGender === 'woman' && selfOrientation === 'heterosexual') {
+    return ['man'];
   }
 
-  if (selfGender === "man" && selfOrientation === "homosexual") {
-    return ["man"];
+  if (selfGender === 'man' && selfOrientation === 'homosexual') {
+    return ['man'];
   }
 
-  if (selfGender === "woman" && selfOrientation === "homosexual") {
-    return ["woman"];
+  if (selfGender === 'woman' && selfOrientation === 'homosexual') {
+    return ['woman'];
   }
 
-  if (selfGender === "couple") {
-    return ["man", "woman", "couple"];
+  if (selfGender === 'couple') {
+    return ['man', 'woman', 'couple'];
   }
 
   return [];
@@ -324,8 +324,8 @@ export function normalizeProfileDiscoveryFields(
     interestedInGenders,
     interestedInOrientations,
     compatibilityReady:
-      normalizedGender !== "unknown" &&
-      normalizedOrientation !== "unknown" &&
+      normalizedGender !== 'unknown' &&
+      normalizedOrientation !== 'unknown' &&
       interestedInGenders.length > 0,
   };
 }
