@@ -283,7 +283,8 @@ export class DiscoveryCardEnrichmentService {
   }
 
   private isIncompatibleForCompatibleMode(profile: PublicProfileCard): boolean {
-    return profile.compatibilityScore === 0 ||
+    return profile.compatibilityReady === false ||
+      profile.compatibilityScore === 0 ||
       profile.compatibilityReason === 'viewer_data_missing' ||
       profile.compatibilityReason === 'candidate_data_missing';
   }
@@ -309,6 +310,9 @@ export class DiscoveryCardEnrichmentService {
       nickname: profile.nickname,
       gender: profile.gender ?? null,
       orientation: profile.orientation ?? null,
+      normalizedGender: profile.normalizedGender ?? null,
+      normalizedOrientation: profile.normalizedOrientation ?? null,
+      compatibilityReady: profile.compatibilityReady ?? null,
       score: profile.compatibilityScore ?? null,
       compatibilityReason: profile.compatibilityReason ?? null,
       visibleInCompatible: acceptedUids.has(profile.uid),
@@ -462,6 +466,17 @@ export class DiscoveryCardEnrichmentService {
         this.toNullableText(anyUser.sexualOrientation) ??
         this.toNullableText(anyUser.orientacao) ??
         this.toNullableText(anyUser.orientacaoSexual),
+
+      normalizedGender:
+        this.toNullableText(anyUser.normalizedGender),
+
+      normalizedOrientation:
+        this.toNullableText(anyUser.normalizedOrientation),
+
+      compatibilityReady:
+        typeof anyUser.compatibilityReady === 'boolean'
+          ? anyUser.compatibilityReady
+          : null,
 
       partner1Orientation:
         this.toNullableText(anyUser.partner1Orientation) ??
