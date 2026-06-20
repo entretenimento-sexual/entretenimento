@@ -6,14 +6,15 @@
 // Não consulta Firestore, não conhece UI e não altera dados.
 //
 // Estratégia:
-// 1. Preferência explícita de gênero, quando existir, tem prioridade.
-// 2. Preferência explícita só de orientação não anula o gênero esperado pela
+// 1. Campos canônicos do backend têm prioridade quando existirem.
+// 2. Preferência explícita de gênero, quando existir, tem prioridade.
+// 3. Preferência explícita só de orientação não anula o gênero esperado pela
 //    orientação da própria pessoa.
-// 3. Gênero/orientação declarados entram como fallback.
-// 4. Compatibilidade exige interesse mínimo do viewer.
-// 5. Reciprocidade do candidato é aplicada por preferência explícita futura
+// 4. Gênero/orientação declarados entram como fallback.
+// 5. Compatibilidade exige interesse mínimo do viewer.
+// 6. Reciprocidade do candidato é aplicada por preferência explícita futura
 //    ou por fallback de orientação.
-// 6. Dados incompletos não viram bloqueio absoluto; viram score menor, exceto
+// 7. Dados incompletos não viram bloqueio absoluto; viram score menor, exceto
 //    quando o gênero conhecido já é incompatível com o viewer.
 
 export type NormalizedDiscoveryGender =
@@ -45,6 +46,14 @@ export interface ProfileCompatibilityLike {
 
   gender?: string | null;
   orientation?: string | null;
+
+  /**
+   * Campos canônicos calculados no backend.
+   * Quando presentes, têm prioridade sobre gender/orientation brutos.
+   */
+  normalizedGender?: string | null;
+  normalizedOrientation?: string | null;
+  compatibilityReady?: boolean | null;
 
   partner1Orientation?: string | null;
   partner2Orientation?: string | null;
@@ -356,8 +365,10 @@ function resolveInterest(profile: ProfileCompatibilityLike | null | undefined): 
   const preferenceGenders = normalizeGenderList(profile?.preferences);
   const preferenceOrientations = normalizeOrientationList(profile?.preferences);
 
-  const selfGender = normalizeDiscoveryGender(profile?.gender);
-  const selfOrientation = normalizeDiscoveryOrientation(profile?.orientation);
+  const selfGender = normalizeDiscoveryGender(profile?.normalizedGender ?? profile?.gender);
+  const selfOrientation = normalizeDiscoveryOrientation(
+    profile?.normalizedOrientation ?? profile?.orientation
+  );
   const fallbackGenders = acceptedTargetGendersByOrientation(selfGender, selfOrientation);
 
   const genders = explicitGenders.length
@@ -470,11 +481,17 @@ export function evaluateProfileCompatibility(
   viewer: ProfileCompatibilityLike | null | undefined,
   candidate: ProfileCompatibilityLike | null | undefined
 ): ProfileCompatibilityResult {
-  const viewerGender = normalizeDiscoveryGender(viewer?.gender);
-  const viewerOrientation = normalizeDiscoveryOrientation(viewer?.orientation);
+  const viewerGender = normalizeDiscoveryGender(viewer?.normalizedGender ?? viewer?.gender);
+  const viewerOrientation = normalizeDiscoveryOrientation(
+    viewer?.normalizedOrientation ?? viewer?.orientation
+  );
 
-  const candidateGender = normalizeDiscoveryGender(candidate?.gender);
-  const candidateOrientation = normalizeDiscoveryOrientation(candidate?.orientation);
+  const candidateGender = normalizeDiscoveryGender(
+    candidate?.normalizedGender ?? candidate?.gender
+  );
+  const candidateOrientation = normalizeDiscoveryOrientation(
+    candidate?.normalizedOrientation ?? candidate?.orientation
+  );
 
   const viewerInterest = resolveInterest(viewer);
   const candidateInterest = resolveInterest(candidate);
