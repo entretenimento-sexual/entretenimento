@@ -8,6 +8,7 @@
 // - permitir que o usuário publique disponibilidade/intenção por até 12h;
 // - mostrar o status ativo atual e permitir encerramento manual;
 // - permitir seleção de estabelecimento gerenciado quando existir;
+// - reagir à região digitada no próprio formulário;
 // - usar região/destino sem coordenada precisa;
 // - preservar UX mobile-first e feedback direto;
 // - manter escrita centralizada no UserIntentStatusService.
@@ -28,11 +29,19 @@ import {
   Validators,
 } from '@angular/forms';
 import { Observable, combineLatest, of } from 'rxjs';
-import { finalize, map, shareReplay, startWith } from 'rxjs/operators';
+import {
+  distinctUntilChanged,
+  finalize,
+  map,
+  shareReplay,
+  startWith,
+  switchMap,
+} from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import {
   IUserIntentStatusCardVm,
+  IUserIntentStatusRegion,
   UserIntentAvailability,
   UserIntentDestinationKind,
   UserIntentVisibility,
@@ -141,9 +150,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
     }, { emitEvent: false });
 
     this.activeStatus$ = this.statusService.watchCurrentStatus$(user.uid);
-    this.venues$ = this.venueService.watchVenuesForUserRegion$(user.uid, {
-      limit: 20,
-    }).pipe(shareReplay({ bufferSize: 1, refCount: true }));
+    this.venues$ = this.watchVenuesForFormRegion$();
     this.selectedVenue$ = combineLatest([
       this.venues$,
       this.form.controls.venueId.valueChanges.pipe(
@@ -264,5 +271,39 @@ export class UserIntentStatusComposerComponent implements OnChanges {
         this.notifications.showError('Não foi possível encerrar seu status agora.');
       },
     });
+  }
+
+  private watchVenuesForFormRegion$(): Observable<IVenueCardVm[]> {
+    return combineLatest([
+      this.form.controls.uf.valueChanges.pipe(startWith(this.form.controls.uf.value)),
+      this.form.controls.city.valueChanges.pipe(startWith(this.form.controls.city.value)),
+    ]).pipe(
+      map(([uf, city]) => this.normalizeFormRegion(uf, city)),
+      distinctUntilChanged((previous, current) =>
+        previous?.uf === current?.uf && previous?.city === current?.city
+      ),
+      switchMap((region) => region
+        ? this.venueService.watchVenuesForRegion$(region, { limit: 20 })
+        : of([])
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
+  private normalizeFormRegion(
+    uf: string,
+    city: string
+  ): IUserIntentStatusRegion | null {
+    const normalizedUf = String(uf ?? '').trim().toUpperCase();
+    const normalizedCity = String(city ?? '').trim().toLowerCase();
+
+    if (!/^[A-Z]{2}$/.test(normalizedUf) || !normalizedCity) {
+      return null;
+    }
+
+    return {
+      uf: normalizedUf,
+      city: normalizedCity,
+    };
   }
 }
