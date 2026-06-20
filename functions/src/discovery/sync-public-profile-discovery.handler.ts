@@ -12,25 +12,25 @@
 // - mantém a UI usando public_profiles, mas prepara filtro server-side/indexado.
 // -----------------------------------------------------------------------------
 
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
-import { db, FieldValue } from "../firebaseApp";
-import { normalizeProfileDiscoveryFields } from "./profile-discovery-normalization";
+import { onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { db, FieldValue } from '../firebaseApp';
+import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
 
 export const syncPublicProfileDiscovery = onDocumentWritten(
-  "users/{userId}",
+  'users/{userId}',
   async (event) => {
-    const uid = String(event.params.userId ?? "").trim();
+    const uid = String(event.params.userId ?? '').trim();
     const after = event.data?.after;
 
     if (!uid || !after?.exists) {
       return;
     }
 
-    const publicProfileRef = db.collection("public_profiles").doc(uid);
+    const publicProfileRef = db.collection('public_profiles').doc(uid);
     const publicProfileSnapshot = await publicProfileRef.get();
 
     if (!publicProfileSnapshot.exists) {
-      console.log("[discovery] Sync canônico ignorado: public_profile ausente.", {
+      console.log('[discovery] Sync canônico ignorado: public_profile ausente.', {
         uid,
       });
       return;
@@ -49,7 +49,7 @@ export const syncPublicProfileDiscovery = onDocumentWritten(
       updatedAt: FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    console.log("[discovery] Campos canônicos sincronizados.", {
+    console.log('[discovery] Campos canônicos sincronizados.', {
       uid,
       normalizedGender: canonical.normalizedGender,
       normalizedOrientation: canonical.normalizedOrientation,
