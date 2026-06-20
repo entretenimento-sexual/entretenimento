@@ -28,6 +28,7 @@ import { CreateRoomModalComponent } from './modals/create-room-modal/create-room
 import { BaseModalComponent } from './modals/base-modal/base-modal.component';
 import { TimeAgoPipe } from 'src/app/shared/pipes/time-ago.pipe';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
+import { ChatDraftDirective } from './directives/chat-draft.directive';
 
 @NgModule({
   declarations: [
@@ -41,6 +42,7 @@ import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
     InviteListComponent,
     RoomCreationConfirmationModalComponent,
     RoomInteractionComponent,
+    ChatDraftDirective,
   ],
   imports: [
     CommonModule,
