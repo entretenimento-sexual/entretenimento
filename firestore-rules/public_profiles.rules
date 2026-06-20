@@ -24,9 +24,19 @@ match /public_profiles/{userId} {
     return request.resource.data.keys().hasAny([field]);
   }
 
+  // Existe no documento atual?
+  function hasExistingField(field) {
+    return resource.data.keys().hasAny([field]);
+  }
+
   // Retorna valor ou null (se ausente)
   function fieldOrNull(field) {
     return hasField(field) ? request.resource.data[field] : null;
+  }
+
+  // Retorna valor existente ou null (se ausente)
+  function existingFieldOrNull(field) {
+    return hasExistingField(field) ? resource.data[field] : null;
   }
 
   // String opcional, com range de tamanho
@@ -35,6 +45,22 @@ match /public_profiles/{userId} {
       || request.resource.data[field] == null
       || (request.resource.data[field] is string
           && request.resource.data[field].size() >= min
+          && request.resource.data[field].size() <= max);
+  }
+
+  // Boolean opcional
+  function optBool(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is bool;
+  }
+
+  // Lista opcional com limite de tamanho.
+  // Os valores canônicos são escritos pelo backend; no cliente, os campos ficam imutáveis.
+  function optListMax(field, max) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is list
           && request.resource.data[field].size() <= max);
   }
 
@@ -61,6 +87,8 @@ match /public_profiles/{userId} {
     return !hasField(field)
       || request.resource.data[field] == null
       || (request.resource.data[field] is string
+          && request.resource.data[field].size() >= 5
+          && request.resource.data[field].size() <= 12
           && request.resource.data[field]
             .matches('^[0123456789bcdefghjkmnpqrstuvwxyz]{5,12}$'));
   }
@@ -81,6 +109,27 @@ match /public_profiles/{userId} {
       || (lat != null && lng != null && gh != null);
   }
 
+  // Campos canônicos de discovery são server-owned.
+  function noClientDiscoveryFieldsOnCreate() {
+    return !request.resource.data.keys().hasAny([
+      "normalizedGender",
+      "normalizedOrientation",
+      "interestedInGenders",
+      "interestedInOrientations",
+      "compatibilityReady",
+      "discoveryNormalizedAt"
+    ]);
+  }
+
+  function discoveryFieldsUnchangedOnUpdate() {
+    return fieldOrNull("normalizedGender") == existingFieldOrNull("normalizedGender")
+      && fieldOrNull("normalizedOrientation") == existingFieldOrNull("normalizedOrientation")
+      && fieldOrNull("interestedInGenders") == existingFieldOrNull("interestedInGenders")
+      && fieldOrNull("interestedInOrientations") == existingFieldOrNull("interestedInOrientations")
+      && fieldOrNull("compatibilityReady") == existingFieldOrNull("compatibilityReady")
+      && fieldOrNull("discoveryNormalizedAt") == existingFieldOrNull("discoveryNormalizedAt");
+  }
+
   // -----------------------------------------------------------------------
   // Whitelist rígida: nenhum campo fora do schema
   // -----------------------------------------------------------------------
@@ -95,6 +144,12 @@ match /public_profiles/{userId} {
       "estado",
       "gender",
       "orientation",
+      "normalizedGender",
+      "normalizedOrientation",
+      "interestedInGenders",
+      "interestedInOrientations",
+      "compatibilityReady",
+      "discoveryNormalizedAt",
       "role",
       "latitude",
       "longitude",
@@ -118,6 +173,7 @@ match /public_profiles/{userId} {
       // timestamps: tipo (o "server time" é forçado no allow create/update)
       && optTimestamp("createdAt")
       && optTimestamp("updatedAt")
+      && optTimestamp("discoveryNormalizedAt")
 
       // nickname + normalized coerentes
       && nicknameCoherent()
@@ -147,6 +203,11 @@ match /public_profiles/{userId} {
       && optStringSized("estado", 1, 40)
       && optStringSized("gender", 1, 40)
       && optStringSized("orientation", 1, 40)
+      && optStringSized("normalizedGender", 3, 20)
+      && optStringSized("normalizedOrientation", 3, 20)
+      && optListMax("interestedInGenders", 8)
+      && optListMax("interestedInOrientations", 8)
+      && optBool("compatibilityReady")
 
       // role: criação força "free" e update impede mudança pelo cliente
       && optStringSized("role", 3, 20);
@@ -157,10 +218,12 @@ match /public_profiles/{userId} {
   // - somente dono
   // - createdAt/updatedAt obrigatoriamente serverTimestamp() => request.time
   // - role inicial obrigatoriamente "free"
+  // - campos canônicos de discovery são gerados pelo backend, não pelo cliente
   // -----------------------------------------------------------------------
   allow create: if (
     isSelf(userId)
     && validPublicProfilePayload()
+    && noClientDiscoveryFieldsOnCreate()
     && request.resource.data.createdAt == request.time
     && request.resource.data.updatedAt == request.time
     && request.resource.data.role == "free"
@@ -172,10 +235,12 @@ match /public_profiles/{userId} {
   // - uid e createdAt imutáveis
   // - updatedAt obrigatoriamente serverTimestamp() => request.time
   // - role imutável (anti auto-elevação)
+  // - campos canônicos de discovery são imutáveis pelo cliente
   // -----------------------------------------------------------------------
   allow update: if (
     isSelf(userId)
     && validPublicProfilePayload()
+    && discoveryFieldsUnchangedOnUpdate()
     && request.resource.data.uid == resource.data.uid
     && request.resource.data.createdAt == resource.data.createdAt
     && request.resource.data.updatedAt == request.time
