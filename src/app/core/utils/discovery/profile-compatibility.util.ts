@@ -6,12 +6,15 @@
 // Não consulta Firestore, não conhece UI e não altera dados.
 //
 // Estratégia:
-// 1. Preferência explícita do usuário, quando existir, tem prioridade.
-// 2. Gênero/orientação declarados entram como fallback.
-// 3. Compatibilidade exige interesse mínimo do viewer.
-// 4. Reciprocidade do candidato é aplicada por preferência explícita futura
+// 1. Preferência explícita de gênero, quando existir, tem prioridade.
+// 2. Preferência explícita só de orientação não anula o gênero esperado pela
+//    orientação da própria pessoa.
+// 3. Gênero/orientação declarados entram como fallback.
+// 4. Compatibilidade exige interesse mínimo do viewer.
+// 5. Reciprocidade do candidato é aplicada por preferência explícita futura
 //    ou por fallback de orientação.
-// 5. Dados incompletos não viram bloqueio absoluto; viram score menor.
+// 6. Dados incompletos não viram bloqueio absoluto; viram score menor, exceto
+//    quando o gênero conhecido já é incompatível com o viewer.
 
 export type NormalizedDiscoveryGender =
   | 'man'
@@ -333,11 +336,15 @@ function resolveInterest(profile: ProfileCompatibilityLike | null | undefined): 
   const preferenceGenders = normalizeGenderList(profile?.preferences);
   const preferenceOrientations = normalizeOrientationList(profile?.preferences);
 
+  const selfGender = normalizeDiscoveryGender(profile?.gender);
+  const selfOrientation = normalizeDiscoveryOrientation(profile?.orientation);
+  const fallbackGenders = acceptedTargetGendersByOrientation(selfGender, selfOrientation);
+
   const genders = explicitGenders.length
     ? explicitGenders
     : preferenceGenders.length
       ? preferenceGenders
-      : null;
+      : fallbackGenders;
 
   const orientations = explicitOrientations.length
     ? explicitOrientations
@@ -349,15 +356,15 @@ function resolveInterest(profile: ProfileCompatibilityLike | null | undefined): 
     return {
       genders,
       orientations,
-      explicit: true,
+      explicit: explicitGenders.length > 0 ||
+        explicitOrientations.length > 0 ||
+        preferenceGenders.length > 0 ||
+        preferenceOrientations.length > 0,
     };
   }
 
-  const selfGender = normalizeDiscoveryGender(profile?.gender);
-  const selfOrientation = normalizeDiscoveryOrientation(profile?.orientation);
-
   return {
-    genders: acceptedTargetGendersByOrientation(selfGender, selfOrientation),
+    genders: fallbackGenders,
     orientations: null,
     explicit: false,
   };
@@ -470,15 +477,6 @@ export function evaluateProfileCompatibility(
     };
   }
 
-  if (candidateGender === 'unknown' || candidateOrientation === 'unknown') {
-    return {
-      ...base,
-      compatible: true,
-      score: 0.3,
-      reason: 'candidate_data_missing',
-    };
-  }
-
   const viewerAcceptsCandidate = acceptsTarget(
     viewerInterest,
     candidateGender,
@@ -490,6 +488,24 @@ export function evaluateProfileCompatibility(
     viewerGender,
     viewerOrientation
   );
+
+  if (candidateGender === 'unknown' || candidateOrientation === 'unknown') {
+    if (viewerAcceptsCandidate === false) {
+      return {
+        ...base,
+        compatible: false,
+        score: 0,
+        reason: 'viewer_not_interested',
+      };
+    }
+
+    return {
+      ...base,
+      compatible: true,
+      score: 0.3,
+      reason: 'candidate_data_missing',
+    };
+  }
 
   if (viewerAcceptsCandidate === false && candidateAcceptsViewer === false) {
     return {
