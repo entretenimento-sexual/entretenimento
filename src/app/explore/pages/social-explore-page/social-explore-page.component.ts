@@ -2,8 +2,8 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { BehaviorSubject, combineLatest, Observable } from 'rxjs';
-import { map, shareReplay, take } from 'rxjs/operators';
+import { BehaviorSubject, combineLatest, Observable, of } from 'rxjs';
+import { finalize, map, shareReplay, switchMap, take } from 'rxjs/operators';
 import { ExploreSectionComponent } from '../../components/explore-section/explore-section.component';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { PublicPhotoCardComponent } from 'src/app/media/shared/components/public-photo-card/public-photo-card.component';
@@ -16,6 +16,9 @@ import { PublicProfilesListComponent } from 'src/app/dashboard/discovery/public-
 import { UserIntentStatusRadarComponent } from 'src/app/dashboard/user-intent-status/user-intent-status-radar/user-intent-status-radar.component';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
+import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 type TExplorePhotoSection = Extract<
   TExploreSectionId,
@@ -47,12 +50,23 @@ export class SocialExplorePageComponent {
   private readonly exploreFeedFacade = inject(ExploreFeedFacade);
   private readonly photoViewTracking = inject(PhotoViewTrackingService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly statusService = inject(UserIntentStatusService);
+  private readonly notifications = inject(ErrorNotificationService);
 
   private readonly lightboxStateSubject = new BehaviorSubject<IExploreLightboxState | null>(null);
+
+  hidingMyStatus = false;
 
   readonly vm$: Observable<IExploreFeedVm> = this.exploreFeedFacade.vm$;
   readonly currentUser$: Observable<IUserDados | null> = this.currentUserStore.user$.pipe(
     map((user) => user ?? null),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+  readonly myActiveStatus$: Observable<IUserIntentStatusCardVm | null> = this.currentUser$.pipe(
+    switchMap((user) => user?.uid
+      ? this.statusService.watchCurrentStatus$(user.uid)
+      : of(null)
+    ),
     shareReplay({ bufferSize: 1, refCount: true })
   );
   readonly lightboxState$ = this.lightboxStateSubject.asObservable();
@@ -67,43 +81,63 @@ export class SocialExplorePageComponent {
       }
 
       switch (state.section) {
-   case 'boosted':
-     return vm.boostedPhotos;
+        case 'boosted':
+          return vm.boostedPhotos;
 
-   case 'mostViewed':
-     return vm.mostViewedPhotos;
+        case 'mostViewed':
+          return vm.mostViewedPhotos;
 
-   case 'top':
-     return vm.topPhotos;
+        case 'top':
+          return vm.topPhotos;
 
-   case 'latest':
-     return vm.latestPhotos;
+        case 'latest':
+          return vm.latestPhotos;
 
-   default:
-     return [];
- }
+        default:
+          return [];
+      }
     }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-openPhoto(section: TExplorePhotoSection, index: number): void {
-  this.lightboxStateSubject.next({ section, index });
+  openPhoto(section: TExplorePhotoSection, index: number): void {
+    this.lightboxStateSubject.next({ section, index });
 
-  this.activeLightboxItems$
-    .pipe(take(1))
-    .subscribe((items) => {
-      const item = items[index];
+    this.activeLightboxItems$
+      .pipe(take(1))
+      .subscribe((items) => {
+        const item = items[index];
 
-      if (!item) {
-        return;
-      }
+        if (!item) {
+          return;
+        }
 
-      this.photoViewTracking
-        .recordPhotoView$(item.ownerUid, item.id, this.resolveViewSource(section))
-        .pipe(take(1))
-        .subscribe();
+        this.photoViewTracking
+          .recordPhotoView$(item.ownerUid, item.id, this.resolveViewSource(section))
+          .pipe(take(1))
+          .subscribe();
+      });
+  }
+
+  hideMyStatus(user: IUserDados | null): void {
+    const uid = String(user?.uid ?? '').trim();
+
+    if (!uid || this.hidingMyStatus) {
+      return;
+    }
+
+    this.hidingMyStatus = true;
+
+    this.statusService.hideCurrentStatus$(uid).pipe(
+      take(1),
+      finalize(() => {
+        this.hidingMyStatus = false;
+      })
+    ).subscribe({
+      next: () => this.notifications.showSuccess('Status encerrado.'),
+      error: () => this.notifications.showError('Não foi possível encerrar seu status agora.'),
     });
-}
+  }
 
   closeViewer(): void {
     this.lightboxStateSubject.next(null);
@@ -148,21 +182,21 @@ openPhoto(section: TExplorePhotoSection, index: number): void {
   }
 
   private resolveViewSource(section: TExplorePhotoSection) {
-  switch (section) {
-    case 'boosted':
-      return 'boosted';
+    switch (section) {
+      case 'boosted':
+        return 'boosted';
 
-    case 'top':
-      return 'top';
+      case 'top':
+        return 'top';
 
-    case 'latest':
-      return 'latest';
+      case 'latest':
+        return 'latest';
 
-    case 'mostViewed':
-      return 'discover';
+      case 'mostViewed':
+        return 'discover';
 
-    default:
-      return 'unknown';
+      default:
+        return 'unknown';
+    }
   }
-}
 }
