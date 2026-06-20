@@ -25,6 +25,21 @@
           }
         }
       </div>
+
+      @if (pendingIncomingCount > 0) {
+        <button
+          type="button"
+          class="thread-shell__new-messages"
+          aria-label="Ir para novas mensagens"
+          (click)="scrollToLatestFromNotice()"
+        >
+          <span class="thread-shell__new-messages-dot" aria-hidden="true"></span>
+          <span>
+            {{ pendingIncomingCount === 1 ? '1 nova mensagem' : pendingIncomingCount + ' novas mensagens' }}
+          </span>
+          <span aria-hidden="true">↓</span>
+        </button>
+      }
     } @else {
       <div class="thread-shell__empty" role="status" aria-live="polite">
         <p class="thread-shell__empty-title">
