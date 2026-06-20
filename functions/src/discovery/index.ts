@@ -8,3 +8,4 @@ export {
 } from './user-intent-status.handler';
 
 export { syncPublicProfileDiscovery } from './sync-public-profile-discovery.handler';
+export { backfillPublicProfileDiscovery } from './backfill-public-profile-discovery.handler';
