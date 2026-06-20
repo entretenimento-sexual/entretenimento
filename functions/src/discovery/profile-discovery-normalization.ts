@@ -6,6 +6,7 @@
 //
 // Esta camada roda no backend e deve ser a fonte confiável para futuros índices,
 // filtros e elegibilidade de descoberta. Não decide UI e não consulta Firestore.
+// Mantém o padrão ESLint das Functions: aspas simples.
 // -----------------------------------------------------------------------------
 
 export type NormalizedDiscoveryGender =
