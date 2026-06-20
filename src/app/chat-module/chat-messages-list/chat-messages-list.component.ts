@@ -7,6 +7,7 @@
 // - consumir DirectThreadFacade para chat 1:1;
 // - manter compat temporária com RoomMessagesService para rooms;
 // - manter auto-scroll inteligente;
+// - exibir aviso acessível de novas mensagens sem arrancar o usuário do histórico;
 // - manter tratamento de erro centralizado;
 // - manter debug seguro via PrivacyDebugLoggerService.
 //
@@ -35,8 +36,8 @@ import {
   inject,
 } from '@angular/core';
 import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
-import { Observable, Subscription, of } from 'rxjs';
-import { catchError, map, switchMap, take, tap } from 'rxjs/operators';
+import { Observable, Subscription, fromEvent, of } from 'rxjs';
+import { catchError, map, switchMap, take, tap, throttleTime } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
@@ -74,12 +75,14 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
 
   messages: Message[] = [];
   threadItems: ThreadViewItem[] = [];
+  pendingIncomingCount = 0;
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly hostRef = inject<ElementRef<HTMLElement>>(ElementRef);
   private currentUserUid: string | null = null;
 
   private activeThreadSub?: Subscription;
+  private scrollWatchSub?: Subscription;
   private scheduledScrollFrame: number | null = null;
   private scheduledScrollTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -101,43 +104,47 @@ export class ChatMessagesListComponent implements OnInit, OnChanges, OnDestroy {
     private readonly dateTime: DateTimeService,
     private readonly cdRef: ChangeDetectorRef,
   ) {}
-  
-ngOnInit(): void {
-  this.bindCurrentUserUid();
-}
 
-ngOnChanges(changes: SimpleChanges): void {
-  if (changes['chatId'] || changes['type']) {
-    this.rebindThread();
+  ngOnInit(): void {
+    this.bindCurrentUserUid();
   }
-}
 
-ngOnDestroy(): void {
-  this.activeThreadSub?.unsubscribe();
-  this.activeThreadSub = undefined;
-  this.cancelScheduledScroll();
-}
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['chatId'] || changes['type']) {
+      this.rebindThread();
+    }
+  }
 
-// ---------------------------------------------------------------------------
-// Session binding
-// ---------------------------------------------------------------------------
+  ngOnDestroy(): void {
+    this.activeThreadSub?.unsubscribe();
+    this.activeThreadSub = undefined;
+    this.detachScrollWatcher();
+    this.cancelScheduledScroll();
+  }
 
-private bindCurrentUserUid(): void {
-  this.authSession.uid$
-    .pipe(takeUntilDestroyed(this.destroyRef))
-    .subscribe((uid) => {
-      this.currentUserUid = String(uid ?? '').trim() || null;
-    });
-}
+  // ---------------------------------------------------------------------------
+  // Session binding
+  // ---------------------------------------------------------------------------
+
+  private bindCurrentUserUid(): void {
+    this.authSession.uid$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((uid) => {
+        this.currentUserUid = String(uid ?? '').trim() || null;
+      });
+  }
+
   // ---------------------------------------------------------------------------
   // Thread binding
   // ---------------------------------------------------------------------------
+
   private rebindThread(): void {
     const safeChatId = (this.chatId ?? '').trim();
     const safeType = this.type ?? null;
 
     this.activeThreadSub?.unsubscribe();
     this.activeThreadSub = undefined;
+    this.detachScrollWatcher();
 
     if (!safeChatId || (safeType !== 'chat' && safeType !== 'room')) {
       this.resetThreadState();
@@ -150,6 +157,7 @@ private bindCurrentUserUid(): void {
       this.activeThreadKey = nextThreadKey;
       this.resetRenderTracking();
       this.forceScrollOnNextRender = true;
+      this.pendingIncomingCount = 0;
     }
 
     const source$ =
@@ -161,6 +169,7 @@ private bindCurrentUserUid(): void {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((messages) => {
         this.renderMessages(Array.isArray(messages) ? messages : []);
+        this.attachScrollWatcher();
       });
   }
 
@@ -234,7 +243,7 @@ private bindCurrentUserUid(): void {
     );
   }
 
-    // ---------------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // Template helpers
   // ---------------------------------------------------------------------------
 
@@ -254,210 +263,282 @@ private bindCurrentUserUid(): void {
     return this.messages[index + 1] ?? null;
   }
 
+  scrollToLatestFromNotice(): void {
+    this.pendingIncomingCount = 0;
+    this.forceScrollOnNextRender = false;
+    this.scheduleScrollToBottom();
+    this.cdRef.detectChanges();
+  }
+
   // ---------------------------------------------------------------------------
   // Render / scroll
   // ---------------------------------------------------------------------------
 
-private renderMessages(nextMessages: Message[]): void {
-  const shouldScroll = this.shouldScrollAfterRender(nextMessages);
+  private renderMessages(nextMessages: Message[]): void {
+    const previousCount = this.lastRenderedMessageCount;
+    const shouldScroll = this.shouldScrollAfterRender(nextMessages);
 
-  this.messages = nextMessages;
-  this.threadItems = this.buildThreadItems(nextMessages);
-  this.storeRenderTracking(nextMessages);
+    this.updatePendingIncomingCount(nextMessages, previousCount, shouldScroll);
 
-  this.cdRef.detectChanges();
+    this.messages = nextMessages;
+    this.threadItems = this.buildThreadItems(nextMessages);
+    this.storeRenderTracking(nextMessages);
 
-  if (shouldScroll) {
-    this.scheduleScrollToBottom();
-  }
-}
+    this.cdRef.detectChanges();
 
-private shouldScrollAfterRender(nextMessages: Message[]): boolean {
-  if (this.forceScrollOnNextRender) {
-    this.forceScrollOnNextRender = false;
-    return true;
+    if (shouldScroll) {
+      this.scheduleScrollToBottom();
+    }
   }
 
-  if (!nextMessages.length) {
-    return false;
-  }
-
-  const nextLastMessageKey = this.getLastMessageKey(nextMessages);
-  const hasNewMessage = nextMessages.length > this.lastRenderedMessageCount;
-  const lastMessageChanged =
-    !!nextLastMessageKey &&
-    nextLastMessageKey !== this.lastRenderedLastMessageKey;
-
-  if (!hasNewMessage && !lastMessageChanged) {
-    return false;
-  }
-
-  const lastMessage = nextMessages[nextMessages.length - 1];
-
-  /**
-   * Regra de UX:
-   * Se a nova última mensagem foi enviada pelo usuário atual,
-   * sempre acompanha a base da conversa.
-   *
-   * Isso cobre o caso em que a conversa estava rolada para cima
-   * artificialmente e o próprio usuário envia uma nova mensagem.
-   */
-  if (this.isMessageFromCurrentUser(lastMessage)) {
-    return true;
-  }
-
-  /**
-   * Se a mensagem nova veio de outra pessoa, não arrancar o usuário
-   * do ponto onde ele está lendo histórico antigo.
-   */
-  return this.isNearBottom();
-}
-
-private isMessageFromCurrentUser(message: Message | null | undefined): boolean {
-  if (!message || !this.currentUserUid) {
-    return false;
-  }
-
-  const senderUid = String(
-    message.senderUid ??
-    message.senderId ??
-    ''
-  ).trim();
-
-  return !!senderUid && senderUid === this.currentUserUid;
-}
-
-private scheduleScrollToBottom(): void {
-  this.cancelScheduledScroll();
-
-  if (typeof requestAnimationFrame === 'function') {
-    this.scheduledScrollFrame = requestAnimationFrame(() => {
-      this.scheduledScrollFrame = null;
-
-      this.scheduledScrollTimeout = setTimeout(() => {
-        this.scheduledScrollTimeout = null;
-        this.scrollToBottom();
-      }, 0);
-    });
-
-    return;
-  }
-
-  this.scheduledScrollTimeout = setTimeout(() => {
-    this.scheduledScrollTimeout = null;
-    this.scrollToBottom();
-  }, 0);
-}
-
-private cancelScheduledScroll(): void {
-  if (
-    this.scheduledScrollFrame !== null &&
-    typeof cancelAnimationFrame === 'function'
-  ) {
-    cancelAnimationFrame(this.scheduledScrollFrame);
-  }
-
-  if (this.scheduledScrollTimeout !== null) {
-    clearTimeout(this.scheduledScrollTimeout);
-  }
-
-  this.scheduledScrollFrame = null;
-  this.scheduledScrollTimeout = null;
-}
-
-private scrollToBottom(): void {
-  const container = this.getScrollContainer();
-
-  if (!container) {
-    this.dbg('scrollToBottom: scroll container não encontrado');
-    return;
-  }
-
-  const before = {
-    scrollTop: Math.round(container.scrollTop),
-    scrollHeight: Math.round(container.scrollHeight),
-    clientHeight: Math.round(container.clientHeight),
-  };
-
-  container.scrollTop = container.scrollHeight;
-
-  const after = {
-    scrollTop: Math.round(container.scrollTop),
-    scrollHeight: Math.round(container.scrollHeight),
-    clientHeight: Math.round(container.clientHeight),
-  };
-
-  this.dbg('scrollToBottom', {
-    before,
-    after,
-    moved: after.scrollTop !== before.scrollTop,
-  });
-}
-
-private isNearBottom(): boolean {
-  const container = this.getScrollContainer();
-
-  if (!container) {
-    return true;
-  }
-
-  const distanceFromBottom =
-    container.scrollHeight - container.scrollTop - container.clientHeight;
-
-  return distanceFromBottom <= this.nearBottomThresholdPx;
-}
-
-private getScrollContainer(): HTMLElement | null {
-  const host = this.hostRef.nativeElement;
-
-  /**
-   * O scroll real fica no layout:
-   * .chat-shell__thread
-   *
-   * O #messagesContainer está no thread-shell, que é apenas a estrutura interna.
-   */
-  const layoutScrollContainer = host.closest(
-    '.chat-shell__thread'
-  ) as HTMLElement | null;
-
-  if (layoutScrollContainer) {
-    return layoutScrollContainer;
-  }
-
-  const nearestScrollable = this.findScrollableAncestor(host);
-
-  if (nearestScrollable) {
-    return nearestScrollable;
-  }
-
-  return this.messagesContainer?.nativeElement ?? null;
-}
-
-private findScrollableAncestor(start: HTMLElement): HTMLElement | null {
-  let current: HTMLElement | null = start.parentElement;
-
-  while (current) {
-    const style = window.getComputedStyle(current);
-    const overflowY = style.overflowY;
-
-    const canScroll =
-      (overflowY === 'auto' || overflowY === 'scroll') &&
-      current.scrollHeight > current.clientHeight;
-
-    if (canScroll) {
-      return current;
+  private shouldScrollAfterRender(nextMessages: Message[]): boolean {
+    if (this.forceScrollOnNextRender) {
+      this.forceScrollOnNextRender = false;
+      return true;
     }
 
-    current = current.parentElement;
+    if (!nextMessages.length) {
+      return false;
+    }
+
+    const nextLastMessageKey = this.getLastMessageKey(nextMessages);
+    const hasNewMessage = nextMessages.length > this.lastRenderedMessageCount;
+    const lastMessageChanged =
+      !!nextLastMessageKey &&
+      nextLastMessageKey !== this.lastRenderedLastMessageKey;
+
+    if (!hasNewMessage && !lastMessageChanged) {
+      return false;
+    }
+
+    const lastMessage = nextMessages[nextMessages.length - 1];
+
+    /**
+     * Regra de UX:
+     * Se a nova última mensagem foi enviada pelo usuário atual,
+     * sempre acompanha a base da conversa.
+     *
+     * Isso cobre o caso em que a conversa estava rolada para cima
+     * artificialmente e o próprio usuário envia uma nova mensagem.
+     */
+    if (this.isMessageFromCurrentUser(lastMessage)) {
+      return true;
+    }
+
+    /**
+     * Se a mensagem nova veio de outra pessoa, não arrancar o usuário
+     * do ponto onde ele está lendo histórico antigo.
+     */
+    return this.isNearBottom();
   }
 
-  return null;
-}
+  private updatePendingIncomingCount(
+    nextMessages: Message[],
+    previousCount: number,
+    shouldScroll: boolean
+  ): void {
+    if (!nextMessages.length || nextMessages.length <= previousCount) {
+      if (shouldScroll || this.isNearBottom()) {
+        this.pendingIncomingCount = 0;
+      }
+
+      return;
+    }
+
+    const addedMessages = nextMessages.slice(previousCount);
+    const incomingCount = addedMessages.filter(
+      (message) => !this.isMessageFromCurrentUser(message)
+    ).length;
+
+    if (!incomingCount) {
+      this.pendingIncomingCount = 0;
+      return;
+    }
+
+    if (shouldScroll || this.isNearBottom()) {
+      this.pendingIncomingCount = 0;
+      return;
+    }
+
+    this.pendingIncomingCount += incomingCount;
+  }
+
+  private isMessageFromCurrentUser(message: Message | null | undefined): boolean {
+    if (!message || !this.currentUserUid) {
+      return false;
+    }
+
+    const senderUid = String(
+      message.senderUid ??
+      message.senderId ??
+      ''
+    ).trim();
+
+    return !!senderUid && senderUid === this.currentUserUid;
+  }
+
+  private scheduleScrollToBottom(): void {
+    this.cancelScheduledScroll();
+
+    if (typeof requestAnimationFrame === 'function') {
+      this.scheduledScrollFrame = requestAnimationFrame(() => {
+        this.scheduledScrollFrame = null;
+
+        this.scheduledScrollTimeout = setTimeout(() => {
+          this.scheduledScrollTimeout = null;
+          this.scrollToBottom();
+        }, 0);
+      });
+
+      return;
+    }
+
+    this.scheduledScrollTimeout = setTimeout(() => {
+      this.scheduledScrollTimeout = null;
+      this.scrollToBottom();
+    }, 0);
+  }
+
+  private cancelScheduledScroll(): void {
+    if (
+      this.scheduledScrollFrame !== null &&
+      typeof cancelAnimationFrame === 'function'
+    ) {
+      cancelAnimationFrame(this.scheduledScrollFrame);
+    }
+
+    if (this.scheduledScrollTimeout !== null) {
+      clearTimeout(this.scheduledScrollTimeout);
+    }
+
+    this.scheduledScrollFrame = null;
+    this.scheduledScrollTimeout = null;
+  }
+
+  private scrollToBottom(): void {
+    const container = this.getScrollContainer();
+
+    if (!container) {
+      this.dbg('scrollToBottom: scroll container não encontrado');
+      return;
+    }
+
+    const before = {
+      scrollTop: Math.round(container.scrollTop),
+      scrollHeight: Math.round(container.scrollHeight),
+      clientHeight: Math.round(container.clientHeight),
+    };
+
+    container.scrollTop = container.scrollHeight;
+    this.pendingIncomingCount = 0;
+
+    const after = {
+      scrollTop: Math.round(container.scrollTop),
+      scrollHeight: Math.round(container.scrollHeight),
+      clientHeight: Math.round(container.clientHeight),
+    };
+
+    this.dbg('scrollToBottom', {
+      before,
+      after,
+      moved: after.scrollTop !== before.scrollTop,
+    });
+  }
+
+  private isNearBottom(): boolean {
+    const container = this.getScrollContainer();
+
+    if (!container) {
+      return true;
+    }
+
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+
+    return distanceFromBottom <= this.nearBottomThresholdPx;
+  }
+
+  private attachScrollWatcher(): void {
+    if (this.scrollWatchSub || typeof window === 'undefined') {
+      return;
+    }
+
+    const container = this.getScrollContainer();
+
+    if (!container) {
+      return;
+    }
+
+    this.scrollWatchSub = fromEvent(container, 'scroll')
+      .pipe(
+        throttleTime(120, undefined, { leading: true, trailing: true }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => {
+        if (this.pendingIncomingCount > 0 && this.isNearBottom()) {
+          this.pendingIncomingCount = 0;
+          this.cdRef.detectChanges();
+        }
+      });
+  }
+
+  private detachScrollWatcher(): void {
+    this.scrollWatchSub?.unsubscribe();
+    this.scrollWatchSub = undefined;
+  }
+
+  private getScrollContainer(): HTMLElement | null {
+    const host = this.hostRef.nativeElement;
+
+    /**
+     * O scroll real fica no layout:
+     * .chat-shell__thread
+     *
+     * O #messagesContainer está no thread-shell, que é apenas a estrutura interna.
+     */
+    const layoutScrollContainer = host.closest(
+      '.chat-shell__thread'
+    ) as HTMLElement | null;
+
+    if (layoutScrollContainer) {
+      return layoutScrollContainer;
+    }
+
+    const nearestScrollable = this.findScrollableAncestor(host);
+
+    if (nearestScrollable) {
+      return nearestScrollable;
+    }
+
+    return this.messagesContainer?.nativeElement ?? null;
+  }
+
+  private findScrollableAncestor(start: HTMLElement): HTMLElement | null {
+    let current: HTMLElement | null = start.parentElement;
+
+    while (current) {
+      const style = window.getComputedStyle(current);
+      const overflowY = style.overflowY;
+
+      const canScroll =
+        (overflowY === 'auto' || overflowY === 'scroll') &&
+        current.scrollHeight > current.clientHeight;
+
+      if (canScroll) {
+        return current;
+      }
+
+      current = current.parentElement;
+    }
+
+    return null;
+  }
 
   private resetThreadState(): void {
     this.activeThreadKey = '';
     this.messages = [];
     this.threadItems = [];
+    this.pendingIncomingCount = 0;
     this.resetRenderTracking();
     this.cancelScheduledScroll();
     this.cdRef.detectChanges();
@@ -540,114 +621,114 @@ private findScrollableAncestor(start: HTMLElement): HTMLElement | null {
   }
 
   // ---------------------------------------------------------------------------
-// Date separators
-// ---------------------------------------------------------------------------
+  // Date separators
+  // ---------------------------------------------------------------------------
 
-private buildThreadItems(messages: Message[]): ThreadViewItem[] {
-  const items: ThreadViewItem[] = [];
+  private buildThreadItems(messages: Message[]): ThreadViewItem[] {
+    const items: ThreadViewItem[] = [];
 
-  for (let index = 0; index < messages.length; index++) {
-    const message = messages[index];
-    const previousMessage = messages[index - 1] ?? null;
-    const nextMessage = messages[index + 1] ?? null;
+    for (let index = 0; index < messages.length; index++) {
+      const message = messages[index];
+      const previousMessage = messages[index - 1] ?? null;
+      const nextMessage = messages[index + 1] ?? null;
 
-    const currentDate = this.getMessageDate(message);
-    const previousDate = this.getMessageDate(previousMessage);
+      const currentDate = this.getMessageDate(message);
+      const previousDate = this.getMessageDate(previousMessage);
 
-    if (currentDate && this.shouldInsertDateSeparator(currentDate, previousDate)) {
+      if (currentDate && this.shouldInsertDateSeparator(currentDate, previousDate)) {
+        items.push({
+          kind: 'date-separator',
+          id: `date:${this.getDateKey(currentDate)}`,
+          label: this.getDateSeparatorLabel(currentDate),
+        });
+      }
+
       items.push({
-        kind: 'date-separator',
-        id: `date:${this.getDateKey(currentDate)}`,
-        label: this.getDateSeparatorLabel(currentDate),
+        kind: 'message',
+        id: String(message?.id ?? `message:${index}`),
+        message,
+        previousMessage,
+        nextMessage,
       });
     }
 
-    items.push({
-      kind: 'message',
-      id: String(message?.id ?? `message:${index}`),
-      message,
-      previousMessage,
-      nextMessage,
-    });
+    return items;
   }
 
-  return items;
-}
+  private shouldInsertDateSeparator(
+    currentDate: Date,
+    previousDate: Date | null
+  ): boolean {
+    if (!previousDate) {
+      return true;
+    }
 
-private shouldInsertDateSeparator(
-  currentDate: Date,
-  previousDate: Date | null
-): boolean {
-  if (!previousDate) {
-    return true;
+    return !this.isSameLocalDay(currentDate, previousDate);
   }
 
-  return !this.isSameLocalDay(currentDate, previousDate);
-}
+  private getMessageDate(message: Message | null | undefined): Date | null {
+    if (!message?.timestamp) {
+      return null;
+    }
 
-private getMessageDate(message: Message | null | undefined): Date | null {
-  if (!message?.timestamp) {
-    return null;
+    try {
+      return this.dateTime.convertToDate(message.timestamp as any);
+    } catch {
+      return null;
+    }
   }
 
-  try {
-    return this.dateTime.convertToDate(message.timestamp as any);
-  } catch {
-    return null;
-  }
-}
+  private getDateSeparatorLabel(date: Date): string {
+    const today = new Date();
 
-private getDateSeparatorLabel(date: Date): string {
-  const today = new Date();
+    if (this.isSameLocalDay(date, today)) {
+      return 'Hoje';
+    }
 
-  if (this.isSameLocalDay(date, today)) {
-    return 'Hoje';
-  }
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
 
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
+    if (this.isSameLocalDay(date, yesterday)) {
+      return 'Ontem';
+    }
 
-  if (this.isSameLocalDay(date, yesterday)) {
-    return 'Ontem';
-  }
+    const diffDays = Math.floor(
+      (this.startOfDay(today).getTime() - this.startOfDay(date).getTime()) /
+        86_400_000
+    );
 
-  const diffDays = Math.floor(
-    (this.startOfDay(today).getTime() - this.startOfDay(date).getTime()) /
-      86_400_000
-  );
+    if (diffDays > 1 && diffDays < 7) {
+      return date.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+      });
+    }
 
-  if (diffDays > 1 && diffDays < 7) {
     return date.toLocaleDateString('pt-BR', {
-      weekday: 'long',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
     });
   }
 
-  return date.toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-}
+  private getDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
 
-private getDateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
 
-  return `${year}-${month}-${day}`;
-}
+  private isSameLocalDay(a: Date, b: Date): boolean {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  }
 
-private isSameLocalDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-private startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
+  private startOfDay(date: Date): Date {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
 
   // ---------------------------------------------------------------------------
   // Error / debug
