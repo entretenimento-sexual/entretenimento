@@ -28,7 +28,7 @@
 // - não persiste nada;
 // - não decide layout.
 
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, isDevMode } from '@angular/core';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
@@ -40,7 +40,6 @@ import {
 } from 'src/app/core/services/geolocation/utils/geolocation-coordinate.utils';
 
 import {
-  canExposePublicDiscoveryProfile,
   getPublicDiscoveryProfileRejectionReason,
   PublicDiscoveryProfileRejectionReason,
 } from 'src/app/core/utils/discovery/discovery-profile-visibility.utils';
@@ -239,7 +238,7 @@ export class DiscoveryCardEnrichmentService {
       return compareDiscoverableProfilesStable(a.profile, b.profile);
     });
 
-    return {
+    const result: DiscoveryCardEnrichmentResult = {
       profiles: scored.map((item) => item.profile),
       rejected,
       scores: scored.map((item) => ({
@@ -248,6 +247,10 @@ export class DiscoveryCardEnrichmentService {
         score: item.score,
       })),
     };
+
+    this.debugCompatibleMode(mode, candidates, result);
+
+    return result;
   }
 
   private resolveViewerCoordinates(
@@ -283,6 +286,40 @@ export class DiscoveryCardEnrichmentService {
     return profile.compatibilityScore === 0 ||
       profile.compatibilityReason === 'viewer_data_missing' ||
       profile.compatibilityReason === 'candidate_data_missing';
+  }
+
+  private debugCompatibleMode(
+    mode: DiscoveryMode,
+    candidates: readonly PublicProfileCard[],
+    result: DiscoveryCardEnrichmentResult
+  ): void {
+    if (!isDevMode() || mode !== 'compatible') {
+      return;
+    }
+
+    const acceptedUids = new Set(result.profiles.map((profile) => profile.uid));
+    const rejectedByUid = new Map(
+      result.rejected
+        .filter((item) => !!item.uid)
+        .map((item) => [item.uid as string, item.reason])
+    );
+
+    const rows = candidates.map((profile) => ({
+      uid: profile.uid,
+      nickname: profile.nickname,
+      gender: profile.gender ?? null,
+      orientation: profile.orientation ?? null,
+      score: profile.compatibilityScore ?? null,
+      compatibilityReason: profile.compatibilityReason ?? null,
+      visibleInCompatible: acceptedUids.has(profile.uid),
+      rejectedReason: rejectedByUid.get(profile.uid) ?? null,
+    }));
+
+    console.groupCollapsed(
+      `[DiscoveryDebug] Perfis compatíveis: ${result.profiles.length} aceitos, ${result.rejected.length} rejeitados`
+    );
+    console.table(rows);
+    console.groupEnd();
   }
 
   private withPresence(
