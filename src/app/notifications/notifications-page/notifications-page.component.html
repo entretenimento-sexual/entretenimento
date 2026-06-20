@@ -55,7 +55,7 @@
             [class.notification-card--unread]="item.readAt === null"
           >
             <div class="notification-card__icon" aria-hidden="true">
-              {{ item.type === 'user_intent_status.published' ? '📍' : '🔔' }}
+              {{ notificationIcon(item) }}
             </div>
 
             <div class="notification-card__body">
@@ -67,10 +67,15 @@
               <p>{{ item.body }}</p>
 
               <div class="notification-card__actions">
-                @if (notificationRoute(item); as route) {
-                  <a class="notification-card__link" [routerLink]="route">
-                    Abrir
-                  </a>
+                @if (notificationRoute(item)) {
+                  <button
+                    type="button"
+                    class="notification-card__link notification-card__link--button"
+                    (click)="openNotification(item)"
+                    [disabled]="isBusy(item.id)"
+                  >
+                    {{ isBusy(item.id) ? 'Abrindo...' : 'Abrir' }}
+                  </button>
                 }
 
                 @if (item.readAt === null) {
