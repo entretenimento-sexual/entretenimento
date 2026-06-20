@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { finalize, take } from 'rxjs/operators';
 
@@ -19,6 +19,7 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 export class NotificationsPageComponent {
   private readonly notificationService = inject(AppNotificationService);
   private readonly notifier = inject(ErrorNotificationService);
+  private readonly router = inject(Router);
 
   private readonly busyIdsSubject = new BehaviorSubject<ReadonlySet<string>>(new Set());
   private readonly markAllBusySubject = new BehaviorSubject(false);
@@ -50,6 +51,24 @@ export class NotificationsPageComponent {
     });
   }
 
+  notificationIcon(item: IAppNotification): string {
+    switch (item.type) {
+      case 'user_intent_status.published':
+        return '📍';
+      case 'user_intent_status.compatible':
+        return '⚡';
+      case 'chat':
+        return '💬';
+      case 'social':
+        return '🤝';
+      case 'billing':
+        return '⭐';
+      case 'system':
+      default:
+        return '🔔';
+    }
+  }
+
   notificationRoute(item: IAppNotification): string | null {
     const route = String(item.route ?? '').trim();
 
@@ -58,6 +77,36 @@ export class NotificationsPageComponent {
     }
 
     return route;
+  }
+
+  openNotification(item: IAppNotification): void {
+    const route = this.notificationRoute(item);
+
+    if (!route) {
+      return;
+    }
+
+    const navigate = () => {
+      void this.router.navigateByUrl(route);
+    };
+
+    if (item.readAt !== null || this.isBusy(item.id)) {
+      navigate();
+      return;
+    }
+
+    this.setBusy(item.id, true);
+
+    this.notificationService.markAsRead$(item.id).pipe(
+      take(1),
+      finalize(() => this.setBusy(item.id, false))
+    ).subscribe({
+      next: navigate,
+      error: () => {
+        this.notifier.showError('Não foi possível marcar a notificação como lida.');
+        navigate();
+      },
+    });
   }
 
   markAsRead(item: IAppNotification): void {
