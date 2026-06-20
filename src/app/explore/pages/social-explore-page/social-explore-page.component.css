@@ -35,6 +35,98 @@
   line-height: 1.45;
 }
 
+.explore-my-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(12px, 2vw, 20px);
+  margin: 0 0 clamp(16px, 2.4vw, 26px);
+  padding: clamp(12px, 1.8vw, 18px);
+  border: 1px solid color-mix(
+    in oklab,
+    var(--primary-color, #ff6b81) 28%,
+    var(--surface-border, rgba(255, 255, 255, 0.12))
+  );
+  border-radius: 22px;
+  background:
+    radial-gradient(
+      circle at top left,
+      color-mix(in oklab, var(--primary-color, #ff6b81) 12%, transparent),
+      transparent 44%
+    ),
+    color-mix(in oklab, var(--surface-color, #0e1624) 94%, transparent);
+  box-shadow: var(--box-shadow, 0 12px 32px rgb(0 0 0 / 20%));
+}
+
+.explore-my-status__content {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.explore-my-status__eyebrow {
+  color: var(--primary-color, #ff6b81);
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.explore-my-status__content strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1rem, 0.94rem + 0.24vw, 1.16rem);
+  line-height: 1.15;
+}
+
+.explore-my-status__content p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.explore-my-status__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.explore-my-status__button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 12px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b81) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 14%, transparent);
+  color: var(--text-color, #f5f7fb);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 820;
+  line-height: 1;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.explore-my-status__button--ghost {
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 76%, transparent);
+}
+
+.explore-my-status__button:hover,
+.explore-my-status__button:focus-visible {
+  background: color-mix(in oklab, var(--primary-color, #ff6b81) 22%, transparent);
+  outline: none;
+}
+
+.explore-my-status__button:disabled {
+  cursor: progress;
+  opacity: 0.62;
+}
+
 .explore-intent-radar {
   display: block;
   margin-bottom: clamp(20px, 2.8vw, 34px);
@@ -129,6 +221,19 @@
 @media (max-width: 700px) {
   .social-explore-page {
     padding: 12px 12px 32px;
+  }
+
+  .explore-my-status {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .explore-my-status__actions {
+    justify-content: stretch;
+  }
+
+  .explore-my-status__button {
+    flex: 1 1 auto;
   }
 
   .section-heading {
