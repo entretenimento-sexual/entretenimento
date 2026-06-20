@@ -100,7 +100,7 @@ function asArray(value: unknown): readonly unknown[] {
 }
 
 export function normalizeDiscoveryGender(value: unknown): NormalizedDiscoveryGender {
-  const text = normalizeText(value);
+  const text = normalizeText(value).replace(/_/g, '-');
 
   if (
     text === 'homem' ||
@@ -129,9 +129,25 @@ export function normalizeDiscoveryGender(value: unknown): NormalizedDiscoveryGen
     text === 'casais' ||
     text === 'couple' ||
     text === 'couples' ||
-    text === 'dupla'
+    text === 'dupla' ||
+    text === 'casal-ele-ele' ||
+    text === 'casal-ele-ela' ||
+    text === 'casal-ela-ela'
   ) {
     return 'couple';
+  }
+
+  if (
+    text === 'travesti' ||
+    text === 'travestis' ||
+    text === 'transexual' ||
+    text === 'transexuais' ||
+    text === 'transsexual' ||
+    text === 'transgender' ||
+    text === 'crossdresser' ||
+    text === 'crossdressers'
+  ) {
+    return 'unknown';
   }
 
   return 'unknown';
@@ -182,7 +198,7 @@ export function normalizeDiscoveryOrientation(
 }
 
 function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
-  const text = normalizeText(value);
+  const text = normalizeText(value).replace(/_/g, '-');
   const genders: NormalizedDiscoveryGender[] = [];
 
   if (
@@ -209,7 +225,11 @@ function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
     /\bcasal\b/.test(text) ||
     /\bcasais\b/.test(text) ||
     /\bcouple\b/.test(text) ||
-    /\bcouples\b/.test(text)
+    /\bcouples\b/.test(text) ||
+    /\bdupla\b/.test(text) ||
+    /\bcasal-ele-ele\b/.test(text) ||
+    /\bcasal-ele-ela\b/.test(text) ||
+    /\bcasal-ela-ela\b/.test(text)
   ) {
     genders.push('couple');
   }
