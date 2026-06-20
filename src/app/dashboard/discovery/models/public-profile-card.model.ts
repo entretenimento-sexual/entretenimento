@@ -19,6 +19,14 @@ export interface PublicProfileCard {
   gender?: string | null;
   orientation?: string | null;
 
+  /**
+   * Campos canônicos calculados no backend por syncPublicProfileDiscovery.
+   * Quando presentes, devem ter prioridade sobre os campos brutos acima.
+   */
+  normalizedGender?: string | null;
+  normalizedOrientation?: string | null;
+  compatibilityReady?: boolean | null;
+
   estado?: string | null;
   municipio?: string | null;
 
