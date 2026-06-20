@@ -3,6 +3,7 @@
   @let lightboxState = (lightboxState$ | async);
   @let activeLightboxItems = ((activeLightboxItems$ | async) || []);
   @let currentUser = (currentUser$ | async);
+  @let myActiveStatus = (myActiveStatus$ | async);
 
   <section class="social-explore-page" aria-label="Explorar conteúdo público">
     <header class="explore-hero">
@@ -14,6 +15,31 @@
         </p>
       </div>
     </header>
+
+    @if (myActiveStatus) {
+      <aside class="explore-my-status" aria-label="Meu Status de Hoje ativo">
+        <div class="explore-my-status__content">
+          <span class="explore-my-status__eyebrow">Meu Status de Hoje</span>
+          <strong>{{ myActiveStatus.availabilityLabel }}</strong>
+          <p>{{ myActiveStatus.destinationLabel }} · {{ myActiveStatus.expiresInLabel }}</p>
+        </div>
+
+        <div class="explore-my-status__actions">
+          <a class="explore-my-status__button" routerLink="/dashboard/principal">
+            Editar status
+          </a>
+
+          <button
+            type="button"
+            class="explore-my-status__button explore-my-status__button--ghost"
+            [disabled]="hidingMyStatus"
+            (click)="hideMyStatus(currentUser)"
+          >
+            {{ hidingMyStatus ? 'Encerrando...' : 'Encerrar' }}
+          </button>
+        </div>
+      </aside>
+    }
 
     @if (currentUser) {
       <div class="explore-intent-radar">
