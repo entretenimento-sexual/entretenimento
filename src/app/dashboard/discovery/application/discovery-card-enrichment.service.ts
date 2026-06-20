@@ -149,12 +149,12 @@ export class DiscoveryCardEnrichmentService {
 
     const rejected: DiscoveryCardRejectedItem[] = [];
 
-const candidates = (input.profiles ?? [])
-  .map((profile) => this.toPublicProfileCard(profile))
-  .filter((profile): profile is PublicProfileCard => !!profile)
-  .map((profile) => this.withPresence(profile, input.onlinePresenceByUid ?? null))
-  .map((profile) => this.withDistance(profile, viewerCoords))
-  .map((profile) => this.withCompatibility(profile, input.currentUser));
+    const candidates = (input.profiles ?? [])
+      .map((profile) => this.toPublicProfileCard(profile))
+      .filter((profile): profile is PublicProfileCard => !!profile)
+      .map((profile) => this.withPresence(profile, input.onlinePresenceByUid ?? null))
+      .map((profile) => this.withDistance(profile, viewerCoords))
+      .map((profile) => this.withCompatibility(profile, input.currentUser));
 
     const eligible = candidates.filter((profile) => {
       if (currentUid && profile.uid === currentUid) {
@@ -168,30 +168,30 @@ const candidates = (input.profiles ?? [])
       }
 
       if (
-  mode === 'compatible' &&
-  profile.compatibilityScore === 0
-) {
-  rejected.push({
-    uid: profile.uid ?? null,
-    nickname: profile.nickname ?? null,
-    reason: 'incompatible_profile',
-  });
+        mode === 'compatible' &&
+        this.isIncompatibleForCompatibleMode(profile)
+      ) {
+        rejected.push({
+          uid: profile.uid ?? null,
+          nickname: profile.nickname ?? null,
+          reason: 'incompatible_profile',
+        });
 
-  return false;
-}
+        return false;
+      }
 
-if (
-  mode === 'all' &&
-  profile.compatibilityScore === 0
-) {
-  rejected.push({
-    uid: profile.uid ?? null,
-    nickname: profile.nickname ?? null,
-    reason: 'incompatible_profile',
-  });
+      if (
+        mode === 'all' &&
+        profile.compatibilityScore === 0
+      ) {
+        rejected.push({
+          uid: profile.uid ?? null,
+          nickname: profile.nickname ?? null,
+          reason: 'incompatible_profile',
+        });
 
-  return false;
-}
+        return false;
+      }
 
       if (applyVisibility) {
         const reason = getPublicDiscoveryProfileRejectionReason(profile as any, {
@@ -264,20 +264,26 @@ if (
   }
 
   private withCompatibility(
-  profile: PublicProfileCard,
-  currentUser: IUserDados | null
-): PublicProfileCard {
-  const result: ProfileCompatibilityResult = evaluateProfileCompatibility(
-    currentUser,
-    profile
-  );
+    profile: PublicProfileCard,
+    currentUser: IUserDados | null
+  ): PublicProfileCard {
+    const result: ProfileCompatibilityResult = evaluateProfileCompatibility(
+      currentUser,
+      profile
+    );
 
-  return {
-    ...profile,
-    compatibilityScore: result.score,
-    compatibilityReason: result.reason,
-  };
-}
+    return {
+      ...profile,
+      compatibilityScore: result.score,
+      compatibilityReason: result.reason,
+    };
+  }
+
+  private isIncompatibleForCompatibleMode(profile: PublicProfileCard): boolean {
+    return profile.compatibilityScore === 0 ||
+      profile.compatibilityReason === 'viewer_data_missing' ||
+      profile.compatibilityReason === 'candidate_data_missing';
+  }
 
   private withPresence(
     profile: PublicProfileCard,
