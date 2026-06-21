@@ -11,7 +11,7 @@
     'thread-message--group-middle': !isFirstInGroup() && !isLastInGroup(),
     'thread-message--group-end': isLastInGroup(),
     'thread-message--group-single': isSingleMessageGroup(),
-    'thread-message--has-reaction': !!selectedReaction
+    'thread-message--has-reaction': getVisibleReactions().length > 0
   }"
   [attr.aria-label]="getAriaLabel()"
 >
@@ -70,6 +70,8 @@
             type="button"
             class="thread-message__reaction-button"
             [class.thread-message__reaction-button--active]="selectedReaction === reaction.emoji"
+            [disabled]="isSavingReaction"
+            [attr.aria-disabled]="isSavingReaction"
             [attr.aria-label]="getReactionAriaLabel(reaction)"
             (click)="selectQuickReaction(reaction.emoji)"
           >
@@ -78,16 +80,16 @@
         }
       </div>
 
-      @if (selectedReaction) {
-        <button
-          type="button"
+      @if (getVisibleReactions().length > 0) {
+        <div
           class="thread-message__selected-reaction"
           [attr.title]="getSelectedReactionTitle()"
-          [attr.aria-label]="'Remover reação ' + selectedReaction"
-          (click)="selectQuickReaction(selectedReaction)"
+          aria-label="Reações nesta mensagem"
         >
-          {{ selectedReaction }}
-        </button>
+          @for (reaction of getVisibleReactions(); track reaction) {
+            <span>{{ reaction }}</span>
+          }
+        </div>
       }
 
       @if (canDeleteMessage()) {
