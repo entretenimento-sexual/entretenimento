@@ -84,6 +84,8 @@
 
           <div class="chat-shell__composer-main">
             <textarea
+              #emojiComposer="chatEmojiComposer"
+              appChatEmojiComposer
               [(ngModel)]="messageContent"
               [appChatDraftKey]="selectedType + ':' + selectedChatId"
               (keydown)="onComposerKeydown($event)"
@@ -96,6 +98,37 @@
               [attr.aria-invalid]="isMessageTooLong"
               [attr.maxlength]="maxMessageLength + 1"
             ></textarea>
+
+            <details class="chat-shell__emoji-picker">
+              <summary
+                class="chat-shell__emoji-trigger"
+                aria-label="Abrir emojis"
+                title="Emojis"
+              >
+                🙂
+              </summary>
+
+              <div class="chat-shell__emoji-panel" aria-label="Emojis frequentes">
+                <button type="button" (click)="emojiComposer.insert('😀')">😀</button>
+                <button type="button" (click)="emojiComposer.insert('😂')">😂</button>
+                <button type="button" (click)="emojiComposer.insert('😊')">😊</button>
+                <button type="button" (click)="emojiComposer.insert('😍')">😍</button>
+                <button type="button" (click)="emojiComposer.insert('😘')">😘</button>
+                <button type="button" (click)="emojiComposer.insert('😏')">😏</button>
+                <button type="button" (click)="emojiComposer.insert('😈')">😈</button>
+                <button type="button" (click)="emojiComposer.insert('🔥')">🔥</button>
+                <button type="button" (click)="emojiComposer.insert('❤️')">❤️</button>
+                <button type="button" (click)="emojiComposer.insert('💋')">💋</button>
+                <button type="button" (click)="emojiComposer.insert('👀')">👀</button>
+                <button type="button" (click)="emojiComposer.insert('✨')">✨</button>
+                <button type="button" (click)="emojiComposer.insert('👍')">👍</button>
+                <button type="button" (click)="emojiComposer.insert('🙏')">🙏</button>
+                <button type="button" (click)="emojiComposer.insert('🎉')">🎉</button>
+                <button type="button" (click)="emojiComposer.insert('🍷')">🍷</button>
+                <button type="button" (click)="emojiComposer.insert('🌙')">🌙</button>
+                <button type="button" (click)="emojiComposer.insert('📍')">📍</button>
+              </div>
+            </details>
 
             <button
               type="button"
