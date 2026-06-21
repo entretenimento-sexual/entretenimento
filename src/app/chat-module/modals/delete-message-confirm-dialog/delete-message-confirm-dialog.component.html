@@ -1,0 +1,37 @@
+<!-- src/app/chat-module/modals/delete-message-confirm-dialog/delete-message-confirm-dialog.component.html -->
+<section
+  class="delete-message-dialog"
+  role="alertdialog"
+  aria-labelledby="delete-message-dialog-title"
+  aria-describedby="delete-message-dialog-description"
+>
+  <header class="delete-message-dialog__header">
+    <span class="delete-message-dialog__icon" aria-hidden="true">🗑</span>
+
+    <div>
+      <h2 id="delete-message-dialog-title">Apagar mensagem?</h2>
+      <p id="delete-message-dialog-description">
+        Esta ação substitui o conteúdo por “Mensagem apagada” e não pode ser desfeita.
+      </p>
+    </div>
+  </header>
+
+  <footer class="delete-message-dialog__actions">
+    <button
+      type="button"
+      class="delete-message-dialog__button delete-message-dialog__button--ghost"
+      (click)="cancel()"
+      cdkFocusInitial
+    >
+      Cancelar
+    </button>
+
+    <button
+      type="button"
+      class="delete-message-dialog__button delete-message-dialog__button--danger"
+      (click)="confirm()"
+    >
+      Apagar
+    </button>
+  </footer>
+</section>
