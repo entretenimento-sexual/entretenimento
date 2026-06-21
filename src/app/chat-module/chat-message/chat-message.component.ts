@@ -7,25 +7,29 @@
 // - identificar se a mensagem é enviada ou recebida
 // - exibir nickname do remetente
 // - permitir exclusão quando aplicável
+// - permitir reação rápida local no balão da mensagem
 //
 // Ajustes desta fase:
 // - compatível com chat direto 1:1 e room
 // - aceita input `type`
 // - mantém AuthSessionService como fonte da sessão
 // - mantém tratamento de erro centralizado
+// - reação rápida fica local/sessão, sem gravar no Firestore
 //
 // SUPRESSÃO EXPLÍCITA NESTA FASE:
 // - exclusão de mensagem fica restrita ao eixo `chat`
 // - `room` NÃO reutiliza delete legado de chat
+// - reação rápida NÃO é persistida no backend nesta etapa
 //
 // Motivo:
 // - agora o foco arquitetural é 1:1
 // - room fica em segundo plano, sem ser esquecido
 // - isso evita misturar regras de moderação/ownership de room
 //   com regras simples de delete da própria mensagem em chat direto
+// - reação persistente exige contrato de dados, rules e agregação posterior
 // ============================================================================
 import { Component, DestroyRef, inject, input, OnInit } from '@angular/core';
-import { Observable, from, isObservable, of } from 'rxjs';
+import { Observable, combineLatest, from, isObservable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -48,6 +52,11 @@ import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy
 
 type ChatMessageType = 'chat' | 'room';
 
+type QuickReaction = {
+  emoji: string;
+  label: string;
+};
+
 @Component({
   selector: 'app-chat-message',
   templateUrl: './chat-message.component.html',
@@ -61,19 +70,17 @@ export class ChatMessageComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   readonly previousMessage = input<Message | null>(null);
   readonly nextMessage = input<Message | null>(null);
-  
 
   senderName = 'Usuário desconhecido';
   currentUserUid: string | null = null;
-  
-  constructor(
-    private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly authSession: AuthSessionService,
-    private readonly chatService: ChatService,
-    private readonly errorNotifier: ErrorNotificationService,
-    private readonly globalError: GlobalErrorHandlerService,
-    private readonly privacyDebug: PrivacyDebugLoggerService,
-  ) {}
+  selectedReaction: string | null = null;
+
+  readonly quickReactions: QuickReaction[] = [
+    { emoji: '❤️', label: 'Reagir com coração' },
+    { emoji: '😂', label: 'Reagir com risada' },
+    { emoji: '🔥', label: 'Reagir com fogo' },
+    { emoji: '👀', label: 'Reagir com olhos' },
+  ];
 
   private readonly message$ = toObservable(this.message).pipe(
     distinctUntilChanged((a, b) =>
@@ -85,9 +92,22 @@ export class ChatMessageComponent implements OnInit {
     )
   );
 
+  private readonly chatId$ = toObservable(this.chatId).pipe(distinctUntilChanged());
+  private readonly type$ = toObservable(this.type).pipe(distinctUntilChanged());
+
+  constructor(
+    private readonly firestoreUserQuery: FirestoreUserQueryService,
+    private readonly authSession: AuthSessionService,
+    private readonly chatService: ChatService,
+    private readonly errorNotifier: ErrorNotificationService,
+    private readonly globalError: GlobalErrorHandlerService,
+    private readonly privacyDebug: PrivacyDebugLoggerService,
+  ) {}
+
   ngOnInit(): void {
     this.observeCurrentUserUid();
     this.observeSenderName();
+    this.observeLocalReaction();
   }
 
   // ---------------------------------------------------------------------------
@@ -118,54 +138,159 @@ export class ChatMessageComponent implements OnInit {
   // Sender
   // ---------------------------------------------------------------------------
 
-private observeSenderName(): void {
-  this.message$
-    .pipe(
-      map((message) => ({
-        senderId: (message?.senderId ?? '').trim(),
-        nickname: (message?.nickname ?? '').trim(),
-      })),
-      distinctUntilChanged((a, b) => {
-        return a.senderId === b.senderId && a.nickname === b.nickname;
-      }),
-      switchMap(({ senderId, nickname }) => {
-        if (nickname) {
-          return of(nickname);
-        }
+  private observeSenderName(): void {
+    this.message$
+      .pipe(
+        map((message) => ({
+          senderId: (message?.senderId ?? '').trim(),
+          nickname: (message?.nickname ?? '').trim(),
+        })),
+        distinctUntilChanged((a, b) => {
+          return a.senderId === b.senderId && a.nickname === b.nickname;
+        }),
+        switchMap(({ senderId, nickname }) => {
+          if (nickname) {
+            return of(nickname);
+          }
 
-        if (!senderId) {
-          return of('Usuário desconhecido');
-        }
-
-        const isSelfMessage = senderId === this.currentUserUid;
-
-        const user$ = isSelfMessage
-          ? this.firestoreUserQuery.getUser$(senderId)
-          : this.firestoreUserQuery.getPublicUserById$(senderId);
-
-        return user$.pipe(
-          take(1),
-          map((user: IUserDados | null) => user?.nickname?.trim() || 'Usuário desconhecido'),
-          catchError((error) => {
-            this.reportError(
-              'Erro ao buscar nome do usuário.',
-              error,
-              { op: 'observeSenderName', senderId, isSelfMessage },
-              false
-            );
+          if (!senderId) {
             return of('Usuário desconhecido');
-          })
-        );
-      }),
-      tap((nickname) => {
-        this.senderName = nickname || 'Usuário desconhecido';
-      }),
-      takeUntilDestroyed(this.destroyRef)
-    )
-    .subscribe();
-}
+          }
 
-   // ---------------------------------------------------------------------------
+          const isSelfMessage = senderId === this.currentUserUid;
+
+          const user$ = isSelfMessage
+            ? this.firestoreUserQuery.getUser$(senderId)
+            : this.firestoreUserQuery.getPublicUserById$(senderId);
+
+          return user$.pipe(
+            take(1),
+            map((user: IUserDados | null) => user?.nickname?.trim() || 'Usuário desconhecido'),
+            catchError((error) => {
+              this.reportError(
+                'Erro ao buscar nome do usuário.',
+                error,
+                { op: 'observeSenderName', senderId, isSelfMessage },
+                false
+              );
+              return of('Usuário desconhecido');
+            })
+          );
+        }),
+        tap((nickname) => {
+          this.senderName = nickname || 'Usuário desconhecido';
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reactions
+  // ---------------------------------------------------------------------------
+
+  private observeLocalReaction(): void {
+    combineLatest([
+      this.message$,
+      this.chatId$,
+      this.type$,
+    ])
+      .pipe(
+        map(() => this.readStoredReaction()),
+        tap((reaction) => {
+          this.selectedReaction = reaction;
+        }),
+        catchError((error) => {
+          this.reportError(
+            'Não foi possível carregar reação local.',
+            error,
+            { op: 'observeLocalReaction' },
+            false
+          );
+
+          this.selectedReaction = null;
+          return of(null);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
+  selectQuickReaction(emoji: string): void {
+    const safeEmoji = String(emoji ?? '').trim();
+
+    if (!safeEmoji) {
+      return;
+    }
+
+    const nextReaction = this.selectedReaction === safeEmoji ? null : safeEmoji;
+    this.selectedReaction = nextReaction;
+    this.persistLocalReaction(nextReaction);
+
+    this.dbg('selectQuickReaction', {
+      messageId: this.message().id ?? null,
+      type: this.type(),
+      selected: !!nextReaction,
+    });
+  }
+
+  getReactionAriaLabel(reaction: QuickReaction): string {
+    return this.selectedReaction === reaction.emoji
+      ? `Remover reação ${reaction.emoji}`
+      : reaction.label;
+  }
+
+  getSelectedReactionTitle(): string {
+    return 'Sua reação local nesta sessão';
+  }
+
+  private persistLocalReaction(reaction: string | null): void {
+    const storageKey = this.getReactionStorageKey();
+
+    if (!storageKey) {
+      return;
+    }
+
+    try {
+      if (!reaction) {
+        sessionStorage.removeItem(storageKey);
+        return;
+      }
+
+      sessionStorage.setItem(storageKey, reaction);
+    } catch {
+      // storage indisponível não deve quebrar a thread.
+    }
+  }
+
+  private readStoredReaction(): string | null {
+    const storageKey = this.getReactionStorageKey();
+
+    if (!storageKey) {
+      return null;
+    }
+
+    try {
+      const value = String(sessionStorage.getItem(storageKey) ?? '').trim();
+      return value || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private getReactionStorageKey(): string | null {
+    const messageId = String(this.message()?.id ?? '').trim();
+    const chatId = String(this.chatId() ?? '').trim();
+    const type = this.type();
+
+    if (!messageId) {
+      return null;
+    }
+
+    return `chat-reaction:${type}:${chatId || 'thread'}:${messageId}`;
+  }
+
+  // ---------------------------------------------------------------------------
   // UI helpers
   // ---------------------------------------------------------------------------
 
@@ -255,41 +380,42 @@ private observeSenderName(): void {
   }
 
   shouldShowDeliveryStatus(): boolean {
-  return this.isDirectChat() && this.isMessageSent() && !!this.getStatusText();
-}
-
-getStatusSymbol(): string {
-  if (!this.shouldShowDeliveryStatus()) {
-    return '';
+    return this.isDirectChat() && this.isMessageSent() && !!this.getStatusText();
   }
 
-  switch (this.message().status) {
-    case 'read':
-      return '✓✓';
-    case 'delivered':
-      return '✓✓';
-    case 'sent':
-    default:
-      return '✓';
+  getStatusSymbol(): string {
+    if (!this.shouldShowDeliveryStatus()) {
+      return '';
+    }
+
+    switch (this.message().status) {
+      case 'read':
+        return '✓✓';
+      case 'delivered':
+        return '✓✓';
+      case 'sent':
+      default:
+        return '✓';
+    }
   }
-}
 
-getStatusClass(): string {
-  if (!this.shouldShowDeliveryStatus()) {
-    return '';
+  getStatusClass(): string {
+    if (!this.shouldShowDeliveryStatus()) {
+      return '';
+    }
+
+    const status = this.message().status ?? 'sent';
+
+    return `thread-message__status--${status}`;
   }
-
-  const status = this.message().status ?? 'sent';
-
-  return `thread-message__status--${status}`;
-}
 
   getAriaLabel(): string {
     const sender = this.senderName || 'Usuário';
     const content = this.message().content ?? '';
     const status = this.getStatusText();
+    const reaction = this.selectedReaction ? `. Sua reação: ${this.selectedReaction}.` : '';
 
-    return `${sender}: ${content}${status ? `. Status: ${status}.` : '.'}`;
+    return `${sender}: ${content}${status ? `. Status: ${status}.` : '.'}${reaction}`;
   }
 
   getDeleteAriaLabel(): string {
@@ -375,9 +501,9 @@ getStatusClass(): string {
   // ---------------------------------------------------------------------------
   // Debug / Error
   // ---------------------------------------------------------------------------
-private dbg(message: string, extra?: unknown): void {
-  this.privacyDebug.log('chat', `ChatMessage: ${message}`, extra);
-}
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('chat', `ChatMessage: ${message}`, extra);
+  }
 
   private reportError(
     userMessage: string,
