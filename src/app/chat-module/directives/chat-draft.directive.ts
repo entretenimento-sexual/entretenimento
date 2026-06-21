@@ -7,7 +7,8 @@
 // Decisão:
 // - sessionStorage, não Firestore: rascunho é privado do dispositivo/sessão;
 // - chave por conversa: evita misturar textos entre chats/salas;
-// - diretiva isolada: evita inflar ainda mais ChatModuleLayoutComponent.
+// - diretiva isolada: evita inflar ainda mais ChatModuleLayoutComponent;
+// - observa ngModel para remover rascunho quando o envio limpa o composer.
 // -----------------------------------------------------------------------------
 
 import {
@@ -17,16 +18,18 @@ import {
   Input,
   OnChanges,
   OnDestroy,
+  OnInit,
   SimpleChanges,
   inject,
 } from '@angular/core';
 import { NgModel } from '@angular/forms';
+import { Subscription } from 'rxjs';
 
 @Directive({
   selector: 'textarea[appChatDraftKey]',
   standalone: false,
 })
-export class ChatDraftDirective implements OnChanges, OnDestroy {
+export class ChatDraftDirective implements OnChanges, OnDestroy, OnInit {
   private readonly elementRef = inject<ElementRef<HTMLTextAreaElement>>(ElementRef);
   private readonly ngModel = inject(NgModel, { optional: true });
 
@@ -34,6 +37,23 @@ export class ChatDraftDirective implements OnChanges, OnDestroy {
 
   private lastStorageKey: string | null = null;
   private restoredForKey: string | null = null;
+  private modelSub?: Subscription;
+
+  ngOnInit(): void {
+    this.modelSub = this.ngModel?.valueChanges?.subscribe((value) => {
+      const storageKey = this.resolveStorageKey();
+
+      if (!storageKey) {
+        return;
+      }
+
+      const nextValue = String(value ?? '');
+
+      if (!nextValue.trim()) {
+        this.removeDraft(storageKey);
+      }
+    });
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (!changes['appChatDraftKey']) {
@@ -46,6 +66,8 @@ export class ChatDraftDirective implements OnChanges, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.modelSub?.unsubscribe();
+    this.modelSub = undefined;
     this.persistCurrentDraft(this.lastStorageKey);
   }
 
@@ -102,6 +124,14 @@ export class ChatDraftDirective implements OnChanges, OnDestroy {
       }
 
       sessionStorage.setItem(storageKey, value);
+    } catch {
+      // storage indisponível não deve quebrar o chat.
+    }
+  }
+
+  private removeDraft(storageKey: string): void {
+    try {
+      sessionStorage.removeItem(storageKey);
     } catch {
       // storage indisponível não deve quebrar o chat.
     }
