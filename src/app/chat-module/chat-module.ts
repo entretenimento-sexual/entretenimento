@@ -26,6 +26,7 @@ import { RoomsModule } from './rooms/rooms.module';
 import { CommunitiesModule } from './communities/communities.module';
 import { CreateRoomModalComponent } from './modals/create-room-modal/create-room-modal.component';
 import { BaseModalComponent } from './modals/base-modal/base-modal.component';
+import { DeleteMessageConfirmDialogComponent } from './modals/delete-message-confirm-dialog/delete-message-confirm-dialog.component';
 import { TimeAgoPipe } from 'src/app/shared/pipes/time-ago.pipe';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { ChatDraftDirective } from './directives/chat-draft.directive';
@@ -51,6 +52,7 @@ import { ChatReplyQuotePipe } from './pipes/chat-reply-quote.pipe';
     InviteListComponent,
     RoomCreationConfirmationModalComponent,
     RoomInteractionComponent,
+    DeleteMessageConfirmDialogComponent,
     ChatDraftDirective,
     ChatEmojiComposerDirective,
     ActiveChatNotificationDirective,
