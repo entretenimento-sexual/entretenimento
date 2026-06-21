@@ -11,6 +11,7 @@
 // - remove warning de collectionData fora de injection context
 // - remove warning de query/collection/doc fora de injection context
 // - mantém compat com paginação e status de mensagem
+// - permite persistir reação por usuário em mensagens diretas
 
 import { Injectable } from '@angular/core';
 import { Observable, defer, from, of } from 'rxjs';
@@ -22,6 +23,7 @@ import {
   collection,
   collectionData,
   deleteDoc,
+  deleteField,
   doc,
   getDocs,
   limit,
@@ -29,6 +31,7 @@ import {
   query,
   setDoc,
   startAfter,
+  updateDoc,
 } from '@angular/fire/firestore';
 
 import { Timestamp } from 'firebase/firestore';
@@ -155,6 +158,35 @@ export class ChatMessagesRepository {
       map(() => void 0),
       catchError((err) => {
         this.reportSilent('updateMessageStatus$', err);
+        return of(void 0);
+      })
+    );
+  }
+
+  setMessageReaction$(
+    chatId: string,
+    messageId: string,
+    uid: string,
+    emoji: string | null
+  ): Observable<void> {
+    const cid = this.normChatId(chatId);
+    const mid = this.normMessageId(messageId);
+    const safeUid = String(uid ?? '').trim();
+    const safeEmoji = String(emoji ?? '').trim() || null;
+
+    if (!cid || !mid || !safeUid) return of(void 0);
+
+    const fieldPath = `reactionsByUser.${safeUid}`;
+    const patch = safeEmoji
+      ? { [fieldPath]: safeEmoji }
+      : { [fieldPath]: deleteField() };
+
+    return defer(() =>
+      from(this.ctx.run(() => updateDoc(this.messageRef(cid, mid), patch as any)))
+    ).pipe(
+      map(() => void 0),
+      catchError((err) => {
+        this.reportSilent('setMessageReaction$', err);
         return of(void 0);
       })
     );
