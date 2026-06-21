@@ -1,31 +1,12 @@
 // src/app/chat-module/directives/reply-to-message.directive.ts
-// -----------------------------------------------------------------------------
-// ReplyToMessageDirective
-// -----------------------------------------------------------------------------
-// Dispara um evento DOM com o contexto mínimo para responder uma mensagem.
-//
-// Decisão:
-// - diretiva isolada para não inflar ChatMessageComponent;
-// - evento DOM borbulhante para o layout capturar sem acoplar componentes;
-// - primeira versão usa citação textual persistente, sem alterar backend.
-// -----------------------------------------------------------------------------
-
-import { Directive, ElementRef, HostListener, Input, inject } from '@angular/core';
+import { Directive, HostListener, Input } from '@angular/core';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
-
-export type ChatReplyMessageDetail = {
-  messageId: string | null;
-  senderName: string;
-  content: string;
-};
 
 @Directive({
   selector: 'button[appReplyToMessage]',
   standalone: false,
 })
 export class ReplyToMessageDirective {
-  private readonly elementRef = inject<ElementRef<HTMLButtonElement>>(ElementRef);
-
   @Input() appReplyToMessage: Message | null | undefined;
   @Input() replySenderName: string | null | undefined;
 
@@ -33,25 +14,36 @@ export class ReplyToMessageDirective {
   onClick(event: Event): void {
     event.stopPropagation();
 
-    const message = this.appReplyToMessage;
-    const content = String(message?.content ?? '').trim();
+    const content = String(this.appReplyToMessage?.content ?? '').trim();
 
-    if (!content) {
+    if (!content || typeof document === 'undefined') {
       return;
     }
 
-    const detail: ChatReplyMessageDetail = {
-      messageId: String(message?.id ?? '').trim() || null,
-      senderName: String(this.replySenderName ?? message?.nickname ?? 'Usuário').trim() || 'Usuário',
-      content,
-    };
+    const textarea = document.querySelector<HTMLTextAreaElement>('textarea[appChatEmojiComposer]');
 
-    this.elementRef.nativeElement.dispatchEvent(
-      new CustomEvent<ChatReplyMessageDetail>('chatReplyMessage', {
-        bubbles: true,
-        composed: true,
-        detail,
-      })
-    );
+    if (!textarea) {
+      return;
+    }
+
+    const senderName = String(this.replySenderName ?? this.appReplyToMessage?.nickname ?? 'Usuário')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 36);
+
+    const excerpt = content
+      .replace(/\s+/g, ' ')
+      .slice(0, 110);
+
+    const quote = `> ${senderName}: ${excerpt}\n\n`;
+    const currentValue = textarea.value ?? '';
+    textarea.value = currentValue.trim() ? `${quote}${currentValue}` : quote;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+
+    window.setTimeout(() => {
+      textarea.focus();
+      const cursor = textarea.value.length;
+      textarea.setSelectionRange(cursor, cursor);
+    }, 0);
   }
 }
