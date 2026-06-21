@@ -6,12 +6,13 @@
     'thread-message--received': !isMessageSent(),
     'thread-message--room': isRoomMessage(),
     'thread-message--direct': isDirectChat(),
+    'thread-message--deleted': message().deleted === true,
 
     'thread-message--group-start': isFirstInGroup(),
     'thread-message--group-middle': !isFirstInGroup() && !isLastInGroup(),
     'thread-message--group-end': isLastInGroup(),
     'thread-message--group-single': isSingleMessageGroup(),
-    'thread-message--has-reaction': getVisibleReactions().length > 0
+    'thread-message--has-reaction': message().deleted !== true && getVisibleReactions().length > 0
   }"
   [attr.aria-label]="getAriaLabel()"
 >
@@ -27,15 +28,18 @@
 
       @let parsedContent = message().content | chatReplyQuote;
 
-      @if (parsedContent.hasQuote) {
+      @if (message().deleted !== true && parsedContent.hasQuote) {
         <blockquote class="thread-message__reply-card">
           <strong>{{ parsedContent.quoteSender }}</strong>
           <span>{{ parsedContent.quoteText }}</span>
         </blockquote>
       }
 
-      <p class="thread-message__content">
-        {{ parsedContent.body }}
+      <p
+        class="thread-message__content"
+        [class.thread-message__content--deleted]="message().deleted === true"
+      >
+        {{ message().deleted === true ? 'Mensagem apagada' : parsedContent.body }}
       </p>
 
       <footer class="thread-message__footer">
@@ -64,71 +68,73 @@
         }
       </footer>
 
-      <div class="thread-message__reactions" aria-label="Ações rápidas da mensagem">
-        @for (reaction of quickReactions; track reaction.emoji) {
-          <button
-            type="button"
-            class="thread-message__reaction-button"
-            [class.thread-message__reaction-button--active]="selectedReaction === reaction.emoji"
-            [disabled]="isSavingReaction"
-            [attr.aria-disabled]="isSavingReaction"
-            [attr.aria-label]="getReactionAriaLabel(reaction)"
-            (click)="selectQuickReaction(reaction.emoji)"
-          >
-            {{ reaction.emoji }}
-          </button>
-        }
-
-        <details #messageMenu class="thread-message__menu" appCloseDetailsOnOutside>
-          <summary
-            class="thread-message__reaction-button thread-message__menu-trigger"
-            aria-label="Abrir menu da mensagem"
-            title="Mais ações"
-          >
-            +
-          </summary>
-
-          <div class="thread-message__menu-panel" role="menu" aria-label="Menu da mensagem">
+      @if (message().deleted !== true) {
+        <div class="thread-message__reactions" aria-label="Ações rápidas da mensagem">
+          @for (reaction of quickReactions; track reaction.emoji) {
             <button
               type="button"
-              role="menuitem"
-              [appReplyToMessage]="message()"
-              [replySenderName]="getDisplayedSenderName()"
-              (click)="messageMenu.open = false"
+              class="thread-message__reaction-button"
+              [class.thread-message__reaction-button--active]="selectedReaction === reaction.emoji"
+              [disabled]="isSavingReaction"
+              [attr.aria-disabled]="isSavingReaction"
+              [attr.aria-label]="getReactionAriaLabel(reaction)"
+              (click)="selectQuickReaction(reaction.emoji)"
             >
-              <span aria-hidden="true">↩</span>
-              <span>Responder</span>
+              {{ reaction.emoji }}
             </button>
+          }
 
-            <button
-              type="button"
-              role="menuitem"
-              [appCopyMessageText]="message().content"
-              (click)="messageMenu.open = false"
+          <details #messageMenu class="thread-message__menu" appCloseDetailsOnOutside>
+            <summary
+              class="thread-message__reaction-button thread-message__menu-trigger"
+              aria-label="Abrir menu da mensagem"
+              title="Mais ações"
             >
-              <span aria-hidden="true">⧉</span>
-              <span>Copiar</span>
-            </button>
+              +
+            </summary>
 
-            @if (canDeleteMessage()) {
+            <div class="thread-message__menu-panel" role="menu" aria-label="Menu da mensagem">
               <button
                 type="button"
                 role="menuitem"
-                class="thread-message__menu-danger"
-                appDeleteDirectMessage
-                [deleteChatId]="chatId()"
-                [deleteMessageId]="message().id"
+                [appReplyToMessage]="message()"
+                [replySenderName]="getDisplayedSenderName()"
                 (click)="messageMenu.open = false"
               >
-                <span aria-hidden="true">🗑</span>
-                <span>Apagar</span>
+                <span aria-hidden="true">↩</span>
+                <span>Responder</span>
               </button>
-            }
-          </div>
-        </details>
-      </div>
 
-      @if (getVisibleReactions().length > 0) {
+              <button
+                type="button"
+                role="menuitem"
+                [appCopyMessageText]="message().content"
+                (click)="messageMenu.open = false"
+              >
+                <span aria-hidden="true">⧉</span>
+                <span>Copiar</span>
+              </button>
+
+              @if (canDeleteMessage()) {
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="thread-message__menu-danger"
+                  appDeleteDirectMessage
+                  [deleteChatId]="chatId()"
+                  [deleteMessageId]="message().id"
+                  (click)="messageMenu.open = false"
+                >
+                  <span aria-hidden="true">🗑</span>
+                  <span>Apagar</span>
+                </button>
+              }
+            </div>
+          </details>
+        </div>
+      }
+
+      @if (message().deleted !== true && getVisibleReactions().length > 0) {
         <div
           class="thread-message__selected-reaction"
           [attr.title]="getSelectedReactionTitle()"
