@@ -85,6 +85,7 @@
           <div class="chat-shell__composer-main">
             <textarea
               [(ngModel)]="messageContent"
+              [appChatDraftKey]="selectedType + ':' + selectedChatId"
               (keydown)="onComposerKeydown($event)"
               placeholder="Digite sua mensagem..."
               aria-label="Digite sua mensagem. Pressione Enter para enviar ou Shift mais Enter para quebrar linha."
