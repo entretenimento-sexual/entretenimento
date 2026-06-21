@@ -32,6 +32,7 @@ import { ChatDraftDirective } from './directives/chat-draft.directive';
 import { ChatEmojiComposerDirective } from './directives/chat-emoji-composer.directive';
 import { ActiveChatNotificationDirective } from './directives/active-chat-notification.directive';
 import { ChatEmojiPickerComponent } from './chat-emoji-picker/chat-emoji-picker.component';
+import { ChatComposerAutosizeDirective } from './directives/chat-composer-autosize.directive';
 
 @NgModule({
   declarations: [
@@ -49,6 +50,7 @@ import { ChatEmojiPickerComponent } from './chat-emoji-picker/chat-emoji-picker.
     ChatEmojiComposerDirective,
     ActiveChatNotificationDirective,
     ChatEmojiPickerComponent,
+    ChatComposerAutosizeDirective,
   ],
   imports: [
     CommonModule,
