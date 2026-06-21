@@ -2,6 +2,13 @@
 import { Directive, HostListener, Input } from '@angular/core';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
+export interface ChatReplySelectedEventDetail {
+  messageId: string | null;
+  senderName: string;
+  excerpt: string;
+  quotePrefix: string;
+}
+
 @Directive({
   selector: 'button[appReplyToMessage]',
   standalone: false,
@@ -14,36 +21,31 @@ export class ReplyToMessageDirective {
   onClick(event: Event): void {
     event.stopPropagation();
 
-    const content = String(this.appReplyToMessage?.content ?? '').trim();
-
-    if (!content || typeof document === 'undefined') {
+    if (this.appReplyToMessage?.deleted === true || typeof window === 'undefined') {
       return;
     }
 
-    const textarea = document.querySelector<HTMLTextAreaElement>('textarea[appChatEmojiComposer]');
+    const content = String(this.appReplyToMessage?.content ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
 
-    if (!textarea) {
+    if (!content) {
       return;
     }
 
     const senderName = String(this.replySenderName ?? this.appReplyToMessage?.nickname ?? 'Usuário')
       .replace(/\s+/g, ' ')
       .trim()
-      .slice(0, 36);
+      .slice(0, 36) || 'Usuário';
 
-    const excerpt = content
-      .replace(/\s+/g, ' ')
-      .slice(0, 110);
+    const excerpt = content.slice(0, 110);
+    const detail: ChatReplySelectedEventDetail = {
+      messageId: String(this.appReplyToMessage?.id ?? '').trim() || null,
+      senderName,
+      excerpt,
+      quotePrefix: `> ${senderName}: ${excerpt}\n\n`,
+    };
 
-    const quote = `> ${senderName}: ${excerpt}\n\n`;
-    const currentValue = textarea.value ?? '';
-    textarea.value = currentValue.trim() ? `${quote}${currentValue}` : quote;
-    textarea.dispatchEvent(new Event('input', { bubbles: true }));
-
-    window.setTimeout(() => {
-      textarea.focus();
-      const cursor = textarea.value.length;
-      textarea.setSelectionRange(cursor, cursor);
-    }, 0);
+    window.dispatchEvent(new CustomEvent<ChatReplySelectedEventDetail>('chatReplySelected', { detail }));
   }
 }
