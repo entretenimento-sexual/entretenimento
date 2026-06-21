@@ -99,6 +99,13 @@
   border-color: var(--message-received-border);
 }
 
+.thread-message--deleted .thread-message__bubble {
+  background: color-mix(in oklab, var(--surface-color) 76%, var(--background-color));
+  border-style: dashed;
+  border-color: color-mix(in oklab, var(--surface-border) 62%, transparent);
+  opacity: 0.84;
+}
+
 .thread-message--sent.thread-message--group-start:not(.thread-message--group-single)
   .thread-message__bubble { border-bottom-right-radius: var(--message-bubble-radius-tight); }
 .thread-message--sent.thread-message--group-middle .thread-message__bubble {
@@ -143,6 +150,13 @@
   word-break: normal;
   overflow-wrap: anywhere;
   color: var(--text-color);
+}
+
+.thread-message__content--deleted {
+  color: color-mix(in oklab, var(--text-color) 54%, transparent);
+  font-size: 0.88rem;
+  font-style: italic;
+  font-weight: 650;
 }
 
 .thread-message__reply-card {
@@ -415,6 +429,15 @@
   border-color: rgba(240, 246, 252, 0.12);
 }
 
+:host-context(html.dark-mode) .thread-message--deleted .thread-message__bubble {
+  background: rgba(15, 22, 32, 0.62);
+  border-color: rgba(240, 246, 252, 0.14);
+}
+
+:host-context(html.dark-mode) .thread-message__content--deleted {
+  color: rgba(240, 246, 252, 0.56);
+}
+
 :host-context(html.dark-mode) .thread-message__reply-card {
   background: rgba(255, 91, 132, 0.1);
   border-color: rgba(255, 91, 132, 0.24);
@@ -436,7 +459,8 @@
 }
 
 :host-context(html.high-contrast) .thread-message__reply-card strong,
-:host-context(html.high-contrast) .thread-message__reply-card span {
+:host-context(html.high-contrast) .thread-message__reply-card span,
+:host-context(html.high-contrast) .thread-message__content--deleted {
   color: var(--text-color) !important;
 }
 
@@ -480,6 +504,10 @@
   .thread-message__content {
     font-size: 0.93rem;
     line-height: 1.4;
+  }
+
+  .thread-message__content--deleted {
+    font-size: 0.86rem;
   }
 
   .thread-message__reply-card {
