@@ -29,6 +29,7 @@ import { BaseModalComponent } from './modals/base-modal/base-modal.component';
 import { TimeAgoPipe } from 'src/app/shared/pipes/time-ago.pipe';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { ChatDraftDirective } from './directives/chat-draft.directive';
+import { ChatEmojiComposerDirective } from './directives/chat-emoji-composer.directive';
 
 @NgModule({
   declarations: [
@@ -43,6 +44,7 @@ import { ChatDraftDirective } from './directives/chat-draft.directive';
     RoomCreationConfirmationModalComponent,
     RoomInteractionComponent,
     ChatDraftDirective,
+    ChatEmojiComposerDirective,
   ],
   imports: [
     CommonModule,
