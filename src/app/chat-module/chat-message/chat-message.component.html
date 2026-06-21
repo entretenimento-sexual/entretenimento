@@ -25,8 +25,17 @@
         </header>
       }
 
+      @let parsedContent = message().content | chatReplyQuote;
+
+      @if (parsedContent.hasQuote) {
+        <blockquote class="thread-message__reply-card">
+          <strong>{{ parsedContent.quoteSender }}</strong>
+          <span>{{ parsedContent.quoteText }}</span>
+        </blockquote>
+      }
+
       <p class="thread-message__content">
-        {{ message().content }}
+        {{ parsedContent.body }}
       </p>
 
       <footer class="thread-message__footer">
