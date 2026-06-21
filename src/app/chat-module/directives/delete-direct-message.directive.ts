@@ -12,11 +12,14 @@
 // -----------------------------------------------------------------------------
 
 import { Directive, HostBinding, HostListener, Input, OnDestroy } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { MatDialog } from '@angular/material/dialog';
+import { Subscription, of } from 'rxjs';
+import { catchError, switchMap, take } from 'rxjs/operators';
 
 import { DirectMessageActionsService } from 'src/app/messaging/direct-chat/services/direct-message-actions.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { DeleteMessageConfirmDialogComponent } from '../modals/delete-message-confirm-dialog/delete-message-confirm-dialog.component';
 
 @Directive({
   selector: 'button[appDeleteDirectMessage]',
@@ -42,6 +45,7 @@ export class DeleteDirectMessageDirective implements OnDestroy {
 
   constructor(
     private readonly directMessageActions: DirectMessageActionsService,
+    private readonly dialog: MatDialog,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly globalError: GlobalErrorHandlerService,
   ) {}
@@ -67,14 +71,24 @@ export class DeleteDirectMessageDirective implements OnDestroy {
       return;
     }
 
-    if (!this.confirmDelete()) {
-      return;
-    }
-
-    this.busy = true;
     this.sub?.unsubscribe();
 
-    this.sub = this.directMessageActions.deleteDirectMessage$(chatId, messageId)
+    this.sub = this.confirmDelete$()
+      .pipe(
+        switchMap((confirmed) => {
+          if (!confirmed) {
+            return of(void 0);
+          }
+
+          this.busy = true;
+          return this.directMessageActions.deleteDirectMessage$(chatId, messageId);
+        }),
+        catchError((error) => {
+          this.errorNotifier.showError('Não foi possível apagar a mensagem.');
+          this.reportError(error, chatId, messageId);
+          return of(void 0);
+        })
+      )
       .subscribe({
         next: () => {
           this.busy = false;
@@ -87,12 +101,24 @@ export class DeleteDirectMessageDirective implements OnDestroy {
       });
   }
 
-  private confirmDelete(): boolean {
-    if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
-      return true;
-    }
+  private confirmDelete$() {
+    try {
+      return this.dialog.open(DeleteMessageConfirmDialogComponent, {
+        autoFocus: 'first-tabbable',
+        restoreFocus: true,
+        disableClose: false,
+        panelClass: 'delete-message-confirm-dialog-panel',
+      }).afterClosed().pipe(
+        take(1),
+        switchMap((confirmed) => of(confirmed === true))
+      );
+    } catch {
+      if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
+        return of(true);
+      }
 
-    return window.confirm('Apagar esta mensagem? Esta ação não pode ser desfeita.');
+      return of(window.confirm('Apagar esta mensagem? Esta ação não pode ser desfeita.'));
+    }
   }
 
   private reportError(error: unknown, chatId: string, messageId: string): void {
