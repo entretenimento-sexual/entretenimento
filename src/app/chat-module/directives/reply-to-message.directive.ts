@@ -59,7 +59,7 @@ export class ReplyToMessageDirective {
       return;
     }
 
-    composerFooter.querySelector('[data-chat-reply-preview="true"]')?.remove();
+    this.clearReplyPreview(textarea);
 
     const preview = document.createElement('div');
     preview.className = 'chat-shell__reply-preview';
@@ -86,8 +86,7 @@ export class ReplyToMessageDirective {
     close.setAttribute('aria-label', 'Cancelar resposta');
 
     close.addEventListener('click', () => {
-      delete textarea.dataset['replyQuotePrefix'];
-      preview.remove();
+      this.clearReplyPreview(textarea);
       textarea.focus();
     });
 
@@ -113,15 +112,16 @@ export class ReplyToMessageDirective {
 
       textarea.value = `${quotePrefix}${currentValue}`;
       textarea.dispatchEvent(new Event('input', { bubbles: true }));
-      textarea.closest<HTMLElement>('.chat-shell__input')
-        ?.querySelector('[data-chat-reply-preview="true"]')
-        ?.remove();
-      delete textarea.dataset['replyQuotePrefix'];
+      this.clearReplyPreview(textarea);
     };
 
     textarea.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' && !event.shiftKey) {
         applyQuote();
+      }
+
+      if (event.key === 'Escape') {
+        this.clearReplyPreview(textarea);
       }
     }, true);
 
@@ -131,5 +131,29 @@ export class ReplyToMessageDirective {
     sendButton?.addEventListener('click', () => {
       applyQuote();
     }, true);
+
+    document.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement | null;
+
+      if (!target) {
+        return;
+      }
+
+      const clickedComposer = !!target.closest('.chat-shell__input');
+      const clickedMessageAction = !!target.closest('[appReplyToMessage]');
+      const clickedChatList = !!target.closest('app-chat-list');
+      const clickedRoom = !!target.closest('app-room-interaction');
+
+      if (!clickedComposer && !clickedMessageAction && (clickedChatList || clickedRoom)) {
+        this.clearReplyPreview(textarea);
+      }
+    }, true);
+  }
+
+  private clearReplyPreview(textarea: HTMLTextAreaElement): void {
+    delete textarea.dataset['replyQuotePrefix'];
+    textarea.closest<HTMLElement>('.chat-shell__input')
+      ?.querySelector('[data-chat-reply-preview="true"]')
+      ?.remove();
   }
 }
