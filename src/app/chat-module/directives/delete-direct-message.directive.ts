@@ -7,7 +7,8 @@
 // Motivo:
 // - o cliente não pode executar deleteDoc em chats/{chatId}/messages/{messageId};
 // - firestore rules bloqueiam exclusão física;
-// - a callable faz validação de autoria/participação e executa soft delete.
+// - a callable faz validação de autoria/participação e executa soft delete;
+// - apagar é destrutivo, então há confirmação explícita antes da chamada.
 // -----------------------------------------------------------------------------
 
 import { Directive, HostBinding, HostListener, Input, OnDestroy } from '@angular/core';
@@ -28,6 +29,11 @@ export class DeleteDirectMessageDirective implements OnDestroy {
   @HostBinding('attr.aria-busy')
   get ariaBusy(): boolean | null {
     return this.busy ? true : null;
+  }
+
+  @HostBinding('attr.aria-label')
+  get ariaLabel(): string {
+    return this.busy ? 'Apagando mensagem' : 'Apagar mensagem';
   }
 
   @HostBinding('disabled') busy = false;
@@ -61,6 +67,10 @@ export class DeleteDirectMessageDirective implements OnDestroy {
       return;
     }
 
+    if (!this.confirmDelete()) {
+      return;
+    }
+
     this.busy = true;
     this.sub?.unsubscribe();
 
@@ -75,6 +85,14 @@ export class DeleteDirectMessageDirective implements OnDestroy {
           this.reportError(error, chatId, messageId);
         },
       });
+  }
+
+  private confirmDelete(): boolean {
+    if (typeof window === 'undefined' || typeof window.confirm !== 'function') {
+      return true;
+    }
+
+    return window.confirm('Apagar esta mensagem? Esta ação não pode ser desfeita.');
   }
 
   private reportError(error: unknown, chatId: string, messageId: string): void {
