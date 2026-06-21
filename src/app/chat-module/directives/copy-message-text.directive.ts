@@ -8,7 +8,7 @@
 // - diretiva isolada para não inflar ChatMessageComponent;
 // - usa Clipboard API quando disponível;
 // - mantém fallback para navegadores sem navigator.clipboard;
-// - fornece estado visual por data-copy-state.
+// - fornece estado visual por data-copy-state e classe ativa temporária.
 // -----------------------------------------------------------------------------
 
 import { Directive, HostBinding, HostListener, Input, OnDestroy } from '@angular/core';
@@ -23,6 +23,11 @@ export class CopyMessageTextDirective implements OnDestroy {
   @Input() appCopyMessageText: string | null | undefined;
 
   @HostBinding('attr.data-copy-state') copyState: CopyState = 'idle';
+
+  @HostBinding('class.thread-message__reaction-button--active')
+  get isCopied(): boolean {
+    return this.copyState === 'copied';
+  }
 
   @HostBinding('attr.aria-label')
   get ariaLabel(): string {
