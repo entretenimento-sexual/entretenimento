@@ -10,7 +10,8 @@
     'thread-message--group-start': isFirstInGroup(),
     'thread-message--group-middle': !isFirstInGroup() && !isLastInGroup(),
     'thread-message--group-end': isLastInGroup(),
-    'thread-message--group-single': isSingleMessageGroup()
+    'thread-message--group-single': isSingleMessageGroup(),
+    'thread-message--has-reaction': !!selectedReaction
   }"
   [attr.aria-label]="getAriaLabel()"
 >
@@ -53,6 +54,32 @@
           </span>
         }
       </footer>
+
+      <div class="thread-message__reactions" aria-label="Reações rápidas">
+        @for (reaction of quickReactions; track reaction.emoji) {
+          <button
+            type="button"
+            class="thread-message__reaction-button"
+            [class.thread-message__reaction-button--active]="selectedReaction === reaction.emoji"
+            [attr.aria-label]="getReactionAriaLabel(reaction)"
+            (click)="selectQuickReaction(reaction.emoji)"
+          >
+            {{ reaction.emoji }}
+          </button>
+        }
+      </div>
+
+      @if (selectedReaction) {
+        <button
+          type="button"
+          class="thread-message__selected-reaction"
+          [attr.title]="getSelectedReactionTitle()"
+          [attr.aria-label]="'Remover reação ' + selectedReaction"
+          (click)="selectQuickReaction(selectedReaction)"
+        >
+          {{ selectedReaction }}
+        </button>
+      }
 
       @if (canDeleteMessage()) {
         <button
