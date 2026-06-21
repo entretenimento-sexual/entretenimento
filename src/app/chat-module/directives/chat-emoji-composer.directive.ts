@@ -23,11 +23,11 @@ export class ChatEmojiComposerDirective {
   private readonly elementRef = inject<ElementRef<HTMLTextAreaElement>>(ElementRef);
   private readonly ngModel = inject(NgModel, { optional: true });
 
-  insert(emoji: string): void {
+  insert(emoji: string): boolean {
     const safeEmoji = String(emoji ?? '').trim();
 
     if (!safeEmoji) {
-      return;
+      return false;
     }
 
     const textarea = this.elementRef.nativeElement;
@@ -42,7 +42,7 @@ export class ChatEmojiComposerDirective {
       currentValue.slice(selectionEnd);
 
     if (maxLength !== null && nextValue.length > maxLength) {
-      return;
+      return false;
     }
 
     textarea.value = nextValue;
@@ -60,6 +60,8 @@ export class ChatEmojiComposerDirective {
       textarea.focus();
       textarea.setSelectionRange(nextCursor, nextCursor);
     }, 0);
+
+    return true;
   }
 
   private resolveMaxLength(textarea: HTMLTextAreaElement): number | null {
