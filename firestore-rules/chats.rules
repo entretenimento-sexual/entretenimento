@@ -9,7 +9,8 @@
     // - atualização do documento de chat ocorre somente por backend confiável;
     // - criação de mensagens diretas ocorre somente por Cloud Function;
     // - cliente pode atualizar exclusivamente recibos de mensagens recebidas,
-    //   respeitando transição progressiva de status.
+    //   respeitando transição progressiva de status;
+    // - cliente pode alterar somente a própria reação em reactionsByUser.
     //
     // Supressões explícitas:
     // - removida criação client-side de chats;
@@ -76,6 +77,45 @@ match /chats/{chatId} {
         );
       }
 
+      function hasOnlyReactionFieldChanged() {
+        return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "reactionsByUser"
+        ]);
+      }
+
+      function hasValidReactionValue() {
+        return !(uid() in request.resource.data.reactionsByUser)
+          || request.resource.data.reactionsByUser[uid()] in [
+            "❤️",
+            "😂",
+            "🔥",
+            "👀"
+          ];
+      }
+
+      function changesOnlyOwnReaction() {
+        return request.resource.data.reactionsByUser is map
+          && (
+            (
+              !resource.data.keys().hasAny(["reactionsByUser"])
+              && request.resource.data.reactionsByUser.keys().hasOnly([uid()])
+            )
+            || (
+              resource.data.keys().hasAny(["reactionsByUser"])
+              && request.resource.data.reactionsByUser
+                .diff(resource.data.reactionsByUser)
+                .affectedKeys()
+                .hasOnly([uid()])
+            )
+          );
+      }
+
+      function isReactionUpdate() {
+        return hasOnlyReactionFieldChanged()
+          && changesOnlyOwnReaction()
+          && hasValidReactionValue();
+      }
+
       /**
        * Leitura permanece disponível somente a participantes do chat.
        */
@@ -101,6 +141,16 @@ match /chats/{chatId} {
           "status"
         ])
         && isForwardReceiptTransition();
+
+      /**
+       * Reações persistentes:
+       * - somente participante;
+       * - somente campo reactionsByUser;
+       * - usuário só altera a própria chave;
+       * - valores limitados aos emojis suportados na UI.
+       */
+      allow update: if isChatParticipantByChat()
+        && isReactionUpdate();
 
       allow delete: if false;
     }
