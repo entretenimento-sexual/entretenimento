@@ -55,7 +55,16 @@
         }
       </footer>
 
-      <div class="thread-message__reactions" aria-label="Reações rápidas">
+      <div class="thread-message__reactions" aria-label="Ações rápidas da mensagem">
+        <button
+          type="button"
+          class="thread-message__reaction-button"
+          [appCopyMessageText]="message().content"
+          title="Copiar mensagem"
+        >
+          ⧉
+        </button>
+
         @for (reaction of quickReactions; track reaction.emoji) {
           <button
             type="button"
@@ -68,16 +77,6 @@
           </button>
         }
       </div>
-
-      <button
-        type="button"
-        class="thread-message__copy"
-        [appCopyMessageText]="message().content"
-        title="Copiar mensagem"
-      >
-        <span class="thread-message__copy-icon" aria-hidden="true">⧉</span>
-        <span class="thread-message__copy-feedback" aria-hidden="true">Copiado</span>
-      </button>
 
       @if (selectedReaction) {
         <button
