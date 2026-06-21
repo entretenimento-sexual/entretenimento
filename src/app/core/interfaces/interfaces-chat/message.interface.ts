@@ -10,6 +10,18 @@ export interface Message {
   timestamp: Timestamp;
   status?: 'sent' | 'delivered' | 'read';
 
+  /**
+   * Reações persistentes por usuário.
+   *
+   * Estrutura esperada:
+   * reactionsByUser: {
+   *   [uid]: '❤️'
+   * }
+   *
+   * Rules limitam cada participante a alterar somente a própria chave.
+   */
+  reactionsByUser?: Record<string, string>;
+
   // ✅ compat opcional (sem quebrar o app)
   senderUid?: string;
   createdAt?: Timestamp;
