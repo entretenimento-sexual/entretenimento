@@ -115,7 +115,10 @@
                 type="button"
                 role="menuitem"
                 class="thread-message__menu-danger"
-                (click)="messageMenu.open = false; deleteThisMessage()"
+                appDeleteDirectMessage
+                [deleteChatId]="chatId()"
+                [deleteMessageId]="message().id"
+                (click)="messageMenu.open = false"
               >
                 <span aria-hidden="true">🗑</span>
                 <span>Apagar</span>
