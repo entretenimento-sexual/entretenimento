@@ -87,6 +87,7 @@
             <textarea
               #emojiComposer="chatEmojiComposer"
               appChatEmojiComposer
+              appChatComposerAutosize
               [(ngModel)]="messageContent"
               [appChatDraftKey]="selectedType + ':' + selectedChatId"
               (keydown)="onComposerKeydown($event)"
