@@ -69,6 +69,16 @@
         }
       </div>
 
+      <button
+        type="button"
+        class="thread-message__copy"
+        [appCopyMessageText]="message().content"
+        title="Copiar mensagem"
+      >
+        <span class="thread-message__copy-icon" aria-hidden="true">⧉</span>
+        <span class="thread-message__copy-feedback" aria-hidden="true">Copiado</span>
+      </button>
+
       @if (selectedReaction) {
         <button
           type="button"
