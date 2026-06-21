@@ -3,32 +3,33 @@
 // CHAT MESSAGE COMPONENT
 //
 // Responsabilidade deste componente:
-// - renderizar uma mensagem individual
-// - identificar se a mensagem é enviada ou recebida
-// - exibir nickname do remetente
-// - permitir exclusão quando aplicável
-// - permitir reação rápida sincronizada no balão da mensagem
+// - renderizar uma mensagem individual;
+// - identificar se a mensagem é enviada ou recebida;
+// - exibir nickname do remetente;
+// - exibir estado de mensagem apagada;
+// - permitir reação rápida sincronizada no balão da mensagem.
 //
 // Ajustes desta fase:
-// - compatível com chat direto 1:1 e room
-// - aceita input `type`
-// - mantém AuthSessionService como fonte da sessão
-// - mantém tratamento de erro centralizado
-// - reação rápida no chat direto passa a ser persistida em reactionsByUser
+// - compatível com chat direto 1:1 e room;
+// - aceita input `type`;
+// - mantém AuthSessionService como fonte da sessão;
+// - mantém tratamento de erro centralizado;
+// - reação rápida no chat direto passa a ser persistida em reactionsByUser;
+// - exclusão de mensagem direta foi movida para DeleteDirectMessageDirective,
+//   que chama a callable deleteDirectMessage.
 //
 // SUPRESSÃO EXPLÍCITA NESTA FASE:
-// - exclusão de mensagem fica restrita ao eixo `chat`
-// - `room` NÃO reutiliza delete legado de chat
-// - reação persistente é ativada somente para chat direto
+// - removido o método legado deleteThisMessage();
+// - removido o uso de ChatService.deleteMessage() neste componente;
+// - removido o helper coerceToVoid$(), que só existia para o caminho legado.
 //
 // Motivo:
-// - agora o foco arquitetural é 1:1
-// - room fica em segundo plano, sem ser esquecido
-// - isso evita misturar regras de moderação/ownership de room
-//   com regras simples de delete/reação da própria mensagem em chat direto
+// - delete físico client-side é bloqueado por rules;
+// - a exclusão correta agora é soft delete via Cloud Function;
+// - o componente deve renderizar estado e ações, não executar deleteDoc indireto.
 // ============================================================================
 import { Component, DestroyRef, inject, input, OnInit } from '@angular/core';
-import { Observable, combineLatest, from, isObservable, of } from 'rxjs';
+import { combineLatest, from, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -46,7 +47,6 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
-import { ChatService } from 'src/app/core/services/batepapo/chat-service/chat.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -64,15 +64,16 @@ type QuickReaction = {
   selector: 'app-chat-message',
   templateUrl: './chat-message.component.html',
   styleUrls: ['./chat-message.component.css'],
-  standalone: false
+  standalone: false,
 })
 export class ChatMessageComponent implements OnInit {
   readonly message = input.required<Message>();
   readonly chatId = input<string>();
   readonly type = input<ChatMessageType>('chat');
-  private readonly destroyRef = inject(DestroyRef);
   readonly previousMessage = input<Message | null>(null);
   readonly nextMessage = input<Message | null>(null);
+
+  private readonly destroyRef = inject(DestroyRef);
 
   senderName = 'Usuário desconhecido';
   currentUserUid: string | null = null;
@@ -93,6 +94,7 @@ export class ChatMessageComponent implements OnInit {
       (a?.nickname ?? null) === (b?.nickname ?? null) &&
       (a?.status ?? null) === (b?.status ?? null) &&
       (a?.content ?? null) === (b?.content ?? null) &&
+      (a?.deleted ?? null) === (b?.deleted ?? null) &&
       JSON.stringify(a?.reactionsByUser ?? {}) === JSON.stringify(b?.reactionsByUser ?? {})
     )
   );
@@ -101,7 +103,6 @@ export class ChatMessageComponent implements OnInit {
     private readonly db: Firestore,
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly authSession: AuthSessionService,
-    private readonly chatService: ChatService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly privacyDebug: PrivacyDebugLoggerService,
@@ -120,7 +121,12 @@ export class ChatMessageComponent implements OnInit {
           this.currentUserUid = (uid ?? '').trim() || null;
         }),
         catchError((error) => {
-          this.reportError('Falha ao obter usuário autenticado.', error, { op: 'observeCurrentUserUid' }, false);
+          this.reportError(
+            'Falha ao obter usuário autenticado.',
+            error,
+            { op: 'observeCurrentUserUid' },
+            false
+          );
           this.currentUserUid = null;
           return of(null);
         }),
@@ -155,7 +161,12 @@ export class ChatMessageComponent implements OnInit {
             take(1),
             map((user: IUserDados | null) => user?.nickname?.trim() || 'Usuário desconhecido'),
             catchError((error) => {
-              this.reportError('Erro ao buscar nome do usuário.', error, { op: 'observeSenderName', senderId, isSelfMessage }, false);
+              this.reportError(
+                'Erro ao buscar nome do usuário.',
+                error,
+                { op: 'observeSenderName', senderId, isSelfMessage },
+                false
+              );
               return of('Usuário desconhecido');
             })
           );
@@ -172,6 +183,10 @@ export class ChatMessageComponent implements OnInit {
     combineLatest([this.message$, this.authSession.uid$])
       .pipe(
         map(([message, uid]) => {
+          if (message?.deleted === true) {
+            return null;
+          }
+
           const safeUid = String(uid ?? '').trim();
           return safeUid ? String(message?.reactionsByUser?.[safeUid] ?? '').trim() || null : null;
         }),
@@ -179,7 +194,12 @@ export class ChatMessageComponent implements OnInit {
           this.selectedReaction = reaction;
         }),
         catchError((error) => {
-          this.reportError('Não foi possível carregar reação da mensagem.', error, { op: 'observeReactionFromMessage' }, false);
+          this.reportError(
+            'Não foi possível carregar reação da mensagem.',
+            error,
+            { op: 'observeReactionFromMessage' },
+            false
+          );
           this.selectedReaction = null;
           return of(null);
         }),
@@ -191,7 +211,7 @@ export class ChatMessageComponent implements OnInit {
   selectQuickReaction(emoji: string): void {
     const safeEmoji = String(emoji ?? '').trim();
 
-    if (!safeEmoji || this.isSavingReaction) {
+    if (!safeEmoji || this.isSavingReaction || this.message().deleted === true) {
       return;
     }
 
@@ -235,7 +255,11 @@ export class ChatMessageComponent implements OnInit {
         }),
         catchError((error) => {
           this.selectedReaction = previousReaction;
-          this.reportError('Não foi possível salvar a reação.', error, { op: 'persistDirectChatReaction', chatId, messageId });
+          this.reportError(
+            'Não foi possível salvar a reação.',
+            error,
+            { op: 'persistDirectChatReaction', chatId, messageId }
+          );
           return of(void 0);
         }),
         finalize(() => {
@@ -261,6 +285,10 @@ export class ChatMessageComponent implements OnInit {
   }
 
   getVisibleReactions(): string[] {
+    if (this.message().deleted === true) {
+      return [];
+    }
+
     const ordered = this.quickReactions.map((reaction) => reaction.emoji);
     const values = Object.values(this.message().reactionsByUser ?? {})
       .map((reaction) => String(reaction ?? '').trim())
@@ -314,7 +342,14 @@ export class ChatMessageComponent implements OnInit {
   isFirstInGroup(): boolean { return !this.isSameSenderAsPrevious(); }
   isLastInGroup(): boolean { return !this.isSameSenderAsNext(); }
   isSingleMessageGroup(): boolean { return this.isFirstInGroup() && this.isLastInGroup(); }
-  canDeleteMessage(): boolean { return this.isDirectChat() && this.isMessageSent() && !!this.message().id; }
+
+  canDeleteMessage(): boolean {
+    return this.isDirectChat()
+      && this.isMessageSent()
+      && this.message().deleted !== true
+      && !!this.message().id;
+  }
+
   shouldShowSenderName(): boolean { return this.isRoomMessage() && this.isFirstInGroup(); }
   shouldShowMessageHeader(): boolean { return this.shouldShowSenderName() || this.canDeleteMessage(); }
   shouldShowTail(): boolean { return this.isLastInGroup(); }
@@ -330,7 +365,9 @@ export class ChatMessageComponent implements OnInit {
     }
   }
 
-  shouldShowDeliveryStatus(): boolean { return this.isDirectChat() && this.isMessageSent() && !!this.getStatusText(); }
+  shouldShowDeliveryStatus(): boolean {
+    return this.isDirectChat() && this.isMessageSent() && !!this.getStatusText();
+  }
 
   getStatusSymbol(): string {
     if (!this.shouldShowDeliveryStatus()) return '';
@@ -344,14 +381,12 @@ export class ChatMessageComponent implements OnInit {
 
   getAriaLabel(): string {
     const sender = this.senderName || 'Usuário';
-    const content = this.message().content ?? '';
+    const content = this.message().deleted === true ? 'Mensagem apagada' : this.message().content ?? '';
     const status = this.getStatusText();
     const reactions = this.getVisibleReactions();
     const reaction = reactions.length ? `. Reações: ${reactions.join(' ')}.` : '';
     return `${sender}: ${content}${status ? `. Status: ${status}.` : '.'}${reaction}`;
   }
-
-  getDeleteAriaLabel(): string { return 'Excluir esta mensagem'; }
 
   getDisplayedSenderName(): string {
     return this.isMessageSent() ? 'Você' : this.senderName || 'Usuário';
@@ -365,46 +400,16 @@ export class ChatMessageComponent implements OnInit {
     }
   }
 
-  deleteThisMessage(): void {
-    const message = this.message();
-    const chatId = (this.chatId() ?? '').trim();
-    const type = this.type();
-
-    if (type !== 'chat') {
-      this.dbg('deleteThisMessage -> bloqueado para room', { type, chatId, messageId: message?.id ?? null });
-      return;
-    }
-
-    if (!chatId || !message?.id) {
-      this.dbg('deleteThisMessage -> skip', { type, chatId, messageId: message?.id ?? null });
-      return;
-    }
-
-    this.coerceToVoid$(this.chatService.deleteMessage(chatId, message.id))
-      .pipe(
-        tap(() => this.dbg('deleteThisMessage -> ok', { chatId, messageId: message.id, type })),
-        catchError((error) => {
-          this.reportError('Erro ao excluir mensagem.', error, { op: 'deleteThisMessage', chatId, messageId: message.id, type });
-          return of(void 0);
-        }),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe();
-  }
-
-  private coerceToVoid$(result: unknown): Observable<void> {
-    if (isObservable(result)) return (result as Observable<unknown>).pipe(map(() => void 0));
-    if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
-      return from(result as PromiseLike<unknown>).pipe(map(() => void 0));
-    }
-    return of(void 0);
-  }
-
   private dbg(message: string, extra?: unknown): void {
     this.privacyDebug.log('chat', `ChatMessage: ${message}`, extra);
   }
 
-  private reportError(userMessage: string, error: unknown, context?: Record<string, unknown>, notifyUser = true): void {
+  private reportError(
+    userMessage: string,
+    error: unknown,
+    context?: Record<string, unknown>,
+    notifyUser = true
+  ): void {
     if (notifyUser) {
       try { this.errorNotifier.showError(userMessage); } catch { }
     }
