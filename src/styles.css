@@ -22,3 +22,109 @@
   box-shadow: none !important;
   overflow: hidden !important;
 }
+
+.chat-shell__reply-preview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 10px;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 24%, var(--surface-border));
+  border-left: 4px solid color-mix(in oklab, var(--primary-color) 72%, var(--surface-border));
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--primary-color) 7%, var(--surface-color));
+  color: var(--text-color);
+}
+
+.chat-shell__reply-preview-copy {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.chat-shell__reply-preview-title,
+.chat-shell__reply-preview-text {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-shell__reply-preview-title {
+  color: color-mix(in oklab, var(--primary-color) 72%, var(--text-color));
+  font-size: 0.78rem;
+  line-height: 1.15;
+  font-weight: 900;
+}
+
+.chat-shell__reply-preview-text {
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.2;
+  font-weight: 650;
+}
+
+.chat-shell__reply-preview-close {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 70%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color) 92%, var(--background-color));
+  color: var(--text-color);
+  font: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.chat-shell__reply-preview-close:hover,
+.chat-shell__reply-preview-close:focus-visible {
+  background: color-mix(in oklab, var(--primary-color) 12%, var(--surface-color));
+}
+
+.chat-shell__reply-preview-close:focus-visible {
+  outline: var(--focus-ring, 3px solid color-mix(in oklab, var(--primary-color) 58%, white));
+  outline-offset: var(--focus-offset, 2px);
+}
+
+html.dark-mode .chat-shell__reply-preview {
+  background: rgba(255, 91, 132, 0.1);
+  border-color: rgba(255, 91, 132, 0.24);
+  border-left-color: rgba(255, 91, 132, 0.82);
+}
+
+html.dark-mode .chat-shell__reply-preview-close {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(240, 246, 252, 0.12);
+}
+
+html.high-contrast .chat-shell__reply-preview,
+html.high-contrast .chat-shell__reply-preview-close {
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  border: 2px solid currentColor !important;
+  box-shadow: none !important;
+}
+
+html.high-contrast .chat-shell__reply-preview-title,
+html.high-contrast .chat-shell__reply-preview-text {
+  color: var(--text-color) !important;
+}
+
+@media (max-width: 520px) {
+  .chat-shell__reply-preview {
+    grid-template-columns: minmax(0, 1fr) 32px;
+    gap: 8px;
+    padding: 8px 9px;
+    border-radius: 13px;
+  }
+
+  .chat-shell__reply-preview-close {
+    width: 32px;
+    height: 32px;
+  }
+}
