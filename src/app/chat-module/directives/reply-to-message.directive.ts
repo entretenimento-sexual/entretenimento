@@ -15,6 +15,7 @@ export class ReplyToMessageDirective implements OnDestroy {
   ngOnDestroy(): void {
     this.composerAbortController?.abort();
     this.composerAbortController = null;
+    this.clearComposerPatchState();
   }
 
   @HostListener('click', ['$event'])
@@ -172,5 +173,20 @@ export class ReplyToMessageDirective implements OnDestroy {
     textarea.closest<HTMLElement>('.chat-shell__input')
       ?.querySelector('[data-chat-reply-preview="true"]')
       ?.remove();
+  }
+
+  private clearComposerPatchState(): void {
+    if (typeof document === 'undefined') {
+      return;
+    }
+
+    const textarea = document.querySelector<HTMLTextAreaElement>('textarea[appChatEmojiComposer]');
+
+    if (!textarea) {
+      return;
+    }
+
+    delete textarea.dataset['replyPatchReady'];
+    this.clearReplyPreview(textarea);
   }
 }
