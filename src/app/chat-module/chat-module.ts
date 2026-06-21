@@ -31,6 +31,7 @@ import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { ChatDraftDirective } from './directives/chat-draft.directive';
 import { ChatEmojiComposerDirective } from './directives/chat-emoji-composer.directive';
 import { ActiveChatNotificationDirective } from './directives/active-chat-notification.directive';
+import { ChatEmojiPickerComponent } from './chat-emoji-picker/chat-emoji-picker.component';
 
 @NgModule({
   declarations: [
@@ -47,6 +48,7 @@ import { ActiveChatNotificationDirective } from './directives/active-chat-notifi
     ChatDraftDirective,
     ChatEmojiComposerDirective,
     ActiveChatNotificationDirective,
+    ChatEmojiPickerComponent,
   ],
   imports: [
     CommonModule,
