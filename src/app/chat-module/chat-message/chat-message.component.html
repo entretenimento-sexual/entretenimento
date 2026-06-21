@@ -59,6 +59,17 @@
         <button
           type="button"
           class="thread-message__reaction-button"
+          [appReplyToMessage]="message()"
+          [replySenderName]="getDisplayedSenderName()"
+          title="Responder mensagem"
+          aria-label="Responder mensagem"
+        >
+          R
+        </button>
+
+        <button
+          type="button"
+          class="thread-message__reaction-button"
           [appCopyMessageText]="message().content"
           title="Copiar mensagem"
         >
