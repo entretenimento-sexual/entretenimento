@@ -8,10 +8,13 @@
 // - diretiva isolada para não inflar ChatMessageComponent;
 // - usa Clipboard API quando disponível;
 // - mantém fallback para navegadores sem navigator.clipboard;
-// - fornece estado visual por data-copy-state e classe ativa temporária.
+// - fornece estado visual por data-copy-state e classe ativa temporária;
+// - usa ErrorNotificationService para feedback centralizado ao usuário.
 // -----------------------------------------------------------------------------
 
 import { Directive, HostBinding, HostListener, Input, OnDestroy } from '@angular/core';
+
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 type CopyState = 'idle' | 'copied' | 'error';
 
@@ -44,6 +47,8 @@ export class CopyMessageTextDirective implements OnDestroy {
 
   private resetTimer: number | null = null;
 
+  constructor(private readonly errorNotifier: ErrorNotificationService) {}
+
   ngOnDestroy(): void {
     this.clearResetTimer();
   }
@@ -56,14 +61,17 @@ export class CopyMessageTextDirective implements OnDestroy {
 
     if (!text) {
       this.setState('error');
+      this.errorNotifier.showWarning('Não há texto para copiar.', 2200);
       return;
     }
 
     try {
       await this.copyText(text);
       this.setState('copied');
+      this.errorNotifier.showSuccess('Mensagem copiada.', 1800);
     } catch {
       this.setState('error');
+      this.errorNotifier.showError('Não foi possível copiar a mensagem.', undefined, 3000);
     }
   }
 
