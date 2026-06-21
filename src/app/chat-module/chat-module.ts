@@ -30,6 +30,7 @@ import { TimeAgoPipe } from 'src/app/shared/pipes/time-ago.pipe';
 import { DateFormatPipe } from 'src/app/shared/pipes/date-format.pipe';
 import { ChatDraftDirective } from './directives/chat-draft.directive';
 import { ChatEmojiComposerDirective } from './directives/chat-emoji-composer.directive';
+import { ActiveChatNotificationDirective } from './directives/active-chat-notification.directive';
 
 @NgModule({
   declarations: [
@@ -45,6 +46,7 @@ import { ChatEmojiComposerDirective } from './directives/chat-emoji-composer.dir
     RoomInteractionComponent,
     ChatDraftDirective,
     ChatEmojiComposerDirective,
+    ActiveChatNotificationDirective,
   ],
   imports: [
     CommonModule,
