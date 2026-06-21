@@ -11,6 +11,17 @@ export interface Message {
   status?: 'sent' | 'delivered' | 'read';
 
   /**
+   * Estado de exclusão lógica.
+   *
+   * O cliente não apaga fisicamente mensagens diretas. A Cloud Function
+   * deleteDirectMessage valida autoria/participação e marca a mensagem como
+   * apagada para manter a conversa consistente entre os participantes.
+   */
+  deleted?: boolean;
+  deletedAt?: Timestamp;
+  deletedBy?: string;
+
+  /**
    * Reações persistentes por usuário.
    *
    * Estrutura esperada:
