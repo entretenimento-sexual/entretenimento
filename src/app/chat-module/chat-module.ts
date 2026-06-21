@@ -34,6 +34,7 @@ import { ActiveChatNotificationDirective } from './directives/active-chat-notifi
 import { ChatEmojiPickerComponent } from './chat-emoji-picker/chat-emoji-picker.component';
 import { ChatComposerAutosizeDirective } from './directives/chat-composer-autosize.directive';
 import { CopyMessageTextDirective } from './directives/copy-message-text.directive';
+import { ReplyToMessageDirective } from './directives/reply-to-message.directive';
 
 @NgModule({
   declarations: [
@@ -53,6 +54,7 @@ import { CopyMessageTextDirective } from './directives/copy-message-text.directi
     ChatEmojiPickerComponent,
     ChatComposerAutosizeDirective,
     CopyMessageTextDirective,
+    ReplyToMessageDirective,
   ],
   imports: [
     CommonModule,
