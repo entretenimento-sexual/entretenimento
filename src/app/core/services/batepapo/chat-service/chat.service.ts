@@ -203,6 +203,21 @@ export class ChatService implements OnDestroy {
     );
   }
 
+  setMessageReaction(chatId: string, messageId: string, emoji: string | null): Observable<void> {
+    const cid = (chatId ?? '').toString().trim();
+    const mid = (messageId ?? '').toString().trim();
+    const safeEmoji = String(emoji ?? '').trim() || null;
+
+    if (!cid || !mid) {
+      return this.reportSilent('setMessageReaction', new Error('ids inválidos'));
+    }
+
+    return this.requireUidOnce$().pipe(
+      switchMap((uid) => this.msgsRepo.setMessageReaction$(cid, mid, uid, safeEmoji)),
+      catchError(err => this.reportSilent('setMessageReaction', err))
+    );
+  }
+
   // ===========================================================================
   // Participant details (usa o DONO do getUser$)
   // ===========================================================================
