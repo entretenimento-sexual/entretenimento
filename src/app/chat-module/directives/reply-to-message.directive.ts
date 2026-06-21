@@ -1,14 +1,21 @@
 // src/app/chat-module/directives/reply-to-message.directive.ts
-import { Directive, HostListener, Input } from '@angular/core';
+import { Directive, HostListener, Input, OnDestroy } from '@angular/core';
 import { Message } from 'src/app/core/interfaces/interfaces-chat/message.interface';
 
 @Directive({
   selector: 'button[appReplyToMessage]',
   standalone: false,
 })
-export class ReplyToMessageDirective {
+export class ReplyToMessageDirective implements OnDestroy {
   @Input() appReplyToMessage: Message | null | undefined;
   @Input() replySenderName: string | null | undefined;
+
+  private composerAbortController: AbortController | null = null;
+
+  ngOnDestroy(): void {
+    this.composerAbortController?.abort();
+    this.composerAbortController = null;
+  }
 
   @HostListener('click', ['$event'])
   onClick(event: Event): void {
@@ -88,7 +95,7 @@ export class ReplyToMessageDirective {
     close.addEventListener('click', () => {
       this.clearReplyPreview(textarea);
       textarea.focus();
-    });
+    }, { signal: this.getComposerSignal() });
 
     copy.append(title, text);
     preview.append(copy, close);
@@ -101,6 +108,8 @@ export class ReplyToMessageDirective {
     }
 
     textarea.dataset['replyPatchReady'] = 'true';
+
+    const signal = this.getComposerSignal();
 
     const applyQuote = (): void => {
       const quotePrefix = textarea.dataset['replyQuotePrefix'];
@@ -123,14 +132,14 @@ export class ReplyToMessageDirective {
       if (event.key === 'Escape') {
         this.clearReplyPreview(textarea);
       }
-    }, true);
+    }, { capture: true, signal });
 
     const sendButton = textarea.closest<HTMLElement>('.chat-shell__input')
       ?.querySelector<HTMLButtonElement>('.chat-shell__send');
 
     sendButton?.addEventListener('click', () => {
       applyQuote();
-    }, true);
+    }, { capture: true, signal });
 
     document.addEventListener('click', (event) => {
       const target = event.target as HTMLElement | null;
@@ -147,7 +156,15 @@ export class ReplyToMessageDirective {
       if (!clickedComposer && !clickedMessageAction && (clickedChatList || clickedRoom)) {
         this.clearReplyPreview(textarea);
       }
-    }, true);
+    }, { capture: true, signal });
+  }
+
+  private getComposerSignal(): AbortSignal {
+    if (!this.composerAbortController) {
+      this.composerAbortController = new AbortController();
+    }
+
+    return this.composerAbortController.signal;
   }
 
   private clearReplyPreview(textarea: HTMLTextAreaElement): void {
