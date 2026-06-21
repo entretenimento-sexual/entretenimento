@@ -205,6 +205,42 @@
   color: var(--text-color);
 }
 
+.thread-message__reply-card {
+  display: grid;
+  gap: 3px;
+  max-width: 100%;
+  margin: 0 0 4px;
+  padding: 7px 9px;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 22%, var(--surface-border));
+  border-left: 3px solid color-mix(in oklab, var(--primary-color) 78%, var(--surface-border));
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--primary-color) 8%, var(--surface-color));
+  color: var(--text-color);
+  box-sizing: border-box;
+}
+
+.thread-message__reply-card strong,
+.thread-message__reply-card span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thread-message__reply-card strong {
+  color: color-mix(in oklab, var(--primary-color) 74%, var(--text-color));
+  font-size: 0.74rem;
+  line-height: 1.15;
+  font-weight: 900;
+}
+
+.thread-message__reply-card span {
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  font-weight: 600;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Rodapé                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -479,6 +515,12 @@
   border-color: rgba(240, 246, 252, 0.12);
 }
 
+:host-context(html.dark-mode) .thread-message__reply-card {
+  background: rgba(255, 91, 132, 0.1);
+  border-color: rgba(255, 91, 132, 0.24);
+  border-left-color: rgba(255, 91, 132, 0.82);
+}
+
 /* -------------------------------------------------------------------------- */
 /* Alto contraste                                                              */
 /* -------------------------------------------------------------------------- */
@@ -493,12 +535,18 @@
 :host-context(html.high-contrast) .thread-message__delete,
 :host-context(html.high-contrast) .thread-message__reactions,
 :host-context(html.high-contrast) .thread-message__reaction-button,
-:host-context(html.high-contrast) .thread-message__selected-reaction {
+:host-context(html.high-contrast) .thread-message__selected-reaction,
+:host-context(html.high-contrast) .thread-message__reply-card {
   opacity: 1;
   background: var(--background-color) !important;
   color: var(--text-color) !important;
   border: 2px solid currentColor !important;
   box-shadow: none !important;
+}
+
+:host-context(html.high-contrast) .thread-message__reply-card strong,
+:host-context(html.high-contrast) .thread-message__reply-card span {
+  color: var(--text-color) !important;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -547,6 +595,11 @@
   .thread-message__content {
     font-size: 0.93rem;
     line-height: 1.4;
+  }
+
+  .thread-message__reply-card {
+    padding: 6px 8px;
+    border-radius: 11px;
   }
 
   .thread-message__footer {
