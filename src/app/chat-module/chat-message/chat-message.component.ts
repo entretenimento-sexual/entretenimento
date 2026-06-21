@@ -7,26 +7,25 @@
 // - identificar se a mensagem é enviada ou recebida
 // - exibir nickname do remetente
 // - permitir exclusão quando aplicável
-// - permitir reação rápida local no balão da mensagem
+// - permitir reação rápida persistente no balão da mensagem
 //
 // Ajustes desta fase:
 // - compatível com chat direto 1:1 e room
 // - aceita input `type`
 // - mantém AuthSessionService como fonte da sessão
 // - mantém tratamento de erro centralizado
-// - reação rápida fica local/sessão, sem gravar no Firestore
+// - reação rápida do chat direto passa a gravar em reactionsByUser
 //
 // SUPRESSÃO EXPLÍCITA NESTA FASE:
 // - exclusão de mensagem fica restrita ao eixo `chat`
 // - `room` NÃO reutiliza delete legado de chat
-// - reação rápida NÃO é persistida no backend nesta etapa
+// - reação persistente fica restrita ao eixo `chat`
 //
 // Motivo:
 // - agora o foco arquitetural é 1:1
 // - room fica em segundo plano, sem ser esquecido
 // - isso evita misturar regras de moderação/ownership de room
-//   com regras simples de delete da própria mensagem em chat direto
-// - reação persistente exige contrato de dados, rules e agregação posterior
+//   com regras simples de mensagem direta
 // ============================================================================
 import { Component, DestroyRef, inject, input, OnInit } from '@angular/core';
 import { Observable, combineLatest, from, isObservable, of } from 'rxjs';
@@ -74,6 +73,7 @@ export class ChatMessageComponent implements OnInit {
   senderName = 'Usuário desconhecido';
   currentUserUid: string | null = null;
   selectedReaction: string | null = null;
+  isSavingReaction = false;
 
   readonly quickReactions: QuickReaction[] = [
     { emoji: '❤️', label: 'Reagir com coração' },
@@ -88,7 +88,8 @@ export class ChatMessageComponent implements OnInit {
       (a?.senderId ?? null) === (b?.senderId ?? null) &&
       (a?.nickname ?? null) === (b?.nickname ?? null) &&
       (a?.status ?? null) === (b?.status ?? null) &&
-      (a?.content ?? null) === (b?.content ?? null)
+      (a?.content ?? null) === (b?.content ?? null) &&
+      JSON.stringify(a?.reactionsByUser ?? {}) === JSON.stringify(b?.reactionsByUser ?? {})
     )
   );
 
@@ -107,7 +108,7 @@ export class ChatMessageComponent implements OnInit {
   ngOnInit(): void {
     this.observeCurrentUserUid();
     this.observeSenderName();
-    this.observeLocalReaction();
+    this.observeReaction();
   }
 
   // ---------------------------------------------------------------------------
@@ -118,6 +119,7 @@ export class ChatMessageComponent implements OnInit {
       .pipe(
         tap((uid) => {
           this.currentUserUid = (uid ?? '').trim() || null;
+          this.selectedReaction = this.resolveCurrentUserReaction();
         }),
         catchError((error) => {
           this.reportError(
@@ -189,22 +191,22 @@ export class ChatMessageComponent implements OnInit {
   // Reactions
   // ---------------------------------------------------------------------------
 
-  private observeLocalReaction(): void {
+  private observeReaction(): void {
     combineLatest([
       this.message$,
       this.chatId$,
       this.type$,
     ])
       .pipe(
-        map(() => this.readStoredReaction()),
+        map(() => this.resolveCurrentUserReaction()),
         tap((reaction) => {
           this.selectedReaction = reaction;
         }),
         catchError((error) => {
           this.reportError(
-            'Não foi possível carregar reação local.',
+            'Não foi possível carregar reação.',
             error,
-            { op: 'observeLocalReaction' },
+            { op: 'observeReaction' },
             false
           );
 
@@ -219,19 +221,54 @@ export class ChatMessageComponent implements OnInit {
   selectQuickReaction(emoji: string): void {
     const safeEmoji = String(emoji ?? '').trim();
 
-    if (!safeEmoji) {
+    if (!safeEmoji || this.isSavingReaction) {
       return;
     }
 
     const nextReaction = this.selectedReaction === safeEmoji ? null : safeEmoji;
-    this.selectedReaction = nextReaction;
-    this.persistLocalReaction(nextReaction);
+    const previousReaction = this.selectedReaction;
 
-    this.dbg('selectQuickReaction', {
-      messageId: this.message().id ?? null,
-      type: this.type(),
-      selected: !!nextReaction,
-    });
+    this.selectedReaction = nextReaction;
+
+    if (!this.isDirectChat()) {
+      this.persistLocalReaction(nextReaction);
+      return;
+    }
+
+    const chatId = String(this.chatId() ?? '').trim();
+    const messageId = String(this.message().id ?? '').trim();
+
+    if (!chatId || !messageId) {
+      this.persistLocalReaction(nextReaction);
+      return;
+    }
+
+    this.isSavingReaction = true;
+
+    this.chatService.setMessageReaction(chatId, messageId, nextReaction)
+      .pipe(
+        tap(() => {
+          this.dbg('selectQuickReaction -> persisted', {
+            messageId,
+            type: this.type(),
+            selected: !!nextReaction,
+          });
+        }),
+        catchError((error) => {
+          this.selectedReaction = previousReaction;
+          this.reportError(
+            'Não foi possível salvar a reação.',
+            error,
+            { op: 'selectQuickReaction', chatId, messageId, reaction: nextReaction }
+          );
+          return of(void 0);
+        }),
+        tap(() => {
+          this.isSavingReaction = false;
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
   }
 
   getReactionAriaLabel(reaction: QuickReaction): string {
@@ -241,7 +278,37 @@ export class ChatMessageComponent implements OnInit {
   }
 
   getSelectedReactionTitle(): string {
-    return 'Sua reação local nesta sessão';
+    return this.isDirectChat()
+      ? 'Sua reação nesta mensagem'
+      : 'Sua reação local nesta sessão';
+  }
+
+  getVisibleReactions(): string[] {
+    const values = Object.values(this.message().reactionsByUser ?? {})
+      .map((reaction) => String(reaction ?? '').trim())
+      .filter(Boolean);
+
+    if (!values.length && this.selectedReaction) {
+      return [this.selectedReaction];
+    }
+
+    return Array.from(new Set(values));
+  }
+
+  private resolveCurrentUserReaction(): string | null {
+    const uid = String(this.currentUserUid ?? '').trim();
+
+    if (!uid) {
+      return this.readStoredReaction();
+    }
+
+    const persisted = String(this.message().reactionsByUser?.[uid] ?? '').trim();
+
+    if (persisted) {
+      return persisted;
+    }
+
+    return this.isDirectChat() ? null : this.readStoredReaction();
   }
 
   private persistLocalReaction(reaction: string | null): void {
