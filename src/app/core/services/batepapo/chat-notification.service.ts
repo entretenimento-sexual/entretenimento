@@ -1,6 +1,20 @@
 // src/app/core/services/batepapo/chat-notification.service.ts
 // Serviço de Bate-Papo usando Firestore
 // Não esquecer os comentários
+//
+// Ajuste arquitetural desta versão:
+// - o serviço passa a conhecer a thread ativa do chat;
+// - mensagens da conversa aberta e visível não entram no contador global;
+// - isso evita badge/notificação enganosa quando o usuário já está lendo a thread.
+//
+// SUPRESSÃO EXPLÍCITA:
+// - ainda não criamos evento backend ChatMessageCreated;
+// - ainda não persistimos unread por participante no documento do chat;
+// - ainda não integramos mute/preferência por conversa.
+//
+// Motivo:
+// - esta é a correção segura de UX/arquitetura no frontend atual;
+// - a persistência correta exige migração de contrato, rules e Cloud Functions.
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, Subscription, from, of } from 'rxjs';
 import { catchError, map, mergeMap, reduce } from 'rxjs/operators';
@@ -25,11 +39,13 @@ import { ErrorNotificationService } from '../error-handler/error-notification.se
 
 @Injectable({ providedIn: 'root' })
 export class ChatNotificationService {
-  private unreadMessagesCount = new BehaviorSubject<number>(0);
-  private pendingInvitesCount = new BehaviorSubject<number>(0);
+  private readonly unreadMessagesCount = new BehaviorSubject<number>(0);
+  private readonly pendingInvitesCount = new BehaviorSubject<number>(0);
+  private readonly activeChatId = new BehaviorSubject<string | null>(null);
 
-  unreadMessagesCount$ = this.unreadMessagesCount.asObservable();
-  pendingInvitesCount$ = this.pendingInvitesCount.asObservable();
+  readonly unreadMessagesCount$ = this.unreadMessagesCount.asObservable();
+  readonly pendingInvitesCount$ = this.pendingInvitesCount.asObservable();
+  readonly activeChatId$ = this.activeChatId.asObservable();
 
   // controle de listener/recompute
   private currentUid: string | null = null;
@@ -48,6 +64,25 @@ export class ChatNotificationService {
     if (!w?.__DBG_ON__) return;
     if (typeof w?.DBG === 'function') w.DBG(`[CHAT-NOTIF] ${tag}`, data ?? '');
     else console.log(`[CHAT-NOTIF] ${tag}`, data ?? '');
+  }
+
+  setActiveChat(chatId: string | null | undefined, reason?: string): void {
+    const safeChatId = String(chatId ?? '').trim() || null;
+
+    if (this.activeChatId.getValue() === safeChatId) {
+      return;
+    }
+
+    this.activeChatId.next(safeChatId);
+    this.dbg('ACTIVE_CHAT', { chatId: safeChatId, reason });
+
+    if (this.currentUid) {
+      this.refreshUnreadCountOnce(this.currentUid);
+    }
+  }
+
+  clearActiveChat(reason?: string): void {
+    this.setActiveChat(null, reason ?? 'clearActiveChat');
   }
 
   updateUnreadMessagesForUser(totalUnreadCount: number): void {
@@ -78,6 +113,7 @@ export class ChatNotificationService {
     }
 
     this.currentUid = null;
+    this.activeChatId.next(null);
     this.unreadMessagesCount.next(0);
   }
 
@@ -125,9 +161,16 @@ export class ChatNotificationService {
     userId: string,
     token: number
   ): void {
-    const chatIds: string[] = (snapshot?.docs ?? []).map(d => String(d.id));
+    const chatIds: string[] = (snapshot?.docs ?? [])
+      .map(d => String(d.id))
+      .filter((chatId) => this.shouldCountChat(chatId));
 
-    this.dbg('SNAPSHOT', { token, chats: chatIds.length });
+    this.dbg('SNAPSHOT', {
+      token,
+      chats: chatIds.length,
+      activeChatId: this.activeChatId.getValue(),
+      visible: this.isDocumentVisible(),
+    });
 
     if (!chatIds.length) {
       if (token === this.runToken) this.updateUnreadMessagesForUser(0);
@@ -154,6 +197,10 @@ export class ChatNotificationService {
   }
 
   private countUnreadForChat$(chatId: string, userId: string): Observable<number> {
+    if (!this.shouldCountChat(chatId)) {
+      return of(0);
+    }
+
     let unreadMessagesQuery;
     try {
       const messagesRef = collection(this.db, `chats/${chatId}/messages`);
@@ -229,6 +276,29 @@ export class ChatNotificationService {
     getDocs(userChatsQuery)
       .then((snapshot) => this.recountUnreadFromSnapshot(snapshot as any, uid, token))
       .catch((err) => this.handleRealtimeError('Erro ao atualizar contagem de não lidas', err, 'refreshUnreadCountOnce:getDocs'));
+  }
+
+  private shouldCountChat(chatId: string): boolean {
+    const safeChatId = String(chatId ?? '').trim();
+    const activeId = this.activeChatId.getValue();
+
+    if (!safeChatId) {
+      return false;
+    }
+
+    if (!this.isDocumentVisible()) {
+      return true;
+    }
+
+    return !activeId || activeId !== safeChatId;
+  }
+
+  private isDocumentVisible(): boolean {
+    if (typeof document === 'undefined') {
+      return true;
+    }
+
+    return document.visibilityState === 'visible';
   }
 
   updatePendingInvites(count: number): void {
