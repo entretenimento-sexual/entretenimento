@@ -106,7 +106,7 @@
     "glob": "^11.0.3",
     "globals": "16.4.0",
     "identity-obj-proxy": "^3.0.0",
-    "jsdom": "^26.1.7",
+    "jsdom": "^26.1.0",
     "kill-port": "^2.0.1",
     "open": "^10.2.0",
     "protobufjs": "^7.5.6",
