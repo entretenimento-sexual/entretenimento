@@ -113,6 +113,17 @@ const routes: Routes = [
       },
 
       {
+        path: 'adulto/confirmar',
+        loadComponent: () =>
+          import('./compliance/adult-consent-page/adult-consent-page.component')
+            .then(m => m.AdultConsentPageComponent),
+        canActivate: [authGuard, accountLifecycleGuard],
+        data: {
+          allowUnverified: true,
+        },
+      },
+
+      {
         path: 'post-verification/action',
         loadComponent: () =>
           import('./register-module/auth-verification-handler/auth-verification-handler.component')
