@@ -1,26 +1,36 @@
 <main class="adult-consent" aria-labelledby="adult-consent-title">
-  <section class="adult-consent__card">
-    <p class="adult-consent__kicker">Entrada restrita</p>
-
-    <h1 id="adult-consent-title">Confirme sua maioridade</h1>
-
-    <p class="adult-consent__lead">
-      Para continuar, confirme que você tem 18 anos ou mais e aceita acessar esta plataforma de forma consciente.
-    </p>
-
-    <div class="adult-consent__notice" role="note">
-      <strong>Atenção</strong>
-      <span>Se você não atende ao requisito de idade, escolha sair.</span>
+  <section class="adult-consent__shell">
+    <div class="adult-consent__brand" aria-hidden="true">
+      <span class="adult-consent__brand-mark">18+</span>
+      <span>SEXO É O LIMITE</span>
     </div>
 
-    <div class="adult-consent__actions">
-      <button type="button" class="adult-consent__button adult-consent__button--primary" (click)="accept()">
-        Tenho 18 anos ou mais
-      </button>
+    <article class="adult-consent__card">
+      <div class="adult-consent__icon" aria-hidden="true">🔐</div>
 
-      <button type="button" class="adult-consent__button adult-consent__button--ghost" (click)="decline()">
-        Sair
-      </button>
-    </div>
+      <p class="adult-consent__kicker">Acesso adulto</p>
+
+      <h1 id="adult-consent-title">Confirme sua maioridade</h1>
+
+      <p class="adult-consent__lead">
+        Uma etapa rápida para manter a plataforma restrita a adultos e preservar uma experiência mais segura.
+      </p>
+
+      <ul class="adult-consent__checks" aria-label="Condições para continuar">
+        <li>Você confirma ter 18 anos ou mais.</li>
+        <li>Você aceita acessar conteúdo e interações para adultos.</li>
+        <li>Você entende que respeito, consentimento e privacidade são obrigatórios.</li>
+      </ul>
+
+      <div class="adult-consent__actions">
+        <button type="button" class="adult-consent__button adult-consent__button--primary" (click)="accept()">
+          Entrar na plataforma
+        </button>
+
+        <button type="button" class="adult-consent__button adult-consent__button--ghost" (click)="decline()">
+          Sair
+        </button>
+      </div>
+    </article>
   </section>
 </main>
