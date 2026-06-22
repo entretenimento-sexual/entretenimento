@@ -1,17 +1,8 @@
-// src/app/dashboard/user-intent-status/user-intent-status-composer/user-intent-status-composer.component.ts
+// src/app/dashboard/user-intent-status/user-intent-status-composer.component.ts
 // -----------------------------------------------------------------------------
 // USER INTENT STATUS COMPOSER
 // -----------------------------------------------------------------------------
 // Card de publicação do "Status de Hoje".
-//
-// Objetivo:
-// - permitir que o usuário publique disponibilidade/intenção por até 12h;
-// - mostrar o status ativo atual e permitir encerramento manual;
-// - permitir seleção de estabelecimento gerenciado quando existir;
-// - reagir à região digitada no próprio formulário;
-// - usar região/destino sem coordenada precisa;
-// - preservar UX mobile-first e feedback direto;
-// - manter escrita centralizada no UserIntentStatusService.
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
@@ -36,6 +27,7 @@ import {
   shareReplay,
   startWith,
   switchMap,
+  take,
 } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -47,6 +39,7 @@ import {
   UserIntentVisibility,
 } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import { IVenueCardVm } from 'src/app/core/interfaces/venues/venue.interface';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { VenueService } from 'src/app/core/services/venues/venue.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -121,9 +114,16 @@ export class UserIntentStatusComposerComponent implements OnChanges {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  private readonly authSession = inject(AuthSessionService);
   private readonly statusService = inject(UserIntentStatusService);
   private readonly venueService = inject(VenueService);
   private readonly notifications = inject(ErrorNotificationService);
+
+  private readonly authUid$ = this.authSession.uid$.pipe(
+    map((uid) => String(uid ?? '').trim()),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   ngOnChanges(changes: SimpleChanges): void {
     if (!changes['user']) {
@@ -132,7 +132,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
 
     const user = changes['user'].currentValue as IUserDados | null;
 
-    if (!user?.uid) {
+    if (!user) {
       this.activeStatus$ = of(null);
       this.venues$ = of([]);
       this.selectedVenue$ = of(null);
@@ -149,7 +149,10 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       venueId: '',
     }, { emitEvent: false });
 
-    this.activeStatus$ = this.statusService.watchCurrentStatus$(user.uid);
+    this.activeStatus$ = this.authUid$.pipe(
+      switchMap((uid) => uid ? this.statusService.watchCurrentStatus$(uid) : of(null)),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
     this.venues$ = this.watchVenuesForFormRegion$();
     this.selectedVenue$ = combineLatest([
       this.venues$,
@@ -171,7 +174,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
 
     const user = this.user;
 
-    if (!user?.uid) {
+    if (!user) {
       this.notifications.showWarning('Entre novamente para publicar seu status.');
       return;
     }
@@ -189,6 +192,63 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       return;
     }
 
+    this.authUid$.pipe(take(1)).subscribe((authUid) => {
+      if (!authUid) {
+        this.notifications.showWarning('Entre novamente para publicar seu status.');
+        return;
+      }
+
+      this.publishForAuthenticatedUid(authUid, user, nickname);
+    });
+  }
+
+  applyVenue(venue: IVenueCardVm): void {
+    this.form.patchValue({
+      destinationKind: 'venue',
+      venueId: venue.id,
+      destinationLabel: venue.name,
+      uf: venue.region.uf,
+      city: venue.region.city,
+    });
+  }
+
+  clearVenueSelection(): void {
+    this.form.patchValue({ venueId: '' });
+  }
+
+  hideCurrentStatus(): void {
+    if (this.hiding) {
+      return;
+    }
+
+    this.authUid$.pipe(take(1)).subscribe((authUid) => {
+      if (!authUid) {
+        this.notifications.showWarning('Entre novamente para encerrar seu status.');
+        return;
+      }
+
+      this.hiding = true;
+
+      this.statusService.hideCurrentStatus$(authUid).pipe(
+        finalize(() => {
+          this.hiding = false;
+        })
+      ).subscribe({
+        next: () => {
+          this.notifications.showSuccess('Status encerrado.');
+        },
+        error: () => {
+          this.notifications.showError('Não foi possível encerrar seu status agora.');
+        },
+      });
+    });
+  }
+
+  private publishForAuthenticatedUid(
+    authUid: string,
+    user: IUserDados,
+    nickname: string
+  ): void {
     const value = this.form.getRawValue();
     const selectedVenueId =
       value.destinationKind === 'venue'
@@ -198,9 +258,9 @@ export class UserIntentStatusComposerComponent implements OnChanges {
     this.publishing = true;
 
     this.statusService.publishStatus$({
-      uid: user.uid,
+      uid: authUid,
       profile: {
-        uid: user.uid,
+        uid: authUid,
         nickname,
         photoURL: user.photoURL ?? null,
         age: typeof user.idade === 'number' ? user.idade : null,
@@ -227,48 +287,6 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       },
       error: () => {
         this.notifications.showError('Não foi possível publicar seu status agora.');
-      },
-    });
-  }
-
-  applyVenue(venue: IVenueCardVm): void {
-    this.form.patchValue({
-      destinationKind: 'venue',
-      venueId: venue.id,
-      destinationLabel: venue.name,
-      uf: venue.region.uf,
-      city: venue.region.city,
-    });
-  }
-
-  clearVenueSelection(): void {
-    this.form.patchValue({ venueId: '' });
-  }
-
-  hideCurrentStatus(): void {
-    if (this.hiding) {
-      return;
-    }
-
-    const uid = String(this.user?.uid ?? '').trim();
-
-    if (!uid) {
-      this.notifications.showWarning('Entre novamente para encerrar seu status.');
-      return;
-    }
-
-    this.hiding = true;
-
-    this.statusService.hideCurrentStatus$(uid).pipe(
-      finalize(() => {
-        this.hiding = false;
-      })
-    ).subscribe({
-      next: () => {
-        this.notifications.showSuccess('Status encerrado.');
-      },
-      error: () => {
-        this.notifications.showError('Não foi possível encerrar seu status agora.');
       },
     });
   }
