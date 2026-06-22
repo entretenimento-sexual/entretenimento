@@ -1,33 +1,8 @@
-// src/app/core/services/compliance/adult-consent.service.ts
-// -----------------------------------------------------------------------------
-// AdultConsentService
-// -----------------------------------------------------------------------------
-// Lê e grava o aceite adulto no documento privado do usuário.
-//
-// Decisão:
-// - Firestore é a trilha persistida por uid;
-// - localStorage permanece cache/UX local;
-// - falhas técnicas são enviadas ao GlobalErrorHandlerService;
-// - o aceite local ainda permite seguir quando a rede falha temporariamente.
-// -----------------------------------------------------------------------------
-
 import { Injectable, inject } from '@angular/core';
-import {
-  Firestore,
-  doc,
-  docData,
-  serverTimestamp,
-  setDoc,
-} from '@angular/fire/firestore';
-import { Observable, of, throwError } from 'rxjs';
-import {
-  catchError,
-  distinctUntilChanged,
-  map,
-  shareReplay,
-  switchMap,
-  tap,
-} from 'rxjs/operators';
+import { Firestore, doc, docData } from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
+import { Observable, defer, from, of, throwError } from 'rxjs';
+import { catchError, distinctUntilChanged, map, shareReplay, switchMap, tap } from 'rxjs/operators';
 
 import { AdultConsentRecord } from 'src/app/core/interfaces/compliance/adult-consent.interface';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -46,9 +21,14 @@ interface UserAdultConsentDocument {
 @Injectable({ providedIn: 'root' })
 export class AdultConsentService {
   private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
   private readonly session = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly acceptConsentCallable = httpsCallable<Record<string, never>, { ok: true; version: string }>(
+    this.functions,
+    'acceptAdultConsent'
+  );
 
   readonly currentConsentAccepted$: Observable<boolean> = this.session.uid$.pipe(
     map((uid) => String(uid ?? '').trim()),
@@ -105,24 +85,7 @@ export class AdultConsentService {
       return throwError(() => new Error('UID inválido.'));
     }
 
-    return this.firestoreContext.deferPromise$(() => {
-      const userRef = doc(this.firestore, 'users', safeUid);
-
-      return setDoc(
-        userRef,
-        {
-          uid: safeUid,
-          adultConsent: {
-            accepted: true,
-            version: ADULT_CONSENT_VERSION,
-            acceptedAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            source: 'web',
-          },
-        },
-        { merge: true }
-      );
-    }).pipe(
+    return defer(() => from(this.acceptConsentCallable({}))).pipe(
       tap(() => {
         acceptAdultContentConsent();
       }),
@@ -138,11 +101,7 @@ export class AdultConsentService {
     return record?.accepted === true && record.version === ADULT_CONSENT_VERSION;
   }
 
-  private reportError(
-    error: unknown,
-    operation: string,
-    extra: Record<string, unknown>
-  ): void {
+  private reportError(error: unknown, operation: string, extra: Record<string, unknown>): void {
     try {
       const err = error instanceof Error
         ? error
