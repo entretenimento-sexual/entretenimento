@@ -7,6 +7,7 @@ import { guestOnlyCanActivate, guestOnlyCanMatch } from './core/guards/auth-guar
 import { adminCanMatch } from './core/guards/access-guard/admin.guard';
 import { emailVerifiedGuard } from './core/guards/profile-guard/email-verified.guard';
 import { profileCompletedGuard } from './core/guards/profile-guard/profile-completed.guard';
+import { adultContentConsentGuard } from './core/guards/compliance/adult-content-consent.guard';
 
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { LayoutShellComponent } from './layout/layout-shell/layout-shell.component';
@@ -131,7 +132,7 @@ const routes: Routes = [
         path: 'descobrir',
         loadChildren: () =>
           import('./explore/explore.routes').then((m) => m.EXPLORE_ROUTES),
-        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, emailVerifiedGuard],
         data: {
           requireVerified: true,
         },
@@ -142,7 +143,7 @@ const routes: Routes = [
         loadComponent: () =>
           import('./notifications/notifications-page/notifications-page.component')
             .then((m) => m.NotificationsPageComponent),
-        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, emailVerifiedGuard],
         data: {
           requireVerified: true,
         },
@@ -151,7 +152,7 @@ const routes: Routes = [
       {
         path: 'dashboard',
         loadChildren: () => import('./dashboard/dashboard.module').then(m => m.DashboardModule),
-        canActivate: [authGuard, accountLifecycleGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard],
       },
 
       {
@@ -159,7 +160,7 @@ const routes: Routes = [
         loadComponent: () =>
           import('./layout/other-user-profile-view/other-user-profile-view.component')
             .then(c => c.OtherUserProfileViewComponent),
-        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard, profileCompletedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -169,13 +170,13 @@ const routes: Routes = [
       {
         path: 'perfil',
         loadChildren: () => import('./user-profile/user-profile.module').then(m => m.UserProfileModule),
-        canActivate: [authGuard, accountLifecycleGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard],
       },
 
       {
         path: 'chat',
         loadChildren: () => import('./chat-module/chat-module').then(m => m.ChatModule),
-        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard, profileCompletedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -186,7 +187,7 @@ const routes: Routes = [
         path: 'preferencias',
         loadChildren: () =>
           import('./preferences/preferences.routes').then(m => m.PREFERENCES_ROUTES),
-        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, emailVerifiedGuard],
         data: {
           requireVerified: true,
         },
@@ -197,7 +198,7 @@ const routes: Routes = [
         loadChildren: () =>
           import('./layout/friend-management/friend-management.module')
             .then(m => m.FriendManagementModule),
-        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard, profileCompletedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -208,7 +209,7 @@ const routes: Routes = [
         path: 'admin-dashboard',
         loadChildren: () => import('./admin-dashboard/admin-dashboard.module').then(m => m.AdminDashboardModule),
         canMatch: [adminCanMatch],
-        canActivate: [authGuard, accountLifecycleGuard, emailVerifiedGuard, profileCompletedGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard, emailVerifiedGuard, profileCompletedGuard],
         data: {
           requireVerified: true,
           requireProfileCompleted: true,
@@ -223,7 +224,7 @@ const routes: Routes = [
       {
         path: 'subscription-plan',
         component: SubscriptionPlanComponent,
-        canActivate: [authGuard, accountLifecycleGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard],
         data: {
           requireVerified: false,
         },
@@ -234,7 +235,7 @@ const routes: Routes = [
           import('./subscriptions/checkout/checkout.component').then(
             (m) => m.CheckoutComponent
           ),
-        canActivate: [authGuard, accountLifecycleGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard],
         data: {
           requireVerified: false,
         },
@@ -246,7 +247,7 @@ const routes: Routes = [
           import('./payments-core/payments-core.routes').then(
             (m) => m.PAYMENTS_CORE_ROUTES
           ),
-        canActivate: [authGuard, accountLifecycleGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard],
         data: {
           requireVerified: false,
         },
@@ -256,14 +257,14 @@ const routes: Routes = [
         path: 'conta',
         loadChildren: () =>
           import('./account/account.routes').then((m) => m.ACCOUNT_ROUTES),
-        canActivate: [authGuard],
+        canActivate: [authGuard, adultContentConsentGuard],
       },
 
       {
         path: 'media',
         loadChildren: () =>
           import('./media/media.routes').then(m => m.MEDIA_ROUTES),
-        canActivate: [authGuard, accountLifecycleGuard],
+        canActivate: [authGuard, accountLifecycleGuard, adultContentConsentGuard],
       },
     ],
   },
