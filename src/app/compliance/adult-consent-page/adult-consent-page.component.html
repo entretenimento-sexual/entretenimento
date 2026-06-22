@@ -5,7 +5,7 @@
       <span>SEXO É O LIMITE</span>
     </div>
 
-    <article class="adult-consent__card">
+    <article class="adult-consent__card" [attr.aria-busy]="isSaving">
       <div class="adult-consent__icon" aria-hidden="true">🔐</div>
 
       <p class="adult-consent__kicker">Acesso adulto</p>
@@ -23,11 +23,21 @@
       </ul>
 
       <div class="adult-consent__actions">
-        <button type="button" class="adult-consent__button adult-consent__button--primary" (click)="accept()">
-          Entrar na plataforma
+        <button
+          type="button"
+          class="adult-consent__button adult-consent__button--primary"
+          [disabled]="isSaving"
+          (click)="accept()"
+        >
+          {{ isSaving ? 'Salvando...' : 'Entrar na plataforma' }}
         </button>
 
-        <button type="button" class="adult-consent__button adult-consent__button--ghost" (click)="decline()">
+        <button
+          type="button"
+          class="adult-consent__button adult-consent__button--ghost"
+          [disabled]="isSaving"
+          (click)="decline()"
+        >
           Sair
         </button>
       </div>
