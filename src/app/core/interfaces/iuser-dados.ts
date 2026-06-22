@@ -14,6 +14,14 @@ export type PublicVisibility = 'visible' | 'hidden';
 
 export type LifecycleActorSource = 'self' | 'moderator' | 'system';
 
+export interface IUserAdultConsent {
+  accepted: boolean;
+  version: string;
+  acceptedAt?: number | null;
+  updatedAt?: number | null;
+  source?: string | null;
+}
+
 export interface IUserDados {
   uid: string;
   nickname?: string | null;
@@ -51,6 +59,11 @@ export interface IUserDados {
   registrationDate?: number | null;
 
   emailVerified?: boolean;
+
+  // ---------------------------------------------------------------------------
+  // Compliance
+  // ---------------------------------------------------------------------------
+  adultConsent?: IUserAdultConsent | null;
 
   // ---------------------------------------------------------------------------
   // Perfil
