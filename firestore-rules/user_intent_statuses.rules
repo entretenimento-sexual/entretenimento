@@ -6,24 +6,29 @@
 //
 // Segurança:
 // - leitura pública do app exige login e status ativo/visível;
-// - o usuário pode ler o próprio status atual;
+// - o usuário pode ler o próprio documento current_{uid}, inclusive vazio;
 // - escrita comum direta é bloqueada;
 // - publicação/ocultação devem passar pelas Cloud Functions;
 // - expiração máxima e snapshots públicos são definidos pelo backend.
 // ============================================================================
 match /user_intent_statuses/{statusId} {
+  function isCurrentStatusPath() {
+    return signedIn() && statusId == ("current_" + uid());
+  }
+
   function isOwnerStatus() {
     return signedIn() && resource.data.uid == uid();
   }
 
-  function isVisibleStatus() {
+  function isDiscoverableStatus() {
     return resource.data.moderation.state == "active"
-      && resource.data.visibility == "public_discovery"
-      && resource.data.expiresAt > request.time.toMillis();
+      && resource.data.visibility == "public_discovery";
   }
 
-  allow get: if signedIn() && (isVisibleStatus() || isOwnerStatus());
-  allow list: if signedIn() && isVisibleStatus();
+  allow get: if isCurrentStatusPath()
+    || (signedIn() && (isDiscoverableStatus() || isOwnerStatus()));
+
+  allow list: if signedIn() && isDiscoverableStatus();
 
   allow create, update, delete: if false;
 }
