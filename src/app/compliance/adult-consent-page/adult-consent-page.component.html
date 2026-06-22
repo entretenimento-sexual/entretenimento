@@ -1,0 +1,26 @@
+<main class="adult-consent" aria-labelledby="adult-consent-title">
+  <section class="adult-consent__card">
+    <p class="adult-consent__kicker">Entrada restrita</p>
+
+    <h1 id="adult-consent-title">Confirme sua maioridade</h1>
+
+    <p class="adult-consent__lead">
+      Para continuar, confirme que você tem 18 anos ou mais e aceita acessar esta plataforma de forma consciente.
+    </p>
+
+    <div class="adult-consent__notice" role="note">
+      <strong>Atenção</strong>
+      <span>Se você não atende ao requisito de idade, escolha sair.</span>
+    </div>
+
+    <div class="adult-consent__actions">
+      <button type="button" class="adult-consent__button adult-consent__button--primary" (click)="accept()">
+        Tenho 18 anos ou mais
+      </button>
+
+      <button type="button" class="adult-consent__button adult-consent__button--ghost" (click)="decline()">
+        Sair
+      </button>
+    </div>
+  </section>
+</main>
