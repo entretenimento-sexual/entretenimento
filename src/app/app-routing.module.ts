@@ -15,6 +15,16 @@ import { accountLifecycleGuard } from './account/guards/account-lifecycle.guard'
 
 const routes: Routes = [
   {
+    path: 'adulto/confirmar',
+    loadComponent: () =>
+      import('./compliance/adult-consent-page/adult-consent-page.component')
+        .then(m => m.AdultConsentPageComponent),
+    canActivate: [authGuard, accountLifecycleGuard],
+    data: {
+      allowUnverified: true,
+    },
+  },
+  {
     path: '',
     component: LayoutShellComponent,
     children: [
@@ -109,17 +119,6 @@ const routes: Routes = [
         data: {
           allowUnverified: true,
           guestAllowAuthenticatedPaths: ['progressive-signup', 'suggested-profiles'],
-        },
-      },
-
-      {
-        path: 'adulto/confirmar',
-        loadComponent: () =>
-          import('./compliance/adult-consent-page/adult-consent-page.component')
-            .then(m => m.AdultConsentPageComponent),
-        canActivate: [authGuard, accountLifecycleGuard],
-        data: {
-          allowUnverified: true,
         },
       },
 
