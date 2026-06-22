@@ -2,11 +2,12 @@
 // -----------------------------------------------------------------------------
 // Storage local versionado para consentimento adulto.
 // -----------------------------------------------------------------------------
-// Esta camada é UX/compliance local. Não substitui verificação real de idade,
-// moderação, KYC ou aceite persistido no backend.
+// Esta camada é cache/UX local. A trilha persistida do usuário fica em
+// users/{uid}.adultConsent.
 // -----------------------------------------------------------------------------
 
-export const ADULT_CONSENT_STORAGE_KEY = 'adult-content-consent:v1';
+export const ADULT_CONSENT_VERSION = 'v1';
+export const ADULT_CONSENT_STORAGE_KEY = `adult-content-consent:${ADULT_CONSENT_VERSION}`;
 export const ADULT_CONSENT_VALUE = 'accepted';
 
 export function hasAdultContentConsent(): boolean {
