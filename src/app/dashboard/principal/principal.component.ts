@@ -14,6 +14,7 @@
 // - adiciona composer do Status de Hoje
 // - adiciona radar regional do Status de Hoje
 // - adiciona widget regional de Locais bombando
+// - adiciona checklist de perfil pós-login
 // -----------------------------------------------------------------------------
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -58,6 +59,7 @@ import {
 import * as P from 'src/app/store/actions/actions.interactions/friends/friends-pagination.actions';
 import { PAGE_SIZES } from 'src/app/shared/pagination/page.constants';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import { ProfileCompletionService } from 'src/app/core/services/user-profile/profile-completion.service';
 import { HotPlacesWidgetComponent } from '../hot-places/hot-places-widget/hot-places-widget.component';
 import { UserIntentStatusComposerComponent } from '../user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
 import { UserIntentStatusRadarComponent } from '../user-intent-status/user-intent-status-radar/user-intent-status-radar.component';
@@ -83,6 +85,7 @@ import { UserIntentStatusRadarComponent } from '../user-intent-status/user-inten
 export class PrincipalComponent implements OnInit {
   private store = inject<Store<AppState>>(Store as any);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
+  private readonly profileCompletion = inject(ProfileCompletionService);
 
 /**
  * Debug seguro do dashboard principal.
@@ -102,6 +105,11 @@ private dbg(message: string, extra?: unknown): void {
   // ---------------------------------------------------------------------------
   currentUser$: Observable<IUserDados | null> = this.store.select(selectCurrentUser);
   currentUserStatus$ = this.store.select(selectCurrentUserStatus);
+
+  readonly profileChecklist$ = this.currentUser$.pipe(
+    map((user) => user ? this.profileCompletion.buildChecklist(user) : null),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   /**
    * UID:
