@@ -1,9 +1,8 @@
-//src\app\explore\pages\social-explore-page\social-explore-page.component.ts
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { BehaviorSubject, combineLatest, Observable, of } from 'rxjs';
-import { finalize, map, shareReplay, switchMap, take } from 'rxjs/operators';
+import { distinctUntilChanged, finalize, map, shareReplay, switchMap, take } from 'rxjs/operators';
 import { ExploreSectionComponent } from '../../components/explore-section/explore-section.component';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { PublicPhotoCardComponent } from 'src/app/media/shared/components/public-photo-card/public-photo-card.component';
@@ -16,6 +15,7 @@ import { PublicProfilesListComponent } from 'src/app/dashboard/discovery/public-
 import { UserIntentStatusRadarComponent } from 'src/app/dashboard/user-intent-status/user-intent-status-radar/user-intent-status-radar.component';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -50,6 +50,7 @@ export class SocialExplorePageComponent {
   private readonly exploreFeedFacade = inject(ExploreFeedFacade);
   private readonly photoViewTracking = inject(PhotoViewTrackingService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
+  private readonly authSession = inject(AuthSessionService);
   private readonly statusService = inject(UserIntentStatusService);
   private readonly notifications = inject(ErrorNotificationService);
 
@@ -62,9 +63,14 @@ export class SocialExplorePageComponent {
     map((user) => user ?? null),
     shareReplay({ bufferSize: 1, refCount: true })
   );
-  readonly myActiveStatus$: Observable<IUserIntentStatusCardVm | null> = this.currentUser$.pipe(
-    switchMap((user) => user?.uid
-      ? this.statusService.watchCurrentStatus$(user.uid)
+  readonly authUid$: Observable<string> = this.authSession.uid$.pipe(
+    map((uid) => String(uid ?? '').trim()),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+  readonly myActiveStatus$: Observable<IUserIntentStatusCardVm | null> = this.authUid$.pipe(
+    switchMap((uid) => uid
+      ? this.statusService.watchCurrentStatus$(uid)
       : of(null)
     ),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -119,23 +125,28 @@ export class SocialExplorePageComponent {
       });
   }
 
-  hideMyStatus(user: IUserDados | null): void {
-    const uid = String(user?.uid ?? '').trim();
-
-    if (!uid || this.hidingMyStatus) {
+  hideMyStatus(_user: IUserDados | null): void {
+    if (this.hidingMyStatus) {
       return;
     }
 
-    this.hidingMyStatus = true;
+    this.authUid$.pipe(take(1)).subscribe((uid) => {
+      if (!uid) {
+        this.notifications.showWarning('Entre novamente para encerrar seu status.');
+        return;
+      }
 
-    this.statusService.hideCurrentStatus$(uid).pipe(
-      take(1),
-      finalize(() => {
-        this.hidingMyStatus = false;
-      })
-    ).subscribe({
-      next: () => this.notifications.showSuccess('Status encerrado.'),
-      error: () => this.notifications.showError('Não foi possível encerrar seu status agora.'),
+      this.hidingMyStatus = true;
+
+      this.statusService.hideCurrentStatus$(uid).pipe(
+        take(1),
+        finalize(() => {
+          this.hidingMyStatus = false;
+        })
+      ).subscribe({
+        next: () => this.notifications.showSuccess('Status encerrado.'),
+        error: () => this.notifications.showError('Não foi possível encerrar seu status agora.'),
+      });
     });
   }
 
