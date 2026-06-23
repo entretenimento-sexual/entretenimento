@@ -1,0 +1,106 @@
+// =========================================================================
+// MODERATION REPORTS
+// =========================================================================
+// Denúncias privadas de usuários autenticados.
+//
+// Decisões:
+// - usuário autenticado pode criar denúncia própria;
+// - usuário comum não lê a fila de denúncias;
+// - admin pode ler/listar e atualizar status;
+// - cliente comum não edita nem apaga denúncia depois de enviada.
+// =========================================================================
+
+match /moderation_reports/{reportId} {
+  function allowedCreateKeys() {
+    return request.resource.data.keys().hasOnly([
+      "reporterUid",
+      "targetType",
+      "targetId",
+      "targetOwnerUid",
+      "reason",
+      "details",
+      "route",
+      "status",
+      "source",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  function allowedAdminUpdateKeys() {
+    return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+      "status",
+      "reviewedBy",
+      "reviewedAt",
+      "resolution",
+      "updatedAt"
+    ]);
+  }
+
+  function validTargetType() {
+    return request.resource.data.targetType in [
+      "profile",
+      "photo",
+      "message",
+      "room",
+      "status",
+      "venue",
+      "other"
+    ];
+  }
+
+  function validReason() {
+    return request.resource.data.reason in [
+      "spam",
+      "fake_profile",
+      "harassment",
+      "hate_or_abuse",
+      "sexual_boundary",
+      "illegal_content",
+      "privacy",
+      "minor_safety",
+      "other"
+    ];
+  }
+
+  function validStatus() {
+    return request.resource.data.status in [
+      "open",
+      "reviewing",
+      "resolved",
+      "rejected"
+    ];
+  }
+
+  function validCreatePayload() {
+    return signedIn()
+      && allowedCreateKeys()
+      && request.resource.data.reporterUid == uid()
+      && request.resource.data.reporterUid is string
+      && request.resource.data.targetId is string
+      && request.resource.data.source == "web"
+      && request.resource.data.status == "open"
+      && validTargetType()
+      && validReason()
+      && optString("targetOwnerUid")
+      && optString("details")
+      && optString("route")
+      && request.resource.data.createdAt == request.time
+      && request.resource.data.updatedAt == request.time;
+  }
+
+  function validAdminUpdatePayload() {
+    return isAdmin()
+      && allowedAdminUpdateKeys()
+      && validStatus()
+      && optString("reviewedBy")
+      && optTimestamp("reviewedAt")
+      && optString("resolution")
+      && request.resource.data.updatedAt == request.time;
+  }
+
+  allow create: if validCreatePayload();
+  allow get, list: if isAdmin();
+  allow update: if validAdminUpdatePayload();
+  allow delete: if false;
+}
