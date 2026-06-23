@@ -14,7 +14,7 @@
 
 import { Injectable, inject } from '@angular/core';
 import { Firestore, addDoc, collection, serverTimestamp } from '@angular/fire/firestore';
-import { Observable, defer, from, throwError } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -68,7 +68,11 @@ export class ModerationReportService {
 
         return this.firestoreContext.deferPromise$(() => {
           const reportsRef = collection(this.firestore, 'moderation_reports');
-          return addDoc(reportsRef, payload as Record<string, unknown>);
+
+          return addDoc(
+            reportsRef,
+            payload as unknown as Record<string, unknown>
+          );
         }).pipe(
           map((docRef) => docRef.id),
           catchError((error) => {
