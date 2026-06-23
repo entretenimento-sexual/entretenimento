@@ -6,6 +6,7 @@
   --app-sidebar-width: clamp(272px, 18vw, 320px);
   --app-sidebar-collapsed-width: clamp(84px, 6vw, 96px);
   --app-sidebar-gap: clamp(12px, 1.2vw, 20px);
+  --app-mobile-bottom-nav-height: 76px;
 }
 
 .auth-shell {
@@ -91,6 +92,10 @@ app-navbar {
   overflow-y: auto;
 }
 
+.auth-shell__bottom-nav {
+  display: none;
+}
+
 /**
  * Ajuste crítico:
  * no modo chat o shell pai não deve criar respiro visual.
@@ -113,8 +118,22 @@ app-navbar {
     margin-left: 0;
   }
 
-  .auth-shell__content {
-    padding: var(--space-2);
+  .auth-shell[data-shell-mode='auth']:not([data-chat-layout='true']) .auth-shell__content {
+    padding: var(--space-2) var(--space-2) calc(var(--app-mobile-bottom-nav-height) + 14px + env(safe-area-inset-bottom));
+  }
+
+  .auth-shell__bottom-nav {
+    position: fixed;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 220;
+    display: block;
+    pointer-events: auto;
+  }
+
+  .auth-shell[data-chat-layout='true'] .auth-shell__bottom-nav {
+    display: none;
   }
 
   .auth-shell[data-chat-layout='true'] .auth-shell__content {
@@ -123,8 +142,8 @@ app-navbar {
 }
 
 @media (max-width: 420px) {
-  .auth-shell__content {
-    padding: 10px;
+  .auth-shell[data-shell-mode='auth']:not([data-chat-layout='true']) .auth-shell__content {
+    padding: 10px 10px calc(var(--app-mobile-bottom-nav-height) + 12px + env(safe-area-inset-bottom));
   }
 
   .auth-shell[data-chat-layout='true'] .auth-shell__content {
