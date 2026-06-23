@@ -45,4 +45,11 @@
       </main>
     </div>
   </div>
+
+  <app-mobile-bottom-nav
+    *ngIf="vm.shellMode === 'auth' && vm.sidebarShouldOverlay && !vm.isChatLayout && vm.showSidebar"
+    class="auth-shell__bottom-nav"
+    [currentUrl]="vm.currentUrl"
+    [friendRequestsCount]="vm.friendRequestsCount"
+  ></app-mobile-bottom-nav>
 </div>
