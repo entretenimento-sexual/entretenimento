@@ -8,12 +8,23 @@
   <section class="social-explore-page" aria-label="Explorar conteúdo público">
     <header class="explore-hero">
       <div class="hero-copy">
+        <span class="hero-copy__eyebrow">Descoberta social</span>
         <h1>Explorar</h1>
 
         <p>
-          Conteúdos públicos, status ativos e perfis compatíveis para novas interações.
+          Veja status ativos, perfis compatíveis e publicações aprovadas com navegação simples no celular.
         </p>
       </div>
+
+      <nav class="explore-hero__actions" aria-label="Ações rápidas do Explorar">
+        <a class="explore-hero__action explore-hero__action--primary" routerLink="/dashboard/principal">
+          Publicar Status de Hoje
+        </a>
+
+        <a class="explore-hero__action" routerLink="/preferencias/discovery-settings">
+          Ajustar descoberta
+        </a>
+      </nav>
     </header>
 
     @if (myActiveStatus) {
