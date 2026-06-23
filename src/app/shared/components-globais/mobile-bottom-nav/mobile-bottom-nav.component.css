@@ -1,0 +1,123 @@
+/* src/app/shared/components-globais/mobile-bottom-nav/mobile-bottom-nav.component.css */
+:host {
+  display: none;
+}
+
+.mobile-bottom-nav {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  width: min(100%, 720px);
+  margin-inline: auto;
+  padding:
+    8px
+    max(8px, env(safe-area-inset-right))
+    max(8px, env(safe-area-inset-bottom))
+    max(8px, env(safe-area-inset-left));
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 86%, transparent);
+  border-radius: 22px 22px 0 0;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in oklab, var(--surface-color, #101923) 98%, #fff 2%),
+      color-mix(in oklab, var(--surface-color, #101923) 94%, #000 6%)
+    );
+  box-shadow: 0 -12px 32px rgb(0 0 0 / 18%);
+  backdrop-filter: blur(14px);
+}
+
+.mobile-bottom-nav__item {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 4px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
+  text-decoration: none;
+  outline: none;
+}
+
+.mobile-bottom-nav__item:hover,
+.mobile-bottom-nav__item:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 32%, transparent);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 8%, transparent);
+}
+
+.mobile-bottom-nav__item--active {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 38%, transparent);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 14%, transparent);
+  color: var(--text-color, #f5f7fb);
+}
+
+.mobile-bottom-nav__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.mobile-bottom-nav__label {
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobile-bottom-nav__badge {
+  position: absolute;
+  top: 4px;
+  right: max(8px, 18%);
+  min-width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 4px;
+  border: 1px solid color-mix(in oklab, #fff 36%, transparent);
+  border-radius: 999px;
+  background: var(--primary-color, #ff7070);
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+@media (max-width: 767.98px) {
+  :host {
+    display: block;
+  }
+}
+
+@media (max-width: 360px) {
+  .mobile-bottom-nav {
+    gap: 2px;
+    padding-inline: 6px;
+  }
+
+  .mobile-bottom-nav__label {
+    font-size: 0.62rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-bottom-nav__item {
+    transition: none !important;
+  }
+}
+
+html.high-contrast .mobile-bottom-nav,
+html.high-contrast .mobile-bottom-nav__item,
+html.high-contrast .mobile-bottom-nav__badge {
+  border-color: currentColor !important;
+  box-shadow: none !important;
+}
