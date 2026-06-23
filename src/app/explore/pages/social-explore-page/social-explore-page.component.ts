@@ -63,7 +63,7 @@ export class SocialExplorePageComponent {
     map((user) => user ?? null),
     shareReplay({ bufferSize: 1, refCount: true })
   );
-  readonly authUid$: Observable<string> = this.authSession.uid$.pipe(
+  readonly authUid$: Observable<string> = this.authSession.readyUid$.pipe(
     map((uid) => String(uid ?? '').trim()),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
