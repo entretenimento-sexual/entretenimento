@@ -9,6 +9,7 @@
 // - escrita de leitura passa por Cloud Functions;
 // - cliente segue sem updateDoc direto em /notifications;
 // - aguarda bootstrap do Auth antes de iniciar watchers de Firestore;
+// - usa AuthSessionService.readyAuthUser$ como fonte única do usuário autenticado;
 // - falhas opcionais de permissão na leitura retornam lista vazia sem poluir login.
 // -----------------------------------------------------------------------------
 
@@ -26,7 +27,6 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, of, throwError } from 'rxjs';
 import {
   catchError,
-  combineLatestWith,
   distinctUntilChanged,
   map,
   shareReplay,
@@ -42,6 +42,10 @@ import {
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import {
+  isFirebasePermissionDeniedError,
+  toErrorInstance,
+} from 'src/app/core/utils/firebase-error-utils';
 
 interface AppNotificationFirestoreDocument {
   id?: unknown;
@@ -85,17 +89,15 @@ export class AppNotificationService {
   >(this.functions, 'markAllNotificationsRead');
 
   readonly currentUserNotifications$: Observable<IAppNotification[]> =
-    this.session.ready$.pipe(
-      combineLatestWith(this.session.authUser$),
-      switchMap(([ready, user]) => {
+    this.session.readyAuthUser$.pipe(
+      switchMap((user) => {
         const uid = String(user?.uid ?? '').trim();
 
-        if (ready !== true || !uid) {
+        if (!uid) {
           return of([]);
         }
 
-        return defer(() => from(user!.getIdToken())).pipe(
-          switchMap(() => this.watchForUser$(uid)),
+        return this.watchForUser$(uid).pipe(
           catchError((error) => {
             this.reportReadError(error, 'currentUserNotifications', { uid });
             return of([]);
@@ -268,14 +270,12 @@ export class AppNotificationService {
     operation: string,
     extra: Record<string, unknown>
   ): void {
-    if (this.isPermissionDenied(error)) {
+    if (isFirebasePermissionDeniedError(error)) {
       return;
     }
 
     try {
-      const err = error instanceof Error
-        ? error
-        : new Error('[AppNotificationService] read failed');
+      const err = toErrorInstance(error, '[AppNotificationService] read failed');
       (err as any).context = 'AppNotificationService';
       (err as any).operation = operation;
       (err as any).extra = extra;
@@ -293,9 +293,7 @@ export class AppNotificationService {
     extra: Record<string, unknown>
   ): void {
     try {
-      const err = error instanceof Error
-        ? error
-        : new Error('[AppNotificationService] write failed');
+      const err = toErrorInstance(error, '[AppNotificationService] write failed');
       (err as any).context = 'AppNotificationService';
       (err as any).operation = operation;
       (err as any).extra = extra;
@@ -304,15 +302,5 @@ export class AppNotificationService {
     } catch {
       // noop
     }
-  }
-
-  private isPermissionDenied(error: unknown): boolean {
-    const source = error as { code?: unknown; message?: unknown } | null | undefined;
-    const code = String(source?.code ?? '').toLowerCase();
-    const message = String(source?.message ?? '').toLowerCase();
-
-    return code.includes('permission-denied')
-      || message.includes('permission')
-      || message.includes('no matching allow statements');
   }
 }
