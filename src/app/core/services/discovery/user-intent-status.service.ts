@@ -1,4 +1,4 @@
-// src/app/core/services/discovery/user-intent-status.service.ts
+﻿// src/app/core/services/discovery/user-intent-status.service.ts
 // -----------------------------------------------------------------------------
 // USER INTENT STATUS SERVICE
 // -----------------------------------------------------------------------------
@@ -567,6 +567,29 @@ export class UserIntentStatusService {
     }
 
     return of([]);
+  }
+
+  private reportReadError(
+    error: unknown,
+    operation: string,
+    context: Record<string, unknown>
+  ): void {
+    try {
+      const normalizedError =
+        error instanceof Error
+          ? error
+          : new Error(`[UserIntentStatusService.${operation}] leitura falhou.`);
+
+      (normalizedError as any).feature = 'user_intent_statuses';
+      (normalizedError as any).operation = operation;
+      (normalizedError as any).context = context;
+      (normalizedError as any).original = error;
+      (normalizedError as any).skipUserNotification = true;
+
+      this.globalError.handleError(normalizedError);
+    } catch {
+      // noop
+    }
   }
 
   private handleWriteError(
