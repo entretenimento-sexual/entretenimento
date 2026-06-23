@@ -8,8 +8,8 @@
 // - leitura reativa via Firestore;
 // - escrita de leitura passa por Cloud Functions;
 // - cliente segue sem updateDoc direto em /notifications;
-// - usa GlobalErrorHandlerService para debug centralizado;
-// - falhas de leitura são silenciosas para não poluir a navegação.
+// - aguarda bootstrap do Auth antes de iniciar watchers de Firestore;
+// - falhas opcionais de permissão na leitura retornam lista vazia sem poluir login.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -26,6 +26,7 @@ import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, of, throwError } from 'rxjs';
 import {
   catchError,
+  combineLatestWith,
   distinctUntilChanged,
   map,
   shareReplay,
@@ -84,10 +85,23 @@ export class AppNotificationService {
   >(this.functions, 'markAllNotificationsRead');
 
   readonly currentUserNotifications$: Observable<IAppNotification[]> =
-    this.session.uid$.pipe(
-      map((uid) => String(uid ?? '').trim()),
-      distinctUntilChanged(),
-      switchMap((uid) => this.watchForUser$(uid)),
+    this.session.ready$.pipe(
+      combineLatestWith(this.session.authUser$),
+      switchMap(([ready, user]) => {
+        const uid = String(user?.uid ?? '').trim();
+
+        if (ready !== true || !uid) {
+          return of([]);
+        }
+
+        return defer(() => from(user!.getIdToken())).pipe(
+          switchMap(() => this.watchForUser$(uid)),
+          catchError((error) => {
+            this.reportReadError(error, 'currentUserNotifications', { uid });
+            return of([]);
+          })
+        );
+      }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
@@ -254,6 +268,10 @@ export class AppNotificationService {
     operation: string,
     extra: Record<string, unknown>
   ): void {
+    if (this.isPermissionDenied(error)) {
+      return;
+    }
+
     try {
       const err = error instanceof Error
         ? error
@@ -286,5 +304,15 @@ export class AppNotificationService {
     } catch {
       // noop
     }
+  }
+
+  private isPermissionDenied(error: unknown): boolean {
+    const source = error as { code?: unknown; message?: unknown } | null | undefined;
+    const code = String(source?.code ?? '').toLowerCase();
+    const message = String(source?.message ?? '').toLowerCase();
+
+    return code.includes('permission-denied')
+      || message.includes('permission')
+      || message.includes('no matching allow statements');
   }
 }
