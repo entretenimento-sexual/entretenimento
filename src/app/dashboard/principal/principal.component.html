@@ -36,6 +36,60 @@
     </div>
   </header>
 
+  @if (profileChecklist$ | async; as checklist) {
+    <section
+      class="profile-checklist app-card"
+      [class.profile-checklist--complete]="checklist.isComplete"
+      aria-labelledby="profile-checklist-title"
+    >
+      <div class="profile-checklist__summary">
+        <div class="profile-checklist__copy">
+          <span class="profile-checklist__eyebrow">Primeiros passos</span>
+          <h2 id="profile-checklist-title">{{ checklist.headline }}</h2>
+          <p>{{ checklist.helperText }}</p>
+        </div>
+
+        <div class="profile-checklist__meter" aria-label="Progresso do perfil">
+          <strong>{{ checklist.progress }}%</strong>
+          <span>{{ checklist.completed }}/{{ checklist.total }} concluídos</span>
+        </div>
+      </div>
+
+      <div
+        class="profile-checklist__bar"
+        role="progressbar"
+        [attr.aria-valuenow]="checklist.progress"
+        aria-valuemin="0"
+        aria-valuemax="100"
+      >
+        <span [style.width.%]="checklist.progress"></span>
+      </div>
+
+      <div class="profile-checklist__items" aria-label="Etapas para completar o perfil">
+        @for (item of checklist.items; track item.id) {
+          <a
+            class="profile-checklist__item"
+            [class.profile-checklist__item--done]="item.completed"
+            [routerLink]="item.routerLink"
+          >
+            <span class="profile-checklist__status" aria-hidden="true">
+              {{ item.completed ? '✓' : '!' }}
+            </span>
+
+            <span class="profile-checklist__text">
+              <strong>{{ item.title }}</strong>
+              <small>{{ item.description }}</small>
+            </span>
+
+            <span class="profile-checklist__action">
+              {{ item.completed ? 'Revisar' : item.actionLabel }}
+            </span>
+          </a>
+        }
+      </div>
+    </section>
+  }
+
   <section class="principal-overview app-card-grid" *ngIf="currentUserStatus$ | async as currentStatus" aria-label="Resumo da conta e da rede">
     <article class="principal-metric principal-metric--account app-card app-card--compact">
       <span class="principal-metric__label">Conta</span>

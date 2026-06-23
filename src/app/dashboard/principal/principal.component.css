@@ -401,3 +401,195 @@ html.high-contrast .principal-action {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
+
+/* Checklist de perfil -------------------------------------------------------- */
+
+.profile-checklist,
+.profile-checklist.app-card {
+  display: grid;
+  gap: 14px;
+  padding: clamp(16px, 2vw, 22px);
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 28%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top right, color-mix(in oklab, var(--primary-color, #ff7070) 12%, transparent), transparent 36%),
+    var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
+}
+
+.profile-checklist--complete,
+.profile-checklist--complete.app-card {
+  border-color: color-mix(in oklab, #45d483 36%, var(--surface-border, rgba(255, 255, 255, 0.12)));
+}
+
+.profile-checklist__summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.profile-checklist__copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.profile-checklist__eyebrow {
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 74%, var(--text-color, #f5f7fb));
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-checklist h2,
+.profile-checklist p {
+  margin: 0;
+}
+
+.profile-checklist h2 {
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.12rem, 2vw, 1.55rem);
+  line-height: 1.12;
+}
+
+.profile-checklist p {
+  max-width: 70ch;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  line-height: 1.5;
+}
+
+.profile-checklist__meter {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  min-width: 92px;
+}
+
+.profile-checklist__meter strong {
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  line-height: 1;
+}
+
+.profile-checklist__meter span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.profile-checklist__bar {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--text-color, #f5f7fb) 10%, transparent);
+}
+
+.profile-checklist__bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklab, var(--primary-color, #ff7070) 94%, #fff 6%),
+    color-mix(in oklab, #45d483 78%, var(--primary-color, #ff7070) 22%)
+  );
+}
+
+.profile-checklist__items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.profile-checklist__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  min-height: 58px;
+  padding: 12px;
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 84%, transparent);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 88%, var(--text-color, #f5f7fb) 4%);
+  color: inherit;
+  text-decoration: none;
+}
+
+.profile-checklist__item:hover,
+.profile-checklist__item:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 42%, transparent);
+}
+
+.profile-checklist__item--done {
+  opacity: 0.78;
+}
+
+.profile-checklist__status {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent);
+  color: var(--text-color, #f5f7fb);
+  font-weight: 950;
+}
+
+.profile-checklist__item--done .profile-checklist__status {
+  background: color-mix(in oklab, #45d483 24%, transparent);
+}
+
+.profile-checklist__text {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.profile-checklist__text strong,
+.profile-checklist__text small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-checklist__text strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.92rem;
+}
+
+.profile-checklist__text small {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.profile-checklist__action {
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 78%, var(--text-color, #f5f7fb));
+  font-size: 0.78rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .profile-checklist__summary,
+  .profile-checklist__items {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-checklist__meter {
+    justify-items: start;
+  }
+
+  .profile-checklist__item {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .profile-checklist__action {
+    grid-column: 2;
+    white-space: normal;
+  }
+}
+
