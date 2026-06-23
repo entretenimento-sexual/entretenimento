@@ -58,6 +58,9 @@ const parts = [
   'users_photo_publications.rules',
   'users_blocks.rules',
 
+  // Moderação e auditoria operacional.
+  'moderation_reports.rules',
+
   // Demais módulos.
   'communities.rules',
   'invites.rules',
