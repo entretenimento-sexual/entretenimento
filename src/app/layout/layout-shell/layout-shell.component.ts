@@ -32,6 +32,7 @@ import {
   type UniversalSidebarQuickAction,
   type UniversalSidebarUserSummary,
 } from '../../shared/components-globais/universal-sidebar/universal-sidebar.component';
+import { MobileBottomNavComponent } from '../../shared/components-globais/mobile-bottom-nav/mobile-bottom-nav.component';
 import { UserActivityHubComponent } from '../../notifications/user-activity-hub/user-activity-hub.component';
 
 import { Store } from '@ngrx/store';
@@ -90,6 +91,7 @@ interface LayoutShellVm {
     HeaderModule,
     FooterModule,
     UniversalSidebarComponent,
+    MobileBottomNavComponent,
     EmailVerificationGateBannerComponent,
     UserActivityHubComponent,
   ],
