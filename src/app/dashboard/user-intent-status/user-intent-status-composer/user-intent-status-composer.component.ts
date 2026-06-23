@@ -119,7 +119,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
   private readonly venueService = inject(VenueService);
   private readonly notifications = inject(ErrorNotificationService);
 
-  private readonly authUid$ = this.authSession.uid$.pipe(
+  private readonly authUid$ = this.authSession.readyUid$.pipe(
     map((uid) => String(uid ?? '').trim()),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
