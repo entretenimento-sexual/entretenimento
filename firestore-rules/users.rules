@@ -4,14 +4,17 @@
 //
 // Responsabilidade:
 // - permitir ao próprio usuário atualizar dados comuns de perfil;
-// - impedir adulteração de autenticação, privilégios, billing e lifecycle;
+// - impedir adulteração de autenticação, privilégios, billing, lifecycle
+//   e compliance;
 // - permitir que criação inicial traga somente valores seguros/default;
-// - reservar alterações administrativas/financeiras para backend confiável.
+// - reservar alterações administrativas/financeiras/compliance para backend
+//   confiável.
 //
 // Segurança:
 // - Cloud Functions com Admin SDK podem atualizar campos protegidos;
 // - cliente web/mobile nunca deve promover role, ativar assinatura,
-//   criar entitlement embutido ou manipular suspensão/exclusão;
+//   criar entitlement embutido, manipular suspensão/exclusão ou registrar
+//   consentimento adulto diretamente;
 // - claims administrativas continuam sendo a autoridade para ações de staff.
 //
 // Correção crítica já preservada:
@@ -47,6 +50,9 @@ match /users/{userId} {
    */
   function selfChangingSensitiveKeys() {
     return request.resource.data.diff(resource.data).changedKeys().hasAny([
+      // Compliance / aceite adulto
+      "adultConsent",
+
       // Plano / autorização financeira
       "role",
       "tier",
@@ -124,12 +130,15 @@ match /users/{userId} {
    * Valores aceitáveis na criação de um novo usuário pelo cliente.
    *
    * Campos de acesso podem existir somente com defaults não privilegiados.
-   * Benefícios pagos, transações e estados de lifecycle não podem nascer
-   * ativos por payload enviado pelo navegador.
+   * Benefícios pagos, transações, estados de lifecycle e aceite de compliance
+   * não podem nascer ativos por payload enviado pelo navegador.
    */
   function createDefaultsOk() {
     return request.resource.data.keys().hasAny(["uid"])
       && request.resource.data.uid == uid()
+
+      // Compliance inicial: aceite adulto é gravado pela Cloud Function
+      && !hasField("adultConsent")
 
       // Projeção financeira inicial sem benefício pago
       && (!hasField("role") || request.resource.data.role == "free")
