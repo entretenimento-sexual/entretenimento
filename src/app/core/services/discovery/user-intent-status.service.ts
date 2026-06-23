@@ -24,7 +24,7 @@ import {
   collection,
   collectionData,
   doc,
-  docData,
+  getDoc,
   limit as firestoreLimit,
   orderBy,
   query,
@@ -117,18 +117,25 @@ export class UserIntentStatusService {
       return of(null);
     }
 
-    return this.firestoreContext.deferObservable$(() => {
+    return this.firestoreContext.deferPromise$(() => {
       const statusRef = doc(
         this.firestore,
         'user_intent_statuses',
         `current_${safeUid}`
       );
 
-      return docData(statusRef, { idField: 'id' }) as Observable<
-        UserIntentStatusFirestoreDocument | undefined
-      >;
+      return getDoc(statusRef);
     }).pipe(
-      map((status) => status ? this.toStatusCardVm(status) : null),
+      map((statusSnap) => {
+        if (!statusSnap.exists()) {
+          return null;
+        }
+
+        return this.toStatusCardVm({
+          id: statusSnap.id,
+          ...(statusSnap.data() as Record<string, unknown>),
+        });
+      }),
       catchError((error) =>
         this.handleSingleReadError(
           error,
@@ -526,7 +533,10 @@ export class UserIntentStatusService {
     operation: string,
     context: Record<string, unknown>
   ): Observable<null> {
-    this.handleWriteError(error, operation, context);
+    if (!this.isPermissionDenied(error)) {
+      this.reportReadError(error, operation, context);
+    }
+
     return of(null);
   }
 
@@ -535,6 +545,10 @@ export class UserIntentStatusService {
     operation: string,
     context: Record<string, unknown>
   ): Observable<T[]> {
+    if (this.isPermissionDenied(error)) {
+      return of([]);
+    }
+
     try {
       const normalizedError =
         error instanceof Error
@@ -576,5 +590,14 @@ export class UserIntentStatusService {
     } catch {
       // noop
     }
+  }
+  private isPermissionDenied(error: unknown): boolean {
+    const source = error as { code?: unknown; message?: unknown } | null | undefined;
+    const code = String(source?.code ?? '').toLowerCase();
+    const message = String(source?.message ?? '').toLowerCase();
+
+    return code.includes('permission-denied')
+      || message.includes('permission')
+      || message.includes('no matching allow statements');
   }
 }
