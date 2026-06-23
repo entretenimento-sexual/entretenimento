@@ -3,14 +3,7 @@
 // USER INTENT STATUS RADAR
 // -----------------------------------------------------------------------------
 // Lista status temporários ativos na região do usuário.
-//
-// Objetivo:
-// - fechar o fluxo mínimo publicar -> descobrir -> interagir;
-// - exibir cards leves, parecidos com status/stories;
-// - manter leitura regional e sem localização precisa;
-// - preservar reatividade com async pipe;
-// - evitar duplicar o próprio status no radar de descoberta;
-// - direcionar interação para rotas/Cloud Functions já existentes.
+// Usa o UID real do Firebase Auth para evitar leitura com UID de perfil divergente.
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
@@ -23,10 +16,11 @@ import {
 } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { Observable, of } from 'rxjs';
-import { map, shareReplay, startWith } from 'rxjs/operators';
+import { distinctUntilChanged, map, shareReplay, startWith, switchMap } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IUserIntentStatusCardVm } from 'src/app/core/interfaces/discovery/user-intent-status.interface';
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { UserIntentStatusService } from 'src/app/core/services/discovery/user-intent-status.service';
 
 interface UserIntentStatusRadarVm {
@@ -50,29 +44,42 @@ export class UserIntentStatusRadarComponent implements OnChanges {
   });
 
   private readonly statusService = inject(UserIntentStatusService);
+  private readonly authSession = inject(AuthSessionService);
+
+  private readonly authUid$ = this.authSession.uid$.pipe(
+    map((uid) => String(uid ?? '').trim()),
+    distinctUntilChanged(),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   ngOnChanges(changes: SimpleChanges): void {
     if (!changes['user']) {
       return;
     }
 
-    const uid = String(this.user?.uid ?? '').trim();
-
-    if (!uid) {
+    if (!this.user) {
       this.vm$ = of({ loading: false, items: [] });
       return;
     }
 
-    this.vm$ = this.statusService.watchActiveStatusesForUserRegion$(uid, {
-      limit: 24,
-    }).pipe(
-      map((items) => ({
-        loading: false,
-        items: items.filter((item) => item.uid !== uid),
-      })),
-      startWith({
-        loading: true,
-        items: [],
+    this.vm$ = this.authUid$.pipe(
+      switchMap((uid) => {
+        if (!uid) {
+          return of({ loading: false, items: [] });
+        }
+
+        return this.statusService.watchActiveStatusesForUserRegion$(uid, {
+          limit: 24,
+        }).pipe(
+          map((items) => ({
+            loading: false,
+            items: items.filter((item) => item.uid !== uid),
+          })),
+          startWith({
+            loading: true,
+            items: [],
+          })
+        );
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
