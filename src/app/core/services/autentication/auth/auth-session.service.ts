@@ -1,22 +1,27 @@
 // src/app/core/services/autentication/auth/auth-session.service.ts
-// Não esquecer os comentários explicativos sobre o propósito do serviço.
-//
-// Fonte única da SESSÃO do Firebase/Auth.
+// -----------------------------------------------------------------------------
+// AUTH SESSION SERVICE
+// -----------------------------------------------------------------------------
+// Fonte única da sessão real do Firebase/Auth.
 //
 // Responsabilidades:
-// - Expor o usuário autenticado real do Firebase
-// - Expor uid$, ready$ e emailVerified$
-// - Oferecer utilitário whenReady() para bootstrap seguro
+// - expor o usuário autenticado real do Firebase;
+// - expor uid$, ready$ e emailVerified$;
+// - oferecer utilitário whenReady() para bootstrap seguro;
+// - oferecer readyAuthUser$ / readyUid$ para leituras Firestore após bootstrap
+//   e com token já validado.
 //
 // Não faz:
-// - Não busca perfil do app (IUserDados)
-// - Não decide acesso de produto
-// - Não orquestra watchers de Firestore
+// - não busca perfil do app (IUserDados);
+// - não decide acesso de produto;
+// - não orquestra watchers de Firestore.
 //
 // Observação arquitetural:
-// - AuthSessionService = verdade da sessão
-// - CurrentUserStoreService = verdade do perfil do app
-// - LogoutService = dono do signOut com side-effects
+// - AuthSessionService = verdade da sessão;
+// - CurrentUserStoreService = verdade do perfil do app;
+// - LogoutService = dono do signOut com side-effects.
+// -----------------------------------------------------------------------------
+
 import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
 import { Observable, defer, from, of } from 'rxjs';
 import {
@@ -26,6 +31,7 @@ import {
   map,
   shareReplay,
   startWith,
+  switchMap,
 } from 'rxjs/operators';
 import {
   Auth,
@@ -34,64 +40,43 @@ import {
   User,
 } from '@angular/fire/auth';
 import { onIdTokenChanged } from 'firebase/auth';
+
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {
-  /**
-   * Usuário real do Firebase Auth.
-   * Fonte única da sessão autenticada.
-   */
+  /** Usuário real do Firebase Auth. Fonte única da sessão autenticada. */
   readonly authUser$: Observable<User | null>;
 
-  /**
-   * UID derivado do authUser$.
-   */
+  /** UID derivado do authUser$. Pode emitir antes do ready$ virar true. */
   readonly uid$: Observable<string | null>;
 
-  /**
-   * Gate de bootstrap:
-   * - TRUE quando o Firebase Auth terminou de restaurar o estado inicial.
-   * - Evita decisões prematuras no cold start / refresh.
-   */
+  /** TRUE quando o Firebase Auth terminou de restaurar o estado inicial. */
   readonly ready$: Observable<boolean>;
 
-  /**
-   * Email verificado segundo o Firebase Auth.
-   * Já considera o gate ready$.
-   */
+  /** Email verificado segundo o Firebase Auth, já considerando ready$. */
   readonly emailVerified$: Observable<boolean>;
 
-  /**
-   * Conveniência: usuário autenticado após bootstrap resolvido.
-   */
+  /** Conveniência: usuário autenticado após bootstrap resolvido. */
   readonly isAuthenticated$: Observable<boolean>;
 
   /**
-   * Cache da promise de bootstrap.
-   * Mantém idempotência em múltiplos consumidores.
+   * Usuário autenticado após bootstrap + validação de token.
+   * Use em leituras Firestore sensíveis que dependem do UID real do Auth.
    */
+  readonly readyAuthUser$: Observable<User | null>;
+
+  /** UID autenticado após bootstrap + validação de token. */
+  readonly readyUid$: Observable<string | null>;
+
+  /** Cache da promise de bootstrap para manter idempotência. */
   private readyPromise: Promise<void> | null = null;
 
-  /**
- * Debug seguro da sessão Firebase/Auth.
- *
- * Canal:
- * localStorage.setItem('DEBUG_AUTH', '1');
- *
- * Este service lida com UID real da sessão. Portanto, não deve usar
- * console.log direto. O PrivacyDebugLoggerService mascara UID/e-mail
- * e só exibe logs quando o canal está ativo.
- */
-private dbg(message: string, extra?: unknown): void {
-  this.privacyDebug.log('auth', `AuthSessionService: ${message}`, extra);
-}
-
-    constructor(
-      private readonly auth: Auth,
-      private readonly envInjector: EnvironmentInjector,
-      private readonly privacyDebug: PrivacyDebugLoggerService
-    ) {
+  constructor(
+    private readonly auth: Auth,
+    private readonly envInjector: EnvironmentInjector,
+    private readonly privacyDebug: PrivacyDebugLoggerService
+  ) {
     this.authUser$ = new Observable<User | null>((subscriber) => {
       const unsub = onIdTokenChanged(
         this.auth,
@@ -114,15 +99,6 @@ private dbg(message: string, extra?: unknown): void {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
-    /**
-     * ready$:
-     * - começa em false
-     * - vira true quando o Auth restaurar o estado inicial
-     *
-     * Em caso de erro inesperado no bootstrap, fazemos fail-open do ready$
-     * para não travar a aplicação indefinidamente.
-     * O bloqueio real continua sendo responsabilidade dos gates superiores.
-     */
     this.ready$ = defer(() => from(this.whenReady())).pipe(
       map(() => true),
       startWith(false),
@@ -147,16 +123,44 @@ private dbg(message: string, extra?: unknown): void {
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
+    this.readyAuthUser$ = this.ready$.pipe(
+      combineLatestWith(this.authUser$),
+      switchMap(([ready, user]) => {
+        const uid = String(user?.uid ?? '').trim();
+
+        if (ready !== true || !uid || !user) {
+          return of(null);
+        }
+
+        return defer(() => from(user.getIdToken())).pipe(
+          map(() => user),
+          catchError((err) => {
+            this.dbg('readyAuthUser$ token error', err);
+            return of(null);
+          })
+        );
+      }),
+      distinctUntilChanged(
+        (a, b) =>
+          (a?.uid ?? null) === (b?.uid ?? null) &&
+          (a?.emailVerified ?? false) === (b?.emailVerified ?? false)
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+    this.readyUid$ = this.readyAuthUser$.pipe(
+      map((user) => user?.uid ?? null),
+      distinctUntilChanged(),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
 
   /**
    * whenReady():
-   * - Prefere authStateReady() quando existir
-   * - Fallback para onAuthStateChanged()
-   *
-   * Regra:
-   * - resolve uma única vez por ciclo de vida do serviço
-   * - não mistura perfil do app aqui
+   * - prefere authStateReady() quando existir;
+   * - fallback para onAuthStateChanged();
+   * - resolve uma única vez por ciclo de vida do serviço.
    */
   whenReady(): Promise<void> {
     if (this.readyPromise) return this.readyPromise;
@@ -194,12 +198,8 @@ private dbg(message: string, extra?: unknown): void {
   }
 
   /**
-   * Compat API.
-   * Idealmente, o app deve preferir LogoutService para sair da sessão,
-   * porque lá vivem presença, navegação e limpeza coordenada.
-   *
-   * Este método existe para compatibilidade, mas já respeita
-   * o Injection Context exigido pelo AngularFire.
+   * Compat API. Preferir LogoutService para sair da sessão porque lá vivem
+   * presença, navegação e limpeza coordenada.
    */
   signOut$(): Observable<void> {
     return defer(() =>
@@ -207,23 +207,13 @@ private dbg(message: string, extra?: unknown): void {
     ).pipe(map(() => void 0));
   }
 
-  /**
-   * Snapshot síncrono do usuário autenticado atual.
-   * Útil apenas para leitura defensiva.
-   */
+  /** Snapshot síncrono do usuário autenticado atual. Usar só defensivamente. */
   get currentAuthUser(): User | null {
     return this.auth.currentUser;
   }
-}
-/*
-src/app/core/services/autentication/auth/auth-session.service.ts
-src/app/core/services/autentication/auth/current-user-store.service.ts
-src/app/core/services/autentication/auth/auth-orchestrator.service.ts
-src/app/core/services/autentication/auth/auth.facade.ts
-src/app/core/services/autentication/auth/logout.service.ts
-*/
-// Verificar migrações de responsabilidades para o:
-// 1 - auth-route-context.service.ts, e;
-// 2 - auth-user-document-watch.service.ts, e;
-// 3 - auth-session-monitor.service.ts.
 
+  /** Debug seguro da sessão Firebase/Auth. */
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('auth', `AuthSessionService: ${message}`, extra);
+  }
+}
