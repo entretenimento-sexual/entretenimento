@@ -2,15 +2,15 @@
 // Componente raiz da aplicação.
 //
 // Responsabilidades:
-// - iniciar diagnósticos globais
-// - iniciar orquestradores globais
-// - manter a casca raiz mínima da aplicação
-// - controlar a exibição global do footer por rota
+// - iniciar diagnósticos globais;
+// - iniciar orquestradores globais;
+// - manter a casca raiz mínima da aplicação;
+// - controlar a exibição global do footer por rota.
 //
 // Importante:
-// - este componente NÃO é dono de navbar/sidebar
-// - o layout autenticado pertence ao LayoutShellComponent
-// - o footer permanece global, com ocultação por rotas específicas
+// - este componente NÃO é dono de navbar/sidebar;
+// - o layout autenticado pertence ao LayoutShellComponent;
+// - o footer institucional fica restrito à experiência pública.
 import { Component, OnInit } from '@angular/core';
 import { Router, NavigationEnd } from '@angular/router';
 import { Observable } from 'rxjs';
@@ -33,8 +33,8 @@ export class AppComponent implements OnInit {
 
   /**
    * Footer global:
-   * - aparece por padrão
-   * - some apenas em rotas que pedem foco máximo (ex.: chat)
+   * - aparece em rotas públicas/institucionais;
+   * - some na experiência logada para não competir com feed, chat e navegação.
    */
   readonly showFooter$: Observable<boolean> = this.router.events.pipe(
     filter((event): event is NavigationEnd => event instanceof NavigationEnd),
@@ -56,19 +56,37 @@ export class AppComponent implements OnInit {
   ngOnInit(): void {
     this.routerDiag.start();
 
-if (!environment.production) {
-  this.authDebug.start();
-}
+    if (!environment.production) {
+      this.authDebug.start();
+    }
 
     this.orchestrator.start();
     this.presenceOrchestrator.start();
   }
 
   private shouldHideFooter(url: string): boolean {
-    const clean = (url ?? '').trim();
+    const clean = this.normalizeUrl(url);
 
-    return (
-      /^\/chat(\/|$)/.test(clean)
-    );
+    return [
+      '/admin-dashboard',
+      '/billing',
+      '/chat',
+      '/checkout',
+      '/dashboard',
+      '/descobrir',
+      '/friends',
+      '/media',
+      '/notificacoes',
+      '/outro-perfil',
+      '/perfil',
+      '/preferencias',
+      '/principal',
+      '/profile-list',
+      '/subscription-plan',
+    ].some((prefix) => clean === prefix || clean.startsWith(`${prefix}/`));
+  }
+
+  private normalizeUrl(url: string): string {
+    return String(url ?? '').trim().split('?')[0].split('#')[0] || '/';
   }
 }
