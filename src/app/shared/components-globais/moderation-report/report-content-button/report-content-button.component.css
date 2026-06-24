@@ -1,0 +1,48 @@
+/* src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component.css */
+:host {
+  display: inline-flex;
+}
+
+.report-button {
+  font-weight: 800;
+}
+
+.report-button--default {
+  min-height: 40px;
+  border-radius: 999px;
+}
+
+.report-button--default mat-icon {
+  margin-right: 6px;
+  font-size: 1.05rem;
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+.report-button--icon {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+}
+
+.report-button--link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: color-mix(in oklab, var(--primary-color, #ff7070) 86%, var(--text-color, #f5f7fb));
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.report-button--link:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
+}
+
+.report-button:focus-visible,
+.report-button--link:focus-visible {
+  outline: 2px solid color-mix(in oklab, var(--primary-color, #ff7070) 70%, #fff 30%);
+  outline-offset: 3px;
+}
