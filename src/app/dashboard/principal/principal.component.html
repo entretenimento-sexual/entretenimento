@@ -3,17 +3,32 @@
   @if (profileChecklist$ | async; as checklist) {
     @if (!checklist.isComplete) {
       <section
-        class="profile-checklist app-card"
+        class="profile-checklist profile-checklist--compact app-card"
         aria-label="Pendências do perfil"
       >
         <div class="profile-checklist__summary">
           <div class="profile-checklist__copy">
-            <h2>{{ checklist.headline }}</h2>
+            <h2>Perfil {{ checklist.progress }}%</h2>
           </div>
 
-          <div class="profile-checklist__meter" aria-label="Progresso do perfil">
-            <strong>{{ checklist.progress }}%</strong>
-            <span>{{ checklist.completed }}/{{ checklist.total }}</span>
+          <div class="profile-checklist__actions">
+            @if (checklist.firstPending) {
+              <a
+                class="principal-action principal-action--small principal-action--primary"
+                [routerLink]="checklist.firstPending.routerLink"
+              >
+                {{ checklist.firstPending.actionLabel }}
+              </a>
+            }
+
+            <button
+              type="button"
+              class="principal-action principal-action--small principal-action--ghost"
+              [attr.aria-expanded]="checklistDetailsOpen() ? 'true' : 'false'"
+              (click)="toggleChecklistDetails()"
+            >
+              {{ checklistDetailsOpen() ? 'Ocultar' : checklist.pending + ' pendências' }}
+            </button>
           </div>
         </div>
 
@@ -27,9 +42,9 @@
           <span [style.width.%]="checklist.progress"></span>
         </div>
 
-        <div class="profile-checklist__items" aria-label="Etapas pendentes do perfil">
-          @for (item of checklist.items; track item.id) {
-            @if (!item.completed) {
+        @if (checklistDetailsOpen()) {
+          <div class="profile-checklist__items" aria-label="Etapas pendentes do perfil">
+            @for (item of checklist.pendingItems; track item.id) {
               <a
                 class="profile-checklist__item"
                 [routerLink]="item.routerLink"
@@ -45,8 +60,8 @@
                 </span>
               </a>
             }
-          }
-        </div>
+          </div>
+        }
       </section>
     }
   }
