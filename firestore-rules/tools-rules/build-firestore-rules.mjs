@@ -55,6 +55,7 @@ const parts = [
   'users_friends.rules',
   'user_profile.rules',
   'users_photos.rules',
+  'users_videos.rules',
   'users_photo_publications.rules',
   'users_blocks.rules',
 
