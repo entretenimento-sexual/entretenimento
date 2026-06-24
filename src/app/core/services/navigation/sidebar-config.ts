@@ -17,6 +17,7 @@
 // Ajustes desta revisão:
 // - mantém Conversas como entrada única na sidebar;
 // - mantém rotas de friends/chat reconhecidas como área Conversas;
+// - remove item de Vídeos enquanto a área estiver desabilitada;
 // - subações ficam no contexto interno do Chat.
 export type SidebarSectionKey =
   | 'dashboard'
@@ -167,15 +168,6 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         icon: '🖼️',
         exact: false,
         ariaLabel: 'Ir para fotos',
-      },
-      {
-        id: 'media-videos',
-        label: 'Vídeos',
-        route: '/media/videos',
-        icon: '🎥',
-        exact: false,
-        ariaLabel: 'Ir para vídeos',
-        disabled: true,
       },
     ],
   },
