@@ -3,6 +3,16 @@
 <section class="intent-composer app-card" aria-labelledby="intent-composer-title">
   <header class="intent-composer__header">
     <h2 id="intent-composer-title">Status de hoje</h2>
+
+    <button
+      type="button"
+      class="btn btn-primary intent-composer__toggle"
+      [attr.aria-expanded]="isComposerExpanded ? 'true' : 'false'"
+      [attr.aria-controls]="'intent-composer-form'"
+      (click)="toggleComposer()"
+    >
+      {{ isComposerExpanded ? 'Fechar' : 'Publicar' }}
+    </button>
   </header>
 
   @if (activeStatus$ | async; as activeStatus) {
@@ -24,128 +34,144 @@
     </aside>
   }
 
-  <form class="intent-composer__form" [formGroup]="form" (ngSubmit)="publish()">
-    <label class="intent-composer__field">
-      <span>Disponibilidade</span>
-      <select formControlName="availability">
-        <option value="available_now">Disponível agora</option>
-        <option value="available_today">Disponível hoje</option>
-        <option value="planning_later">Planejando ir depois</option>
-      </select>
-    </label>
+  @if (isComposerExpanded) {
+    <form
+      id="intent-composer-form"
+      class="intent-composer__form"
+      [formGroup]="form"
+      (ngSubmit)="publish()"
+    >
+      <label class="intent-composer__field">
+        <span>Disponibilidade</span>
+        <select formControlName="availability">
+          <option value="available_now">Disponível agora</option>
+          <option value="available_today">Disponível hoje</option>
+          <option value="planning_later">Planejando ir depois</option>
+        </select>
+      </label>
 
-    <label class="intent-composer__field">
-      <span>Destino</span>
-      <select formControlName="destinationKind">
-        <option value="region">Região</option>
-        <option value="venue">Local</option>
-        <option value="event">Evento</option>
-        <option value="undecided">Decidindo</option>
-      </select>
-    </label>
+      <label class="intent-composer__field">
+        <span>Destino</span>
+        <select formControlName="destinationKind">
+          <option value="region">Região</option>
+          <option value="venue">Local</option>
+          <option value="event">Evento</option>
+          <option value="undecided">Decidindo</option>
+        </select>
+      </label>
 
-    @if ((destinationKind$ | async) === 'venue') {
-      <section class="intent-composer__venues" aria-label="Locais disponíveis">
-        <div class="intent-composer__venues-header">
-          <strong>Locais</strong>
+      @if ((destinationKind$ | async) === 'venue') {
+        <section class="intent-composer__venues" aria-label="Locais disponíveis">
+          <div class="intent-composer__venues-header">
+            <strong>Locais</strong>
 
-          @if (form.controls.venueId.value) {
-            <button
-              type="button"
-              class="btn btn-ghost intent-composer__clear-venue"
-              (click)="clearVenueSelection()"
-            >
-              Texto livre
-            </button>
+            @if (form.controls.venueId.value) {
+              <button
+                type="button"
+                class="btn btn-ghost intent-composer__clear-venue"
+                (click)="clearVenueSelection()"
+              >
+                Texto livre
+              </button>
+            }
+          </div>
+
+          @if (venues$ | async; as venues) {
+            @if (venues.length === 0) {
+              <p class="intent-composer__venues-empty">
+                Nenhum local cadastrado na sua região.
+              </p>
+            } @else {
+              <div class="intent-composer__venue-list" role="list">
+                @for (venue of venues; track venue.id) {
+                  <button
+                    type="button"
+                    class="intent-composer__venue-option"
+                    [class.intent-composer__venue-option--selected]="form.controls.venueId.value === venue.id"
+                    (click)="applyVenue(venue)"
+                  >
+                    <strong>{{ venue.name }}</strong>
+                    <span>{{ venue.kindLabel }} · {{ venue.regionLabel }}</span>
+
+                    @if (venue.sponsorshipLabel) {
+                      <small>{{ venue.sponsorshipLabel }}</small>
+                    }
+                  </button>
+                }
+              </div>
+            }
           }
-        </div>
 
-        @if (venues$ | async; as venues) {
-          @if (venues.length === 0) {
-            <p class="intent-composer__venues-empty">
-              Nenhum local cadastrado na sua região.
+          @if (selectedVenue$ | async; as selectedVenue) {
+            <p class="intent-composer__venue-selected" role="status">
+              <strong>{{ selectedVenue.name }}</strong>
             </p>
-          } @else {
-            <div class="intent-composer__venue-list" role="list">
-              @for (venue of venues; track venue.id) {
-                <button
-                  type="button"
-                  class="intent-composer__venue-option"
-                  [class.intent-composer__venue-option--selected]="form.controls.venueId.value === venue.id"
-                  (click)="applyVenue(venue)"
-                >
-                  <strong>{{ venue.name }}</strong>
-                  <span>{{ venue.kindLabel }} · {{ venue.regionLabel }}</span>
-
-                  @if (venue.sponsorshipLabel) {
-                    <small>{{ venue.sponsorshipLabel }}</small>
-                  }
-                </button>
-              }
-            </div>
           }
-        }
+        </section>
+      }
 
-        @if (selectedVenue$ | async; as selectedVenue) {
-          <p class="intent-composer__venue-selected" role="status">
-            <strong>{{ selectedVenue.name }}</strong>
-          </p>
-        }
-      </section>
-    }
-
-    <label class="intent-composer__field intent-composer__field--wide">
-      <span>Região ou local</span>
-      <input
-        type="text"
-        formControlName="destinationLabel"
-        maxlength="80"
-        placeholder="Centro, Zona Sul, Bar X..."
-        autocomplete="off"
-      />
-    </label>
-
-    <div class="intent-composer__row" aria-label="Região do status">
-      <label class="intent-composer__field">
-        <span>UF</span>
+      <label class="intent-composer__field intent-composer__field--wide">
+        <span>Região ou local</span>
         <input
           type="text"
-          formControlName="uf"
-          maxlength="2"
-          placeholder="RJ"
-          autocomplete="address-level1"
-        />
-      </label>
-
-      <label class="intent-composer__field">
-        <span>Cidade</span>
-        <input
-          type="text"
-          formControlName="city"
+          formControlName="destinationLabel"
           maxlength="80"
-          placeholder="Rio de Janeiro"
-          autocomplete="address-level2"
+          placeholder="Centro, Zona Sul, Bar X..."
+          autocomplete="off"
         />
       </label>
-    </div>
 
-    <label class="intent-composer__field intent-composer__field--wide">
-      <span>Visibilidade</span>
-      <select formControlName="visibility">
-        <option value="public_discovery">Descobrir</option>
-        <option value="members_only">Membros</option>
-        <option value="friends_only">Amigos</option>
-      </select>
-    </label>
+      <div class="intent-composer__row" aria-label="Região do status">
+        <label class="intent-composer__field">
+          <span>UF</span>
+          <input
+            type="text"
+            formControlName="uf"
+            maxlength="2"
+            placeholder="RJ"
+            autocomplete="address-level1"
+          />
+        </label>
 
-    <footer class="intent-composer__footer">
-      <button
-        type="submit"
-        class="btn btn-primary intent-composer__submit"
-        [disabled]="publishing"
-      >
-        {{ publishing ? 'Publicando...' : 'Publicar' }}
-      </button>
-    </footer>
-  </form>
+        <label class="intent-composer__field">
+          <span>Cidade</span>
+          <input
+            type="text"
+            formControlName="city"
+            maxlength="80"
+            placeholder="Rio de Janeiro"
+            autocomplete="address-level2"
+          />
+        </label>
+      </div>
+
+      <label class="intent-composer__field intent-composer__field--wide">
+        <span>Visibilidade</span>
+        <select formControlName="visibility">
+          <option value="public_discovery">Descobrir</option>
+          <option value="members_only">Membros</option>
+          <option value="friends_only">Amigos</option>
+        </select>
+      </label>
+
+      <footer class="intent-composer__footer">
+        <button
+          type="button"
+          class="btn btn-ghost intent-composer__cancel"
+          [disabled]="publishing"
+          (click)="closeComposer()"
+        >
+          Cancelar
+        </button>
+
+        <button
+          type="submit"
+          class="btn btn-primary intent-composer__submit"
+          [disabled]="publishing"
+        >
+          {{ publishing ? 'Publicando...' : 'Publicar' }}
+        </button>
+      </footer>
+    </form>
+  }
 </section>
