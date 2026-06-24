@@ -1,0 +1,79 @@
+<!-- src/app/shared/components-globais/moderation-report/report-content-dialog/report-content-dialog.component.html -->
+<section class="report-dialog" aria-labelledby="report-dialog-title">
+  <header class="report-dialog__header">
+    <span class="report-dialog__eyebrow">Segurança da comunidade</span>
+
+    <h2 id="report-dialog-title" mat-dialog-title>
+      Denunciar {{ targetLabel() }}
+    </h2>
+
+    <p>
+      A denúncia ajuda a equipe a revisar comportamentos ou conteúdos que possam violar as regras da plataforma.
+    </p>
+
+    @if (data.subtitle) {
+      <small>{{ data.subtitle }}</small>
+    }
+  </header>
+
+  <mat-dialog-content class="report-dialog__content">
+    <form class="report-dialog__form" [formGroup]="form" (ngSubmit)="submit()">
+      <mat-form-field appearance="outline">
+        <mat-label>Motivo</mat-label>
+        <mat-select formControlName="reason" required aria-label="Motivo da denúncia">
+          @for (reason of reasons; track reason.value) {
+            <mat-option [value]="reason.value">
+              {{ reason.label }}
+            </mat-option>
+          }
+        </mat-select>
+
+        @if (form.controls.reason.touched && form.controls.reason.hasError('required')) {
+          <mat-error>Selecione um motivo.</mat-error>
+        }
+      </mat-form-field>
+
+      @if (selectedReasonHelper; as helper) {
+        <p class="report-dialog__helper" role="status">
+          {{ helper }}
+        </p>
+      }
+
+      <mat-form-field appearance="outline">
+        <mat-label>Detalhes opcionais</mat-label>
+        <textarea
+          matInput
+          cdkTextareaAutosize
+          cdkAutosizeMinRows="3"
+          cdkAutosizeMaxRows="6"
+          formControlName="details"
+          maxlength="1200"
+          placeholder="Inclua contexto útil para a revisão. Não envie dados sensíveis sem necessidade."
+          aria-label="Detalhes opcionais da denúncia"
+        ></textarea>
+        <mat-hint align="end">
+          {{ form.controls.details.value.length || 0 }}/1200
+        </mat-hint>
+        @if (form.controls.details.hasError('maxlength')) {
+          <mat-error>Use até 1200 caracteres.</mat-error>
+        }
+      </mat-form-field>
+    </form>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end" class="report-dialog__actions">
+    <button mat-button type="button" (click)="cancel()" [disabled]="submitting()">
+      Cancelar
+    </button>
+
+    <button
+      mat-flat-button
+      color="warn"
+      type="button"
+      (click)="submit()"
+      [disabled]="form.invalid || submitting()"
+    >
+      Enviar denúncia
+    </button>
+  </mat-dialog-actions>
+</section>
