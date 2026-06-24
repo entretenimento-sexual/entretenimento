@@ -1,0 +1,87 @@
+/* src/app/shared/components-globais/moderation-report/report-content-dialog/report-content-dialog.component.css */
+:host {
+  display: block;
+}
+
+.report-dialog {
+  width: min(100%, 520px);
+  color: var(--text-color, #f5f7fb);
+}
+
+.report-dialog__header {
+  display: grid;
+  gap: 6px;
+  padding: 22px 22px 0;
+}
+
+.report-dialog__eyebrow {
+  color: var(--primary-color, #ff7070);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.report-dialog__header h2 {
+  margin: 0;
+  padding: 0;
+  font-size: clamp(1.2rem, 1rem + 0.8vw, 1.6rem);
+  line-height: 1.15;
+}
+
+.report-dialog__header p,
+.report-dialog__header small,
+.report-dialog__helper {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.report-dialog__content {
+  padding: 18px 22px 0;
+}
+
+.report-dialog__form {
+  display: grid;
+  gap: 12px;
+}
+
+.report-dialog__helper {
+  padding: 10px 12px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 20%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 8%, transparent);
+}
+
+.report-dialog__actions {
+  gap: 8px;
+  padding: 18px 22px 22px;
+}
+
+.report-dialog__actions button {
+  min-height: 40px;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+@media (max-width: 560px) {
+  .report-dialog {
+    width: 100%;
+  }
+
+  .report-dialog__header,
+  .report-dialog__content,
+  .report-dialog__actions {
+    padding-inline: 16px;
+  }
+
+  .report-dialog__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .report-dialog__actions button {
+    width: 100%;
+  }
+}
