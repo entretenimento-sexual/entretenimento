@@ -2,22 +2,23 @@
 // Configuração central do sidebar autenticado.
 //
 // Objetivo:
-// - centralizar seções e itens
-// - evitar navegação hardcoded em múltiplos componentes
-// - permitir filtragem por capacidades (assinante / vip / admin)
-// - manter tipagem forte para SidebarSectionKey
+// - centralizar seções e itens;
+// - evitar navegação hardcoded em múltiplos componentes;
+// - permitir filtragem por capacidades (assinante / vip / admin);
+// - manter tipagem forte para SidebarSectionKey;
+// - alinhar a navegação desktop com a bottom nav mobile.
 //
 // Observação:
-// - este arquivo é puro
-// - não injeta services
-// - não consulta Router
-// - não consulta Firestore
+// - este arquivo é puro;
+// - não injeta services;
+// - não consulta Router;
+// - não consulta Firestore.
 //
 // Ajustes desta revisão:
-// - mantém gating explícito para admin
-// - melhora matchers da seção "Conta"
-// - alinha rotas de amizade ao padrão /friends/list
-// - amplia a seção "Conta" com atalhos coerentes
+// - unifica Descoberta/Perfis sob a área visual "Descobrir";
+// - move amizades/solicitações para "Conversas" como contexto de contato;
+// - renomeia a área principal para "Hoje";
+// - preserva rotas existentes e deep links.
 export type SidebarSectionKey =
   | 'dashboard'
   | 'explore'
@@ -92,29 +93,25 @@ const SECTION_MATCHERS: ReadonlyArray<{
     ],
   },
   {
-  key: 'explore',
-  prefixes: ['/descobrir'],
+    key: 'explore',
+    prefixes: [
+      '/dashboard/explorar',
+      '/descobrir',
+      '/dashboard/online',
+      '/dashboard/online-users',
+      '/perfis-proximos',
+      '/outro-perfil',
+      '/profile-list',
+    ],
   },
   {
     key: 'chat',
-    prefixes: ['/chat'],
+    prefixes: ['/chat', '/friends'],
   },
   {
     key: 'media',
     prefixes: ['/media'],
   },
-{
-  key: 'profiles',
-  prefixes: [
-    '/dashboard/explorar',
-    '/dashboard/online',
-    '/dashboard/online-users',
-    '/friends',
-    '/perfis-proximos',
-    '/outro-perfil',
-    '/profile-list',
-  ],
-},
   {
     key: 'settings',
     prefixes: ['/perfil', '/perfil-debug', '/preferencias', '/conta'],
@@ -128,59 +125,29 @@ const SECTION_MATCHERS: ReadonlyArray<{
 const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
   {
     key: 'dashboard',
-    title: 'Início',
+    title: 'Hoje',
     items: [
       {
         id: 'dashboard-home',
-        label: 'Principal',
+        label: 'Hoje',
         route: '/dashboard/principal',
         icon: '🏠',
         exact: false,
-        ariaLabel: 'Ir para a página principal',
+        ariaLabel: 'Ir para Hoje',
       },
     ],
   },
   {
-  key: 'explore',
-  title: 'Descoberta',
-  items: [
-    {
-      id: 'discover',
-      label: 'Descobrir',
-      route: '/descobrir',
-      icon: '✨',
-      exact: false,
-      ariaLabel: 'Descobrir conteúdos, perfis, salas e tendências',
-    },
-  ],
-  },
-  {
-    key: 'profiles',
-    title: 'Perfis',
+    key: 'explore',
+    title: 'Descobrir',
     items: [
       {
-        id: 'profiles-discovery',
-        label: 'Explorar perfis',
+        id: 'discover',
+        label: 'Descobrir',
         route: '/dashboard/explorar',
-        icon: '🔎',
+        icon: '✨',
         exact: false,
-        ariaLabel: 'Explorar perfis online',
-      },
-      {
-        id: 'friends',
-        label: 'Amizades',
-        route: '/friends/list',
-        icon: '👥',
-        exact: false,
-        ariaLabel: 'Ir para gerenciamento de amizades',
-      },
-      {
-        id: 'friend-requests',
-        label: 'Solicitações',
-        route: '/friends/requests',
-        icon: '🤝',
-        exact: false,
-        ariaLabel: 'Consultar solicitações de amizade recebidas e enviadas',
+        ariaLabel: 'Descobrir perfis, status e recomendações',
       },
     ],
   },
@@ -195,6 +162,22 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         icon: '💬',
         exact: true,
         ariaLabel: 'Ir para conversas privadas',
+      },
+      {
+        id: 'friends',
+        label: 'Conexões',
+        route: '/friends/list',
+        icon: '👥',
+        exact: false,
+        ariaLabel: 'Ir para conexões e amizades',
+      },
+      {
+        id: 'friend-requests',
+        label: 'Solicitações',
+        route: '/friends/requests',
+        icon: '🤝',
+        exact: false,
+        ariaLabel: 'Consultar solicitações de amizade recebidas e enviadas',
       },
       {
         id: 'chat-rooms',
@@ -271,7 +254,7 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
   },
   {
     key: 'settings',
-    title: 'Conta',
+    title: 'Perfil',
     items: [
       {
         id: 'my-profile',
@@ -282,20 +265,20 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         ariaLabel: 'Ir para meu perfil',
       },
       {
-        id: 'my-account',
-        label: 'Minha conta',
-        route: '/conta',
-        icon: '🧾',
-        exact: false,
-        ariaLabel: 'Ir para a área da conta',
-      },
-      {
         id: 'preferences',
         label: 'Preferências',
         route: '/preferencias',
         icon: '⚙️',
         exact: false,
         ariaLabel: 'Ir para preferências',
+      },
+      {
+        id: 'my-account',
+        label: 'Minha conta',
+        route: '/conta',
+        icon: '🧾',
+        exact: false,
+        ariaLabel: 'Ir para a área da conta',
       },
     ],
   },
