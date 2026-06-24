@@ -4,11 +4,7 @@
   @if (vm$ | async; as vm) {
     <header class="intent-radar__header">
       <div class="intent-radar__heading">
-        <span class="intent-radar__eyebrow">Status ao vivo</span>
-        <h2 id="intent-radar-title">Pessoas disponíveis hoje</h2>
-        <p>
-          Perfis da sua região com intenção ativa. Escolha com calma: veja o perfil antes de chamar.
-        </p>
+        <h2 id="intent-radar-title">Pessoas disponíveis</h2>
       </div>
 
       @if (!vm.loading) {
@@ -20,12 +16,11 @@
 
     @if (vm.loading) {
       <div class="intent-radar__state" role="status" aria-live="polite">
-        Carregando status ativos...
+        Carregando...
       </div>
     } @else if (vm.items.length === 0) {
       <div class="intent-radar__state intent-radar__state--empty" role="status">
-        <strong>Ninguém disponível na sua região agora.</strong>
-        <span>Publique seu status para aparecer em Descobrir e iniciar movimento.</span>
+        <strong>Ninguém disponível agora.</strong>
       </div>
     } @else {
       <div class="intent-radar__rail" aria-label="Status de intenção ativos">
@@ -52,7 +47,7 @@
 
             <div class="intent-status-card__body">
               <span class="intent-status-card__label">
-                {{ status.destination.kind === 'venue' ? 'Local de interesse' : 'Região de interesse' }}
+                {{ status.destination.kind === 'venue' ? 'Local' : 'Região' }}
               </span>
 
               <p class="intent-status-card__destination">
@@ -71,7 +66,7 @@
                 [routerLink]="['/perfil', status.uid]"
                 [attr.aria-label]="'Ver perfil de ' + status.profile.nickname"
               >
-                Ver perfil
+                Perfil
               </a>
 
               <a
