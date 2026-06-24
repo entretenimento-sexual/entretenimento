@@ -116,6 +116,18 @@
                 {{ (directChatBusy$ | async) ? 'Preparando...' : 'Iniciar chat' }}
               </span>
             </button>
+
+            <app-report-content-button
+              class="other-profile-page__report-button"
+              targetType="profile"
+              [targetId]="uid || ''"
+              [targetOwnerUid]="uid"
+              [title]="displayName"
+              subtitle="A denúncia será enviada para análise da moderação."
+              label="Denunciar perfil"
+              appearance="button"
+              [disabled]="!uid"
+            ></app-report-content-button>
           </div>
         </aside>
       </section>
