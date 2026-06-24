@@ -1,6 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-06-24T10:41:02.136Z
+// Generated at: 2026-06-24T21:53:09.683Z
 
 // ===== _helpers.rules =====
 // ===============================================================
@@ -2312,6 +2312,148 @@ match /users/{userId}/imageStates/{stateId} {
 }
 // ===============================================================
 //                   FIM DO PHOTOS + IMAGESTATES
+// ===============================================================
+
+// ===== users_videos.rules =====
+// ===============================================================
+// USERS / videos
+// - Biblioteca privada de vídeos do usuário
+// - Somente o dono lê/escreve
+// - Sem publicação pública nesta etapa
+// - Sem enumeração por terceiros
+// - Metadados críticos protegidos contra forja pelo client
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// firestore-rules/users_videos.rules
+// ===============================================================
+match /users/{userId}/videos/{videoId} {
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "id",
+      "ownerUid",
+      "url",
+      "path",
+      "fileName",
+      "mimeType",
+      "sizeBytes",
+      "durationMs",
+      "thumbnailUrl",
+      "status",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  function requiredKeys() {
+    return request.resource.data.keys().hasAll([
+      "id",
+      "ownerUid",
+      "url",
+      "path",
+      "fileName",
+      "mimeType",
+      "sizeBytes",
+      "status",
+      "createdAt"
+    ]);
+  }
+
+  function validText(field, maxSize) {
+    return request.resource.data[field] is string
+      && request.resource.data[field].size() > 0
+      && request.resource.data[field].size() <= maxSize;
+  }
+
+  function validTextOrNull(field, maxSize) {
+    return !hasReqField(field)
+      || request.resource.data[field] == null
+      || (
+        request.resource.data[field] is string
+        && request.resource.data[field].size() <= maxSize
+      );
+  }
+
+  function validNumberOrNull(field) {
+    return !hasReqField(field)
+      || request.resource.data[field] == null
+      || (
+        request.resource.data[field] is number
+        && request.resource.data[field] >= 0
+      );
+  }
+
+  function validStatus() {
+    return request.resource.data.status in [
+      "uploaded",
+      "processing",
+      "ready",
+      "failed"
+    ];
+  }
+
+  function validMimeType() {
+    return request.resource.data.mimeType in [
+      "video/mp4",
+      "video/webm",
+      "video/quicktime"
+    ];
+  }
+
+  function validBasePayload() {
+    return allowedKeys()
+      && requiredKeys()
+      && request.resource.data.id == videoId
+      && request.resource.data.ownerUid == userId
+      && validText("url", 2048)
+      && validText("path", 1024)
+      && validText("fileName", 240)
+      && validMimeType()
+      && request.resource.data.sizeBytes is number
+      && request.resource.data.sizeBytes >= 0
+      && request.resource.data.sizeBytes <= 524288000
+      && validNumberOrNull("durationMs")
+      && validTextOrNull("thumbnailUrl", 2048)
+      && validStatus();
+  }
+
+  function validCreatePayload() {
+    return validBasePayload()
+      && request.resource.data.createdAt == request.time
+      && (
+        !hasReqField("updatedAt")
+        || request.resource.data.updatedAt == null
+        || request.resource.data.updatedAt == request.time
+      );
+  }
+
+  function validUpdatePayload() {
+    return validBasePayload()
+      && request.resource.data.id == resource.data.id
+      && request.resource.data.ownerUid == resource.data.ownerUid
+      && request.resource.data.path == resource.data.path
+      && request.resource.data.url == resource.data.url
+      && request.resource.data.createdAt == resource.data.createdAt
+      && request.resource.data.updatedAt == request.time
+      && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        "status",
+        "durationMs",
+        "thumbnailUrl",
+        "updatedAt"
+      ]);
+  }
+
+  allow get, list: if isSelf(userId);
+
+  allow create: if isSelf(userId)
+    && validCreatePayload();
+
+  allow update: if isSelf(userId)
+    && validUpdatePayload();
+
+  allow delete: if isSelf(userId);
+}
+// ===============================================================
+//                         FIM DO USERS / VIDEOS
 // ===============================================================
 
 // ===== users_photo_publications.rules =====
