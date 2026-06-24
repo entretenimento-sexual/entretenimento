@@ -1,0 +1,44 @@
+<!-- src/app/media/videos/profile-videos/profile-videos.component.html -->
+
+<section class="profile-videos" aria-labelledby="profile-videos-title">
+  <header class="profile-videos__header">
+    <h1 id="profile-videos-title">Vídeos</h1>
+  </header>
+
+  @if (isOwner$ | async) {
+    @if (videos$ | async; as videos) {
+      @if (videos.length > 0) {
+        <div class="profile-videos__grid" aria-label="Meus vídeos privados">
+          @for (video of videos; track trackByVideoId($index, video)) {
+            <article class="profile-videos__card">
+              <div class="profile-videos__media">
+                <video
+                  [src]="video.url"
+                  preload="metadata"
+                  controls
+                  playsinline
+                ></video>
+              </div>
+
+              <div class="profile-videos__body">
+                <strong>{{ video.fileName || 'Vídeo' }}</strong>
+                <span>{{ formatFileSize(video.sizeBytes) }}</span>
+                <span>{{ video.status }}</span>
+              </div>
+            </article>
+          }
+        </div>
+      } @else {
+        <div class="profile-videos__empty" role="status">
+          <strong>Nenhum vídeo privado ainda.</strong>
+          <span>Upload e publicação serão ativados em etapa segura.</span>
+        </div>
+      }
+    }
+  } @else {
+    <div class="profile-videos__empty" role="status">
+      <strong>Vídeos privados.</strong>
+      <span>Esta área é visível apenas para o dono do perfil.</span>
+    </div>
+  }
+</section>
