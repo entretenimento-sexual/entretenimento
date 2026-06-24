@@ -9,7 +9,8 @@
 // - recebe a URL atual do LayoutShell;
 // - não substitui a sidebar universal no desktop;
 // - fica oculto em chat para não competir com teclado/thread;
-// - usa rotas já existentes e sólidas.
+// - reduz a navegação fixa para quatro áreas mentais: Hoje, Descobrir, Chat e Perfil;
+// - mantém rotas existentes para não quebrar deep links ou guards.
 // -----------------------------------------------------------------------------
 
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
@@ -37,58 +38,62 @@ interface MobileBottomNavItem {
 })
 export class MobileBottomNavComponent {
   @Input() currentUrl = '/';
+
+  /**
+   * Entrada preservada para compatibilidade com o LayoutShell atual.
+   *
+   * SUPRESSÃO EXPLÍCITA:
+   * - a badge de solicitações saiu da bottom nav.
+   *
+   * Motivo:
+   * - Conexões deixou de ser destino fixo principal no mobile.
+   * - solicitações passam a ser ação contextual dentro de Chat/Perfil.
+   */
   @Input() friendRequestsCount = 0;
 
-  get items(): MobileBottomNavItem[] {
-    const safeFriendRequestsCount = this.normalizeBadgeCount(this.friendRequestsCount);
-
-    return [
-      {
-        id: 'home',
-        label: 'Início',
-        icon: '🏠',
-        route: ['/dashboard', 'principal'],
-        activePrefixes: ['/dashboard/principal', '/principal'],
-        exact: true,
-        ariaLabel: 'Ir para a página principal',
-      },
-      {
-        id: 'discover',
-        label: 'Descobrir',
-        icon: '✨',
-        route: ['/descobrir'],
-        activePrefixes: ['/descobrir'],
-        ariaLabel: 'Abrir descoberta social',
-      },
-      {
-        id: 'explore',
-        label: 'Explorar',
-        icon: '🔎',
-        route: ['/dashboard', 'explorar'],
-        activePrefixes: ['/dashboard/explorar'],
-        ariaLabel: 'Explorar perfis e Status de Hoje',
-      },
-      {
-        id: 'connections',
-        label: 'Conexões',
-        icon: '👥',
-        route: ['/friends', 'list'],
-        activePrefixes: ['/friends'],
-        ariaLabel: safeFriendRequestsCount > 0
-          ? `Abrir conexões. ${safeFriendRequestsCount} solicitações pendentes.`
-          : 'Abrir conexões',
-        badgeCount: safeFriendRequestsCount,
-      },
-      {
-        id: 'chat',
-        label: 'Chat',
-        icon: '💬',
-        route: ['/chat'],
-        activePrefixes: ['/chat'],
-        ariaLabel: 'Abrir conversas',
-      },
-    ];
-  }
+  readonly items: MobileBottomNavItem[] = [
+    {
+      id: 'today',
+      label: 'Hoje',
+      icon: '🏠',
+      route: ['/dashboard', 'principal'],
+      activePrefixes: ['/dashboard/principal', '/principal'],
+      exact: true,
+      ariaLabel: 'Ir para Hoje',
+    },
+    {
+      id: 'discover',
+      label: 'Descobrir',
+      icon: '✨',
+      route: ['/dashboard', 'explorar'],
+      activePrefixes: [
+        '/dashboard/explorar',
+        '/descobrir',
+        '/outro-perfil',
+        '/profile-list',
+        '/perfis-proximos',
+        '/dashboard/online',
+        '/dashboard/online-users',
+      ],
+      ariaLabel: 'Descobrir perfis, status e recomendações',
+    },
+    {
+      id: 'chat',
+      label: 'Chat',
+      icon: '💬',
+      route: ['/chat'],
+      activePrefixes: ['/chat', '/friends'],
+      ariaLabel: 'Abrir conversas, convites e conexões',
+    },
+    {
+      id: 'profile',
+      label: 'Perfil',
+      icon: '🙍',
+      route: ['/perfil'],
+      activePrefixes: ['/perfil', '/preferencias', '/conta', '/subscription-plan'],
+      ariaLabel: 'Abrir perfil, preferências e conta',
+    },
+  ];
 
   isActive(item: MobileBottomNavItem): boolean {
     const clean = this.normalizeUrl(this.currentUrl);
