@@ -15,10 +15,9 @@
 // - não consulta Firestore.
 //
 // Ajustes desta revisão:
-// - unifica Descoberta/Perfis sob a área visual "Descobrir";
-// - move amizades/solicitações para "Conversas" como contexto de contato;
-// - renomeia a área principal para "Hoje";
-// - preserva rotas existentes e deep links.
+// - mantém Conversas como entrada única na sidebar;
+// - mantém rotas de friends/chat reconhecidas como área Conversas;
+// - subações ficam no contexto interno do Chat.
 export type SidebarSectionKey =
   | 'dashboard'
   | 'explore'
@@ -66,14 +65,6 @@ export interface SidebarAccessFlags {
   isAdmin?: boolean;
 }
 
-/**
- * Ordem importa.
- *
- * Matchers mais específicos devem vir antes dos mais amplos.
- * Exemplo:
- * - /dashboard/featured-profiles pertence semanticamente à área de assinatura,
- *   então subscriptions precisa ser avaliado antes de dashboard.
- */
 const SECTION_MATCHERS: ReadonlyArray<{
   key: SidebarSectionKey;
   prefixes: readonly string[];
@@ -157,43 +148,11 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
     items: [
       {
         id: 'chat-list',
-        label: 'Chats',
+        label: 'Conversas',
         route: '/chat',
         icon: '💬',
-        exact: true,
-        ariaLabel: 'Ir para conversas privadas',
-      },
-      {
-        id: 'friends',
-        label: 'Conexões',
-        route: '/friends/list',
-        icon: '👥',
         exact: false,
-        ariaLabel: 'Ir para conexões e amizades',
-      },
-      {
-        id: 'friend-requests',
-        label: 'Solicitações',
-        route: '/friends/requests',
-        icon: '🤝',
-        exact: false,
-        ariaLabel: 'Consultar solicitações de amizade recebidas e enviadas',
-      },
-      {
-        id: 'chat-rooms',
-        label: 'Salas',
-        route: '/chat/rooms',
-        icon: '🧩',
-        exact: true,
-        ariaLabel: 'Ir para salas',
-      },
-      {
-        id: 'chat-invites',
-        label: 'Convites',
-        route: '/chat/invite-list',
-        icon: '📨',
-        exact: true,
-        ariaLabel: 'Ir para convites',
+        ariaLabel: 'Abrir conversas, conexões, salas e convites',
       },
     ],
   },
