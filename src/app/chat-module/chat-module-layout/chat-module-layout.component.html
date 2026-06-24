@@ -60,15 +60,23 @@
 
         @if (!selectedType || !selectedChatId) {
           <div class="chat-shell__empty-state" role="status" aria-live="polite">
-            <p class="chat-shell__empty-title">Nenhuma conversa aberta.</p>
+            <p class="chat-shell__empty-title">Conversas</p>
 
-            <p class="chat-shell__empty-text">
-              Selecione uma conversa na lateral.
-            </p>
+            <div class="chat-shell__empty-actions" aria-label="Atalhos de conversa">
+              <a class="btn btn-primary" routerLink="/friends/list">
+                Conexões
+              </a>
 
-            <div class="chat-shell__empty-actions">
-              <a class="btn btn-primary" routerLink="/chat/invite-list">
-                Ver convites
+              <a class="btn btn-ghost" routerLink="/friends/requests">
+                Solicitações
+              </a>
+
+              <a class="btn btn-ghost" routerLink="/chat/rooms">
+                Salas
+              </a>
+
+              <a class="btn btn-ghost" routerLink="/chat/invite-list">
+                Convites
               </a>
             </div>
           </div>
