@@ -1,6 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-06-18T03:07:19.467Z
+// Generated at: 2026-06-24T10:41:02.136Z
 
 // ===== _helpers.rules =====
 // ===============================================================
@@ -102,14 +102,17 @@ function optTimestamp(k) {
 //
 // Responsabilidade:
 // - permitir ao próprio usuário atualizar dados comuns de perfil;
-// - impedir adulteração de autenticação, privilégios, billing e lifecycle;
+// - impedir adulteração de autenticação, privilégios, billing, lifecycle
+//   e compliance;
 // - permitir que criação inicial traga somente valores seguros/default;
-// - reservar alterações administrativas/financeiras para backend confiável.
+// - reservar alterações administrativas/financeiras/compliance para backend
+//   confiável.
 //
 // Segurança:
 // - Cloud Functions com Admin SDK podem atualizar campos protegidos;
 // - cliente web/mobile nunca deve promover role, ativar assinatura,
-//   criar entitlement embutido ou manipular suspensão/exclusão;
+//   criar entitlement embutido, manipular suspensão/exclusão ou registrar
+//   consentimento adulto diretamente;
 // - claims administrativas continuam sendo a autoridade para ações de staff.
 //
 // Correção crítica já preservada:
@@ -145,6 +148,9 @@ match /users/{userId} {
    */
   function selfChangingSensitiveKeys() {
     return request.resource.data.diff(resource.data).changedKeys().hasAny([
+      // Compliance / aceite adulto
+      "adultConsent",
+
       // Plano / autorização financeira
       "role",
       "tier",
@@ -222,12 +228,15 @@ match /users/{userId} {
    * Valores aceitáveis na criação de um novo usuário pelo cliente.
    *
    * Campos de acesso podem existir somente com defaults não privilegiados.
-   * Benefícios pagos, transações e estados de lifecycle não podem nascer
-   * ativos por payload enviado pelo navegador.
+   * Benefícios pagos, transações, estados de lifecycle e aceite de compliance
+   * não podem nascer ativos por payload enviado pelo navegador.
    */
   function createDefaultsOk() {
     return request.resource.data.keys().hasAny(["uid"])
       && request.resource.data.uid == uid()
+
+      // Compliance inicial: aceite adulto é gravado pela Cloud Function
+      && !hasField("adultConsent")
 
       // Projeção financeira inicial sem benefício pago
       && (!hasField("role") || request.resource.data.role == "free")
@@ -440,9 +449,19 @@ match /public_profiles/{userId} {
     return request.resource.data.keys().hasAny([field]);
   }
 
+  // Existe no documento atual?
+  function hasExistingField(field) {
+    return resource.data.keys().hasAny([field]);
+  }
+
   // Retorna valor ou null (se ausente)
   function fieldOrNull(field) {
     return hasField(field) ? request.resource.data[field] : null;
+  }
+
+  // Retorna valor existente ou null (se ausente)
+  function existingFieldOrNull(field) {
+    return hasExistingField(field) ? resource.data[field] : null;
   }
 
   // String opcional, com range de tamanho
@@ -451,6 +470,22 @@ match /public_profiles/{userId} {
       || request.resource.data[field] == null
       || (request.resource.data[field] is string
           && request.resource.data[field].size() >= min
+          && request.resource.data[field].size() <= max);
+  }
+
+  // Boolean opcional
+  function optBool(field) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is bool;
+  }
+
+  // Lista opcional com limite de tamanho.
+  // Os valores canônicos são escritos pelo backend; no cliente, os campos ficam imutáveis.
+  function optListMax(field, max) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is list
           && request.resource.data[field].size() <= max);
   }
 
@@ -477,6 +512,8 @@ match /public_profiles/{userId} {
     return !hasField(field)
       || request.resource.data[field] == null
       || (request.resource.data[field] is string
+          && request.resource.data[field].size() >= 5
+          && request.resource.data[field].size() <= 12
           && request.resource.data[field]
             .matches('^[0123456789bcdefghjkmnpqrstuvwxyz]{5,12}$'));
   }
@@ -497,6 +534,27 @@ match /public_profiles/{userId} {
       || (lat != null && lng != null && gh != null);
   }
 
+  // Campos canônicos de discovery são server-owned.
+  function noClientDiscoveryFieldsOnCreate() {
+    return !request.resource.data.keys().hasAny([
+      "normalizedGender",
+      "normalizedOrientation",
+      "interestedInGenders",
+      "interestedInOrientations",
+      "compatibilityReady",
+      "discoveryNormalizedAt"
+    ]);
+  }
+
+  function discoveryFieldsUnchangedOnUpdate() {
+    return fieldOrNull("normalizedGender") == existingFieldOrNull("normalizedGender")
+      && fieldOrNull("normalizedOrientation") == existingFieldOrNull("normalizedOrientation")
+      && fieldOrNull("interestedInGenders") == existingFieldOrNull("interestedInGenders")
+      && fieldOrNull("interestedInOrientations") == existingFieldOrNull("interestedInOrientations")
+      && fieldOrNull("compatibilityReady") == existingFieldOrNull("compatibilityReady")
+      && fieldOrNull("discoveryNormalizedAt") == existingFieldOrNull("discoveryNormalizedAt");
+  }
+
   // -----------------------------------------------------------------------
   // Whitelist rígida: nenhum campo fora do schema
   // -----------------------------------------------------------------------
@@ -511,6 +569,12 @@ match /public_profiles/{userId} {
       "estado",
       "gender",
       "orientation",
+      "normalizedGender",
+      "normalizedOrientation",
+      "interestedInGenders",
+      "interestedInOrientations",
+      "compatibilityReady",
+      "discoveryNormalizedAt",
       "role",
       "latitude",
       "longitude",
@@ -534,6 +598,7 @@ match /public_profiles/{userId} {
       // timestamps: tipo (o "server time" é forçado no allow create/update)
       && optTimestamp("createdAt")
       && optTimestamp("updatedAt")
+      && optTimestamp("discoveryNormalizedAt")
 
       // nickname + normalized coerentes
       && nicknameCoherent()
@@ -563,6 +628,11 @@ match /public_profiles/{userId} {
       && optStringSized("estado", 1, 40)
       && optStringSized("gender", 1, 40)
       && optStringSized("orientation", 1, 40)
+      && optStringSized("normalizedGender", 3, 20)
+      && optStringSized("normalizedOrientation", 3, 20)
+      && optListMax("interestedInGenders", 8)
+      && optListMax("interestedInOrientations", 8)
+      && optBool("compatibilityReady")
 
       // role: criação força "free" e update impede mudança pelo cliente
       && optStringSized("role", 3, 20);
@@ -573,10 +643,12 @@ match /public_profiles/{userId} {
   // - somente dono
   // - createdAt/updatedAt obrigatoriamente serverTimestamp() => request.time
   // - role inicial obrigatoriamente "free"
+  // - campos canônicos de discovery são gerados pelo backend, não pelo cliente
   // -----------------------------------------------------------------------
   allow create: if (
     isSelf(userId)
     && validPublicProfilePayload()
+    && noClientDiscoveryFieldsOnCreate()
     && request.resource.data.createdAt == request.time
     && request.resource.data.updatedAt == request.time
     && request.resource.data.role == "free"
@@ -588,10 +660,12 @@ match /public_profiles/{userId} {
   // - uid e createdAt imutáveis
   // - updatedAt obrigatoriamente serverTimestamp() => request.time
   // - role imutável (anti auto-elevação)
+  // - campos canônicos de discovery são imutáveis pelo cliente
   // -----------------------------------------------------------------------
   allow update: if (
     isSelf(userId)
     && validPublicProfilePayload()
+    && discoveryFieldsUnchangedOnUpdate()
     && request.resource.data.uid == resource.data.uid
     && request.resource.data.createdAt == resource.data.createdAt
     && request.resource.data.updatedAt == request.time
@@ -827,6 +901,255 @@ match /presence/{presenceUid} {
                         // FIM DO PRESENCE.RULES
 // ================================================================
 
+// ===== user_intent_statuses.rules =====
+// firestore-rules/user_intent_statuses.rules
+// ============================================================================
+// USER INTENT STATUSES / STATUS DE HOJE
+// ============================================================================
+// Status temporário de disponibilidade/intenção do usuário.
+//
+// Segurança:
+// - leitura pública do app exige login e status ativo/visível;
+// - o usuário pode ler o próprio documento current_{uid}, inclusive vazio;
+// - escrita comum direta é bloqueada;
+// - publicação/ocultação devem passar pelas Cloud Functions;
+// - expiração máxima e snapshots públicos são definidos pelo backend.
+// ============================================================================
+match /user_intent_statuses/{statusId} {
+  function isCurrentStatusPath() {
+    return signedIn() && statusId == ("current_" + uid());
+  }
+
+  function isOwnerStatus() {
+    return signedIn() && resource.data.uid == uid();
+  }
+
+  function isDiscoverableStatus() {
+    return resource.data.moderation.state == "active"
+      && resource.data.visibility == "public_discovery";
+  }
+
+  allow get: if isCurrentStatusPath()
+    || (signedIn() && (isDiscoverableStatus() || isOwnerStatus()));
+
+  allow list: if signedIn() && isDiscoverableStatus();
+
+  allow create, update, delete: if false;
+}
+
+// ===== venues.rules =====
+// firestore-rules/venues.rules
+// ============================================================================
+// VENUES / ESTABELECIMENTOS
+// ============================================================================
+// Locais gerenciáveis para Status de Hoje, salas de local e patrocínio futuro.
+//
+// Segurança:
+// - leitura exige login;
+// - leitura comum apenas de locais ativos e visíveis;
+// - escrita inicial apenas por admin;
+// - sem coordenada precisa nesta fase;
+// - chat/sponsorship são configuração moderada, não decisão do cliente comum.
+// ============================================================================
+match /venues/{venueId} {
+  function isVisibleVenue() {
+    return resource.data.moderation.state == "active"
+      && resource.data.visibility in ["public", "members_only"];
+  }
+
+  allow get, list: if signedIn() && isVisibleVenue();
+
+  allow create, update: if isAdmin() && validVenuePayload();
+  allow delete: if isAdmin();
+
+  function hasField(field) {
+    return request.resource.data.keys().hasAny([field]);
+  }
+
+  function allowedVenueKeys() {
+    return request.resource.data.keys().hasOnly([
+      "name",
+      "slug",
+      "kind",
+      "description",
+      "region",
+      "addressHint",
+      "visibility",
+      "moderation",
+      "sponsorship",
+      "chat",
+      "ownerUid",
+      "adminUids",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  function optStringSized(field, min, max) {
+    return !hasField(field)
+      || request.resource.data[field] == null
+      || (request.resource.data[field] is string
+        && request.resource.data[field].size() >= min
+        && request.resource.data[field].size() <= max);
+  }
+
+  function validRegion() {
+    return request.resource.data.region is map
+      && request.resource.data.region.keys().hasOnly(["uf", "city", "district"])
+      && request.resource.data.region.uf is string
+      && request.resource.data.region.uf.matches('^[A-Z]{2}$')
+      && request.resource.data.region.city is string
+      && request.resource.data.region.city.size() >= 1
+      && request.resource.data.region.city.size() <= 80
+      && validOptionalRegionString("district", 1, 80);
+  }
+
+  function hasRegionField(field) {
+    return request.resource.data.region.keys().hasAny([field]);
+  }
+
+  function validOptionalRegionString(field, min, max) {
+    return !hasRegionField(field)
+      || request.resource.data.region[field] == null
+      || (request.resource.data.region[field] is string
+        && request.resource.data.region[field].size() >= min
+        && request.resource.data.region[field].size() <= max);
+  }
+
+  function validModeration() {
+    return request.resource.data.moderation is map
+      && request.resource.data.moderation.keys().hasOnly([
+        "state",
+        "reviewedAt",
+        "reviewedBy",
+        "reason"
+      ])
+      && request.resource.data.moderation.state in [
+        "active",
+        "pending_review",
+        "hidden",
+        "rejected"
+      ]
+      && validOptionalModerationTime("reviewedAt")
+      && validOptionalModerationString("reviewedBy", 1, 128)
+      && validOptionalModerationString("reason", 1, 240);
+  }
+
+  function hasModerationField(field) {
+    return request.resource.data.moderation.keys().hasAny([field]);
+  }
+
+  function validOptionalModerationTime(field) {
+    return !hasModerationField(field)
+      || request.resource.data.moderation[field] == null
+      || request.resource.data.moderation[field] is number
+      || request.resource.data.moderation[field] is timestamp;
+  }
+
+  function validOptionalModerationString(field, min, max) {
+    return !hasModerationField(field)
+      || request.resource.data.moderation[field] == null
+      || (request.resource.data.moderation[field] is string
+        && request.resource.data.moderation[field].size() >= min
+        && request.resource.data.moderation[field].size() <= max);
+  }
+
+  function validSponsorship() {
+    return request.resource.data.sponsorship is map
+      && request.resource.data.sponsorship.keys().hasOnly([
+        "state",
+        "priority",
+        "startsAt",
+        "endsAt"
+      ])
+      && request.resource.data.sponsorship.state in [
+        "none",
+        "eligible",
+        "sponsored",
+        "paused"
+      ]
+      && validOptionalSponsorNumber("priority", 0, 100000)
+      && validOptionalSponsorTime("startsAt")
+      && validOptionalSponsorTime("endsAt");
+  }
+
+  function hasSponsorField(field) {
+    return request.resource.data.sponsorship.keys().hasAny([field]);
+  }
+
+  function validOptionalSponsorNumber(field, min, max) {
+    return !hasSponsorField(field)
+      || request.resource.data.sponsorship[field] == null
+      || (request.resource.data.sponsorship[field] is number
+        && request.resource.data.sponsorship[field] >= min
+        && request.resource.data.sponsorship[field] <= max);
+  }
+
+  function validOptionalSponsorTime(field) {
+    return !hasSponsorField(field)
+      || request.resource.data.sponsorship[field] == null
+      || request.resource.data.sponsorship[field] is number
+      || request.resource.data.sponsorship[field] is timestamp;
+  }
+
+  function validChatConfig() {
+    return request.resource.data.chat is map
+      && request.resource.data.chat.keys().hasOnly(["enabled", "mode", "roomId"])
+      && request.resource.data.chat.enabled is bool
+      && request.resource.data.chat.mode in [
+        "public_preview",
+        "frequenters_only",
+        "hybrid"
+      ]
+      && validOptionalChatRoomId();
+  }
+
+  function validOptionalChatRoomId() {
+    return !request.resource.data.chat.keys().hasAny(["roomId"])
+      || request.resource.data.chat.roomId == null
+      || (request.resource.data.chat.roomId is string
+        && request.resource.data.chat.roomId.size() >= 3
+        && request.resource.data.chat.roomId.size() <= 160);
+  }
+
+  function validOwnerFields() {
+    return optStringSized("ownerUid", 1, 128)
+      && (!hasField("adminUids")
+        || request.resource.data.adminUids is list
+        && request.resource.data.adminUids.size() <= 20);
+  }
+
+  function validVenuePayload() {
+    return allowedVenueKeys()
+      && request.resource.data.name is string
+      && request.resource.data.name.size() >= 2
+      && request.resource.data.name.size() <= 80
+      && request.resource.data.slug is string
+      && request.resource.data.slug.matches('^[a-z0-9]+(-[a-z0-9]+)*$')
+      && request.resource.data.slug.size() >= 2
+      && request.resource.data.slug.size() <= 100
+      && request.resource.data.kind in [
+        "bar",
+        "club",
+        "restaurant",
+        "pub",
+        "event_space",
+        "hotel",
+        "other"
+      ]
+      && optStringSized("description", 1, 240)
+      && optStringSized("addressHint", 1, 160)
+      && request.resource.data.visibility in ["public", "members_only", "hidden"]
+      && validRegion()
+      && validModeration()
+      && validSponsorship()
+      && validChatConfig()
+      && validOwnerFields()
+      && optTimestamp("createdAt")
+      && optTimestamp("updatedAt");
+  }
+}
+
 // ===== regional_hot_places.rules =====
 // firestore-rules/regional_hot_places.rules
 // ============================================================================
@@ -839,15 +1162,18 @@ match /presence/{presenceUid} {
 // - leitura pública do app só para documentos visíveis;
 // - escrita direta pelo cliente comum é bloqueada;
 // - escrita administrativa exige claim admin;
-// - documentos não devem carregar UIDs, participantes ou coordenadas precisas.
+// - documentos não devem carregar UIDs, participantes ou coordenadas precisas;
+// - affinityMix é apenas agrupamento agregado, com piso mínimo.
 //
 // Observação:
 // - a UI consulta com where('moderation.visibility', '==', 'visible');
-// - a geração de score deve vir de backend/admin, não do cliente comum.
+// - a geração de score deve vir de backend/admin, não do cliente comum;
+// - documentos antigos ou incompletos não devem quebrar a avaliação da rule.
 // ============================================================================
 match /regional_hot_places/{placeId} {
   function isVisibleHotPlace() {
-    return resource.data.moderation.visibility == "visible";
+    return resource.data.moderation is map
+      && resource.data.moderation.visibility == "visible";
   }
 
   allow get, list: if signedIn() && isVisibleHotPlace();
@@ -869,6 +1195,7 @@ match /regional_hot_places/{placeId} {
       "metrics",
       "moderation",
       "compatibilitySignals",
+      "affinityMix",
       "createdAt",
       "updatedAt"
     ]);
@@ -966,33 +1293,34 @@ match /regional_hot_places/{placeId} {
         && request.resource.data.moderation[field].size() <= max);
   }
 
+  function validCompatibilitySignals() {
+    return !hasField("compatibilitySignals")
+      || request.resource.data.compatibilitySignals == null
+      || request.resource.data.compatibilitySignals is map;
+  }
+
+  function validAffinityMix() {
+    return !hasField("affinityMix")
+      || request.resource.data.affinityMix == null
+      || (
+        request.resource.data.affinityMix is list
+        && request.resource.data.affinityMix.size() <= 12
+      );
+  }
+
   function validHotPlacePayload() {
     return allowedKeys()
       && request.resource.data.title is string
-      && request.resource.data.title.size() >= 3
+      && request.resource.data.title.size() >= 2
       && request.resource.data.title.size() <= 80
-      && optStringSized("subtitle", 1, 160)
-      && request.resource.data.kind in [
-        "city_area",
-        "venue",
-        "event",
-        "room_cluster",
-        "online_pulse"
-      ]
-      && request.resource.data.audience in [
-        "all",
-        "singles",
-        "couples",
-        "verified",
-        "subscribers"
-      ]
+      && optStringSized("subtitle", 0, 160)
+      && request.resource.data.kind in ["venue", "region", "route", "event", "mixed"]
+      && request.resource.data.audience in ["mixed", "men", "women", "couples", "lgbtqia"]
       && validRegion()
       && validMetrics()
       && validModeration()
-      && request.resource.data.compatibilitySignals is list
-      && request.resource.data.compatibilitySignals.size() <= 12
-      && optTimestamp("createdAt")
-      && optTimestamp("updatedAt");
+      && validCompatibilitySignals()
+      && validAffinityMix();
   }
 }
 
@@ -1088,7 +1416,8 @@ match /friends/{friendId} {
     // - atualização do documento de chat ocorre somente por backend confiável;
     // - criação de mensagens diretas ocorre somente por Cloud Function;
     // - cliente pode atualizar exclusivamente recibos de mensagens recebidas,
-    //   respeitando transição progressiva de status.
+    //   respeitando transição progressiva de status;
+    // - cliente pode alterar somente a própria reação em reactionsByUser.
     //
     // Supressões explícitas:
     // - removida criação client-side de chats;
@@ -1155,6 +1484,45 @@ match /chats/{chatId} {
         );
       }
 
+      function hasOnlyReactionFieldChanged() {
+        return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+          "reactionsByUser"
+        ]);
+      }
+
+      function hasValidReactionValue() {
+        return !(uid() in request.resource.data.reactionsByUser)
+          || request.resource.data.reactionsByUser[uid()] in [
+            "❤️",
+            "😂",
+            "🔥",
+            "👀"
+          ];
+      }
+
+      function changesOnlyOwnReaction() {
+        return request.resource.data.reactionsByUser is map
+          && (
+            (
+              !resource.data.keys().hasAny(["reactionsByUser"])
+              && request.resource.data.reactionsByUser.keys().hasOnly([uid()])
+            )
+            || (
+              resource.data.keys().hasAny(["reactionsByUser"])
+              && request.resource.data.reactionsByUser
+                .diff(resource.data.reactionsByUser)
+                .affectedKeys()
+                .hasOnly([uid()])
+            )
+          );
+      }
+
+      function isReactionUpdate() {
+        return hasOnlyReactionFieldChanged()
+          && changesOnlyOwnReaction()
+          && hasValidReactionValue();
+      }
+
       /**
        * Leitura permanece disponível somente a participantes do chat.
        */
@@ -1180,6 +1548,16 @@ match /chats/{chatId} {
           "status"
         ])
         && isForwardReceiptTransition();
+
+      /**
+       * Reações persistentes:
+       * - somente participante;
+       * - somente campo reactionsByUser;
+       * - usuário só altera a própria chave;
+       * - valores limitados aos emojis suportados na UI.
+       */
+      allow update: if isChatParticipantByChat()
+        && isReactionUpdate();
 
       allow delete: if false;
     }
@@ -1544,6 +1922,33 @@ match /public_index/{docId} {
     && request.resource.data.lastChangedAt == request.time;
 
   allow delete: if signedIn() && resource.data.uid == uid();
+}
+
+// ===== notifications.rules =====
+// ===============================================================
+// firestore-rules/notifications.rules
+// ===============================================================
+// Notificações internas/push.
+//
+// Modelo atual:
+// - backend/Admin SDK cria notificações;
+// - Cloud Function sendNotification pode enviar FCM;
+// - cliente autenticado pode ler apenas as próprias notificações;
+// - cliente NÃO cria/edita/remove notificações nesta fase.
+//
+// Segurança:
+// - evita que usuário force push para terceiros;
+// - evita manipulação de userId/read state enquanto não houver endpoint próprio;
+// - futura marcação como lida deve passar por callable ou regra específica.
+// ===============================================================
+
+match /notifications/{notificationId} {
+  function isOwnNotification() {
+    return signedIn() && resource.data.userId == uid();
+  }
+
+  allow get, list: if isOwnNotification();
+  allow create, update, delete: if false;
 }
 
 // ===== users_profile_socialLinks.rules =====
@@ -2139,6 +2544,114 @@ match /users/{ownerUid}/blocks/{targetUid} {
     allow create: if isSelf(ownerUid) && validEventPayload();
     allow update, delete: if false;
   }
+}
+
+// ===== moderation_reports.rules =====
+// =========================================================================
+// MODERATION REPORTS
+// =========================================================================
+// Denúncias privadas de usuários autenticados.
+//
+// Decisões:
+// - usuário autenticado pode criar denúncia própria;
+// - usuário comum não lê a fila de denúncias;
+// - admin pode ler/listar e atualizar status;
+// - cliente comum não edita nem apaga denúncia depois de enviada.
+// =========================================================================
+
+match /moderation_reports/{reportId} {
+  function allowedCreateKeys() {
+    return request.resource.data.keys().hasOnly([
+      "reporterUid",
+      "targetType",
+      "targetId",
+      "targetOwnerUid",
+      "reason",
+      "details",
+      "route",
+      "status",
+      "source",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  function allowedAdminUpdateKeys() {
+    return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+      "status",
+      "reviewedBy",
+      "reviewedAt",
+      "resolution",
+      "updatedAt"
+    ]);
+  }
+
+  function validTargetType() {
+    return request.resource.data.targetType in [
+      "profile",
+      "photo",
+      "message",
+      "room",
+      "status",
+      "venue",
+      "other"
+    ];
+  }
+
+  function validReason() {
+    return request.resource.data.reason in [
+      "spam",
+      "fake_profile",
+      "harassment",
+      "hate_or_abuse",
+      "sexual_boundary",
+      "illegal_content",
+      "privacy",
+      "minor_safety",
+      "other"
+    ];
+  }
+
+  function validStatus() {
+    return request.resource.data.status in [
+      "open",
+      "reviewing",
+      "resolved",
+      "rejected"
+    ];
+  }
+
+  function validCreatePayload() {
+    return signedIn()
+      && allowedCreateKeys()
+      && request.resource.data.reporterUid == uid()
+      && request.resource.data.reporterUid is string
+      && request.resource.data.targetId is string
+      && request.resource.data.source == "web"
+      && request.resource.data.status == "open"
+      && validTargetType()
+      && validReason()
+      && optString("targetOwnerUid")
+      && optString("details")
+      && optString("route")
+      && request.resource.data.createdAt == request.time
+      && request.resource.data.updatedAt == request.time;
+  }
+
+  function validAdminUpdatePayload() {
+    return isAdmin()
+      && allowedAdminUpdateKeys()
+      && validStatus()
+      && optString("reviewedBy")
+      && optTimestamp("reviewedAt")
+      && optString("resolution")
+      && request.resource.data.updatedAt == request.time;
+  }
+
+  allow create: if validCreatePayload();
+  allow get, list: if isAdmin();
+  allow update: if validAdminUpdatePayload();
+  allow delete: if false;
 }
 
 // ===== communities.rules =====
