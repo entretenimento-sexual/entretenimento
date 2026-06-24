@@ -5,9 +5,9 @@
 
 .mobile-bottom-nav {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 4px;
-  width: min(100%, 720px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  width: min(100%, 640px);
   margin-inline: auto;
   padding:
     8px
@@ -31,10 +31,10 @@
   display: grid;
   justify-items: center;
   align-content: center;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
-  min-height: 52px;
-  padding: 6px 4px;
+  min-height: 54px;
+  padding: 7px 6px;
   border: 1px solid transparent;
   border-radius: 16px;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
@@ -57,16 +57,16 @@
 .mobile-bottom-nav__icon {
   display: inline-grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  font-size: 1rem;
+  width: 25px;
+  height: 25px;
+  font-size: 1.05rem;
   line-height: 1;
 }
 
 .mobile-bottom-nav__label {
   max-width: 100%;
   overflow: hidden;
-  font-size: 0.68rem;
+  font-size: 0.72rem;
   font-weight: 900;
   line-height: 1.05;
   text-overflow: ellipsis;
@@ -100,12 +100,12 @@
 
 @media (max-width: 360px) {
   .mobile-bottom-nav {
-    gap: 2px;
+    gap: 4px;
     padding-inline: 6px;
   }
 
   .mobile-bottom-nav__label {
-    font-size: 0.62rem;
+    font-size: 0.68rem;
   }
 }
 
