@@ -2,23 +2,13 @@
 
 <section class="intent-composer app-card" aria-labelledby="intent-composer-title">
   <header class="intent-composer__header">
-    <div>
-      <span class="intent-composer__eyebrow">Status de hoje</span>
-      <h2 id="intent-composer-title">Publique seu Status de Hoje por 12h</h2>
-    </div>
-
-    <span class="intent-composer__badge">Temporário</span>
+    <h2 id="intent-composer-title">Status de hoje</h2>
   </header>
-
-  <p class="intent-composer__description">
-    Informe se está disponível e onde talvez vá hoje. Seu status pode aparecer em Descobertas
-    com seu nickname e dados públicos básicos.
-  </p>
 
   @if (activeStatus$ | async; as activeStatus) {
     <aside class="intent-composer__active" aria-label="Seu status atual">
       <div>
-        <span>Seu status está ativo</span>
+        <span>Ativo</span>
         <strong>{{ activeStatus.availabilityLabel }}</strong>
         <p>{{ activeStatus.destinationLabel }} · {{ activeStatus.expiresInLabel }}</p>
       </div>
@@ -29,7 +19,7 @@
         [disabled]="hiding"
         (click)="hideCurrentStatus()"
       >
-        {{ hiding ? 'Encerrando...' : 'Encerrar status' }}
+        {{ hiding ? 'Encerrando...' : 'Encerrar' }}
       </button>
     </aside>
   }
@@ -45,22 +35,19 @@
     </label>
 
     <label class="intent-composer__field">
-      <span>Tipo de destino</span>
+      <span>Destino</span>
       <select formControlName="destinationKind">
         <option value="region">Região</option>
-        <option value="venue">Local/estabelecimento</option>
+        <option value="venue">Local</option>
         <option value="event">Evento</option>
-        <option value="undecided">Ainda decidindo</option>
+        <option value="undecided">Decidindo</option>
       </select>
     </label>
 
     @if ((destinationKind$ | async) === 'venue') {
-      <section class="intent-composer__venues" aria-label="Estabelecimentos disponíveis na região">
+      <section class="intent-composer__venues" aria-label="Locais disponíveis">
         <div class="intent-composer__venues-header">
-          <div>
-            <strong>Estabelecimentos da sua região</strong>
-            <span>Selecione um local gerenciado ou mantenha o texto livre abaixo.</span>
-          </div>
+          <strong>Locais</strong>
 
           @if (form.controls.venueId.value) {
             <button
@@ -68,7 +55,7 @@
               class="btn btn-ghost intent-composer__clear-venue"
               (click)="clearVenueSelection()"
             >
-              Usar texto livre
+              Texto livre
             </button>
           }
         </div>
@@ -76,8 +63,7 @@
         @if (venues$ | async; as venues) {
           @if (venues.length === 0) {
             <p class="intent-composer__venues-empty">
-              Nenhum estabelecimento cadastrado para sua região ainda. Você pode publicar
-              com texto livre; depois vincularemos ao cadastro oficial.
+              Nenhum local cadastrado na sua região.
             </p>
           } @else {
             <div class="intent-composer__venue-list" role="list">
@@ -102,19 +88,19 @@
 
         @if (selectedVenue$ | async; as selectedVenue) {
           <p class="intent-composer__venue-selected" role="status">
-            Local selecionado: <strong>{{ selectedVenue.name }}</strong>
+            <strong>{{ selectedVenue.name }}</strong>
           </p>
         }
       </section>
     }
 
     <label class="intent-composer__field intent-composer__field--wide">
-      <span>Destino ou região possível</span>
+      <span>Região ou local</span>
       <input
         type="text"
         formControlName="destinationLabel"
         maxlength="80"
-        placeholder="Ex.: Centro, Zona Sul, Bar X, evento de hoje"
+        placeholder="Centro, Zona Sul, Bar X..."
         autocomplete="off"
       />
     </label>
@@ -137,7 +123,7 @@
           type="text"
           formControlName="city"
           maxlength="80"
-          placeholder="rio de janeiro"
+          placeholder="Rio de Janeiro"
           autocomplete="address-level2"
         />
       </label>
@@ -146,23 +132,21 @@
     <label class="intent-composer__field intent-composer__field--wide">
       <span>Visibilidade</span>
       <select formControlName="visibility">
-        <option value="public_discovery">Aparecer em Descobertas</option>
-        <option value="members_only">Somente membros</option>
-        <option value="friends_only">Somente amigos</option>
+        <option value="public_discovery">Descobrir</option>
+        <option value="members_only">Membros</option>
+        <option value="friends_only">Amigos</option>
       </select>
     </label>
 
     <footer class="intent-composer__footer">
-      <p>
-        Sem localização precisa. O status expira automaticamente em até 12 horas.
-      </p>
+      <span aria-label="O status expira automaticamente em até 12 horas"></span>
 
       <button
         type="submit"
         class="btn btn-primary intent-composer__submit"
         [disabled]="publishing"
       >
-        {{ publishing ? 'Publicando...' : 'Publicar Status de Hoje' }}
+        {{ publishing ? 'Publicando...' : 'Publicar' }}
       </button>
     </footer>
   </form>
