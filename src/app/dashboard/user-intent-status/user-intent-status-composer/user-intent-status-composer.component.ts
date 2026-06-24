@@ -66,6 +66,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
 
   publishing = false;
   hiding = false;
+  isComposerExpanded = false;
 
   activeStatus$: Observable<IUserIntentStatusCardVm | null> = of(null);
   venues$: Observable<IVenueCardVm[]> = of([]);
@@ -136,6 +137,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
       this.activeStatus$ = of(null);
       this.venues$ = of([]);
       this.selectedVenue$ = of(null);
+      this.isComposerExpanded = false;
       return;
     }
 
@@ -167,6 +169,22 @@ export class UserIntentStatusComposerComponent implements OnChanges {
     );
   }
 
+  toggleComposer(): void {
+    this.isComposerExpanded = !this.isComposerExpanded;
+  }
+
+  openComposer(): void {
+    this.isComposerExpanded = true;
+  }
+
+  closeComposer(): void {
+    if (this.publishing) {
+      return;
+    }
+
+    this.isComposerExpanded = false;
+  }
+
   publish(): void {
     if (this.publishing) {
       return;
@@ -189,6 +207,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       this.notifications.showWarning('Preencha destino e região para publicar seu status.');
+      this.openComposer();
       return;
     }
 
@@ -284,6 +303,7 @@ export class UserIntentStatusComposerComponent implements OnChanges {
     ).subscribe({
       next: () => {
         this.notifications.showSuccess('Status publicado por até 12 horas.');
+        this.closeComposer();
       },
       error: () => {
         this.notifications.showError('Não foi possível publicar seu status agora.');
