@@ -2,35 +2,22 @@
 
 <section class="hot-places app-card" aria-labelledby="hot-places-title">
   <header class="hot-places__header">
-    <div>
-      <span class="hot-places__eyebrow">Região em movimento</span>
-      <h2 id="hot-places-title">Locais bombando</h2>
-    </div>
-
-    <span class="hot-places__badge" aria-label="Conteúdo regional moderado">
-      Regional
-    </span>
+    <h2 id="hot-places-title">Locais</h2>
   </header>
 
   @if (vm$ | async; as vm) {
     @if (vm.state === 'loading') {
       <div class="hot-places__state" role="status" aria-live="polite">
         <span class="hot-places__pulse" aria-hidden="true"></span>
-        <div>
-          <strong>Carregando movimento da região</strong>
-          <span>Estamos verificando locais e sinais agregados próximos.</span>
-        </div>
+        <strong>Carregando...</strong>
       </div>
     } @else if (vm.state === 'empty') {
       <div class="hot-places__state hot-places__state--empty" role="status" aria-live="polite">
         <span class="hot-places__empty-icon" aria-hidden="true">📍</span>
-        <div>
-          <strong>Nada em destaque por enquanto</strong>
-          <span>Quando houver atividade moderada na sua região, ela aparecerá aqui.</span>
-        </div>
+        <strong>Nada em destaque.</strong>
       </div>
     } @else {
-      <div class="hot-places__rail" aria-label="Lista de locais bombando">
+      <div class="hot-places__rail" aria-label="Lista de locais em destaque">
         @for (place of vm.items; track trackByPlaceId($index, place)) {
           <article class="hot-place-card">
             <div class="hot-place-card__topline">
@@ -62,8 +49,8 @@
               <span>{{ place.activityLabel }}</span>
 
               @if (place.kind === 'room_cluster') {
-                <a routerLink="/chat-list" aria-label="Abrir conversas e salas relacionadas">
-                  Ver salas
+                <a routerLink="/chat" aria-label="Abrir conversas e salas relacionadas">
+                  Salas
                 </a>
               } @else {
                 <span class="hot-place-card__tag">Em alta</span>
