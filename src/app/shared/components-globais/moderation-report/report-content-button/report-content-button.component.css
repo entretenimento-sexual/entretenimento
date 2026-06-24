@@ -1,6 +1,7 @@
 /* src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component.css */
 :host {
   display: inline-flex;
+  max-width: 100%;
 }
 
 .report-button {
@@ -9,6 +10,7 @@
 
 .report-button--default {
   min-height: 40px;
+  max-width: 100%;
   border-radius: 999px;
 }
 
@@ -45,4 +47,11 @@
 .report-button--link:focus-visible {
   outline: 2px solid color-mix(in oklab, var(--primary-color, #ff7070) 70%, #fff 30%);
   outline-offset: 3px;
+}
+
+@media (max-width: 680px) {
+  :host,
+  .report-button--default {
+    width: 100%;
+  }
 }
