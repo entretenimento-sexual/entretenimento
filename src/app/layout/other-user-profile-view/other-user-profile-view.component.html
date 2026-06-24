@@ -92,12 +92,20 @@
         </article>
 
         <aside class="other-profile-page__actions-card app-card app-card--compact" aria-label="Ações do perfil">
+          <header class="other-profile-page__actions-heading app-card__header">
+            <h2 class="other-profile-page__actions-title">Interagir</h2>
+            <p class="other-profile-page__actions-helper">
+              Comece com uma solicitação ou abra uma conversa direta. Use a denúncia se encontrar abuso, golpe ou conteúdo fora das regras.
+            </p>
+          </header>
+
           <div class="other-profile-page__actions">
             <button
               type="button"
               class="other-profile-page__action app-action app-action--primary"
               (click)="sendFriendRequest()"
               [disabled]="(friendRequestBusy$ | async) === true || !uid"
+              [attr.aria-busy]="(friendRequestBusy$ | async) === true ? 'true' : 'false'"
             >
               <i class="fas fa-user-plus" aria-hidden="true"></i>
               <span>
@@ -110,6 +118,7 @@
               class="other-profile-page__action app-action app-action--ghost"
               (click)="startDirectChat()"
               [disabled]="(directChatBusy$ | async) === true || !uid"
+              [attr.aria-busy]="(directChatBusy$ | async) === true ? 'true' : 'false'"
             >
               <i class="fas fa-comment-dots" aria-hidden="true"></i>
               <span>
