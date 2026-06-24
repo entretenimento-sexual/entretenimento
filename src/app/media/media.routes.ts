@@ -10,10 +10,24 @@ export const MEDIA_ROUTES: Routes = [
       ),
   },
   {
+    path: 'videos',
+    loadComponent: () =>
+      import('./videos/profile-videos/profile-videos.component').then(
+        (m) => m.ProfileVideosComponent
+      ),
+  },
+  {
     path: 'perfil/:id/fotos',
     loadComponent: () =>
       import('./photos/profile-photos/profile-photos.component').then(
         (m) => m.ProfilePhotosComponent
+      ),
+  },
+  {
+    path: 'perfil/:id/videos',
+    loadComponent: () =>
+      import('./videos/profile-videos/profile-videos.component').then(
+        (m) => m.ProfileVideosComponent
       ),
   },
   {
