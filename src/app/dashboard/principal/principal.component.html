@@ -3,7 +3,7 @@
   @if (profileChecklist$ | async; as checklist) {
     @if (!checklist.isComplete) {
       <section
-        class="profile-checklist profile-checklist--compact app-card"
+        class="profile-checklist profile-checklist--compact app-card app-card--compact"
         aria-label="Pendências do perfil"
       >
         <div class="profile-checklist__summary">
@@ -11,7 +11,7 @@
             <h2>Perfil {{ checklist.progress }}%</h2>
           </div>
 
-          <div class="profile-checklist__actions">
+          <div class="principal-metric__actions">
             @if (checklist.firstPending) {
               <a
                 class="principal-action principal-action--small principal-action--primary"
