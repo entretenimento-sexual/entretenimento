@@ -2,19 +2,10 @@
 // -----------------------------------------------------------------------------
 // Dashboard principal mais operacional.
 // Objetivos desta revisão:
-// - remover dependência visual de textos placeholder
-// - manter UID como fonte única para fluxos reais
-// - fornecer links úteis e imediatos para o usuário
-// - preparar um hub mais parecido com grandes plataformas
-//
-// Ajustes desta versão:
-// - adiciona links reativos para perfil e preferências
-// - mantém paginação de amigos por UID
-// - preserva filtros/toolbar existentes
-// - adiciona composer do Status de Hoje
-// - adiciona radar regional do Status de Hoje
-// - adiciona widget regional de Locais bombando
-// - adiciona checklist de perfil pós-login
+// - remover dependência visual de textos placeholder;
+// - manter UID como fonte única para fluxos reais;
+// - fornecer links úteis e imediatos para o usuário;
+// - manter o Hoje direto, com pendências compactas e ações sob demanda.
 // -----------------------------------------------------------------------------
 import { Component, OnInit, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -59,10 +50,19 @@ import {
 import * as P from 'src/app/store/actions/actions.interactions/friends/friends-pagination.actions';
 import { PAGE_SIZES } from 'src/app/shared/pagination/page.constants';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
-import { ProfileCompletionService } from 'src/app/core/services/user-profile/profile-completion.service';
+import {
+  IProfileChecklistItemVm,
+  IProfileChecklistVm,
+  ProfileCompletionService,
+} from 'src/app/core/services/user-profile/profile-completion.service';
 import { HotPlacesWidgetComponent } from '../hot-places/hot-places-widget/hot-places-widget.component';
 import { UserIntentStatusComposerComponent } from '../user-intent-status/user-intent-status-composer/user-intent-status-composer.component';
 import { UserIntentStatusRadarComponent } from '../user-intent-status/user-intent-status-radar/user-intent-status-radar.component';
+
+interface IPrincipalChecklistVm extends IProfileChecklistVm {
+  readonly pendingItems: IProfileChecklistItemVm[];
+  readonly firstPending: IProfileChecklistItemVm | null;
+}
 
 @Component({
   selector: 'app-principal',
@@ -78,8 +78,7 @@ import { UserIntentStatusRadarComponent } from '../user-intent-status/user-inten
     MatSelectModule,
     HotPlacesWidgetComponent,
     UserIntentStatusComposerComponent,
-    UserIntentStatusRadarComponent,
-
+    UserIntentStatusRadarComponent
   ],
 })
 export class PrincipalComponent implements OnInit {
@@ -87,18 +86,18 @@ export class PrincipalComponent implements OnInit {
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly profileCompletion = inject(ProfileCompletionService);
 
-/**
- * Debug seguro do dashboard principal.
- *
- * Canal:
- * localStorage.setItem('DEBUG_FRIENDS', '1');
- *
- * Este componente dispara paginação de amigos usando o UID autenticado.
- * Por isso, não deve usar console.log direto.
- */
-private dbg(message: string, extra?: unknown): void {
-  this.privacyDebug.log('friends', `Principal: ${message}`, extra);
-}
+  /**
+   * Debug seguro do dashboard principal.
+   *
+   * Canal:
+   * localStorage.setItem('DEBUG_FRIENDS', '1');
+   *
+   * Este componente dispara paginação de amigos usando o UID autenticado.
+   * Por isso, não deve usar console.log direto.
+   */
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('friends', `Principal: ${message}`, extra);
+  }
 
   // ---------------------------------------------------------------------------
   // Estado de usuário para UI
@@ -106,8 +105,8 @@ private dbg(message: string, extra?: unknown): void {
   currentUser$: Observable<IUserDados | null> = this.store.select(selectCurrentUser);
   currentUserStatus$ = this.store.select(selectCurrentUserStatus);
 
-  readonly profileChecklist$ = this.currentUser$.pipe(
-    map((user) => user ? this.profileCompletion.buildChecklist(user) : null),
+  readonly profileChecklist$: Observable<IPrincipalChecklistVm | null> = this.currentUser$.pipe(
+    map((user) => user ? this.buildPrincipalChecklistVm(user) : null),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -166,6 +165,7 @@ private dbg(message: string, extra?: unknown): void {
   // Estado local da UI
   // ---------------------------------------------------------------------------
   readonly expanded = signal<boolean>(false);
+  readonly checklistDetailsOpen = signal<boolean>(false);
   readonly sortBy = signal<'recent' | 'online' | 'distance' | 'alpha'>('online');
   readonly filters = signal<{ onlyOnline?: boolean }>({ onlyOnline: true });
 
@@ -199,11 +199,26 @@ private dbg(message: string, extra?: unknown): void {
     this.expanded.update(v => !v);
   }
 
+  toggleChecklistDetails(): void {
+    this.checklistDetailsOpen.update(value => !value);
+  }
+
   onSortChange(value: 'recent' | 'online' | 'distance' | 'alpha'): void {
     this.sortBy.set(value);
   }
 
   onOnlyOnlineToggle(checked: boolean): void {
     this.filters.set({ ...this.filters(), onlyOnline: checked });
+  }
+
+  private buildPrincipalChecklistVm(user: IUserDados): IPrincipalChecklistVm {
+    const checklist = this.profileCompletion.buildChecklist(user);
+    const pendingItems = checklist.items.filter((item) => !item.completed);
+
+    return {
+      ...checklist,
+      pendingItems,
+      firstPending: pendingItems[0] ?? null,
+    };
   }
 }
