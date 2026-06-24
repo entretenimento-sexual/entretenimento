@@ -1,0 +1,84 @@
+// ===============================================================
+// USERS / videos
+// - Biblioteca privada de vídeos do usuário
+// - Somente o dono lê/escreve
+// - Sem publicação pública nesta etapa
+// - Sem enumeração por terceiros
+// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
+// firestore-rules/users_videos.rules
+// ===============================================================
+match /users/{userId}/videos/{videoId} {
+
+  function allowedKeys() {
+    return request.resource.data.keys().hasOnly([
+      "id",
+      "ownerUid",
+      "url",
+      "path",
+      "fileName",
+      "mimeType",
+      "sizeBytes",
+      "durationMs",
+      "thumbnailUrl",
+      "status",
+      "createdAt",
+      "updatedAt"
+    ]);
+  }
+
+  function validStatus() {
+    return request.resource.data.status in [
+      "uploaded",
+      "processing",
+      "ready",
+      "failed"
+    ];
+  }
+
+  function validNumberOrNull(field) {
+    return !(field in request.resource.data)
+      || request.resource.data[field] == null
+      || (
+        request.resource.data[field] is number
+        && request.resource.data[field] >= 0
+      );
+  }
+
+  function validTextOrNull(field) {
+    return !(field in request.resource.data)
+      || request.resource.data[field] == null
+      || request.resource.data[field] is string;
+  }
+
+  function validVideoPayload() {
+    return allowedKeys()
+      && request.resource.data.id is string
+      && request.resource.data.ownerUid == userId
+      && request.resource.data.url is string
+      && request.resource.data.path is string
+      && request.resource.data.fileName is string
+      && request.resource.data.mimeType is string
+      && request.resource.data.sizeBytes is number
+      && request.resource.data.sizeBytes >= 0
+      && validNumberOrNull("durationMs")
+      && validTextOrNull("thumbnailUrl")
+      && validStatus()
+      && request.resource.data.createdAt is number
+      && request.resource.data.createdAt >= 0
+      && validNumberOrNull("updatedAt");
+  }
+
+  allow get, list: if isSelf(userId);
+
+  allow create: if isSelf(userId)
+    && validVideoPayload();
+
+  allow update: if isSelf(userId)
+    && validVideoPayload()
+    && request.resource.data.ownerUid == resource.data.ownerUid;
+
+  allow delete: if isSelf(userId);
+}
+// ===============================================================
+//                         FIM DO USERS / VIDEOS
+// ===============================================================
