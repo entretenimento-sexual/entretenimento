@@ -1,104 +1,62 @@
 <!-- src/app/dashboard/principal/principal.component.html -->
-<!--
-  Home operacional do dashboard.
-
-  Diretriz:
-  - visual de rede social/profissional;
-  - sem subtítulo que repete o título do card;
-  - sem bloco final redundante;
-  - ajustes de presença ficam no resumo da conta;
-  - mantém observables, métricas e rotas já existentes;
-  - exibe Locais bombando como vitrine regional moderada.
--->
-
-<section class="principal-page" *ngIf="currentUser$ | async as currentUser">
-  <header class="principal-hero app-card">
-    <div class="principal-hero__copy app-card__body">
-      <span class="principal-hero__eyebrow">Hub de conexões</span>
-      <h1>Bem-vindo de volta, {{ currentUser.nickname || 'usuário' }}.</h1>
-      <p class="principal-hero__description">
-        Gerencie sua presença, acompanhe sua rede e escolha o próximo caminho sem atalhos duplicados.
-      </p>
-
-      <div class="principal-hero__chips" aria-label="Resumo rápido da conta">
-        <span class="app-chip app-chip--primary">
-          {{ currentUser.profileCompleted ? 'Perfil completo' : 'Perfil em andamento' }}
-        </span>
-
-        <span class="app-chip" [class.app-chip--success]="currentUser.emailVerified">
-          {{ currentUser.emailVerified ? 'E-mail verificado' : 'Verificação pendente' }}
-        </span>
-
-        <span class="app-chip app-chip--muted">
-          {{ currentUser.isSubscriber ? 'Assinante' : 'Plano gratuito' }}
-        </span>
-      </div>
-    </div>
-  </header>
-
+<section class="principal-page" *ngIf="currentUser$ | async as currentUser" aria-label="Hoje">
   @if (profileChecklist$ | async; as checklist) {
-    <section
-      class="profile-checklist app-card"
-      [class.profile-checklist--complete]="checklist.isComplete"
-      aria-labelledby="profile-checklist-title"
-    >
-      <div class="profile-checklist__summary">
-        <div class="profile-checklist__copy">
-          <span class="profile-checklist__eyebrow">Primeiros passos</span>
-          <h2 id="profile-checklist-title">{{ checklist.headline }}</h2>
-          <p>{{ checklist.helperText }}</p>
-        </div>
-
-        <div class="profile-checklist__meter" aria-label="Progresso do perfil">
-          <strong>{{ checklist.progress }}%</strong>
-          <span>{{ checklist.completed }}/{{ checklist.total }} concluídos</span>
-        </div>
-      </div>
-
-      <div
-        class="profile-checklist__bar"
-        role="progressbar"
-        [attr.aria-valuenow]="checklist.progress"
-        aria-valuemin="0"
-        aria-valuemax="100"
+    @if (!checklist.isComplete) {
+      <section
+        class="profile-checklist app-card"
+        aria-label="Pendências do perfil"
       >
-        <span [style.width.%]="checklist.progress"></span>
-      </div>
+        <div class="profile-checklist__summary">
+          <div class="profile-checklist__copy">
+            <h2>{{ checklist.headline }}</h2>
+          </div>
 
-      <div class="profile-checklist__items" aria-label="Etapas para completar o perfil">
-        @for (item of checklist.items; track item.id) {
-          <a
-            class="profile-checklist__item"
-            [class.profile-checklist__item--done]="item.completed"
-            [routerLink]="item.routerLink"
-          >
-            <span class="profile-checklist__status" aria-hidden="true">
-              {{ item.completed ? '✓' : '!' }}
-            </span>
+          <div class="profile-checklist__meter" aria-label="Progresso do perfil">
+            <strong>{{ checklist.progress }}%</strong>
+            <span>{{ checklist.completed }}/{{ checklist.total }}</span>
+          </div>
+        </div>
 
-            <span class="profile-checklist__text">
-              <strong>{{ item.title }}</strong>
-              <small>{{ item.description }}</small>
-            </span>
+        <div
+          class="profile-checklist__bar"
+          role="progressbar"
+          [attr.aria-valuenow]="checklist.progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+        >
+          <span [style.width.%]="checklist.progress"></span>
+        </div>
 
-            <span class="profile-checklist__action">
-              {{ item.completed ? 'Revisar' : item.actionLabel }}
-            </span>
-          </a>
-        }
-      </div>
-    </section>
+        <div class="profile-checklist__items" aria-label="Etapas pendentes do perfil">
+          @for (item of checklist.items; track item.id) {
+            @if (!item.completed) {
+              <a
+                class="profile-checklist__item"
+                [routerLink]="item.routerLink"
+              >
+                <span class="profile-checklist__status" aria-hidden="true">!</span>
+
+                <span class="profile-checklist__text">
+                  <strong>{{ item.title }}</strong>
+                </span>
+
+                <span class="profile-checklist__action">
+                  {{ item.actionLabel }}
+                </span>
+              </a>
+            }
+          }
+        </div>
+      </section>
+    }
   }
 
-  <section class="principal-overview app-card-grid" *ngIf="currentUserStatus$ | async as currentStatus" aria-label="Resumo da conta e da rede">
+  <section class="principal-overview app-card-grid" *ngIf="currentUserStatus$ | async as currentStatus" aria-label="Resumo">
     <article class="principal-metric principal-metric--account app-card app-card--compact">
       <span class="principal-metric__label">Conta</span>
       <strong class="principal-metric__value">
         {{ currentStatus === 'ready' ? 'Pronta' : 'Sincronizando' }}
       </strong>
-      <span class="principal-metric__hint">
-        {{ currentStatus === 'ready' ? 'Recursos principais liberados.' : 'Aguardando atualização de estado.' }}
-      </span>
 
       <div class="principal-metric__actions" aria-label="Ajustes da conta">
         @if (preferencesLink$ | async; as preferencesLink) {
@@ -120,7 +78,7 @@
       <strong class="principal-metric__value">
         {{ (friendsCount$ | async) ?? 0 }} amigos
       </strong>
-      <a routerLink="/friends/list" class="principal-inline-link">Ver lista</a>
+      <a routerLink="/friends/list" class="principal-inline-link">Ver</a>
     </article>
 
     <article class="principal-metric app-card app-card--compact">
@@ -128,7 +86,7 @@
       <strong class="principal-metric__value">
         {{ (pendingRequestsCount$ | async) ?? 0 }} pendentes
       </strong>
-      <a routerLink="/friends/list" class="principal-inline-link">Gerenciar</a>
+      <a routerLink="/friends/list" class="principal-inline-link">Abrir</a>
     </article>
   </section>
 
@@ -137,60 +95,4 @@
   <app-user-intent-status-radar [user]="currentUser" />
 
   <app-hot-places-widget />
-
-  <section class="principal-section-grid app-card-grid" aria-label="Atalhos principais da rede">
-    <article class="principal-panel principal-panel--highlight app-card app-card--interactive">
-      <div class="principal-panel__header app-card__header">
-        <h2>Perfis sugeridos</h2>
-        <span class="principal-panel__badge app-chip app-chip--primary">Novo</span>
-      </div>
-
-      <p class="principal-panel__description">
-        Abra uma seleção de perfis compatíveis e acesse a vitrine de cada pessoa com menos passos.
-      </p>
-
-      <div class="principal-panel__actions app-card__actions">
-        <a class="principal-action principal-action--accent" routerLink="/dashboard/perfis-sugeridos">
-          <span class="principal-action__icon" aria-hidden="true">✨</span>
-          <span>Ver sugeridos</span>
-        </a>
-      </div>
-    </article>
-
-    <article class="principal-panel app-card app-card--interactive">
-      <div class="principal-panel__header app-card__header">
-        <h2>Explorar rede</h2>
-      </div>
-
-      <p class="principal-panel__description">
-        Navegue livremente por perfis próximos, online e disponíveis para novas conexões.
-      </p>
-
-      <div class="principal-panel__actions app-card__actions">
-        <a class="principal-action principal-action--primary" routerLink="/dashboard/explorar">
-          <span class="principal-action__icon" aria-hidden="true">🔎</span>
-          <span>Abrir rede</span>
-        </a>
-      </div>
-    </article>
-
-    <article class="principal-panel app-card app-card--interactive">
-      <div class="principal-panel__header app-card__header">
-        <h2>Amizades e conversas</h2>
-      </div>
-
-      <p class="principal-panel__description">
-        Acompanhe amizades, solicitações e conversas em andamento sem perder o contexto da rede.
-      </p>
-
-      <div class="principal-panel__actions app-card__actions principal-panel__actions--split">
-        <a class="principal-action principal-action--ghost" routerLink="/friends/list">
-          Amizades
-        </a>
-        <a class="principal-action principal-action--ghost" routerLink="/chat-list">
-          Chats
-        </a>
-      </div>
-    </article>
-  </section>
 </section>
