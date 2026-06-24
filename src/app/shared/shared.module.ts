@@ -14,6 +14,7 @@ import { TextoDialogComponent } from './components-globais/texto-dialog/texto-di
 import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dialog/confirmacao-dialog.component';
 import { UploadPhotoComponent } from './components-globais/upload-photo/upload-photo.component';
 import { UniversalSidebarComponent } from './components-globais/universal-sidebar/universal-sidebar.component';
+import { ReportContentButtonComponent } from './components-globais/moderation-report/report-content-button/report-content-button.component';
 
 @NgModule({
   declarations: [
@@ -32,9 +33,11 @@ import { UniversalSidebarComponent } from './components-globais/universal-sideba
     MatButtonModule,
     MatSnackBarModule,
     UniversalSidebarComponent,
+    ReportContentButtonComponent,
   ],
   exports: [
     UniversalSidebarComponent,
+    ReportContentButtonComponent,
     ModalMensagemComponent,
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
