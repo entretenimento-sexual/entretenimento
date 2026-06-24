@@ -1,4 +1,4 @@
-// src/app/core/services/media/video-library.service.ts
+﻿// src/app/core/services/media/video-library.service.ts
 // -----------------------------------------------------------------------------
 // Leitura da biblioteca privada de vídeos.
 //
@@ -10,6 +10,9 @@ import {
   Firestore,
   collection,
   collectionData,
+  limit,
+  orderBy,
+  query,
 } from '@angular/fire/firestore';
 import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
@@ -51,12 +54,17 @@ export class VideoLibraryService {
 
     return this.firestoreCtx.deferObservable$(() => {
       const videosRef = collection(this.firestore, `users/${safeOwnerUid}/videos`);
+      const videosQuery = query(
+        videosRef,
+        orderBy('createdAt', 'desc'),
+        limit(60)
+      );
 
-      return collectionData(videosRef, { idField: 'id' }).pipe(
+      return collectionData(videosQuery, { idField: 'id' }).pipe(
         map((items) =>
           (items as IVideoDoc[])
             .map((item) => this.mapVideoDoc(safeOwnerUid, item))
-            .sort((a, b) => b.createdAt - a.createdAt)
+            .filter((item) => this.isUsableVideo(item))
         )
       );
     }).pipe(
@@ -83,6 +91,10 @@ export class VideoLibraryService {
       createdAt: this.normalizeDateMs(item.createdAt),
       updatedAt: this.normalizeOptionalDateMs(item.updatedAt),
     };
+  }
+
+  private isUsableVideo(item: IVideoItem): boolean {
+    return !!item.id && !!item.url;
   }
 
   private normalizeUid(value: unknown): string {
