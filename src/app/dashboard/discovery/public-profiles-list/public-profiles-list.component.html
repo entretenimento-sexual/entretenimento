@@ -14,9 +14,13 @@
       <p>{{ errorMessage() }}</p>
     </div>
   } @else if (profiles().length === 0) {
-    <div class="public-profiles__state" role="status">
+    <div class="public-profiles__state" role="status" aria-live="polite">
       <i class="fas fa-users" aria-hidden="true"></i>
-      <p>Nenhum perfil disponível agora.</p>
+
+      <div class="public-profiles__state-copy">
+        <p>Nenhum perfil disponível agora.</p>
+        <span>Confira o modo Online ou volte em instantes. Novos perfis aparecem conforme a descoberta pública é atualizada.</span>
+      </div>
     </div>
   } @else {
     <div class="public-profiles__grid">
