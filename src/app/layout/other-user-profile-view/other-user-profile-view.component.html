@@ -119,6 +119,21 @@
                   {{ (friendRequestBusy$ | async) ? 'Enviando...' : interactionState.friendRequestLabel }}
                 </span>
               </button>
+
+              <button
+                type="button"
+                class="other-profile-page__action app-action app-action--ghost"
+                (click)="startDirectChat()"
+                [disabled]="(directChatBusy$ | async) === true || !uid || !interactionState.isFriend"
+                [attr.aria-busy]="(directChatBusy$ | async) === true ? 'true' : 'false'"
+                [attr.aria-describedby]="'profile-actions-helper profile-actions-status'"
+                [attr.aria-label]="interactionState.isFriend ? ('Iniciar chat com ' + displayName) : ('Conecte-se com ' + displayName + ' para iniciar chat')"
+              >
+                <i [class]="interactionState.isFriend ? 'fas fa-comment-dots' : 'fas fa-lock'" aria-hidden="true"></i>
+                <span>
+                  {{ (directChatBusy$ | async) ? 'Preparando...' : (interactionState.isFriend ? 'Iniciar chat' : 'Conecte-se para conversar') }}
+                </span>
+              </button>
             } @else {
               <button
                 type="button"
@@ -131,22 +146,19 @@
                 <i class="fas fa-circle-notch" aria-hidden="true"></i>
                 <span>Verificando...</span>
               </button>
-            }
 
-            <button
-              type="button"
-              class="other-profile-page__action app-action app-action--ghost"
-              (click)="startDirectChat()"
-              [disabled]="(directChatBusy$ | async) === true || !uid"
-              [attr.aria-busy]="(directChatBusy$ | async) === true ? 'true' : 'false'"
-              [attr.aria-describedby]="'profile-actions-helper profile-actions-status'"
-              [attr.aria-label]="'Iniciar chat com ' + displayName"
-            >
-              <i class="fas fa-comment-dots" aria-hidden="true"></i>
-              <span>
-                {{ (directChatBusy$ | async) ? 'Preparando...' : 'Iniciar chat' }}
-              </span>
-            </button>
+              <button
+                type="button"
+                class="other-profile-page__action app-action app-action--ghost"
+                disabled
+                aria-busy="true"
+                aria-describedby="profile-actions-helper profile-actions-status"
+                [attr.aria-label]="'Verificando disponibilidade de chat com ' + displayName"
+              >
+                <i class="fas fa-circle-notch" aria-hidden="true"></i>
+                <span>Verificando...</span>
+              </button>
+            }
 
             <app-report-content-button
               class="other-profile-page__report-button"
