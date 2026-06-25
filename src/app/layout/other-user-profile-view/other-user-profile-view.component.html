@@ -104,20 +104,34 @@
           </header>
 
           <div class="other-profile-page__actions">
-            <button
-              type="button"
-              class="other-profile-page__action app-action app-action--primary"
-              (click)="sendFriendRequest()"
-              [disabled]="(friendRequestBusy$ | async) === true || !uid"
-              [attr.aria-busy]="(friendRequestBusy$ | async) === true ? 'true' : 'false'"
-              [attr.aria-describedby]="'profile-actions-helper profile-actions-status'"
-              [attr.aria-label]="'Solicitar amizade para ' + displayName"
-            >
-              <i class="fas fa-user-plus" aria-hidden="true"></i>
-              <span>
-                {{ (friendRequestBusy$ | async) ? 'Enviando...' : 'Solicitar amizade' }}
-              </span>
-            </button>
+            @if (friendshipInteractionState$ | async; as interactionState) {
+              <button
+                type="button"
+                class="other-profile-page__action app-action app-action--primary"
+                (click)="sendFriendRequest()"
+                [disabled]="(friendRequestBusy$ | async) === true || !uid || !interactionState.canSendFriendRequest"
+                [attr.aria-busy]="(friendRequestBusy$ | async) === true ? 'true' : 'false'"
+                [attr.aria-describedby]="'profile-actions-helper profile-actions-status'"
+                [attr.aria-label]="interactionState.friendRequestAriaLabel"
+              >
+                <i [class]="interactionState.friendRequestIcon" aria-hidden="true"></i>
+                <span>
+                  {{ (friendRequestBusy$ | async) ? 'Enviando...' : interactionState.friendRequestLabel }}
+                </span>
+              </button>
+            } @else {
+              <button
+                type="button"
+                class="other-profile-page__action app-action app-action--primary"
+                disabled
+                aria-busy="true"
+                aria-describedby="profile-actions-helper profile-actions-status"
+                [attr.aria-label]="'Verificando estado de amizade com ' + displayName"
+              >
+                <i class="fas fa-circle-notch" aria-hidden="true"></i>
+                <span>Verificando...</span>
+              </button>
+            }
 
             <button
               type="button"
@@ -157,8 +171,10 @@
               Solicitação de amizade em envio.
             } @else if ((directChatBusy$ | async) === true) {
               Preparando conversa direta.
+            } @else if (friendshipInteractionState$ | async; as interactionState) {
+              {{ interactionState.liveStatus }}
             } @else {
-              Ações prontas para iniciar contato seguro com este perfil.
+              Verificando estado de amizade com este perfil.
             }
           </p>
         </aside>
