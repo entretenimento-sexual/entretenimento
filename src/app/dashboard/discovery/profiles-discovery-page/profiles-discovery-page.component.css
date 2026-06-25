@@ -8,6 +8,7 @@
    - alinhar barra de modos e cards no mesmo corredor visual;
    - evitar corte lateral em resoluções médias;
    - manter o visual limpo, mobile-first e compatível com dark/high contrast;
+   - orientar o usuário antes da lista sem criar hero pesado;
    - preservar a lógica atual: Todos = public_profiles + score + presença opcional.
 ----------------------------------------------------------------------------- */
 
@@ -54,14 +55,57 @@
 }
 
 /*
-  Topbar e conteúdo usam a mesma largura máxima.
-  Isso corrige o desalinhamento visual entre barra e cards.
+  Intro, topbar e conteúdo usam a mesma largura máxima.
+  Isso corrige desalinhamento visual entre orientação, barra e cards.
 */
+.profiles-discovery-page__intro,
 .profiles-discovery-page__topbar,
 .profiles-discovery-page__content {
   width: var(--discovery-content-max);
   min-width: 0;
   margin-inline: auto;
+}
+
+.profiles-discovery-page__intro {
+  display: grid;
+  gap: 0.28rem;
+
+  padding: 0.25rem 0 0.05rem;
+}
+
+.profiles-discovery-page__eyebrow,
+.profiles-discovery-page__title,
+.profiles-discovery-page__description {
+  margin: 0;
+}
+
+.profiles-discovery-page__eyebrow {
+  color: var(--primary-color);
+
+  font-size: 0.74rem;
+  font-weight: 780;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.profiles-discovery-page__title {
+  color: var(--text-color);
+
+  font-size: clamp(1.18rem, 3vw, 1.62rem);
+  font-weight: 820;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.profiles-discovery-page__description {
+  max-width: 48rem;
+
+  color: color-mix(in oklab, var(--text-color) 72%, transparent);
+
+  font-size: clamp(0.88rem, 1.8vw, 0.98rem);
+  font-weight: 560;
+  line-height: 1.38;
 }
 
 .profiles-discovery-page__topbar {
@@ -102,23 +146,6 @@
   line-height: 1.35;
 }
 
-.sr-only {
-  position: absolute !important;
-
-  width: 1px !important;
-  height: 1px !important;
-
-  padding: 0 !important;
-  margin: -1px !important;
-
-  overflow: hidden !important;
-
-  clip: rect(0, 0, 0, 0) !important;
-  white-space: nowrap !important;
-
-  border: 0 !important;
-}
-
 :host-context(.high-contrast) .profiles-discovery-page__empty {
   border: 2px solid var(--text-color) !important;
   box-shadow: none !important;
@@ -148,6 +175,10 @@
 
   .profiles-discovery-page {
     padding-bottom: 1.25rem;
+  }
+
+  .profiles-discovery-page__intro {
+    padding-top: 0.1rem;
   }
 
   .profiles-discovery-page__topbar {
