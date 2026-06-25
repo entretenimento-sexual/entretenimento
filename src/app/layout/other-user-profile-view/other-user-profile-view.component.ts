@@ -37,6 +37,8 @@ import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Store } from '@ngrx/store';
 import {
   BehaviorSubject,
+  Observable,
+  combineLatest,
   map,
   of,
   shareReplay,
@@ -52,6 +54,8 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
+import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { SharedModule } from '../../shared/shared.module';
 
@@ -77,6 +81,16 @@ interface ViewerAccessState {
   tier: string;
   isSubscriber: boolean;
   premiumLabel: string;
+}
+
+interface FriendshipInteractionState {
+  isFriend: boolean;
+  hasPendingOutboundRequest: boolean;
+  canSendFriendRequest: boolean;
+  friendRequestIcon: string;
+  friendRequestLabel: string;
+  friendRequestAriaLabel: string;
+  liveStatus: string;
 }
 
 @Component({
@@ -148,6 +162,8 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  readonly friendshipInteractionState$: Observable<FriendshipInteractionState>;
+
   uid: string | null = null;
   userProfile: IUserDados | null = null;
 
@@ -166,7 +182,9 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     private readonly cdr: ChangeDetectorRef,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotification: ErrorNotificationService
-  ) {}
+  ) {
+    this.friendshipInteractionState$ = this.buildFriendshipInteractionStateStream();
+  }
 
   ngOnInit(): void {
     this.uid = this.getUidFromRoute();
@@ -415,10 +433,12 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
     this.friendRequestBusy$.next(true);
 
-    this.authSession.uid$
+    combineLatest([
+      this.authSession.uid$.pipe(take(1)),
+      this.friendshipInteractionState$.pipe(take(1)),
+    ])
       .pipe(
-        take(1),
-        switchMap((requesterUid) => {
+        switchMap(([requesterUid, interactionState]) => {
           const safeRequesterUid = (requesterUid ?? '').trim();
 
           if (!safeRequesterUid) {
@@ -427,6 +447,10 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
           if (safeRequesterUid === targetUid) {
             return throwError(() => new Error('Você não pode enviar solicitação para si mesmo.'));
+          }
+
+          if (!interactionState.canSendFriendRequest) {
+            return throwError(() => new Error(interactionState.liveStatus));
           }
 
           return this.friendshipService.sendRequest(
@@ -517,6 +541,109 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
           );
         });
       });
+  }
+
+  private buildFriendshipInteractionStateStream(): Observable<FriendshipInteractionState> {
+    return combineLatest([
+      this.authSession.uid$.pipe(
+        map((uid) => (uid ?? '').trim()),
+        distinctUntilChanged()
+      ),
+      this.viewedProfileUid$.pipe(
+        map((uid) => (uid ?? '').trim()),
+        distinctUntilChanged()
+      ),
+    ]).pipe(
+      switchMap(([viewerUid, targetUid]) => {
+        if (!viewerUid || !targetUid || viewerUid === targetUid) {
+          return of(this.buildFriendshipInteractionState(targetUid, [], []));
+        }
+
+        return combineLatest([
+          this.friendshipService.watchOutboundRequests(viewerUid).pipe(
+            catchError((error) => {
+              this.reportError(
+                'Não foi possível verificar solicitações de amizade.',
+                {
+                  op: 'friendshipInteractionState.outbound',
+                  hasTargetUid: !!targetUid,
+                },
+                error
+              );
+
+              return of([] as FriendRequest[]);
+            })
+          ),
+          this.friendshipService.watchFriends(viewerUid).pipe(
+            catchError((error) => {
+              this.reportError(
+                'Não foi possível verificar sua lista de amigos.',
+                {
+                  op: 'friendshipInteractionState.friends',
+                  hasTargetUid: !!targetUid,
+                },
+                error
+              );
+
+              return of([] as Friend[]);
+            })
+          ),
+        ]).pipe(
+          map(([outboundRequests, friends]) => this.buildFriendshipInteractionState(
+            targetUid,
+            outboundRequests,
+            friends
+          ))
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
+  private buildFriendshipInteractionState(
+    targetUid: string,
+    outboundRequests: FriendRequest[],
+    friends: Friend[]
+  ): FriendshipInteractionState {
+    const safeTargetUid = (targetUid ?? '').trim();
+    const isFriend = friends.some((friend) => friend.friendUid === safeTargetUid);
+    const hasPendingOutboundRequest = outboundRequests.some((request) =>
+      request.targetUid === safeTargetUid && request.status === 'pending'
+    );
+
+    if (isFriend) {
+      return {
+        isFriend,
+        hasPendingOutboundRequest,
+        canSendFriendRequest: false,
+        friendRequestIcon: 'fas fa-user-check',
+        friendRequestLabel: 'Amigos',
+        friendRequestAriaLabel: `${this.displayName} já está na sua lista de amigos.`,
+        liveStatus: 'Vocês já são amigos. Use o chat para continuar a conversa.',
+      };
+    }
+
+    if (hasPendingOutboundRequest) {
+      return {
+        isFriend,
+        hasPendingOutboundRequest,
+        canSendFriendRequest: false,
+        friendRequestIcon: 'fas fa-hourglass-half',
+        friendRequestLabel: 'Solicitação enviada',
+        friendRequestAriaLabel: `Solicitação de amizade para ${this.displayName} já foi enviada.`,
+        liveStatus: 'Solicitação de amizade já enviada. Aguarde a resposta do perfil.',
+      };
+    }
+
+    return {
+      isFriend,
+      hasPendingOutboundRequest,
+      canSendFriendRequest: !!safeTargetUid,
+      friendRequestIcon: 'fas fa-user-plus',
+      friendRequestLabel: 'Solicitar amizade',
+      friendRequestAriaLabel: `Solicitar amizade para ${this.displayName}`,
+      liveStatus: 'Ações prontas para iniciar contato seguro com este perfil.',
+    };
   }
 
   private buildViewerAccess(viewer: IUserDados | null): ViewerAccessState {
