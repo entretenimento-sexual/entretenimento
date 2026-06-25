@@ -1,12 +1,23 @@
 <!-- src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.html -->
 
-<section class="profiles-discovery-page" aria-labelledby="discovery-title">
-  <!-- Título preservado para acessibilidade, sem poluir visualmente. -->
-  <h1 id="discovery-title" class="sr-only">
-    Descoberta de perfis
-  </h1>
+<section
+  class="profiles-discovery-page"
+  aria-labelledby="discovery-title"
+  aria-describedby="discovery-description"
+>
+  <header class="profiles-discovery-page__intro">
+    <p class="profiles-discovery-page__eyebrow">Descoberta</p>
 
-  <div class="profiles-discovery-page__topbar">
+    <h1 id="discovery-title" class="profiles-discovery-page__title">
+      Encontre perfis compatíveis
+    </h1>
+
+    <p id="discovery-description" class="profiles-discovery-page__description">
+      Explore perfis públicos, veja quem está online e abra o perfil antes de iniciar uma conexão.
+    </p>
+  </header>
+
+  <div class="profiles-discovery-page__topbar" aria-label="Filtros de descoberta">
     <app-discovery-mode-tabs
       [tabs]="tabs"
       [activeMode]="activeMode()"
