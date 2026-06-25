@@ -10,7 +10,8 @@
    - preencher melhor a área útil de Descobrir;
    - manter largura previsível dos cards no desktop;
    - preservar queda para scroll/uma coluna em mobile;
-   - preservar estados de loading, vazio e erro com orientação útil.
+   - preservar estados de loading, vazio e erro com orientação útil;
+   - informar quantidade carregada sem adicionar lógica de busca.
 ----------------------------------------------------------------------------- */
 
 :host {
@@ -22,6 +23,17 @@
 .public-profiles {
   width: 100%;
   min-width: 0;
+}
+
+.public-profiles__result-count {
+  margin: 0 0 0.65rem;
+
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
 }
 
 .public-profiles__grid {
@@ -116,14 +128,15 @@
    Dark mode
    -------------------------------------------------------------------------- */
 
+html.dark-mode .public-profiles__result-count,
+html.dark-mode .public-profiles__state span {
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
+}
+
 html.dark-mode .public-profiles__state {
   background: color-mix(in oklab, var(--surface-color) 88%, #000 12%);
   color: color-mix(in oklab, var(--text-color) 78%, transparent);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
-}
-
-html.dark-mode .public-profiles__state span {
-  color: color-mix(in oklab, var(--text-color) 66%, transparent);
 }
 
 html.dark-mode .public-profiles__state--error {
@@ -135,9 +148,13 @@ html.dark-mode .public-profiles__state--error {
    Alto contraste
    -------------------------------------------------------------------------- */
 
+html.high-contrast .public-profiles__result-count,
 html.high-contrast .public-profiles__state {
   background: var(--background-color) !important;
   color: var(--text-color) !important;
+}
+
+html.high-contrast .public-profiles__state {
   border: 2px solid var(--text-color) !important;
   box-shadow: none !important;
 }
@@ -174,6 +191,10 @@ html.high-contrast .public-profiles__state--error {
 @media (max-width: 560px) {
   .public-profiles__grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .public-profiles__result-count {
+    margin-bottom: 0.55rem;
   }
 
   .public-profiles__state {
