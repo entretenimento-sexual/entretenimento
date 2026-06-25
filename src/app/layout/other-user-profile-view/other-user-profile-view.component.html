@@ -91,10 +91,14 @@
           </div>
         </article>
 
-        <aside class="other-profile-page__actions-card app-card app-card--compact" aria-label="Ações do perfil">
+        <aside
+          class="other-profile-page__actions-card app-card app-card--compact"
+          aria-labelledby="profile-actions-heading"
+          aria-describedby="profile-actions-helper profile-actions-status"
+        >
           <header class="other-profile-page__actions-heading app-card__header">
-            <h2 class="other-profile-page__actions-title">Interagir</h2>
-            <p class="other-profile-page__actions-helper">
+            <h2 id="profile-actions-heading" class="other-profile-page__actions-title">Interagir</h2>
+            <p id="profile-actions-helper" class="other-profile-page__actions-helper">
               Comece com uma solicitação ou abra uma conversa direta. Use a denúncia se encontrar abuso, golpe ou conteúdo fora das regras.
             </p>
           </header>
@@ -106,6 +110,8 @@
               (click)="sendFriendRequest()"
               [disabled]="(friendRequestBusy$ | async) === true || !uid"
               [attr.aria-busy]="(friendRequestBusy$ | async) === true ? 'true' : 'false'"
+              [attr.aria-describedby]="'profile-actions-helper profile-actions-status'"
+              [attr.aria-label]="'Solicitar amizade para ' + displayName"
             >
               <i class="fas fa-user-plus" aria-hidden="true"></i>
               <span>
@@ -119,6 +125,8 @@
               (click)="startDirectChat()"
               [disabled]="(directChatBusy$ | async) === true || !uid"
               [attr.aria-busy]="(directChatBusy$ | async) === true ? 'true' : 'false'"
+              [attr.aria-describedby]="'profile-actions-helper profile-actions-status'"
+              [attr.aria-label]="'Iniciar chat com ' + displayName"
             >
               <i class="fas fa-comment-dots" aria-hidden="true"></i>
               <span>
@@ -138,6 +146,21 @@
               [disabled]="!uid"
             ></app-report-content-button>
           </div>
+
+          <p
+            id="profile-actions-status"
+            class="visually-hidden"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            @if ((friendRequestBusy$ | async) === true) {
+              Solicitação de amizade em envio.
+            } @else if ((directChatBusy$ | async) === true) {
+              Preparando conversa direta.
+            } @else {
+              Ações prontas para iniciar contato seguro com este perfil.
+            }
+          </p>
         </aside>
       </section>
 
