@@ -10,7 +10,7 @@
    - preencher melhor a área útil de Descobrir;
    - manter largura previsível dos cards no desktop;
    - preservar queda para scroll/uma coluna em mobile;
-   - preservar estados de loading, vazio e erro.
+   - preservar estados de loading, vazio e erro com orientação útil.
 ----------------------------------------------------------------------------- */
 
 :host {
@@ -69,15 +69,35 @@
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
 }
 
-.public-profiles__state p {
+.public-profiles__state-copy {
+  display: grid;
+  gap: 0.22rem;
+
+  min-width: 0;
+}
+
+.public-profiles__state p,
+.public-profiles__state span {
   margin: 0;
 
+  line-height: 1.32;
+}
+
+.public-profiles__state p {
   font-size: 0.92rem;
-  font-weight: 650;
-  line-height: 1.3;
+  font-weight: 700;
+}
+
+.public-profiles__state span {
+  color: color-mix(in oklab, var(--text-color) 62%, transparent);
+
+  font-size: 0.84rem;
+  font-weight: 540;
 }
 
 .public-profiles__state i {
+  flex: 0 0 auto;
+
   color: var(--primary-color);
   font-size: 0.95rem;
 }
@@ -102,6 +122,10 @@ html.dark-mode .public-profiles__state {
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22);
 }
 
+html.dark-mode .public-profiles__state span {
+  color: color-mix(in oklab, var(--text-color) 66%, transparent);
+}
+
 html.dark-mode .public-profiles__state--error {
   background: color-mix(in oklab, var(--danger-color) 12%, var(--surface-color));
   color: color-mix(in oklab, var(--danger-color) 82%, #fff 18%);
@@ -118,6 +142,7 @@ html.high-contrast .public-profiles__state {
   box-shadow: none !important;
 }
 
+html.high-contrast .public-profiles__state span,
 html.high-contrast .public-profiles__state i {
   color: var(--text-color) !important;
 }
