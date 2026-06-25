@@ -23,6 +23,10 @@
       </div>
     </div>
   } @else {
+    <p class="public-profiles__result-count" role="status" aria-live="polite">
+      {{ profiles().length === 1 ? '1 perfil encontrado' : (profiles().length + ' perfis encontrados') }}
+    </p>
+
     <div class="public-profiles__grid">
       @for (profile of profiles(); track trackProfile($index, profile)) {
         <app-user-card
