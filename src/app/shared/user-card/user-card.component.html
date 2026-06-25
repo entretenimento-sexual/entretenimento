@@ -144,6 +144,42 @@
           Público
         </span>
 
+        @if (relationshipVm(); as relationship) {
+          <span class="user-card__signal-pill">
+            @switch (relationship.state) {
+              @case ('friends') {
+                <i class="fas fa-user-check"></i>
+                Conectado
+              }
+
+              @case ('outgoing_pending') {
+                <i class="fas fa-clock"></i>
+                Solicitação enviada
+              }
+
+              @case ('incoming_pending') {
+                <i class="fas fa-user-clock"></i>
+                Quer conectar
+              }
+
+              @case ('blocked_by_me') {
+                <i class="fas fa-ban"></i>
+                Bloqueado
+              }
+
+              @case ('self') {
+                <i class="fas fa-user"></i>
+                Meu perfil
+              }
+
+              @default {
+                <i class="fas fa-user-plus"></i>
+                Novo contato
+              }
+            }
+          </span>
+        }
+
         @if (profile.isOnline) {
           <span class="user-card__signal-pill user-card__signal-pill--hot">
             <i class="fas fa-bolt"></i>
