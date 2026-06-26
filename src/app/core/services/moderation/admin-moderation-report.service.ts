@@ -1,0 +1,166 @@
+// src/app/core/services/moderation/admin-moderation-report.service.ts
+// -----------------------------------------------------------------------------
+// ADMIN MODERATION REPORT SERVICE
+// -----------------------------------------------------------------------------
+// Serviço operacional para moderação/admin revisar denúncias.
+//
+// Decisões:
+// - leitura/listagem depende das Firestore Rules com claim admin;
+// - usuário comum não deve conseguir usar este service com sucesso;
+// - atualizações são restritas a status/resolução/campos de revisão;
+// - operações AngularFire rodam via FirestoreContextService;
+// - erros são reportados ao GlobalErrorHandlerService para debug centralizado.
+// -----------------------------------------------------------------------------
+
+import { Injectable, inject } from '@angular/core';
+import {
+  Firestore,
+  collection,
+  collectionData,
+  doc,
+  orderBy,
+  query,
+  serverTimestamp,
+  updateDoc,
+} from '@angular/fire/firestore';
+import { Observable, throwError } from 'rxjs';
+import { catchError, map, switchMap, take } from 'rxjs/operators';
+
+import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
+import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import {
+  IModerationReportVm,
+  ModerationReportStatus,
+} from 'src/app/core/interfaces/moderation/moderation-report.interface';
+import { toErrorInstance } from 'src/app/core/utils/firebase-error-utils';
+
+export interface ModerationReportReviewPatch {
+  status: Exclude<ModerationReportStatus, 'open'>;
+  resolution?: string | null;
+}
+
+export interface AdminModerationReportVm extends IModerationReportVm {
+  reviewedBy?: string | null;
+  reviewedAt?: unknown;
+  resolution?: string | null;
+}
+
+@Injectable({ providedIn: 'root' })
+export class AdminModerationReportService {
+  private readonly firestore = inject(Firestore);
+  private readonly firestoreContext = inject(FirestoreContextService);
+  private readonly authSession = inject(AuthSessionService);
+  private readonly globalError = inject(GlobalErrorHandlerService);
+
+  listReports$(): Observable<AdminModerationReportVm[]> {
+    return this.firestoreContext.deferObservable$(() => {
+      const reportsRef = collection(this.firestore, 'moderation_reports');
+      const reportsQuery = query(reportsRef, orderBy('createdAt', 'desc'));
+
+      return collectionData(reportsQuery, { idField: 'id' }) as Observable<AdminModerationReportVm[]>;
+    }).pipe(
+      map((reports) => reports.map((report) => this.normalizeReport(report))),
+      catchError((error) => {
+        this.reportError(error, 'listReports', {});
+        return throwError(() => error);
+      })
+    );
+  }
+
+  reviewReport$(reportId: string, patch: ModerationReportReviewPatch): Observable<void> {
+    const safeReportId = String(reportId ?? '').trim();
+    const normalized = this.normalizePatch(patch);
+
+    if (!safeReportId || !normalized) {
+      return throwError(() => new Error('Revisão de denúncia inválida.'));
+    }
+
+    return this.authSession.readyUid$.pipe(
+      take(1),
+      switchMap((uid) => {
+        const reviewerUid = String(uid ?? '').trim();
+
+        if (!reviewerUid) {
+          return throwError(() => new Error('Sessão administrativa não identificada.'));
+        }
+
+        return this.firestoreContext.deferPromise$(() => {
+          const reportRef = doc(this.firestore, 'moderation_reports', safeReportId);
+
+          return updateDoc(reportRef, {
+            status: normalized.status,
+            resolution: normalized.resolution,
+            reviewedBy: reviewerUid,
+            reviewedAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+        });
+      }),
+      catchError((error) => {
+        this.reportError(error, 'reviewReport', {
+          hasReportId: !!safeReportId,
+          status: normalized.status,
+        });
+
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private normalizeReport(report: AdminModerationReportVm): AdminModerationReportVm {
+    return {
+      ...report,
+      id: String(report.id ?? '').trim(),
+      reporterUid: String(report.reporterUid ?? '').trim(),
+      targetType: report.targetType,
+      targetId: String(report.targetId ?? '').trim(),
+      targetOwnerUid: String(report.targetOwnerUid ?? '').trim() || null,
+      reason: report.reason,
+      details: String(report.details ?? '').trim() || null,
+      route: String(report.route ?? '').trim() || null,
+      status: report.status,
+      source: report.source,
+      resolution: String(report.resolution ?? '').trim() || null,
+      reviewedBy: String(report.reviewedBy ?? '').trim() || null,
+    };
+  }
+
+  private normalizePatch(
+    patch: ModerationReportReviewPatch
+  ): ModerationReportReviewPatch | null {
+    const status = String(patch?.status ?? '').trim() as ModerationReportReviewPatch['status'];
+    const resolution = String(patch?.resolution ?? '').trim().slice(0, 900);
+
+    if (!['reviewing', 'resolved', 'rejected'].includes(status)) {
+      return null;
+    }
+
+    return {
+      status,
+      resolution: resolution || null,
+    };
+  }
+
+  private reportError(
+    error: unknown,
+    operation: string,
+    context: Record<string, unknown>
+  ): void {
+    try {
+      const normalizedError = toErrorInstance(
+        error,
+        `[AdminModerationReportService.${operation}] falhou.`
+      );
+
+      (normalizedError as any).feature = 'admin_moderation_reports';
+      (normalizedError as any).operation = operation;
+      (normalizedError as any).context = context;
+      (normalizedError as any).original = error;
+
+      this.globalError.handleError(normalizedError);
+    } catch {
+      // noop
+    }
+  }
+}
