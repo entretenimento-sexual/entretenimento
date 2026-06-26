@@ -25,7 +25,6 @@ export type SidebarSectionKey =
   | 'profiles'
   | 'chat'
   | 'media'
-  | 'safety'
   | 'admin'
   | 'subscriptions'
   | 'settings'
@@ -86,10 +85,6 @@ const SECTION_MATCHERS: ReadonlyArray<{
     ],
   },
   {
-    key: 'safety',
-    prefixes: ['/dashboard/seguranca'],
-  },
-  {
     key: 'explore',
     prefixes: [
       '/dashboard/explorar',
@@ -111,7 +106,7 @@ const SECTION_MATCHERS: ReadonlyArray<{
   },
   {
     key: 'settings',
-    prefixes: ['/perfil', '/perfil-debug', '/preferencias', '/conta'],
+    prefixes: ['/perfil', '/perfil-debug', '/preferencias', '/conta', '/dashboard/seguranca'],
   },
   {
     key: 'dashboard',
@@ -159,20 +154,6 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         icon: '💬',
         exact: false,
         ariaLabel: 'Abrir conversas, conexões, salas e convites',
-      },
-    ],
-  },
-  {
-    key: 'safety',
-    title: 'Segurança',
-    items: [
-      {
-        id: 'safety-center',
-        label: 'Segurança',
-        route: '/dashboard/seguranca',
-        icon: '🛡️',
-        exact: false,
-        ariaLabel: 'Abrir central de segurança e confiança',
       },
     ],
   },
@@ -249,6 +230,14 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         icon: '🧾',
         exact: false,
         ariaLabel: 'Ir para a área da conta',
+      },
+      {
+        id: 'safety-center',
+        label: 'Segurança',
+        route: '/dashboard/seguranca',
+        icon: '🛡️',
+        exact: false,
+        ariaLabel: 'Abrir central de segurança e confiança',
       },
     ],
   },
