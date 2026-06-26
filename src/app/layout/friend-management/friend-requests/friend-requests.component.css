@@ -342,7 +342,8 @@
 }
 
 .request-card__actions {
-  margin-top: 2px;
+  align-items: center;
+  margin-top: 4px;
 }
 
 .request-action {
@@ -385,18 +386,35 @@
 }
 
 .request-action--accept {
-  border-color: color-mix(in oklab, var(--success-color, #36d399) 42%, transparent);
-  background: color-mix(in oklab, var(--success-color, #36d399) 16%, transparent);
+  border-color: color-mix(in oklab, var(--success-color, #36d399) 58%, transparent);
+  background: color-mix(in oklab, var(--success-color, #36d399) 22%, var(--surface-color, #101923));
+  color: color-mix(in oklab, var(--success-color, #36d399) 72%, var(--text-color, #f5f7fb) 28%);
+  box-shadow: 0 8px 18px color-mix(in oklab, var(--success-color, #36d399) 13%, transparent);
 }
 
 .request-action--decline,
 .request-action--cancel {
-  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 32%, transparent);
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 30%, transparent);
+  background: color-mix(in oklab, var(--surface-color, #101923) 94%, var(--primary-color, #ff7070) 5%);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 82%, transparent);
 }
 
 .request-action--block {
-  border-color: color-mix(in oklab, var(--danger-color, #ef4444) 36%, transparent);
-  color: color-mix(in oklab, var(--danger-color, #ef4444) 76%, var(--text-color, #f5f7fb) 24%);
+  min-height: 34px;
+  margin-left: auto;
+  padding-inline: 10px;
+  border-color: color-mix(in oklab, var(--danger-color, #ef4444) 30%, transparent);
+  background: transparent;
+  color: color-mix(in oklab, var(--danger-color, #ef4444) 70%, var(--text-color, #f5f7fb) 30%);
+  font-size: 0.8rem;
+  opacity: 0.84;
+}
+
+.request-action--block:hover,
+.request-action--block:focus-visible {
+  opacity: 1;
+  border-color: color-mix(in oklab, var(--danger-color, #ef4444) 52%, transparent);
+  background: color-mix(in oklab, var(--danger-color, #ef4444) 8%, transparent);
 }
 
 .friend-requests__state,
@@ -500,11 +518,20 @@
 
   .request-card__actions {
     display: grid;
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .request-action {
     width: 100%;
+  }
+
+  .request-action--block {
+    grid-column: 1 / -1;
+    justify-self: start;
+    width: auto;
+    max-width: 100%;
+    margin-left: 0;
+    padding-inline: 12px;
   }
 }
 
