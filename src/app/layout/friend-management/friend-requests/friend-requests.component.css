@@ -26,7 +26,31 @@
 
 .friend-requests__header,
 .friend-requests__header.app-card {
-  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(12px, 2vw, 20px);
+  padding: 16px;
+}
+
+.friend-requests__intro {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.friend-requests__eyebrow,
+.friend-requests__description {
+  margin: 0;
+}
+
+.friend-requests__eyebrow {
+  color: var(--primary-color, #ff7070);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-transform: uppercase;
 }
 
 .friend-requests h1 {
@@ -36,6 +60,51 @@
   font-weight: 900;
   line-height: 1.08;
   letter-spacing: -0.02em;
+}
+
+.friend-requests__description {
+  max-width: 44rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.friend-requests__summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.friend-requests__summary-item {
+  min-width: 94px;
+  min-height: 46px;
+  padding: 7px 10px;
+
+  display: grid;
+  align-content: center;
+  gap: 1px;
+
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 86%, transparent);
+  border-radius: 14px;
+
+  background: color-mix(in oklab, var(--surface-color, #101923) 90%, var(--text-color, #f5f7fb) 6%);
+  color: var(--text-color, #f5f7fb);
+}
+
+.friend-requests__summary-item strong {
+  font-size: 1rem;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.friend-requests__summary-item span {
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .friend-requests__state p {
@@ -362,6 +431,17 @@
 }
 
 @media (max-width: 760px) {
+  .friend-requests__header,
+  .friend-requests__header.app-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .friend-requests__summary {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
   .request-card,
   .request-card.mat-mdc-card {
     grid-template-columns: 92px minmax(0, 1fr);
@@ -386,6 +466,15 @@
   .request-card.mat-mdc-card {
     border-radius: 14px;
     box-shadow: none;
+  }
+
+  .friend-requests__summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .friend-requests__summary-item {
+    min-width: 0;
   }
 
   .request-card,
