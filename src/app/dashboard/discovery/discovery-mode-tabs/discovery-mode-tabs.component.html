@@ -27,7 +27,7 @@
           {{ tab.shortLabel || tab.label }}
         </span>
 
-        @if (tab.badge) {
+        @if (tab.badge && !tab.disabled) {
           <small class="discovery-tabs__badge">
             {{ tab.badge }}
           </small>
