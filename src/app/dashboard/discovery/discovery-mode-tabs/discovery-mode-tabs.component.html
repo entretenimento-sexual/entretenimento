@@ -21,7 +21,7 @@
         <i [class]="tab.icon" aria-hidden="true"></i>
 
         <span
-          class="discovery-tabs__label"
+          [class.discovery-tabs__label]="tab.disabled"
           [class.discovery-tabs__label--enabled]="!tab.disabled"
         >
           {{ tab.shortLabel || tab.label }}
