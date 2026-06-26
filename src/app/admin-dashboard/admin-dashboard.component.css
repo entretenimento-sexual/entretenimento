@@ -1,1 +1,88 @@
-/* src\app\admin-dashboard\admin-dashboard.component.css */
+/* src/app/admin-dashboard/admin-dashboard.component.css */
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.admin-shell {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  color: var(--text-color, #111827);
+}
+
+.admin-shell__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
+  border-radius: 18px;
+  background: var(--surface-color, #fff);
+  box-shadow: var(--box-shadow, 0 12px 28px rgba(0, 0, 0, 0.12));
+}
+
+.admin-shell__eyebrow {
+  margin: 0 0 4px;
+  color: var(--primary-color, #d64d4d);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.admin-shell h1 {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.4vw, 1.9rem);
+  font-weight: 950;
+  line-height: 1.05;
+}
+
+.admin-shell__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.admin-shell__nav a {
+  min-height: 38px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color, #fff) 92%, var(--text-color, #111827) 5%);
+  color: var(--text-color, #111827);
+  font-size: 0.9rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.admin-shell__nav a.is-active {
+  border-color: color-mix(in oklab, var(--primary-color, #d64d4d) 52%, var(--surface-border, rgba(0, 0, 0, 0.12)));
+  background: color-mix(in oklab, var(--primary-color, #d64d4d) 10%, var(--surface-color, #fff));
+  color: var(--primary-color, #d64d4d);
+}
+
+@media (max-width: 640px) {
+  .admin-shell__header {
+    align-items: stretch;
+    flex-direction: column;
+    border-radius: 14px;
+    box-shadow: none;
+  }
+
+  .admin-shell__nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .admin-shell__nav a {
+    width: 100%;
+  }
+}
