@@ -25,6 +25,7 @@ export type SidebarSectionKey =
   | 'profiles'
   | 'chat'
   | 'media'
+  | 'safety'
   | 'admin'
   | 'subscriptions'
   | 'settings'
@@ -83,6 +84,10 @@ const SECTION_MATCHERS: ReadonlyArray<{
       '/dashboard/featured-profiles',
       '/dashboard/latest-photos',
     ],
+  },
+  {
+    key: 'safety',
+    prefixes: ['/dashboard/seguranca'],
   },
   {
     key: 'explore',
@@ -154,6 +159,20 @@ const AUTH_SIDEBAR_CONFIG: ReadonlyArray<SidebarSectionConfig> = [
         icon: '💬',
         exact: false,
         ariaLabel: 'Abrir conversas, conexões, salas e convites',
+      },
+    ],
+  },
+  {
+    key: 'safety',
+    title: 'Segurança',
+    items: [
+      {
+        id: 'safety-center',
+        label: 'Segurança',
+        route: '/dashboard/seguranca',
+        icon: '🛡️',
+        exact: false,
+        ariaLabel: 'Abrir central de segurança e confiança',
       },
     ],
   },
