@@ -115,6 +115,16 @@ export class ModerationReportsComponent {
     return ['/outro-perfil', profileUid];
   }
 
+  sourceRoute(report: AdminModerationReportVm): string | null {
+    const route = String(report.route ?? '').trim();
+
+    if (!route || !route.startsWith('/') || route.startsWith('//')) {
+      return null;
+    }
+
+    return route;
+  }
+
   markReviewing(report: AdminModerationReportVm): void {
     this.reviewReport(report, {
       status: 'reviewing',
