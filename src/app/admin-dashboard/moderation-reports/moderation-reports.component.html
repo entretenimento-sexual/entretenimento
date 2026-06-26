@@ -102,16 +102,32 @@
               </div>
             </dl>
 
-            @if (targetRoute(report); as route) {
+            @if (targetRoute(report) || sourceRoute(report)) {
               <div class="report-card__target-actions">
-                <a
-                  mat-stroked-button
-                  color="primary"
-                  [routerLink]="route"
-                  [attr.aria-label]="'Abrir perfil denunciado ' + report.targetId"
-                >
-                  Abrir perfil denunciado
-                </a>
+                @if (targetRoute(report); as route) {
+                  <a
+                    mat-stroked-button
+                    color="primary"
+                    [routerLink]="route"
+                    target="_blank"
+                    rel="noopener"
+                    [attr.aria-label]="'Abrir perfil denunciado ' + report.targetId"
+                  >
+                    Abrir perfil denunciado
+                  </a>
+                }
+
+                @if (sourceRoute(report); as route) {
+                  <a
+                    mat-stroked-button
+                    [routerLink]="route"
+                    target="_blank"
+                    rel="noopener"
+                    [attr.aria-label]="'Abrir origem da denúncia ' + report.id"
+                  >
+                    Abrir origem
+                  </a>
+                }
               </div>
             }
 
