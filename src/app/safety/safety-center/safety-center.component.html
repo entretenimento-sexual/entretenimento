@@ -1,0 +1,82 @@
+<!-- src/app/safety/safety-center/safety-center.component.html -->
+<section class="safety-center" aria-labelledby="safety-center-title">
+  <header class="safety-center__hero app-card">
+    <div class="safety-center__hero-copy">
+      <p class="safety-center__eyebrow">Segurança</p>
+
+      <h1 id="safety-center-title">Central de Segurança</h1>
+
+      <p>
+        Controle bloqueios, revise conexões e acompanhe os próximos recursos de confiança da plataforma.
+      </p>
+    </div>
+
+    <div class="safety-center__status" role="status" aria-label="Status da segurança da conta">
+      <span class="safety-center__status-icon" aria-hidden="true">🛡️</span>
+      <strong>Camada inicial ativa</strong>
+      <span>Bloqueio, conexões e preferências já estão disponíveis.</span>
+    </div>
+  </header>
+
+  <section class="safety-center__section" aria-labelledby="safety-actions-title">
+    <div class="safety-center__section-heading">
+      <h2 id="safety-actions-title">Ações rápidas</h2>
+      <p>Comece pelos controles que já funcionam hoje.</p>
+    </div>
+
+    <div class="safety-center__action-grid">
+      @for (action of primaryActions; track trackById($index, action)) {
+        <a
+          class="safety-action"
+          [class.safety-action--primary]="action.variant === 'primary'"
+          [class.safety-action--secondary]="action.variant === 'secondary'"
+          [routerLink]="action.route"
+          [attr.aria-label]="action.ariaLabel"
+        >
+          <span class="safety-action__icon" aria-hidden="true">{{ action.icon }}</span>
+
+          <span class="safety-action__body">
+            <strong>{{ action.title }}</strong>
+            <span>{{ action.description }}</span>
+          </span>
+        </a>
+      }
+    </div>
+  </section>
+
+  <section class="safety-center__section" aria-labelledby="safety-guide-title">
+    <div class="safety-center__section-heading">
+      <h2 id="safety-guide-title">Uso seguro</h2>
+      <p>Orientações objetivas para reduzir abuso, spam e exposição desnecessária.</p>
+    </div>
+
+    <div class="safety-center__guide-grid">
+      @for (guide of safetyGuides; track trackById($index, guide)) {
+        <article class="safety-guide app-card">
+          <span class="safety-guide__icon" aria-hidden="true">{{ guide.icon }}</span>
+          <h3>{{ guide.title }}</h3>
+          <p>{{ guide.description }}</p>
+        </article>
+      }
+    </div>
+  </section>
+
+  <section class="safety-center__section" aria-labelledby="safety-next-title">
+    <div class="safety-center__section-heading">
+      <h2 id="safety-next-title">Próximas proteções</h2>
+      <p>Mapa das camadas que ainda precisam ser construídas sem improviso.</p>
+    </div>
+
+    <div class="safety-center__roadmap" role="list">
+      @for (control of upcomingControls; track trackById($index, control)) {
+        <article class="safety-roadmap-item" role="listitem">
+          <span class="safety-roadmap-item__icon" aria-hidden="true">{{ control.icon }}</span>
+          <div>
+            <h3>{{ control.title }}</h3>
+            <p>{{ control.description }}</p>
+          </div>
+        </article>
+      }
+    </div>
+  </section>
+</section>
