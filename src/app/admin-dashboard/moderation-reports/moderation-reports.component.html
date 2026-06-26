@@ -1,0 +1,161 @@
+<!-- src/app/admin-dashboard/moderation-reports/moderation-reports.component.html -->
+@if (vm$ | async; as vm) {
+  <section class="moderation-reports" aria-labelledby="moderation-reports-title">
+    <header class="moderation-reports__hero">
+      <div>
+        <p class="moderation-reports__eyebrow">Moderação</p>
+        <h2 id="moderation-reports-title">Triagem de denúncias</h2>
+        <p>
+          Revise denúncias recebidas, acompanhe o status e registre a decisão inicial da moderação.
+        </p>
+      </div>
+
+      <div class="moderation-reports__stats" aria-label="Resumo de denúncias">
+        <button type="button" (click)="setFilter('open')" [class.is-active]="selectedFilter() === 'open'">
+          <strong>{{ vm.open }}</strong>
+          <span>Abertas</span>
+        </button>
+
+        <button type="button" (click)="setFilter('reviewing')" [class.is-active]="selectedFilter() === 'reviewing'">
+          <strong>{{ vm.reviewing }}</strong>
+          <span>Em análise</span>
+        </button>
+
+        <button type="button" (click)="setFilter('all')" [class.is-active]="selectedFilter() === 'all'">
+          <strong>{{ vm.total }}</strong>
+          <span>Total</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="moderation-reports__filters" aria-label="Filtros de denúncia">
+      <button type="button" (click)="setFilter('open')" [class.is-active]="selectedFilter() === 'open'">
+        Abertas
+      </button>
+      <button type="button" (click)="setFilter('reviewing')" [class.is-active]="selectedFilter() === 'reviewing'">
+        Em análise
+      </button>
+      <button type="button" (click)="setFilter('resolved')" [class.is-active]="selectedFilter() === 'resolved'">
+        Resolvidas
+      </button>
+      <button type="button" (click)="setFilter('rejected')" [class.is-active]="selectedFilter() === 'rejected'">
+        Rejeitadas
+      </button>
+      <button type="button" (click)="setFilter('all')" [class.is-active]="selectedFilter() === 'all'">
+        Todas
+      </button>
+    </div>
+
+    @if (vm.filteredReports.length === 0) {
+      <section class="moderation-reports__empty" role="status">
+        <mat-icon aria-hidden="true">verified_user</mat-icon>
+        <strong>Nenhuma denúncia neste filtro.</strong>
+        <span>Quando houver denúncia compatível com o filtro atual, ela aparecerá aqui.</span>
+      </section>
+    } @else {
+      <div class="moderation-reports__list" role="list" aria-label="Lista de denúncias">
+        @for (report of vm.filteredReports; track trackByReportId($index, report)) {
+          <article
+            class="report-card"
+            role="listitem"
+            [class.report-card--open]="report.status === 'open'"
+            [class.report-card--reviewing]="report.status === 'reviewing'"
+            [class.report-card--resolved]="report.status === 'resolved'"
+            [class.report-card--rejected]="report.status === 'rejected'"
+          >
+            <header class="report-card__header">
+              <div>
+                <span class="report-card__type">{{ targetTypeLabel(report.targetType) }}</span>
+                <h3>{{ reasonLabel(report.reason) }}</h3>
+              </div>
+
+              <span class="report-card__status">
+                {{ statusLabel(report.status) }}
+              </span>
+            </header>
+
+            <dl class="report-card__facts">
+              <div>
+                <dt>Alvo</dt>
+                <dd>{{ report.targetId }}</dd>
+              </div>
+
+              <div>
+                <dt>Dono do alvo</dt>
+                <dd>{{ report.targetOwnerUid || 'Não informado' }}</dd>
+              </div>
+
+              <div>
+                <dt>Denunciante</dt>
+                <dd>{{ report.reporterUid }}</dd>
+              </div>
+
+              <div>
+                <dt>Criada em</dt>
+                <dd>
+                  @if (dateValue(report.createdAt); as createdAt) {
+                    {{ createdAt | date:'dd/MM/yyyy HH:mm' }}
+                  } @else {
+                    Data não disponível
+                  }
+                </dd>
+              </div>
+            </dl>
+
+            @if (report.details) {
+              <section class="report-card__details" aria-label="Detalhes da denúncia">
+                <strong>Detalhes</strong>
+                <p>{{ report.details }}</p>
+              </section>
+            }
+
+            @if (report.route) {
+              <p class="report-card__route">
+                <span>Origem:</span> {{ report.route }}
+              </p>
+            }
+
+            @if (report.resolution) {
+              <section class="report-card__resolution" aria-label="Resolução registrada">
+                <strong>Resolução</strong>
+                <p>{{ report.resolution }}</p>
+              </section>
+            }
+
+            <footer class="report-card__actions" aria-label="Ações da denúncia">
+              <button
+                mat-stroked-button
+                type="button"
+                color="primary"
+                (click)="markReviewing(report)"
+                [disabled]="isBusy(report) || report.status === 'reviewing' || report.status === 'resolved'"
+              >
+                {{ isBusy(report) ? 'Atualizando...' : 'Marcar em análise' }}
+              </button>
+
+              <button
+                mat-flat-button
+                type="button"
+                color="primary"
+                (click)="resolveReport(report)"
+                [disabled]="isBusy(report) || report.status === 'resolved'"
+              >
+                Resolver
+              </button>
+
+              <button
+                mat-stroked-button
+                type="button"
+                color="warn"
+                (click)="rejectReport(report)"
+                [disabled]="isBusy(report) || report.status === 'rejected'"
+              >
+                Rejeitar
+              </button>
+            </footer>
+          </article>
+        }
+      </div>
+    }
+  </section>
+}
