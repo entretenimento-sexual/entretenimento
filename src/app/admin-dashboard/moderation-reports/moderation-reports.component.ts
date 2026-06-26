@@ -20,6 +20,7 @@ import {
 } from 'src/app/core/interfaces/moderation/moderation-report.interface';
 
 type AdminReportFilter = ModerationReportStatus | 'all';
+type ResolutionDrafts = Record<string, string>;
 
 interface AdminModerationReportsVm {
   reports: AdminModerationReportVm[];
@@ -47,6 +48,7 @@ export class ModerationReportsComponent {
 
   readonly selectedFilter = signal<AdminReportFilter>('open');
   readonly busyReportId = signal<string | null>(null);
+  readonly resolutionDrafts = signal<ResolutionDrafts>({});
 
   private readonly selectedFilter$ = toObservable(this.selectedFilter);
 
@@ -71,24 +73,60 @@ export class ModerationReportsComponent {
     this.selectedFilter.set(filter);
   }
 
+  setResolutionDraft(report: AdminModerationReportVm, value: string): void {
+    const reportId = this.safeReportId(report);
+
+    if (!reportId) {
+      return;
+    }
+
+    this.resolutionDrafts.update((drafts) => ({
+      ...drafts,
+      [reportId]: String(value ?? '').slice(0, 900),
+    }));
+  }
+
+  resolutionDraft(report: AdminModerationReportVm): string {
+    const reportId = this.safeReportId(report);
+
+    if (!reportId) {
+      return '';
+    }
+
+    return this.resolutionDrafts()[reportId] ?? report.resolution ?? '';
+  }
+
+  resolutionDraftLength(report: AdminModerationReportVm): number {
+    return this.resolutionDraft(report).length;
+  }
+
   markReviewing(report: AdminModerationReportVm): void {
     this.reviewReport(report, {
       status: 'reviewing',
-      resolution: 'Denúncia colocada em análise pela moderação.',
+      resolution: this.resolveModerationNote(
+        report,
+        'Denúncia colocada em análise pela moderação.'
+      ),
     });
   }
 
   resolveReport(report: AdminModerationReportVm): void {
     this.reviewReport(report, {
       status: 'resolved',
-      resolution: 'Denúncia revisada e marcada como resolvida.',
+      resolution: this.resolveModerationNote(
+        report,
+        'Denúncia revisada e marcada como resolvida.'
+      ),
     });
   }
 
   rejectReport(report: AdminModerationReportVm): void {
     this.reviewReport(report, {
       status: 'rejected',
-      resolution: 'Denúncia revisada e rejeitada pela moderação.',
+      resolution: this.resolveModerationNote(
+        report,
+        'Denúncia revisada e rejeitada pela moderação.'
+      ),
     });
   }
 
@@ -214,11 +252,37 @@ export class ModerationReportsComponent {
       .pipe(finalize(() => this.busyReportId.set(null)))
       .subscribe({
         next: () => {
+          this.clearResolutionDraft(report);
           this.notification.showSuccess('Denúncia atualizada.');
         },
         error: () => {
           this.notification.showError('Não foi possível atualizar a denúncia.');
         },
       });
+  }
+
+  private resolveModerationNote(
+    report: AdminModerationReportVm,
+    fallback: string
+  ): string {
+    return this.resolutionDraft(report).trim().slice(0, 900) || fallback;
+  }
+
+  private clearResolutionDraft(report: AdminModerationReportVm): void {
+    const reportId = this.safeReportId(report);
+
+    if (!reportId) {
+      return;
+    }
+
+    this.resolutionDrafts.update((drafts) => {
+      const next = { ...drafts };
+      delete next[reportId];
+      return next;
+    });
+  }
+
+  private safeReportId(report: AdminModerationReportVm): string {
+    return String(report?.id ?? '').trim();
   }
 }
