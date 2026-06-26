@@ -61,6 +61,24 @@ const routes: Routes = [
       },
 
       /**
+       * Central inicial de segurança e confiança.
+       *
+       * Mantida no dashboard para entrar no shell autenticado atual sem criar
+       * uma área de domínio maior antes do backend de denúncias.
+       */
+      {
+        path: 'seguranca',
+        canActivate: [authGuard, emailVerifiedGuard, profileCompletedGuard],
+        data: {
+          requireVerified: true,
+          requireProfileCompleted: true,
+        },
+        loadComponent: () =>
+          import('../safety/safety-center/safety-center.component')
+            .then((m) => m.SafetyCenterComponent),
+      },
+
+      /**
        * Rota canônica para visualização dos perfis sugeridos.
        *
        * Mantida separada de /dashboard/explorar porque esta tela usa o motor de
