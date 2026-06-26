@@ -31,6 +31,15 @@ interface SafetyGuide {
 export class SafetyCenterComponent {
   readonly primaryActions: readonly SafetyAction[] = [
     {
+      id: 'report-profile',
+      title: 'Denunciar perfil',
+      description: 'Abra um perfil pela descoberta e use o botão Denunciar perfil para enviar à moderação.',
+      route: ['/dashboard/explorar'],
+      icon: '🚩',
+      ariaLabel: 'Ir para descoberta para localizar um perfil e enviar denúncia',
+      variant: 'primary',
+    },
+    {
       id: 'blocked-users',
       title: 'Perfis bloqueados',
       description: 'Revise pessoas bloqueadas e mantenha controle sobre quem pode tentar contato.',
@@ -61,6 +70,12 @@ export class SafetyCenterComponent {
 
   readonly safetyGuides: readonly SafetyGuide[] = [
     {
+      id: 'report-when-needed',
+      title: 'Denuncie o que precisa de revisão',
+      description: 'Denúncias de perfil já registram motivo, detalhes opcionais, rota e alvo para análise da moderação.',
+      icon: '🚩',
+    },
+    {
       id: 'block-first',
       title: 'Bloqueie quando houver risco',
       description: 'O bloqueio é a resposta imediata para interromper contato indesejado ou comportamento invasivo.',
@@ -82,10 +97,10 @@ export class SafetyCenterComponent {
 
   readonly upcomingControls: readonly SafetyGuide[] = [
     {
-      id: 'profile-reporting',
-      title: 'Denúncia de perfil',
-      description: 'Próxima camada: registrar denúncia estruturada com motivo, contexto e evidências.',
-      icon: '🚩',
+      id: 'moderation-triage',
+      title: 'Triagem de denúncias',
+      description: 'Próxima camada: painel interno para priorizar, revisar e resolver denúncias com histórico de decisão.',
+      icon: '🧭',
     },
     {
       id: 'visibility-controls',
