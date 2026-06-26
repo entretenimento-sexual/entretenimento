@@ -1,7 +1,32 @@
 <!-- src/app/layout/friend-management/friend-requests/friend-requests.component.html -->
-<section class="friend-requests" aria-labelledby="fr-title" aria-live="polite">
+<section
+  class="friend-requests"
+  aria-labelledby="fr-title"
+  aria-describedby="fr-description"
+  aria-live="polite"
+>
   <header class="friend-requests__header app-card">
-    <h1 id="fr-title">Solicitações</h1>
+    <div class="friend-requests__intro">
+      <p class="friend-requests__eyebrow">Conexões</p>
+
+      <h1 id="fr-title">Solicitações</h1>
+
+      <p id="fr-description" class="friend-requests__description">
+        Responda convites recebidos, acompanhe pedidos enviados e mantenha o controle das suas conexões.
+      </p>
+    </div>
+
+    <div class="friend-requests__summary" aria-label="Resumo de solicitações">
+      <span class="friend-requests__summary-item">
+        <strong>{{ (inboundCount$ | async) || 0 }}</strong>
+        <span>recebidas</span>
+      </span>
+
+      <span class="friend-requests__summary-item">
+        <strong>{{ (outboundCount$ | async) || 0 }}</strong>
+        <span>enviadas</span>
+      </span>
+    </div>
   </header>
 
   <mat-tab-group aria-labelledby="fr-title">
