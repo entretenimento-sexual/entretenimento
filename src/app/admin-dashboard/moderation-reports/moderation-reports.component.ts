@@ -2,6 +2,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { Observable, combineLatest, of } from 'rxjs';
 import { catchError, finalize, map, shareReplay } from 'rxjs/operators';
 import { toObservable } from '@angular/core/rxjs-interop';
@@ -37,7 +38,7 @@ interface AdminModerationReportsVm {
 @Component({
   selector: 'app-moderation-reports',
   standalone: true,
-  imports: [CommonModule, FormsModule, AdminMaterialModule],
+  imports: [CommonModule, FormsModule, RouterModule, AdminMaterialModule],
   templateUrl: './moderation-reports.component.html',
   styleUrls: ['./moderation-reports.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -98,6 +99,20 @@ export class ModerationReportsComponent {
 
   resolutionDraftLength(report: AdminModerationReportVm): number {
     return this.resolutionDraft(report).length;
+  }
+
+  targetRoute(report: AdminModerationReportVm): string[] | null {
+    if (report.targetType !== 'profile') {
+      return null;
+    }
+
+    const profileUid = String(report.targetOwnerUid || report.targetId || '').trim();
+
+    if (!profileUid) {
+      return null;
+    }
+
+    return ['/outro-perfil', profileUid];
   }
 
   markReviewing(report: AdminModerationReportVm): void {
