@@ -197,6 +197,19 @@ button.is-active {
   line-height: 1.42;
 }
 
+.report-card__decision {
+  display: grid;
+  min-width: 0;
+}
+
+.report-card__decision mat-form-field {
+  width: 100%;
+}
+
+.report-card__decision textarea {
+  resize: vertical;
+}
+
 .report-card__actions {
   justify-content: flex-end;
 }
