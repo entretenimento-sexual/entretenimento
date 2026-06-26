@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Observable, combineLatest, of } from 'rxjs';
-import { catchError, map, shareReplay } from 'rxjs/operators';
+import { catchError, finalize, map, shareReplay } from 'rxjs/operators';
+import { toObservable } from '@angular/core/rxjs-interop';
 
 import { AdminMaterialModule } from '../admin-material.module';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -47,6 +48,8 @@ export class ModerationReportsComponent {
   readonly selectedFilter = signal<AdminReportFilter>('open');
   readonly busyReportId = signal<string | null>(null);
 
+  private readonly selectedFilter$ = toObservable(this.selectedFilter);
+
   private readonly loadingReports$: Observable<AdminModerationReportVm[]> =
     this.reportsService.listReports$().pipe(
       catchError(() => {
@@ -58,8 +61,9 @@ export class ModerationReportsComponent {
 
   readonly vm$: Observable<AdminModerationReportsVm> = combineLatest([
     this.loadingReports$,
+    this.selectedFilter$,
   ]).pipe(
-    map(([reports]) => this.buildVm(reports)),
+    map(([reports, selected]) => this.buildVm(reports, selected)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -173,9 +177,11 @@ export class ModerationReportsComponent {
     return this.busyReportId() === report.id;
   }
 
-  private buildVm(reports: AdminModerationReportVm[]): AdminModerationReportsVm {
+  private buildVm(
+    reports: AdminModerationReportVm[],
+    selected: AdminReportFilter
+  ): AdminModerationReportsVm {
     const safeReports = [...reports];
-    const selected = this.selectedFilter();
 
     const filteredReports = selected === 'all'
       ? safeReports
@@ -204,16 +210,15 @@ export class ModerationReportsComponent {
 
     this.busyReportId.set(report.id);
 
-    this.reportsService.reviewReport$(report.id, patch).subscribe({
-      next: () => {
-        this.notification.showSuccess('Denúncia atualizada.');
-      },
-      error: () => {
-        this.notification.showError('Não foi possível atualizar a denúncia.');
-      },
-      complete: () => {
-        this.busyReportId.set(null);
-      },
-    });
+    this.reportsService.reviewReport$(report.id, patch)
+      .pipe(finalize(() => this.busyReportId.set(null)))
+      .subscribe({
+        next: () => {
+          this.notification.showSuccess('Denúncia atualizada.');
+        },
+        error: () => {
+          this.notification.showError('Não foi possível atualizar a denúncia.');
+        },
+      });
   }
 }
