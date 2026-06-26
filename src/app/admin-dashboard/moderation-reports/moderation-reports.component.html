@@ -102,6 +102,19 @@
               </div>
             </dl>
 
+            @if (targetRoute(report); as route) {
+              <div class="report-card__target-actions">
+                <a
+                  mat-stroked-button
+                  color="primary"
+                  [routerLink]="route"
+                  [attr.aria-label]="'Abrir perfil denunciado ' + report.targetId"
+                >
+                  Abrir perfil denunciado
+                </a>
+              </div>
+            }
+
             @if (report.details) {
               <section class="report-card__details" aria-label="Detalhes da denúncia">
                 <strong>Detalhes</strong>
