@@ -51,7 +51,8 @@
 
 .moderation-reports__stats,
 .moderation-reports__filters,
-.report-card__actions {
+.report-card__actions,
+.report-card__target-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -188,6 +189,16 @@ button.is-active {
   white-space: nowrap;
 }
 
+.report-card__target-actions {
+  justify-content: flex-start;
+}
+
+.report-card__target-actions a {
+  min-height: 38px;
+  border-radius: 999px;
+  font-weight: 850;
+}
+
 .report-card__details p,
 .report-card__resolution p,
 .report-card__route {
@@ -245,12 +256,14 @@ button.is-active {
   }
 
   .report-card__header,
-  .report-card__actions {
+  .report-card__actions,
+  .report-card__target-actions {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .report-card__actions button {
+  .report-card__actions button,
+  .report-card__target-actions a {
     width: 100%;
   }
 }
