@@ -117,10 +117,26 @@
 
             @if (report.resolution) {
               <section class="report-card__resolution" aria-label="Resolução registrada">
-                <strong>Resolução</strong>
+                <strong>Resolução atual</strong>
                 <p>{{ report.resolution }}</p>
               </section>
             }
+
+            <section class="report-card__decision" aria-label="Nota da moderação">
+              <mat-form-field appearance="outline">
+                <mat-label>Nota da moderação</mat-label>
+                <textarea
+                  matInput
+                  rows="3"
+                  maxlength="900"
+                  [ngModel]="resolutionDraft(report)"
+                  (ngModelChange)="setResolutionDraft(report, $event)"
+                  placeholder="Descreva a decisão, providência tomada ou motivo da rejeição."
+                  [attr.aria-label]="'Nota da moderação para denúncia ' + report.id"
+                ></textarea>
+                <mat-hint align="end">{{ resolutionDraftLength(report) }}/900</mat-hint>
+              </mat-form-field>
+            </section>
 
             <footer class="report-card__actions" aria-label="Ações da denúncia">
               <button
