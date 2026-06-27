@@ -115,6 +115,31 @@
                   Data não disponível
                 }
               </small>
+
+              <details class="moderation-history__details">
+                <summary>Ver detalhes</summary>
+                <dl>
+                  <div>
+                    <dt>Admin</dt>
+                    <dd>{{ item.adminUid }}</dd>
+                  </div>
+                  <div>
+                    <dt>Alvo</dt>
+                    <dd>{{ item.targetUserUid }}</dd>
+                  </div>
+                  <div>
+                    <dt>Tipo</dt>
+                    <dd>{{ targetTypeLabel(item.targetType) }}</dd>
+                  </div>
+                  <div>
+                    <dt>Motivo</dt>
+                    <dd>{{ reasonLabel(item.reason) }}</dd>
+                  </div>
+                </dl>
+                @if (item.resolution) {
+                  <p>{{ item.resolution }}</p>
+                }
+              </details>
             </article>
           }
         </div>
