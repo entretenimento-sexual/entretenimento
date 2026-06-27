@@ -27,6 +27,14 @@ export const environment: AppEnvironment = {
   includeStackTrace: false,
 },
 
+  monitoring: {
+    sentry: {
+      enabled: false,
+      dsn: undefined,
+      tracesSampleRate: 0,
+    },
+  },
+
   useEmulators: true,
   emulators: {
     auth: { host: '127.0.0.1', port: 9099 },
