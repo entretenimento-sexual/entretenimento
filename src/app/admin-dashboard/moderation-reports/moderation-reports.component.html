@@ -195,9 +195,11 @@
               </div>
 
               @if (report | agedOpenModerationReport; as agedOpenLabel) {
-                <span class="report-card__status">
-                  {{ agedOpenLabel }}
-                </span>
+                <mat-chip-set class="report-card__priority" aria-label="Prioridade da denúncia">
+                  <mat-chip color="warn" highlighted>
+                    {{ agedOpenLabel }}
+                  </mat-chip>
+                </mat-chip-set>
               }
 
               <span class="report-card__status">
