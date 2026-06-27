@@ -139,33 +139,24 @@ export class ModerationReportsComponent {
   }
 
   markReviewing(report: AdminModerationReportVm): void {
-    this.reviewReport(report, {
-      status: 'reviewing',
-      resolution: this.resolveModerationNote(
-        report,
-        'Denúncia colocada em análise pela moderação.'
-      ),
-    });
+    this.reviewReport(
+      report,
+      this.buildReviewPatch(report, 'reviewing', 'Denúncia colocada em análise pela moderação.')
+    );
   }
 
   resolveReport(report: AdminModerationReportVm): void {
-    this.reviewReport(report, {
-      status: 'resolved',
-      resolution: this.resolveModerationNote(
-        report,
-        'Denúncia revisada e marcada como resolvida.'
-      ),
-    });
+    this.reviewReport(
+      report,
+      this.buildReviewPatch(report, 'resolved', 'Denúncia revisada e marcada como resolvida.')
+    );
   }
 
   rejectReport(report: AdminModerationReportVm): void {
-    this.reviewReport(report, {
-      status: 'rejected',
-      resolution: this.resolveModerationNote(
-        report,
-        'Denúncia revisada e rejeitada pela moderação.'
-      ),
-    });
+    this.reviewReport(
+      report,
+      this.buildReviewPatch(report, 'rejected', 'Denúncia revisada e rejeitada pela moderação.')
+    );
   }
 
   trackByReportId(_: number, report: AdminModerationReportVm): string {
@@ -299,12 +290,31 @@ export class ModerationReportsComponent {
       .subscribe({
         next: () => {
           this.clearResolutionDraft(report);
-          this.notification.showSuccess('Denúncia atualizada.');
+          this.notification.showSuccess('Denúncia atualizada e registrada.');
         },
         error: () => {
           this.notification.showError('Não foi possível atualizar a denúncia.');
         },
       });
+  }
+
+  private buildReviewPatch(
+    report: AdminModerationReportVm,
+    status: ModerationReportReviewPatch['status'],
+    fallback: string
+  ): ModerationReportReviewPatch {
+    return {
+      status,
+      previousStatus: report.status,
+      targetUserUid: this.reviewTargetUserUid(report),
+      reportReason: report.reason,
+      reportTargetType: report.targetType,
+      resolution: this.resolveModerationNote(report, fallback),
+    };
+  }
+
+  private reviewTargetUserUid(report: AdminModerationReportVm): string {
+    return String(report.targetOwnerUid || report.targetId || report.reporterUid || '').trim();
   }
 
   private resolveModerationNote(
