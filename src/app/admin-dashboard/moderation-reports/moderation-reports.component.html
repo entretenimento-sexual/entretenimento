@@ -194,6 +194,12 @@
                 <h3>{{ reasonLabel(report.reason) }}</h3>
               </div>
 
+              @if (report | agedOpenModerationReport; as agedOpenLabel) {
+                <span class="report-card__status">
+                  {{ agedOpenLabel }}
+                </span>
+              }
+
               <span class="report-card__status">
                 {{ statusLabel(report.status) }}
               </span>
