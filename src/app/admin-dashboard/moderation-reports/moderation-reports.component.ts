@@ -33,6 +33,7 @@ interface AdminModerationReportsVm {
   rejected: number;
   loading: boolean;
   error: boolean;
+  searchTerm: string;
 }
 
 @Component({
@@ -48,10 +49,12 @@ export class ModerationReportsComponent {
   private readonly notification = inject(ErrorNotificationService);
 
   readonly selectedFilter = signal<AdminReportFilter>('open');
+  readonly searchTerm = signal<string>('');
   readonly busyReportId = signal<string | null>(null);
   readonly resolutionDrafts = signal<ResolutionDrafts>({});
 
   private readonly selectedFilter$ = toObservable(this.selectedFilter);
+  private readonly searchTerm$ = toObservable(this.searchTerm);
 
   private readonly loadingReports$: Observable<AdminModerationReportVm[]> =
     this.reportsService.listReports$().pipe(
@@ -65,13 +68,22 @@ export class ModerationReportsComponent {
   readonly vm$: Observable<AdminModerationReportsVm> = combineLatest([
     this.loadingReports$,
     this.selectedFilter$,
+    this.searchTerm$,
   ]).pipe(
-    map(([reports, selected]) => this.buildVm(reports, selected)),
+    map(([reports, selected, searchTerm]) => this.buildVm(reports, selected, searchTerm)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
   setFilter(filter: AdminReportFilter): void {
     this.selectedFilter.set(filter);
+  }
+
+  setSearchTerm(value: string): void {
+    this.searchTerm.set(String(value ?? '').slice(0, 120));
+  }
+
+  clearSearchTerm(): void {
+    this.searchTerm.set('');
   }
 
   setResolutionDraft(report: AdminModerationReportVm, value: string): void {
@@ -242,13 +254,19 @@ export class ModerationReportsComponent {
 
   private buildVm(
     reports: AdminModerationReportVm[],
-    selected: AdminReportFilter
+    selected: AdminReportFilter,
+    searchTerm: string
   ): AdminModerationReportsVm {
     const safeReports = [...reports];
+    const normalizedSearch = this.normalizeSearchTerm(searchTerm);
 
-    const filteredReports = selected === 'all'
+    const statusFilteredReports = selected === 'all'
       ? safeReports
       : safeReports.filter((report) => report.status === selected);
+
+    const filteredReports = normalizedSearch
+      ? statusFilteredReports.filter((report) => this.reportMatchesSearch(report, normalizedSearch))
+      : statusFilteredReports;
 
     return {
       reports: safeReports,
@@ -260,6 +278,7 @@ export class ModerationReportsComponent {
       rejected: safeReports.filter((report) => report.status === 'rejected').length,
       loading: false,
       error: false,
+      searchTerm: normalizedSearch,
     };
   }
 
@@ -305,6 +324,39 @@ export class ModerationReportsComponent {
       delete next[reportId];
       return next;
     });
+  }
+
+  private reportMatchesSearch(
+    report: AdminModerationReportVm,
+    normalizedSearch: string
+  ): boolean {
+    const searchable = [
+      report.id,
+      report.reporterUid,
+      report.targetId,
+      report.targetOwnerUid,
+      report.route,
+      report.details,
+      report.resolution,
+      report.status,
+      report.reason,
+      this.reasonLabel(report.reason),
+      report.targetType,
+      this.targetTypeLabel(report.targetType),
+    ]
+      .map((value) => String(value ?? ''))
+      .join(' ');
+
+    return this.normalizeSearchTerm(searchable).includes(normalizedSearch);
+  }
+
+  private normalizeSearchTerm(value: string): string {
+    return String(value ?? '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
   }
 
   private safeReportId(report: AdminModerationReportVm): string {
