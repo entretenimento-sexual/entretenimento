@@ -83,9 +83,35 @@
       }
     </p>
 
-    <p class="moderation-reports__result-summary" aria-live="polite">
-      Histórico: {{ vm.historyItems.length }} decisões recentes registradas.
-    </p>
+    <section class="moderation-history" aria-labelledby="moderation-history-title">
+      <header class="moderation-history__header">
+        <div>
+          <p class="moderation-reports__eyebrow">Histórico</p>
+          <h3 id="moderation-history-title">Decisões recentes</h3>
+        </div>
+        <strong>{{ vm.historyItems.length }}</strong>
+      </header>
+
+      @if (vm.historyItems.length === 0) {
+        <p class="moderation-history__empty">Nenhuma decisão registrada ainda.</p>
+      } @else {
+        <div class="moderation-history__list" role="list" aria-label="Decisões recentes de moderação">
+          @for (item of vm.historyItems.slice(0, 5); track trackByHistoryId($index, item)) {
+            <article class="moderation-history__item" role="listitem">
+              <strong>{{ statusLabel(item.previousStatus) }} → {{ statusLabel(item.nextStatus) }}</strong>
+              <span>Denúncia {{ item.reportId }}</span>
+              <small>
+                @if (dateValue(item.timestamp); as createdAt) {
+                  {{ createdAt | date:'dd/MM/yyyy HH:mm' }}
+                } @else {
+                  Data não disponível
+                }
+              </small>
+            </article>
+          }
+        </div>
+      }
+    </section>
 
     @if (vm.filteredReports.length === 0) {
       <section class="moderation-reports__empty" role="status">
