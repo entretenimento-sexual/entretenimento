@@ -9,6 +9,7 @@ import { toObservable } from '@angular/core/rxjs-interop';
 
 import { AdminMaterialModule } from '../admin-material.module';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { AdminLogService, IAdminLogRecord } from 'src/app/core/services/account-moderation/admin-log.service';
 import {
   AdminModerationReportService,
   AdminModerationReportVm,
@@ -23,10 +24,24 @@ import {
 type AdminReportFilter = ModerationReportStatus | 'all';
 type ResolutionDrafts = Record<string, string>;
 
+interface ModerationReviewHistoryItem {
+  id: string;
+  adminUid: string;
+  targetUserUid: string;
+  reportId: string;
+  previousStatus: ModerationReportStatus | null;
+  nextStatus: ModerationReportStatus | null;
+  reason: ModerationReportReason | null;
+  targetType: ModerationReportTargetType | null;
+  resolution: string | null;
+  timestamp: unknown;
+}
+
 interface AdminModerationReportsVm {
   reports: AdminModerationReportVm[];
   statusFilteredTotal: number;
   filteredReports: AdminModerationReportVm[];
+  historyItems: ModerationReviewHistoryItem[];
   total: number;
   open: number;
   reviewing: number;
@@ -47,6 +62,7 @@ interface AdminModerationReportsVm {
 })
 export class ModerationReportsComponent {
   private readonly reportsService = inject(AdminModerationReportService);
+  private readonly adminLog = inject(AdminLogService);
   private readonly notification = inject(ErrorNotificationService);
 
   readonly selectedFilter = signal<AdminReportFilter>('open');
@@ -66,12 +82,32 @@ export class ModerationReportsComponent {
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
+  private readonly reviewHistory$: Observable<ModerationReviewHistoryItem[]> =
+    this.adminLog.listAdminActions$(120).pipe(
+      map((logs) => logs
+        .filter((log) => String(log.action ?? '').trim() === 'moderationReportReview')
+        .map((log) => this.normalizeHistoryItem(log))
+        .filter((item): item is ModerationReviewHistoryItem => !!item)
+      ),
+      catchError(() => {
+        this.notification.showError('Não foi possível carregar o histórico de moderação.');
+        return of([] as ModerationReviewHistoryItem[]);
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
   readonly vm$: Observable<AdminModerationReportsVm> = combineLatest([
     this.loadingReports$,
     this.selectedFilter$,
     this.searchTerm$,
+    this.reviewHistory$,
   ]).pipe(
-    map(([reports, selected, searchTerm]) => this.buildVm(reports, selected, searchTerm)),
+    map(([reports, selected, searchTerm, historyItems]) => this.buildVm(
+      reports,
+      selected,
+      searchTerm,
+      historyItems
+    )),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -163,7 +199,11 @@ export class ModerationReportsComponent {
     return report.id;
   }
 
-  statusLabel(status: ModerationReportStatus): string {
+  trackByHistoryId(_: number, item: ModerationReviewHistoryItem): string {
+    return item.id || `${item.reportId}-${item.adminUid}`;
+  }
+
+  statusLabel(status: ModerationReportStatus | null): string {
     switch (status) {
       case 'open':
         return 'Aberta';
@@ -174,11 +214,11 @@ export class ModerationReportsComponent {
       case 'rejected':
         return 'Rejeitada';
       default:
-        return 'Status desconhecido';
+        return 'Não informado';
     }
   }
 
-  reasonLabel(reason: ModerationReportReason): string {
+  reasonLabel(reason: ModerationReportReason | null): string {
     switch (reason) {
       case 'spam':
         return 'Spam ou golpe';
@@ -197,12 +237,13 @@ export class ModerationReportsComponent {
       case 'minor_safety':
         return 'Segurança de menores';
       case 'other':
-      default:
         return 'Outro motivo';
+      default:
+        return 'Não informado';
     }
   }
 
-  targetTypeLabel(type: ModerationReportTargetType): string {
+  targetTypeLabel(type: ModerationReportTargetType | null): string {
     switch (type) {
       case 'profile':
         return 'Perfil';
@@ -217,8 +258,9 @@ export class ModerationReportsComponent {
       case 'venue':
         return 'Local';
       case 'other':
-      default:
         return 'Conteúdo';
+      default:
+        return 'Não informado';
     }
   }
 
@@ -247,7 +289,8 @@ export class ModerationReportsComponent {
   private buildVm(
     reports: AdminModerationReportVm[],
     selected: AdminReportFilter,
-    searchTerm: string
+    searchTerm: string,
+    historyItems: ModerationReviewHistoryItem[]
   ): AdminModerationReportsVm {
     const safeReports = [...reports];
     const normalizedSearch = this.normalizeSearchTerm(searchTerm);
@@ -264,6 +307,7 @@ export class ModerationReportsComponent {
       reports: safeReports,
       statusFilteredTotal: statusFilteredReports.length,
       filteredReports,
+      historyItems,
       total: safeReports.length,
       open: safeReports.filter((report) => report.status === 'open').length,
       reviewing: safeReports.filter((report) => report.status === 'reviewing').length,
@@ -338,6 +382,30 @@ export class ModerationReportsComponent {
     });
   }
 
+  private normalizeHistoryItem(log: IAdminLogRecord): ModerationReviewHistoryItem | null {
+    const details = this.objectDetails(log.details);
+    const reportId = String(details['reportId'] ?? '').trim();
+    const adminUid = String(log.adminUid ?? '').trim();
+    const targetUserUid = String(log.targetUserUid ?? '').trim();
+
+    if (!reportId || !adminUid || !targetUserUid) {
+      return null;
+    }
+
+    return {
+      id: String(log.id ?? '').trim(),
+      adminUid,
+      targetUserUid,
+      reportId,
+      previousStatus: this.safeStatus(details['previousStatus']),
+      nextStatus: this.safeStatus(details['nextStatus']),
+      reason: this.safeReason(details['reason']),
+      targetType: this.safeTargetType(details['targetType']),
+      resolution: String(details['resolution'] ?? '').trim() || null,
+      timestamp: log.timestamp ?? null,
+    };
+  }
+
   private reportMatchesSearch(
     report: AdminModerationReportVm,
     normalizedSearch: string
@@ -360,6 +428,37 @@ export class ModerationReportsComponent {
       .join(' ');
 
     return this.normalizeSearchTerm(searchable).includes(normalizedSearch);
+  }
+
+  private objectDetails(value: unknown): Record<string, unknown> {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? value as Record<string, unknown>
+      : {};
+  }
+
+  private safeStatus(value: unknown): ModerationReportStatus | null {
+    const status = String(value ?? '').trim() as ModerationReportStatus;
+    return ['open', 'reviewing', 'resolved', 'rejected'].includes(status) ? status : null;
+  }
+
+  private safeReason(value: unknown): ModerationReportReason | null {
+    const reason = String(value ?? '').trim() as ModerationReportReason;
+    return [
+      'spam',
+      'fake_profile',
+      'harassment',
+      'hate_or_abuse',
+      'sexual_boundary',
+      'illegal_content',
+      'privacy',
+      'minor_safety',
+      'other',
+    ].includes(reason) ? reason : null;
+  }
+
+  private safeTargetType(value: unknown): ModerationReportTargetType | null {
+    const type = String(value ?? '').trim() as ModerationReportTargetType;
+    return ['profile', 'photo', 'message', 'room', 'status', 'venue', 'other'].includes(type) ? type : null;
   }
 
   private normalizeSearchTerm(value: string): string {
