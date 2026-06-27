@@ -8,7 +8,7 @@
 // - leitura/listagem depende das Firestore Rules com claim admin;
 // - usuário comum não deve conseguir usar este service com sucesso;
 // - atualizações são restritas a status/resolução/campos de revisão;
-// - decisões são registradas também em /admin_logs via AdminLogService;
+// - decisões são registradas também em /admin_logs na mesma escrita atômica;
 // - operações AngularFire rodam via FirestoreContextService;
 // - erros são reportados ao GlobalErrorHandlerService para debug centralizado.
 // -----------------------------------------------------------------------------
@@ -22,7 +22,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
-  updateDoc,
+  writeBatch,
 } from '@angular/fire/firestore';
 import { Observable, throwError } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
@@ -30,7 +30,6 @@ import { catchError, map, switchMap, take } from 'rxjs/operators';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { AdminLogService } from 'src/app/core/services/account-moderation/admin-log.service';
 import {
   IModerationReportVm,
   ModerationReportReason,
@@ -69,7 +68,6 @@ export class AdminModerationReportService {
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly authSession = inject(AuthSessionService);
   private readonly globalError = inject(GlobalErrorHandlerService);
-  private readonly adminLog = inject(AdminLogService);
 
   listReports$(): Observable<AdminModerationReportVm[]> {
     return this.firestoreContext.deferObservable$(() => {
@@ -104,21 +102,24 @@ export class AdminModerationReportService {
         }
 
         return this.firestoreContext.deferPromise$(() => {
+          const batch = writeBatch(this.firestore);
           const reportRef = doc(this.firestore, 'moderation_reports', safeReportId);
+          const adminLogRef = doc(collection(this.firestore, 'admin_logs'));
+          const timestamp = serverTimestamp();
 
-          return updateDoc(reportRef, {
+          batch.update(reportRef, {
             status: normalized.status,
             resolution: normalized.resolution,
             reviewedBy: reviewerUid,
-            reviewedAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
+            reviewedAt: timestamp,
+            updatedAt: timestamp,
           });
-        }).pipe(
-          switchMap(() => this.adminLog.logAdminAction(
-            reviewerUid,
-            'moderationReportReview',
-            normalized.targetUserUid,
-            {
+
+          batch.set(adminLogRef, {
+            adminUid: reviewerUid,
+            action: 'moderationReportReview',
+            targetUserUid: normalized.targetUserUid,
+            details: {
               reportId: safeReportId,
               previousStatus: normalized.previousStatus,
               nextStatus: normalized.status,
@@ -126,8 +127,11 @@ export class AdminModerationReportService {
               targetType: normalized.reportTargetType,
               resolution: normalized.resolution,
             },
-            { silent: true }
-          )),
+            timestamp,
+          });
+
+          return batch.commit();
+        }).pipe(
           map(() => void 0)
         );
       }),
@@ -207,7 +211,6 @@ export class AdminModerationReportService {
       (normalizedError as any).operation = operation;
       (normalizedError as any).context = context;
       (normalizedError as any).original = error;
-
       this.globalError.handleError(normalizedError);
     } catch {
       // noop
