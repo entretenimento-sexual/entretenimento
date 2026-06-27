@@ -2,9 +2,7 @@
   "projects": {
     "default": "entretenimento-sexual",
     "staging": "entretenimento-staging",
-    "dev": "entretenimento-sexual",
-    "y": "entretenimento-sexual",
-    "  ": "entretenimento-sexual"
+    "dev": "entretenimento-sexual"
   },
   "targets": {},
   "etags": {},
