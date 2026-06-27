@@ -330,6 +330,7 @@ button.is-active {
 
 .report-card__facts div,
 .report-card__details,
+.report-card__review,
 .report-card__resolution {
   padding: 9px;
   border-radius: 12px;
@@ -349,6 +350,36 @@ button.is-active {
   font-weight: 850;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.report-card__review {
+  display: grid;
+  gap: 8px;
+}
+
+.report-card__review strong {
+  font-size: 0.82rem;
+  font-weight: 950;
+}
+
+.report-card__review dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.report-card__review dt {
+  color: color-mix(in oklab, var(--text-color, #111827) 58%, transparent);
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.report-card__review dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.82rem;
+  font-weight: 850;
 }
 
 .report-card__target-actions {
@@ -395,7 +426,8 @@ button.is-active {
 
 @media (max-width: 900px) {
   .moderation-reports__hero,
-  .report-card__facts {
+  .report-card__facts,
+  .report-card__review dl {
     grid-template-columns: 1fr;
   }
 
