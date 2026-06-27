@@ -48,6 +48,15 @@ export interface ModerationReportReviewPatch {
   reportTargetType?: ModerationReportTargetType | null;
 }
 
+interface NormalizedModerationReportReviewPatch {
+  status: Exclude<ModerationReportStatus, 'open'>;
+  previousStatus: ModerationReportStatus;
+  targetUserUid: string;
+  reportReason: ModerationReportReason | null;
+  reportTargetType: ModerationReportTargetType | null;
+  resolution: string | null;
+}
+
 export interface AdminModerationReportVm extends IModerationReportVm {
   reviewedBy?: string | null;
   reviewedAt?: unknown;
@@ -153,7 +162,7 @@ export class AdminModerationReportService {
 
   private normalizePatch(
     patch: ModerationReportReviewPatch
-  ): Required<Pick<ModerationReportReviewPatch, 'status' | 'previousStatus' | 'targetUserUid'>> & Pick<ModerationReportReviewPatch, 'resolution' | 'reportReason' | 'reportTargetType'> | null {
+  ): NormalizedModerationReportReviewPatch | null {
     const status = String(patch?.status ?? '').trim() as ModerationReportReviewPatch['status'];
     const previousStatus = String(patch?.previousStatus ?? 'open').trim() as ModerationReportStatus;
     const targetUserUid = String(patch?.targetUserUid ?? '').trim();
