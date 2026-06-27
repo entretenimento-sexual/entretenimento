@@ -25,6 +25,7 @@ type ResolutionDrafts = Record<string, string>;
 
 interface AdminModerationReportsVm {
   reports: AdminModerationReportVm[];
+  statusFilteredTotal: number;
   filteredReports: AdminModerationReportVm[];
   total: number;
   open: number;
@@ -270,6 +271,7 @@ export class ModerationReportsComponent {
 
     return {
       reports: safeReports,
+      statusFilteredTotal: statusFilteredReports.length,
       filteredReports,
       total: safeReports.length,
       open: safeReports.filter((report) => report.status === 'open').length,
