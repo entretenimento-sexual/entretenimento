@@ -46,11 +46,45 @@
       </button>
     </div>
 
+    <section class="moderation-reports__search" aria-label="Busca em denúncias">
+      <mat-form-field appearance="outline">
+        <mat-label>Buscar na triagem</mat-label>
+        <input
+          matInput
+          type="search"
+          maxlength="120"
+          [ngModel]="searchTerm()"
+          (ngModelChange)="setSearchTerm($event)"
+          placeholder="Alvo, denunciante, motivo, tipo, origem ou nota"
+          aria-describedby="moderation-search-hint"
+        />
+        @if (searchTerm()) {
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            aria-label="Limpar busca"
+            (click)="clearSearchTerm()"
+          >
+            <mat-icon aria-hidden="true">close</mat-icon>
+          </button>
+        }
+        <mat-hint id="moderation-search-hint">
+          Busca local nos dados já carregados da triagem.
+        </mat-hint>
+      </mat-form-field>
+    </section>
+
     @if (vm.filteredReports.length === 0) {
       <section class="moderation-reports__empty" role="status">
         <mat-icon aria-hidden="true">verified_user</mat-icon>
-        <strong>Nenhuma denúncia neste filtro.</strong>
-        <span>Quando houver denúncia compatível com o filtro atual, ela aparecerá aqui.</span>
+        @if (vm.searchTerm) {
+          <strong>Nenhum resultado para a busca.</strong>
+          <span>Revise o termo ou altere o filtro de status.</span>
+        } @else {
+          <strong>Nenhuma denúncia neste filtro.</strong>
+          <span>Quando houver denúncia compatível com o filtro atual, ela aparecerá aqui.</span>
+        }
       </section>
     } @else {
       <div class="moderation-reports__list" role="list" aria-label="Lista de denúncias">
