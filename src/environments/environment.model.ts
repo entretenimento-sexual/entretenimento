@@ -21,6 +21,19 @@ export interface AppCheckConfig {
 }
 
 // ---------------------------
+// Monitoring
+// ---------------------------
+export interface SentryMonitoringConfig {
+  enabled: boolean;
+  dsn?: string;
+  tracesSampleRate?: number;
+}
+
+export interface MonitoringConfig {
+  sentry?: SentryMonitoringConfig;
+}
+
+// ---------------------------
 // Integrations
 // ---------------------------
 export interface VirusTotalIntegrationConfig {
@@ -99,6 +112,7 @@ export interface AppEnvironment {
   apiEndpoint?: string;
   enableDebugTools?: boolean;
   privacyLogging?: PrivacyLoggingConfig;
+  monitoring?: MonitoringConfig;
 
   useEmulators: boolean;
   emulators?: EmulatorsConfig;
