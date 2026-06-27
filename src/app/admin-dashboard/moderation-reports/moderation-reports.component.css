@@ -217,6 +217,48 @@ button.is-active {
   font-weight: 750;
 }
 
+.moderation-history__details {
+  margin-top: 6px;
+}
+
+.moderation-history__details summary {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--primary-color, #d64d4d);
+  font-size: 0.8rem;
+  font-weight: 900;
+}
+
+.moderation-history__details dl {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+}
+
+.moderation-history__details dt {
+  color: color-mix(in oklab, var(--text-color, #111827) 58%, transparent);
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.moderation-history__details dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.moderation-history__details p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  color: color-mix(in oklab, var(--text-color, #111827) 72%, transparent);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.38;
+}
+
 .moderation-reports__empty {
   min-height: 180px;
   padding: 28px;
