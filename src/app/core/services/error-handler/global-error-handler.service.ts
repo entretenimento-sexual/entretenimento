@@ -20,6 +20,8 @@ interface SanitizedErrorLog {
 
 @Injectable({ providedIn: 'root' })
 export class GlobalErrorHandlerService implements ErrorHandler {
+  private sentryInitialized = false;
+
   constructor(private injector: Injector) { }
 
   /**
@@ -132,8 +134,9 @@ export class GlobalErrorHandlerService implements ErrorHandler {
   }
 
   /**
-   * Encaminha erros críticos para um serviço externo (Sentry/LogRocket).
-   * Até a integração externa ser ligada, produção mantém este método sem console.
+   * Encaminha erros críticos para um serviço externo.
+   * O envio real só ocorre se monitoring.sentry.enabled=true e dsn estiver configurado.
+   * O payload enviado é sanitizado: sem `original`, stack, headers ou corpo bruto.
    */
   private sendToExternalLoggingService(error: Error | HttpErrorResponse): void {
     if (!this.isCriticalError(error)) {
@@ -146,7 +149,7 @@ export class GlobalErrorHandlerService implements ErrorHandler {
       console.warn('Erro crítico pronto para serviço externo:', sanitized);
     }
 
-    // Integração futura: enviar `sanitized` para Sentry/monitoramento externo.
+    void this.captureWithSentry(sanitized);
   }
 
   /**
@@ -157,6 +160,43 @@ export class GlobalErrorHandlerService implements ErrorHandler {
       return error.status >= 500;
     }
     return error instanceof TypeError || error instanceof SyntaxError;
+  }
+
+  /**
+   * Envia erro sanitizado ao Sentry quando explicitamente habilitado.
+   * Mantém import dinâmico para não acoplar o boot ao monitoramento.
+   */
+  private async captureWithSentry(sanitized: SanitizedErrorLog): Promise<void> {
+    const sentry = environment.monitoring?.sentry;
+    const dsn = String(sentry?.dsn ?? '').trim();
+
+    if (sentry?.enabled !== true || !dsn) {
+      return;
+    }
+
+    try {
+      const Sentry = await import('@sentry/angular');
+
+      if (!this.sentryInitialized) {
+        Sentry.init({
+          dsn,
+          environment: environment.env,
+          tracesSampleRate: Math.max(0, Math.min(Number(sentry.tracesSampleRate ?? 0), 1)),
+        });
+        this.sentryInitialized = true;
+      }
+
+      Sentry.withScope((scope) => {
+        scope.setTag('app_env', environment.env);
+        if (sanitized.feature) scope.setTag('feature', sanitized.feature);
+        if (sanitized.operation) scope.setTag('operation', sanitized.operation);
+        if (sanitized.status) scope.setTag('http_status', String(sanitized.status));
+        scope.setExtra('sanitized', sanitized);
+        Sentry.captureException(new Error(`[${sanitized.name}] ${sanitized.message}`));
+      });
+    } catch {
+      // Não deixe falha do monitoramento quebrar UX nem loop de erro global.
+    }
   }
 
   /**
