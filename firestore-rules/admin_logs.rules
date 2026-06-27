@@ -2,9 +2,8 @@
 // =========================================================================
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
 // ADMIN LOGS (auditoria / staff)
-// - Somente staff (admin/moderator) pode criar
-// - Leitura: restrita (get) para staff
-// - Sem list (anti-enumeração)
+// - Somente admin pode criar
+// - Leitura/listagem restrita a admin para auditoria e histórico interno
 // - Sem update/delete (log imutável)
 // - timestamp obrigatório via serverTimestamp() => request.time
 // =========================================================================
