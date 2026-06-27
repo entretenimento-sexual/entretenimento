@@ -97,6 +97,15 @@ button.is-active {
   background: color-mix(in oklab, var(--primary-color, #d64d4d) 10%, var(--surface-color, #fff)) !important;
 }
 
+.moderation-reports__search {
+  display: grid;
+  min-width: 0;
+}
+
+.moderation-reports__search mat-form-field {
+  width: 100%;
+}
+
 .moderation-reports__empty {
   min-height: 180px;
   padding: 28px;
