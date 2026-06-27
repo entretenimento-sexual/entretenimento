@@ -32,8 +32,8 @@ export class SafetyCenterComponent {
   readonly primaryActions: readonly SafetyAction[] = [
     {
       id: 'report-profile',
-      title: 'Denunciar perfil',
-      description: 'Abra um perfil pela descoberta e use o botão Denunciar perfil para enviar à moderação.',
+      title: 'Enviar denúncia',
+      description: 'Abra um perfil pela descoberta e use Denunciar perfil para enviar uma ocorrência à equipe interna.',
       route: ['/dashboard/explorar'],
       icon: '🚩',
       ariaLabel: 'Ir para descoberta para localizar um perfil e enviar denúncia',
@@ -72,7 +72,7 @@ export class SafetyCenterComponent {
     {
       id: 'report-when-needed',
       title: 'Denuncie o que precisa de revisão',
-      description: 'Denúncias de perfil já registram motivo, detalhes opcionais, rota e alvo para análise da moderação.',
+      description: 'A denúncia é enviada para análise interna. A fila, decisões e histórico não ficam visíveis para usuários comuns.',
       icon: '🚩',
     },
     {
@@ -97,9 +97,9 @@ export class SafetyCenterComponent {
 
   readonly upcomingControls: readonly SafetyGuide[] = [
     {
-      id: 'moderation-triage',
-      title: 'Triagem de denúncias',
-      description: 'Próxima camada: painel interno para priorizar, revisar e resolver denúncias com histórico de decisão.',
+      id: 'admin-review-flow',
+      title: 'Revisão interna',
+      description: 'Camada interna para priorizar, revisar e registrar decisões administrativas sem expor a fila aos usuários.',
       icon: '🧭',
     },
     {
