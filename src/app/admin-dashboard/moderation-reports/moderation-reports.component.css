@@ -11,7 +11,8 @@
 
 .moderation-reports__hero,
 .report-card,
-.moderation-reports__empty {
+.moderation-reports__empty,
+.moderation-history {
   border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
   border-radius: 18px;
   background: var(--surface-color, #fff);
@@ -110,6 +111,76 @@ button.is-active {
   margin: -6px 0 0;
   color: color-mix(in oklab, var(--text-color, #111827) 64%, transparent);
   font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.moderation-history {
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.moderation-history__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.moderation-history__header h3 {
+  margin: 3px 0 0;
+  font-size: 1.05rem;
+  font-weight: 950;
+}
+
+.moderation-history__header strong {
+  min-width: 42px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #d64d4d) 10%, var(--surface-color, #fff));
+  color: var(--primary-color, #d64d4d);
+  font-weight: 950;
+}
+
+.moderation-history__empty {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #111827) 64%, transparent);
+  font-weight: 750;
+}
+
+.moderation-history__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 8px;
+}
+
+.moderation-history__item {
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface-color, #fff) 92%, var(--text-color, #111827) 4%);
+}
+
+.moderation-history__item strong,
+.moderation-history__item span,
+.moderation-history__item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moderation-history__item strong {
+  font-size: 0.9rem;
+  font-weight: 900;
+}
+
+.moderation-history__item span,
+.moderation-history__item small {
+  color: color-mix(in oklab, var(--text-color, #111827) 66%, transparent);
   font-weight: 750;
 }
 
@@ -261,7 +332,8 @@ button.is-active {
 @media (max-width: 560px) {
   .moderation-reports__hero,
   .report-card,
-  .moderation-reports__empty {
+  .moderation-reports__empty,
+  .moderation-history {
     border-radius: 14px;
     box-shadow: none;
   }
@@ -273,7 +345,8 @@ button.is-active {
 
   .report-card__header,
   .report-card__actions,
-  .report-card__target-actions {
+  .report-card__target-actions,
+  .moderation-history__header {
     align-items: stretch;
     flex-direction: column;
   }
