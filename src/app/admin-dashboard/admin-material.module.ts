@@ -20,6 +20,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatOptionModule } from '@angular/material/core';
 import { AgedOpenModerationReportPipe } from './moderation-reports/aged-open-moderation-report.pipe';
+import { AgedOpenModerationReportsCountPipe } from './moderation-reports/aged-open-moderation-reports-count.pipe';
 
 const MATERIAL = [
   MatTableModule,
@@ -43,8 +44,13 @@ const MATERIAL = [
   MatOptionModule,
 ];
 
+const ADMIN_MODERATION_PIPES = [
+  AgedOpenModerationReportPipe,
+  AgedOpenModerationReportsCountPipe,
+];
+
 @NgModule({
-  imports: [AgedOpenModerationReportPipe],
-  exports: [...MATERIAL, AgedOpenModerationReportPipe],
+  imports: ADMIN_MODERATION_PIPES,
+  exports: [...MATERIAL, ...ADMIN_MODERATION_PIPES],
 })
 export class AdminMaterialModule { }
