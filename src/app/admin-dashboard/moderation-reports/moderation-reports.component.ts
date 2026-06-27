@@ -20,8 +20,9 @@ import {
   ModerationReportStatus,
   ModerationReportTargetType,
 } from 'src/app/core/interfaces/moderation/moderation-report.interface';
+import { isAgedOpenModerationReport } from './moderation-report-age.util';
 
-type AdminReportFilter = ModerationReportStatus | 'all';
+type AdminReportFilter = ModerationReportStatus | 'all' | 'aged_open';
 type ResolutionDrafts = Record<string, string>;
 
 interface ModerationReviewHistoryItem {
@@ -297,7 +298,9 @@ export class ModerationReportsComponent {
 
     const statusFilteredReports = selected === 'all'
       ? safeReports
-      : safeReports.filter((report) => report.status === selected);
+      : selected === 'aged_open'
+        ? safeReports.filter((report) => isAgedOpenModerationReport(report))
+        : safeReports.filter((report) => report.status === selected);
 
     const filteredReports = normalizedSearch
       ? statusFilteredReports.filter((report) => this.reportMatchesSearch(report, normalizedSearch))
