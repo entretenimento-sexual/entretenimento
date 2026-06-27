@@ -50,6 +50,11 @@ import { environment } from '../environments/environment';
 // =============================================================================
 import { provideFirebaseApp } from '@angular/fire/app';
 import {
+  initializeAppCheck,
+  provideAppCheck,
+  ReCaptchaV3Provider,
+} from '@angular/fire/app-check';
+import {
   Auth,
   connectAuthEmulator,
   provideAuth,
@@ -115,6 +120,12 @@ registerLocaleData(localePt, 'pt-BR');
 const EMU_AUTH_PERSIST_KEY = '__EMU_AUTH_PERSIST__';
 const CALLABLE_FUNCTIONS_REGION = 'us-central1' as const;
 
+const APP_CHECK_PLACEHOLDER_VALUES = [
+  'prod-recaptcha-v3-site-key',
+  'staging-recaptcha-v3-site-key',
+  'dev-recaptcha-v3-site-key',
+];
+
 type EmuPersistMode = 'memory' | 'session';
 
 function isBrowser(): boolean {
@@ -133,6 +144,24 @@ function safeDbg(message: string, extra?: unknown): void {
 function isUsingEmulators(): boolean {
   const cfg: any = environment;
   return !environment.production && cfg?.useEmulators === true;
+}
+
+function isAppCheckEnabled(): boolean {
+  const cfg: any = environment;
+  return cfg?.appCheck?.enabled === true && !isUsingEmulators();
+}
+
+function resolveAppCheckSiteKey(): string {
+  const cfg: any = environment;
+  const siteKey = String(cfg?.appCheck?.siteKey ?? '').trim();
+
+  if (!siteKey || APP_CHECK_PLACEHOLDER_VALUES.includes(siteKey)) {
+    throw new Error(
+      `[AppCheck] Configure uma siteKey real do reCAPTCHA v3 para o ambiente ${environment.env}.`
+    );
+  }
+
+  return siteKey;
 }
 
 function hasEmulatorTarget(
@@ -314,6 +343,15 @@ export function authRestoreInitializer(
 
   providers: [
     provideFirebaseApp(() => initializeApp(environment.firebase)),
+
+    ...(isAppCheckEnabled()
+      ? [
+          provideAppCheck(() => initializeAppCheck(getApp(), {
+            provider: new ReCaptchaV3Provider(resolveAppCheckSiteKey()),
+            isTokenAutoRefreshEnabled: true,
+          })),
+        ]
+      : []),
 
     provideFunctions(() => {
       const functions = getFunctions(getApp(), CALLABLE_FUNCTIONS_REGION);
