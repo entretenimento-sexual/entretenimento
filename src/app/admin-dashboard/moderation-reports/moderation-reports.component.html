@@ -207,6 +207,28 @@
               </div>
             </dl>
 
+            @if (report.reviewedBy || dateValue(report.reviewedAt)) {
+              <section class="report-card__review" aria-label="Última revisão da denúncia">
+                <strong>Última revisão</strong>
+                <dl>
+                  <div>
+                    <dt>Por</dt>
+                    <dd>{{ report.reviewedBy || 'Não informado' }}</dd>
+                  </div>
+                  <div>
+                    <dt>Em</dt>
+                    <dd>
+                      @if (dateValue(report.reviewedAt); as reviewedAt) {
+                        {{ reviewedAt | date:'dd/MM/yyyy HH:mm' }}
+                      } @else {
+                        Data não disponível
+                      }
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+            }
+
             @if (targetRoute(report) || sourceRoute(report)) {
               <div class="report-card__target-actions">
                 @if (targetRoute(report); as route) {
