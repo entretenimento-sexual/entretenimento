@@ -113,7 +113,11 @@ export class ModerationReportsComponent {
   );
 
   setFilter(filter: AdminReportFilter): void {
-    this.selectedFilter.set(filter);
+    const nextFilter: AdminReportFilter = filter === 'open' && this.selectedFilter() === 'open'
+      ? 'aged_open'
+      : filter;
+
+    this.selectedFilter.set(nextFilter);
   }
 
   setSearchTerm(value: string): void {
