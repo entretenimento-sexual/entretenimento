@@ -44,6 +44,20 @@ export const environment: AppEnvironment = {
   appCheck: {
     enabled: true,
     provider: 'reCaptchaV3',
+
+    // App Check / reCAPTCHA v3 - troca obrigatória antes do deploy público.
+    // Passo a passo:
+    // 1. Acesse o Firebase Console do projeto de produção: entretenimento-sexual.
+    // 2. Abra App Check.
+    // 3. Selecione o app Web correspondente a este Firebase appId.
+    // 4. Registre/ative o provedor reCAPTCHA v3 para o app Web.
+    // 5. Informe os domínios reais do app, incluindo o domínio do Firebase Hosting
+    //    e qualquer domínio customizado usado em produção.
+    // 6. Copie a site key gerada pelo reCAPTCHA v3.
+    // 7. Substitua o placeholder abaixo pela chave real.
+    // 8. Rode: npm.cmd run validate:prod
+    // 9. Só depois faça deploy. O AppModule bloqueia o boot se esta chave continuar
+    //    vazia ou como placeholder, para evitar produção sem App Check efetivo.
     siteKey: 'prod-recaptcha-v3-site-key',
   },
 
