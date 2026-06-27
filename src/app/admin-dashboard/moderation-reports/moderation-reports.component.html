@@ -11,9 +11,9 @@
       </div>
 
       <div class="moderation-reports__stats" aria-label="Resumo de denúncias">
-        <button type="button" (click)="setFilter('open')" [class.is-active]="selectedFilter() === 'open'">
+        <button type="button" (click)="setFilter('open')" [class.is-active]="selectedFilter() === 'open' || selectedFilter() === 'aged_open'">
           <strong>{{ vm.open }}</strong>
-          <span>Abertas</span>
+          <span>Abertas / 48h+</span>
         </button>
 
         <button type="button" (click)="setFilter('reviewing')" [class.is-active]="selectedFilter() === 'reviewing'">
@@ -37,8 +37,8 @@
     </section>
 
     <div class="moderation-reports__filters" aria-label="Filtros de denúncia">
-      <button type="button" (click)="setFilter('open')" [class.is-active]="selectedFilter() === 'open'">
-        Abertas
+      <button type="button" (click)="setFilter('open')" [class.is-active]="selectedFilter() === 'open' || selectedFilter() === 'aged_open'">
+        Abertas / 48h+
       </button>
       <button type="button" (click)="setFilter('reviewing')" [class.is-active]="selectedFilter() === 'reviewing'">
         Em análise
