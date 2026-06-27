@@ -83,6 +83,10 @@
       }
     </p>
 
+    <p class="moderation-reports__result-summary" aria-live="polite">
+      Histórico: {{ vm.historyItems.length }} decisões recentes registradas.
+    </p>
+
     @if (vm.filteredReports.length === 0) {
       <section class="moderation-reports__empty" role="status">
         <mat-icon aria-hidden="true">verified_user</mat-icon>
