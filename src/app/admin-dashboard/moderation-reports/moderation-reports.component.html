@@ -54,6 +54,26 @@
       </button>
     </div>
 
+    <section class="moderation-queue-overview" aria-label="Resumo operacional da fila">
+      <article class="moderation-queue-overview__item moderation-queue-overview__item--open">
+        <span>Abertas</span>
+        <strong>{{ vm.open }}</strong>
+        <small>Entrada da fila. Priorize denúncias ainda sem revisão.</small>
+      </article>
+
+      <article class="moderation-queue-overview__item moderation-queue-overview__item--reviewing">
+        <span>Em análise</span>
+        <strong>{{ vm.reviewing }}</strong>
+        <small>Itens já assumidos pela moderação e aguardando decisão.</small>
+      </article>
+
+      <article class="moderation-queue-overview__item moderation-queue-overview__item--closed">
+        <span>Encerradas</span>
+        <strong>{{ vm.resolved + vm.rejected }}</strong>
+        <small>Resolvidas ou rejeitadas, mantendo histórico interno.</small>
+      </article>
+    </section>
+
     <section class="moderation-reports__search" aria-label="Busca em denúncias">
       <mat-form-field appearance="outline">
         <mat-label>Buscar na triagem</mat-label>
