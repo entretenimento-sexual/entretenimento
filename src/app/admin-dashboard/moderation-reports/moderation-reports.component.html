@@ -58,7 +58,7 @@
       <article class="moderation-queue-overview__item moderation-queue-overview__item--open">
         <span>Abertas</span>
         <strong>{{ vm.open }}</strong>
-        <small>Entrada da fila. Priorize denúncias ainda sem revisão.</small>
+        <small>{{ vm.reports | agedOpenModerationReportsCount }} abertas há 48h+. Priorize denúncias ainda sem revisão.</small>
       </article>
 
       <article class="moderation-queue-overview__item moderation-queue-overview__item--reviewing">
