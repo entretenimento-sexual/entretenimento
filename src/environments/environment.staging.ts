@@ -35,6 +35,14 @@ export const environment: AppEnvironment = {
   includeStackTrace: false,
 },
 
+  monitoring: {
+    sentry: {
+      enabled: false,
+      dsn: undefined,
+      tracesSampleRate: 0,
+    },
+  },
+
   integrations: {
     virusTotal: {
       enabled: false,
