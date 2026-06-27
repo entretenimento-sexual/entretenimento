@@ -1,11 +1,22 @@
 // src/app/core/services/error-handler/global-error-handler.service.ts
 // Serviço global de tratamento de erros
 // Intercepta erros, formata mensagens para o usuário e loga detalhes para o desenvolvedor
-// Não esquecer os comentários
+// Em produção, não despeja erro bruto no console para evitar exposição de dados sensíveis.
 import { ErrorHandler, Injectable, Injector } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ErrorNotificationService } from './error-notification.service';
 import { environment } from 'src/environments/environment';
+
+interface SanitizedErrorLog {
+  name: string;
+  message: string;
+  code?: string;
+  status?: number;
+  statusText?: string;
+  url?: string | null;
+  feature?: string;
+  operation?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class GlobalErrorHandlerService implements ErrorHandler {
@@ -19,7 +30,7 @@ export class GlobalErrorHandlerService implements ErrorHandler {
   handleError(error: Error | HttpErrorResponse): void {
     const notifier = this.injector.get(ErrorNotificationService);
 
-    // 1) Log detalhado para dev (SUPERVALORIZADO)
+    // 1) Log detalhado para dev, sanitizado/omitido em produção.
     this.logError(error);
 
     // 2) Mensagem para usuário
@@ -104,18 +115,38 @@ export class GlobalErrorHandlerService implements ErrorHandler {
 
   /**
    * Loga o erro no console de forma detalhada para o desenvolvedor.
+   * Em produção, não imprime o objeto bruto. Isso evita vazar payloads, rotas,
+   * contexto de Firebase, dados de usuário ou objetos anexados em `original`.
    */
   private logError(error: Error | HttpErrorResponse): void {
-    console.log('Erro capturado pelo GlobalErrorHandler:', error);
+    if (environment.production) {
+      return;
+    }
+
+    if (environment.enableDebugTools) {
+      console.error('Erro capturado pelo GlobalErrorHandler:', error);
+      return;
+    }
+
+    console.warn('Erro capturado pelo GlobalErrorHandler:', this.sanitizeError(error));
   }
 
   /**
    * Encaminha erros críticos para um serviço externo (Sentry/LogRocket).
+   * Até a integração externa ser ligada, produção mantém este método sem console.
    */
   private sendToExternalLoggingService(error: Error | HttpErrorResponse): void {
-    if (this.isCriticalError(error)) {
-      console.log('Enviando erro crítico para serviço externo:', error);
+    if (!this.isCriticalError(error)) {
+      return;
     }
+
+    const sanitized = this.sanitizeError(error);
+
+    if (!environment.production && environment.enableDebugTools) {
+      console.warn('Erro crítico pronto para serviço externo:', sanitized);
+    }
+
+    // Integração futura: enviar `sanitized` para Sentry/monitoramento externo.
   }
 
   /**
@@ -126,6 +157,40 @@ export class GlobalErrorHandlerService implements ErrorHandler {
       return error.status >= 500;
     }
     return error instanceof TypeError || error instanceof SyntaxError;
+  }
+
+  /**
+   * Gera resumo seguro para logs e monitoramento.
+   * Não inclui `original`, stack trace, payloads, headers nem dados sensíveis.
+   */
+  private sanitizeError(error: Error | HttpErrorResponse): SanitizedErrorLog {
+    const anyErr = error as any;
+
+    if (error instanceof HttpErrorResponse) {
+      return {
+        name: 'HttpErrorResponse',
+        message: String(error.message ?? 'HTTP error').slice(0, 240),
+        code: typeof anyErr?.code === 'string' ? anyErr.code : undefined,
+        status: error.status,
+        statusText: String(error.statusText ?? '').slice(0, 120),
+        url: error.url ? String(error.url).slice(0, 240) : null,
+        feature: this.safeString(anyErr?.feature),
+        operation: this.safeString(anyErr?.operation),
+      };
+    }
+
+    return {
+      name: String(anyErr?.name || error?.constructor?.name || 'Error').slice(0, 120),
+      message: String(anyErr?.message || 'Erro sem mensagem').slice(0, 240),
+      code: this.safeString(anyErr?.code),
+      feature: this.safeString(anyErr?.feature),
+      operation: this.safeString(anyErr?.operation),
+    };
+  }
+
+  private safeString(value: unknown): string | undefined {
+    const normalized = String(value ?? '').trim();
+    return normalized ? normalized.slice(0, 120) : undefined;
   }
 }
 /*
