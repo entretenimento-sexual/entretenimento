@@ -8,6 +8,7 @@
 // - leitura/listagem depende das Firestore Rules com claim admin;
 // - usuário comum não deve conseguir usar este service com sucesso;
 // - atualizações são restritas a status/resolução/campos de revisão;
+// - decisões são registradas também em /admin_logs via AdminLogService;
 // - operações AngularFire rodam via FirestoreContextService;
 // - erros são reportados ao GlobalErrorHandlerService para debug centralizado.
 // -----------------------------------------------------------------------------
@@ -29,15 +30,22 @@ import { catchError, map, switchMap, take } from 'rxjs/operators';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { AdminLogService } from 'src/app/core/services/account-moderation/admin-log.service';
 import {
   IModerationReportVm,
+  ModerationReportReason,
   ModerationReportStatus,
+  ModerationReportTargetType,
 } from 'src/app/core/interfaces/moderation/moderation-report.interface';
 import { toErrorInstance } from 'src/app/core/utils/firebase-error-utils';
 
 export interface ModerationReportReviewPatch {
   status: Exclude<ModerationReportStatus, 'open'>;
   resolution?: string | null;
+  previousStatus?: ModerationReportStatus | null;
+  targetUserUid?: string | null;
+  reportReason?: ModerationReportReason | null;
+  reportTargetType?: ModerationReportTargetType | null;
 }
 
 export interface AdminModerationReportVm extends IModerationReportVm {
@@ -52,6 +60,7 @@ export class AdminModerationReportService {
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly authSession = inject(AuthSessionService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly adminLog = inject(AdminLogService);
 
   listReports$(): Observable<AdminModerationReportVm[]> {
     return this.firestoreContext.deferObservable$(() => {
@@ -95,7 +104,23 @@ export class AdminModerationReportService {
             reviewedAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
           });
-        });
+        }).pipe(
+          switchMap(() => this.adminLog.logAdminAction(
+            reviewerUid,
+            'moderationReportReview',
+            normalized.targetUserUid,
+            {
+              reportId: safeReportId,
+              previousStatus: normalized.previousStatus,
+              nextStatus: normalized.status,
+              reason: normalized.reportReason,
+              targetType: normalized.reportTargetType,
+              resolution: normalized.resolution,
+            },
+            { silent: true }
+          )),
+          map(() => void 0)
+        );
       }),
       catchError((error) => {
         this.reportError(error, 'reviewReport', {
@@ -128,16 +153,32 @@ export class AdminModerationReportService {
 
   private normalizePatch(
     patch: ModerationReportReviewPatch
-  ): ModerationReportReviewPatch | null {
+  ): Required<Pick<ModerationReportReviewPatch, 'status' | 'previousStatus' | 'targetUserUid'>> & Pick<ModerationReportReviewPatch, 'resolution' | 'reportReason' | 'reportTargetType'> | null {
     const status = String(patch?.status ?? '').trim() as ModerationReportReviewPatch['status'];
+    const previousStatus = String(patch?.previousStatus ?? 'open').trim() as ModerationReportStatus;
+    const targetUserUid = String(patch?.targetUserUid ?? '').trim();
+    const reportReason = String(patch?.reportReason ?? '').trim() as ModerationReportReason;
+    const reportTargetType = String(patch?.reportTargetType ?? '').trim() as ModerationReportTargetType;
     const resolution = String(patch?.resolution ?? '').trim().slice(0, 900);
 
     if (!['reviewing', 'resolved', 'rejected'].includes(status)) {
       return null;
     }
 
+    if (!['open', 'reviewing', 'resolved', 'rejected'].includes(previousStatus)) {
+      return null;
+    }
+
+    if (!targetUserUid) {
+      return null;
+    }
+
     return {
       status,
+      previousStatus,
+      targetUserUid,
+      reportReason: reportReason || null,
+      reportTargetType: reportTargetType || null,
       resolution: resolution || null,
     };
   }
