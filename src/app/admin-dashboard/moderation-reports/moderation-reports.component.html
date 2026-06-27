@@ -28,6 +28,14 @@
       </div>
     </header>
 
+    <section class="moderation-reports__admin-notice" role="note" aria-label="Aviso de acesso restrito">
+      <mat-icon aria-hidden="true">admin_panel_settings</mat-icon>
+      <div>
+        <strong>Área restrita a administradores</strong>
+        <span>Fila, histórico e decisões de denúncias são internos e não ficam visíveis para usuários comuns.</span>
+      </div>
+    </section>
+
     <div class="moderation-reports__filters" aria-label="Filtros de denúncia">
       <button type="button" (click)="setFilter('open')" [class.is-active]="selectedFilter() === 'open'">
         Abertas
