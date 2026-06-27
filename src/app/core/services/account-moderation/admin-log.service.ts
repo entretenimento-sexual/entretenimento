@@ -1,34 +1,27 @@
 // src/app/core/services/autentication/account-moderation/admin-log.service.ts
 // =============================================================================
 // ADMIN LOG SERVICE (auditoria / ações administrativas)
-//
-// Objetivo:
-// - Registrar ações de staff (ban/suspend/lock/unlock/etc) em /admin_logs
-// - FirestoreService legado está sendo descontinuado -> usa FirestoreWriteService
-// - Observable-first (sem subscribe interno)
-// - timestamps: preferir serverTimestamp() (auditoria confiável)
-// - erros: sempre reportados ao GlobalErrorHandlerService
-//
-// Nota de arquitetura “plataforma grande”:
-// - Segurança real vem das RULES + custom claims (admin/moderator).
-// - O campo adminUid passado por parâmetro NÃO é confiável por si só.
-//   Usamos o UID canônico do Auth (quando disponível) e só mantemos o parâmetro por compat.
 // =============================================================================
 import { Injectable } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
 import { catchError, map, take } from 'rxjs/operators';
 
-import { serverTimestamp } from 'firebase/firestore';
+import { limit, orderBy, serverTimestamp } from 'firebase/firestore';
 
 import { IAdminLog } from '../../interfaces/logs/iadming-log';
 import { FirestoreWriteService } from '@core/services/data-handling/firestore/core/firestore-write.service';
+import { FirestoreReadService } from '@core/services/data-handling/firestore/core/firestore-read.service';
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
 import { environment } from 'src/environments/environment';
 
 type DomainError = Error & { code?: string };
+
+export interface IAdminLogRecord extends IAdminLog {
+  id?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AdminLogService {
@@ -37,19 +30,11 @@ export class AdminLogService {
   constructor(
     private readonly auth: Auth,
     private readonly write: FirestoreWriteService,
+    private readonly read: FirestoreReadService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotifier: ErrorNotificationService
   ) { }
 
-  /**
-   * Registra uma ação administrativa no sistema de logs.
-   *
-   * @param adminUid         (compat) uid informado pelo caller (não confiável isoladamente)
-   * @param action           ação (ex.: suspendUser, unsuspendUser, lockAccount…)
-   * @param targetUserUid    uid alvo
-   * @param details          payload opcional (motivo, metadata)
-   * @param opts.silent      evita toast (útil quando log é best-effort)
-   */
   logAdminAction(
     adminUid: string,
     action: string,
@@ -70,7 +55,6 @@ export class AdminLogService {
     if (!a) return throwError(() => this.domainError('Ação inválida.', 'adminlog/invalid-action'));
     if (!t) return throwError(() => this.domainError('Target UID inválido.', 'adminlog/invalid-target'));
 
-    // ✅ timestamp confiável (serverTimestamp) -> rules podem exigir request.time
     const logEntry: IAdminLog = {
       adminUid: actorUid,
       action: a,
@@ -86,15 +70,13 @@ export class AdminLogService {
 
     return this.write.addDocument('admin_logs', logEntry as any, {
       context: 'AdminLogService.logAdminAction',
-      silent: true, // write layer não deve notificar UI diretamente
+      silent: true,
     }).pipe(
       map(() => logEntry),
       take(1),
       catchError((err) => {
-        // Centraliza erro (sempre)
         this.report(err, { phase: 'logAdminAction', action: a, targetUserUid: t }, silent);
 
-        // UI: somente quando fizer sentido (ex.: painel admin)
         if (!silent) {
           this.errorNotifier.showError('Falha ao registrar ação administrativa.');
         }
@@ -104,14 +86,25 @@ export class AdminLogService {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Internals
-  // ---------------------------------------------------------------------------
+  listAdminActions$(maxResults = 120): Observable<IAdminLogRecord[]> {
+    return this.read.getDocumentsLive<IAdminLogRecord>(
+      'admin_logs',
+      [orderBy('timestamp', 'desc'), limit(Math.max(1, Math.min(maxResults, 300)))],
+      {
+        idField: 'id',
+        requireAuth: true,
+      }
+    ).pipe(
+      catchError((err) => {
+        this.report(err, { phase: 'listAdminActions', maxResults }, true);
+        return throwError(() => err);
+      })
+    );
+  }
 
   private resolveActorUid(passedAdminUid?: string): string | null {
     const current = this.auth.currentUser?.uid ?? null;
 
-      // Se houver mismatch, usa o canônico do Auth e só loga warning em debug.
     if (this.debug && passedAdminUid && current && passedAdminUid !== current) {
       // eslint-disable-next-line no-console
       console.warn('[AdminLogService] adminUid param != auth uid. Usando auth uid.', {
