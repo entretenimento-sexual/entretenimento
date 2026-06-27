@@ -75,6 +75,14 @@
       </mat-form-field>
     </section>
 
+    <p class="moderation-reports__result-summary" aria-live="polite">
+      @if (vm.searchTerm) {
+        Exibindo {{ vm.filteredReports.length }} de {{ vm.statusFilteredTotal }} denúncias neste filtro.
+      } @else {
+        Exibindo {{ vm.filteredReports.length }} denúncias neste filtro.
+      }
+    </p>
+
     @if (vm.filteredReports.length === 0) {
       <section class="moderation-reports__empty" role="status">
         <mat-icon aria-hidden="true">verified_user</mat-icon>
