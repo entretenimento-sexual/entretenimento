@@ -19,7 +19,7 @@
 .friend-requests__state.app-card {
   min-width: 0;
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 16px;
+  border-radius: 18px;
   background: var(--surface-color, #101923);
   box-shadow: var(--box-shadow, 0 10px 24px rgb(0 0 0 / 14%));
 }
@@ -30,12 +30,15 @@
   align-items: center;
   justify-content: space-between;
   gap: clamp(12px, 2vw, 20px);
-  padding: 16px;
+  padding: clamp(14px, 2vw, 18px);
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent), transparent 34rem),
+    color-mix(in oklab, var(--surface-color, #101923) 96%, var(--text-color, #f5f7fb) 4%);
 }
 
 .friend-requests__intro {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -45,29 +48,37 @@
 }
 
 .friend-requests__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 0.28rem 0.68rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent);
   color: var(--primary-color, #ff7070);
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.08em;
-  line-height: 1.2;
+  line-height: 1;
   text-transform: uppercase;
 }
 
 .friend-requests h1 {
   margin: 0;
   color: var(--text-color, #f5f7fb);
-  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
   font-weight: 900;
   line-height: 1.08;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .friend-requests__description {
-  max-width: 44rem;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
-  font-size: 0.9rem;
+  max-width: 46rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 70%, transparent);
+  font-size: 0.92rem;
   font-weight: 650;
-  line-height: 1.35;
+  line-height: 1.45;
 }
 
 .friend-requests__summary {
@@ -79,9 +90,9 @@
 }
 
 .friend-requests__summary-item {
-  min-width: 94px;
-  min-height: 46px;
-  padding: 7px 10px;
+  min-width: 98px;
+  min-height: 48px;
+  padding: 8px 11px;
 
   display: grid;
   align-content: center;
@@ -95,13 +106,13 @@
 }
 
 .friend-requests__summary-item strong {
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 950;
   line-height: 1;
 }
 
 .friend-requests__summary-item span {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 64%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
   font-size: 0.74rem;
   font-weight: 800;
   line-height: 1.2;
@@ -549,7 +560,8 @@ html.high-contrast .friend-requests__state,
 html.high-contrast .request-card,
 html.high-contrast .request-action,
 html.high-contrast .request-card__meta span,
-html.high-contrast .friend-requests__summary-item {
+html.high-contrast .friend-requests__summary-item,
+html.high-contrast .friend-requests__eyebrow {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
