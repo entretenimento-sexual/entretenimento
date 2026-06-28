@@ -17,12 +17,16 @@
           <i class="fas fa-share-nodes" aria-hidden="true"></i>
         }
 
-        <span>Redes sociais</span>
+        <span>{{ canEdit() ? 'Minhas redes sociais' : 'Redes sociais públicas' }}</span>
       </mat-panel-title>
     </mat-expansion-panel-header>
 
     @if (anyLinks()) {
-      <div class="social-link-list">
+      <p class="social-links-note">
+        Links externos abrem em nova aba. Confira o destino antes de compartilhar dados pessoais ou financeiros.
+      </p>
+
+      <div class="social-link-list" aria-label="Links sociais disponíveis">
         <div
           class="social-link-item"
           *ngFor="let p of socialMediaPlatforms; trackBy: trackByKey"
@@ -39,7 +43,7 @@
             [href]="href"
             target="_blank"
             rel="noopener noreferrer"
-            [attr.aria-label]="'Abrir ' + p.label + ' em nova aba'"
+            [attr.aria-label]="'Abrir ' + p.label + ' em nova aba externa'"
           >
             <span>{{ socialLinks?.[p.key] }}</span>
             <i class="fas fa-external-link-alt" aria-hidden="true"></i>
@@ -49,16 +53,16 @@
     } @else {
       <p class="no-links-info">
         @if (canEdit()) {
-          Nenhuma rede social adicionada.
+          Nenhuma rede social adicionada. Adicione apenas links que você quer exibir no perfil.
         } @else {
-          Este perfil ainda não adicionou redes sociais.
+          Este perfil ainda não adicionou redes sociais públicas.
         }
       </p>
     }
 
     @if (canEdit()) {
       <div class="inline-editor">
-        <h4 class="inline-editor-title">Editar aqui mesmo</h4>
+        <h4 class="inline-editor-title">Editar links exibidos no perfil</h4>
 
         <div class="edit-row" *ngFor="let p of socialMediaPlatforms; trackBy: trackByKey">
           <label class="edit-label" [for]="'social-'+p.key">
@@ -70,7 +74,7 @@
             [id]="'social-'+p.key"
             [value]="socialLinks?.[p.key] || ''"
             #val
-            placeholder="URL ou @handle"
+            placeholder="URL segura ou @handle"
           />
 
           <div class="edit-actions">
@@ -99,7 +103,7 @@
         class="btn btn-secondary open-editor-page"
         (click)="goToEditSocialLinks()"
       >
-        Abrir página de edição
+        Abrir página completa de edição
       </button>
     }
   </mat-expansion-panel>
