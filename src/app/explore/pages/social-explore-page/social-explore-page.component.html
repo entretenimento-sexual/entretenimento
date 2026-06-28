@@ -6,17 +6,25 @@
   @let myActiveStatus = (myActiveStatus$ | async);
 
   <section class="social-explore-page" aria-labelledby="discover-title">
-    <h1 id="discover-title" class="sr-only">Descobrir</h1>
+    <header class="explore-hero">
+      <div class="hero-copy">
+        <span class="hero-copy__eyebrow">Descoberta</span>
+        <h1 id="discover-title">Encontre perfis, mídias e sinais compatíveis.</h1>
+        <p>
+          Use seu status, suas preferências e os filtros de descoberta para encontrar conexões com mais contexto.
+        </p>
+      </div>
 
-    <nav class="explore-hero__actions" aria-label="Ações rápidas">
-      <a class="explore-hero__action explore-hero__action--primary" routerLink="/dashboard/principal">
-        Meu status
-      </a>
+      <nav class="explore-hero__actions" aria-label="Ações rápidas">
+        <a class="explore-hero__action explore-hero__action--primary" routerLink="/dashboard/principal">
+          Atualizar meu status
+        </a>
 
-      <a class="explore-hero__action" routerLink="/preferencias/discovery-settings">
-        Filtros
-      </a>
-    </nav>
+        <a class="explore-hero__action" routerLink="/preferencias/discovery-settings">
+          Ajustar filtros
+        </a>
+      </nav>
+    </header>
 
     @if (myActiveStatus) {
       <aside class="explore-my-status" aria-label="Meu Status de Hoje ativo">
@@ -134,10 +142,11 @@
 
     @if (!vm.hasAnyContent) {
       <div class="empty-state" role="status" aria-live="polite">
+        <span class="empty-state__eyebrow">Em construção</span>
         <h2>Nada por aqui ainda</h2>
 
         <p>
-          Publicações aprovadas aparecerão aqui.
+          Publicações aprovadas, perfis compatíveis e mídias recentes aparecerão aqui conforme a comunidade crescer.
         </p>
       </div>
     }
