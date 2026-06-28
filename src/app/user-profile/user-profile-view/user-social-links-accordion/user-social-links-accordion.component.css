@@ -78,6 +78,18 @@
   background: transparent;
 }
 
+.social-links-note {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff6b6b) 22%, transparent);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--primary-color, #ff6b6b) 8%, transparent);
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
 .social-link-list {
   display: grid;
   gap: 10px;
@@ -203,12 +215,14 @@
 @media (prefers-contrast: more) {
   :host ::ng-deep .mat-expansion-panel,
   .social-link-item,
-  .no-links-info {
+  .no-links-info,
+  .social-links-note {
     border-width: 2px;
   }
 
   .social-link-label,
-  .no-links-info {
+  .no-links-info,
+  .social-links-note {
     color: var(--text-color);
   }
 }
@@ -251,7 +265,8 @@
 @media (max-width: 380px) {
   :host ::ng-deep .mat-expansion-panel,
   .social-link-item,
-  .no-links-info {
+  .no-links-info,
+  .social-links-note {
     border-radius: 12px;
   }
 
