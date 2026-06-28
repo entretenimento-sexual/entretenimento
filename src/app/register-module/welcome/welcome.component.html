@@ -1,12 +1,13 @@
 <!-- src/app/authentication/register-module/welcome/welcome.component.html -->
 <div class="welcome-container">
-  <header class="welcome-header">
-    <h1>Confirme seu e-mail para começar</h1>
+  <section class="welcome-hero" aria-labelledby="welcome-title">
+    <p class="welcome-badge">Próximo passo</p>
+    <h1 id="welcome-title">Confirme seu e-mail para seguir com segurança.</h1>
     <p class="subtitle" id="welcome-subtitle">
       Enviamos um link de verificação para <strong>{{ email || 'seu e-mail' }}</strong>.
-      Assim que você confirmar, vamos continuar para suas preferências.
+      Depois da confirmação, direcionamos você para completar o perfil ou ajustar suas preferências.
     </p>
-  </header>
+  </section>
 
   <div
     *ngIf="banner as b"
@@ -28,7 +29,7 @@
       Última checagem: {{ lastCheckedAt | date:'shortTime' }}
     </div>
 
-    <div class="actions">
+    <div class="actions compact-actions">
       <button
         class="btn btn-secondary"
         (click)="checkNow()"
@@ -47,7 +48,7 @@
         {{ resendingVerificationEmail ? 'Reenviando…' : 'Reenviar e-mail' }}
       </button>
 
-      <button class="btn btn-ghost" (click)="openInbox()">Abrir seu e-mail</button>
+      <button class="btn btn-ghost" (click)="openInbox()">Abrir e-mail</button>
       <button class="btn btn-ghost" (click)="copyEmail()" [disabled]="!email">Copiar e-mail</button>
 
       <button class="btn btn-ghost" (click)="toggleTech()">
@@ -70,20 +71,38 @@
   </div>
 
   <main class="welcome-content" [attr.aria-describedby]="'welcome-subtitle'">
-    <section class="welcome-card">
-      <h2 class="card-title">
-        Status:
-        <span *ngIf="emailVerified; else notVerified" class="badge ok">verificado</span>
-        <ng-template #notVerified><span class="badge warn">não verificado</span></ng-template>
-      </h2>
+    <section class="welcome-card status-card">
+      <div class="status-card__header">
+        <div>
+          <p class="card-kicker">Status da conta</p>
+          <h2 class="card-title">
+            E-mail
+            <span *ngIf="emailVerified; else notVerified" class="badge ok">verificado</span>
+            <ng-template #notVerified><span class="badge warn">pendente</span></ng-template>
+          </h2>
+        </div>
+
+        <div class="status-orb" [class.status-orb--ok]="emailVerified" aria-hidden="true">
+          {{ emailVerified ? '✓' : '!' }}
+        </div>
+      </div>
 
       <ol class="steps">
-        <li>Abra sua caixa de entrada.</li>
-        <li>Procure pelo e-mail de confirmação.</li>
-        <li>Clique no botão do e-mail para confirmar.</li>
+        <li>
+          <strong>Abra sua caixa de entrada.</strong>
+          <span>Confira também spam, promoções ou lixo eletrônico.</span>
+        </li>
+        <li>
+          <strong>Localize o e-mail de confirmação.</strong>
+          <span>Use o mesmo e-mail informado no cadastro.</span>
+        </li>
+        <li>
+          <strong>Confirme e volte para o app.</strong>
+          <span>Depois clique em checar agora para continuar.</span>
+        </li>
       </ol>
 
-      <div class="actions">
+      <div class="actions primary-actions">
         <button
           class="btn btn-primary"
           (click)="checkNow()"
@@ -124,7 +143,8 @@
     </section>
 
     <section *ngIf="emailVerified && !sessionInvalid" class="welcome-card success-card">
-      <h2 class="card-title">Tudo certo! 🎉</h2>
+      <p class="card-kicker">Conta validada</p>
+      <h2 class="card-title">Tudo certo.</h2>
       <p>
         Seu e-mail está verificado.
         {{ profileCompleted ? 'Agora vamos ajustar suas preferências.' : 'Agora complete seu perfil para liberar a navegação básica.' }}
@@ -148,10 +168,10 @@
       aria-live="assertive"
       aria-atomic="true"
     >
+      <p class="card-kicker">Atenção</p>
       <h2 class="card-title">Sessão encerrada</h2>
       <p>
-        Não conseguimos manter sua sessão ativa durante a verificação. Você pode tentar reconectar ou refazer o
-        cadastro.
+        Não conseguimos manter sua sessão ativa durante a verificação. Você pode tentar reconectar ou refazer o cadastro.
       </p>
 
       <div class="actions">
