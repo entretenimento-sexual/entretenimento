@@ -19,7 +19,7 @@
 .friends-controls.app-card {
   min-width: 0;
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 16px;
+  border-radius: 18px;
   background: var(--surface-color, #101923);
   box-shadow: var(--box-shadow, 0 10px 24px rgb(0 0 0 / 14%));
 }
@@ -30,31 +30,50 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px;
   align-items: center;
-  padding: 14px 16px;
-  background: color-mix(in oklab, var(--surface-color, #101923) 96%, var(--text-color, #f5f7fb) 4%);
+  padding: clamp(14px, 2vw, 18px);
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent), transparent 32rem),
+    color-mix(in oklab, var(--surface-color, #101923) 96%, var(--text-color, #f5f7fb) 4%);
 }
 
 .friends-page__copy {
   display: grid;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
+}
+
+.friends-page__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 0.28rem 0.68rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent);
+  color: var(--primary-color, #ff7070);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .friends-page h1 {
   margin: 0;
   color: var(--text-color, #f5f7fb);
-  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
   font-weight: 900;
   line-height: 1.08;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .friends-page__copy p {
   margin: 0;
-  max-width: 62ch;
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
-  font-size: 0.9rem;
-  line-height: 1.4;
+  max-width: 66ch;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 66%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .friends-page__metrics {
@@ -67,22 +86,22 @@
 .friends-page__metric {
   display: grid;
   gap: 2px;
-  min-width: 76px;
-  padding: 8px 10px;
+  min-width: 84px;
+  padding: 9px 11px;
   border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 82%, transparent);
-  border-radius: 12px;
+  border-radius: 14px;
   background: color-mix(in oklab, var(--surface-color, #101923) 92%, var(--text-color, #f5f7fb) 5%);
 }
 
 .friends-page__metric strong {
   color: var(--text-color, #f5f7fb);
-  font-size: clamp(1rem, 1.4vw, 1.18rem);
+  font-size: clamp(1.05rem, 1.4vw, 1.22rem);
   font-weight: 900;
   line-height: 1;
 }
 
 .friends-page__metric span {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 62%, transparent);
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -169,7 +188,7 @@
   }
 
   .friends-page__copy p {
-    font-size: 0.84rem;
+    font-size: 0.86rem;
   }
 
   .friends-page__metrics {
@@ -193,7 +212,8 @@
 
 html.high-contrast .friends-page__hero,
 html.high-contrast .friends-controls,
-html.high-contrast .friends-page__metric {
+html.high-contrast .friends-page__metric,
+html.high-contrast .friends-page__eyebrow {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
