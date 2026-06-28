@@ -1,0 +1,117 @@
+/* Visual polish for app-finalizar-cadastro.
+   Scoped globally on purpose to avoid rewriting the component template. */
+
+app-finalizar-cadastro .auth-container {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 560px);
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 4rem);
+  min-height: 100svh;
+  min-height: 100dvh;
+  padding: clamp(1rem, 4vw, 3rem);
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color) 16%, transparent), transparent 32rem),
+    var(--background-color);
+}
+
+app-finalizar-cadastro .auth-container::before {
+  content: "Perfil basico";
+  display: block;
+  max-width: 680px;
+  color: var(--primary-color);
+  font-size: clamp(2.25rem, 7vw, 5rem);
+  font-weight: 900;
+  line-height: .95;
+  letter-spacing: -0.06em;
+}
+
+app-finalizar-cadastro .form-container {
+  width: 100%;
+  background: color-mix(in oklab, var(--background-color) 92%, white 8%);
+  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 14%, transparent));
+  border-radius: 24px;
+  box-shadow: 0 24px 70px color-mix(in oklab, black 18%, transparent);
+  padding: clamp(1.25rem, 4vw, 2rem);
+}
+
+app-finalizar-cadastro .form-container h1 {
+  margin: 0 0 .65rem;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  text-align: left;
+}
+
+app-finalizar-cadastro .form-container p {
+  text-align: left;
+  line-height: 1.55;
+}
+
+app-finalizar-cadastro .form-container > form {
+  margin-top: 1rem;
+}
+
+app-finalizar-cadastro form {
+  gap: .9rem;
+}
+
+app-finalizar-cadastro label {
+  font-weight: 700;
+}
+
+app-finalizar-cadastro select,
+app-finalizar-cadastro .input-field,
+app-finalizar-cadastro input[type="file"] {
+  min-height: 48px;
+  padding: .85rem 1rem;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--background-color) 96%, white 4%);
+  font: inherit;
+}
+
+app-finalizar-cadastro select:focus-visible,
+app-finalizar-cadastro .input-field:focus-visible,
+app-finalizar-cadastro input[type="file"]:focus-visible {
+  border-color: var(--primary-color);
+  outline: none;
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 18%, transparent);
+}
+
+app-finalizar-cadastro .btn-submit {
+  min-height: 48px;
+  border-radius: 14px;
+  font-weight: 800;
+}
+
+app-finalizar-cadastro .alert {
+  border-radius: 14px;
+}
+
+app-finalizar-cadastro .field-hint {
+  line-height: 1.35;
+}
+
+@media (max-width: 900px) {
+  app-finalizar-cadastro .auth-container {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 1.25rem;
+    min-height: auto;
+  }
+
+  app-finalizar-cadastro .auth-container::before {
+    max-width: 14ch;
+    font-size: clamp(2rem, 12vw, 3.25rem);
+  }
+}
+
+@media (max-width: 520px) {
+  app-finalizar-cadastro .auth-container {
+    padding: 1rem;
+  }
+
+  app-finalizar-cadastro .form-container {
+    border-radius: 20px;
+  }
+}
