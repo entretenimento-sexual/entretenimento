@@ -15,7 +15,7 @@ app-finalizar-cadastro .auth-container {
 }
 
 app-finalizar-cadastro .auth-container::before {
-  content: "Perfil basico";
+  content: "Perfil básico";
   display: block;
   max-width: 680px;
   color: var(--primary-color);
