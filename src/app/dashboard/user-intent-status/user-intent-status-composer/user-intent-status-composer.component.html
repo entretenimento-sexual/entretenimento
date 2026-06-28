@@ -2,7 +2,13 @@
 
 <section class="intent-composer app-card" aria-labelledby="intent-composer-title">
   <header class="intent-composer__header">
-    <h2 id="intent-composer-title">Status de hoje</h2>
+    <div>
+      <span class="intent-composer__eyebrow">Disponibilidade</span>
+      <h2 id="intent-composer-title">Status de hoje</h2>
+      <p class="intent-composer__description">
+        Mostre se você está disponível, para onde pretende ir e quem pode encontrar seu perfil na descoberta.
+      </p>
+    </div>
 
     <button
       type="button"
@@ -11,14 +17,14 @@
       [attr.aria-controls]="'intent-composer-form'"
       (click)="toggleComposer()"
     >
-      {{ isComposerExpanded ? 'Fechar' : 'Publicar' }}
+      {{ isComposerExpanded ? 'Fechar' : 'Criar status' }}
     </button>
   </header>
 
   @if (activeStatus$ | async; as activeStatus) {
     <aside class="intent-composer__active" aria-label="Seu status atual">
       <div>
-        <span>Ativo</span>
+        <span>Ativo agora</span>
         <strong>{{ activeStatus.availabilityLabel }}</strong>
         <p>{{ activeStatus.destinationLabel }} · {{ activeStatus.expiresInLabel }}</p>
       </div>
@@ -29,7 +35,7 @@
         [disabled]="hiding"
         (click)="hideCurrentStatus()"
       >
-        {{ hiding ? 'Encerrando...' : 'Encerrar' }}
+        {{ hiding ? 'Encerrando...' : 'Encerrar status' }}
       </button>
     </aside>
   }
@@ -71,7 +77,7 @@
                 class="btn btn-ghost intent-composer__clear-venue"
                 (click)="clearVenueSelection()"
               >
-                Texto livre
+                Usar texto livre
               </button>
             }
           </div>
@@ -148,29 +154,35 @@
       <label class="intent-composer__field intent-composer__field--wide">
         <span>Visibilidade</span>
         <select formControlName="visibility">
-          <option value="public_discovery">Descobrir</option>
-          <option value="members_only">Membros</option>
-          <option value="friends_only">Amigos</option>
+          <option value="public_discovery">Descoberta pública</option>
+          <option value="members_only">Somente membros</option>
+          <option value="friends_only">Somente amigos</option>
         </select>
       </label>
 
       <footer class="intent-composer__footer">
-        <button
-          type="button"
-          class="btn btn-ghost intent-composer__cancel"
-          [disabled]="publishing"
-          (click)="closeComposer()"
-        >
-          Cancelar
-        </button>
+        <p>
+          O status é temporário e pode ser encerrado a qualquer momento.
+        </p>
 
-        <button
-          type="submit"
-          class="btn btn-primary intent-composer__submit"
-          [disabled]="publishing"
-        >
-          {{ publishing ? 'Publicando...' : 'Publicar' }}
-        </button>
+        <div class="intent-composer__footer-actions">
+          <button
+            type="button"
+            class="btn btn-ghost intent-composer__cancel"
+            [disabled]="publishing"
+            (click)="closeComposer()"
+          >
+            Cancelar
+          </button>
+
+          <button
+            type="submit"
+            class="btn btn-primary intent-composer__submit"
+            [disabled]="publishing"
+          >
+            {{ publishing ? 'Publicando...' : 'Publicar status' }}
+          </button>
+        </div>
       </footer>
     </form>
   }
