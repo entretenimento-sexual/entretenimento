@@ -1,5 +1,5 @@
 /* Visual polish for app-finalizar-cadastro.
-   Scoped globally on purpose to avoid rewriting the component template. */
+   Scoped globally on purpose to avoid rewriting most of the component template. */
 
 app-finalizar-cadastro .auth-container {
   display: grid;
@@ -14,15 +14,45 @@ app-finalizar-cadastro .auth-container {
     var(--background-color);
 }
 
-app-finalizar-cadastro .auth-container::before {
-  content: "Perfil básico";
-  display: block;
+app-finalizar-cadastro .completion-hero {
+  display: grid;
+  align-content: center;
+  gap: 1rem;
   max-width: 680px;
+}
+
+app-finalizar-cadastro .completion-hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 30px;
+  padding: .35rem .75rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  font-size: .76rem;
+  font-weight: 900;
+  letter-spacing: .08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+app-finalizar-cadastro .completion-hero h2 {
+  margin: 0;
   color: var(--primary-color);
   font-size: clamp(2.25rem, 7vw, 5rem);
   font-weight: 900;
   line-height: .95;
   letter-spacing: -0.06em;
+}
+
+app-finalizar-cadastro .completion-hero p {
+  max-width: 48ch;
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color) 76%, transparent);
+  font-size: clamp(1rem, 1.3vw, 1.12rem);
+  line-height: 1.55;
 }
 
 app-finalizar-cadastro .form-container {
@@ -100,7 +130,11 @@ app-finalizar-cadastro .field-hint {
     min-height: auto;
   }
 
-  app-finalizar-cadastro .auth-container::before {
+  app-finalizar-cadastro .completion-hero {
+    max-width: 100%;
+  }
+
+  app-finalizar-cadastro .completion-hero h2 {
     max-width: 14ch;
     font-size: clamp(2rem, 12vw, 3.25rem);
   }
@@ -111,7 +145,21 @@ app-finalizar-cadastro .field-hint {
     padding: 1rem;
   }
 
+  app-finalizar-cadastro .completion-hero {
+    gap: .8rem;
+  }
+
   app-finalizar-cadastro .form-container {
     border-radius: 20px;
+  }
+}
+
+@media (prefers-contrast: more) {
+  app-finalizar-cadastro .completion-hero__eyebrow {
+    border-width: 2px;
+  }
+
+  app-finalizar-cadastro .completion-hero p {
+    color: var(--text-color);
   }
 }
