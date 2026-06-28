@@ -21,7 +21,7 @@
 .invite-card.app-card {
   min-width: 0;
   border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 16px;
+  border-radius: 18px;
   background: var(--surface-color, #101923);
   color: var(--text-color, #f5f7fb);
   box-shadow: var(--box-shadow, 0 10px 24px rgb(0 0 0 / 14%));
@@ -32,8 +32,42 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 14px 16px;
+  gap: 14px;
+  padding: clamp(14px, 2vw, 18px);
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent), transparent 32rem),
+    color-mix(in oklab, var(--surface-color, #101923) 96%, var(--text-color, #f5f7fb) 4%);
+}
+
+.invite-list-page__intro {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.invite-list-page__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 0.28rem 0.68rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent);
+  color: var(--primary-color, #ff7070);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.invite-list-page__intro p {
+  margin: 0;
+  max-width: 48rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.45;
 }
 
 .invite-list-page h1,
@@ -42,11 +76,11 @@
   color: var(--text-color, #f5f7fb);
   font-weight: 900;
   line-height: 1.08;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .invite-list-page h1 {
-  font-size: clamp(1.25rem, 2vw, 1.65rem);
+  font-size: clamp(1.35rem, 2vw, 1.8rem);
 }
 
 .invite-list-page__state h2 {
@@ -246,7 +280,8 @@ html.high-contrast .invite-list-page__header,
 html.high-contrast .invite-list-page__state,
 html.high-contrast .invite-card,
 html.high-contrast .invite-list-page__count,
-html.high-contrast .invite-card__details p {
+html.high-contrast .invite-card__details p,
+html.high-contrast .invite-list-page__eyebrow {
   border-color: currentColor !important;
   box-shadow: none !important;
 }
