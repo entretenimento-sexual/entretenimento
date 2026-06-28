@@ -11,8 +11,8 @@
             type="text"
             [ngModel]="vm.searchTerm"
             (ngModelChange)="setSearchTerm($event)"
-            placeholder="Buscar conversas..."
-            aria-label="Buscar conversas"
+            placeholder="Buscar conversa, sala ou pessoa..."
+            aria-label="Buscar conversa, sala ou pessoa"
             autocomplete="off"
           />
 
@@ -71,7 +71,7 @@
           [attr.aria-label]="vm.hideMessagePreviews ? 'Mostrar prévias de mensagens' : 'Ocultar prévias de mensagens'"
           (click)="toggleMessagePreviews()"
         >
-          {{ vm.hideMessagePreviews ? 'Discreto ON' : 'Discreto' }}
+          {{ vm.hideMessagePreviews ? 'Prévia oculta' : 'Ocultar prévia' }}
         </button>
       </section>
     </header>
@@ -262,7 +262,7 @@
           </p>
 
           <p class="conversation-list__empty-text">
-            Aguarde enquanto atualizamos suas mensagens.
+            Aguarde enquanto atualizamos suas mensagens, salas e convites.
           </p>
         </section>
       }
@@ -279,7 +279,7 @@
             </p>
 
             <p class="conversation-list__empty-text">
-              Ajuste o filtro ou limpe a busca para localizar conversas.
+              Ajuste o filtro ou limpe a busca para localizar conversas e salas.
             </p>
           } @else {
             <p class="conversation-list__empty-title">
@@ -287,7 +287,7 @@
             </p>
 
             <p class="conversation-list__empty-text">
-              Suas conversas diretas e salas aparecerão aqui.
+              Conexões, conversas diretas e salas aparecerão aqui quando houver atividade.
             </p>
           }
         </section>
