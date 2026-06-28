@@ -94,10 +94,10 @@
         <aside
           class="other-profile-page__actions-card app-card app-card--compact"
           aria-labelledby="profile-actions-heading"
-          aria-describedby="profile-actions-helper profile-actions-status"
+          aria-describedby="profile-actions-helper profile-safety-note profile-actions-status"
         >
           <header class="other-profile-page__actions-heading app-card__header">
-            <h2 id="profile-actions-heading" class="other-profile-page__actions-title">Interagir</h2>
+            <h2 id="profile-actions-heading" class="other-profile-page__actions-title">Interagir com segurança</h2>
             <p id="profile-actions-helper" class="other-profile-page__actions-helper">
               Envie uma solicitação de amizade. Depois que a conexão for aceita, o chat direto fica disponível.
             </p>
@@ -166,12 +166,16 @@
               [targetId]="uid || ''"
               [targetOwnerUid]="uid"
               [title]="displayName"
-              subtitle="A denúncia será enviada para análise da moderação."
+              subtitle="A denúncia será enviada para análise da moderação. Informe o motivo e o contexto essencial."
               label="Denunciar perfil"
               appearance="button"
               [disabled]="!uid"
             ></app-report-content-button>
           </div>
+
+          <p id="profile-safety-note" class="other-profile-page__actions-helper">
+            Use denúncia para perfil, foto, mensagem ou comportamento que precise de revisão. Para interromper contato imediato, use bloqueio quando disponível.
+          </p>
 
           <p
             id="profile-actions-status"
