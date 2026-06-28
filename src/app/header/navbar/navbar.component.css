@@ -9,7 +9,7 @@
    - navbar fica mais baixa sem mexer no token global
    - sininho de notificações com badge reativo
    ============================================================================
-*/
+ */
 :host {
   display: block;
 }
@@ -28,9 +28,11 @@
   align-items: center;
   width: 100%;
   min-height: var(--header-height);
-  background: var(--header-bg);
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 8%, transparent), transparent 26rem),
+    var(--header-bg);
   color: var(--header-fg);
-  border-bottom: 1px solid var(--surface-border);
+  border-bottom: 1px solid color-mix(in oklab, var(--surface-border) 92%, transparent);
 }
 
 /* Container interno */
@@ -74,7 +76,7 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: clamp(8px, 1.2vw, 16px);
+  gap: clamp(7px, 1vw, 14px);
 
   margin: 0 0 0 auto;
   padding: 0;
@@ -99,16 +101,17 @@
   align-items: center;
   justify-content: center;
 
-  min-height: 36px;
+  min-height: 38px;
   padding: 6px 10px;
 
-  border: none;
-  border-radius: 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   background: transparent;
   color: var(--header-fg);
 
   font: inherit;
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 750;
   line-height: 1.1;
   text-decoration: none;
   white-space: nowrap;
@@ -116,6 +119,7 @@
 
   transition:
     background-color .18s ease,
+    border-color .18s ease,
     color .18s ease,
     transform .18s ease;
 }
@@ -155,6 +159,7 @@
 .contrast-toggle:focus-visible,
 .navbar-icon-link:hover,
 .navbar-icon-link:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 22%, transparent);
   background: var(--header-hover-bg);
   color: var(--header-fg);
   outline: none;
@@ -170,6 +175,7 @@
 
 .navbar-item a.navbar-link.active,
 .navbar-icon-link.active {
+  border-color: color-mix(in oklab, var(--primary-color) 36%, transparent);
   background: color-mix(in oklab, var(--primary-color) 16%, transparent);
 }
 
@@ -193,9 +199,11 @@
 .user-photo {
   width: 34px;
   height: 34px;
+  border: 1px solid color-mix(in oklab, var(--surface-border) 82%, transparent);
   border-radius: 50%;
   object-fit: cover;
   flex: 0 0 auto;
+  background: color-mix(in oklab, var(--header-bg) 88%, #000 12%);
 }
 
 .user-name {
@@ -214,8 +222,8 @@
   min-height: 40px;
   padding: 0;
 
-  border: none;
-  border-radius: 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
   background: transparent;
   color: var(--header-fg);
 
@@ -224,11 +232,13 @@
 
   transition:
     background-color .18s ease,
+    border-color .18s ease,
     transform .18s ease;
 }
 
 .hamburger-btn:hover,
 .hamburger-btn:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 22%, transparent);
   background: var(--header-hover-bg);
   outline: none;
 }
@@ -245,7 +255,7 @@
 /* ============================================================================
    Faixas intermediárias
    ============================================================================
-*/
+ */
 
 @media only screen and (max-width: 1120px) {
   .navbar-container {
@@ -254,7 +264,7 @@
   }
 
   .navbar-menu {
-    gap: 10px;
+    gap: 9px;
   }
 
   .navbar-item a.navbar-link,
@@ -262,7 +272,7 @@
   .dark-toggle,
   .contrast-toggle,
   .navbar-icon-link {
-    font-size: 14px;
+    font-size: 13px;
     padding: 5px 8px;
   }
 
@@ -281,7 +291,7 @@
   }
 
   .navbar-menu {
-    gap: 8px;
+    gap: 7px;
   }
 
   .navbar-item a.navbar-link,
@@ -322,8 +332,10 @@
     display: grid;
     gap: 8px;
     padding: 12px 16px 16px;
-    border-bottom: 1px solid var(--surface-border);
-    background: color-mix(in oklab, var(--header-bg) 94%, black 6%);
+    border-bottom: 1px solid color-mix(in oklab, var(--surface-border) 92%, transparent);
+    background:
+      radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent), transparent 24rem),
+      color-mix(in oklab, var(--header-bg) 94%, black 6%);
   }
 
   .navbar-mobile-link {
@@ -331,17 +343,18 @@
     align-items: center;
     justify-content: flex-start;
 
-    min-height: 42px;
+    min-height: 44px;
     width: 100%;
     padding: 10px 12px;
 
     border: 1px solid var(--surface-border);
-    border-radius: 10px;
+    border-radius: 12px;
     background: transparent;
     color: var(--header-fg);
 
     font: inherit;
     font-size: 14px;
+    font-weight: 760;
     line-height: 1.2;
     text-decoration: none;
     cursor: pointer;
@@ -354,6 +367,7 @@
   }
 
   .navbar-mobile-link.active {
+    border-color: color-mix(in oklab, var(--primary-color) 36%, transparent);
     background: color-mix(in oklab, var(--primary-color) 16%, transparent);
   }
 
