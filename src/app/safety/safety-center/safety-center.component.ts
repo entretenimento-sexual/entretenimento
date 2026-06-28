@@ -1,4 +1,4 @@
-// src/app/safety/safety-center.component.ts
+// src/app/safety/safety-center/safety-center.component.ts
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
