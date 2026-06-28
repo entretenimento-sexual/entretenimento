@@ -24,6 +24,7 @@
             />
 
             <div class="chat-shell__main-context-copy">
+              <p class="chat-shell__main-kicker">Conversa direta</p>
               <h2 class="chat-shell__main-title">{{ activeDirectChatTitle }}</h2>
             </div>
           </div>
@@ -31,7 +32,9 @@
 
         @if (selectedType === 'room') {
           <div class="chat-shell__main-context">
-            <h2 class="chat-shell__main-title">Sala</h2>
+            <p class="chat-shell__main-kicker">Sala</p>
+            <h2 class="chat-shell__main-title">Conversa em grupo</h2>
+            <p class="chat-shell__main-subtitle">Mensagens e interações desta sala aparecem aqui.</p>
           </div>
         }
       </header>
@@ -60,7 +63,11 @@
 
         @if (!selectedType || !selectedChatId) {
           <div class="chat-shell__empty-state" role="status" aria-live="polite">
-            <p class="chat-shell__empty-title">Conversas</p>
+            <p class="chat-shell__main-kicker">Mensagens</p>
+            <p class="chat-shell__empty-title">Selecione uma conversa</p>
+            <p class="chat-shell__empty-text">
+              Abra uma conversa existente, consulte suas conexões ou veja convites e salas para iniciar uma interação.
+            </p>
 
             <div class="chat-shell__empty-actions" aria-label="Atalhos de conversa">
               <a class="btn btn-primary" routerLink="/friends/list">
@@ -99,7 +106,7 @@
               [(ngModel)]="messageContent"
               [appChatDraftKey]="selectedType + ':' + selectedChatId"
               (keydown)="onComposerKeydown($event)"
-              placeholder="Digite sua mensagem..."
+              placeholder="Escreva uma mensagem..."
               aria-label="Digite sua mensagem. Pressione Enter para enviar ou Shift mais Enter para quebrar linha."
               [attr.aria-describedby]="shouldShowComposerHelp ? 'chat-composer-help' : null"
               rows="1"
