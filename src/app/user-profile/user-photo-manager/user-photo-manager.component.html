@@ -18,7 +18,7 @@
   @if ((userPhotos$ | async); as photos) {
     <header class="photo-manager__summary app-toolbar">
       <div class="photo-manager__copy app-toolbar__summary">
-        <span class="photo-manager__eyebrow">Mídia do perfil</span>
+        <span class="photo-manager__eyebrow">Vitrine do perfil</span>
         <h3>{{ title() }}</h3>
 
         <p>
@@ -85,7 +85,7 @@
 
     @if (isCollapsed()) {
       <p class="photo-manager__collapsed-text app-empty-card__text">
-        Expanda para ver uma prévia das fotos.
+        Expanda para ver uma prévia das fotos publicadas no seu perfil.
       </p>
     } @else {
       @if (photos.length) {
@@ -130,13 +130,13 @@
         </div>
       } @else {
         <p class="empty-state app-empty-card">
-          Nenhuma foto disponível.
+          Nenhuma foto publicada ainda. Adicione fotos para deixar seu perfil mais confiável e atrativo.
         </p>
       }
     }
   } @else {
     <p class="empty-state app-empty-card">
-      Carregando fotos...
+      Carregando fotos do perfil...
     </p>
   }
 </section>
