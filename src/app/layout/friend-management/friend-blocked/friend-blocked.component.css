@@ -1,27 +1,229 @@
-/* src\app\layout\friend-management\friend-blocked\friend-blocked.component.css */
-.friend-blocked {
-  padding: 15px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  max-width: 400px;
+/* src/app/layout/friend-management/friend-blocked/friend-blocked.component.css */
+:host {
+  display: block;
+  min-width: 0;
 }
 
-.friend-blocked h4 {
-  margin-bottom: 10px;
+.friend-blocked,
+.friend-blocked.app-card {
+  display: grid;
+  gap: clamp(12px, 1.6vw, 18px);
+  width: min(100%, 920px);
+  min-width: 0;
+  padding: clamp(14px, 2vw, 18px);
+  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--danger-color, #ef4444) 9%, transparent), transparent 28rem),
+    var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 10px 24px rgb(0 0 0 / 14%));
 }
 
-.friend-blocked ul {
-  list-style: none;
-  padding: 0;
-}
-
-.friend-blocked li {
+.friend-blocked__header {
   display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  padding: 5px;
-  border-bottom: 1px solid #ddd;
+  gap: 12px;
+  min-width: 0;
 }
 
-.friend-blocked button {
+.friend-blocked__copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.friend-blocked__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 0.28rem 0.68rem;
+  border: 1px solid color-mix(in oklab, var(--danger-color, #ef4444) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--danger-color, #ef4444) 10%, transparent);
+  color: color-mix(in oklab, var(--danger-color, #ef4444) 72%, var(--text-color, #f5f7fb) 28%);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.friend-blocked h2,
+.friend-blocked h3,
+.friend-blocked p {
+  margin: 0;
+}
+
+.friend-blocked h2 {
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.25rem, 2vw, 1.62rem);
+  font-weight: 950;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.friend-blocked__copy p,
+.friend-blocked__empty p {
+  max-width: 58rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.92rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.friend-blocked__list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.friend-blocked__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 86%, transparent);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 92%, var(--text-color, #f5f7fb) 5%);
+}
+
+.friend-blocked__identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.friend-blocked__avatar,
+.friend-blocked__empty-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--danger-color, #ef4444) 12%, transparent);
+}
+
+.friend-blocked__avatar {
+  width: 40px;
+  height: 40px;
+}
+
+.friend-blocked__empty-icon {
+  width: 44px;
+  height: 44px;
+  font-size: 1.35rem;
+}
+
+.friend-blocked__identity div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.friend-blocked__identity strong {
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.94rem;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.friend-blocked__identity span:last-child {
+  overflow: hidden;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 58%, transparent);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friend-blocked__action {
+  flex: 0 0 auto;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in oklab, var(--danger-color, #ef4444) 36%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--danger-color, #ef4444) 8%, transparent);
+  color: color-mix(in oklab, var(--danger-color, #ef4444) 74%, var(--text-color, #f5f7fb) 26%);
   cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 900;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    transform 150ms ease;
+}
+
+.friend-blocked__action:hover,
+.friend-blocked__action:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--danger-color, #ef4444) 58%, transparent);
+  background: color-mix(in oklab, var(--danger-color, #ef4444) 13%, transparent);
+  outline: none;
+}
+
+.friend-blocked__empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: clamp(22px, 4vw, 34px);
+  border: 1px dashed color-mix(in oklab, var(--surface-border, rgba(255, 255, 255, 0.12)) 82%, var(--text-color, #f5f7fb) 18%);
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 94%, var(--text-color, #f5f7fb) 4%);
+  text-align: center;
+}
+
+.friend-blocked__empty h3 {
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.05rem, 1.5vw, 1.22rem);
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+@media (max-width: 640px) {
+  .friend-blocked,
+  .friend-blocked.app-card {
+    gap: 12px;
+    padding: 12px;
+    border-radius: 14px;
+    box-shadow: none;
+  }
+
+  .friend-blocked__item {
+    align-items: stretch;
+    flex-direction: column;
+    border-radius: 14px;
+  }
+
+  .friend-blocked__action {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .friend-blocked__action {
+    transition: none !important;
+  }
+
+  .friend-blocked__action:hover,
+  .friend-blocked__action:focus-visible {
+    transform: none !important;
+  }
+}
+
+html.high-contrast .friend-blocked,
+html.high-contrast .friend-blocked__eyebrow,
+html.high-contrast .friend-blocked__item,
+html.high-contrast .friend-blocked__action,
+html.high-contrast .friend-blocked__empty {
+  border-color: currentColor !important;
+  box-shadow: none !important;
 }
