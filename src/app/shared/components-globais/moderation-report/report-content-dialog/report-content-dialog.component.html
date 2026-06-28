@@ -8,7 +8,7 @@
     </h2>
 
     <p>
-      A denúncia ajuda a equipe a revisar comportamentos ou conteúdos que possam violar as regras da plataforma.
+      Escolha o motivo principal e adicione contexto objetivo. A denúncia será enviada para revisão interna.
     </p>
 
     @if (data.subtitle) {
@@ -19,7 +19,7 @@
   <mat-dialog-content class="report-dialog__content">
     <form class="report-dialog__form" [formGroup]="form" (ngSubmit)="submit()">
       <mat-form-field appearance="outline">
-        <mat-label>Motivo</mat-label>
+        <mat-label>Motivo da denúncia</mat-label>
         <mat-select formControlName="reason" required aria-label="Motivo da denúncia">
           @for (reason of reasons; track reason.value) {
             <mat-option [value]="reason.value">
@@ -29,7 +29,7 @@
         </mat-select>
 
         @if (form.controls.reason.touched && form.controls.reason.hasError('required')) {
-          <mat-error>Selecione um motivo.</mat-error>
+          <mat-error>Selecione um motivo para continuar.</mat-error>
         }
       </mat-form-field>
 
@@ -48,9 +48,12 @@
           cdkAutosizeMaxRows="6"
           formControlName="details"
           maxlength="1200"
-          placeholder="Inclua contexto útil para a revisão. Não envie dados sensíveis sem necessidade."
+          placeholder="Explique o que aconteceu, onde viu o problema e qualquer contexto útil. Evite dados sensíveis desnecessários."
           aria-label="Detalhes opcionais da denúncia"
         ></textarea>
+        <mat-hint align="start">
+          Inclua apenas informações úteis para a revisão.
+        </mat-hint>
         <mat-hint align="end">
           {{ form.controls.details.value.length || 0 }}/1200
         </mat-hint>
@@ -72,8 +75,9 @@
       type="button"
       (click)="submit()"
       [disabled]="form.invalid || submitting()"
+      [attr.aria-busy]="submitting() ? 'true' : null"
     >
-      Enviar denúncia
+      {{ submitting() ? 'Enviando...' : 'Enviar denúncia' }}
     </button>
   </mat-dialog-actions>
 </section>
