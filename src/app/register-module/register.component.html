@@ -1,5 +1,14 @@
 <!-- src/app/register-module/register.component.html -->
 <div class="auth-container">
+  <section class="auth-intro" aria-labelledby="register-intro-title">
+    <p class="auth-badge">Cadastro em etapas</p>
+    <h1 id="register-intro-title">Comece com um perfil claro e seguro.</h1>
+    <p>
+      Escolha um apelido, informe seu e-mail e avance para configurar sua presença na plataforma.
+      O restante do perfil pode ser completado com mais calma depois.
+    </p>
+  </section>
+
   <div class="form-container">
 
     <!-- Banner robusto -->
@@ -8,12 +17,12 @@
         'alert-error': b.variant === 'error',
         'alert-success': b.variant === 'success',
         'alert-warning': b.variant === 'warn'
-      }" role="alert" aria-live="assertive" style="margin-bottom:16px;">
+      }" role="alert" aria-live="assertive">
 
-      <strong style="display:block; margin-bottom:4px;">{{ b.title }}</strong>
+      <strong>{{ b.title }}</strong>
       <span>{{ b.message }}</span>
 
-      <div class="actions" style="margin-top:8px; display:flex; gap:.5rem; flex-wrap:wrap;">
+      <div class="actions">
         <button class="btn btn-secondary" type="button" (click)="onSubmit()" [disabled]="isLoading() || creating()">
           Tentar novamente
         </button>
@@ -39,15 +48,15 @@
         </button>
       </div>
 
-      <pre *ngIf="showTech() && b.details"
-        style="margin-top:8px; white-space:pre-wrap; font-size:.85rem; background:rgba(0,0,0,.05); padding:8px; border-radius:8px; overflow:auto;">
-{{ b.details }}</pre>
+      <pre *ngIf="showTech() && b.details">{{ b.details }}</pre>
     </div>
 
     <form [formGroup]="form" (ngSubmit)="onSubmit()" aria-labelledby="form-title" autocomplete="on" novalidate
       [attr.aria-busy]="(isLoading() || creating()) ? 'true' : null">
 
-      <h2 id="form-title" class="form-header">Cadastre-se</h2>
+      <p class="form-kicker">Criação de conta</p>
+      <h2 id="form-title" class="form-header">Crie seu cadastro</h2>
+      <p class="form-subtitle">Use dados reais de acesso. O apelido é como você será identificado dentro da plataforma.</p>
 
       <!-- Apelido principal -->
       <div class="form-field nickname-field">
@@ -141,9 +150,9 @@
         </div>
 
         <!-- Prévia do apelido final -->
-        <small class="field-hint" style="display:block; margin-top:.35rem;">
+        <small class="field-hint">
           Seu apelido ficará como: <strong>{{ apelidoCompleto() }}</strong>
-          <span style="opacity:.8;"> ({{ (apelidoCompleto() || '').length }}/24)</span>
+          <span>({{ (apelidoCompleto() || '').length }}/24)</span>
         </small>
 
         <!-- Tooltip do apelido:
@@ -174,7 +183,7 @@
             'is-valid': (submitted() || form.get('complementoApelido')?.touched) && form.get('complementoApelido')?.valid
           }" />
 
-        <small id="complementoHelp" class="field-hint" style="display:block; margin-top:.35rem;">
+        <small id="complementoHelp" class="field-hint">
           Até 12 caracteres. O apelido completo pode ter até 24 no total.
         </small>
 
@@ -230,7 +239,7 @@
           </button>
         </div>
 
-        <small id="passwordHelp" class="field-hint" style="display:block; margin-top:.35rem;">
+        <small id="passwordHelp" class="field-hint">
           Mínimo de 6 caracteres.
         </small>
 
