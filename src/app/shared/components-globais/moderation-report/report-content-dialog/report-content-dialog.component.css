@@ -15,18 +15,30 @@
 }
 
 .report-dialog__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 0.28rem 0.68rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color, #ff7070) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 10%, transparent);
   color: var(--primary-color, #ff7070);
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.08em;
+  line-height: 1;
   text-transform: uppercase;
 }
 
 .report-dialog__header h2 {
   margin: 0;
   padding: 0;
+  color: var(--text-color, #f5f7fb);
   font-size: clamp(1.2rem, 1rem + 0.8vw, 1.6rem);
+  font-weight: 950;
   line-height: 1.15;
+  letter-spacing: -0.03em;
 }
 
 .report-dialog__header p,
@@ -62,7 +74,16 @@
 .report-dialog__actions button {
   min-height: 40px;
   border-radius: 999px;
-  font-weight: 800;
+  font-weight: 850;
+}
+
+.report-dialog__actions button[aria-busy='true'] {
+  cursor: progress;
+}
+
+.report-dialog__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 @media (max-width: 560px) {
@@ -84,4 +105,15 @@
   .report-dialog__actions button {
     width: 100%;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-dialog__actions button {
+    transition: none !important;
+  }
+}
+
+html.high-contrast .report-dialog__eyebrow,
+html.high-contrast .report-dialog__helper {
+  border-color: currentColor !important;
 }
