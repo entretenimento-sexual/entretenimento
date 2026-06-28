@@ -1,4 +1,4 @@
-<!-- src/app/media/photos/profile-photos/profile-photos.component.html -->
+<!-- src/app/media/photos/profile-photos.component.html -->
 <!--
   Gestão simplificada das fotos do perfil.
 
@@ -25,13 +25,12 @@
 <section class="photos-page" aria-label="Fotos do perfil">
   <header class="photos-header">
     <div class="photos-title">
-      <span class="eyebrow">Seu perfil</span>
+      <span class="eyebrow">Vitrine do perfil</span>
 
       <h2>Fotos do perfil</h2>
 
       <p class="subtitle">
-        Escolha as fotos que aparecem no seu perfil. Assinantes podem definir a
-        data de cada foto para organizar a galeria sem criar pastas ou eventos.
+        Organize quais fotos ficam privadas, quais aparecem no perfil e qual imagem deve funcionar como capa da sua presença pública.
       </p>
     </div>
 
@@ -59,7 +58,7 @@
 
   @if (!canView) {
     <div class="blocked app-card" role="status" aria-live="polite">
-      <strong>Acesso negado.</strong>
+      <strong>Acesso indisponível.</strong>
 
       <p class="subtitle">
         @if (policy?.reason === 'NOT_AUTHENTICATED') {
@@ -67,7 +66,7 @@
         } @else if (policy?.reason === 'NOT_OWNER') {
           Você só pode ver fotos do seu próprio perfil por enquanto.
         } @else {
-          Bloqueado por política.
+          Não foi possível liberar a galeria agora.
         }
       </p>
     </div>
@@ -78,10 +77,10 @@
           <span class="empty-icon" aria-hidden="true">🖼️</span>
 
           <div>
-            <h3 class="app-empty-card__title">Nenhuma foto ainda</h3>
+            <h3 class="app-empty-card__title">Sua vitrine ainda está vazia</h3>
 
             <p class="app-empty-card__text">
-              Adicione sua primeira foto para começar a montar seu perfil.
+              Adicione fotos para montar sua galeria e escolher depois o que aparece no perfil público.
             </p>
           </div>
         </div>
@@ -107,7 +106,7 @@
 
           @if ((items?.length || 0) !== total) {
             <span>
-              · {{ items?.length || 0 }} exibida{{ (items?.length || 0) === 1 ? '' : 's' }}
+              · {{ items?.length || 0 }} exibida{{ (items?.length || 0) === 1 ? '' : 's' }} neste filtro
             </span>
           }
         </div>
@@ -421,7 +420,7 @@
 
       @if (!publicationFeatureReady) {
         <p class="publication-note">
-          A publicação de fotos está preparada na interface, mas ainda depende da camada pública ativa.
+          A publicação de fotos já está preparada na interface, mas ainda depende da camada pública ativa.
         </p>
       }
     }
