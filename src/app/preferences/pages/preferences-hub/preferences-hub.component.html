@@ -1,10 +1,9 @@
 <!-- src\app\preferences\pages\preferences-hub\preferences-hub.component.html -->
-  <!-- simplicidade e idioma português -->
-<main class="preferences-hub-page app-page" aria-label="Hub de preferências">
+<main class="preferences-hub-page app-page" aria-label="Preferências da conta">
   <section class="preferences-hub-shell stack">
     <app-preferences-page-header
-      title="Hub de preferências"
-      subtitle="Entrada principal do domínio novo de preferências, descoberta e compatibilidade."
+      title="Preferências"
+      subtitle="Ajuste como seu perfil aparece, como você recebe notificações e como deseja ser descoberto na plataforma."
     >
       <a page-actions class="btn btn-secondary" routerLink="/perfil">
         Voltar ao perfil
@@ -17,71 +16,71 @@
       @if (vm) {
         <app-preference-summary-card [vm]="vm"></app-preference-summary-card>
 
-        <section class="hub-grid" aria-label="Navegação do domínio de preferências">
+        <section class="hub-grid" aria-label="Navegação de preferências">
           <app-preferences-hub-card
             title="Visão geral"
-            description="Resumo do domínio novo de preferências e capacidades atuais."
+            description="Veja um resumo das suas configurações atuais e pendências importantes."
             route="/preferencias/overview">
           </app-preferences-hub-card>
 
           <app-preferences-hub-card
-            title="Editor novo"
-            description="Edição da nova arquitetura de preferências e intenção."
+            title="Editar preferências"
+            description="Atualize intenção, perfil, visibilidade e informações usadas para descoberta."
             [route]="'/preferencias/editar/' + vm.uid"
-            badge="Novo">
+            badge="Principal">
           </app-preferences-hub-card>
 
           <app-preferences-hub-card
             title="Notificações"
-            description="Controle mensagens, conexões, salas, locais e status compatíveis."
+            description="Controle avisos de mensagens, conexões, salas, locais e atividades relevantes."
             route="/preferencias/notificacoes">
           </app-preferences-hub-card>
 
           <app-preferences-hub-card
-            title="Discovery settings"
-            description="Controle de descoberta, privacidade e elegibilidade de exposição."
+            title="Descoberta e privacidade"
+            description="Defina se seu perfil pode aparecer em buscas, sugestões e recursos regionais."
             route="/preferencias/discovery-settings">
           </app-preferences-hub-card>
 
           <app-preferences-hub-card
-            title="Laboratório do match profile"
-            description="Visualize e materialize o perfil derivado para discovery."
+            title="Perfil para combinações"
+            description="Revise os dados usados para compatibilidade e descoberta entre perfis."
             route="/preferencias/match-profile">
           </app-preferences-hub-card>
 
           <app-preferences-hub-card
             title="Compatibilidade"
-            description="Cruze seu match profile com outro usuário materializado."
+            description="Compare preferências e sinais de compatibilidade com outro perfil."
             [route]="'/preferencias/compatibility-lab/' + vm.uid"
-            badge="Lab">
+            badge="Teste">
           </app-preferences-hub-card>
 
           @if (lastEditorUid()) {
             <app-preferences-hub-card
-              title="Retomar último editor"
-              description="Volte rapidamente para a última edição aberta no domínio novo."
+              title="Retomar edição"
+              description="Continue de onde parou na última tela de edição de preferências."
               [route]="'/preferencias/editar/' + lastEditorUid()"
-              badge="Contexto">
+              badge="Recente">
             </app-preferences-hub-card>
           }
 
           @if (lastCompatibilityTargetUid()) {
             <app-preferences-hub-card
-              title="Retomar última compatibilidade"
-              description="Volte rapidamente para o último laboratório de compatibilidade."
+              title="Retomar compatibilidade"
+              description="Volte para a última comparação de compatibilidade acessada."
               [route]="'/preferencias/compatibility-lab/' + lastCompatibilityTargetUid()"
-              badge="Contexto">
+              badge="Recente">
             </app-preferences-hub-card>
           }
         </section>
       } @else {
         <section class="hub-empty section" aria-label="Sem sessão ativa">
-          <p>Você precisa estar autenticado para acessar o hub de preferências.</p>
+          <p>Você precisa estar autenticado para acessar suas preferências.</p>
         </section>
       }
     } @else {
-      <section class="hub-empty section" aria-label="Carregando hub">
-        <p>Carregando hub de preferências...</p>
+      <section class="hub-empty section" aria-label="Carregando preferências">
+        <p>Carregando suas preferências...</p>
       </section>
     }
   </section>
