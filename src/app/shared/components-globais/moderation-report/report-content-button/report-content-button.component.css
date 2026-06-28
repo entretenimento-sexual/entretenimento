@@ -1,11 +1,11 @@
-/* src/app/shared/components-globais/moderation-report/report-content-button/report-content-button.component.css */
+/* src/app/shared/components-globais/moderation-report/report-content-button.component.css */
 :host {
   display: inline-flex;
   max-width: 100%;
 }
 
 .report-button {
-  font-weight: 800;
+  font-weight: 850;
 }
 
 .report-button--default {
@@ -38,9 +38,18 @@
   text-underline-offset: 3px;
 }
 
-.report-button--link:disabled {
+.report-button[aria-busy='true'] {
+  cursor: progress;
+}
+
+.report-button[aria-busy='true'] mat-icon {
+  animation: report-button-spin 850ms linear infinite;
+}
+
+.report-button--link:disabled,
+.report-button:disabled {
   cursor: not-allowed;
-  opacity: 0.56;
+  opacity: 0.6;
 }
 
 .report-button:focus-visible,
@@ -49,9 +58,21 @@
   outline-offset: 3px;
 }
 
+@keyframes report-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 680px) {
   :host,
   .report-button--default {
     width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-button[aria-busy='true'] mat-icon {
+    animation: none !important;
   }
 }
