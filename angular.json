@@ -48,6 +48,7 @@
               "src/styles/global-components.css",
               "src/styles/cards.css",
               "src/styles/global-forms.css",
+              "src/styles/profile-completion-polish.css",
               "src/styles/global-animations.css",
               "src/styles.css"
             ],
