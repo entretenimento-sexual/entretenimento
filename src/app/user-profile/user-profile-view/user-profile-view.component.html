@@ -22,7 +22,7 @@
       } @else {
         @if ((usuario$ | async); as usuario) {
           @if (usuario && isOnOwnProfile()) {
-            <section class="profile-card" aria-label="Dados do perfil">
+            <section class="profile-card profile-card--hero" aria-label="Dados do perfil">
               <header class="profile-header">
                 <div class="profile-identity">
                   <img
@@ -37,16 +37,19 @@
                   />
 
                   <div class="profile-title">
-                    <h2 class="category-title">Meus dados de perfil</h2>
+                    <p class="profile-kicker">Minha presença</p>
+                    <h2 class="category-title">{{ usuario.nickname || 'Meu perfil' }}</h2>
 
                     @if (usuario.nickname) {
                       <p class="profile-lead">
                         @if (isCouple(usuario.gender)) {
-                          <span>Somos o casal <strong>{{ usuario.nickname }}</strong></span>
+                          <span>Perfil do casal <strong>{{ usuario.nickname }}</strong></span>
                         } @else {
-                          <span>Sou <strong>{{ usuario.nickname }}</strong></span>
+                          <span>Perfil de <strong>{{ usuario.nickname }}</strong></span>
                         }
                       </p>
+                    } @else {
+                      <p class="profile-lead">Adicione um apelido para deixar sua presença mais reconhecível.</p>
                     }
                   </div>
                 </div>
@@ -57,7 +60,7 @@
                     [routerLink]="['/perfil', uid, 'editar-dados-pessoais']"
                     aria-label="Editar dados pessoais"
                   >
-                    Editar dados pessoais
+                    Editar dados
                   </a>
 
                   <a
@@ -65,7 +68,7 @@
                     [routerLink]="['/preferencias', 'editar', uid]"
                     aria-label="Editar preferências"
                   >
-                    Editar preferências
+                    Preferências
                   </a>
 
                   <a
@@ -73,7 +76,7 @@
                     [routerLink]="['/perfil', uid, 'edit-profile-social-links']"
                     aria-label="Editar redes sociais"
                   >
-                    Gerenciar redes sociais
+                    Redes sociais
                   </a>
                 </div>
               </header>
@@ -106,7 +109,7 @@
                 <div class="profile-block">
                   <h3 class="block-title">Sobre mim</h3>
                   <p class="profile-text">
-                    {{ usuario.descricao || 'Sem descrição por enquanto.' }}
+                    {{ usuario.descricao || 'Adicione uma descrição para explicar melhor quem você é e o que procura.' }}
                   </p>
                 </div>
 
