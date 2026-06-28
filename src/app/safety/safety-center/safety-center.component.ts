@@ -1,4 +1,4 @@
-// src/app/safety/safety-center/safety-center.component.ts
+// src/app/safety/safety-center.component.ts
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
@@ -33,7 +33,7 @@ export class SafetyCenterComponent {
     {
       id: 'report-profile',
       title: 'Enviar denúncia',
-      description: 'Abra um perfil pela descoberta e use Denunciar perfil para enviar uma ocorrência à equipe interna.',
+      description: 'Abra a descoberta, entre no perfil que precisa de revisão e use o botão de denúncia disponível no próprio perfil.',
       route: ['/dashboard/explorar'],
       icon: '🚩',
       ariaLabel: 'Ir para descoberta para localizar um perfil e enviar denúncia',
@@ -42,7 +42,7 @@ export class SafetyCenterComponent {
     {
       id: 'blocked-users',
       title: 'Perfis bloqueados',
-      description: 'Revise pessoas bloqueadas e mantenha controle sobre quem pode tentar contato.',
+      description: 'Revise bloqueios ativos e mantenha controle sobre quem pode tentar se aproximar ou iniciar contato.',
       route: ['/friends/blocked'],
       icon: '⛔',
       ariaLabel: 'Abrir lista de perfis bloqueados',
@@ -51,7 +51,7 @@ export class SafetyCenterComponent {
     {
       id: 'friend-requests',
       title: 'Solicitações',
-      description: 'Aceite, recuse ou bloqueie convites antes que alguém possa iniciar conversa.',
+      description: 'Aceite, recuse ou bloqueie pedidos antes de liberar uma nova conexão na sua rede.',
       route: ['/friends/requests'],
       icon: '🤝',
       ariaLabel: 'Abrir solicitações de conexão',
@@ -60,7 +60,7 @@ export class SafetyCenterComponent {
     {
       id: 'preferences',
       title: 'Preferências',
-      description: 'Ajuste descoberta, privacidade e sinais usados para recomendar perfis.',
+      description: 'Ajuste descoberta, privacidade e sinais usados para recomendar perfis compatíveis.',
       route: ['/preferencias'],
       icon: '⚙️',
       ariaLabel: 'Abrir preferências da conta',
@@ -71,26 +71,26 @@ export class SafetyCenterComponent {
   readonly safetyGuides: readonly SafetyGuide[] = [
     {
       id: 'report-when-needed',
-      title: 'Denuncie o que precisa de revisão',
-      description: 'A denúncia é enviada para análise interna. A fila, decisões e histórico não ficam visíveis para usuários comuns.',
+      title: 'Denuncie com contexto',
+      description: 'Use denúncia quando houver perfil, foto, mensagem ou comportamento que precise de análise. A fila e as decisões seguem internas.',
       icon: '🚩',
     },
     {
       id: 'block-first',
-      title: 'Bloqueie quando houver risco',
-      description: 'O bloqueio é a resposta imediata para interromper contato indesejado ou comportamento invasivo.',
+      title: 'Bloqueie para interromper contato',
+      description: 'O bloqueio é a resposta imediata para cortar aproximação indesejada enquanto a denúncia segue para revisão, quando necessário.',
       icon: '🛡️',
     },
     {
       id: 'review-before-chat',
-      title: 'Conexão antes do chat',
-      description: 'Conversa direta depende de conexão aceita. Isso reduz spam e contato fora de contexto.',
+      title: 'Conecte antes de conversar',
+      description: 'Conversa direta depende de conexão aceita. Isso reduz spam, aproximação sem contexto e contato invasivo.',
       icon: '🔐',
     },
     {
       id: 'protect-personal-data',
       title: 'Proteja dados pessoais',
-      description: 'Evite compartilhar documentos, endereço, dados financeiros ou rotinas sensíveis em conversas iniciais.',
+      description: 'Evite compartilhar documentos, endereço, dados financeiros, rotina detalhada ou acesso a outras contas em conversas iniciais.',
       icon: '👁️',
     },
   ];
@@ -99,19 +99,19 @@ export class SafetyCenterComponent {
     {
       id: 'admin-review-flow',
       title: 'Revisão interna',
-      description: 'Camada interna para priorizar, revisar e registrar decisões administrativas sem expor a fila aos usuários.',
+      description: 'Aprimorar priorização, análise e registro de decisões administrativas sem expor a fila aos usuários comuns.',
       icon: '🧭',
     },
     {
       id: 'visibility-controls',
       title: 'Controles de visibilidade',
-      description: 'Próxima camada: refinar quem pode encontrar, ver detalhes e iniciar aproximação.',
+      description: 'Refinar quem pode encontrar seu perfil, ver detalhes sensíveis e iniciar aproximação.',
       icon: '🎚️',
     },
     {
       id: 'trust-signals',
       title: 'Sinais de confiança',
-      description: 'Próxima camada: destacar perfil completo, e-mail verificado e comportamento seguro.',
+      description: 'Destacar perfil completo, e-mail verificado, presença consistente e comportamento seguro.',
       icon: '✅',
     },
   ];
