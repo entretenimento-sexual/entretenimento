@@ -372,6 +372,9 @@ export class FinalizarCadastroComponent implements OnInit {
     const file = event?.target?.files?.[0] as File | undefined;
 
     if (!file) {
+      this.avatarFile = null;
+      this.isUploading = false;
+      this.progressValue = 0;
       this.uploadMessage = 'Nenhum arquivo selecionado.';
       return;
     }
@@ -379,6 +382,7 @@ export class FinalizarCadastroComponent implements OnInit {
     this.avatarFile = file;
     this.isUploading = true;
     this.progressValue = 0;
+    this.uploadMessage = 'Preparando foto selecionada...';
 
     const g: any = globalThis as any;
 
@@ -386,7 +390,7 @@ export class FinalizarCadastroComponent implements OnInit {
       if (this.progressValue >= 100) {
         g.clearInterval(timer);
         this.isUploading = false;
-        this.uploadMessage = 'Upload concluído com sucesso!';
+        this.uploadMessage = 'Foto selecionada. Ela será enviada quando você concluir o cadastro.';
       } else {
         this.progressValue += 10;
       }
@@ -396,7 +400,7 @@ export class FinalizarCadastroComponent implements OnInit {
       if (this.progressValue < 100) {
         g.clearInterval(timer);
         this.isUploading = false;
-        this.uploadMessage = 'Erro ao realizar o upload. Tente novamente.';
+        this.uploadMessage = 'Não foi possível preparar a foto. Tente selecionar novamente.';
       }
     }, 5000);
   }
