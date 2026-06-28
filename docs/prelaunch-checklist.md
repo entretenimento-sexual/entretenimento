@@ -9,6 +9,14 @@ Este documento separa validacao tecnica de publicacao real. O projeto pode estar
 - `validate:prod`: deve falhar enquanto o App Check de producao usar placeholder.
 - Validacao tecnica sem deploy: usar os comandos manuais de pre-lancamento.
 
+## Diretriz de arquitetura e produto
+
+Antes de qualquer go/no-go, revisar o manifesto de interface, seguranca e negocio:
+
+- [`docs/interface-security-business-manifesto.md`](./interface-security-business-manifesto.md)
+
+Ele deve orientar decisoes sobre mobile-first, responsividade, acessibilidade, privacidade, seguranca, reatividade, Firebase, Angular, feedback ao usuario, debug para desenvolvimento e expansao futura para mobile.
+
 ## Comandos de pre-lancamento
 
 Use estes comandos para validar o estado tecnico sem publicar:
@@ -59,6 +67,7 @@ working tree clean
 
 ## Produto e UX
 
+- [ ] Manifesto de interface, seguranca e negocio revisado e respeitado nas telas criticas.
 - [ ] Cadastro completo e testado em mobile.
 - [ ] Login completo e testado em mobile.
 - [ ] Recuperacao de senha testada.
