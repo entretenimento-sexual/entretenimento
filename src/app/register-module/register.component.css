@@ -3,35 +3,74 @@
 /* ================================
    RegisterComponent styles (scoped)
    - Harmonizado com tokens globais
-   - Tooltip sobreposto (sem empurrar layout)
-   - Badge warn + pending evidentes
+   - Layout de produto em pré-lançamento
+   - Feedback robusto sem alterar a lógica TS
    ================================ */
 
 :host {
   display: block;
 }
 
-/* ====== Container ====== */
 .auth-container {
-  display: flex;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 560px);
   align-items: center;
-  flex-direction: column;
-  min-height: 70vh;
-  padding: 16px;
-  background-color: var(--background-color);
+  gap: clamp(1.5rem, 4vw, 4rem);
+  min-height: calc(100vh - 88px);
+  padding: clamp(1rem, 4vw, 3rem);
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color) 16%, transparent), transparent 32rem),
+    var(--background-color);
+  color: var(--text-color);
   font-family: var(--font-family-primary);
+}
+
+.auth-intro {
+  max-width: 680px;
+}
+
+.auth-badge,
+.form-kicker {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 32px;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 35%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.auth-intro h1 {
+  margin: 1rem 0;
+  max-width: 11ch;
+  font-size: clamp(2.25rem, 7vw, 5rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+  color: var(--text-color);
+}
+
+.auth-intro p:not(.auth-badge) {
+  max-width: 58ch;
+  margin: 0;
+  color: var(--text-muted, var(--text-color));
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.7;
 }
 
 .form-container {
   width: 100%;
-  max-width: 520px;
-  padding: 24px;
-  background: var(--surface-color, var(--background-color));
+  padding: clamp(1.25rem, 4vw, 2rem);
+  background: color-mix(in oklab, var(--background-color) 92%, white 8%);
   color: var(--text-color);
-  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.08));
-  border-radius: 14px;
-  box-shadow: var(--box-shadow);
+  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 14%, transparent));
+  border-radius: 24px;
+  box-shadow: 0 24px 70px color-mix(in oklab, black 18%, transparent);
   transition: background-color .3s ease, color .3s ease, border-color .3s ease;
   overflow: visible;
 }
@@ -40,18 +79,28 @@
   text-align: left;
 }
 
+.form-kicker {
+  margin: 0 0 1rem;
+}
+
 .form-header {
-  font-size: 1.5rem;
-  margin-bottom: 18px;
-  font-weight: 600;
-  letter-spacing: -0.2px;
+  margin: 0;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.04em;
   color: var(--text-color);
 }
 
-/* ====== Banner (premium) ====== */
+.form-subtitle {
+  margin: 0.65rem 0 1.5rem;
+  color: var(--text-muted, var(--text-color));
+  line-height: 1.5;
+}
+
 .form-container .alert {
   padding: 12px 14px;
-  border-radius: 12px;
+  border-radius: 14px;
   margin-bottom: 16px;
   box-shadow: 0 10px 26px rgba(0, 0, 0, .12);
   border: 1px solid color-mix(in oklab, var(--surface-border) 70%, transparent);
@@ -63,8 +112,17 @@
 }
 
 .form-container .alert strong {
+  display: block;
+  margin-bottom: 4px;
   font-size: 1rem;
   line-height: 1.15;
+}
+
+.form-container .alert .actions {
+  margin-top: 8px;
+  display: flex;
+  gap: .5rem;
+  flex-wrap: wrap;
 }
 
 .form-container .alert .actions .btn {
@@ -74,18 +132,31 @@
   border-radius: 10px;
 }
 
-/* Botões: o .btn global não tem padding; resolve localmente */
-.form-container .btn {
-  padding: 10px 14px;
-  min-height: 42px;
-  border-radius: 10px;
+.form-container .alert pre {
+  margin-top: 8px;
+  white-space: pre-wrap;
+  font-size: .85rem;
+  background: rgba(0, 0, 0, .05);
+  padding: 8px;
+  border-radius: 8px;
+  overflow: auto;
 }
 
-/* ====== Campos ====== */
+.form-container .btn {
+  padding: 10px 14px;
+  min-height: 44px;
+  border-radius: 12px;
+}
+
 .form-field {
   margin-bottom: 16px;
   position: relative;
   overflow: visible;
+}
+
+.form-field label,
+.form-checkbox label {
+  font-weight: 700;
 }
 
 .input-wrapper {
@@ -95,25 +166,28 @@
 .input-field {
   display: block;
   width: 100%;
-  height: 42px;
-  padding: 10px 12px;
+  min-height: 46px;
+  padding: 0.8rem 0.95rem;
   margin-bottom: 0;
-  /* remove margin do global-forms */
-  border-radius: 10px;
+  border-radius: 14px;
   border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
-  background: var(--input-background, #fff);
+  background: color-mix(in oklab, var(--background-color) 96%, white 4%);
   color: var(--text-color);
+  font: inherit;
   transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
 }
 
-/* Mantém coerência com o foco global, sem “guerra” de sombras */
-.input-field:focus {
+.input-field::placeholder {
+  color: color-mix(in oklab, var(--text-color) 48%, transparent);
+}
+
+.input-field:focus,
+.input-field:focus-visible {
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 22%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 18%, transparent);
   outline: none;
 }
 
-/* espaço do botão “olho” (aplica nos wrappers que tiverem) */
 .input-wrapper .input-field {
   padding-right: 44px;
 }
@@ -135,16 +209,17 @@
   transition: background-color .15s ease, border-color .15s ease, transform .08s ease;
 }
 
-.toggle-input:hover {
+.toggle-input:hover,
+.toggle-input:focus-visible {
   background: color-mix(in oklab, var(--primary-color) 10%, transparent);
   border-color: color-mix(in oklab, var(--primary-color) 28%, transparent);
+  outline: none;
 }
 
 .toggle-input:active {
   transform: translateY(-50%) scale(.98);
 }
 
-/* ====== Estados do input ====== */
 .input-field.is-pending {
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 18%, transparent);
@@ -161,7 +236,6 @@
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--danger-color) 18%, transparent) !important;
 }
 
-/* ====== Linha: input + feedback lateral ====== */
 .field-row {
   display: flex;
   align-items: center;
@@ -174,7 +248,6 @@
   font-size: .9rem;
 }
 
-/* ====== Badges ====== */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -204,14 +277,12 @@
   border-color: color-mix(in oklab, var(--danger-color) 28%, transparent);
 }
 
-/* >>> NOVO: badge WARN (unverified) */
 .badge.warn {
   background: color-mix(in oklab, var(--snackbar-warning) 16%, transparent);
   color: color-mix(in oklab, var(--text-color) 92%, transparent);
   border-color: color-mix(in oklab, var(--snackbar-warning) 34%, transparent);
 }
 
-/* ====== Inline spinner ====== */
 .inline-spinner {
   width: 14px;
   height: 14px;
@@ -221,7 +292,6 @@
   animation: rgspin .7s linear infinite;
 }
 
-/* ====== Dica + contador ====== */
 .hint-row {
   display: flex;
   align-items: center;
@@ -230,6 +300,8 @@
 }
 
 .field-hint {
+  display: block;
+  margin-top: .45rem;
   font-size: .85rem;
   color: color-mix(in oklab, var(--text-color) 70%, transparent);
 }
@@ -243,11 +315,7 @@
   color: var(--danger-color);
 }
 
-/* ====== Preview do apelido completo (sem id; só estrutura) ======
-   No HTML revisado, o preview é o <small class="field-hint"> direto dentro de .nickname-field,
-   depois do .hint-row. Esse seletor pega só esse preview (não o help lá dentro). */
 .nickname-field>.field-hint {
-  display: block;
   margin-top: .55rem;
   font-size: .9rem;
   color: color-mix(in oklab, var(--text-color) 78%, transparent);
@@ -266,36 +334,26 @@
   letter-spacing: .1px;
 }
 
-/* ====== Tooltip de erro SOBREPOSTO (não empurra layout) ====== */
 .form-container .tooltip-error {
-  /* usa variável p/ setinha bater com o fundo */
   --tt-bg: color-mix(in oklab, var(--danger-color) 16%, var(--tooltip-background));
-
   position: absolute;
   left: 0;
   top: calc(100% + 6px);
   z-index: 1000;
-
   max-width: 100%;
   white-space: normal;
   overflow-wrap: break-word;
-
   padding: .5rem .75rem;
   border-radius: .5rem;
   font-size: .9rem;
-
   background: var(--tt-bg);
   border: 1px solid color-mix(in oklab, var(--danger-color) 50%, transparent);
   color: #fff;
-
   box-shadow: var(--box-shadow);
   animation: fadeIn .2s ease;
-
-  /* evita bloquear clique em elementos abaixo (principalmente no mobile) */
   pointer-events: none;
 }
 
-/* setinha */
 .form-container .tooltip-error::before {
   content: "";
   position: absolute;
@@ -308,27 +366,44 @@
   border-bottom: 7px solid var(--tt-bg);
 }
 
-/* ====== Aceite de termos ====== */
 .form-checkbox {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   margin: 14px 0 10px;
   color: var(--text-color);
+  line-height: 1.45;
 }
 
 .form-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin-top: 0.1rem;
   accent-color: var(--primary-color);
 }
 
-/* ====== CTA “Já tem conta?” ====== */
+.form-checkbox a,
+.login-redirect a {
+  color: var(--primary-color);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.form-container button[type="submit"] {
+  width: 100%;
+  min-height: 48px;
+  margin-top: 0.35rem;
+  border-radius: 14px;
+  font-weight: 800;
+}
+
 .login-redirect {
   margin-top: 16px;
   font-size: .95rem;
   text-align: center;
 }
 
-/* ====== Overlay: “Criando sua conta” ====== */
 .rg-overlay {
   position: fixed;
   inset: 0;
@@ -380,14 +455,16 @@
   }
 }
 
-/* ====== Responsivo ====== */
-@media (min-width: 1024px) {
-  .form-container {
-    max-width: 560px;
+@media (max-width: 1000px) {
+  .auth-container {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 1.25rem;
+    min-height: auto;
   }
 
-  .form-field {
-    margin-bottom: 18px;
+  .auth-intro h1 {
+    max-width: 14ch;
   }
 }
 
@@ -402,7 +479,29 @@
   }
 }
 
-/* telas bem pequenas */
+@media (max-width: 600px) {
+  .auth-container {
+    padding: 1rem;
+  }
+
+  .auth-intro {
+    padding-top: 0.5rem;
+  }
+
+  .auth-intro h1 {
+    font-size: clamp(2rem, 12vw, 3.25rem);
+  }
+
+  .form-container {
+    border-radius: 20px;
+  }
+
+  .hint-row {
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+}
+
 @media (max-width: 380px) {
   .form-container .tooltip-error {
     font-size: .88rem;
