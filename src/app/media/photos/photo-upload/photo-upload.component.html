@@ -21,7 +21,7 @@
 
     <div class="upload-header__copy">
       <h1>Adicionar foto</h1>
-      <p>Selecione uma imagem, revise a prévia e escolha como enviar.</p>
+      <p>Escolha uma imagem, revise a prévia e envie para fortalecer sua vitrine no perfil.</p>
     </div>
   </header>
 
@@ -36,7 +36,7 @@
           @if (!policy || policy.reason === 'UNKNOWN') {
             Validando acesso
           } @else {
-            Acesso bloqueado
+            Envio indisponível
           }
         </strong>
 
@@ -103,8 +103,8 @@
               <i class="fas fa-user-shield" aria-hidden="true"></i>
 
               <div>
-                <strong>Privacidade antes da publicação</strong>
-                <span>Revise a imagem antes de enviar.</span>
+                <strong>Revise antes de publicar</strong>
+                <span>Confira enquadramento, privacidade e qualidade antes de enviar.</span>
               </div>
             </div>
 
@@ -116,7 +116,7 @@
                 [disabled]="phase !== 'READY'"
               >
                 <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
-                <span>Editar</span>
+                <span>Editar antes de enviar</span>
               </button>
 
               <button
@@ -128,7 +128,7 @@
                 @if (phase === 'UPLOADING') {
                   Enviando...
                 } @else {
-                  Enviar sem editar
+                  Enviar agora
                 }
               </button>
 
@@ -138,7 +138,7 @@
                 (click)="resetSelection(fileInput)"
                 [disabled]="phase === 'UPLOADING'"
               >
-                Limpar
+                Limpar seleção
               </button>
             </div>
 
@@ -174,7 +174,7 @@
 
                 <div>
                   <strong>Nenhuma imagem selecionada</strong>
-                  <span>A prévia aparecerá aqui.</span>
+                  <span>A prévia aparecerá aqui antes do envio.</span>
                 </div>
               </div>
             }
@@ -198,7 +198,7 @@
             <h2>Foto enviada</h2>
 
             <p>
-              A foto foi salva na mídia do perfil. A exibição pública segue as regras de publicação e moderação.
+              A foto foi salva na vitrine do perfil. A exibição pública segue as regras de publicação e moderação.
             </p>
 
             <div class="upload-actions upload-actions--done">
