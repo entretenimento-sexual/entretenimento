@@ -1,7 +1,13 @@
 <!-- src/app/chat-module/invite-list/invite-list.component.html -->
 <section class="invite-list-page" aria-labelledby="invite-list-title">
   <header class="invite-list-page__header app-card">
-    <h1 id="invite-list-title">Convites</h1>
+    <div class="invite-list-page__intro">
+      <span class="invite-list-page__eyebrow">Salas privadas</span>
+      <h1 id="invite-list-title">Convites de sala</h1>
+      <p>
+        Revise convites para participar de salas privadas e responda apenas quando reconhecer o contexto.
+      </p>
+    </div>
 
     @if (pendingCount$ | async; as count) {
       @if (count > 0) {
@@ -15,7 +21,7 @@
   @if (loading$ | async) {
     <section class="invite-list-page__state app-card" role="status" aria-live="polite">
       <mat-spinner diameter="32"></mat-spinner>
-      <p>Carregando convites...</p>
+      <p>Carregando convites de sala...</p>
     </section>
   } @else {
     @if (error$ | async; as error) {
@@ -30,7 +36,7 @@
       @if (invites.length === 0) {
         <section class="invite-list-page__state app-card" role="status">
           <h2>Nenhum convite pendente</h2>
-          <p>Quando houver novos convites, eles aparecerão aqui.</p>
+          <p>Quando alguém convidar você para uma sala privada, o convite aparecerá aqui para aceitar ou recusar.</p>
         </section>
       } @else {
         <ul class="invite-list-page__cards" aria-label="Convites pendentes">
