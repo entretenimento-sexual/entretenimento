@@ -30,7 +30,7 @@
     <a
       class="user-card__media"
       [routerLink]="['/perfil', profile.uid]"
-      [attr.aria-label]="'Ver perfil de ' + (profile.nickname || 'usuário')"
+      [attr.aria-label]="'Ver perfil adulto de ' + (profile.nickname || 'usuário')"
     >
       <img
         class="user-card__photo"
@@ -50,7 +50,7 @@
           [class.user-card__presence--offline]="!profile.isOnline"
         >
           <span class="user-card__presence-dot" aria-hidden="true"></span>
-          <span>{{ profile.isOnline ? 'Online' : 'Offline' }}</span>
+          <span>{{ profile.isOnline ? 'Online agora' : 'Offline' }}</span>
         </span>
 
         <span class="user-card__tier">
@@ -72,7 +72,7 @@
         </strong>
 
         <span class="sr-only">
-          {{ profile.isOnline ? 'Online' : 'Offline' }}
+          {{ profile.isOnline ? 'Online agora' : 'Offline' }}
         </span>
       </div>
     </a>
@@ -83,7 +83,7 @@
           @if (profile.gender) {
             <span>{{ profile.gender | titlecase }}</span>
           } @else {
-            <span>Perfil</span>
+            <span>Perfil adulto</span>
           }
 
           @if (profile.idade) {
@@ -111,14 +111,14 @@
               {{ profile.municipio }}@if (profile.municipio && profile.estado) {, }{{ profile.estado }}
             </span>
           } @else {
-            <span>Localização não informada</span>
+            <span>Localização discreta</span>
           }
         </p>
 
         @if (showDistance() && distanciaKm() !== null) {
           <p class="user-card__distance">
             <i class="fas fa-location-arrow" aria-hidden="true"></i>
-            <span class="sr-only">Distância:</span>
+            <span class="sr-only">Distância aproximada:</span>
 
             @if (distanciaKm()! < 1) {
               <strong>&lt; 1 km</strong>
@@ -141,7 +141,7 @@
       <div class="user-card__signal-row" aria-hidden="true">
         <span class="user-card__signal-pill">
           <i class="fas fa-shield-heart"></i>
-          Público
+          Perfil visível
         </span>
 
         @if (relationshipVm(); as relationship) {
@@ -154,7 +154,7 @@
 
               @case ('outgoing_pending') {
                 <i class="fas fa-clock"></i>
-                Solicitação enviada
+                Interesse enviado
               }
 
               @case ('incoming_pending') {
@@ -174,7 +174,7 @@
 
               @default {
                 <i class="fas fa-user-plus"></i>
-                Novo contato
+                Novo interesse
               }
             }
           </span>
@@ -183,7 +183,7 @@
         @if (profile.isOnline) {
           <span class="user-card__signal-pill user-card__signal-pill--hot">
             <i class="fas fa-bolt"></i>
-            Agora
+            Online agora
           </span>
         }
       </div>
@@ -193,7 +193,7 @@
     <a
       class="user-card__action user-card__action--neutral"
       [routerLink]="['/perfil', profile.uid]"
-      [attr.aria-label]="'Ver perfil de ' + (profile.nickname || 'usuário')"
+      [attr.aria-label]="'Ver perfil adulto de ' + (profile.nickname || 'usuário')"
       title="Ver perfil"
     >
       <i class="fas fa-user" aria-hidden="true"></i>
@@ -205,11 +205,11 @@
         type="button"
         class="user-card__action user-card__action--primary"
         (click)="abrirDM($event)"
-        [attr.aria-label]="'Enviar mensagem para ' + (profile.nickname || 'usuário')"
-        title="Enviar mensagem"
+        [attr.aria-label]="'Conversar com ' + (profile.nickname || 'usuário')"
+        title="Conversar"
       >
         <i class="fas fa-paper-plane" aria-hidden="true"></i>
-        <span class="sr-only">Enviar mensagem</span>
+        <span class="sr-only">Conversar</span>
       </button>
 <button
   type="button"
@@ -219,10 +219,10 @@
   [attr.aria-busy]="isEndingFriendship()"
   [attr.aria-label]="
     isEndingFriendship()
-      ? 'Desfazendo amizade com ' + (profile.nickname || 'usuário')
-      : 'Desfazer amizade com ' + (profile.nickname || 'usuário')
+      ? 'Desfazendo conexão com ' + (profile.nickname || 'usuário')
+      : 'Desfazer conexão com ' + (profile.nickname || 'usuário')
   "
-  [title]="isEndingFriendship() ? 'Desfazendo amizade...' : 'Desfazer amizade'"
+  [title]="isEndingFriendship() ? 'Desfazendo conexão...' : 'Desfazer conexão'"
 >
   <i
     aria-hidden="true"
@@ -233,7 +233,7 @@
   ></i>
 
   <span class="sr-only">
-    {{ isEndingFriendship() ? 'Desfazendo amizade' : 'Desfazer amizade' }}
+    {{ isEndingFriendship() ? 'Desfazendo conexão' : 'Desfazer conexão' }}
   </span>
 </button>
 
@@ -241,17 +241,17 @@
       <a
         class="user-card__action user-card__action--primary"
         routerLink="/friends/requests"
-        [attr.aria-label]="'Responder solicitação de ' + (profile.nickname || 'usuário')"
-        title="Responder solicitação"
+        [attr.aria-label]="'Responder interesse de ' + (profile.nickname || 'usuário')"
+        title="Responder interesse"
       >
         <i class="fas fa-user-check" aria-hidden="true"></i>
-        <span class="sr-only">Responder solicitação</span>
+        <span class="sr-only">Responder interesse</span>
       </a>
 } @else if (relationship.state === 'outgoing_pending') {
   <a
     class="user-card__action user-card__action--pending"
     routerLink="/friends/requests"
-    [attr.aria-label]="'Solicitação enviada para ' + (profile.nickname || 'usuário') + '. Aguardando resposta.'"
+    [attr.aria-label]="'Interesse enviado para ' + (profile.nickname || 'usuário') + '. Aguardando resposta.'"
     title="Aguardando resposta"
   >
     <i class="fas fa-clock" aria-hidden="true"></i>
@@ -266,10 +266,10 @@
     [attr.aria-busy]="isCancelingOutgoingRequest() ? 'true' : null"
     [attr.aria-label]="
       isCancelingOutgoingRequest()
-        ? 'Cancelando solicitação enviada para ' + (profile.nickname || 'usuário')
-        : 'Cancelar solicitação enviada para ' + (profile.nickname || 'usuário')
+        ? 'Cancelando interesse enviado para ' + (profile.nickname || 'usuário')
+        : 'Cancelar interesse enviado para ' + (profile.nickname || 'usuário')
     "
-    [title]="isCancelingOutgoingRequest() ? 'Cancelando solicitação' : 'Cancelar solicitação'"
+    [title]="isCancelingOutgoingRequest() ? 'Cancelando interesse' : 'Cancelar interesse'"
   >
     <i
       aria-hidden="true"
@@ -280,7 +280,7 @@
     ></i>
 
     <span class="sr-only">
-      {{ isCancelingOutgoingRequest() ? 'Cancelando solicitação' : 'Cancelar solicitação' }}
+      {{ isCancelingOutgoingRequest() ? 'Cancelando interesse' : 'Cancelar interesse' }}
     </span>
   </button>
 
@@ -299,11 +299,11 @@
         type="button"
         class="user-card__action user-card__action--neutral"
         (click)="adicionarAmigo()"
-        [attr.aria-label]="'Conectar com ' + (profile.nickname || 'usuário')"
-        title="Conectar"
+        [attr.aria-label]="'Mostrar interesse em ' + (profile.nickname || 'usuário')"
+        title="Mostrar interesse"
       >
         <i class="fas fa-user-plus" aria-hidden="true"></i>
-        <span class="sr-only">Conectar</span>
+        <span class="sr-only">Mostrar interesse</span>
       </button>
     }
   </div>
