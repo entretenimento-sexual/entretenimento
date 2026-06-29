@@ -48,14 +48,14 @@ interface UserCardRelationshipVm {
   targetUid: string | null;
 
   /**
-   * Solicitação recebida pendente.
-   * Usada para responder em /friends/requests.
+   * Interesse recebido pendente.
+   * Usado para responder em /friends/requests.
    */
   inboundRequestId: string | null;
 
   /**
-   * Solicitação enviada pendente.
-   * Usada para cancelar diretamente pelo card.
+   * Interesse enviado pendente.
+   * Usado para cancelar diretamente pelo card.
    */
   outboundRequestId: string | null;
 
@@ -224,7 +224,7 @@ readonly isCancelingOutgoingRequest = computed(() => {
     const targetUid = String(profile?.uid ?? '').trim();
 
     if (!profile || !targetUid) {
-      this.notifier.showInfo('Perfil indisponível para mensagem.');
+      this.notifier.showInfo('Perfil indisponível para conversa.');
       return;
     }
 
@@ -232,22 +232,22 @@ readonly isCancelingOutgoingRequest = computed(() => {
 
     if (!relationship.canMessage) {
       if (relationship.state === 'incoming_pending') {
-        this.notifier.showInfo('Responda à solicitação antes de conversar.');
+        this.notifier.showInfo('Responda ao interesse antes de conversar.');
         this.router.navigate(['/friends/requests']).catch(() => undefined);
         return;
       }
 
       if (relationship.state === 'outgoing_pending') {
-        this.notifier.showInfo('Aguarde este perfil aceitar sua solicitação.');
+        this.notifier.showInfo('Aguarde este perfil responder ao seu interesse.');
         return;
       }
 
       if (relationship.state === 'none') {
-        this.notifier.showInfo('Envie uma conexão antes de iniciar conversa.');
+        this.notifier.showInfo('Mostre interesse antes de iniciar conversa.');
         return;
       }
 
-      this.notifier.showInfo('Mensagem indisponível para este perfil.');
+      this.notifier.showInfo('Conversa indisponível para este perfil.');
       return;
     }
 
@@ -294,7 +294,7 @@ desfazerAmizade(event: Event): void {
   const targetUid = String(relationship.targetUid ?? '').trim();
 
   if (!profile || !currentUid || !targetUid) {
-    this.notifier.showInfo('Não foi possível identificar esta amizade.');
+    this.notifier.showInfo('Não foi possível identificar esta conexão.');
     return;
   }
 
@@ -304,7 +304,7 @@ desfazerAmizade(event: Event): void {
   }
 
   if (this.isEndingFriendship()) {
-  this.notifier.showInfo('Aguarde. Estamos desfazendo esta amizade.');
+  this.notifier.showInfo('Aguarde. Estamos desfazendo esta conexão.');
   return;
 }
 
@@ -312,11 +312,11 @@ desfazerAmizade(event: Event): void {
 
   const dialogData: ConfirmationDialogData = {
     eyebrow: 'Conexão',
-    title: 'Desfazer amizade?',
+    title: 'Desfazer conexão?',
     message: `Você deixará de estar conectado com ${nickname}.`,
     detail:
   'Novas mensagens ficarão bloqueadas até que uma nova conexão seja aceita. O histórico existente será mantido por segurança e não será apagado automaticamente.',
-    confirmLabel: 'Desfazer amizade',
+    confirmLabel: 'Desfazer conexão',
     cancelLabel: 'Manter conexão',
     icon: 'person_remove',
     tone: 'danger',
@@ -359,18 +359,18 @@ cancelarSolicitacaoEnviada(event: Event): void {
   const requestId = String(relationship.outboundRequestId ?? '').trim();
 
   if (relationship.state !== 'outgoing_pending') {
-    this.notifier.showInfo('Não há solicitação enviada pendente para este perfil.');
+    this.notifier.showInfo('Não há interesse enviado pendente para este perfil.');
     return;
   }
 
   if (!requestId) {
-    this.notifier.showInfo('Não foi possível identificar a solicitação enviada.');
+    this.notifier.showInfo('Não foi possível identificar o interesse enviado.');
     this.router.navigate(['/friends/requests']).catch(() => undefined);
     return;
   }
 
   if (this.isCancelingOutgoingRequest()) {
-    this.notifier.showInfo('Aguarde. Estamos cancelando esta solicitação.');
+    this.notifier.showInfo('Aguarde. Estamos cancelando este interesse.');
     return;
   }
 
@@ -391,7 +391,7 @@ cancelarSolicitacaoEnviada(event: Event): void {
     const relationship = this.relationshipVm();
 
     if (relationship.state === 'self') {
-      this.notifier.showInfo('Você não pode se adicionar.');
+      this.notifier.showInfo('Você não pode mostrar interesse no próprio perfil.');
       return;
     }
 
@@ -406,12 +406,12 @@ cancelarSolicitacaoEnviada(event: Event): void {
     }
 
     if (relationship.state === 'outgoing_pending') {
-      this.notifier.showInfo('Solicitação já enviada. Aguarde a resposta.');
+      this.notifier.showInfo('Interesse já enviado. Aguarde a resposta.');
       return;
     }
 
     if (relationship.state === 'blocked_by_me') {
-      this.notifier.showInfo('Desbloqueie este perfil antes de conectar.');
+      this.notifier.showInfo('Desbloqueie este perfil antes de mostrar interesse.');
       return;
     }
 
@@ -444,7 +444,7 @@ cancelarSolicitacaoEnviada(event: Event): void {
         }
 
         if (res.ok) {
-          this.notifier.showSuccess('Solicitação enviada com sucesso.');
+          this.notifier.showSuccess('Interesse enviado com sucesso.');
           return;
         }
 
@@ -542,7 +542,7 @@ private buildRelationshipVm(
           isPending: false,
           isBlocked: false,
           canCancelRequest: false,
-          label: 'Mensagem',
+          label: 'Conversar',
         };
 
       case 'incoming_pending':
@@ -607,7 +607,7 @@ case 'outgoing_pending':
           isPending: false,
           isBlocked: false,
           canCancelRequest: false,
-          label: 'Conectar',
+          label: 'Interesse',
         };
     }
   }
