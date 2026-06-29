@@ -27,7 +27,6 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { of, EMPTY } from 'rxjs';
 import {
   catchError,
-  filter,
   finalize,
   map,
   switchMap,
@@ -356,15 +355,17 @@ export class FinalizarCadastroComponent implements OnInit {
           this.message = 'Perfil finalizado com sucesso!';
           this.currentUserStore.patch({ profileCompleted: true });
 
-          this.currentUserStore.user$
-            .pipe(
-              filter((user): user is IUserDados => !!user?.uid && user.profileCompleted === true),
-              take(1)
-            )
-            .subscribe((user) => {
-              const target = this.getRedirectToAfterCompletion(user.uid);
-              this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
-            });
+          const targetUid = this.currentUserStore.getLoggedUserUIDSnapshot();
+
+          if (!targetUid) {
+            const msg = 'Perfil salvo, mas não foi possível redirecionar automaticamente.';
+            this.message = msg;
+            this.errorNotification.showError(msg);
+            return;
+          }
+
+          const target = this.getRedirectToAfterCompletion(targetUid);
+          this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
         },
       });
   }
