@@ -455,4 +455,4 @@ export class FinalizarCadastroComponent implements OnInit {
   continueWithoutSubscription(): void {
     this.router.navigate(['/dashboard/principal']).catch(() => {});
   }
-} // Linha 452
+}
