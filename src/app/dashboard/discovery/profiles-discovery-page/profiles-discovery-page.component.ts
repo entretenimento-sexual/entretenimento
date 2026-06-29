@@ -7,16 +7,14 @@
 //
 // Responsabilidade:
 // - manter "Todos" como modo padrão;
-// - controlar o modo ativo da barra de descobertas;
-// - impedir ativação de modos ainda desabilitados/planned;
-// - renderizar o fluxo correto para cada modo habilitado;
+// - controlar o modo ativo da barra de descoberta;
+// - renderizar apenas modos realmente disponíveis;
+// - bloquear defensivamente ativação de modos desabilitados/planned;
 // - manter a barra visual desacoplada da regra de busca.
 //
 // Observação:
-// - a barra já bloqueia clique em abas desabilitadas;
-// - esta página também bloqueia defensivamente mudança programática indevida;
-// - modos futuros devem ser liberados no discovery-mode.model.ts antes de
-//   ganharem renderização real aqui.
+// - modos futuros ficam no model, mas não entram na navegação principal enquanto
+//   não tiverem entrega real.
 
 import {
   ChangeDetectionStrategy,
@@ -58,7 +56,9 @@ import {
 export class ProfilesDiscoveryPageComponent {
   readonly publicProfilesFacade = inject(DiscoveryPublicProfilesFacade);
 
-  readonly tabs: readonly DiscoveryModeTab[] = DISCOVERY_MODE_TABS;
+  readonly tabs: readonly DiscoveryModeTab[] = DISCOVERY_MODE_TABS.filter(
+    (tab) => !tab.disabled
+  );
 
   /**
    * "Todos" é o modo padrão.
@@ -74,12 +74,6 @@ export class ProfilesDiscoveryPageComponent {
   onDiscoveryModeChange(mode: DiscoveryMode): void {
     const normalizedMode = normalizeDiscoveryMode(mode);
 
-    /**
-     * Defesa extra.
-     *
-     * A barra já bloqueia cliques em modos desabilitados, mas esta proteção
-     * evita ativação por mudança programática, bug de estado ou futura rota.
-     */
     if (!isDiscoveryModeEnabled(normalizedMode)) {
       return;
     }
