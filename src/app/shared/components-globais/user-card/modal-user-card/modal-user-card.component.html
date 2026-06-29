@@ -1,9 +1,15 @@
-<!-- src\app\shared\components-globais\user-card\modal-user-card\modal-user-card.component.html -->
-<div class="hover-card" (mouseenter)="isHovered = true" (mouseleave)="isHovered = false">
+<!-- src/app/shared/components-globais/user-card/modal-user-card/modal-user-card.component.html -->
+<div
+  class="hover-card"
+  (mouseenter)="isHovered = true"
+  (mouseleave)="isHovered = false"
+  (focusin)="isHovered = true"
+  (focusout)="isHovered = false"
+>
   <app-compact-user-card [user]="user()"></app-compact-user-card>
 
   @if (isHovered) {
-    <div class="modal-card">
+    <div class="modal-card" role="region" aria-label="Resumo detalhado do perfil">
       <app-detailed-user-card [user]="user()"></app-detailed-user-card>
     </div>
   }
