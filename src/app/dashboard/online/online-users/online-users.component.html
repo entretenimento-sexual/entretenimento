@@ -3,26 +3,6 @@
   class="ui-container online-users"
   [attr.aria-busy]="loading ? 'true' : 'false'"
 >
-  <section class="online-users__product-hero" aria-labelledby="onlineProductHeroTitle">
-    <div class="online-users__product-copy">
-      <span class="online-users__product-eyebrow">Rede social adulta</span>
-
-      <h1 id="onlineProductHeroTitle" class="online-users__product-title">
-        Descubra desejos compatíveis, com discrição.
-      </h1>
-
-      <p class="online-users__product-text">
-        Explore perfis adultos por presença, proximidade e intenção. Conecte com contexto, respeite limites e avance quando houver interesse real.
-      </p>
-    </div>
-
-    <ul class="online-users__trust-list" aria-label="Pontos de segurança da descoberta">
-      <li>Desejos e limites claros</li>
-      <li>Privacidade antes do contato</li>
-      <li>Interação com segurança</li>
-    </ul>
-  </section>
-
   @if (currentUserStatus$ | async; as st) {
     @if (st === 'boot' || st === 'loading_profile') {
       <section class="online-users__state-card" role="status" aria-live="polite">
