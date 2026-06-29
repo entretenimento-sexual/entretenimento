@@ -2,20 +2,9 @@
 // -----------------------------------------------------------------------------
 // ProfileCompatibilityUtils
 // -----------------------------------------------------------------------------
-// Regra pura de compatibilidade social/sexual para discovery.
+// Regra pura de compatibilidade social para discovery.
 // Não consulta Firestore, não conhece UI e não altera dados.
-//
-// Estratégia:
-// 1. Campos canônicos do backend têm prioridade quando existirem.
-// 2. Preferência explícita de gênero, quando existir, tem prioridade.
-// 3. Preferência explícita só de orientação não anula o gênero esperado pela
-//    orientação da própria pessoa.
-// 4. Gênero/orientação declarados entram como fallback.
-// 5. Compatibilidade exige interesse mínimo do viewer.
-// 6. Reciprocidade do candidato é aplicada por preferência explícita futura
-//    ou por fallback de orientação.
-// 7. Dados incompletos não viram bloqueio absoluto; viram score menor, exceto
-//    quando o gênero conhecido já é incompatível com o viewer.
+// -----------------------------------------------------------------------------
 
 export type NormalizedDiscoveryGender =
   | 'man'
@@ -47,10 +36,6 @@ export interface ProfileCompatibilityLike {
   gender?: string | null;
   orientation?: string | null;
 
-  /**
-   * Campos canônicos calculados no backend.
-   * Quando presentes, têm prioridade sobre gender/orientation brutos.
-   */
   normalizedGender?: string | null;
   normalizedOrientation?: string | null;
   compatibilityReady?: boolean | null;
@@ -58,24 +43,14 @@ export interface ProfileCompatibilityLike {
   partner1Orientation?: string | null;
   partner2Orientation?: string | null;
 
-  /**
-   * Campo já existente no usuário.
-   * Pode conter tokens livres vindos do formulário atual.
-   * Ex.: "homens", "mulheres", "casais", "homens heteros", "bi", etc.
-   */
   preferences?: readonly string[] | null;
-
-  /**
-   * Campos preparados para evolução futura.
-   * Quando forem persistidos/publicados, serão usados antes do fallback.
-   */
   interestedInGenders?: readonly string[] | null;
   interestedInOrientations?: readonly string[] | null;
 }
 
 export interface ProfileCompatibilityResult {
   readonly compatible: boolean;
-  readonly score: number; // 0..1
+  readonly score: number;
   readonly reason: ProfileCompatibilityReason;
 
   readonly viewerGender: NormalizedDiscoveryGender;
@@ -210,36 +185,15 @@ function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
   const text = normalizeText(value).replace(/_/g, '-');
   const genders: NormalizedDiscoveryGender[] = [];
 
-  if (
-    /\bhomem\b/.test(text) ||
-    /\bhomens\b/.test(text) ||
-    /\bmasculino\b/.test(text) ||
-    /\bmale\b/.test(text) ||
-    /\bmen\b/.test(text)
-  ) {
+  if (/\bhomem\b/.test(text) || /\bhomens\b/.test(text) || /\bmasculino\b/.test(text) || /\bmale\b/.test(text) || /\bmen\b/.test(text)) {
     genders.push('man');
   }
 
-  if (
-    /\bmulher\b/.test(text) ||
-    /\bmulheres\b/.test(text) ||
-    /\bfeminino\b/.test(text) ||
-    /\bfemale\b/.test(text) ||
-    /\bwomen\b/.test(text)
-  ) {
+  if (/\bmulher\b/.test(text) || /\bmulheres\b/.test(text) || /\bfeminino\b/.test(text) || /\bfemale\b/.test(text) || /\bwomen\b/.test(text)) {
     genders.push('woman');
   }
 
-  if (
-    /\bcasal\b/.test(text) ||
-    /\bcasais\b/.test(text) ||
-    /\bcouple\b/.test(text) ||
-    /\bcouples\b/.test(text) ||
-    /\bdupla\b/.test(text) ||
-    /\bcasal-ele-ele\b/.test(text) ||
-    /\bcasal-ele-ela\b/.test(text) ||
-    /\bcasal-ela-ela\b/.test(text)
-  ) {
+  if (/\bcasal\b/.test(text) || /\bcasais\b/.test(text) || /\bcouple\b/.test(text) || /\bcouples\b/.test(text) || /\bdupla\b/.test(text) || /\bcasal-ele-ele\b/.test(text) || /\bcasal-ele-ela\b/.test(text) || /\bcasal-ela-ela\b/.test(text)) {
     genders.push('couple');
   }
 
@@ -250,39 +204,19 @@ function orientationsFromFreeText(value: unknown): NormalizedDiscoveryOrientatio
   const text = normalizeText(value);
   const orientations: NormalizedDiscoveryOrientation[] = [];
 
-  if (
-    /\bhetero\b/.test(text) ||
-    /\bheteros\b/.test(text) ||
-    /\bheterossexual\b/.test(text) ||
-    /\bheterosexual\b/.test(text) ||
-    /\bstraight\b/.test(text)
-  ) {
+  if (/\bhetero\b/.test(text) || /\bheteros\b/.test(text) || /\bheterossexual\b/.test(text) || /\bheterosexual\b/.test(text) || /\bstraight\b/.test(text)) {
     orientations.push('heterosexual');
   }
 
-  if (
-    /\bhomo\b/.test(text) ||
-    /\bhomossexual\b/.test(text) ||
-    /\bhomosexual\b/.test(text) ||
-    /\bgay\b/.test(text) ||
-    /\blesbica\b/.test(text) ||
-    /\blesbian\b/.test(text)
-  ) {
+  if (/\bhomo\b/.test(text) || /\bhomossexual\b/.test(text) || /\bhomosexual\b/.test(text) || /\bgay\b/.test(text) || /\blesbica\b/.test(text) || /\blesbian\b/.test(text)) {
     orientations.push('homosexual');
   }
 
-  if (
-    /\bbi\b/.test(text) ||
-    /\bbissexual\b/.test(text) ||
-    /\bbisexual\b/.test(text)
-  ) {
+  if (/\bbi\b/.test(text) || /\bbissexual\b/.test(text) || /\bbisexual\b/.test(text)) {
     orientations.push('bisexual');
   }
 
-  if (
-    /\bpan\b/.test(text) ||
-    /\bpansexual\b/.test(text)
-  ) {
+  if (/\bpan\b/.test(text) || /\bpansexual\b/.test(text)) {
     orientations.push('pansexual');
   }
 
@@ -358,7 +292,27 @@ function acceptedTargetGendersByOrientation(
   return null;
 }
 
-function resolveInterest(profile: ProfileCompatibilityLike | null | undefined): NormalizedInterest {
+function acceptedTargetOrientationsByOrientation(
+  selfOrientation: NormalizedDiscoveryOrientation
+): readonly NormalizedDiscoveryOrientation[] | null {
+  if (selfOrientation === 'homosexual') {
+    return ['homosexual', 'bisexual', 'pansexual'];
+  }
+
+  if (selfOrientation === 'heterosexual') {
+    return ['heterosexual', 'bisexual', 'pansexual'];
+  }
+
+  if (selfOrientation === 'bisexual' || selfOrientation === 'pansexual') {
+    return ['heterosexual', 'homosexual', 'bisexual', 'pansexual'];
+  }
+
+  return null;
+}
+
+function resolveInterest(
+  profile: ProfileCompatibilityLike | null | undefined
+): NormalizedInterest {
   const explicitGenders = normalizeGenderList(profile?.interestedInGenders);
   const explicitOrientations = normalizeOrientationList(profile?.interestedInOrientations);
 
@@ -370,6 +324,7 @@ function resolveInterest(profile: ProfileCompatibilityLike | null | undefined): 
     profile?.normalizedOrientation ?? profile?.orientation
   );
   const fallbackGenders = acceptedTargetGendersByOrientation(selfGender, selfOrientation);
+  const fallbackOrientations = acceptedTargetOrientationsByOrientation(selfOrientation);
 
   const genders = explicitGenders.length
     ? explicitGenders
@@ -381,7 +336,7 @@ function resolveInterest(profile: ProfileCompatibilityLike | null | undefined): 
     ? explicitOrientations
     : preferenceOrientations.length
       ? preferenceOrientations
-      : null;
+      : fallbackOrientations;
 
   if (genders || orientations) {
     return {
@@ -396,7 +351,7 @@ function resolveInterest(profile: ProfileCompatibilityLike | null | undefined): 
 
   return {
     genders: fallbackGenders,
-    orientations: null,
+    orientations: fallbackOrientations,
     explicit: false,
   };
 }
