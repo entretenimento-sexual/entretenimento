@@ -1,8 +1,52 @@
-/* src\app\shared\components-globais\user-card\compact-user-card\compact-user-card.component.css */
+/* src/app/shared/components-globais/user-card/compact-user-card/compact-user-card.component.css */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+
+  width: fit-content;
+  max-width: 100%;
+  margin: 0.45rem 0 0;
+  padding: 0.32rem 0.58rem;
+
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklab, var(--surface-border, #e5e7eb) 82%, transparent);
+
+  font-size: 0.78rem;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.status::before {
+  content: "";
+
+  width: 0.48rem;
+  height: 0.48rem;
+
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: currentColor;
+}
+
 .status.online {
-  color: green;
+  color: color-mix(in oklab, #16a34a 84%, var(--text-color, #111827));
+  background: color-mix(in oklab, #16a34a 10%, var(--surface-color, #ffffff));
+  border-color: color-mix(in oklab, #16a34a 34%, var(--surface-border, #e5e7eb));
 }
 
 .status.offline {
-  color: red;
+  color: color-mix(in oklab, var(--text-color, #111827) 66%, transparent);
+  background: color-mix(in oklab, var(--surface-color, #ffffff) 90%, var(--text-color, #111827) 5%);
+}
+
+:host-context(.dark-mode) .status.online,
+html.dark-mode .status.online {
+  color: color-mix(in oklab, #86efac 86%, #ffffff);
+  background: color-mix(in oklab, #16a34a 14%, var(--surface-color, #111827));
+}
+
+:host-context(.dark-mode) .status.offline,
+html.dark-mode .status.offline {
+  color: color-mix(in oklab, var(--text-color, #f9fafb) 70%, transparent);
+  background: color-mix(in oklab, var(--surface-color, #111827) 86%, #ffffff 6%);
 }
