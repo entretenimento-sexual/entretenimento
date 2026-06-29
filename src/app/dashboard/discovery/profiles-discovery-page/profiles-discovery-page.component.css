@@ -18,8 +18,8 @@
 
   --discovery-content-max: min(100%, 920px);
   --discovery-inline-padding: clamp(0.75rem, 2vw, 1.35rem);
-  --discovery-top-padding: clamp(0.45rem, 1.1vw, 0.8rem);
-  --discovery-gap: clamp(0.65rem, 1.4vw, 0.95rem);
+  --discovery-top-padding: clamp(0.3rem, 0.9vw, 0.6rem);
+  --discovery-gap: clamp(0.55rem, 1.2vw, 0.85rem);
 
   --discovery-surface: color-mix(in oklab, var(--surface-color) 94%, transparent);
   --discovery-border: color-mix(in oklab, var(--surface-border) 88%, transparent);
@@ -53,26 +53,11 @@
   gap: var(--discovery-gap);
 }
 
-.profiles-discovery-page__intro,
 .profiles-discovery-page__topbar,
 .profiles-discovery-page__content {
   width: var(--discovery-content-max);
   min-width: 0;
   margin-inline: auto;
-}
-
-.profiles-discovery-page__intro {
-  padding: 0;
-}
-
-.profiles-discovery-page__title {
-  margin: 0;
-
-  color: var(--text-color);
-  font-size: clamp(1.05rem, 2.4vw, 1.32rem);
-  font-weight: 820;
-  letter-spacing: -0.03em;
-  line-height: 1.08;
 }
 
 .profiles-discovery-page__topbar {
@@ -82,7 +67,7 @@
 
   overflow: visible;
 
-  padding: 0.08rem 0;
+  padding: 0.04rem 0;
   background: transparent;
 }
 
@@ -137,7 +122,7 @@
   :host {
     --discovery-content-max: 100%;
     --discovery-inline-padding: 0.72rem;
-    --discovery-top-padding: 0.45rem;
+    --discovery-top-padding: 0.3rem;
   }
 
   .profiles-discovery-page {
@@ -146,7 +131,7 @@
 
   .profiles-discovery-page__topbar {
     top: 0;
-    padding-block: 0.04rem;
+    padding-block: 0.02rem;
   }
 }
 
