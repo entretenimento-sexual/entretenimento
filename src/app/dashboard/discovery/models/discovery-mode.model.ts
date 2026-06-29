@@ -14,7 +14,6 @@
 //   - exige presença online;
 //   - origem principal dos dados;
 //   - disponibilidade atual;
-//   - tooltip/descrição;
 // - preparar evolução para Região, Recentes, Bombando, Compatíveis e outros.
 //
 // Regra importante:
@@ -120,12 +119,6 @@ export interface DiscoveryModeTab {
   ariaLabel: string;
   disabled?: boolean;
   badge?: string;
-
-  /**
-   * Texto curto usado como tooltip acessível.
-   *
-   * Deve explicar o comportamento real do filtro sem poluir visualmente a tela.
-   */
   description?: string;
 }
 
@@ -148,9 +141,7 @@ export const DISCOVERY_MODE_CONFIGS: Record<DiscoveryMode, DiscoveryModeConfig> 
 
     label: 'Todos',
     icon: 'fas fa-users',
-    ariaLabel: 'Ver todos os perfis recomendados',
-    description:
-      'Mostra perfis públicos disponíveis para descoberta. Não é uma lista bruta: online, distância, região, atualização recente e compatibilidade podem influenciar a ordem.',
+    ariaLabel: 'Ver todos os perfis',
   },
 
   online: {
@@ -162,9 +153,7 @@ export const DISCOVERY_MODE_CONFIGS: Record<DiscoveryMode, DiscoveryModeConfig> 
 
     label: 'Online',
     icon: 'fas fa-bolt',
-    ariaLabel: 'Ver perfis online agora',
-    description:
-      'Mostra perfis com presença ativa agora. A distância e a região podem ajudar na ordenação quando estiverem disponíveis.',
+    ariaLabel: 'Ver perfis online',
   },
 
   nearby: {
@@ -178,8 +167,6 @@ export const DISCOVERY_MODE_CONFIGS: Record<DiscoveryMode, DiscoveryModeConfig> 
     icon: 'fas fa-location-dot',
     ariaLabel: 'Ver perfis próximos',
     badge: 'em breve',
-    description:
-      'Mostrará perfis próximos usando localização e raio. Esse modo depende de permissão de localização.',
   },
 
   region: {
@@ -193,8 +180,6 @@ export const DISCOVERY_MODE_CONFIGS: Record<DiscoveryMode, DiscoveryModeConfig> 
     icon: 'fas fa-map-location-dot',
     ariaLabel: 'Ver perfis por região',
     badge: 'em breve',
-    description:
-      'Mostrará perfis com base em cidade, estado ou região informada no perfil, sem exigir GPS.',
   },
 
   recent: {
@@ -206,10 +191,8 @@ export const DISCOVERY_MODE_CONFIGS: Record<DiscoveryMode, DiscoveryModeConfig> 
 
     label: 'Recentes',
     icon: 'fas fa-clock',
-    ariaLabel: 'Ver perfis atualizados recentemente',
+    ariaLabel: 'Ver perfis recentes',
     badge: 'em breve',
-    description:
-      'Mostrará perfis criados ou atualizados recentemente.',
   },
 
   trending: {
@@ -223,8 +206,6 @@ export const DISCOVERY_MODE_CONFIGS: Record<DiscoveryMode, DiscoveryModeConfig> 
     icon: 'fas fa-fire',
     ariaLabel: 'Ver perfis em destaque',
     badge: 'em breve',
-    description:
-      'Mostrará perfis em destaque por atividade, engajamento e qualidade do perfil.',
   },
 
   compatible: {
@@ -238,8 +219,6 @@ export const DISCOVERY_MODE_CONFIGS: Record<DiscoveryMode, DiscoveryModeConfig> 
     icon: 'fas fa-heart',
     ariaLabel: 'Ver perfis compatíveis',
     badge: 'em breve',
-    description:
-      'Mostrará perfis mais alinhados às preferências e intenções do usuário.',
   },
 } as const;
 
