@@ -1,5 +1,5 @@
 /* src/app/dashboard/online/online-users/online-users.component.css */
-/* ==========================================================================
+/* ========================================================================== 
    ONLINE USERS COMPONENT
    --------------------------------------------------------------------------
    Seção online dentro da página /dashboard/explorar.
@@ -42,6 +42,98 @@
 /* Neutraliza possível padding do .ui-container global. */
 .ui-container.online-users {
   padding-inline: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Topo de produto
+   -------------------------------------------------------------------------- */
+
+.online-users__product-hero {
+  width: min(100%, 720px);
+  padding: clamp(18px, 4vw, 28px);
+
+  display: grid;
+  gap: 16px;
+
+  border: var(--ou-border);
+  border-radius: calc(var(--ou-radius-xl) + 4px);
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color) 18%, transparent), transparent 30rem),
+    color-mix(in oklab, var(--surface-color) 94%, var(--primary-color) 6%);
+
+  box-shadow:
+    0 18px 46px rgba(15, 23, 42, 0.10),
+    0 4px 14px rgba(15, 23, 42, 0.05);
+}
+
+.online-users__product-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.online-users__product-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 28px;
+  padding: 0.32rem 0.72rem;
+
+  border: 1px solid color-mix(in oklab, var(--primary-color) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.online-users__product-title {
+  max-width: 12ch;
+  margin: 0;
+
+  color: var(--text-color);
+  font-size: clamp(1.75rem, 5vw, 3.35rem);
+  font-weight: 950;
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.online-users__product-text {
+  max-width: 58ch;
+  margin: 0;
+
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  font-size: clamp(0.95rem, 1.4vw, 1.06rem);
+  line-height: 1.5;
+}
+
+.online-users__trust-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.online-users__trust-list li {
+  min-height: 32px;
+  padding: 0.38rem 0.72rem;
+
+  display: inline-flex;
+  align-items: center;
+
+  border: 1px solid color-mix(in oklab, var(--text-color) 12%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--background-color) 74%, transparent);
+  color: color-mix(in oklab, var(--text-color) 78%, transparent);
+
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1;
 }
 
 /* --------------------------------------------------------------------------
@@ -472,13 +564,16 @@ app-user-card:focus-within {
    Dark mode
    -------------------------------------------------------------------------- */
 
+html.dark-mode .online-users__product-hero,
 html.dark-mode .online-users__banner,
 html.dark-mode .online-users__state-card,
 html.dark-mode .online-users__activation-card,
 html.dark-mode .online-users__decision-card,
 html.dark-mode .online-users__discovery-panel,
 html.dark-mode .online-users__empty-card {
-  background: color-mix(in oklab, var(--surface-color) 90%, var(--primary-color) 10%);
+  background:
+    radial-gradient(circle at top left, color-mix(in oklab, var(--primary-color) 20%, transparent), transparent 30rem),
+    color-mix(in oklab, var(--surface-color) 88%, black 12%);
 
   box-shadow:
     0 14px 30px rgba(0, 0, 0, 0.30),
@@ -498,10 +593,16 @@ html.dark-mode .online-users__result-text {
   color: color-mix(in oklab, var(--text-color) 74%, transparent);
 }
 
+html.dark-mode .online-users__trust-list li {
+  background: color-mix(in oklab, var(--surface-color) 78%, black 22%);
+  border-color: color-mix(in oklab, var(--surface-border) 70%, white 8%);
+}
+
 /* --------------------------------------------------------------------------
    Alto contraste
    -------------------------------------------------------------------------- */
 
+html.high-contrast .online-users__product-hero,
 html.high-contrast .online-users__banner,
 html.high-contrast .online-users__state-card,
 html.high-contrast .online-users__activation-card,
@@ -514,6 +615,14 @@ html.high-contrast .online-users__empty-card {
   background: var(--background-color) !important;
 }
 
+html.high-contrast .online-users__product-eyebrow,
+html.high-contrast .online-users__trust-list li {
+  border: 2px solid var(--text-color) !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+}
+
+html.high-contrast .online-users__product-text,
 html.high-contrast .online-users__banner-text,
 html.high-contrast .online-users__decision-text,
 html.high-contrast .online-users__state-text,
@@ -554,6 +663,10 @@ html.high-contrast .online-users__loading-pill {
     max-width: none;
   }
 
+  .online-users__product-hero {
+    width: 100%;
+  }
+
   .profiles-grid {
     grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   }
@@ -562,6 +675,19 @@ html.high-contrast .online-users__loading-pill {
 @media (max-width: 767.98px) {
   .online-users {
     gap: 14px;
+  }
+
+  .online-users__product-title {
+    max-width: 11ch;
+  }
+
+  .online-users__trust-list {
+    gap: 7px;
+  }
+
+  .online-users__trust-list li {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 
   .online-users__compact-head {
@@ -622,6 +748,15 @@ html.high-contrast .online-users__loading-pill {
 }
 
 @media (max-width: 520px) {
+  .online-users__product-hero {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .online-users__product-title {
+    font-size: clamp(1.65rem, 12vw, 2.45rem);
+  }
+
   .online-users__activation-title-row {
     grid-template-columns: 1fr;
     gap: 10px;
@@ -647,6 +782,7 @@ html.high-contrast .online-users__loading-pill {
 }
 
 @media (max-width: 380px) {
+  .online-users__product-hero,
   .online-users__banner,
   .online-users__state-card,
   .online-users__empty-card,
@@ -672,6 +808,9 @@ html.high-contrast .online-users__loading-pill {
 }
 
 @media (forced-colors: active) {
+  .online-users__product-hero,
+  .online-users__product-eyebrow,
+  .online-users__trust-list li,
   .online-users__discovery-bar,
   .online-users__discovery-panel,
   .online-users__activation-card,
