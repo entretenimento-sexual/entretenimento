@@ -3,6 +3,26 @@
   class="ui-container online-users"
   [attr.aria-busy]="loading ? 'true' : 'false'"
 >
+  <section class="online-users__product-hero" aria-labelledby="onlineProductHeroTitle">
+    <div class="online-users__product-copy">
+      <span class="online-users__product-eyebrow">Descoberta adulta</span>
+
+      <h1 id="onlineProductHeroTitle" class="online-users__product-title">
+        Encontre conexões por presença, desejo e discrição.
+      </h1>
+
+      <p class="online-users__product-text">
+        Veja perfis disponíveis, ajuste proximidade quando fizer sentido e avance apenas com quem combina com seus limites e interesses.
+      </p>
+    </div>
+
+    <ul class="online-users__trust-list" aria-label="Pontos de segurança da descoberta">
+      <li>Privacidade primeiro</li>
+      <li>Interação com contexto</li>
+      <li>Controle de proximidade</li>
+    </ul>
+  </section>
+
   @if (currentUserStatus$ | async; as st) {
     @if (st === 'boot' || st === 'loading_profile') {
       <section class="online-users__state-card" role="status" aria-live="polite">
@@ -318,7 +338,6 @@
         }
       } @else {
         <section class="online-users__state-card" role="status" aria-live="polite">
-          <h3 class="online-users__state-title">Carregando perfil</h3>
           <p class="online-users__state-text">
             Aguarde um instante.
           </p>
