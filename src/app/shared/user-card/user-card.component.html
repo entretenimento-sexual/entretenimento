@@ -50,7 +50,7 @@
           [class.user-card__presence--offline]="!profile.isOnline"
         >
           <span class="user-card__presence-dot" aria-hidden="true"></span>
-          <span>{{ profile.isOnline ? 'Online agora' : 'Offline' }}</span>
+          <span>{{ profile.isOnline ? 'Online' : 'Offline' }}</span>
         </span>
 
         <span class="user-card__tier">
@@ -72,7 +72,7 @@
         </strong>
 
         <span class="sr-only">
-          {{ profile.isOnline ? 'Online agora' : 'Offline' }}
+          {{ profile.isOnline ? 'Online' : 'Offline' }}
         </span>
       </div>
     </a>
@@ -138,55 +138,48 @@
         </p>
       }
 
-      <div class="user-card__signal-row" aria-hidden="true">
-        <span class="user-card__signal-pill">
-          <i class="fas fa-shield-heart"></i>
-          Perfil visível
-        </span>
-
-        @if (relationshipVm(); as relationship) {
-          <span class="user-card__signal-pill">
+      @if (relationshipVm(); as relationship) {
+        @if (relationship.state !== 'none' || profile.isOnline) {
+          <div class="user-card__signal-row" aria-hidden="true">
             @switch (relationship.state) {
               @case ('friends') {
-                <i class="fas fa-user-check"></i>
-                Conectado
+                <span class="user-card__signal-pill">
+                  <i class="fas fa-user-check"></i>
+                  Conectado
+                </span>
               }
 
               @case ('outgoing_pending') {
-                <i class="fas fa-clock"></i>
-                Interesse enviado
+                <span class="user-card__signal-pill">
+                  <i class="fas fa-clock"></i>
+                  Enviado
+                </span>
               }
 
               @case ('incoming_pending') {
-                <i class="fas fa-user-clock"></i>
-                Quer conectar
+                <span class="user-card__signal-pill">
+                  <i class="fas fa-user-clock"></i>
+                  Interesse
+                </span>
               }
 
               @case ('blocked_by_me') {
-                <i class="fas fa-ban"></i>
-                Bloqueado
+                <span class="user-card__signal-pill">
+                  <i class="fas fa-ban"></i>
+                  Bloqueado
+                </span>
               }
 
               @case ('self') {
-                <i class="fas fa-user"></i>
-                Meu perfil
-              }
-
-              @default {
-                <i class="fas fa-user-plus"></i>
-                Novo interesse
+                <span class="user-card__signal-pill">
+                  <i class="fas fa-user"></i>
+                  Meu perfil
+                </span>
               }
             }
-          </span>
+          </div>
         }
-
-        @if (profile.isOnline) {
-          <span class="user-card__signal-pill user-card__signal-pill--hot">
-            <i class="fas fa-bolt"></i>
-            Online agora
-          </span>
-        }
-      </div>
+      }
 
 @if (relationshipVm(); as relationship) {
   <div class="user-card__actions" aria-label="Ações do perfil">
@@ -203,13 +196,13 @@
     @if (relationship.canMessage) {
       <button
         type="button"
-        class="btn btn-primary"
+        class="user-card__action user-card__action--primary"
         (click)="abrirDM($event)"
         [attr.aria-label]="'Conversar com ' + (profile.nickname || 'usuário')"
         title="Conversar"
       >
         <i class="fas fa-paper-plane" aria-hidden="true"></i>
-        <span>Conversar</span>
+        <span class="sr-only">Conversar</span>
       </button>
 <button
   type="button"
@@ -239,23 +232,23 @@
 
     } @else if (relationship.canRespond) {
       <a
-        class="btn btn-primary"
+        class="user-card__action user-card__action--primary"
         routerLink="/friends/requests"
         [attr.aria-label]="'Responder interesse de ' + (profile.nickname || 'usuário')"
         title="Responder interesse"
       >
         <i class="fas fa-user-check" aria-hidden="true"></i>
-        <span>Responder</span>
+        <span class="sr-only">Responder interesse</span>
       </a>
 } @else if (relationship.state === 'outgoing_pending') {
   <a
-    class="btn btn-secondary"
+    class="user-card__action user-card__action--neutral"
     routerLink="/friends/requests"
     [attr.aria-label]="'Interesse enviado para ' + (profile.nickname || 'usuário') + '. Aguardando resposta.'"
     title="Aguardando resposta"
   >
     <i class="fas fa-clock" aria-hidden="true"></i>
-    <span>Aguardando</span>
+    <span class="sr-only">Aguardando resposta</span>
   </a>
 
   <button
@@ -297,13 +290,13 @@
     } @else if (relationship.canConnect) {
       <button
         type="button"
-        class="btn btn-primary"
+        class="user-card__action user-card__action--primary"
         (click)="adicionarAmigo()"
         [attr.aria-label]="'Mostrar interesse em ' + (profile.nickname || 'usuário')"
         title="Mostrar interesse"
       >
         <i class="fas fa-user-plus" aria-hidden="true"></i>
-        <span>Interesse</span>
+        <span class="sr-only">Mostrar interesse</span>
       </button>
     }
   </div>
