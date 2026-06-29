@@ -1,8 +1,8 @@
-//src\app\shared\components-globais\user-card\compact-user-card\compact-user-card.component.ts
+// src/app/shared/components-globais/user-card/compact-user-card/compact-user-card.component.ts
 import { CommonModule } from '@angular/common';
 import { Component, input } from '@angular/core';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { BaseUserCardComponent } from "../base-user-card/base-user-card.component";
+import { BaseUserCardComponent } from '../base-user-card/base-user-card.component';
 
 @Component({
   selector: 'app-compact-user-card',
