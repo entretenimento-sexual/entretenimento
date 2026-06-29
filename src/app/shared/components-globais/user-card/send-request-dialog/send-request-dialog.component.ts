@@ -61,7 +61,7 @@ export class SendRequestDialogComponent implements OnInit {
   ) {
     if (!data?.requesterUid || !data?.targetUid) {
       this.dbg('Init: dados insuficientes', data);
-      queueMicrotask(() => this.ref.close({ ok: false, error: 'Dados insuficientes para enviar a solicitação.' }));
+      queueMicrotask(() => this.ref.close({ ok: false, error: 'Dados insuficientes para enviar o interesse.' }));
     }
   }
 
@@ -111,7 +111,7 @@ export class SendRequestDialogComponent implements OnInit {
     this.lastError.set(null);
 
     const message = this.sanitizeMessage(this.form.controls.message.value);
-    this.dbg('Enviando request…', {
+    this.dbg('Enviando interesse…', {
       requesterUid: this.data.requesterUid,
       targetUid: this.data.targetUid,
       message,
@@ -120,12 +120,12 @@ export class SendRequestDialogComponent implements OnInit {
     this.friendship.sendRequest(this.data.requesterUid, this.data.targetUid, message || undefined)
       .subscribe({
         next: () => {
-          this.dbg('Sucesso ao enviar');
+          this.dbg('Interesse enviado com sucesso');
           this.ref.close({ ok: true });
         },
         error: (err) => {
-          const msg = (err?.message as string) || (typeof err === 'string' ? err : 'Falha ao enviar a solicitação.');
-          this.dbg('Erro ao enviar', err);
+          const msg = (err?.message as string) || (typeof err === 'string' ? err : 'Falha ao enviar o interesse.');
+          this.dbg('Erro ao enviar interesse', err);
           this.lastError.set(msg);
           this.ref.close({ ok: false, error: msg });
         },
