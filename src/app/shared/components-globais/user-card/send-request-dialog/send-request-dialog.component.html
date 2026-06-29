@@ -12,7 +12,7 @@
 
   <div class="title-wrap">
     <h2 mat-dialog-title class="title">
-      Adicionar <span class="nick">{{ data.nickname || 'usuário' }}</span>?
+      Mostrar interesse em <span class="nick">{{ data.nickname || 'usuário' }}</span>?
     </h2>
   </div>
 </div>
@@ -22,7 +22,7 @@
 <mat-dialog-content class="content">
   <ng-container *ngIf="canAddNote">
     <mat-form-field appearance="fill" class="field w-100" floatLabel="always">
-      <mat-label>Mensagem (opcional)</mat-label>
+      <mat-label>Mensagem curta (opcional)</mat-label>
 
       <textarea
         matInput
@@ -33,7 +33,7 @@
         [formControl]="form.controls.message"
         (keydown.enter)="onEnter($event)"
         cdkFocusInitial
-        aria-label="Mensagem opcional ao convidar"
+        aria-label="Mensagem opcional ao demonstrar interesse"
       ></textarea>
 
       <mat-hint align="start" class="shortcut-hint">
@@ -52,7 +52,7 @@
 
   <div class="policy" role="note">
     <mat-icon class="i" aria-hidden="true">shield</mat-icon>
-    <span>Convites passam por controles anti-spam e segurança.</span>
+    <span>Interesses passam por controles anti-spam e segurança antes de virar conversa.</span>
   </div>
 </mat-dialog-content>
 
@@ -72,7 +72,7 @@
     class="send-action"
     (click)="confirm()"
     [disabled]="form.invalid || submitting()"
-    aria-label="Enviar solicitação de amizade"
+    aria-label="Enviar interesse"
   >
     <mat-progress-spinner
       *ngIf="submitting()"
@@ -80,6 +80,6 @@
       mode="indeterminate"
       class="btn-spinner"
     ></mat-progress-spinner>
-    Enviar solicitação
+    Enviar interesse
   </button>
 </mat-dialog-actions>
