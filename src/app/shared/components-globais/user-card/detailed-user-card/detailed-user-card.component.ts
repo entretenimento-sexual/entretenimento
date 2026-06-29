@@ -6,7 +6,6 @@ import { MatDialog } from '@angular/material/dialog';
 import { SendRequestDialogComponent } from '../send-request-dialog/send-request-dialog.component';
 import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
-import * as A from 'src/app/store/actions/actions.interactions/actions.friends';
 import { selectCurrentUserUid } from 'src/app/store/selectors/selectors.user/user.selectors';
 import { filter, firstValueFrom } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -33,19 +32,19 @@ export class DetailedUserCardComponent {
     const me = await firstValueFrom(this.store.select(selectCurrentUserUid).pipe(filter(Boolean)));
     if (!me || !user?.uid) return;
 
-    const ref = this.dialog.open(SendRequestDialogComponent, {
-      width: '420px',
-      data: { nickname: user.nickname },
-      autoFocus: false
+    this.dialog.open(SendRequestDialogComponent, {
+      width: 'min(92vw, 460px)',
+      maxWidth: '96vw',
+      data: {
+        requesterUid: me,
+        targetUid: user.uid,
+        nickname: user.nickname,
+        avatarUrl: user.photoURL,
+        uid: user.uid,
+        maxLength: 200,
+      },
+      autoFocus: false,
+      restoreFocus: true,
     });
-
-    const result: { message?: string } | null = await firstValueFrom(ref.afterClosed());
-    if (!result) return; // cancelado
-
-    this.store.dispatch(A.sendFriendRequest({
-      requesterUid: me,
-      targetUid: user.uid,
-      message: result.message
-    }));
   }
 }
