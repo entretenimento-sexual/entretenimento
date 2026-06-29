@@ -2,28 +2,16 @@
 // -----------------------------------------------------------------------------
 // PHOTO PUBLICATION — PUBLISH / UNPUBLISH / COVER
 // -----------------------------------------------------------------------------
-//
-// Responsabilidade:
-// - publicar foto privada em projeção pública controlada;
-// - despublicar foto;
-// - definir foto de capa;
-// - impedir escrita direta do cliente em public_profiles;
-// - preparar moderação real para produção.
-//
 // Segurança:
-// - somente o dono pode publicar/despublicar/definir capa;
-// - metadados sensíveis são lidos do documento privado do dono;
-// - cliente não grava documento público diretamente;
-// - cliente não grava score/contadores diretamente.
-//
-// Observação de produto:
-// - em emulador/dev, a foto pode nascer APPROVED para permitir teste do fluxo completo;
-// - em produção, o padrão seguro é PENDING_REVIEW até moderação.
+// - somente o dono publica/despublica/define capa;
+// - cliente não grava projeção pública, score ou contadores;
+// - métricas públicas são recalculadas no backend.
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 
 type PhotoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
 type CommentsPolicy = 'OFF' | 'FRIENDS' | 'SUBSCRIBERS' | 'EVERYONE';
@@ -106,11 +94,7 @@ function cleanCommentsPolicy(value: unknown, commentsEnabled: boolean): Comments
 
   const text = String(value ?? '').trim().toUpperCase();
 
-  if (
-    text === 'FRIENDS' ||
-    text === 'SUBSCRIBERS' ||
-    text === 'EVERYONE'
-  ) {
+  if (text === 'FRIENDS' || text === 'SUBSCRIBERS' || text === 'EVERYONE') {
     return text;
   }
 
@@ -178,10 +162,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
 
     const visibility = cleanVisibility(request.data?.visibility);
     const commentsEnabled = request.data?.commentsEnabled === true;
-    const commentsPolicy = cleanCommentsPolicy(
-      request.data?.commentsPolicy,
-      commentsEnabled
-    );
+    const commentsPolicy = cleanCommentsPolicy(request.data?.commentsPolicy, commentsEnabled);
     const reactionsEnabled = request.data?.reactionsEnabled === true;
     const isCover = request.data?.isCover === true;
     const orderIndex = normalizeOrderIndex(request.data?.orderIndex);
@@ -243,27 +224,20 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       {
         ownerUid,
         photoId,
-
         isPublished: true,
         visibility,
-
         isCover,
         orderIndex,
-
         commentsEnabled,
         commentsPolicy,
         commentsCount: 0,
-
         reactionsEnabled,
         reactionsCount: 0,
-
         moderationStatus,
         moderationReason: null,
         reportsCount: 0,
-
         score: 0,
         scoreBreakdown,
-
         publishedAt: now,
         updatedAt: now,
         lastModeratedAt: moderationStatus === 'APPROVED' ? now : null,
@@ -276,29 +250,22 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       {
         id: photoId,
         ownerUid,
-
         url: privatePhoto.url,
         alt: privatePhoto.alt ?? privatePhoto.fileName ?? 'Foto do perfil',
         createdAt: normalizeCreatedAt(privatePhoto.createdAt),
-
         publishedAt: now,
         updatedAt: now,
-
         visibility,
         isCover,
         orderIndex,
-
         commentsEnabled,
         commentsPolicy,
         commentsCount: 0,
-
         reactionsEnabled,
         reactionsCount: 0,
-
         moderationStatus,
         moderationReason: null,
         reportsCount: 0,
-
         score: 0,
         scoreBreakdown,
       },
@@ -306,6 +273,7 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
     );
 
     await batch.commit();
+    await refreshPublicProfileMediaMetrics(ownerUid);
 
     return {
       photoId,
@@ -353,6 +321,7 @@ export const unpublishPhoto = onCall<UnpublishPhotoRequest>(
     batch.delete(publicPhotoRef);
 
     await batch.commit();
+    await refreshPublicProfileMediaMetrics(ownerUid);
 
     return { photoId };
   }
@@ -371,10 +340,7 @@ export const setCoverPhoto = onCall<SetCoverPhotoRequest>(
 
     assertOwner(requesterUid, ownerUid);
 
-    const targetPublicationRef = db.doc(
-      `users/${ownerUid}/photo_publications/${photoId}`
-    );
-
+    const targetPublicationRef = db.doc(`users/${ownerUid}/photo_publications/${photoId}`);
     const targetPublicationSnap = await targetPublicationRef.get();
 
     if (!targetPublicationSnap.exists) {
@@ -421,6 +387,7 @@ export const setCoverPhoto = onCall<SetCoverPhotoRequest>(
     });
 
     await batch.commit();
+    await refreshPublicProfileMediaMetrics(ownerUid);
 
     return { photoId };
   }
