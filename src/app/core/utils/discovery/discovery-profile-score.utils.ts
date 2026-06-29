@@ -2,20 +2,8 @@
 // -----------------------------------------------------------------------------
 // DiscoveryProfileScoreUtils
 // -----------------------------------------------------------------------------
-//
 // Score reutilizável para feeds de descoberta.
-//
-// Responsabilidade:
-// - calcular pontuação de ranking para perfis já elegíveis;
-// - não consultar Firestore;
-// - não decidir elegibilidade pública;
-// - permitir pesos diferentes por modo de descoberta;
-// - servir futuramente para Todos, Perto, Região, Recentes, Bombando,
-//   Compatíveis e outros feeds nativos.
-//
-// Importante:
-// - elegibilidade fica em discovery-profile-visibility.utils.ts;
-// - score apenas ordena perfis que já podem aparecer.
+// -----------------------------------------------------------------------------
 export type DiscoveryScoreMode =
   | 'all'
   | 'online'
@@ -49,15 +37,14 @@ export interface DiscoveryScoreProfileLike {
   lastSeen?: unknown;
   lastOnlineAt?: unknown;
 
-  /**
-   * Campos futuros opcionais.
-   * Se ainda não existirem, não quebram o score.
-   */
-  compatibilityScore?: number | null; // 0..1 ou 0..100
-  engagementScore?: number | null; // curtidas, visitas, interações futuras
+  compatibilityScore?: number | null;
+  engagementScore?: number | null;
   mediaCount?: number | null;
   photosCount?: number | null;
-  profileCompletenessScore?: number | null; // 0..1 ou 0..100
+  videosCount?: number | null;
+  viewsCount?: number | null;
+  likesCount?: number | null;
+  profileCompletenessScore?: number | null;
 }
 
 export interface DiscoveryScoreContext {
@@ -70,10 +57,6 @@ export interface DiscoveryScoreContext {
 
   nowMs?: number;
 
-  /**
-   * Distância de referência para decaimento.
-   * No modo Todos, distância ajuda, mas não deve eliminar.
-   */
   maxUsefulDistanceKm?: number;
 }
 
@@ -259,6 +242,12 @@ function normalizeOptionalScore(
   return clamp01(value);
 }
 
+function normalizeCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, value)
+    : 0;
+}
+
 function toMillis(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
@@ -324,22 +313,17 @@ function scoreQuality(profile: DiscoveryScoreProfileLike): number {
 }
 
 function scoreMedia(profile: DiscoveryScoreProfileLike): number {
-  const mediaCount =
-    typeof profile.mediaCount === 'number'
-      ? profile.mediaCount
-      : typeof profile.photosCount === 'number'
-        ? profile.photosCount
-        : null;
+  const photosCount = normalizeCount(profile.photosCount);
+  const videosCount = normalizeCount(profile.videosCount);
+  const explicitMediaCount = normalizeCount(profile.mediaCount);
+  const mediaCount = Math.max(explicitMediaCount, photosCount + videosCount);
 
-  const photoBase = hasRealPhoto(profile.photoURL) ? 0.72 : 0;
+  const photoBase = hasRealPhoto(profile.photoURL) ? 0.58 : 0;
+  const photoBoost = clamp01(photosCount / 6) * 0.24;
+  const videoBoost = clamp01(videosCount / 3) * 0.18;
+  const mediaBoost = clamp01(mediaCount / 8) * 0.22;
 
-  if (mediaCount === null || !Number.isFinite(mediaCount)) {
-    return photoBase;
-  }
-
-  const mediaBoost = clamp01(mediaCount / 6) * 0.28;
-
-  return clamp01(photoBase + mediaBoost);
+  return clamp01(photoBase + photoBoost + videoBoost + mediaBoost);
 }
 
 function scoreDistance(
@@ -348,10 +332,6 @@ function scoreDistance(
 ): number {
   const distance = profile.distanciaKm;
 
-  /**
-   * No "Todos", ausência de distância é neutra-baixa, não eliminação.
-   * Isso evita punir perfis válidos quando localização não estiver disponível.
-   */
   if (typeof distance !== 'number' || !Number.isFinite(distance)) {
     return 0.45;
   }
@@ -435,27 +415,32 @@ function scoreOnline(profile: DiscoveryScoreProfileLike): number {
 }
 
 function scoreCompatibility(profile: DiscoveryScoreProfileLike): number {
-  /**
-   * Compatibilidade ainda é futura.
-   * Quando existir, pode vir como 0..1 ou 0..100.
-   * Sem dado, retorna neutro.
-   */
   return normalizeOptionalScore(profile.compatibilityScore, 0.5);
 }
 
 function scoreEngagement(profile: DiscoveryScoreProfileLike): number {
-  /**
-   * Engajamento ainda é futuro.
-   * Exemplo futuro:
-   * - visitas recentes;
-   * - curtidas;
-   * - respostas;
-   * - fotos publicadas;
-   * - perfil favoritado.
-   *
-   * Sem dado, retorna neutro.
-   */
-  return normalizeOptionalScore(profile.engagementScore, 0.5);
+  const explicit = normalizeOptionalScore(profile.engagementScore, Number.NaN);
+
+  if (Number.isFinite(explicit)) {
+    return explicit;
+  }
+
+  const views = normalizeCount(profile.viewsCount);
+  const likes = normalizeCount(profile.likesCount);
+  const media = Math.max(
+    normalizeCount(profile.mediaCount),
+    normalizeCount(profile.photosCount) + normalizeCount(profile.videosCount)
+  );
+
+  const viewScore = clamp01(Math.log10(views + 1) / 4);
+  const likeScore = clamp01(Math.log10(likes + 1) / 3);
+  const mediaScore = clamp01(media / 10);
+
+  if (!views && !likes && !media) {
+    return 0.5;
+  }
+
+  return clamp01(viewScore * 0.45 + likeScore * 0.35 + mediaScore * 0.2);
 }
 
 function stableUidTieBreaker(uid: string | null | undefined): number {
