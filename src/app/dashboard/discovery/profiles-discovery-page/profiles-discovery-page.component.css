@@ -7,8 +7,7 @@
    Objetivos:
    - alinhar barra de modos e cards no mesmo corredor visual;
    - evitar corte lateral em resoluções médias;
-   - manter o visual limpo, mobile-first e compatível com dark/high contrast;
-   - orientar o usuário antes da lista sem criar hero pesado;
+   - manter visual limpo, mobile-first e compatível com dark/high contrast;
    - preservar a lógica atual: Todos = public_profiles + score + presença opcional.
 ----------------------------------------------------------------------------- */
 
@@ -19,8 +18,8 @@
 
   --discovery-content-max: min(100%, 920px);
   --discovery-inline-padding: clamp(0.75rem, 2vw, 1.35rem);
-  --discovery-top-padding: clamp(0.7rem, 1.7vw, 1.15rem);
-  --discovery-gap: clamp(0.8rem, 1.8vw, 1.15rem);
+  --discovery-top-padding: clamp(0.45rem, 1.1vw, 0.8rem);
+  --discovery-gap: clamp(0.65rem, 1.4vw, 0.95rem);
 
   --discovery-surface: color-mix(in oklab, var(--surface-color) 94%, transparent);
   --discovery-border: color-mix(in oklab, var(--surface-border) 88%, transparent);
@@ -54,10 +53,6 @@
   gap: var(--discovery-gap);
 }
 
-/*
-  Intro, topbar e conteúdo usam a mesma largura máxima.
-  Isso corrige desalinhamento visual entre orientação, barra e cards.
-*/
 .profiles-discovery-page__intro,
 .profiles-discovery-page__topbar,
 .profiles-discovery-page__content {
@@ -67,45 +62,17 @@
 }
 
 .profiles-discovery-page__intro {
-  display: grid;
-  gap: 0.28rem;
-
-  padding: 0.25rem 0 0.05rem;
-}
-
-.profiles-discovery-page__eyebrow,
-.profiles-discovery-page__title,
-.profiles-discovery-page__description {
-  margin: 0;
-}
-
-.profiles-discovery-page__eyebrow {
-  color: var(--primary-color);
-
-  font-size: 0.74rem;
-  font-weight: 780;
-  letter-spacing: 0.08em;
-  line-height: 1.2;
-  text-transform: uppercase;
+  padding: 0;
 }
 
 .profiles-discovery-page__title {
+  margin: 0;
+
   color: var(--text-color);
-
-  font-size: clamp(1.18rem, 3vw, 1.62rem);
+  font-size: clamp(1.05rem, 2.4vw, 1.32rem);
   font-weight: 820;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.03em;
   line-height: 1.08;
-}
-
-.profiles-discovery-page__description {
-  max-width: 48rem;
-
-  color: color-mix(in oklab, var(--text-color) 72%, transparent);
-
-  font-size: clamp(0.88rem, 1.8vw, 0.98rem);
-  font-weight: 560;
-  line-height: 1.38;
 }
 
 .profiles-discovery-page__topbar {
@@ -115,7 +82,7 @@
 
   overflow: visible;
 
-  padding: 0.18rem 0;
+  padding: 0.08rem 0;
   background: transparent;
 }
 
@@ -170,20 +137,16 @@
   :host {
     --discovery-content-max: 100%;
     --discovery-inline-padding: 0.72rem;
-    --discovery-top-padding: 0.55rem;
+    --discovery-top-padding: 0.45rem;
   }
 
   .profiles-discovery-page {
     padding-bottom: 1.25rem;
   }
 
-  .profiles-discovery-page__intro {
-    padding-top: 0.1rem;
-  }
-
   .profiles-discovery-page__topbar {
     top: 0;
-    padding-block: 0.08rem;
+    padding-block: 0.04rem;
   }
 }
 
