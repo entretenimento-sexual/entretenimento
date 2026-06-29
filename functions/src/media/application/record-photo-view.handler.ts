@@ -4,6 +4,7 @@
 // -----------------------------------------------------------------------------
 // Registra visualizações públicas de fotos via backend confiável.
 // O cliente não escreve viewsCount/viewScore diretamente na projeção pública.
+// -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
@@ -75,6 +76,7 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
 
     const now = Date.now();
 
+    const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
     const publicPhotoRef = db.doc(`public_profiles/${ownerUid}/public_photos/${photoId}`);
     const viewerRef = publicPhotoRef.collection('views').doc(viewerUid);
 
@@ -131,6 +133,19 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
           lastViewedAt: now,
           viewScore,
           updatedAt: now,
+        },
+        { merge: true }
+      );
+
+      transaction.set(
+        publicProfileRef,
+        {
+          viewsCount: FieldValue.increment(1),
+          profileViewsCount: FieldValue.increment(1),
+          uniqueViewersCount: FieldValue.increment(isUniqueView ? 1 : 0),
+          lastViewedAt: now,
+          mediaMetricsUpdatedAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         },
         { merge: true }
       );
