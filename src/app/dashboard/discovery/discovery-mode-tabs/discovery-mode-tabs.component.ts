@@ -6,16 +6,12 @@
 // Barra compacta de modos de descoberta.
 //
 // Responsabilidade:
-// - renderizar os modos;
+// - renderizar modos disponíveis;
 // - emitir mudança de modo;
-// - exibir tooltip acessível quando o modo precisar de explicação;
 // - não consultar Firestore;
 // - não decidir regra de ranking;
 // - não criar layout paralelo.
-//
-// Observação:
-// - modos desabilitados permanecem visíveis para comunicar evolução,
-//   mas não são clicáveis.
+
 import {
   ChangeDetectionStrategy,
   Component,
@@ -48,10 +44,6 @@ export class DiscoveryModeTabsComponent {
     if (tab.disabled) return;
 
     this.modeChange.emit(tab.id);
-  }
-
-  tooltipId(tab: DiscoveryModeTab): string {
-    return `discovery-tab-tooltip-${tab.id}`;
   }
 
   trackTab(_: number, tab: DiscoveryModeTab): DiscoveryMode {
