@@ -3,10 +3,7 @@
 // PROFILE DISCOVERY NORMALIZATION
 // -----------------------------------------------------------------------------
 // Normalização canônica de gênero/orientação/interesses para descoberta.
-//
-// Esta camada roda no backend e deve ser a fonte confiável para futuros índices,
-// filtros e elegibilidade de descoberta. Não decide UI e não consulta Firestore.
-// Mantém o padrão ESLint das Functions: aspas simples.
+// Esta camada roda no backend e deve ser a fonte confiável para futuros índices.
 // -----------------------------------------------------------------------------
 
 export type NormalizedDiscoveryGender =
@@ -134,10 +131,7 @@ export function normalizeDiscoveryOrientation(
     return 'bisexual';
   }
 
-  if (
-    text === 'pansexual' ||
-    text === 'pan'
-  ) {
+  if (text === 'pansexual' || text === 'pan') {
     return 'pansexual';
   }
 
@@ -148,36 +142,15 @@ function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
   const text = normalizeText(value).replace(/_/g, '-');
   const genders: NormalizedDiscoveryGender[] = [];
 
-  if (
-    /\bhomem\b/.test(text) ||
-    /\bhomens\b/.test(text) ||
-    /\bmasculino\b/.test(text) ||
-    /\bmale\b/.test(text) ||
-    /\bmen\b/.test(text)
-  ) {
+  if (/\bhomem\b/.test(text) || /\bhomens\b/.test(text) || /\bmasculino\b/.test(text) || /\bmale\b/.test(text) || /\bmen\b/.test(text)) {
     genders.push('man');
   }
 
-  if (
-    /\bmulher\b/.test(text) ||
-    /\bmulheres\b/.test(text) ||
-    /\bfeminino\b/.test(text) ||
-    /\bfemale\b/.test(text) ||
-    /\bwomen\b/.test(text)
-  ) {
+  if (/\bmulher\b/.test(text) || /\bmulheres\b/.test(text) || /\bfeminino\b/.test(text) || /\bfemale\b/.test(text) || /\bwomen\b/.test(text)) {
     genders.push('woman');
   }
 
-  if (
-    /\bcasal\b/.test(text) ||
-    /\bcasais\b/.test(text) ||
-    /\bcouple\b/.test(text) ||
-    /\bcouples\b/.test(text) ||
-    /\bdupla\b/.test(text) ||
-    /\bcasal-ele-ele\b/.test(text) ||
-    /\bcasal-ele-ela\b/.test(text) ||
-    /\bcasal-ela-ela\b/.test(text)
-  ) {
+  if (/\bcasal\b/.test(text) || /\bcasais\b/.test(text) || /\bcouple\b/.test(text) || /\bcouples\b/.test(text) || /\bdupla\b/.test(text) || /\bcasal-ele-ele\b/.test(text) || /\bcasal-ele-ela\b/.test(text) || /\bcasal-ela-ela\b/.test(text)) {
     genders.push('couple');
   }
 
@@ -188,39 +161,19 @@ function orientationsFromFreeText(value: unknown): NormalizedDiscoveryOrientatio
   const text = normalizeText(value);
   const orientations: NormalizedDiscoveryOrientation[] = [];
 
-  if (
-    /\bhetero\b/.test(text) ||
-    /\bheteros\b/.test(text) ||
-    /\bheterossexual\b/.test(text) ||
-    /\bheterosexual\b/.test(text) ||
-    /\bstraight\b/.test(text)
-  ) {
+  if (/\bhetero\b/.test(text) || /\bheteros\b/.test(text) || /\bheterossexual\b/.test(text) || /\bheterosexual\b/.test(text) || /\bstraight\b/.test(text)) {
     orientations.push('heterosexual');
   }
 
-  if (
-    /\bhomo\b/.test(text) ||
-    /\bhomossexual\b/.test(text) ||
-    /\bhomosexual\b/.test(text) ||
-    /\bgay\b/.test(text) ||
-    /\blesbica\b/.test(text) ||
-    /\blesbian\b/.test(text)
-  ) {
+  if (/\bhomo\b/.test(text) || /\bhomossexual\b/.test(text) || /\bhomosexual\b/.test(text) || /\bgay\b/.test(text) || /\blesbica\b/.test(text) || /\blesbian\b/.test(text)) {
     orientations.push('homosexual');
   }
 
-  if (
-    /\bbi\b/.test(text) ||
-    /\bbissexual\b/.test(text) ||
-    /\bbisexual\b/.test(text)
-  ) {
+  if (/\bbi\b/.test(text) || /\bbissexual\b/.test(text) || /\bbisexual\b/.test(text)) {
     orientations.push('bisexual');
   }
 
-  if (
-    /\bpan\b/.test(text) ||
-    /\bpansexual\b/.test(text)
-  ) {
+  if (/\bpan\b/.test(text) || /\bpansexual\b/.test(text)) {
     orientations.push('pansexual');
   }
 
@@ -284,6 +237,24 @@ function acceptedTargetGendersByOrientation(
   return [];
 }
 
+function acceptedTargetOrientationsByOrientation(
+  selfOrientation: NormalizedDiscoveryOrientation
+): readonly NormalizedDiscoveryOrientation[] {
+  if (selfOrientation === 'homosexual') {
+    return ['homosexual', 'bisexual', 'pansexual'];
+  }
+
+  if (selfOrientation === 'heterosexual') {
+    return ['heterosexual', 'bisexual', 'pansexual'];
+  }
+
+  if (selfOrientation === 'bisexual' || selfOrientation === 'pansexual') {
+    return ['heterosexual', 'homosexual', 'bisexual', 'pansexual'];
+  }
+
+  return [];
+}
+
 export function normalizeProfileDiscoveryFields(
   source: ProfileDiscoverySource | null | undefined
 ): CanonicalProfileDiscoveryFields {
@@ -308,6 +279,7 @@ export function normalizeProfileDiscoveryFields(
     source?.interestedInOrientations ?? source?.orientacoesDeInteresse
   );
   const preferenceOrientations = normalizeOrientationList(source?.preferences ?? source?.preferencias);
+  const fallbackOrientations = acceptedTargetOrientationsByOrientation(normalizedOrientation);
 
   const interestedInGenders = explicitGenders.length
     ? explicitGenders
@@ -317,7 +289,9 @@ export function normalizeProfileDiscoveryFields(
 
   const interestedInOrientations = explicitOrientations.length
     ? explicitOrientations
-    : preferenceOrientations;
+    : preferenceOrientations.length
+      ? preferenceOrientations
+      : fallbackOrientations;
 
   return {
     normalizedGender,
