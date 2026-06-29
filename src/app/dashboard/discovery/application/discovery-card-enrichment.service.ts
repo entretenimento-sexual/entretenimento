@@ -2,31 +2,8 @@
 // -----------------------------------------------------------------------------
 // DiscoveryCardEnrichmentService
 // -----------------------------------------------------------------------------
-//
 // Camada genérica de enriquecimento de cards de descoberta.
-//
-// Responsabilidade:
-// - transformar perfis públicos brutos em cards prontos para exibição;
-// - enriquecer com presença online opcional;
-// - calcular distância quando houver coordenadas;
-// - aplicar elegibilidade por modo;
-// - aplicar filtro de raio quando o modo exigir localização;
-// - calcular score/ranking;
-// - ordenar de forma estável;
-// - remover o próprio usuário.
-//
-// Por que existe:
-// - evita que "Todos", "Online", "Perto", "Região", "Recentes",
-//   "Bombando" e "Compatíveis" tenham pipelines diferentes;
-// - impede regressões como: Todos mostra distância, Online não;
-// - mantém UserCardComponent apenas como componente visual.
-//
-// Não faz:
-// - não consulta Firestore;
-// - não acessa NgRx;
-// - não pede localização ao navegador;
-// - não persiste nada;
-// - não decide layout.
+// -----------------------------------------------------------------------------
 
 import { Injectable, inject, isDevMode } from '@angular/core';
 
@@ -63,39 +40,12 @@ import { evaluateProfileCompatibility, ProfileCompatibilityResult } from 'src/ap
 
 export interface DiscoveryCardEnrichmentInput {
   profiles: readonly IUserDados[];
-
   currentUser: IUserDados | null;
-
-  /**
-   * Pode ser informado explicitamente.
-   * Se ausente, usamos currentUser.uid.
-   */
   currentUid?: string | null;
-
   mode?: DiscoveryMode | null;
-
-  /**
-   * Raio visual/funcional.
-   * Só elimina candidatos quando o modo exige localização.
-   */
   capKm?: number | null;
-
-  /**
-   * Fallback quando o currentUser ainda não tem coordenadas no perfil,
-   * mas o componente já tem uma localização local segura.
-   */
   fallbackLocation?: SafeGeoCoordinates | null;
-
-  /**
-   * Mapa opcional de presença.
-   * Quando fornecido, enriquece isOnline/lastSeen.
-   */
   onlinePresenceByUid?: Map<string, IUserDados> | null;
-
-  /**
-   * Permite desligar a elegibilidade em algum teste/fase futura.
-   * Por padrão, fica ligada.
-   */
   applyVisibility?: boolean;
 }
 
@@ -166,10 +116,7 @@ export class DiscoveryCardEnrichmentService {
         return false;
       }
 
-      if (
-        mode === 'compatible' &&
-        this.isIncompatibleForCompatibleMode(profile)
-      ) {
+      if (mode === 'compatible' && this.isIncompatibleForCompatibleMode(profile)) {
         rejected.push({
           uid: profile.uid ?? null,
           nickname: profile.nickname ?? null,
@@ -179,10 +126,7 @@ export class DiscoveryCardEnrichmentService {
         return false;
       }
 
-      if (
-        mode === 'all' &&
-        profile.compatibilityScore === 0
-      ) {
+      if (mode === 'all' && profile.compatibilityScore === 0) {
         rejected.push({
           uid: profile.uid ?? null,
           nickname: profile.nickname ?? null,
@@ -193,9 +137,7 @@ export class DiscoveryCardEnrichmentService {
       }
 
       if (applyVisibility) {
-        const reason = getPublicDiscoveryProfileRejectionReason(profile as any, {
-          mode,
-        });
+        const reason = getPublicDiscoveryProfileRejectionReason(profile as any, { mode });
 
         if (reason !== null) {
           rejected.push({
@@ -208,10 +150,7 @@ export class DiscoveryCardEnrichmentService {
         }
       }
 
-      if (
-        discoveryModeRequiresLocation(mode) &&
-        !this.isInsideRadius(profile, capKm)
-      ) {
+      if (discoveryModeRequiresLocation(mode) && !this.isInsideRadius(profile, capKm)) {
         rejected.push({
           uid: profile.uid ?? null,
           nickname: profile.nickname ?? null,
@@ -345,35 +284,12 @@ export class DiscoveryCardEnrichmentService {
     return {
       ...profile,
       isOnline: anyPresence.isOnline === true,
-      lastSeen:
-        anyPresence.lastSeen ??
-        (profile as any).lastSeen ??
-        null,
-
-      lastOnlineAt:
-        anyPresence.lastOnlineAt ??
-        (profile as any).lastOnlineAt ??
-        null,
-
-      lastOfflineAt:
-        anyPresence.lastOfflineAt ??
-        (profile as any).lastOfflineAt ??
-        null,
-
-      lastStateChangeAt:
-        anyPresence.lastStateChangeAt ??
-        (profile as any).lastStateChangeAt ??
-        null,
-
-      presenceState:
-        anyPresence.presenceState ??
-        (profile as any).presenceState ??
-        null,
-
-      presenceSessionId:
-        anyPresence.presenceSessionId ??
-        (profile as any).presenceSessionId ??
-        null,
+      lastSeen: anyPresence.lastSeen ?? (profile as any).lastSeen ?? null,
+      lastOnlineAt: anyPresence.lastOnlineAt ?? (profile as any).lastOnlineAt ?? null,
+      lastOfflineAt: anyPresence.lastOfflineAt ?? (profile as any).lastOfflineAt ?? null,
+      lastStateChangeAt: anyPresence.lastStateChangeAt ?? (profile as any).lastStateChangeAt ?? null,
+      presenceState: anyPresence.presenceState ?? (profile as any).presenceState ?? null,
+      presenceSessionId: anyPresence.presenceSessionId ?? (profile as any).presenceSessionId ?? null,
     } as PublicProfileCard;
   }
 
@@ -419,10 +335,7 @@ export class DiscoveryCardEnrichmentService {
   }
 
   private normalizeCapKm(value: number | null | undefined): number {
-    const n =
-      typeof value === 'number' && Number.isFinite(value)
-        ? value
-        : 20;
+    const n = typeof value === 'number' && Number.isFinite(value) ? value : 20;
 
     return Math.max(1, n);
   }
@@ -447,9 +360,7 @@ export class DiscoveryCardEnrichmentService {
       uid,
       nickname,
 
-      nicknameNormalized:
-        this.toNullableText(anyUser.nicknameNormalized) ??
-        nickname.toLowerCase(),
+      nicknameNormalized: this.toNullableText(anyUser.nicknameNormalized) ?? nickname.toLowerCase(),
 
       photoURL:
         this.toNullableText(anyUser.photoURL) ??
@@ -457,9 +368,7 @@ export class DiscoveryCardEnrichmentService {
         this.toNullableText(anyUser.avatarUrl) ??
         this.toNullableText(anyUser.avatarURL),
 
-      gender:
-        this.toNullableText(anyUser.gender) ??
-        this.toNullableText(anyUser.genero),
+      gender: this.toNullableText(anyUser.gender) ?? this.toNullableText(anyUser.genero),
 
       orientation:
         this.toNullableText(anyUser.orientation) ??
@@ -467,11 +376,8 @@ export class DiscoveryCardEnrichmentService {
         this.toNullableText(anyUser.orientacao) ??
         this.toNullableText(anyUser.orientacaoSexual),
 
-      normalizedGender:
-        this.toNullableText(anyUser.normalizedGender),
-
-      normalizedOrientation:
-        this.toNullableText(anyUser.normalizedOrientation),
+      normalizedGender: this.toNullableText(anyUser.normalizedGender),
+      normalizedOrientation: this.toNullableText(anyUser.normalizedOrientation),
 
       compatibilityReady:
         typeof anyUser.compatibilityReady === 'boolean'
@@ -488,23 +394,23 @@ export class DiscoveryCardEnrichmentService {
         this.toNullableText(anyUser.orientation2) ??
         this.toNullableText(anyUser.orientacaoParceiro2),
 
-        preferences: Array.isArray(anyUser.preferences)
-          ? anyUser.preferences
-          : Array.isArray(anyUser.preferencias)
-            ? anyUser.preferencias
-            : null,
+      preferences: Array.isArray(anyUser.preferences)
+        ? anyUser.preferences
+        : Array.isArray(anyUser.preferencias)
+          ? anyUser.preferencias
+          : null,
 
-        interestedInGenders: Array.isArray(anyUser.interestedInGenders)
-          ? anyUser.interestedInGenders
-          : Array.isArray(anyUser.generosDeInteresse)
-            ? anyUser.generosDeInteresse
-            : null,
+      interestedInGenders: Array.isArray(anyUser.interestedInGenders)
+        ? anyUser.interestedInGenders
+        : Array.isArray(anyUser.generosDeInteresse)
+          ? anyUser.generosDeInteresse
+          : null,
 
-        interestedInOrientations: Array.isArray(anyUser.interestedInOrientations)
-          ? anyUser.interestedInOrientations
-          : Array.isArray(anyUser.orientacoesDeInteresse)
-            ? anyUser.orientacoesDeInteresse
-            : null,
+      interestedInOrientations: Array.isArray(anyUser.interestedInOrientations)
+        ? anyUser.interestedInOrientations
+        : Array.isArray(anyUser.orientacoesDeInteresse)
+          ? anyUser.orientacoesDeInteresse
+          : null,
 
       estado:
         this.toNullableText(anyUser.estado) ??
@@ -516,9 +422,7 @@ export class DiscoveryCardEnrichmentService {
         this.toNullableText(anyUser.cidade) ??
         this.toNullableText(anyUser.city),
 
-      role:
-        this.toNullableText(anyUser.role) ??
-        'free',
+      role: this.toNullableText(anyUser.role) ?? 'free',
 
       latitude: coords?.latitude ?? null,
       longitude: coords?.longitude ?? null,
@@ -532,6 +436,13 @@ export class DiscoveryCardEnrichmentService {
 
       createdAt: anyUser.createdAt ?? null,
       updatedAt: anyUser.updatedAt ?? null,
+
+      mediaCount: this.toNullableNumber(anyUser.mediaCount ?? anyUser.publicMediaCount),
+      photosCount: this.toNullableNumber(anyUser.photosCount ?? anyUser.publicPhotosCount),
+      videosCount: this.toNullableNumber(anyUser.videosCount ?? anyUser.publicVideosCount),
+      viewsCount: this.toNullableNumber(anyUser.viewsCount ?? anyUser.profileViewsCount ?? anyUser.profileViews),
+      likesCount: this.toNullableNumber(anyUser.likesCount ?? anyUser.publicLikesCount),
+      engagementScore: this.toNullableNumber(anyUser.engagementScore),
     } as PublicProfileCard;
   }
 
@@ -543,5 +454,13 @@ export class DiscoveryCardEnrichmentService {
     const text = value.trim();
 
     return text.length ? text : null;
+  }
+
+  private toNullableNumber(value: unknown): number | null {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return null;
+    }
+
+    return Math.max(0, value);
   }
 }
