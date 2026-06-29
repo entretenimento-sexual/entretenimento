@@ -6,22 +6,38 @@
 /* ============ HEADER ============ */
 .header {
   display: grid;
-  grid-template-columns: 56px 1fr;
-  gap: 12px;
+  grid-template-columns: 60px 1fr;
+  gap: 14px;
   align-items: center;
-  padding: 12px 14px 8px;
-  background: color-mix(in oklab, var(--primary-color) 10%, var(--surface-color));
-  border-top-left-radius: 12px;
-  border-top-right-radius: 12px;
+  padding: 16px 18px 12px;
+
+  background:
+    radial-gradient(
+      circle at 0% 0%,
+      color-mix(in oklab, var(--primary-color) 24%, transparent),
+      transparent 46%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in oklab, var(--surface-color) 88%, var(--primary-color) 12%),
+      var(--surface-color)
+    );
+
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
 }
 
 .avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
-  border: 1px solid var(--surface-border);
+
+  box-shadow:
+    0 10px 24px rgba(15, 23, 42, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+
+  border: 1px solid color-mix(in oklab, var(--primary-color) 28%, var(--surface-border));
   background: var(--surface-color);
 }
 
@@ -35,7 +51,7 @@
 .avatar-fallback {
   display: grid;
   place-items: center;
-  background: color-mix(in oklab, Canvas, CanvasText 7%);
+  background: color-mix(in oklab, var(--surface-color), var(--text-color) 7%);
 }
 
 .avatar-fallback mat-icon {
@@ -49,20 +65,28 @@
 .title {
   margin: 0;
   color: var(--text-color);
-  font-size: clamp(1.16rem, 2.5vw, 1.36rem);
-  font-weight: 850;
-  line-height: 1.18;
+
+  font-size: clamp(1.16rem, 2.5vw, 1.38rem);
+  font-weight: 900;
+  line-height: 1.16;
+  letter-spacing: -0.025em;
 }
 
 .nick {
+  max-width: 100%;
+  display: inline-block;
+  vertical-align: bottom;
+
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+
+  color: color-mix(in oklab, var(--primary-color) 88%, var(--text-color));
 }
 
 /* ============ CONTENT ============ */
 .content {
-  padding: 14px 18px 8px;
+  padding: 16px 18px 10px;
   overflow: visible;
   background: var(--surface-color);
 }
@@ -92,7 +116,7 @@
 }
 
 .content .mat-mdc-text-field-wrapper {
-  border-radius: 12px !important;
+  border-radius: 14px !important;
 }
 
 .content .mat-mdc-form-field mat-label,
@@ -144,29 +168,32 @@ mat-hint.warn {
 
 /* nota de política */
 .policy {
-  margin-top: 8px;
+  margin-top: 10px;
   display: inline-flex;
-  gap: 7px;
-  align-items: center;
+  gap: 8px;
+  align-items: flex-start;
   max-width: 100%;
-  padding: 7px 9px;
-  border: 1px solid color-mix(in oklab, var(--surface-border) 78%, transparent);
-  border-radius: 12px;
-  background: color-mix(in oklab, var(--surface-color) 92%, var(--text-color) 4%);
-  color: color-mix(in oklab, var(--text-color) 76%, transparent);
-  font-size: 0.78rem;
-  font-weight: 700;
+  padding: 9px 11px;
+
+  border: 1px solid color-mix(in oklab, var(--primary-color) 24%, var(--surface-border));
+  border-radius: 14px;
+
+  background: color-mix(in oklab, var(--primary-color) 9%, var(--surface-color));
+  color: color-mix(in oklab, var(--text-color) 80%, transparent);
+
+  font-size: 0.79rem;
+  font-weight: 760;
   line-height: 1.35;
 }
 
 .policy .i {
   flex: 0 0 auto;
-  width: 17px;
-  height: 17px;
-  color: currentColor;
-  font-size: 17px;
-  line-height: 17px;
-  opacity: .88;
+  width: 18px;
+  height: 18px;
+  color: color-mix(in oklab, var(--primary-color) 86%, var(--text-color));
+  font-size: 18px;
+  line-height: 18px;
+  opacity: .95;
 }
 
 /* divider & ícones */
@@ -181,24 +208,27 @@ mat-icon {
 
 /* ============ ACTIONS ============ */
 .actions {
-  gap: 8px;
-  padding: 8px 14px 12px;
+  gap: 10px;
+  padding: 10px 18px 16px;
+
   background: var(--surface-color);
-  border-bottom-left-radius: 12px;
-  border-bottom-right-radius: 12px;
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 18px;
 }
 
 .cancel-action {
+  min-height: 42px;
   color: var(--primary-color) !important;
   font-weight: 850;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.02em;
 }
 
 .send-action {
-  min-height: 38px;
-  padding-inline: 18px !important;
+  min-height: 42px;
+  padding-inline: 20px !important;
+  border-radius: 999px !important;
   font-weight: 900;
-  letter-spacing: 0.035em;
+  letter-spacing: 0.02em;
 }
 
 .btn-spinner {
@@ -211,7 +241,17 @@ mat-icon {
 :host-context([data-theme="dark"]) {
 
   .header {
-    background: color-mix(in oklab, var(--primary-color) 18%, var(--surface-color));
+    background:
+      radial-gradient(
+        circle at 0% 0%,
+        color-mix(in oklab, var(--primary-color) 32%, transparent),
+        transparent 48%
+      ),
+      linear-gradient(
+        135deg,
+        color-mix(in oklab, var(--surface-color) 84%, black 16%),
+        color-mix(in oklab, var(--surface-color) 92%, var(--primary-color) 8%)
+      );
     box-shadow: 0 6px 24px rgba(0, 0, 0, .45) inset;
   }
 
@@ -221,12 +261,13 @@ mat-icon {
   }
 
   .avatar-fallback {
-    background: color-mix(in oklab, Canvas, CanvasText 15%);
+    background: color-mix(in oklab, var(--surface-color), var(--text-color) 15%);
   }
 
   .policy {
-    background: color-mix(in oklab, var(--surface-color) 82%, black 10%);
-    color: color-mix(in oklab, var(--text-color) 84%, transparent);
+    background: color-mix(in oklab, var(--primary-color) 11%, var(--surface-color));
+    color: color-mix(in oklab, var(--text-color) 86%, transparent);
+    border-color: color-mix(in oklab, var(--primary-color) 34%, var(--surface-border));
   }
 
   .content .mat-mdc-form-field.mat-mdc-form-field-appearance-fill {
@@ -274,14 +315,14 @@ mat-icon {
   }
 
   .content {
-    padding: 12px 18px 8px;
+    padding: 14px 18px 8px;
   }
 
   .policy {
     display: flex;
     width: 100%;
-    padding: 7px 8px;
-    font-size: 0.77rem;
+    padding: 9px 10px;
+    font-size: 0.78rem;
   }
 
   .actions {
@@ -298,18 +339,18 @@ mat-icon {
 
 @media (max-width: 420px) {
   .header {
-    grid-template-columns: 48px 1fr;
-    padding: 10px 12px 6px;
+    grid-template-columns: 50px 1fr;
+    padding: 12px 14px 8px;
   }
 
   .avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 12px;
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
   }
 
   .title {
-    font-size: 1.22rem;
+    font-size: 1.2rem;
   }
 
   .send-action {
