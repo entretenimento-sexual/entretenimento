@@ -1,10 +1,79 @@
-/* src\app\shared\components-globais\user-card\modal-user-card\modal-user-card.component.css */
+/* src/app/shared/components-globais/user-card/modal-user-card/modal-user-card.component.css */
+.hover-card {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
 .modal-card {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 0.5rem);
   left: 0;
-  background: white;
-  box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
-  padding: 10px;
-  border-radius: 5px;
+  z-index: 30;
+
+  width: min(92vw, 22rem);
+  max-width: 92vw;
+  padding: 0.75rem;
+
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, var(--surface-border, #e5e7eb) 82%, transparent);
+
+  background: var(--surface-color, #ffffff);
+  color: var(--text-color, #111827);
+
+  box-shadow:
+    0 24px 56px rgba(15, 23, 42, 0.18),
+    0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.modal-card::before {
+  content: "";
+  position: absolute;
+  top: -0.42rem;
+  left: 1.2rem;
+
+  width: 0.8rem;
+  height: 0.8rem;
+
+  transform: rotate(45deg);
+
+  border-left: 1px solid color-mix(in oklab, var(--surface-border, #e5e7eb) 82%, transparent);
+  border-top: 1px solid color-mix(in oklab, var(--surface-border, #e5e7eb) 82%, transparent);
+
+  background: var(--surface-color, #ffffff);
+}
+
+:host-context(.dark-mode) .modal-card,
+html.dark-mode .modal-card {
+  background: color-mix(in oklab, var(--surface-color, #111827) 90%, #000 10%);
+  color: var(--text-color, #f9fafb);
+  border-color: color-mix(in oklab, var(--surface-border, #374151) 72%, #ffffff 8%);
+
+  box-shadow:
+    0 28px 68px rgba(0, 0, 0, 0.42),
+    0 8px 22px rgba(0, 0, 0, 0.28);
+}
+
+:host-context(.dark-mode) .modal-card::before,
+html.dark-mode .modal-card::before {
+  background: color-mix(in oklab, var(--surface-color, #111827) 90%, #000 10%);
+  border-color: color-mix(in oklab, var(--surface-border, #374151) 72%, #ffffff 8%);
+}
+
+@media (max-width: 560px) {
+  .hover-card {
+    display: block;
+    width: 100%;
+  }
+
+  .modal-card {
+    position: static;
+    width: 100%;
+    max-width: 100%;
+    margin-top: 0.75rem;
+  }
+
+  .modal-card::before {
+    display: none;
+  }
 }
