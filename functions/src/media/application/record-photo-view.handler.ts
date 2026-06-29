@@ -74,6 +74,14 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
       throw new HttpsError('invalid-argument', 'Foto inválida.');
     }
 
+    if (viewerUid === ownerUid) {
+      return {
+        ok: true,
+        ownerUid,
+        photoId,
+      };
+    }
+
     const now = Date.now();
 
     const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
