@@ -203,13 +203,13 @@
     @if (relationship.canMessage) {
       <button
         type="button"
-        class="user-card__action user-card__action--primary"
+        class="btn btn-primary"
         (click)="abrirDM($event)"
         [attr.aria-label]="'Conversar com ' + (profile.nickname || 'usuário')"
         title="Conversar"
       >
         <i class="fas fa-paper-plane" aria-hidden="true"></i>
-        <span class="sr-only">Conversar</span>
+        <span>Conversar</span>
       </button>
 <button
   type="button"
@@ -239,23 +239,23 @@
 
     } @else if (relationship.canRespond) {
       <a
-        class="user-card__action user-card__action--primary"
+        class="btn btn-primary"
         routerLink="/friends/requests"
         [attr.aria-label]="'Responder interesse de ' + (profile.nickname || 'usuário')"
         title="Responder interesse"
       >
         <i class="fas fa-user-check" aria-hidden="true"></i>
-        <span class="sr-only">Responder interesse</span>
+        <span>Responder</span>
       </a>
 } @else if (relationship.state === 'outgoing_pending') {
   <a
-    class="user-card__action user-card__action--pending"
+    class="btn btn-secondary"
     routerLink="/friends/requests"
     [attr.aria-label]="'Interesse enviado para ' + (profile.nickname || 'usuário') + '. Aguardando resposta.'"
     title="Aguardando resposta"
   >
     <i class="fas fa-clock" aria-hidden="true"></i>
-    <span class="sr-only">Aguardando resposta</span>
+    <span>Aguardando</span>
   </a>
 
   <button
@@ -297,13 +297,13 @@
     } @else if (relationship.canConnect) {
       <button
         type="button"
-        class="user-card__action user-card__action--neutral"
+        class="btn btn-primary"
         (click)="adicionarAmigo()"
         [attr.aria-label]="'Mostrar interesse em ' + (profile.nickname || 'usuário')"
         title="Mostrar interesse"
       >
         <i class="fas fa-user-plus" aria-hidden="true"></i>
-        <span class="sr-only">Mostrar interesse</span>
+        <span>Interesse</span>
       </button>
     }
   </div>
