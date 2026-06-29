@@ -354,6 +354,7 @@ export class FinalizarCadastroComponent implements OnInit {
       .subscribe({
         next: () => {
           this.message = 'Perfil finalizado com sucesso!';
+          this.currentUserStore.patch({ profileCompleted: true });
 
           this.currentUserStore.user$
             .pipe(
