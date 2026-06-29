@@ -5,13 +5,14 @@
 // - separar publicação da biblioteca privada;
 // - ler configuração privada de publicação;
 // - solicitar publicação/despublicação/capa via Cloud Functions;
+// - registrar visualização pública por backend confiável;
 // - manter Observable na API pública;
 // - impedir escrita direta do cliente na projeção pública.
 //
 // Segurança:
 // - cliente não escreve public_profiles/{uid}/public_photos;
 // - cliente não atualiza score/contadores/moderação;
-// - publicação passa pelo backend.
+// - publicação e visualização passam pelo backend.
 
 import { Injectable, inject } from '@angular/core';
 import {
@@ -44,6 +45,8 @@ export interface IPublishPhotoCommand {
   reactionsEnabled?: boolean;
 }
 
+type TRecordPhotoViewSource = 'discover' | 'profile' | 'latest' | 'top' | 'boosted' | 'unknown';
+
 interface PublishPhotoCallableRequest {
   ownerUid: string;
   photoId: string;
@@ -63,6 +66,12 @@ interface PublishPhotoCallableResponse {
 interface PhotoIdCallableRequest {
   ownerUid: string;
   photoId: string;
+}
+
+interface RecordPhotoViewCallableRequest {
+  ownerUid: string;
+  photoId: string;
+  source: TRecordPhotoViewSource;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -298,6 +307,49 @@ export class MediaPublicationService {
         );
 
         return throwError(() => error);
+      })
+    );
+  }
+
+  recordPhotoView$(
+    ownerUid: string,
+    photoId: string,
+    source: TRecordPhotoViewSource = 'profile'
+  ): Observable<void> {
+    const safeOwnerUid = (ownerUid ?? '').trim();
+    const safePhotoId = (photoId ?? '').trim();
+
+    if (!safeOwnerUid || !safePhotoId) {
+      return of(void 0);
+    }
+
+    return this.firestoreCtx.deferPromise$(async () => {
+      const callable = httpsCallable<RecordPhotoViewCallableRequest, { ok: true }>(
+        this.functions,
+        'recordPhotoView'
+      );
+
+      await callable({
+        ownerUid: safeOwnerUid,
+        photoId: safePhotoId,
+        source,
+      });
+    }).pipe(
+      map(() => void 0),
+      catchError((error) => {
+        this.reportError(
+          'Erro ao registrar visualização da foto.',
+          error,
+          {
+            op: 'recordPhotoView$',
+            ownerUid: safeOwnerUid,
+            photoId: safePhotoId,
+            source,
+          },
+          true
+        );
+
+        return of(void 0);
       })
     );
   }
