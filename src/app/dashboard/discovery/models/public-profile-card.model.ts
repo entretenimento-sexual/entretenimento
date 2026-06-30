@@ -46,7 +46,7 @@ export interface PublicProfileCard {
   createdAt?: unknown;
   compatibilityScore?: number | null;
   compatibilityReason?: string | null;
-  preferences?: readonly string[] | null;
-  interestedInGenders?: readonly string[] | null;
-  interestedInOrientations?: readonly string[] | null;
+  preferences?: readonly string[] | string | null;
+  interestedInGenders?: readonly string[] | string | null;
+  interestedInOrientations?: readonly string[] | string | null;
 }
