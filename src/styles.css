@@ -54,6 +54,74 @@ app-user-card .user-card--online.user-card--vip .user-card__topbar {
   justify-content: space-between !important;
 }
 
+/* -----------------------------------------------------------------------------
+   Discovery mobile density
+
+   Ajuste responsivo do card dentro da descoberta:
+   - reduz altura ociosa da foto em telas pequenas;
+   - compacta bloco de metadados sem reduzir alvo de toque;
+   - mantém ações com 44px no mobile.
+----------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  app-public-profiles-list .public-profiles__grid {
+    gap: 0.78rem !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card {
+    border-radius: 20px !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__media {
+    height: clamp(168px, 52vw, 188px) !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__body {
+    gap: 0.46rem !important;
+    padding: 0.74rem 0.78rem 0.82rem !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__summary {
+    gap: 0.12rem !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__meta {
+    font-size: 0.88rem !important;
+    line-height: 1.1 !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__orientation,
+  app-public-profiles-list app-user-card .user-card__location,
+  app-public-profiles-list app-user-card .user-card__distance {
+    font-size: 0.75rem !important;
+    line-height: 1.16 !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__actions {
+    gap: 0.5rem !important;
+    padding-top: 0.02rem !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__action {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  app-public-profiles-list app-user-card .user-card__media {
+    height: clamp(158px, 50vw, 174px) !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__body {
+    padding: 0.68rem 0.72rem 0.78rem !important;
+  }
+
+  app-public-profiles-list app-user-card .user-card__name {
+    font-size: 1rem !important;
+  }
+}
+
 .chat-shell__reply-preview {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 34px;
