@@ -23,6 +23,27 @@
   overflow: hidden !important;
 }
 
+/* -----------------------------------------------------------------------------
+   UserCard / Discovery visual cleanup
+
+   Supressão visual intencional:
+   - selo "Offline";
+   - selo de tier genérico no topo da imagem.
+
+   Motivo:
+   - reduzir ruído repetitivo em descoberta/listagens;
+   - manter a imagem e o nome como protagonistas;
+   - preservar o estado online/offline no texto acessível do card.
+----------------------------------------------------------------------------- */
+app-user-card .user-card__presence--offline,
+app-user-card .user-card__tier {
+  display: none !important;
+}
+
+app-user-card .user-card__topbar {
+  justify-content: flex-start !important;
+}
+
 .chat-shell__reply-preview {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 34px;
