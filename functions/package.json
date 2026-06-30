@@ -18,7 +18,9 @@
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "audit:prod": "npm audit --omit=dev",
+    "audit:all": "npm audit"
   },
   "dependencies": {
     "axios": "^1.13.1",
