@@ -28,20 +28,30 @@
 
    Supressão visual intencional:
    - selo "Offline";
-   - selo de tier genérico no topo da imagem.
+   - selo de tier comum no topo da imagem.
 
-   Motivo:
-   - reduzir ruído repetitivo em descoberta/listagens;
-   - manter a imagem e o nome como protagonistas;
-   - preservar o estado online/offline no texto acessível do card.
+   Preservação:
+   - Online continua visível;
+   - Premium/VIP continuam visíveis como sinal comercial útil;
+   - estado online/offline segue disponível no texto acessível do card.
 ----------------------------------------------------------------------------- */
 app-user-card .user-card__presence--offline,
 app-user-card .user-card__tier {
   display: none !important;
 }
 
+app-user-card .user-card--premium .user-card__tier,
+app-user-card .user-card--vip .user-card__tier {
+  display: inline-flex !important;
+}
+
 app-user-card .user-card__topbar {
   justify-content: flex-start !important;
+}
+
+app-user-card .user-card--online.user-card--premium .user-card__topbar,
+app-user-card .user-card--online.user-card--vip .user-card__topbar {
+  justify-content: space-between !important;
 }
 
 .chat-shell__reply-preview {
