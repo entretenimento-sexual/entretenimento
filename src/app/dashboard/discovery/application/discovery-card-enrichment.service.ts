@@ -126,7 +126,7 @@ export class DiscoveryCardEnrichmentService {
         return false;
       }
 
-      if (mode === 'all' && profile.compatibilityScore === 0) {
+      if (mode === 'all' && this.isClearIncompatibilityForAllMode(profile)) {
         rejected.push({
           uid: profile.uid ?? null,
           nickname: profile.nickname ?? null,
@@ -226,6 +226,14 @@ export class DiscoveryCardEnrichmentService {
       profile.compatibilityScore === 0 ||
       profile.compatibilityReason === 'viewer_data_missing' ||
       profile.compatibilityReason === 'candidate_data_missing';
+  }
+
+  private isClearIncompatibilityForAllMode(profile: PublicProfileCard): boolean {
+    return profile.compatibilityScore === 0 && (
+      profile.compatibilityReason === 'viewer_not_interested' ||
+      profile.compatibilityReason === 'candidate_not_interested' ||
+      profile.compatibilityReason === 'mutual_mismatch'
+    );
   }
 
   private debugCompatibleMode(
