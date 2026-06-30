@@ -53,7 +53,15 @@ function unique<T>(values: readonly T[]): readonly T[] {
 }
 
 function asArray(value: unknown): readonly unknown[] {
-  return Array.isArray(value) ? value : [];
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return [value];
+  }
+
+  return [];
 }
 
 export function normalizeDiscoveryGender(value: unknown): NormalizedDiscoveryGender {
