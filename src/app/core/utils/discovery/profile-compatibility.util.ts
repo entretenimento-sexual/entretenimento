@@ -34,7 +34,11 @@ export interface ProfileCompatibilityLike {
   uid?: string | null;
 
   gender?: string | null;
+  genero?: string | null;
   orientation?: string | null;
+  sexualOrientation?: string | null;
+  orientacao?: string | null;
+  orientacaoSexual?: string | null;
 
   normalizedGender?: string | null;
   normalizedOrientation?: string | null;
@@ -43,9 +47,12 @@ export interface ProfileCompatibilityLike {
   partner1Orientation?: string | null;
   partner2Orientation?: string | null;
 
-  preferences?: readonly string[] | null;
-  interestedInGenders?: readonly string[] | null;
-  interestedInOrientations?: readonly string[] | null;
+  preferences?: readonly string[] | string | null;
+  preferencias?: readonly string[] | string | null;
+  interestedInGenders?: readonly string[] | string | null;
+  generosDeInteresse?: readonly string[] | string | null;
+  interestedInOrientations?: readonly string[] | string | null;
+  orientacoesDeInteresse?: readonly string[] | string | null;
 }
 
 export interface ProfileCompatibilityResult {
@@ -80,7 +87,68 @@ function unique<T>(values: readonly T[]): readonly T[] {
 }
 
 function asArray(value: unknown): readonly unknown[] {
-  return Array.isArray(value) ? value : [];
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    return [value];
+  }
+
+  return [];
+}
+
+function firstPresent(
+  source: ProfileCompatibilityLike | null | undefined,
+  keys: readonly (keyof ProfileCompatibilityLike)[]
+): unknown {
+  if (!source) {
+    return null;
+  }
+
+  for (const key of keys) {
+    const value = source[key];
+
+    if (Array.isArray(value) && value.length > 0) {
+      return value;
+    }
+
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+
+    if (value !== null && value !== undefined && typeof value !== 'string') {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function getGenderValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
+  return firstPresent(profile, ['normalizedGender', 'gender', 'genero']);
+}
+
+function getOrientationValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
+  return firstPresent(profile, [
+    'normalizedOrientation',
+    'orientation',
+    'sexualOrientation',
+    'orientacao',
+    'orientacaoSexual',
+  ]);
+}
+
+function getPreferenceValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
+  return firstPresent(profile, ['preferences', 'preferencias']);
+}
+
+function getInterestedGenderValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
+  return firstPresent(profile, ['interestedInGenders', 'generosDeInteresse']);
+}
+
+function getInterestedOrientationValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
+  return firstPresent(profile, ['interestedInOrientations', 'orientacoesDeInteresse']);
 }
 
 export function normalizeDiscoveryGender(value: unknown): NormalizedDiscoveryGender {
@@ -171,10 +239,7 @@ export function normalizeDiscoveryOrientation(
     return 'bisexual';
   }
 
-  if (
-    text === 'pansexual' ||
-    text === 'pan'
-  ) {
+  if (text === 'pansexual' || text === 'pan') {
     return 'pansexual';
   }
 
@@ -313,16 +378,15 @@ function acceptedTargetOrientationsByOrientation(
 function resolveInterest(
   profile: ProfileCompatibilityLike | null | undefined
 ): NormalizedInterest {
-  const explicitGenders = normalizeGenderList(profile?.interestedInGenders);
-  const explicitOrientations = normalizeOrientationList(profile?.interestedInOrientations);
+  const explicitGenders = normalizeGenderList(getInterestedGenderValue(profile));
+  const explicitOrientations = normalizeOrientationList(getInterestedOrientationValue(profile));
 
-  const preferenceGenders = normalizeGenderList(profile?.preferences);
-  const preferenceOrientations = normalizeOrientationList(profile?.preferences);
+  const preferences = getPreferenceValue(profile);
+  const preferenceGenders = normalizeGenderList(preferences);
+  const preferenceOrientations = normalizeOrientationList(preferences);
 
-  const selfGender = normalizeDiscoveryGender(profile?.normalizedGender ?? profile?.gender);
-  const selfOrientation = normalizeDiscoveryOrientation(
-    profile?.normalizedOrientation ?? profile?.orientation
-  );
+  const selfGender = normalizeDiscoveryGender(getGenderValue(profile));
+  const selfOrientation = normalizeDiscoveryOrientation(getOrientationValue(profile));
   const fallbackGenders = acceptedTargetGendersByOrientation(selfGender, selfOrientation);
   const fallbackOrientations = acceptedTargetOrientationsByOrientation(selfOrientation);
 
@@ -436,17 +500,11 @@ export function evaluateProfileCompatibility(
   viewer: ProfileCompatibilityLike | null | undefined,
   candidate: ProfileCompatibilityLike | null | undefined
 ): ProfileCompatibilityResult {
-  const viewerGender = normalizeDiscoveryGender(viewer?.normalizedGender ?? viewer?.gender);
-  const viewerOrientation = normalizeDiscoveryOrientation(
-    viewer?.normalizedOrientation ?? viewer?.orientation
-  );
+  const viewerGender = normalizeDiscoveryGender(getGenderValue(viewer));
+  const viewerOrientation = normalizeDiscoveryOrientation(getOrientationValue(viewer));
 
-  const candidateGender = normalizeDiscoveryGender(
-    candidate?.normalizedGender ?? candidate?.gender
-  );
-  const candidateOrientation = normalizeDiscoveryOrientation(
-    candidate?.normalizedOrientation ?? candidate?.orientation
-  );
+  const candidateGender = normalizeDiscoveryGender(getGenderValue(candidate));
+  const candidateOrientation = normalizeDiscoveryOrientation(getOrientationValue(candidate));
 
   const viewerInterest = resolveInterest(viewer);
   const candidateInterest = resolveInterest(candidate);
