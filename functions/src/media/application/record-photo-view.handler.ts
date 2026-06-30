@@ -23,6 +23,8 @@ interface RecordPhotoViewResponse {
   photoId: string;
 }
 
+const VIEW_COUNT_INTERVAL_MS = 5 * 60 * 1000;
+
 function cleanId(value: unknown): string {
   return String(value ?? '').trim();
 }
@@ -41,6 +43,10 @@ function cleanSource(value: unknown): NonNullable<RecordPhotoViewRequest['source
   }
 
   return 'unknown';
+}
+
+function safeNumber(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
 function calculateViewScore(input: {
@@ -108,7 +114,24 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
       }
 
       const viewerSnap = await transaction.get(viewerRef);
+      const viewerData = viewerSnap.data() ?? {};
       const isUniqueView = !viewerSnap.exists;
+      const lastCountedAt = safeNumber(viewerData.lastCountedAt ?? viewerData.lastViewedAt);
+      const canCountView = isUniqueView || now - lastCountedAt >= VIEW_COUNT_INTERVAL_MS;
+
+      if (!canCountView) {
+        transaction.set(
+          viewerRef,
+          {
+            viewerUid,
+            source,
+            lastViewedAt: now,
+          },
+          { merge: true }
+        );
+
+        return;
+      }
 
       const currentViewsCount =
         typeof publicPhoto.viewsCount === 'number' ? publicPhoto.viewsCount : 0;
@@ -165,8 +188,9 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
           source,
           firstViewedAt: isUniqueView
             ? now
-            : viewerSnap.data()?.firstViewedAt ?? now,
+            : viewerData.firstViewedAt ?? now,
           lastViewedAt: now,
+          lastCountedAt: now,
           viewsCount: FieldValue.increment(1),
         },
         { merge: true }
