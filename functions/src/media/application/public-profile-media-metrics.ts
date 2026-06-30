@@ -8,7 +8,7 @@
 
 import { db, FieldValue } from '../../firebaseApp';
 
-interface PublicPhotoMetricDoc {
+interface PublicMediaMetricDoc {
   id?: string;
   url?: string;
   isCover?: boolean;
@@ -30,13 +30,15 @@ function safeNumber(value: unknown): number {
 }
 
 function calculateEngagementScore(input: {
+  mediaCount: number;
   photosCount: number;
+  videosCount: number;
   viewsCount: number;
   uniqueViewersCount: number;
   reactionsCount: number;
 }): number {
   if (
-    input.photosCount === 0 &&
+    input.mediaCount === 0 &&
     input.viewsCount === 0 &&
     input.uniqueViewersCount === 0 &&
     input.reactionsCount === 0
@@ -44,12 +46,13 @@ function calculateEngagementScore(input: {
     return 0;
   }
 
-  const photoScore = Math.min(1, input.photosCount / 8) * 20;
-  const viewScore = Math.min(1, Math.log10(input.viewsCount + 1) / 4) * 35;
-  const uniqueScore = Math.min(1, Math.log10(input.uniqueViewersCount + 1) / 4) * 25;
-  const reactionScore = Math.min(1, Math.log10(input.reactionsCount + 1) / 3) * 20;
+  const mediaScore = Math.min(1, input.mediaCount / 10) * 20;
+  const videoScore = Math.min(1, input.videosCount / 4) * 8;
+  const viewScore = Math.min(1, Math.log10(input.viewsCount + 1) / 4) * 32;
+  const uniqueScore = Math.min(1, Math.log10(input.uniqueViewersCount + 1) / 4) * 24;
+  const reactionScore = Math.min(1, Math.log10(input.reactionsCount + 1) / 3) * 16;
 
-  return Math.round(photoScore + viewScore + uniqueScore + reactionScore);
+  return Math.round(mediaScore + videoScore + viewScore + uniqueScore + reactionScore);
 }
 
 export async function refreshPublicProfileMediaMetrics(ownerUid: string): Promise<void> {
@@ -67,6 +70,7 @@ export async function refreshPublicProfileMediaMetrics(ownerUid: string): Promis
     .get();
 
   let photosCount = 0;
+  const videosCount = 0;
   let viewsCount = 0;
   let uniqueViewersCount = 0;
   let reactionsCount = 0;
@@ -76,7 +80,7 @@ export async function refreshPublicProfileMediaMetrics(ownerUid: string): Promis
   let coverPhotoURL: string | null = null;
 
   publicPhotosSnapshot.docs.forEach((docSnap) => {
-    const photo = docSnap.data() as PublicPhotoMetricDoc;
+    const photo = docSnap.data() as PublicMediaMetricDoc;
 
     photosCount += 1;
     viewsCount += safeNumber(photo.viewsCount);
@@ -90,8 +94,11 @@ export async function refreshPublicProfileMediaMetrics(ownerUid: string): Promis
     }
   });
 
+  const mediaCount = photosCount + videosCount;
   const engagementScore = calculateEngagementScore({
+    mediaCount,
     photosCount,
+    videosCount,
     viewsCount,
     uniqueViewersCount,
     reactionsCount,
@@ -99,9 +106,14 @@ export async function refreshPublicProfileMediaMetrics(ownerUid: string): Promis
 
   await publicProfileRef.set(
     {
+      mediaCount,
+      publicMediaCount: mediaCount,
+
       photosCount,
       publicPhotosCount: photosCount,
-      publicMediaCount: photosCount,
+
+      videosCount,
+      publicVideosCount: videosCount,
 
       viewsCount,
       profileViewsCount: viewsCount,
