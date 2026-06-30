@@ -4,8 +4,7 @@
 // Ajustes desta versão:
 // - mantém leitura somente da projeção pública;
 // - transforma a página em galeria real, não foto gigante;
-// - abre PhotoViewerComponent para reações, comentários e respostas;
-// - registra visualização via Cloud Function segura;
+// - abre PhotoViewerComponent para reações, comentários, respostas e views;
 // - mantém Observable e tratamento centralizado de erro.
 
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
@@ -25,7 +24,6 @@ import {
 } from 'rxjs/operators';
 
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
-import { MediaPublicationService } from 'src/app/core/services/media/media-publication.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
@@ -54,7 +52,6 @@ export class PublicProfilePhotosComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly dialog = inject(MatDialog);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
-  private readonly mediaPublication = inject(MediaPublicationService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
@@ -115,6 +112,7 @@ export class PublicProfilePhotosComponent {
             ownerUid: selected?.ownerUid ?? '',
             items: viewerItems,
             startIndex: safeIndex,
+            source: 'profile',
           },
           autoFocus: false,
           restoreFocus: true,
@@ -125,27 +123,11 @@ export class PublicProfilePhotosComponent {
           panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
           backdropClass: 'photo-viewer-backdrop',
         });
-
-        this.recordPhotoOpen(selected);
       });
   }
 
   trackByPhotoId(_index: number, item: IPublicPhotoItem): string {
     return item.id;
-  }
-
-  private recordPhotoOpen(item: IProfilePhotoItem | null | undefined): void {
-    const ownerUid = (item?.ownerUid ?? '').trim();
-    const photoId = (item?.id ?? '').trim();
-
-    if (!ownerUid || !photoId || item?.moderationStatus !== 'APPROVED') {
-      return;
-    }
-
-    this.mediaPublication
-      .recordPhotoView$(ownerUid, photoId, 'profile')
-      .pipe(take(1))
-      .subscribe();
   }
 
   private toViewerPhotoItem(item: IPublicPhotoItem): IProfilePhotoItem {
