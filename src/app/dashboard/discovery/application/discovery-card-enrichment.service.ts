@@ -394,23 +394,15 @@ export class DiscoveryCardEnrichmentService {
         this.toNullableText(anyUser.orientation2) ??
         this.toNullableText(anyUser.orientacaoParceiro2),
 
-      preferences: Array.isArray(anyUser.preferences)
-        ? anyUser.preferences
-        : Array.isArray(anyUser.preferencias)
-          ? anyUser.preferencias
-          : null,
+      preferences: this.toDiscoveryPreferenceValue(anyUser.preferences ?? anyUser.preferencias),
 
-      interestedInGenders: Array.isArray(anyUser.interestedInGenders)
-        ? anyUser.interestedInGenders
-        : Array.isArray(anyUser.generosDeInteresse)
-          ? anyUser.generosDeInteresse
-          : null,
+      interestedInGenders: this.toDiscoveryPreferenceValue(
+        anyUser.interestedInGenders ?? anyUser.generosDeInteresse
+      ),
 
-      interestedInOrientations: Array.isArray(anyUser.interestedInOrientations)
-        ? anyUser.interestedInOrientations
-        : Array.isArray(anyUser.orientacoesDeInteresse)
-          ? anyUser.orientacoesDeInteresse
-          : null,
+      interestedInOrientations: this.toDiscoveryPreferenceValue(
+        anyUser.interestedInOrientations ?? anyUser.orientacoesDeInteresse
+      ),
 
       estado:
         this.toNullableText(anyUser.estado) ??
@@ -454,6 +446,19 @@ export class DiscoveryCardEnrichmentService {
     const text = value.trim();
 
     return text.length ? text : null;
+  }
+
+  private toDiscoveryPreferenceValue(value: unknown): readonly string[] | string | null {
+    if (Array.isArray(value)) {
+      const items = value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      return items.length ? items : null;
+    }
+
+    return this.toNullableText(value);
   }
 
   private toNullableNumber(value: unknown): number | null {
