@@ -18,6 +18,8 @@
     "appcheck:prod:check": "node -e \"const fs=require('fs');const s=fs.readFileSync('src/environments/environment.prod.ts','utf8');const bad=['prod-recaptcha-v3-site-key','staging-recaptcha-v3-site-key','dev-recaptcha-v3-site-key'];if(bad.some(v=>s.includes(v))){console.error('App Check de produção ainda usa siteKey placeholder. Troque por uma chave real do reCAPTCHA v3.');process.exit(1)}console.log('App Check de produção: siteKey não placeholder.');\"",
     "test": "ng test",
     "functions:build": "npm --prefix functions run build",
+    "functions:audit:prod": "npm --prefix functions run audit:prod",
+    "functions:audit:all": "npm --prefix functions run audit:all",
     "emu:pre": "kill-port 4000 4400 4500 9099 8080 5001 8087 9000 9199 9150 || exit 0",
     "preemu:start": "npm run functions:build",
     "emu:start": "set FIREBASE_EMULATORS_ONLY=auth,firestore,storage,functions,pubsub,database,ui&& node scripts/dev/start-emulator-with-data.mjs",
@@ -44,8 +46,10 @@
     "deploy:prod": "npm run validate:prod && firebase deploy --only hosting,firestore:rules,firestore:indexes,storage,functions --project entretenimento-sexual",
     "rules:watch": "node firestore-rules/tools-rules/build-firestore-rules.mjs --watch",
     "emulators": "npm run rules:build && node scripts/dev/start-emulator-with-data.mjs",
-    "audit:prod": "npm audit --omit=dev",
-    "audit:all": "npm audit"
+    "audit:root:prod": "npm audit --omit=dev",
+    "audit:root:all": "npm audit",
+    "audit:prod": "npm run audit:root:prod && npm run functions:audit:prod",
+    "audit:all": "npm run audit:root:all && npm run functions:audit:all"
   },
   "private": true,
   "dependencies": {
