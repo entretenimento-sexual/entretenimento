@@ -110,7 +110,12 @@ async function assertBackfillAuthorization(
 }
 
 export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscoveryRequest>(
-  { region: FUNCTIONS_REGION, invoker: 'public' },
+
+  {
+    region: FUNCTIONS_REGION,
+    invoker: 'public',
+  },
+
   async (request): Promise<BackfillPublicProfileDiscoveryResult> => {
     const actorUid = request.auth?.uid ?? null;
     await assertBackfillAuthorization(
