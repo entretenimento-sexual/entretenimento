@@ -70,6 +70,17 @@ export interface IUserDados {
   // ---------------------------------------------------------------------------
   gender?: string;
   orientation?: string;
+
+  /**
+   * Campos canônicos de discovery calculados no backend.
+   * Devem ter prioridade sobre gender/orientation brutos em filtros e compatibilidade.
+   */
+  normalizedGender?: string | null;
+  normalizedOrientation?: string | null;
+  compatibilityReady?: boolean | null;
+  interestedInGenders?: readonly string[] | string | null;
+  interestedInOrientations?: readonly string[] | string | null;
+
   partner1Orientation?: string;
   partner2Orientation?: string;
   estado?: string;
