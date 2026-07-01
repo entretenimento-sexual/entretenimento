@@ -28,7 +28,7 @@
 // -----------------------------------------------------------------------------
 
 const DEFAULT_PROJECT_ID = 'entretenimento-sexual';
-const DEFAULT_REGION = 'southamerica-east1';
+const DEFAULT_REGION = 'us-central1';
 const FUNCTION_NAME = 'backfillPublicProfileDiscovery';
 
 const args = parseArgs(process.argv.slice(2));
