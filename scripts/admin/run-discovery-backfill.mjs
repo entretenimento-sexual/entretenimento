@@ -53,6 +53,14 @@ if (!idToken) {
   );
 }
 
+let tokenClaims = null;
+
+try {
+  tokenClaims = assertFirebaseIdTokenProject(idToken, projectId);
+} catch (error) {
+  abort(error instanceof Error ? error.message : String(error));
+}
+
 if (!dryRun && process.env.BACKFILL_CONFIRM_WRITE !== 'YES') {
   abort(
     'Escrita real bloqueada. Para dryRun=false, defina BACKFILL_CONFIRM_WRITE=YES explicitamente.'
@@ -67,6 +75,14 @@ console.log('[discovery-backfill] Iniciando runner administrativo.', {
   limit,
   maxPages,
   cursor,
+  token: {
+    aud: tokenClaims.aud,
+    uid: tokenClaims.sub,
+    email: tokenClaims.email ?? null,
+    expiresAt: tokenClaims.exp
+      ? new Date(tokenClaims.exp * 1000).toISOString()
+      : null,
+  },
 });
 
 let lastResult = null;
@@ -188,6 +204,58 @@ function normalizeOptionalString(value) {
   const text = value.trim();
 
   return text.length ? text : null;
+}
+
+function assertFirebaseIdTokenProject(token, expectedProjectId) {
+  const claims = decodeJwtPayload(token);
+  const expectedIssuer = `https://securetoken.google.com/${expectedProjectId}`;
+
+  if (claims.aud !== expectedProjectId || claims.iss !== expectedIssuer) {
+    throw new Error(
+      [
+        'Token Firebase pertence ao projeto errado.',
+        `Esperado aud: ${expectedProjectId}`,
+        `Recebido aud: ${claims.aud ?? '(vazio)'}`,
+        `Esperado iss: ${expectedIssuer}`,
+        `Recebido iss: ${claims.iss ?? '(vazio)'}`,
+        'Confira FIREBASE_WEB_API_KEY e gere um novo FIREBASE_ID_TOKEN.',
+      ].join('\n')
+    );
+  }
+
+  if (!claims.sub) {
+    throw new Error('Token Firebase sem sub/uid. Gere um novo FIREBASE_ID_TOKEN.');
+  }
+
+  if (typeof claims.exp === 'number') {
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+
+    if (claims.exp <= nowInSeconds) {
+      throw new Error('FIREBASE_ID_TOKEN expirado. Faça login novamente e gere um novo token.');
+    }
+  }
+
+  return claims;
+}
+
+function decodeJwtPayload(token) {
+  const parts = String(token || '').split('.');
+
+  if (parts.length < 2 || !parts[1]) {
+    throw new Error('FIREBASE_ID_TOKEN inválido. O valor não parece ser um JWT.');
+  }
+
+  const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(
+    base64.length + ((4 - (base64.length % 4)) % 4),
+    '='
+  );
+
+  try {
+    return JSON.parse(Buffer.from(padded, 'base64').toString('utf8'));
+  } catch {
+    throw new Error('FIREBASE_ID_TOKEN inválido. Não foi possível decodificar o payload JWT.');
+  }
 }
 
 function parseJson(value) {
