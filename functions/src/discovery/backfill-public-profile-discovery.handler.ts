@@ -12,6 +12,7 @@
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { FieldPath } from 'firebase-admin/firestore';
 import { FieldValue, db } from '../firebaseApp';
 import { FUNCTIONS_REGION } from '../config/functions-region';
 import { normalizeProfileDiscoveryFields } from './profile-discovery-normalization';
@@ -19,11 +20,16 @@ import { normalizeProfileDiscoveryFields } from './profile-discovery-normalizati
 interface BackfillPublicProfileDiscoveryRequest {
   limit?: number | null;
   dryRun?: boolean | null;
+  startAfterUid?: string | null;
 }
 
 interface BackfillPublicProfileDiscoveryResult {
   ok: boolean;
   dryRun: boolean;
+  limit: number;
+  startAfterUid: string | null;
+  nextCursor: string | null;
+  hasMore: boolean;
   processed: number;
   updated: number;
   skippedWithoutPublicProfile: number;
@@ -36,6 +42,16 @@ function normalizeLimit(value: unknown): number {
   }
 
   return Math.max(1, Math.min(500, Math.floor(value)));
+}
+
+function normalizeCursor(value: unknown): string | null {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const cursor = value.trim();
+
+  return cursor.length ? cursor : null;
 }
 
 function normalizeStringArray(value: unknown): string[] {
@@ -104,8 +120,17 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
 
     const limit = normalizeLimit(request.data?.limit);
     const dryRun = request.data?.dryRun === true;
+    const startAfterUid = normalizeCursor(request.data?.startAfterUid);
 
-    const usersSnap = await db.collection('users').limit(limit).get();
+    let usersQuery = db
+      .collection('users')
+      .orderBy(FieldPath.documentId());
+
+    if (startAfterUid) {
+      usersQuery = usersQuery.startAfter(startAfterUid);
+    }
+
+    const usersSnap = await usersQuery.limit(limit).get();
 
     let processed = 0;
     let updated = 0;
@@ -153,9 +178,17 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
       await batch.commit();
     }
 
+    const lastDoc = usersSnap.docs.at(-1) ?? null;
+    const nextCursor = lastDoc?.id ?? null;
+    const hasMore = usersSnap.size === limit && !!nextCursor;
+
     console.log('[discovery] Backfill canônico executado.', {
       actorUid,
       dryRun,
+      limit,
+      startAfterUid,
+      nextCursor,
+      hasMore,
       processed,
       updated,
       skippedWithoutPublicProfile,
@@ -165,6 +198,10 @@ export const backfillPublicProfileDiscovery = onCall<BackfillPublicProfileDiscov
     return {
       ok: true,
       dryRun,
+      limit,
+      startAfterUid,
+      nextCursor,
+      hasMore,
       processed,
       updated,
       skippedWithoutPublicProfile,
