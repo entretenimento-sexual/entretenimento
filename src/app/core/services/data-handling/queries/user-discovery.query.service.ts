@@ -277,6 +277,19 @@ export class UserDiscoveryQueryService {
         'orientacaoSexual',
       ]),
 
+      normalizedGender: this.firstText(raw, [
+        'normalizedGender',
+      ]),
+
+      normalizedOrientation: this.firstText(raw, [
+        'normalizedOrientation',
+      ]),
+
+      compatibilityReady:
+        typeof raw?.compatibilityReady === 'boolean'
+          ? raw.compatibilityReady
+          : null,
+
       partner1Orientation: this.firstText(raw, [
         'partner1Orientation',
         'orientation1',
@@ -378,52 +391,37 @@ interestedInOrientations: this.firstStringArray(raw, [
     }
 
     const hasGender = this.hasText((profile as any).gender);
-
-    const hasOrientation =
-      this.hasText((profile as any).orientation) ||
-      this.hasText((profile as any).sexualOrientation) ||
-      this.hasText((profile as any).orientacao) ||
-      this.hasText((profile as any).orientacaoSexual) ||
-      this.hasText((profile as any).partner1Orientation) ||
-      this.hasText((profile as any).partner2Orientation);
-
+    const hasOrientation = this.hasText((profile as any).orientation);
     const hasLocationText =
       this.hasText((profile as any).municipio) ||
-      this.hasText((profile as any).cidade) ||
-      this.hasText((profile as any).city) ||
-      this.hasText((profile as any).estado) ||
-      this.hasText((profile as any).uf) ||
-      this.hasText((profile as any).state);
-
+      this.hasText((profile as any).estado);
     const hasCoords =
       this.hasFiniteNumber((profile as any).latitude) &&
       this.hasFiniteNumber((profile as any).longitude);
+    const hasPhoto = this.hasText((profile as any).photoURL);
 
-    const hasGeohash = this.hasText((profile as any).geohash);
-
-    return (
-      hasGender ||
-      hasOrientation ||
-      hasLocationText ||
-      hasCoords ||
-      hasGeohash
-    );
+    return hasGender || hasOrientation || hasLocationText || hasCoords || hasPhoto;
   }
 
   private pickProfilesByRequestedUids(
-    source: IUserDados[] | null | undefined,
-    requestedUids: string[]
+    profiles: IUserDados[] | null | undefined,
+    requestedUids: readonly string[]
   ): IUserDados[] {
-    if (!Array.isArray(source) || !requestedUids.length) {
+    if (!profiles?.length) {
       return [];
     }
 
+    const requested = new Set(requestedUids);
     const byUid = new Map<string, IUserDados>();
 
-    for (const profile of source) {
+    for (const profile of profiles) {
       const uid = (profile?.uid ?? '').trim();
 
-      if (!uid) {
+      if (!uid || !requested.has(uid)) {
+        continue;
+      }
+
+      if (!this.isPublicProfileUsableForCard(profile)) {
         continue;
       }
 
@@ -436,145 +434,131 @@ interestedInOrientations: this.firstStringArray(raw, [
   }
 
   private cachedProfilesCoverRequestedUids(
-    cached: IUserDados[] | null | undefined,
-    requestedUids: string[]
+    profiles: IUserDados[],
+    requestedUids: readonly string[]
   ): boolean {
-    if (!Array.isArray(cached)) {
+    if (profiles.length !== requestedUids.length) {
       return false;
     }
 
-    if (!requestedUids.length) {
-      return false;
-    }
+    const present = new Set(profiles.map((profile) => profile.uid));
 
-    const byUid = new Map<string, IUserDados>();
-
-    for (const profile of cached) {
-      const uid = (profile?.uid ?? '').trim();
-
-      if (!uid) {
-        continue;
-      }
-
-      byUid.set(uid, profile);
-    }
-
-    return requestedUids.every((uid) => {
-      const profile = byUid.get(uid);
-
-      if (!profile) {
-        return false;
-      }
-
-      return this.isPublicProfileUsableForCard(profile);
-    });
+    return requestedUids.every((uid) => present.has(uid));
   }
 
   // ===========================================================================
-  // Guards internos
+  // Query helpers
   // ===========================================================================
 
   private onceGuardedQuery(
-    constraints: QueryConstraint[],
-    opts?: { waitForAuth?: boolean; cacheTTL?: number }
+    constraints: QueryConstraint[] = [],
+    options?: { cacheTTL?: number }
   ): Observable<IUserDados[]> {
-    const safeConstraints = constraints ?? [];
-    const waitForAuth = !!opts?.waitForAuth;
-    const cacheTTL = opts?.cacheTTL ?? 60_000;
+    const cacheTTL = options?.cacheTTL ?? 30_000;
+    const cacheKey = `discovery:query:${JSON.stringify(
+      constraints.map((item) => item.type ?? 'constraint')
+    )}`;
 
-    const uidOnce$ = waitForAuth
-      ? this.uid$.pipe(
-          filter((uid): uid is string => !!uid),
-          take(1)
-        )
-      : defer(() => from(this.authSession.whenReady())).pipe(
-          take(1),
-          switchMap(() => this.uid$.pipe(take(1)))
-        );
+    return this.uid$.pipe(
+      take(1),
 
-    return uidOnce$.pipe(
       switchMap((uid) => {
         if (!uid) {
           return of([] as IUserDados[]);
         }
 
-        return this.read
-          .getDocumentsOnce<any>(
-            this.DISCOVERY_COL,
-            safeConstraints,
-            {
-              useCache: true,
-              cacheTTL,
-              mapIdField: 'uid',
-              requireAuth: true,
+        return this.cache.get<IUserDados[]>(cacheKey).pipe(
+          switchMap((cached) => {
+            if (cached?.length) {
+              return of(cached);
             }
-          )
-          .pipe(
-            map((docs) =>
-              (docs ?? []).map((doc) =>
-                this.toUserDadosFromPublicProfile(doc)
-              )
-            ),
 
-            catchError((err) =>
-              this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
-                err,
-                [],
-                {
-                  silent: true,
-                  context: 'user-discovery.onceGuardedQuery',
-                }
-              )
+            return this.read
+              .getDocumentsOnce<any>(this.DISCOVERY_COL, constraints, {
+                useCache: true,
+                cacheTTL,
+                mapIdField: 'uid',
+                requireAuth: true,
+              })
+              .pipe(
+                map((docs) =>
+                  (docs ?? []).map((doc) =>
+                    this.toUserDadosFromPublicProfile(doc)
+                  )
+                ),
+
+                map((users) => {
+                  this.cache.set(cacheKey, users, cacheTTL);
+
+                  return users;
+                })
+              );
+          }),
+
+          catchError((err) =>
+            this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
+              err,
+              [],
+              {
+                silent: true,
+                context: 'user-discovery.onceGuardedQuery',
+              }
             )
-          );
-      })
+          )
+        );
+      }),
+
+      shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 
   // ===========================================================================
-  // API pública
+  // API pública preservada
   // ===========================================================================
 
-  searchUsers(constraints: QueryConstraint[]): Observable<IUserDados[]> {
-    return this.onceGuardedQuery(constraints ?? [], {
-      cacheTTL: 60_000,
-    });
-  }
+  getUsersByGender$(gender: string): Observable<IUserDados[]> {
+    const clean = this.toCleanText(gender);
 
-  getProfilesByOrientationAndLocation(
-    gender: string,
-    orientation: string,
-    municipio: string
-  ): Observable<IUserDados[]> {
-    const g = (gender ?? '').trim();
-    const o = (orientation ?? '').trim();
-    const m = (municipio ?? '').trim();
-
-    if (!g || !o || !m) {
+    if (!clean) {
       return of([] as IUserDados[]);
     }
 
-    return this.searchUsers([
-      where('gender', '==', g),
-      where('orientation', '==', o),
-      where('municipio', '==', m),
+    return this.onceGuardedQuery([
+      where('gender', '==', clean),
     ]);
   }
 
-  /**
-   * Resolve perfis públicos por UID.
-   *
-   * Uso principal:
-   * - presence gera lista de UIDs online;
-   * - este método busca os public_profiles desses UIDs;
-   * - OnlineUsersEffects junta isso com presence.
-   *
-   * Estratégia:
-   * 1. normaliza/deduplica UIDs;
-   * 2. tenta usar cache geral `discovery:public_profiles:all`;
-   * 3. tenta usar cache específico `discovery:public_profiles:uids:*`;
-   * 4. se cache estiver ausente ou raso, consulta Firestore.
-   */
+  getUsersByOrientation$(orientation: string): Observable<IUserDados[]> {
+    const clean = this.toCleanText(orientation);
+
+    if (!clean) {
+      return of([] as IUserDados[]);
+    }
+
+    return this.onceGuardedQuery([
+      where('orientation', '==', clean),
+    ]);
+  }
+
+  getUsersByLocation$(state: string, city?: string): Observable<IUserDados[]> {
+    const cleanState = this.toCleanText(state);
+    const cleanCity = this.toCleanText(city);
+
+    if (!cleanState) {
+      return of([] as IUserDados[]);
+    }
+
+    const constraints: QueryConstraint[] = [
+      where('estado', '==', cleanState),
+    ];
+
+    if (cleanCity) {
+      constraints.push(where('municipio', '==', cleanCity));
+    }
+
+    return this.onceGuardedQuery(constraints);
+  }
+
   getProfilesByUids$(
     uids: string[] | null | undefined,
     opts?: { cacheTTL?: number }
@@ -772,4 +756,4 @@ interestedInOrientations: this.firstStringArray(raw, [
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
-} // line 730, fim do arquivo
+}
