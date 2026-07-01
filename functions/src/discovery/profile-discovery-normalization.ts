@@ -60,9 +60,105 @@ const ALL_DISCOVERY_GENDERS: readonly NormalizedDiscoveryGender[] = [
   'nonbinary',
 ];
 
+const DIVERSE_GENDER_PATTERNS: readonly RegExp[] = [
+  /\btrans\b/,
+  /\btransgenero\b/,
+  /\btransgender\b/,
+  /\btransexual\b/,
+  /\btranssexual\b/,
+  /\btravestis?\b/,
+  /\bcrossdresser\b/,
+  /\bcross-dresser\b/,
+  /\bnao-binario\b/,
+  /\bnonbinary\b/,
+  /\bnon-binary\b/,
+  /\bgenderfluid\b/,
+];
+
+const TRANS_WOMAN_PATTERNS: readonly RegExp[] = [
+  /\bmulher(?:es)?[-\s]+trans\b/,
+  /\bmulher(?:es)?[-\s]+transexual\b/,
+  /\btrans[-\s]+woman\b/,
+  /\btransfeminina\b/,
+];
+
+const TRANS_MAN_PATTERNS: readonly RegExp[] = [
+  /\bhomem(?:s)?[-\s]+trans\b/,
+  /\bhomem(?:s)?[-\s]+transexual\b/,
+  /\btrans[-\s]+man\b/,
+  /\btransmasculino\b/,
+];
+
+const NONBINARY_PATTERNS: readonly RegExp[] = [
+  /\bnao-binario\b/,
+  /\bnao binario\b/,
+  /\bnonbinary\b/,
+  /\bnon-binary\b/,
+  /\bgenderfluid\b/,
+];
+
+const MAN_PATTERNS: readonly RegExp[] = [
+  /\bhomem\b/,
+  /\bhomens\b/,
+  /\bmasculino\b/,
+  /\bmale\b/,
+  /\bmen\b/,
+];
+
+const WOMAN_PATTERNS: readonly RegExp[] = [
+  /\bmulher\b/,
+  /\bmulheres\b/,
+  /\bfeminino\b/,
+  /\bfemale\b/,
+  /\bwomen\b/,
+];
+
+const COUPLE_PATTERNS: readonly RegExp[] = [
+  /\bcasal\b/,
+  /\bcasais\b/,
+  /\bcouple\b/,
+  /\bcouples\b/,
+  /\bdupla\b/,
+  /\bcasal-ele-ele\b/,
+  /\bcasal-ele-ela\b/,
+  /\bcasal-ela-ela\b/,
+];
+
+const HETEROSEXUAL_PATTERNS: readonly RegExp[] = [
+  /\bhetero\b/,
+  /\bheteros\b/,
+  /\bheterossexual\b/,
+  /\bheterosexual\b/,
+  /\bstraight\b/,
+];
+
+const HOMOSEXUAL_PATTERNS: readonly RegExp[] = [
+  /\bhomo\b/,
+  /\bhomossexual\b/,
+  /\bhomosexual\b/,
+  /\bgay\b/,
+  /\blesbica\b/,
+  /\blesbian\b/,
+];
+
+const BISEXUAL_PATTERNS: readonly RegExp[] = [
+  /\bbi\b/,
+  /\bbissexual\b/,
+  /\bbisexual\b/,
+];
+
+const PANSEXUAL_PATTERNS: readonly RegExp[] = [
+  /\bpan\b/,
+  /\bpansexual\b/,
+];
+
 function normalizeText(value: unknown): string {
   return typeof value === 'string'
-    ? value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    ? value
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
     : '';
 }
 
@@ -80,6 +176,10 @@ function asArray(value: unknown): readonly unknown[] {
   }
 
   return [];
+}
+
+function matchesAny(text: string, patterns: readonly RegExp[]): boolean {
+  return patterns.some((pattern) => pattern.test(text));
 }
 
 export function normalizeDiscoveryGender(value: unknown): NormalizedDiscoveryGender {
@@ -236,41 +336,51 @@ export function normalizeDiscoveryOrientation(
 function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
   const text = normalizeText(value).replace(/_/g, '-');
   const genders: NormalizedDiscoveryGender[] = [];
-  const mentionsDiverseGender = /\b(trans|transgenero|transgender|transexual|transsexual|travesti|crossdresser|cross-dresser|nao-binario|nonbinary|non-binary|genderfluid)\b/.test(text);
+  const mentionsDiverseGender = matchesAny(text, DIVERSE_GENDER_PATTERNS);
 
-  if (/\btravesti\b/.test(text) || /\btravestis\b/.test(text)) {
+  if (/\btravestis?\b/.test(text)) {
     genders.push('travesti');
   }
 
-  if (/\bmulher(?:es)?[-\s]+trans\b/.test(text) || /\bmulher(?:es)?[-\s]+transexual\b/.test(text) || /\btrans[-\s]+woman\b/.test(text) || /\btransfeminina\b/.test(text)) {
+  if (matchesAny(text, TRANS_WOMAN_PATTERNS)) {
     genders.push('trans_woman');
   }
 
-  if (/\bhomem(?:s)?[-\s]+trans\b/.test(text) || /\bhomem(?:s)?[-\s]+transexual\b/.test(text) || /\btrans[-\s]+man\b/.test(text) || /\btransmasculino\b/.test(text)) {
+  if (matchesAny(text, TRANS_MAN_PATTERNS)) {
     genders.push('trans_man');
   }
 
-  if (/\bcrossdresser\b/.test(text) || /\bcross-dresser\b/.test(text) || /\bcd\b/.test(text)) {
+  if (
+    /\bcrossdresser\b/.test(text) ||
+    /\bcross-dresser\b/.test(text) ||
+    /\bcd\b/.test(text)
+  ) {
     genders.push('crossdresser');
   }
 
-  if (/\bnao-binario\b/.test(text) || /\bnao binario\b/.test(text) || /\bnonbinary\b/.test(text) || /\bnon-binary\b/.test(text) || /\bgenderfluid\b/.test(text)) {
+  if (matchesAny(text, NONBINARY_PATTERNS)) {
     genders.push('nonbinary');
   }
 
-  if (/\btransgenero\b/.test(text) || /\btransgender\b/.test(text) || /\btransexual\b/.test(text) || /\btranssexual\b/.test(text) || text === 'trans') {
+  if (
+    /\btransgenero\b/.test(text) ||
+    /\btransgender\b/.test(text) ||
+    /\btransexual\b/.test(text) ||
+    /\btranssexual\b/.test(text) ||
+    text === 'trans'
+  ) {
     genders.push('transgender');
   }
 
-  if (!mentionsDiverseGender && (/\bhomem\b/.test(text) || /\bhomens\b/.test(text) || /\bmasculino\b/.test(text) || /\bmale\b/.test(text) || /\bmen\b/.test(text))) {
+  if (!mentionsDiverseGender && matchesAny(text, MAN_PATTERNS)) {
     genders.push('man');
   }
 
-  if (!mentionsDiverseGender && (/\bmulher\b/.test(text) || /\bmulheres\b/.test(text) || /\bfeminino\b/.test(text) || /\bfemale\b/.test(text) || /\bwomen\b/.test(text))) {
+  if (!mentionsDiverseGender && matchesAny(text, WOMAN_PATTERNS)) {
     genders.push('woman');
   }
 
-  if (/\bcasal\b/.test(text) || /\bcasais\b/.test(text) || /\bcouple\b/.test(text) || /\bcouples\b/.test(text) || /\bdupla\b/.test(text) || /\bcasal-ele-ele\b/.test(text) || /\bcasal-ele-ela\b/.test(text) || /\bcasal-ela-ela\b/.test(text)) {
+  if (matchesAny(text, COUPLE_PATTERNS)) {
     genders.push('couple');
   }
 
@@ -281,19 +391,19 @@ function orientationsFromFreeText(value: unknown): NormalizedDiscoveryOrientatio
   const text = normalizeText(value);
   const orientations: NormalizedDiscoveryOrientation[] = [];
 
-  if (/\bhetero\b/.test(text) || /\bheteros\b/.test(text) || /\bheterossexual\b/.test(text) || /\bheterosexual\b/.test(text) || /\bstraight\b/.test(text)) {
+  if (matchesAny(text, HETEROSEXUAL_PATTERNS)) {
     orientations.push('heterosexual');
   }
 
-  if (/\bhomo\b/.test(text) || /\bhomossexual\b/.test(text) || /\bhomosexual\b/.test(text) || /\bgay\b/.test(text) || /\blesbica\b/.test(text) || /\blesbian\b/.test(text)) {
+  if (matchesAny(text, HOMOSEXUAL_PATTERNS)) {
     orientations.push('homosexual');
   }
 
-  if (/\bbi\b/.test(text) || /\bbissexual\b/.test(text) || /\bbisexual\b/.test(text)) {
+  if (matchesAny(text, BISEXUAL_PATTERNS)) {
     orientations.push('bisexual');
   }
 
-  if (/\bpan\b/.test(text) || /\bpansexual\b/.test(text)) {
+  if (matchesAny(text, PANSEXUAL_PATTERNS)) {
     orientations.push('pansexual');
   }
 
@@ -344,7 +454,11 @@ function acceptedTargetGendersByOrientation(
     }
   }
 
-  if (selfGender === 'woman' || selfGender === 'trans_woman' || selfGender === 'travesti') {
+  if (
+    selfGender === 'woman' ||
+    selfGender === 'trans_woman' ||
+    selfGender === 'travesti'
+  ) {
     if (selfOrientation === 'heterosexual') {
       return ['man', 'trans_man'];
     }
@@ -354,7 +468,12 @@ function acceptedTargetGendersByOrientation(
     }
   }
 
-  if (selfGender === 'couple' || selfGender === 'transgender' || selfGender === 'crossdresser' || selfGender === 'nonbinary') {
+  if (
+    selfGender === 'couple' ||
+    selfGender === 'transgender' ||
+    selfGender === 'crossdresser' ||
+    selfGender === 'nonbinary'
+  ) {
     return ALL_DISCOVERY_GENDERS;
   }
 
@@ -402,7 +521,9 @@ export function normalizeProfileDiscoveryFields(
   const explicitOrientations = normalizeOrientationList(
     source?.interestedInOrientations ?? source?.orientacoesDeInteresse
   );
-  const preferenceOrientations = normalizeOrientationList(source?.preferences ?? source?.preferencias);
+  const preferenceOrientations = normalizeOrientationList(
+    source?.preferences ?? source?.preferencias
+  );
   const fallbackOrientations = acceptedTargetOrientationsByOrientation(normalizedOrientation);
 
   const interestedInGenders = explicitGenders.length
