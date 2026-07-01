@@ -20,6 +20,7 @@
     "functions:build": "npm --prefix functions run build",
     "functions:audit:prod": "npm --prefix functions run audit:prod",
     "functions:audit:all": "npm --prefix functions run audit:all",
+    "admin:discovery-backfill": "node scripts/admin/run-discovery-backfill.mjs",
     "emu:pre": "kill-port 4000 4400 4500 9099 8080 5001 8087 9000 9199 9150 || exit 0",
     "preemu:start": "npm run functions:build",
     "emu:start": "set FIREBASE_EMULATORS_ONLY=auth,firestore,storage,functions,pubsub,database,ui&& node scripts/dev/start-emulator-with-data.mjs",
