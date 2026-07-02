@@ -1,30 +1,8 @@
 // src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.ts
-// -----------------------------------------------------------------------------
-// FinalizarCadastroComponent
-// -----------------------------------------------------------------------------
-//
-// Responsabilidade exclusiva:
-// - completar o perfil mÃ­nimo obrigatÃ³rio da plataforma;
-// - gravar profileCompleted=true;
-// - gravar dados pÃºblicos bÃ¡sicos em public_profiles via FirestoreUserWriteService.
-//
-// Este componente NÃƒO deve:
-// - verificar e-mail;
-// - gravar emailVerified;
-// - inferir que e-mail verificado significa perfil completo.
-//
-// SeparaÃ§Ã£o correta:
-// - Completar perfil: profileCompleted=true.
-// - Verificar e-mail: emailVerified=true, feito em outro fluxo.
-//
-// Assim, o estado abaixo Ã© vÃ¡lido:
-// - profileCompleted=true
-// - emailVerified=false
-
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { of, EMPTY } from 'rxjs';
+import { EMPTY, of, Observable } from 'rxjs';
 import {
   catchError,
   finalize,
@@ -59,17 +37,9 @@ type ProfileCompletionPayload = Partial<IUserRegistrationData> & Partial<IUserDa
 export class FinalizarCadastroComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
-  // ---------------------------------------------------------------------------
-  // Contexto de entrada da tela
-  // ---------------------------------------------------------------------------
-
   public entryReason: 'profile_incomplete' | 'email_unverified' | null = null;
   public pageTitle = 'Complete seu perfil';
-  public introText = 'Complete os dados abaixo para liberar os recursos bÃ¡sicos da plataforma.';
-
-  // ---------------------------------------------------------------------------
-  // Dados da UI / formulÃ¡rio
-  // ---------------------------------------------------------------------------
+  public introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
 
   public email = '';
   public nickname = '';
@@ -82,23 +52,9 @@ export class FinalizarCadastroComponent implements OnInit {
   public estados: any[] = [];
   public municipios: any[] = [];
 
-  // ---------------------------------------------------------------------------
-  // Estados visuais
-  // ---------------------------------------------------------------------------
-
   public message = '';
-
-  /**
-   * Bootstrap inicial da tela.
-   * NÃ£o deve ser usado para travar permanentemente o formulÃ¡rio.
-   */
   public isLoading = true;
-
-  /**
-   * Loading exclusivo do submit.
-   */
   public isSubmitting = false;
-
   public isUploading = false;
   public progressValue = 0;
   public uploadMessage = '';
@@ -137,14 +93,11 @@ export class FinalizarCadastroComponent implements OnInit {
         switchMap((u) => {
           if (u) return of(u);
 
-          const ls = this.getLS();
-          const raw = ls?.getItem?.('currentUser') ?? null;
-
+          const raw = this.getLS()?.getItem?.('currentUser') ?? null;
           if (!raw) return of(null);
 
           try {
-            const parsed = JSON.parse(raw) as IUserDados;
-            return of(parsed);
+            return of(JSON.parse(raw) as IUserDados);
           } catch {
             return of(null);
           }
@@ -169,14 +122,7 @@ export class FinalizarCadastroComponent implements OnInit {
       });
   }
 
-  /**
-   * Carrega dados atuais do usuÃ¡rio para preencher o formulÃ¡rio.
-   *
-   * Importante:
-   * aqui NÃƒO recarregamos Auth e NÃƒO consultamos emailVerified.
-   * Esta tela sÃ³ cuida de profileCompleted.
-   */
-  private loadUserForForm$(userData: IUserDados) {
+  private loadUserForForm$(userData: IUserDados): Observable<void> {
     return this.firestoreUserQuery.getUser(userData.uid).pipe(
       take(1),
       tap((doc) => {
@@ -221,7 +167,7 @@ export class FinalizarCadastroComponent implements OnInit {
         },
         error: (err) => {
           this.globalErrorHandler.handleError(err);
-          this.errorNotification.showError('Erro ao carregar municÃ­pios.');
+          this.errorNotification.showError('Erro ao carregar municípios.');
         },
       });
   }
@@ -230,16 +176,13 @@ export class FinalizarCadastroComponent implements OnInit {
     if (!this.selectedEstado) {
       this.municipios = [];
       this.selectedMunicipio = '';
-      this.checkFieldValidity('municipio', this.selectedMunicipio, 'MunicÃ­pio');
+      this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
       return;
     }
 
     this.loadMunicipiosForEstado(this.selectedEstado);
   }
 
-  /**
-   * Define rota apÃ³s completar perfil.
-   */
   private getRedirectToAfterCompletion(uid: string): string {
     const raw = this.route.snapshot.queryParamMap.get('redirectTo');
 
@@ -254,15 +197,15 @@ export class FinalizarCadastroComponent implements OnInit {
 
     this.isSubmitting = true;
     this.message = '';
+    this.uploadMessage = '';
 
     this.currentUserStore
       .getLoggedUserUID$()
       .pipe(
         take(1),
-
         switchMap((uid) => {
           if (!uid) {
-            const msg = 'Erro: UID do usuÃ¡rio nÃ£o encontrado.';
+            const msg = 'Erro: UID do usuário não encontrado.';
             this.message = msg;
             this.errorNotification.showError(msg);
             return EMPTY;
@@ -270,14 +213,14 @@ export class FinalizarCadastroComponent implements OnInit {
 
           this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
           this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
-          this.checkFieldValidity('municipio', this.selectedMunicipio, 'MunicÃ­pio');
+          this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
 
           if (
             this.isFieldInvalid('gender') ||
             this.isFieldInvalid('estado') ||
             this.isFieldInvalid('municipio')
           ) {
-            const msg = 'Por favor, preencha os campos obrigatÃ³rios.';
+            const msg = 'Por favor, preencha os campos obrigatórios.';
             this.message = msg;
             this.errorNotification.showError(msg);
             return EMPTY;
@@ -288,58 +231,32 @@ export class FinalizarCadastroComponent implements OnInit {
             map((existingUserData) => ({ uid, existingUserData }))
           );
         }),
-
         switchMap((ctx) => {
           const { uid, existingUserData } = ctx;
 
           if (!existingUserData) {
-            throw new Error('Dados do usuÃ¡rio nÃ£o encontrados.');
+            throw new Error('Dados do usuário não encontrados.');
           }
 
           const completionPayload: ProfileCompletionPayload = {
             uid: existingUserData.uid,
             nickname: existingUserData.nickname || '',
-
             gender: this.gender || existingUserData.gender || '',
             orientation: this.orientation || existingUserData.orientation || '',
             estado: this.selectedEstado || existingUserData.estado || '',
             municipio: this.selectedMunicipio || existingUserData.municipio || '',
-
-            /**
-             * Ato exclusivo desta tela:
-             * completar o perfil.
-             *
-             * NÃ£o incluir emailVerified aqui.
-             */
             profileCompleted: true,
           };
 
           return this.firestoreUserWrite.saveInitialUserData$(uid, completionPayload).pipe(
-            switchMap(() =>
-              this.avatarFile
-                ? this.storageService.uploadProfileAvatar(this.avatarFile, uid)
-                : of(null)
-            ),
-            switchMap((photoURL) => {
-              if (!photoURL) return of(void 0);
-
-              const photoPatch: ProfileCompletionPayload = {
-                ...completionPayload,
-                photoURL,
-              };
-
-              return this.firestoreUserWrite.saveInitialUserData$(uid, photoPatch);
-            }),
+            switchMap(() => this.uploadAvatarAfterProfileSave$(uid, completionPayload)),
             map(() => void 0)
           );
         }),
-
         finalize(() => {
           this.isSubmitting = false;
         }),
-
         takeUntilDestroyed(this.destroyRef),
-
         catchError((err) => {
           this.globalErrorHandler.handleError(err);
 
@@ -358,7 +275,7 @@ export class FinalizarCadastroComponent implements OnInit {
           const targetUid = this.currentUserStore.getLoggedUserUIDSnapshot();
 
           if (!targetUid) {
-            const msg = 'Perfil salvo, mas nÃ£o foi possÃ­vel redirecionar automaticamente.';
+            const msg = 'Perfil salvo, mas não foi possível redirecionar automaticamente.';
             this.message = msg;
             this.errorNotification.showError(msg);
             return;
@@ -368,6 +285,55 @@ export class FinalizarCadastroComponent implements OnInit {
           this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
         },
       });
+  }
+
+  private uploadAvatarAfterProfileSave$(
+    uid: string,
+    completionPayload: ProfileCompletionPayload
+  ): Observable<void> {
+    if (!this.avatarFile) {
+      return of(void 0);
+    }
+
+    this.isUploading = true;
+    this.progressValue = 0;
+    this.uploadMessage = '';
+
+    return this.storageService
+      .uploadProfileAvatar(this.avatarFile, uid, (progress) => {
+        this.isUploading = true;
+        this.progressValue = Math.max(0, Math.min(100, Math.round(progress || 0)));
+      })
+      .pipe(
+        switchMap((photoURL) => {
+          if (!photoURL) return of(void 0);
+
+          const photoPatch: ProfileCompletionPayload = {
+            ...completionPayload,
+            photoURL,
+          };
+
+          return this.firestoreUserWrite.saveInitialUserData$(uid, photoPatch).pipe(
+            catchError((err) => {
+              this.globalErrorHandler.handleError(err);
+              this.uploadMessage = 'Perfil salvo. A foto foi enviada, mas não foi possível sincronizar a foto pública agora.';
+              return of(void 0);
+            })
+          );
+        }),
+        tap(() => {
+          this.progressValue = 100;
+        }),
+        catchError((err) => {
+          this.globalErrorHandler.handleError(err);
+          this.uploadMessage = 'Perfil salvo. Não foi possível enviar a foto agora.';
+          return of(void 0);
+        }),
+        finalize(() => {
+          this.isUploading = false;
+        }),
+        map(() => void 0)
+      );
   }
 
   uploadFile(event: any): void {
@@ -394,27 +360,16 @@ export class FinalizarCadastroComponent implements OnInit {
       return;
     }
 
-    /**
-     * A foto só será enviada no submit, depois que os dados básicos
-     * forem salvos com sucesso.
-     */
     this.avatarFile = file;
   }
 
-  /**
-   * Contexto visual apenas.
-   *
-   * Mesmo se a entrada vier por reason=email_unverified, esta tela continua
-   * fazendo somente a finalizaÃ§Ã£o do perfil. A verificaÃ§Ã£o de e-mail permanece
-   * em fluxo prÃ³prio.
-   */
   private resolveEntryContext(): void {
     const reason = this.route.snapshot.queryParamMap.get('reason');
 
     if (reason === 'profile_incomplete') {
       this.entryReason = 'profile_incomplete';
       this.pageTitle = 'Complete seu perfil';
-      this.introText = 'Complete os dados abaixo para liberar os recursos bÃ¡sicos da plataforma.';
+      this.introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
       return;
     }
 
@@ -422,20 +377,20 @@ export class FinalizarCadastroComponent implements OnInit {
       this.entryReason = 'email_unverified';
       this.pageTitle = 'Complete seu perfil';
       this.introText =
-        'Seu e-mail ainda pode estar pendente de verificaÃ§Ã£o, mas esta etapa serve apenas para completar seu perfil.';
+        'Seu e-mail ainda pode estar pendente de verificação, mas esta etapa serve apenas para completar seu perfil.';
       return;
     }
 
     this.entryReason = null;
     this.pageTitle = 'Complete seu perfil';
-    this.introText = 'Complete os dados abaixo para liberar os recursos bÃ¡sicos da plataforma.';
+    this.introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
   }
 
   checkFieldValidity(field: string, value: unknown, label?: string): void {
     const nice = label || field;
     const empty = value === null || value === undefined || String(value).trim() === '';
 
-    this.formErrors[field] = empty ? `O campo "${nice}" Ã© obrigatÃ³rio.` : '';
+    this.formErrors[field] = empty ? `O campo "${nice}" é obrigatório.` : '';
   }
 
   isFieldInvalid(field: string): boolean {
