@@ -1,27 +1,4 @@
 // src/app/core/services/autentication/auth/auth-session.service.ts
-// -----------------------------------------------------------------------------
-// AUTH SESSION SERVICE
-// -----------------------------------------------------------------------------
-// Fonte única da sessão real do Firebase/Auth.
-//
-// Responsabilidades:
-// - expor o usuário autenticado real do Firebase;
-// - expor uid$, ready$ e emailVerified$;
-// - oferecer utilitário whenReady() para bootstrap seguro;
-// - oferecer readyAuthUser$ / readyUid$ para leituras Firestore após bootstrap
-//   e com token já validado.
-//
-// Não faz:
-// - não busca perfil do app (IUserDados);
-// - não decide acesso de produto;
-// - não orquestra watchers de Firestore.
-//
-// Observação arquitetural:
-// - AuthSessionService = verdade da sessão;
-// - CurrentUserStoreService = verdade do perfil do app;
-// - LogoutService = dono do signOut com side-effects.
-// -----------------------------------------------------------------------------
-
 import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
 import { Observable, defer, from, of } from 'rxjs';
 import {
@@ -45,31 +22,14 @@ import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.se
 
 @Injectable({ providedIn: 'root' })
 export class AuthSessionService {
-  /** Usuário real do Firebase Auth. Fonte única da sessão autenticada. */
   readonly authUser$: Observable<User | null>;
-
-  /** UID derivado do authUser$. Pode emitir antes do ready$ virar true. */
   readonly uid$: Observable<string | null>;
-
-  /** TRUE quando o Firebase Auth terminou de restaurar o estado inicial. */
   readonly ready$: Observable<boolean>;
-
-  /** Email verificado segundo o Firebase Auth, já considerando ready$. */
   readonly emailVerified$: Observable<boolean>;
-
-  /** Conveniência: usuário autenticado após bootstrap resolvido. */
   readonly isAuthenticated$: Observable<boolean>;
-
-  /**
-   * Usuário autenticado após bootstrap + validação de token.
-   * Use em leituras Firestore sensíveis que dependem do UID real do Auth.
-   */
   readonly readyAuthUser$: Observable<User | null>;
-
-  /** UID autenticado após bootstrap + validação de token. */
   readonly readyUid$: Observable<string | null>;
 
-  /** Cache da promise de bootstrap para manter idempotência. */
   private readyPromise: Promise<void> | null = null;
 
   constructor(
@@ -85,11 +45,6 @@ export class AuthSessionService {
       );
       return () => unsub();
     }).pipe(
-      distinctUntilChanged(
-        (a, b) =>
-          (a?.uid ?? null) === (b?.uid ?? null) &&
-          (a?.emailVerified ?? false) === (b?.emailVerified ?? false)
-      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
@@ -141,11 +96,6 @@ export class AuthSessionService {
           })
         );
       }),
-      distinctUntilChanged(
-        (a, b) =>
-          (a?.uid ?? null) === (b?.uid ?? null) &&
-          (a?.emailVerified ?? false) === (b?.emailVerified ?? false)
-      ),
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
@@ -156,12 +106,6 @@ export class AuthSessionService {
     );
   }
 
-  /**
-   * whenReady():
-   * - prefere authStateReady() quando existir;
-   * - fallback para onAuthStateChanged();
-   * - resolve uma única vez por ciclo de vida do serviço.
-   */
   whenReady(): Promise<void> {
     if (this.readyPromise) return this.readyPromise;
 
@@ -197,22 +141,35 @@ export class AuthSessionService {
     return this.readyPromise;
   }
 
-  /**
-   * Compat API. Preferir LogoutService para sair da sessão porque lá vivem
-   * presença, navegação e limpeza coordenada.
-   */
+  refreshCurrentUser$(): Observable<User | null> {
+    return defer(() => {
+      const user = this.auth.currentUser;
+
+      if (!user) {
+        return of(null);
+      }
+
+      return from(user.reload()).pipe(
+        switchMap(() => from(user.getIdToken(true))),
+        map(() => this.auth.currentUser ?? user),
+        catchError((err) => {
+          this.dbg('refreshCurrentUser$ error', err);
+          return of(this.auth.currentUser ?? null);
+        })
+      );
+    });
+  }
+
   signOut$(): Observable<void> {
     return defer(() =>
       from(runInInjectionContext(this.envInjector, () => signOut(this.auth)))
     ).pipe(map(() => void 0));
   }
 
-  /** Snapshot síncrono do usuário autenticado atual. Usar só defensivamente. */
   get currentAuthUser(): User | null {
     return this.auth.currentUser;
   }
 
-  /** Debug seguro da sessão Firebase/Auth. */
   private dbg(message: string, extra?: unknown): void {
     this.privacyDebug.log('auth', `AuthSessionService: ${message}`, extra);
   }
