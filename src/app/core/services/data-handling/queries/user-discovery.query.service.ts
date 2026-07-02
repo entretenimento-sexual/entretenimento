@@ -1,40 +1,9 @@
-﻿// src/app/core/services/data-handling/queries/user-discovery.query.service.ts
-// =============================================================================
-// USER DISCOVERY QUERY SERVICE
-// =============================================================================
-//
-// Responsabilidade:
-// - consultar perfis pÃºblicos em public_profiles/{uid};
-// - atender fluxos de descoberta, busca e hidrataÃ§Ã£o de cards;
-// - nunca consultar users/{uid} para discovery pÃºblico;
-// - proteger leituras contra execuÃ§Ã£o sem autenticaÃ§Ã£o;
-// - usar cache sem aceitar cache raso/incompleto para cards.
-//
-// Ponto corrigido nesta versÃ£o:
-// - getProfilesByUids$ nÃ£o aceita mais cache apenas por conter o UID;
-// - o cache por UID sÃ³ Ã© usado se tiver dados pÃºblicos Ãºteis para card;
-// - antes de consultar Firestore, tenta reaproveitar o cache geral
-//   discovery:public_profiles:all, que costuma estar mais completo;
-// - isso corrige a pane "LocalizaÃ§Ã£o nÃ£o informada" no modo Online quando
-//   havia cache antigo sem municÃ­pio/estado/coordenadas.
-//
-// SeguranÃ§a:
-// - lÃª apenas public_profiles;
-// - nÃ£o expÃµe e-mail, telefone ou dados privados;
-// - nÃ£o abre consulta sem sessÃ£o;
-// - erros passam por FirestoreErrorHandlerService.
-//
-// ManutenÃ§Ã£o:
-// - mantÃ©m os nomes dos mÃ©todos pÃºblicos atuais;
-// - mantÃ©m Observable;
-// - helpers pequenos e reaproveitÃ¡veis;
-// - sem dependÃªncia de Router, Presence ou NgRx.
+// src/app/core/services/data-handling/queries/user-discovery.query.service.ts
 import { Injectable, DestroyRef, inject } from '@angular/core';
-import { defer, forkJoin, from, Observable, of } from 'rxjs';
+import { forkJoin, Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
-  filter,
   map,
   shareReplay,
   switchMap,
@@ -61,10 +30,6 @@ export class UserDiscoveryQueryService {
 
   private readonly DISCOVERY_COL = 'public_profiles';
 
-  /**
-   * Firestore aceita lotes maiores para `in`, mas 10 Ã© conservador e estÃ¡vel.
-   * Isso evita regressÃ£o caso algum ambiente/emulador esteja com limite antigo.
-   */
   private static readonly UID_BATCH_SIZE = 10;
 
   private readonly uid$ = this.authSession.uid$.pipe(
@@ -82,18 +47,10 @@ export class UserDiscoveryQueryService {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((uid) => {
         if (!uid) {
-          /**
-           * Ponto futuro:
-           * se o CacheService ganhar clearByPrefix('discovery:'),
-           * este Ã© o lugar certo para limpar cache sensÃ­vel Ã  sessÃ£o.
-           */
+          // Future hook: clear discovery cache when CacheService supports prefixes.
         }
       });
   }
-
-  // ===========================================================================
-  // Helpers bÃ¡sicos
-  // ===========================================================================
 
   private toCleanText(value: unknown): string | null {
     if (typeof value !== 'string') {
@@ -101,7 +58,6 @@ export class UserDiscoveryQueryService {
     }
 
     const text = value.trim();
-
     return text.length ? text : null;
   }
 
@@ -117,10 +73,7 @@ export class UserDiscoveryQueryService {
     return null;
   }
 
-  private firstValue<T = unknown>(
-    source: any,
-    keys: readonly string[]
-  ): T | null {
+  private firstValue<T = unknown>(source: any, keys: readonly string[]): T | null {
     for (const key of keys) {
       const value = source?.[key];
 
@@ -133,25 +86,25 @@ export class UserDiscoveryQueryService {
   }
 
   private firstStringArray(source: any, keys: readonly string[]): readonly string[] | null {
-  for (const key of keys) {
-    const value = source?.[key];
+    for (const key of keys) {
+      const value = source?.[key];
 
-    if (!Array.isArray(value)) {
-      continue;
+      if (!Array.isArray(value)) {
+        continue;
+      }
+
+      const cleaned = value
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0);
+
+      if (cleaned.length) {
+        return cleaned;
+      }
     }
 
-    const cleaned = value
-      .filter((item): item is string => typeof item === 'string')
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0);
-
-    if (cleaned.length) {
-      return cleaned;
-    }
+    return null;
   }
-
-  return null;
-}
 
   private toOptionalNumber(value: unknown): number | null {
     const n =
@@ -186,11 +139,7 @@ export class UserDiscoveryQueryService {
     for (const raw of uids ?? []) {
       const uid = (raw ?? '').trim();
 
-      if (!uid) {
-        continue;
-      }
-
-      if (seen.has(uid)) {
+      if (!uid || seen.has(uid)) {
         continue;
       }
 
@@ -215,22 +164,8 @@ export class UserDiscoveryQueryService {
     return out;
   }
 
-  // ===========================================================================
-  // ConversÃ£o public_profiles -> IUserDados pÃºblico
-  // ===========================================================================
-
-  /**
-   * Converte public_profiles/{uid} para o formato que os cards entendem.
-   *
-   * Importante:
-   * - nÃ£o adiciona dados privados;
-   * - aceita aliases de campos usados em fases anteriores do projeto;
-   * - preserva localizaÃ§Ã£o textual e geogrÃ¡fica quando existirem;
-   * - nÃ£o define online real, pois isso vem de presence.
-   */
   private toUserDadosFromPublicProfile(raw: any): IUserDados {
     const uid = this.firstText(raw, ['uid']) ?? '';
-
     const nickname = this.firstText(raw, ['nickname']);
 
     const latitude = this.toOptionalNumber(
@@ -257,18 +192,14 @@ export class UserDiscoveryQueryService {
         'avatarURL',
       ]),
 
-      role:
-        this.firstText(raw, ['role']) ??
-        'free',
+      role: this.firstText(raw, ['role']) ?? 'free',
 
       gender: this.firstText(raw, [
         'gender',
         'genero',
       ]),
 
-      age:
-        this.firstValue(raw, ['age', 'idade']) ??
-        null,
+      age: this.firstValue(raw, ['age', 'idade']) ?? null,
 
       orientation: this.firstText(raw, [
         'orientation',
@@ -303,29 +234,29 @@ export class UserDiscoveryQueryService {
       ]),
 
       preferences: this.firstStringArray(raw, [
-  'preferences',
-  'preferencias',
-  'interests',
-  'interesses',
-  'lookingFor',
-  'buscando',
-]),
+        'preferences',
+        'preferencias',
+        'interests',
+        'interesses',
+        'lookingFor',
+        'buscando',
+      ]),
 
-interestedInGenders: this.firstStringArray(raw, [
-  'interestedInGenders',
-  'interestedInGender',
-  'targetGenders',
-  'preferredGenders',
-  'generosDeInteresse',
-]),
+      interestedInGenders: this.firstStringArray(raw, [
+        'interestedInGenders',
+        'interestedInGender',
+        'targetGenders',
+        'preferredGenders',
+        'generosDeInteresse',
+      ]),
 
-interestedInOrientations: this.firstStringArray(raw, [
-  'interestedInOrientations',
-  'interestedInOrientation',
-  'targetOrientations',
-  'preferredOrientations',
-  'orientacoesDeInteresse',
-]),
+      interestedInOrientations: this.firstStringArray(raw, [
+        'interestedInOrientations',
+        'interestedInOrientation',
+        'targetOrientations',
+        'preferredOrientations',
+        'orientacoesDeInteresse',
+      ]),
 
       municipio: this.firstText(raw, [
         'municipio',
@@ -341,21 +272,11 @@ interestedInOrientations: this.firstStringArray(raw, [
 
       latitude,
       longitude,
-
       geohash: this.firstText(raw, ['geohash']),
 
-      createdAt:
-        this.firstValue(raw, ['createdAt']) ??
-        null,
+      createdAt: this.firstValue(raw, ['createdAt']) ?? null,
+      updatedAt: this.firstValue(raw, ['updatedAt']) ?? null,
 
-      updatedAt:
-        this.firstValue(raw, ['updatedAt']) ??
-        null,
-
-      /**
-       * Discovery nÃ£o define presenÃ§a.
-       * O OnlineUsersEffects enriquece isso com presence/{uid}.
-       */
       isOnline: false,
       lastSeen: null,
       lastOnlineAt: null,
@@ -363,22 +284,6 @@ interestedInOrientations: this.firstStringArray(raw, [
     } as unknown as IUserDados;
   }
 
-  // ===========================================================================
-  // Cache helpers
-  // ===========================================================================
-
-  /**
-   * Verifica se um public_profile cacheado Ã© Ãºtil para montar card.
-   *
-   * Antes, o cache era aceito apenas por conter UID.
-   * Isso deixava passar objetos rasos, causando:
-   * - "Perfil";
-   * - "LocalizaÃ§Ã£o nÃ£o informada";
-   * - latitude/longitude null;
-   * - ausÃªncia de orientaÃ§Ã£o.
-   *
-   * Aqui exigimos UID + nickname e pelo menos algum metadado pÃºblico Ãºtil.
-   */
   private isPublicProfileUsableForCard(
     profile: IUserDados | null | undefined
   ): boolean {
@@ -442,13 +347,8 @@ interestedInOrientations: this.firstStringArray(raw, [
     }
 
     const present = new Set(profiles.map((profile) => profile.uid));
-
     return requestedUids.every((uid) => present.has(uid));
   }
-
-  // ===========================================================================
-  // Query helpers
-  // ===========================================================================
 
   private onceGuardedQuery(
     constraints: QueryConstraint[] = [],
@@ -461,7 +361,6 @@ interestedInOrientations: this.firstStringArray(raw, [
 
     return this.uid$.pipe(
       take(1),
-
       switchMap((uid) => {
         if (!uid) {
           return of([] as IUserDados[]);
@@ -486,15 +385,12 @@ interestedInOrientations: this.firstStringArray(raw, [
                     this.toUserDadosFromPublicProfile(doc)
                   )
                 ),
-
                 map((users) => {
                   this.cache.set(cacheKey, users, cacheTTL);
-
                   return users;
                 })
               );
           }),
-
           catchError((err) =>
             this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
               err,
@@ -507,14 +403,9 @@ interestedInOrientations: this.firstStringArray(raw, [
           )
         );
       }),
-
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
-
-  // ===========================================================================
-  // API pÃºblica preservada
-  // ===========================================================================
 
   searchUsers(constraints: QueryConstraint[]): Observable<IUserDados[]> {
     return this.onceGuardedQuery(constraints ?? [], {
@@ -541,6 +432,7 @@ interestedInOrientations: this.firstStringArray(raw, [
       where('municipio', '==', m),
     ]);
   }
+
   getUsersByGender$(gender: string): Observable<IUserDados[]> {
     const clean = this.toCleanText(gender);
 
@@ -602,7 +494,6 @@ interestedInOrientations: this.firstStringArray(raw, [
 
     return this.uid$.pipe(
       take(1),
-
       switchMap((uid) => {
         if (!uid) {
           return of([] as IUserDados[]);
@@ -613,21 +504,12 @@ interestedInOrientations: this.firstStringArray(raw, [
             take(1),
             catchError(() => of(null))
           ),
-
           cachedByUids: this.cache.get<IUserDados[]>(cacheKey).pipe(
             take(1),
             catchError(() => of(null))
           ),
         }).pipe(
           switchMap(({ cachedAll, cachedByUids }) => {
-            /**
-             * Primeiro tenta o cache geral.
-             *
-             * Motivo:
-             * - o modo Todos costuma carregar public_profiles completos;
-             * - esse cache pode estar melhor do que o cache especÃ­fico por UID;
-             * - se estiver completo, reaproveitamos e regravamos o cache por UID.
-             */
             const fromAllCache = this.pickProfilesByRequestedUids(
               cachedAll,
               sorted
@@ -635,15 +517,9 @@ interestedInOrientations: this.firstStringArray(raw, [
 
             if (this.cachedProfilesCoverRequestedUids(fromAllCache, sorted)) {
               this.cache.set(cacheKey, fromAllCache, cacheTTL);
-
               return of(fromAllCache);
             }
 
-            /**
-             * Depois tenta o cache especÃ­fico.
-             *
-             * Agora ele sÃ³ Ã© aceito se tiver dados Ãºteis para card.
-             */
             const fromUidCache = this.pickProfilesByRequestedUids(
               cachedByUids,
               sorted
@@ -653,9 +529,6 @@ interestedInOrientations: this.firstStringArray(raw, [
               return of(fromUidCache);
             }
 
-            /**
-             * Cache ausente ou raso: consulta Firestore.
-             */
             const batches = this.chunk(
               sorted,
               UserDiscoveryQueryService.UID_BATCH_SIZE
@@ -670,7 +543,6 @@ interestedInOrientations: this.firstStringArray(raw, [
 
             return forkJoin(reads$).pipe(
               map((parts) => parts.flat()),
-
               map((profiles) => {
                 const byUid = new Map<string, IUserDados>();
 
@@ -688,13 +560,10 @@ interestedInOrientations: this.firstStringArray(raw, [
                   .map((requestedUid) => byUid.get(requestedUid) ?? null)
                   .filter((profile): profile is IUserDados => !!profile);
               }),
-
               map((profiles) => {
                 this.cache.set(cacheKey, profiles, cacheTTL);
-
                 return profiles;
               }),
-
               catchError((err) =>
                 this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
                   err,
@@ -707,7 +576,6 @@ interestedInOrientations: this.firstStringArray(raw, [
               )
             );
           }),
-
           catchError((err) =>
             this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
               err,
@@ -720,7 +588,6 @@ interestedInOrientations: this.firstStringArray(raw, [
           )
         );
       }),
-
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
@@ -730,7 +597,6 @@ interestedInOrientations: this.firstStringArray(raw, [
 
     return this.uid$.pipe(
       take(1),
-
       switchMap((uid) => {
         if (!uid) {
           return of([] as IUserDados[]);
@@ -738,12 +604,6 @@ interestedInOrientations: this.firstStringArray(raw, [
 
         return this.cache.get<IUserDados[]>(cacheKey).pipe(
           switchMap((cached) => {
-            /**
-             * Para o feed geral, ainda aceitamos cache existente.
-             * Se vocÃª quiser ser mais rÃ­gido depois, dÃ¡ para validar
-             * `isPublicProfileUsableForCard()` aqui tambÃ©m, mas isso pode gerar
-             * mais leituras em feed amplo.
-             */
             if (cached?.length) {
               return of(cached);
             }
@@ -761,25 +621,19 @@ interestedInOrientations: this.firstStringArray(raw, [
                     this.toUserDadosFromPublicProfile(doc)
                   )
                 ),
-
                 map((users) => {
                   this.cache.set(cacheKey, users, 600_000);
-
                   return users;
                 })
               );
           }),
-
           catchError((err) => {
             this.firestoreError.handleFirestoreError(err);
-
             return of([] as IUserDados[]);
           })
         );
       }),
-
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
 }
-
