@@ -1,21 +1,21 @@
 // firestore-rules/public_profiles.rules
 // =========================================================================
-// PUBLIC PROFILES (consultável / discovery)
+// PUBLIC PROFILES (consultÃ¡vel / discovery)
 //
-// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`.
+// âœ… ARQUIVO MODULAR: NÃƒO pode ter `rules_version` nem `service cloud.firestore`.
 // uso de helpers globais
-// ✅ Depende dos helpers globais em _helpers.rules:
+// âœ… Depende dos helpers globais em _helpers.rules:
 //    - signedIn(), uid(), isSelf()
-//    - optTimestamp()  (se você mantém esse helper global)
+//    - optTimestamp()  (se vocÃª mantÃ©m esse helper global)
 // =========================================================================
 match /public_profiles/{userId} {
-  // Leitura: exige login (evita scraping público).
+  // Leitura: exige login (evita scraping pÃºblico).
   // Obs.: para queries (where/orderBy) o Firestore usa "list".
   allow get, list: if signedIn();
 
   // -----------------------------------------------------------------------
   // Helpers locais (SAFE)
-  // - Evita evaluation error quando campo opcional está ausente (undefined)
+  // - Evita evaluation error quando campo opcional estÃ¡ ausente (undefined)
   // - Usa keys().hasAny([field]) antes de acessar request.resource.data[field]
   // -----------------------------------------------------------------------
 
@@ -56,7 +56,7 @@ match /public_profiles/{userId} {
   }
 
   // Lista opcional com limite de tamanho.
-  // Os valores canônicos são escritos pelo backend; no cliente, os campos ficam imutáveis.
+  // Os valores canÃ´nicos sÃ£o escritos pelo backend; no cliente, os campos ficam imutÃ¡veis.
   function optListMax(field, max) {
     return !hasField(field)
       || request.resource.data[field] == null
@@ -64,7 +64,7 @@ match /public_profiles/{userId} {
           && request.resource.data[field].size() <= max);
   }
 
-  // URL opcional: validação básica (http/https) + tamanho máximo
+  // URL opcional: validaÃ§Ã£o bÃ¡sica (http/https) + tamanho mÃ¡ximo
   function optUrl(field, maxLen) {
     return !hasField(field)
       || request.resource.data[field] == null
@@ -109,7 +109,7 @@ match /public_profiles/{userId} {
       || (lat != null && lng != null && gh != null);
   }
 
-  // Campos canônicos de discovery são server-owned.
+  // Campos canÃ´nicos de discovery sÃ£o server-owned.
   function noClientDiscoveryFieldsOnCreate() {
     return !request.resource.data.keys().hasAny([
       "normalizedGender",
@@ -131,7 +131,7 @@ match /public_profiles/{userId} {
   }
 
   // -----------------------------------------------------------------------
-  // Whitelist rígida: nenhum campo fora do schema
+  // Whitelist rÃ­gida: nenhum campo fora do schema
   // -----------------------------------------------------------------------
   function allowedKeys() {
     return request.resource.data.keys().hasOnly([
@@ -160,17 +160,17 @@ match /public_profiles/{userId} {
   }
 
   // -----------------------------------------------------------------------
-  // Validação do payload FINAL (create/update)
-  // Em update: request.resource.data já é o documento final (merge aplicado).
+  // ValidaÃ§Ã£o do payload FINAL (create/update)
+  // Em update: request.resource.data jÃ¡ Ã© o documento final (merge aplicado).
   // -----------------------------------------------------------------------
   function validPublicProfilePayload() {
     return allowedKeys()
 
-      // uid do documento deve ser o usuário autenticado
+      // uid do documento deve ser o usuÃ¡rio autenticado
       && (request.resource.data.uid is string)
       && request.resource.data.uid == uid()
 
-      // timestamps: tipo (o "server time" é forçado no allow create/update)
+      // timestamps: tipo (o "server time" Ã© forÃ§ado no allow create/update)
       && optTimestamp("createdAt")
       && optTimestamp("updatedAt")
       && optTimestamp("discoveryNormalizedAt")
@@ -192,7 +192,7 @@ match /public_profiles/{userId} {
       && optUrl("avatarUrl", 1024)
       && optUrl("photoURL", 1024)
 
-      // geo (opcional) + coerência + ranges
+      // geo (opcional) + coerÃªncia + ranges
       && geoCoherent()
       && optNumberInRange("latitude", -90, 90)
       && optNumberInRange("longitude", -180, 180)
@@ -209,7 +209,7 @@ match /public_profiles/{userId} {
       && optListMax("interestedInOrientations", 8)
       && optBool("compatibilityReady")
 
-      // role: criação força "free" e update impede mudança pelo cliente
+      // role: criaÃ§Ã£o forÃ§a "free" e update impede mudanÃ§a pelo cliente
       && optStringSized("role", 3, 20);
   }
 
@@ -218,7 +218,7 @@ match /public_profiles/{userId} {
   // - somente dono
   // - createdAt/updatedAt obrigatoriamente serverTimestamp() => request.time
   // - role inicial obrigatoriamente "free"
-  // - campos canônicos de discovery são gerados pelo backend, não pelo cliente
+  // - campos canÃ´nicos de discovery sÃ£o gerados pelo backend, nÃ£o pelo cliente
   // -----------------------------------------------------------------------
   allow create: if (
     isSelf(userId)
@@ -232,10 +232,10 @@ match /public_profiles/{userId} {
  // -----------------------------------------------------------------------
   // UPDATE
   // - somente dono
-  // - uid e createdAt imutáveis
+  // - uid e createdAt imutÃ¡veis
   // - updatedAt obrigatoriamente serverTimestamp() => request.time
-  // - role imutável (anti auto-elevação)
-  // - campos canônicos de discovery são imutáveis pelo cliente
+  // - role imutÃ¡vel (anti auto-elevaÃ§Ã£o)
+  // - campos canÃ´nicos de discovery sÃ£o imutÃ¡veis pelo cliente
   // -----------------------------------------------------------------------
   allow update: if (
     isSelf(userId)
@@ -250,3 +250,4 @@ match /public_profiles/{userId} {
   // Delete bloqueado
   allow delete: if false;
 }
+
