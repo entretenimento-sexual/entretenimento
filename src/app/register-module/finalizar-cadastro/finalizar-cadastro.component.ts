@@ -2,9 +2,10 @@
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { EMPTY, of, Observable } from 'rxjs';
+import { EMPTY, Observable, of } from 'rxjs';
 import {
   catchError,
+  filter,
   finalize,
   map,
   switchMap,
@@ -17,14 +18,17 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 
-import { IBGELocationService } from 'src/app/core/services/general/api/ibge-location.service';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { FirestoreUserWriteService } from 'src/app/core/services/data-handling/firestore-user-write.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
+import { IBGELocationService } from 'src/app/core/services/general/api/ibge-location.service';
 
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+
+import { RegisterFlowFacade } from '../data-access/register-flow.facade';
+import { RegisterFlowVm } from '../data-access/register-flow.model';
 
 type ProfileCompletionPayload = Partial<IUserRegistrationData> & Partial<IUserDados>;
 
@@ -63,7 +67,10 @@ export class FinalizarCadastroComponent implements OnInit {
   public showSubscriptionOptions = false;
   public formErrors: { [key: string]: string } = {};
 
+  private latestVm: RegisterFlowVm | null = null;
+
   constructor(
+    private readonly registerFlow: RegisterFlowFacade,
     private readonly ibgeLocationService: IBGELocationService,
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly firestoreUserWrite: FirestoreUserWriteService,
@@ -75,39 +82,25 @@ export class FinalizarCadastroComponent implements OnInit {
     private readonly errorNotification: ErrorNotificationService
   ) {}
 
-  private getLS(): Storage | null {
-    try {
-      return (globalThis as any).localStorage ?? null;
-    } catch {
-      return null;
-    }
-  }
-
   ngOnInit(): void {
     this.resolveEntryContext();
     this.loadEstados();
 
-    this.currentUserStore.user$
+    this.registerFlow.vm$
       .pipe(
+        tap((vm) => {
+          this.latestVm = vm;
+        }),
+        filter((vm) => vm.authReady),
         take(1),
-        switchMap((u) => {
-          if (u) return of(u);
-
-          const raw = this.getLS()?.getItem?.('currentUser') ?? null;
-          if (!raw) return of(null);
-
-          try {
-            return of(JSON.parse(raw) as IUserDados);
-          } catch {
-            return of(null);
+        switchMap((vm) => {
+          if (!vm.uid) {
+            this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {});
+            return of(void 0);
           }
+
+          return this.loadUserForFormByUid$(vm.uid, vm);
         }),
-        tap((u) => {
-          if (!u?.uid) {
-            this.router.navigate(['/login']).catch(() => {});
-          }
-        }),
-        switchMap((u) => (u?.uid ? this.loadUserForForm$(u) : of(void 0))),
         finalize(() => {
           this.isLoading = false;
         }),
@@ -122,17 +115,24 @@ export class FinalizarCadastroComponent implements OnInit {
       });
   }
 
-  private loadUserForForm$(userData: IUserDados): Observable<void> {
-    return this.firestoreUserQuery.getUser(userData.uid).pipe(
+  private loadUserForFormByUid$(uid: string, vm: RegisterFlowVm): Observable<void> {
+    return this.firestoreUserQuery.getUser(uid).pipe(
       take(1),
       tap((doc) => {
-        this.email = doc?.email ?? userData.email ?? '';
-        this.nickname = doc?.nickname ?? userData.nickname ?? '';
+        if (!doc) {
+          this.message = 'Não encontramos os dados da sua conta. Tente entrar novamente.';
+          this.errorNotification.showError(this.message);
+          this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {});
+          return;
+        }
 
-        this.gender = doc?.gender ?? userData.gender ?? '';
-        this.orientation = doc?.orientation ?? userData.orientation ?? '';
-        this.selectedEstado = doc?.estado ?? userData.estado ?? '';
-        this.selectedMunicipio = doc?.municipio ?? userData.municipio ?? '';
+        this.email = doc.email ?? vm.email ?? '';
+        this.nickname = doc.nickname ?? '';
+
+        this.gender = doc.gender ?? '';
+        this.orientation = doc.orientation ?? '';
+        this.selectedEstado = doc.estado ?? '';
+        this.selectedMunicipio = doc.municipio ?? '';
 
         if (this.selectedEstado) {
           this.loadMunicipiosForEstado(this.selectedEstado);
@@ -184,56 +184,61 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   private getRedirectToAfterCompletion(uid: string): string {
+    const vm = this.latestVm;
+
+    if (vm?.uid === uid && !vm.adultConsentAccepted) {
+      return '/adulto/confirmar';
+    }
+
     const raw = this.route.snapshot.queryParamMap.get('redirectTo');
 
-    if (!raw) return `/perfil/${uid}`;
-    if (!raw.startsWith('/') || raw.startsWith('//')) return `/perfil/${uid}`;
+    if (raw && raw.startsWith('/') && !raw.startsWith('//')) {
+      return raw;
+    }
 
-    return raw;
+    if (vm?.uid === uid && vm.nextRoute && vm.nextRoute !== '/register/finalizar-cadastro') {
+      return vm.nextRoute;
+    }
+
+    return `/perfil/${uid}`;
   }
 
   onSubmit(): void {
     if (this.isSubmitting) return;
 
+    const uid = this.latestVm?.uid?.trim() || null;
+
+    if (!uid) {
+      const msg = 'Erro: UID do usuário não encontrado.';
+      this.message = msg;
+      this.errorNotification.showError(msg);
+      return;
+    }
+
+    this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
+    this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
+    this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
+
+    if (
+      this.isFieldInvalid('gender') ||
+      this.isFieldInvalid('estado') ||
+      this.isFieldInvalid('municipio')
+    ) {
+      const msg = 'Por favor, preencha os campos obrigatórios.';
+      this.message = msg;
+      this.errorNotification.showError(msg);
+      return;
+    }
+
     this.isSubmitting = true;
     this.message = '';
     this.uploadMessage = '';
 
-    this.currentUserStore
-      .getLoggedUserUID$()
+    this.firestoreUserQuery
+      .getUser(uid)
       .pipe(
         take(1),
-        switchMap((uid) => {
-          if (!uid) {
-            const msg = 'Erro: UID do usuário não encontrado.';
-            this.message = msg;
-            this.errorNotification.showError(msg);
-            return EMPTY;
-          }
-
-          this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
-          this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
-          this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
-
-          if (
-            this.isFieldInvalid('gender') ||
-            this.isFieldInvalid('estado') ||
-            this.isFieldInvalid('municipio')
-          ) {
-            const msg = 'Por favor, preencha os campos obrigatórios.';
-            this.message = msg;
-            this.errorNotification.showError(msg);
-            return EMPTY;
-          }
-
-          return this.firestoreUserQuery.getUser(uid).pipe(
-            take(1),
-            map((existingUserData) => ({ uid, existingUserData }))
-          );
-        }),
-        switchMap((ctx) => {
-          const { uid, existingUserData } = ctx;
-
+        switchMap((existingUserData) => {
           if (!existingUserData) {
             throw new Error('Dados do usuário não encontrados.');
           }
@@ -272,16 +277,7 @@ export class FinalizarCadastroComponent implements OnInit {
           this.message = 'Perfil finalizado com sucesso!';
           this.currentUserStore.patch({ profileCompleted: true });
 
-          const targetUid = this.currentUserStore.getLoggedUserUIDSnapshot();
-
-          if (!targetUid) {
-            const msg = 'Perfil salvo, mas não foi possível redirecionar automaticamente.';
-            this.message = msg;
-            this.errorNotification.showError(msg);
-            return;
-          }
-
-          const target = this.getRedirectToAfterCompletion(targetUid);
+          const target = this.getRedirectToAfterCompletion(uid);
           this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
         },
       });
@@ -310,7 +306,8 @@ export class FinalizarCadastroComponent implements OnInit {
               this.currentUserStore.patch({ photoURL });
             }),
             catchError(() => {
-              this.uploadMessage = 'Perfil salvo. A foto foi enviada, mas não foi possível atualizar o avatar agora.';
+              this.uploadMessage =
+                'Perfil salvo. A foto foi enviada, mas não foi possível atualizar o avatar agora.';
               this.errorNotification.showWarning(this.uploadMessage);
               return of(void 0);
             })
@@ -397,6 +394,13 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   continueWithoutSubscription(): void {
+    const uid = this.latestVm?.uid;
+
+    if (uid && !this.latestVm?.adultConsentAccepted) {
+      this.router.navigate(['/adulto/confirmar'], { replaceUrl: true }).catch(() => {});
+      return;
+    }
+
     this.router.navigate(['/dashboard/principal']).catch(() => {});
   }
 }
