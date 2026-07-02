@@ -242,7 +242,9 @@ export class FirestoreUserWriteService {
 
     return this.ctx.deferPromise$(async () => {
       const publicProfileSnap = await getDoc(publicProfileRef);
-      const isPublicProfileCreate = !publicProfileSnap.exists();
+      const existingPublicProfile = publicProfileSnap.exists()
+        ? (publicProfileSnap.data() as Record<string, unknown>)
+        : null;
 
       const batch = writeBatch(this.db as any);
 
@@ -252,14 +254,22 @@ export class FirestoreUserWriteService {
         { merge: true }
       );
 
+      /**
+       * Usa overwrite sanitizado em public_profiles.
+       *
+       * Motivo: perfis legados podem conter campos fora da whitelist atual das
+       * rules. Um merge preservaria esses campos no documento final e faria o
+       * update ser negado por permissão. O overwrite mantém somente campos
+       * públicos permitidos, preservando campos imutáveis/server-owned quando
+       * já existirem.
+       */
       batch.set(
         publicProfileRef as any,
         this.buildPublicProfileCompletionPatch(
           safeUid,
           data,
-          isPublicProfileCreate
-        ) as any,
-        { merge: true }
+          existingPublicProfile
+        ) as any
       );
 
       await batch.commit();
@@ -353,7 +363,7 @@ export class FirestoreUserWriteService {
   }
 
   /**
-   * Patch público da conclusão do perfil.
+   * Documento público sanitizado da conclusão do perfil.
    *
    * Não inclui:
    * - email;
@@ -368,7 +378,7 @@ export class FirestoreUserWriteService {
   private buildPublicProfileCompletionPatch(
     uid: string,
     data: ProfileCompletionPayload,
-    isCreate: boolean
+    existing: Record<string, unknown> | null
   ): Record<string, unknown> {
     const nickname = this.cleanText(data.nickname);
 
@@ -393,12 +403,34 @@ export class FirestoreUserWriteService {
       patch['photoURL'] = photoURL;
     }
 
-    if (isCreate) {
+    if (!existing) {
       patch['createdAt'] = serverTimestamp();
       patch['role'] = 'free';
+
+      return patch;
     }
 
+    this.copyExistingPublicField(existing, patch, 'createdAt');
+    this.copyExistingPublicField(existing, patch, 'role');
+
+    this.copyExistingPublicField(existing, patch, 'normalizedGender');
+    this.copyExistingPublicField(existing, patch, 'normalizedOrientation');
+    this.copyExistingPublicField(existing, patch, 'interestedInGenders');
+    this.copyExistingPublicField(existing, patch, 'interestedInOrientations');
+    this.copyExistingPublicField(existing, patch, 'compatibilityReady');
+    this.copyExistingPublicField(existing, patch, 'discoveryNormalizedAt');
+
     return patch;
+  }
+
+  private copyExistingPublicField(
+    source: Record<string, unknown>,
+    target: Record<string, unknown>,
+    field: string
+  ): void {
+    if (Object.prototype.hasOwnProperty.call(source, field)) {
+      target[field] = source[field];
+    }
   }
 
   private cleanText(value: unknown): string {
@@ -438,4 +470,4 @@ export class FirestoreUserWriteService {
       // noop
     }
   }
-} // Linha 441
+}
