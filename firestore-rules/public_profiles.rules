@@ -1,45 +1,46 @@
 // firestore-rules/public_profiles.rules
 // =========================================================================
-// PUBLIC PROFILES (consultÃ¡vel / discovery)
-//
-// âœ… ARQUIVO MODULAR: NÃƒO pode ter `rules_version` nem `service cloud.firestore`.
-// uso de helpers globais
-// âœ… Depende dos helpers globais em _helpers.rules:
-//    - signedIn(), uid(), isSelf()
-//    - optTimestamp()  (se vocÃª mantÃ©m esse helper global)
+// PUBLIC PROFILES (consultable / discovery)
 // =========================================================================
 match /public_profiles/{userId} {
-  // Leitura: exige login (evita scraping pÃºblico).
-  // Obs.: para queries (where/orderBy) o Firestore usa "list".
+  // Read requires login.
   allow get, list: if signedIn();
 
   // -----------------------------------------------------------------------
-  // Helpers locais (SAFE)
-  // - Evita evaluation error quando campo opcional estÃ¡ ausente (undefined)
-  // - Usa keys().hasAny([field]) antes de acessar request.resource.data[field]
+  // Local helpers
   // -----------------------------------------------------------------------
 
-  // Existe no payload?
   function hasField(field) {
     return request.resource.data.keys().hasAny([field]);
   }
 
-  // Existe no documento atual?
   function hasExistingField(field) {
     return resource.data.keys().hasAny([field]);
   }
 
-  // Retorna valor ou null (se ausente)
   function fieldOrNull(field) {
     return hasField(field) ? request.resource.data[field] : null;
   }
 
-  // Retorna valor existente ou null (se ausente)
   function existingFieldOrNull(field) {
     return hasExistingField(field) ? resource.data[field] : null;
   }
 
-  // String opcional, com range de tamanho
+  // If the field already exists, it must not change. If it does not exist in
+  // a legacy document, the update may provide it when another validator allows it.
+  function immutableIfExisting(field) {
+    return !hasExistingField(field)
+      || fieldOrNull(field) == existingFieldOrNull(field);
+  }
+
+  // If the field already exists, it must not change. If it does not exist in
+  // a legacy document, the client must not create it through update.
+  function immutableExistingOrAbsent(field) {
+    return hasExistingField(field)
+      ? fieldOrNull(field) == existingFieldOrNull(field)
+      : !hasField(field);
+  }
+
   function optStringSized(field, min, max) {
     return !hasField(field)
       || request.resource.data[field] == null
@@ -48,15 +49,12 @@ match /public_profiles/{userId} {
           && request.resource.data[field].size() <= max);
   }
 
-  // Boolean opcional
   function optBool(field) {
     return !hasField(field)
       || request.resource.data[field] == null
       || request.resource.data[field] is bool;
   }
 
-  // Lista opcional com limite de tamanho.
-  // Os valores canÃ´nicos sÃ£o escritos pelo backend; no cliente, os campos ficam imutÃ¡veis.
   function optListMax(field, max) {
     return !hasField(field)
       || request.resource.data[field] == null
@@ -64,7 +62,6 @@ match /public_profiles/{userId} {
           && request.resource.data[field].size() <= max);
   }
 
-  // URL opcional: validaÃ§Ã£o bÃ¡sica (http/https) + tamanho mÃ¡ximo
   function optUrl(field, maxLen) {
     return !hasField(field)
       || request.resource.data[field] == null
@@ -73,7 +70,6 @@ match /public_profiles/{userId} {
           && request.resource.data[field].matches('^https?://.*'));
   }
 
-  // Number opcional, com range
   function optNumberInRange(field, min, max) {
     return !hasField(field)
       || request.resource.data[field] == null
@@ -82,7 +78,6 @@ match /public_profiles/{userId} {
           && request.resource.data[field] <= max);
   }
 
-  // Geohash opcional (base32), tamanho 5..12
   function optGeohash(field) {
     return !hasField(field)
       || request.resource.data[field] == null
@@ -93,14 +88,12 @@ match /public_profiles/{userId} {
             .matches('^[0123456789bcdefghjkmnpqrstuvwxyz]{5,12}$'));
   }
 
-  // nickname e nicknameNormalized coerentes
   function nicknameCoherent() {
     let nick = fieldOrNull("nickname");
     let norm = fieldOrNull("nicknameNormalized");
     return (nick == null && norm == null) || (nick != null && norm != null);
   }
 
-  // geo: ou os 3 null/ausentes, ou os 3 preenchidos
   function geoCoherent() {
     let lat = fieldOrNull("latitude");
     let lng = fieldOrNull("longitude");
@@ -109,7 +102,7 @@ match /public_profiles/{userId} {
       || (lat != null && lng != null && gh != null);
   }
 
-  // Campos canÃ´nicos de discovery sÃ£o server-owned.
+  // Server-owned discovery fields.
   function noClientDiscoveryFieldsOnCreate() {
     return !request.resource.data.keys().hasAny([
       "normalizedGender",
@@ -130,9 +123,6 @@ match /public_profiles/{userId} {
       && fieldOrNull("discoveryNormalizedAt") == existingFieldOrNull("discoveryNormalizedAt");
   }
 
-  // -----------------------------------------------------------------------
-  // Whitelist rÃ­gida: nenhum campo fora do schema
-  // -----------------------------------------------------------------------
   function allowedKeys() {
     return request.resource.data.keys().hasOnly([
       "uid",
@@ -159,46 +149,29 @@ match /public_profiles/{userId} {
     ]);
   }
 
-  // -----------------------------------------------------------------------
-  // ValidaÃ§Ã£o do payload FINAL (create/update)
-  // Em update: request.resource.data jÃ¡ Ã© o documento final (merge aplicado).
-  // -----------------------------------------------------------------------
   function validPublicProfilePayload() {
     return allowedKeys()
-
-      // uid do documento deve ser o usuÃ¡rio autenticado
       && (request.resource.data.uid is string)
       && request.resource.data.uid == uid()
-
-      // timestamps: tipo (o "server time" Ã© forÃ§ado no allow create/update)
       && optTimestamp("createdAt")
       && optTimestamp("updatedAt")
       && optTimestamp("discoveryNormalizedAt")
-
-      // nickname + normalized coerentes
       && nicknameCoherent()
       && optStringSized("nickname", 3, 40)
-       && (
+      && (
         !hasField("nicknameNormalized")
         || request.resource.data.nicknameNormalized == null
         || (
           request.resource.data.nicknameNormalized is string
-          && request.resource.data.nicknameNormalized
-            .matches('^[a-z0-9._-]{3,40}$')
+          && request.resource.data.nicknameNormalized.matches('^[a-z0-9._-]{3,40}$')
         )
       )
-
-      // URLs (opcionais)
       && optUrl("avatarUrl", 1024)
       && optUrl("photoURL", 1024)
-
-      // geo (opcional) + coerÃªncia + ranges
       && geoCoherent()
       && optNumberInRange("latitude", -90, 90)
       && optNumberInRange("longitude", -180, 180)
       && optGeohash("geohash")
-
-      // campos textuais opcionais
       && optStringSized("municipio", 1, 80)
       && optStringSized("estado", 1, 40)
       && optStringSized("gender", 1, 40)
@@ -208,18 +181,9 @@ match /public_profiles/{userId} {
       && optListMax("interestedInGenders", 8)
       && optListMax("interestedInOrientations", 8)
       && optBool("compatibilityReady")
-
-      // role: criaÃ§Ã£o forÃ§a "free" e update impede mudanÃ§a pelo cliente
       && optStringSized("role", 3, 20);
   }
 
-  // -----------------------------------------------------------------------
-  // CREATE
-  // - somente dono
-  // - createdAt/updatedAt obrigatoriamente serverTimestamp() => request.time
-  // - role inicial obrigatoriamente "free"
-  // - campos canÃ´nicos de discovery sÃ£o gerados pelo backend, nÃ£o pelo cliente
-  // -----------------------------------------------------------------------
   allow create: if (
     isSelf(userId)
     && validPublicProfilePayload()
@@ -229,25 +193,15 @@ match /public_profiles/{userId} {
     && request.resource.data.role == "free"
   );
 
- // -----------------------------------------------------------------------
-  // UPDATE
-  // - somente dono
-  // - uid e createdAt imutÃ¡veis
-  // - updatedAt obrigatoriamente serverTimestamp() => request.time
-  // - role imutÃ¡vel (anti auto-elevaÃ§Ã£o)
-  // - campos canÃ´nicos de discovery sÃ£o imutÃ¡veis pelo cliente
-  // -----------------------------------------------------------------------
   allow update: if (
     isSelf(userId)
     && validPublicProfilePayload()
     && discoveryFieldsUnchangedOnUpdate()
-    && request.resource.data.uid == resource.data.uid
-    && request.resource.data.createdAt == resource.data.createdAt
+    && immutableIfExisting("uid")
+    && immutableExistingOrAbsent("createdAt")
     && request.resource.data.updatedAt == request.time
-    && request.resource.data.role == resource.data.role
+    && immutableExistingOrAbsent("role")
   );
 
-  // Delete bloqueado
   allow delete: if false;
 }
-
