@@ -1,34 +1,34 @@
-// src/app/core/services/data-handling/queries/user-discovery.query.service.ts
+﻿// src/app/core/services/data-handling/queries/user-discovery.query.service.ts
 // =============================================================================
 // USER DISCOVERY QUERY SERVICE
 // =============================================================================
 //
 // Responsabilidade:
-// - consultar perfis públicos em public_profiles/{uid};
-// - atender fluxos de descoberta, busca e hidratação de cards;
-// - nunca consultar users/{uid} para discovery público;
-// - proteger leituras contra execução sem autenticação;
+// - consultar perfis pÃºblicos em public_profiles/{uid};
+// - atender fluxos de descoberta, busca e hidrataÃ§Ã£o de cards;
+// - nunca consultar users/{uid} para discovery pÃºblico;
+// - proteger leituras contra execuÃ§Ã£o sem autenticaÃ§Ã£o;
 // - usar cache sem aceitar cache raso/incompleto para cards.
 //
-// Ponto corrigido nesta versão:
-// - getProfilesByUids$ não aceita mais cache apenas por conter o UID;
-// - o cache por UID só é usado se tiver dados públicos úteis para card;
+// Ponto corrigido nesta versÃ£o:
+// - getProfilesByUids$ nÃ£o aceita mais cache apenas por conter o UID;
+// - o cache por UID sÃ³ Ã© usado se tiver dados pÃºblicos Ãºteis para card;
 // - antes de consultar Firestore, tenta reaproveitar o cache geral
 //   discovery:public_profiles:all, que costuma estar mais completo;
-// - isso corrige a pane "Localização não informada" no modo Online quando
-//   havia cache antigo sem município/estado/coordenadas.
+// - isso corrige a pane "LocalizaÃ§Ã£o nÃ£o informada" no modo Online quando
+//   havia cache antigo sem municÃ­pio/estado/coordenadas.
 //
-// Segurança:
-// - lê apenas public_profiles;
-// - não expõe e-mail, telefone ou dados privados;
-// - não abre consulta sem sessão;
+// SeguranÃ§a:
+// - lÃª apenas public_profiles;
+// - nÃ£o expÃµe e-mail, telefone ou dados privados;
+// - nÃ£o abre consulta sem sessÃ£o;
 // - erros passam por FirestoreErrorHandlerService.
 //
-// Manutenção:
-// - mantém os nomes dos métodos públicos atuais;
-// - mantém Observable;
-// - helpers pequenos e reaproveitáveis;
-// - sem dependência de Router, Presence ou NgRx.
+// ManutenÃ§Ã£o:
+// - mantÃ©m os nomes dos mÃ©todos pÃºblicos atuais;
+// - mantÃ©m Observable;
+// - helpers pequenos e reaproveitÃ¡veis;
+// - sem dependÃªncia de Router, Presence ou NgRx.
 import { Injectable, DestroyRef, inject } from '@angular/core';
 import { defer, forkJoin, from, Observable, of } from 'rxjs';
 import {
@@ -62,8 +62,8 @@ export class UserDiscoveryQueryService {
   private readonly DISCOVERY_COL = 'public_profiles';
 
   /**
-   * Firestore aceita lotes maiores para `in`, mas 10 é conservador e estável.
-   * Isso evita regressão caso algum ambiente/emulador esteja com limite antigo.
+   * Firestore aceita lotes maiores para `in`, mas 10 Ã© conservador e estÃ¡vel.
+   * Isso evita regressÃ£o caso algum ambiente/emulador esteja com limite antigo.
    */
   private static readonly UID_BATCH_SIZE = 10;
 
@@ -85,14 +85,14 @@ export class UserDiscoveryQueryService {
           /**
            * Ponto futuro:
            * se o CacheService ganhar clearByPrefix('discovery:'),
-           * este é o lugar certo para limpar cache sensível à sessão.
+           * este Ã© o lugar certo para limpar cache sensÃ­vel Ã  sessÃ£o.
            */
         }
       });
   }
 
   // ===========================================================================
-  // Helpers básicos
+  // Helpers bÃ¡sicos
   // ===========================================================================
 
   private toCleanText(value: unknown): string | null {
@@ -216,17 +216,17 @@ export class UserDiscoveryQueryService {
   }
 
   // ===========================================================================
-  // Conversão public_profiles -> IUserDados público
+  // ConversÃ£o public_profiles -> IUserDados pÃºblico
   // ===========================================================================
 
   /**
    * Converte public_profiles/{uid} para o formato que os cards entendem.
    *
    * Importante:
-   * - não adiciona dados privados;
+   * - nÃ£o adiciona dados privados;
    * - aceita aliases de campos usados em fases anteriores do projeto;
-   * - preserva localização textual e geográfica quando existirem;
-   * - não define online real, pois isso vem de presence.
+   * - preserva localizaÃ§Ã£o textual e geogrÃ¡fica quando existirem;
+   * - nÃ£o define online real, pois isso vem de presence.
    */
   private toUserDadosFromPublicProfile(raw: any): IUserDados {
     const uid = this.firstText(raw, ['uid']) ?? '';
@@ -353,7 +353,7 @@ interestedInOrientations: this.firstStringArray(raw, [
         null,
 
       /**
-       * Discovery não define presença.
+       * Discovery nÃ£o define presenÃ§a.
        * O OnlineUsersEffects enriquece isso com presence/{uid}.
        */
       isOnline: false,
@@ -368,16 +368,16 @@ interestedInOrientations: this.firstStringArray(raw, [
   // ===========================================================================
 
   /**
-   * Verifica se um public_profile cacheado é útil para montar card.
+   * Verifica se um public_profile cacheado Ã© Ãºtil para montar card.
    *
    * Antes, o cache era aceito apenas por conter UID.
    * Isso deixava passar objetos rasos, causando:
    * - "Perfil";
-   * - "Localização não informada";
+   * - "LocalizaÃ§Ã£o nÃ£o informada";
    * - latitude/longitude null;
-   * - ausência de orientação.
+   * - ausÃªncia de orientaÃ§Ã£o.
    *
-   * Aqui exigimos UID + nickname e pelo menos algum metadado público útil.
+   * Aqui exigimos UID + nickname e pelo menos algum metadado pÃºblico Ãºtil.
    */
   private isPublicProfileUsableForCard(
     profile: IUserDados | null | undefined
@@ -513,9 +513,34 @@ interestedInOrientations: this.firstStringArray(raw, [
   }
 
   // ===========================================================================
-  // API pública preservada
+  // API pÃºblica preservada
   // ===========================================================================
 
+  searchUsers(constraints: QueryConstraint[]): Observable<IUserDados[]> {
+    return this.onceGuardedQuery(constraints ?? [], {
+      cacheTTL: 60_000,
+    });
+  }
+
+  getProfilesByOrientationAndLocation(
+    gender: string,
+    orientation: string,
+    municipio: string
+  ): Observable<IUserDados[]> {
+    const g = (gender ?? '').trim();
+    const o = (orientation ?? '').trim();
+    const m = (municipio ?? '').trim();
+
+    if (!g || !o || !m) {
+      return of([] as IUserDados[]);
+    }
+
+    return this.searchUsers([
+      where('gender', '==', g),
+      where('orientation', '==', o),
+      where('municipio', '==', m),
+    ]);
+  }
   getUsersByGender$(gender: string): Observable<IUserDados[]> {
     const clean = this.toCleanText(gender);
 
@@ -600,7 +625,7 @@ interestedInOrientations: this.firstStringArray(raw, [
              *
              * Motivo:
              * - o modo Todos costuma carregar public_profiles completos;
-             * - esse cache pode estar melhor do que o cache específico por UID;
+             * - esse cache pode estar melhor do que o cache especÃ­fico por UID;
              * - se estiver completo, reaproveitamos e regravamos o cache por UID.
              */
             const fromAllCache = this.pickProfilesByRequestedUids(
@@ -615,9 +640,9 @@ interestedInOrientations: this.firstStringArray(raw, [
             }
 
             /**
-             * Depois tenta o cache específico.
+             * Depois tenta o cache especÃ­fico.
              *
-             * Agora ele só é aceito se tiver dados úteis para card.
+             * Agora ele sÃ³ Ã© aceito se tiver dados Ãºteis para card.
              */
             const fromUidCache = this.pickProfilesByRequestedUids(
               cachedByUids,
@@ -715,8 +740,8 @@ interestedInOrientations: this.firstStringArray(raw, [
           switchMap((cached) => {
             /**
              * Para o feed geral, ainda aceitamos cache existente.
-             * Se você quiser ser mais rígido depois, dá para validar
-             * `isPublicProfileUsableForCard()` aqui também, mas isso pode gerar
+             * Se vocÃª quiser ser mais rÃ­gido depois, dÃ¡ para validar
+             * `isPublicProfileUsableForCard()` aqui tambÃ©m, mas isso pode gerar
              * mais leituras em feed amplo.
              */
             if (cached?.length) {
@@ -757,3 +782,4 @@ interestedInOrientations: this.firstStringArray(raw, [
     );
   }
 }
+
