@@ -1,31 +1,4 @@
 // src/app/core/services/data-handling/firestore-user-write.service.ts
-// -----------------------------------------------------------------------------
-// FirestoreUserWriteService
-// -----------------------------------------------------------------------------
-//
-// Responsabilidade:
-// - centralizar escritas relacionadas ao documento privado do usuário;
-// - centralizar o recorte público em public_profiles;
-// - manter separação entre:
-//   1. finalização de perfil;
-//   2. verificação de e-mail.
-//
-// Regras importantes:
-//
-// - saveInitialUserData$:
-//   usado para completar o perfil.
-//   Grava profileCompleted e dados mínimos do perfil.
-//   NÃO grava emailVerified.
-//
-// - patchEmailVerified$ / patchEmailVerifiedByEmail$:
-//   usados para verificação de e-mail.
-//   Gravam somente emailVerified.
-//   NÃO gravam profileCompleted.
-//
-// - public_profiles:
-//   recebe somente dados públicos permitidos pelas rules.
-//   NÃO recebe emailVerified nem profileCompleted.
-
 import { Injectable } from '@angular/core';
 
 import {
@@ -63,11 +36,6 @@ export class FirestoreUserWriteService {
     private readonly globalErrorHandler: GlobalErrorHandlerService
   ) {}
 
-  /**
-   * Best-effort: garante /users/{uid} sem sobrescrever createdAt.
-   *
-   * Não deve ser usado para marcar profileCompleted.
-   */
   ensureUserDoc$(authUser: User, base: Partial<IUserDados>): Observable<void> {
     const ref = this.ctx.run(() => doc(this.db, 'users', authUser.uid));
 
@@ -135,11 +103,6 @@ export class FirestoreUserWriteService {
       );
   }
 
-  /**
-   * Ato exclusivo de verificação de e-mail.
-   *
-   * Não grava profileCompleted.
-   */
   patchEmailVerified$(uid: string, status: boolean): Observable<void> {
     const safeUid = (uid ?? '').trim();
 
@@ -155,17 +118,9 @@ export class FirestoreUserWriteService {
           emailVerified: status === true,
         } as any)
       )
-      .pipe(
-        map(() => void 0)
-      );
+      .pipe(map(() => void 0));
   }
 
-  /**
-   * Ato exclusivo de verificação de e-mail por e-mail.
-   *
-   * Usado quando o usuário abriu o link sem sessão ativa.
-   * Não grava profileCompleted.
-   */
   patchEmailVerifiedByEmail$(
     email: string,
     status: boolean = true
@@ -210,21 +165,6 @@ export class FirestoreUserWriteService {
     );
   }
 
-  /**
-   * Finalização de perfil.
-   *
-   * Responsabilidades:
-   * - users/{uid}: grava somente dados de conclusão do perfil;
-   * - public_profiles/{uid}: grava somente o recorte público permitido.
-   *
-   * Não grava:
-   * - emailVerified;
-   * - e-mail;
-   * - acceptedTerms;
-   * - firstLogin;
-   * - registrationDate;
-   * - dados privados/administrativos.
-   */
   saveInitialUserData$(
     uid: string,
     data: ProfileCompletionPayload
@@ -254,15 +194,6 @@ export class FirestoreUserWriteService {
         { merge: true }
       );
 
-      /**
-       * Usa overwrite sanitizado em public_profiles.
-       *
-       * Motivo: perfis legados podem conter campos fora da whitelist atual das
-       * rules. Um merge preservaria esses campos no documento final e faria o
-       * update ser negado por permissão. O overwrite mantém somente campos
-       * públicos permitidos, preservando campos imutáveis/server-owned quando
-       * já existirem.
-       */
       batch.set(
         publicProfileRef as any,
         this.buildPublicProfileCompletionPatch(
@@ -288,14 +219,53 @@ export class FirestoreUserWriteService {
     );
   }
 
-  /**
-   * Compatibilidade.
-   *
-   * Mantido para chamadas antigas, mas agora respeita a separação:
-   * verificação de e-mail só grava emailVerified.
-   *
-   * Não grava profileCompleted, mesmo que o objeto user venha com esse campo.
-   */
+  patchProfileAvatar$(uid: string, photoURL: string): Observable<void> {
+    const safeUid = (uid ?? '').trim();
+    const safePhotoURL = this.cleanText(photoURL);
+
+    if (!safeUid) {
+      return throwError(() => new Error('[FirestoreUserWriteService] UID inválido.'));
+    }
+
+    if (!this.isHttpUrl(safePhotoURL)) {
+      return throwError(() => new Error('[FirestoreUserWriteService] URL de foto inválida.'));
+    }
+
+    const userRef = this.ctx.run(() => doc(this.db, 'users', safeUid));
+    const publicProfileRef = this.ctx.run(() =>
+      doc(this.db, 'public_profiles', safeUid)
+    );
+
+    return this.ctx.deferPromise$(async () => {
+      await setDoc(
+        userRef,
+        { photoURL: safePhotoURL } as any,
+        { merge: true }
+      );
+
+      try {
+        const publicProfileSnap = await getDoc(publicProfileRef);
+        const existingPublicProfile = publicProfileSnap.exists()
+          ? (publicProfileSnap.data() as Record<string, unknown>)
+          : null;
+
+        await setDoc(
+          publicProfileRef,
+          this.buildPublicProfileAvatarPatch(
+            safeUid,
+            safePhotoURL,
+            existingPublicProfile
+          ) as any
+        );
+      } catch (err) {
+        console.warn(
+          '[FirestoreUserWriteService] Avatar salvo no perfil privado, mas não sincronizado no public_profiles.',
+          { uid: safeUid, error: err }
+        );
+      }
+    }).pipe(map(() => void 0));
+  }
+
   saveUserDataAfterEmailVerification$(user: IUserDados): Observable<void> {
     if (!user?.uid) {
       return throwError(() => new Error('UID do usuário não definido.'));
@@ -315,11 +285,6 @@ export class FirestoreUserWriteService {
     );
   }
 
-  /**
-   * Patch privado da conclusão do perfil.
-   *
-   * Não inclui emailVerified.
-   */
   private buildUserProfileCompletionPatch(
     uid: string,
     data: ProfileCompletionPayload
@@ -362,19 +327,6 @@ export class FirestoreUserWriteService {
     return patch;
   }
 
-  /**
-   * Documento público sanitizado da conclusão do perfil.
-   *
-   * Não inclui:
-   * - email;
-   * - emailVerified;
-   * - profileCompleted;
-   * - acceptedTerms;
-   * - firstLogin;
-   * - lastLogin;
-   * - registrationDate;
-   * - nicknameHistory.
-   */
   private buildPublicProfileCompletionPatch(
     uid: string,
     data: ProfileCompletionPayload,
@@ -385,7 +337,6 @@ export class FirestoreUserWriteService {
     const patch: Record<string, unknown> = {
       uid,
       updatedAt: serverTimestamp(),
-
       gender: this.cleanTextOrNull(data.gender),
       orientation: this.cleanTextOrNull(data.orientation),
       estado: this.cleanTextOrNull(data.estado),
@@ -406,21 +357,64 @@ export class FirestoreUserWriteService {
     if (!existing) {
       patch['createdAt'] = serverTimestamp();
       patch['role'] = 'free';
-
       return patch;
     }
 
-    this.copyExistingPublicField(existing, patch, 'createdAt');
-    this.copyExistingPublicField(existing, patch, 'role');
-
-    this.copyExistingPublicField(existing, patch, 'normalizedGender');
-    this.copyExistingPublicField(existing, patch, 'normalizedOrientation');
-    this.copyExistingPublicField(existing, patch, 'interestedInGenders');
-    this.copyExistingPublicField(existing, patch, 'interestedInOrientations');
-    this.copyExistingPublicField(existing, patch, 'compatibilityReady');
-    this.copyExistingPublicField(existing, patch, 'discoveryNormalizedAt');
+    this.copyExistingPublicServerFields(existing, patch);
 
     return patch;
+  }
+
+  private buildPublicProfileAvatarPatch(
+    uid: string,
+    photoURL: string,
+    existing: Record<string, unknown> | null
+  ): Record<string, unknown> {
+    const patch: Record<string, unknown> = {
+      uid,
+      photoURL,
+      updatedAt: serverTimestamp(),
+    };
+
+    if (!existing) {
+      patch['createdAt'] = serverTimestamp();
+      patch['role'] = 'free';
+      return patch;
+    }
+
+    const nickname = this.cleanText(existing['nickname']);
+    if (nickname.length >= 3 && nickname.length <= 40) {
+      patch['nickname'] = nickname;
+
+      const existingNormalized = this.cleanText(existing['nicknameNormalized']);
+      patch['nicknameNormalized'] = existingNormalized ||
+        NicknameUtils.normalizarApelidoParaIndice(nickname);
+    }
+
+    this.copyOptionalText(existing, patch, 'gender');
+    this.copyOptionalText(existing, patch, 'orientation');
+    this.copyOptionalText(existing, patch, 'estado');
+    this.copyOptionalText(existing, patch, 'municipio');
+    this.copyOptionalHttpUrl(existing, patch, 'avatarUrl');
+
+    this.copyCoherentGeo(existing, patch);
+    this.copyExistingPublicServerFields(existing, patch);
+
+    return patch;
+  }
+
+  private copyExistingPublicServerFields(
+    source: Record<string, unknown>,
+    target: Record<string, unknown>
+  ): void {
+    this.copyExistingPublicField(source, target, 'createdAt');
+    this.copyExistingPublicField(source, target, 'role');
+    this.copyExistingPublicField(source, target, 'normalizedGender');
+    this.copyExistingPublicField(source, target, 'normalizedOrientation');
+    this.copyExistingPublicField(source, target, 'interestedInGenders');
+    this.copyExistingPublicField(source, target, 'interestedInOrientations');
+    this.copyExistingPublicField(source, target, 'compatibilityReady');
+    this.copyExistingPublicField(source, target, 'discoveryNormalizedAt');
   }
 
   private copyExistingPublicField(
@@ -431,6 +425,58 @@ export class FirestoreUserWriteService {
     if (Object.prototype.hasOwnProperty.call(source, field)) {
       target[field] = source[field];
     }
+  }
+
+  private copyOptionalText(
+    source: Record<string, unknown>,
+    target: Record<string, unknown>,
+    field: string
+  ): void {
+    const text = this.cleanText(source[field]);
+
+    if (text) {
+      target[field] = text;
+    }
+  }
+
+  private copyOptionalHttpUrl(
+    source: Record<string, unknown>,
+    target: Record<string, unknown>,
+    field: string
+  ): void {
+    const value = this.cleanText(source[field]);
+
+    if (this.isHttpUrl(value)) {
+      target[field] = value;
+    }
+  }
+
+  private copyCoherentGeo(
+    source: Record<string, unknown>,
+    target: Record<string, unknown>
+  ): void {
+    const latitude = this.toOptionalNumber(source['latitude']);
+    const longitude = this.toOptionalNumber(source['longitude']);
+    const geohash = this.cleanText(source['geohash']);
+
+    if (latitude === null || longitude === null || !geohash) {
+      return;
+    }
+
+    target['latitude'] = latitude;
+    target['longitude'] = longitude;
+    target['geohash'] = geohash;
+  }
+
+  private toOptionalNumber(value: unknown): number | null {
+    const n =
+      typeof value === 'number'
+        ? value
+        : typeof value === 'string'
+          ? Number(value)
+          : Number.NaN;
+
+    return Number.isFinite(n) ? n : null;
   }
 
   private cleanText(value: unknown): string {
