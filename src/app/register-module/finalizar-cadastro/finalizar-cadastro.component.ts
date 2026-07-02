@@ -306,9 +306,12 @@ export class FinalizarCadastroComponent implements OnInit {
           if (!photoURL) return of(void 0);
 
           return this.firestoreUserWrite.patchProfileAvatar$(uid, photoURL).pipe(
-            catchError((err) => {
-              console.warn('[FinalizarCadastroComponent] Avatar enviado, mas não foi possível salvar a URL no perfil.', err);
+            tap(() => {
+              this.currentUserStore.patch({ photoURL });
+            }),
+            catchError(() => {
               this.uploadMessage = 'Perfil salvo. A foto foi enviada, mas não foi possível atualizar o avatar agora.';
+              this.errorNotification.showWarning(this.uploadMessage);
               return of(void 0);
             })
           );
@@ -316,9 +319,9 @@ export class FinalizarCadastroComponent implements OnInit {
         tap(() => {
           this.progressValue = 100;
         }),
-        catchError((err) => {
-          console.warn('[FinalizarCadastroComponent] Upload de avatar ignorado após perfil salvo.', err);
+        catchError(() => {
           this.uploadMessage = 'Perfil salvo. Não foi possível enviar a foto agora.';
+          this.errorNotification.showWarning(this.uploadMessage);
           return of(void 0);
         }),
         finalize(() => {
