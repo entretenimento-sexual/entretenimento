@@ -4,20 +4,20 @@
 // -----------------------------------------------------------------------------
 //
 // Responsabilidade exclusiva:
-// - completar o perfil mínimo obrigatório da plataforma;
+// - completar o perfil mÃ­nimo obrigatÃ³rio da plataforma;
 // - gravar profileCompleted=true;
-// - gravar dados públicos básicos em public_profiles via FirestoreUserWriteService.
+// - gravar dados pÃºblicos bÃ¡sicos em public_profiles via FirestoreUserWriteService.
 //
-// Este componente NÃO deve:
+// Este componente NÃƒO deve:
 // - verificar e-mail;
 // - gravar emailVerified;
 // - inferir que e-mail verificado significa perfil completo.
 //
-// Separação correta:
+// SeparaÃ§Ã£o correta:
 // - Completar perfil: profileCompleted=true.
 // - Verificar e-mail: emailVerified=true, feito em outro fluxo.
 //
-// Assim, o estado abaixo é válido:
+// Assim, o estado abaixo Ã© vÃ¡lido:
 // - profileCompleted=true
 // - emailVerified=false
 
@@ -65,10 +65,10 @@ export class FinalizarCadastroComponent implements OnInit {
 
   public entryReason: 'profile_incomplete' | 'email_unverified' | null = null;
   public pageTitle = 'Complete seu perfil';
-  public introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
+  public introText = 'Complete os dados abaixo para liberar os recursos bÃ¡sicos da plataforma.';
 
   // ---------------------------------------------------------------------------
-  // Dados da UI / formulário
+  // Dados da UI / formulÃ¡rio
   // ---------------------------------------------------------------------------
 
   public email = '';
@@ -90,7 +90,7 @@ export class FinalizarCadastroComponent implements OnInit {
 
   /**
    * Bootstrap inicial da tela.
-   * Não deve ser usado para travar permanentemente o formulário.
+   * NÃ£o deve ser usado para travar permanentemente o formulÃ¡rio.
    */
   public isLoading = true;
 
@@ -170,11 +170,11 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   /**
-   * Carrega dados atuais do usuário para preencher o formulário.
+   * Carrega dados atuais do usuÃ¡rio para preencher o formulÃ¡rio.
    *
    * Importante:
-   * aqui NÃO recarregamos Auth e NÃO consultamos emailVerified.
-   * Esta tela só cuida de profileCompleted.
+   * aqui NÃƒO recarregamos Auth e NÃƒO consultamos emailVerified.
+   * Esta tela sÃ³ cuida de profileCompleted.
    */
   private loadUserForForm$(userData: IUserDados) {
     return this.firestoreUserQuery.getUser(userData.uid).pipe(
@@ -221,7 +221,7 @@ export class FinalizarCadastroComponent implements OnInit {
         },
         error: (err) => {
           this.globalErrorHandler.handleError(err);
-          this.errorNotification.showError('Erro ao carregar municípios.');
+          this.errorNotification.showError('Erro ao carregar municÃ­pios.');
         },
       });
   }
@@ -230,7 +230,7 @@ export class FinalizarCadastroComponent implements OnInit {
     if (!this.selectedEstado) {
       this.municipios = [];
       this.selectedMunicipio = '';
-      this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
+      this.checkFieldValidity('municipio', this.selectedMunicipio, 'MunicÃ­pio');
       return;
     }
 
@@ -238,7 +238,7 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   /**
-   * Define rota após completar perfil.
+   * Define rota apÃ³s completar perfil.
    */
   private getRedirectToAfterCompletion(uid: string): string {
     const raw = this.route.snapshot.queryParamMap.get('redirectTo');
@@ -262,7 +262,7 @@ export class FinalizarCadastroComponent implements OnInit {
 
         switchMap((uid) => {
           if (!uid) {
-            const msg = 'Erro: UID do usuário não encontrado.';
+            const msg = 'Erro: UID do usuÃ¡rio nÃ£o encontrado.';
             this.message = msg;
             this.errorNotification.showError(msg);
             return EMPTY;
@@ -270,14 +270,14 @@ export class FinalizarCadastroComponent implements OnInit {
 
           this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
           this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
-          this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
+          this.checkFieldValidity('municipio', this.selectedMunicipio, 'MunicÃ­pio');
 
           if (
             this.isFieldInvalid('gender') ||
             this.isFieldInvalid('estado') ||
             this.isFieldInvalid('municipio')
           ) {
-            const msg = 'Por favor, preencha os campos obrigatórios.';
+            const msg = 'Por favor, preencha os campos obrigatÃ³rios.';
             this.message = msg;
             this.errorNotification.showError(msg);
             return EMPTY;
@@ -293,7 +293,7 @@ export class FinalizarCadastroComponent implements OnInit {
           const { uid, existingUserData } = ctx;
 
           if (!existingUserData) {
-            throw new Error('Dados do usuário não encontrados.');
+            throw new Error('Dados do usuÃ¡rio nÃ£o encontrados.');
           }
 
           const completionPayload: ProfileCompletionPayload = {
@@ -309,7 +309,7 @@ export class FinalizarCadastroComponent implements OnInit {
              * Ato exclusivo desta tela:
              * completar o perfil.
              *
-             * Não incluir emailVerified aqui.
+             * NÃ£o incluir emailVerified aqui.
              */
             profileCompleted: true,
           };
@@ -358,7 +358,7 @@ export class FinalizarCadastroComponent implements OnInit {
           const targetUid = this.currentUserStore.getLoggedUserUIDSnapshot();
 
           if (!targetUid) {
-            const msg = 'Perfil salvo, mas não foi possível redirecionar automaticamente.';
+            const msg = 'Perfil salvo, mas nÃ£o foi possÃ­vel redirecionar automaticamente.';
             this.message = msg;
             this.errorNotification.showError(msg);
             return;
@@ -373,46 +373,40 @@ export class FinalizarCadastroComponent implements OnInit {
   uploadFile(event: any): void {
     const file = event?.target?.files?.[0] as File | undefined;
 
+    this.avatarFile = null;
+    this.isUploading = false;
+    this.progressValue = 0;
+    this.uploadMessage = '';
+
     if (!file) {
-      this.avatarFile = null;
-      this.isUploading = false;
-      this.progressValue = 0;
-      this.uploadMessage = 'Nenhum arquivo selecionado.';
       return;
     }
 
+    if (!file.type?.startsWith('image/')) {
+      this.errorNotification.showError('Selecione uma imagem válida.');
+      return;
+    }
+
+    const maxSizeBytes = 10 * 1024 * 1024;
+
+    if (file.size > maxSizeBytes) {
+      this.errorNotification.showError('A foto deve ter no máximo 10 MB.');
+      return;
+    }
+
+    /**
+     * A foto só será enviada no submit, depois que os dados básicos
+     * forem salvos com sucesso.
+     */
     this.avatarFile = file;
-    this.isUploading = true;
-    this.progressValue = 0;
-    this.uploadMessage = 'Preparando foto selecionada...';
-
-    const g: any = globalThis as any;
-
-    const timer = g.setInterval(() => {
-      if (this.progressValue >= 100) {
-        g.clearInterval(timer);
-        this.isUploading = false;
-        this.uploadMessage = 'Foto selecionada. Ela será enviada quando você concluir o cadastro.';
-      } else {
-        this.progressValue += 10;
-      }
-    }, 300);
-
-    g.setTimeout(() => {
-      if (this.progressValue < 100) {
-        g.clearInterval(timer);
-        this.isUploading = false;
-        this.uploadMessage = 'Não foi possível preparar a foto. Tente selecionar novamente.';
-      }
-    }, 5000);
   }
 
   /**
    * Contexto visual apenas.
    *
    * Mesmo se a entrada vier por reason=email_unverified, esta tela continua
-   * fazendo somente a finalização do perfil. A verificação de e-mail permanece
-   * em fluxo próprio.
+   * fazendo somente a finalizaÃ§Ã£o do perfil. A verificaÃ§Ã£o de e-mail permanece
+   * em fluxo prÃ³prio.
    */
   private resolveEntryContext(): void {
     const reason = this.route.snapshot.queryParamMap.get('reason');
@@ -420,7 +414,7 @@ export class FinalizarCadastroComponent implements OnInit {
     if (reason === 'profile_incomplete') {
       this.entryReason = 'profile_incomplete';
       this.pageTitle = 'Complete seu perfil';
-      this.introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
+      this.introText = 'Complete os dados abaixo para liberar os recursos bÃ¡sicos da plataforma.';
       return;
     }
 
@@ -428,20 +422,20 @@ export class FinalizarCadastroComponent implements OnInit {
       this.entryReason = 'email_unverified';
       this.pageTitle = 'Complete seu perfil';
       this.introText =
-        'Seu e-mail ainda pode estar pendente de verificação, mas esta etapa serve apenas para completar seu perfil.';
+        'Seu e-mail ainda pode estar pendente de verificaÃ§Ã£o, mas esta etapa serve apenas para completar seu perfil.';
       return;
     }
 
     this.entryReason = null;
     this.pageTitle = 'Complete seu perfil';
-    this.introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
+    this.introText = 'Complete os dados abaixo para liberar os recursos bÃ¡sicos da plataforma.';
   }
 
   checkFieldValidity(field: string, value: unknown, label?: string): void {
     const nice = label || field;
     const empty = value === null || value === undefined || String(value).trim() === '';
 
-    this.formErrors[field] = empty ? `O campo "${nice}" é obrigatório.` : '';
+    this.formErrors[field] = empty ? `O campo "${nice}" Ã© obrigatÃ³rio.` : '';
   }
 
   isFieldInvalid(field: string): boolean {

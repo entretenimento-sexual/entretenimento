@@ -1,6 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-07-02T00:34:18.771Z
+// Generated at: 2026-07-02T00:57:49.757Z
 
 // ===== _helpers.rules =====
 // ===============================================================
@@ -101,25 +101,25 @@ function optTimestamp(k) {
 // ==============================================================
 //
 // Responsabilidade:
-// - permitir ao próprio usuário atualizar dados comuns de perfil;
-// - impedir adulteração de autenticação, privilégios, billing, lifecycle
+// - permitir ao prÃ³prio usuÃ¡rio atualizar dados comuns de perfil;
+// - impedir adulteraÃ§Ã£o de autenticaÃ§Ã£o, privilÃ©gios, billing, lifecycle
 //   e compliance;
-// - permitir que criação inicial traga somente valores seguros/default;
-// - reservar alterações administrativas/financeiras/compliance para backend
-//   confiável.
+// - permitir que criaÃ§Ã£o inicial traga somente valores seguros/default;
+// - reservar alteraÃ§Ãµes administrativas/financeiras/compliance para backend
+//   confiÃ¡vel.
 //
-// Segurança:
+// SeguranÃ§a:
 // - Cloud Functions com Admin SDK podem atualizar campos protegidos;
 // - cliente web/mobile nunca deve promover role, ativar assinatura,
-//   criar entitlement embutido, manipular suspensão/exclusão ou registrar
+//   criar entitlement embutido, manipular suspensÃ£o/exclusÃ£o ou registrar
 //   consentimento adulto diretamente;
-// - claims administrativas continuam sendo a autoridade para ações de staff.
+// - claims administrativas continuam sendo a autoridade para aÃ§Ãµes de staff.
 //
-// Correção crítica já preservada:
+// CorreÃ§Ã£o crÃ­tica jÃ¡ preservada:
 // - users/{uid}.emailVerified, quando enviado pelo cliente, deve refletir
 //   request.auth.token.email_verified.
 //
-// ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem
+// âœ… ARQUIVO MODULAR: NÃƒO pode ter `rules_version` nem
 //    `service cloud.firestore`.
 // ==============================================================
 
@@ -140,10 +140,10 @@ match /users/{userId} {
   }
 
   /**
-   * Campos controlados exclusivamente por backend confiável ou fluxo
-   * administrativo específico.
+   * Campos controlados exclusivamente por backend confiÃ¡vel ou fluxo
+   * administrativo especÃ­fico.
    *
-   * Um usuário autenticado não pode alterá-los em update, mesmo no próprio
+   * Um usuÃ¡rio autenticado nÃ£o pode alterÃ¡-los em update, mesmo no prÃ³prio
    * documento.
    */
   function selfChangingSensitiveKeys() {
@@ -151,7 +151,7 @@ match /users/{userId} {
       // Compliance / aceite adulto
       "adultConsent",
 
-      // Plano / autorização financeira
+      // Plano / autorizaÃ§Ã£o financeira
       "role",
       "tier",
       "isSubscriber",
@@ -167,7 +167,7 @@ match /users/{userId} {
       "billingCustomerId",
       "billingProvider",
 
-      // ACL / privilégios
+      // ACL / privilÃ©gios
       "roles",
       "permissions",
       "entitlements",
@@ -205,11 +205,11 @@ match /users/{userId} {
   /**
    * Fluxo administrativo legado via cliente.
    *
-   * Observação:
-   * - novas operações sensíveis devem preferencialmente ocorrer por callable
+   * ObservaÃ§Ã£o:
+   * - novas operaÃ§Ãµes sensÃ­veis devem preferencialmente ocorrer por callable
    *   function auditada;
-   * - esta lista é mantida restrita para não permitir edição financeira por
-   *   administradores via escrita genérica no documento.
+   * - esta lista Ã© mantida restrita para nÃ£o permitir ediÃ§Ã£o financeira por
+   *   administradores via escrita genÃ©rica no documento.
    */
   function adminModerationOnly() {
     return request.resource.data.diff(resource.data).changedKeys().hasOnly([
@@ -225,20 +225,20 @@ match /users/{userId} {
   }
 
   /**
-   * Valores aceitáveis na criação de um novo usuário pelo cliente.
+   * Valores aceitÃ¡veis na criaÃ§Ã£o de um novo usuÃ¡rio pelo cliente.
    *
-   * Campos de acesso podem existir somente com defaults não privilegiados.
-   * Benefícios pagos, transações, estados de lifecycle e aceite de compliance
-   * não podem nascer ativos por payload enviado pelo navegador.
+   * Campos de acesso podem existir somente com defaults nÃ£o privilegiados.
+   * BenefÃ­cios pagos, transaÃ§Ãµes, estados de lifecycle e aceite de compliance
+   * nÃ£o podem nascer ativos por payload enviado pelo navegador.
    */
   function createDefaultsOk() {
     return request.resource.data.keys().hasAny(["uid"])
       && request.resource.data.uid == uid()
 
-      // Compliance inicial: aceite adulto é gravado pela Cloud Function
+      // Compliance inicial: aceite adulto Ã© gravado pela Cloud Function
       && !hasField("adultConsent")
 
-      // Projeção financeira inicial sem benefício pago
+      // ProjeÃ§Ã£o financeira inicial sem benefÃ­cio pago
       && (!hasField("role") || request.resource.data.role == "free")
       && (!hasField("tier") || request.resource.data.tier == "free")
       && (!hasField("isSubscriber") || request.resource.data.isSubscriber == false)
@@ -253,7 +253,7 @@ match /users/{userId} {
       && (!hasField("billingUpdatedAt")
         || request.resource.data.billingUpdatedAt == null)
 
-      // ACL inicial sem elevação de privilégio
+      // ACL inicial sem elevaÃ§Ã£o de privilÃ©gio
       && (!hasField("roles") || request.resource.data.roles == ["user"])
       && (!hasField("permissions") || request.resource.data.permissions == [])
       && (!hasField("entitlements") || request.resource.data.entitlements == [])
