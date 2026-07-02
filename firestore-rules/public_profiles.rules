@@ -26,15 +26,11 @@ match /public_profiles/{userId} {
     return hasExistingField(field) ? resource.data[field] : null;
   }
 
-  // If the field already exists, it must not change. If it does not exist in
-  // a legacy document, the update may provide it when another validator allows it.
   function immutableIfExisting(field) {
     return !hasExistingField(field)
       || fieldOrNull(field) == existingFieldOrNull(field);
   }
 
-  // If the field already exists, it must not change. If it does not exist in
-  // a legacy document, the client must not create it through update.
   function immutableExistingOrAbsent(field) {
     return hasExistingField(field)
       ? fieldOrNull(field) == existingFieldOrNull(field)
@@ -46,19 +42,6 @@ match /public_profiles/{userId} {
       || request.resource.data[field] == null
       || (request.resource.data[field] is string
           && request.resource.data[field].size() >= min
-          && request.resource.data[field].size() <= max);
-  }
-
-  function optBool(field) {
-    return !hasField(field)
-      || request.resource.data[field] == null
-      || request.resource.data[field] is bool;
-  }
-
-  function optListMax(field, max) {
-    return !hasField(field)
-      || request.resource.data[field] == null
-      || (request.resource.data[field] is list
           && request.resource.data[field].size() <= max);
   }
 
@@ -102,7 +85,6 @@ match /public_profiles/{userId} {
       || (lat != null && lng != null && gh != null);
   }
 
-  // Server-owned discovery fields.
   function noClientDiscoveryFieldsOnCreate() {
     return !request.resource.data.keys().hasAny([
       "normalizedGender",
@@ -149,13 +131,11 @@ match /public_profiles/{userId} {
     ]);
   }
 
-  function validPublicProfilePayload() {
+  function validClientEditablePublicProfilePayload() {
     return allowedKeys()
       && (request.resource.data.uid is string)
       && request.resource.data.uid == uid()
-      && optTimestamp("createdAt")
       && optTimestamp("updatedAt")
-      && optTimestamp("discoveryNormalizedAt")
       && nicknameCoherent()
       && optStringSized("nickname", 3, 40)
       && (
@@ -175,18 +155,32 @@ match /public_profiles/{userId} {
       && optStringSized("municipio", 1, 80)
       && optStringSized("estado", 1, 40)
       && optStringSized("gender", 1, 40)
-      && optStringSized("orientation", 1, 40)
+      && optStringSized("orientation", 1, 40);
+  }
+
+  function validPublicProfileCreatePayload() {
+    return validClientEditablePublicProfilePayload()
+      && optTimestamp("createdAt")
+      && optTimestamp("discoveryNormalizedAt")
       && optStringSized("normalizedGender", 3, 20)
       && optStringSized("normalizedOrientation", 3, 20)
-      && optListMax("interestedInGenders", 8)
-      && optListMax("interestedInOrientations", 8)
-      && optBool("compatibilityReady")
+      && (!hasField("interestedInGenders")
+        || request.resource.data.interestedInGenders == null
+        || (request.resource.data.interestedInGenders is list
+          && request.resource.data.interestedInGenders.size() <= 8))
+      && (!hasField("interestedInOrientations")
+        || request.resource.data.interestedInOrientations == null
+        || (request.resource.data.interestedInOrientations is list
+          && request.resource.data.interestedInOrientations.size() <= 8))
+      && (!hasField("compatibilityReady")
+        || request.resource.data.compatibilityReady == null
+        || request.resource.data.compatibilityReady is bool)
       && optStringSized("role", 3, 20);
   }
 
   allow create: if (
     isSelf(userId)
-    && validPublicProfilePayload()
+    && validPublicProfileCreatePayload()
     && noClientDiscoveryFieldsOnCreate()
     && request.resource.data.createdAt == request.time
     && request.resource.data.updatedAt == request.time
@@ -195,7 +189,7 @@ match /public_profiles/{userId} {
 
   allow update: if (
     isSelf(userId)
-    && validPublicProfilePayload()
+    && validClientEditablePublicProfilePayload()
     && discoveryFieldsUnchangedOnUpdate()
     && immutableIfExisting("uid")
     && immutableExistingOrAbsent("createdAt")
