@@ -1,28 +1,14 @@
 // ==============================================================
-// USERS (privado)
+// USERS (private)
 // ==============================================================
 //
-// Responsabilidade:
-// - permitir ao prÃ³prio usuÃ¡rio atualizar dados comuns de perfil;
-// - impedir adulteraÃ§Ã£o de autenticaÃ§Ã£o, privilÃ©gios, billing, lifecycle
-//   e compliance;
-// - permitir que criaÃ§Ã£o inicial traga somente valores seguros/default;
-// - reservar alteraÃ§Ãµes administrativas/financeiras/compliance para backend
-//   confiÃ¡vel.
-//
-// SeguranÃ§a:
-// - Cloud Functions com Admin SDK podem atualizar campos protegidos;
-// - cliente web/mobile nunca deve promover role, ativar assinatura,
-//   criar entitlement embutido, manipular suspensÃ£o/exclusÃ£o ou registrar
-//   consentimento adulto diretamente;
-// - claims administrativas continuam sendo a autoridade para aÃ§Ãµes de staff.
-//
-// CorreÃ§Ã£o crÃ­tica jÃ¡ preservada:
-// - users/{uid}.emailVerified, quando enviado pelo cliente, deve refletir
-//   request.auth.token.email_verified.
-//
-// âœ… ARQUIVO MODULAR: NÃƒO pode ter `rules_version` nem
-//    `service cloud.firestore`.
+// Responsibilities:
+// - allow users to update their own ordinary profile fields;
+// - block client-side changes to auth, privilege, billing, lifecycle,
+//   and compliance fields;
+// - allow initial creation only with safe defaults;
+// - reserve administrative, financial, and compliance updates for trusted
+//   backend code.
 // ==============================================================
 
 match /users/{userId} {
@@ -41,19 +27,16 @@ match /users/{userId} {
         == (request.auth.token.email_verified == true);
   }
 
-  /**
-   * Campos controlados exclusivamente por backend confiÃ¡vel ou fluxo
-   * administrativo especÃ­fico.
-   *
-   * Um usuÃ¡rio autenticado nÃ£o pode alterÃ¡-los em update, mesmo no prÃ³prio
-   * documento.
-   */
+  function emailVerifiedSafeOnUpdate() {
+    return !request.resource.data.diff(resource.data).changedKeys().hasAny(["emailVerified"])
+      || request.resource.data.emailVerified
+        == (request.auth.token.email_verified == true);
+  }
+
   function selfChangingSensitiveKeys() {
     return request.resource.data.diff(resource.data).changedKeys().hasAny([
-      // Compliance / aceite adulto
       "adultConsent",
 
-      // Plano / autorizaÃ§Ã£o financeira
       "role",
       "tier",
       "isSubscriber",
@@ -69,12 +52,10 @@ match /users/{userId} {
       "billingCustomerId",
       "billingProvider",
 
-      // ACL / privilÃ©gios
       "roles",
       "permissions",
       "entitlements",
 
-      // Lifecycle / visibilidade / bloqueio
       "accountLocked",
       "accountStatus",
       "publicVisibility",
@@ -104,15 +85,6 @@ match /users/{userId} {
     ]);
   }
 
-  /**
-   * Fluxo administrativo legado via cliente.
-   *
-   * ObservaÃ§Ã£o:
-   * - novas operaÃ§Ãµes sensÃ­veis devem preferencialmente ocorrer por callable
-   *   function auditada;
-   * - esta lista Ã© mantida restrita para nÃ£o permitir ediÃ§Ã£o financeira por
-   *   administradores via escrita genÃ©rica no documento.
-   */
   function adminModerationOnly() {
     return request.resource.data.diff(resource.data).changedKeys().hasOnly([
       "accountLocked",
@@ -126,21 +98,12 @@ match /users/{userId} {
     ]);
   }
 
-  /**
-   * Valores aceitÃ¡veis na criaÃ§Ã£o de um novo usuÃ¡rio pelo cliente.
-   *
-   * Campos de acesso podem existir somente com defaults nÃ£o privilegiados.
-   * BenefÃ­cios pagos, transaÃ§Ãµes, estados de lifecycle e aceite de compliance
-   * nÃ£o podem nascer ativos por payload enviado pelo navegador.
-   */
   function createDefaultsOk() {
     return request.resource.data.keys().hasAny(["uid"])
       && request.resource.data.uid == uid()
 
-      // Compliance inicial: aceite adulto Ã© gravado pela Cloud Function
       && !hasField("adultConsent")
 
-      // ProjeÃ§Ã£o financeira inicial sem benefÃ­cio pago
       && (!hasField("role") || request.resource.data.role == "free")
       && (!hasField("tier") || request.resource.data.tier == "free")
       && (!hasField("isSubscriber") || request.resource.data.isSubscriber == false)
@@ -155,12 +118,10 @@ match /users/{userId} {
       && (!hasField("billingUpdatedAt")
         || request.resource.data.billingUpdatedAt == null)
 
-      // ACL inicial sem elevaÃ§Ã£o de privilÃ©gio
       && (!hasField("roles") || request.resource.data.roles == ["user"])
       && (!hasField("permissions") || request.resource.data.permissions == [])
       && (!hasField("entitlements") || request.resource.data.entitlements == [])
 
-      // Lifecycle inicial em estado normal
       && (!hasField("accountLocked") || request.resource.data.accountLocked == false)
       && (!hasField("accountStatus") || request.resource.data.accountStatus == "active")
       && (!hasField("publicVisibility")
@@ -195,7 +156,7 @@ match /users/{userId} {
     (
       isSelf(userId)
       && !selfChangingSensitiveKeys()
-      && emailVerifiedMatchesToken()
+      && emailVerifiedSafeOnUpdate()
     )
     || (
       isAdminActor()
@@ -204,7 +165,3 @@ match /users/{userId} {
 
   allow delete: if false;
 }
-
-// =============================================================
-//                  FIM DO USERS.RULES
-// =============================================================
