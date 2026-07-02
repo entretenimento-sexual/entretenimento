@@ -249,7 +249,7 @@ export class FinalizarCadastroComponent implements OnInit {
           };
 
           return this.firestoreUserWrite.saveInitialUserData$(uid, completionPayload).pipe(
-            switchMap(() => this.uploadAvatarAfterProfileSave$(uid, completionPayload)),
+            switchMap(() => this.uploadAvatarAfterProfileSave$(uid)),
             map(() => void 0)
           );
         }),
@@ -287,10 +287,7 @@ export class FinalizarCadastroComponent implements OnInit {
       });
   }
 
-  private uploadAvatarAfterProfileSave$(
-    uid: string,
-    completionPayload: ProfileCompletionPayload
-  ): Observable<void> {
+  private uploadAvatarAfterProfileSave$(uid: string): Observable<void> {
     if (!this.avatarFile) {
       return of(void 0);
     }
@@ -308,15 +305,10 @@ export class FinalizarCadastroComponent implements OnInit {
         switchMap((photoURL) => {
           if (!photoURL) return of(void 0);
 
-          const photoPatch: ProfileCompletionPayload = {
-            ...completionPayload,
-            photoURL,
-          };
-
-          return this.firestoreUserWrite.saveInitialUserData$(uid, photoPatch).pipe(
+          return this.firestoreUserWrite.patchProfileAvatar$(uid, photoURL).pipe(
             catchError((err) => {
-              this.globalErrorHandler.handleError(err);
-              this.uploadMessage = 'Perfil salvo. A foto foi enviada, mas não foi possível sincronizar a foto pública agora.';
+              console.warn('[FinalizarCadastroComponent] Avatar enviado, mas não foi possível salvar a URL no perfil.', err);
+              this.uploadMessage = 'Perfil salvo. A foto foi enviada, mas não foi possível atualizar o avatar agora.';
               return of(void 0);
             })
           );
@@ -325,7 +317,7 @@ export class FinalizarCadastroComponent implements OnInit {
           this.progressValue = 100;
         }),
         catchError((err) => {
-          this.globalErrorHandler.handleError(err);
+          console.warn('[FinalizarCadastroComponent] Upload de avatar ignorado após perfil salvo.', err);
           this.uploadMessage = 'Perfil salvo. Não foi possível enviar a foto agora.';
           return of(void 0);
         }),
