@@ -20,6 +20,7 @@ import { catchError, map, switchMap, tap, timeout } from 'rxjs/operators';
 import { IUserDados } from '../../../interfaces/iuser-dados';
 import { environment } from 'src/environments/environment';
 import { AuthSessionService } from '../auth/auth-session.service';
+import { CurrentUserStoreService } from '../auth/current-user-store.service';
 import { FirestoreUserWriteService } from '../../data-handling/firestore-user-write.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
@@ -45,6 +46,7 @@ export class EmailVerificationService {
     private readonly router: Router,
     private readonly firestore: Firestore,
     private readonly authSession: AuthSessionService,
+    private readonly currentUserStore: CurrentUserStoreService,
     private readonly userWrite: FirestoreUserWriteService,
     private readonly globalError: GlobalErrorHandlerService,
     private readonly notify: ErrorNotificationService,
@@ -119,6 +121,11 @@ export class EmailVerificationService {
   reloadCurrentUser(): Observable<boolean> {
     return this.authSession.refreshCurrentUser$().pipe(
       timeout({ each: this.NET_TIMEOUT_MS }),
+      tap((user) => {
+        if (user?.emailVerified === true) {
+          this.currentUserStore.patch({ emailVerified: true });
+        }
+      }),
       map((user) => user?.emailVerified === true),
       catchError((error) => {
         console.log('[EmailVerificationService] Erro ao recarregar usuário:', error);
@@ -234,6 +241,8 @@ export class EmailVerificationService {
               });
             }
 
+            this.currentUserStore.patch({ emailVerified: true });
+
             return this.updateEmailVerificationStatus(refreshed.uid, true).pipe(
               map(() => ({
                 ok: true,
@@ -269,6 +278,9 @@ export class EmailVerificationService {
 
   updateEmailVerificationStatus(uid: string, status: boolean): Observable<void> {
     return this.userWrite.patchEmailVerified$(uid, status).pipe(
+      tap(() => {
+        this.currentUserStore.patch({ emailVerified: status === true });
+      }),
       catchError((err) => {
         this.notify.showError('Não foi possível atualizar a verificação agora. Tente novamente.');
 
