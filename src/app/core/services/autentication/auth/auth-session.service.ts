@@ -1,6 +1,6 @@
 // src/app/core/services/autentication/auth/auth-session.service.ts
 import { EnvironmentInjector, Injectable, runInInjectionContext } from '@angular/core';
-import { Observable, defer, from, of } from 'rxjs';
+import { Observable, Subject, defer, from, merge, of } from 'rxjs';
 import {
   catchError,
   combineLatestWith,
@@ -9,6 +9,7 @@ import {
   shareReplay,
   startWith,
   switchMap,
+  tap,
 } from 'rxjs/operators';
 import {
   Auth,
@@ -31,20 +32,23 @@ export class AuthSessionService {
   readonly readyUid$: Observable<string | null>;
 
   private readyPromise: Promise<void> | null = null;
+  private readonly manualAuthUserRefresh$ = new Subject<User | null>();
 
   constructor(
     private readonly auth: Auth,
     private readonly envInjector: EnvironmentInjector,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {
-    this.authUser$ = new Observable<User | null>((subscriber) => {
+    const idTokenUser$ = new Observable<User | null>((subscriber) => {
       const unsub = onIdTokenChanged(
         this.auth,
         (user) => subscriber.next(user),
         (err) => subscriber.error(err)
       );
       return () => unsub();
-    }).pipe(
+    });
+
+    this.authUser$ = merge(idTokenUser$, this.manualAuthUserRefresh$).pipe(
       shareReplay({ bufferSize: 1, refCount: true })
     );
 
@@ -146,15 +150,21 @@ export class AuthSessionService {
       const user = this.auth.currentUser;
 
       if (!user) {
+        this.manualAuthUserRefresh$.next(null);
         return of(null);
       }
 
       return from(user.reload()).pipe(
         switchMap(() => from(user.getIdToken(true))),
         map(() => this.auth.currentUser ?? user),
+        tap((refreshedUser) => {
+          this.manualAuthUserRefresh$.next(refreshedUser);
+        }),
         catchError((err) => {
           this.dbg('refreshCurrentUser$ error', err);
-          return of(this.auth.currentUser ?? null);
+          const fallback = this.auth.currentUser ?? null;
+          this.manualAuthUserRefresh$.next(fallback);
+          return of(fallback);
         })
       );
     });
