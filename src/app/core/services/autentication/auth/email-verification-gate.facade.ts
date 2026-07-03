@@ -33,6 +33,7 @@ import {
 
 import { AccessControlService } from './access-control.service';
 import { AuthSessionService } from './auth-session.service';
+import { CurrentUserStoreService } from './current-user-store.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { EmailVerificationService } from '../register/email-verification.service';
@@ -60,6 +61,7 @@ export interface EmailVerificationGateBannerVm {
 export class EmailVerificationGateFacade {
   private readonly access = inject(AccessControlService);
   private readonly session = inject(AuthSessionService);
+  private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly router = inject(Router);
   private readonly notify = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
@@ -101,6 +103,7 @@ export class EmailVerificationGateFacade {
       this.access.emailVerified$,
       this.access.inRegistrationFlow$,
       this.session.authUser$.pipe(startWith(null)),
+      this.currentUserStore.user$.pipe(startWith(undefined)),
       this.activeRouteMeta$,
     ]).pipe(
       map(
@@ -110,9 +113,16 @@ export class EmailVerificationGateFacade {
           emailVerified,
           inRegistrationFlow,
           authUser,
+          appUser,
           routeMeta,
         ]) => {
           const cleanUrl = routeMeta.currentUrl;
+          const appUserVerified =
+            appUser !== undefined && appUser !== null && appUser.emailVerified === true;
+          const verified =
+            emailVerified === true ||
+            authUser?.emailVerified === true ||
+            appUserVerified;
 
           if (!isAuthenticated) return null;
 
@@ -123,7 +133,7 @@ export class EmailVerificationGateFacade {
            */
           if (!profileCompleted) return null;
 
-          if (emailVerified) return null;
+          if (verified) return null;
           if (inRegistrationFlow) return null;
           if (this.shouldHideBanner(cleanUrl)) return null;
 
@@ -258,4 +268,4 @@ export class EmailVerificationGateFacade {
       this.notify.showError(message);
     }
   }
-} // Linha 261
+}
