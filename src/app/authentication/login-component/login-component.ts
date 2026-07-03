@@ -1,6 +1,25 @@
 // src/app/authentication/login-component/login-component.ts
-//Ainda não tem um Guard “anti-login quando já está logado”
-// Não esquecer ferramentas de debug, comentários explicativos e manter as boas práticas.
+// -----------------------------------------------------------------------------
+// LoginComponent
+// -----------------------------------------------------------------------------
+// Responsabilidade desta tela:
+// - autenticação por e-mail/senha;
+// - autenticação por Google via AuthFacade;
+// - feedback visual local do login;
+// - recuperação de senha;
+// - modal local para conta autenticada ainda sem e-mail verificado.
+//
+// O que esta tela NÃO deve fazer:
+// - criar usuário diretamente;
+// - escrever Firestore diretamente;
+// - decidir regras profundas de onboarding;
+// - hidratar manualmente CurrentUserStore.
+//
+// Motivo:
+// O fluxo de registro/onboarding foi centralizado em RegisterFlowFacade,
+// RegistrationBootstrapService, AuthSessionService e nos guards/orquestradores.
+// Esta tela só dispara ações e navega conforme resultado estruturado.
+// -----------------------------------------------------------------------------
 import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
@@ -26,6 +45,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { EmailInputModalService } from 'src/app/core/services/autentication/email-input-modal.service';
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
+import { AuthFacade } from 'src/app/core/services/autentication/auth/auth.facade';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { LoginService } from 'src/app/core/services/autentication/login.service';
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
@@ -38,18 +58,16 @@ import { LogoutService } from 'src/app/core/services/autentication/auth/logout.s
   standalone: false,
 })
 export class LoginComponent implements OnInit {
-  // Reactive Form
   loginForm!: FormGroup;
 
-  // UI State
   errorMessage = '';
   successMessage = '';
   isLoading = false;
   showEmailVerificationModal = false;
 
   /**
-   * Habilita o botão quando email/senha tiverem conteúdo,
-   * mantendo UX acessível e simples de testar.
+   * Habilita o botão de e-mail/senha quando os campos mínimos existem.
+   * O botão Google não depende do formulário, porque é outro método de auth.
    */
   hasRequiredFields$!: Observable<boolean>;
 
@@ -60,6 +78,7 @@ export class LoginComponent implements OnInit {
     private readonly route: ActivatedRoute,
     private readonly notify: ErrorNotificationService,
     private readonly logoutService: LogoutService,
+    private readonly authFacade: AuthFacade,
 
     public readonly emailInputModalService: EmailInputModalService,
     public readonly emailVerificationService: EmailVerificationService,
@@ -74,7 +93,7 @@ export class LoginComponent implements OnInit {
 
     this.hasRequiredFields$ = this.loginForm.valueChanges.pipe(
       startWith(this.loginForm.value),
-      map((v) => !!(v?.email?.trim()) && !!v?.password),
+      map((value) => !!(value?.email?.trim()) && !!value?.password),
       distinctUntilChanged(),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -104,12 +123,25 @@ export class LoginComponent implements OnInit {
   private setBusyState(isBusy: boolean): void {
     this.isLoading = isBusy;
 
+    /**
+     * Desabilitamos o form durante qualquer login para evitar corrida:
+     * - login normal;
+     * - login Google;
+     * - reenvio de verificação;
+     * - logout do modal.
+     */
     if (isBusy) {
       this.loginForm.disable({ emitEvent: false });
     } else {
       this.loginForm.enable({ emitEvent: false });
     }
 
+    this.cdr.markForCheck();
+  }
+
+  private resetFeedback(): void {
+    this.errorMessage = '';
+    this.successMessage = '';
     this.cdr.markForCheck();
   }
 
@@ -138,22 +170,17 @@ export class LoginComponent implements OnInit {
   }
 
   /**
-   * Ajuste principal:
-   * - este componente NÃO decide mais perfil incompleto.
-   * - ele só trata:
-   *   1) falha real
-   *   2) e-mail não verificado
-   *   3) sucesso de login
+   * Login e-mail/senha.
    *
-   * A decisão de onboarding/perfil fica no fluxo canônico
-   * de sessão + orchestrator + guards.
+   * Observação:
+   * Esta tela ainda mantém a UX local de "e-mail não verificado" porque
+   * LoginService devolve esse estado imediatamente. O banner global já foi
+   * ajustado para não ficar preso em estado antigo depois da verificação.
    */
   login(): void {
     if (this.isLoading) return;
 
-    this.errorMessage = '';
-    this.successMessage = '';
-    this.cdr.markForCheck();
+    this.resetFeedback();
 
     const rememberMe = !!this.loginForm.get('rememberMe')?.value;
 
@@ -163,6 +190,7 @@ export class LoginComponent implements OnInit {
     }
 
     if (this.loginForm.invalid) {
+      this.loginForm.markAllAsTouched();
       this.setError('Por favor, preencha o formulário corretamente.');
       return;
     }
@@ -180,10 +208,6 @@ export class LoginComponent implements OnInit {
           return;
         }
 
-        /**
-         * Mantemos aqui apenas a UX local de e-mail não verificado.
-         * Isso continua coerente com o fluxo atual.
-         */
         if (result.emailVerified !== true) {
           this.showEmailVerificationModal = true;
           this.successMessage = '';
@@ -203,6 +227,49 @@ export class LoginComponent implements OnInit {
     ).subscribe();
   }
 
+  /**
+   * Login Google.
+   *
+   * Melhorias aplicadas:
+   * - usa AuthFacade.googleLogin$(), não SocialAuthService direto;
+   * - respeita SocialAuthResult.nextRoute;
+   * - preserva redirectTo só quando o resultado aponta para dashboard;
+   * - não depende do preenchimento do formulário;
+   * - mantém feedback local e bloqueio de ações concorrentes.
+   */
+  loginWithGoogle(): void {
+    if (this.isLoading) return;
+
+    this.resetFeedback();
+    this.showEmailVerificationModal = false;
+    this.setBusyState(true);
+
+    this.authFacade.googleLogin$().pipe(
+      tap((result) => {
+        if (!result?.success) {
+          this.setError(result?.message || 'Não foi possível entrar com Google agora.');
+          return;
+        }
+
+        const redirectTo = this.getRedirectTo();
+
+        const target =
+          result.nextRoute === '/dashboard/principal'
+            ? redirectTo
+            : result.nextRoute ?? redirectTo;
+
+        this.setSuccess(result.message || 'Login com Google concluído.');
+        this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
+      }),
+      catchError((err) => {
+        this.setError(err?.message || 'Erro inesperado no login com Google.');
+        return of(void 0);
+      }),
+      finalize(() => this.setBusyState(false)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe();
+  }
+
   clearError(): void {
     if (!this.errorMessage) return;
     this.errorMessage = '';
@@ -210,6 +277,7 @@ export class LoginComponent implements OnInit {
   }
 
   openPasswordRecoveryModal(): void {
+    if (this.isLoading) return;
     this.emailInputModalService.openModal();
   }
 
@@ -219,9 +287,9 @@ export class LoginComponent implements OnInit {
     this.setBusyState(true);
 
     this.emailVerificationService.resendVerificationEmail().pipe(
-      tap((msg) => {
+      tap((message) => {
         this.setSuccess(
-          msg ?? 'E-mail de verificação reenviado. Verifique sua caixa de entrada.'
+          message ?? 'E-mail de verificação reenviado. Verifique sua caixa de entrada.'
         );
       }),
       catchError(() => {
@@ -237,9 +305,7 @@ export class LoginComponent implements OnInit {
     if (this.isLoading) return;
 
     this.showEmailVerificationModal = false;
-    this.errorMessage = '';
-    this.successMessage = '';
-    this.cdr.markForCheck();
+    this.resetFeedback();
 
     this.setBusyState(true);
 
@@ -252,8 +318,7 @@ export class LoginComponent implements OnInit {
       },
       error: () => {
         this.setError('Não foi possível sair agora. Tente novamente.');
-      }
+      },
     });
   }
 }
-//259 linhas
