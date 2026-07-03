@@ -52,11 +52,7 @@ import { AppState } from '../../states/app.state';
 import { IUserDados } from '@core/interfaces/iuser-dados';
 import { IError } from '@core/interfaces/ierror';
 
-import {
-  sanitizeUserForStore,
-  sanitizeUsersForStore,
-} from 'src/app/store/utils/user-store.serializer';
-
+import { sanitizeUsersForStore } from 'src/app/store/utils/user-store.serializer';
 import { toStoreError } from 'src/app/store/utils/store-error.serializer';
 
 import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
@@ -87,6 +83,7 @@ import {
 import {
   selectGlobalOnlineUsers,
 } from '../../selectors/selectors.user/online.selectors';
+import { OnlineUsersProfileHydrationService } from './online-users-profile-hydration.service';
 
 const norm = (value?: string | null): string =>
   (value ?? '').trim().toLowerCase();
@@ -103,6 +100,7 @@ export class OnlineUsersEffects {
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
+  private readonly profileHydration = inject(OnlineUsersProfileHydrationService);
 
   private lastNotifyAt = 0;
 
@@ -206,33 +204,6 @@ private dbg(msg: string, extra?: unknown): void {
     return text.length ? text : null;
   }
 
-  private firstText(source: any, keys: readonly string[]): string | null {
-    for (const key of keys) {
-      const value = this.toCleanText(source?.[key]);
-
-      if (value) {
-        return value;
-      }
-    }
-
-    return null;
-  }
-
-  private firstValue<T = unknown>(
-    source: any,
-    keys: readonly string[]
-  ): T | null {
-    for (const key of keys) {
-      const value = source?.[key];
-
-      if (value !== undefined && value !== null) {
-        return value as T;
-      }
-    }
-
-    return null;
-  }
-
   private toOptionalNumber(value: unknown): number | null {
     const n =
       typeof value === 'number'
@@ -243,16 +214,6 @@ private dbg(msg: string, extra?: unknown): void {
 
     return Number.isFinite(n) ? n : null;
   }
-
-  /**
- * Lê o primeiro campo numérico válido de uma lista de aliases.
- *
- * Usado para preservar as métricas públicas canônicas vindas de public_profiles,
- * sem recalcular score dentro do effect.
- */
-private firstNumber(source: any, keys: readonly string[]): number | null {
-  return this.toOptionalNumber(this.firstValue(source, keys));
-}
 
   /**
    * Normaliza presence.
@@ -412,9 +373,7 @@ private toComparablePublicProfile(
     viewScore: this.toOptionalNumber(anyUser.viewScore),
     engagementScore: this.toOptionalNumber(anyUser.engagementScore),
     profileCompletenessScore: this.toOptionalNumber(anyUser.profileCompletenessScore),
-    mediaMetricsUpdatedAt: this.toComparableText(
-      this.toSerializableStoreValue(anyUser.mediaMetricsUpdatedAt)
-    ),
+    mediaMetricsUpdatedAt: this.toComparableText(anyUser.mediaMetricsUpdatedAt),
   };
 }
 
@@ -504,383 +463,6 @@ private buildPresenceFingerprint(
   // Normalização do public_profile para o card online
   // ===========================================================================
 
-/**
- * Normaliza o documento público vindo de public_profiles para o formato que o
- * UserCardComponent entende.
- *
- * Esta etapa corrige a pane "Localização não informada" no modo Online e
- * preserva as métricas públicas de mídia usadas pelo ranking canônico.
- *
- * Motivo:
- * - public_profiles pode ter campos com nomes ligeiramente diferentes;
- * - sanitizeUserForStore pode remover ou não preservar algum alias;
- * - o modo Online precisa preservar os mesmos metadados que o modo Todos:
- *   gênero, orientação, município, estado, coordenadas, foto, role e métricas.
- *
- * Segurança:
- * - não inclui e-mail;
- * - não inclui telefone;
- * - não inclui dados privados do users/{uid};
- * - só materializa dados públicos usados no card/ranking.
- */
-private normalizePublicProfileForOnline(
-  rawProfile: IUserDados | null | undefined
-): IUserDados | null {
-  if (!rawProfile) {
-    return null;
-  }
-
-  const raw = rawProfile as any;
-
-  const uid = this.firstText(raw, ['uid']);
-  const nickname = this.firstText(raw, ['nickname']);
-
-  if (!uid || !nickname) {
-    return null;
-  }
-
-  const latitude = this.toOptionalNumber(
-    this.firstValue(raw, ['latitude', 'lat'])
-  );
-
-  const longitude = this.toOptionalNumber(
-    this.firstValue(raw, ['longitude', 'lng', 'lon'])
-  );
-
-  const mediaCount = this.firstNumber(raw, ['mediaCount', 'publicMediaCount']);
-  const photosCount = this.firstNumber(raw, ['photosCount', 'publicPhotosCount']);
-  const videosCount = this.firstNumber(raw, ['videosCount', 'publicVideosCount']);
-  const viewsCount = this.firstNumber(raw, [
-    'viewsCount',
-    'profileViewsCount',
-    'profileViews',
-  ]);
-  const likesCount = this.firstNumber(raw, [
-    'likesCount',
-    'publicLikesCount',
-    'reactionsCount',
-  ]);
-  const reactionsCount = this.firstNumber(raw, ['reactionsCount']) ?? likesCount;
-  const uniqueViewersCount = this.firstNumber(raw, ['uniqueViewersCount']);
-  const viewScore = this.firstNumber(raw, ['viewScore']);
-  const engagementScore = this.firstNumber(raw, ['engagementScore']);
-  const profileCompletenessScore = this.firstNumber(raw, [
-    'profileCompletenessScore',
-  ]);
-
-  const normalized = {
-    ...rawProfile,
-
-    uid,
-    nickname,
-
-    nicknameNormalized:
-      this.firstText(raw, ['nicknameNormalized']) ??
-      nickname.trim().toLowerCase(),
-
-    photoURL: this.firstText(raw, [
-      'photoURL',
-      'photoUrl',
-      'avatarUrl',
-      'avatarURL',
-    ]),
-
-    gender: this.firstText(raw, [
-      'gender',
-      'genero',
-    ]),
-
-    orientation: this.firstText(raw, [
-      'orientation',
-      'sexualOrientation',
-      'orientacao',
-      'orientacaoSexual',
-    ]),
-
-    partner1Orientation: this.firstText(raw, [
-      'partner1Orientation',
-      'orientation1',
-      'orientacaoParceiro1',
-    ]),
-
-    partner2Orientation: this.firstText(raw, [
-      'partner2Orientation',
-      'orientation2',
-      'orientacaoParceiro2',
-    ]),
-
-    municipio: this.firstText(raw, [
-      'municipio',
-      'cidade',
-      'city',
-    ]),
-
-    estado: this.firstText(raw, [
-      'estado',
-      'uf',
-      'state',
-    ]),
-
-    role:
-      this.firstText(raw, ['role']) ??
-      'free',
-
-    latitude,
-    longitude,
-
-    geohash: this.firstText(raw, ['geohash']),
-
-    mediaCount,
-    publicMediaCount: mediaCount,
-    photosCount,
-    publicPhotosCount: photosCount,
-    videosCount,
-    publicVideosCount: videosCount,
-    viewsCount,
-    profileViewsCount: viewsCount,
-    profileViews: viewsCount,
-    likesCount,
-    publicLikesCount: likesCount,
-    reactionsCount,
-    uniqueViewersCount,
-    viewScore,
-    engagementScore,
-    profileCompletenessScore,
-    mediaMetricsUpdatedAt: this.firstValue(raw, ['mediaMetricsUpdatedAt']),
-
-    createdAt: this.firstValue(raw, ['createdAt']),
-    updatedAt: this.firstValue(raw, ['updatedAt']),
-  } as IUserDados;
-
-  /**
-   * Sanitiza e reimpõe os campos públicos normalizados.
-   *
-   * Isso evita regressão caso o serializer não preserve algum alias relevante
-   * para o card/ranking, sem permitir que dados privados entrem no objeto final.
-   */
-  const safe = sanitizeUserForStore(normalized) as IUserDados | null;
-
-  if (!safe?.uid) {
-    return null;
-  }
-
-  return {
-    ...safe,
-
-    uid,
-    nickname,
-
-    nicknameNormalized: (normalized as any).nicknameNormalized,
-
-    photoURL: (normalized as any).photoURL,
-
-    gender: (normalized as any).gender,
-    orientation: (normalized as any).orientation,
-    partner1Orientation: (normalized as any).partner1Orientation,
-    partner2Orientation: (normalized as any).partner2Orientation,
-
-    municipio: (normalized as any).municipio,
-    estado: (normalized as any).estado,
-
-    role: (normalized as any).role,
-
-    latitude: (normalized as any).latitude,
-    longitude: (normalized as any).longitude,
-    geohash: (normalized as any).geohash,
-
-    mediaCount: (normalized as any).mediaCount,
-    publicMediaCount: (normalized as any).publicMediaCount,
-    photosCount: (normalized as any).photosCount,
-    publicPhotosCount: (normalized as any).publicPhotosCount,
-    videosCount: (normalized as any).videosCount,
-    publicVideosCount: (normalized as any).publicVideosCount,
-    viewsCount: (normalized as any).viewsCount,
-    profileViewsCount: (normalized as any).profileViewsCount,
-    profileViews: (normalized as any).profileViews,
-    likesCount: (normalized as any).likesCount,
-    publicLikesCount: (normalized as any).publicLikesCount,
-    reactionsCount: (normalized as any).reactionsCount,
-    uniqueViewersCount: (normalized as any).uniqueViewersCount,
-    viewScore: (normalized as any).viewScore,
-    engagementScore: (normalized as any).engagementScore,
-    profileCompletenessScore: (normalized as any).profileCompletenessScore,
-    mediaMetricsUpdatedAt: this.toSerializableStoreValue(
-      (normalized as any).mediaMetricsUpdatedAt
-    ),
-
-    createdAt: this.toSerializableStoreValue((normalized as any).createdAt),
-    updatedAt: this.toSerializableStoreValue((normalized as any).updatedAt),
-  } as IUserDados;
-}
-
- /**
- * Junta public_profiles + presence.
- *
- * Regra:
- * - public_profiles é a base persistente do card;
- * - presence só entra com status/timestamps efêmeros;
- * - presence nunca deve apagar dados públicos.
- *
- * Esta função também reimpõe os metadados públicos após sanitizeUserForStore
- * para impedir regressão de localização e perda das métricas usadas no ranking.
- */
-private mergePresenceIntoPublicProfile(
-  profile: IUserDados,
-  presence: IUserDados | null | undefined
-): IUserDados {
-  const anyProfile = profile as any;
-  const anyPresence = presence as any;
-
-  const mediaCount = this.firstNumber(anyProfile, ['mediaCount', 'publicMediaCount']);
-  const photosCount = this.firstNumber(anyProfile, ['photosCount', 'publicPhotosCount']);
-  const videosCount = this.firstNumber(anyProfile, ['videosCount', 'publicVideosCount']);
-  const viewsCount = this.firstNumber(anyProfile, [
-    'viewsCount',
-    'profileViewsCount',
-    'profileViews',
-  ]);
-  const likesCount = this.firstNumber(anyProfile, [
-    'likesCount',
-    'publicLikesCount',
-    'reactionsCount',
-  ]);
-  const reactionsCount =
-    this.firstNumber(anyProfile, ['reactionsCount']) ?? likesCount;
-  const uniqueViewersCount = this.firstNumber(anyProfile, ['uniqueViewersCount']);
-  const viewScore = this.firstNumber(anyProfile, ['viewScore']);
-  const engagementScore = this.firstNumber(anyProfile, ['engagementScore']);
-  const profileCompletenessScore = this.firstNumber(anyProfile, [
-    'profileCompletenessScore',
-  ]);
-
-  const merged = {
-    ...profile,
-
-    uid: anyProfile.uid,
-
-    /**
-     * Não inferimos online por lastSeen.
-     * Online vem explicitamente de presence.isOnline.
-     */
-    isOnline: anyPresence?.isOnline === true,
-
-    lastSeen:
-      anyPresence?.lastSeen ??
-      anyProfile.lastSeen ??
-      null,
-
-    lastOnlineAt:
-      anyPresence?.lastOnlineAt ??
-      anyProfile.lastOnlineAt ??
-      null,
-
-    lastOfflineAt:
-      anyPresence?.lastOfflineAt ??
-      anyProfile.lastOfflineAt ??
-      null,
-
-    lastStateChangeAt:
-      anyPresence?.lastStateChangeAt ??
-      anyProfile.lastStateChangeAt ??
-      null,
-
-    presenceState:
-      anyPresence?.presenceState ??
-      anyProfile.presenceState ??
-      null,
-
-    presenceSessionId:
-      anyPresence?.presenceSessionId ??
-      anyProfile.presenceSessionId ??
-      null,
-  } as IUserDados;
-
-  const safe = sanitizeUserForStore(merged) as IUserDados | null;
-
-  return {
-    ...(safe ?? merged),
-
-    uid: anyProfile.uid,
-    nickname: anyProfile.nickname,
-    nicknameNormalized: anyProfile.nicknameNormalized,
-
-    photoURL: anyProfile.photoURL,
-
-    gender: anyProfile.gender,
-    orientation: anyProfile.orientation,
-    partner1Orientation: anyProfile.partner1Orientation,
-    partner2Orientation: anyProfile.partner2Orientation,
-
-    municipio: anyProfile.municipio,
-    estado: anyProfile.estado,
-
-    role: anyProfile.role,
-
-    latitude: anyProfile.latitude,
-    longitude: anyProfile.longitude,
-    geohash: anyProfile.geohash,
-
-    mediaCount,
-    publicMediaCount: mediaCount,
-    photosCount,
-    publicPhotosCount: photosCount,
-    videosCount,
-    publicVideosCount: videosCount,
-    viewsCount,
-    profileViewsCount: viewsCount,
-    profileViews: viewsCount,
-    likesCount,
-    publicLikesCount: likesCount,
-    reactionsCount,
-    uniqueViewersCount,
-    viewScore,
-    engagementScore,
-    profileCompletenessScore,
-    mediaMetricsUpdatedAt: this.toSerializableStoreValue(
-      anyProfile.mediaMetricsUpdatedAt
-    ),
-
-    createdAt: this.toSerializableStoreValue(anyProfile.createdAt),
-    updatedAt: this.toSerializableStoreValue(anyProfile.updatedAt),
-
-    isOnline: anyPresence?.isOnline === true,
-
-    lastSeen: this.toSerializableStoreValue(
-      anyPresence?.lastSeen ??
-        anyProfile.lastSeen ??
-        null
-    ),
-
-    lastOnlineAt: this.toSerializableStoreValue(
-      anyPresence?.lastOnlineAt ??
-        anyProfile.lastOnlineAt ??
-        null
-    ),
-
-    lastOfflineAt: this.toSerializableStoreValue(
-      anyPresence?.lastOfflineAt ??
-        anyProfile.lastOfflineAt ??
-        null
-    ),
-
-    lastStateChangeAt: this.toSerializableStoreValue(
-      anyPresence?.lastStateChangeAt ??
-        anyProfile.lastStateChangeAt ??
-        null
-    ),
-
-    presenceState:
-      anyPresence?.presenceState ??
-      anyProfile.presenceState ??
-      null,
-
-    presenceSessionId:
-      anyPresence?.presenceSessionId ??
-      anyProfile.presenceSessionId ??
-      null,
-  } as IUserDados;
-}
-
   /**
    * Hidrata usuários online a partir de:
    * - presence: quem está online;
@@ -928,7 +510,7 @@ private mergePresenceIntoPublicProfile(
 
         switchMap(([profiles, usersMap]) => {
           const publicProfiles = (profiles ?? [])
-            .map((profile) => this.normalizePublicProfileForOnline(profile))
+            .map((profile) => this.profileHydration.normalizePublicProfileForOnline(profile))
             .filter((profile): profile is IUserDados => !!profile?.uid);
 
           const hydratedOnlineUsers = publicProfiles
@@ -936,7 +518,7 @@ private mergePresenceIntoPublicProfile(
               const uid = this.toCleanText(profile.uid);
               const presence = uid ? presenceByUid.get(uid) : null;
 
-              return this.mergePresenceIntoPublicProfile(profile, presence);
+              return this.profileHydration.mergePresenceIntoPublicProfile(profile, presence);
             })
             .filter((user): user is IUserDados => !!user?.uid);
 
@@ -1106,48 +688,6 @@ tap(({ presenceUsers, fingerprint }) =>
       })
     )
   );
-
-  private toSerializableStoreValue(value: unknown): unknown {
-  if (value === undefined || value === null) {
-    return null;
-  }
-
-  if (typeof value === 'number' || typeof value === 'string' || typeof value === 'boolean') {
-    return value;
-  }
-
-  if (value instanceof Date) {
-    return value.getTime();
-  }
-
-  const maybeTimestamp = value as {
-    toMillis?: () => number;
-    toDate?: () => Date;
-    seconds?: number;
-    nanoseconds?: number;
-  } | null | undefined;
-
-  if (typeof maybeTimestamp?.toMillis === 'function') {
-    const millis = maybeTimestamp.toMillis();
-
-    return Number.isFinite(millis) ? millis : null;
-  }
-
-  if (typeof maybeTimestamp?.toDate === 'function') {
-    const millis = maybeTimestamp.toDate().getTime();
-
-    return Number.isFinite(millis) ? millis : null;
-  }
-
-  if (
-    typeof maybeTimestamp?.seconds === 'number' &&
-    Number.isFinite(maybeTimestamp.seconds)
-  ) {
-    return maybeTimestamp.seconds * 1000;
-  }
-
-  return null;
-}
 
   // ===========================================================================
   // 3) Filtro auxiliar por município
