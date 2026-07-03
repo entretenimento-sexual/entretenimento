@@ -479,10 +479,15 @@ export class SocialAuthService {
     authUser: FirebaseUser,
     nowMs: number
   ): Partial<SocialAuthUserDoc> {
-    const tier = this.normalizeTier(existing.tier ?? existing.role ?? 'free');
     const providerIds = this.mergeProviderIds(existing.authProviders, authUser);
-    const accountStatus = this.resolveAccountStatus(existing);
 
+    /**
+     * Mantém o update compatível com users.rules.
+     *
+     * Campos como role, tier, roles, permissions, entitlements e accountStatus
+     * são sensíveis e não podem ser alterados pelo próprio usuário no login.
+     * Eles continuam sendo lidos de users/{uid} e normalizados apenas em memória.
+     */
     return {
       lastLogin: nowMs,
       updatedAtMs: nowMs,
@@ -492,23 +497,6 @@ export class SocialAuthService {
         this.normalizePhotoUrl(authUser.photoURL) ??
         this.normalizePhotoUrl(existing.photoURL),
 
-      role: this.normalizeRole(existing.role ?? tier),
-      tier,
-
-      roles:
-        Array.isArray(existing.roles) && existing.roles.length > 0
-          ? existing.roles
-          : ['user'],
-
-      permissions: Array.isArray(existing.permissions)
-        ? existing.permissions
-        : [],
-
-      entitlements: Array.isArray(existing.entitlements)
-        ? existing.entitlements
-        : [],
-
-      accountStatus,
       authProviders: providerIds,
       lastProvider: 'google.com',
     };
