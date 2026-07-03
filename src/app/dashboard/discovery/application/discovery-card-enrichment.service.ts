@@ -67,14 +67,16 @@ export interface DiscoveryCardEnrichmentInput {
   applyVisibility?: boolean;
 }
 
+type DiscoveryCardRejectionReason =
+  | NonNullable<PublicDiscoveryProfileRejectionReason>
+  | 'current_user'
+  | 'outside_radius'
+  | 'incompatible_profile';
+
 export interface DiscoveryCardRejectedItem {
   uid: string | null;
   nickname: string | null;
-  reason:
-    | PublicDiscoveryProfileRejectionReason
-    | 'current_user'
-    | 'outside_radius'
-    | 'incompatible_profile';
+  reason: DiscoveryCardRejectionReason;
 }
 
 export interface DiscoveryCardScoreDebug {
@@ -93,7 +95,7 @@ export interface DiscoveryCardDebugSummary {
   withDistanceTotal: number;
   withMediaTotal: number;
   withVideoTotal: number;
-  rejectedByReason: Partial<Record<DiscoveryCardRejectedItem['reason'], number>>;
+  rejectedByReason: Partial<Record<DiscoveryCardRejectionReason, number>>;
   topScores: Array<{
     uid: string;
     nickname: string | null;
@@ -262,7 +264,7 @@ export class DiscoveryCardEnrichmentService {
     rejected: readonly DiscoveryCardRejectedItem[];
     scores: readonly DiscoveryCardScoreDebug[];
   }): DiscoveryCardDebugSummary {
-    const rejectedByReason: Partial<Record<DiscoveryCardRejectedItem['reason'], number>> = {};
+    const rejectedByReason: Partial<Record<DiscoveryCardRejectionReason, number>> = {};
 
     for (const item of input.rejected) {
       rejectedByReason[item.reason] = (rejectedByReason[item.reason] ?? 0) + 1;
