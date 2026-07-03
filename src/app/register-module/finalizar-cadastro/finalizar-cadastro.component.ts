@@ -99,6 +99,14 @@ export class FinalizarCadastroComponent implements OnInit {
             return of(void 0);
           }
 
+          if (vm.currentStep !== 'profileCompletion') {
+            this.router.navigateByUrl(vm.nextRoute || '/register/welcome', {
+              replaceUrl: true,
+            }).catch(() => {});
+
+            return of(void 0);
+          }
+
           return this.loadUserForFormByUid$(vm.uid, vm);
         }),
         finalize(() => {
@@ -203,17 +211,56 @@ export class FinalizarCadastroComponent implements OnInit {
     return `/perfil/${uid}`;
   }
 
-  onSubmit(): void {
-    if (this.isSubmitting) return;
+  private canSubmitProfileCompletion(): boolean {
+  const vm = this.latestVm;
 
-    const uid = this.latestVm?.uid?.trim() || null;
+  if (!vm?.uid) {
+    const msg = 'Erro: UID do usuário não encontrado.';
+    this.message = msg;
+    this.errorNotification.showError(msg);
+    return false;
+  }
 
-    if (!uid) {
-      const msg = 'Erro: UID do usuário não encontrado.';
-      this.message = msg;
-      this.errorNotification.showError(msg);
-      return;
-    }
+  if (!vm.emailVerified) {
+    const msg = 'Confirme seu e-mail antes de finalizar o cadastro.';
+    this.message = msg;
+    this.errorNotification.showWarning(msg);
+
+    this.router.navigate(['/register/welcome'], {
+      replaceUrl: true,
+      queryParams: { reason: 'email_unverified' },
+    }).catch(() => {});
+
+    return false;
+  }
+
+  if (vm.currentStep !== 'profileCompletion') {
+    const msg = 'Esta etapa do cadastro não está disponível agora.';
+    this.message = msg;
+    this.errorNotification.showWarning(msg);
+
+    this.router.navigateByUrl(vm.nextRoute || '/register/welcome', {
+      replaceUrl: true,
+    }).catch(() => {});
+
+    return false;
+  }
+
+  return true;
+}
+
+onSubmit(): void {
+  if (this.isSubmitting) return;
+
+  if (!this.canSubmitProfileCompletion()) {
+    return;
+  }
+
+  const uid = this.latestVm?.uid?.trim() || null;
+
+  if (!uid) {
+    return;
+  }
 
     this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
     this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
@@ -274,11 +321,18 @@ export class FinalizarCadastroComponent implements OnInit {
       )
       .subscribe({
         next: () => {
-          this.message = 'Perfil finalizado com sucesso!';
-          this.currentUserStore.patch({ profileCompleted: true });
+        this.message = 'Perfil finalizado com sucesso!';
 
-          const target = this.getRedirectToAfterCompletion(uid);
-          this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
+        this.currentUserStore.patch({
+          profileCompleted: true,
+          gender: this.gender,
+          orientation: this.orientation,
+          estado: this.selectedEstado,
+          municipio: this.selectedMunicipio,
+        });
+
+        const target = this.getRedirectToAfterCompletion(uid);
+        this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
         },
       });
   }
