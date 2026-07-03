@@ -2,7 +2,22 @@
 // -----------------------------------------------------------------------------
 // DiscoveryCardEnrichmentService
 // -----------------------------------------------------------------------------
-// Camada genérica de enriquecimento de cards de descoberta.
+// FONTE CANÔNICA DE RANKING DE DISCOVERY.
+//
+// Responsabilidade:
+// - transformar perfis públicos em PublicProfileCard;
+// - enriquecer presença, distância e compatibilidade;
+// - aplicar elegibilidade/visibilidade;
+// - chamar o motor puro de score;
+// - ordenar os cards;
+// - devolver um debug summary padronizado.
+//
+// Regra arquitetural:
+// - componentes/facades NÃO devem ordenar discovery manualmente por isOnline,
+//   role, mediaCount, updatedAt, viewsCount, likesCount ou compatibilityScore;
+// - toda tela de discovery deve consumir buildCardsResult() ou buildCards();
+// - o cálculo matemático puro continua em discovery-profile-score.utils.ts;
+// - esta camada é a fonte única do pipeline completo de ranking de cards.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject, isDevMode } from '@angular/core';
@@ -36,7 +51,10 @@ import {
 } from '../models/discovery-mode.model';
 
 import { PublicProfileCard } from '../models/public-profile-card.model';
-import { evaluateProfileCompatibility, ProfileCompatibilityResult } from 'src/app/core/utils/discovery/profile-compatibility.util';
+import {
+  evaluateProfileCompatibility,
+  ProfileCompatibilityResult,
+} from 'src/app/core/utils/discovery/profile-compatibility.util';
 
 export interface DiscoveryCardEnrichmentInput {
   profiles: readonly IUserDados[];
@@ -65,10 +83,43 @@ export interface DiscoveryCardScoreDebug {
   score: DiscoveryScoreBreakdown;
 }
 
+export interface DiscoveryCardDebugSummary {
+  mode: DiscoveryMode;
+  sourceTotal: number;
+  candidateTotal: number;
+  acceptedTotal: number;
+  rejectedTotal: number;
+  onlineTotal: number;
+  withDistanceTotal: number;
+  withMediaTotal: number;
+  withVideoTotal: number;
+  rejectedByReason: Partial<Record<DiscoveryCardRejectedItem['reason'], number>>;
+  topScores: Array<{
+    uid: string;
+    nickname: string | null;
+    total: number;
+    quality: number;
+    media: number;
+    distance: number;
+    region: number;
+    recency: number;
+    role: number;
+    online: number;
+    compatibility: number;
+    engagement: number;
+  }>;
+}
+
 export interface DiscoveryCardEnrichmentResult {
   profiles: PublicProfileCard[];
   rejected: DiscoveryCardRejectedItem[];
   scores: DiscoveryCardScoreDebug[];
+
+  /**
+   * Debug canônico para facades e devtools.
+   * Evita cada tela remontar seu próprio resumo com regras diferentes.
+   */
+  debugSummary: DiscoveryCardDebugSummary;
 }
 
 @Injectable({
@@ -177,19 +228,78 @@ export class DiscoveryCardEnrichmentService {
       return compareDiscoverableProfilesStable(a.profile, b.profile);
     });
 
+    const profiles = scored.map((item) => item.profile);
+    const scores = scored.map((item) => ({
+      uid: item.profile.uid,
+      nickname: item.profile.nickname ?? null,
+      score: item.score,
+    }));
+
     const result: DiscoveryCardEnrichmentResult = {
-      profiles: scored.map((item) => item.profile),
+      profiles,
       rejected,
-      scores: scored.map((item) => ({
-        uid: item.profile.uid,
-        nickname: item.profile.nickname ?? null,
-        score: item.score,
-      })),
+      scores,
+      debugSummary: this.buildDebugSummary({
+        mode,
+        sourceTotal: input.profiles?.length ?? 0,
+        candidates,
+        profiles,
+        rejected,
+        scores,
+      }),
     };
 
     this.debugCompatibleMode(mode, candidates, result);
 
     return result;
+  }
+
+  private buildDebugSummary(input: {
+    mode: DiscoveryMode;
+    sourceTotal: number;
+    candidates: readonly PublicProfileCard[];
+    profiles: readonly PublicProfileCard[];
+    rejected: readonly DiscoveryCardRejectedItem[];
+    scores: readonly DiscoveryCardScoreDebug[];
+  }): DiscoveryCardDebugSummary {
+    const rejectedByReason: Partial<Record<DiscoveryCardRejectedItem['reason'], number>> = {};
+
+    for (const item of input.rejected) {
+      rejectedByReason[item.reason] = (rejectedByReason[item.reason] ?? 0) + 1;
+    }
+
+    return {
+      mode: input.mode,
+      sourceTotal: input.sourceTotal,
+      candidateTotal: input.candidates.length,
+      acceptedTotal: input.profiles.length,
+      rejectedTotal: input.rejected.length,
+      onlineTotal: input.profiles.filter((profile) => profile.isOnline === true).length,
+      withDistanceTotal: input.profiles.filter(
+        (profile) => typeof profile.distanciaKm === 'number'
+      ).length,
+      withMediaTotal: input.profiles.filter(
+        (profile) => (profile.mediaCount ?? 0) > 0 || (profile.photosCount ?? 0) > 0
+      ).length,
+      withVideoTotal: input.profiles.filter(
+        (profile) => (profile.videosCount ?? 0) > 0
+      ).length,
+      rejectedByReason,
+      topScores: input.scores.slice(0, 20).map((item) => ({
+        uid: item.uid,
+        nickname: item.nickname,
+        total: this.roundScore(item.score.total),
+        quality: this.roundScore(item.score.quality),
+        media: this.roundScore(item.score.media),
+        distance: this.roundScore(item.score.distance),
+        region: this.roundScore(item.score.region),
+        recency: this.roundScore(item.score.recency),
+        role: this.roundScore(item.score.role),
+        online: this.roundScore(item.score.online),
+        compatibility: this.roundScore(item.score.compatibility),
+        engagement: this.roundScore(item.score.engagement),
+      })),
+    };
   }
 
   private resolveViewerCoordinates(
@@ -267,9 +377,10 @@ export class DiscoveryCardEnrichmentService {
     }));
 
     console.groupCollapsed(
-      `[DiscoveryDebug] Perfis compatíveis: ${result.profiles.length} aceitos, ${result.rejected.length} rejeitados`
+      `[DiscoveryDebug] Perfis compatíveis: ${result.debugSummary.acceptedTotal} aceitos, ${result.debugSummary.rejectedTotal} rejeitados`
     );
     console.table(rows);
+    console.info('[DiscoveryDebug] summary', result.debugSummary);
     console.groupEnd();
   }
 
@@ -475,5 +586,9 @@ export class DiscoveryCardEnrichmentService {
     }
 
     return Math.max(0, value);
+  }
+
+  private roundScore(value: number): number {
+    return Number(value.toFixed(2));
   }
 }
