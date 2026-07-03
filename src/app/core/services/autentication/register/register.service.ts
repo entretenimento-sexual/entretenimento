@@ -2,7 +2,7 @@
 // =============================================================================
 // RegisterService (rules-aware / best-of-both)
 // - Auth propagation: refresh token + onIdTokenChanged
-// - Firestore writes: transaction (users + public_index + public_profiles)
+// - Firestore bootstrap: RegistrationBootstrapService
 // - public_index.rules: createdAt/lastChangedAt MUST be serverTimestamp() => request.time
 // - public_profiles.rules: strict allowedKeys + createdAt/updatedAt MUST be serverTimestamp() => request.time
 // - No avatar/photoURL at signup
@@ -13,7 +13,6 @@ import { from, Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, tap, timeout, take } from 'rxjs/operators';
 
 import { Auth } from '@angular/fire/auth';
-import { Firestore } from '@angular/fire/firestore';
 
 import {
   createUserWithEmailAndPassword,
@@ -25,25 +24,16 @@ import {
   type User,
 } from 'firebase/auth';
 
-import {
-  doc,
-  runTransaction,
-  serverTimestamp,
-  Timestamp,
-  getDoc,
-  setDoc,
-} from 'firebase/firestore';
-
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { FirestoreValidationService } from '../../data-handling/firestore/validation/firestore-validation.service';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { EmailVerificationService } from './email-verification.service';
+import { RegistrationBootstrapService } from './registration-bootstrap.service';
 import { ValidatorService } from '../../general/validator.service';
 import { FirebaseError } from 'firebase/app';
 import { environment } from 'src/environments/environment';
 
 import { CacheService } from '../../general/cache/cache.service';
-import { FirestoreContextService } from '@core/services/data-handling/firestore/core/firestore-context.service';
 import { NicknameUtils } from '@core/utils/nickname-utils';
 
 type SignupContext = {
@@ -62,12 +52,11 @@ export class RegisterService {
 
   constructor(
     private readonly emailVerificationService: EmailVerificationService,
+    private readonly registrationBootstrap: RegistrationBootstrapService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly firestoreValidation: FirestoreValidationService,
     private readonly cache: CacheService,
-    private readonly auth: Auth,
-    private readonly db: Firestore,
-    private readonly ctx: FirestoreContextService
+    private readonly auth: Auth
   ) { }
 
   registerUser(userData: IUserRegistrationData, password: string): Observable<UserCredential> {
@@ -100,27 +89,34 @@ export class RegisterService {
         this.waitAuthPropagationForFirestore$(cred.user.uid, traceId).pipe(map(() => cred))
       ),
 
-      // 3) transação atômica: users + public_index + public_profiles
+      // 3) bootstrap canônico: users + public_index + public_profiles
       switchMap((cred) =>
-        this.persistUserAndIndexAtomic(cred.user.uid, userData, traceId).pipe(
-          map((): SignupContext => ({ cred, warns: [], traceId })),
-          catchError((err) =>
-            this.deleteUserOnFailure(cred.user.uid).pipe(
-              catchError((delErr) => {
-                this.safeHandle(
-                  '[RegisterService] Falha ao rollback do Auth após erro no Firestore.',
-                  delErr,
-                  {
-                    traceId,
-                    uid: cred.user.uid,
-                  }
-                );
-                return of(void 0);
-              }),
-              switchMap(() => throwError(() => err))
+        this.registrationBootstrap
+          .createEmailPasswordSeed$({
+            uid: cred.user.uid,
+            userData,
+            traceId,
+          })
+          .pipe(
+            tap(() => this.devDebug(traceId, 'persist:bootstrap:ok', { uid: cred.user.uid })),
+            map((): SignupContext => ({ cred, warns: [], traceId })),
+            catchError((err) =>
+              this.deleteUserOnFailure(cred.user.uid).pipe(
+                catchError((delErr) => {
+                  this.safeHandle(
+                    '[RegisterService] Falha ao rollback do Auth após erro no Firestore.',
+                    delErr,
+                    {
+                      traceId,
+                      uid: cred.user.uid,
+                    }
+                  );
+                  return of(void 0);
+                }),
+                switchMap(() => throwError(() => err))
+              )
             )
           )
-        )
       ),
 
       // 4) e-mail de verificação (warn se falhar)
@@ -317,178 +313,6 @@ export class RegisterService {
     );
   }
 
-  /**
-   * persistUserAndIndexAtomic
-   * - users.rules: allow create if isSelf(userId)
-   * - public_index.rules: createdAt/lastChangedAt == request.time (serverTimestamp obrigatório)
-   * - public_profiles.rules: allowedKeys rígida + createdAt/updatedAt == request.time + role=="basic"
-   */
-  private persistUserAndIndexAtomic(uid: string, userData: IUserRegistrationData, traceId: string): Observable<void> {
-    const nickname = (userData.nickname ?? '').trim();
-    const normalized = this.normalizeNickname(nickname);
-    const nowMs = Date.now();
-
-    const userRef = doc(this.db as any, 'users', uid);
-    const indexRef = doc(this.db as any, 'public_index', `nickname:${normalized}`);
-    const publicProfileRef = doc(this.db as any, 'public_profiles', uid);
-
-    this.devDebug(traceId, 'persist:tx:start', {
-      uid,
-      indexDocId: `nickname:${normalized}`,
-      authUid: this.auth.currentUser?.uid ?? null,
-    });
-
-    return this.ctx.deferPromise$(() =>
-      runTransaction(this.db as any, async (tx) => {
-        // 1) unicidade via public_index
-        const idxSnap = await tx.get(indexRef);
-        if (idxSnap.exists()) {
-          const err: any = new Error('Apelido já está em uso.');
-          err.code = 'nickname/in-use';
-          throw err;
-        }
-
-        // 2) users/{uid}
-        tx.set(userRef, {
-          uid,
-          email: (userData.email ?? '').trim(),
-          nickname,
-
-          role: 'free',
-          tier: 'free',
-
-          emailVerified: false,
-          isSubscriber: false,
-          subscriptionStatus: 'inactive',
-          accountStatus: 'active',
-
-          profileCompleted: false,
-
-          acceptedTerms: {
-            accepted: true,
-            date: serverTimestamp(),
-          },
-
-          createdAt: serverTimestamp(),
-          registrationDate: serverTimestamp(),
-          firstLogin: serverTimestamp(),
-
-          nicknameHistory: [
-            { nickname: normalized, date: Timestamp.fromMillis(nowMs) },
-          ],
-        }, { merge: true });
-
-        // 3) public_index/nickname:...
-        tx.set(indexRef, {
-          uid,
-          type: 'nickname',
-          value: normalized,
-          createdAt: serverTimestamp(),
-          lastChangedAt: serverTimestamp(),
-        });
-
-        // 4) public_profiles/{uid}
-        tx.set(publicProfileRef, {
-          uid,
-          nickname,
-          nicknameNormalized: normalized,
-          role: 'free',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      })
-    ).pipe(
-      map(() => void 0),
-      tap(() => this.devDebug(traceId, 'persist:tx:ok', { uid })),
-      catchError((err: any) => {
-        const fb = {
-          name: err?.name,
-          code: err?.code,
-          message: err?.message,
-          customData: err?.customData,
-        };
-
-        this.safeHandle('[RegisterService] persistUserAndIndexAtomic falhou.', err, {
-          traceId,
-          uid,
-          nickname,
-          normalized,
-          authUid: this.auth.currentUser?.uid ?? null,
-          firebaseError: fb,
-        });
-
-        return throwError(() => err);
-      })
-    );
-  }
-
-  /**
-   * (Opcional / DEV) Debug de permissão: tenta 3 writes sequenciais (não atômico)
-   * Use apenas para descobrir QUAL coleção está negando (users / public_index / public_profiles).
-   */
-  private debugPersistWrites$(uid: string, userData: IUserRegistrationData, traceId: string): Observable<void> {
-    if (!this.debugEnabled()) return throwError(() => new Error('Debug tools desabilitadas.'));
-
-    const nickname = (userData.nickname ?? '').trim();
-    const normalized = this.normalizeNickname(nickname);
-
-    const userRef = doc(this.db as any, 'users', uid);
-    const indexRef = doc(this.db as any, 'public_index', `nickname:${normalized}`);
-    const publicProfileRef = doc(this.db as any, 'public_profiles', uid);
-
-    this.devWarn(traceId, 'debugPersistWrites$:ON', { uid, indexDocId: `nickname:${normalized}` });
-
-    return this.ctx.deferPromise$(() =>
-      setDoc(userRef as any, {
-        uid,
-        email: (userData.email ?? '').trim(),
-        nickname,
-        role: 'free',
-        tier: 'free',
-        isSubscriber: false,
-        subscriptionStatus: 'inactive',
-        createdAt: serverTimestamp(),
-      }, { merge: true })
-    ).pipe(
-      tap(() => this.devDebug(traceId, 'debugPersistWrites$:OK users')),
-
-      switchMap(() => this.ctx.deferPromise$(() => getDoc(indexRef))),
-      switchMap((snap) => {
-        if (snap.exists()) {
-          const err: any = new Error('Apelido já está em uso.');
-          err.code = 'nickname/in-use';
-          return throwError(() => err);
-        }
-        return this.ctx.deferPromise$(() =>
-          setDoc(indexRef, {
-            uid,
-            type: 'nickname',
-            value: normalized,
-            createdAt: serverTimestamp(),
-            lastChangedAt: serverTimestamp(),
-          })
-        );
-      }),
-      tap(() => this.devDebug(traceId, 'debugPersistWrites$:OK public_index')),
-
-      switchMap(() =>
-        this.ctx.deferPromise$(() =>
-          setDoc(publicProfileRef, {
-            uid,
-            nickname,
-            nicknameNormalized: normalized,
-            role: 'free',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          })  
-        )
-      ),
-      tap(() => this.devDebug(traceId, 'debugPersistWrites$:OK public_profiles')),
-
-      map(() => void 0)
-    );
-  }
-
   deleteUserOnFailure(uid: string): Observable<void> {
     const currentUser = this.auth.currentUser;
     if (currentUser?.uid === uid) {
@@ -518,11 +342,11 @@ export class RegisterService {
    * que precisem de leitura síncrona defensiva.
    */
   private seedLocalStateAfterSignup(uid: string): void {
-      const safeUid = (uid ?? '').trim();
-      if (!safeUid) return;
+    const safeUid = (uid ?? '').trim();
+    if (!safeUid) return;
 
-      this.cache.set(this.HOT_KEY_CURRENT_USER_UID, safeUid, undefined, { persist: false });
-    }
+    this.cache.set(this.HOT_KEY_CURRENT_USER_UID, safeUid, undefined, { persist: false });
+  }
 
   private handleRegisterError(error: any, context: string, traceId: string): Observable<never> {
     const message = this.mapErrorMessage(error);
@@ -590,7 +414,7 @@ export class RegisterService {
      * Isso evita divergência entre:
      * - validação do register
      * - checagem de unicidade em public_index
-     * - persistência em transaction
+     * - persistência em bootstrap
      */
     return NicknameUtils.normalizarApelidoParaIndice(nickname);
   }
@@ -621,4 +445,4 @@ export class RegisterService {
     if (!u || !d) return e;
     return `${u.slice(0, 2)}***@${d}`;
   }
-} // linha 626
+}
