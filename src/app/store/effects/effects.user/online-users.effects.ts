@@ -50,14 +50,8 @@ import {
 import { AppState } from '../../states/app.state';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
-import { IError } from '@core/interfaces/ierror';
-
 import { sanitizeUsersForStore } from 'src/app/store/utils/user-store.serializer';
-import { toStoreError } from 'src/app/store/utils/store-error.serializer';
 
-import { GlobalErrorHandlerService } from '@core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
-import { PrivacyDebugLoggerService } from '@core/services/privacy/privacy-debug-logger.service';
 import { UserPresenceQueryService } from '@core/services/data-handling/queries/user-presence.query.service';
 import { UserDiscoveryQueryService } from '@core/services/data-handling/queries/user-discovery.query.service';
 import { AccessControlService } from '@core/services/autentication/auth/access-control.service';
@@ -85,6 +79,7 @@ import {
 } from '../../selectors/selectors.user/online.selectors';
 import { OnlineUsersProfileHydrationService } from './online-users-profile-hydration.service';
 import { OnlineUsersProfileComparatorService } from './online-users-profile-comparator.service';
+import { OnlineUsersEffectFeedbackService } from './online-users-effect-feedback.service';
 
 const norm = (value?: string | null): string =>
   (value ?? '').trim().toLowerCase();
@@ -97,13 +92,9 @@ export class OnlineUsersEffects {
   private readonly presenceQuery = inject(UserPresenceQueryService);
   private readonly discoveryQuery = inject(UserDiscoveryQueryService);
   private readonly access = inject(AccessControlService);
-
-  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
-  private readonly errorNotifier = inject(ErrorNotificationService);
-  private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly profileHydration = inject(OnlineUsersProfileHydrationService);
   private readonly profileComparator = inject(OnlineUsersProfileComparatorService);
-  private lastNotifyAt = 0;
+  private readonly feedback = inject(OnlineUsersEffectFeedbackService);
 
   /**
    * Gate canônico da feature online.
@@ -118,7 +109,7 @@ export class OnlineUsersEffects {
     this.access.authUid$,
   ]).pipe(
     tap(([canRunRaw, uid]) =>
-      this.dbg('gate sources', {
+      this.feedback.debug('gate sources', {
         canRunRaw,
         canRunRawType: typeof canRunRaw,
         uid,
@@ -145,51 +136,6 @@ export class OnlineUsersEffects {
 
     shareReplay({ bufferSize: 1, refCount: true })
   );
-
-  // ===========================================================================
-  // Logs controlados / erros
-  // ===========================================================================
-private canDebug(): boolean {
-  return this.privacyDebug.canLog('online-users');
-}
-
-private dbg(msg: string, extra?: unknown): void {
-  this.privacyDebug.log('online-users', msg, extra);
-}
-
-  private notifyOnce(msg: string): void {
-    const now = Date.now();
-
-    if (now - this.lastNotifyAt > 15_000) {
-      this.lastNotifyAt = now;
-      this.errorNotifier.showError(msg);
-    }
-  }
-
-  private reportEffectError(
-    err: unknown,
-    fallbackMsg: string,
-    context: string,
-    extra?: Record<string, unknown>
-  ): IError {
-    const storeErr = toStoreError(err, fallbackMsg, context, extra);
-
-    const error = err instanceof Error ? err : new Error(storeErr.message);
-
-    /**
-     * Mantém compatibilidade com o tratamento centralizado já usado no projeto.
-     * A notificação ao usuário é controlada por notifyOnce(), evitando spam.
-     */
-    (error as any).silent = true;
-    (error as any).context = context;
-    (error as any).original = err;
-    (error as any).extra = storeErr.extra;
-
-    this.globalErrorHandler.handleError(error);
-    this.notifyOnce(storeErr.message);
-
-    return storeErr;
-  }
 
   // ===========================================================================
   // Normalização do public_profile para o card online
@@ -269,8 +215,8 @@ const normalizedPresence = this.profileComparator.normalizePresenceUsers(
                 : addUserToState({ user: profile });
             });
 
-          if (this.canDebug()) {
-            this.dbg('hydrateProfilesForOnlineUsers$', {
+          if (this.feedback.canDebug()) {
+            this.feedback.debug('hydrateProfilesForOnlineUsers$', {
               presenceTotal: normalizedPresence.length,
               profilesTotal: publicProfiles.length,
               hydratedOnlineTotal: hydratedOnlineUsers.length,
@@ -323,15 +269,15 @@ const normalizedPresence = this.profileComparator.normalizePresenceUsers(
 
   onlineUsersDriver$ = createEffect(() =>
     this.gate$.pipe(
-      tap((gate) => this.dbg('gate → state', gate)),
+      tap((gate) => this.feedback.debug('gate → state', gate)),
 
       switchMap((gate) => {
         if (!gate.canStart) {
-          this.dbg('gate=false → STOP (reducer cleanup)');
+          this.feedback.debug('gate=false → STOP (reducer cleanup)');
           return of(stopOnlineUsersListener());
         }
 
-        this.dbg('gate=true → START listener', { uid: gate.uid });
+        this.feedback.debug('gate=true → START listener', { uid: gate.uid });
 
         return merge(
           of(startOnlineUsersListener()),
@@ -350,7 +296,7 @@ fingerprint: this.profileComparator.buildPresenceFingerprint(
   ),
 
 tap(({ presenceUsers, fingerprint }) =>
-  this.dbg('presence emission accepted', {
+  this.feedback.debug('presence emission accepted', {
     uid: gate.uid,
     fingerprintLength: fingerprint.length,
     total: Array.isArray(presenceUsers) ? presenceUsers.length : 0,
@@ -362,11 +308,11 @@ tap(({ presenceUsers, fingerprint }) =>
   ),
 
   finalize(() =>
-    this.dbg('realtime listener FINALIZE (unsub)')
+    this.feedback.debug('realtime listener FINALIZE (unsub)')
   ),
 
   catchError((err) => {
-    const storeErr = this.reportEffectError(
+    const storeErr = this.feedback.reportEffectError(
       err,
       'Falha ao ouvir usuários online.',
       'OnlineUsersEffects.realtime',
@@ -395,11 +341,11 @@ tap(({ presenceUsers, fingerprint }) =>
 
       switchMap(([, gate]) => {
         if (!gate?.canStart) {
-          this.dbg('once ignorado (gate=false)', gate);
+          this.feedback.debug('once ignorado (gate=false)', gate);
           return of(loadOnlineUsersSuccess({ users: [] }));
         }
 
-        this.dbg('once START', { uid: gate.uid });
+        this.feedback.debug('once START', { uid: gate.uid });
 
         return this.presenceQuery.getOnlineUsersOnce$().pipe(
           switchMap((presenceUsers) =>
@@ -407,7 +353,7 @@ tap(({ presenceUsers, fingerprint }) =>
           ),
 
           catchError((err) => {
-            const storeErr = this.reportEffectError(
+            const storeErr = this.feedback.reportEffectError(
               err,
               'Falha ao carregar usuários online.',
               'OnlineUsersEffects.once',
@@ -470,7 +416,7 @@ tap(({ presenceUsers, fingerprint }) =>
       }),
 
       catchError((err) => {
-        this.reportEffectError(
+        this.feedback.reportEffectError(
           err,
           'Falha ao filtrar usuários online por município.',
           'OnlineUsersEffects.filter'
