@@ -21,6 +21,7 @@ import { AuthVerificationHandlerComponent } from './auth-verification-handler/au
 import { FinalizarCadastroComponent } from './finalizar-cadastro/finalizar-cadastro.component';
 
 import { authGuard } from '../core/guards/auth-guard/auth.guard';
+import { registrationStepGuard } from './data-access/registration-step.guard';
 
 const routes: Routes = [
   {
@@ -31,35 +32,42 @@ const routes: Routes = [
     }
   },
 
-  {
-    path: 'welcome',
-    component: WelcomeComponent,
-    canActivate: [authGuard],
+{
+  path: 'welcome',
+  component: WelcomeComponent,
+  canActivate: [authGuard, registrationStepGuard],
+  data: {
+    allowUnverified: true,
+    allowAuthenticated: true,
+    allowedRegisterSteps: ['emailVerification'],
+  },
+},
+
+{
+  path: 'verify',
+  component: AuthVerificationHandlerComponent,
+  data: {
+    allowUnverified: true,
+    allowAuthenticated: true,
+  },
+},
+{
     data: {
       allowUnverified: true,
       allowAuthenticated: true,
     }
   },
 
-  {
-    path: 'verify',
-    component: AuthVerificationHandlerComponent,
-    canActivate: [authGuard],
-    data: {
-      allowUnverified: true,
-      allowAuthenticated: true,
-    }
+{
+  path: 'finalizar-cadastro',
+  component: FinalizarCadastroComponent,
+  canActivate: [authGuard, registrationStepGuard],
+  data: {
+    allowUnverified: true,
+    allowAuthenticated: true,
+    allowedRegisterSteps: ['profileCompletion'],
   },
-
-  {
-    path: 'finalizar-cadastro',
-    component: FinalizarCadastroComponent,
-    canActivate: [authGuard],
-    data: {
-      allowUnverified: true,
-      allowAuthenticated: true,
-    },
-  },
+},
 
   {
     path: '**',
