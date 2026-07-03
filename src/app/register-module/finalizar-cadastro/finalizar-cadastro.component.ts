@@ -212,55 +212,55 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   private canSubmitProfileCompletion(): boolean {
-  const vm = this.latestVm;
+    const vm = this.latestVm;
 
-  if (!vm?.uid) {
-    const msg = 'Erro: UID do usuário não encontrado.';
-    this.message = msg;
-    this.errorNotification.showError(msg);
-    return false;
+    if (!vm?.uid) {
+      const msg = 'Erro: UID do usuário não encontrado.';
+      this.message = msg;
+      this.errorNotification.showError(msg);
+      return false;
+    }
+
+    if (!vm.emailVerified) {
+      const msg = 'Confirme seu e-mail antes de finalizar o cadastro.';
+      this.message = msg;
+      this.errorNotification.showWarning(msg);
+
+      this.router.navigate(['/register/welcome'], {
+        replaceUrl: true,
+        queryParams: { reason: 'email_unverified' },
+      }).catch(() => {});
+
+      return false;
+    }
+
+    if (vm.currentStep !== 'profileCompletion') {
+      const msg = 'Esta etapa do cadastro não está disponível agora.';
+      this.message = msg;
+      this.errorNotification.showWarning(msg);
+
+      this.router.navigateByUrl(vm.nextRoute || '/register/welcome', {
+        replaceUrl: true,
+      }).catch(() => {});
+
+      return false;
+    }
+
+    return true;
   }
 
-  if (!vm.emailVerified) {
-    const msg = 'Confirme seu e-mail antes de finalizar o cadastro.';
-    this.message = msg;
-    this.errorNotification.showWarning(msg);
+  onSubmit(): void {
+    if (this.isSubmitting) return;
 
-    this.router.navigate(['/register/welcome'], {
-      replaceUrl: true,
-      queryParams: { reason: 'email_unverified' },
-    }).catch(() => {});
+    if (!this.canSubmitProfileCompletion()) {
+      return;
+    }
 
-    return false;
-  }
+    const uid = this.latestVm?.uid?.trim() || null;
 
-  if (vm.currentStep !== 'profileCompletion') {
-    const msg = 'Esta etapa do cadastro não está disponível agora.';
-    this.message = msg;
-    this.errorNotification.showWarning(msg);
-
-    this.router.navigateByUrl(vm.nextRoute || '/register/welcome', {
-      replaceUrl: true,
-    }).catch(() => {});
-
-    return false;
-  }
-
-  return true;
-}
-
-onSubmit(): void {
-  if (this.isSubmitting) return;
-
-  if (!this.canSubmitProfileCompletion()) {
-    return;
-  }
-
-  const uid = this.latestVm?.uid?.trim() || null;
-
-  if (!uid) {
-    return;
-  }
+    if (!uid) {
+      return;
+    }
 
     this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
     this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
@@ -300,10 +300,12 @@ onSubmit(): void {
             profileCompleted: true,
           };
 
-          return this.firestoreUserWrite.saveInitialUserData$(uid, completionPayload).pipe(
-            switchMap(() => this.uploadAvatarAfterProfileSave$(uid)),
-            map(() => void 0)
-          );
+          return this.firestoreUserWrite
+            .saveInitialUserData$(uid, completionPayload)
+            .pipe(
+              switchMap(() => this.uploadAvatarAfterProfileSave$(uid)),
+              map(() => void 0)
+            );
         }),
         finalize(() => {
           this.isSubmitting = false;
@@ -321,18 +323,18 @@ onSubmit(): void {
       )
       .subscribe({
         next: () => {
-        this.message = 'Perfil finalizado com sucesso!';
+          this.message = 'Perfil finalizado com sucesso!';
 
-        this.currentUserStore.patch({
-          profileCompleted: true,
-          gender: this.gender,
-          orientation: this.orientation,
-          estado: this.selectedEstado,
-          municipio: this.selectedMunicipio,
-        });
+          this.currentUserStore.patch({
+            profileCompleted: true,
+            gender: this.gender,
+            orientation: this.orientation,
+            estado: this.selectedEstado,
+            municipio: this.selectedMunicipio,
+          });
 
-        const target = this.getRedirectToAfterCompletion(uid);
-        this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
+          const target = this.getRedirectToAfterCompletion(uid);
+          this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
         },
       });
   }
