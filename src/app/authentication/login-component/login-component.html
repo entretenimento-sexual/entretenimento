@@ -178,6 +178,15 @@
           </button>
 
           <button
+            class="btn btn-primary"
+            type="button"
+            [routerLink]="['/register/welcome']"
+            [queryParams]="{ autocheck: '1' }"
+          >
+            Ir para verificação
+          </button>
+
+          <button
             class="btn btn-danger"
             type="button"
             (click)="logout()"
