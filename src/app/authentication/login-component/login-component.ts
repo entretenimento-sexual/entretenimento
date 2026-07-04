@@ -255,7 +255,7 @@ export class LoginComponent implements OnInit {
 
         const target =
           result.emailVerified !== true
-            ? '/register/welcome'
+            ? '/register/welcome?autocheck=1'
             : result.nextRoute === '/dashboard/principal'
               ? redirectTo
               : result.nextRoute ?? redirectTo;
