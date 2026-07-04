@@ -11,8 +11,8 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { finalize, of } from 'rxjs';
-import { distinctUntilChanged, map, shareReplay, tap } from 'rxjs/operators';
+import { finalize, firstValueFrom, of } from 'rxjs';
+import { distinctUntilChanged, map, shareReplay, take, tap } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { AccountFacade } from '../../application/account.facade';
@@ -107,8 +107,26 @@ export class AccountHomeComponent implements OnInit {
       .subscribe();
   }
 
-  onCompleteProfile(): void {
-    this.router.navigate(['/register/finalizar-cadastro']);
+  async onCompleteProfile(): Promise<void> {
+    const user = await firstValueFrom(this.currentUser$.pipe(take(1))).catch(() => null);
+
+    if (user?.emailVerified !== true) {
+      this.router.navigate(['/register/welcome'], {
+        queryParams: {
+          autocheck: '1',
+          reason: 'email_unverified',
+          redirectTo: '/conta',
+        },
+      });
+      return;
+    }
+
+    this.router.navigate(['/register/finalizar-cadastro'], {
+      queryParams: {
+        reason: 'profile_incomplete',
+        redirectTo: '/conta',
+      },
+    });
   }
 
   onSnoozeIncompleteProfileBanner(user: unknown): void {
