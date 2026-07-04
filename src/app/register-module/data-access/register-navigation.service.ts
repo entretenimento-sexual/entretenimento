@@ -86,7 +86,7 @@ export class RegisterNavigationService {
       email,
       currentStep: 'preferences',
       nextRoute: `/preferencias/editar/${uid}`,
-      progress: 100,
+      progress: 90,
       canContinue: true,
       primaryActionLabel: 'Ajustar preferências',
     };
