@@ -1,5 +1,6 @@
 // src/app/register-module/finalizar-cadastro/finalizar-cadastro.component.ts
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { EMPTY, Observable, of } from 'rxjs';
@@ -18,10 +19,17 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-
+import type {
+  IbgeMunicipio,
+  IbgeUF,
+} from 'src/app/core/services/general/api/ibge-location.service';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
+
+type ProfileCompletionField = 'gender' | 'estado' | 'municipio';
+type ProfileCompletionMessageKind = 'success' | 'error' | 'warning' | 'info' | null;
+type ReportableError = Error | HttpErrorResponse;
 
 @Component({
   selector: 'app-finalizar-cadastro',
@@ -44,10 +52,11 @@ export class FinalizarCadastroComponent implements OnInit {
   public selectedEstado = '';
   public selectedMunicipio = '';
 
-  public estados: any[] = [];
-  public municipios: any[] = [];
+  public estados: IbgeUF[] = [];
+  public municipios: IbgeMunicipio[] = [];
 
   public message = '';
+  public messageKind: ProfileCompletionMessageKind = null;
   public isLoading = true;
   public isSubmitting = false;
   public isUploading = false;
@@ -55,8 +64,7 @@ export class FinalizarCadastroComponent implements OnInit {
   public uploadMessage = '';
   public avatarFile: File | null = null;
 
-  public showSubscriptionOptions = false;
-  public formErrors: { [key: string]: string } = {};
+  public formErrors: Partial<Record<ProfileCompletionField, string>> = {};
 
   private latestVm: RegisterFlowVm | null = null;
 
@@ -69,6 +77,58 @@ export class FinalizarCadastroComponent implements OnInit {
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly errorNotification: ErrorNotificationService
   ) {}
+
+    private clearSubmitMessages(): void {
+    this.message = '';
+    this.messageKind = null;
+    this.uploadMessage = '';
+  }
+
+  private setErrorMessage(message: string): void {
+    this.message = message;
+    this.messageKind = 'error';
+    this.errorNotification.showError(message);
+  }
+
+  private setWarningMessage(message: string): void {
+    this.message = message;
+    this.messageKind = 'warning';
+    this.errorNotification.showWarning(message);
+  }
+
+  private setSuccessMessage(message: string): void {
+    this.message = message;
+    this.messageKind = 'success';
+  }
+
+private normalizeReportableError(err: unknown): ReportableError {
+  if (err instanceof Error || err instanceof HttpErrorResponse) {
+    return err;
+  }
+
+  if (typeof err === 'string' && err.trim()) {
+    return new Error(err.trim());
+  }
+
+  return new Error('[FinalizarCadastroComponent] Erro desconhecido.');
+}
+
+private reportError(err: unknown, message: string): void {
+  this.globalErrorHandler.handleError(this.normalizeReportableError(err));
+  this.setErrorMessage(message);
+}
+
+  private setUploadWarning(message: string): void {
+    this.uploadMessage = message;
+    this.errorNotification.showWarning(message);
+  }
+
+  private resetAvatarSelectionState(): void {
+    this.avatarFile = null;
+    this.isUploading = false;
+    this.progressValue = 0;
+    this.uploadMessage = '';
+  }
 
   ngOnInit(): void {
     this.resolveEntryContext();
@@ -104,9 +164,7 @@ export class FinalizarCadastroComponent implements OnInit {
       )
       .subscribe({
         error: (err) => {
-          this.globalErrorHandler.handleError(err);
-          this.message = 'Erro ao carregar seus dados. Tente novamente.';
-          this.errorNotification.showError(this.message);
+          this.reportError(err, 'Erro ao carregar seus dados. Tente novamente.');
         },
       });
   }
@@ -116,8 +174,7 @@ export class FinalizarCadastroComponent implements OnInit {
       take(1),
       tap((initialData) => {
         if (!initialData) {
-          this.message = 'Não encontramos os dados da sua conta. Tente entrar novamente.';
-          this.errorNotification.showError(this.message);
+          this.setErrorMessage('Não encontramos os dados da sua conta. Tente entrar novamente.');
           this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {});
           return;
         }
@@ -147,8 +204,7 @@ export class FinalizarCadastroComponent implements OnInit {
           this.estados = estados;
         },
         error: (err) => {
-          this.globalErrorHandler.handleError(err);
-          this.errorNotification.showError('Erro ao carregar estados.');
+          this.reportError(err, 'Erro ao carregar estados.');
         },
       });
   }
@@ -162,8 +218,7 @@ export class FinalizarCadastroComponent implements OnInit {
           this.municipios = municipios;
         },
         error: (err) => {
-          this.globalErrorHandler.handleError(err);
-          this.errorNotification.showError('Erro ao carregar municípios.');
+          this.reportError(err, 'Erro ao carregar municípios.');
         },
       });
   }
@@ -203,16 +258,12 @@ export class FinalizarCadastroComponent implements OnInit {
     const vm = this.latestVm;
 
     if (!vm?.uid) {
-      const msg = 'Erro: UID do usuário não encontrado.';
-      this.message = msg;
-      this.errorNotification.showError(msg);
+      this.setErrorMessage('Erro: UID do usuário não encontrado.');
       return false;
     }
 
     if (!vm.emailVerified) {
-      const msg = 'Confirme seu e-mail antes de finalizar o cadastro.';
-      this.message = msg;
-      this.errorNotification.showWarning(msg);
+        this.setWarningMessage('Confirme seu e-mail antes de finalizar o cadastro.');
 
       this.router.navigate(['/register/welcome'], {
         replaceUrl: true,
@@ -223,9 +274,7 @@ export class FinalizarCadastroComponent implements OnInit {
     }
 
     if (vm.currentStep !== 'profileCompletion') {
-      const msg = 'Esta etapa do cadastro não está disponível agora.';
-      this.message = msg;
-      this.errorNotification.showWarning(msg);
+        this.setWarningMessage('Esta etapa do cadastro não está disponível agora.');
 
       this.router.navigateByUrl(vm.nextRoute || '/register/welcome', {
         replaceUrl: true,
@@ -265,15 +314,12 @@ export class FinalizarCadastroComponent implements OnInit {
       this.isFieldInvalid('estado') ||
       this.isFieldInvalid('municipio')
     ) {
-      const msg = 'Por favor, preencha os campos obrigatórios.';
-      this.message = msg;
-      this.errorNotification.showError(msg);
+      this.setErrorMessage('Por favor, preencha os campos obrigatórios.');
       return;
     }
 
     this.isSubmitting = true;
-    this.message = '';
-    this.uploadMessage = '';
+    this.clearSubmitMessages();
 
     this.profileCompletion
       .saveProfileCompletion$({
@@ -293,18 +339,14 @@ export class FinalizarCadastroComponent implements OnInit {
         }),
         takeUntilDestroyed(this.destroyRef),
         catchError((err) => {
-          this.globalErrorHandler.handleError(err);
-
-          const msg = 'Ocorreu um erro ao finalizar o cadastro. Tente novamente.';
-          this.message = msg;
-          this.errorNotification.showError(msg);
+          this.reportError(err, 'Ocorreu um erro ao finalizar o cadastro. Tente novamente.');
 
           return EMPTY;
         })
       )
       .subscribe({
         next: () => {
-          this.message = 'Perfil finalizado com sucesso!';
+          this.setSuccessMessage('Perfil finalizado com sucesso!');
 
           this.currentUserStore.patch({
             profileCompleted: true,
@@ -348,15 +390,14 @@ export class FinalizarCadastroComponent implements OnInit {
 
           if (result.status === 'avatar_patch_failed') {
             this.progressValue = 100;
-            this.uploadMessage =
-              'Perfil salvo. A foto foi enviada, mas não foi possível atualizar o avatar agora.';
-            this.errorNotification.showWarning(this.uploadMessage);
+            this.setUploadWarning(
+              'Perfil salvo. A foto foi enviada, mas não foi possível atualizar o avatar agora.'
+            );
             return;
           }
 
           if (result.status === 'upload_failed') {
-            this.uploadMessage = 'Perfil salvo. Não foi possível enviar a foto agora.';
-            this.errorNotification.showWarning(this.uploadMessage);
+            this.setUploadWarning('Perfil salvo. Não foi possível enviar a foto agora.');
           }
         }),
         finalize(() => {
@@ -366,32 +407,30 @@ export class FinalizarCadastroComponent implements OnInit {
       );
   }
 
-  uploadFile(event: any): void {
-    const file = event?.target?.files?.[0] as File | undefined;
+uploadFile(event: Event): void {
+  const input = event.target as HTMLInputElement | null;
+  const file = input?.files?.[0] ?? null;
 
-    this.avatarFile = null;
-    this.isUploading = false;
-    this.progressValue = 0;
-    this.uploadMessage = '';
+  this.resetAvatarSelectionState();
 
-    if (!file) {
-      return;
-    }
-
-    if (!file.type?.startsWith('image/')) {
-      this.errorNotification.showError('Selecione uma imagem válida.');
-      return;
-    }
-
-    const maxSizeBytes = 10 * 1024 * 1024;
-
-    if (file.size > maxSizeBytes) {
-      this.errorNotification.showError('A foto deve ter no máximo 10 MB.');
-      return;
-    }
-
-    this.avatarFile = file;
+  if (!file) {
+    return;
   }
+
+  if (!file.type?.startsWith('image/')) {
+    this.setErrorMessage('Selecione uma imagem válida.');
+    return;
+  }
+
+  const maxSizeBytes = 10 * 1024 * 1024;
+
+  if (file.size > maxSizeBytes) {
+    this.setErrorMessage('A foto deve ter no máximo 10 MB.');
+    return;
+  }
+
+  this.avatarFile = file;
+}
 
   private resolveEntryContext(): void {
     const reason = this.route.snapshot.queryParamMap.get('reason');
@@ -416,29 +455,14 @@ export class FinalizarCadastroComponent implements OnInit {
     this.introText = 'Complete os dados abaixo para liberar os recursos básicos da plataforma.';
   }
 
-  checkFieldValidity(field: string, value: unknown, label?: string): void {
+  checkFieldValidity(field: ProfileCompletionField, value: unknown, label?: string): void {
     const nice = label || field;
     const empty = value === null || value === undefined || String(value).trim() === '';
 
     this.formErrors[field] = empty ? `O campo "${nice}" é obrigatório.` : '';
   }
 
-  isFieldInvalid(field: string): boolean {
+  isFieldInvalid(field: ProfileCompletionField): boolean {
     return !!this.formErrors[field];
-  }
-
-  goToSubscription(): void {
-    this.router.navigate(['/subscription-plan']).catch(() => {});
-  }
-
-  continueWithoutSubscription(): void {
-    const uid = this.latestVm?.uid;
-
-    if (uid && !this.latestVm?.adultConsentAccepted) {
-      this.router.navigate(['/adulto/confirmar'], { replaceUrl: true }).catch(() => {});
-      return;
-    }
-
-    this.router.navigate(['/dashboard/principal']).catch(() => {});
   }
 }
