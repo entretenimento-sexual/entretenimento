@@ -29,50 +29,40 @@ const routes: Routes = [
     component: RegisterComponent,
     data: {
       allowUnverified: true,
-    }
+    },
   },
-
-{
-  path: 'welcome',
-  component: WelcomeComponent,
-  canActivate: [authGuard, registrationStepGuard],
-  data: {
-    allowUnverified: true,
-    allowAuthenticated: true,
-    allowedRegisterSteps: ['emailVerification'],
-  },
-},
-
-{
-  path: 'verify',
-  component: AuthVerificationHandlerComponent,
-  data: {
-    allowUnverified: true,
-    allowAuthenticated: true,
-  },
-},
-{
+  {
+    path: 'welcome',
+    component: WelcomeComponent,
+    canActivate: [authGuard, registrationStepGuard],
     data: {
       allowUnverified: true,
       allowAuthenticated: true,
-    }
+      allowedRegisterSteps: ['emailVerification'],
+    },
   },
-
-{
-  path: 'finalizar-cadastro',
-  component: FinalizarCadastroComponent,
-  canActivate: [authGuard, registrationStepGuard],
-  data: {
-    allowUnverified: true,
-    allowAuthenticated: true,
-    allowedRegisterSteps: ['profileCompletion'],
+  {
+    path: 'verify',
+    component: AuthVerificationHandlerComponent,
+    data: {
+      allowUnverified: true,
+      allowAuthenticated: true,
+    },
   },
-},
-
+  {
+    path: 'finalizar-cadastro',
+    component: FinalizarCadastroComponent,
+    canActivate: [authGuard, registrationStepGuard],
+    data: {
+      allowUnverified: true,
+      allowAuthenticated: true,
+      allowedRegisterSteps: ['profileCompletion'],
+    },
+  },
   {
     path: '**',
     redirectTo: '',
-  }
+  },
 ];
 
 @NgModule({
