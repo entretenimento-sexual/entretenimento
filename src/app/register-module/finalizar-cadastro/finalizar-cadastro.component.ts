@@ -16,15 +16,12 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
-import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
-
-import { FirestoreUserWriteService } from 'src/app/core/services/data-handling/firestore-user-write.service';
 
 @Component({
   selector: 'app-finalizar-cadastro',
@@ -63,17 +60,15 @@ export class FinalizarCadastroComponent implements OnInit {
 
   private latestVm: RegisterFlowVm | null = null;
 
-constructor(
-  private readonly registerFlow: RegisterFlowFacade,
-  private readonly firestoreUserWrite: FirestoreUserWriteService,
-  private readonly profileCompletion: ProfileCompletionFacade,
-  private readonly currentUserStore: CurrentUserStoreService,
-  private readonly storageService: StorageService,
-  private readonly route: ActivatedRoute,
-  private readonly router: Router,
-  private readonly globalErrorHandler: GlobalErrorHandlerService,
-  private readonly errorNotification: ErrorNotificationService
-) {}
+  constructor(
+    private readonly registerFlow: RegisterFlowFacade,
+    private readonly profileCompletion: ProfileCompletionFacade,
+    private readonly currentUserStore: CurrentUserStoreService,
+    private readonly route: ActivatedRoute,
+    private readonly router: Router,
+    private readonly globalErrorHandler: GlobalErrorHandlerService,
+    private readonly errorNotification: ErrorNotificationService
+  ) {}
 
   ngOnInit(): void {
     this.resolveEntryContext();
@@ -280,19 +275,19 @@ constructor(
     this.message = '';
     this.uploadMessage = '';
 
-this.profileCompletion
-  .saveProfileCompletion$({
-    uid,
-    vm,
-    gender: this.gender,
-    orientation: this.orientation,
-    estado: this.selectedEstado,
-    municipio: this.selectedMunicipio,
-  })
-  .pipe(
-    take(1),
-    switchMap(() => this.uploadAvatarAfterProfileSave$(uid)),
-    map(() => void 0),
+    this.profileCompletion
+      .saveProfileCompletion$({
+        uid,
+        vm,
+        gender: this.gender,
+        orientation: this.orientation,
+        estado: this.selectedEstado,
+        municipio: this.selectedMunicipio,
+      })
+      .pipe(
+        take(1),
+        switchMap(() => this.uploadAvatarAfterProfileSave$(uid)),
+        map(() => void 0),
         finalize(() => {
           this.isSubmitting = false;
         }),
@@ -334,34 +329,35 @@ this.profileCompletion
     this.progressValue = 0;
     this.uploadMessage = '';
 
-    return this.storageService
-      .uploadProfileAvatar(this.avatarFile, uid, (progress) => {
-        this.isUploading = true;
-        this.progressValue = Math.max(0, Math.min(100, Math.round(progress || 0)));
+    return this.profileCompletion
+      .uploadProfileAvatarAfterSave$({
+        uid,
+        file: this.avatarFile,
+        onProgress: (progress) => {
+          this.isUploading = true;
+          this.progressValue = Math.max(0, Math.min(100, Math.round(progress || 0)));
+        },
       })
       .pipe(
-        switchMap((photoURL) => {
-          if (!photoURL) return of(void 0);
+        tap((result) => {
+          if (result.status === 'uploaded' && result.photoURL) {
+            this.progressValue = 100;
+            this.currentUserStore.patch({ photoURL: result.photoURL });
+            return;
+          }
 
-          return this.firestoreUserWrite.patchProfileAvatar$(uid, photoURL).pipe(
-            tap(() => {
-              this.currentUserStore.patch({ photoURL });
-            }),
-            catchError(() => {
-              this.uploadMessage =
-                'Perfil salvo. A foto foi enviada, mas não foi possível atualizar o avatar agora.';
-              this.errorNotification.showWarning(this.uploadMessage);
-              return of(void 0);
-            })
-          );
-        }),
-        tap(() => {
-          this.progressValue = 100;
-        }),
-        catchError(() => {
-          this.uploadMessage = 'Perfil salvo. Não foi possível enviar a foto agora.';
-          this.errorNotification.showWarning(this.uploadMessage);
-          return of(void 0);
+          if (result.status === 'avatar_patch_failed') {
+            this.progressValue = 100;
+            this.uploadMessage =
+              'Perfil salvo. A foto foi enviada, mas não foi possível atualizar o avatar agora.';
+            this.errorNotification.showWarning(this.uploadMessage);
+            return;
+          }
+
+          if (result.status === 'upload_failed') {
+            this.uploadMessage = 'Perfil salvo. Não foi possível enviar a foto agora.';
+            this.errorNotification.showWarning(this.uploadMessage);
+          }
         }),
         finalize(() => {
           this.isUploading = false;
