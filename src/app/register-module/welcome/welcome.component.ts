@@ -546,10 +546,13 @@ export class WelcomeComponent implements OnInit {
   }
 
   toggleTech(): void {
+    if (!this.debugEnabled()) return;
     this.showTech = !this.showTech;
   }
 
   copyDetails(): void {
+    if (!this.debugEnabled()) return;
+
     const det = this.banner?.details;
     if (!det || !navigator?.clipboard) return;
 
