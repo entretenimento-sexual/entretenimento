@@ -3,21 +3,22 @@
 // FACADE: PROFILE COMPLETION
 // =============================================================================
 //
-// Responsabilidade desta primeira etapa:
+// Responsabilidade:
 // - carregar dados iniciais do formulário de conclusão de perfil;
 // - carregar estados e municípios usados no formulário;
-// - manter o componente de UI livre de detalhes de query/IBGE.
+// - montar o payload canônico de conclusão de perfil;
+// - salvar os dados principais do perfil no Firestore.
 //
-// Próximas etapas:
-// - mover submit do perfil;
-// - mover upload de avatar;
-// - centralizar feedback de erro/sucesso.
-//
-// Não faz nesta etapa:
-// - escrita em Firestore;
-// - upload de imagem;
+// Ainda não faz:
+// - upload de avatar;
 // - navegação;
+// - feedback visual direto;
 // - patch no CurrentUserStoreService.
+//
+// Regra:
+// - o componente continua controlando estado visual;
+// - esta facade concentra leitura e persistência principal do perfil;
+// - upload de avatar será extraído em etapa separada.
 import { Injectable } from '@angular/core';
 import { Observable, throwError } from 'rxjs';
 import { map, switchMap, take } from 'rxjs/operators';
@@ -56,11 +57,11 @@ export interface ProfileCompletionSubmitInput {
 
 @Injectable({ providedIn: 'root' })
 export class ProfileCompletionFacade {
-constructor(
-  private readonly firestoreUserQuery: FirestoreUserQueryService,
-  private readonly firestoreUserWrite: FirestoreUserWriteService,
-  private readonly ibgeLocationService: IBGELocationService
-) {}
+  constructor(
+    private readonly firestoreUserQuery: FirestoreUserQueryService,
+    private readonly firestoreUserWrite: FirestoreUserWriteService,
+    private readonly ibgeLocationService: IBGELocationService
+  ) {}
 
   loadUserForFormByUid$(
     uid: string,
