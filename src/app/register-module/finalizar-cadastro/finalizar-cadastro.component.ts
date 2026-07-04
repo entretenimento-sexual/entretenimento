@@ -15,10 +15,6 @@ import {
 
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
-
-import { FirestoreUserWriteService } from 'src/app/core/services/data-handling/firestore-user-write.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -28,7 +24,7 @@ import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
 
-type ProfileCompletionPayload = Partial<IUserRegistrationData> & Partial<IUserDados>;
+import { FirestoreUserWriteService } from 'src/app/core/services/data-handling/firestore-user-write.service';
 
 @Component({
   selector: 'app-finalizar-cadastro',
@@ -67,17 +63,17 @@ export class FinalizarCadastroComponent implements OnInit {
 
   private latestVm: RegisterFlowVm | null = null;
 
-  constructor(
-    private readonly registerFlow: RegisterFlowFacade,
-    private readonly firestoreUserWrite: FirestoreUserWriteService,
-    private readonly profileCompletion: ProfileCompletionFacade,
-    private readonly currentUserStore: CurrentUserStoreService,
-    private readonly storageService: StorageService,
-    private readonly route: ActivatedRoute,
-    private readonly router: Router,
-    private readonly globalErrorHandler: GlobalErrorHandlerService,
-    private readonly errorNotification: ErrorNotificationService
-  ) {}
+constructor(
+  private readonly registerFlow: RegisterFlowFacade,
+  private readonly firestoreUserWrite: FirestoreUserWriteService,
+  private readonly profileCompletion: ProfileCompletionFacade,
+  private readonly currentUserStore: CurrentUserStoreService,
+  private readonly storageService: StorageService,
+  private readonly route: ActivatedRoute,
+  private readonly router: Router,
+  private readonly globalErrorHandler: GlobalErrorHandlerService,
+  private readonly errorNotification: ErrorNotificationService
+) {}
 
   ngOnInit(): void {
     this.resolveEntryContext();
@@ -285,31 +281,18 @@ export class FinalizarCadastroComponent implements OnInit {
     this.uploadMessage = '';
 
 this.profileCompletion
-  .loadUserForFormByUid$(uid, vm)
+  .saveProfileCompletion$({
+    uid,
+    vm,
+    gender: this.gender,
+    orientation: this.orientation,
+    estado: this.selectedEstado,
+    municipio: this.selectedMunicipio,
+  })
   .pipe(
     take(1),
-    switchMap((existingUserData) => {
-      if (!existingUserData) {
-        throw new Error('Dados do usuário não encontrados.');
-      }
-
-      const completionPayload: ProfileCompletionPayload = {
-        uid,
-        nickname: existingUserData.nickname || '',
-        gender: this.gender || existingUserData.gender || '',
-        orientation: this.orientation || existingUserData.orientation || '',
-        estado: this.selectedEstado || existingUserData.estado || '',
-        municipio: this.selectedMunicipio || existingUserData.municipio || '',
-        profileCompleted: true,
-      };
-
-      return this.firestoreUserWrite
-        .saveInitialUserData$(uid, completionPayload)
-        .pipe(
-          switchMap(() => this.uploadAvatarAfterProfileSave$(uid)),
-          map(() => void 0)
-        );
-    }),
+    switchMap(() => this.uploadAvatarAfterProfileSave$(uid)),
+    map(() => void 0),
         finalize(() => {
           this.isSubmitting = false;
         }),
