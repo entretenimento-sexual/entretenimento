@@ -76,6 +76,23 @@ export class AuthFacade {
     this.loadingSubject.next(false);
   }
 
+  private normalizeSocialAuthResult(result: SocialAuthResult): SocialAuthResult {
+    if (!result?.success || result.emailVerified === true) {
+      return result;
+    }
+
+    /**
+     * Defesa centralizada para qualquer UI que consuma AuthFacade.googleLogin$().
+     * Usuário social autenticado, mas sem e-mail verificado, deve voltar para a
+     * tela oficial de verificação antes de finalizar perfil.
+     */
+    return {
+      ...result,
+      nextRoute: '/register/welcome' as any,
+      message: result.message || 'Confirme seu e-mail para continuar.',
+    };
+  }
+
   // ===========================================================================
   // Registro
   // ===========================================================================
@@ -144,6 +161,7 @@ export class AuthFacade {
     this.startLoading();
 
     return this.socialAuthService.googleLogin().pipe(
+      map((result) => this.normalizeSocialAuthResult(result)),
       catchError((err: any) =>
         of({
           success: false,
@@ -205,7 +223,6 @@ src/app/core/services/autentication/auth/auth-session.service.ts
 src/app/core/services/autentication/auth/current-user-store.service.ts
 src/app/core/services/autentication/auth/auth-orchestrator.service.ts
 src/app/core/services/autentication/auth/auth.facade.ts
-src/app/core/services/autentication/auth/logout.service.ts
 */
 // Verificar migrações de responsabilidades para o:
 // 1 - auth-route-context.service.ts, e;
