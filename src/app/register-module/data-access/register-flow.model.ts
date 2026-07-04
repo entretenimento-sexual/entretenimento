@@ -6,8 +6,7 @@ export type RegisterFlowStep =
   | 'emailVerification'
   | 'profileCompletion'
   | 'adultConsent'
-  | 'preferences'
-  | 'done';
+  | 'preferences';
 
 export interface RegisterFlowVm {
   authReady: boolean;
