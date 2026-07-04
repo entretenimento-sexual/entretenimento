@@ -116,7 +116,7 @@ export class RegisterComponent {
       }),
 
       password: this.fb.control('', {
-        validators: [Validators.required, Validators.minLength(6)],
+        validators: [Validators.required, Validators.minLength(8)],
         updateOn: 'blur',
       }),
 
