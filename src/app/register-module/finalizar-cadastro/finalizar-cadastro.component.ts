@@ -18,17 +18,15 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 
-import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { FirestoreUserWriteService } from 'src/app/core/services/data-handling/firestore-user-write.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
-import { IBGELocationService } from 'src/app/core/services/general/api/ibge-location.service';
-
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
+import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
 
 type ProfileCompletionPayload = Partial<IUserRegistrationData> & Partial<IUserDados>;
 
@@ -71,9 +69,8 @@ export class FinalizarCadastroComponent implements OnInit {
 
   constructor(
     private readonly registerFlow: RegisterFlowFacade,
-    private readonly ibgeLocationService: IBGELocationService,
-    private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly firestoreUserWrite: FirestoreUserWriteService,
+    private readonly profileCompletion: ProfileCompletionFacade,
     private readonly currentUserStore: CurrentUserStoreService,
     private readonly storageService: StorageService,
     private readonly route: ActivatedRoute,
@@ -124,23 +121,23 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   private loadUserForFormByUid$(uid: string, vm: RegisterFlowVm): Observable<void> {
-    return this.firestoreUserQuery.getUser(uid).pipe(
+    return this.profileCompletion.loadUserForFormByUid$(uid, vm).pipe(
       take(1),
-      tap((doc) => {
-        if (!doc) {
+      tap((initialData) => {
+        if (!initialData) {
           this.message = 'Não encontramos os dados da sua conta. Tente entrar novamente.';
           this.errorNotification.showError(this.message);
           this.router.navigate(['/login'], { replaceUrl: true }).catch(() => {});
           return;
         }
 
-        this.email = doc.email ?? vm.email ?? '';
-        this.nickname = doc.nickname ?? '';
+        this.email = initialData.email;
+        this.nickname = initialData.nickname;
 
-        this.gender = doc.gender ?? '';
-        this.orientation = doc.orientation ?? '';
-        this.selectedEstado = doc.estado ?? '';
-        this.selectedMunicipio = doc.municipio ?? '';
+        this.gender = initialData.gender;
+        this.orientation = initialData.orientation;
+        this.selectedEstado = initialData.estado;
+        this.selectedMunicipio = initialData.municipio;
 
         if (this.selectedEstado) {
           this.loadMunicipiosForEstado(this.selectedEstado);
@@ -151,8 +148,8 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   loadEstados(): void {
-    this.ibgeLocationService
-      .getEstados()
+    this.profileCompletion
+      .getEstados$()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (estados) => {
@@ -166,8 +163,8 @@ export class FinalizarCadastroComponent implements OnInit {
   }
 
   private loadMunicipiosForEstado(estado: string): void {
-    this.ibgeLocationService
-      .getMunicipios(estado)
+    this.profileCompletion
+      .getMunicipios$(estado)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (municipios) => {
@@ -262,6 +259,12 @@ export class FinalizarCadastroComponent implements OnInit {
       return;
     }
 
+    const vm = this.latestVm;
+
+    if (!vm) {
+      return;
+    }
+
     this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
     this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
     this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
@@ -281,32 +284,32 @@ export class FinalizarCadastroComponent implements OnInit {
     this.message = '';
     this.uploadMessage = '';
 
-    this.firestoreUserQuery
-      .getUser(uid)
-      .pipe(
-        take(1),
-        switchMap((existingUserData) => {
-          if (!existingUserData) {
-            throw new Error('Dados do usuário não encontrados.');
-          }
+this.profileCompletion
+  .loadUserForFormByUid$(uid, vm)
+  .pipe(
+    take(1),
+    switchMap((existingUserData) => {
+      if (!existingUserData) {
+        throw new Error('Dados do usuário não encontrados.');
+      }
 
-          const completionPayload: ProfileCompletionPayload = {
-            uid: existingUserData.uid,
-            nickname: existingUserData.nickname || '',
-            gender: this.gender || existingUserData.gender || '',
-            orientation: this.orientation || existingUserData.orientation || '',
-            estado: this.selectedEstado || existingUserData.estado || '',
-            municipio: this.selectedMunicipio || existingUserData.municipio || '',
-            profileCompleted: true,
-          };
+      const completionPayload: ProfileCompletionPayload = {
+        uid,
+        nickname: existingUserData.nickname || '',
+        gender: this.gender || existingUserData.gender || '',
+        orientation: this.orientation || existingUserData.orientation || '',
+        estado: this.selectedEstado || existingUserData.estado || '',
+        municipio: this.selectedMunicipio || existingUserData.municipio || '',
+        profileCompleted: true,
+      };
 
-          return this.firestoreUserWrite
-            .saveInitialUserData$(uid, completionPayload)
-            .pipe(
-              switchMap(() => this.uploadAvatarAfterProfileSave$(uid)),
-              map(() => void 0)
-            );
-        }),
+      return this.firestoreUserWrite
+        .saveInitialUserData$(uid, completionPayload)
+        .pipe(
+          switchMap(() => this.uploadAvatarAfterProfileSave$(uid)),
+          map(() => void 0)
+        );
+    }),
         finalize(() => {
           this.isSubmitting = false;
         }),
