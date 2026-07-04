@@ -46,6 +46,10 @@ export interface RegisterFacadeResult {
   code?: string;
 }
 
+export type AuthFacadeSocialAuthResult = Omit<SocialAuthResult, 'nextRoute'> & {
+  nextRoute: SocialAuthResult['nextRoute'] | '/register/welcome';
+};
+
 @Injectable({ providedIn: 'root' })
 export class AuthFacade {
   private readonly loadingSubject = new BehaviorSubject<boolean>(false);
@@ -76,9 +80,11 @@ export class AuthFacade {
     this.loadingSubject.next(false);
   }
 
-  private normalizeSocialAuthResult(result: SocialAuthResult): SocialAuthResult {
+  private normalizeSocialAuthResult(
+    result: SocialAuthResult
+  ): AuthFacadeSocialAuthResult {
     if (!result?.success || result.emailVerified === true) {
-      return result;
+      return result as AuthFacadeSocialAuthResult;
     }
 
     /**
@@ -88,7 +94,7 @@ export class AuthFacade {
      */
     return {
       ...result,
-      nextRoute: '/register/welcome' as any,
+      nextRoute: '/register/welcome',
       message: result.message || 'Confirme seu e-mail para continuar.',
     };
   }
@@ -148,7 +154,7 @@ export class AuthFacade {
   /**
    * googleLogin$:
    * - executa login social
-   * - devolve SocialAuthResult estruturado
+   * - devolve resultado estruturado, já normalizado para o fluxo de onboarding
    * - não navega
    * - não faz toast
    *
@@ -157,7 +163,7 @@ export class AuthFacade {
    * - navegar para result.nextRoute
    * - abrir fluxo complementar
    */
-  googleLogin$(): Observable<SocialAuthResult> {
+  googleLogin$(): Observable<AuthFacadeSocialAuthResult> {
     this.startLoading();
 
     return this.socialAuthService.googleLogin().pipe(
@@ -172,7 +178,7 @@ export class AuthFacade {
           nextRoute: null,
           code: err?.code ?? 'auth-facade/social-login-failed',
           message: err?.message ?? 'Não foi possível autenticar com Google agora.',
-        } as SocialAuthResult)
+        } as AuthFacadeSocialAuthResult)
       ),
       finalize(() => this.stopLoading())
     );
