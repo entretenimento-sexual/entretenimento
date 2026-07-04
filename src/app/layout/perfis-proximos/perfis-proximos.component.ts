@@ -8,7 +8,7 @@
 // Observações desta versão:
 // - o perfil mínimo continua sendo requisito apenas no momento da ativação da localização
 // - não há banner permanente nem bloqueio seco por guard neste componente
-// - o fluxo de redirecionamento usa /register/finalizar-cadastro com redirectTo
+// - o fluxo de redirecionamento respeita a ordem do onboarding: e-mail verificado -> perfil
 //
 // Ajuste explícito desta revisão:
 // - suprimi o @ViewChild modalMensagem e o import ViewChild, porque estavam sem uso real
@@ -219,14 +219,31 @@ export class PerfisProximosComponent {
   }
 
   /**
-   * Usuário optou por concluir o perfil mínimo agora.
-   * Redireciona para finalizar cadastro com redirectTo apontando
-   * para a rota atual.
+   * Usuário optou por concluir a etapa obrigatória agora.
+   *
+   * Ordem obrigatória do onboarding:
+   * - se o e-mail ainda não foi verificado, volta para /register/welcome
+   * - se o e-mail já foi verificado, segue para finalizar cadastro
    */
-  goToFinishMinimumProfile(): void {
+  async goToFinishMinimumProfile(): Promise<void> {
     this._showProfileCompletionPrompt.set(false);
 
     const redirectTo = this.normalizeRedirectTarget(this.router.url);
+    const user = await firstValueFrom(this.user$.pipe(take(1))).catch(() => null);
+
+    if (user?.emailVerified !== true) {
+      this.router.navigate(
+        ['/register/welcome'],
+        {
+          queryParams: {
+            autocheck: '1',
+            reason: 'email_unverified',
+            redirectTo,
+          },
+        }
+      ).catch(() => {});
+      return;
+    }
 
     this.router.navigate(
       ['/register/finalizar-cadastro'],
@@ -411,4 +428,4 @@ export class PerfisProximosComponent {
     this.errorNotificationService.showError(msg);
     this.globalErrorHandlerService.handleError(err as Error);
   }
-} // Linha 411
+}
