@@ -442,21 +442,6 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
       });
     }
 
-    if (needsProfileCompletion && clean !== '/register/finalizar-cadastro') {
-      actions.push({
-        id: 'complete-profile',
-        label: 'Completar perfil',
-        route: ['/register/finalizar-cadastro'],
-        queryParams: {
-          reason: 'profile_incomplete',
-          redirectTo,
-        },
-        icon: '🧩',
-        ariaLabel: 'Completar perfil para liberar recursos da plataforma',
-        variant: 'primary',
-      });
-    }
-
     if (needsEmailVerification && clean !== '/register/welcome') {
       actions.push({
         id: 'verify-email',
@@ -468,7 +453,26 @@ export class LayoutShellComponent implements OnInit, OnDestroy {
         },
         icon: '✉️',
         ariaLabel: 'Ir para a tela de verificação de e-mail',
-        variant: 'secondary',
+        variant: 'primary',
+      });
+    }
+
+    if (
+      needsProfileCompletion &&
+      !needsEmailVerification &&
+      clean !== '/register/finalizar-cadastro'
+    ) {
+      actions.push({
+        id: 'complete-profile',
+        label: 'Completar perfil',
+        route: ['/register/finalizar-cadastro'],
+        queryParams: {
+          reason: 'profile_incomplete',
+          redirectTo,
+        },
+        icon: '🧩',
+        ariaLabel: 'Completar perfil para liberar recursos da plataforma',
+        variant: 'primary',
       });
     }
 
