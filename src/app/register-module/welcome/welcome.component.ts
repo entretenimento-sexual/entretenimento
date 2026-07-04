@@ -64,12 +64,15 @@ export class WelcomeComponent implements OnInit {
   private pollTries = 0;
 
   private readonly destroyRef = inject(DestroyRef);
-  readonly isDevEmu = environment.useEmulators && environment.env === 'dev-emu';
 
   private readonly ACTION_TIMEOUT_MS = 15_000;
 
   debugEnabled(): boolean {
     return typeof localStorage !== 'undefined' && localStorage.getItem('debugRegister') === '1';
+  }
+
+  get isDevEmu(): boolean {
+    return environment.useEmulators && environment.env === 'dev-emu' && this.debugEnabled();
   }
 
   get busy(): boolean {
