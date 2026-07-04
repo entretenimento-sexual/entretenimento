@@ -68,6 +68,10 @@ export class WelcomeComponent implements OnInit {
 
   private readonly ACTION_TIMEOUT_MS = 15_000;
 
+  debugEnabled(): boolean {
+    return typeof localStorage !== 'undefined' && localStorage.getItem('debugRegister') === '1';
+  }
+
   get busy(): boolean {
     return (
       this.checkingVerification ||
