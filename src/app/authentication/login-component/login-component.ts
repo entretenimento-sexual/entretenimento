@@ -254,9 +254,11 @@ export class LoginComponent implements OnInit {
         const redirectTo = this.getRedirectTo();
 
         const target =
-          result.nextRoute === '/dashboard/principal'
-            ? redirectTo
-            : result.nextRoute ?? redirectTo;
+          result.emailVerified !== true
+            ? '/register/welcome'
+            : result.nextRoute === '/dashboard/principal'
+              ? redirectTo
+              : result.nextRoute ?? redirectTo;
 
         this.setSuccess(result.message || 'Login com Google concluído.');
         this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
