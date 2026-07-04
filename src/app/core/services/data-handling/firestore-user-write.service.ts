@@ -203,7 +203,8 @@ export class FirestoreUserWriteService {
           safeUid,
           data,
           existingPublicProfile
-        ) as any
+        ) as any,
+        { merge: true }
       );
 
       await batch.commit();
