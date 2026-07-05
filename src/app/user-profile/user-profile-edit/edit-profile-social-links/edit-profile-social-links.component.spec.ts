@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, convertToParamMap } from '@angular/router';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
@@ -13,6 +14,7 @@ describe('EditProfileSocialLinksComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       declarations: [EditProfileSocialLinksComponent],
+      imports: [FormsModule],
       providers: [
         {
           provide: ActivatedRoute,
