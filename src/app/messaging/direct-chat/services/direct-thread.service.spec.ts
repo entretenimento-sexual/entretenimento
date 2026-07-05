@@ -1,8 +1,7 @@
 // src/app/messaging/direct-chat/services/direct-thread.service.spec.ts
 import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
 import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
-
-import { Functions, httpsCallable } from '@angular/fire/functions';
+import type { Functions } from '@angular/fire/functions';
 
 import { DirectThreadService } from './direct-thread.service';
 import { ChatService } from '../../../core/services/batepapo/chat-service/chat.service';
@@ -11,19 +10,11 @@ import { GlobalErrorHandlerService } from '../../../core/services/error-handler/
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 import { PrivacyDebugLoggerService } from '../../../core/services/privacy/privacy-debug-logger.service';
 
-vi.mock('@angular/fire/functions', async () => {
-  const actual =
-    await vi.importActual<typeof import('@angular/fire/functions')>(
-      '@angular/fire/functions'
-    );
+const functionsMocks = vi.hoisted(() => ({
+  httpsCallable: vi.fn(),
+}));
 
-  return {
-    ...actual,
-    httpsCallable: vi.fn(),
-  };
-});
-
-const httpsCallableMock = vi.mocked(httpsCallable);
+vi.mock('@angular/fire/functions', () => functionsMocks);
 
 describe('DirectThreadService', () => {
   let service: DirectThreadService;
@@ -73,25 +64,25 @@ describe('DirectThreadService', () => {
       log: vi.fn(),
     };
 
-    httpsCallableMock.mockReset();
-    httpsCallableMock.mockReturnValue(sendDirectMessageMock as any);
+    functionsMocks.httpsCallable.mockReset();
+    functionsMocks.httpsCallable.mockReturnValue(sendDirectMessageMock as any);
 
-service = new DirectThreadService(
-  {} as Functions,
-  chatServiceMock as unknown as ChatService,
-  {
-    canListenRealtime$: canListenRealtime$.asObservable(),
-  } as unknown as AccessControlService,
-  globalErrorHandlerMock as unknown as GlobalErrorHandlerService,
-  errorNotifierMock as unknown as ErrorNotificationService,
-  privacyDebugMock as unknown as PrivacyDebugLoggerService
+    service = new DirectThreadService(
+      {} as Functions,
+      chatServiceMock as unknown as ChatService,
+      {
+        canListenRealtime$: canListenRealtime$.asObservable(),
+      } as unknown as AccessControlService,
+      globalErrorHandlerMock as unknown as GlobalErrorHandlerService,
+      errorNotifierMock as unknown as ErrorNotificationService,
+      privacyDebugMock as unknown as PrivacyDebugLoggerService
     );
   });
 
   it('deve ser criado', () => {
     expect(service).toBeTruthy();
 
-    expect(httpsCallableMock).toHaveBeenCalledWith(
+    expect(functionsMocks.httpsCallable).toHaveBeenCalledWith(
       {} as Functions,
       'sendDirectMessage'
     );
