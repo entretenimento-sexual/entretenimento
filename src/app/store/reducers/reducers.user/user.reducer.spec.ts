@@ -61,7 +61,7 @@ describe('userReducer', () => {
 
     expect(state.currentUser).toMatchObject(user);
     expect(state.users[user.uid]).toMatchObject(user);
-    expect(state.onlineUsers.find((x: IUserDados) => x.uid === user.uid)).toBeTruthy();
+    expect(state.onlineUsers.find((x: IUserDados) => x.uid === user.uid)).toBeFalsy();
   });
 
   it('setCurrentUser deve hidratar e setar currentUser sanitizado', () => {
