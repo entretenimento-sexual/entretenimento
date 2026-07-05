@@ -24,6 +24,11 @@ import { GlobalErrorHandlerService } from '@core/services/error-handler/global-e
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 import { environment } from 'src/environments/environment';
 
+interface RedirectCancelSample {
+  at: number;
+  key: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class RouterDiagnosticsService {
   private readonly destroyRef = inject(DestroyRef);
@@ -33,7 +38,7 @@ export class RouterDiagnosticsService {
   private lastNotifyAt = 0;
   private started = false;
 
-  private redirectCancelWindow: number[] = [];
+  private redirectCancelWindow: RedirectCancelSample[] = [];
   private readonly LOOP_WINDOW_MS = 3000;
   private readonly LOOP_THRESHOLD = 6;
   private readonly NOTIFICATION_THROTTLE_MS = 10_000;
@@ -275,7 +280,7 @@ export class RouterDiagnosticsService {
       const isRedirect = reason.includes('Redirecting to');
 
       if (isRedirect) {
-        this.bumpRedirectCancelLoopCounter();
+        this.bumpRedirectCancelLoopCounter(e, reason);
         return;
       }
 
@@ -290,23 +295,65 @@ export class RouterDiagnosticsService {
     }
   }
 
-  private bumpRedirectCancelLoopCounter(): void {
+  /**
+   * Angular emite NavigationCancel para redirects legítimos de guards.
+   * Durante onboarding isso pode ocorrer várias vezes em sequência sem loop real
+   * (ex.: verificar e-mail -> carregar módulo lazy -> guard -> próxima etapa).
+   *
+   * Por isso, a janela de loop agora agrupa por par origem/destino sanitizado.
+   * Só reportamos quando o mesmo redirect se repete dentro da janela.
+   */
+  private bumpRedirectCancelLoopCounter(event: NavigationCancel, reason: string): void {
     const now = Date.now();
-    this.redirectCancelWindow.push(now);
+    const key = this.buildRedirectCancelKey(event, reason);
 
-    this.redirectCancelWindow = this.redirectCancelWindow.filter(t => (now - t) <= this.LOOP_WINDOW_MS);
+    this.redirectCancelWindow.push({ at: now, key });
+    this.redirectCancelWindow = this.redirectCancelWindow.filter(
+      sample => (now - sample.at) <= this.LOOP_WINDOW_MS
+    );
 
-    if (this.redirectCancelWindow.length >= this.LOOP_THRESHOLD) {
+    const sameRedirectCount = this.redirectCancelWindow.filter(
+      sample => sample.key === key
+    ).length;
+
+    if (sameRedirectCount >= this.LOOP_THRESHOLD) {
       const err = new Error(
-        `Possível loop de redirect: ${this.redirectCancelWindow.length} cancels em ${this.LOOP_WINDOW_MS}ms`
+        `Possível loop de redirect: ${sameRedirectCount} repetições em ${this.LOOP_WINDOW_MS}ms`
       );
-      (err as any).context = { threshold: this.LOOP_THRESHOLD, windowMs: this.LOOP_WINDOW_MS };
+      (err as any).context = {
+        threshold: this.LOOP_THRESHOLD,
+        windowMs: this.LOOP_WINDOW_MS,
+        redirectKey: key,
+      };
 
       this.reportNotSilent('RedirectLoopSuspected', err);
       this.notifyThrottled('A navegação ficou instável. Recarregue a página se persistir.');
 
-      this.redirectCancelWindow = [];
+      this.redirectCancelWindow = this.redirectCancelWindow.filter(
+        sample => sample.key !== key
+      );
     }
+  }
+
+  private buildRedirectCancelKey(event: NavigationCancel, reason: string): string {
+    const from = this.maskSensitiveString((event as any).url ?? 'unknown');
+    const to = this.extractRedirectTarget(reason) ?? reason;
+
+    return `${from}->${this.maskSensitiveString(to)}`;
+  }
+
+  private extractRedirectTarget(reason: string): string | null {
+    const quoted = reason.match(/Redirecting to ['"]([^'"]+)['"]/i);
+    if (quoted?.[1]) {
+      return quoted[1];
+    }
+
+    const fallback = reason.match(/Redirecting to\s+(.+)$/i);
+    if (!fallback?.[1]) {
+      return null;
+    }
+
+    return fallback[1].trim();
   }
 
   private reportSilent(context: string, err: unknown, event?: unknown): void {
