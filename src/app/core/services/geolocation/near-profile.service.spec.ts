@@ -1,51 +1,29 @@
 // src/app/core/services/geolocation/near-profile.service.spec.ts
 import { TestBed } from '@angular/core/testing';
-import { describe, beforeAll, beforeEach, it, expect, vi, type Mock } from 'vitest';
-import * as ffs from '@firebase/firestore';
-import * as geofire from 'geofire-common';
+import { describe, beforeAll, beforeEach, it, expect, vi } from 'vitest';
 
+import { Firestore } from '@angular/fire/firestore';
 import { NearbyProfilesService } from './near-profile.service';
 import { DistanceCalculationService } from './distance-calculation.service';
-import { Firestore } from '@angular/fire/firestore';
 
-vi.mock('geofire-common', async () => {
-  const original = await vi.importActual<typeof import('geofire-common')>('geofire-common');
+const firestoreMocks = vi.hoisted(() => ({
+  collection: vi.fn(() => ({})),
+  where: vi.fn(() => ({})),
+  query: vi.fn(() => ({})),
+  getDocs: vi.fn(),
+  startAt: vi.fn(() => ({})),
+  limit: vi.fn((_n: number) => ({})),
+}));
 
-  return {
-    ...original,
-    geohashQueryBounds: vi.fn((_center: [number, number], _radiusM: number) => [
-      ['aaaa', 'zzzz'],
-    ]),
-  };
-});
+const geofireMocks = vi.hoisted(() => ({
+  geohashQueryBounds: vi.fn((_center: [number, number], _radiusM: number) => [
+    ['aaaa', 'zzzz'],
+  ]),
+}));
 
-vi.mock('@firebase/firestore', async () => {
-  const original =
-    await vi.importActual<typeof import('@firebase/firestore')>('@firebase/firestore');
+vi.mock('@firebase/firestore', () => firestoreMocks);
+vi.mock('geofire-common', () => geofireMocks);
 
-  return {
-    ...original,
-    collection: vi.fn(() => ({})),
-    where: vi.fn(() => ({})),
-    query: vi.fn(() => ({})),
-    getDocs: vi.fn(),
-    startAt: vi.fn(() => ({})),
-    limit: vi.fn((_n: number) => ({})),
-  };
-});
-
-const fsMock = ffs as unknown as {
-  getDocs: Mock;
-  query: Mock;
-  where: Mock;
-  collection: Mock;
-  startAt: Mock;
-  limit: Mock;
-};
-
-const geohashQueryBoundsMock = vi.mocked(geofire.geohashQueryBounds);
-
-// ---- Stubs de dependências injetadas ---------------------------------------
 class DistanceCalculationServiceStub {
   calculateDistanceInKm = vi.fn(
     (lat1: number, _lon1: number, _lat2: number, _lon2: number, _maxKm?: number) => {
@@ -60,16 +38,23 @@ describe('NearbyProfilesService', () => {
   let service: NearbyProfilesService;
 
   beforeAll(() => {
-    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
   });
 
   beforeEach(() => {
-    fsMock.getDocs.mockReset();
-    fsMock.query.mockReset();
-    fsMock.where.mockReset();
-    fsMock.collection.mockReset();
-    fsMock.startAt.mockReset();
-    fsMock.limit.mockReset();
+    firestoreMocks.getDocs.mockReset();
+    firestoreMocks.query.mockReset();
+    firestoreMocks.where.mockReset();
+    firestoreMocks.collection.mockReset();
+    firestoreMocks.startAt.mockReset();
+    firestoreMocks.limit.mockReset();
+    geofireMocks.geohashQueryBounds.mockClear();
+
+    firestoreMocks.collection.mockReturnValue({});
+    firestoreMocks.where.mockReturnValue({});
+    firestoreMocks.query.mockReturnValue({});
+    firestoreMocks.startAt.mockReturnValue({});
+    firestoreMocks.limit.mockReturnValue({});
 
     TestBed.configureTestingModule({
       providers: [
@@ -93,25 +78,25 @@ describe('NearbyProfilesService', () => {
       makeDoc({ uid: 'B', latitude: 20, longitude: 20 }),
     ];
 
-    fsMock.getDocs.mockResolvedValueOnce({ docs });
+    firestoreMocks.getDocs.mockResolvedValueOnce({ docs });
 
     const result = await service.getProfilesNearLocation(1, 1, 50, 'meu-uid');
 
-    expect(geohashQueryBoundsMock).toHaveBeenCalledWith([1, 1], 50 * 1000);
-    expect(fsMock.collection).toHaveBeenCalled();
+    expect(geofireMocks.geohashQueryBounds).toHaveBeenCalledWith([1, 1], 50 * 1000);
+    expect(firestoreMocks.collection).toHaveBeenCalled();
     expect(result.length).toBe(1);
     expect(result[0].uid).toBe('A');
     expect(result[0].distanciaKm).toBe(5);
   });
 
-  it('aplica startAfter quando startAfterDoc é informado', async () => {
-    fsMock.getDocs.mockResolvedValueOnce({ docs: [] });
+  it('aplica startAt quando startAfterDoc é informado', async () => {
+    firestoreMocks.getDocs.mockResolvedValueOnce({ docs: [] });
     const cursor = { id: 'cursor-doc' };
 
     await service.getProfilesNearLocation(1, 1, 50, 'meu-uid', cursor);
 
-    expect(fsMock.startAt).toHaveBeenCalledTimes(1);
-    expect(fsMock.limit).toHaveBeenCalledWith(50);
+    expect(firestoreMocks.startAt).toHaveBeenCalledTimes(1);
+    expect(firestoreMocks.limit).toHaveBeenCalledWith(50);
   });
 
   it('ignora documentos sem lat/lon numéricos', async () => {
@@ -120,7 +105,7 @@ describe('NearbyProfilesService', () => {
       makeDoc({ uid: 'B', latitude: 10, longitude: undefined }),
     ];
 
-    fsMock.getDocs.mockResolvedValueOnce({ docs });
+    firestoreMocks.getDocs.mockResolvedValueOnce({ docs });
 
     const result = await service.getProfilesNearLocation(1, 1, 50, 'meu-uid');
 
@@ -128,7 +113,7 @@ describe('NearbyProfilesService', () => {
   });
 
   it('retorna array vazio em caso de erro de consulta', async () => {
-    fsMock.getDocs.mockRejectedValueOnce(new Error('firestore down'));
+    firestoreMocks.getDocs.mockRejectedValueOnce(new Error('firestore down'));
 
     const result = await service.getProfilesNearLocation(1, 1, 50, 'meu-uid');
 
