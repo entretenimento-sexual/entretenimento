@@ -26,8 +26,7 @@
     "src/**/*.d.ts",
     "src/app/**/*.ts",
     "src/environments/**/*.ts",
-    "src/test/setup-vitest.ts",
-    "src/test/jest-stubs/**/*.ts"
+    "src/test/**/*.ts"
   ],
   "exclude": [
     "src/main.ts",
