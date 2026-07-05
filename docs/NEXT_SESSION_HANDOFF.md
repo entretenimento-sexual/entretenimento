@@ -5,102 +5,118 @@
 - Repository: `entretenimento-sexual/entretenimento`
 - Local path usually used: `C:\entretenimento`
 - Firebase project: `entretenimento-sexual`
-- Main validation mode for the signup/discovery fixes: frontend local with `ng s` against the real Firebase project.
+- Current stable branch: `main`
+- Recent integration branch merged into `main`: `fix/onboarding-registration-architecture`
 
-## Current objective
+## Current status
 
-Stabilize signup/profile completion and discovery public profile synchronization.
+The onboarding/registration package was consolidated into `main` through PR #14.
 
-The most recent work focused on:
+Merged package summary:
 
-1. making `public_profiles` rules tolerate safe legacy documents;
-2. making signup avatar upload non-blocking after profile data is saved;
-3. restoring canonical discovery fields through the frontend discovery mapper;
-4. cleaning obvious encoding/formatting damage introduced by earlier Windows PowerShell writes;
-5. preparing the repo for continuation from another machine.
+1. registration route cleanup;
+2. email verification before profile completion;
+3. registration flow state centralized through dedicated data-access services/guards;
+4. Google/social login aligned with the same verification-first rule;
+5. CTAs in account, online users, nearby profiles and layout shell aligned to the onboarding order;
+6. `/register/welcome` mobile polish;
+7. `/perfil` initial visual polish after signup;
+8. router diagnostics adjusted to avoid false redirect-loop reports during legitimate guard redirects.
 
-## Recent important commits
+## Last known validation
 
-- `403fded0` - signup avatar upload became non-blocking. If avatar upload or public photo sync fails after the basic profile save, signup should still complete and redirect.
-- `60f991d` - public profile rules were relaxed for safe legacy server-owned fields.
-- `9211721` - generated `firestore.rules` was rebuilt and pushed after rules deploy.
-- `3836511` - users rules update: `emailVerified` only has to match the auth token when that field is actually changed on update.
-- `6c64e93` - discovery query service formatting/encoding cleanup and removal of unused imports.
-
-## Critical next steps on a new machine
-
-Run:
+Validated locally after merging into `main`:
 
 ```powershell
 cd C:\entretenimento
+git checkout main
 git pull origin main
-npm install
-npm run build
+npm.cmd run build
+npm.cmd run functions:build
+git status
 ```
 
-Because `firestore-rules/users.rules` changed after the last deployed generated rules, deploy rules again before retesting signup:
+Observed result:
 
-```powershell
-npm run rules:build
-npm run rules:check
-firebase deploy --only firestore:rules --project entretenimento-sexual
-```
+- `ng build` completed successfully;
+- `functions:build` completed successfully;
+- `main` was up to date with `origin/main`;
+- working tree was clean.
 
-Then start the frontend:
+Manual smoke test completed before the final merge:
 
-```powershell
-ng s
-```
+- user registration completed;
+- e-mail verification succeeded;
+- user reached `/perfil` with the authenticated shell loaded;
+- `/register/welcome` and `/perfil` were visually checked.
 
-Use `Ctrl + F5` in the browser before retesting.
+## Current cleanup branch
 
-## Signup test plan
-
-Test profile completion in this order:
-
-1. complete signup without selecting a photo;
-2. confirm redirect to `/perfil/{uid}`;
-3. confirm no `saveInitialUserData$ falhou` error;
-4. repeat with a photo;
-5. confirm the progress bar only appears during the real upload;
-6. confirm avatar upload failure, if any, does not block profile completion or redirect.
-
-Expected behavior:
-
-- basic profile data is mandatory;
-- avatar upload is optional and non-blocking;
-- if avatar sync fails after profile save, show a limited warning but keep signup successful;
-- no false generic signup error after the profile has already been persisted.
-
-## If signup still fails
-
-Capture only the new console block starting at one of these markers:
+Active cleanup branch:
 
 ```text
-[FirestoreUserWriteService] saveInitialUserData$ falhou
-[StorageService] Erro no fluxo de uploadProfileAvatar
-FirebaseError: Missing or insufficient permissions
+chore/post-merge-cleanup
 ```
 
-Then inspect whether the failure happened on:
+Purpose:
 
-- first profile save;
-- avatar upload;
-- second photoURL sync after upload.
+- update project handoff after the onboarding merge;
+- remove stale guidance that could mislead the next session;
+- avoid new product logic until `main` is confirmed stable after the merge.
 
-The current code is designed so only the first profile save should block signup.
+## Recommended next steps
 
-## Discovery/public profile notes
+1. Validate the cleanup branch after this documentation update:
 
-The discovery frontend reads `public_profiles`, not private `users`. The mapper now forwards canonical fields to the card/enrichment pipeline:
+```powershell
+git pull origin chore/post-merge-cleanup
+npm.cmd run build
+npm.cmd run functions:build
+git status
+```
 
-- `normalizedGender`
-- `normalizedOrientation`
-- `compatibilityReady`
-- `interestedInGenders`
-- `interestedInOrientations`
+2. If validation is clean, open a small PR:
 
-The backend sync trigger is still the authority for canonical discovery normalization.
+```text
+base: main
+head: chore/post-merge-cleanup
+title: docs: update handoff after onboarding merge
+```
+
+3. Next product branch should be small and isolated. Recommended options:
+
+```text
+polish/profile-mobile-details
+chore/test-infra-providers
+feat(compliance-adult-consent-v2)
+```
+
+## Known non-blocking debt
+
+The existing `.spec` suite still has older structural debt around providers/mocks for Firebase, Store and Angular Material. It was not used as a release blocker for the onboarding merge.
+
+Recommended future branch:
+
+```text
+chore/test-infra-providers
+```
+
+Target:
+
+- normalize Firebase test providers;
+- normalize NgRx Store mocks;
+- remove stale expectations from pre-refactor specs;
+- make `npm.cmd run test` meaningful again.
+
+## Firestore rules note
+
+Only deploy rules when a file under `firestore-rules/` or generated `firestore.rules` changed:
+
+```powershell
+npm.cmd run rules:build
+npm.cmd run rules:check
+firebase deploy --only firestore:rules --project entretenimento-sexual
+```
 
 ## Work-machine safety checklist
 
@@ -110,23 +126,15 @@ Before editing from another machine:
 cd C:\entretenimento
 git status
 git pull origin main
-npm run build
+npm.cmd run build
 ```
 
-Before pushing:
+Before pushing any branch:
 
 ```powershell
 git status
-npm run build
-npm --prefix functions run build
-npm run rules:build
-npm run rules:check
+npm.cmd run build
+npm.cmd run functions:build
 ```
 
-Only deploy rules when a file under `firestore-rules/` or generated `firestore.rules` changed:
-
-```powershell
-firebase deploy --only firestore:rules --project entretenimento-sexual
-```
-
-Do not run emulators unless the goal is explicitly local Firebase isolation. Current validation is against real production Firebase rules and data.
+Do not run emulators unless the goal is explicitly local Firebase isolation. Current validation is against the real Firebase project and deployed rules.
