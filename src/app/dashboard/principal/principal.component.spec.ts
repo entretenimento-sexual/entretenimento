@@ -1,11 +1,11 @@
 // src/app/dashboard/principal/principal.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { RouterTestingModule } from '@angular/router/testing';
 import { provideMockStore, MockStore } from '@ngrx/store/testing';
+
 import { PrincipalComponent } from './principal.component';
-import {  selectCurrentUser } from '../../store/selectors/selectors.user/user.selectors';
-
+import { selectCurrentUser } from '../../store/selectors/selectors.user/user.selectors';
 import { IUserDados } from '../../core/interfaces/iuser-dados';
-
 
 describe('PrincipalComponent', () => {
   let component: PrincipalComponent;
@@ -14,7 +14,10 @@ describe('PrincipalComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [PrincipalComponent],
+      imports: [
+        RouterTestingModule,
+        PrincipalComponent,
+      ],
       providers: [
         provideMockStore({
           initialState: {
@@ -27,13 +30,11 @@ describe('PrincipalComponent', () => {
 
     store = TestBed.inject(MockStore);
 
-    // 👇 Garante emissões pros selects que o componente usa
     store.overrideSelector(selectCurrentUser, {
       uid: 'u1',
       email: 'x@y.com',
       profileCompleted: true,
     } as unknown as IUserDados);
-  
 
     fixture = TestBed.createComponent(PrincipalComponent);
     component = fixture.componentInstance;
