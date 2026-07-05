@@ -1,92 +1,65 @@
 // src/app/photo-editor/photo-editor/photo-editor.component.spec.ts
-// Não esquecer dos comentários explicativos e ferramentas de debug
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { CommonModule } from '@angular/common';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { AngularPinturaModule } from '@pqina/angular-pintura';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
-import { provideMockStore } from '@ngrx/store/testing';
-import { of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 
 import { PhotoEditorComponent } from './photo-editor.component';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
-import { StorageService } from '../../core/services/image-handling/storage.service';
-import { PhotoFirestoreService } from '../../core/services/image-handling/photo-firestore.service';
-import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
-import {
-  selectFileUploading,
-  selectFileError,
-  selectFileSuccess,
-  selectFileDownloadUrl,
-} from '../../store/selectors/selectors.user/file.selectors';
+import { PhotoEditorSessionService } from '../../core/services/image-handling/photo-editor-session.service';
+import { PhotoUploadFlowService } from '../../core/services/image-handling/photo-upload-flow.service';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  createErrorTestingProviderMocks,
+  provideErrorTestingMocks,
+} from '../../../test/angular-error-testing.providers';
 
 describe('PhotoEditorComponent', () => {
   let fixture: ComponentFixture<PhotoEditorComponent>;
   let component: PhotoEditorComponent;
 
   beforeEach(async () => {
+    const existingPinturaStyles = document.getElementById('pintura-editor-styles');
+    existingPinturaStyles?.remove();
+
+    const pinturaStyles = document.createElement('link');
+    pinturaStyles.id = 'pintura-editor-styles';
+    pinturaStyles.dataset['loaded'] = 'true';
+    document.head.appendChild(pinturaStyles);
+
+    const errorProviderMocks = createErrorTestingProviderMocks();
+
     await TestBed.configureTestingModule({
-      declarations: [PhotoEditorComponent],
-      imports: [
-        CommonModule,
-        AngularPinturaModule,
-        MatProgressSpinnerModule,
-      ],
+      imports: [PhotoEditorComponent],
       providers: [
         {
           provide: NgbActiveModal,
           useValue: {
             close: vi.fn(),
             dismiss: vi.fn(),
-          }
+          },
         },
         {
           provide: AuthSessionService,
           useValue: {
             uid$: of('u1'),
             currentAuthUser: { uid: 'u1' },
-          }
+          },
         },
         {
-          provide: StorageService,
+          provide: PhotoEditorSessionService,
           useValue: {
-            replaceFile: vi.fn()(
-              of('https://example.com/file.jpg')
-            )
-          }
+            peekDraft: vi.fn(() => null),
+            clearDraft: vi.fn(),
+          },
         },
         {
-          provide: PhotoFirestoreService,
+          provide: PhotoUploadFlowService,
           useValue: {
-            savePhotoMetadata: vi.fn(),
-            saveImageState: vi.fn(),
-            updatePhotoMetadata: vi.fn(),
-          }
+            uploadProcessedPhoto$: vi.fn(() => of({ id: 'photo-1' })),
+            replaceProcessedPhoto$: vi.fn(() => of({ id: 'photo-1' })),
+          },
         },
-        {
-          provide: GlobalErrorHandlerService,
-          useValue: {
-            handleError: vi.fn()
-          }
-        },
-        {
-          provide: ErrorNotificationService,
-          useValue: {
-            showSuccess: vi.fn(),
-            showError: vi.fn()
-          }
-        },
-        provideMockStore({
-          initialState: {},
-          selectors: [
-            { selector: selectFileUploading, value: false },
-            { selector: selectFileError, value: null },
-            { selector: selectFileSuccess, value: true },
-            { selector: selectFileDownloadUrl, value: 'https://example.com/file.jpg' },
-          ],
-        }),
+        ...provideErrorTestingMocks(errorProviderMocks),
       ],
     }).compileComponents();
 
@@ -113,11 +86,8 @@ describe('PhotoEditorComponent', () => {
     expect(component.src).toBeTruthy();
   });
 
-  it('deve inicializar observables do store', (done) => {
-    component.isLoading$.subscribe((value) => {
-      expect(value).toBe(false);
-      
-    });
+  it('deve inicializar observable de loading', async () => {
+    await expect(firstValueFrom(component.isLoading$)).resolves.toBe(true);
   });
 
   it('deve converter imageState para JSON', () => {
