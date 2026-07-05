@@ -25,27 +25,21 @@
     }
 
     <!-- Mensagem geral -->
-    @if (message) {
-      <p class="alert" [ngClass]="{
-          'error-message': message.includes('Erro') || message.includes('Falha') || message.includes('não coincidem'),
-          'success-message': message.includes('sucesso')
-        }">
-        {{ message }}
-      </p>
-    }
-
-    <!-- Opções de assinatura -->
-    @if (showSubscriptionOptions) {
-      <div class="stack" style="margin-top: var(--space-3, 16px);">
-        <h3>Deseja se tornar um assinante?</h3>
-        <button class="btn-submit" type="button" (click)="goToSubscription()">
-          Sim, quero me tornar assinante
-        </button>
-        <button class="btn-submit" type="button" (click)="continueWithoutSubscription()">
-          Continuar sem assinar
-        </button>
-      </div>
-    }
+@if (message) {
+  <p
+    class="alert"
+    [ngClass]="{
+      'alert-error': messageKind === 'error',
+      'alert-success': messageKind === 'success',
+      'alert-warning': messageKind === 'warning',
+      'alert-info': messageKind === 'info'
+    }"
+    [attr.role]="messageKind === 'error' || messageKind === 'warning' ? 'alert' : 'status'"
+    [attr.aria-live]="messageKind === 'error' || messageKind === 'warning' ? 'assertive' : 'polite'"
+  >
+    {{ message }}
+  </p>
+}
 
     <form (ngSubmit)="onSubmit()" #form="ngForm" novalidate>
       <!-- Gênero (obrigatório) -->
@@ -192,7 +186,7 @@
         </div>
       }
 
-      <button type="submit" [disabled]="!form.valid || isSubmitting" class="btn-submit">
+      <button type="submit" [disabled]="isSubmitting" class="btn-submit">
         Concluir cadastro
       </button>
     </form>

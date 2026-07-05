@@ -45,22 +45,22 @@ export class CurrentUserStoreService {
   ) {}
 
   /**
- * Debug seguro do runtime do usuário atual.
- *
- * Canal:
- * localStorage.setItem('DEBUG_PROFILE', '1');
- *
- * Este service lida com:
- * - UID autenticado;
- * - perfil runtime;
- * - cache de currentUser/currentUserUid;
- * - estado tri-state do usuário atual.
- *
- * Por isso, não deve usar console.log direto.
- */
-private dbg(message: string, extra?: unknown): void {
-  this.privacyDebug.log('profile', `CurrentUserStore: ${message}`, extra);
-}
+   * Debug seguro do runtime do usuário atual.
+   *
+   * Canal:
+   * localStorage.setItem('DEBUG_PROFILE', '1');
+   *
+   * Este service lida com:
+   * - UID autenticado;
+   * - perfil runtime;
+   * - cache de currentUser/currentUserUid;
+   * - estado tri-state do usuário atual.
+   *
+   * Por isso, não deve usar console.log direto.
+   */
+  private dbg(message: string, extra?: unknown): void {
+    this.privacyDebug.log('profile', `CurrentUserStore: ${message}`, extra);
+  }
 
   // ---------------------------------------------------------------------------
   // Perfil runtime
@@ -283,42 +283,42 @@ private dbg(message: string, extra?: unknown): void {
   // ---------------------------------------------------------------------------
   // Internals
   // ---------------------------------------------------------------------------
-private areUsersEquivalent(
-  current: IUserDados | null | undefined,
-  incoming: IUserDados | null | undefined
-): boolean {
-  if (current === incoming) return true;
-  if (!current && !incoming) return true;
-  if (!current || !incoming) return false;
+  private areUsersEquivalent(
+    current: IUserDados | null | undefined,
+    incoming: IUserDados | null | undefined
+  ): boolean {
+    if (current === incoming) return true;
+    if (!current && !incoming) return true;
+    if (!current || !incoming) return false;
 
-  return (
-    current.uid === incoming.uid &&
-    current.nickname === incoming.nickname &&
-    current.email === incoming.email &&
-    current.emailVerified === incoming.emailVerified &&
-    current.role === incoming.role &&
-    current.tier === incoming.tier &&
-    current.profileCompleted === incoming.profileCompleted &&
-    current.isSubscriber === incoming.isSubscriber &&
-    current.subscriptionStatus === incoming.subscriptionStatus &&
+    return (
+      current.uid === incoming.uid &&
+      current.nickname === incoming.nickname &&
+      current.email === incoming.email &&
+      current.emailVerified === incoming.emailVerified &&
+      current.photoURL === incoming.photoURL &&
+      current.role === incoming.role &&
+      current.tier === incoming.tier &&
+      current.profileCompleted === incoming.profileCompleted &&
+      current.isSubscriber === incoming.isSubscriber &&
+      current.subscriptionStatus === incoming.subscriptionStatus &&
 
-    // lifecycle / moderação
-    current.accountStatus === incoming.accountStatus &&
-    current.suspended === incoming.suspended &&
-    current.publicVisibility === incoming.publicVisibility &&
-    current.interactionBlocked === incoming.interactionBlocked &&
-    current.loginAllowed === incoming.loginAllowed &&
-    current.statusUpdatedAt === incoming.statusUpdatedAt &&
-    current.statusUpdatedBy === incoming.statusUpdatedBy &&
-    current.suspensionReason === incoming.suspensionReason &&
-    current.suspensionSource === incoming.suspensionSource &&
-    current.suspensionEndsAt === incoming.suspensionEndsAt &&
-    current.deletionRequestedAt === incoming.deletionRequestedAt &&
-    current.deletionRequestedBy === incoming.deletionRequestedBy &&
-    current.deletionUndoUntil === incoming.deletionUndoUntil &&
-    current.purgeAfter === incoming.purgeAfter &&
-    current.deletedAt === incoming.deletedAt
-  );
-}
+      // lifecycle / moderação
+      current.accountStatus === incoming.accountStatus &&
+      current.suspended === incoming.suspended &&
+      current.publicVisibility === incoming.publicVisibility &&
+      current.interactionBlocked === incoming.interactionBlocked &&
+      current.loginAllowed === incoming.loginAllowed &&
+      current.statusUpdatedAt === incoming.statusUpdatedAt &&
+      current.statusUpdatedBy === incoming.statusUpdatedBy &&
+      current.suspensionReason === incoming.suspensionReason &&
+      current.suspensionSource === incoming.suspensionSource &&
+      current.suspensionEndsAt === incoming.suspensionEndsAt &&
+      current.deletionRequestedAt === incoming.deletionRequestedAt &&
+      current.deletionRequestedBy === incoming.deletionRequestedBy &&
+      current.deletionUndoUntil === incoming.deletionUndoUntil &&
+      current.purgeAfter === incoming.purgeAfter &&
+      current.deletedAt === incoming.deletedAt
+    );
+  }
 } // Linha 304, fim do current-user-store.service.ts
-

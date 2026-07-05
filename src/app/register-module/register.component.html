@@ -35,20 +35,20 @@
           Refazer cadastro
         </button>
 
-        <button class="btn" type="button" (click)="toggleTech()">
+        <button *ngIf="debugEnabled()" class="btn" type="button" (click)="toggleTech()">
           {{ showTech() ? 'Ocultar detalhes' : 'Mostrar detalhes técnicos' }}
         </button>
 
-        <button class="btn" type="button" (click)="copyDetails()" *ngIf="b.details">
+        <button *ngIf="debugEnabled() && b.details" class="btn" type="button" (click)="copyDetails()">
           Copiar detalhes
         </button>
 
-        <button class="btn" type="button" (click)="reloadPage()">
+        <button *ngIf="debugEnabled()" class="btn" type="button" (click)="reloadPage()">
           Recarregar
         </button>
       </div>
 
-      <pre *ngIf="showTech() && b.details">{{ b.details }}</pre>
+      <pre *ngIf="debugEnabled() && showTech() && b.details">{{ b.details }}</pre>
     </div>
 
     <form [formGroup]="form" (ngSubmit)="onSubmit()" aria-labelledby="form-title" autocomplete="on" novalidate
@@ -240,7 +240,7 @@
         </div>
 
         <small id="passwordHelp" class="field-hint">
-          Mínimo de 6 caracteres.
+          Mínimo de 8 caracteres.
         </small>
 
         <div *ngIf="getError('password') && (submitted() || form.get('password')?.touched)" id="passwordTooltip"

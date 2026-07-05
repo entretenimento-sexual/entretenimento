@@ -9,7 +9,7 @@
 // - manter PublicProfilesListComponent apenas visual;
 // - consumir public_profiles como fonte principal;
 // - buscar presença online apenas como enriquecimento opcional;
-// - delegar distância, elegibilidade, score e ordenação para
+// - delegar distância, elegibilidade, score, ordenação e debug summary para
 //   DiscoveryCardEnrichmentService.
 //
 // Regra de produto:
@@ -17,18 +17,11 @@
 // - "Todos" significa feed geral refinado de perfis públicos elegíveis;
 // - online pode ser bônus de ranking/status, mas não é fonte obrigatória.
 //
-// Supressão explícita desta revisão:
-// - toPublicProfileCard();
-// - withPresence();
-// - withDistance();
-// - scoreDiscoveryProfiles() direto na facade;
-// - canExposePublicDiscoveryProfile() direto na facade;
-// - getPublicDiscoveryProfileRejectionReason() direto na facade.
-//
-// Motivo:
-// - essas regras agora pertencem ao DiscoveryCardEnrichmentService;
-// - isso prepara a mesma lógica para Online, Perto, Região, Recentes,
-//   Bombando e Compatíveis.
+// Regra arquitetural:
+// - esta facade NÃO calcula score;
+// - esta facade NÃO ordena perfis manualmente;
+// - esta facade NÃO remonta debug de score;
+// - a fonte única do pipeline de ranking é DiscoveryCardEnrichmentService.
 
 import { Injectable, inject } from '@angular/core';
 
@@ -151,41 +144,9 @@ export class DiscoveryPublicProfilesFacade {
 
         this.logDiscovery('public profiles enrichment result', {
           currentUid,
-          sourceTotal: users?.length ?? 0,
           onlinePresenceTotal: onlinePresenceByUid.size,
-          profilesTotal: profiles.length,
-          onlineTotal: profiles.filter(
-            (profile) => profile.isOnline === true
-          ).length,
-          withDistanceTotal: profiles.filter(
-            (profile) => typeof profile.distanciaKm === 'number'
-          ).length,
+          summary: result.debugSummary,
           rejected: result.rejected,
-          scores: result.scores.map((item) => ({
-            uid: item.uid,
-            nickname: item.nickname,
-            total: Number(item.score.total.toFixed(2)),
-            quality: Number(item.score.quality.toFixed(2)),
-            media: Number(item.score.media.toFixed(2)),
-            distance: Number(item.score.distance.toFixed(2)),
-            region: Number(item.score.region.toFixed(2)),
-            recency: Number(item.score.recency.toFixed(2)),
-            role: Number(item.score.role.toFixed(2)),
-            online: Number(item.score.online.toFixed(2)),
-            compatibility: Number(item.score.compatibility.toFixed(2)),
-            engagement: Number(item.score.engagement.toFixed(2)),
-          })),
-          profiles: profiles.map((profile) => ({
-            uid: profile.uid,
-            nickname: profile.nickname,
-            isOnline: profile.isOnline,
-            distanciaKm: profile.distanciaKm,
-            latitude: profile.latitude,
-            longitude: profile.longitude,
-            municipio: profile.municipio,
-            estado: profile.estado,
-            role: profile.role,
-          })),
         });
 
         return {
@@ -277,4 +238,4 @@ export class DiscoveryPublicProfilesFacade {
       return new Error('Erro desconhecido ao carregar perfis públicos.');
     }
   }
-} // Linha final do arquivo, 280 linhas, 6.0.3, ES2022, Bundler
+} // Linha final do arquivo, ES2022, Bundler

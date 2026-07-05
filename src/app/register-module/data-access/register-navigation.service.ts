@@ -1,0 +1,94 @@
+// src/app/register-module/data-access/register-navigation.service.ts
+import { Injectable } from '@angular/core';
+
+import {
+  RegisterFlowAccessState,
+  RegisterFlowVm,
+} from './register-flow.model';
+
+@Injectable({ providedIn: 'root' })
+export class RegisterNavigationService {
+  resolveVm(state: RegisterFlowAccessState): RegisterFlowVm {
+    const uid = state.uid?.trim() || null;
+    const email = state.email?.trim() || null;
+
+    if (!state.authReady) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'loading',
+        nextRoute: '/register',
+        progress: 0,
+        canContinue: false,
+        primaryActionLabel: 'Carregando',
+        blockingMessage: 'Estamos preparando sua sessão.',
+      };
+    }
+
+    if (!uid) {
+      return {
+        ...state,
+        uid: null,
+        email,
+        currentStep: 'signup',
+        nextRoute: '/register',
+        progress: 0,
+        canContinue: true,
+        primaryActionLabel: 'Criar conta',
+      };
+    }
+
+    if (!state.emailVerified) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'emailVerification',
+        nextRoute: '/register/welcome',
+        progress: 25,
+        canContinue: false,
+        primaryActionLabel: 'Já verifiquei',
+        secondaryActionLabel: 'Reenviar e-mail',
+        blockingMessage: 'Confirme seu e-mail para continuar com segurança.',
+      };
+    }
+
+    if (!state.userResolved || !state.profileCompleted) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'profileCompletion',
+        nextRoute: '/register/finalizar-cadastro',
+        progress: 50,
+        canContinue: true,
+        primaryActionLabel: 'Completar perfil',
+      };
+    }
+
+    if (!state.adultConsentAccepted) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'adultConsent',
+        nextRoute: '/adulto/confirmar',
+        progress: 75,
+        canContinue: true,
+        primaryActionLabel: 'Confirmar maioridade',
+      };
+    }
+
+    return {
+      ...state,
+      uid,
+      email,
+      currentStep: 'preferences',
+      nextRoute: `/preferencias/editar/${uid}`,
+      progress: 90,
+      canContinue: true,
+      primaryActionLabel: 'Ajustar preferências',
+    };
+  }
+}

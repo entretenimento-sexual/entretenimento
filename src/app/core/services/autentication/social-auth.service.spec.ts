@@ -3,30 +3,26 @@
 // TESTES DO SOCIAL AUTH SERVICE
 //
 // Objetivo desta suíte:
-// - validar a criação do service
-// - validar fluxo de novo usuário via Google
-// - validar fluxo de usuário existente
-// - validar bloqueios por conta deletada/suspensa
-// - validar tratamento de erro do popup
+// - validar o contrato atual do login social;
+// - garantir que o service devolve SocialAuthResult estruturado;
+// - evitar acoplamento com navegação, toast ou cache manual;
+// - cobrir criação inicial, usuário existente, bloqueios e erros de popup.
 //
-// Observações:
-// - usamos spy em método interno para evitar acoplamento com signInWithPopup real
-// - suíte migrada para Vitest
-// - usamos mocks mínimos, focados apenas nos métodos necessários
+// Observação:
+// - SocialAuthService não navega. A camada chamadora decide rota/feedback.
 // =============================================================================
 
 import { TestBed } from '@angular/core/testing';
-import { Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
-import { of, throwError } from 'rxjs';
+import { EnvironmentInjector } from '@angular/core';
+import { firstValueFrom, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { SocialAuthService } from './social-auth.service';
 import { FirestoreReadService } from '../data-handling/firestore/core/firestore-read.service';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
-import { UserRepositoryService } from '../data-handling/firestore/repositories/user-repository.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../error-handler/error-notification.service';
+import { RegistrationBootstrapService } from './register/registration-bootstrap.service';
 
 describe('SocialAuthService', () => {
   let service: SocialAuthService;
@@ -38,24 +34,15 @@ describe('SocialAuthService', () => {
   };
 
   let writeMock: {
-    setDocument: Mock;
     updateDocument: Mock;
   };
 
-  let userRepoMock: {
-    updateUserInStateAndCache: Mock;
+  let registrationBootstrapMock: {
+    createSocialSeed$: Mock;
   };
 
   let globalErrorHandlerMock: {
     handleError: Mock;
-  };
-
-  let errorNotifierMock: {
-    showError: Mock;
-  };
-
-  let routerMock: {
-    navigate: Mock;
   };
 
   beforeEach(() => {
@@ -66,24 +53,15 @@ describe('SocialAuthService', () => {
     };
 
     writeMock = {
-      setDocument: vi.fn(),
       updateDocument: vi.fn(),
     };
 
-    userRepoMock = {
-      updateUserInStateAndCache: vi.fn(),
+    registrationBootstrapMock = {
+      createSocialSeed$: vi.fn(),
     };
 
     globalErrorHandlerMock = {
       handleError: vi.fn(),
-    };
-
-    errorNotifierMock = {
-      showError: vi.fn(),
-    };
-
-    routerMock = {
-      navigate: vi.fn().mockResolvedValue(true),
     };
 
     TestBed.configureTestingModule({
@@ -92,19 +70,15 @@ describe('SocialAuthService', () => {
         { provide: Auth, useValue: authMock },
         { provide: FirestoreReadService, useValue: readMock },
         { provide: FirestoreWriteService, useValue: writeMock },
-        { provide: UserRepositoryService, useValue: userRepoMock },
+        { provide: RegistrationBootstrapService, useValue: registrationBootstrapMock },
         { provide: GlobalErrorHandlerService, useValue: globalErrorHandlerMock },
-        { provide: ErrorNotificationService, useValue: errorNotifierMock },
-        { provide: Router, useValue: routerMock },
       ],
     });
 
     service = TestBed.inject(SocialAuthService);
-  });
 
-  // ---------------------------------------------------------------------------
-  // Helpers de teste
-  // ---------------------------------------------------------------------------
+    vi.spyOn(service as any, 'ensurePersistentAuth$').mockReturnValue(of(void 0));
+  });
 
   function makeFirebaseUser(overrides: Partial<any> = {}): any {
     return {
@@ -112,7 +86,7 @@ describe('SocialAuthService', () => {
       email: 'user@test.com',
       emailVerified: true,
       photoURL: 'https://cdn.test/avatar.jpg',
-      displayName: 'Usuário Google',
+      providerData: [{ providerId: 'google.com' }],
       ...overrides,
     };
   }
@@ -123,8 +97,8 @@ describe('SocialAuthService', () => {
       email: 'user@test.com',
       nickname: 'alex',
       photoURL: 'https://cdn.test/avatar.jpg',
-      role: 'basic',
-      tier: 'basic',
+      role: 'free',
+      tier: 'free',
       emailVerified: true,
       isSubscriber: false,
       firstLogin: 1700000000000,
@@ -132,19 +106,18 @@ describe('SocialAuthService', () => {
       acceptedTerms: { accepted: true, date: 1700000000000 },
       profileCompleted: true,
       suspended: false,
+      accountLocked: false,
+      accountStatus: 'active',
       ...overrides,
     };
   }
 
-  // ---------------------------------------------------------------------------
-  // Testes básicos
-  // ---------------------------------------------------------------------------
-
-  it('should be created', () => {
+  it('deve ser criado', () => {
     expect(service).toBeTruthy();
+    expect(TestBed.inject(EnvironmentInjector)).toBeTruthy();
   });
 
-  it('deve criar novo usuário via Google e navegar para finalizar cadastro', () => {
+  it('deve criar seed de novo usuário Google e retornar resultado estruturado para finalizar cadastro', async () => {
     const firebaseUser = makeFirebaseUser({
       uid: 'new-user-1',
       email: 'new-user@test.com',
@@ -157,49 +130,37 @@ describe('SocialAuthService', () => {
     );
 
     readMock.getDocument.mockReturnValue(of(null));
-    writeMock.setDocument.mockReturnValue(of(void 0));
-    writeMock.updateDocument.mockReturnValue(of(void 0));
+    registrationBootstrapMock.createSocialSeed$.mockReturnValue(of(void 0));
 
-    let result: any = null;
-
-    service.googleLogin().subscribe((value) => {
-      result = value;
-    });
+    const result = await firstValueFrom(service.googleLogin());
 
     expect(readMock.getDocument).toHaveBeenCalledWith('users', 'new-user-1', {
       source: 'server',
     });
 
-    expect(writeMock.setDocument).toHaveBeenCalledWith(
-      'users',
-      'new-user-1',
+    expect(registrationBootstrapMock.createSocialSeed$).toHaveBeenCalledWith(
       expect.objectContaining({
         uid: 'new-user-1',
         email: 'new-user@test.com',
-        role: 'basic',
         emailVerified: true,
-        profileCompleted: false,
-      }),
-      expect.objectContaining({
-        merge: true,
-        context: 'SocialAuthService.onNewUserLogin',
+        photoURL: 'https://cdn.test/new-user.jpg',
+        providerId: 'google.com',
       })
     );
 
-    expect(userRepoMock.updateUserInStateAndCache).toHaveBeenCalled();
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/register/finalizar-cadastro']);
-
     expect(result).toEqual(
       expect.objectContaining({
-        uid: 'new-user-1',
-        email: 'new-user@test.com',
-        role: 'basic',
+        success: true,
+        outcome: 'profile-incomplete',
+        isNewUser: true,
         emailVerified: true,
+        nextRoute: '/register/finalizar-cadastro',
+        message: 'Conta criada com Google. Finalize seu cadastro para continuar.',
       })
     );
   });
 
-  it('deve atualizar usuário existente e navegar para finalizar cadastro quando perfil estiver incompleto', () => {
+  it('deve atualizar usuário existente e retornar finalizar cadastro quando perfil estiver incompleto', async () => {
     const firebaseUser = makeFirebaseUser({
       uid: 'existing-incomplete',
       email: 'existing-incomplete@test.com',
@@ -213,8 +174,6 @@ describe('SocialAuthService', () => {
       nickname: '',
       gender: undefined,
       profileCompleted: false,
-      role: 'basic',
-      tier: 'basic',
     });
 
     vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
@@ -224,11 +183,7 @@ describe('SocialAuthService', () => {
     readMock.getDocument.mockReturnValue(of(existingDoc));
     writeMock.updateDocument.mockReturnValue(of(void 0));
 
-    let result: any = null;
-
-    service.googleLogin().subscribe((value) => {
-      result = value;
-    });
+    const result = await firstValueFrom(service.googleLogin());
 
     expect(writeMock.updateDocument).toHaveBeenCalledWith(
       'users',
@@ -236,27 +191,25 @@ describe('SocialAuthService', () => {
       expect.objectContaining({
         emailVerified: true,
         photoURL: 'https://cdn.test/existing-incomplete.jpg',
-        role: 'basic',
-        tier: 'basic',
+        lastProvider: 'google.com',
       }),
       expect.objectContaining({
-        context: 'SocialAuthService.onExistingUserLogin',
+        context: 'SocialAuthService.handleExistingUserLogin',
       })
     );
 
-    expect(userRepoMock.updateUserInStateAndCache).toHaveBeenCalled();
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/register/finalizar-cadastro']);
-
     expect(result).toEqual(
       expect.objectContaining({
-        uid: 'existing-incomplete',
-        email: 'existing-incomplete@test.com',
-        role: 'basic',
+        success: true,
+        outcome: 'profile-incomplete',
+        isNewUser: false,
+        emailVerified: true,
+        nextRoute: '/register/finalizar-cadastro',
       })
     );
   });
 
-  it('deve atualizar usuário existente e navegar para dashboard quando perfil estiver completo', () => {
+  it('deve atualizar usuário existente e retornar dashboard quando perfil estiver completo', async () => {
     const firebaseUser = makeFirebaseUser({
       uid: 'existing-complete',
       email: 'existing-complete@test.com',
@@ -281,25 +234,22 @@ describe('SocialAuthService', () => {
     readMock.getDocument.mockReturnValue(of(existingDoc));
     writeMock.updateDocument.mockReturnValue(of(void 0));
 
-    let result: any = null;
-
-    service.googleLogin().subscribe((value) => {
-      result = value;
-    });
+    const result = await firstValueFrom(service.googleLogin());
 
     expect(writeMock.updateDocument).toHaveBeenCalled();
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/dashboard/principal']);
 
     expect(result).toEqual(
       expect.objectContaining({
-        uid: 'existing-complete',
-        email: 'existing-complete@test.com',
-        role: 'premium',
+        success: true,
+        outcome: 'profile-ready',
+        isNewUser: false,
+        emailVerified: true,
+        nextRoute: '/dashboard/principal',
       })
     );
   });
 
-  it('deve tratar conta deletada e redirecionar para login', () => {
+  it('deve retornar bloqueio para conta deletada sem atualizar documento', async () => {
     const firebaseUser = makeFirebaseUser({
       uid: 'deleted-user',
       email: 'deleted@test.com',
@@ -317,26 +267,22 @@ describe('SocialAuthService', () => {
 
     readMock.getDocument.mockReturnValue(of(existingDoc));
 
-    let result: any = null;
+    const result = await firstValueFrom(service.googleLogin());
 
-    service.googleLogin().subscribe((value) => {
-      result = value;
-    });
-
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Conta indisponível. Entre em contato com o suporte.'
-    );
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
     expect(writeMock.updateDocument).not.toHaveBeenCalled();
 
     expect(result).toEqual(
       expect.objectContaining({
-        uid: 'deleted-user',
+        success: false,
+        outcome: 'blocked',
+        blockedReason: 'deleted',
+        nextRoute: '/login',
+        code: 'social-auth/deleted',
       })
     );
   });
 
-  it('deve tratar conta suspensa e redirecionar para login', () => {
+  it('deve retornar status da conta para usuário suspenso', async () => {
     const firebaseUser = makeFirebaseUser({
       uid: 'suspended-user',
       email: 'suspended@test.com',
@@ -354,55 +300,52 @@ describe('SocialAuthService', () => {
 
     readMock.getDocument.mockReturnValue(of(existingDoc));
 
-    let result: any = null;
+    const result = await firstValueFrom(service.googleLogin());
 
-    service.googleLogin().subscribe((value) => {
-      result = value;
-    });
-
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'Sua conta está temporariamente restrita.'
-    );
-    expect(routerMock.navigate).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
     expect(writeMock.updateDocument).not.toHaveBeenCalled();
 
     expect(result).toEqual(
       expect.objectContaining({
-        uid: 'suspended-user',
+        success: true,
+        outcome: 'profile-ready',
+        nextRoute: '/conta/status',
       })
     );
   });
 
-  it('deve retornar null e notificar quando o popup for bloqueado', () => {
+  it('deve retornar erro estruturado quando popup for bloqueado', async () => {
     vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
       throwError(() => ({ code: 'auth/popup-blocked' }))
     );
 
-    let result: any = 'not-null';
+    const result = await firstValueFrom(service.googleLogin());
 
-    service.googleLogin().subscribe((value) => {
-      result = value;
-    });
-
-    expect(errorNotifierMock.showError).toHaveBeenCalledWith(
-      'O navegador bloqueou o popup. Permita popups e tente novamente.'
-    );
     expect(globalErrorHandlerMock.handleError).toHaveBeenCalled();
-    expect(result).toBeNull();
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        outcome: 'error',
+        code: 'auth/popup-blocked',
+        nextRoute: null,
+      })
+    );
   });
 
-  it('deve retornar null quando o usuário fechar o popup', () => {
+  it('deve retornar cancelamento estruturado quando usuário fechar o popup', async () => {
     vi.spyOn(service as any, 'signInWithPopupInCtx$').mockReturnValue(
       throwError(() => ({ code: 'auth/popup-closed-by-user' }))
     );
 
-    let result: any = 'not-null';
-
-    service.googleLogin().subscribe((value) => {
-      result = value;
-    });
+    const result = await firstValueFrom(service.googleLogin());
 
     expect(globalErrorHandlerMock.handleError).toHaveBeenCalled();
-    expect(result).toBeNull();
+    expect(result).toEqual(
+      expect.objectContaining({
+        success: false,
+        outcome: 'cancelled',
+        code: 'social-auth/cancelled',
+        nextRoute: null,
+      })
+    );
   });
 });

@@ -5,15 +5,18 @@ import {
   Firestore,
   collection,
   doc,
-  getDoc,
-  getDocs,
   query,
-  setDoc,
-  updateDoc,
   where,
 } from '@angular/fire/firestore';
 
-import { serverTimestamp, writeBatch } from 'firebase/firestore';
+import {
+  getDoc,
+  getDocs,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  writeBatch,
+} from 'firebase/firestore';
 import type { User } from 'firebase/auth';
 
 import { Observable, from, of, throwError } from 'rxjs';
@@ -39,7 +42,7 @@ export class FirestoreUserWriteService {
   ensureUserDoc$(authUser: User, base: Partial<IUserDados>): Observable<void> {
     const ref = this.ctx.run(() => doc(this.db, 'users', authUser.uid));
 
-    return this.ctx.deferPromise$(() => getDoc(ref)).pipe(
+    return this.ctx.deferPromise$(() => getDoc(ref as any)).pipe(
       switchMap((snap) => {
         const payloadBase: Record<string, unknown> = {
           uid: authUser.uid,
@@ -59,7 +62,7 @@ export class FirestoreUserWriteService {
             };
 
         return this.ctx
-          .deferPromise$(() => setDoc(ref, payload as any, { merge: true }))
+          .deferPromise$(() => setDoc(ref as any, payload as any, { merge: true }))
           .pipe(map(() => void 0));
       }),
       catchError((err) => {
@@ -86,7 +89,7 @@ export class FirestoreUserWriteService {
 
     return this.ctx
       .deferPromise$(() =>
-        setDoc(ref, { lastLogin: serverTimestamp() } as any, { merge: true })
+        setDoc(ref as any, { lastLogin: serverTimestamp() } as any, { merge: true })
       )
       .pipe(
         map(() => void 0),
@@ -114,7 +117,7 @@ export class FirestoreUserWriteService {
 
     return this.ctx
       .deferPromise$(() =>
-        updateDoc(ref, {
+        updateDoc(ref as any, {
           emailVerified: status === true,
         } as any)
       )
@@ -135,7 +138,7 @@ export class FirestoreUserWriteService {
       query(collection(this.db, 'users'), where('email', '==', safeEmail))
     );
 
-    return this.ctx.deferPromise$(() => getDocs(qref)).pipe(
+    return this.ctx.deferPromise$(() => getDocs(qref as any)).pipe(
       switchMap((snap) => {
         if (snap.empty) {
           throw new Error('Usuário não encontrado pelo e-mail.');
@@ -144,7 +147,7 @@ export class FirestoreUserWriteService {
         return from(
           Promise.all(
             snap.docs.map((d) =>
-              updateDoc(d.ref, {
+              updateDoc(d.ref as any, {
                 emailVerified: status === true,
               } as any)
             )
@@ -181,7 +184,7 @@ export class FirestoreUserWriteService {
     );
 
     return this.ctx.deferPromise$(async () => {
-      const publicProfileSnap = await getDoc(publicProfileRef);
+      const publicProfileSnap = await getDoc(publicProfileRef as any);
       const existingPublicProfile = publicProfileSnap.exists()
         ? (publicProfileSnap.data() as Record<string, unknown>)
         : null;
@@ -200,7 +203,8 @@ export class FirestoreUserWriteService {
           safeUid,
           data,
           existingPublicProfile
-        ) as any
+        ) as any,
+        { merge: true }
       );
 
       await batch.commit();
@@ -238,29 +242,26 @@ export class FirestoreUserWriteService {
 
     return this.ctx.deferPromise$(async () => {
       await setDoc(
-        userRef,
+        userRef as any,
         { photoURL: safePhotoURL } as any,
         { merge: true }
       );
 
       try {
-        const publicProfileSnap = await getDoc(publicProfileRef);
-        const existingPublicProfile = publicProfileSnap.exists()
-          ? (publicProfileSnap.data() as Record<string, unknown>)
-          : null;
-
         await setDoc(
-          publicProfileRef,
-          this.buildPublicProfileAvatarPatch(
-            safeUid,
-            safePhotoURL,
-            existingPublicProfile
-          ) as any
+          publicProfileRef as any,
+          {
+            photoURL: safePhotoURL,
+            updatedAt: serverTimestamp(),
+          } as any,
+          { merge: true }
         );
       } catch (err) {
-        console.warn(
+        this.safeHandle(
           '[FirestoreUserWriteService] Avatar salvo no perfil privado, mas não sincronizado no public_profiles.',
-          { uid: safeUid, error: err }
+          err,
+          { uid: safeUid },
+          { silent: true }
         );
       }
     }).pipe(map(() => void 0));
@@ -365,44 +366,6 @@ export class FirestoreUserWriteService {
     return patch;
   }
 
-  private buildPublicProfileAvatarPatch(
-    uid: string,
-    photoURL: string,
-    existing: Record<string, unknown> | null
-  ): Record<string, unknown> {
-    const patch: Record<string, unknown> = {
-      uid,
-      photoURL,
-      updatedAt: serverTimestamp(),
-    };
-
-    if (!existing) {
-      patch['createdAt'] = serverTimestamp();
-      patch['role'] = 'free';
-      return patch;
-    }
-
-    const nickname = this.cleanText(existing['nickname']);
-    if (nickname.length >= 3 && nickname.length <= 40) {
-      patch['nickname'] = nickname;
-
-      const existingNormalized = this.cleanText(existing['nicknameNormalized']);
-      patch['nicknameNormalized'] = existingNormalized ||
-        NicknameUtils.normalizarApelidoParaIndice(nickname);
-    }
-
-    this.copyOptionalText(existing, patch, 'gender');
-    this.copyOptionalText(existing, patch, 'orientation');
-    this.copyOptionalText(existing, patch, 'estado');
-    this.copyOptionalText(existing, patch, 'municipio');
-    this.copyOptionalHttpUrl(existing, patch, 'avatarUrl');
-
-    this.copyCoherentGeo(existing, patch);
-    this.copyExistingPublicServerFields(existing, patch);
-
-    return patch;
-  }
-
   private copyExistingPublicServerFields(
     source: Record<string, unknown>,
     target: Record<string, unknown>
@@ -425,58 +388,6 @@ export class FirestoreUserWriteService {
     if (Object.prototype.hasOwnProperty.call(source, field)) {
       target[field] = source[field];
     }
-  }
-
-  private copyOptionalText(
-    source: Record<string, unknown>,
-    target: Record<string, unknown>,
-    field: string
-  ): void {
-    const text = this.cleanText(source[field]);
-
-    if (text) {
-      target[field] = text;
-    }
-  }
-
-  private copyOptionalHttpUrl(
-    source: Record<string, unknown>,
-    target: Record<string, unknown>,
-    field: string
-  ): void {
-    const value = this.cleanText(source[field]);
-
-    if (this.isHttpUrl(value)) {
-      target[field] = value;
-    }
-  }
-
-  private copyCoherentGeo(
-    source: Record<string, unknown>,
-    target: Record<string, unknown>
-  ): void {
-    const latitude = this.toOptionalNumber(source['latitude']);
-    const longitude = this.toOptionalNumber(source['longitude']);
-    const geohash = this.cleanText(source['geohash']);
-
-    if (latitude === null || longitude === null || !geohash) {
-      return;
-    }
-
-    target['latitude'] = latitude;
-    target['longitude'] = longitude;
-    target['geohash'] = geohash;
-  }
-
-  private toOptionalNumber(value: unknown): number | null {
-    const n =
-      typeof value === 'number'
-        ? value
-        : typeof value === 'string'
-          ? Number(value)
-          : Number.NaN;
-
-    return Number.isFinite(n) ? n : null;
   }
 
   private cleanText(value: unknown): string {

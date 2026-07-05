@@ -1,76 +1,150 @@
-<!-- src/app/authentication/login-component/login-component.component.html -->
+<!-- src/app/authentication/login-component/login-component.html -->
 <div class="auth-container">
   <section class="auth-intro" aria-labelledby="auth-intro-title">
     <p class="auth-badge">Pré-lançamento</p>
-    <h1 id="auth-intro-title">Entretenimento com mais controle, privacidade e segurança.</h1>
+
+    <h1 id="auth-intro-title">
+      Entretenimento com controle, privacidade e segurança.
+    </h1>
+
     <p>
-      Estamos construindo uma experiência social mais clara para cadastro, perfil,
-      preferências, comunicação e moderação.
+      Uma experiência social mais clara para cadastro, perfil, preferências,
+      comunicação e moderação.
     </p>
+
+    <ul class="auth-trust-list" aria-label="Pontos de confiança da plataforma">
+      <li>Perfil e preferências sob seu controle</li>
+      <li>Fluxo de cadastro guiado e seguro</li>
+      <li>Conta preparada para descoberta e moderação</li>
+    </ul>
   </section>
 
   <div class="form-container">
     <p class="form-kicker">Acesso seguro</p>
     <h2 class="form-header">Entre na sua conta</h2>
-    <p class="form-subtitle">Use seu e-mail cadastrado para continuar.</p>
+    <p class="form-subtitle">
+      Use e-mail/senha ou continue com Google.
+    </p>
 
-    <form [formGroup]="loginForm" (ngSubmit)="login()" class="form" autocomplete="on" novalidate
-      [attr.aria-busy]="isLoading ? 'true' : 'false'" aria-describedby="form-status">
-
+    <form
+      [formGroup]="loginForm"
+      (ngSubmit)="login()"
+      class="form"
+      autocomplete="on"
+      novalidate
+      [attr.aria-busy]="isLoading ? 'true' : 'false'"
+      aria-describedby="form-status"
+    >
       <label class="field-label" for="email">E-mail</label>
-      <input formControlName="email" id="email" class="input-field" type="email" name="email" placeholder="Email" required
+      <input
+        formControlName="email"
+        id="email"
+        class="input-field"
+        type="email"
+        name="email"
+        placeholder="seu@email.com"
+        required
         autocomplete="email"
         [attr.aria-invalid]="loginForm.controls['email'].touched && loginForm.controls['email'].invalid ? 'true' : 'false'"
-        [attr.aria-describedby]="loginForm.controls['email'].invalid ? 'email-error' : null" (focus)="clearError()" />
+        [attr.aria-describedby]="loginForm.controls['email'].invalid ? 'email-error' : null"
+        (focus)="clearError()"
+      />
       @if (loginForm.controls['email'].touched && loginForm.controls['email'].invalid) {
-      <small id="email-error" class="field-error">Informe um e-mail válido.</small>
+        <small id="email-error" class="field-error">Informe um e-mail válido.</small>
       }
 
       <label class="field-label" for="password">Senha</label>
-      <input formControlName="password" id="password" class="input-field" type="password" name="password"
-        placeholder="Senha" required autocomplete="current-password"
+      <input
+        formControlName="password"
+        id="password"
+        class="input-field"
+        type="password"
+        name="password"
+        placeholder="Sua senha"
+        required
+        autocomplete="current-password"
         [attr.aria-invalid]="loginForm.controls['password'].touched && loginForm.controls['password'].invalid ? 'true' : 'false'"
-        [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error' : null" (focus)="clearError()" />
+        [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error' : null"
+        (focus)="clearError()"
+      />
       @if (loginForm.controls['password'].touched && loginForm.controls['password'].invalid) {
-      <small id="password-error" class="field-error">Informe sua senha.</small>
+        <small id="password-error" class="field-error">Informe sua senha.</small>
       }
 
-      <input formControlName="honeypot" class="honeypot-hidden" type="text" name="company" tabindex="-1" aria-hidden="true"
-        autocomplete="off" />
+      <input
+        formControlName="honeypot"
+        class="honeypot-hidden"
+        type="text"
+        name="company"
+        tabindex="-1"
+        aria-hidden="true"
+        autocomplete="off"
+      />
 
-      <div class="remember-me">
-        <input type="checkbox" id="rememberMe" formControlName="rememberMe" />
-        <label for="rememberMe">Lembrar de mim</label>
-      </div>
+      <div class="login-row">
+        <div class="remember-me">
+          <input type="checkbox" id="rememberMe" formControlName="rememberMe" />
+          <label for="rememberMe">Lembrar de mim</label>
+        </div>
 
-      <div class="button-container">
-        <button class="btn btn-primary" type="submit" [disabled]="isLoading || !(hasRequiredFields$ | async)"
-          [attr.aria-disabled]="(isLoading || !(hasRequiredFields$ | async)) ? 'true' : 'false'">
-          {{ isLoading ? 'Aguarde...' : 'Login' }}
+        <button
+          class="forgot-password btn-link"
+          type="button"
+          (click)="openPasswordRecoveryModal()"
+          [disabled]="isLoading"
+        >
+          Esqueci minha senha
         </button>
       </div>
 
-      @if (isLoading) {
-      <div class="loading-overlay" aria-hidden="true">
-        <div class="spinner"></div>
+      <div class="button-container">
+        <button
+          class="btn btn-primary"
+          type="submit"
+          [disabled]="isLoading || !(hasRequiredFields$ | async)"
+          [attr.aria-disabled]="(isLoading || !(hasRequiredFields$ | async)) ? 'true' : 'false'"
+        >
+          {{ isLoading ? 'Aguarde...' : 'Entrar' }}
+        </button>
       </div>
+
+      <div class="auth-divider" aria-hidden="true">
+        <span>ou</span>
+      </div>
+
+      <button
+        class="btn-google"
+        type="button"
+        (click)="loginWithGoogle()"
+        [disabled]="isLoading"
+        [attr.aria-disabled]="isLoading ? 'true' : 'false'"
+      >
+        <span class="google-mark" aria-hidden="true">G</span>
+        <span>Continuar com Google</span>
+      </button>
+
+      <p class="auth-note">
+        Ao continuar, você mantém o fluxo seguro da plataforma. O Google autentica
+        sua identidade; a plataforma continua controlando perfil, preferências e descoberta.
+      </p>
+
+      @if (isLoading) {
+        <div class="loading-overlay" aria-hidden="true">
+          <div class="spinner"></div>
+        </div>
       }
 
       @if (successMessage) {
-      <p class="alert alert-success" role="status" aria-live="polite">
-        {{ successMessage }}
-      </p>
+        <p class="alert alert-success" role="status" aria-live="polite">
+          {{ successMessage }}
+        </p>
       }
 
       @if (errorMessage) {
-      <p id="form-status" class="alert alert-error" role="alert" aria-live="assertive">
-        {{ errorMessage }}
-      </p>
+        <p id="form-status" class="alert alert-error" role="alert" aria-live="assertive">
+          {{ errorMessage }}
+        </p>
       }
-
-      <button class="forgot-password btn-link" type="button" (click)="openPasswordRecoveryModal()" [disabled]="isLoading">
-        Esqueci minha senha
-      </button>
 
       <p class="register-link">
         Não tem uma conta?
@@ -80,20 +154,48 @@
   </div>
 
   @if (showEmailVerificationModal) {
-  <div class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="verify-title" aria-describedby="verify-desc">
-    <div class="modal-content">
-      <h2 id="verify-title">Verificação de E-mail</h2>
-      <p id="verify-desc">
-        Seu e-mail ainda não foi verificado. Por favor, verifique sua caixa de entrada
-        ou reenvie o link de verificação.
-      </p>
-      <div class="modal-actions">
-        <button class="btn btn-primary" type="button" (click)="resendVerificationEmail()">Reenviar E-mail de
-          Verificação</button>
-        <button class="btn btn-danger" type="button" (click)="logout()">Sair</button>
+    <div
+      class="modal-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="verify-title"
+      aria-describedby="verify-desc"
+    >
+      <div class="modal-content">
+        <h2 id="verify-title">Verificação de e-mail</h2>
+        <p id="verify-desc">
+          Seu e-mail ainda não foi verificado. Verifique sua caixa de entrada
+          ou reenvie o link de verificação.
+        </p>
+
+        <div class="modal-actions">
+          <button
+            class="btn btn-primary"
+            type="button"
+            (click)="resendVerificationEmail()"
+          >
+            Reenviar e-mail
+          </button>
+
+          <button
+            class="btn btn-primary"
+            type="button"
+            [routerLink]="['/register/welcome']"
+            [queryParams]="{ autocheck: '1' }"
+          >
+            Ir para verificação
+          </button>
+
+          <button
+            class="btn btn-danger"
+            type="button"
+            (click)="logout()"
+          >
+            Sair
+          </button>
+        </div>
       </div>
     </div>
-  </div>
   }
 
   <app-email-input-modal></app-email-input-modal>

@@ -82,8 +82,8 @@ export class RegisterComponent {
 
   // ---------------- Debug (opt-in via localStorage) ----------------
   // Ative com: localStorage.setItem('debugRegister', '1')
-  private debugEnabled(): boolean {
-    return localStorage.getItem('debugRegister') === '1';
+  debugEnabled(): boolean {
+    return typeof localStorage !== 'undefined' && localStorage.getItem('debugRegister') === '1';
   }
   private dbg(...args: any[]): void {
     if (this.debugEnabled()) console.debug('[Register]', ...args);
@@ -116,7 +116,7 @@ export class RegisterComponent {
       }),
 
       password: this.fb.control('', {
-        validators: [Validators.required, Validators.minLength(6)],
+        validators: [Validators.required, Validators.minLength(8)],
         updateOn: 'blur',
       }),
 
@@ -504,7 +504,7 @@ private runNicknameAvailabilityCheck$(mode: 'soft' | 'strict'): Observable<void>
             this.setBanner(
               'warn',
               'Conta criada, mas a sessão ainda não apareceu',
-              'Você pode sincronizar a sessão agora ou recarregar a página.',
+              'Você pode sincronizar a sessão agora ou recarregue a página.',
               e
             );
             return;

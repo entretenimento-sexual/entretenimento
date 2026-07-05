@@ -8,7 +8,8 @@
 // Importante:
 // - não representa o documento completo de users/{uid};
 // - deve refletir apenas campos seguros de public_profiles;
-// - não deve carregar e-mail, telefone, dados privados ou flags internas sensíveis.
+// - não deve carregar e-mail, telefone, dados privados ou flags internas sensíveis;
+// - métricas de mídia abaixo são agregadas canônicas públicas, vindas do backend.
 export interface PublicProfileCard {
   uid: string;
   nickname: string;
@@ -49,4 +50,16 @@ export interface PublicProfileCard {
   preferences?: readonly string[] | string | null;
   interestedInGenders?: readonly string[] | string | null;
   interestedInOrientations?: readonly string[] | string | null;
+
+  /**
+   * Métricas públicas agregadas por refreshPublicProfileMediaMetrics().
+   * Não devem ser recalculadas em componente visual.
+   */
+  mediaCount?: number | null;
+  photosCount?: number | null;
+  videosCount?: number | null;
+  viewsCount?: number | null;
+  likesCount?: number | null;
+  engagementScore?: number | null;
+  profileCompletenessScore?: number | null;
 }

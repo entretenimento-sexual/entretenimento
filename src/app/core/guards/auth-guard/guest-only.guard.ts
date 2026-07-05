@@ -16,13 +16,12 @@
 //
 // - /register/finalizar-cadastro:
 //   rota autenticada de conclusão do perfil.
-//   Deve ser liberada para usuário autenticado com profileCompleted=false,
-//   independentemente de emailVerified.
+//   Só deve ser liberada para usuário autenticado depois de emailVerified=true.
 //
 // Separação:
-// - profileCompleted controla conclusão do perfil mínimo.
-// - emailVerified controla confiança e recursos sensíveis.
-// - e-mail não verificado NÃO pode bloquear finalizar cadastro.
+// - emailVerified controla a confiança mínima da conta.
+// - profileCompleted controla a conclusão do perfil mínimo.
+// - e-mail não verificado bloqueia finalizar cadastro e redireciona para welcome.
 
 import { inject } from '@angular/core';
 import {
@@ -205,12 +204,20 @@ function decideGuestAccess$(
       }
 
       /**
-       * 3) Finalizar cadastro é rota válida para perfil incompleto.
+       * 3) E-mail não verificado tem prioridade sobre finalização do perfil.
        *
-       * Ponto central da correção:
-       * - NÃO depende de emailVerified;
-       * - NÃO pode cair em reason=email_unverified;
-       * - se profileCompleted=false, libera a rota.
+       * Alinha este guard com RegisterNavigationService:
+       * conta criada -> verificação de e-mail -> conclusão do perfil.
+       */
+      if (emailVerified !== true) {
+        return buildWelcomeRedirectTree(router, redirectTo, {
+          reason: 'email_unverified',
+        });
+      }
+
+      /**
+       * 4) Finalizar cadastro é rota válida para perfil incompleto
+       * somente depois da verificação do e-mail.
        */
       if (tryingFinalize) {
         if (!profileCompleted) {
@@ -225,24 +232,12 @@ function decideGuestAccess$(
       }
 
       /**
-       * 4) Perfil incompleto tem prioridade sobre e-mail.
-       *
-       * Antes, o guard checava e-mail primeiro e mandava para welcome.
-       * Isso quebrava o fluxo e impedia /register/finalizar-cadastro.
+       * 5) Perfil incompleto, com e-mail já verificado,
+       * deve ir para a conclusão de cadastro.
        */
       if (!profileCompleted) {
         return buildFinalizeRedirectTree(router, redirectTo, {
           reason: 'profile_incomplete',
-        });
-      }
-
-      /**
-       * 5) Só depois do perfil completo o e-mail passa a decidir
-       * acesso a fluxos que dependem de confiança.
-       */
-      if (emailVerified !== true) {
-        return buildWelcomeRedirectTree(router, redirectTo, {
-          reason: 'email_unverified',
         });
       }
 

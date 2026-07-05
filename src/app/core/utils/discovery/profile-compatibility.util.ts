@@ -25,6 +25,11 @@ export type NormalizedDiscoveryOrientation =
   | 'pansexual'
   | 'unknown';
 
+export type DiscoveryCoupleVariant =
+  | 'male_male'
+  | 'male_female'
+  | 'female_female';
+
 export type ProfileCompatibilityReason =
   | 'mutual_match'
   | 'viewer_data_missing'
@@ -50,8 +55,23 @@ export interface ProfileCompatibilityLike {
   normalizedOrientation?: string | null;
   compatibilityReady?: boolean | null;
 
+  coupleVariant?: string | null;
+  casalVariant?: string | null;
+  tipoCasal?: string | null;
+
+  partner1Gender?: string | null;
+  partner2Gender?: string | null;
+  parceiro1Gender?: string | null;
+  parceiro2Gender?: string | null;
+  partner1Genero?: string | null;
+  partner2Genero?: string | null;
+
   partner1Orientation?: string | null;
   partner2Orientation?: string | null;
+  parceiro1Orientation?: string | null;
+  parceiro2Orientation?: string | null;
+  partner1Orientacao?: string | null;
+  partner2Orientacao?: string | null;
 
   preferences?: readonly string[] | string | null;
   preferencias?: readonly string[] | string | null;
@@ -82,6 +102,18 @@ interface NormalizedInterest {
   readonly explicit: boolean;
 }
 
+interface NormalizedProfileMember {
+  readonly gender: NormalizedDiscoveryGender;
+  readonly orientation: NormalizedDiscoveryOrientation;
+}
+
+interface NormalizedProfileIdentity {
+  readonly gender: NormalizedDiscoveryGender;
+  readonly orientation: NormalizedDiscoveryOrientation;
+  readonly coupleVariant: DiscoveryCoupleVariant | null;
+  readonly members: readonly NormalizedProfileMember[];
+}
+
 const ALL_DISCOVERY_GENDERS: readonly NormalizedDiscoveryGender[] = [
   'man',
   'woman',
@@ -92,6 +124,13 @@ const ALL_DISCOVERY_GENDERS: readonly NormalizedDiscoveryGender[] = [
   'transgender',
   'crossdresser',
   'nonbinary',
+];
+
+const ALL_DISCOVERY_ORIENTATIONS: readonly NormalizedDiscoveryOrientation[] = [
+  'heterosexual',
+  'homosexual',
+  'bisexual',
+  'pansexual',
 ];
 
 const GENDER_DIVERSE_GENDERS: readonly NormalizedDiscoveryGender[] = [
@@ -107,6 +146,10 @@ function normalizeText(value: unknown): string {
   return typeof value === 'string'
     ? value.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     : '';
+}
+
+function normalizeToken(value: unknown): string {
+  return normalizeText(value).replace(/_/g, '-');
 }
 
 function unique<T>(values: readonly T[]): readonly T[] {
@@ -156,6 +199,10 @@ function getGenderValue(profile: ProfileCompatibilityLike | null | undefined): u
   return firstPresent(profile, ['normalizedGender', 'gender', 'genero']);
 }
 
+function getRawGenderValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
+  return firstPresent(profile, ['gender', 'genero', 'normalizedGender']);
+}
+
 function getOrientationValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
   return firstPresent(profile, [
     'normalizedOrientation',
@@ -178,12 +225,40 @@ function getInterestedOrientationValue(profile: ProfileCompatibilityLike | null 
   return firstPresent(profile, ['interestedInOrientations', 'orientacoesDeInteresse']);
 }
 
+function getCoupleVariantValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
+  return firstPresent(profile, ['coupleVariant', 'casalVariant', 'tipoCasal']);
+}
+
+function getPartner1GenderValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
+  return firstPresent(profile, ['partner1Gender', 'parceiro1Gender', 'partner1Genero']);
+}
+
+function getPartner2GenderValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
+  return firstPresent(profile, ['partner2Gender', 'parceiro2Gender', 'partner2Genero']);
+}
+
+function getPartner1OrientationValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
+  return firstPresent(profile, [
+    'partner1Orientation',
+    'parceiro1Orientation',
+    'partner1Orientacao',
+  ]);
+}
+
+function getPartner2OrientationValue(profile: ProfileCompatibilityLike | null | undefined): unknown {
+  return firstPresent(profile, [
+    'partner2Orientation',
+    'parceiro2Orientation',
+    'partner2Orientacao',
+  ]);
+}
+
 function isGenderDiverseGender(value: NormalizedDiscoveryGender): boolean {
   return GENDER_DIVERSE_GENDERS.includes(value);
 }
 
 export function normalizeDiscoveryGender(value: unknown): NormalizedDiscoveryGender {
-  const text = normalizeText(value).replace(/_/g, '-');
+  const text = normalizeToken(value);
 
   if (text === 'travesti' || text === 'travestis') {
     return 'travesti';
@@ -333,8 +408,51 @@ export function normalizeDiscoveryOrientation(
   return 'unknown';
 }
 
+export function normalizeDiscoveryCoupleVariant(
+  value: unknown
+): DiscoveryCoupleVariant | null {
+  const text = normalizeToken(value);
+
+  if (
+    text === 'male-male' ||
+    text === 'man-man' ||
+    text === 'homem-homem' ||
+    text === 'homens' ||
+    text === 'ele-ele' ||
+    text === 'casal-ele-ele' ||
+    text === 'm-m'
+  ) {
+    return 'male_male';
+  }
+
+  if (
+    text === 'male-female' ||
+    text === 'man-woman' ||
+    text === 'homem-mulher' ||
+    text === 'ele-ela' ||
+    text === 'casal-ele-ela' ||
+    text === 'm-f'
+  ) {
+    return 'male_female';
+  }
+
+  if (
+    text === 'female-female' ||
+    text === 'woman-woman' ||
+    text === 'mulher-mulher' ||
+    text === 'mulheres' ||
+    text === 'ela-ela' ||
+    text === 'casal-ela-ela' ||
+    text === 'f-f'
+  ) {
+    return 'female_female';
+  }
+
+  return null;
+}
+
 function gendersFromFreeText(value: unknown): NormalizedDiscoveryGender[] {
-  const text = normalizeText(value).replace(/_/g, '-');
+  const text = normalizeToken(value);
   const genders: NormalizedDiscoveryGender[] = [];
   const mentionsDiverseGender = /\b(trans|transgenero|transgender|transexual|transsexual|travesti|crossdresser|cross-dresser|nao-binario|nonbinary|non-binary|genderfluid)\b/.test(text);
 
@@ -434,6 +552,98 @@ function normalizeOrientationList(
   );
 }
 
+function resolveCoupleVariant(
+  profile: ProfileCompatibilityLike | null | undefined
+): DiscoveryCoupleVariant | null {
+  return normalizeDiscoveryCoupleVariant(getCoupleVariantValue(profile)) ??
+    normalizeDiscoveryCoupleVariant(getRawGenderValue(profile));
+}
+
+function memberGenderFromVariant(
+  variant: DiscoveryCoupleVariant,
+  index: 0 | 1
+): NormalizedDiscoveryGender {
+  if (variant === 'male_male') {
+    return 'man';
+  }
+
+  if (variant === 'female_female') {
+    return 'woman';
+  }
+
+  return index === 0 ? 'man' : 'woman';
+}
+
+function normalizeMemberOrientation(
+  value: unknown,
+  fallback: NormalizedDiscoveryOrientation
+): NormalizedDiscoveryOrientation {
+  const orientation = normalizeDiscoveryOrientation(value);
+
+  return orientation !== 'unknown' ? orientation : fallback;
+}
+
+function resolveCoupleMembers(
+  profile: ProfileCompatibilityLike | null | undefined,
+  variant: DiscoveryCoupleVariant | null,
+  fallbackOrientation: NormalizedDiscoveryOrientation
+): readonly NormalizedProfileMember[] {
+  if (!variant) {
+    return [];
+  }
+
+  const partner1Gender = normalizeDiscoveryGender(getPartner1GenderValue(profile));
+  const partner2Gender = normalizeDiscoveryGender(getPartner2GenderValue(profile));
+
+  return [
+    {
+      gender: partner1Gender !== 'unknown'
+        ? partner1Gender
+        : memberGenderFromVariant(variant, 0),
+      orientation: normalizeMemberOrientation(
+        getPartner1OrientationValue(profile),
+        fallbackOrientation
+      ),
+    },
+    {
+      gender: partner2Gender !== 'unknown'
+        ? partner2Gender
+        : memberGenderFromVariant(variant, 1),
+      orientation: normalizeMemberOrientation(
+        getPartner2OrientationValue(profile),
+        fallbackOrientation
+      ),
+    },
+  ];
+}
+
+function resolveProfileIdentity(
+  profile: ProfileCompatibilityLike | null | undefined
+): NormalizedProfileIdentity {
+  const gender = normalizeDiscoveryGender(getGenderValue(profile));
+  const orientation = normalizeDiscoveryOrientation(getOrientationValue(profile));
+  const coupleVariant = gender === 'couple' ? resolveCoupleVariant(profile) : null;
+
+  return {
+    gender,
+    orientation,
+    coupleVariant,
+    members: resolveCoupleMembers(profile, coupleVariant, orientation),
+  };
+}
+
+function hasActionableIdentity(identity: NormalizedProfileIdentity): boolean {
+  if (identity.gender === 'unknown') {
+    return false;
+  }
+
+  if (identity.orientation !== 'unknown') {
+    return true;
+  }
+
+  return identity.members.some((member) => member.orientation !== 'unknown');
+}
+
 function acceptedTargetGendersByOrientation(
   selfGender: NormalizedDiscoveryGender,
   selfOrientation: NormalizedDiscoveryOrientation
@@ -473,6 +683,22 @@ function acceptedTargetGendersByOrientation(
   return null;
 }
 
+function acceptedTargetGendersByIdentity(
+  identity: NormalizedProfileIdentity
+): readonly NormalizedDiscoveryGender[] | null {
+  if (identity.gender !== 'couple' || identity.members.length === 0) {
+    return acceptedTargetGendersByOrientation(identity.gender, identity.orientation);
+  }
+
+  const inferred = unique(
+    identity.members.flatMap((member) =>
+      acceptedTargetGendersByOrientation(member.gender, member.orientation) ?? []
+    )
+  );
+
+  return inferred.length ? inferred : null;
+}
+
 function acceptedTargetOrientationsByOrientation(
   selfOrientation: NormalizedDiscoveryOrientation
 ): readonly NormalizedDiscoveryOrientation[] | null {
@@ -485,14 +711,31 @@ function acceptedTargetOrientationsByOrientation(
   }
 
   if (selfOrientation === 'bisexual' || selfOrientation === 'pansexual') {
-    return ['heterosexual', 'homosexual', 'bisexual', 'pansexual'];
+    return ALL_DISCOVERY_ORIENTATIONS;
   }
 
   return null;
 }
 
+function acceptedTargetOrientationsByIdentity(
+  identity: NormalizedProfileIdentity
+): readonly NormalizedDiscoveryOrientation[] | null {
+  if (identity.gender !== 'couple' || identity.members.length === 0) {
+    return acceptedTargetOrientationsByOrientation(identity.orientation);
+  }
+
+  const inferred = unique(
+    identity.members.flatMap((member) =>
+      acceptedTargetOrientationsByOrientation(member.orientation) ?? []
+    )
+  );
+
+  return inferred.length ? inferred : null;
+}
+
 function resolveInterest(
-  profile: ProfileCompatibilityLike | null | undefined
+  profile: ProfileCompatibilityLike | null | undefined,
+  identity: NormalizedProfileIdentity = resolveProfileIdentity(profile)
 ): NormalizedInterest {
   const explicitGenders = normalizeGenderList(getInterestedGenderValue(profile));
   const explicitOrientations = normalizeOrientationList(getInterestedOrientationValue(profile));
@@ -501,10 +744,8 @@ function resolveInterest(
   const preferenceGenders = normalizeGenderList(preferences);
   const preferenceOrientations = normalizeOrientationList(preferences);
 
-  const selfGender = normalizeDiscoveryGender(getGenderValue(profile));
-  const selfOrientation = normalizeDiscoveryOrientation(getOrientationValue(profile));
-  const fallbackGenders = acceptedTargetGendersByOrientation(selfGender, selfOrientation);
-  const fallbackOrientations = acceptedTargetOrientationsByOrientation(selfOrientation);
+  const fallbackGenders = acceptedTargetGendersByIdentity(identity);
+  const fallbackOrientations = acceptedTargetOrientationsByIdentity(identity);
 
   const genders = explicitGenders.length
     ? explicitGenders
@@ -574,14 +815,10 @@ function orientationAccepted(
   return interest.orientations.includes(targetOrientation);
 }
 
-function acceptsTarget(
-  interest: NormalizedInterest,
-  targetGender: NormalizedDiscoveryGender,
-  targetOrientation: NormalizedDiscoveryOrientation
+function combineAcceptance(
+  acceptsGender: boolean | null,
+  acceptsOrientation: boolean | null
 ): boolean | null {
-  const acceptsGender = genderAccepted(interest, targetGender);
-  const acceptsOrientation = orientationAccepted(interest, targetOrientation);
-
   if (acceptsGender === false || acceptsOrientation === false) {
     return false;
   }
@@ -591,6 +828,58 @@ function acceptsTarget(
   }
 
   return null;
+}
+
+function acceptsSingleTarget(
+  interest: NormalizedInterest,
+  targetGender: NormalizedDiscoveryGender,
+  targetOrientation: NormalizedDiscoveryOrientation
+): boolean | null {
+  return combineAcceptance(
+    genderAccepted(interest, targetGender),
+    orientationAccepted(interest, targetOrientation)
+  );
+}
+
+function acceptsProfileTarget(
+  interest: NormalizedInterest,
+  target: NormalizedProfileIdentity
+): boolean | null {
+  const direct = acceptsSingleTarget(interest, target.gender, target.orientation);
+
+  if (target.gender !== 'couple' || target.members.length === 0) {
+    return direct;
+  }
+
+  if (interest.explicit && interest.genders?.includes('couple')) {
+    return direct;
+  }
+
+  if (interest.explicit && interest.genders?.length && !interest.genders.includes('couple')) {
+    return false;
+  }
+
+  if (direct === true) {
+    return true;
+  }
+
+  const memberResults = target.members.map((member) =>
+    acceptsSingleTarget(interest, member.gender, member.orientation)
+  );
+
+  if (memberResults.some((result) => result === true)) {
+    return true;
+  }
+
+  if (direct === false && memberResults.every((result) => result === false)) {
+    return false;
+  }
+
+  if (memberResults.some((result) => result === null)) {
+    return null;
+  }
+
+  return direct;
 }
 
 function scoreFromMatch(input: {
@@ -624,25 +913,22 @@ export function evaluateProfileCompatibility(
   viewer: ProfileCompatibilityLike | null | undefined,
   candidate: ProfileCompatibilityLike | null | undefined
 ): ProfileCompatibilityResult {
-  const viewerGender = normalizeDiscoveryGender(getGenderValue(viewer));
-  const viewerOrientation = normalizeDiscoveryOrientation(getOrientationValue(viewer));
+  const viewerIdentity = resolveProfileIdentity(viewer);
+  const candidateIdentity = resolveProfileIdentity(candidate);
 
-  const candidateGender = normalizeDiscoveryGender(getGenderValue(candidate));
-  const candidateOrientation = normalizeDiscoveryOrientation(getOrientationValue(candidate));
-
-  const viewerInterest = resolveInterest(viewer);
-  const candidateInterest = resolveInterest(candidate);
+  const viewerInterest = resolveInterest(viewer, viewerIdentity);
+  const candidateInterest = resolveInterest(candidate, candidateIdentity);
 
   const base = {
-    viewerGender,
-    viewerOrientation,
-    candidateGender,
-    candidateOrientation,
+    viewerGender: viewerIdentity.gender,
+    viewerOrientation: viewerIdentity.orientation,
+    candidateGender: candidateIdentity.gender,
+    candidateOrientation: candidateIdentity.orientation,
     viewerUsedExplicitPreference: viewerInterest.explicit,
     candidateUsedExplicitPreference: candidateInterest.explicit,
   };
 
-  if (viewerGender === 'unknown' || viewerOrientation === 'unknown') {
+  if (!hasActionableIdentity(viewerIdentity)) {
     return {
       ...base,
       compatible: true,
@@ -651,19 +937,17 @@ export function evaluateProfileCompatibility(
     };
   }
 
-  const viewerAcceptsCandidate = acceptsTarget(
+  const viewerAcceptsCandidate = acceptsProfileTarget(
     viewerInterest,
-    candidateGender,
-    candidateOrientation
+    candidateIdentity
   );
 
-  const candidateAcceptsViewer = acceptsTarget(
+  const candidateAcceptsViewer = acceptsProfileTarget(
     candidateInterest,
-    viewerGender,
-    viewerOrientation
+    viewerIdentity
   );
 
-  if (candidateGender === 'unknown' || candidateOrientation === 'unknown') {
+  if (!hasActionableIdentity(candidateIdentity)) {
     if (viewerAcceptsCandidate === false) {
       return {
         ...base,

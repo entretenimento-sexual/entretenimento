@@ -46,6 +46,10 @@ export interface RegisterFacadeResult {
   code?: string;
 }
 
+export type AuthFacadeSocialAuthResult = Omit<SocialAuthResult, 'nextRoute'> & {
+  nextRoute: SocialAuthResult['nextRoute'] | '/register/welcome';
+};
+
 @Injectable({ providedIn: 'root' })
 export class AuthFacade {
   private readonly loadingSubject = new BehaviorSubject<boolean>(false);
@@ -74,6 +78,25 @@ export class AuthFacade {
 
   private stopLoading(): void {
     this.loadingSubject.next(false);
+  }
+
+  private normalizeSocialAuthResult(
+    result: SocialAuthResult
+  ): AuthFacadeSocialAuthResult {
+    if (!result?.success || result.emailVerified === true) {
+      return result as AuthFacadeSocialAuthResult;
+    }
+
+    /**
+     * Defesa centralizada para qualquer UI que consuma AuthFacade.googleLogin$().
+     * Usuário social autenticado, mas sem e-mail verificado, deve voltar para a
+     * tela oficial de verificação antes de finalizar perfil.
+     */
+    return {
+      ...result,
+      nextRoute: '/register/welcome',
+      message: result.message || 'Confirme seu e-mail para continuar.',
+    };
   }
 
   // ===========================================================================
@@ -131,7 +154,7 @@ export class AuthFacade {
   /**
    * googleLogin$:
    * - executa login social
-   * - devolve SocialAuthResult estruturado
+   * - devolve resultado estruturado, já normalizado para o fluxo de onboarding
    * - não navega
    * - não faz toast
    *
@@ -140,10 +163,11 @@ export class AuthFacade {
    * - navegar para result.nextRoute
    * - abrir fluxo complementar
    */
-  googleLogin$(): Observable<SocialAuthResult> {
+  googleLogin$(): Observable<AuthFacadeSocialAuthResult> {
     this.startLoading();
 
     return this.socialAuthService.googleLogin().pipe(
+      map((result) => this.normalizeSocialAuthResult(result)),
       catchError((err: any) =>
         of({
           success: false,
@@ -154,7 +178,7 @@ export class AuthFacade {
           nextRoute: null,
           code: err?.code ?? 'auth-facade/social-login-failed',
           message: err?.message ?? 'Não foi possível autenticar com Google agora.',
-        } as SocialAuthResult)
+        } as AuthFacadeSocialAuthResult)
       ),
       finalize(() => this.stopLoading())
     );
@@ -205,7 +229,6 @@ src/app/core/services/autentication/auth/auth-session.service.ts
 src/app/core/services/autentication/auth/current-user-store.service.ts
 src/app/core/services/autentication/auth/auth-orchestrator.service.ts
 src/app/core/services/autentication/auth/auth.facade.ts
-src/app/core/services/autentication/auth/logout.service.ts
 */
 // Verificar migrações de responsabilidades para o:
 // 1 - auth-route-context.service.ts, e;

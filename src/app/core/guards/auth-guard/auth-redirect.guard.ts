@@ -6,8 +6,8 @@
 // Guard de redirecionamento para rotas de visitante.
 //
 // Regra corrigida:
-// - perfil incompleto tem prioridade sobre e-mail não verificado;
-// - completar perfil não depende de e-mail verificado;
+// - e-mail não verificado tem prioridade sobre conclusão de perfil;
+// - completar perfil depende de e-mail verificado;
 // - verificar e-mail não significa perfil completo.
 
 import { inject } from '@angular/core';
@@ -87,27 +87,24 @@ export const authRedirectGuard: CanActivateFn = (route, _state) => {
       }
 
       /**
-       * 2) Perfil incompleto vem antes de e-mail.
+       * 2) E-mail não verificado vem antes da conclusão do perfil.
        *
-       * Um usuário pode estar:
-       * - profileCompleted=false
-       * - emailVerified=false
-       *
-       * Mesmo assim o destino correto é finalizar cadastro,
-       * não welcome por e-mail.
-       */
-      if (!profileCompleted) {
-        return buildFinalizeRedirectTree(router, redirectTo, {
-          reason: 'profile_incomplete',
-        });
-      }
-
-      /**
-       * 3) Só depois do perfil completo o e-mail decide bloqueio de confiança.
+       * O destino correto para usuário autenticado sem e-mail verificado
+       * é /register/welcome, não /register/finalizar-cadastro.
        */
       if (!emailVerified) {
         return buildWelcomeRedirectTree(router, redirectTo, {
           reason: 'email_unverified',
+        });
+      }
+
+      /**
+       * 3) Perfil incompleto, com e-mail já verificado,
+       * deve ir para finalizar cadastro.
+       */
+      if (!profileCompleted) {
+        return buildFinalizeRedirectTree(router, redirectTo, {
+          reason: 'profile_incomplete',
         });
       }
 

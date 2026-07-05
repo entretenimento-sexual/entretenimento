@@ -178,6 +178,17 @@ match /public_profiles/{userId} {
       && optStringSized("role", 3, 20);
   }
 
+  function avatarOnlyUpdate() {
+    return request.resource.data.diff(resource.data).changedKeys().hasOnly([
+      "photoURL",
+      "avatarUrl",
+      "updatedAt"
+    ])
+      && request.resource.data.updatedAt == request.time
+      && optUrl("photoURL", 2048)
+      && optUrl("avatarUrl", 2048);
+  }
+
   allow create: if (
     isSelf(userId)
     && validPublicProfileCreatePayload()
@@ -189,12 +200,17 @@ match /public_profiles/{userId} {
 
   allow update: if (
     isSelf(userId)
-    && validClientEditablePublicProfilePayload()
-    && discoveryFieldsUnchangedOnUpdate()
-    && immutableIfExisting("uid")
-    && immutableExistingOrAbsent("createdAt")
-    && request.resource.data.updatedAt == request.time
-    && immutableExistingOrAbsent("role")
+    && (
+      avatarOnlyUpdate()
+      || (
+        validClientEditablePublicProfilePayload()
+        && discoveryFieldsUnchangedOnUpdate()
+        && immutableIfExisting("uid")
+        && immutableExistingOrAbsent("createdAt")
+        && request.resource.data.updatedAt == request.time
+        && immutableExistingOrAbsent("role")
+      )
+    )
   );
 
   allow delete: if false;

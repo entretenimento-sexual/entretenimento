@@ -62,7 +62,7 @@ import { Store } from '@ngrx/store';
 import { AppState } from 'src/app/store/states/app.state';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 
-import { selectCurrentUser, selectCurrentUserStatus 
+import { selectCurrentUser, selectCurrentUserStatus
   } from 'src/app/store/selectors/selectors.user/user.selectors';
 
 import { selectGlobalOnlineUsers } from 'src/app/store/selectors/selectors.user/online.selectors';
@@ -448,10 +448,26 @@ get listAriaLabel(): string {
     this.resetLocationPrompts();
   }
 
-  goToFinishMinimumProfile(): void {
+  async goToFinishMinimumProfile(): Promise<void> {
     this.resetLocationPrompts();
 
     const redirectTo = this.normalizeRedirectTarget(this.router.url);
+    const currentUser = await firstValueFrom(
+      this.currentUserResolved$.pipe(take(1))
+    ).catch(() => null);
+
+    if (currentUser?.emailVerified !== true) {
+      this.router
+        .navigate(['/register/welcome'], {
+          queryParams: {
+            autocheck: '1',
+            reason: 'email_unverified',
+            redirectTo,
+          },
+        })
+        .catch(() => {});
+      return;
+    }
 
     this.router
       .navigate(['/register/finalizar-cadastro'], {
@@ -955,5 +971,5 @@ private normalizeRedirectTarget(url: string | null | undefined): string {
     if (!this.debug) return;
     // eslint-disable-next-line no-console
     console.log(`[OnlineUsers] ${message}`, extra ?? '');
-  } 
+  }
 }// Linha 959, absurdamente grande para um componente, mas a maioria das linhas são tipos, estados e comentários detalhados. Refatorar para reduzir complexidade futura é recomendado, mas fora do escopo desta tarefa de migração.

@@ -117,6 +117,16 @@ export class UserDiscoveryQueryService {
     return Number.isFinite(n) ? n : null;
   }
 
+  /**
+   * Lê o primeiro campo numérico válido de uma lista de aliases.
+   *
+   * Mantém o mapper compatível com campos antigos e novos de public_profiles,
+   * sem recalcular métrica no front.
+   */
+  private firstNumber(source: any, keys: readonly string[]): number | null {
+    return this.toOptionalNumber(this.firstValue(source, keys));
+  }
+
   private hasText(value: unknown): boolean {
     return typeof value === 'string' && value.trim().length > 0;
   }
@@ -175,6 +185,37 @@ export class UserDiscoveryQueryService {
     const longitude = this.toOptionalNumber(
       this.firstValue(raw, ['longitude', 'lng', 'lon'])
     );
+
+    /**
+     * Métricas públicas canônicas de mídia.
+     *
+     * Fonte real: functions/src/media/application/public-profile-media-metrics.ts
+     * Documento: public_profiles/{uid}
+     *
+     * Este service apenas lê e repassa. Não calcula score e não ordena perfis.
+     * O score fica centralizado em DiscoveryCardEnrichmentService +
+     * discovery-profile-score.utils.ts.
+     */
+    const mediaCount = this.firstNumber(raw, ['mediaCount', 'publicMediaCount']);
+    const photosCount = this.firstNumber(raw, ['photosCount', 'publicPhotosCount']);
+    const videosCount = this.firstNumber(raw, ['videosCount', 'publicVideosCount']);
+    const viewsCount = this.firstNumber(raw, [
+      'viewsCount',
+      'profileViewsCount',
+      'profileViews',
+    ]);
+    const likesCount = this.firstNumber(raw, [
+      'likesCount',
+      'publicLikesCount',
+      'reactionsCount',
+    ]);
+    const reactionsCount = this.firstNumber(raw, ['reactionsCount']) ?? likesCount;
+    const uniqueViewersCount = this.firstNumber(raw, ['uniqueViewersCount']);
+    const viewScore = this.firstNumber(raw, ['viewScore']);
+    const engagementScore = this.firstNumber(raw, ['engagementScore']);
+    const profileCompletenessScore = this.firstNumber(raw, [
+      'profileCompletenessScore',
+    ]);
 
     return {
       uid,
@@ -276,6 +317,31 @@ export class UserDiscoveryQueryService {
 
       createdAt: this.firstValue(raw, ['createdAt']) ?? null,
       updatedAt: this.firstValue(raw, ['updatedAt']) ?? null,
+
+      /**
+       * Métricas públicas agregadas.
+       *
+       * Esses campos são consumidos pelo score canônico de discovery.
+       * Mantemos também aliases legados para evitar quebra em componentes
+       * que ainda leem publicMediaCount/profileViewsCount/publicLikesCount.
+       */
+      mediaCount,
+      publicMediaCount: mediaCount,
+      photosCount,
+      publicPhotosCount: photosCount,
+      videosCount,
+      publicVideosCount: videosCount,
+      viewsCount,
+      profileViewsCount: viewsCount,
+      profileViews: viewsCount,
+      likesCount,
+      publicLikesCount: likesCount,
+      reactionsCount,
+      uniqueViewersCount,
+      viewScore,
+      engagementScore,
+      profileCompletenessScore,
+      mediaMetricsUpdatedAt: this.firstValue(raw, ['mediaMetricsUpdatedAt']) ?? null,
 
       isOnline: false,
       lastSeen: null,
@@ -627,13 +693,20 @@ export class UserDiscoveryQueryService {
                 })
               );
           }),
-          catchError((err) => {
-            this.firestoreError.handleFirestoreError(err);
-            return of([] as IUserDados[]);
-          })
+          catchError((err) =>
+            this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
+              err,
+              [],
+              {
+                silent: true,
+                context: 'user-discovery.getAllUsers$',
+              }
+            )
+          ),
         );
       }),
+
       shareReplay({ bufferSize: 1, refCount: true })
     );
   }
-}
+} // Linha 705

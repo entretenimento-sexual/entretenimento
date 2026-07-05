@@ -35,7 +35,6 @@ import {
 import {
   Observable,
   defer,
-  firstValueFrom,
   from,
   of,
   throwError,
@@ -53,7 +52,6 @@ import {
 import { ErrorNotificationService } from '../error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from '../privacy/privacy-debug-logger.service';
-import { UsuarioService } from '../user-profile/usuario.service';
 
 type UploadKind = 'image' | 'video';
 type StorageDebugKind = UploadKind | 'avatar';
@@ -86,7 +84,6 @@ export class StorageService {
     private readonly errorNotifier: ErrorNotificationService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly store: Store<AppState>,
-    private readonly usuarioService: UsuarioService,
     private readonly privacyDebug: PrivacyDebugLoggerService
   ) {}
 
@@ -613,8 +610,8 @@ export class StorageService {
   /**
    * Avatar é publicado em namespace próprio.
    *
-   * Se a URL HTTP(S) for obtida, atualizamos photoURL.
-   * Se não for, retornamos o storage path e não quebramos o perfil com path bruto.
+   * Este método apenas valida, envia para Storage e devolve URL/path.
+   * Persistência em users/{uid} e sincronização pública pertencem ao fluxo de perfil.
    */
   uploadProfileAvatar(
     file: File,
@@ -646,11 +643,15 @@ export class StorageService {
             false
           ).pipe(
             switchMap((uploadedPath) => this.resolveReadableLocation$(uploadedPath)),
-            switchMap((location) =>
-              from(this.updateAvatarProfileIfReadable$(safeUid, location)).pipe(
-                map(() => location)
-              )
-            )
+            map((location) => {
+              this.dbg('uploadProfileAvatar completed', {
+                hasUserId: !!safeUid,
+                hasLocation: !!location,
+                readableLocation: this.isHttpUrl(location),
+              });
+
+              return location;
+            })
           );
         })
       );
@@ -676,36 +677,6 @@ export class StorageService {
 
         return throwError(() => error);
       })
-    );
-  }
-
-  private async updateAvatarProfileIfReadable$(
-    userId: string,
-    location: string
-  ): Promise<void> {
-    if (this.isHttpUrl(location)) {
-      await firstValueFrom(
-        this.usuarioService.atualizarUsuario(userId, {
-          photoURL: location,
-        })
-      );
-
-      this.dbg('avatar profile updated with readable URL', {
-        hasUserId: !!userId,
-        hasReadableUrl: true,
-      });
-
-      this.errorNotifier.showSuccess('Avatar atualizado com sucesso!');
-      return;
-    }
-
-    this.dbg('avatar uploaded without immediate readable URL', {
-      hasUserId: !!userId,
-      hasStoragePath: !!location,
-    });
-
-    this.errorNotifier.showSuccess(
-      'Avatar enviado com sucesso. A publicação final dependerá da próxima etapa.'
     );
   }
 

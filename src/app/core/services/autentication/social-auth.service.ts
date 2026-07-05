@@ -3,33 +3,26 @@
 // SOCIAL AUTH SERVICE (Google Sign-In) — Auth + Firestore
 //
 // Responsabilidade deste service:
-// - autenticar via Google no Firebase Auth
-// - ler o users/{uid} no Firestore (server-first)
-// - criar seed mínima para novo usuário
-// - atualizar campos operacionais seguros do usuário existente
+// - autenticar via Google no Firebase Auth;
+// - ler o users/{uid} no Firestore (server-first);
+// - delegar criação inicial para RegistrationBootstrapService;
+// - atualizar campos operacionais seguros do usuário existente;
 // - devolver um resultado ESTRUTURADO para a camada chamadora decidir:
-//   - rota
-//   - feedback visual
-//   - próximas ações
+//   - rota;
+//   - feedback visual;
+//   - próximas ações.
 //
 // NÃO é responsabilidade deste service:
-// - navegar
-// - hidratar CurrentUserStoreService
-// - atualizar cache/store manualmente
-// - iniciar watchers
-// - executar logout
+// - navegar;
+// - hidratar CurrentUserStoreService;
+// - atualizar cache/store manualmente;
+// - iniciar watchers;
+// - executar logout.
 //
 // Observação arquitetural:
-// - Sessão continua sendo verdade do AuthSessionService
-// - Runtime de perfil continua sendo verdade do fluxo oficial do projeto
-// - Este service apenas autentica + persiste + devolve resultado
-//
-// Ajuste desta versão:
-// - migra o fluxo para o novo lifecycle da conta
-// - conta suspensa ou em exclusão pendente pode autenticar
-// - nesses casos, a próxima rota correta passa a ser /conta/status
-// - apenas conta realmente "deleted" bloqueia o fluxo aqui
-// - usuário novo via Google nasce como FREE, não BASIC
+// - Sessão continua sendo verdade do AuthSessionService.
+// - Runtime de perfil continua sendo verdade do fluxo oficial do projeto.
+// - Bootstrap inicial de conta pertence ao RegistrationBootstrapService.
 // ==============================================================
 import {
   EnvironmentInjector,
@@ -59,6 +52,7 @@ import {
 import { FirestoreReadService } from '../data-handling/firestore/core/firestore-read.service';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
 import { GlobalErrorHandlerService } from '../error-handler/global-error-handler.service';
+import { RegistrationBootstrapService } from './register/registration-bootstrap.service';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
@@ -175,6 +169,7 @@ export class SocialAuthService {
     private readonly auth: Auth,
     private readonly read: FirestoreReadService,
     private readonly write: FirestoreWriteService,
+    private readonly registrationBootstrap: RegistrationBootstrapService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly envInjector: EnvironmentInjector
   ) {}
@@ -184,24 +179,24 @@ export class SocialAuthService {
   // ==============================================================
 
   private ensurePersistentAuth$(): Observable<void> {
-  return defer(() =>
-    runInInjectionContext(this.envInjector, () =>
-      setPersistence(this.auth, browserLocalPersistence)
-    )
-  ).pipe(
-    map(() => void 0)
-  );
-}
+    return defer(() =>
+      runInInjectionContext(this.envInjector, () =>
+        setPersistence(this.auth, browserLocalPersistence)
+      )
+    ).pipe(
+      map(() => void 0)
+    );
+  }
 
-    googleLogin(): Observable<SocialAuthResult> {
-      const provider = this.buildGoogleProvider();
+  googleLogin(): Observable<SocialAuthResult> {
+    const provider = this.buildGoogleProvider();
 
-      return this.ensurePersistentAuth$().pipe(
-        switchMap(() => this.signInWithPopupInCtx$(provider)),
-        switchMap((credential) => this.bootstrapUserAfterAuth$(credential)),
-        catchError((err) => of(this.handleGoogleLoginError(err)))
-      );
-    }
+    return this.ensurePersistentAuth$().pipe(
+      switchMap(() => this.signInWithPopupInCtx$(provider)),
+      switchMap((credential) => this.bootstrapUserAfterAuth$(credential)),
+      catchError((err) => of(this.handleGoogleLoginError(err)))
+    );
+  }
 
   // ===========================================================================
   // Auth popup
@@ -284,12 +279,16 @@ export class SocialAuthService {
     nowMs: number
   ): Observable<SocialAuthResult> {
     const seed = this.buildNewUserSeed(authUser, nowMs);
-    const payload: Record<string, unknown> = { ...seed };
 
-    return this.write
-      .setDocument('users', authUser.uid, payload, {
-        merge: true,
-        context: 'SocialAuthService.handleNewUserLogin',
+    return this.registrationBootstrap
+      .createSocialSeed$({
+        uid: authUser.uid,
+        email: authUser.email ?? '',
+        emailVerified: !!authUser.emailVerified,
+        photoURL: authUser.photoURL,
+        providerIds: seed.authProviders,
+        providerId: 'google.com',
+        nowMs,
       })
       .pipe(
         map(() => {
@@ -480,10 +479,15 @@ export class SocialAuthService {
     authUser: FirebaseUser,
     nowMs: number
   ): Partial<SocialAuthUserDoc> {
-    const tier = this.normalizeTier(existing.tier ?? existing.role ?? 'free');
     const providerIds = this.mergeProviderIds(existing.authProviders, authUser);
-    const accountStatus = this.resolveAccountStatus(existing);
 
+    /**
+     * Mantém o update compatível com users.rules.
+     *
+     * Campos como role, tier, roles, permissions, entitlements e accountStatus
+     * são sensíveis e não podem ser alterados pelo próprio usuário no login.
+     * Eles continuam sendo lidos de users/{uid} e normalizados apenas em memória.
+     */
     return {
       lastLogin: nowMs,
       updatedAtMs: nowMs,
@@ -493,23 +497,6 @@ export class SocialAuthService {
         this.normalizePhotoUrl(authUser.photoURL) ??
         this.normalizePhotoUrl(existing.photoURL),
 
-      role: this.normalizeRole(existing.role ?? tier),
-      tier,
-
-      roles:
-        Array.isArray(existing.roles) && existing.roles.length > 0
-          ? existing.roles
-          : ['user'],
-
-      permissions: Array.isArray(existing.permissions)
-        ? existing.permissions
-        : [],
-
-      entitlements: Array.isArray(existing.entitlements)
-        ? existing.entitlements
-        : [],
-
-      accountStatus,
       authProviders: providerIds,
       lastProvider: 'google.com',
     };
@@ -778,34 +765,30 @@ export class SocialAuthService {
 
     return this.makeErrorResult({
       code: code || 'social-auth/unknown',
-      message: 'Não foi possível autenticar com Google agora. Tente novamente.',
+      message: 'Não foi possível entrar com Google agora.',
     });
   }
 
-  private reportSilent(err: unknown, context: Record<string, unknown>): void {
+  private reportSilent(err: unknown, meta?: Record<string, unknown>): void {
     try {
-      this.dbg('reportSilent', context);
-
-      const error = new Error('[SocialAuthService] operation failed');
-      (error as any).silent = true;
-      (error as any).skipUserNotification = true;
-      (error as any).original = err;
-      (error as any).context = context;
-
-      this.globalErrorHandler.handleError(error);
+      const e = err instanceof Error ? err : new Error('Falha no SocialAuthService.');
+      (e as any).silent = true;
+      (e as any).skipUserNotification = true;
+      (e as any).meta = meta;
+      (e as any).original = err;
+      this.globalErrorHandler.handleError(e);
     } catch {
       // noop
     }
   }
 
-  // ===========================================================================
-  // Debug
-  // ===========================================================================
-
-  private dbg(message: string, extra?: unknown): void {
+  private dbg(tag: string, data?: Record<string, unknown>): void {
     if (!this.debug) return;
 
-    // eslint-disable-next-line no-console
-    console.log(`[SocialAuthService] ${message}`, extra ?? '');
+    try {
+      console.debug(`[SocialAuthService] ${tag}`, data ?? {});
+    } catch {
+      // noop
+    }
   }
 }

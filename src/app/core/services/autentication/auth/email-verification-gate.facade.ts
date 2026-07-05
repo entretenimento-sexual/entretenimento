@@ -8,13 +8,16 @@
 //   e-mail verificado.
 //
 // Regra importante:
-// - este banner NÃO deve aparecer enquanto profileCompleted=false.
-// - enquanto o perfil estiver incompleto, a prioridade visual e de navegação é
-//   "complete seu perfil", não "verifique seu e-mail".
+// - este banner NÃO decide o onboarding inicial;
+// - durante /register, a ordem canônica é controlada por RegisterFlowFacade
+//   e pelos guards: e-mail verificado -> perfil -> consentimento -> preferências;
+// - fora do fluxo de registro, este facade só oferece CTA de verificação quando
+//   a rota atual permite permanência e o usuário já passou da finalização básica.
 //
 // Separação:
-// - profileCompleted controla onboarding/navegação básica.
-// - emailVerified controla confiança e recursos sensíveis.
+// - RegisterFlowFacade/guards controlam navegação de onboarding.
+// - emailVerified controla confiança e acesso a recursos sensíveis.
+// - este facade controla apenas feedback visual global de verificação.
 
 import { Injectable, inject } from '@angular/core';
 import { ActivatedRouteSnapshot, NavigationEnd, Router } from '@angular/router';
@@ -33,6 +36,7 @@ import {
 
 import { AccessControlService } from './access-control.service';
 import { AuthSessionService } from './auth-session.service';
+import { CurrentUserStoreService } from './current-user-store.service';
 import { ErrorNotificationService } from '../../error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { EmailVerificationService } from '../register/email-verification.service';
@@ -60,6 +64,7 @@ export interface EmailVerificationGateBannerVm {
 export class EmailVerificationGateFacade {
   private readonly access = inject(AccessControlService);
   private readonly session = inject(AuthSessionService);
+  private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly router = inject(Router);
   private readonly notify = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
@@ -101,6 +106,7 @@ export class EmailVerificationGateFacade {
       this.access.emailVerified$,
       this.access.inRegistrationFlow$,
       this.session.authUser$.pipe(startWith(null)),
+      this.currentUserStore.user$.pipe(startWith(undefined)),
       this.activeRouteMeta$,
     ]).pipe(
       map(
@@ -110,20 +116,27 @@ export class EmailVerificationGateFacade {
           emailVerified,
           inRegistrationFlow,
           authUser,
+          appUser,
           routeMeta,
         ]) => {
           const cleanUrl = routeMeta.currentUrl;
+          const appUserVerified =
+            appUser !== undefined && appUser !== null && appUser.emailVerified === true;
+          const verified =
+            emailVerified === true ||
+            authUser?.emailVerified === true ||
+            appUserVerified;
 
           if (!isAuthenticated) return null;
 
           /**
-           * Prioridade:
-           * perfil incompleto deve ser tratado pelo fluxo de onboarding/finalização,
-           * não pelo banner de e-mail.
+           * Este banner não substitui o fluxo de onboarding.
+           * Se o perfil básico ainda não foi concluído, os guards do registro
+           * devem decidir a próxima etapa; aqui evitamos UI global duplicada.
            */
           if (!profileCompleted) return null;
 
-          if (emailVerified) return null;
+          if (verified) return null;
           if (inRegistrationFlow) return null;
           if (this.shouldHideBanner(cleanUrl)) return null;
 
@@ -258,4 +271,4 @@ export class EmailVerificationGateFacade {
       this.notify.showError(message);
     }
   }
-} // Linha 261
+}
