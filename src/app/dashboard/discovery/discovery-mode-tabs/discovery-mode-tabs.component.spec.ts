@@ -9,13 +9,17 @@ describe('DiscoveryModeTabsComponent', () => {
 
   const tabs: readonly DiscoveryModeTab[] = [
     {
-      id: 'todos',
+      id: 'all',
       label: 'Todos',
+      icon: 'fas fa-users',
+      ariaLabel: 'Ver todos os perfis',
       description: 'Todos os perfis',
     },
     {
       id: 'online',
       label: 'Online',
+      icon: 'fas fa-bolt',
+      ariaLabel: 'Ver perfis online',
       description: 'Perfis online',
     },
   ];
@@ -28,7 +32,7 @@ describe('DiscoveryModeTabsComponent', () => {
     fixture = TestBed.createComponent(DiscoveryModeTabsComponent);
     component = fixture.componentInstance;
     fixture.componentRef.setInput('tabs', tabs);
-    fixture.componentRef.setInput('activeMode', 'todos');
+    fixture.componentRef.setInput('activeMode', 'all');
     fixture.detectChanges();
   });
 
