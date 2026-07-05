@@ -1,23 +1,12 @@
 // src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.spec.ts
-// -----------------------------------------------------------------------------
-// ProfilesDiscoveryPageComponent Spec
-// -----------------------------------------------------------------------------
-//
-// Teste da página pai de descoberta.
-//
-// Ajustes desta versão:
-// - alinha o spec com a API atual do componente:
-//   activeMode(), onDiscoveryModeChange(), tab.id e tab.disabled;
-// - remove expectativa antiga sobre mode(), setMode(), tab.mode e tab.enabled;
-// - mocka blocos pesados para manter o teste focado na página pai;
-// - usa Vitest.
-
 import { Component, Input } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { of } from 'rxjs';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { ProfilesDiscoveryPageComponent } from './profiles-discovery-page.component';
+import { DiscoveryPublicProfilesFacade } from '../application/discovery-public-profiles.facade';
 
 import { OnlineUsersFullComponent } from '../../online/online-users-full/online-users-full.component';
 import { PublicProfilesListComponent } from '../public-profiles-list/public-profiles-list.component';
@@ -27,7 +16,10 @@ import { PublicProfilesListComponent } from '../public-profiles-list/public-prof
   standalone: true,
   template: '<div data-testid="mock-online-users-full"></div>',
 })
-class MockOnlineUsersFullComponent {}
+class MockOnlineUsersFullComponent {
+  @Input() embedded: unknown;
+  @Input() mode: unknown;
+}
 
 @Component({
   selector: 'app-public-profiles-list',
@@ -47,7 +39,17 @@ describe('ProfilesDiscoveryPageComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ProfilesDiscoveryPageComponent],
-      providers: [provideRouter([])],
+      providers: [
+        provideRouter([]),
+        {
+          provide: DiscoveryPublicProfilesFacade,
+          useValue: {
+            profiles$: of([]),
+            loading$: of(false),
+            errorMessage$: of(null),
+          },
+        },
+      ],
     })
       .overrideComponent(ProfilesDiscoveryPageComponent, {
         remove: {
@@ -99,10 +101,9 @@ describe('ProfilesDiscoveryPageComponent', () => {
     expect(allTab?.disabled).not.toBe(true);
   });
 
-  it('deve conter aba perto desabilitada por enquanto', () => {
+  it('deve manter aba perto fora da navegação enquanto estiver desabilitada', () => {
     const nearbyTab = component.tabs.find((tab) => tab.id === 'nearby');
 
-    expect(nearbyTab).toBeTruthy();
-    expect(nearbyTab?.disabled).toBe(true);
+    expect(nearbyTab).toBeUndefined();
   });
 });
