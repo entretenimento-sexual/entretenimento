@@ -37,6 +37,7 @@ describe('CacheService', () => {
         {
           provide: PrivacyDebugLoggerService,
           useValue: {
+            canLog: () => false,
             log: () => undefined,
           },
         },
