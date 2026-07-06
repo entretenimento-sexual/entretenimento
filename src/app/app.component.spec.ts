@@ -3,6 +3,7 @@ import { Component, NO_ERRORS_SCHEMA } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
+import { firstValueFrom } from 'rxjs';
 import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
 
 import { AppComponent } from './app.component';
@@ -80,9 +81,7 @@ describe('AppComponent', () => {
 
   it('ngOnInit should start orchestrators and keep footer visibility route-aware', async () => {
     const fixture = TestBed.createComponent(AppComponent);
-    const component = fixture.componentInstance as AppComponent & {
-      shouldHideFooter(url: string): boolean;
-    };
+    const component = fixture.componentInstance;
 
     fixture.detectChanges();
 
@@ -93,7 +92,11 @@ describe('AppComponent', () => {
     await fixture.ngZone!.run(() => router.navigateByUrl('/home'));
     fixture.detectChanges();
 
-    expect(component.shouldHideFooter('/home')).toBe(false);
-    expect(component.shouldHideFooter('/chat/abc')).toBe(true);
+    await expect(firstValueFrom(component.showFooter$)).resolves.toBe(true);
+
+    await fixture.ngZone!.run(() => router.navigateByUrl('/chat/abc'));
+    fixture.detectChanges();
+
+    await expect(firstValueFrom(component.showFooter$)).resolves.toBe(false);
   });
 });
