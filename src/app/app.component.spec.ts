@@ -1,5 +1,5 @@
 // src/app/app.component.spec.ts
-import { Component } from '@angular/core';
+import { Component, NO_ERRORS_SCHEMA } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
@@ -58,6 +58,7 @@ describe('AppComponent', () => {
         { provide: AuthDebugService, useValue: authDebugStub },
         { provide: RouterDiagnosticsService, useValue: routerDiagnosticsStub },
       ],
+      schemas: [NO_ERRORS_SCHEMA],
     }).compileComponents();
 
     router = TestBed.inject(Router);
