@@ -1,6 +1,6 @@
 // src/app/app.component.spec.ts
 import { Component } from '@angular/core';
-import { TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { describe, beforeEach, afterEach, it, expect, vi } from 'vitest';
@@ -77,7 +77,7 @@ describe('AppComponent', () => {
     expect(fixture.componentInstance.title).toBe('entretenimento');
   });
 
-  it('ngOnInit should start orchestrators and toggle footer class on navigation', fakeAsync(() => {
+  it('ngOnInit should start orchestrators and toggle footer class on navigation', async () => {
     const fixture = TestBed.createComponent(AppComponent);
 
     fixture.detectChanges();
@@ -86,20 +86,14 @@ describe('AppComponent', () => {
     expect(orchestratorStub.start).toHaveBeenCalledTimes(1);
     expect(presenceOrchestratorStub.start).toHaveBeenCalledTimes(1);
 
-    fixture.ngZone!.run(() => {
-      void router.navigateByUrl('/home');
-    });
-    tick();
+    await fixture.ngZone!.run(() => router.navigateByUrl('/home'));
     fixture.detectChanges();
 
     expect(document.body.classList.contains('show-footer')).toBe(true);
 
-    fixture.ngZone!.run(() => {
-      void router.navigateByUrl('/chat/abc');
-    });
-    tick();
+    await fixture.ngZone!.run(() => router.navigateByUrl('/chat/abc'));
     fixture.detectChanges();
 
     expect(document.body.classList.contains('show-footer')).toBe(false);
-  }));
+  });
 });
