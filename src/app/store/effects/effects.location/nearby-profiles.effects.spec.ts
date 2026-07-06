@@ -7,8 +7,12 @@ import { MockStore, provideMockStore } from '@ngrx/store/testing';
 
 import { NearbyProfilesEffects } from './nearby-profiles.effects';
 import { NearbyProfilesActions } from '../../actions/actions.location/nearby-profiles.actions';
-import { selectEntryByKey, selectNearbyFreshByParams } from '../../selectors/selectors.location/nearby-profiles.selectors';
-import { buildNearbyKey, initialNearbyProfilesState, NearbyEntry } from '../../states/states.location/nearby-profiles.state';
+import {
+  buildNearbyKey,
+  initialNearbyProfilesState,
+  NearbyEntry,
+  NearbyProfilesState,
+} from '../../states/states.location/nearby-profiles.state';
 
 import { NearbyProfilesService } from '../../../core/services/geolocation/near-profile.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
@@ -40,8 +44,10 @@ describe('NearbyProfilesEffects', () => {
   const params = { uid, lat, lon, radiusKm };
   const key = buildNearbyKey(params);
 
-  const freshSel = selectNearbyFreshByParams(params);
-  const entrySel = selectEntryByKey(key);
+  function setNearbyState(state: NearbyProfilesState): void {
+    store.setState({ nearbyProfiles: state });
+    store.refreshState();
+  }
 
   beforeEach(() => {
     actions$ = new ReplaySubject<Action>(1);
@@ -81,7 +87,7 @@ describe('NearbyProfilesEffects', () => {
     actions$.complete();
   });
 
-  it('cache-first: quando isFresh=true emite loaded com a lista do cache (sem chamar service)', async () => {
+  it('cache-first: quando isFresh=true emite loaded com a lista do cache sem chamar service', async () => {
     const cached: NearbyEntry = {
       list: [{ uid: 'a' } as IUserDados],
       loading: false,
@@ -89,9 +95,10 @@ describe('NearbyProfilesEffects', () => {
       updatedAt: Date.now(),
     };
 
-    store.overrideSelector(freshSel, true);
-    store.overrideSelector(entrySel, cached);
-    store.refreshState();
+    setNearbyState({
+      byKey: { [key]: cached },
+      ttlMs: 120_000,
+    });
 
     actions$.next(NearbyProfilesActions.load({ params }));
 
@@ -113,9 +120,12 @@ describe('NearbyProfilesEffects', () => {
       { uid: 'y' } as IUserDados,
     ];
 
-    store.overrideSelector(freshSel, false);
-    store.overrideSelector(entrySel, { list: [], loading: false, error: null, updatedAt: 0 });
-    store.refreshState();
+    setNearbyState({
+      byKey: {
+        [key]: { list: [], loading: false, error: null, updatedAt: 0 },
+      },
+      ttlMs: 120_000,
+    });
 
     svc.getProfilesNearLocation.mockResolvedValue(fetched);
 
@@ -135,9 +145,12 @@ describe('NearbyProfilesEffects', () => {
   });
 
   it('erro: quando service rejeita, emite error e notifica/handleError', async () => {
-    store.overrideSelector(freshSel, false);
-    store.overrideSelector(entrySel, { list: [], loading: false, error: null, updatedAt: 0 });
-    store.refreshState();
+    setNearbyState({
+      byKey: {
+        [key]: { list: [], loading: false, error: null, updatedAt: 0 },
+      },
+      ttlMs: 120_000,
+    });
 
     const boom = new Error('network');
     svc.getProfilesNearLocation.mockRejectedValue(boom);
