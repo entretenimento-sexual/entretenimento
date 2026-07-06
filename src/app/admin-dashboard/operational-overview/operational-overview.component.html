@@ -106,17 +106,44 @@
         </div>
       </div>
 
+      <div class="queue-feedback" role="status" aria-live="polite">
+        <mat-icon aria-hidden="true">tune</mat-icon>
+        <span>
+          Exibindo {{ vm.filteredReports.length }} de {{ vm.totalReports }} denúncia(s).
+          Filtro ativo: {{ vm.reportFilter === 'priority' ? 'Prioridade 48h+' : vm.reportFilter === 'open' ? 'Abertas' : vm.reportFilter === 'reviewing' ? 'Em análise' : 'Todas' }}.
+        </span>
+      </div>
+
       <ol class="compact-list" *ngIf="vm.filteredReports.length; else noReports">
-        <li *ngFor="let report of vm.filteredReports; trackBy: trackByReportId">
+        <li [class]="'compact-list__item compact-list__item--' + report.status" *ngFor="let report of vm.filteredReports; trackBy: trackByReportId">
           <div>
             <strong>{{ statusLabel(report.status) }}</strong>
             <span>{{ report.reason || 'Motivo não informado' }} · {{ report.targetType || 'alvo não informado' }}</span>
           </div>
+          <span [class]="'status-pill status-pill--' + report.status">{{ statusLabel(report.status) }}</span>
           <time *ngIf="dateValue(report.createdAt) as reportDate" [attr.datetime]="reportDate.toISOString()">{{ reportDate | date: 'dd/MM HH:mm' }}</time>
         </li>
       </ol>
 
-      <ng-template #noReports><p class="empty-state">Nenhuma denúncia encontrada neste filtro.</p></ng-template>
+      <ng-template #noReports>
+        <div class="empty-state empty-state--queue" role="status" aria-live="polite">
+          <div class="empty-state__icon" aria-hidden="true">
+            <mat-icon>{{ vm.totalReports ? 'filter_alt_off' : 'verified' }}</mat-icon>
+          </div>
+
+          <div class="empty-state__content">
+            <strong>{{ vm.totalReports ? 'Nenhuma denúncia neste filtro' : 'Fila operacional limpa' }}</strong>
+            <span>
+              {{ vm.totalReports ? 'Troque o filtro para visualizar outras denúncias ou abra a tela completa de moderação.' : 'Nenhuma denúncia foi carregada para a fila operacional neste momento.' }}
+            </span>
+          </div>
+
+          <div class="empty-state__actions">
+            <button *ngIf="vm.totalReports" type="button" mat-stroked-button (click)="setReportFilter('all')">Ver todas</button>
+            <a mat-button routerLink="/admin-dashboard/denuncias">Abrir moderação</a>
+          </div>
+        </div>
+      </ng-template>
     </article>
 
     <article class="operational-panel" aria-labelledby="users-title">
@@ -138,7 +165,18 @@
         </li>
       </ol>
 
-      <ng-template #noUsers><p class="empty-state">Nenhum usuário carregado.</p></ng-template>
+      <ng-template #noUsers>
+        <div class="empty-state" role="status" aria-live="polite">
+          <div class="empty-state__icon" aria-hidden="true"><mat-icon>person_off</mat-icon></div>
+          <div class="empty-state__content">
+            <strong>Nenhum usuário carregado</strong>
+            <span>Os dados de usuários ainda não foram retornados para este painel.</span>
+          </div>
+          <div class="empty-state__actions">
+            <a mat-button routerLink="/admin-dashboard/users">Abrir usuários</a>
+          </div>
+        </div>
+      </ng-template>
     </article>
   </section>
 </section>
