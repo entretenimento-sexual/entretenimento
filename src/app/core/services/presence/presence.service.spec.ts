@@ -1,14 +1,8 @@
 // src/app/core/services/presence/presence.service.spec.ts
-import { TestBed } from '@angular/core/testing';
-import { NgZone } from '@angular/core';
 import { Subject, of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PresenceService } from './presence.service';
-import { PresenceDomStreamsService } from './presence-dom-streams.service';
-import { PresenceLeaderElectionService } from './presence-leader-election.service';
-import { PresenceWriterService } from './presence-writer.service';
-import { PrivacyDebugLoggerService } from '../privacy/privacy-debug-logger.service';
 
 describe('PresenceService', () => {
   let service: PresenceService;
@@ -60,47 +54,24 @@ describe('PresenceService', () => {
       releaseLeadership: vi.fn(),
     };
 
-    TestBed.configureTestingModule({
-      providers: [
-        PresenceService,
-        {
-          provide: NgZone,
-          useValue: {
-            runOutsideAngular: (task: () => void) => task(),
-            run: <T>(task: () => T) => task(),
-          },
-        },
-        {
-          provide: PresenceDomStreamsService,
-          useValue: {
-            create: () => ({
-              storage$: storage$.asObservable(),
-              visibility$: visibility$.asObservable(),
-              online$: online$.asObservable(),
-              offline$: offline$.asObservable(),
-              beforeUnload$: beforeUnload$.asObservable(),
-              pageHide$: pageHide$.asObservable(),
-            }),
-          },
-        },
-        {
-          provide: PresenceLeaderElectionService,
-          useValue: leaderMock,
-        },
-        {
-          provide: PresenceWriterService,
-          useValue: writerMock,
-        },
-        {
-          provide: PrivacyDebugLoggerService,
-          useValue: {
-            log: vi.fn(),
-          },
-        },
-      ],
-    });
-
-    service = TestBed.inject(PresenceService);
+    service = new PresenceService(
+      {
+        runOutsideAngular: (task: () => void) => task(),
+      } as any,
+      {
+        create: () => ({
+          storage$: storage$.asObservable(),
+          visibility$: visibility$.asObservable(),
+          online$: online$.asObservable(),
+          offline$: offline$.asObservable(),
+          beforeUnload$: beforeUnload$.asObservable(),
+          pageHide$: pageHide$.asObservable(),
+        }),
+      } as any,
+      leaderMock as any,
+      writerMock as any,
+      { log: vi.fn() } as any
+    );
   });
 
   afterEach(() => {
