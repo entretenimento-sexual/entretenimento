@@ -6,6 +6,7 @@ import { Firestore } from '@angular/fire/firestore';
 import { of } from 'rxjs';
 
 import { ChatMessageComponent } from './chat-message.component';
+import { ChatReplyQuotePipe } from '../pipes/chat-reply-quote.pipe';
 import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
@@ -17,7 +18,7 @@ describe('ChatMessageComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [ChatMessageComponent],
+      declarations: [ChatMessageComponent, ChatReplyQuotePipe],
       providers: [
         { provide: Firestore, useValue: {} },
         {
