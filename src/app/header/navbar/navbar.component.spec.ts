@@ -1,4 +1,5 @@
 // src/app/header/navbar/navbar.component.spec.ts
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
@@ -17,6 +18,9 @@ import { ErrorNotificationService } from '../../core/services/error-handler/erro
 import { SidebarService } from '../../core/services/navigation/sidebar.service';
 import { AppNotificationService } from '../../core/services/notifications/app-notification.service';
 import { LogoutService } from '../../core/services/autentication/auth/logout.service';
+
+@Component({ standalone: true, template: '' })
+class DummyRouteComponent {}
 
 class MockSidebarService {
   vm$ = of({ isOpen: false });
@@ -79,7 +83,12 @@ describe('NavbarComponent', () => {
 
     await TestBed.configureTestingModule({
       declarations: [NavbarComponent],
-      imports: [RouterTestingModule.withRoutes([])],
+      imports: [
+        DummyRouteComponent,
+        RouterTestingModule.withRoutes([
+          { path: 'login', component: DummyRouteComponent },
+        ]),
+      ],
       providers: [
         { provide: Auth, useValue: mockAuth },
         { provide: SidebarService, useClass: MockSidebarService },
