@@ -1,7 +1,7 @@
 // src/app/register-module/register.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
-import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
+import { describe, beforeEach, it, expect, vi } from 'vitest';
 import { ReactiveFormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
@@ -14,7 +14,6 @@ import { RegisterService } from '../core/services/autentication/register/registe
 import { EmailVerificationService } from '../core/services/autentication/register/email-verification.service';
 import { ErrorNotificationService } from '../core/services/error-handler/error-notification.service';
 
-// Mocks simples
 class MockFirestoreValidationService {
   checkIfNicknameExists = vi.fn().mockReturnValue(of(false));
 }
@@ -83,7 +82,7 @@ describe('RegisterComponent', () => {
       apelidoPrincipal: 'john',
       complementoApelido: 'doe',
       email: 'jd@example.com',
-      password: '123456',
+      password: '12345678',
       aceitarTermos: true,
     });
 
@@ -98,7 +97,7 @@ describe('RegisterComponent', () => {
         acceptedTerms: expect.objectContaining({ accepted: true }),
         emailVerified: false,
       }),
-      '123456'
+      '12345678'
     );
 
     expect(router.navigate).toHaveBeenCalledWith(

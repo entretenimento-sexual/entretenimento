@@ -1,34 +1,31 @@
 // src/app/core/services/data-handling/firestore-query.service.spec.ts
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { firstValueFrom, of } from 'rxjs';
 
 import { Firestore } from '@angular/fire/firestore';
 import { FirestoreQueryService } from './firestore-query.service';
 
 import { CacheService } from '../general/cache/cache.service';
-import { FirestoreUserQueryService } from './firestore-user-query.service';
 import { FirestoreReadService } from './firestore/core/firestore-read.service';
+import { FirestoreContextService } from './firestore/core/firestore-context.service';
 import { UserPresenceQueryService } from './queries/user-presence.query.service';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-
-// ========================
-// Mocks
-// ========================
+import {
+  createStoreTestingMock,
+  provideStoreTestingMock,
+} from '../../../../test/ngrx-store-testing.providers';
 
 class MockFirestoreReadService {
   getDocument = vi.fn().mockReturnValue(of(null));
   getDocumentsOnce = vi.fn().mockReturnValue(of([]));
+  getDocumentsLiveSafe = vi.fn().mockReturnValue(of([]));
 }
 
 class MockCacheService {
   get = vi.fn().mockReturnValue(of(undefined));
   set = vi.fn();
-}
-
-class MockFirestoreUserQueryService {
-  getUserWithObservable = vi.fn().mockReturnValue(of(null));
 }
 
 class MockUserPresenceQueryService {
@@ -38,25 +35,32 @@ class MockUserPresenceQueryService {
   getRecentlyOnline$ = vi.fn().mockReturnValue(of([]));
 }
 
-describe('FirestoreQueryService (Jest)', () => {
+class MockFirestoreContextService {
+  deferObservable$ = vi.fn((task: () => unknown) => task());
+}
+
+describe('FirestoreQueryService', () => {
   let service: FirestoreQueryService;
 
   let mockRead: MockFirestoreReadService;
   let mockCache: MockCacheService;
-  let mockUserQuery: MockFirestoreUserQueryService;
   let mockPresence: MockUserPresenceQueryService;
 
   const firestoreMock = {} as unknown as Firestore;
 
   beforeEach(() => {
+    const storeMock = createStoreTestingMock({
+      defaultSelectorValue: null,
+    });
+
     TestBed.configureTestingModule({
       providers: [
         FirestoreQueryService,
-
+        ...provideStoreTestingMock(storeMock),
         { provide: Firestore, useValue: firestoreMock },
         { provide: CacheService, useClass: MockCacheService },
-        { provide: FirestoreUserQueryService, useClass: MockFirestoreUserQueryService },
         { provide: FirestoreReadService, useClass: MockFirestoreReadService },
+        { provide: FirestoreContextService, useClass: MockFirestoreContextService },
         { provide: UserPresenceQueryService, useClass: MockUserPresenceQueryService },
       ],
     });
@@ -65,7 +69,6 @@ describe('FirestoreQueryService (Jest)', () => {
 
     mockRead = TestBed.inject(FirestoreReadService) as unknown as MockFirestoreReadService;
     mockCache = TestBed.inject(CacheService) as unknown as MockCacheService;
-    mockUserQuery = TestBed.inject(FirestoreUserQueryService) as unknown as MockFirestoreUserQueryService;
     mockPresence = TestBed.inject(UserPresenceQueryService) as unknown as MockUserPresenceQueryService;
 
     vi.clearAllMocks();
@@ -80,189 +83,171 @@ describe('FirestoreQueryService (Jest)', () => {
     expect(instance).toBe(firestoreMock);
   });
 
-  it('getDocumentById delega para FirestoreReadService.getDocument', (done) => {
+  it('getDocumentById delega para FirestoreReadService.getDocument', async () => {
     const obj = { uid: '123' } as unknown as IUserDados;
     mockRead.getDocument.mockReturnValueOnce(of(obj));
 
-    service.getDocumentById<IUserDados>('users', '123').subscribe((res: IUserDados | null) => {
-      expect(mockRead.getDocument).toHaveBeenCalledWith('users', '123');
-      expect(res).toEqual(obj);
-      
-    });
+    const res = await firstValueFrom(service.getDocumentById<IUserDados>('users', '123'));
+
+    expect(mockRead.getDocument).toHaveBeenCalledWith('users', '123');
+    expect(res).toEqual(obj);
   });
 
-  it('getDocumentsByQuery delega para FirestoreReadService.getDocumentsOnce (com cache)', (done) => {
+  it('getDocumentsByQuery delega para FirestoreReadService.getDocumentsOnce com cache', async () => {
     const result = [{ uid: '1' }] as unknown as IUserDados[];
     mockRead.getDocumentsOnce.mockReturnValueOnce(of(result));
 
-    service.getDocumentsByQuery<IUserDados>('users', []).subscribe((res: IUserDados[]) => {
-      expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
-        'users',
-        
-        { useCache: true, cacheTTL: 300_000 }
-      );
-      expect(res).toEqual(result);
-      
-    });
+    const res = await firstValueFrom(service.getDocumentsByQuery<IUserDados>('users', []));
+
+    expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
+      'users',
+      [],
+      { useCache: true, cacheTTL: 300_000 }
+    );
+    expect(res).toEqual(result);
   });
 
   describe('getAllUsers', () => {
-    it('usa cache quando houver', (done) => {
+    it('usa cache quando houver', async () => {
       const cached = [{ uid: 'c1' }] as unknown as IUserDados[];
       mockCache.get.mockReturnValueOnce(of(cached));
 
-      service.getAllUsers().subscribe((res: IUserDados[]) => {
-        expect(res).toEqual(cached);
-        expect(mockRead.getDocumentsOnce).not.toHaveBeenCalled();
-        expect(mockCache.set).not.toHaveBeenCalled();
-        
-      });
+      const res = await firstValueFrom(service.getAllUsers());
+
+      expect(res).toEqual(cached);
+      expect(mockRead.getDocumentsOnce).not.toHaveBeenCalled();
+      expect(mockCache.set).not.toHaveBeenCalled();
     });
 
-    it('busca e seta cache quando não houver', (done) => {
+    it('busca e seta cache quando não houver', async () => {
       const users = [{ uid: 'u1' }, { uid: 'u2' }] as unknown as IUserDados[];
       mockCache.get.mockReturnValueOnce(of(undefined));
       mockRead.getDocumentsOnce.mockReturnValueOnce(of(users));
 
-      service.getAllUsers().subscribe((res: IUserDados[]) => {
-        expect(res).toEqual(users);
-        expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
-          'users',
-          
-          { useCache: true, cacheTTL: 300_000 }
-        );
-        expect(mockCache.set).toHaveBeenCalledWith('allUsers', users, 600_000);
-        
-      });
+      const res = await firstValueFrom(service.getAllUsers());
+
+      expect(res).toEqual(users);
+      expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
+        'users',
+        [],
+        { useCache: true, cacheTTL: 300_000 }
+      );
+      expect(mockCache.set).toHaveBeenCalledWith('allUsers', users, 600_000);
     });
   });
 
-  describe('presença (delegação)', () => {
-    it('getOnlineUsers$ delega para UserPresenceQueryService.getOnlineUsers$', (done) => {
+  describe('presença por delegação', () => {
+    it('getOnlineUsers$ delega para UserPresenceQueryService.getOnlineUsers$', async () => {
       const users = [{ uid: 'o1', isOnline: true }] as unknown as IUserDados[];
       mockPresence.getOnlineUsers$.mockReturnValueOnce(of(users));
 
-      service.getOnlineUsers$().subscribe((res: IUserDados[]) => {
-        expect(mockPresence.getOnlineUsers$).toHaveBeenCalled();
-        expect(res).toEqual(users);
-        
-      });
+      const res = await firstValueFrom(service.getOnlineUsers$());
+
+      expect(mockPresence.getOnlineUsers$).toHaveBeenCalled();
+      expect(res).toEqual(users);
     });
 
-    it('getOnlineUsers delega para UserPresenceQueryService.getOnlineUsersOnce$', (done) => {
+    it('getOnlineUsers delega para UserPresenceQueryService.getOnlineUsersOnce$', async () => {
       const users = [{ uid: 'o1', isOnline: true }] as unknown as IUserDados[];
       mockPresence.getOnlineUsersOnce$.mockReturnValueOnce(of(users));
 
-      service.getOnlineUsers().subscribe((res: IUserDados[]) => {
-        expect(mockPresence.getOnlineUsersOnce$).toHaveBeenCalled();
-        expect(res).toEqual(users);
-        
-      });
+      const res = await firstValueFrom(service.getOnlineUsers());
+
+      expect(mockPresence.getOnlineUsersOnce$).toHaveBeenCalled();
+      expect(res).toEqual(users);
     });
 
-    it('getOnlineUsersByRegion delega para UserPresenceQueryService.getOnlineUsersByRegion$', (done) => {
+    it('getOnlineUsersByRegion delega para UserPresenceQueryService.getOnlineUsersByRegion$', async () => {
       const users = [{ uid: 'r1', municipio: 'Rio', isOnline: true }] as unknown as IUserDados[];
       mockPresence.getOnlineUsersByRegion$.mockReturnValueOnce(of(users));
 
-      service.getOnlineUsersByRegion('Rio').subscribe((res: IUserDados[]) => {
-        expect(mockPresence.getOnlineUsersByRegion$).toHaveBeenCalledWith('Rio');
-        expect(res).toEqual(users);
-        
-      });
+      const res = await firstValueFrom(service.getOnlineUsersByRegion('Rio'));
+
+      expect(mockPresence.getOnlineUsersByRegion$).toHaveBeenCalledWith('Rio');
+      expect(res).toEqual(users);
     });
 
-    it('getRecentlyOnline$ delega para UserPresenceQueryService.getRecentlyOnline$', (done) => {
+    it('getRecentlyOnline$ delega para UserPresenceQueryService.getRecentlyOnline$', async () => {
       const users = [{ uid: 'x1' }] as unknown as IUserDados[];
       mockPresence.getRecentlyOnline$.mockReturnValueOnce(of(users));
 
-      service.getRecentlyOnline$(45_000).subscribe((res: IUserDados[]) => {
-        expect(mockPresence.getRecentlyOnline$).toHaveBeenCalledWith(45_000);
-        expect(res).toEqual(users);
-        
-      });
+      const res = await firstValueFrom(service.getRecentlyOnline$(45_000));
+
+      expect(mockPresence.getRecentlyOnline$).toHaveBeenCalledWith(45_000);
+      expect(res).toEqual(users);
     });
   });
 
   describe('wrappers compat', () => {
-    it('getUsersByMunicipio aplica where (1 constraint)', (done) => {
+    it('getUsersByMunicipio aplica where', async () => {
       const users = [{ uid: 'm1', municipio: 'Rio' }] as unknown as IUserDados[];
       mockRead.getDocumentsOnce.mockReturnValueOnce(of(users));
 
-      service.getUsersByMunicipio('Rio').subscribe((res: IUserDados[]) => {
-        expect(res).toEqual(users);
+      const res = await firstValueFrom(service.getUsersByMunicipio('Rio'));
 
-        const last = mockRead.getDocumentsOnce.mock.calls.at(-1)!;
-        expect(last[0]).toBe('users');
-        expect(Array.isArray(last[1])).toBe(true);
-        expect((last[1] as any[]).length).toBe(1);
-
-      });
+      expect(res).toEqual(users);
+      const last = mockRead.getDocumentsOnce.mock.calls.at(-1)!;
+      expect(last[0]).toBe('users');
+      expect(Array.isArray(last[1])).toBe(true);
+      expect((last[1] as any[]).length).toBe(1);
     });
 
-    it('getOnlineUsersByMunicipio delega para getOnlineUsersByRegion', (done) => {
+    it('getOnlineUsersByMunicipio delega para getOnlineUsersByRegion', async () => {
       const users = [{ uid: '1', municipio: 'Rio', isOnline: true }] as unknown as IUserDados[];
       mockPresence.getOnlineUsersByRegion$.mockReturnValueOnce(of(users));
 
-      service.getOnlineUsersByMunicipio('Rio').subscribe((res: IUserDados[]) => {
-        expect(mockPresence.getOnlineUsersByRegion$).toHaveBeenCalledWith('Rio');
-        expect(res).toEqual(users);
-        
-      });
+      const res = await firstValueFrom(service.getOnlineUsersByMunicipio('Rio'));
+
+      expect(mockPresence.getOnlineUsersByRegion$).toHaveBeenCalledWith('Rio');
+      expect(res).toEqual(users);
     });
 
-    it('getSuggestedProfiles delega para getDocumentsOnce com constraints []', (done) => {
+    it('getSuggestedProfiles delega para getDocumentsLiveSafe com limit', async () => {
       const users = [{ uid: 's1' }] as unknown as IUserDados[];
-      mockRead.getDocumentsOnce.mockReturnValueOnce(of(users));
+      mockRead.getDocumentsLiveSafe.mockReturnValueOnce(of(users));
 
-      service.getSuggestedProfiles().subscribe((res: IUserDados[]) => {
-        expect(res).toEqual(users);
-        expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
-          'users',
-          
-          { useCache: true, cacheTTL: 300_000 }
-        );
-        
-      });
+      const res = await firstValueFrom(service.getSuggestedProfiles());
+
+      expect(res).toEqual(users);
+      const last = mockRead.getDocumentsLiveSafe.mock.calls.at(-1)!;
+      expect(last[0]).toBe('public_profiles');
+      expect(Array.isArray(last[1])).toBe(true);
+      expect((last[1] as any[]).length).toBe(1);
+      expect(last[2]).toEqual({ idField: 'uid', requireAuth: true });
     });
   });
 
-  it('getProfilesByOrientationAndLocation envia 3 constraints', (done) => {
+  it('getProfilesByOrientationAndLocation envia 3 constraints', async () => {
     const users = [{ uid: 'p1' }] as unknown as IUserDados[];
     mockRead.getDocumentsOnce.mockReturnValueOnce(of(users));
 
-    service.getProfilesByOrientationAndLocation('M', 'hetero', 'Rio').subscribe((res: IUserDados[]) => {
-      expect(res).toEqual(users);
-      const last = mockRead.getDocumentsOnce.mock.calls.at(-1)!;
-      const constraints = last[1] as any[];
-      expect(constraints.length).toBe(3);
-      
-    });
+    const res = await firstValueFrom(
+      service.getProfilesByOrientationAndLocation('M', 'hetero', 'Rio')
+    );
+
+    expect(res).toEqual(users);
+    const last = mockRead.getDocumentsOnce.mock.calls.at(-1)!;
+    const constraints = last[1] as any[];
+    expect(constraints.length).toBe(3);
   });
 
-  it('getUserFromState delega para FirestoreUserQueryService.getUserWithObservable', (done) => {
-    const user = { uid: 'uX' } as unknown as IUserDados;
-    mockUserQuery.getUserWithObservable.mockReturnValueOnce(of(user));
-
-    service.getUserFromState('uX').subscribe((res: IUserDados | null) => {
-      expect(res).toEqual(user);
-      expect(mockUserQuery.getUserWithObservable).toHaveBeenCalledWith('uX');
-      
-    });
+  it('getUserFromState retorna null quando selector não tem usuário', async () => {
+    const res = await firstValueFrom(service.getUserFromState('uX'));
+    expect(res).toBeNull();
   });
 
-  it('searchUsers delega para getDocumentsOnce com constraints', (done) => {
+  it('searchUsers delega para getDocumentsOnce com constraints', async () => {
     const constraints: any[] = [{}, {}];
     const result = [{ uid: 'z1' }] as unknown as IUserDados[];
     mockRead.getDocumentsOnce.mockReturnValueOnce(of(result));
 
-    service.searchUsers(constraints as any).subscribe((res: IUserDados[]) => {
-      expect(res).toEqual(result);
-      expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
-        'users',
-        constraints as any,
-        { useCache: true, cacheTTL: 300_000 }
-      );
-      
-    });
+    const res = await firstValueFrom(service.searchUsers(constraints as any));
+
+    expect(res).toEqual(result);
+    expect(mockRead.getDocumentsOnce).toHaveBeenCalledWith(
+      'users',
+      constraints as any,
+      { useCache: true, cacheTTL: 300_000 }
+    );
   });
 });

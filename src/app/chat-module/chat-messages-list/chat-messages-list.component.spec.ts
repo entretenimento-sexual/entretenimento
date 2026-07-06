@@ -4,11 +4,14 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 
 import { ChatMessagesListComponent } from './chat-messages-list.component';
-import { ChatService } from '../../core/services/batepapo/chat-service/chat.service';
 import { RoomMessagesService } from '../../core/services/batepapo/room-services/room-messages.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
+import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
+import { DateTimeService } from '../../core/services/general/date-time.service';
+import { DirectChatFacade } from '../../messaging/direct-chat/application/direct-chat.facade';
+import { DirectThreadFacade } from '../../messaging/direct-chat/application/direct-thread.facade';
 
 describe('ChatMessagesListComponent', () => {
   let fixture: ComponentFixture<ChatMessagesListComponent>;
@@ -18,10 +21,16 @@ describe('ChatMessagesListComponent', () => {
       declarations: [ChatMessagesListComponent],
       providers: [
         {
-          provide: ChatService,
+          provide: DirectChatFacade,
           useValue: {
-            monitorChat: vi.fn(() => of([])),
-            updateMessageStatus: vi.fn(() => of(void 0)),
+            selectChat: vi.fn(),
+          },
+        },
+        {
+          provide: DirectThreadFacade,
+          useValue: {
+            state$: of({ chatId: 'c1', messages: [] }),
+            markVisibleMessagesAsRead$: vi.fn(() => of(void 0)),
           },
         },
         {
@@ -40,6 +49,18 @@ describe('ChatMessagesListComponent', () => {
           provide: GlobalErrorHandlerService,
           useValue: {
             handleError: vi.fn(),
+          },
+        },
+        {
+          provide: PrivacyDebugLoggerService,
+          useValue: {
+            log: vi.fn(),
+          },
+        },
+        {
+          provide: DateTimeService,
+          useValue: {
+            formatRelativeTime: vi.fn(() => 'agora'),
           },
         },
         {

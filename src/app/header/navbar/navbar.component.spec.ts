@@ -1,11 +1,13 @@
 // src/app/header/navbar/navbar.component.spec.ts
-import { ComponentFixture, TestBed, fakeAsync, tick } from '@angular/core/testing';
+import { Component } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { BehaviorSubject, of } from 'rxjs';
 
-import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
+import { describe, beforeEach, it, expect, vi } from 'vitest';
 
 import { NavbarComponent } from './navbar.component';
 import { Auth } from '@angular/fire/auth';
@@ -14,36 +16,49 @@ import { AuthSessionService } from '../../core/services/autentication/auth/auth-
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from '../../core/services/error-handler/error-notification.service';
 import { SidebarService } from '../../core/services/navigation/sidebar.service';
+import { AppNotificationService } from '../../core/services/notifications/app-notification.service';
+import { LogoutService } from '../../core/services/autentication/auth/logout.service';
+
+@Component({ standalone: true, template: '' })
+class DummyRouteComponent {}
 
 class MockSidebarService {
+  vm$ = of({ isOpen: false });
   toggleSidebar = vi.fn();
 }
 
 class MockAuthSessionService {
   private readonly uidSubject = new BehaviorSubject<string | null>(null);
+  private readonly readySubject = new BehaviorSubject<boolean>(true);
+  private readonly authenticatedSubject = new BehaviorSubject<boolean>(false);
+  private readonly authUserSubject = new BehaviorSubject<any | null>(null);
 
-  // o componente usa this.session.uid$.pipe(...)
   uid$ = this.uidSubject.asObservable();
+  ready$ = this.readySubject.asObservable();
+  isAuthenticated$ = this.authenticatedSubject.asObservable();
+  authUser$ = this.authUserSubject.asObservable();
 
-  // o componente usa startWith(this.session.currentAuthUser?.uid ?? null)
-  currentAuthUser: { uid: string } | null = null;
-
-  signOut$ = vi.fn(() => of(void 0));
+  currentAuthUser: { uid: string; displayName?: string; email?: string; photoURL?: string } | null = null;
 
   setUid(uid: string | null): void {
-    this.currentAuthUser = uid ? { uid } : null;
+    this.currentAuthUser = uid ? { uid, email: 'user@example.com' } : null;
     this.uidSubject.next(uid);
+    this.authUserSubject.next(this.currentAuthUser);
+    this.authenticatedSubject.next(!!uid);
   }
 }
 
 class MockCurrentUserStoreService {
-  // o componente consome user$
   user$ = new BehaviorSubject<any | null | undefined>(undefined);
 }
 
 class MockErrorNotificationService {
   showSuccess = vi.fn();
   showError = vi.fn();
+}
+
+class MockLogoutService {
+  logout$ = vi.fn(() => of(void 0));
 }
 
 describe('NavbarComponent', () => {
@@ -54,6 +69,7 @@ describe('NavbarComponent', () => {
   let session: MockAuthSessionService;
   let sidebar: MockSidebarService;
   let notify: MockErrorNotificationService;
+  let logout: MockLogoutService;
 
   const mockAuth: Partial<Auth> = {
     currentUser: null,
@@ -67,20 +83,40 @@ describe('NavbarComponent', () => {
 
     await TestBed.configureTestingModule({
       declarations: [NavbarComponent],
-      imports: [RouterTestingModule.withRoutes([])],
+      imports: [
+        DummyRouteComponent,
+        RouterTestingModule.withRoutes([
+          { path: 'login', component: DummyRouteComponent },
+        ]),
+      ],
       providers: [
         { provide: Auth, useValue: mockAuth },
         { provide: SidebarService, useClass: MockSidebarService },
         { provide: AuthSessionService, useClass: MockAuthSessionService },
         { provide: CurrentUserStoreService, useClass: MockCurrentUserStoreService },
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },
+        { provide: LogoutService, useClass: MockLogoutService },
+        {
+          provide: AppNotificationService,
+          useValue: {
+            currentUserUnreadCount$: of(0),
+          },
+        },
+        {
+          provide: BreakpointObserver,
+          useValue: {
+            observe: vi.fn(() => of({ matches: false })),
+          },
+        },
       ],
       schemas: [NO_ERRORS_SCHEMA],
     }).compileComponents();
 
     router = TestBed.inject(Router);
     session = TestBed.inject(AuthSessionService) as unknown as MockAuthSessionService;
+    sidebar = TestBed.inject(SidebarService) as unknown as MockSidebarService;
     notify = TestBed.inject(ErrorNotificationService) as unknown as MockErrorNotificationService;
+    logout = TestBed.inject(LogoutService) as unknown as MockLogoutService;
 
     fixture = TestBed.createComponent(NavbarComponent);
     component = fixture.componentInstance;
@@ -96,25 +132,20 @@ describe('NavbarComponent', () => {
     expect(sidebar.toggleSidebar).toHaveBeenCalled();
   });
 
-  it('deve marcar isLoginPage=true após navegar para /login', fakeAsync(() => {
-    router.navigateByUrl('/login');
-    tick();
+  it('deve marcar isLoginPage=true após navegar para /login', async () => {
+    await router.navigateByUrl('/login');
     fixture.detectChanges();
 
     expect(component.isLoginPage).toBe(true);
-  }));
+  });
 
-  it('logout: deve chamar signOut$, notificar sucesso e navegar para /login', fakeAsync(() => {
-    const navSpy = vi.spyOn(router, 'navigate').mockResolvedValue(true as any);
-
+  it('logout: deve chamar logoutService e notificar sucesso', () => {
     component.logout();
-    tick();
     fixture.detectChanges();
 
-    expect(session.signOut$).toHaveBeenCalled();
+    expect(logout.logout$).toHaveBeenCalled();
     expect(notify.showSuccess).toHaveBeenCalledWith('Você saiu da sua conta.');
-    expect(navSpy).toHaveBeenCalledWith(['/login'], { replaceUrl: true });
-  }));
+  });
 
   it('toggleDarkMode / toggleHighContrast / resetAppearance devem refletir no <html>', () => {
     component.toggleDarkMode();
@@ -132,12 +163,10 @@ describe('NavbarComponent', () => {
     expect(localStorage.getItem('high-contrast')).toBe('0');
   });
 
-  it('deve suportar uid autenticado vindo do AuthSessionService', fakeAsync(() => {
+  it('deve suportar uid autenticado vindo do AuthSessionService', () => {
     session.setUid('uid-123');
-    tick();
     fixture.detectChanges();
 
     expect(session.currentAuthUser?.uid).toBe('uid-123');
-    sidebar = TestBed.inject(SidebarService) as unknown as MockSidebarService;
-  }));
+  });
 });

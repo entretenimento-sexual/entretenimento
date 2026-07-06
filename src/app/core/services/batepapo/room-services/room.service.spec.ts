@@ -1,36 +1,36 @@
 // src/app/core/services/batepapo/room-services/room.service.spec.ts
-// Testes unitários do RoomService
-// Ajustes desta versão:
-// - instancia o service via TestBed, porque ele usa inject()
-// - evita matchers que quebram com tipagem Jasmine
-// - mantém Jest no runner, mas com asserts compatíveis
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom } from 'rxjs';
-import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
+import { firstValueFrom, from, of } from 'rxjs';
+import { describe, beforeEach, it, expect, vi } from 'vitest';
 
-import { RoomService } from './room.service';
-import { ErrorNotificationService } from '../../error-handler/error-notification.service';
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
-import * as ffs from 'firebase/firestore';
+const firestoreMocks = vi.hoisted(() => ({
+  Firestore: class FirestoreMock {},
+  collection: vi.fn(() => ({ kind: 'collection' })),
+  collectionData: vi.fn(),
+  doc: vi.fn(() => ({ kind: 'doc' })),
+  docData: vi.fn(),
+  getDocs: vi.fn(),
+  limit: vi.fn((value: number) => ({ kind: 'limit', value })),
+  query: vi.fn((_ref: unknown, ...constraints: unknown[]) => ({ kind: 'query', constraints })),
+  where: vi.fn((field: string, op: string, value: unknown) => ({ kind: 'where', field, op, value })),
+}));
+
+vi.mock('@angular/fire/firestore', () => firestoreMocks);
+
 import { Firestore } from '@angular/fire/firestore';
+import { RoomService } from './room.service';
+import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
 
-describe('RoomService (unit)', () => {
+describe('RoomService', () => {
   let service: RoomService;
 
-  let errorNotifierMock: {
-    showError: Mock;
-  };
-
   let globalErrorMock: {
-    handleError: Mock;
+    handleError: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-
-    errorNotifierMock = {
-      showError: vi.fn(),
-    };
 
     globalErrorMock = {
       handleError: vi.fn(),
@@ -40,7 +40,13 @@ describe('RoomService (unit)', () => {
       providers: [
         RoomService,
         { provide: Firestore, useValue: {} },
-        { provide: ErrorNotificationService, useValue: errorNotifierMock },
+        {
+          provide: FirestoreContextService,
+          useValue: {
+            deferPromise$: (task: () => Promise<unknown>) => from(task()),
+            deferObservable$: (task: () => unknown) => task(),
+          },
+        },
         { provide: GlobalErrorHandlerService, useValue: globalErrorMock },
       ],
     });
@@ -52,48 +58,40 @@ describe('RoomService (unit)', () => {
     expect(service).toBeTruthy();
   });
 
-  it('countUserRooms retorna a contagem', async () => {
-    (ffs.getDocs as Mock).mockResolvedValue({
+  it('countUserRooms retorna a contagem de salas ativas', async () => {
+    firestoreMocks.getDocs.mockResolvedValue({
       docs: [
-        { id: 'r1', data: () => ({}) },
-        { id: 'r2', data: () => ({}) },
+        { id: 'r1', data: () => ({ status: 'active' }) },
+        { id: 'r2', data: () => ({ status: 'archived' }) },
+        { id: 'r3', data: () => ({}) },
       ],
     });
 
     const total = await service.countUserRooms('u1');
 
     expect(total).toBe(2);
-    expect(ffs.getDocs).toHaveBeenCalled();
+    expect(firestoreMocks.getDocs).toHaveBeenCalled();
   });
 
-  it('getUserRooms emite lista', async () => {
-    const snapshot = {
-      docs: [
+  it('getUserRooms emite lista owner-only normalizada', async () => {
+    firestoreMocks.collectionData.mockReturnValueOnce(
+      of([
         {
           id: 'r1',
-          data: () => ({
-            roomName: 'Sala 1',
-            createdBy: 'u1',
-            participants: ['u1'],
-            timestamp: new Date(),
-          }),
+          roomName: 'Sala 1',
+          createdBy: 'u1',
+          participants: ['u1'],
+          lastActivity: new Date('2026-01-01T10:00:00Z'),
         },
         {
           id: 'r2',
-          data: () => ({
-            roomName: 'Sala 2',
-            createdBy: 'u2',
-            participants: ['u1', 'u2'],
-            timestamp: new Date(),
-          }),
+          roomName: 'Sala 2',
+          createdBy: 'u1',
+          participants: ['u1', 'u2'],
+          lastActivity: new Date('2026-01-01T09:00:00Z'),
         },
-      ],
-    } as any;
-
-    (ffs.onSnapshot as Mock).mockImplementation((_q: any, next: Function) => {
-      next(snapshot);
-      return vi.fn();
-    });
+      ])
+    );
 
     const rooms = await firstValueFrom(service.getUserRooms('u1'));
 
@@ -103,25 +101,17 @@ describe('RoomService (unit)', () => {
     expect(rooms[1].participants).toEqual(['u1', 'u2']);
   });
 
-  it('getRooms emite lista', async () => {
-    const snapshot = {
-      docs: [
+  it('getRooms emite lista por membership', async () => {
+    firestoreMocks.collectionData.mockReturnValueOnce(
+      of([
         {
           id: 'r10',
-          data: () => ({
-            roomName: 'Sala A',
-            createdBy: 'u9',
-            participants: ['u1', 'u9'],
-            timestamp: new Date(),
-          }),
+          roomName: 'Sala A',
+          createdBy: 'u9',
+          participants: ['u1', 'u9'],
         },
-      ],
-    } as any;
-
-    (ffs.onSnapshot as Mock).mockImplementation((_q: any, next: Function) => {
-      next(snapshot);
-      return vi.fn();
-    });
+      ])
+    );
 
     const rooms = await firstValueFrom(service.getRooms('u1'));
 
@@ -131,21 +121,14 @@ describe('RoomService (unit)', () => {
   });
 
   it('getRoomById emite documento único', async () => {
-    const docSnap = {
-      id: 'room-xyz',
-      exists: () => true,
-      data: () => ({
+    firestoreMocks.docData.mockReturnValueOnce(
+      of({
+        id: 'room-xyz',
         roomName: 'X',
         createdBy: 'u9',
         participants: ['a', 'b'],
-        timestamp: new Date(),
-      }),
-    } as any;
-
-    (ffs.onSnapshot as Mock).mockImplementation((_ref: any, next: Function) => {
-      next(docSnap);
-      return vi.fn();
-    });
+      })
+    );
 
     const room = await firstValueFrom(service.getRoomById('room-xyz'));
 
@@ -154,15 +137,15 @@ describe('RoomService (unit)', () => {
     expect(room.participants).toEqual(['a', 'b']);
   });
 
-it('deve falhar ao contar salas sem uid', async () => {
-  await expect(service.countUserRooms('')).rejects.toThrow(
-    'UID ausente para consulta de salas.'
-  );
-});
+  it('deve falhar ao contar salas sem uid', async () => {
+    await expect(service.countUserRooms('')).rejects.toThrow(
+      'UID ausente para consulta de salas.'
+    );
+  });
 
-it('deve falhar ao buscar roomId vazio', async () => {
-  await expect(firstValueFrom(service.getRoomById(''))).rejects.toThrow(
-    'roomId ausente.'
-  );
+  it('deve falhar ao buscar roomId vazio', async () => {
+    await expect(firstValueFrom(service.getRoomById(''))).rejects.toThrow(
+      'roomId ausente para consulta da sala.'
+    );
+  });
 });
-})

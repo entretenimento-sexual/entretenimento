@@ -17,11 +17,6 @@ import { CurrentUserStoreService } from '../../autentication/auth/current-user-s
 import { AccessControlService } from '../../autentication/auth/access-control.service';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
-
-// =============================================================================
-// Mocks nativos do ambiente atual (Jest runtime, sem depender de expect.any())
-// =============================================================================
-
 type CacheServiceMock = {
   get: Mock;
   set: Mock;
@@ -91,7 +86,7 @@ describe('IBGELocationService', () => {
     expect(service).toBeTruthy();
   });
 
-  it('deve carregar estados do IBGE quando cache estiver vazio e ordená-los', (done) => {
+  it('deve carregar estados do IBGE quando cache estiver vazio e ordená-los', () => {
     const unsorted: IbgeUF[] = [
       { id: 33, sigla: 'RJ', nome: 'Rio de Janeiro' },
       { id: 35, sigla: 'SP', nome: 'São Paulo' },
@@ -108,7 +103,6 @@ describe('IBGELocationService', () => {
       expect(setArgs[1]).toEqual(list);
       expect(typeof setArgs[2]).toBe('number');
       expect(setArgs[2]).toBeGreaterThan(0);
-     
     });
 
     const req = httpMock.expectOne(ESTADOS_URL);
@@ -116,7 +110,7 @@ describe('IBGELocationService', () => {
     req.flush(unsorted);
   });
 
-  it('deve retornar estados do cache quando disponível sem chamar HTTP', (done) => {
+  it('deve retornar estados do cache quando disponível sem chamar HTTP', () => {
     const cached: IbgeUF[] = [
       { id: 31, sigla: 'MG', nome: 'Minas Gerais' },
       { id: 33, sigla: 'RJ', nome: 'Rio de Janeiro' },
@@ -127,13 +121,12 @@ describe('IBGELocationService', () => {
     service.getEstados().subscribe((list) => {
       expect(list).toBe(cached);
       expect(cacheMock.set).not.toHaveBeenCalled();
-      
     });
 
     httpMock.expectNone(ESTADOS_URL);
   });
 
-  it('deve carregar municípios de uma UF, ordenar e salvar no cache', (done) => {
+  it('deve carregar municípios de uma UF, ordenar e salvar no cache', () => {
     const uf = 'RJ';
     const unsorted: IbgeMunicipio[] = [
       { id: 2, nome: 'Duque de Caxias' },
@@ -155,7 +148,6 @@ describe('IBGELocationService', () => {
       expect(setArgs[1]).toEqual(list);
       expect(typeof setArgs[2]).toBe('number');
       expect(setArgs[2]).toBeGreaterThan(0);
-
     });
 
     const req = httpMock.expectOne(MUNICIPIOS_URL(uf));
@@ -163,7 +155,7 @@ describe('IBGELocationService', () => {
     req.flush(unsorted);
   });
 
-  it('deve retornar municípios do cache quando disponível', (done) => {
+  it('deve retornar municípios do cache quando disponível', () => {
     const uf = 'SP';
     const cached: IbgeMunicipio[] = [
       { id: 1, nome: 'Campinas' },
@@ -180,34 +172,31 @@ describe('IBGELocationService', () => {
     service.getMunicipios(uf).subscribe((list) => {
       expect(list).toBe(cached);
       expect(cacheMock.set).not.toHaveBeenCalled();
-      
     });
 
     httpMock.expectNone(MUNICIPIOS_URL(uf));
   });
 
-  it('deve retornar [] se a requisição de estados falhar', (done) => {
+  it('deve retornar [] se a requisição de estados falhar', () => {
     cacheMock.get.mockReturnValue(of(null));
 
     service.getEstados().subscribe((list) => {
       expect(list).toEqual([]);
-      
     });
 
     const req = httpMock.expectOne(ESTADOS_URL);
     req.flush('erro', { status: 500, statusText: 'Server Error' });
   });
 
-  it('deve retornar [] imediatamente se getMunicipios for chamado com UF vazia', (done) => {
+  it('deve retornar [] imediatamente se getMunicipios for chamado com UF vazia', () => {
     service.getMunicipios('   ').subscribe((list) => {
       expect(list).toEqual([]);
-      
     });
 
     httpMock.expectNone(() => true);
   });
 
-  it('getUserLocation deve vir do cache quando existir', (done) => {
+  it('getUserLocation deve vir do cache quando existir', () => {
     const cached: UserLocation = {
       uf: 'RJ',
       municipio: 'Duque de Caxias',
@@ -217,11 +206,10 @@ describe('IBGELocationService', () => {
 
     service.getUserLocation().subscribe((loc) => {
       expect(loc).toEqual(cached);
-      
     });
   });
 
-  it('getUserLocation deve derivar do usuário do store e persistir quando cache estiver vazio', (done) => {
+  it('getUserLocation deve derivar do usuário do store e persistir quando cache estiver vazio', () => {
     cacheMock.get.mockReturnValue(of(null));
     userStoreMock.user$.next({
       estado: 'rj',
@@ -238,7 +226,6 @@ describe('IBGELocationService', () => {
         uf: 'RJ',
         municipio: 'Rio de Janeiro',
       });
-
     });
   });
 
@@ -290,8 +277,8 @@ describe('IBGELocationService', () => {
   });
 
   it('warmCaches deve disparar getEstados e getMunicipios quando UF for fornecida', () => {
- const spyEstados = vi.spyOn(service as any, 'getEstados');
-const spyMunicipios = vi.spyOn(service as any, 'getMunicipios');
+    const spyEstados = vi.spyOn(service, 'getEstados').mockReturnValue(of([]));
+    const spyMunicipios = vi.spyOn(service, 'getMunicipios').mockReturnValue(of([]));
 
     service.warmCaches('RJ');
 
@@ -300,8 +287,8 @@ const spyMunicipios = vi.spyOn(service as any, 'getMunicipios');
   });
 
   it('warmCaches deve disparar apenas getEstados quando UF não for fornecida', () => {
-const spyEstados = vi.spyOn(service as any, 'algumMetodo');
-const spyMunicipios = vi.spyOn(service as any, 'algumOutroMetodo');
+    const spyEstados = vi.spyOn(service, 'getEstados').mockReturnValue(of([]));
+    const spyMunicipios = vi.spyOn(service, 'getMunicipios').mockReturnValue(of([]));
 
     service.warmCaches();
 

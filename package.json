@@ -17,6 +17,7 @@
     "validate:prod": "npm run appcheck:prod:check && npm run rules:build && npm run rules:check && npm run functions:build && npm run build:prod && npm run audit:prod",
     "appcheck:prod:check": "node -e \"const fs=require('fs');const s=fs.readFileSync('src/environments/environment.prod.ts','utf8');const bad=['prod-recaptcha-v3-site-key','staging-recaptcha-v3-site-key','dev-recaptcha-v3-site-key'];if(bad.some(v=>s.includes(v))){console.error('App Check de produção ainda usa siteKey placeholder. Troque por uma chave real do reCAPTCHA v3.');process.exit(1)}console.log('App Check de produção: siteKey não placeholder.');\"",
     "test": "ng test",
+    "test:ci": "ng test --watch=false",
     "functions:build": "npm --prefix functions run build",
     "functions:audit:prod": "npm --prefix functions run audit:prod",
     "functions:audit:all": "npm --prefix functions run audit:all",

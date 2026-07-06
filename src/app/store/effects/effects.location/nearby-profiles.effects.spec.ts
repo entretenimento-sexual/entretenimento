@@ -1,4 +1,4 @@
-//src/app/store/effects/effects.location/nearby-profiles.effects.spec.ts
+// src/app/store/effects/effects.location/nearby-profiles.effects.spec.ts
 import { TestBed } from '@angular/core/testing';
 import { ReplaySubject, firstValueFrom } from 'rxjs';
 import { Action } from '@ngrx/store';
@@ -7,8 +7,12 @@ import { MockStore, provideMockStore } from '@ngrx/store/testing';
 
 import { NearbyProfilesEffects } from './nearby-profiles.effects';
 import { NearbyProfilesActions } from '../../actions/actions.location/nearby-profiles.actions';
-import { selectEntryByKey, selectNearbyFreshByParams } from '../../selectors/selectors.location/nearby-profiles.selectors';
-import { buildNearbyKey, NearbyEntry } from '../../states/states.location/nearby-profiles.state';
+import {
+  buildNearbyKey,
+  initialNearbyProfilesState,
+  NearbyEntry,
+  NearbyProfilesState,
+} from '../../states/states.location/nearby-profiles.state';
 
 import { NearbyProfilesService } from '../../../core/services/geolocation/near-profile.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
@@ -21,20 +25,18 @@ describe('NearbyProfilesEffects', () => {
   let effects: NearbyProfilesEffects;
   let store: MockStore;
 
-  // stubs / spies
-let svc: {
-  getProfilesNearLocation: Mock;
-};
+  let svc: {
+    getProfilesNearLocation: Mock;
+  };
 
-let notify: {
-  showError: Mock;
-};
+  let notify: {
+    showError: Mock;
+  };
 
-let globalErr: {
-  handleError: Mock;
-};
+  let globalErr: {
+    handleError: Mock;
+  };
 
-  // params base
   const uid = 'u-1';
   const lat = -23.55;
   const lon = -46.63;
@@ -42,30 +44,35 @@ let globalErr: {
   const params = { uid, lat, lon, radiusKm };
   const key = buildNearbyKey(params);
 
-  // selectors (factories → precisamos instanciar)
-  const freshSel = selectNearbyFreshByParams(params);
-  const entrySel = selectEntryByKey(key);
+  function setNearbyState(state: NearbyProfilesState): void {
+    store.setState({ nearbyProfiles: state });
+    store.refreshState();
+  }
 
   beforeEach(() => {
     actions$ = new ReplaySubject<Action>(1);
 
-   svc = {
-  getProfilesNearLocation: vi.fn(),
-};
+    svc = {
+      getProfilesNearLocation: vi.fn(() => Promise.resolve([])),
+    };
 
-notify = {
-  showError: vi.fn(),
-};
+    notify = {
+      showError: vi.fn(),
+    };
 
-globalErr = {
-  handleError: vi.fn(),
-};
+    globalErr = {
+      handleError: vi.fn(),
+    };
 
     TestBed.configureTestingModule({
       providers: [
         NearbyProfilesEffects,
         provideMockActions(() => actions$),
-        provideMockStore(),
+        provideMockStore({
+          initialState: {
+            nearbyProfiles: initialNearbyProfilesState,
+          },
+        }),
         { provide: NearbyProfilesService, useValue: svc },
         { provide: ErrorNotificationService, useValue: notify },
         { provide: GlobalErrorHandlerService, useValue: globalErr },
@@ -80,7 +87,7 @@ globalErr = {
     actions$.complete();
   });
 
-  it('cache-first: quando isFresh=true emite loaded com a lista do cache (sem chamar service)', async () => {
+  it('cache-first: quando isFresh=true emite loaded com a lista do cache sem chamar service', async () => {
     const cached: NearbyEntry = {
       list: [{ uid: 'a' } as IUserDados],
       loading: false,
@@ -88,8 +95,10 @@ globalErr = {
       updatedAt: Date.now(),
     };
 
-    store.overrideSelector(freshSel, true);
-    store.overrideSelector(entrySel, cached);
+    setNearbyState({
+      byKey: { [key]: cached },
+      ttlMs: 120_000,
+    });
 
     actions$.next(NearbyProfilesActions.load({ params }));
 
@@ -111,8 +120,12 @@ globalErr = {
       { uid: 'y' } as IUserDados,
     ];
 
-    store.overrideSelector(freshSel, false);
-    store.overrideSelector(entrySel, { list: [], loading: false, error: null, updatedAt: 0 });
+    setNearbyState({
+      byKey: {
+        [key]: { list: [], loading: false, error: null, updatedAt: 0 },
+      },
+      ttlMs: 120_000,
+    });
 
     svc.getProfilesNearLocation.mockResolvedValue(fetched);
 
@@ -121,7 +134,7 @@ globalErr = {
     const emitted = await firstValueFrom(effects.load$);
 
     expect(svc.getProfilesNearLocation).toHaveBeenCalledOnce();
-expect(svc.getProfilesNearLocation).toHaveBeenCalledWith(lat, lon, radiusKm, uid);
+    expect(svc.getProfilesNearLocation).toHaveBeenCalledWith(lat, lon, radiusKm, uid);
     expect(emitted).toEqual(
       NearbyProfilesActions.loaded({
         key,
@@ -132,8 +145,12 @@ expect(svc.getProfilesNearLocation).toHaveBeenCalledWith(lat, lon, radiusKm, uid
   });
 
   it('erro: quando service rejeita, emite error e notifica/handleError', async () => {
-    store.overrideSelector(freshSel, false);
-    store.overrideSelector(entrySel, { list: [], loading: false, error: null, updatedAt: 0 });
+    setNearbyState({
+      byKey: {
+        [key]: { list: [], loading: false, error: null, updatedAt: 0 },
+      },
+      ttlMs: 120_000,
+    });
 
     const boom = new Error('network');
     svc.getProfilesNearLocation.mockRejectedValue(boom);

@@ -8,7 +8,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { NgZone } from '@angular/core';
-import { BehaviorSubject, of, throwError } from 'rxjs';
+import { BehaviorSubject, Subject, of, throwError } from 'rxjs';
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import {
@@ -46,7 +46,11 @@ describe('AuthVerificationHandlerComponent', () => {
   };
 
   let emailInputModalMock: {
+    isModalOpen: Subject<boolean>;
+    emailSentMessage: Subject<string>;
     openModal: Mock;
+    closeModal: Mock;
+    sendPasswordRecoveryEmail: Mock;
   };
 
   beforeEach(async () => {
@@ -70,7 +74,11 @@ describe('AuthVerificationHandlerComponent', () => {
     };
 
     emailInputModalMock = {
+      isModalOpen: new Subject<boolean>(),
+      emailSentMessage: new Subject<string>(),
       openModal: vi.fn(),
+      closeModal: vi.fn(),
+      sendPasswordRecoveryEmail: vi.fn(),
     };
 
     await TestBed.configureTestingModule({

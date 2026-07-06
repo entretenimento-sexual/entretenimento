@@ -1,20 +1,4 @@
 // src/app/chat-module/chat-rooms/chat-rooms.component.spec.ts
-// -----------------------------------------------------------------------------
-// CHAT ROOMS COMPONENT SPEC
-// -----------------------------------------------------------------------------
-//
-// Escopo:
-// - valida o view model reativo consumido pelo template;
-// - valida seleção de sala;
-// - valida bloqueios visuais antes de solicitar criação;
-// - confirma que perfil basic não é bloqueado localmente, pois a autorização
-//   real de criação pertence à callable createPrivateRoom.
-//
-// Segurança:
-// - o teste não reintroduz validação local por role/isSubscriber;
-// - o teste não assume convite ou mensagens habilitados;
-// - o mock de RoomManagementService representa a fronteira backend.
-
 import { CommonModule } from '@angular/common';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NO_ERRORS_SCHEMA } from '@angular/core';
@@ -24,7 +8,6 @@ import { filter, take } from 'rxjs/operators';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { ChatRoomsComponent } from './chat-rooms.component';
-
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { CurrentUserStoreService } from '../../core/services/autentication/auth/current-user-store.service';
 import {
@@ -106,6 +89,25 @@ describe('ChatRoomsComponent', () => {
   async function flushAsyncFlow(): Promise<void> {
     await Promise.resolve();
     await Promise.resolve();
+    fixture.detectChanges();
+  }
+
+  function emitUser(uid: string | null, extra: Record<string, unknown> = {}): void {
+    if (!uid) {
+      currentUserSubject.next(null);
+      authUidSubject.next(null);
+      fixture.detectChanges();
+      return;
+    }
+
+    currentUserSubject.next({
+      uid,
+      role: 'basic',
+      isSubscriber: false,
+      profileCompleted: true,
+      ...extra,
+    });
+    authUidSubject.next(uid);
     fixture.detectChanges();
   }
 
@@ -208,18 +210,13 @@ describe('ChatRoomsComponent', () => {
   });
 
   it('deve reconhecer sala ativa administrada pelo usuário', async () => {
-    roomServiceMock.getRooms.mockReturnValueOnce(
-      of([buildRoom({ createdBy: 'u2', participants: ['u2'] })])
+    roomServiceMock.getRooms.mockImplementation((uid: string) =>
+      uid === 'u2'
+        ? of([buildRoom({ createdBy: 'u2', participants: ['u2'] })])
+        : of([])
     );
 
-    currentUserSubject.next({
-      uid: 'u2',
-      role: 'basic',
-      isSubscriber: false,
-      profileCompleted: true,
-    });
-    authUidSubject.next('u2');
-    fixture.detectChanges();
+    emitUser('u2');
 
     const viewModel = await firstValueFrom(
       component.roomsVm$.pipe(
@@ -255,9 +252,7 @@ describe('ChatRoomsComponent', () => {
   });
 
   it('deve refletir ausência de sessão no view model', async () => {
-    currentUserSubject.next(null);
-    authUidSubject.next(null);
-    fixture.detectChanges();
+    emitUser(null);
 
     const viewModel = await firstValueFrom(
       component.roomsVm$.pipe(
@@ -272,10 +267,8 @@ describe('ChatRoomsComponent', () => {
   });
 
   it('deve mostrar warning ao tentar criar sala sem usuário autenticado', async () => {
-    currentUserSubject.next(null);
-    authUidSubject.next(null);
+    emitUser(null);
     currentUserStoreMock.getSnapshot.mockReturnValue(null);
-    fixture.detectChanges();
 
     component.openCreateRoomModal();
 
@@ -312,24 +305,19 @@ describe('ChatRoomsComponent', () => {
   });
 
   it('deve bloquear nova criação quando já existe sala própria ativa no view model', async () => {
-    roomServiceMock.getRooms.mockReturnValueOnce(
-      of([buildRoom({ createdBy: 'u2', participants: ['u2'] })])
+    roomServiceMock.getRooms.mockImplementation((uid: string) =>
+      uid === 'u2'
+        ? of([buildRoom({ createdBy: 'u2', participants: ['u2'] })])
+        : of([])
     );
 
-    currentUserSubject.next({
-      uid: 'u2',
-      role: 'basic',
-      isSubscriber: false,
-      profileCompleted: true,
-    });
     currentUserStoreMock.getSnapshot.mockReturnValue({
       uid: 'u2',
       role: 'basic',
       isSubscriber: false,
       profileCompleted: true,
     });
-    authUidSubject.next('u2');
-    fixture.detectChanges();
+    emitUser('u2');
 
     await firstValueFrom(
       component.roomsVm$.pipe(
@@ -382,17 +370,13 @@ describe('ChatRoomsComponent', () => {
   });
 
   it('deve apresentar falha de carregamento quando a leitura de salas falhar', async () => {
-    roomServiceMock.getRooms.mockReturnValueOnce(
-      throwError(() => new Error('permission-denied'))
+    roomServiceMock.getRooms.mockImplementation((uid: string) =>
+      uid === 'u2'
+        ? throwError(() => new Error('permission-denied'))
+        : of([])
     );
 
-    currentUserSubject.next({
-      uid: 'u2',
-      role: 'basic',
-      profileCompleted: true,
-    });
-    authUidSubject.next('u2');
-    fixture.detectChanges();
+    emitUser('u2', { isSubscriber: false });
 
     const viewModel = await firstValueFrom(
       component.roomsVm$.pipe(

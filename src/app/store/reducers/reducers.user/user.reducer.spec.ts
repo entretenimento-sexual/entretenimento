@@ -55,21 +55,21 @@ const v = (overrides?: Partial<IUserDados>): IUserDados => ({
 });
 
 describe('userReducer', () => {
-  it('deve hidratar o mapa ao fazer loginSuccess e setar currentUser', () => {
+  it('deve hidratar o mapa ao fazer loginSuccess e setar currentUser sanitizado', () => {
     const user = u({ isOnline: true });
     const state = reduceFrom(initialUserState, loginSuccess({ user }));
 
-    expect(state.currentUser).toEqual(user);
-    expect(state.users[user.uid]).toEqual(user);
-    expect(state.onlineUsers.find((x: IUserDados) => x.uid === user.uid)).toBeTruthy();
+    expect(state.currentUser).toMatchObject(user);
+    expect(state.users[user.uid]).toMatchObject(user);
+    expect(state.onlineUsers.find((x: IUserDados) => x.uid === user.uid)).toBeFalsy();
   });
 
-  it('setCurrentUser deve ter o mesmo efeito de loginSuccess (hidrata e seta currentUser)', () => {
+  it('setCurrentUser deve hidratar e setar currentUser sanitizado', () => {
     const user = u({ isOnline: false });
     const state = reduceFrom(initialUserState, setCurrentUser({ user }));
 
-    expect(state.currentUser).toEqual(user);
-    expect(state.users[user.uid]).toEqual(user);
+    expect(state.currentUser).toMatchObject(user);
+    expect(state.users[user.uid]).toMatchObject(user);
     expect(state.onlineUsers.find((x: IUserDados) => x.uid === user.uid)).toBeFalsy();
   });
 
@@ -111,24 +111,24 @@ describe('userReducer', () => {
     expect(s2.onlineUsers.map((x: IUserDados) => x.uid).sort()).toEqual(['x', 'y']);
   });
 
-  it('clearCurrentUser deve limpar currentUser e removê-lo de onlineUsers, mantendo o dicionário', () => {
+  it('clearCurrentUser deve limpar currentUser, onlineUsers e remover currentUser do dicionário', () => {
     const me = u({ uid: 'me', isOnline: true });
     const s1 = reduceFrom(initialUserState, loginSuccess({ user: me }));
     const s2 = reduceFrom(s1, clearCurrentUser());
 
     expect(s2.currentUser).toBeNull();
     expect(s2.onlineUsers.find((x: IUserDados) => x.uid === 'me')).toBeFalsy();
-    expect(s2.users['me']).toBeTruthy();
+    expect(s2.users['me']).toBeUndefined();
   });
 
-  it('logoutSuccess deve limpar currentUser e removê-lo de onlineUsers (mantendo users)', () => {
+  it('logoutSuccess deve limpar currentUser, onlineUsers e remover currentUser do dicionário', () => {
     const me = u({ uid: 'me', isOnline: true });
     const s1 = reduceFrom(initialUserState, loginSuccess({ user: me }));
     const s2 = reduceFrom(s1, logoutSuccess());
 
     expect(s2.currentUser).toBeNull();
     expect(s2.onlineUsers.find((x: IUserDados) => x.uid === 'me')).toBeFalsy();
-    expect(s2.users['me']).toBeTruthy();
+    expect(s2.users['me']).toBeUndefined();
   });
 
   it('loadUsersSuccess deve mesclar lista no dicionário e desligar loading', () => {

@@ -1,4 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatDialogRef } from '@angular/material/dialog';
+import { vi } from 'vitest';
 
 import { TermosECondicoesComponent } from './termos-e-condicoes.component';
 
@@ -8,10 +10,17 @@ describe('TermosECondicoesComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [TermosECondicoesComponent]
-    })
-    .compileComponents();
-    
+      imports: [TermosECondicoesComponent],
+      providers: [
+        {
+          provide: MatDialogRef,
+          useValue: {
+            close: vi.fn(),
+          },
+        },
+      ],
+    }).compileComponents();
+
     fixture = TestBed.createComponent(TermosECondicoesComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();

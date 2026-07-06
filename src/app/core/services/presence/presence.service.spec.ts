@@ -1,119 +1,141 @@
-// src/app/core/services/autentication/auth/presence.service.spec.ts
-import { TestBed } from '@angular/core/testing';
-import { NgZone } from '@angular/core';
-import { Firestore, updateDoc, serverTimestamp } from '@angular/fire/firestore';
+// src/app/core/services/presence/presence.service.spec.ts
+import { Subject, of } from 'rxjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { PresenceService } from './presence.service';
-import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
 describe('PresenceService', () => {
   let service: PresenceService;
-  let zone: NgZone;
 
-  const updateDocMock = updateDoc as unknown as Mock;
-  const serverTsMock = serverTimestamp as unknown as Mock;
+  let storage$: Subject<StorageEvent>;
+  let visibility$: Subject<'hidden' | 'visible'>;
+  let online$: Subject<Event>;
+  let offline$: Subject<Event>;
+  let beforeUnload$: Subject<Event>;
+  let pageHide$: Subject<Event>;
+  let isLeader$: Subject<boolean>;
+
+  let writerMock: {
+    setOnline$: ReturnType<typeof vi.fn>;
+    setAway$: ReturnType<typeof vi.fn>;
+    beatOnline$: ReturnType<typeof vi.fn>;
+    setOffline$: ReturnType<typeof vi.fn>;
+  };
+
+  let leaderMock: {
+    buildLeaderKey: ReturnType<typeof vi.fn>;
+    createIsLeader$: ReturnType<typeof vi.fn>;
+    isLeaderNow: ReturnType<typeof vi.fn>;
+    releaseLeadership: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(() => {
     vi.useFakeTimers();
-    updateDocMock.mockClear();
-    serverTsMock.mockClear();
 
-    TestBed.configureTestingModule({
-      providers: [PresenceService, { provide: Firestore, useValue: {} }],
-    });
+    storage$ = new Subject<StorageEvent>();
+    visibility$ = new Subject<'hidden' | 'visible'>();
+    online$ = new Subject<Event>();
+    offline$ = new Subject<Event>();
+    beforeUnload$ = new Subject<Event>();
+    pageHide$ = new Subject<Event>();
+    isLeader$ = new Subject<boolean>();
 
-    service = TestBed.inject(PresenceService);
-    zone = TestBed.inject(NgZone);
-    expect(zone).toBeTruthy();
+    writerMock = {
+      setOnline$: vi.fn(() => of(void 0)),
+      setAway$: vi.fn(() => of(void 0)),
+      beatOnline$: vi.fn(() => of(void 0)),
+      setOffline$: vi.fn(() => of(void 0)),
+    };
+
+    leaderMock = {
+      buildLeaderKey: vi.fn((uid: string) => `presence:${uid}`),
+      createIsLeader$: vi.fn(() => isLeader$.asObservable()),
+      isLeaderNow: vi.fn(() => true),
+      releaseLeadership: vi.fn(),
+    };
+
+    service = new PresenceService(
+      {
+        runOutsideAngular: (task: () => void) => task(),
+      } as any,
+      {
+        create: () => ({
+          storage$: storage$.asObservable(),
+          visibility$: visibility$.asObservable(),
+          online$: online$.asObservable(),
+          offline$: offline$.asObservable(),
+          beforeUnload$: beforeUnload$.asObservable(),
+          pageHide$: pageHide$.asObservable(),
+        }),
+      } as any,
+      leaderMock as any,
+      writerMock as any,
+      { log: vi.fn() } as any
+    );
   });
 
   afterEach(() => {
-    try { service.stop(); } catch { }
+    try {
+      service.stop();
+    } catch {}
     vi.useRealTimers();
   });
 
-  function lastCallArgs() {
-    const calls = updateDocMock.mock.calls;
-    return calls[calls.length - 1] as [any, Record<string, unknown>];
-  }
-
-  it('faz o primeiro beat imediato ao iniciar', () => {
+  it('inicia presença para uid válido e escreve estado inicial quando é líder', () => {
     service.start('u1');
+    isLeader$.next(true);
 
-    expect(updateDocMock).toHaveBeenCalled();
-    const [ref, data] = lastCallArgs();
-
-    expect(ref?.__path).toBe('users/u1');
-    expect('lastSeen' in data).toBe(true);
-    expect((data as any).isOnline).toBe(true); // compat
+    expect(leaderMock.buildLeaderKey).toHaveBeenCalledWith('u1');
+    expect(writerMock.setOnline$).toHaveBeenCalledWith('u1');
   });
 
-  it('agenda heartbeats a cada ~30s quando online', () => {
+  it('agenda heartbeats a cada 30s quando a aba é líder e está visível', () => {
     service.start('u1');
-    updateDocMock.mockClear();
+    isLeader$.next(true);
+    writerMock.beatOnline$.mockClear();
 
     vi.advanceTimersByTime(29_000);
-    expect(updateDocMock).not.toHaveBeenCalled();
+    expect(writerMock.beatOnline$).not.toHaveBeenCalled();
 
     vi.advanceTimersByTime(1_000);
-    expect(updateDocMock).toHaveBeenCalledTimes(1);
-    let [, data] = lastCallArgs();
-    expect('lastSeen' in data).toBe(true);
-    expect((data as any).isOnline).toBe(true);
-
-    vi.advanceTimersByTime(30_000);
-    expect(updateDocMock).toHaveBeenCalledTimes(2);
+    expect(writerMock.beatOnline$).toHaveBeenCalledWith('u1');
   });
 
-  it('marca offline em beforeunload/offline/pagehide', () => {
+  it('marca away quando o navegador informa offline', () => {
     service.start('u1');
-    updateDocMock.mockClear();
+    isLeader$.next(true);
+    writerMock.setAway$.mockClear();
 
-    window.dispatchEvent(new Event('offline'));
-    expect(updateDocMock).toHaveBeenCalled();
-    let [, data] = lastCallArgs();
-    expect((data as any).isOnline).toBe(false);
-    expect('lastOfflineAt' in data).toBe(true);
+    offline$.next(new Event('offline'));
+    vi.advanceTimersByTime(1_000);
 
-    updateDocMock.mockClear();
-    window.dispatchEvent(new Event('pagehide'));
-    expect(updateDocMock).toHaveBeenCalled();
-    [, data] = lastCallArgs();
-    expect((data as any).isOnline).toBe(false);
-    expect('lastOfflineAt' in data).toBe(true);
-
-    updateDocMock.mockClear();
-    window.dispatchEvent(new Event('beforeunload'));
-    expect(updateDocMock).toHaveBeenCalled();
-    [, data] = lastCallArgs();
-    expect((data as any).isOnline).toBe(false);
-    expect('lastOfflineAt' in data).toBe(true);
+    expect(writerMock.setAway$).toHaveBeenCalledWith('u1');
   });
 
-  it('no visibilitychange->hidden atualiza só lastSeen', () => {
+  it('marca away quando a aba fica hidden', () => {
     service.start('u1');
-    updateDocMock.mockClear();
+    isLeader$.next(true);
+    writerMock.setAway$.mockClear();
 
-    Object.defineProperty(document, 'visibilityState', { value: 'hidden', writable: true });
-    document.dispatchEvent(new Event('visibilitychange'));
+    visibility$.next('hidden');
 
-    expect(updateDocMock).toHaveBeenCalled();
-    const [, data] = lastCallArgs();
-    expect('lastSeen' in data).toBe(true);
-    expect((data as any).isOnline).toBeUndefined();
+    expect(writerMock.setAway$).toHaveBeenCalledWith('u1');
   });
 
-  it('stop() limpa intervalos e listeners', () => {
+  it('stop() limpa streams, marca offline e libera liderança', () => {
     service.start('u1');
-    updateDocMock.mockClear();
+    isLeader$.next(true);
+
+    writerMock.setOffline$.mockClear();
+    leaderMock.releaseLeadership.mockClear();
 
     service.stop();
-    vi.advanceTimersByTime(60_000);
-    expect(updateDocMock).not.toHaveBeenCalled();
 
-    window.dispatchEvent(new Event('offline'));
-    window.dispatchEvent(new Event('pagehide'));
-    window.dispatchEvent(new Event('beforeunload'));
-    document.dispatchEvent(new Event('visibilitychange'));
-    expect(updateDocMock).not.toHaveBeenCalled();
+    expect(writerMock.setOffline$).toHaveBeenCalledWith('u1', 'stop$()');
+    expect(leaderMock.releaseLeadership).toHaveBeenCalledWith('presence:u1');
+
+    writerMock.beatOnline$.mockClear();
+    vi.advanceTimersByTime(60_000);
+    expect(writerMock.beatOnline$).not.toHaveBeenCalled();
   });
 });

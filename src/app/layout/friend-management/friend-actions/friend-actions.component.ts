@@ -9,7 +9,7 @@
 // - Em várias telas, o @Input() user pode chegar depois do ngOnInit (cold start / hidratação do store).
 // - Portanto, NÃO fazemos "return" no ngOnInit caso user.uid ainda não exista.
 // - Em vez disso, derivamos um uid$ reativo e ligamos dispatch/selectors via switchMap.
-import { ChangeDetectionStrategy, Component, Input, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, Input, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Store } from '@ngrx/store';
@@ -84,6 +84,7 @@ export class FriendActionsComponent implements OnInit {
   private store = inject<Store<AppState>>(Store as any);
   private fb = inject(FormBuilder);
   private notifier = inject(ErrorNotificationService);
+  private destroyRef = inject(DestroyRef);
 
   // ---------------------------------------------------------------------------
   // Input resiliente
@@ -143,7 +144,7 @@ export class FriendActionsComponent implements OnInit {
     // - Se uid mudar (troca de conta), reexecuta corretamente.
     // -----------------------------------------------------------------------
     this.uid$
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((uid) => {
         this.dbg('dispatch bootstrap', { uid });
 
@@ -170,7 +171,7 @@ export class FriendActionsComponent implements OnInit {
     // - Reset do status evita “toasts repetidos” em reentradas.
     // -----------------------------------------------------------------------
     this.sendSuccess$
-      .pipe(takeUntilDestroyed(), filter(Boolean))
+      .pipe(takeUntilDestroyed(this.destroyRef), filter(Boolean))
       .subscribe(() => {
         this.notifier.showSuccess('Solicitação enviada!');
         this.form.reset();
@@ -182,7 +183,7 @@ export class FriendActionsComponent implements OnInit {
       });
 
     this.sendError$
-      .pipe(takeUntilDestroyed(), filter((e): e is string => !!e))
+      .pipe(takeUntilDestroyed(this.destroyRef), filter((e): e is string => !!e))
       .subscribe((msg) => {
         this.notifier.showError('Erro ao enviar solicitação.', msg);
         this.store.dispatch(resetSendFriendRequestStatus());

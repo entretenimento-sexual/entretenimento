@@ -88,29 +88,29 @@ describe('SubscriptionPlanComponent', () => {
     expect(noticeServiceMock.hydrate).toHaveBeenCalledWith('user-1');
   });
 
-it('deve navegar para o checkout com o plano selecionado', () => {
-  component.subscribe('premium', {
-    uid: 'user-1',
-    subscriptionActive: false,
-    currentPlanKey: null,
-    currentPlanLabel: null,
-    statusTitle: 'Sem assinatura ativa',
-    statusDescription: 'Você ainda não possui um plano ativo reconhecido na plataforma.',
-    canGoToAccount: true,
-    canGoToProfile: true,
-  });
+  it('deve navegar para o checkout com o plano selecionado', () => {
+    component.subscribe('premium', {
+      uid: 'user-1',
+      subscriptionActive: false,
+      currentPlanKey: null,
+      currentPlanLabel: null,
+      statusTitle: 'Sem assinatura ativa',
+      statusDescription: 'Você ainda não possui um plano ativo reconhecido na plataforma.',
+      canGoToAccount: true,
+      canGoToProfile: true,
+    });
 
-  expect(routerMock.navigate).toHaveBeenCalledWith(['/checkout'], {
-    queryParams: { plan: 'premium' },
+    expect(routerMock.navigate).toHaveBeenCalledWith(['/checkout'], {
+      queryParams: { plan: 'premium' },
+    });
   });
-});
 
   it('deve exibir o aviso de perfil incompleto quando shouldShowSubscriptionWarning$ for true', () => {
     const text = fixture.nativeElement.textContent;
 
-    expect(text).toContain('Você pode assinar mesmo com o perfil incompleto');
+    expect(text).toContain('Assinatura com perfil em conclusão');
     expect(text).toContain(
-      'Sua assinatura será ativada normalmente, mas algumas funções sociais e de descoberta podem continuar limitadas até a conclusão do perfil.'
+      'Seu plano será ativado normalmente. Algumas funções sociais e de descoberta podem continuar limitadas até a conclusão do perfil.'
     );
   });
 
@@ -120,7 +120,7 @@ it('deve navegar para o checkout com o plano selecionado', () => {
 
     const text = fixture.nativeElement.textContent;
 
-    expect(text).not.toContain('Você pode assinar mesmo com o perfil incompleto');
+    expect(text).not.toContain('Assinatura com perfil em conclusão');
   });
 
   it('deve continuar renderizando os cards dos planos mesmo com o aviso oculto', () => {

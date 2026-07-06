@@ -1,5 +1,11 @@
-//src\app\layout\friend-management\friend-blocked\friend-blocked.component.spec.ts
+// src/app/layout/friend-management/friend-blocked/friend-blocked.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Store } from '@ngrx/store';
+import { Firestore } from '@angular/fire/firestore';
+import { Functions } from '@angular/fire/functions';
+import { of } from 'rxjs';
+import { vi } from 'vitest';
+
 import { FriendBlockedComponent } from './friend-blocked.component';
 
 describe('FriendBlockedComponent', () => {
@@ -8,11 +14,21 @@ describe('FriendBlockedComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [FriendBlockedComponent]
+      imports: [FriendBlockedComponent],
+      providers: [
+        { provide: Firestore, useValue: {} },
+        { provide: Functions, useValue: {} },
+        {
+          provide: Store,
+          useValue: {
+            dispatch: vi.fn(),
+            select: vi.fn(() => of([])),
+          },
+        },
+      ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(FriendBlockedComponent);
-    // 👇 resolve NG0950
     fixture.componentRef.setInput('user', { uid: 'u1', nickname: 'Tester' } as any);
     component = fixture.componentInstance;
     fixture.detectChanges();
