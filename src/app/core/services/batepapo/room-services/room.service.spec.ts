@@ -1,6 +1,4 @@
 // src/app/core/services/batepapo/room-services/room.service.spec.ts
-import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, from, of } from 'rxjs';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 
 const firestoreMocks = vi.hoisted(() => ({
@@ -17,6 +15,8 @@ const firestoreMocks = vi.hoisted(() => ({
 
 vi.mock('@angular/fire/firestore', () => firestoreMocks);
 
+import { TestBed } from '@angular/core/testing';
+import { firstValueFrom, from, of } from 'rxjs';
 import { Firestore } from '@angular/fire/firestore';
 import { RoomService } from './room.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
