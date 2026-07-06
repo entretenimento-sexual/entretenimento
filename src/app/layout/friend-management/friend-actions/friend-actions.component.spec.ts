@@ -5,6 +5,7 @@ import { vi } from 'vitest';
 
 import { FriendActionsComponent } from './friend-actions.component';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
+import { FriendshipService } from '../../../core/services/interactions/friendship/friendship.service';
 
 describe('FriendActionsComponent', () => {
   let component: FriendActionsComponent;
@@ -19,6 +20,16 @@ describe('FriendActionsComponent', () => {
           useValue: {
             dispatch: vi.fn(),
             select: vi.fn(() => of([])),
+          },
+        },
+        {
+          provide: FriendshipService,
+          useValue: {
+            blockUser: vi.fn(() => of(void 0)),
+            unblockUser: vi.fn(() => of(void 0)),
+            watchFriends: vi.fn(() => of([])),
+            watchInboundRequests: vi.fn(() => of([])),
+            watchOutboundRequests: vi.fn(() => of([])),
           },
         },
         {
