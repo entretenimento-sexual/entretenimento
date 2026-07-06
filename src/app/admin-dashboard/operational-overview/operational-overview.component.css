@@ -247,6 +247,57 @@
   font-weight: 950;
 }
 
+.queue-controls {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.queue-controls__group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.queue-chip {
+  min-height: 36px;
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  border: 1px solid var(--surface-border, rgba(0, 0, 0, 0.12));
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--surface-color, #fff) 96%, var(--text-color, #111827) 4%);
+  color: var(--text-color, #111827);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.queue-chip span {
+  min-width: 24px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--surface-color, #fff);
+  color: var(--muted-text-color, #6b7280);
+  font-size: 0.76rem;
+  font-weight: 950;
+}
+
+.queue-chip.is-active {
+  border-color: color-mix(in oklab, var(--primary-color, #d64d4d) 52%, var(--surface-border, rgba(0, 0, 0, 0.12)));
+  background: color-mix(in oklab, var(--primary-color, #d64d4d) 10%, var(--surface-color, #fff));
+  color: var(--primary-color, #d64d4d);
+}
+
+.queue-chip:focus-visible,
+.quick-action:focus-visible {
+  outline: 3px solid color-mix(in oklab, var(--primary-color, #d64d4d) 35%, transparent);
+  outline-offset: 3px;
+}
+
 .alert-list,
 .compact-list {
   display: grid;
@@ -371,6 +422,16 @@
 
   .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .queue-controls__group {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .queue-chip {
+    flex: 0 0 auto;
   }
 
   .compact-list li {
