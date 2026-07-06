@@ -1,5 +1,11 @@
 // src/app/core/services/batepapo/room-services/room.service.spec.ts
-const firestoreMocks = vi.hoisted(() => ({
+import { TestBed } from '@angular/core/testing';
+import { firstValueFrom, from, of } from 'rxjs';
+
+import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
+import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
+
+const firestoreMocks = {
   Firestore: class FirestoreMock {},
   collection: vi.fn(() => ({ kind: 'collection' })),
   collectionData: vi.fn(),
@@ -9,25 +15,29 @@ const firestoreMocks = vi.hoisted(() => ({
   limit: vi.fn((value: number) => ({ kind: 'limit', value })),
   query: vi.fn((_ref: unknown, ...constraints: unknown[]) => ({ kind: 'query', constraints })),
   where: vi.fn((field: string, op: string, value: unknown) => ({ kind: 'where', field, op, value })),
-}));
+};
 
-vi.mock('@angular/fire/firestore', () => firestoreMocks);
-
-import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, from, of } from 'rxjs';
-import { Firestore } from '@angular/fire/firestore';
-import { RoomService } from './room.service';
-import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
-import { FirestoreContextService } from '../../data-handling/firestore/core/firestore-context.service';
+vi.doMock('@angular/fire/firestore', () => firestoreMocks);
 
 describe('RoomService', () => {
-  let service: RoomService;
+  let service: any;
+  let RoomServiceToken: any;
+  let FirestoreToken: any;
 
   let globalErrorMock: {
     handleError: ReturnType<typeof vi.fn>;
   };
 
+  beforeAll(async () => {
+    const firestoreModule = await import('@angular/fire/firestore');
+    const roomModule = await import('./room.service');
+
+    FirestoreToken = firestoreModule.Firestore;
+    RoomServiceToken = roomModule.RoomService;
+  });
+
   beforeEach(() => {
+    TestBed.resetTestingModule();
     vi.clearAllMocks();
 
     globalErrorMock = {
@@ -36,8 +46,8 @@ describe('RoomService', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        RoomService,
-        { provide: Firestore, useValue: {} },
+        RoomServiceToken,
+        { provide: FirestoreToken, useValue: {} },
         {
           provide: FirestoreContextService,
           useValue: {
@@ -49,7 +59,7 @@ describe('RoomService', () => {
       ],
     });
 
-    service = TestBed.inject(RoomService);
+    service = TestBed.inject(RoomServiceToken);
   });
 
   it('deve ser criado', () => {
