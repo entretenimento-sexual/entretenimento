@@ -6,14 +6,14 @@ import { BehaviorSubject, of } from 'rxjs';
 
 import { SocialLinksAccordionComponent } from './user-social-links-accordion.component';
 
-// IMPORTS RELATIVOS
 import { UserSocialLinksService } from '../../../core/services/user-profile/user-social-links.service';
 import { CurrentUserStoreService } from '../../../core/services/autentication/auth/current-user-store.service';
 import { AuthSessionService } from '../../../core/services/autentication/auth/auth-session.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
 
 class MockUserSocialLinksService {
-  getSocialLinks = vi.fn().mockReturnValue(of({ instagram: 'alex' }));
+  watchSocialLinks = vi.fn().mockReturnValue(of({ instagram: 'alex' }));
   saveSocialLinks = vi.fn().mockReturnValue(of(void 0));
   removeLink = vi.fn().mockReturnValue(of(void 0));
 }
@@ -28,6 +28,7 @@ class MockAuthSessionService {
 
   authUser$ = this.authUserSubject.asObservable();
   uid$ = this.uidSubject.asObservable();
+  ready$ = of(true);
   currentAuthUser: { uid: string } | null = { uid: 'u1' };
 
   setAuthUser(user: { uid: string } | null): void {
@@ -40,6 +41,10 @@ class MockAuthSessionService {
 class MockErrorNotificationService {
   showSuccess = vi.fn();
   showError = vi.fn();
+}
+
+class MockGlobalErrorHandlerService {
+  handleError = vi.fn();
 }
 
 describe('SocialLinksAccordionComponent', () => {
@@ -62,6 +67,7 @@ describe('SocialLinksAccordionComponent', () => {
         { provide: CurrentUserStoreService, useClass: MockCurrentUserStoreService },
         { provide: AuthSessionService, useClass: MockAuthSessionService },
         { provide: ErrorNotificationService, useClass: MockErrorNotificationService },
+        { provide: GlobalErrorHandlerService, useClass: MockGlobalErrorHandlerService },
       ],
     }).compileComponents();
 
@@ -85,7 +91,10 @@ describe('SocialLinksAccordionComponent', () => {
   });
 
   it('carrega e normaliza links (instagram)', () => {
-    expect(linksSvc.getSocialLinks).toHaveBeenCalledWith('u1');
+    expect(linksSvc.watchSocialLinks).toHaveBeenCalledWith('u1', {
+      notifyOnError: false,
+      allowAnonymousRead: false,
+    });
     expect(component.socialLinks?.instagram).toBe('alex');
     expect(component.normalizedLinks['instagram']).toBe('https://instagram.com/alex');
   });
