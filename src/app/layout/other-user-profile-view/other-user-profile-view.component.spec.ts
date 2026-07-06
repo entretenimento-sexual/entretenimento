@@ -1,13 +1,4 @@
 // src/app/layout/other-user-profile-view/other-user-profile-view.component.spec.ts
-// -----------------------------------------------------------------------------
-// Spec mínimo do perfil visitado.
-//
-// Corrige:
-// - imports ausentes de describe/beforeEach/it/expect no Vitest;
-// - expect manual indevido;
-// - providers necessários para o standalone component;
-// - evita dependência real de Firebase/Firestore/Functions durante teste.
-// -----------------------------------------------------------------------------
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
@@ -18,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { OtherUserProfileViewComponent } from './other-user-profile-view.component';
 import { FirestoreUserQueryService } from '../../core/services/data-handling/firestore-user-query.service';
+import { MediaPublicQueryService } from '../../core/services/media/media-public-query.service';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { FriendshipService } from '../../core/services/interactions/friendship/friendship.service';
 import { DirectChatService } from '../../messaging/direct-chat/services/direct-chat.service';
@@ -53,20 +45,7 @@ describe('OtherUserProfileViewComponent', () => {
         {
           provide: Store,
           useValue: {
-            select: vi.fn(() => of({
-              uid: viewerUid,
-              email: null,
-              photoURL: null,
-              role: 'free',
-              lastLogin: Date.now(),
-              descricao: '',
-              isSubscriber: false,
-              gender: 'Homem',
-              orientation: 'heterossexual',
-              estado: 'RJ',
-              municipio: 'Rio de Janeiro',
-              preferences: [],
-            })),
+            select: vi.fn(() => of({ uid: viewerUid, role: 'free', isSubscriber: false })),
           },
         },
         {
@@ -89,6 +68,12 @@ describe('OtherUserProfileViewComponent', () => {
           },
         },
         {
+          provide: MediaPublicQueryService,
+          useValue: {
+            getProfilePublicPhotos$: vi.fn(() => of([])),
+          },
+        },
+        {
           provide: AuthSessionService,
           useValue: {
             uid$: of(viewerUid),
@@ -100,6 +85,8 @@ describe('OtherUserProfileViewComponent', () => {
           provide: FriendshipService,
           useValue: {
             sendRequest: vi.fn(() => of(void 0)),
+            watchOutboundRequests: vi.fn(() => of([])),
+            watchFriends: vi.fn(() => of([])),
           },
         },
         {
