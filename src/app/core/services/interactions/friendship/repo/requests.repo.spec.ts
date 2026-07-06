@@ -1,6 +1,4 @@
 // src/app/core/services/interactions/friendship/repo/requests.repo.spec.ts
-import { EnvironmentInjector } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const firestoreTest = vi.hoisted(() => {
@@ -114,6 +112,8 @@ vi.mock('@angular/fire/firestore', () => {
   };
 });
 
+import { EnvironmentInjector } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { RequestsRepo } from './requests.repo';
 
 class FakeCooldownRepo {
