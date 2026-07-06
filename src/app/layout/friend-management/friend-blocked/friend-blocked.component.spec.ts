@@ -2,6 +2,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Store } from '@ngrx/store';
 import { Firestore } from '@angular/fire/firestore';
+import { Functions } from '@angular/fire/functions';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -16,6 +17,7 @@ describe('FriendBlockedComponent', () => {
       imports: [FriendBlockedComponent],
       providers: [
         { provide: Firestore, useValue: {} },
+        { provide: Functions, useValue: {} },
         {
           provide: Store,
           useValue: {
