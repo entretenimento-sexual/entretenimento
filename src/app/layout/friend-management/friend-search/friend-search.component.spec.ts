@@ -7,6 +7,7 @@ import { vi } from 'vitest';
 import { FriendSearchComponent } from './friend-search.component';
 import { CacheService } from '../../../core/services/general/cache/cache.service';
 import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
+import { FriendshipService } from '../../../core/services/interactions/friendship/friendship.service';
 
 describe('FriendSearchComponent', () => {
   let component: FriendSearchComponent;
@@ -17,6 +18,7 @@ describe('FriendSearchComponent', () => {
       imports: [FriendSearchComponent],
       providers: [
         { provide: Firestore, useValue: {} },
+        { provide: FriendshipService, useValue: {} },
         {
           provide: Store,
           useValue: {
