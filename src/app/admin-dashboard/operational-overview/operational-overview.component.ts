@@ -40,6 +40,16 @@ interface OperationalAlert {
   routerLink?: string;
 }
 
+interface OperationalQuickAction {
+  title: string;
+  description: string;
+  cta: string;
+  count: number;
+  severity: OperationalSeverity;
+  icon: string;
+  routerLink: string;
+}
+
 interface RecentOperationalUser {
   uid: string;
   label: string;
@@ -50,6 +60,7 @@ interface RecentOperationalUser {
 interface OperationalOverviewVm {
   metrics: OperationalMetric[];
   alerts: OperationalAlert[];
+  quickActions: OperationalQuickAction[];
   recentReports: AdminModerationReportVm[];
   recentUsers: RecentOperationalUser[];
   loading: boolean;
@@ -108,6 +119,10 @@ export class OperationalOverviewComponent {
 
   trackByAlertTitle(_: number, alert: OperationalAlert): string {
     return alert.title;
+  }
+
+  trackByQuickActionTitle(_: number, action: OperationalQuickAction): string {
+    return action.title;
   }
 
   trackByReportId(_: number, report: AdminModerationReportVm): string {
@@ -207,6 +222,13 @@ export class OperationalOverviewComponent {
         incompleteProfiles,
         suspendedUsers,
       }),
+      quickActions: this.buildQuickActions({
+        agedOpenReports: agedOpenReports.length,
+        openReports: openReports.length,
+        reviewingReports: reviewingReports.length,
+        incompleteProfiles,
+        suspendedUsers,
+      }),
       recentReports: this.sortReportsByCreatedAt(openReports.length ? openReports : reports).slice(0, 5),
       recentUsers: this.recentUsers(users),
       loading: usersState.loading || reportsState.loading,
@@ -282,6 +304,57 @@ export class OperationalOverviewComponent {
     }
 
     return alerts;
+  }
+
+  private buildQuickActions(input: {
+    agedOpenReports: number;
+    openReports: number;
+    reviewingReports: number;
+    incompleteProfiles: number;
+    suspendedUsers: number;
+  }): OperationalQuickAction[] {
+    const moderationCount = input.agedOpenReports || input.openReports;
+
+    return [
+      {
+        title: input.agedOpenReports > 0 ? 'Priorizar denúncias 48h+' : 'Triar denúncias abertas',
+        description: input.agedOpenReports > 0
+          ? 'Comece pelas denúncias mais antigas para reduzir risco operacional.'
+          : 'Abra a fila e dê a primeira classificação das denúncias pendentes.',
+        cta: 'Abrir moderação',
+        count: moderationCount,
+        severity: input.agedOpenReports > 0 ? 'danger' : input.openReports > 0 ? 'warning' : 'success',
+        icon: input.agedOpenReports > 0 ? 'priority_high' : 'flag',
+        routerLink: '/admin-dashboard/denuncias',
+      },
+      {
+        title: 'Acompanhar análises',
+        description: 'Revise o que já está em análise e finalize decisões pendentes.',
+        cta: 'Ver em análise',
+        count: input.reviewingReports,
+        severity: input.reviewingReports > 0 ? 'info' : 'success',
+        icon: 'fact_check',
+        routerLink: '/admin-dashboard/denuncias',
+      },
+      {
+        title: 'Checar cadastros',
+        description: 'Identifique usuários que ainda não concluíram o perfil.',
+        cta: 'Abrir usuários',
+        count: input.incompleteProfiles,
+        severity: input.incompleteProfiles > 0 ? 'warning' : 'success',
+        icon: 'person_search',
+        routerLink: '/admin-dashboard/users',
+      },
+      {
+        title: 'Revisar restrições',
+        description: 'Acompanhe contas suspensas, bloqueadas ou com restrição de interação.',
+        cta: 'Ver contas',
+        count: input.suspendedUsers,
+        severity: input.suspendedUsers > 0 ? 'warning' : 'success',
+        icon: 'shield',
+        routerLink: '/admin-dashboard/users',
+      },
+    ];
   }
 
   private isSuspendedUser(user: IUserDados): boolean {
