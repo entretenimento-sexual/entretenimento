@@ -1,10 +1,5 @@
 // src/app/core/services/geolocation/near-profile.service.spec.ts
-import { TestBed } from '@angular/core/testing';
 import { describe, beforeAll, beforeEach, it, expect, vi } from 'vitest';
-
-import { Firestore } from '@angular/fire/firestore';
-import { NearbyProfilesService } from './near-profile.service';
-import { DistanceCalculationService } from './distance-calculation.service';
 
 const firestoreMocks = vi.hoisted(() => ({
   collection: vi.fn(() => ({})),
@@ -37,6 +32,11 @@ const geofireMocks = vi.hoisted(() => ({
 
 vi.mock('@firebase/firestore', () => firestoreMocks);
 vi.mock('geofire-common', () => geofireMocks);
+
+import { TestBed } from '@angular/core/testing';
+import { Firestore } from '@angular/fire/firestore';
+import { NearbyProfilesService } from './near-profile.service';
+import { DistanceCalculationService } from './distance-calculation.service';
 
 class DistanceCalculationServiceStub {
   calculateDistanceInKm = vi.fn(
