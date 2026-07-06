@@ -68,17 +68,46 @@
       </ul>
     </article>
 
-    <article class="operational-panel" aria-labelledby="reports-title">
+    <article class="operational-panel operational-panel--wide" aria-labelledby="reports-title">
       <header class="operational-panel__header">
         <div>
           <p class="operational-panel__eyebrow">Moderação</p>
-          <h3 id="reports-title">Denúncias recentes</h3>
+          <h3 id="reports-title">Fila de denúncias</h3>
         </div>
         <a mat-button routerLink="/admin-dashboard/denuncias">Ver todas</a>
       </header>
 
-      <ol class="compact-list" *ngIf="vm.recentReports.length; else noReports">
-        <li *ngFor="let report of vm.recentReports; trackBy: trackByReportId">
+      <div class="queue-controls" aria-label="Controles da fila de denúncias">
+        <div class="queue-controls__group" role="group" aria-label="Filtro de denúncias">
+          <button
+            type="button"
+            class="queue-chip"
+            [class.is-active]="option.value === vm.reportFilter"
+            [attr.aria-pressed]="option.value === vm.reportFilter"
+            *ngFor="let option of vm.reportFilterOptions; trackBy: trackByReportFilterValue"
+            (click)="setReportFilter(option.value)"
+          >
+            {{ option.label }}
+            <span>{{ option.count }}</span>
+          </button>
+        </div>
+
+        <div class="queue-controls__group" role="group" aria-label="Ordenação de denúncias">
+          <button
+            type="button"
+            class="queue-chip queue-chip--sort"
+            [class.is-active]="option.value === vm.reportSort"
+            [attr.aria-pressed]="option.value === vm.reportSort"
+            *ngFor="let option of vm.reportSortOptions; trackBy: trackByReportSortValue"
+            (click)="setReportSort(option.value)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
+      </div>
+
+      <ol class="compact-list" *ngIf="vm.filteredReports.length; else noReports">
+        <li *ngFor="let report of vm.filteredReports; trackBy: trackByReportId">
           <div>
             <strong>{{ statusLabel(report.status) }}</strong>
             <span>{{ report.reason || 'Motivo não informado' }} · {{ report.targetType || 'alvo não informado' }}</span>
@@ -87,7 +116,7 @@
         </li>
       </ol>
 
-      <ng-template #noReports><p class="empty-state">Nenhuma denúncia recente para exibir.</p></ng-template>
+      <ng-template #noReports><p class="empty-state">Nenhuma denúncia encontrada neste filtro.</p></ng-template>
     </article>
 
     <article class="operational-panel" aria-labelledby="users-title">

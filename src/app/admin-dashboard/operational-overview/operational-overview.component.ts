@@ -2,7 +2,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
-import { Observable, combineLatest, of } from 'rxjs';
+import { BehaviorSubject, Observable, combineLatest, of } from 'rxjs';
 import { catchError, map, shareReplay, startWith } from 'rxjs/operators';
 
 import { AdminMaterialModule } from '../admin-material.module';
@@ -17,6 +17,8 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
 type OperationalSeverity = 'danger' | 'warning' | 'info' | 'success';
+type OperationalReportFilter = 'priority' | 'open' | 'reviewing' | 'all';
+type OperationalReportSort = 'priority' | 'newest' | 'oldest';
 
 interface LoadState<T> {
   value: T;
@@ -50,6 +52,17 @@ interface OperationalQuickAction {
   routerLink: string;
 }
 
+interface OperationalReportFilterOption {
+  value: OperationalReportFilter;
+  label: string;
+  count: number;
+}
+
+interface OperationalReportSortOption {
+  value: OperationalReportSort;
+  label: string;
+}
+
 interface RecentOperationalUser {
   uid: string;
   label: string;
@@ -61,6 +74,11 @@ interface OperationalOverviewVm {
   metrics: OperationalMetric[];
   alerts: OperationalAlert[];
   quickActions: OperationalQuickAction[];
+  reportFilter: OperationalReportFilter;
+  reportSort: OperationalReportSort;
+  reportFilterOptions: OperationalReportFilterOption[];
+  reportSortOptions: OperationalReportSortOption[];
+  filteredReports: AdminModerationReportVm[];
   recentReports: AdminModerationReportVm[];
   recentUsers: RecentOperationalUser[];
   loading: boolean;
@@ -82,6 +100,8 @@ export class OperationalOverviewComponent {
   private readonly reportsService = inject(AdminModerationReportService);
   private readonly notifications = inject(ErrorNotificationService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly reportFilterSubject = new BehaviorSubject<OperationalReportFilter>('priority');
+  private readonly reportSortSubject = new BehaviorSubject<OperationalReportSort>('priority');
 
   private readonly usersState$: Observable<LoadState<IUserDados[]>> = this.userManagement.getAllUsers().pipe(
     map((users) => this.loadedState(users)),
@@ -108,10 +128,25 @@ export class OperationalOverviewComponent {
   readonly vm$: Observable<OperationalOverviewVm> = combineLatest([
     this.usersState$,
     this.reportsState$,
+    this.reportFilterSubject,
+    this.reportSortSubject,
   ]).pipe(
-    map(([usersState, reportsState]) => this.buildVm(usersState, reportsState)),
+    map(([usersState, reportsState, reportFilter, reportSort]) => this.buildVm(
+      usersState,
+      reportsState,
+      reportFilter,
+      reportSort
+    )),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  setReportFilter(filter: OperationalReportFilter): void {
+    this.reportFilterSubject.next(filter);
+  }
+
+  setReportSort(sort: OperationalReportSort): void {
+    this.reportSortSubject.next(sort);
+  }
 
   trackByMetricLabel(_: number, metric: OperationalMetric): string {
     return metric.label;
@@ -123,6 +158,14 @@ export class OperationalOverviewComponent {
 
   trackByQuickActionTitle(_: number, action: OperationalQuickAction): string {
     return action.title;
+  }
+
+  trackByReportFilterValue(_: number, option: OperationalReportFilterOption): string {
+    return option.value;
+  }
+
+  trackByReportSortValue(_: number, option: OperationalReportSortOption): string {
+    return option.value;
   }
 
   trackByReportId(_: number, report: AdminModerationReportVm): string {
@@ -154,7 +197,9 @@ export class OperationalOverviewComponent {
 
   private buildVm(
     usersState: LoadState<IUserDados[]>,
-    reportsState: LoadState<AdminModerationReportVm[]>
+    reportsState: LoadState<AdminModerationReportVm[]>,
+    reportFilter: OperationalReportFilter,
+    reportSort: OperationalReportSort
   ): OperationalOverviewVm {
     const users = usersState.value;
     const reports = reportsState.value;
@@ -169,6 +214,10 @@ export class OperationalOverviewComponent {
     const openReports = reports.filter((report) => report.status === 'open');
     const agedOpenReports = openReports.filter((report) => isAgedOpenModerationReport(report));
     const reviewingReports = reports.filter((report) => report.status === 'reviewing');
+    const filteredReports = this.sortReports(
+      this.applyReportFilter(reports, reportFilter),
+      reportSort
+    ).slice(0, 8);
 
     return {
       metrics: [
@@ -229,6 +278,16 @@ export class OperationalOverviewComponent {
         incompleteProfiles,
         suspendedUsers,
       }),
+      reportFilter,
+      reportSort,
+      reportFilterOptions: this.buildReportFilterOptions({
+        agedOpenReports: agedOpenReports.length,
+        openReports: openReports.length,
+        reviewingReports: reviewingReports.length,
+        totalReports: reports.length,
+      }),
+      reportSortOptions: this.buildReportSortOptions(),
+      filteredReports,
       recentReports: this.sortReportsByCreatedAt(openReports.length ? openReports : reports).slice(0, 5),
       recentUsers: this.recentUsers(users),
       loading: usersState.loading || reportsState.loading,
@@ -355,6 +414,85 @@ export class OperationalOverviewComponent {
         routerLink: '/admin-dashboard/users',
       },
     ];
+  }
+
+  private buildReportFilterOptions(input: {
+    agedOpenReports: number;
+    openReports: number;
+    reviewingReports: number;
+    totalReports: number;
+  }): OperationalReportFilterOption[] {
+    return [
+      { value: 'priority', label: 'Prioridade 48h+', count: input.agedOpenReports },
+      { value: 'open', label: 'Abertas', count: input.openReports },
+      { value: 'reviewing', label: 'Em análise', count: input.reviewingReports },
+      { value: 'all', label: 'Todas', count: input.totalReports },
+    ];
+  }
+
+  private buildReportSortOptions(): OperationalReportSortOption[] {
+    return [
+      { value: 'priority', label: 'Prioridade' },
+      { value: 'newest', label: 'Mais recentes' },
+      { value: 'oldest', label: 'Mais antigas' },
+    ];
+  }
+
+  private applyReportFilter(
+    reports: AdminModerationReportVm[],
+    filter: OperationalReportFilter
+  ): AdminModerationReportVm[] {
+    switch (filter) {
+      case 'priority':
+        return reports.filter((report) => report.status === 'open' && isAgedOpenModerationReport(report));
+      case 'open':
+        return reports.filter((report) => report.status === 'open');
+      case 'reviewing':
+        return reports.filter((report) => report.status === 'reviewing');
+      case 'all':
+      default:
+        return reports;
+    }
+  }
+
+  private sortReports(
+    reports: AdminModerationReportVm[],
+    sort: OperationalReportSort
+  ): AdminModerationReportVm[] {
+    const sorted = [...reports];
+
+    switch (sort) {
+      case 'oldest':
+        return sorted.sort((a, b) => this.reportTime(a) - this.reportTime(b));
+      case 'newest':
+        return sorted.sort((a, b) => this.reportTime(b) - this.reportTime(a));
+      case 'priority':
+      default:
+        return sorted.sort((a, b) => {
+          const priorityDiff = this.reportPriority(b) - this.reportPriority(a);
+          return priorityDiff || this.reportTime(b) - this.reportTime(a);
+        });
+    }
+  }
+
+  private reportPriority(report: AdminModerationReportVm): number {
+    if (report.status === 'open' && isAgedOpenModerationReport(report)) {
+      return 4;
+    }
+
+    if (report.status === 'open') {
+      return 3;
+    }
+
+    if (report.status === 'reviewing') {
+      return 2;
+    }
+
+    if (report.status === 'resolved') {
+      return 1;
+    }
+
+    return 0;
   }
 
   private isSuspendedUser(user: IUserDados): boolean {
