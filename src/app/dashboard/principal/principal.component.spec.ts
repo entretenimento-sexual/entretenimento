@@ -2,6 +2,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { RouterTestingModule } from '@angular/router/testing';
 import { provideMockStore, MockStore } from '@ngrx/store/testing';
+import { Auth } from '@angular/fire/auth';
 
 import { PrincipalComponent } from './principal.component';
 import { selectCurrentUser } from '../../store/selectors/selectors.user/user.selectors';
@@ -19,6 +20,7 @@ describe('PrincipalComponent', () => {
         PrincipalComponent,
       ],
       providers: [
+        { provide: Auth, useValue: { currentUser: null } },
         provideMockStore({
           initialState: {
             user: { currentUser: null },
