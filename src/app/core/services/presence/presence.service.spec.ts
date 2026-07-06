@@ -63,7 +63,13 @@ describe('PresenceService', () => {
     TestBed.configureTestingModule({
       providers: [
         PresenceService,
-        NgZone,
+        {
+          provide: NgZone,
+          useValue: {
+            runOutsideAngular: (task: () => void) => task(),
+            run: <T>(task: () => T) => task(),
+          },
+        },
         {
           provide: PresenceDomStreamsService,
           useValue: {
