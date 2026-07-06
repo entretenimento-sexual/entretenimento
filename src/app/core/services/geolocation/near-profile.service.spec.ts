@@ -1,6 +1,4 @@
 // src/app/core/services/geolocation/near-profile.service.spec.ts
-import { describe, beforeAll, beforeEach, it, expect, vi } from 'vitest';
-
 const firestoreMocks = vi.hoisted(() => ({
   collection: vi.fn(() => ({})),
   where: vi.fn(() => ({})),
