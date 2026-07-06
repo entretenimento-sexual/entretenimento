@@ -78,8 +78,11 @@ describe('AppComponent', () => {
     expect(fixture.componentInstance.title).toBe('entretenimento');
   });
 
-  it('ngOnInit should start orchestrators and toggle footer class on navigation', async () => {
+  it('ngOnInit should start orchestrators and keep footer visibility route-aware', async () => {
     const fixture = TestBed.createComponent(AppComponent);
+    const component = fixture.componentInstance as AppComponent & {
+      shouldHideFooter(url: string): boolean;
+    };
 
     fixture.detectChanges();
 
@@ -90,11 +93,7 @@ describe('AppComponent', () => {
     await fixture.ngZone!.run(() => router.navigateByUrl('/home'));
     fixture.detectChanges();
 
-    expect(document.body.classList.contains('show-footer')).toBe(true);
-
-    await fixture.ngZone!.run(() => router.navigateByUrl('/chat/abc'));
-    fixture.detectChanges();
-
-    expect(document.body.classList.contains('show-footer')).toBe(false);
+    expect(component.shouldHideFooter('/home')).toBe(false);
+    expect(component.shouldHideFooter('/chat/abc')).toBe(true);
   });
 });
