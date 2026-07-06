@@ -1,50 +1,47 @@
 // src/app/messaging/direct-chat/services/direct-thread.service.spec.ts
-import { describe, beforeEach, it, expect, vi, type Mock } from 'vitest';
 import { BehaviorSubject, firstValueFrom, of, throwError } from 'rxjs';
-import type { Functions } from '@angular/fire/functions';
 
-import { DirectThreadService } from './direct-thread.service';
-import { ChatService } from '../../../core/services/batepapo/chat-service/chat.service';
-import { AccessControlService } from '../../../core/services/autentication/auth/access-control.service';
-import { GlobalErrorHandlerService } from '../../../core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
-import { PrivacyDebugLoggerService } from '../../../core/services/privacy/privacy-debug-logger.service';
-
-const functionsMocks = vi.hoisted(() => ({
+const functionsMocks = {
   httpsCallable: vi.fn(),
-}));
+};
 
-vi.mock('@angular/fire/functions', () => functionsMocks);
+vi.doMock('@angular/fire/functions', () => functionsMocks);
+
+type MockFn = ReturnType<typeof vi.fn>;
 
 describe('DirectThreadService', () => {
-  let service: DirectThreadService;
+  let service: any;
+  let DirectThreadServiceToken: any;
 
   let canListenRealtime$: BehaviorSubject<boolean>;
-
-  let sendDirectMessageMock: Mock;
+  let sendCallableMock: MockFn;
 
   let chatServiceMock: {
-    monitorChat: Mock;
-    deleteMessage: Mock;
+    monitorChat: MockFn;
+    deleteMessage: MockFn;
   };
 
   let globalErrorHandlerMock: {
-    handleError: Mock;
+    handleError: MockFn;
   };
 
   let errorNotifierMock: {
-    showWarning: Mock;
-    showError: Mock;
+    showWarning: MockFn;
+    showError: MockFn;
   };
 
   let privacyDebugMock: {
-    log: Mock;
+    log: MockFn;
   };
+
+  beforeAll(async () => {
+    const serviceModule = await import('./direct-thread.service');
+    DirectThreadServiceToken = serviceModule.DirectThreadService;
+  });
 
   beforeEach(() => {
     canListenRealtime$ = new BehaviorSubject<boolean>(true);
-
-    sendDirectMessageMock = vi.fn();
+    sendCallableMock = vi.fn();
 
     chatServiceMock = {
       monitorChat: vi.fn(),
@@ -65,17 +62,17 @@ describe('DirectThreadService', () => {
     };
 
     functionsMocks.httpsCallable.mockReset();
-    functionsMocks.httpsCallable.mockReturnValue(sendDirectMessageMock as any);
+    functionsMocks.httpsCallable.mockReturnValue(sendCallableMock as any);
 
-    service = new DirectThreadService(
-      {} as Functions,
-      chatServiceMock as unknown as ChatService,
+    service = new DirectThreadServiceToken(
+      {},
+      chatServiceMock,
       {
         canListenRealtime$: canListenRealtime$.asObservable(),
-      } as unknown as AccessControlService,
-      globalErrorHandlerMock as unknown as GlobalErrorHandlerService,
-      errorNotifierMock as unknown as ErrorNotificationService,
-      privacyDebugMock as unknown as PrivacyDebugLoggerService
+      },
+      globalErrorHandlerMock,
+      errorNotifierMock,
+      privacyDebugMock
     );
   });
 
@@ -83,7 +80,7 @@ describe('DirectThreadService', () => {
     expect(service).toBeTruthy();
 
     expect(functionsMocks.httpsCallable).toHaveBeenCalledWith(
-      {} as Functions,
+      {},
       'sendDirectMessage'
     );
   });
@@ -109,7 +106,7 @@ describe('DirectThreadService', () => {
       {
         id: 'msg-1',
         chatId: 'chat-1',
-        content: 'mensagem não deve ir para log',
+        content: 'conteudo de teste',
       },
     ];
 
@@ -148,7 +145,7 @@ describe('DirectThreadService', () => {
     );
 
     expect(result).toBeNull();
-    expect(sendDirectMessageMock).not.toHaveBeenCalled();
+    expect(sendCallableMock).not.toHaveBeenCalled();
   });
 
   it('sendMessage$ deve retornar null quando conteúdo vier vazio', async () => {
@@ -157,7 +154,7 @@ describe('DirectThreadService', () => {
     );
 
     expect(result).toBeNull();
-    expect(sendDirectMessageMock).not.toHaveBeenCalled();
+    expect(sendCallableMock).not.toHaveBeenCalled();
   });
 
   it('sendMessage$ deve bloquear mensagem acima de 1000 caracteres', async () => {
@@ -168,7 +165,7 @@ describe('DirectThreadService', () => {
     );
 
     expect(result).toBeNull();
-    expect(sendDirectMessageMock).not.toHaveBeenCalled();
+    expect(sendCallableMock).not.toHaveBeenCalled();
     expect(errorNotifierMock.showWarning).toHaveBeenCalledWith(
       'A mensagem deve ter no máximo 1000 caracteres.'
     );
@@ -180,14 +177,14 @@ describe('DirectThreadService', () => {
     );
 
     expect(result).toBeNull();
-    expect(sendDirectMessageMock).not.toHaveBeenCalled();
+    expect(sendCallableMock).not.toHaveBeenCalled();
     expect(errorNotifierMock.showError).toHaveBeenCalledWith(
       'Não foi possível preparar o envio da mensagem.'
     );
   });
 
   it('sendMessage$ deve chamar callable e retornar messageId no sucesso', async () => {
-    sendDirectMessageMock.mockResolvedValueOnce({
+    sendCallableMock.mockResolvedValueOnce({
       data: {
         chatId: 'chat-1',
         messageId: 'msg-1',
@@ -199,7 +196,7 @@ describe('DirectThreadService', () => {
       service.sendMessage$(' chat-1 ', ' olá ', ' req-1 ')
     );
 
-    expect(sendDirectMessageMock).toHaveBeenCalledWith({
+    expect(sendCallableMock).toHaveBeenCalledWith({
       chatId: 'chat-1',
       content: 'olá',
       clientRequestId: 'req-1',
@@ -219,7 +216,7 @@ describe('DirectThreadService', () => {
   });
 
   it('sendMessage$ deve retornar null, notificar e registrar erro quando callable falhar', async () => {
-    sendDirectMessageMock.mockRejectedValueOnce({
+    sendCallableMock.mockRejectedValueOnce({
       code: 'permission-denied',
       message: 'denied',
     });
@@ -236,7 +233,7 @@ describe('DirectThreadService', () => {
   });
 
   it('sendMessage$ deve retornar null quando callable responder sem messageId', async () => {
-    sendDirectMessageMock.mockResolvedValueOnce({
+    sendCallableMock.mockResolvedValueOnce({
       data: {
         chatId: 'chat-1',
         messageId: '',
