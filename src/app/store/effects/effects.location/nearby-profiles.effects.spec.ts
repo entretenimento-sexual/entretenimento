@@ -47,7 +47,7 @@ describe('NearbyProfilesEffects', () => {
     actions$ = new ReplaySubject<Action>(1);
 
     svc = {
-      getProfilesNearLocation: vi.fn(),
+      getProfilesNearLocation: vi.fn(() => Promise.resolve([])),
     };
 
     notify = {
@@ -91,6 +91,7 @@ describe('NearbyProfilesEffects', () => {
 
     store.overrideSelector(freshSel, true);
     store.overrideSelector(entrySel, cached);
+    store.refreshState();
 
     actions$.next(NearbyProfilesActions.load({ params }));
 
@@ -114,6 +115,7 @@ describe('NearbyProfilesEffects', () => {
 
     store.overrideSelector(freshSel, false);
     store.overrideSelector(entrySel, { list: [], loading: false, error: null, updatedAt: 0 });
+    store.refreshState();
 
     svc.getProfilesNearLocation.mockResolvedValue(fetched);
 
@@ -135,6 +137,7 @@ describe('NearbyProfilesEffects', () => {
   it('erro: quando service rejeita, emite error e notifica/handleError', async () => {
     store.overrideSelector(freshSel, false);
     store.overrideSelector(entrySel, { list: [], loading: false, error: null, updatedAt: 0 });
+    store.refreshState();
 
     const boom = new Error('network');
     svc.getProfilesNearLocation.mockRejectedValue(boom);
