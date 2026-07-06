@@ -1,11 +1,12 @@
 // src/app/core/services/interactions/friendship/repo/requests.repo.spec.ts
-const firestoreTest = vi.hoisted(() => {
+import { EnvironmentInjector } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
+
+const firestoreTest = (() => {
   type DocRef = { path: string };
   type ColRef = { path: string };
 
   const store = new Map<string, any>();
-
-  const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value));
 
   const materializeTs = (value: any): any => {
     if (!value || typeof value !== 'object') return value;
@@ -25,9 +26,9 @@ const firestoreTest = vi.hoisted(() => {
     doc: (_db: unknown, path: string): DocRef => ({ path }),
     collection: (_db: unknown, path: string): ColRef => ({ path }),
   };
-});
+})();
 
-vi.mock('@angular/fire/firestore', () => {
+vi.doMock('@angular/fire/firestore', () => {
   return {
     Timestamp: class {},
     Firestore: class {},
@@ -110,10 +111,6 @@ vi.mock('@angular/fire/firestore', () => {
   };
 });
 
-import { EnvironmentInjector } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
-import { RequestsRepo } from './requests.repo';
-
 class FakeCooldownRepo {
   getCooldownRef() {
     return { path: 'cooldown/noop' };
@@ -121,7 +118,8 @@ class FakeCooldownRepo {
 }
 
 describe('RequestsRepo.acceptRequestBatch', () => {
-  let repo: RequestsRepo;
+  let RequestsRepoToken: any;
+  let repo: any;
 
   const db = {} as any;
   const env = {
@@ -132,9 +130,14 @@ describe('RequestsRepo.acceptRequestBatch', () => {
   const requesterUid = 'alice';
   const targetUid = 'bob';
 
+  beforeAll(async () => {
+    const repoModule = await import('./requests.repo');
+    RequestsRepoToken = repoModule.RequestsRepo;
+  });
+
   beforeEach(() => {
     firestoreTest.store.clear();
-    repo = new RequestsRepo(db, env, new FakeCooldownRepo() as any);
+    repo = new RequestsRepoToken(db, env, new FakeCooldownRepo() as any);
   });
 
   it('deve aceitar uma solicitação pendente e criar as duas arestas', async () => {
