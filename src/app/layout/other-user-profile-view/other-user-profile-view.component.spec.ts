@@ -4,6 +4,7 @@ import { ActivatedRoute, convertToParamMap } from '@angular/router';
 import { RouterTestingModule } from '@angular/router/testing';
 import { Store } from '@ngrx/store';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { Firestore } from '@angular/fire/firestore';
 import { of } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -34,6 +35,7 @@ describe('OtherUserProfileViewComponent', () => {
         NoopAnimationsModule,
       ],
       providers: [
+        { provide: Firestore, useValue: {} },
         {
           provide: ActivatedRoute,
           useValue: {
