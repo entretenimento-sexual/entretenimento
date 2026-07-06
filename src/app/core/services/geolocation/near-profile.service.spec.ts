@@ -19,6 +19,20 @@ const geofireMocks = vi.hoisted(() => ({
   geohashQueryBounds: vi.fn((_center: [number, number], _radiusM: number) => [
     ['aaaa', 'zzzz'],
   ]),
+  distanceBetween: vi.fn((from: [number, number], to: [number, number]) => {
+    const [lat1, lon1] = from;
+    const [lat2, lon2] = to;
+    const toRadians = (value: number) => value * Math.PI / 180;
+    const earthRadiusKm = 6371;
+    const deltaLat = toRadians(lat2 - lat1);
+    const deltaLon = toRadians(lon2 - lon1);
+    const a = Math.sin(deltaLat / 2) ** 2
+      + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2))
+      * Math.sin(deltaLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return earthRadiusKm * c;
+  }),
 }));
 
 vi.mock('@firebase/firestore', () => firestoreMocks);
@@ -49,6 +63,7 @@ describe('NearbyProfilesService', () => {
     firestoreMocks.startAt.mockReset();
     firestoreMocks.limit.mockReset();
     geofireMocks.geohashQueryBounds.mockClear();
+    geofireMocks.distanceBetween.mockClear();
 
     firestoreMocks.collection.mockReturnValue({});
     firestoreMocks.where.mockReturnValue({});

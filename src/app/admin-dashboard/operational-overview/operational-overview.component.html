@@ -1,0 +1,129 @@
+<!-- src/app/admin-dashboard/operational-overview/operational-overview.component.html -->
+<section class="operational-overview" aria-labelledby="operational-title" *ngIf="vm$ | async as vm">
+  <header class="operational-hero">
+    <div class="operational-hero__copy">
+      <p class="operational-hero__eyebrow">Operação</p>
+      <h2 id="operational-title">Painel operacional</h2>
+      <p>
+        Acompanhe os sinais que exigem resposta rápida: usuários, cadastros pendentes,
+        denúncias, presença e assinaturas.
+      </p>
+    </div>
+
+    <div class="operational-hero__actions" aria-label="Atalhos principais">
+      <a mat-stroked-button routerLink="/admin-dashboard/users">Usuários</a>
+      <a mat-flat-button color="primary" routerLink="/admin-dashboard/denuncias">Moderação</a>
+    </div>
+  </header>
+
+  <mat-progress-bar
+    *ngIf="vm.loading"
+    mode="indeterminate"
+    aria-label="Carregando indicadores operacionais"
+  ></mat-progress-bar>
+
+  <section class="metric-grid" aria-label="Indicadores operacionais">
+    <article
+      class="metric-card"
+      [class]="'metric-card metric-card--' + metric.severity"
+      *ngFor="let metric of vm.metrics; trackBy: trackByMetricLabel"
+    >
+      <div class="metric-card__icon" aria-hidden="true">
+        <mat-icon>{{ metric.icon }}</mat-icon>
+      </div>
+
+      <div>
+        <p>{{ metric.label }}</p>
+        <strong>{{ metric.value }}</strong>
+        <span>{{ metric.hint }}</span>
+      </div>
+    </article>
+  </section>
+
+  <section class="operational-grid">
+    <article class="operational-panel" aria-labelledby="attention-title">
+      <header class="operational-panel__header">
+        <div>
+          <p class="operational-panel__eyebrow">Fila</p>
+          <h3 id="attention-title">Atenção operacional</h3>
+        </div>
+      </header>
+
+      <ul class="alert-list" aria-label="Alertas operacionais">
+        <li
+          class="alert-item"
+          [class]="'alert-item alert-item--' + alert.severity"
+          *ngFor="let alert of vm.alerts; trackBy: trackByAlertTitle"
+        >
+          <mat-icon aria-hidden="true">{{ alert.icon }}</mat-icon>
+
+          <div class="alert-item__content">
+            <strong>{{ alert.title }}</strong>
+            <span>{{ alert.description }}</span>
+          </div>
+
+          <a
+            *ngIf="alert.routerLink"
+            mat-button
+            [routerLink]="alert.routerLink"
+            [attr.aria-label]="'Abrir ' + alert.title"
+          >
+            Abrir
+          </a>
+        </li>
+      </ul>
+    </article>
+
+    <article class="operational-panel" aria-labelledby="reports-title">
+      <header class="operational-panel__header">
+        <div>
+          <p class="operational-panel__eyebrow">Moderação</p>
+          <h3 id="reports-title">Denúncias recentes</h3>
+        </div>
+        <a mat-button routerLink="/admin-dashboard/denuncias">Ver todas</a>
+      </header>
+
+      <ol class="compact-list" *ngIf="vm.recentReports.length; else noReports">
+        <li *ngFor="let report of vm.recentReports; trackBy: trackByReportId">
+          <div>
+            <strong>{{ statusLabel(report.status) }}</strong>
+            <span>{{ report.reason || 'Motivo não informado' }} · {{ report.targetType || 'alvo não informado' }}</span>
+          </div>
+          <time *ngIf="dateValue(report.createdAt) as reportDate" [attr.datetime]="reportDate.toISOString()">
+            {{ reportDate | date: 'dd/MM HH:mm' }}
+          </time>
+        </li>
+      </ol>
+
+      <ng-template #noReports>
+        <p class="empty-state">Nenhuma denúncia recente para exibir.</p>
+      </ng-template>
+    </article>
+
+    <article class="operational-panel" aria-labelledby="users-title">
+      <header class="operational-panel__header">
+        <div>
+          <p class="operational-panel__eyebrow">Usuários</p>
+          <h3 id="users-title">Entradas recentes</h3>
+        </div>
+        <a mat-button routerLink="/admin-dashboard/users">Ver usuários</a>
+      </header>
+
+      <ol class="compact-list" *ngIf="vm.recentUsers.length; else noUsers">
+        <li *ngFor="let user of vm.recentUsers; trackBy: trackByUserUid">
+          <div>
+            <strong>{{ user.label }}</strong>
+            <span>{{ user.subtitle }}</span>
+          </div>
+          <time *ngIf="user.timestamp" [attr.datetime]="user.timestamp | date: 'yyyy-MM-ddTHH:mm:ss'">
+            {{ user.timestamp | date: 'dd/MM HH:mm' }}
+          </time>
+        </li>
+      </ol>
+
+      <ng-template #noUsers>
+        <p class="empty-state">Nenhum usuário carregado.</p>
+      </ng-template>
+    </article>
+  </section>
+</section>
