@@ -1,7 +1,7 @@
 // src/app/chat-module/chat-message/chat-message.component.spec.ts
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { NO_ERRORS_SCHEMA } from '@angular/core';
+import { NO_ERRORS_SCHEMA, Pipe, PipeTransform } from '@angular/core';
 import { Firestore } from '@angular/fire/firestore';
 import { of } from 'rxjs';
 
@@ -13,12 +13,19 @@ import { ErrorNotificationService } from '../../core/services/error-handler/erro
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from '../../core/services/privacy/privacy-debug-logger.service';
 
+@Pipe({ name: 'dateFormat', standalone: false })
+class DateFormatTestingPipe implements PipeTransform {
+  transform(value: unknown): unknown {
+    return value;
+  }
+}
+
 describe('ChatMessageComponent', () => {
   let fixture: ComponentFixture<ChatMessageComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [ChatMessageComponent, ChatReplyQuotePipe],
+      declarations: [ChatMessageComponent, ChatReplyQuotePipe, DateFormatTestingPipe],
       providers: [
         { provide: Firestore, useValue: {} },
         {
