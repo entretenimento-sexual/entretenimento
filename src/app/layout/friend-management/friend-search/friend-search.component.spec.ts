@@ -1,6 +1,12 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { Store } from '@ngrx/store';
+import { Firestore } from '@angular/fire/firestore';
+import { of } from 'rxjs';
+import { vi } from 'vitest';
 
 import { FriendSearchComponent } from './friend-search.component';
+import { CacheService } from '../../../core/services/general/cache/cache.service';
+import { ErrorNotificationService } from '../../../core/services/error-handler/error-notification.service';
 
 describe('FriendSearchComponent', () => {
   let component: FriendSearchComponent;
@@ -8,7 +14,30 @@ describe('FriendSearchComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [FriendSearchComponent]
+      imports: [FriendSearchComponent],
+      providers: [
+        { provide: Firestore, useValue: {} },
+        {
+          provide: Store,
+          useValue: {
+            dispatch: vi.fn(),
+            select: vi.fn(() => of([])),
+          },
+        },
+        {
+          provide: CacheService,
+          useValue: {
+            get: vi.fn(() => of(null)),
+            set: vi.fn(),
+          },
+        },
+        {
+          provide: ErrorNotificationService,
+          useValue: {
+            showError: vi.fn(),
+          },
+        },
+      ],
     })
     .compileComponents();
 
