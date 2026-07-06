@@ -4,6 +4,7 @@ import { RouterTestingModule } from '@angular/router/testing';
 import { provideMockStore, MockStore } from '@ngrx/store/testing';
 import { Auth } from '@angular/fire/auth';
 import { Firestore } from '@angular/fire/firestore';
+import { Functions } from '@angular/fire/functions';
 
 import { PrincipalComponent } from './principal.component';
 import { selectCurrentUser } from '../../store/selectors/selectors.user/user.selectors';
@@ -23,6 +24,7 @@ describe('PrincipalComponent', () => {
       providers: [
         { provide: Auth, useValue: { currentUser: null } },
         { provide: Firestore, useValue: {} },
+        { provide: Functions, useValue: {} },
         provideMockStore({
           initialState: {
             user: { currentUser: null },
