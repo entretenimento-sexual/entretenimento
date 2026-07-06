@@ -1,6 +1,4 @@
 // src/app/core/services/batepapo/room-services/room.service.spec.ts
-import { describe, beforeEach, it, expect, vi } from 'vitest';
-
 const firestoreMocks = vi.hoisted(() => ({
   Firestore: class FirestoreMock {},
   collection: vi.fn(() => ({ kind: 'collection' })),
