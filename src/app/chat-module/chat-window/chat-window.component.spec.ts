@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { FormsModule } from '@angular/forms';
 import { of } from 'rxjs';
 import { vi } from 'vitest';
 
@@ -14,6 +15,7 @@ describe('ChatWindowComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       declarations: [ChatWindowComponent],
+      imports: [FormsModule],
       providers: [
         {
           provide: ChatService,
