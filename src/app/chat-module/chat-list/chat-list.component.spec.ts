@@ -2,6 +2,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
+import { FormsModule } from '@angular/forms';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { of } from 'rxjs';
 
@@ -26,6 +27,7 @@ describe('ChatListComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({
       declarations: [ChatListComponent],
+      imports: [FormsModule],
       providers: [
         {
           provide: AuthSessionService,
