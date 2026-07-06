@@ -1,4 +1,4 @@
-//src\app\layout\friend-management\friend-requests\friend-requests.component.spec.ts
+// src/app/layout/friend-management/friend-requests/friend-requests.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideMockStore } from '@ngrx/store/testing';
 import { FriendRequestsComponent } from './friend-requests.component';
@@ -15,7 +15,6 @@ describe('FriendRequestsComponent', () => {
     }).compileComponents();
 
     fixture = TestBed.createComponent(FriendRequestsComponent);
-    fixture.componentRef.setInput('user', { uid: 'u1' } as any);
     fixture.detectChanges();
   });
 
