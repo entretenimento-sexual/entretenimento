@@ -1,6 +1,6 @@
 // src/app/core/services/batepapo/room-services/room.service.spec.ts
 import { TestBed } from '@angular/core/testing';
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom, from, of } from 'rxjs';
 import { describe, beforeEach, it, expect, vi } from 'vitest';
 
 const firestoreMocks = vi.hoisted(() => ({
@@ -43,7 +43,7 @@ describe('RoomService', () => {
         {
           provide: FirestoreContextService,
           useValue: {
-            deferPromise$: (task: () => Promise<unknown>) => of(task()),
+            deferPromise$: (task: () => Promise<unknown>) => from(task()),
             deferObservable$: (task: () => unknown) => task(),
           },
         },
