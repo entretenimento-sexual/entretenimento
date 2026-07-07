@@ -136,13 +136,52 @@
       </div>
 
       <ol class="compact-list" *ngIf="vm.filteredReports.length; else noReports">
-        <li [class]="'compact-list__item compact-list__item--' + report.status" *ngFor="let report of vm.filteredReports; trackBy: trackByReportId">
-          <div>
+        <li
+          [class]="'compact-list__item compact-list__item--' + report.status"
+          [attr.aria-busy]="report.actionPending"
+          *ngFor="let report of vm.filteredReports; trackBy: trackByReportId"
+        >
+          <div class="compact-list__content">
             <strong>{{ statusLabel(report.status) }}</strong>
             <span>{{ report.reason || 'Motivo não informado' }} · {{ report.targetType || 'alvo não informado' }}</span>
           </div>
           <span [class]="'status-pill status-pill--' + report.status">{{ statusLabel(report.status) }}</span>
           <time *ngIf="dateValue(report.createdAt) as reportDate" [attr.datetime]="reportDate.toISOString()">{{ reportDate | date: 'dd/MM HH:mm' }}</time>
+
+          <div class="report-actions" aria-label="Ações da denúncia">
+            <button
+              *ngIf="report.status === 'open'"
+              type="button"
+              mat-stroked-button
+              [disabled]="!report.canReview"
+              (click)="markReportReviewing(report)"
+            >
+              {{ report.actionPending ? 'Salvando...' : 'Analisar' }}
+            </button>
+
+            <button
+              *ngIf="report.status === 'open' || report.status === 'reviewing'"
+              type="button"
+              mat-stroked-button
+              color="primary"
+              [disabled]="!report.canResolve"
+              (click)="resolveReport(report)"
+            >
+              Resolver
+            </button>
+
+            <button
+              *ngIf="report.status === 'open' || report.status === 'reviewing'"
+              type="button"
+              mat-button
+              [disabled]="!report.canReject"
+              (click)="rejectReport(report)"
+            >
+              Rejeitar
+            </button>
+
+            <a *ngIf="!report.targetUserUid" mat-button routerLink="/admin-dashboard/denuncias">Completar</a>
+          </div>
         </li>
       </ol>
 
