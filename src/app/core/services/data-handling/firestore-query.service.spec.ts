@@ -36,7 +36,9 @@ class MockUserPresenceQueryService {
 }
 
 class MockFirestoreContextService {
-  deferObservable$ = vi.fn((task: () => unknown) => task());
+  deferObservable$ = vi.fn((task: () => unknown) =>
+    TestBed.runInInjectionContext(task as () => any)
+  );
 }
 
 describe('FirestoreQueryService', () => {
