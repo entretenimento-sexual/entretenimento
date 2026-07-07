@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { BehaviorSubject, Observable, combineLatest, of } from 'rxjs';
-import { catchError, map, shareReplay, startWith } from 'rxjs/operators';
+import { catchError, finalize, map, shareReplay, startWith } from 'rxjs/operators';
 
 import { AdminMaterialModule } from '../admin-material.module';
 import { isAgedOpenModerationReport, moderationReportDateValue } from '../moderation-reports/moderation-report-age.util';
@@ -16,9 +16,10 @@ import {
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 
-type OperationalSeverity = 'danger' | 'warning' | 'info' | 'success';
-type OperationalReportFilter = 'priority' | 'open' | 'reviewing' | 'all';
-type OperationalReportSort = 'priority' | 'newest' | 'oldest';
+ type OperationalSeverity = 'danger' | 'warning' | 'info' | 'success';
+ type OperationalReportFilter = 'priority' | 'open' | 'reviewing' | 'all';
+ type OperationalReportSort = 'priority' | 'newest' | 'oldest';
+ type OperationalReportActionStatus = 'reviewing' | 'resolved' | 'rejected';
 
 interface LoadState<T> {
   value: T;
@@ -63,6 +64,14 @@ interface OperationalReportSortOption {
   label: string;
 }
 
+interface OperationalReportItem extends AdminModerationReportVm {
+  actionPending: boolean;
+  targetUserUid: string;
+  canReview: boolean;
+  canResolve: boolean;
+  canReject: boolean;
+}
+
 interface RecentOperationalUser {
   uid: string;
   label: string;
@@ -78,7 +87,7 @@ interface OperationalOverviewVm {
   reportSort: OperationalReportSort;
   reportFilterOptions: OperationalReportFilterOption[];
   reportSortOptions: OperationalReportSortOption[];
-  filteredReports: AdminModerationReportVm[];
+  filteredReports: OperationalReportItem[];
   recentReports: AdminModerationReportVm[];
   recentUsers: RecentOperationalUser[];
   loading: boolean;
@@ -102,6 +111,7 @@ export class OperationalOverviewComponent {
   private readonly globalError = inject(GlobalErrorHandlerService);
   private readonly reportFilterSubject = new BehaviorSubject<OperationalReportFilter>('priority');
   private readonly reportSortSubject = new BehaviorSubject<OperationalReportSort>('priority');
+  private readonly reportActionIdsSubject = new BehaviorSubject<ReadonlySet<string>>(new Set<string>());
 
   private readonly usersState$: Observable<LoadState<IUserDados[]>> = this.userManagement.getAllUsers().pipe(
     map((users) => this.loadedState(users)),
@@ -130,12 +140,14 @@ export class OperationalOverviewComponent {
     this.reportsState$,
     this.reportFilterSubject,
     this.reportSortSubject,
+    this.reportActionIdsSubject,
   ]).pipe(
-    map(([usersState, reportsState, reportFilter, reportSort]) => this.buildVm(
+    map(([usersState, reportsState, reportFilter, reportSort, reportActionIds]) => this.buildVm(
       usersState,
       reportsState,
       reportFilter,
-      reportSort
+      reportSort,
+      reportActionIds
     )),
     shareReplay({ bufferSize: 1, refCount: true })
   );
@@ -146,6 +158,33 @@ export class OperationalOverviewComponent {
 
   setReportSort(sort: OperationalReportSort): void {
     this.reportSortSubject.next(sort);
+  }
+
+  markReportReviewing(report: AdminModerationReportVm): void {
+    this.reviewReport(
+      report,
+      'reviewing',
+      'Denúncia colocada em análise.',
+      'Não foi possível colocar a denúncia em análise.'
+    );
+  }
+
+  resolveReport(report: AdminModerationReportVm): void {
+    this.reviewReport(
+      report,
+      'resolved',
+      'Denúncia resolvida.',
+      'Não foi possível resolver a denúncia.'
+    );
+  }
+
+  rejectReport(report: AdminModerationReportVm): void {
+    this.reviewReport(
+      report,
+      'rejected',
+      'Denúncia rejeitada.',
+      'Não foi possível rejeitar a denúncia.'
+    );
   }
 
   trackByMetricLabel(_: number, metric: OperationalMetric): string {
@@ -199,7 +238,8 @@ export class OperationalOverviewComponent {
     usersState: LoadState<IUserDados[]>,
     reportsState: LoadState<AdminModerationReportVm[]>,
     reportFilter: OperationalReportFilter,
-    reportSort: OperationalReportSort
+    reportSort: OperationalReportSort,
+    reportActionIds: ReadonlySet<string>
   ): OperationalOverviewVm {
     const users = usersState.value;
     const reports = reportsState.value;
@@ -217,7 +257,9 @@ export class OperationalOverviewComponent {
     const filteredReports = this.sortReports(
       this.applyReportFilter(reports, reportFilter),
       reportSort
-    ).slice(0, 8);
+    )
+      .slice(0, 8)
+      .map((report) => this.withReportActionState(report, reportActionIds));
 
     return {
       metrics: [
@@ -473,6 +515,110 @@ export class OperationalOverviewComponent {
           return priorityDiff || this.reportTime(b) - this.reportTime(a);
         });
     }
+  }
+
+  private withReportActionState(
+    report: AdminModerationReportVm,
+    reportActionIds: ReadonlySet<string>
+  ): OperationalReportItem {
+    const actionPending = reportActionIds.has(report.id);
+    const targetUserUid = this.reportTargetUserUid(report);
+    const canAct = !!targetUserUid && !actionPending;
+
+    return {
+      ...report,
+      actionPending,
+      targetUserUid,
+      canReview: report.status === 'open' && canAct,
+      canResolve: (report.status === 'open' || report.status === 'reviewing') && canAct,
+      canReject: (report.status === 'open' || report.status === 'reviewing') && canAct,
+    };
+  }
+
+  private reviewReport(
+    report: AdminModerationReportVm,
+    status: OperationalReportActionStatus,
+    successMessage: string,
+    errorMessage: string
+  ): void {
+    const reportId = String(report.id ?? '').trim();
+    const targetUserUid = this.reportTargetUserUid(report);
+
+    if (!reportId) {
+      this.notifications.showWarning('Denúncia sem identificador válido. Abra a tela completa de moderação.');
+      return;
+    }
+
+    if (!targetUserUid) {
+      this.notifications.showWarning('Denúncia sem usuário alvo identificado. Abra a tela completa de moderação.');
+      return;
+    }
+
+    if (this.reportActionIdsSubject.value.has(reportId)) {
+      return;
+    }
+
+    this.setReportActionPending(reportId, true);
+
+    this.reportsService.reviewReport$(reportId, {
+      status,
+      previousStatus: report.status,
+      targetUserUid,
+      reportReason: report.reason ?? null,
+      reportTargetType: report.targetType ?? null,
+      resolution: this.reportResolution(status),
+    }).pipe(
+      finalize(() => this.setReportActionPending(reportId, false))
+    ).subscribe({
+      next: () => this.notifications.showSuccess(successMessage),
+      error: (error) => this.notifications.showError(
+        errorMessage,
+        error instanceof Error ? error.message : undefined
+      ),
+    });
+  }
+
+  private reportTargetUserUid(report: AdminModerationReportVm): string {
+    const ownerUid = String(report.targetOwnerUid ?? '').trim();
+
+    if (ownerUid) {
+      return ownerUid;
+    }
+
+    if (report.targetType === 'profile') {
+      return String(report.targetId ?? '').trim();
+    }
+
+    return '';
+  }
+
+  private reportResolution(status: OperationalReportActionStatus): string | null {
+    switch (status) {
+      case 'reviewing':
+        return null;
+      case 'resolved':
+        return 'Resolvida pelo painel operacional.';
+      case 'rejected':
+        return 'Rejeitada pelo painel operacional.';
+    }
+  }
+
+  private setReportActionPending(reportId: string, pending: boolean): void {
+    const safeReportId = String(reportId ?? '').trim();
+
+    if (!safeReportId) {
+      return;
+    }
+
+    const next = new Set(this.reportActionIdsSubject.value);
+
+    if (pending) {
+      next.add(safeReportId);
+    } else {
+      next.delete(safeReportId);
+    }
+
+    this.reportActionIdsSubject.next(next);
   }
 
   private reportPriority(report: AdminModerationReportVm): number {
