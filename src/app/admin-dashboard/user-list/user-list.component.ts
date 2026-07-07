@@ -396,7 +396,7 @@ export class UserListComponent implements OnInit {
     };
   }
 
-  private userStatusLabel(user: Pick<IUserDadosExtended, 'suspended' | 'accountLocked' | 'accountStatus' | 'interactionBlocked'>): string {
+  private userStatusLabel(user: Pick<IUserDadosExtended, 'suspended' | 'accountLocked' | 'accountStatus' | 'interactionBlocked' | 'profileCompleted'>): string {
     if (user.accountLocked) {
       return 'Conta bloqueada';
     }
