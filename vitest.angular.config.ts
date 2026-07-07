@@ -1,18 +1,3 @@
-// vitest.angular.config.ts
-// -----------------------------------------------------------------------------
-// VITEST CONFIG — ANGULAR CLI TEST RUNNER
-// -----------------------------------------------------------------------------
-// Usada pelo comando:
-//
-//   npx ng test --watch=false
-//
-// Importante:
-// - não usa setupFiles;
-// - não carrega setup-vitest-direct.ts;
-// - não chama getTestBed().initTestEnvironment();
-// - deixa o Angular CLI inicializar o TestBed.
-// -----------------------------------------------------------------------------
-
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
@@ -27,10 +12,10 @@ export default defineConfig({
       '@store': fileURLToPath(new URL('./src/app/store', import.meta.url)),
     },
   },
-
   test: {
     globals: true,
     environment: 'jsdom',
     css: true,
+    setupFiles: [fileURLToPath(new URL('./src/test/setup-vitest.ts', import.meta.url))],
   },
 });
