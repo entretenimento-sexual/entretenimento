@@ -35,11 +35,15 @@ import { Observable, of } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
+  filter,
   finalize,
   map,
   shareReplay,
   startWith,
+  switchMap,
+  take,
   tap,
+  timeout,
 } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
@@ -47,8 +51,11 @@ import { EmailInputModalService } from 'src/app/core/services/autentication/emai
 import { EmailVerificationService } from 'src/app/core/services/autentication/register/email-verification.service';
 import { AuthFacade } from 'src/app/core/services/autentication/auth/auth.facade';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
-import { LoginService } from 'src/app/core/services/autentication/login.service';
+import { LoginResult, LoginService } from 'src/app/core/services/autentication/login.service';
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { RegisterFlowFacade } from 'src/app/register-module/data-access/register-flow.facade';
+import { RegisterFlowVm } from 'src/app/register-module/data-access/register-flow.model';
 
 @Component({
   selector: 'app-login-component',
@@ -72,6 +79,7 @@ export class LoginComponent implements OnInit {
   hasRequiredFields$!: Observable<boolean>;
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly POST_LOGIN_FLOW_TIMEOUT_MS = 3500;
 
   constructor(
     private readonly router: Router,
@@ -84,6 +92,7 @@ export class LoginComponent implements OnInit {
     public readonly emailVerificationService: EmailVerificationService,
 
     private readonly loginservice: LoginService,
+    private readonly registerFlow: RegisterFlowFacade,
     private readonly formBuilder: FormBuilder,
     private readonly cdr: ChangeDetectorRef
   ) {}
@@ -160,27 +169,41 @@ export class LoginComponent implements OnInit {
   }
 
   private getRedirectTo(): string {
-    const raw = this.route.snapshot.queryParamMap.get('redirectTo');
+    return this.sanitizeRedirectTo(this.route.snapshot.queryParamMap.get('redirectTo'));
+  }
 
-    if (!raw) return '/dashboard/principal';
-    if (!raw.startsWith('/')) return '/dashboard/principal';
-    if (raw.startsWith('//')) return '/dashboard/principal';
+  private sanitizeRedirectTo(raw: string | null | undefined): string {
+    const value = (raw ?? '').trim();
 
-    return raw;
+    if (!value) return '/dashboard/principal';
+    if (!value.startsWith('/')) return '/dashboard/principal';
+    if (value.startsWith('//')) return '/dashboard/principal';
+
+    /**
+     * Evita loop pós-login. Se o usuário já autenticou, a próxima rota deve ser
+     * decidida pelo fluxo de onboarding ou pelo destino protegido original.
+     */
+    if (value === '/login' || value.startsWith('/login?')) return '/dashboard/principal';
+    if (value === '/register' || value.startsWith('/register?')) return '/dashboard/principal';
+    if (value === '/register/welcome' || value.startsWith('/register/welcome?')) return '/dashboard/principal';
+
+    return value;
   }
 
   /**
    * Login e-mail/senha.
    *
-   * Observação:
-   * Esta tela ainda mantém a UX local de "e-mail não verificado" porque
-   * LoginService devolve esse estado imediatamente. O banner global já foi
-   * ajustado para não ficar preso em estado antigo depois da verificação.
+   * Ajuste principal:
+   * - depois do Auth, o e-mail/senha passa a respeitar o mesmo fluxo de registro
+   *   usado por Welcome/Finalizar Cadastro.
+   * - isso evita mandar usuário com e-mail verificado, mas perfil incompleto,
+   *   diretamente para /dashboard/principal.
    */
   login(): void {
     if (this.isLoading) return;
 
     this.resetFeedback();
+    this.showEmailVerificationModal = false;
 
     const rememberMe = !!this.loginForm.get('rememberMe')?.value;
 
@@ -202,21 +225,21 @@ export class LoginComponent implements OnInit {
     this.setBusyState(true);
 
     this.loginservice.login$(email, password, rememberMe).pipe(
-      tap((result) => {
+      switchMap((result) => {
         if (!result?.success) {
           this.setError(result?.message || 'Não foi possível entrar. Tente novamente.');
+          return of(null);
+        }
+
+        return this.resolvePostLoginRoute$(result, redirectTo);
+      }),
+      tap((target) => {
+        if (!target) {
           return;
         }
 
-        if (result.emailVerified !== true) {
-          this.showEmailVerificationModal = true;
-          this.successMessage = '';
-          this.cdr.markForCheck();
-          return;
-        }
-
-        this.setSuccess('Login realizado com sucesso!');
-        this.router.navigateByUrl(redirectTo, { replaceUrl: true }).catch(() => {});
+        this.setSuccess('Login realizado com sucesso.');
+        this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
       }),
       catchError((err) => {
         this.setError(err?.message || 'Erro inesperado. Tente novamente.');
@@ -225,6 +248,125 @@ export class LoginComponent implements OnInit {
       finalize(() => this.setBusyState(false)),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe();
+  }
+
+  /**
+   * Resolve a rota pós-login de e-mail/senha em harmonia com o registro.
+   *
+   * Ordem:
+   * 1. e-mail não verificado -> welcome
+   * 2. lifecycle restrito -> status da conta
+   * 3. RegisterFlowFacade decide onboarding restante
+   * 4. fallback defensivo pelo LoginResult
+   */
+  private resolvePostLoginRoute$(
+    result: LoginResult,
+    redirectTo: string
+  ): Observable<string> {
+    if (result.emailVerified !== true) {
+      return of('/register/welcome?autocheck=1');
+    }
+
+    const lifecycleRoute = this.resolveAccountLifecycleRoute(result.user);
+    if (lifecycleRoute) {
+      return of(lifecycleRoute);
+    }
+
+    return this.registerFlow.vm$.pipe(
+      filter((vm) => vm.authReady === true && !!vm.uid),
+      filter((vm) => vm.userResolved === true || vm.currentStep === 'emailVerification'),
+      take(1),
+      timeout({
+        first: this.POST_LOGIN_FLOW_TIMEOUT_MS,
+        with: () => of(null as RegisterFlowVm | null),
+      }),
+      map((vm) => this.resolveRouteFromRegisterFlow(vm, result, redirectTo)),
+      catchError(() => of(this.resolveFallbackRoute(result, redirectTo)))
+    );
+  }
+
+  private resolveRouteFromRegisterFlow(
+    vm: RegisterFlowVm | null,
+    result: LoginResult,
+    redirectTo: string
+  ): string {
+    if (!vm) {
+      return this.resolveFallbackRoute(result, redirectTo);
+    }
+
+    const lifecycleRoute = this.resolveAccountLifecycleRoute(result.user);
+    if (lifecycleRoute) {
+      return lifecycleRoute;
+    }
+
+    switch (vm.currentStep) {
+      case 'emailVerification':
+        return '/register/welcome?autocheck=1';
+
+      case 'profileCompletion':
+        return this.profileCompletionRoute(vm.uid ?? result.user?.uid ?? null);
+
+      case 'adultConsent':
+        return vm.nextRoute || '/adulto/confirmar';
+
+      case 'preferences':
+        return redirectTo;
+
+      case 'loading':
+      case 'signup':
+      default:
+        return this.resolveFallbackRoute(result, redirectTo);
+    }
+  }
+
+  private resolveFallbackRoute(result: LoginResult, redirectTo: string): string {
+    const lifecycleRoute = this.resolveAccountLifecycleRoute(result.user);
+    if (lifecycleRoute) {
+      return lifecycleRoute;
+    }
+
+    if (result.emailVerified !== true) {
+      return '/register/welcome?autocheck=1';
+    }
+
+    if (result.profileResolution === 'resolved' && result.needsProfileCompletion === true) {
+      return this.profileCompletionRoute(result.user?.uid ?? null);
+    }
+
+    if (result.user?.profileCompleted === false) {
+      return this.profileCompletionRoute(result.user?.uid ?? null);
+    }
+
+    return redirectTo;
+  }
+
+  private profileCompletionRoute(uid: string | null | undefined): string {
+    const safeUid = (uid ?? '').trim();
+    const redirectTo = safeUid ? `/preferencias/editar/${safeUid}` : '/dashboard/principal';
+
+    return `/register/finalizar-cadastro?reason=profile_incomplete&redirectTo=${encodeURIComponent(redirectTo)}`;
+  }
+
+  private resolveAccountLifecycleRoute(user: IUserDados | null | undefined): string | null {
+    const status = String(user?.accountStatus ?? '').trim().toLowerCase();
+
+    if (status === 'deleted') {
+      return '/conta/status?reason=deleted';
+    }
+
+    if (
+      status === 'self_suspended' ||
+      status === 'moderation_suspended' ||
+      status === 'pending_deletion' ||
+      status === 'suspended' ||
+      status === 'locked' ||
+      user?.suspended === true ||
+      user?.accountLocked === true
+    ) {
+      return '/conta/status';
+    }
+
+    return null;
   }
 
   /**
