@@ -71,7 +71,7 @@
       <ng-container matColumnDef="perfil">
         <th mat-header-cell *matHeaderCellDef mat-sort-header>Perfil</th>
         <td mat-cell *matCellDef="let row" data-label="Perfil">
-          <mat-chip [class]="'status-chip status-chip--' + (row.profileCompleted ? 'success' : 'warning')" selected>
+          <mat-chip [ngClass]="['status-chip', 'status-chip--' + (row.profileCompleted ? 'success' : 'warning')]" selected>
             {{ row.profileStatusLabel }}
           </mat-chip>
         </td>
@@ -81,7 +81,7 @@
         <th mat-header-cell *matHeaderCellDef mat-sort-header>Operação</th>
         <td mat-cell *matCellDef="let row" data-label="Operação">
           <div class="status-stack">
-            <mat-chip [class]="'status-chip status-chip--' + row.statusSeverity" selected>
+            <mat-chip [ngClass]="['status-chip', 'status-chip--' + row.statusSeverity]" selected>
               {{ row.operationalStatusLabel }}
             </mat-chip>
             <time *ngIf="row.lastActivity" [attr.datetime]="row.lastActivity | date: 'yyyy-MM-ddTHH:mm:ss'">
