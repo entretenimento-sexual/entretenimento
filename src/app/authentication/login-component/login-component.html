@@ -58,19 +58,32 @@
       }
 
       <label class="field-label" for="password">Senha</label>
-      <input
-        formControlName="password"
-        id="password"
-        class="input-field"
-        type="password"
-        name="password"
-        placeholder="Sua senha"
-        required
-        autocomplete="current-password"
-        [attr.aria-invalid]="loginForm.controls['password'].touched && loginForm.controls['password'].invalid ? 'true' : 'false'"
-        [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error form-status' : 'form-status'"
-        (focus)="clearError()"
-      />
+      <div class="password-field">
+        <input
+          formControlName="password"
+          id="password"
+          class="input-field"
+          [type]="passwordInputType"
+          name="password"
+          placeholder="Sua senha"
+          required
+          autocomplete="current-password"
+          [attr.aria-invalid]="loginForm.controls['password'].touched && loginForm.controls['password'].invalid ? 'true' : 'false'"
+          [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error form-status' : 'form-status'"
+          (focus)="clearError()"
+        />
+
+        <button
+          class="password-toggle"
+          type="button"
+          (click)="togglePasswordVisibility()"
+          [disabled]="isLoading"
+          [attr.aria-label]="passwordToggleLabel"
+          [attr.aria-pressed]="isPasswordVisible ? 'true' : 'false'"
+        >
+          <span aria-hidden="true">{{ isPasswordVisible ? 'Ocultar' : 'Ver' }}</span>
+        </button>
+      </div>
       @if (loginForm.controls['password'].touched && loginForm.controls['password'].invalid) {
         <small id="password-error" class="field-error">Informe sua senha.</small>
       }
