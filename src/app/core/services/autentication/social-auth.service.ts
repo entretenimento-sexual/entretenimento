@@ -69,6 +69,14 @@ import {
 // Tipos públicos de resultado
 // -----------------------------------------------------------------------------
 
+export interface SocialAuthOptions {
+  /**
+   * Usado apenas quando a UI de cadastro coletou aceite explícito dos termos.
+   * Login social comum não deve preencher este valor.
+   */
+  acceptedTerms?: boolean;
+}
+
 /**
  * Com o lifecycle novo, somente conta realmente excluída deve bloquear o login
  * nesta camada. Suspensão e exclusão pendente autenticam e seguem para
@@ -188,12 +196,12 @@ export class SocialAuthService {
     );
   }
 
-  googleLogin(): Observable<SocialAuthResult> {
+  googleLogin(options: SocialAuthOptions = {}): Observable<SocialAuthResult> {
     const provider = this.buildGoogleProvider();
 
     return this.ensurePersistentAuth$().pipe(
       switchMap(() => this.signInWithPopupInCtx$(provider)),
-      switchMap((credential) => this.bootstrapUserAfterAuth$(credential)),
+      switchMap((credential) => this.bootstrapUserAfterAuth$(credential, options)),
       catchError((err) => of(this.handleGoogleLoginError(err)))
     );
   }
@@ -228,7 +236,8 @@ export class SocialAuthService {
   // ===========================================================================
 
   private bootstrapUserAfterAuth$(
-    credential: UserCredential
+    credential: UserCredential,
+    options: SocialAuthOptions
   ): Observable<SocialAuthResult> {
     const authUser = credential?.user;
 
@@ -252,7 +261,7 @@ export class SocialAuthService {
             return this.handleExistingUserLogin$(doc, authUser, nowMs);
           }
 
-          return this.handleNewUserLogin$(authUser, nowMs);
+          return this.handleNewUserLogin$(authUser, nowMs, options);
         }),
         catchError((err) => {
           this.reportSilent(err, {
@@ -276,9 +285,10 @@ export class SocialAuthService {
 
   private handleNewUserLogin$(
     authUser: FirebaseUser,
-    nowMs: number
+    nowMs: number,
+    options: SocialAuthOptions
   ): Observable<SocialAuthResult> {
-    const seed = this.buildNewUserSeed(authUser, nowMs);
+    const seed = this.buildNewUserSeed(authUser, nowMs, options);
 
     return this.registrationBootstrap
       .createSocialSeed$({
@@ -288,6 +298,7 @@ export class SocialAuthService {
         photoURL: authUser.photoURL,
         providerIds: seed.authProviders,
         providerId: 'google.com',
+        acceptedTerms: options.acceptedTerms === true,
         nowMs,
       })
       .pipe(
@@ -328,7 +339,8 @@ export class SocialAuthService {
 
   private buildNewUserSeed(
     authUser: FirebaseUser,
-    nowMs: number
+    nowMs: number,
+    options: SocialAuthOptions
   ): SocialAuthUserDoc {
     const acl: IUserAccessControl = {
       ...DEFAULT_ACCESS_CONTROL,
@@ -361,7 +373,7 @@ export class SocialAuthService {
       updatedAtMs: nowMs,
 
       acceptedTerms: {
-        accepted: false,
+        accepted: options.acceptedTerms === true,
         date: nowMs,
       },
 
@@ -758,37 +770,34 @@ export class SocialAuthService {
     }
 
     this.reportSilent(err, {
-      phase: 'googleLogin.popup',
-      code,
+      phase: 'googleLogin.unknown',
+      code: code || null,
       expected: false,
     });
 
     return this.makeErrorResult({
-      code: code || 'social-auth/unknown',
-      message: 'Não foi possível entrar com Google agora.',
+      code: code || 'social-auth/google-failed',
+      message: 'Não foi possível entrar com Google agora. Tente novamente.',
     });
   }
 
-  private reportSilent(err: unknown, meta?: Record<string, unknown>): void {
+  private reportSilent(
+    err: unknown,
+    meta: Record<string, unknown>
+  ): void {
     try {
-      const e = err instanceof Error ? err : new Error('Falha no SocialAuthService.');
-      (e as any).silent = true;
-      (e as any).skipUserNotification = true;
-      (e as any).meta = meta;
-      (e as any).original = err;
-      this.globalErrorHandler.handleError(e);
+      const error = err instanceof Error ? err : new Error(String(err ?? 'Erro desconhecido'));
+      (error as any).meta = meta;
+      (error as any).skipUserNotification = true;
+      (error as any).silent = true;
+      this.globalErrorHandler.handleError(error);
     } catch {
-      // noop
+      // noop defensivo: relatório de erro não pode quebrar auth
     }
   }
 
-  private dbg(tag: string, data?: Record<string, unknown>): void {
+  private dbg(message: string, payload?: unknown): void {
     if (!this.debug) return;
-
-    try {
-      console.debug(`[SocialAuthService] ${tag}`, data ?? {});
-    } catch {
-      // noop
-    }
+    console.debug(`[SocialAuthService] ${message}`, payload ?? '');
   }
 }
