@@ -668,8 +668,8 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
    * Converte erros técnicos em mensagem de UX.
    *
    * Observação:
-   * - mantive "user-not-found" separado, porque seu fluxo atual já usa isso
-   * - se quiser endurecer privacidade depois, dá para unificar com credenciais inválidas
+   * - erros que revelariam existência de e-mail foram unificados.
+   * - o código técnico continua indo para o debug/global handler, mas a UX não expõe enumeração de conta.
    */
   private mapAuthError(
     error: any
@@ -691,11 +691,8 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
       case 'auth/INVALID_LOGIN_CREDENTIALS':
       case 'auth/INVALID_PASSWORD':
       case 'auth/EMAIL_NOT_FOUND':
-        message = 'E-mail ou senha incorretos.';
-        break;
-
       case 'auth/user-not-found':
-        message = 'Usuário não encontrado. Verifique o e-mail inserido.';
+        message = 'E-mail ou senha incorretos.';
         break;
 
       case 'auth/invalid-email':
@@ -737,7 +734,7 @@ private loadEffectiveUserAfterLogin$(authUser: User): Observable<LoginResult> {
 
     return { code, message };
   }
-} // fim do login.service.ts, que tá com 711 linhas
+} // fim do login.service.ts
 // Verificar migrações de responsabilidades para:
 // 1 - auth-route-context.service.ts
 // 2 - auth-user-document-watch.service.ts

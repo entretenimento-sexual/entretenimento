@@ -35,6 +35,10 @@
       [attr.aria-busy]="isLoading ? 'true' : 'false'"
       aria-describedby="form-status"
     >
+      <p id="form-status" class="sr-only" role="status" aria-live="polite">
+        {{ currentAssistiveStatus }}
+      </p>
+
       <label class="field-label" for="email">E-mail</label>
       <input
         formControlName="email"
@@ -46,7 +50,7 @@
         required
         autocomplete="email"
         [attr.aria-invalid]="loginForm.controls['email'].touched && loginForm.controls['email'].invalid ? 'true' : 'false'"
-        [attr.aria-describedby]="loginForm.controls['email'].invalid ? 'email-error' : null"
+        [attr.aria-describedby]="loginForm.controls['email'].invalid ? 'email-error form-status' : 'form-status'"
         (focus)="clearError()"
       />
       @if (loginForm.controls['email'].touched && loginForm.controls['email'].invalid) {
@@ -64,7 +68,7 @@
         required
         autocomplete="current-password"
         [attr.aria-invalid]="loginForm.controls['password'].touched && loginForm.controls['password'].invalid ? 'true' : 'false'"
-        [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error' : null"
+        [attr.aria-describedby]="loginForm.controls['password'].invalid ? 'password-error form-status' : 'form-status'"
         (focus)="clearError()"
       />
       @if (loginForm.controls['password'].touched && loginForm.controls['password'].invalid) {
@@ -92,6 +96,7 @@
           type="button"
           (click)="openPasswordRecoveryModal()"
           [disabled]="isLoading"
+          aria-label="Abrir recuperação de senha"
         >
           Esqueci minha senha
         </button>
@@ -104,7 +109,7 @@
           [disabled]="isLoading || !(hasRequiredFields$ | async)"
           [attr.aria-disabled]="(isLoading || !(hasRequiredFields$ | async)) ? 'true' : 'false'"
         >
-          {{ isLoading ? 'Aguarde...' : 'Entrar' }}
+          {{ primaryButtonLabel }}
         </button>
       </div>
 
@@ -120,7 +125,7 @@
         [attr.aria-disabled]="isLoading ? 'true' : 'false'"
       >
         <span class="google-mark" aria-hidden="true">G</span>
-        <span>Continuar com Google</span>
+        <span>{{ googleButtonLabel }}</span>
       </button>
 
       <p class="auth-note">
@@ -129,19 +134,20 @@
       </p>
 
       @if (isLoading) {
-        <div class="loading-overlay" aria-hidden="true">
-          <div class="spinner"></div>
+        <div class="loading-overlay" role="status" aria-live="polite">
+          <div class="spinner" aria-hidden="true"></div>
+          <p class="loading-overlay__copy">{{ loadingMessage }}</p>
         </div>
       }
 
       @if (successMessage) {
-        <p class="alert alert-success" role="status" aria-live="polite">
+        <p id="form-success" class="alert alert-success" role="status" aria-live="polite">
           {{ successMessage }}
         </p>
       }
 
       @if (errorMessage) {
-        <p id="form-status" class="alert alert-error" role="alert" aria-live="assertive">
+        <p id="form-error" class="alert alert-error" role="alert" aria-live="assertive">
           {{ errorMessage }}
         </p>
       }
@@ -173,8 +179,10 @@
             class="btn btn-primary"
             type="button"
             (click)="resendVerificationEmail()"
+            [disabled]="isLoading"
+            [attr.aria-busy]="isResendingVerification ? 'true' : 'false'"
           >
-            Reenviar e-mail
+            {{ isResendingVerification ? 'Reenviando...' : 'Reenviar e-mail' }}
           </button>
 
           <button
@@ -182,6 +190,7 @@
             type="button"
             [routerLink]="['/register/welcome']"
             [queryParams]="{ autocheck: '1' }"
+            [disabled]="isLoading"
           >
             Ir para verificação
           </button>
@@ -190,8 +199,10 @@
             class="btn btn-danger"
             type="button"
             (click)="logout()"
+            [disabled]="isLoading"
+            [attr.aria-busy]="isLoggingOut ? 'true' : 'false'"
           >
-            Sair
+            {{ isLoggingOut ? 'Saindo...' : 'Sair' }}
           </button>
         </div>
       </div>
