@@ -56,7 +56,7 @@
 
       <p class="form-kicker">Criação de conta</p>
       <h2 id="form-title" class="form-header">Crie seu cadastro</h2>
-      <p class="form-subtitle">Use dados reais de acesso. O apelido é como você será identificado dentro da plataforma.</p>
+      <p class="form-subtitle">Use e-mail/senha ou cadastre-se com Google.</p>
 
       <!-- Apelido principal -->
       <div class="form-field nickname-field">
@@ -150,7 +150,7 @@
         </div>
 
         <!-- Prévia do apelido final -->
-        <small class="field-hint">
+        <small class="field-hint nickname-preview">
           Seu apelido ficará como: <strong>{{ apelidoCompleto() }}</strong>
           <span>({{ (apelidoCompleto() || '').length }}/24)</span>
         </small>
@@ -291,8 +291,27 @@
 
       <button class="btn btn-primary" type="submit"
         [disabled]="isLoading() || creating() || nicknameChecking() || !form.valid">
-        {{ isLoading() ? 'Aguarde…' : 'Cadastrar' }}
+        {{ isLoading() && !googleCreating() ? 'Aguarde…' : 'Cadastrar' }}
       </button>
+
+      <div class="auth-divider" aria-hidden="true">
+        <span>ou</span>
+      </div>
+
+      <button
+        class="btn-google"
+        type="button"
+        (click)="registerWithGoogle()"
+        [disabled]="isLoading() || creating()"
+        [attr.aria-disabled]="(isLoading() || creating()) ? 'true' : 'false'"
+      >
+        <span class="google-mark" aria-hidden="true">G</span>
+        <span>{{ googleCreating() ? 'Abrindo Google...' : 'Cadastrar com Google' }}</span>
+      </button>
+
+      <p class="auth-note register-note">
+        No cadastro com Google, você aceita os termos acima e finaliza apelido, perfil e preferências na próxima etapa.
+      </p>
 
       <p class="login-redirect">
         Já tem conta?
