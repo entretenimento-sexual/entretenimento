@@ -130,6 +130,13 @@
   color: color-mix(in oklab, var(--text-color) 88%, var(--danger-color, #c62828) 12%);
 }
 
+.recovery-next-step {
+  margin: -0.15rem 0 0;
+  color: color-mix(in oklab, var(--text-color) 68%, transparent);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
 .modal-actions {
   display: grid;
   grid-template-columns: 1fr;
