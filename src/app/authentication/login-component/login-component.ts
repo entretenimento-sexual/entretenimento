@@ -57,6 +57,8 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { RegisterFlowFacade } from 'src/app/register-module/data-access/register-flow.facade';
 import { RegisterFlowVm } from 'src/app/register-module/data-access/register-flow.model';
 
+type LoginAction = 'idle' | 'emailLogin' | 'googleLogin' | 'resendVerification' | 'logout';
+
 @Component({
   selector: 'app-login-component',
   templateUrl: './login-component.html',
@@ -71,6 +73,7 @@ export class LoginComponent implements OnInit {
   successMessage = '';
   isLoading = false;
   showEmailVerificationModal = false;
+  currentAction: LoginAction = 'idle';
 
   /**
    * Habilita o botão de e-mail/senha quando os campos mínimos existem.
@@ -129,8 +132,56 @@ export class LoginComponent implements OnInit {
     return !!this.loginForm.get('honeypot')?.value;
   }
 
-  private setBusyState(isBusy: boolean): void {
+  get isEmailLoginLoading(): boolean {
+    return this.currentAction === 'emailLogin';
+  }
+
+  get isGoogleLoginLoading(): boolean {
+    return this.currentAction === 'googleLogin';
+  }
+
+  get isResendingVerification(): boolean {
+    return this.currentAction === 'resendVerification';
+  }
+
+  get isLoggingOut(): boolean {
+    return this.currentAction === 'logout';
+  }
+
+  get primaryButtonLabel(): string {
+    return this.isEmailLoginLoading ? 'Conferindo acesso...' : 'Entrar';
+  }
+
+  get googleButtonLabel(): string {
+    return this.isGoogleLoginLoading ? 'Abrindo Google...' : 'Continuar com Google';
+  }
+
+  get loadingMessage(): string {
+    switch (this.currentAction) {
+      case 'emailLogin':
+        return 'Entrando e conferindo seu cadastro...';
+      case 'googleLogin':
+        return 'Abrindo autenticação com Google...';
+      case 'resendVerification':
+        return 'Reenviando e-mail de verificação...';
+      case 'logout':
+        return 'Encerrando sessão...';
+      case 'idle':
+      default:
+        return 'Processando...';
+    }
+  }
+
+  get currentAssistiveStatus(): string {
+    if (this.errorMessage) return this.errorMessage;
+    if (this.successMessage) return this.successMessage;
+    if (this.isLoading) return this.loadingMessage;
+    return 'Formulário de login pronto.';
+  }
+
+  private setBusyState(isBusy: boolean, action: LoginAction = 'idle'): void {
     this.isLoading = isBusy;
+    this.currentAction = isBusy ? action : 'idle';
 
     /**
      * Desabilitamos o form durante qualquer login para evitar corrida:
@@ -222,7 +273,7 @@ export class LoginComponent implements OnInit {
     const password = this.password?.value as string;
     const redirectTo = this.getRedirectTo();
 
-    this.setBusyState(true);
+    this.setBusyState(true, 'emailLogin');
 
     this.loginservice.login$(email, password, rememberMe).pipe(
       switchMap((result) => {
@@ -384,7 +435,7 @@ export class LoginComponent implements OnInit {
 
     this.resetFeedback();
     this.showEmailVerificationModal = false;
-    this.setBusyState(true);
+    this.setBusyState(true, 'googleLogin');
 
     this.authFacade.googleLogin$().pipe(
       tap((result) => {
@@ -422,13 +473,14 @@ export class LoginComponent implements OnInit {
 
   openPasswordRecoveryModal(): void {
     if (this.isLoading) return;
+    this.resetFeedback();
     this.emailInputModalService.openModal();
   }
 
   resendVerificationEmail(): void {
     if (this.isLoading) return;
 
-    this.setBusyState(true);
+    this.setBusyState(true, 'resendVerification');
 
     this.emailVerificationService.resendVerificationEmail().pipe(
       tap((message) => {
@@ -451,7 +503,7 @@ export class LoginComponent implements OnInit {
     this.showEmailVerificationModal = false;
     this.resetFeedback();
 
-    this.setBusyState(true);
+    this.setBusyState(true, 'logout');
 
     this.logoutService.logout$().pipe(
       finalize(() => this.setBusyState(false)),
