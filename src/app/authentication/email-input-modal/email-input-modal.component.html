@@ -15,7 +15,7 @@
         <h2 id="password-recovery-title">Redefinir senha</h2>
 
         <p id="password-recovery-description" class="modal-description">
-          Informe o e-mail usado na conta. Se ele estiver cadastrado, enviaremos as instruções de recuperação.
+          Informe o e-mail usado na conta. Após a solicitação, evite repetir o envio para o mesmo endereço.
         </p>
 
         <form class="recovery-form" novalidate (ngSubmit)="sendEmail(vm.email)">
@@ -52,14 +52,20 @@
             </p>
           }
 
+          @if (vm.requestCompleted) {
+            <p class="recovery-next-step">
+              Solicitação concluída para este e-mail. Para tentar outro endereço, altere o campo acima.
+            </p>
+          }
+
           <div class="modal-actions">
             <button
               class="btn-submit"
               type="submit"
-              [disabled]="vm.isSending"
+              [disabled]="vm.isSending || vm.requestCompleted"
               [attr.aria-busy]="vm.isSending ? 'true' : 'false'"
             >
-              {{ vm.isSending ? 'Enviando...' : 'Enviar instruções' }}
+              {{ vm.isSending ? 'Enviando...' : vm.requestCompleted ? 'Solicitação enviada' : 'Enviar instruções' }}
             </button>
 
             <button
