@@ -44,6 +44,7 @@ import {
 import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
+import { AuthFacade } from 'src/app/core/services/autentication/auth/auth.facade';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { FirestoreValidationService } from 'src/app/core/services/data-handling/firestore/validation/firestore-validation.service';
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
@@ -71,6 +72,7 @@ export class RegisterComponent {
   private fb = inject(FormBuilder);
   private validatorService = inject(FirestoreValidationService);
   private registerService = inject(RegisterService);
+  private authFacade = inject(AuthFacade);
   private errorNotification = inject(ErrorNotificationService);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
@@ -141,6 +143,7 @@ export class RegisterComponent {
   readonly showTech = signal(false);
 
   readonly creating = signal(false);
+  readonly googleCreating = signal(false);
   readonly creatingMsg = signal('Estamos criando seu usuário, aguarde…');
   readonly syncing = signal(false);
 
@@ -269,55 +272,55 @@ export class RegisterComponent {
       .subscribe();
   }
 
-private runNicknameAvailabilityCheck$(mode: 'soft' | 'strict'): Observable<void> {
-  if (this.hasBlockingNicknameSyncErrors() || this.hasBlockingComplementSyncErrors()) {
-    this.nicknameCheckState.set('idle');
-    this.clearApelidoEmUsoError();
-    return of(void 0);
-  }
-
-  if (this.form.hasError('invalidFullNickname')) {
-    this.nicknameCheckState.set('idle');
-    this.clearApelidoEmUsoError();
-    return of(void 0);
-  }
-
-  const fullNick = (this.apelidoCompleto() || '').trim();
-  if (!fullNick) {
-    this.nicknameCheckState.set('idle');
-    this.clearApelidoEmUsoError();
-    return of(void 0);
-  }
-
-  this.nicknameCheckState.set('checking');
-
-  return this.validatorService.checkIfNicknameExists(fullNick, { mode }).pipe(
-    tap((exists: boolean) => {
-      if (exists) {
-        this.setApelidoEmUsoError();
-        this.nicknameCheckState.set('taken');
-      } else {
-        this.clearApelidoEmUsoError();
-        this.nicknameCheckState.set('available');
-      }
-    }),
-    map(() => void 0),
-    catchError((err) => {
-      this.dbg('nickname check error', err);
-      this.nicknameCheckState.set('unverified');
+  private runNicknameAvailabilityCheck$(mode: 'soft' | 'strict'): Observable<void> {
+    if (this.hasBlockingNicknameSyncErrors() || this.hasBlockingComplementSyncErrors()) {
+      this.nicknameCheckState.set('idle');
       this.clearApelidoEmUsoError();
-
-      if (mode === 'strict') {
-        return throwError(() => ({
-          code: 'nickname-check-failed',
-          message: 'Não foi possível validar o apelido agora.',
-          original: err,
-        }));
-      }
       return of(void 0);
-    })
-  );
-}
+    }
+
+    if (this.form.hasError('invalidFullNickname')) {
+      this.nicknameCheckState.set('idle');
+      this.clearApelidoEmUsoError();
+      return of(void 0);
+    }
+
+    const fullNick = (this.apelidoCompleto() || '').trim();
+    if (!fullNick) {
+      this.nicknameCheckState.set('idle');
+      this.clearApelidoEmUsoError();
+      return of(void 0);
+    }
+
+    this.nicknameCheckState.set('checking');
+
+    return this.validatorService.checkIfNicknameExists(fullNick, { mode }).pipe(
+      tap((exists: boolean) => {
+        if (exists) {
+          this.setApelidoEmUsoError();
+          this.nicknameCheckState.set('taken');
+        } else {
+          this.clearApelidoEmUsoError();
+          this.nicknameCheckState.set('available');
+        }
+      }),
+      map(() => void 0),
+      catchError((err) => {
+        this.dbg('nickname check error', err);
+        this.nicknameCheckState.set('unverified');
+        this.clearApelidoEmUsoError();
+
+        if (mode === 'strict') {
+          return throwError(() => ({
+            code: 'nickname-check-failed',
+            message: 'Não foi possível validar o apelido agora.',
+            original: err,
+          }));
+        }
+        return of(void 0);
+      })
+    );
+  }
 
   // ---------------- Auth wait ----------------
   private waitForAuthUserOnce(timeoutMs = 6000): Promise<User> {
@@ -433,6 +436,82 @@ private runNicknameAvailabilityCheck$(mode: 'soft' | 'strict'): Observable<void>
     }
 
     return null;
+  }
+
+  // ---------------- Social signup ----------------
+  registerWithGoogle(): void {
+    if (this.isLoading() || this.creating()) return;
+
+    this.submitted.set(true);
+    this.banner.set(null);
+    this.infoMessage.set(null);
+
+    const acceptedTerms = this.form.get('aceitarTermos')?.value === true;
+
+    if (!acceptedTerms) {
+      this.form.get('aceitarTermos')?.markAsTouched();
+      this.setBanner(
+        'warn',
+        'Aceite os termos para continuar',
+        'Para criar conta com Google, aceite os Termos de Uso e a Política de Privacidade.'
+      );
+      this.errorNotification.showError('Aceite os termos para criar conta com Google.');
+      setTimeout(() => document.getElementById('termos')?.focus());
+      return;
+    }
+
+    this.isLoading.set(true);
+    this.googleCreating.set(true);
+    this.creating.set(true);
+    this.creatingMsg.set('Abrindo cadastro com Google…');
+
+    this.authFacade.googleLogin$({ acceptedTerms: true }).pipe(
+      finalize(() => {
+        this.isLoading.set(false);
+        this.googleCreating.set(false);
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (result) => {
+        if (!result?.success) {
+          this.creating.set(false);
+
+          const cancelled = result?.outcome === 'cancelled';
+          this.setBanner(
+            cancelled ? 'info' : 'error',
+            cancelled ? 'Cadastro com Google cancelado' : 'Não foi possível cadastrar com Google',
+            result?.message || 'Tente novamente em instantes.',
+            result
+          );
+          return;
+        }
+
+        this.creatingMsg.set(
+          result.isNewUser
+            ? 'Conta criada com Google. Redirecionando…'
+            : 'Conta Google localizada. Redirecionando…'
+        );
+
+        const target =
+          result.nextRoute === '/register/welcome'
+            ? '/register/welcome?autocheck=1'
+            : result.nextRoute || '/register/finalizar-cadastro';
+
+        this.router
+          .navigateByUrl(target, { replaceUrl: true })
+          .finally(() => this.creating.set(false));
+      },
+      error: (err) => {
+        this.creating.set(false);
+        this.setBanner(
+          'error',
+          'Não foi possível cadastrar com Google',
+          'Tente novamente. Se persistir, copie os detalhes técnicos e envie ao suporte.',
+          err
+        );
+        this.errorNotification.showError('Não foi possível cadastrar com Google.');
+      },
+    });
   }
 
   // ---------------- Submit ----------------
