@@ -1,14 +1,24 @@
 // src/app/authentication/email-input-modal/email-input-modal.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Subject } from 'rxjs';
+import { BehaviorSubject } from 'rxjs';
 import { vi } from 'vitest';
 
 import { EmailInputModalComponent } from './email-input-modal.component';
-import { EmailInputModalService } from '../../core/services/autentication/email-input-modal.service';
+import {
+  EmailInputModalService,
+  PasswordRecoveryModalState,
+} from '../../core/services/autentication/email-input-modal.service';
 
 describe('EmailInputModalComponent', () => {
   let component: EmailInputModalComponent;
   let fixture: ComponentFixture<EmailInputModalComponent>;
+
+  const state$ = new BehaviorSubject<PasswordRecoveryModalState>({
+    isOpen: false,
+    email: '',
+    isSending: false,
+    feedback: null,
+  });
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -17,8 +27,8 @@ describe('EmailInputModalComponent', () => {
         {
           provide: EmailInputModalService,
           useValue: {
-            isModalOpen: new Subject<boolean>(),
-            emailSentMessage: new Subject<string>(),
+            state$: state$.asObservable(),
+            updateEmail: vi.fn(),
             sendPasswordRecoveryEmail: vi.fn(),
             closeModal: vi.fn(),
           },
