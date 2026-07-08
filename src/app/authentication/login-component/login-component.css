@@ -187,6 +187,56 @@
   border-color: var(--danger-color, #c62828);
 }
 
+.password-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-field .input-field {
+  padding-right: 5.6rem;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.25rem;
+  min-height: 36px;
+  padding: 0 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 850;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.password-toggle:hover:not(:disabled),
+.password-toggle:focus-visible {
+  border-color: color-mix(in oklab, var(--primary-color) 38%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 12%, transparent);
+  outline: none;
+}
+
+.password-toggle[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--primary-color) 18%, transparent);
+}
+
+.password-toggle:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
 .field-error {
   margin-top: -0.45rem;
   color: var(--danger-color, #c62828);
@@ -431,6 +481,7 @@
 html.high-contrast .form-container,
 html.high-contrast .btn-google,
 html.high-contrast .input-field,
+html.high-contrast .password-toggle,
 html.high-contrast .modal-content {
   border-color: currentColor !important;
   box-shadow: none !important;
@@ -533,6 +584,7 @@ html.high-contrast .loading-overlay .spinner {
 @media (prefers-reduced-motion: reduce) {
   .btn-google,
   .input-field,
+  .password-toggle,
   .forgot-password,
   .register-link a {
     transition: none !important;
