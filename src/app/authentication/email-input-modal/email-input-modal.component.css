@@ -1,115 +1,245 @@
-/* src\app\shared\email-input-modal\email-input-modal.component.css */
+/* src/app/authentication/email-input-modal/email-input-modal.component.css */
+/* -----------------------------------------------------------------------------
+   Password recovery modal
+   -----------------------------------------------------------------------------
+   Visual limpo, mobile-first e menos agressivo:
+   - feedback neutro como padrão;
+   - erro sem bloco vermelho dominante;
+   - acessibilidade para foco, alto contraste e reduced motion.
+   ----------------------------------------------------------------------------- */
+
 .modal-overlay {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.7);
-  /* Fundo escurecido com maior opacidade */
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  inset: 0;
   z-index: 1000;
-  backdrop-filter: blur(5px);
-  /* Desfoque aumentado */
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 56%);
+  backdrop-filter: blur(3px);
 }
 
 .modal-content {
-  background-color: #f9f9f9;
-  /* Cor de fundo mais suave */
-  padding: 30px;
-  border-radius: 12px;
-  /* Bordas arredondadas */
-  width: 85%;
-  /* Responsivo para dispositivos móveis */
-  max-width: 420px;
-  /* Limita o tamanho em telas grandes */
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
-  /* Sombra mais profunda */
-  animation: fadeIn 0.3s ease-in-out;
-  font-family: 'Roboto', sans-serif;
-  /* Fonte moderna */
-  text-align: center;
+  width: min(100%, 430px);
+  padding: clamp(1.25rem, 4vw, 1.75rem);
+  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 14%, transparent));
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--background-color) 94%, white 6%);
+  color: var(--text-color);
+  box-shadow: 0 24px 72px rgb(0 0 0 / 28%);
+  animation: modalIn 0.18s ease-out;
+  font-family: var(--font-family-primary, inherit);
 }
 
-.modal-content h3 {
-  font-size: 1.8rem;
-  color: #333;
-  margin-bottom: 20px;
+.modal-kicker {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 30px;
+  margin: 0 0 0.8rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid color-mix(in oklab, var(--primary-color) 30%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent);
+  color: var(--primary-color);
+  font-size: 0.76rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
-.modal-content input {
+.modal-content h2 {
+  margin: 0;
+  color: var(--text-color);
+  font-size: clamp(1.45rem, 5vw, 1.9rem);
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+}
+
+.modal-description {
+  margin: 0.75rem 0 1.2rem;
+  color: color-mix(in oklab, var(--text-color) 74%, transparent);
+  font-size: 0.96rem;
+  line-height: 1.55;
+}
+
+.recovery-form {
+  display: grid;
+  gap: 0.8rem;
+}
+
+.field-label {
+  color: var(--text-color);
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+
+.input-field {
   width: 100%;
-  padding: 12px;
-  margin-bottom: 20px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  font-size: 1.1rem;
-  transition: border-color 0.2s ease;
+  min-height: 48px;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 16%, transparent));
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--background-color) 96%, white 4%);
+  color: var(--text-color);
+  font: inherit;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background-color 0.2s ease;
 }
 
-.modal-content input:focus {
-  border-color: #007bff;
-  /* Cor azul ao focar no input */
-  outline: none;
+.input-field::placeholder {
+  color: color-mix(in oklab, var(--text-color) 48%, transparent);
+}
+
+.input-field:focus-visible {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 16%, transparent);
+}
+
+.input-field:disabled {
+  opacity: 0.72;
+  cursor: progress;
+}
+
+.recovery-feedback {
+  margin: 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.recovery-feedback--info {
+  border: 1px solid color-mix(in oklab, var(--primary-color) 24%, transparent);
+  background: color-mix(in oklab, var(--primary-color) 8%, transparent);
+  color: color-mix(in oklab, var(--text-color) 86%, var(--primary-color) 14%);
+}
+
+.recovery-feedback--success {
+  border: 1px solid color-mix(in oklab, #2e7d32 28%, transparent);
+  background: color-mix(in oklab, #2e7d32 9%, transparent);
+  color: color-mix(in oklab, var(--text-color) 88%, #2e7d32 12%);
+}
+
+.recovery-feedback--error {
+  border: 1px solid color-mix(in oklab, var(--danger-color, #c62828) 28%, transparent);
+  background: color-mix(in oklab, var(--danger-color, #c62828) 8%, transparent);
+  color: color-mix(in oklab, var(--text-color) 88%, var(--danger-color, #c62828) 12%);
 }
 
 .modal-actions {
-  display: flex;
-  justify-content: space-between;
-  gap: 20px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.7rem;
+  margin-top: 0.2rem;
 }
 
 .modal-actions button {
-  flex: 1;
-  padding: 12px;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
+  min-height: 46px;
+  border-radius: 14px;
+  font: inherit;
+  font-weight: 850;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease,
+    background-color 0.2s ease;
 }
 
-.modal-actions .submit-btn {
-  background-color: #28a745;
-  /* Botão de ação verde */
-  color: white;
+.btn-submit {
+  border: 1px solid var(--primary-color);
+  background: var(--primary-color);
+  color: var(--button-text-color, #fff);
 }
 
-.modal-actions .submit-btn:hover {
-  background-color: #218838;
-  /* Tom mais escuro ao passar o mouse */
+.btn-submit:hover:not(:disabled),
+.btn-submit:focus-visible {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 16%, transparent);
 }
 
-.modal-actions .cancel-btn {
-  background-color: #ff4d4d;
-  color: white;
+.btn-cancel {
+  border: 1px solid var(--surface-border, color-mix(in oklab, var(--text-color) 16%, transparent));
+  background: transparent;
+  color: var(--text-color);
 }
 
-.modal-actions .cancel-btn:hover {
-  background-color: #ff3333;
+.btn-cancel:hover:not(:disabled),
+.btn-cancel:focus-visible {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 12%, transparent);
 }
 
-.alert {
-  margin-top: 10px;
-  padding: 10px;
-  color: white;
-  background-color: #f44336;
-  /* Vermelho mais suave */
-  border-radius: 6px;
-  text-align: center;
+.modal-actions button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
-/* Animação fade-in suave */
-@keyframes fadeIn {
+.modal-actions button:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+html.high-contrast .modal-content,
+html.high-contrast .input-field,
+html.high-contrast .recovery-feedback,
+html.high-contrast .modal-actions button {
+  border-color: currentColor !important;
+  box-shadow: none !important;
+}
+
+@keyframes modalIn {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: translateY(8px) scale(0.98);
   }
 
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (min-width: 520px) {
+  .modal-actions {
+    grid-template-columns: 1.2fr 0.8fr;
+  }
+}
+
+@media (max-width: 380px) {
+  .modal-overlay {
+    padding: 0.75rem;
+  }
+
+  .modal-content {
+    border-radius: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal-content,
+  .modal-actions button,
+  .input-field {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .modal-actions button:active:not(:disabled) {
+    transform: none;
   }
 }
