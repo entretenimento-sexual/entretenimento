@@ -74,6 +74,7 @@ export class LoginComponent implements OnInit {
   isLoading = false;
   showEmailVerificationModal = false;
   currentAction: LoginAction = 'idle';
+  isPasswordVisible = false;
 
   /**
    * Habilita o botão de e-mail/senha quando os campos mínimos existem.
@@ -130,6 +131,14 @@ export class LoginComponent implements OnInit {
 
   get isHoneypotFilled(): boolean {
     return !!this.loginForm.get('honeypot')?.value;
+  }
+
+  get passwordInputType(): 'password' | 'text' {
+    return this.isPasswordVisible ? 'text' : 'password';
+  }
+
+  get passwordToggleLabel(): string {
+    return this.isPasswordVisible ? 'Ocultar senha' : 'Mostrar senha';
   }
 
   get isEmailLoginLoading(): boolean {
@@ -468,6 +477,13 @@ export class LoginComponent implements OnInit {
   clearError(): void {
     if (!this.errorMessage) return;
     this.errorMessage = '';
+    this.cdr.markForCheck();
+  }
+
+  togglePasswordVisibility(): void {
+    if (this.isLoading) return;
+
+    this.isPasswordVisible = !this.isPasswordVisible;
     this.cdr.markForCheck();
   }
 
