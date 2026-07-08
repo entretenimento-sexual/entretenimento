@@ -1,16 +1,78 @@
-<!-- src\app\authentication\email-input-modal\email-input-modal.component.html -->
-@if (isModalOpen) {
-  <div class="modal-overlay">
-    <div class="modal-content">
-      <h3>Recuperar Senha</h3>
-      <input type="email" [(ngModel)]="email" placeholder="Insira seu e-mail" />
-      @if (message) {
-        <div class="alert">{{ message }}</div>
-      }
-      <div class="modal-actions">
-        <button (click)="sendEmail()">Enviar</button>
-        <button (click)="closeModal()">Fechar</button>
-      </div>
+<!-- src/app/authentication/email-input-modal/email-input-modal.component.html -->
+@if (vm$ | async; as vm) {
+  @if (vm.isOpen) {
+    <div class="modal-overlay" (click)="closeModal()">
+      <section
+        class="modal-content"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="password-recovery-title"
+        aria-describedby="password-recovery-description password-recovery-feedback"
+        (click)="$event.stopPropagation()"
+      >
+        <p class="modal-kicker">Recuperação de acesso</p>
+
+        <h2 id="password-recovery-title">Redefinir senha</h2>
+
+        <p id="password-recovery-description" class="modal-description">
+          Informe o e-mail usado na conta. Se ele estiver cadastrado, enviaremos as instruções de recuperação.
+        </p>
+
+        <form class="recovery-form" novalidate (ngSubmit)="sendEmail(vm.email)">
+          <label class="field-label" for="password-recovery-email">E-mail</label>
+          <input
+            id="password-recovery-email"
+            class="input-field"
+            type="email"
+            name="passwordRecoveryEmail"
+            inputmode="email"
+            autocomplete="email"
+            placeholder="seu@email.com"
+            [ngModel]="vm.email"
+            (ngModelChange)="updateEmail($event)"
+            [disabled]="vm.isSending"
+            aria-describedby="password-recovery-description password-recovery-feedback"
+          />
+
+          @if (vm.feedback) {
+            <p
+              id="password-recovery-feedback"
+              class="recovery-feedback"
+              [class.recovery-feedback--success]="vm.feedback.type === 'success'"
+              [class.recovery-feedback--error]="vm.feedback.type === 'error'"
+              [class.recovery-feedback--info]="vm.feedback.type === 'info'"
+              [attr.role]="vm.feedback.type === 'error' ? 'alert' : 'status'"
+              [attr.aria-live]="vm.feedback.type === 'error' ? 'assertive' : 'polite'"
+            >
+              {{ vm.feedback.message }}
+            </p>
+          } @else {
+            <p id="password-recovery-feedback" class="sr-only" aria-live="polite">
+              Modal de recuperação aberto.
+            </p>
+          }
+
+          <div class="modal-actions">
+            <button
+              class="btn-submit"
+              type="submit"
+              [disabled]="vm.isSending"
+              [attr.aria-busy]="vm.isSending ? 'true' : 'false'"
+            >
+              {{ vm.isSending ? 'Enviando...' : 'Enviar instruções' }}
+            </button>
+
+            <button
+              class="btn-cancel"
+              type="button"
+              (click)="closeModal()"
+              [disabled]="vm.isSending"
+            >
+              Fechar
+            </button>
+          </div>
+        </form>
+      </section>
     </div>
-  </div>
+  }
 }
