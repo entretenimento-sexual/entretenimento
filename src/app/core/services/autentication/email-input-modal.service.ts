@@ -6,9 +6,10 @@
 // - controlar abertura/fechamento do modal de recuperação de senha;
 // - validar e-mail antes de chamar Firebase Auth;
 // - expor estado reativo para a UI;
-// - usar feedback neutro para evitar enumeração de contas.
+// - usar feedback neutro para evitar enumeração de contas;
+// - diferenciar a orientação de produção da orientação do Auth Emulator.
 // -----------------------------------------------------------------------------
-import { Injectable } from '@angular/core';
+import { Injectable, isDevMode } from '@angular/core';
 import { BehaviorSubject, Subject } from 'rxjs';
 import { finalize, take } from 'rxjs/operators';
 
@@ -25,6 +26,9 @@ export interface PasswordRecoveryModalState {
   isOpen: boolean;
   email: string;
   isSending: boolean;
+  requestCompleted: boolean;
+  submittedEmail: string | null;
+  isLocalDev: boolean;
   feedback: PasswordRecoveryFeedback | null;
 }
 
@@ -37,13 +41,19 @@ export class EmailInputModalService {
   public readonly isModalOpen = new Subject<boolean>();
   public readonly emailSentMessage = new Subject<string>();
 
-  private readonly neutralRecoveryMessage =
-    'Se esse e-mail estiver cadastrado, enviaremos as instruções de recuperação.';
+  private readonly productionSuccessMessage =
+    'Solicitação enviada. Se esse e-mail estiver cadastrado, as instruções chegarão na caixa de entrada. Verifique também o spam.';
+
+  private readonly emulatorSuccessMessage =
+    'Solicitação registrada no Auth Emulator. O emulador não envia e-mail real; copie o link de redefinição impresso no terminal dos emuladores.';
 
   private readonly stateSubject = new BehaviorSubject<PasswordRecoveryModalState>({
     isOpen: false,
     email: '',
     isSending: false,
+    requestCompleted: false,
+    submittedEmail: null,
+    isLocalDev: isDevMode(),
     feedback: null,
   });
 
@@ -58,6 +68,8 @@ export class EmailInputModalService {
       isOpen: true,
       email,
       isSending: false,
+      requestCompleted: false,
+      submittedEmail: null,
       feedback: null,
     });
 
@@ -68,6 +80,8 @@ export class EmailInputModalService {
     this.patchState({
       isOpen: false,
       isSending: false,
+      requestCompleted: false,
+      submittedEmail: null,
       feedback: null,
     });
 
@@ -75,7 +89,18 @@ export class EmailInputModalService {
   }
 
   updateEmail(email: string): void {
-    this.patchState({ email: email ?? '' });
+    const nextEmail = email ?? '';
+    const normalizedNextEmail = this.normalizeEmail(nextEmail);
+    const currentState = this.stateSubject.value;
+    const changedAfterCompletedRequest =
+      currentState.requestCompleted && normalizedNextEmail !== currentState.submittedEmail;
+
+    this.patchState({
+      email: nextEmail,
+      requestCompleted: changedAfterCompletedRequest ? false : currentState.requestCompleted,
+      submittedEmail: changedAfterCompletedRequest ? null : currentState.submittedEmail,
+      feedback: changedAfterCompletedRequest ? null : currentState.feedback,
+    });
   }
 
   /**
@@ -84,22 +109,31 @@ export class EmailInputModalService {
    * A mensagem de sucesso é propositalmente neutra:
    * - não confirma se a conta existe;
    * - reduz enumeração de e-mails;
-   * - funciona melhor no emulador, onde não há entrega real para Gmail.
+   * - evita que o usuário clique repetidas vezes para o mesmo endereço;
+   * - no emulador, explica que não há entrega real para Gmail.
    */
   sendPasswordRecoveryEmail(email: string): void {
-    const safeEmail = (email ?? '').trim().toLowerCase();
+    const safeEmail = this.normalizeEmail(email);
 
     if (!this.isValidEmail(safeEmail)) {
       this.setFeedback('error', 'Informe um e-mail válido para continuar.');
       return;
     }
 
+    const currentState = this.stateSubject.value;
+
+    if (currentState.requestCompleted && currentState.submittedEmail === safeEmail) {
+      return;
+    }
+
     this.patchState({
       email: safeEmail,
       isSending: true,
+      requestCompleted: false,
+      submittedEmail: null,
       feedback: {
         type: 'info',
-        message: 'Preparando envio das instruções...',
+        message: 'Enviando solicitação de recuperação...',
       },
     });
 
@@ -108,7 +142,7 @@ export class EmailInputModalService {
       finalize(() => this.patchState({ isSending: false }))
     ).subscribe({
       next: () => {
-        this.setFeedback('success', this.neutralRecoveryMessage);
+        this.handleRecoveryRequestAccepted(safeEmail);
       },
       error: (error) => {
         /**
@@ -116,7 +150,7 @@ export class EmailInputModalService {
          * Erros técnicos reais continuam com mensagem genérica de falha operacional.
          */
         if (this.isAccountLookupError(error)) {
-          this.setFeedback('success', this.neutralRecoveryMessage);
+          this.handleRecoveryRequestAccepted(safeEmail);
           return;
         }
 
@@ -126,6 +160,22 @@ export class EmailInputModalService {
         );
       },
     });
+  }
+
+  private handleRecoveryRequestAccepted(email: string): void {
+    const message = this.getSuccessMessage();
+
+    this.patchState({
+      requestCompleted: true,
+      submittedEmail: email,
+      feedback: { type: 'success', message },
+    });
+
+    this.emailSentMessage.next(message);
+  }
+
+  private getSuccessMessage(): string {
+    return isDevMode() ? this.emulatorSuccessMessage : this.productionSuccessMessage;
   }
 
   private patchState(patch: Partial<PasswordRecoveryModalState>): void {
@@ -141,6 +191,10 @@ export class EmailInputModalService {
     });
 
     this.emailSentMessage.next(message);
+  }
+
+  private normalizeEmail(email: string): string {
+    return (email ?? '').trim().toLowerCase();
   }
 
   private isValidEmail(email: string): boolean {
