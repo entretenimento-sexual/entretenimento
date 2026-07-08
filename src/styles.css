@@ -231,65 +231,99 @@ html.high-contrast .chat-shell__reply-preview-text {
 /* -----------------------------------------------------------------------------
    Auth form density
 
-   Padronização intencional para Login e Registro:
-   - reduz altura vertical ociosa dos campos;
-   - mantém alvo de toque confortável em 42px;
-   - centraliza o botão de ver senha como ícone;
-   - não altera regras de validação nem fluxo de autenticação.
+   Contrato visual para Login e Registro:
+   - campos mais baixos e consistentes;
+   - botão de senha em formato de ícone, sem pílula pesada;
+   - alinhamento vertical garantido por altura fixa no wrapper;
+   - escopo limitado aos componentes de autenticação.
 ----------------------------------------------------------------------------- */
+app-login-component .form,
+app-register .form-container form {
+  gap: 0.62rem !important;
+}
+
+app-login-component .field-label,
+app-register .form-field label {
+  font-size: 0.88rem !important;
+  line-height: 1.2 !important;
+}
+
+app-register .form-field {
+  margin-bottom: 12px !important;
+}
+
 app-login-component .input-field,
 app-register .input-field {
-  min-height: 42px !important;
-  padding: 0.62rem 0.82rem !important;
+  box-sizing: border-box !important;
+  display: block !important;
+  width: 100% !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 0.82rem !important;
   border-radius: 12px !important;
-  line-height: 1.2 !important;
+  line-height: 40px !important;
+}
+
+app-login-component .password-field,
+app-register .password-field {
+  position: relative !important;
+  display: block !important;
+  height: 40px !important;
+  min-height: 40px !important;
 }
 
 app-login-component .password-field .input-field,
 app-register .password-field .input-field {
-  padding-right: 3rem !important;
+  padding-right: 2.75rem !important;
 }
 
 app-login-component .password-toggle,
 app-register .toggle-input {
+  appearance: none !important;
+  -webkit-appearance: none !important;
   position: absolute !important;
   top: 50% !important;
   right: 0.42rem !important;
-  display: inline-grid !important;
-  place-items: center !important;
-  width: 34px !important;
-  min-width: 34px !important;
-  height: 34px !important;
-  min-height: 34px !important;
+  z-index: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  min-width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  margin: 0 !important;
   padding: 0 !important;
   border: 1px solid transparent !important;
   border-radius: 999px !important;
-  background: color-mix(in oklab, var(--primary-color) 8%, transparent) !important;
-  color: color-mix(in oklab, var(--text-color) 86%, var(--primary-color) 14%) !important;
-  line-height: 1 !important;
-  transform: translateY(-50%) !important;
+  background: transparent !important;
+  color: color-mix(in oklab, var(--text-color) 74%, transparent) !important;
+  line-height: 0 !important;
+  transform: translate3d(0, -50%, 0) !important;
 }
 
 app-login-component .password-toggle:hover:not(:disabled),
 app-login-component .password-toggle:focus-visible,
 app-register .toggle-input:hover:not(:disabled),
 app-register .toggle-input:focus-visible {
-  border-color: color-mix(in oklab, var(--primary-color) 35%, transparent) !important;
-  background: color-mix(in oklab, var(--primary-color) 14%, transparent) !important;
-  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 12%, transparent) !important;
+  border-color: color-mix(in oklab, var(--primary-color) 28%, transparent) !important;
+  background: color-mix(in oklab, var(--primary-color) 10%, transparent) !important;
+  color: var(--primary-color) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 10%, transparent) !important;
   outline: none !important;
 }
 
 app-login-component .password-toggle[aria-pressed="true"],
 app-register .toggle-input[aria-pressed="true"] {
+  background: color-mix(in oklab, var(--primary-color) 12%, transparent) !important;
   color: var(--primary-color) !important;
-  background: color-mix(in oklab, var(--primary-color) 18%, transparent) !important;
 }
 
 app-login-component .password-toggle svg,
 app-register .toggle-input svg {
-  width: 18px !important;
-  height: 18px !important;
+  flex: 0 0 auto !important;
+  width: 17px !important;
+  height: 17px !important;
   display: block !important;
   fill: none !important;
   stroke: currentColor !important;
@@ -301,8 +335,18 @@ app-register .toggle-input svg {
 app-login-component .button-container .btn,
 app-login-component .btn-google,
 app-register .form-container button[type="submit"] {
-  min-height: 44px !important;
+  min-height: 42px !important;
   border-radius: 12px !important;
+}
+
+@media (max-width: 420px) {
+  app-login-component .input-field,
+  app-register .input-field,
+  app-login-component .password-field,
+  app-register .password-field {
+    height: 42px !important;
+    min-height: 42px !important;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
