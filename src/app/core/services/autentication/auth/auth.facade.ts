@@ -34,6 +34,7 @@ import {
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { LogoutService } from './logout.service';
 import {
+  SocialAuthOptions,
   SocialAuthService,
   SocialAuthResult,
 } from '../social-auth.service';
@@ -162,11 +163,15 @@ export class AuthFacade {
    * - mostrar mensagem
    * - navegar para result.nextRoute
    * - abrir fluxo complementar
+   *
+   * options.acceptedTerms:
+   * - usado pelo cadastro com Google, depois de aceite explícito na UI;
+   * - login comum mantém false/undefined para não simular aceite inexistente.
    */
-  googleLogin$(): Observable<AuthFacadeSocialAuthResult> {
+  googleLogin$(options: SocialAuthOptions = {}): Observable<AuthFacadeSocialAuthResult> {
     this.startLoading();
 
-    return this.socialAuthService.googleLogin().pipe(
+    return this.socialAuthService.googleLogin(options).pipe(
       map((result) => this.normalizeSocialAuthResult(result)),
       catchError((err: any) =>
         of({
