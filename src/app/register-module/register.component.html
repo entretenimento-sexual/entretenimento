@@ -53,9 +53,7 @@
     <form [formGroup]="form" (ngSubmit)="onSubmit()" aria-labelledby="form-title" autocomplete="on" novalidate
       [attr.aria-busy]="(isLoading() || creating()) ? 'true' : null">
 
-      <p class="form-kicker">Criação de conta</p>
       <h2 id="form-title" class="form-header">Crie seu cadastro</h2>
-      <p class="form-subtitle">Informe os dados essenciais.</p>
 
       <!-- Apelido principal -->
       <div class="form-field nickname-field">
