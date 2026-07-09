@@ -30,7 +30,7 @@
       </div>
 
       <ul class="navbar-menu" role="menubar">
-        @if (isAuthenticated) {
+        @if (isAuthenticated && !isPublicAuthRoute) {
           <li class="navbar-item" role="none">
             <a
               routerLink="/dashboard/principal"
@@ -70,20 +70,33 @@
               Sair
             </button>
           </li>
+
+          <li class="navbar-item" role="none">
+            <a
+              routerLink="/subscription-plan"
+              class="navbar-link"
+              routerLinkActive="active"
+              #rlaPlanos="routerLinkActive"
+              [attr.aria-current]="rlaPlanos.isActive ? 'page' : null"
+              role="menuitem"
+            >
+              Planos de Assinatura
+            </a>
+          </li>
         }
 
-        <li class="navbar-item" role="none">
-          <a
-            routerLink="/subscription-plan"
-            class="navbar-link"
-            routerLinkActive="active"
-            #rlaPlanos="routerLinkActive"
-            [attr.aria-current]="rlaPlanos.isActive ? 'page' : null"
-            role="menuitem"
-          >
-            Planos de Assinatura
-          </a>
-        </li>
+        @if (isAuthenticated && isPublicAuthRoute) {
+          <li class="navbar-item" role="none">
+            <button
+              type="button"
+              class="navbar-link as-button"
+              (click)="logout()"
+              role="menuitem"
+            >
+              Sair
+            </button>
+          </li>
+        }
 
         @if (!isAuthenticated) {
           @if (!isLoginPage) {
@@ -96,26 +109,28 @@
                 [attr.aria-current]="rlaLogin.isActive ? 'page' : null"
                 role="menuitem"
               >
-                Logar
+                Entrar
               </a>
             </li>
           }
 
-          <li class="navbar-item" role="none">
-            <a
-              routerLink="/register"
-              class="navbar-link"
-              routerLinkActive="active"
-              #rlaRegister="routerLinkActive"
-              [attr.aria-current]="rlaRegister.isActive ? 'page' : null"
-              role="menuitem"
-            >
-              Cadastre-se
-            </a>
-          </li>
+          @if (isLoginPage) {
+            <li class="navbar-item" role="none">
+              <a
+                routerLink="/register"
+                class="navbar-link"
+                routerLinkActive="active"
+                #rlaRegister="routerLinkActive"
+                [attr.aria-current]="rlaRegister.isActive ? 'page' : null"
+                role="menuitem"
+              >
+                Cadastre-se
+              </a>
+            </li>
+          }
         }
 
-        @if (isAuthenticated) {
+        @if (isAuthenticated && !isPublicAuthRoute) {
           <li class="navbar-item user-info" role="none">
             @if (photoURL) {
               <img
@@ -169,7 +184,7 @@
 
   @if (isMobileMenuViewport && isMobileMenuOpen) {
     <div id="navbar-mobile-panel" class="navbar-mobile-panel" role="menu" aria-label="Menu principal móvel">
-      @if (isAuthenticated) {
+      @if (isAuthenticated && !isPublicAuthRoute) {
         <a
           routerLink="/dashboard/principal"
           class="navbar-mobile-link"
@@ -211,6 +226,14 @@
         >
           Sair
         </button>
+      } @else if (isAuthenticated && isPublicAuthRoute) {
+        <button
+          type="button"
+          class="navbar-mobile-link navbar-mobile-link--button"
+          (click)="logout(); closeMobileMenu()"
+        >
+          Sair
+        </button>
       } @else {
         @if (!isLoginPage) {
           <a
@@ -221,31 +244,22 @@
             [attr.aria-current]="rlaLoginMobile.isActive ? 'page' : null"
             (click)="closeMobileMenu()"
           >
-            Logar
+            Entrar
           </a>
         }
 
-        <a
-          routerLink="/register"
-          class="navbar-mobile-link"
-          routerLinkActive="active"
-          #rlaRegisterMobile="routerLinkActive"
-          [attr.aria-current]="rlaRegisterMobile.isActive ? 'page' : null"
-          (click)="closeMobileMenu()"
-        >
-          Cadastre-se
-        </a>
-
-        <a
-          routerLink="/subscription-plan"
-          class="navbar-mobile-link"
-          routerLinkActive="active"
-          #rlaPlanosGuestMobile="routerLinkActive"
-          [attr.aria-current]="rlaPlanosGuestMobile.isActive ? 'page' : null"
-          (click)="closeMobileMenu()"
-        >
-          Planos de Assinatura
-        </a>
+        @if (isLoginPage) {
+          <a
+            routerLink="/register"
+            class="navbar-mobile-link"
+            routerLinkActive="active"
+            #rlaRegisterMobile="routerLinkActive"
+            [attr.aria-current]="rlaRegisterMobile.isActive ? 'page' : null"
+            (click)="closeMobileMenu()"
+          >
+            Cadastre-se
+          </a>
+        }
       }
 
       <div class="navbar-mobile-actions">
