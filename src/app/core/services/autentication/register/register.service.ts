@@ -77,19 +77,16 @@ export class RegisterService {
     });
 
     return this.validateUserData(userData, traceId).pipe(
-      // 1) cria conta no Auth
       switchMap(() =>
         from(createUserWithEmailAndPassword(this.auth, userData.email, password)).pipe(
           timeout({ each: this.NET_TIMEOUT_MS })
         )
       ),
 
-      // 2) garante token/propagação antes de escrever no Firestore (rules dependem disso)
       switchMap((cred) =>
         this.waitAuthPropagationForFirestore$(cred.user.uid, traceId).pipe(map(() => cred))
       ),
 
-      // 3) bootstrap canônico: users + public_index + public_profiles
       switchMap((cred) =>
         this.registrationBootstrap
           .createEmailPasswordSeed$({
@@ -119,7 +116,6 @@ export class RegisterService {
           )
       ),
 
-      // 4) e-mail de verificação (warn se falhar)
       switchMap((ctx2) =>
         this.emailVerificationService.sendEmailVerification(ctx2.cred.user).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
@@ -135,7 +131,6 @@ export class RegisterService {
         )
       ),
 
-      // 5) updateProfile: SOMENTE displayName (não força photoURL)
       switchMap((ctx2) =>
         from(updateProfile(ctx2.cred.user, { displayName: (userData.nickname ?? '').trim() })).pipe(
           timeout({ each: this.NET_TIMEOUT_MS }),
@@ -151,15 +146,6 @@ export class RegisterService {
         )
       ),
 
-      /**
-       * 6) Seed compat mínimo
-       *
-       * Importante:
-       * - NÃO escrevemos mais no CurrentUserStore aqui.
-       * - O runtime do perfil continua sendo responsabilidade do fluxo oficial:
-       *   AuthSessionSyncEffects + UserEffects + CurrentUserStoreService.
-       * - Mantemos apenas HOT_KEY mínima de UID para compatibilidade de bootstrap.
-       */
       tap((ctx2) => {
         const { user } = ctx2.cred;
 
@@ -178,12 +164,6 @@ export class RegisterService {
     );
   }
 
-  /**
-   * waitAuthPropagationForFirestore$
-   * - Força refresh do token (quando possível)
-   * - Aguarda onIdTokenChanged entregar o UID esperado
-   * - timeout + take(1) para não deixar listener vivo
-   */
   private waitAuthPropagationForFirestore$(expectedUid: string, traceId: string): Observable<void> {
     const refresh$ = from(
       this.auth.currentUser?.getIdToken(true) ?? Promise.resolve('')
@@ -253,7 +233,6 @@ export class RegisterService {
       );
     }
 
-    // garante compat com public_profiles.rules (nicknameNormalized regex)
     const normalized = this.normalizeNickname(nickname);
     if (!this.NICKNAME_NORM_RE.test(normalized)) {
       return this.handleRegisterError(
@@ -326,21 +305,6 @@ export class RegisterService {
     return of(void 0);
   }
 
-  /**
-   * Seed compat mínimo pós-signup.
-   *
-   * SUPRESSÃO EXPLÍCITA:
-   * - Foi removida a escrita do runtime do perfil via CurrentUserStoreService.
-   * - Foi removido o sync completo de currentUser em cache.
-   *
-   * Motivo:
-   * - evitar duplicidade com o fluxo oficial de hidratação do usuário;
-   * - impedir competição de snapshots no runtime;
-   * - reduzir ruído de logs e estados transitórios.
-   *
-   * Mantemos apenas a HOT_KEY de UID para compatibilidade com bootstraps legados
-   * que precisem de leitura síncrona defensiva.
-   */
   private seedLocalStateAfterSignup(uid: string): void {
     const safeUid = (uid ?? '').trim();
     if (!safeUid) return;
@@ -367,7 +331,7 @@ export class RegisterService {
         case 'auth/email-already-in-use':
           return 'Se existir uma conta com este e-mail, você receberá instruções para recuperar o acesso.';
         case 'auth/weak-password':
-          return 'Senha fraca. Ela precisa ter pelo menos 6 caracteres.';
+          return 'Senha fraca. Ela precisa ter pelo menos 8 caracteres.';
         case 'auth/invalid-email':
           return 'Formato de e-mail inválido.';
         case 'auth/network-request-failed':
@@ -401,21 +365,7 @@ export class RegisterService {
     } catch { }
   }
 
-  // ----------------------------------------------------------------------------
-  // Helpers / Debug
-  // ----------------------------------------------------------------------------
   private normalizeNickname(nickname: string): string {
-    /**
-     * Centralização:
-     * - DISPLAY pode conter espaço (ex.: "João Oficial")
-     * - Índice (public_index docId / nicknameNormalized) NÃO pode conter espaço
-     * - Portanto, convertemos espaços para "_" e removemos diacríticos para gerar a KEY.
-     *
-     * Isso evita divergência entre:
-     * - validação do register
-     * - checagem de unicidade em public_index
-     * - persistência em bootstrap
-     */
     return NicknameUtils.normalizarApelidoParaIndice(nickname);
   }
 
