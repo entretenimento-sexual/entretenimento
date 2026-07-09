@@ -1,4 +1,4 @@
-// src/app/authentication/login-component/login-component.ts
+// src/app/authentication/login-component.ts
 // -----------------------------------------------------------------------------
 // LoginComponent
 // -----------------------------------------------------------------------------
@@ -217,7 +217,8 @@ export class LoginComponent implements OnInit {
   private setError(message: string): void {
     this.errorMessage = message;
     this.successMessage = '';
-    this.notify.showError(message);
+    // Erros previsíveis do próprio formulário ficam só no card.
+    // Evita duplicar feedback com alerta inline + toast global.
     this.cdr.markForCheck();
   }
 
