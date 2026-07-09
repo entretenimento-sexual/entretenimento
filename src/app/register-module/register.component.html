@@ -90,12 +90,10 @@
           </div>
 
           <div class="inline-feedback" aria-live="polite">
-            <!-- Verificando -->
             <div *ngIf="nicknameChecking()" class="badge info">
               <span class="inline-spinner" aria-hidden="true"></span> Verificando…
             </div>
 
-            <!-- Disponível -->
             <div *ngIf="
                 !nicknameChecking()
                 && nicknameFeedbackArmed()
@@ -109,7 +107,6 @@
               Disponível
             </div>
 
-            <!-- Em uso -->
             <div *ngIf="
                 !nicknameChecking()
                 && (submitted() || nicknameFeedbackArmed())
@@ -121,7 +118,6 @@
               Em uso
             </div>
 
-            <!-- Não verificado -->
             <div *ngIf="
                 !nicknameChecking()
                 && nicknameFeedbackArmed()
@@ -268,22 +264,7 @@
 
       <button class="btn btn-primary" type="submit"
         [disabled]="isLoading() || creating() || nicknameChecking() || !form.valid">
-        {{ isLoading() && !googleCreating() ? 'Aguarde…' : 'Cadastrar' }}
-      </button>
-
-      <div class="auth-divider" aria-hidden="true">
-        <span>ou</span>
-      </div>
-
-      <button
-        class="btn-google"
-        type="button"
-        (click)="registerWithGoogle()"
-        [disabled]="isLoading() || creating()"
-        [attr.aria-disabled]="(isLoading() || creating()) ? 'true' : 'false'"
-      >
-        <span class="google-mark" aria-hidden="true">G</span>
-        <span>{{ googleCreating() ? 'Abrindo Google...' : 'Cadastrar com Google' }}</span>
+        {{ isLoading() ? 'Aguarde…' : 'Cadastrar' }}
       </button>
 
       <p class="login-redirect">
