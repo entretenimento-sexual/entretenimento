@@ -1,13 +1,9 @@
 // src/app/register-module/register.component.ts
-// Não esqueça os comentários explicativos e ferramentas de debug.
-//
-// Componente de registro de usuário.
-// - Validação síncrona (regex/required/tamanho) para nickname.
-// - Validação de "apelido completo" (principal + complemento).
-// - Checagem de disponibilidade do apelido (Firestore) via Observable:
-//   -> após 3s de inatividade e/ou no blur.
-// - Submit faz "strict check" antes de criar a conta (não confia em checagem soft).
-// - Feedback de erro via ErrorNotificationService; erros inesperados sobem para GlobalErrorHandler quando não capturados.
+// Componente de registro por e-mail/senha.
+// - Validação síncrona para apelido, e-mail, senha e aceite dos termos.
+// - Checagem reativa de disponibilidade do apelido via Observable.
+// - Submit faz checagem estrita antes de criar a conta.
+// - Feedback visual fica na UI; detalhes técnicos só aparecem com debugRegister.
 import {
   ChangeDetectionStrategy,
   Component,
@@ -17,10 +13,8 @@ import {
   signal,
 } from '@angular/core';
 import {
-  AbstractControl, // AbstractControl está esmaecido
   FormBuilder,
   FormGroup,
-  ValidationErrors, // ValidationErrors também está esmaecido
   Validators,
 } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -39,12 +33,10 @@ import {
   take,
   tap,
   startWith,
-  distinctUntilChanged, // distinctUntilChanged pode ser útil para evitar checagens repetidas do mesmo apelido
 } from 'rxjs/operators';
 import { toSignal, takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { RegisterService } from 'src/app/core/services/autentication/register/register.service';
-import { AuthFacade } from 'src/app/core/services/autentication/auth/auth.facade';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { FirestoreValidationService } from 'src/app/core/services/data-handling/firestore/validation/firestore-validation.service';
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
@@ -72,21 +64,20 @@ export class RegisterComponent {
   private fb = inject(FormBuilder);
   private validatorService = inject(FirestoreValidationService);
   private registerService = inject(RegisterService);
-  private authFacade = inject(AuthFacade);
   private errorNotification = inject(ErrorNotificationService);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
 
-  // AngularFire Auth
   constructor(private auth: Auth) {
     this.setupNicknameAvailabilityPipeline();
   }
 
-  // ---------------- Debug (opt-in via localStorage) ----------------
+  // ---------------- Debug opt-in ----------------
   // Ative com: localStorage.setItem('debugRegister', '1')
   debugEnabled(): boolean {
     return typeof localStorage !== 'undefined' && localStorage.getItem('debugRegister') === '1';
   }
+
   private dbg(...args: any[]): void {
     if (this.debugEnabled()) console.debug('[Register]', ...args);
   }
@@ -101,7 +92,7 @@ export class RegisterComponent {
           Validators.maxLength(12),
           ValidatorService.nicknameValidator(),
         ],
-        updateOn: 'change', // precisamos do valor em tempo real para preview
+        updateOn: 'change',
       }),
 
       complementoApelido: this.fb.control('', {
@@ -109,12 +100,12 @@ export class RegisterComponent {
           Validators.maxLength(12),
           ValidatorService.complementoNicknameValidator(),
         ],
-        updateOn: 'change', // idem: muda o apelido completo em tempo real
+        updateOn: 'change',
       }),
 
       email: this.fb.control('', {
         validators: [Validators.required, Validators.email],
-        updateOn: 'blur', // evita validação agressiva enquanto digita
+        updateOn: 'blur',
       }),
 
       password: this.fb.control('', {
@@ -128,8 +119,6 @@ export class RegisterComponent {
       }),
     },
     {
-      // Validação do apelido completo (principal + complemento)
-      // Ideal: alinhar o "full" ao mesmo formato do NicknameUtils.
       validators: [ValidatorService.fullNicknameValidator()],
     }
   );
@@ -143,7 +132,6 @@ export class RegisterComponent {
   readonly showTech = signal(false);
 
   readonly creating = signal(false);
-  readonly googleCreating = signal(false);
   readonly creatingMsg = signal('Estamos criando seu usuário, aguarde…');
   readonly syncing = signal(false);
 
@@ -152,12 +140,9 @@ export class RegisterComponent {
   private nicknameBlur$ = new Subject<void>();
 
   readonly nicknameCheckState = signal<NicknameCheckState>('idle');
-
-  // “Arma” a exibição de feedback mesmo sem blur (inatividade de 3s) e no blur.
   readonly nicknameFeedbackArmed = signal(false);
   readonly submitted = signal(false);
 
-  // Bridges (FormControl -> Signal) para computed reativo
   private apelidoPrincipalSig = toSignal(
     this.form.get('apelidoPrincipal')!.valueChanges.pipe(
       startWith(this.form.get('apelidoPrincipal')!.value)
@@ -186,26 +171,24 @@ export class RegisterComponent {
   });
 
   readonly apelidoEmUso = computed(() => {
-    // força recompute quando status/errors mudam
     this.apelidoStatusSig();
     return this.form.get('apelidoPrincipal')?.hasError('apelidoEmUso') === true;
   });
 
   readonly nicknameChecking = computed(() => this.nicknameCheckState() === 'checking');
 
-  // ---------------- Nickname helpers ----------------
   private hasBlockingNicknameSyncErrors(): boolean {
     const ctrl = this.form.get('apelidoPrincipal');
     if (!ctrl) return true;
 
     const e = ctrl.errors ?? {};
-    // Não bloqueia por "apelidoEmUso" (isso é resultado da checagem, não pré-condição)
     return !!(e['required'] || e['minlength'] || e['maxlength'] || e['invalidNickname']);
   }
 
   private hasBlockingComplementSyncErrors(): boolean {
     const ctrl = this.form.get('complementoApelido');
     if (!ctrl) return false;
+
     const e = ctrl.errors ?? {};
     return !!(e['maxlength'] || e['invalidNickname']);
   }
@@ -228,28 +211,23 @@ export class RegisterComponent {
   }
 
   onNicknameTyping(): void {
-    // Nova ação do usuário: esconde feedback e limpa "em uso" até re-checar
     this.nicknameFeedbackArmed.set(false);
     this.clearApelidoEmUsoError();
-
     this.nicknameCheckState.set('typing');
     this.nicknameTyping$.next();
   }
 
-  // Opcional, mas recomendado (use no blur do input principal)
   onNicknameBlur(): void {
     this.nicknameFeedbackArmed.set(true);
     this.nicknameBlur$.next();
   }
 
   onComplementoBlur(): void {
-    // Complemento afeta o apelido completo, então dispara checagem imediatamente
     this.nicknameFeedbackArmed.set(true);
     this.nicknameBlur$.next();
   }
 
   private setupNicknameAvailabilityPipeline(): void {
-    // Após 3s sem digitar: arma feedback e checa disponibilidade (modo soft)
     this.nicknameTyping$
       .pipe(
         debounceTime(3000),
@@ -262,7 +240,6 @@ export class RegisterComponent {
       )
       .subscribe();
 
-    // No blur (principal ou complemento): checa imediatamente (modo soft)
     this.nicknameBlur$
       .pipe(
         tap(() => this.dbg('nickname blur -> check')),
@@ -317,12 +294,12 @@ export class RegisterComponent {
             original: err,
           }));
         }
+
         return of(void 0);
       })
     );
   }
 
-  // ---------------- Auth wait ----------------
   private waitForAuthUserOnce(timeoutMs = 6000): Promise<User> {
     const existing = this.auth.currentUser as User | null;
     if (existing) return Promise.resolve(existing);
@@ -339,9 +316,9 @@ export class RegisterComponent {
     return Promise.race([firstValueFrom(wait$), timeout]);
   }
 
-  // ---------------- Errors/UI helpers ----------------
-  private setBanner(variant: UiBannerVariant, title: string, message: string, details?: any) {
+  private setBanner(variant: UiBannerVariant, title: string, message: string, details?: any): void {
     let det: string | undefined;
+
     if (details !== undefined) {
       try {
         det = typeof details === 'string' ? details : JSON.stringify(details, null, 2);
@@ -349,6 +326,7 @@ export class RegisterComponent {
         det = String(details);
       }
     }
+
     this.banner.set({ variant, title, message, details: det });
     this.showTech.set(false);
   }
@@ -411,15 +389,10 @@ export class RegisterComponent {
 
   getError(controlName: string): string | null {
     const ctrl = this.form.get(controlName);
-
-    // Observação: para nickname, você controla "quando mostrar" pelo template
-    // via submitted()/nicknameFeedbackArmed(). Aqui só traduz erros -> mensagens.
-
     if (!ctrl) return null;
 
     const errs = ctrl.errors || {};
 
-    // Apelido completo inválido (erro no FormGroup) — tratamos como feedback do apelido principal
     if (controlName === 'apelidoPrincipal' && this.form.hasError('invalidFullNickname')) {
       return 'Apelido completo inválido.';
     }
@@ -438,83 +411,6 @@ export class RegisterComponent {
     return null;
   }
 
-  // ---------------- Social signup ----------------
-  registerWithGoogle(): void {
-    if (this.isLoading() || this.creating()) return;
-
-    this.submitted.set(true);
-    this.banner.set(null);
-    this.infoMessage.set(null);
-
-    const acceptedTerms = this.form.get('aceitarTermos')?.value === true;
-
-    if (!acceptedTerms) {
-      this.form.get('aceitarTermos')?.markAsTouched();
-      this.setBanner(
-        'warn',
-        'Aceite os termos para continuar',
-        'Para criar conta com Google, aceite os Termos de Uso e a Política de Privacidade.'
-      );
-      this.errorNotification.showError('Aceite os termos para criar conta com Google.');
-      setTimeout(() => document.getElementById('termos')?.focus());
-      return;
-    }
-
-    this.isLoading.set(true);
-    this.googleCreating.set(true);
-    this.creating.set(true);
-    this.creatingMsg.set('Abrindo cadastro com Google…');
-
-    this.authFacade.googleLogin$({ acceptedTerms: true }).pipe(
-      finalize(() => {
-        this.isLoading.set(false);
-        this.googleCreating.set(false);
-      }),
-      takeUntilDestroyed(this.destroyRef)
-    ).subscribe({
-      next: (result) => {
-        if (!result?.success) {
-          this.creating.set(false);
-
-          const cancelled = result?.outcome === 'cancelled';
-          this.setBanner(
-            cancelled ? 'info' : 'error',
-            cancelled ? 'Cadastro com Google cancelado' : 'Não foi possível cadastrar com Google',
-            result?.message || 'Tente novamente em instantes.',
-            result
-          );
-          return;
-        }
-
-        this.creatingMsg.set(
-          result.isNewUser
-            ? 'Conta criada com Google. Redirecionando…'
-            : 'Conta Google localizada. Redirecionando…'
-        );
-
-        const target =
-          result.nextRoute === '/register/welcome'
-            ? '/register/welcome?autocheck=1'
-            : result.nextRoute || '/register/finalizar-cadastro';
-
-        this.router
-          .navigateByUrl(target, { replaceUrl: true })
-          .finally(() => this.creating.set(false));
-      },
-      error: (err) => {
-        this.creating.set(false);
-        this.setBanner(
-          'error',
-          'Não foi possível cadastrar com Google',
-          'Tente novamente. Se persistir, copie os detalhes técnicos e envie ao suporte.',
-          err
-        );
-        this.errorNotification.showError('Não foi possível cadastrar com Google.');
-      },
-    });
-  }
-
-  // ---------------- Submit ----------------
   onSubmit(): void {
     if (this.isLoading()) return;
 
@@ -524,7 +420,6 @@ export class RegisterComponent {
     this.form.markAllAsTouched();
     this.form.updateValueAndValidity();
 
-    // Se estiver checando nickname, bloqueia o submit (mesma UX “plataformas grandes”)
     if (this.nicknameChecking()) {
       this.errorNotification.showError('Aguarde a validação do apelido terminar.');
       return;
@@ -560,16 +455,13 @@ export class RegisterComponent {
       profileCompleted: false,
     };
 
-    const fullNick = (payload.nickname || '').trim();
-
-    // Submit: strict check (não assume disponibilidade se falhar rede/regras)
     this.runNicknameAvailabilityCheck$('strict')
       .pipe(
         switchMap(() => {
-          // se strict check marcou "em uso", interrompe
           if (this.apelidoEmUso()) {
             return throwError(() => ({ code: 'nickname-in-use', message: 'Apelido em uso.' }));
           }
+
           return this.registerService.registerUser(payload, password);
         }),
         finalize(() => this.isLoading.set(false))
@@ -612,7 +504,6 @@ export class RegisterComponent {
             return;
           }
 
-          // Política de privacidade: não confirmar “e-mail em uso” de forma explícita
           if (code === 'email-exists-soft') {
             const msg = 'Se existir uma conta com este e-mail, você receberá instruções para recuperar o acesso.';
             this.infoMessage.set(msg);
@@ -645,7 +536,6 @@ export class RegisterComponent {
             return;
           }
 
-
           this.setBanner(
             'error',
             'Não foi possível concluir o cadastro',
@@ -656,13 +546,13 @@ export class RegisterComponent {
         },
       });
   }
-} // linha 567 - fim do componente
+}
 
 /*
 Fluxo de registro:
 1. Usuário preenche apelido principal, complemento, email, senha e aceita termos.
-2. Enquanto digita o apelido, após 3s de inatividade ou no blur, checa disponibilidade (modo soft).
+2. Enquanto digita o apelido, após 3s de inatividade ou no blur, checa disponibilidade em modo soft.
 3. No submit, faz validação completa e checagem estrita de disponibilidade do apelido.
 4. Se tudo ok, cria conta e espera sessão aparecer.
-5. Se sessão não aparecer em X segundos, mostra banner com opção de sincronizar sessão manualmente.
+5. Se sessão não aparecer em tempo útil, mostra banner com opção de sincronizar sessão no modo debug.
 */
