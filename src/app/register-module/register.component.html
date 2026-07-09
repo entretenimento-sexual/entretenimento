@@ -1,16 +1,15 @@
 <!-- src/app/register-module/register.component.html -->
 <div class="auth-container">
   <section class="auth-intro" aria-labelledby="register-intro-title">
-    <p class="auth-badge">Cadastro em etapas</p>
-    <h1 id="register-intro-title">Comece com uma conta simples e segura.</h1>
+    <p class="auth-badge">Cadastro</p>
+    <h1 id="register-intro-title">Conta simples. Perfil depois.</h1>
     <p>
-      Crie seu acesso agora. Perfil, preferências e descoberta ficam para a próxima etapa.
+      Crie seu acesso e avance para configurar sua presença na plataforma.
     </p>
   </section>
 
   <div class="form-container">
 
-    <!-- Banner robusto -->
     <div *ngIf="banner() as b" class="alert" [ngClass]="{
         'alert-info': b.variant === 'info',
         'alert-error': b.variant === 'error',
@@ -21,7 +20,7 @@
       <strong>{{ b.title }}</strong>
       <span>{{ b.message }}</span>
 
-      <div class="actions">
+      <div *ngIf="debugEnabled()" class="actions">
         <button class="btn btn-secondary" type="button" (click)="onSubmit()" [disabled]="isLoading() || creating()">
           Tentar novamente
         </button>
@@ -34,15 +33,15 @@
           Refazer cadastro
         </button>
 
-        <button *ngIf="debugEnabled()" class="btn" type="button" (click)="toggleTech()">
+        <button class="btn" type="button" (click)="toggleTech()">
           {{ showTech() ? 'Ocultar detalhes' : 'Mostrar detalhes técnicos' }}
         </button>
 
-        <button *ngIf="debugEnabled() && b.details" class="btn" type="button" (click)="copyDetails()">
+        <button *ngIf="b.details" class="btn" type="button" (click)="copyDetails()">
           Copiar detalhes
         </button>
 
-        <button *ngIf="debugEnabled()" class="btn" type="button" (click)="reloadPage()">
+        <button class="btn" type="button" (click)="reloadPage()">
           Recarregar
         </button>
       </div>
@@ -257,7 +256,6 @@
         </div>
       </div>
 
-      <!-- Mensagem neutra -->
       <p *ngIf="infoMessage()" class="alert alert-info" aria-live="polite">
         {{ infoMessage() }}
       </p>
@@ -275,9 +273,7 @@
   </div>
 </div>
 
-<!-- Overlay de criação de usuário -->
 <div *ngIf="creating()" class="rg-overlay" role="status" aria-live="assertive" aria-label="Criando sua conta">
-
   <div class="rg-card">
     <div class="rg-spinner" aria-hidden="true"></div>
     <h3 class="rg-title">Criando sua conta</h3>
