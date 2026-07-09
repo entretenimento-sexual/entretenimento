@@ -495,3 +495,70 @@ app-register .login-redirect {
     transition: none !important;
   }
 }
+
+/* -----------------------------------------------------------------------------
+   Auth visual parity
+
+   Ajuste de consistência entre Login e Registro:
+   - remove resíduos visuais redundantes no login;
+   - unifica cor de CTA e aparência dos campos;
+   - preserva Google apenas no login;
+   - não altera regra de autenticação ou cadastro.
+----------------------------------------------------------------------------- */
+app-login-component .auth-badge,
+app-login-component .form-kicker,
+app-login-component .auth-trust-list,
+app-login-component .form-subtitle,
+app-login-component .auth-note,
+app-register .auth-badge {
+  display: none !important;
+}
+
+app-login-component .form-container,
+app-register .form-container {
+  width: min(100%, 440px) !important;
+}
+
+app-login-component .form-header,
+app-register .form-header {
+  margin-bottom: 0.9rem !important;
+}
+
+app-login-component .input-field,
+app-register .input-field {
+  border-color: color-mix(in oklab, var(--text-color) 16%, transparent) !important;
+  background: color-mix(in oklab, var(--background-color) 94%, white 6%) !important;
+  color: var(--text-color) !important;
+}
+
+app-login-component .input-field:focus-visible,
+app-register .input-field:focus-visible {
+  border-color: var(--primary-color) !important;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--primary-color) 14%, transparent) !important;
+}
+
+app-login-component .button-container .btn,
+app-register .form-container button[type="submit"] {
+  border-color: var(--primary-color) !important;
+  background: var(--primary-color) !important;
+  color: var(--button-text-color, #fff) !important;
+}
+
+app-login-component .button-container .btn:hover:not(:disabled),
+app-login-component .button-container .btn:focus-visible,
+app-register .form-container button[type="submit"]:hover:not(:disabled),
+app-register .form-container button[type="submit"]:focus-visible {
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--primary-color) 16%, transparent) !important;
+}
+
+app-login-component .btn-google {
+  min-height: 42px !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+}
+
+app-register .login-redirect a,
+app-login-component .register-link a,
+app-login-component .forgot-password {
+  color: var(--primary-color) !important;
+}
