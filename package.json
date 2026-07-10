@@ -33,6 +33,7 @@
     "emu:discovery": "npm run rules:build && npm run functions:build && npm run emu:discovery:start",
     "emu:media": "npm run rules:build && npm run functions:build && npm run emu:media:start",
     "emu:media:full:win": "scripts\\dev\\start-emu-media-full.cmd",
+    "dev:auth:win": "scripts\\dev\\start-auth-dev-session-win.cmd",
     "emulators:start:ui": "start http://127.0.0.1:4000",
     "rules:build": "node firestore-rules/tools-rules/build-firestore-rules.mjs",
     "rules:check": "node firestore-rules/tools-rules/check-braces.mjs",
