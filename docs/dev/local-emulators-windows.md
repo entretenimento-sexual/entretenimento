@@ -8,9 +8,26 @@ Este roteiro padroniza o ambiente local para desenvolvimento no Windows sem exig
 - Java 21 disponível no PATH, ou JDK portátil em `%USERPROFILE%\.jdks\temurin-21\jdk-21*`.
 - Dependências instaladas com `npm install`.
 
-## Subir ambiente completo de mídia
+## Acesso rápido para desenvolvimento Auth
 
-Use dois terminais.
+Use este comando quando quiser abrir a sessão de trabalho padrão:
+
+```powershell
+cd C:\entretenimento
+npm.cmd run dev:auth:win
+```
+
+Esse comando abre:
+
+- uma janela para Firebase Emulators;
+- uma janela para Angular em `dev-emu`;
+- navegador em `/login`, `/register` e Emulator UI.
+
+Ele não mata portas automaticamente. Se houver porta ocupada, o terminal dos emuladores vai orientar o encerramento seguro.
+
+## Subir ambiente completo de mídia manualmente
+
+Use dois terminais quando quiser controlar cada processo separadamente.
 
 ### Terminal 1 — Firebase Emulators
 
@@ -64,6 +81,28 @@ taskkill /PID NUMERO_DO_PID /T /F
 ```
 
 Use `npm.cmd run emu:pre` apenas quando tiver certeza de que pode matar processos nas portas dos emuladores.
+
+## Regras geradas e árvore suja
+
+`npm run rules:build` pode alterar `firestore.rules`, porque esse arquivo é gerado a partir da pasta `firestore-rules/`.
+
+Antes de trocar de branch ou abrir PR, confira:
+
+```powershell
+git status
+```
+
+Se `firestore.rules` aparecer modificado e você não alterou regras de propósito, restaure:
+
+```powershell
+git restore firestore.rules
+```
+
+Se a alteração for intencional, revise o diff antes de commitar:
+
+```powershell
+git diff -- firestore.rules
+```
 
 ## Validação rápida de Auth
 
