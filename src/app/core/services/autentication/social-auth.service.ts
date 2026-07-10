@@ -23,7 +23,7 @@
 // - Sessão continua sendo verdade do AuthSessionService.
 // - Runtime de perfil continua sendo verdade do fluxo oficial do projeto.
 // - Bootstrap inicial de conta pertence ao RegistrationBootstrapService.
-// ==============================================================
+// ============================================================== 
 import {
   EnvironmentInjector,
   Injectable,
@@ -68,14 +68,6 @@ import {
 // -----------------------------------------------------------------------------
 // Tipos públicos de resultado
 // -----------------------------------------------------------------------------
-
-export interface SocialAuthOptions {
-  /**
-   * Usado apenas quando a UI de cadastro coletou aceite explícito dos termos.
-   * Login social comum não deve preencher este valor.
-   */
-  acceptedTerms?: boolean;
-}
 
 /**
  * Com o lifecycle novo, somente conta realmente excluída deve bloquear o login
@@ -196,12 +188,12 @@ export class SocialAuthService {
     );
   }
 
-  googleLogin(options: SocialAuthOptions = {}): Observable<SocialAuthResult> {
+  googleLogin(): Observable<SocialAuthResult> {
     const provider = this.buildGoogleProvider();
 
     return this.ensurePersistentAuth$().pipe(
       switchMap(() => this.signInWithPopupInCtx$(provider)),
-      switchMap((credential) => this.bootstrapUserAfterAuth$(credential, options)),
+      switchMap((credential) => this.bootstrapUserAfterAuth$(credential)),
       catchError((err) => of(this.handleGoogleLoginError(err)))
     );
   }
@@ -236,8 +228,7 @@ export class SocialAuthService {
   // ===========================================================================
 
   private bootstrapUserAfterAuth$(
-    credential: UserCredential,
-    options: SocialAuthOptions
+    credential: UserCredential
   ): Observable<SocialAuthResult> {
     const authUser = credential?.user;
 
@@ -261,7 +252,7 @@ export class SocialAuthService {
             return this.handleExistingUserLogin$(doc, authUser, nowMs);
           }
 
-          return this.handleNewUserLogin$(authUser, nowMs, options);
+          return this.handleNewUserLogin$(authUser, nowMs);
         }),
         catchError((err) => {
           this.reportSilent(err, {
@@ -285,10 +276,9 @@ export class SocialAuthService {
 
   private handleNewUserLogin$(
     authUser: FirebaseUser,
-    nowMs: number,
-    options: SocialAuthOptions
+    nowMs: number
   ): Observable<SocialAuthResult> {
-    const seed = this.buildNewUserSeed(authUser, nowMs, options);
+    const seed = this.buildNewUserSeed(authUser, nowMs);
 
     return this.registrationBootstrap
       .createSocialSeed$({
@@ -298,7 +288,6 @@ export class SocialAuthService {
         photoURL: authUser.photoURL,
         providerIds: seed.authProviders,
         providerId: 'google.com',
-        acceptedTerms: options.acceptedTerms === true,
         nowMs,
       })
       .pipe(
@@ -339,8 +328,7 @@ export class SocialAuthService {
 
   private buildNewUserSeed(
     authUser: FirebaseUser,
-    nowMs: number,
-    options: SocialAuthOptions
+    nowMs: number
   ): SocialAuthUserDoc {
     const acl: IUserAccessControl = {
       ...DEFAULT_ACCESS_CONTROL,
@@ -373,7 +361,7 @@ export class SocialAuthService {
       updatedAtMs: nowMs,
 
       acceptedTerms: {
-        accepted: options.acceptedTerms === true,
+        accepted: false,
         date: nowMs,
       },
 
