@@ -1,7 +1,11 @@
 <!-- src/app/authentication/email-input-modal/email-input-modal.component.html -->
 @if (vm$ | async; as vm) {
   @if (vm.isOpen) {
-    <div class="modal-overlay" (click)="closeModal()">
+    <div
+      class="modal-overlay"
+      (click)="closeModal(vm.isSending)"
+      (keydown)="handleOverlayKeydown($event, vm.isSending)"
+    >
       <section
         class="modal-content"
         role="dialog"
@@ -21,6 +25,7 @@
         <form class="recovery-form" novalidate (ngSubmit)="sendEmail(vm.email)">
           <label class="field-label" for="password-recovery-email">E-mail</label>
           <input
+            #emailInput
             id="password-recovery-email"
             class="input-field"
             type="email"
@@ -31,6 +36,7 @@
             [ngModel]="vm.email"
             (ngModelChange)="updateEmail($event)"
             [disabled]="vm.isSending"
+            [attr.aria-invalid]="vm.feedback?.type === 'error' ? 'true' : 'false'"
             aria-describedby="password-recovery-description password-recovery-feedback"
           />
 
@@ -71,7 +77,7 @@
             <button
               class="btn-cancel"
               type="button"
-              (click)="closeModal()"
+              (click)="closeModal(vm.isSending)"
               [disabled]="vm.isSending"
             >
               Fechar
