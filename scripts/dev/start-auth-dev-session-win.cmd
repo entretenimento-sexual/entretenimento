@@ -20,10 +20,10 @@ cd /d "%PROJECT_ROOT%"
 
 echo [dev:auth] Projeto: %CD%
 echo [dev:auth] Abrindo emuladores em uma nova janela...
-start "Entretenimento - Emuladores" cmd /k "cd /d "%PROJECT_ROOT%" && npm.cmd run emu:media:full:win"
+start "Entretenimento - Emuladores" /D "%PROJECT_ROOT%" cmd /k "npm.cmd run emu:media:full:win"
 
 echo [dev:auth] Abrindo Angular em outra janela...
-start "Entretenimento - Angular" cmd /k "cd /d "%PROJECT_ROOT%" && npm.cmd run start:emu"
+start "Entretenimento - Angular" /D "%PROJECT_ROOT%" cmd /k "npm.cmd run start:emu"
 
 echo [dev:auth] Abrindo navegador...
 start "" "http://localhost:4200/login"
