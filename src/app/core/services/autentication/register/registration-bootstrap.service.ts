@@ -50,7 +50,6 @@ export interface SocialRegistrationBootstrapInput {
   photoURL?: string | null;
   providerIds?: string[];
   providerId?: string;
-  acceptedTerms?: boolean;
   nowMs?: number;
 }
 
@@ -166,7 +165,6 @@ export class RegistrationBootstrapService {
     const providerIds = this.cleanStringList(input.providerIds);
     const providerId = this.cleanText(input.providerId) || 'google.com';
     const nowMs = Number.isFinite(input.nowMs) ? Number(input.nowMs) : Date.now();
-    const acceptedTerms = input.acceptedTerms === true;
 
     if (!uid) {
       return throwError(() => new Error('[RegistrationBootstrapService] UID inválido.'));
@@ -194,7 +192,7 @@ export class RegistrationBootstrapService {
         profileCompleted: false,
 
         acceptedTerms: {
-          accepted: acceptedTerms,
+          accepted: false,
           date: Timestamp.fromMillis(nowMs),
         },
 
@@ -238,7 +236,6 @@ export class RegistrationBootstrapService {
             uid,
             emailPresent: !!email,
             providerId,
-            acceptedTerms,
           }
         );
 
