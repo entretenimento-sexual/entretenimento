@@ -34,7 +34,6 @@ import {
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { LogoutService } from './logout.service';
 import {
-  SocialAuthOptions,
   SocialAuthService,
   SocialAuthResult,
 } from '../social-auth.service';
@@ -163,15 +162,11 @@ export class AuthFacade {
    * - mostrar mensagem
    * - navegar para result.nextRoute
    * - abrir fluxo complementar
-   *
-   * options.acceptedTerms:
-   * - usado pelo cadastro com Google, depois de aceite explícito na UI;
-   * - login comum mantém false/undefined para não simular aceite inexistente.
    */
-  googleLogin$(options: SocialAuthOptions = {}): Observable<AuthFacadeSocialAuthResult> {
+  googleLogin$(): Observable<AuthFacadeSocialAuthResult> {
     this.startLoading();
 
-    return this.socialAuthService.googleLogin(options).pipe(
+    return this.socialAuthService.googleLogin().pipe(
       map((result) => this.normalizeSocialAuthResult(result)),
       catchError((err: any) =>
         of({
@@ -225,6 +220,7 @@ objeto = “logado e com perfil carregado”
 Restore seguro
 restoreFromCache() comparando UID do auth.currentUser?.uid com o UID persistido
 é exatamente o tipo de “não confie no storage” que se vê em produção.
+
 Gating na header (LinksInteraction)
 O canListen$ com emailVerified === true + fora do fluxo de registro evita exatamente
 os 400 (Bad Request) / listeners indevidos antes do usuário estar pronto.
