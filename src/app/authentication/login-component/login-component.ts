@@ -1,4 +1,4 @@
-// src/app/authentication/login-component.ts
+// src/app/authentication/login-component/login-component.ts
 // -----------------------------------------------------------------------------
 // LoginComponent
 // -----------------------------------------------------------------------------
@@ -214,11 +214,16 @@ export class LoginComponent implements OnInit {
     this.cdr.markForCheck();
   }
 
-  private setError(message: string): void {
+  private setFormError(message: string): void {
     this.errorMessage = message;
     this.successMessage = '';
-    // Erros previsíveis do próprio formulário ficam só no card.
-    // Evita duplicar feedback com alerta inline + toast global.
+    this.cdr.markForCheck();
+  }
+
+  private setSystemError(message: string): void {
+    this.errorMessage = message;
+    this.successMessage = '';
+    this.notify.showError(message);
     this.cdr.markForCheck();
   }
 
@@ -269,13 +274,13 @@ export class LoginComponent implements OnInit {
     const rememberMe = !!this.loginForm.get('rememberMe')?.value;
 
     if (this.isHoneypotFilled) {
-      this.setError('Detectado comportamento suspeito. Tente novamente.');
+      this.setFormError('Detectado comportamento suspeito. Tente novamente.');
       return;
     }
 
     if (this.loginForm.invalid) {
       this.loginForm.markAllAsTouched();
-      this.setError('Por favor, preencha o formulário corretamente.');
+      this.setFormError('Por favor, preencha o formulário corretamente.');
       return;
     }
 
@@ -288,7 +293,7 @@ export class LoginComponent implements OnInit {
     this.loginservice.login$(email, password, rememberMe).pipe(
       switchMap((result) => {
         if (!result?.success) {
-          this.setError(result?.message || 'Não foi possível entrar. Tente novamente.');
+          this.setFormError(result?.message || 'Não foi possível entrar. Tente novamente.');
           return of(null);
         }
 
@@ -303,7 +308,7 @@ export class LoginComponent implements OnInit {
         this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
       }),
       catchError((err) => {
-        this.setError(err?.message || 'Erro inesperado. Tente novamente.');
+        this.setSystemError(err?.message || 'Erro inesperado. Tente novamente.');
         return of(void 0);
       }),
       finalize(() => this.setBusyState(false)),
@@ -450,7 +455,7 @@ export class LoginComponent implements OnInit {
     this.authFacade.googleLogin$().pipe(
       tap((result) => {
         if (!result?.success) {
-          this.setError(result?.message || 'Não foi possível entrar com Google agora.');
+          this.setFormError(result?.message || 'Não foi possível entrar com Google agora.');
           return;
         }
 
@@ -467,7 +472,7 @@ export class LoginComponent implements OnInit {
         this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {});
       }),
       catchError((err) => {
-        this.setError(err?.message || 'Erro inesperado no login com Google.');
+        this.setSystemError(err?.message || 'Erro inesperado no login com Google.');
         return of(void 0);
       }),
       finalize(() => this.setBusyState(false)),
@@ -506,7 +511,7 @@ export class LoginComponent implements OnInit {
         );
       }),
       catchError(() => {
-        this.setError('Erro ao reenviar o e-mail de verificação.');
+        this.setSystemError('Erro ao reenviar o e-mail de verificação.');
         return of(void 0);
       }),
       finalize(() => this.setBusyState(false)),
@@ -530,7 +535,7 @@ export class LoginComponent implements OnInit {
         this.notify.showSuccess('Você saiu da sua conta.');
       },
       error: () => {
-        this.setError('Não foi possível sair agora. Tente novamente.');
+        this.setSystemError('Não foi possível sair agora. Tente novamente.');
       },
     });
   }
