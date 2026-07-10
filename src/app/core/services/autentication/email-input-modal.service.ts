@@ -77,6 +77,8 @@ export class EmailInputModalService {
   }
 
   closeModal(): void {
+    if (this.stateSubject.value.isSending) return;
+
     this.patchState({
       isOpen: false,
       isSending: false,
