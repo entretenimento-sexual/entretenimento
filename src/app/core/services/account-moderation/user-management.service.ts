@@ -102,19 +102,6 @@ export class UserManagementService {
     );
   }
 
-  /** Mantém consistência com o nome usado no registro (acceptedTerms). */
-  confirmTermsOfService(uid: string): Observable<void> {
-    const safeUid = this.normalizeUid(uid);
-    if (!safeUid) return throwError(() => new Error('[UserManagementService] uid inválido em confirmTermsOfService'));
-
-    return this.write.updateDocument(
-      'users',
-      safeUid,
-      { acceptedTerms: { accepted: true, date: Date.now() } },
-      { context: 'UserManagementService.confirmTermsOfService' }
-    );
-  }
-
   // -----------------------------------------------------------------------------
   // Helpers
   // -----------------------------------------------------------------------------
