@@ -1,8 +1,25 @@
 import { Injectable, inject } from '@angular/core';
 import { Firestore, doc, docData } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, defer, from, of, throwError } from 'rxjs';
-import { catchError, distinctUntilChanged, map, shareReplay, switchMap, tap } from 'rxjs/operators';
+import {
+  Observable,
+  Subject,
+  combineLatest,
+  defer,
+  from,
+  of,
+  throwError,
+} from 'rxjs';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  shareReplay,
+  startWith,
+  switchMap,
+  take,
+  tap,
+} from 'rxjs/operators';
 
 import { AdultConsentRecord } from 'src/app/core/interfaces/compliance/adult-consent.interface';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
@@ -11,6 +28,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import {
   ADULT_CONSENT_VERSION,
   acceptAdultContentConsent,
+  clearAdultContentConsent,
   hasAdultContentConsent,
 } from 'src/app/core/guards/compliance/adult-content-consent.storage';
 
@@ -25,15 +43,22 @@ export class AdultConsentService {
   private readonly session = inject(AuthSessionService);
   private readonly firestoreContext = inject(FirestoreContextService);
   private readonly globalError = inject(GlobalErrorHandlerService);
+  private readonly refreshConsent$ = new Subject<void>();
+  private readonly confirmedForSession = new Set<string>();
   private readonly acceptConsentCallable = httpsCallable<Record<string, never>, { ok: true; version: string }>(
     this.functions,
     'acceptAdultConsent'
   );
 
-  readonly currentConsentAccepted$: Observable<boolean> = this.session.uid$.pipe(
-    map((uid) => String(uid ?? '').trim()),
+  readonly currentConsentAccepted$: Observable<boolean> = combineLatest([
+    this.session.uid$.pipe(
+      map((uid) => String(uid ?? '').trim()),
+      distinctUntilChanged()
+    ),
+    this.refreshConsent$.pipe(startWith(void 0)),
+  ]).pipe(
+    switchMap(([uid]) => this.watchAcceptedForUser$(uid)),
     distinctUntilChanged(),
-    switchMap((uid) => this.watchAcceptedForUser$(uid)),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -41,10 +66,13 @@ export class AdultConsentService {
     const safeUid = String(uid ?? '').trim();
 
     if (!safeUid) {
-      return of(hasAdultContentConsent());
+      return of(false);
     }
 
-    if (hasAdultContentConsent()) {
+    // O aceite confirmado nesta sessão já passou pela Cloud Function. Essa
+    // memória evita uma janela de redirecionamento enquanto o listener do
+    // Firestore recebe a atualização recém-gravada.
+    if (this.confirmedForSession.has(safeUid)) {
       return of(true);
     }
 
@@ -55,12 +83,28 @@ export class AdultConsentService {
       map((document) => this.isConsentAccepted(document?.adultConsent)),
       tap((accepted) => {
         if (accepted) {
-          acceptAdultContentConsent();
+          this.confirmedForSession.add(safeUid);
+
+          if (!acceptAdultContentConsent(safeUid)) {
+            this.reportError(
+              new Error('[AdultConsentService] local consent cache unavailable'),
+              'persistConsentCache',
+              { uid: safeUid }
+            );
+          }
+
+          return;
         }
+
+        this.confirmedForSession.delete(safeUid);
+        clearAdultContentConsent(safeUid);
       }),
       catchError((error) => {
         this.reportError(error, 'watchAcceptedForUser', { uid: safeUid });
-        return of(hasAdultContentConsent());
+
+        // Em indisponibilidade temporária, somente um cache previamente
+        // confirmado para este UID e esta versão pode manter a continuidade.
+        return of(hasAdultContentConsent(safeUid));
       })
     );
   }
@@ -68,6 +112,7 @@ export class AdultConsentService {
   acceptCurrentConsent$(): Observable<void> {
     return this.session.uid$.pipe(
       map((uid) => String(uid ?? '').trim()),
+      take(1),
       switchMap((uid) => {
         if (!uid) {
           return throwError(() => new Error('Usuário não autenticado.'));
@@ -86,13 +131,44 @@ export class AdultConsentService {
     }
 
     return defer(() => from(this.acceptConsentCallable({}))).pipe(
-      tap(() => {
-        acceptAdultContentConsent();
+      map((response) => {
+        const result = response.data;
+
+        if (result?.ok !== true || result.version !== ADULT_CONSENT_VERSION) {
+          throw new Error('A confirmação retornou uma versão inválida.');
+        }
+
+        this.confirmedForSession.add(safeUid);
+
+        if (!acceptAdultContentConsent(safeUid)) {
+          this.reportError(
+            new Error('[AdultConsentService] local consent cache unavailable'),
+            'persistConsentCacheAfterAcceptance',
+            { uid: safeUid }
+          );
+        }
+
+        this.refreshConsent$.next();
+        return undefined;
       }),
-      map(() => undefined),
       catchError((error) => {
         this.reportError(error, 'acceptForUser', { uid: safeUid });
         return throwError(() => error);
+      })
+    );
+  }
+
+  clearCurrentConsentCache$(): Observable<void> {
+    return this.session.uid$.pipe(
+      map((uid) => String(uid ?? '').trim()),
+      take(1),
+      map((uid) => {
+        if (uid) {
+          this.confirmedForSession.delete(uid);
+          clearAdultContentConsent(uid);
+        }
+
+        return undefined;
       })
     );
   }
