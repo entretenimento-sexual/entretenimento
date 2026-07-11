@@ -37,6 +37,7 @@ import {
   SocialAuthService,
   SocialAuthResult,
 } from '../social-auth.service';
+import { hasAcceptedCurrentTerms } from '../../compliance/terms-acceptance.service';
 
 export interface RegisterFacadeResult {
   success: boolean;
@@ -47,7 +48,10 @@ export interface RegisterFacadeResult {
 }
 
 export type AuthFacadeSocialAuthResult = Omit<SocialAuthResult, 'nextRoute'> & {
-  nextRoute: SocialAuthResult['nextRoute'] | '/register/welcome';
+  nextRoute:
+    | SocialAuthResult['nextRoute']
+    | '/register/welcome'
+    | '/register/aceitar-termos';
 };
 
 @Injectable({ providedIn: 'root' })
@@ -83,20 +87,35 @@ export class AuthFacade {
   private normalizeSocialAuthResult(
     result: SocialAuthResult
   ): AuthFacadeSocialAuthResult {
-    if (!result?.success || result.emailVerified === true) {
+    if (!result?.success) {
       return result as AuthFacadeSocialAuthResult;
     }
 
     /**
-     * Defesa centralizada para qualquer UI que consuma AuthFacade.googleLogin$().
      * Usuário social autenticado, mas sem e-mail verificado, deve voltar para a
-     * tela oficial de verificação antes de finalizar perfil.
+     * tela oficial de verificação antes de qualquer etapa posterior.
      */
-    return {
-      ...result,
-      nextRoute: '/register/welcome',
-      message: result.message || 'Confirme seu e-mail para continuar.',
-    };
+    if (result.emailVerified !== true) {
+      return {
+        ...result,
+        nextRoute: '/register/welcome',
+        message: result.message || 'Confirme seu e-mail para continuar.',
+      };
+    }
+
+    /**
+     * Contas sociais nascem com acceptedTerms.accepted=false. O aceite precisa
+     * ser explícito e persistido pelo backend antes da conclusão do perfil.
+     */
+    if (!hasAcceptedCurrentTerms(result.user?.acceptedTerms)) {
+      return {
+        ...result,
+        nextRoute: '/register/aceitar-termos',
+        message: 'Revise e aceite os termos para continuar seu cadastro.',
+      };
+    }
+
+    return result as AuthFacadeSocialAuthResult;
   }
 
   // ===========================================================================
@@ -212,26 +231,9 @@ authState(this.auth).pipe(shareReplay…) + uid$ com distinctUntilChanged()
 
 CurrentUserStoreService como dono do IUserDados
 Ter BehaviorSubject<IUserDados | null | undefined> é ótimo porque:
-
 undefined = “ainda não hidratei”
 null = “não logado”
 objeto = “logado e com perfil carregado”
 
 Restore seguro
-restoreFromCache() comparando UID do auth.currentUser?.uid com o UID persistido
-é exatamente o tipo de “não confie no storage” que se vê em produção.
-
-Gating na header (LinksInteraction)
-O canListen$ com emailVerified === true + fora do fluxo de registro evita exatamente
-os 400 (Bad Request) / listeners indevidos antes do usuário estar pronto.
- */
-/*
-src/app/core/services/autentication/auth/auth-session.service.ts
-src/app/core/services/autentication/auth/current-user-store.service.ts
-src/app/core/services/autentication/auth/auth-orchestrator.service.ts
-src/app/core/services/autentication/auth/auth.facade.ts
 */
-// Verificar migrações de responsabilidades para o:
-// 1 - auth-route-context.service.ts, e;
-// 2 - auth-user-document-watch.service.ts, e;
-// 3 - auth-session-monitor.service.ts.
