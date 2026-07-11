@@ -46,7 +46,7 @@ export class RegisterNavigationService {
         email,
         currentStep: 'emailVerification',
         nextRoute: '/register/welcome',
-        progress: 25,
+        progress: 20,
         canContinue: false,
         primaryActionLabel: 'Já verifiquei',
         secondaryActionLabel: 'Reenviar e-mail',
@@ -54,14 +54,57 @@ export class RegisterNavigationService {
       };
     }
 
-    if (!state.userResolved || !state.profileCompleted) {
+    if (!state.userResolved) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'loading',
+        nextRoute: '/register/welcome',
+        progress: 20,
+        canContinue: false,
+        primaryActionLabel: 'Carregando',
+        blockingMessage: 'Estamos carregando os dados da sua conta.',
+      };
+    }
+
+    // Mantém o comportamento atual para documento ausente. A recuperação
+    // específica desse cenário será tratada em uma etapa própria do fluxo.
+    if (!state.userExists) {
       return {
         ...state,
         uid,
         email,
         currentStep: 'profileCompletion',
         nextRoute: '/register/finalizar-cadastro',
-        progress: 50,
+        progress: 45,
+        canContinue: true,
+        primaryActionLabel: 'Completar perfil',
+      };
+    }
+
+    if (!state.termsAccepted) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'termsAcceptance',
+        nextRoute: '/register/aceitar-termos',
+        progress: 35,
+        canContinue: true,
+        primaryActionLabel: 'Revisar e aceitar termos',
+        blockingMessage: 'Aceite os termos vigentes para continuar seu cadastro.',
+      };
+    }
+
+    if (!state.profileCompleted) {
+      return {
+        ...state,
+        uid,
+        email,
+        currentStep: 'profileCompletion',
+        nextRoute: '/register/finalizar-cadastro',
+        progress: 55,
         canContinue: true,
         primaryActionLabel: 'Completar perfil',
       };
