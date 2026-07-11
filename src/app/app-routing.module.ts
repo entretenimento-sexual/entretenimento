@@ -111,6 +111,7 @@ const routes: Routes = [
           guestAllowAuthenticatedPaths: [
             'welcome',
             'verify',
+            'recuperar-conta',
             'aceitar-termos',
             'finalizar-cadastro',
           ],
