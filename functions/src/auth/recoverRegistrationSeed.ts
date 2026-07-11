@@ -1,3 +1,4 @@
+import type { UserRecord } from 'firebase-admin/auth';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../config/functions-region';
@@ -29,7 +30,7 @@ export const recoverRegistrationSeed = onCall(
       );
     }
 
-    let authUser;
+    let authUser: UserRecord;
 
     try {
       authUser = await auth.getUser(uid);
