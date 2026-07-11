@@ -22,7 +22,11 @@ import { Auth } from '@angular/fire/auth';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { distinctUntilChanged, filter, map, take } from 'rxjs/operators';
 
-import { IUserDados } from '@core/interfaces/iuser-dados';
+import {
+  IUserAdultConsent,
+  IUserDados,
+  IUserTermsAcceptance,
+} from '@core/interfaces/iuser-dados';
 import { CacheService } from '@core/services/general/cache/cache.service';
 import { AuthSessionService } from './auth-session.service';
 import { PrivacyDebugLoggerService } from '../../privacy/privacy-debug-logger.service';
@@ -283,6 +287,42 @@ export class CurrentUserStoreService {
   // ---------------------------------------------------------------------------
   // Internals
   // ---------------------------------------------------------------------------
+
+  private areTermsAcceptancesEquivalent(
+    current: IUserTermsAcceptance | null | undefined,
+    incoming: IUserTermsAcceptance | null | undefined
+  ): boolean {
+    if (current === incoming) return true;
+    if (!current && !incoming) return true;
+    if (!current || !incoming) return false;
+
+    return (
+      current.accepted === incoming.accepted &&
+      current.date === incoming.date &&
+      current.version === incoming.version &&
+      current.acceptedAt === incoming.acceptedAt &&
+      current.updatedAt === incoming.updatedAt &&
+      current.source === incoming.source
+    );
+  }
+
+  private areAdultConsentsEquivalent(
+    current: IUserAdultConsent | null | undefined,
+    incoming: IUserAdultConsent | null | undefined
+  ): boolean {
+    if (current === incoming) return true;
+    if (!current && !incoming) return true;
+    if (!current || !incoming) return false;
+
+    return (
+      current.accepted === incoming.accepted &&
+      current.version === incoming.version &&
+      current.acceptedAt === incoming.acceptedAt &&
+      current.updatedAt === incoming.updatedAt &&
+      current.source === incoming.source
+    );
+  }
+
   private areUsersEquivalent(
     current: IUserDados | null | undefined,
     incoming: IUserDados | null | undefined
@@ -302,6 +342,14 @@ export class CurrentUserStoreService {
       current.profileCompleted === incoming.profileCompleted &&
       current.isSubscriber === incoming.isSubscriber &&
       current.subscriptionStatus === incoming.subscriptionStatus &&
+      this.areTermsAcceptancesEquivalent(
+        current.acceptedTerms,
+        incoming.acceptedTerms
+      ) &&
+      this.areAdultConsentsEquivalent(
+        current.adultConsent,
+        incoming.adultConsent
+      ) &&
 
       // lifecycle / moderação
       current.accountStatus === incoming.accountStatus &&
@@ -321,4 +369,4 @@ export class CurrentUserStoreService {
       current.deletedAt === incoming.deletedAt
     );
   }
-} // Linha 304, fim do current-user-store.service.ts
+} // fim do current-user-store.service.ts
