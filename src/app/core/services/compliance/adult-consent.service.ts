@@ -109,7 +109,7 @@ export class AdultConsentService {
     );
   }
 
-  acceptCurrentConsent$(): Observable<void> {
+  acceptCurrentConsent$(): Observable<string> {
     return this.session.uid$.pipe(
       map((uid) => String(uid ?? '').trim()),
       take(1),
@@ -123,7 +123,7 @@ export class AdultConsentService {
     );
   }
 
-  acceptForUser$(uid: string): Observable<void> {
+  acceptForUser$(uid: string): Observable<string> {
     const safeUid = String(uid ?? '').trim();
 
     if (!safeUid) {
@@ -149,7 +149,7 @@ export class AdultConsentService {
         }
 
         this.refreshConsent$.next();
-        return undefined;
+        return safeUid;
       }),
       catchError((error) => {
         this.reportError(error, 'acceptForUser', { uid: safeUid });
