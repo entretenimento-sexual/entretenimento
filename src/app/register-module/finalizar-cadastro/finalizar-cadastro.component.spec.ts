@@ -171,6 +171,7 @@ describe('FinalizarCadastroComponent', () => {
 
     expect(component.email).toBe('teste@email.com');
     expect(component.nickname).toBe('tester');
+    expect(component.needsNickname).toBe(false);
     expect(component.gender).toBe('homem');
     expect(component.orientation).toBe('homossexual');
     expect(component.selectedEstado).toBe('RJ');
@@ -183,6 +184,7 @@ describe('FinalizarCadastroComponent', () => {
     expect(profileCompletionFacadeMock.saveProfileCompletion$).toHaveBeenCalledWith({
       uid: 'u1',
       vm,
+      nickname: 'tester',
       gender: 'homem',
       orientation: 'homossexual',
       estado: 'RJ',
@@ -190,6 +192,7 @@ describe('FinalizarCadastroComponent', () => {
     });
 
     expect(currentUserStoreMock.patch).toHaveBeenCalledWith({
+      nickname: 'tester',
       profileCompleted: true,
       gender: 'homem',
       orientation: 'homossexual',
