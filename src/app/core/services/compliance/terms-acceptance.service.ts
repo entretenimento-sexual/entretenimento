@@ -25,15 +25,19 @@ export interface AcceptedPlatformTermsResult {
 
 /**
  * Compatibilidade controlada:
+ * - ausência total do campo representa conta legada e não bloqueia esta migração;
  * - accepted=false sempre exige a etapa;
  * - registros versionados devem coincidir com a versão atual;
- * - registros legados accepted=true sem versão são tratados como v1 apenas
- *   durante esta migração inicial, evitando bloquear contas já existentes.
+ * - accepted=true sem versão é tratado como v1 somente nesta migração inicial.
  */
 export function hasAcceptedCurrentTerms(
   record: IUserTermsAcceptance | null | undefined
 ): boolean {
-  if (record?.accepted !== true) {
+  if (record == null) {
+    return true;
+  }
+
+  if (record.accepted !== true) {
     return false;
   }
 
