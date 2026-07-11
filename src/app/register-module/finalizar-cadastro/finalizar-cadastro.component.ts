@@ -23,11 +23,12 @@ import type {
   IbgeMunicipio,
   IbgeUF,
 } from 'src/app/core/services/general/api/ibge-location.service';
+import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
 import { RegisterFlowFacade } from '../data-access/register-flow.facade';
 import { RegisterFlowVm } from '../data-access/register-flow.model';
 import { ProfileCompletionFacade } from '../data-access/profile-completion.facade';
 
-type ProfileCompletionField = 'gender' | 'estado' | 'municipio';
+type ProfileCompletionField = 'nickname' | 'gender' | 'estado' | 'municipio';
 type ProfileCompletionMessageKind = 'success' | 'error' | 'warning' | 'info' | null;
 type ReportableError = Error | HttpErrorResponse;
 
@@ -46,6 +47,7 @@ export class FinalizarCadastroComponent implements OnInit {
 
   public email = '';
   public nickname = '';
+  public needsNickname = false;
 
   public gender = '';
   public orientation = '';
@@ -180,7 +182,8 @@ export class FinalizarCadastroComponent implements OnInit {
         }
 
         this.email = initialData.email;
-        this.nickname = initialData.nickname;
+        this.nickname = NicknameUtils.normalizarApelido(initialData.nickname);
+        this.needsNickname = !this.nickname;
 
         this.gender = initialData.gender;
         this.orientation = initialData.orientation;
@@ -325,11 +328,13 @@ export class FinalizarCadastroComponent implements OnInit {
       return;
     }
 
+    this.checkFieldValidity('nickname', this.nickname, 'Apelido');
     this.checkFieldValidity('gender', this.gender, 'Quero me cadastrar como');
     this.checkFieldValidity('estado', this.selectedEstado, 'Estado');
     this.checkFieldValidity('municipio', this.selectedMunicipio, 'Município');
 
     if (
+      this.isFieldInvalid('nickname') ||
       this.isFieldInvalid('gender') ||
       this.isFieldInvalid('estado') ||
       this.isFieldInvalid('municipio')
@@ -345,6 +350,7 @@ export class FinalizarCadastroComponent implements OnInit {
       .saveProfileCompletion$({
         uid,
         vm,
+        nickname: NicknameUtils.normalizarApelido(this.nickname),
         gender: this.gender,
         orientation: this.orientation,
         estado: this.selectedEstado,
@@ -359,6 +365,20 @@ export class FinalizarCadastroComponent implements OnInit {
         }),
         takeUntilDestroyed(this.destroyRef),
         catchError((err) => {
+          const code = String((err as any)?.code ?? '');
+
+          if (code === 'nickname/in-use') {
+            this.formErrors['nickname'] = 'Este apelido já está em uso.';
+            this.setErrorMessage('Escolha outro apelido para continuar.');
+            return EMPTY;
+          }
+
+          if (code === 'nickname/invalid') {
+            this.formErrors['nickname'] = 'Informe um apelido válido.';
+            this.setErrorMessage('Revise o apelido informado.');
+            return EMPTY;
+          }
+
           this.reportError(err, 'Ocorreu um erro ao finalizar o cadastro. Tente novamente.');
 
           return EMPTY;
@@ -368,7 +388,10 @@ export class FinalizarCadastroComponent implements OnInit {
         next: () => {
           this.setSuccessMessage('Perfil finalizado com sucesso!');
 
+          const normalizedNickname = NicknameUtils.normalizarApelido(this.nickname);
+
           this.currentUserStore.patch({
+            nickname: normalizedNickname,
             profileCompleted: true,
             gender: this.gender,
             orientation: this.orientation,
@@ -477,9 +500,23 @@ export class FinalizarCadastroComponent implements OnInit {
 
   checkFieldValidity(field: ProfileCompletionField, value: unknown, label?: string): void {
     const nice = label || field;
-    const empty = value === null || value === undefined || String(value).trim() === '';
+    const clean = String(value ?? '').trim();
 
-    this.formErrors[field] = empty ? `O campo "${nice}" é obrigatório.` : '';
+    if (field === 'nickname') {
+      const display = NicknameUtils.normalizarApelido(clean);
+      const valid =
+        NicknameUtils.isApelidoValido(display) &&
+        NicknameUtils.isApelidoIndiceValido(display);
+
+      this.formErrors[field] = valid
+        ? ''
+        : 'Use de 4 a 24 caracteres: letras, números, espaço, ponto, hífen ou sublinhado.';
+      return;
+    }
+
+    this.formErrors[field] = clean
+      ? ''
+      : `O campo "${nice}" é obrigatório.`;
   }
 
   isFieldInvalid(field: ProfileCompletionField): boolean {
