@@ -35,7 +35,14 @@ export const userConverter: FirestoreDataConverter<IUserDados> = {
       lastOnlineAt: ms(d.lastOnlineAt),
 
       ...(d.acceptedTerms ? {
-        acceptedTerms: { accepted: !!d.acceptedTerms.accepted, date: ms(d.acceptedTerms.date) }
+        acceptedTerms: {
+          accepted: !!d.acceptedTerms.accepted,
+          date: ms(d.acceptedTerms.date),
+          version: String(d.acceptedTerms.version ?? '').trim() || null,
+          acceptedAt: ms(d.acceptedTerms.acceptedAt),
+          updatedAt: ms(d.acceptedTerms.updatedAt),
+          source: String(d.acceptedTerms.source ?? '').trim() || null,
+        }
       } : {}),
 
       ...(Array.isArray(d.nicknameHistory) ? {
@@ -79,7 +86,14 @@ export const userConverter: FirestoreDataConverter<IUserDados> = {
       ...(lastOnlineAt ? { lastOnlineAt: ts(lastOnlineAt) } : {}),
 
       ...(acceptedTerms ? {
-        acceptedTerms: { accepted: !!acceptedTerms.accepted, date: ts(acceptedTerms.date ?? null) }
+        acceptedTerms: {
+          accepted: !!acceptedTerms.accepted,
+          date: ts(acceptedTerms.date ?? null),
+          ...(acceptedTerms.version ? { version: acceptedTerms.version } : {}),
+          ...(acceptedTerms.acceptedAt ? { acceptedAt: ts(acceptedTerms.acceptedAt) } : {}),
+          ...(acceptedTerms.updatedAt ? { updatedAt: ts(acceptedTerms.updatedAt) } : {}),
+          ...(acceptedTerms.source ? { source: acceptedTerms.source } : {}),
+        }
       } : {}),
 
       ...(Array.isArray(nicknameHistory) ? {
