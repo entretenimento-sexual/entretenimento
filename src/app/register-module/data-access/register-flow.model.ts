@@ -4,6 +4,7 @@ export type RegisterFlowStep =
   | 'loading'
   | 'signup'
   | 'emailVerification'
+  | 'termsAcceptance'
   | 'profileCompletion'
   | 'adultConsent'
   | 'preferences';
@@ -14,6 +15,8 @@ export interface RegisterFlowVm {
   email: string | null;
   emailVerified: boolean;
   userResolved: boolean;
+  userExists: boolean;
+  termsAccepted: boolean;
   profileCompleted: boolean;
   adultConsentAccepted: boolean;
   currentStep: RegisterFlowStep;
@@ -31,6 +34,8 @@ export interface RegisterFlowAccessState {
   email: string | null;
   emailVerified: boolean;
   userResolved: boolean;
+  userExists: boolean;
+  termsAccepted: boolean;
   profileCompleted: boolean;
   adultConsentAccepted: boolean;
 }
