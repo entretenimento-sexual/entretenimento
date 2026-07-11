@@ -144,7 +144,10 @@ export class ProfileCompletionWriteService {
         );
 
         if (!nicknameIndexSnap.exists()) {
-          transaction.create(nicknameIndexRef as any, {
+          // O SDK web não possui transaction.create(). Como o documento foi lido
+          // e confirmado ausente dentro desta mesma transação, set() mantém a
+          // reserva atômica; as rules ainda exigem create-only e UID do próprio usuário.
+          transaction.set(nicknameIndexRef as any, {
             uid,
             type: 'nickname',
             value: nicknameNormalized,
