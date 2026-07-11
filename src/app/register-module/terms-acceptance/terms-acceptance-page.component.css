@@ -1,0 +1,221 @@
+:host {
+  display: block;
+}
+
+.terms-acceptance {
+  min-height: 100dvh;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at top, rgba(255, 255, 255, 0.08), transparent 32rem),
+    linear-gradient(180deg, #171717 0%, #0d0d0d 100%);
+  color: #f7f7f7;
+}
+
+.terms-acceptance__shell {
+  width: min(100%, 42rem);
+  margin: 0 auto;
+}
+
+.terms-acceptance__brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-height: 3rem;
+  margin-bottom: 1rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.terms-acceptance__brand-mark {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 50%;
+  font-size: 1rem;
+}
+
+.terms-acceptance__card {
+  padding: clamp(1.25rem, 4vw, 2.25rem);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 1.35rem;
+  background: rgba(24, 24, 24, 0.95);
+  box-shadow: 0 1.25rem 3.5rem rgba(0, 0, 0, 0.36);
+}
+
+.terms-acceptance__kicker {
+  margin: 0 0 0.55rem;
+  color: #d9d9d9;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.75rem, 7vw, 2.55rem);
+  line-height: 1.08;
+}
+
+.terms-acceptance__lead {
+  margin: 1rem 0 0;
+  color: #d8d8d8;
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.terms-acceptance__links {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1.35rem 0;
+}
+
+.terms-acceptance__links a {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.8rem;
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.terms-acceptance__links a::after {
+  content: '↗';
+  margin-left: 0.75rem;
+}
+
+.terms-acceptance__links a:hover,
+.terms-acceptance__links a:focus-visible {
+  border-color: rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.terms-acceptance__confirmation {
+  display: grid;
+  grid-template-columns: 1.3rem 1fr;
+  gap: 0.8rem;
+  align-items: start;
+  padding: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 0.9rem;
+  background: rgba(255, 255, 255, 0.035);
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.terms-acceptance__confirmation input {
+  width: 1.15rem;
+  height: 1.15rem;
+  margin-top: 0.12rem;
+  accent-color: #ffffff;
+}
+
+.terms-acceptance__confirmation:focus-within {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+.terms-acceptance__help,
+.terms-acceptance__error {
+  margin: 0.7rem 0 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.terms-acceptance__help {
+  color: #bdbdbd;
+}
+
+.terms-acceptance__error {
+  color: #ffb9b9;
+  font-weight: 700;
+}
+
+.terms-acceptance__actions {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.terms-acceptance__button {
+  min-height: 3rem;
+  padding: 0.78rem 1rem;
+  border-radius: 0.85rem;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.terms-acceptance__button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.terms-acceptance__button--primary {
+  border: 1px solid #ffffff;
+  background: #ffffff;
+  color: #111111;
+}
+
+.terms-acceptance__button--ghost {
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: transparent;
+  color: #f5f5f5;
+}
+
+.terms-acceptance__button:not(:disabled):hover,
+.terms-acceptance__button:not(:disabled):focus-visible {
+  transform: translateY(-1px);
+}
+
+.terms-acceptance__button:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+.terms-acceptance__sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (min-width: 40rem) {
+  .terms-acceptance {
+    display: grid;
+    place-items: center;
+    padding: 2rem;
+  }
+
+  .terms-acceptance__actions {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .terms-acceptance__button--ghost {
+    min-width: 7rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terms-acceptance__button {
+    transition: none;
+  }
+
+  .terms-acceptance__button:not(:disabled):hover,
+  .terms-acceptance__button:not(:disabled):focus-visible {
+    transform: none;
+  }
+}
