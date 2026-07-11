@@ -1,4 +1,8 @@
-import { IUserAdultConsent, IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import {
+  IUserAdultConsent,
+  IUserDados,
+  IUserTermsAcceptance,
+} from 'src/app/core/interfaces/iuser-dados';
 import { toEpoch } from '../../core/utils/epoch-utils';
 
 export { toEpoch };
@@ -18,6 +22,25 @@ function sanitizeConsent(value: unknown): IUserAdultConsent | null {
   return {
     accepted: source.accepted === true,
     version: String(source.version ?? '').trim(),
+    acceptedAt: toSerializableEpoch(source.acceptedAt),
+    updatedAt: toSerializableEpoch(source.updatedAt),
+    source: String(source.source ?? '').trim() || null,
+  };
+}
+
+function sanitizeTermsAcceptance(
+  value: unknown
+): IUserTermsAcceptance | null {
+  const source = value as any;
+
+  if (!source || typeof source !== 'object') {
+    return null;
+  }
+
+  return {
+    accepted: source.accepted === true,
+    date: toSerializableEpoch(source.date),
+    version: String(source.version ?? '').trim() || null,
     acceptedAt: toSerializableEpoch(source.acceptedAt),
     updatedAt: toSerializableEpoch(source.updatedAt),
     source: String(source.source ?? '').trim() || null,
@@ -48,6 +71,7 @@ export function sanitizeUserForStore(u: IUserDados): IUserDados {
 
     lastStateChangeAt: toSerializableEpoch(anyU.lastStateChangeAt),
     adultConsent: sanitizeConsent(anyU.adultConsent),
+    acceptedTerms: sanitizeTermsAcceptance(anyU.acceptedTerms),
   } as IUserDados;
 }
 
