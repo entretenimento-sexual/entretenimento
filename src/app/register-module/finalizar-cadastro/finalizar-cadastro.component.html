@@ -25,23 +25,59 @@
     }
 
     <!-- Mensagem geral -->
-@if (message) {
-  <p
-    class="alert"
-    [ngClass]="{
-      'alert-error': messageKind === 'error',
-      'alert-success': messageKind === 'success',
-      'alert-warning': messageKind === 'warning',
-      'alert-info': messageKind === 'info'
-    }"
-    [attr.role]="messageKind === 'error' || messageKind === 'warning' ? 'alert' : 'status'"
-    [attr.aria-live]="messageKind === 'error' || messageKind === 'warning' ? 'assertive' : 'polite'"
-  >
-    {{ message }}
-  </p>
-}
+    @if (message) {
+      <p
+        class="alert"
+        [ngClass]="{
+          'alert-error': messageKind === 'error',
+          'alert-success': messageKind === 'success',
+          'alert-warning': messageKind === 'warning',
+          'alert-info': messageKind === 'info'
+        }"
+        [attr.role]="messageKind === 'error' || messageKind === 'warning' ? 'alert' : 'status'"
+        [attr.aria-live]="messageKind === 'error' || messageKind === 'warning' ? 'assertive' : 'polite'"
+      >
+        {{ message }}
+      </p>
+    }
 
     <form (ngSubmit)="onSubmit()" #form="ngForm" novalidate>
+      @if (needsNickname) {
+        <div class="form-field">
+          <label for="nickname">
+            Apelido <span class="req" aria-hidden="true">*</span>
+            <span class="sr-only">(obrigatório)</span>
+          </label>
+
+          <input
+            id="nickname"
+            type="text"
+            [(ngModel)]="nickname"
+            name="nickname"
+            required
+            minlength="4"
+            maxlength="24"
+            autocomplete="nickname"
+            class="input-field"
+            placeholder="Como você quer aparecer?"
+            (input)="checkFieldValidity('nickname', nickname, 'Apelido')"
+            (blur)="checkFieldValidity('nickname', nickname, 'Apelido')"
+            [attr.aria-invalid]="isFieldInvalid('nickname') ? 'true' : 'false'"
+            [attr.aria-describedby]="isFieldInvalid('nickname') ? 'nickname-err nickname-hint' : 'nickname-hint'"
+          />
+
+          <p class="field-hint" id="nickname-hint">
+            Use de 4 a 24 caracteres. O apelido será reservado ao concluir o cadastro.
+          </p>
+
+          @if (isFieldInvalid('nickname')) {
+            <div class="tooltip-error" id="nickname-err" role="alert" aria-live="polite">
+              {{ formErrors['nickname'] }}
+            </div>
+          }
+        </div>
+      }
+
       <!-- Gênero (obrigatório) -->
       <div class="form-field">
         <label for="gender">
