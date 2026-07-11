@@ -36,6 +36,7 @@ match /users/{userId} {
   function selfChangingSensitiveKeys() {
     return request.resource.data.diff(resource.data).changedKeys().hasAny([
       "adultConsent",
+      "acceptedTerms",
 
       "role",
       "tier",
