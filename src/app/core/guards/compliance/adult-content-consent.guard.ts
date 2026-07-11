@@ -2,12 +2,13 @@
 // -----------------------------------------------------------------------------
 // AdultContentConsentGuard
 // -----------------------------------------------------------------------------
-// Camada de entrada adulta para rotas autenticadas sensíveis.
+// Rede de segurança para rotas autenticadas sensíveis.
 //
 // Escopo desta etapa:
-// - libera imediatamente se houver cache local versionado;
-// - consulta users/{uid}.adultConsent quando não houver cache local;
-// - redireciona para tela própria quando o aceite ainda não existe;
+// - consulta o estado consolidado pelo AdultConsentService;
+// - usa users/{uid}.adultConsent como fonte principal;
+// - permite fallback apenas para cache versionado do mesmo UID;
+// - redireciona para a confirmação quando o aceite ainda não existe;
 // - não substitui verificação real de idade, moderação ou KYC.
 // -----------------------------------------------------------------------------
 
@@ -18,7 +19,6 @@ import { catchError, map, take } from 'rxjs/operators';
 
 import { AdultConsentService } from 'src/app/core/services/compliance/adult-consent.service';
 import { buildRedirectTree, guardLog } from '../_shared-guard/guard-utils';
-import { hasAdultContentConsent } from './adult-content-consent.storage';
 
 export const adultContentConsentGuard: CanActivateFn = (_route, state): GuardResult | Observable<GuardResult> => {
   const router = inject(Router);
@@ -32,16 +32,11 @@ export const adultContentConsentGuard: CanActivateFn = (_route, state): GuardRes
     });
   };
 
-  if (hasAdultContentConsent()) {
-    guardLog('adult-consent', 'accepted-local', { url: state.url });
-    return true;
-  }
-
   return adultConsent.currentConsentAccepted$.pipe(
     take(1),
     map((accepted): GuardResult => {
       if (accepted) {
-        guardLog('adult-consent', 'accepted-backend', { url: state.url });
+        guardLog('adult-consent', 'accepted', { url: state.url });
         return true;
       }
 
