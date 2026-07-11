@@ -9,6 +9,7 @@ import { vi } from 'vitest';
 import { UserListComponent } from './user-list.component';
 import { UserManagementService } from '../../core/services/account-moderation/user-management.service';
 import { UserModerationService } from '../../core/services/account-moderation/user-moderation.service';
+import { AccountLifecycleService } from '../../account/application/account-lifecycle.service';
 
 describe('UserListComponent', () => {
   let component: UserListComponent;
@@ -22,7 +23,6 @@ describe('UserListComponent', () => {
           provide: UserManagementService,
           useValue: {
             getAllUsers: vi.fn(() => of([])),
-            deleteUserAccount: vi.fn(() => of(void 0)),
           },
         },
         {
@@ -30,6 +30,16 @@ describe('UserListComponent', () => {
           useValue: {
             suspendUser: vi.fn(() => of(void 0)),
             unsuspendUser: vi.fn(() => of(void 0)),
+            lockAccount: vi.fn(() => of(void 0)),
+            unlockAccount: vi.fn(() => of(void 0)),
+          },
+        },
+        {
+          provide: AccountLifecycleService,
+          useValue: {
+            moderateScheduleDeletion$: vi.fn(() =>
+              of({ ok: true, accountStatus: 'pending_deletion' })
+            ),
           },
         },
         {
