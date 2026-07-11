@@ -11,6 +11,7 @@ import { LogoComponent } from './logo/logo.component';
 import { GuestBannerComponent } from './guest-banner/guest-banner.component';
 
 import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
+import { ImageFallbackDirective } from 'src/app/shared/directives/image-fallback.directive';
 
 @NgModule({
   declarations: [
@@ -22,6 +23,7 @@ import { SharedMaterialModule } from 'src/app/shared/shared-material.module';
     CommonModule,
     RouterModule,
     SharedMaterialModule,
+    ImageFallbackDirective,
   ],
   exports: [
     NavbarComponent,
