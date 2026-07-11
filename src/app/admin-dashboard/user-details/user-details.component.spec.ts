@@ -7,8 +7,8 @@ import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { UserDetailsComponent } from './user-details.component';
-import { UserManagementService } from '../../core/services/account-moderation/user-management.service';
 import { UserModerationService } from '../../core/services/account-moderation/user-moderation.service';
+import { AccountLifecycleService } from '../../account/application/account-lifecycle.service';
 
 describe('UserDetailsComponent', () => {
   beforeEach(async () => {
@@ -30,9 +30,11 @@ describe('UserDetailsComponent', () => {
           },
         },
         {
-          provide: UserManagementService,
+          provide: AccountLifecycleService,
           useValue: {
-            deleteUserAccount: vi.fn(() => of(void 0)),
+            moderateScheduleDeletion$: vi.fn(() =>
+              of({ ok: true, accountStatus: 'pending_deletion' })
+            ),
           },
         },
         {
