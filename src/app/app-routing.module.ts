@@ -12,6 +12,7 @@ import { adultContentConsentGuard } from './core/guards/compliance/adult-content
 import { SubscriptionPlanComponent } from './subscriptions/subscription-plan/subscription-plan.component';
 import { LayoutShellComponent } from './layout/layout-shell/layout-shell.component';
 import { accountLifecycleGuard } from './account/guards/account-lifecycle.guard';
+import { registrationStepGuard } from './register-module/data-access/registration-step.guard';
 
 const routes: Routes = [
   {
@@ -19,9 +20,10 @@ const routes: Routes = [
     loadComponent: () =>
       import('./compliance/adult-consent-page/adult-consent-page.component')
         .then(m => m.AdultConsentPageComponent),
-    canActivate: [authGuard, accountLifecycleGuard],
+    canActivate: [authGuard, accountLifecycleGuard, registrationStepGuard],
     data: {
       allowUnverified: true,
+      allowedRegisterSteps: ['adultConsent'],
     },
   },
   {
