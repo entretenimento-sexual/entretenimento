@@ -5,7 +5,8 @@
 // - /register -> tela pública de cadastro
 // - /register/welcome -> etapa autenticada de verificação/onboarding
 // - /register/verify -> handler interno autenticado
-// - /register/aceitar-termos -> aceite explícito para contas sociais
+// - /register/recuperar-conta -> recuperação canônica de users/{uid} ausente
+// - /register/aceitar-termos -> aceite explícito quando pendente
 // - /register/finalizar-cadastro -> conclusão do perfil após e-mail verificado
 //
 // Observação importante:
@@ -49,6 +50,17 @@ const routes: Routes = [
     data: {
       allowUnverified: true,
       allowAuthenticated: true,
+    },
+  },
+  {
+    path: 'recuperar-conta',
+    loadComponent: () =>
+      import('./account-recovery/account-recovery-page.component')
+        .then((m) => m.AccountRecoveryPageComponent),
+    canActivate: [authGuard, emailVerifiedGuard, registrationStepGuard],
+    data: {
+      allowAuthenticated: true,
+      allowedRegisterSteps: ['accountRecovery'],
     },
   },
   {
