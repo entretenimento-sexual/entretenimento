@@ -78,7 +78,7 @@ export class FinalizarCadastroComponent implements OnInit {
     private readonly errorNotification: ErrorNotificationService
   ) {}
 
-    private clearSubmitMessages(): void {
+  private clearSubmitMessages(): void {
     this.message = '';
     this.messageKind = null;
     this.uploadMessage = '';
@@ -101,22 +101,22 @@ export class FinalizarCadastroComponent implements OnInit {
     this.messageKind = 'success';
   }
 
-private normalizeReportableError(err: unknown): ReportableError {
-  if (err instanceof Error || err instanceof HttpErrorResponse) {
-    return err;
+  private normalizeReportableError(err: unknown): ReportableError {
+    if (err instanceof Error || err instanceof HttpErrorResponse) {
+      return err;
+    }
+
+    if (typeof err === 'string' && err.trim()) {
+      return new Error(err.trim());
+    }
+
+    return new Error('[FinalizarCadastroComponent] Erro desconhecido.');
   }
 
-  if (typeof err === 'string' && err.trim()) {
-    return new Error(err.trim());
+  private reportError(err: unknown, message: string): void {
+    this.globalErrorHandler.handleError(this.normalizeReportableError(err));
+    this.setErrorMessage(message);
   }
-
-  return new Error('[FinalizarCadastroComponent] Erro desconhecido.');
-}
-
-private reportError(err: unknown, message: string): void {
-  this.globalErrorHandler.handleError(this.normalizeReportableError(err));
-  this.setErrorMessage(message);
-}
 
   private setUploadWarning(message: string): void {
     this.uploadMessage = message;
@@ -234,17 +234,37 @@ private reportError(err: unknown, message: string): void {
     this.loadMunicipiosForEstado(this.selectedEstado);
   }
 
-  private getRedirectToAfterCompletion(uid: string): string {
-    const vm = this.latestVm;
+  private resolveSafeRedirectTo(): string | null {
+    const raw = String(this.route.snapshot.queryParamMap.get('redirectTo') ?? '').trim();
 
-    if (vm?.uid === uid && !vm.adultConsentAccepted) {
-      return '/adulto/confirmar';
+    if (
+      !raw ||
+      !raw.startsWith('/') ||
+      raw.startsWith('//') ||
+      raw.startsWith('/login') ||
+      raw.startsWith('/register') ||
+      raw.startsWith('/adulto/confirmar')
+    ) {
+      return null;
     }
 
-    const raw = this.route.snapshot.queryParamMap.get('redirectTo');
+    return raw;
+  }
 
-    if (raw && raw.startsWith('/') && !raw.startsWith('//')) {
-      return raw;
+  private getRedirectToAfterCompletion(uid: string): string {
+    const vm = this.latestVm;
+    const redirectTo = this.resolveSafeRedirectTo();
+
+    if (vm?.uid === uid && !vm.adultConsentAccepted) {
+      const query = redirectTo
+        ? `?redirectTo=${encodeURIComponent(redirectTo)}`
+        : '';
+
+      return `/adulto/confirmar${query}`;
+    }
+
+    if (redirectTo) {
+      return redirectTo;
     }
 
     if (vm?.uid === uid && vm.nextRoute && vm.nextRoute !== '/register/finalizar-cadastro') {
@@ -263,7 +283,7 @@ private reportError(err: unknown, message: string): void {
     }
 
     if (!vm.emailVerified) {
-        this.setWarningMessage('Confirme seu e-mail antes de finalizar o cadastro.');
+      this.setWarningMessage('Confirme seu e-mail antes de finalizar o cadastro.');
 
       this.router.navigate(['/register/welcome'], {
         replaceUrl: true,
@@ -274,7 +294,7 @@ private reportError(err: unknown, message: string): void {
     }
 
     if (vm.currentStep !== 'profileCompletion') {
-        this.setWarningMessage('Esta etapa do cadastro não está disponível agora.');
+      this.setWarningMessage('Esta etapa do cadastro não está disponível agora.');
 
       this.router.navigateByUrl(vm.nextRoute || '/register/welcome', {
         replaceUrl: true,
@@ -407,30 +427,30 @@ private reportError(err: unknown, message: string): void {
       );
   }
 
-uploadFile(event: Event): void {
-  const input = event.target as HTMLInputElement | null;
-  const file = input?.files?.[0] ?? null;
+  uploadFile(event: Event): void {
+    const input = event.target as HTMLInputElement | null;
+    const file = input?.files?.[0] ?? null;
 
-  this.resetAvatarSelectionState();
+    this.resetAvatarSelectionState();
 
-  if (!file) {
-    return;
+    if (!file) {
+      return;
+    }
+
+    if (!file.type?.startsWith('image/')) {
+      this.setErrorMessage('Selecione uma imagem válida.');
+      return;
+    }
+
+    const maxSizeBytes = 10 * 1024 * 1024;
+
+    if (file.size > maxSizeBytes) {
+      this.setErrorMessage('A foto deve ter no máximo 10 MB.');
+      return;
+    }
+
+    this.avatarFile = file;
   }
-
-  if (!file.type?.startsWith('image/')) {
-    this.setErrorMessage('Selecione uma imagem válida.');
-    return;
-  }
-
-  const maxSizeBytes = 10 * 1024 * 1024;
-
-  if (file.size > maxSizeBytes) {
-    this.setErrorMessage('A foto deve ter no máximo 10 MB.');
-    return;
-  }
-
-  this.avatarFile = file;
-}
 
   private resolveEntryContext(): void {
     const reason = this.route.snapshot.queryParamMap.get('reason');
