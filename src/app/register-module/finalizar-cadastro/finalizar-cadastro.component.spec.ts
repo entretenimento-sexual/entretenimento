@@ -55,6 +55,8 @@ describe('FinalizarCadastroComponent', () => {
     email: 'teste@email.com',
     emailVerified: true,
     userResolved: true,
+    userExists: true,
+    termsAccepted: true,
     profileCompleted: false,
     adultConsentAccepted: false,
     currentStep: 'profileCompletion',
