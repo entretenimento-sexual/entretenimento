@@ -7,8 +7,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { finalize } from 'rxjs/operators';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { UserManagementService } from 'src/app/core/services/account-moderation/user-management.service';
 import { UserModerationService } from 'src/app/core/services/account-moderation/user-moderation.service';
+import { AccountLifecycleService } from 'src/app/account/application/account-lifecycle.service';
 import { ConfirmDialogComponent } from '../shared/confirm-dialog/confirm-dialog.component';
 import {
   MatCardTitle,
@@ -44,7 +44,7 @@ export class UserDetailsComponent {
 
   constructor(
     route: ActivatedRoute,
-    private readonly userMgmt: UserManagementService,
+    private readonly accountLifecycle: AccountLifecycleService,
     private readonly moderation: UserModerationService,
     private readonly dialog: MatDialog,
     private readonly snack: MatSnackBar
@@ -115,8 +115,8 @@ export class UserDetailsComponent {
       if (!ok) return;
 
       this.loading = true;
-      this.userMgmt
-        .deleteUserAccount(
+      this.accountLifecycle
+        .moderateScheduleDeletion$(
           this.user.uid,
           'Exclusão agendada pela tela administrativa de detalhes.'
         )
