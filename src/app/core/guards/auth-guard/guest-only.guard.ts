@@ -12,16 +12,17 @@
 //
 // - /register/welcome:
 //   rota autenticada de verificação/onboarding.
-//   Pode ser acessada por usuário autenticado mesmo com profileCompleted=false.
+//
+// - /register/aceitar-termos:
+//   rota autenticada de aceite explícito antes da conclusão do perfil social.
 //
 // - /register/finalizar-cadastro:
 //   rota autenticada de conclusão do perfil.
-//   Só deve ser liberada para usuário autenticado depois de emailVerified=true.
 //
 // Separação:
 // - emailVerified controla a confiança mínima da conta.
+// - acceptedTerms controla o aceite legal explícito quando pendente.
 // - profileCompleted controla a conclusão do perfil mínimo.
-// - e-mail não verificado bloqueia finalizar cadastro e redireciona para welcome.
 
 import { inject } from '@angular/core';
 import {
@@ -72,10 +73,6 @@ function canMatchAllowsAuthenticated(route: Route, segments: UrlSegment[]): bool
     return false;
   }
 
-  /**
-   * Em /register/finalizar-cadastro:
-   * segments tende a vir como ['register', 'finalizar-cadastro'].
-   */
   const subPath = segments?.[1]?.path ?? '';
 
   return !!subPath && allow.includes(subPath);
@@ -94,6 +91,10 @@ function isRegisterWelcomePath(url: string): boolean {
   );
 }
 
+function isRegisterTermsPath(url: string): boolean {
+  return cleanUrl(url) === '/register/aceitar-termos';
+}
+
 function isRegisterFinalizePath(url: string): boolean {
   return cleanUrl(url) === '/register/finalizar-cadastro';
 }
@@ -110,6 +111,7 @@ function decideGuestAccess$(
   const notify = inject(ErrorNotificationService);
 
   const tryingWelcome = isRegisterWelcomePath(attemptedUrl);
+  const tryingTerms = isRegisterTermsPath(attemptedUrl);
   const tryingFinalize = isRegisterFinalizePath(attemptedUrl);
 
   return combineLatest([
@@ -124,18 +126,10 @@ function decideGuestAccess$(
         return false;
       }
 
-      /**
-       * Visitante:
-       * não precisa esperar appUser.
-       */
       if (!authUid) {
         return true;
       }
 
-      /**
-       * Autenticado:
-       * espera hidratar users/{uid} antes de decidir profileCompleted.
-       */
       return appUser !== undefined;
     }),
 
@@ -158,6 +152,7 @@ function decideGuestAccess$(
         'profileCompleted:', profileCompleted,
         'emailVerified:', emailVerified,
         'tryingWelcome:', tryingWelcome,
+        'tryingTerms:', tryingTerms,
         'tryingFinalize:', tryingFinalize,
         'redirectTo:', redirectTo
       );
@@ -166,10 +161,7 @@ function decideGuestAccess$(
       // VISITANTE
       // -----------------------------------------------------------------------
       if (!authUid) {
-        /**
-         * Visitante não entra em etapas autenticadas do registro.
-         */
-        if (tryingWelcome || tryingFinalize) {
+        if (tryingWelcome || tryingTerms || tryingFinalize) {
           return buildRedirectTree(router, '/register');
         }
 
@@ -180,11 +172,6 @@ function decideGuestAccess$(
       // AUTENTICADO
       // -----------------------------------------------------------------------
 
-      /**
-       * 1) Conta bloqueada/interrompida.
-       *
-       * Mantém welcome como tela segura para explicar bloqueio/estado.
-       */
       if (blockedReason) {
         return tryingWelcome
           ? true
@@ -193,22 +180,10 @@ function decideGuestAccess$(
             });
       }
 
-      /**
-       * 2) Welcome é rota válida do fluxo autenticado.
-       *
-       * Não redirecionamos daqui só porque profileCompleted=false.
-       * O usuário pode estar verificando e-mail ou vendo feedback pós-link.
-       */
       if (tryingWelcome) {
         return true;
       }
 
-      /**
-       * 3) E-mail não verificado tem prioridade sobre finalização do perfil.
-       *
-       * Alinha este guard com RegisterNavigationService:
-       * conta criada -> verificação de e-mail -> conclusão do perfil.
-       */
       if (emailVerified !== true) {
         return buildWelcomeRedirectTree(router, redirectTo, {
           reason: 'email_unverified',
@@ -216,43 +191,31 @@ function decideGuestAccess$(
       }
 
       /**
-       * 4) Finalizar cadastro é rota válida para perfil incompleto
-       * somente depois da verificação do e-mail.
+       * A etapa de termos precisa ocorrer antes da finalização do perfil social.
+       * O registrationStepGuard confirma se ela é realmente a etapa atual.
        */
+      if (tryingTerms) {
+        return true;
+      }
+
       if (tryingFinalize) {
         if (!profileCompleted) {
           return true;
         }
 
-        /**
-         * Se o perfil já está completo, não faz sentido permanecer
-         * na tela de finalização.
-         */
         return router.parseUrl(redirectTo);
       }
 
-      /**
-       * 5) Perfil incompleto, com e-mail já verificado,
-       * deve ir para a conclusão de cadastro.
-       */
       if (!profileCompleted) {
         return buildFinalizeRedirectTree(router, redirectTo, {
           reason: 'profile_incomplete',
         });
       }
 
-      /**
-       * 6) Algumas rotas guest internas aceitam usuário autenticado
-       * por decisão explícita.
-       */
       if (allowAuthenticatedHere) {
         return true;
       }
 
-      /**
-       * 7) Usuário autenticado, perfil completo e e-mail verificado:
-       * sai de rotas guest e vai ao destino final.
-       */
       return router.parseUrl(redirectTo);
     }),
 
