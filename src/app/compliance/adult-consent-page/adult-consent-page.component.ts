@@ -16,8 +16,6 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
   styleUrls: ['./adult-consent-page.component.css'],
 })
 export class AdultConsentPageComponent {
-  readonly redirectTo = this.resolveRedirectTo();
-
   isSaving = false;
 
   constructor(
@@ -48,9 +46,13 @@ export class AdultConsentPageComponent {
           this.isSaving = false;
         })
       )
-      .subscribe(() => {
-        this.router.navigateByUrl(this.redirectTo, { replaceUrl: true }).catch(() => {
-          this.router.navigate(['/dashboard/principal'], { replaceUrl: true }).catch(() => undefined);
+      .subscribe((uid) => {
+        const target = this.resolveRedirectTo(uid);
+
+        this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {
+          this.router
+            .navigate(['/preferencias/editar', uid], { replaceUrl: true })
+            .catch(() => undefined);
         });
       });
   }
@@ -82,17 +84,20 @@ export class AdultConsentPageComponent {
       .subscribe();
   }
 
-  private resolveRedirectTo(): string {
+  private resolveRedirectTo(uid: string): string {
     const value = String(this.route.snapshot.queryParamMap.get('redirectTo') ?? '').trim();
 
-    if (!value || !value.startsWith('/') || value.startsWith('//')) {
-      return '/dashboard/principal';
+    if (
+      value &&
+      value.startsWith('/') &&
+      !value.startsWith('//') &&
+      !value.startsWith('/login') &&
+      !value.startsWith('/register') &&
+      !value.startsWith('/adulto/confirmar')
+    ) {
+      return value;
     }
 
-    if (value.startsWith('/login') || value.startsWith('/register')) {
-      return '/dashboard/principal';
-    }
-
-    return value;
+    return `/preferencias/editar/${encodeURIComponent(uid)}`;
   }
 }
