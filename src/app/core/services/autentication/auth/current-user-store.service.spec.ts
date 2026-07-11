@@ -95,38 +95,99 @@ describe('CurrentUserStoreService', () => {
     expect(cache.set).not.toHaveBeenCalled();
   });
 
-it('patch() deve mesclar os dados do usuário atual', () => {
-  service.set(userMock);
-  vi.clearAllMocks();
+  it('patch() deve mesclar os dados do usuário atual', () => {
+    service.set(userMock);
+    vi.clearAllMocks();
 
-  service.patch({ nickname: 'alex-updated' });
+    service.patch({ nickname: 'alex-updated' });
 
-  expect(service.getSnapshot()).toEqual({
-    ...userMock,
-    nickname: 'alex-updated',
+    expect(service.getSnapshot()).toEqual({
+      ...userMock,
+      nickname: 'alex-updated',
+    });
+
+    const currentUserCall = cache.set.mock.calls.find(
+      (call: any[]) => call[0] === 'currentUser'
+    );
+
+    if (!currentUserCall) {
+      throw new Error('currentUser call não encontrado');
+    }
+
+    expect(currentUserCall[1]).toBeDefined();
+    expect(currentUserCall[1].nickname).toBe('alex-updated');
+    expect(currentUserCall[1].uid).toBe('u1');
+    expect(currentUserCall[2]).toBeUndefined();
+    expect(currentUserCall[3]).toEqual({ persist: false });
+
+    expect(cache.set).toHaveBeenCalledWith(
+      'currentUserUid',
+      'u1',
+      undefined,
+      { persist: false }
+    );
   });
 
- const currentUserCall = cache.set.mock.calls.find(
-  (call: any[]) => call[0] === 'currentUser'
-);
+  it('patch() deve publicar mudanças de termos e consentimento adulto', () => {
+    const initialUser: IUserDados = {
+      ...userMock,
+      acceptedTerms: {
+        accepted: false,
+        date: null,
+        version: 'v1',
+      },
+      adultConsent: {
+        accepted: false,
+        version: 'v1',
+        acceptedAt: null,
+        updatedAt: null,
+        source: null,
+      },
+    };
 
-if (!currentUserCall) {
-  throw new Error('currentUser call não encontrado');
-}
+    service.set(initialUser);
+    vi.clearAllMocks();
 
-  expect(currentUserCall[1]).toBeDefined();
-  expect(currentUserCall[1].nickname).toBe('alex-updated');
-  expect(currentUserCall[1].uid).toBe('u1');
-  expect(currentUserCall[2]).toBeUndefined();
-  expect(currentUserCall[3]).toEqual({ persist: false });
+    service.patch({
+      acceptedTerms: {
+        accepted: true,
+        date: 1000,
+        version: 'v1',
+        acceptedAt: 1000,
+        updatedAt: 1000,
+        source: 'web',
+      },
+      adultConsent: {
+        accepted: true,
+        version: 'v1',
+        acceptedAt: 2000,
+        updatedAt: 2000,
+        source: 'web',
+      },
+    });
 
-  expect(cache.set).toHaveBeenCalledWith(
-    'currentUserUid',
-    'u1',
-    undefined,
-    { persist: false }
-  );
-});
+    expect(service.getSnapshot()?.acceptedTerms).toEqual({
+      accepted: true,
+      date: 1000,
+      version: 'v1',
+      acceptedAt: 1000,
+      updatedAt: 1000,
+      source: 'web',
+    });
+    expect(service.getSnapshot()?.adultConsent).toEqual({
+      accepted: true,
+      version: 'v1',
+      acceptedAt: 2000,
+      updatedAt: 2000,
+      source: 'web',
+    });
+    expect(cache.set).toHaveBeenCalledWith(
+      'currentUserUid',
+      'u1',
+      undefined,
+      { persist: false }
+    );
+  });
 
   it('clear() deve marcar estado como null e limpar HOT_KEYS', () => {
     service.set(userMock);
@@ -256,7 +317,6 @@ if (!currentUserCall) {
     authSession.ready$.next(true);
 
     const restored = await promise;
-
     expect(restored).toEqual(userMock);
   });
 
