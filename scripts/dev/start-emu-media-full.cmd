@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableExtensions
 
 rem -----------------------------------------------------------------------------
 rem start-emu-media-full.cmd
@@ -14,17 +14,19 @@ rem ----------------------------------------------------------------------------
 set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..\..") do set "PROJECT_ROOT=%%~fI"
 
-if not defined JAVA_HOME (
-  for /d %%D in ("%USERPROFILE%\.jdks\temurin-21\jdk-21*") do if exist "%%~fD\bin\java.exe" set "JAVA_HOME=%%~fD"
-)
+rem Prioriza explicitamente o JDK 21 portátil do usuário quando disponível.
+set "PORTABLE_JAVA_HOME="
+for /d %%D in ("%USERPROFILE%\.jdks\temurin-21\jdk-21*") do if exist "%%~fD\bin\java.exe" set "PORTABLE_JAVA_HOME=%%~fD"
+if defined PORTABLE_JAVA_HOME set "JAVA_HOME=%PORTABLE_JAVA_HOME%"
 
 if defined JAVA_HOME (
   set "PATH=%JAVA_HOME%\bin;%PATH%"
 )
 
-if not defined NODE_HOME (
-  for /d %%D in ("%USERPROFILE%\.nodes\node-22\node-v22*-win-x64") do if exist "%%~fD\node.exe" set "NODE_HOME=%%~fD"
-)
+rem Prioriza explicitamente o Node 22 portátil porque functions/package.json usa engine 22.
+set "PORTABLE_NODE_HOME="
+for /d %%D in ("%USERPROFILE%\.nodes\node-22\node-v22*-win-x64") do if exist "%%~fD\node.exe" set "PORTABLE_NODE_HOME=%%~fD"
+if defined PORTABLE_NODE_HOME set "NODE_HOME=%PORTABLE_NODE_HOME%"
 
 if defined NODE_HOME (
   set "PATH=%NODE_HOME%;%PATH%"
@@ -49,15 +51,21 @@ if errorlevel 1 (
   exit /b 1
 )
 
+for /f "tokens=1 delims=." %%V in ('node -p "process.versions.node"') do set "NODE_MAJOR=%%V"
+if not "%NODE_MAJOR%"=="22" (
+  echo [emu:full] AVISO: Functions declara Node 22, mas o ambiente atual usa Node %NODE_MAJOR%.
+  echo [emu:full] O script continua, mas prefira Node 22 para reproduzir o runtime oficial.
+)
+
 echo [emu:full] NPM:
-npm.cmd -v
+call npm.cmd -v
 if errorlevel 1 (
   echo [emu:full] ERRO: npm nao encontrado no PATH atual.
   exit /b 1
 )
 
 echo [emu:full] Subindo auth, firestore, storage e functions...
-npm.cmd run emu:media
+call npm.cmd run emu:media
 set "EMU_EXIT=%ERRORLEVEL%"
 
 if not "%EMU_EXIT%"=="0" (
