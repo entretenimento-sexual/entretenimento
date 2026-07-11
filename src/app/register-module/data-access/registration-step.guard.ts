@@ -7,10 +7,12 @@
 // - impedir acesso direto a etapas fora de ordem;
 // - usar RegisterFlowFacade como fonte canônica do estado de registro;
 // - aguardar a resolução do documento do usuário antes de decidir a etapa;
-// - redirecionar para a próxima rota correta definida por RegisterNavigationService.
+// - redirecionar para a próxima rota correta definida por RegisterNavigationService;
+// - preservar um redirectTo interno e seguro entre etapas do onboarding.
 //
 // Regra:
 // - /register/welcome só é etapa de verificação de e-mail;
+// - /register/recuperar-conta só é etapa de recuperação do documento privado;
 // - /register/aceitar-termos só é etapa de aceite explícito;
 // - /register/finalizar-cadastro só é etapa de conclusão de perfil;
 // - se o usuário estiver em outro passo, o guard retorna UrlTree para vm.nextRoute.
@@ -75,6 +77,63 @@ function buildLoginRedirect(
   });
 }
 
+function resolveSafeRedirectTo(router: Router, currentUrl: string): string | null {
+  try {
+    const raw = String(
+      router.parseUrl(currentUrl).queryParams?.['redirectTo'] ?? ''
+    ).trim();
+
+    if (
+      !raw ||
+      !raw.startsWith('/') ||
+      raw.startsWith('//') ||
+      raw.startsWith('/login') ||
+      raw.startsWith('/register') ||
+      raw.startsWith('/adulto/confirmar')
+    ) {
+      return null;
+    }
+
+    return raw;
+  } catch {
+    return null;
+  }
+}
+
+function targetSupportsRedirect(target: string): boolean {
+  const path = normalizePath(target);
+
+  return (
+    path === '/register/welcome' ||
+    path === '/register/recuperar-conta' ||
+    path === '/register/aceitar-termos' ||
+    path === '/register/finalizar-cadastro' ||
+    path === '/adulto/confirmar'
+  );
+}
+
+function buildTargetTree(
+  router: Router,
+  target: string,
+  redirectTo: string | null
+): UrlTree {
+  const targetTree = router.parseUrl(target);
+
+  if (
+    !redirectTo ||
+    !targetSupportsRedirect(target) ||
+    targetTree.queryParams?.['redirectTo']
+  ) {
+    return targetTree;
+  }
+
+  const separator = target.includes('?') ? '&' : '?';
+
+  return router.parseUrl(
+    `${target}${separator}redirectTo=${encodeURIComponent(redirectTo)}`
+  );
+}
+
 function resolveGuardResult(
   router: Router,
   currentUrl: string,
@@ -99,7 +158,11 @@ function resolveGuardResult(
     return true;
   }
 
-  return router.parseUrl(target);
+  return buildTargetTree(
+    router,
+    target,
+    resolveSafeRedirectTo(router, currentUrl)
+  );
 }
 
 export const registrationStepGuard: CanActivateFn = (
