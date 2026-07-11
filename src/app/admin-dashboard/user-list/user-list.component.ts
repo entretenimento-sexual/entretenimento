@@ -30,6 +30,7 @@ import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { UserManagementService } from 'src/app/core/services/account-moderation/user-management.service';
 import { UserModerationService } from 'src/app/core/services/account-moderation/user-moderation.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { AccountLifecycleService } from 'src/app/account/application/account-lifecycle.service';
 import { ConfirmDialogComponent } from '../shared/confirm-dialog/confirm-dialog.component';
 
 type AdminUserFilter = 'pending' | 'restricted' | 'active' | 'all';
@@ -95,6 +96,7 @@ export class UserListComponent implements OnInit {
   constructor(
     private readonly userManagementService: UserManagementService,
     private readonly userModeration: UserModerationService,
+    private readonly accountLifecycle: AccountLifecycleService,
     private readonly notifications: ErrorNotificationService,
     private readonly dialog: MatDialog,
     private readonly router: Router,
@@ -268,7 +270,7 @@ export class UserListComponent implements OnInit {
 
       this.runUserAction(
         row,
-        this.userManagementService.deleteUserAccount(
+        this.accountLifecycle.moderateScheduleDeletion$(
           row.uid,
           'Exclusão agendada pela lista administrativa de usuários.'
         ),
@@ -369,7 +371,7 @@ export class UserListComponent implements OnInit {
 
   private runUserAction(
     row: IUserDadosExtended,
-    action$: Observable<void>,
+    action$: Observable<unknown>,
     successMessage: string,
     errorMessage: string,
     afterSuccess: () => void
