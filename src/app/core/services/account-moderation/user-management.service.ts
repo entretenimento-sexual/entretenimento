@@ -1,27 +1,25 @@
-// src/app/core/services/autentication/user-management.service.ts
-// Serviço para gerenciamento de usuários (admin)
-// Não esquecer os comentários e ferramentas de debug para facilitar a manutenção futura
+// src/app/core/services/account-moderation/user-management.service.ts
+// Serviço para gerenciamento administrativo de usuários.
 import { Injectable } from '@angular/core';
-import { Auth } from '@angular/fire/auth';
-import { deleteUser } from 'firebase/auth';
 
-import { Observable, of, throwError, from } from 'rxjs';
-import { catchError, concatMap, map } from 'rxjs/operators';
+import { Observable, throwError } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 import { IUserDados } from '../../interfaces/iuser-dados';
 
 import { FirestoreQueryService } from '../data-handling/firestore-query.service';
 import { FirestoreUserQueryService } from '../data-handling/firestore-user-query.service';
 import { FirestoreWriteService } from '../data-handling/firestore/core/firestore-write.service';
+import { AccountLifecycleService } from 'src/app/account/application/account-lifecycle.service';
 
 @Injectable({ providedIn: 'root' })
 export class UserManagementService {
   constructor(
     private readonly write: FirestoreWriteService,
     private readonly firestoreQuery: FirestoreQueryService,
-    private readonly auth: Auth,
-    private readonly firestoreUserQuery: FirestoreUserQueryService
-  ) { }
+    private readonly firestoreUserQuery: FirestoreUserQueryService,
+    private readonly accountLifecycle: AccountLifecycleService
+  ) {}
 
   // -----------------------------------------------------------------------------
   // READS
@@ -36,12 +34,16 @@ export class UserManagementService {
   }
 
   // -----------------------------------------------------------------------------
-  // WRITES (removido legacy FirestoreService)
+  // WRITES ADMINISTRATIVAS
   // -----------------------------------------------------------------------------
 
   resetLoginAttempts(uid: string): Observable<void> {
     const safeUid = this.normalizeUid(uid);
-    if (!safeUid) return throwError(() => new Error('[UserManagementService] uid inválido em resetLoginAttempts'));
+    if (!safeUid) {
+      return throwError(
+        () => new Error('[UserManagementService] uid inválido em resetLoginAttempts')
+      );
+    }
 
     return this.write.updateDocument(
       'users',
@@ -53,7 +55,11 @@ export class UserManagementService {
 
   incrementLoginAttempts(uid: string): Observable<void> {
     const safeUid = this.normalizeUid(uid);
-    if (!safeUid) return throwError(() => new Error('[UserManagementService] uid inválido em incrementLoginAttempts'));
+    if (!safeUid) {
+      return throwError(
+        () => new Error('[UserManagementService] uid inválido em incrementLoginAttempts')
+      );
+    }
 
     return this.write.incrementField(
       'users',
@@ -65,46 +71,42 @@ export class UserManagementService {
   }
 
   /**
-   * Exclui a conta do usuário:
-   * - Apaga o doc em /users/{uid}
-   * - Se for o próprio usuário logado, tenta remover também do Auth.
+   * Agenda a exclusão administrativa pelo domínio canônico de lifecycle.
    *
-   * Observações:
-   * - Para apagar o Auth de OUTRO usuário: precisa Cloud Function (Admin SDK).
-   * - Pode falhar com `auth/requires-recent-login`.
+   * O nome do método foi preservado temporariamente para não quebrar os
+   * consumidores do painel administrativo. Ele NÃO apaga mais `users/{uid}`
+   * diretamente e NÃO chama `deleteUser()` no navegador.
+   *
+   * Motivo da substituição:
+   * - a implementação anterior removia o documento antes do Auth;
+   * - uma falha `auth/requires-recent-login` podia deixar uma conta autenticável
+   *   sem documento privado;
+   * - exclusão de outro usuário exige Admin SDK e autorização de staff;
+   * - retenção, auditoria e expurgo pertencem ao backend.
    */
-  deleteUserAccount(uid: string): Observable<void> {
+  deleteUserAccount(
+    uid: string,
+    reason = 'Exclusão agendada pelo painel administrativo.'
+  ): Observable<void> {
     const safeUid = this.normalizeUid(uid);
-    if (!safeUid) return throwError(() => new Error('[UserManagementService] uid inválido em deleteUserAccount'));
+    const safeReason = String(reason ?? '').trim();
 
-    return this.write.deleteDocument('users', safeUid, {
-      context: 'UserManagementService.deleteUserAccount:deleteFirestoreDoc',
-    }).pipe(
-      concatMap(() => {
-        const user = this.auth.currentUser;
+    if (!safeUid) {
+      return throwError(
+        () => new Error('[UserManagementService] uid inválido em deleteUserAccount')
+      );
+    }
 
-        // Se não é o usuário logado -> apenas Firestore (Auth via Admin SDK)
-        if (!user || user.uid !== safeUid) return of(void 0);
+    if (!safeReason) {
+      return throwError(
+        () => new Error('[UserManagementService] motivo inválido em deleteUserAccount')
+      );
+    }
 
-        return from(deleteUser(user)).pipe(
-          map(() => void 0),
-          catchError((err: any) => {
-            if (err?.code === 'auth/requires-recent-login') {
-              // Mantém seu “sinal” sem vazar detalhes; quem chama decide UX
-              const e = new Error('REAUTH_REQUIRED');
-              (e as any).code = 'auth/requires-recent-login';
-              return throwError(() => e);
-            }
-            return throwError(() => err);
-          })
-        );
-      })
-    );
+    return this.accountLifecycle
+      .moderateScheduleDeletion$(safeUid, safeReason)
+      .pipe(map(() => void 0));
   }
-
-  // -----------------------------------------------------------------------------
-  // Helpers
-  // -----------------------------------------------------------------------------
 
   private normalizeUid(uid: string): string {
     return (uid ?? '').trim();
