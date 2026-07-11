@@ -6,8 +6,7 @@
 // Responsabilidade:
 // - carregar dados iniciais do formulário de conclusão de perfil;
 // - carregar estados e municípios usados no formulário;
-// - montar o payload canônico de conclusão de perfil;
-// - salvar os dados principais do perfil no Firestore;
+// - delegar a conclusão atômica do perfil e reserva de nickname;
 // - fazer upload do avatar e sincronizar a URL no perfil.
 //
 // Ainda não faz:
@@ -17,7 +16,7 @@
 //
 // Regra:
 // - o componente continua controlando estado visual;
-// - esta facade concentra leitura, persistência principal e persistência de avatar;
+// - a persistência principal pertence ao ProfileCompletionWriteService;
 // - falha de avatar não deve invalidar a conclusão do perfil.
 
 import { Injectable } from '@angular/core';
@@ -26,9 +25,8 @@ import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import { RegisterFlowVm } from './register-flow.model';
+import { ProfileCompletionWriteService } from './profile-completion-write.service';
 
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { FirestoreUserWriteService } from 'src/app/core/services/data-handling/firestore-user-write.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
@@ -47,11 +45,10 @@ export interface ProfileCompletionInitialData {
   municipio: string;
 }
 
-export type ProfileCompletionPayload = Partial<IUserRegistrationData> & Partial<IUserDados>;
-
 export interface ProfileCompletionSubmitInput {
   uid: string;
   vm: RegisterFlowVm;
+  nickname: string;
   gender: string;
   orientation: string;
   estado: string;
@@ -80,6 +77,7 @@ export class ProfileCompletionFacade {
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
     private readonly firestoreUserWrite: FirestoreUserWriteService,
+    private readonly profileCompletionWrite: ProfileCompletionWriteService,
     private readonly storageService: StorageService,
     private readonly ibgeLocationService: IBGELocationService
   ) {}
@@ -124,17 +122,14 @@ export class ProfileCompletionFacade {
           );
         }
 
-        const completionPayload: ProfileCompletionPayload = {
+        return this.profileCompletionWrite.complete$({
           uid,
-          nickname: existingUserData.nickname || '',
+          nickname: input.nickname || existingUserData.nickname || '',
           gender: input.gender || existingUserData.gender || '',
           orientation: input.orientation || existingUserData.orientation || '',
           estado: input.estado || existingUserData.estado || '',
           municipio: input.municipio || existingUserData.municipio || '',
-          profileCompleted: true,
-        };
-
-        return this.firestoreUserWrite.saveInitialUserData$(uid, completionPayload);
+        });
       })
     );
   }
