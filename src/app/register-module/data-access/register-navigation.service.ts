@@ -68,18 +68,18 @@ export class RegisterNavigationService {
       };
     }
 
-    // Mantém o comportamento atual para documento ausente. A recuperação
-    // específica desse cenário será tratada em uma etapa própria do fluxo.
     if (!state.userExists) {
       return {
         ...state,
         uid,
         email,
-        currentStep: 'profileCompletion',
-        nextRoute: '/register/finalizar-cadastro',
-        progress: 45,
+        currentStep: 'accountRecovery',
+        nextRoute: '/register/recuperar-conta',
+        progress: 30,
         canContinue: true,
-        primaryActionLabel: 'Completar perfil',
+        primaryActionLabel: 'Recuperar cadastro',
+        blockingMessage:
+          'Sua sessão está ativa, mas os dados básicos da conta precisam ser recuperados.',
       };
     }
 
