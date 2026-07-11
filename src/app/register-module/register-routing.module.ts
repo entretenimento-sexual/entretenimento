@@ -5,7 +5,8 @@
 // - /register -> tela pública de cadastro
 // - /register/welcome -> etapa autenticada de verificação/onboarding
 // - /register/verify -> handler interno autenticado
-// - /register/finalizar-cadastro -> etapa autenticada de conclusão do perfil após e-mail verificado
+// - /register/aceitar-termos -> aceite explícito para contas sociais
+// - /register/finalizar-cadastro -> conclusão do perfil após e-mail verificado
 //
 // Observação importante:
 // - o guard do pai (/register) continua sendo guestOnly
@@ -48,6 +49,17 @@ const routes: Routes = [
     data: {
       allowUnverified: true,
       allowAuthenticated: true,
+    },
+  },
+  {
+    path: 'aceitar-termos',
+    loadComponent: () =>
+      import('./terms-acceptance/terms-acceptance-page.component')
+        .then((m) => m.TermsAcceptancePageComponent),
+    canActivate: [authGuard, emailVerifiedGuard, registrationStepGuard],
+    data: {
+      allowAuthenticated: true,
+      allowedRegisterSteps: ['termsAcceptance'],
     },
   },
   {
