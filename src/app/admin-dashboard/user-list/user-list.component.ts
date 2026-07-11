@@ -1,5 +1,11 @@
 // src/app/admin-dashboard/user-list/user-list.component.ts
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, ViewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  OnInit,
+  ViewChild,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -93,7 +99,7 @@ export class UserListComponent implements OnInit {
     private readonly dialog: MatDialog,
     private readonly router: Router,
     private readonly cdr: ChangeDetectorRef
-  ) { }
+  ) {}
 
   get totalUsers(): number {
     return this.allUsers.length;
@@ -108,13 +114,23 @@ export class UserListComponent implements OnInit {
   }
 
   get activeUsers(): number {
-    return this.allUsers.filter((user) => user.profileCompleted && !this.isRestrictedUser(user)).length;
+    return this.allUsers.filter(
+      (user) => user.profileCompleted && !this.isRestrictedUser(user)
+    ).length;
   }
 
   get filterOptions(): AdminUserFilterOption[] {
     return [
-      { value: 'pending', label: 'Cadastros pendentes', count: this.pendingProfiles },
-      { value: 'restricted', label: 'Contas restritas', count: this.restrictedUsers },
+      {
+        value: 'pending',
+        label: 'Cadastros pendentes',
+        count: this.pendingProfiles,
+      },
+      {
+        value: 'restricted',
+        label: 'Contas restritas',
+        count: this.restrictedUsers,
+      },
       { value: 'active', label: 'Ativos', count: this.activeUsers },
       { value: 'all', label: 'Todos', count: this.totalUsers },
     ];
@@ -139,20 +155,24 @@ export class UserListComponent implements OnInit {
     this.loading = true;
     this.cdr.markForCheck();
 
-    this.userManagementService.getAllUsers()
-      .pipe(finalize(() => {
-        this.loading = false;
-        this.cdr.markForCheck();
-      }))
+    this.userManagementService
+      .getAllUsers()
+      .pipe(
+        finalize(() => {
+          this.loading = false;
+          this.cdr.markForCheck();
+        })
+      )
       .subscribe({
         next: (users) => {
           this.allUsers = users.map((user) => this.toAdminRow(user));
           this.renderRows();
         },
-        error: (error) => this.notifications.showError(
-          'Falha ao carregar usuários.',
-          error instanceof Error ? error.message : undefined
-        ),
+        error: (error) =>
+          this.notifications.showError(
+            'Falha ao carregar usuários.',
+            error instanceof Error ? error.message : undefined
+          ),
       });
   }
 
@@ -172,24 +192,29 @@ export class UserListComponent implements OnInit {
     });
 
     ref.afterClosed().subscribe((ok) => {
-      if (!ok) {
-        return;
-      }
+      if (!ok) return;
 
       const action$ = willSuspend
-        ? this.userModeration.suspendUser(row.uid, 'Ação administrativa', '')
+        ? this.userModeration.suspendUser(
+            row.uid,
+            'Ação administrativa',
+            ''
+          )
         : this.userModeration.unsuspendUser(row.uid, '');
 
       this.runUserAction(
         row,
         action$,
         willSuspend ? 'Usuário suspenso.' : 'Usuário reativado.',
-        willSuspend ? 'Não foi possível suspender o usuário.' : 'Não foi possível reativar o usuário.',
-        () => this.updateLocalUser(row.uid, {
-          suspended: willSuspend,
-          accountStatus: willSuspend ? 'moderation_suspended' : 'active',
-          statusUpdatedAt: Date.now(),
-        })
+        willSuspend
+          ? 'Não foi possível suspender o usuário.'
+          : 'Não foi possível reativar o usuário.',
+        () =>
+          this.updateLocalUser(row.uid, {
+            suspended: willSuspend,
+            accountStatus: willSuspend ? 'moderation_suspended' : 'active',
+            statusUpdatedAt: Date.now(),
+          })
       );
     });
   }
@@ -206,9 +231,7 @@ export class UserListComponent implements OnInit {
     });
 
     ref.afterClosed().subscribe((ok) => {
-      if (!ok) {
-        return;
-      }
+      if (!ok) return;
 
       const action$ = willLock
         ? this.userModeration.lockAccount(row.uid)
@@ -218,11 +241,14 @@ export class UserListComponent implements OnInit {
         row,
         action$,
         willLock ? 'Conta bloqueada.' : 'Conta desbloqueada.',
-        willLock ? 'Não foi possível bloquear a conta.' : 'Não foi possível desbloquear a conta.',
-        () => this.updateLocalUser(row.uid, {
-          accountLocked: willLock,
-          statusUpdatedAt: Date.now(),
-        })
+        willLock
+          ? 'Não foi possível bloquear a conta.'
+          : 'Não foi possível desbloquear a conta.',
+        () =>
+          this.updateLocalUser(row.uid, {
+            accountLocked: willLock,
+            statusUpdatedAt: Date.now(),
+          })
       );
     });
   }
@@ -230,24 +256,37 @@ export class UserListComponent implements OnInit {
   deleteUser(row: IUserDadosExtended): void {
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
-        title: 'Excluir usuário',
-        message: 'Esta ação remove o documento de usuário e pode exigir rotina administrativa separada para Auth. Confirmar exclusão?',
+        title: 'Agendar exclusão',
+        message:
+          'A conta ficará invisível imediatamente e seguirá para a janela de retenção e expurgo do backend. Confirmar?',
+        confirmText: 'Agendar exclusão',
       },
     });
 
     ref.afterClosed().subscribe((ok) => {
-      if (!ok) {
-        return;
-      }
+      if (!ok) return;
 
       this.runUserAction(
         row,
-        this.userManagementService.deleteUserAccount(row.uid),
-        'Usuário excluído.',
-        'Falha ao excluir usuário.',
+        this.userManagementService.deleteUserAccount(
+          row.uid,
+          'Exclusão agendada pela lista administrativa de usuários.'
+        ),
+        'Exclusão do usuário agendada.',
+        'Falha ao agendar exclusão do usuário.',
         () => {
-          this.allUsers = this.allUsers.filter((user) => user.uid !== row.uid);
-          this.renderRows();
+          const now = Date.now();
+
+          this.updateLocalUser(row.uid, {
+            accountStatus: 'pending_deletion',
+            publicVisibility: 'hidden',
+            interactionBlocked: true,
+            loginAllowed: true,
+            suspended: false,
+            deletionRequestedAt: now,
+            deletionRequestedBy: 'moderator',
+            statusUpdatedAt: now,
+          });
         }
       );
     });
@@ -258,18 +297,19 @@ export class UserListComponent implements OnInit {
   }
 
   private configureDataSource(): void {
-    this.dataSource.filterPredicate = (row, filter) => [
-      row.displayName,
-      row.email,
-      row.uid,
-      row.municipio,
-      row.estado,
-      row.profileStatusLabel,
-      row.operationalStatusLabel,
-    ]
-      .join(' ')
-      .toLowerCase()
-      .includes(filter);
+    this.dataSource.filterPredicate = (row, filter) =>
+      [
+        row.displayName,
+        row.email,
+        row.uid,
+        row.municipio,
+        row.estado,
+        row.profileStatusLabel,
+        row.operationalStatusLabel,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(filter);
 
     this.dataSource.sortingDataAccessor = (row, property) => {
       switch (property) {
@@ -286,11 +326,12 @@ export class UserListComponent implements OnInit {
   }
 
   private renderRows(): void {
-    this.dataSource.data = this.applyOperationalFilter(this.allUsers)
-      .map((user) => ({
+    this.dataSource.data = this.applyOperationalFilter(this.allUsers).map(
+      (user) => ({
         ...user,
         actionPending: this.pendingActionUids.has(user.uid),
-      }));
+      })
+    );
     this.dataSource.filter = this.searchTerm.trim().toLowerCase();
     this.bindTableTools();
     this.cdr.markForCheck();
@@ -308,14 +349,18 @@ export class UserListComponent implements OnInit {
     });
   }
 
-  private applyOperationalFilter(users: IUserDadosExtended[]): IUserDadosExtended[] {
+  private applyOperationalFilter(
+    users: IUserDadosExtended[]
+  ): IUserDadosExtended[] {
     switch (this.activeFilter) {
       case 'pending':
         return users.filter((user) => !user.profileCompleted);
       case 'restricted':
         return users.filter((user) => this.isRestrictedUser(user));
       case 'active':
-        return users.filter((user) => user.profileCompleted && !this.isRestrictedUser(user));
+        return users.filter(
+          (user) => user.profileCompleted && !this.isRestrictedUser(user)
+        );
       case 'all':
       default:
         return users;
@@ -331,24 +376,23 @@ export class UserListComponent implements OnInit {
   ): void {
     const uid = String(row.uid ?? '').trim();
 
-    if (!uid || this.pendingActionUids.has(uid)) {
-      return;
-    }
+    if (!uid || this.pendingActionUids.has(uid)) return;
 
     this.setActionPending(uid, true);
 
-    action$.pipe(
-      finalize(() => this.setActionPending(uid, false))
-    ).subscribe({
-      next: () => {
-        afterSuccess();
-        this.notifications.showSuccess(successMessage);
-      },
-      error: (error) => this.notifications.showError(
-        errorMessage,
-        error instanceof Error ? error.message : undefined
-      ),
-    });
+    action$
+      .pipe(finalize(() => this.setActionPending(uid, false)))
+      .subscribe({
+        next: () => {
+          afterSuccess();
+          this.notifications.showSuccess(successMessage);
+        },
+        error: (error) =>
+          this.notifications.showError(
+            errorMessage,
+            error instanceof Error ? error.message : undefined
+          ),
+      });
   }
 
   private setActionPending(uid: string, pending: boolean): void {
@@ -362,22 +406,32 @@ export class UserListComponent implements OnInit {
   }
 
   private updateLocalUser(uid: string, patch: Partial<IUserDados>): void {
-    this.allUsers = this.allUsers.map((user) => user.uid === uid
-      ? this.toAdminRow({ ...user, ...patch })
-      : user
+    this.allUsers = this.allUsers.map((user) =>
+      user.uid === uid ? this.toAdminRow({ ...user, ...patch }) : user
     );
     this.renderRows();
   }
 
   private toAdminRow(user: IUserDados): IUserDadosExtended {
     const uid = String(user.uid ?? '').trim();
-    const suspended = user.suspended === true || user.accountStatus === 'moderation_suspended';
+    const suspended =
+      user.suspended === true || user.accountStatus === 'moderation_suspended';
     const accountLocked = user.accountLocked === true;
     const profileCompleted = user.profileCompleted === true;
-    const displayName = String(user.nickname || user.nome || user.email || 'Usuário sem identificação').trim();
+    const displayName = String(
+      user.nickname || user.nome || user.email || 'Usuário sem identificação'
+    ).trim();
     const region = [user.municipio, user.estado].filter(Boolean).join(' / ');
-    const isSubscriber = user.isSubscriber === true || user.subscriptionStatus === 'active' || ['premium', 'vip'].includes(String(user.role ?? ''));
-    const statusSeverity = this.userStatusSeverity({ ...user, suspended, accountLocked, profileCompleted });
+    const isSubscriber =
+      user.isSubscriber === true ||
+      user.subscriptionStatus === 'active' ||
+      ['premium', 'vip'].includes(String(user.role ?? ''));
+    const statusSeverity = this.userStatusSeverity({
+      ...user,
+      suspended,
+      accountLocked,
+      profileCompleted,
+    });
 
     return {
       ...user,
@@ -387,37 +441,73 @@ export class UserListComponent implements OnInit {
       profileCompleted,
       actionPending: this.pendingActionUids.has(uid),
       displayName,
-      adminSubtitle: [region || 'Região não informada', isSubscriber ? 'Assinante' : 'Sem assinatura ativa'].join(' · '),
-      profileStatusLabel: profileCompleted ? 'Perfil completo' : 'Cadastro pendente',
-      operationalStatusLabel: this.userStatusLabel({ ...user, suspended, accountLocked, profileCompleted }),
+      adminSubtitle: [
+        region || 'Região não informada',
+        isSubscriber ? 'Assinante' : 'Sem assinatura ativa',
+      ].join(' · '),
+      profileStatusLabel: profileCompleted
+        ? 'Perfil completo'
+        : 'Cadastro pendente',
+      operationalStatusLabel: this.userStatusLabel({
+        ...user,
+        suspended,
+        accountLocked,
+        profileCompleted,
+      }),
       statusSeverity,
       lastActivity: this.userTime(user),
-      operationalPriority: this.userOperationalPriority({ ...user, suspended, accountLocked, profileCompleted }),
+      operationalPriority: this.userOperationalPriority({
+        ...user,
+        suspended,
+        accountLocked,
+        profileCompleted,
+      }),
     };
   }
 
-  private userStatusLabel(user: Pick<IUserDadosExtended, 'suspended' | 'accountLocked' | 'accountStatus' | 'interactionBlocked' | 'profileCompleted'>): string {
-    if (user.accountLocked) {
-      return 'Conta bloqueada';
-    }
+  private userStatusLabel(
+    user: Pick<
+      IUserDadosExtended,
+      | 'suspended'
+      | 'accountLocked'
+      | 'accountStatus'
+      | 'interactionBlocked'
+      | 'profileCompleted'
+    >
+  ): string {
+    if (user.accountLocked) return 'Conta bloqueada';
 
     if (user.suspended || user.accountStatus === 'moderation_suspended') {
       return 'Suspenso';
-    }
-
-    if (user.interactionBlocked) {
-      return 'Interação bloqueada';
     }
 
     if (user.accountStatus === 'pending_deletion') {
       return 'Exclusão pendente';
     }
 
+    if (user.interactionBlocked) {
+      return 'Interação bloqueada';
+    }
+
     return 'Ativo';
   }
 
-  private userStatusSeverity(user: Pick<IUserDadosExtended, 'suspended' | 'accountLocked' | 'accountStatus' | 'interactionBlocked' | 'profileCompleted'>): UserStatusSeverity {
-    if (user.accountLocked || user.suspended || user.accountStatus === 'moderation_suspended' || user.accountStatus === 'pending_deletion') {
+  private userStatusSeverity(
+    user: Pick<
+      IUserDadosExtended,
+      | 'suspended'
+      | 'accountLocked'
+      | 'accountStatus'
+      | 'interactionBlocked'
+      | 'profileCompleted'
+    >
+  ): UserStatusSeverity {
+    if (
+      user.accountLocked ||
+      user.suspended ||
+      user.accountStatus === 'moderation_suspended' ||
+      user.accountStatus === 'pending_deletion'
+    ) {
       return 'danger';
     }
 
@@ -428,8 +518,21 @@ export class UserListComponent implements OnInit {
     return 'success';
   }
 
-  private userOperationalPriority(user: Pick<IUserDadosExtended, 'suspended' | 'accountLocked' | 'accountStatus' | 'interactionBlocked' | 'profileCompleted'>): number {
-    if (user.accountLocked || user.suspended || user.accountStatus === 'moderation_suspended') {
+  private userOperationalPriority(
+    user: Pick<
+      IUserDadosExtended,
+      | 'suspended'
+      | 'accountLocked'
+      | 'accountStatus'
+      | 'interactionBlocked'
+      | 'profileCompleted'
+    >
+  ): number {
+    if (
+      user.accountLocked ||
+      user.suspended ||
+      user.accountStatus === 'moderation_suspended'
+    ) {
       return 4;
     }
 
@@ -437,21 +540,36 @@ export class UserListComponent implements OnInit {
       return 3;
     }
 
-    if (!user.profileCompleted) {
-      return 2;
-    }
+    if (!user.profileCompleted) return 2;
 
     return 1;
   }
 
-  private isRestrictedUser(user: Pick<IUserDadosExtended, 'suspended' | 'accountLocked' | 'accountStatus' | 'interactionBlocked'>): boolean {
-    return user.suspended === true
-      || user.accountLocked === true
-      || user.interactionBlocked === true
-      || ['self_suspended', 'moderation_suspended', 'pending_deletion'].includes(String(user.accountStatus ?? ''));
+  private isRestrictedUser(
+    user: Pick<
+      IUserDadosExtended,
+      'suspended' | 'accountLocked' | 'accountStatus' | 'interactionBlocked'
+    >
+  ): boolean {
+    return (
+      user.suspended === true ||
+      user.accountLocked === true ||
+      user.interactionBlocked === true ||
+      ['self_suspended', 'moderation_suspended', 'pending_deletion'].includes(
+        String(user.accountStatus ?? '')
+      )
+    );
   }
 
   private userTime(user: IUserDados): number {
-    return Number(user.lastLogin ?? user.createdAt ?? user.registrationDate ?? user.firstLogin ?? 0) || 0;
+    return (
+      Number(
+        user.lastLogin ??
+          user.createdAt ??
+          user.registrationDate ??
+          user.firstLogin ??
+          0
+      ) || 0
+    );
   }
 }
