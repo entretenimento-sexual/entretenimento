@@ -4,6 +4,7 @@ export type RegisterFlowStep =
   | 'loading'
   | 'signup'
   | 'emailVerification'
+  | 'accountRecovery'
   | 'termsAcceptance'
   | 'profileCompletion'
   | 'adultConsent'
