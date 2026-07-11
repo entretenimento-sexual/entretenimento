@@ -6,10 +6,12 @@
 // Responsabilidade:
 // - impedir acesso direto a etapas fora de ordem;
 // - usar RegisterFlowFacade como fonte canônica do estado de registro;
+// - aguardar a resolução do documento do usuário antes de decidir a etapa;
 // - redirecionar para a próxima rota correta definida por RegisterNavigationService.
 //
 // Regra:
 // - /register/welcome só é etapa de verificação de e-mail;
+// - /register/aceitar-termos só é etapa de aceite explícito;
 // - /register/finalizar-cadastro só é etapa de conclusão de perfil;
 // - se o usuário estiver em outro passo, o guard retorna UrlTree para vm.nextRoute.
 //
@@ -111,6 +113,11 @@ export const registrationStepGuard: CanActivateFn = (
 
   return registerFlow.vm$.pipe(
     filter((vm) => vm.authReady === true),
+    filter(
+      (vm) =>
+        vm.currentStep === 'emailVerification' ||
+        vm.userResolved === true
+    ),
     take(1),
     timeout({
       first: REGISTER_FLOW_GUARD_TIMEOUT_MS,
