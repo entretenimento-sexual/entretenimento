@@ -13,14 +13,18 @@
 // - /register/welcome:
 //   rota autenticada de verificação/onboarding.
 //
+// - /register/recuperar-conta:
+//   rota autenticada que recompõe users/{uid} quando o Auth existe sem perfil.
+//
 // - /register/aceitar-termos:
-//   rota autenticada de aceite explícito antes da conclusão do perfil social.
+//   rota autenticada de aceite explícito antes da conclusão do perfil.
 //
 // - /register/finalizar-cadastro:
 //   rota autenticada de conclusão do perfil.
 //
 // Separação:
 // - emailVerified controla a confiança mínima da conta.
+// - accountRecovery recompõe o documento privado ausente.
 // - acceptedTerms controla o aceite legal explícito quando pendente.
 // - profileCompleted controla a conclusão do perfil mínimo.
 
@@ -91,6 +95,10 @@ function isRegisterWelcomePath(url: string): boolean {
   );
 }
 
+function isRegisterRecoveryPath(url: string): boolean {
+  return cleanUrl(url) === '/register/recuperar-conta';
+}
+
 function isRegisterTermsPath(url: string): boolean {
   return cleanUrl(url) === '/register/aceitar-termos';
 }
@@ -111,6 +119,7 @@ function decideGuestAccess$(
   const notify = inject(ErrorNotificationService);
 
   const tryingWelcome = isRegisterWelcomePath(attemptedUrl);
+  const tryingRecovery = isRegisterRecoveryPath(attemptedUrl);
   const tryingTerms = isRegisterTermsPath(attemptedUrl);
   const tryingFinalize = isRegisterFinalizePath(attemptedUrl);
 
@@ -152,6 +161,7 @@ function decideGuestAccess$(
         'profileCompleted:', profileCompleted,
         'emailVerified:', emailVerified,
         'tryingWelcome:', tryingWelcome,
+        'tryingRecovery:', tryingRecovery,
         'tryingTerms:', tryingTerms,
         'tryingFinalize:', tryingFinalize,
         'redirectTo:', redirectTo
@@ -161,7 +171,7 @@ function decideGuestAccess$(
       // VISITANTE
       // -----------------------------------------------------------------------
       if (!authUid) {
-        if (tryingWelcome || tryingTerms || tryingFinalize) {
+        if (tryingWelcome || tryingRecovery || tryingTerms || tryingFinalize) {
           return buildRedirectTree(router, '/register');
         }
 
@@ -191,10 +201,10 @@ function decideGuestAccess$(
       }
 
       /**
-       * A etapa de termos precisa ocorrer antes da finalização do perfil social.
-       * O registrationStepGuard confirma se ela é realmente a etapa atual.
+       * Recuperação e termos antecedem a regra de perfil incompleto.
+       * O registrationStepGuard confirma se cada rota é a etapa canônica atual.
        */
-      if (tryingTerms) {
+      if (tryingRecovery || tryingTerms) {
         return true;
       }
 
