@@ -100,6 +100,7 @@ const routes: Routes = [
         redirectTo: 'dashboard/perfis-sugeridos',
         pathMatch: 'full',
       },
+
       {
         path: 'register',
         loadChildren: () => import('./register-module/register.module').then(m => m.RegisterModule),
@@ -107,7 +108,12 @@ const routes: Routes = [
         canActivate: [guestOnlyCanActivate],
         data: {
           allowUnverified: true,
-          guestAllowAuthenticatedPaths: ['welcome', 'verify', 'finalizar-cadastro'],
+          guestAllowAuthenticatedPaths: [
+            'welcome',
+            'verify',
+            'aceitar-termos',
+            'finalizar-cadastro',
+          ],
         },
       },
 
