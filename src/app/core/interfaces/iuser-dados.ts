@@ -22,6 +22,15 @@ export interface IUserAdultConsent {
   source?: string | null;
 }
 
+export interface IUserTermsAcceptance {
+  accepted: boolean;
+  date: number | null;
+  version?: string | null;
+  acceptedAt?: number | null;
+  updatedAt?: number | null;
+  source?: string | null;
+}
+
 export interface IUserDados {
   uid: string;
   nickname?: string | null;
@@ -64,6 +73,7 @@ export interface IUserDados {
   // Compliance
   // ---------------------------------------------------------------------------
   adultConsent?: IUserAdultConsent | null;
+  acceptedTerms?: IUserTermsAcceptance | null;
 
   // ---------------------------------------------------------------------------
   // Perfil
@@ -113,7 +123,6 @@ export interface IUserDados {
   singleRoomCreationRightExpires?: number | null;
   roomCreationSubscriptionExpires?: number | null;
 
-  acceptedTerms?: { accepted: boolean; date: number | null };
   nicknameHistory?: Array<{ nickname: string; date: number | null }>;
   socialLinks?: IUserSocialLinks;
   profileCompleted?: boolean;
