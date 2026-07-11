@@ -1,5 +1,5 @@
 // src/app/core/interfaces/iuser-registration-data.ts
-import { IUserDados } from "./iuser-dados";
+import { IUserDados, IUserTermsAcceptance } from './iuser-dados';
 
 export interface IUserRegistrationData {
   uid?: string;                 // preenchido depois do registro, se precisar
@@ -26,10 +26,7 @@ export interface IUserRegistrationData {
   gender?: string;
   orientation?: string;
 
-  acceptedTerms: {
-    accepted: boolean;
-    date: number | null;        // ex.: Date.now()
-  };
+  acceptedTerms: IUserTermsAcceptance;
 
   profileCompleted?: boolean;
 }
