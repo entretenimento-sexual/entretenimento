@@ -106,29 +106,25 @@ export class VideoUploadFlowService {
       let commitStarted = false;
       let completed = false;
       let cleanupChain = Promise.resolve();
-      let videoUploaded = false;
-      let posterUploaded = false;
+      let videoUploadStarted = false;
+      let posterUploadStarted = false;
 
       const scheduleCleanup = (): Promise<void> => {
         cleanupChain = cleanupChain.then(async () => {
-          const cleanupTasks: Promise<unknown>[] = [];
+          const cleanupTasks: Promise<void>[] = [];
 
-          if (posterUploaded && posterPath) {
+          if (posterUploadStarted && posterPath) {
             cleanupTasks.push(
-              deleteObject(ref(this.storage, posterPath)).catch((error) => {
-                this.reportCleanupError(error, 'poster');
-              })
+              this.deleteBinaryBestEffort(posterPath, 'poster')
             );
-            posterUploaded = false;
+            posterUploadStarted = false;
           }
 
-          if (videoUploaded) {
+          if (videoUploadStarted) {
             cleanupTasks.push(
-              deleteObject(ref(this.storage, videoPath)).catch((error) => {
-                this.reportCleanupError(error, 'video');
-              })
+              this.deleteBinaryBestEffort(videoPath, 'video')
             );
-            videoUploaded = false;
+            videoUploadStarted = false;
           }
 
           await Promise.all(cleanupTasks);
@@ -153,6 +149,7 @@ export class VideoUploadFlowService {
           assertNotCancelled();
 
           observer.next({ type: 'progress', phase: 'preparing', progress: 6 });
+          videoUploadStarted = true;
 
           const videoBinary = await this.uploadBinary(
             videoPath,
@@ -170,13 +167,13 @@ export class VideoUploadFlowService {
             }
           );
           activeTask = null;
-          videoUploaded = true;
           assertNotCancelled();
 
           let posterBinary: UploadedBinary | null = null;
 
           if (metadata.posterBlob && metadata.posterMimeType) {
             posterPath = this.buildPosterPath(ownerUid, videoId);
+            posterUploadStarted = true;
             posterBinary = await this.uploadBinary(
               posterPath,
               metadata.posterBlob,
@@ -193,7 +190,6 @@ export class VideoUploadFlowService {
               }
             );
             activeTask = null;
-            posterUploaded = true;
             assertNotCancelled();
           }
 
@@ -320,6 +316,28 @@ export class VideoUploadFlowService {
         }
       );
     });
+  }
+
+  private deleteBinaryBestEffort(
+    storagePath: string,
+    assetKind: 'video' | 'poster'
+  ): Promise<void> {
+    return deleteObject(ref(this.storage, storagePath)).catch((error) => {
+      if (this.isObjectNotFoundError(error)) {
+        return;
+      }
+
+      this.reportCleanupError(error, assetKind);
+    });
+  }
+
+  private isObjectNotFoundError(error: unknown): boolean {
+    if (typeof error !== 'object' || error === null || !('code' in error)) {
+      return false;
+    }
+
+    return String((error as { code?: unknown }).code ?? '') ===
+      'storage/object-not-found';
   }
 
   private requireOwnedUid(ownerUid: string): string {
