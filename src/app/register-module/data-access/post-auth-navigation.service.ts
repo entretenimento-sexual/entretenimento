@@ -60,6 +60,17 @@ export class PostAuthNavigationService {
       return of(this.withRedirectTo('/register/welcome?autocheck=1', safeRedirectTo));
     }
 
+    /**
+     * O Firebase Auth já concluiu, mas a camada de perfil precisa confirmar ou
+     * reconstruir users/{uid}. Não aguardamos o timeout do store para abrir a
+     * etapa idempotente de recuperação.
+     */
+    if (result.nextRoute === '/register/recuperar-conta') {
+      return of(
+        this.withRedirectTo('/register/recuperar-conta', safeRedirectTo)
+      );
+    }
+
     return this.resolveFromRegisterFlow$(
       result.user,
       safeRedirectTo,
@@ -183,6 +194,10 @@ export class PostAuthNavigationService {
 
     if (result.emailVerified !== true) {
       return this.withRedirectTo('/register/welcome?autocheck=1', redirectTo);
+    }
+
+    if (result.nextRoute === '/register/recuperar-conta') {
+      return this.withRedirectTo('/register/recuperar-conta', redirectTo);
     }
 
     if (!hasAcceptedCurrentTerms(result.user?.acceptedTerms)) {
