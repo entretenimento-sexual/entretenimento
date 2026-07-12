@@ -50,7 +50,6 @@ const MAX_PUBLISHED_POSTER_BYTES = 10 * 1024 * 1024;
 const ALLOWED_VIDEO_CONTENT_TYPES = new Set([
   'video/mp4',
   'video/webm',
-  'video/quicktime',
 ]);
 const ALLOWED_POSTER_CONTENT_TYPES = new Set([
   'image/jpeg',
@@ -203,7 +202,9 @@ export async function copyPrivateVideoToPublishedAsset(
   const videoContentType = String(videoMetadata.contentType ?? '').toLowerCase();
 
   if (!ALLOWED_VIDEO_CONTENT_TYPES.has(videoContentType)) {
-    throw new Error('O arquivo privado não é um vídeo suportado.');
+    throw new Error(
+      'A publicação pública aceita somente vídeos MP4 ou WebM.'
+    );
   }
 
   const sizeBytes = resolveValidatedSize(
