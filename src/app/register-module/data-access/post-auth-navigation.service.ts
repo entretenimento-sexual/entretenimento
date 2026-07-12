@@ -38,6 +38,17 @@ export class PostAuthNavigationService {
       return of(this.withRedirectTo('/register/welcome?autocheck=1', safeRedirectTo));
     }
 
+    /**
+     * O Firebase Auth já concluiu, mas users/{uid} não foi resolvido por falha ou
+     * timeout. A etapa idempotente confirma o documento existente ou reconstrói
+     * apenas o seed ausente, sem tratar isso como nova falha de autenticação.
+     */
+    if (result.profileResolution !== 'resolved') {
+      return of(
+        this.withRedirectTo('/register/recuperar-conta', safeRedirectTo)
+      );
+    }
+
     return this.resolveFromRegisterFlow$(
       result.user,
       safeRedirectTo,
@@ -164,7 +175,7 @@ export class PostAuthNavigationService {
     }
 
     if (result.profileResolution !== 'resolved') {
-      return this.withRedirectTo('/register/welcome?autocheck=1', redirectTo);
+      return this.withRedirectTo('/register/recuperar-conta', redirectTo);
     }
 
     if (!hasAcceptedCurrentTerms(result.user?.acceptedTerms)) {
