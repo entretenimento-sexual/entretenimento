@@ -4,9 +4,9 @@
 //
 // Decisão de produto:
 // - vídeo começa como biblioteca privada do usuário;
-// - publicação pública fica bloqueada até existir moderação/derivados/custos;
+// - publicação cria cópia física e projeção pública separadas;
 // - uid continua sendo o identificador canônico do usuário;
-// - este contrato evita expor Storage path bruto em telas públicas.
+// - paths privados nunca entram em contratos de exibição pública.
 // -----------------------------------------------------------------------------
 
 export type VideoProcessingStatus =
@@ -25,6 +25,7 @@ export interface IVideoItem {
   readonly sizeBytes?: number | null;
   readonly durationMs?: number | null;
   readonly thumbnailUrl?: string | null;
+  readonly thumbnailPath?: string | null;
   readonly status: VideoProcessingStatus;
   readonly createdAt: number;
   readonly updatedAt?: number | null;
@@ -39,4 +40,5 @@ export interface IPrivateVideoMetadataInput {
   readonly sizeBytes: number;
   readonly durationMs?: number | null;
   readonly thumbnailUrl?: string | null;
+  readonly thumbnailPath?: string | null;
 }
