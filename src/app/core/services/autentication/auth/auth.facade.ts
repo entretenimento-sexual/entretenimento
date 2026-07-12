@@ -26,18 +26,26 @@ import { BehaviorSubject, Observable, of } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import type { UserCredential } from 'firebase/auth';
 
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
+import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { RegisterService } from '../register/register.service';
 import {
   EmailVerificationService,
   VerifyEmailResult,
 } from '../register/email-verification.service';
-import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { LogoutService } from './logout.service';
+import { AuthSessionService } from './auth-session.service';
 import {
   SocialAuthService,
   SocialAuthResult,
 } from '../social-auth.service';
 import { hasAcceptedCurrentTerms } from '../../compliance/terms-acceptance.service';
+
+const RECOVERABLE_SOCIAL_AUTH_CODES = new Set([
+  'social-auth/bootstrap-failed',
+  'social-auth/new-user-write-failed',
+  'social-auth/existing-user-update-failed',
+]);
 
 export interface RegisterFacadeResult {
   success: boolean;
@@ -51,6 +59,7 @@ export type AuthFacadeSocialAuthResult = Omit<SocialAuthResult, 'nextRoute'> & {
   nextRoute:
     | SocialAuthResult['nextRoute']
     | '/register/welcome'
+    | '/register/recuperar-conta'
     | '/register/aceitar-termos';
 };
 
@@ -70,6 +79,7 @@ export class AuthFacade {
     private readonly emailVerification: EmailVerificationService,
     private readonly logoutService: LogoutService,
     private readonly socialAuthService: SocialAuthService,
+    private readonly authSession: AuthSessionService,
   ) {}
 
   // ===========================================================================
@@ -87,7 +97,21 @@ export class AuthFacade {
   private normalizeSocialAuthResult(
     result: SocialAuthResult
   ): AuthFacadeSocialAuthResult {
+    const recoveredSession = this.recoverAuthenticatedSocialFailure(result);
+
+    if (recoveredSession) {
+      return recoveredSession;
+    }
+
     if (!result?.success) {
+      return result as AuthFacadeSocialAuthResult;
+    }
+
+    /**
+     * Quando o Firebase Auth concluiu, mas o documento do app precisa ser
+     * recuperado, essa etapa vem antes de termos e conclusão de perfil.
+     */
+    if (result.nextRoute === '/register/recuperar-conta') {
       return result as AuthFacadeSocialAuthResult;
     }
 
@@ -116,6 +140,70 @@ export class AuthFacade {
     }
 
     return result as AuthFacadeSocialAuthResult;
+  }
+
+  /**
+   * O popup do Google pode autenticar com sucesso e, depois disso, uma leitura
+   * ou atualização secundária do perfil pode falhar. Nessa situação não devemos
+   * informar que o login falhou, porque já existe uma sessão válida no Auth.
+   *
+   * A recuperação usa a rota canônica e a Cloud Function idempotente. O objeto
+   * abaixo é somente um estado transitório para navegação; não é gravado como
+   * perfil e não substitui o CurrentUserStoreService.
+   */
+  private recoverAuthenticatedSocialFailure(
+    result: SocialAuthResult
+  ): AuthFacadeSocialAuthResult | null {
+    if (result?.success) {
+      return null;
+    }
+
+    const originalCode = String(result?.code ?? '').trim();
+
+    if (!RECOVERABLE_SOCIAL_AUTH_CODES.has(originalCode)) {
+      return null;
+    }
+
+    const authUser = this.authSession.currentAuthUser;
+    const uid = String(authUser?.uid ?? '').trim();
+
+    if (!authUser || !uid) {
+      return null;
+    }
+
+    const nowMs = Date.now();
+    const transientUser = {
+      uid,
+      email: authUser.email ?? '',
+      emailVerified: authUser.emailVerified === true,
+      nickname: null,
+      photoURL: authUser.photoURL ?? null,
+      role: 'free',
+      tier: 'free',
+      isSubscriber: false,
+      profileCompleted: false,
+      acceptedTerms: {
+        accepted: false,
+        date: nowMs,
+      },
+      firstLogin: nowMs,
+      lastLogin: nowMs,
+      accountStatus: 'active',
+      suspended: false,
+      accountLocked: false,
+    } as IUserDados;
+
+    return {
+      success: true,
+      outcome: 'profile-incomplete',
+      isNewUser: originalCode === 'social-auth/new-user-write-failed',
+      emailVerified: transientUser.emailVerified === true,
+      user: transientUser,
+      nextRoute: '/register/recuperar-conta',
+      code: 'social-auth/session-recovery-required',
+      message:
+        'Login com Google concluído. Vamos confirmar os dados básicos da sua conta.',
+    };
   }
 
   // ===========================================================================
