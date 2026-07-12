@@ -21,8 +21,8 @@
 //   não a este effect.
 //
 // Ajuste desta versão:
-// - manter a regra: sessão válida => loginSuccess
-// - respeitar profileResolution apenas como observabilidade
+// - manter a regra: sessão válida => sucesso de sessão
+// - não materializar no UserStore um perfil mínimo ainda não confirmado
 // - NÃO tratar profileResolution='unknown' como loginFailure
 // - NÃO decidir onboarding/perfil aqui
 // =============================================================================
@@ -46,6 +46,7 @@ import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registratio
 import {
   login,
   loginFailure,
+  loginSessionReady,
   loginSuccess,
   register,
   registerFailure,
@@ -142,7 +143,8 @@ export class AuthEffects {
   // - success=true  => sessão existe
   //
   // Ajuste:
-  // - profileResolution serve apenas para debug/observabilidade
+  // - perfil resolvido pode alimentar loginSuccess
+  // - perfil desconhecido/transitório encerra o loading com loginSessionReady
   // - onboarding e gating continuam fora deste effect
   // ---------------------------------------------------------------------------
   login$ = createEffect(() =>
@@ -172,23 +174,35 @@ export class AuthEffects {
               return loginFailure({ error: message });
             }
 
-            // ---------------------------------------------------------------
-            // Sucesso real de autenticação
-            //
-            // SUPRESSÃO EXPLÍCITA:
-            // - não usamos needsProfileCompletion para decidir nada aqui
-            //
-            // Motivo:
-            // - profile/onboarding pode estar "unknown" no fallback do Auth
-            // - a decisão final pertence ao fluxo canônico de sessão
-            // ---------------------------------------------------------------
+            const profileConfirmed =
+              response.profileResolution === 'resolved' &&
+              typeof response.user.profileCompleted === 'boolean';
+
             this.dbg('login:success', {
               uid: response.user.uid,
               emailVerified: response.emailVerified === true,
               profileResolution: response.profileResolution ?? 'unknown',
+              profileConfirmed,
               hasNeedsProfileCompletion:
                 typeof response.needsProfileCompletion === 'boolean',
             });
+
+            /**
+             * SUPRESSÃO EXPLÍCITA:
+             * - não enviamos o fallback mínimo do Auth para loginSuccess quando
+             *   users/{uid} ainda não foi confirmado.
+             *
+             * Motivo:
+             * - loginSuccess é consumido pelo UserReducer legado e materializa o
+             *   objeto recebido como currentUser hidratado;
+             * - isso poderia expor temporariamente apelido inferido, tier default
+             *   ou profileCompleted não resolvido;
+             * - a sessão continua válida e é refletida por authSessionChanged;
+             * - a hidratação real continua em UserEffects/CurrentUserStoreService.
+             */
+            if (!profileConfirmed) {
+              return loginSessionReady();
+            }
 
             return loginSuccess({ user: response.user });
           }),
