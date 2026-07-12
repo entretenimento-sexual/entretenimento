@@ -2,9 +2,9 @@
 // USERS / videos
 // - Biblioteca privada de vídeos do usuário
 // - Somente o dono lê/escreve
-// - Sem publicação pública nesta etapa
+// - Sem publicação pública direta
 // - Sem enumeração por terceiros
-// - Metadados críticos protegidos contra forja pelo client
+// - Publicação usa projeção e ativo físico separados pelo backend
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // firestore-rules/users_videos.rules
 // ===============================================================
@@ -21,6 +21,7 @@ match /users/{userId}/videos/{videoId} {
       "sizeBytes",
       "durationMs",
       "thumbnailUrl",
+      "thumbnailPath",
       "status",
       "createdAt",
       "updatedAt"
@@ -82,6 +83,23 @@ match /users/{userId}/videos/{videoId} {
     ];
   }
 
+  function validOwnedVideoPath() {
+    return request.resource.data.path.matches(
+      "^users/" + userId + "/uploads/videos/[^/]+$"
+    );
+  }
+
+  function validOwnedPosterPath() {
+    return !hasReqField("thumbnailPath")
+      || request.resource.data.thumbnailPath == null
+      || (
+        request.resource.data.thumbnailPath is string
+        && request.resource.data.thumbnailPath.matches(
+          "^users/" + userId + "/uploads/images/[^/]+$"
+        )
+      );
+  }
+
   function validBasePayload() {
     return allowedKeys()
       && requiredKeys()
@@ -89,6 +107,7 @@ match /users/{userId}/videos/{videoId} {
       && request.resource.data.ownerUid == userId
       && validText("url", 2048)
       && validText("path", 1024)
+      && validOwnedVideoPath()
       && validText("fileName", 240)
       && validMimeType()
       && request.resource.data.sizeBytes is number
@@ -96,6 +115,7 @@ match /users/{userId}/videos/{videoId} {
       && request.resource.data.sizeBytes <= 524288000
       && validNumberOrNull("durationMs")
       && validTextOrNull("thumbnailUrl", 2048)
+      && validOwnedPosterPath()
       && validStatus();
   }
 
@@ -121,6 +141,7 @@ match /users/{userId}/videos/{videoId} {
         "status",
         "durationMs",
         "thumbnailUrl",
+        "thumbnailPath",
         "updatedAt"
       ]);
   }
