@@ -1,5 +1,3 @@
-/* src/app/media/videos/profile-videos/profile-videos.component.css */
-
 :host {
   display: block;
   min-width: 0;
@@ -7,36 +5,80 @@
 
 .profile-videos {
   display: grid;
-  gap: clamp(12px, 2vw, 20px);
+  gap: clamp(16px, 2.4vw, 28px);
   width: min(100%, var(--content-wide, 1180px));
   margin-inline: auto;
+  padding: clamp(12px, 2vw, 24px);
 }
 
 .profile-videos__header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 12px;
+  gap: 18px;
+  padding: clamp(16px, 2vw, 24px);
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 22px;
+  background:
+    radial-gradient(
+      circle at 8% 10%,
+      color-mix(in oklab, var(--primary-color, #ff6b6b) 12%, transparent),
+      transparent 36%
+    ),
+    var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
+}
+
+.profile-videos__header > div {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.profile-videos__eyebrow {
+  color: var(--primary-color, #ff6b6b);
+  font-size: 0.76rem;
+  font-weight: 860;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.profile-videos__header h1,
+.profile-videos__header p {
+  margin: 0;
 }
 
 .profile-videos__header h1 {
-  margin: 0;
   color: var(--text-color, #f5f7fb);
-  font-size: clamp(1.2rem, 2.2vw, 1.7rem);
-  line-height: 1.1;
+  font-size: clamp(1.45rem, 1.15rem + 1.15vw, 2.15rem);
+  line-height: 1.08;
+  letter-spacing: -0.025em;
+}
+
+.profile-videos__header p {
+  max-width: 68ch;
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 72%,
+    transparent
+  );
+  font-size: 0.94rem;
+  line-height: 1.48;
 }
 
 .profile-videos__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
-  gap: clamp(12px, 1.8vw, 20px);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
+  gap: clamp(14px, 1.8vw, 22px);
+  align-items: start;
 }
 
 .profile-videos__card,
 .profile-videos__empty {
   min-width: 0;
-  border: 1px solid var(--surface-border, rgba(255, 255, 255, 0.12));
-  border-radius: 18px;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 20px;
   background: var(--surface-color, #101923);
   color: var(--text-color, #f5f7fb);
   box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
@@ -47,44 +89,282 @@
 }
 
 .profile-videos__media {
+  position: relative;
   aspect-ratio: 16 / 9;
+  overflow: hidden;
   background: #05070d;
 }
 
 .profile-videos__media video {
+  display: block;
   width: 100%;
   height: 100%;
-  display: block;
-  object-fit: cover;
+  object-fit: contain;
+  background: #000;
 }
 
-.profile-videos__body,
+.profile-videos__media video:focus-visible {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: -3px;
+}
+
+.profile-videos__body {
+  display: grid;
+  gap: 12px;
+  padding: 15px;
+}
+
+.profile-videos__title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.profile-videos__title-row strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.98rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-videos__publication-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 4px 9px;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, rgb(255 255 255 / 12%)) 86%,
+    transparent
+  );
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 88%,
+    var(--text-color, #f5f7fb) 6%
+  );
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 74%,
+    transparent
+  );
+  font-size: 0.72rem;
+  font-weight: 820;
+  white-space: nowrap;
+}
+
+.profile-videos__publication-chip--published {
+  border-color: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 42%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+  background: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 14%,
+    transparent
+  );
+  color: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 80%,
+    var(--text-color, #f5f7fb)
+  );
+}
+
+.profile-videos__publication-chip--pending {
+  border-color: color-mix(
+    in oklab,
+    var(--warning-color, #f5c451) 42%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+  background: color-mix(
+    in oklab,
+    var(--warning-color, #f5c451) 14%,
+    transparent
+  );
+  color: color-mix(
+    in oklab,
+    var(--warning-color, #f5c451) 84%,
+    var(--text-color, #f5f7fb)
+  );
+}
+
+.profile-videos__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.profile-videos__meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 88%,
+    var(--text-color, #f5f7fb) 6%
+  );
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 66%,
+    transparent
+  );
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.profile-videos__helper {
+  margin: 0;
+  padding: 10px 11px;
+  border-left: 3px solid var(--primary-color, #ff6b6b);
+  border-radius: 10px;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 9%,
+    transparent
+  );
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 78%,
+    transparent
+  );
+  font-size: 0.82rem;
+  line-height: 1.42;
+}
+
+.profile-videos__helper--error {
+  border-left-color: var(--error-color, #ff6b6b);
+  background: color-mix(
+    in oklab,
+    var(--error-color, #ff6b6b) 12%,
+    transparent
+  );
+}
+
+.profile-videos__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding-top: 2px;
+}
+
+.profile-videos__actions .app-action {
+  min-height: 44px;
+  flex: 1 1 180px;
+}
+
 .profile-videos__empty {
   display: grid;
-  gap: 6px;
-  padding: 14px;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  padding: clamp(18px, 2.2vw, 26px);
 }
 
-.profile-videos__body strong,
+.profile-videos__empty > i {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: color-mix(
+    in oklab,
+    var(--primary-color, #ff6b6b) 13%,
+    transparent
+  );
+  color: var(--primary-color, #ff6b6b);
+  font-size: 1.25rem;
+}
+
+.profile-videos__empty > div {
+  display: grid;
+  gap: 5px;
+}
+
 .profile-videos__empty strong {
   color: var(--text-color, #f5f7fb);
-  font-size: 0.95rem;
+  font-size: 1rem;
 }
 
-.profile-videos__body span,
 .profile-videos__empty span {
-  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
-  font-size: 0.84rem;
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 68%,
+    transparent
+  );
+  font-size: 0.86rem;
+  line-height: 1.42;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 700px) {
   .profile-videos {
-    gap: 12px;
+    gap: 14px;
+    padding: 10px;
   }
 
+  .profile-videos__header,
   .profile-videos__card,
   .profile-videos__empty {
     border-radius: 16px;
     box-shadow: none;
   }
+
+  .profile-videos__header {
+    padding: 16px;
+  }
+
+  .profile-videos__grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .profile-videos__body {
+    padding: 13px;
+  }
+
+  .profile-videos__actions .app-action {
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 390px) {
+  .profile-videos__title-row {
+    display: grid;
+  }
+
+  .profile-videos__publication-chip {
+    justify-self: start;
+  }
+
+  .profile-videos__empty {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-videos__card,
+  .profile-videos__media video {
+    transition: none;
+  }
+}
+
+html.high-contrast .profile-videos__header,
+html.high-contrast .profile-videos__card,
+html.high-contrast .profile-videos__empty,
+html.high-contrast .profile-videos__publication-chip,
+html.high-contrast .profile-videos__meta span,
+html.high-contrast .profile-videos__helper {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: none !important;
 }
