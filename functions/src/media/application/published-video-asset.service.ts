@@ -33,7 +33,6 @@ interface PublishedVideoAssetResult {
   videoStoragePath: string;
   posterStoragePath: string | null;
   videoContentType: string;
-  posterContentType: string | null;
   sizeBytes: number;
 }
 
@@ -84,6 +83,27 @@ function resolveValidatedSize(value: unknown, maxBytes: number): number {
   }
 
   return sizeBytes;
+}
+
+function normalizePublishedAssetPath(
+  ownerUid: string,
+  videoId: string,
+  storagePath: unknown,
+  assetKind: 'video' | 'poster'
+): string | null {
+  if (assetKind === 'video') {
+    return normalizeOwnedPublishedVideoPath(
+      ownerUid,
+      videoId,
+      storagePath
+    );
+  }
+
+  return normalizeOwnedPublishedVideoPosterPath(
+    ownerUid,
+    videoId,
+    storagePath
+  );
 }
 
 async function enqueuePublishedVideoAssetCleanup(
@@ -147,13 +167,20 @@ async function copyPosterIfAvailable(
   );
   const destinationPoster = bucket.file(destinationPath);
 
-  await sourcePoster.copy(destinationPoster, {
-    metadata: {
-      contentType: posterContentType,
-      contentDisposition: 'inline',
-      cacheControl: 'private, max-age=0, no-store, no-transform',
-    },
-  });
+  try {
+    await sourcePoster.copy(destinationPoster, {
+      metadata: {
+        contentType: posterContentType,
+        contentDisposition: 'inline',
+        cacheControl: 'private, max-age=0, no-store, no-transform',
+      },
+    });
+  } catch (error) {
+    await destinationPoster
+      .delete({ ignoreNotFound: true })
+      .catch(() => undefined);
+    throw error;
+  }
 
   return {
     storagePath: destinationPath,
@@ -191,7 +218,6 @@ export async function copyPrivateVideoToPublishedAsset(
   );
   const destinationVideo = bucket.file(videoStoragePath);
   let posterStoragePath: string | null = null;
-  let posterContentType: string | null = null;
 
   try {
     await sourceVideo.copy(destinationVideo, {
@@ -204,26 +230,28 @@ export async function copyPrivateVideoToPublishedAsset(
 
     const poster = await copyPosterIfAvailable(command, assetVersion);
     posterStoragePath = poster?.storagePath ?? null;
-    posterContentType = poster?.contentType ?? null;
 
     return {
       videoStoragePath,
       posterStoragePath,
       videoContentType,
-      posterContentType,
       sizeBytes,
     };
   } catch (error) {
-    await Promise.all([
+    const cleanupTasks: Promise<unknown>[] = [
       destinationVideo.delete({ ignoreNotFound: true }).catch(() => undefined),
-      posterStoragePath
-        ? bucket
+    ];
+
+    if (posterStoragePath) {
+      cleanupTasks.push(
+        bucket
           .file(posterStoragePath)
           .delete({ ignoreNotFound: true })
           .catch(() => undefined)
-        : Promise.resolve(),
-    ]);
+      );
+    }
 
+    await Promise.all(cleanupTasks);
     throw error;
   }
 }
@@ -231,17 +259,12 @@ export async function copyPrivateVideoToPublishedAsset(
 export async function deletePublishedVideoAssetOrQueue(
   command: DeletePublishedVideoAssetCommand
 ): Promise<boolean> {
-  const storagePath = command.assetKind === 'video'
-    ? normalizeOwnedPublishedVideoPath(
-      command.ownerUid,
-      command.videoId,
-      command.storagePath
-    )
-    : normalizeOwnedPublishedVideoPosterPath(
-      command.ownerUid,
-      command.videoId,
-      command.storagePath
-    );
+  const storagePath = normalizePublishedAssetPath(
+    command.ownerUid,
+    command.videoId,
+    command.storagePath,
+    command.assetKind
+  );
 
   if (!storagePath) {
     return true;
@@ -286,17 +309,12 @@ export async function processPendingPublishedVideoAssetCleanupJobs(
 
   for (const jobDoc of jobsSnapshot.docs) {
     const job = jobDoc.data() as PublishedVideoAssetCleanupJob;
-    const storagePath = job.assetKind === 'video'
-      ? normalizeOwnedPublishedVideoPath(
-        job.ownerUid,
-        job.videoId,
-        job.storagePath
-      )
-      : normalizeOwnedPublishedVideoPosterPath(
-        job.ownerUid,
-        job.videoId,
-        job.storagePath
-      );
+    const storagePath = normalizePublishedAssetPath(
+      job.ownerUid,
+      job.videoId,
+      job.storagePath,
+      job.assetKind
+    );
 
     if (!storagePath) {
       logger.error('[publishedVideoAsset] Job de limpeza inválido.', {
