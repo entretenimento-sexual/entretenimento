@@ -46,6 +46,11 @@ interface ProfileViewerAggregate {
   viewsCount: number;
 }
 
+interface LegacyProfileViewerIndex {
+  viewers: Map<string, ProfileViewerAggregate>;
+  mediaUniqueViewersCount: number;
+}
+
 function cleanId(value: unknown): string {
   return String(value ?? '').trim();
 }
@@ -184,7 +189,7 @@ async function countProfileViewers(
 async function collectLegacyProfileViewers(
   ownerUid: string,
   publicProfileRef: FirebaseFirestore.DocumentReference
-): Promise<Map<string, ProfileViewerAggregate>> {
+): Promise<LegacyProfileViewerIndex> {
   const [photoSnapshot, videoSnapshot] = await Promise.all([
     publicProfileRef.collection('public_photos').get(),
     publicProfileRef.collection('public_videos').get(),
@@ -194,56 +199,66 @@ async function collectLegacyProfileViewers(
     ...photoSnapshot.docs.map((document) => document.ref),
     ...videoSnapshot.docs.map((document) => document.ref),
   ];
-
-  const viewerSnapshots = await Promise.all(
-    mediaRefs.map((mediaRef) => mediaRef.collection('views').get())
-  );
-
   const viewers = new Map<string, ProfileViewerAggregate>();
+  let mediaUniqueViewersCount = 0;
+  const readBatchSize = 20;
 
-  viewerSnapshots.forEach((snapshot) => {
-    snapshot.docs.forEach((document) => {
-      const data = document.data() ?? {};
-      const viewerUid = cleanId(data.viewerUid) || document.id;
+  for (let index = 0; index < mediaRefs.length; index += readBatchSize) {
+    const viewerSnapshots = await Promise.all(
+      mediaRefs
+        .slice(index, index + readBatchSize)
+        .map((mediaRef) => mediaRef.collection('views').get())
+    );
 
-      if (!viewerUid || viewerUid === ownerUid) {
-        return;
-      }
+    viewerSnapshots.forEach((snapshot) => {
+      snapshot.docs.forEach((document) => {
+        const data = document.data() ?? {};
+        const viewerUid = cleanId(data.viewerUid) || document.id;
 
-      const firstViewedAt =
-        toEpoch(data.firstViewedAt) ||
-        toEpoch(data.createdAt) ||
-        toEpoch(data.lastViewedAt);
-      const lastViewedAt =
-        toEpoch(data.lastViewedAt) ||
-        toEpoch(data.lastCountedAt) ||
-        firstViewedAt;
-      const viewsCount = Math.max(1, safeInteger(data.viewsCount));
-      const current = viewers.get(viewerUid);
+        if (!viewerUid || viewerUid === ownerUid) {
+          return;
+        }
 
-      if (!current) {
+        mediaUniqueViewersCount += 1;
+
+        const firstViewedAt =
+          toEpoch(data.firstViewedAt) ||
+          toEpoch(data.createdAt) ||
+          toEpoch(data.lastViewedAt);
+        const lastViewedAt =
+          toEpoch(data.lastViewedAt) ||
+          toEpoch(data.lastCountedAt) ||
+          firstViewedAt;
+        const viewsCount = Math.max(1, safeInteger(data.viewsCount));
+        const current = viewers.get(viewerUid);
+
+        if (!current) {
+          viewers.set(viewerUid, {
+            viewerUid,
+            firstViewedAt,
+            lastViewedAt,
+            viewsCount,
+          });
+          return;
+        }
+
         viewers.set(viewerUid, {
           viewerUid,
-          firstViewedAt,
-          lastViewedAt,
-          viewsCount,
+          firstViewedAt:
+            current.firstViewedAt && firstViewedAt
+              ? Math.min(current.firstViewedAt, firstViewedAt)
+              : current.firstViewedAt || firstViewedAt,
+          lastViewedAt: Math.max(current.lastViewedAt, lastViewedAt),
+          viewsCount: current.viewsCount + viewsCount,
         });
-        return;
-      }
-
-      viewers.set(viewerUid, {
-        viewerUid,
-        firstViewedAt:
-          current.firstViewedAt && firstViewedAt
-            ? Math.min(current.firstViewedAt, firstViewedAt)
-            : current.firstViewedAt || firstViewedAt,
-        lastViewedAt: Math.max(current.lastViewedAt, lastViewedAt),
-        viewsCount: current.viewsCount + viewsCount,
       });
     });
-  });
+  }
 
-  return viewers;
+  return {
+    viewers,
+    mediaUniqueViewersCount,
+  };
 }
 
 async function persistProfileViewerIndex(
@@ -262,14 +277,18 @@ async function persistProfileViewerIndex(
         .collection(PROFILE_VIEWERS_COLLECTION)
         .doc(viewer.viewerUid);
 
+      /**
+       * Campos históricos ficam separados dos campos vivos para que uma segunda
+       * execução concorrente do backfill nunca sobrescreva uma view nova.
+       */
       batch.set(
         viewerRef,
         {
           ownerUid,
           viewerUid: viewer.viewerUid,
-          firstViewedAt: viewer.firstViewedAt,
-          lastViewedAt: viewer.lastViewedAt,
-          viewsCount: viewer.viewsCount,
+          historicalFirstViewedAt: viewer.firstViewedAt,
+          historicalLastViewedAt: viewer.lastViewedAt,
+          historicalViewsCount: viewer.viewsCount,
           indexVersion: PROFILE_VIEWER_INDEX_VERSION,
           indexedAt: FieldValue.serverTimestamp(),
         },
@@ -312,7 +331,7 @@ export async function ensurePublicProfileViewerIndex(
     return countProfileViewers(publicProfileRef);
   }
 
-  const legacyViewers = await collectLegacyProfileViewers(
+  const legacyIndex = await collectLegacyProfileViewers(
     safeOwnerUid,
     publicProfileRef
   );
@@ -320,7 +339,7 @@ export async function ensurePublicProfileViewerIndex(
   await persistProfileViewerIndex(
     safeOwnerUid,
     publicProfileRef,
-    legacyViewers
+    legacyIndex.viewers
   );
 
   const indexedCount = await countProfileViewers(publicProfileRef);
@@ -345,10 +364,10 @@ export async function ensurePublicProfileViewerIndex(
       {
         uniqueViewersCount: indexedCount,
         profileUniqueViewersCount: indexedCount,
+        mediaUniqueViewersCount: legacyIndex.mediaUniqueViewersCount,
         profileViewerIndexVersion: PROFILE_VIEWER_INDEX_VERSION,
         profileViewerIndexBackfilledAt: FieldValue.serverTimestamp(),
         mediaMetricsUpdatedAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
