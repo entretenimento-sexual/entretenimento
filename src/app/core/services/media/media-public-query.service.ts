@@ -75,10 +75,9 @@ export class MediaPublicQueryService {
       ),
       catchError((error: unknown) => {
         this.reportError(
-          'Erro ao carregar galeria pública do perfil.',
+          'Não foi possível carregar as fotos deste perfil agora.',
           error,
-          { op: 'getProfilePublicPhotos$', ownerUid: safeOwnerUid },
-          true
+          { op: 'getProfilePublicPhotos$', ownerUid: safeOwnerUid }
         );
         return of([]);
       }),
