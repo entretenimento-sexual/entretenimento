@@ -12,9 +12,8 @@
 //   projeções públicas moderadas e validação backend.
 //
 // Segurança:
-// - A prévia de fotos usa MediaPublicQueryService, que lê apenas
-//   public_profiles/{uid}/public_photos.
-// - O serviço já filtra visibility == PUBLIC e moderationStatus == APPROVED.
+// - A vitrine de mídia é isolada em ProfileMediaShowcaseComponent.
+// - O componente filho consome somente a projeção pública aprovada.
 // - O frontend apenas apresenta dados já considerados públicos/moderados.
 //
 // Monetização:
@@ -33,6 +32,7 @@ import {
   OnInit,
   inject,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterModule } from '@angular/router';
 import { Store } from '@ngrx/store';
 import {
@@ -51,24 +51,21 @@ import {
   distinctUntilChanged,
   finalize,
 } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
-import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { Friend } from 'src/app/core/interfaces/friendship/friend.interface';
 import { FriendRequest } from 'src/app/core/interfaces/friendship/friend-request.interface';
-import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
-import { SharedModule } from '../../shared/shared.module';
-
-import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
-import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
-import { SocialLinksAccordionComponent } from 'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
-import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { AuthSessionService } from 'src/app/core/services/autentication/auth/auth-session.service';
-import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
+import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
 import { DirectChatService } from 'src/app/messaging/direct-chat/services/direct-chat.service';
+import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { FriendshipService } from 'src/app/core/services/interactions/friendship/friendship.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
+import { ProfileMediaShowcaseComponent } from 'src/app/media/shared/components/profile-media-showcase/profile-media-showcase.component';
 import { selectCurrentUser } from 'src/app/store/selectors/selectors.user/user.selectors';
+import { SocialLinksAccordionComponent } from 'src/app/user-profile/user-profile-view/user-social-links-accordion/user-social-links-accordion.component';
+import { SharedModule } from '../../shared/shared.module';
 
 interface ProfileSignalItem {
   icon: string;
@@ -103,6 +100,7 @@ interface FriendshipInteractionState {
     CommonModule,
     RouterModule,
     SharedModule,
+    ProfileMediaShowcaseComponent,
     SocialLinksAccordionComponent,
   ],
 })
@@ -110,55 +108,10 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
   private readonly destroyRef = inject(DestroyRef);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
   private readonly store = inject(Store);
-  private readonly mediaPublicQuery = inject(MediaPublicQueryService);
-
   private readonly viewedProfileUid$ = new BehaviorSubject<string | null>(null);
 
-  /**
-   * Estado reativo do visitante logado.
-   *
-   * Uso:
-   * - melhora a experiência visual conforme plano/role do visitante;
-   * - não autoriza acesso sensível sozinho;
-   * - segurança real continua no backend/rules.
-   */
   readonly viewerAccess$ = this.store.select(selectCurrentUser).pipe(
     map((viewer) => this.buildViewerAccess(viewer)),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
-
-  /**
-   * Prévia real da galeria pública.
-   *
-   * Segurança:
-   * - não acessa coleção privada;
-   * - usa serviço de projeção pública;
-   * - limita a 4 itens para manter performance e visual limpo.
-   */
-  readonly publicPhotoPreview$ = this.viewedProfileUid$.pipe(
-    map((uid) => (uid ?? '').trim()),
-    distinctUntilChanged(),
-    switchMap((uid) => {
-      if (!uid) {
-        return of([] as IPublicPhotoItem[]);
-      }
-
-      return this.mediaPublicQuery.getProfilePublicPhotos$(uid).pipe(
-        map((photos) => photos.slice(0, 4)),
-        catchError((error) => {
-          this.reportError(
-            'Não foi possível carregar a prévia da galeria.',
-            {
-              op: 'publicPhotoPreview$',
-              hasUid: !!uid,
-            },
-            error
-          );
-
-          return of([] as IPublicPhotoItem[]);
-        })
-      );
-    }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -166,7 +119,6 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
 
   uid: string | null = null;
   userProfile: IUserDados | null = null;
-
   isLoading = true;
 
   readonly friendRequestBusy$ = new BehaviorSubject<boolean>(false);
@@ -258,10 +210,6 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
     return ['/dashboard/explorar'];
   }
 
-  get photosLink(): any[] | null {
-    return this.uid ? ['/media', 'perfil', this.uid, 'fotos-publicas'] : null;
-  }
-
   get subscriptionLink(): any[] {
     return ['/subscription-plan'];
   }
@@ -277,12 +225,6 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       .slice(0, 8);
   }
 
-  /**
-   * Indica que o dono do perfil tem algum nível de acesso pago/elevado.
-   *
-   * Não libera dado sensível.
-   * Serve apenas para sinal visual discreto de destaque.
-   */
   get ownerIsSubscriber(): boolean {
     return this.hasElevatedAccess(this.userProfile);
   }
@@ -350,10 +292,6 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       this.activitySignal,
       this.locationSignal,
     ];
-  }
-
-  trackPhotoById(_index: number, photo: IPublicPhotoItem): string {
-    return photo.id;
   }
 
   loadUserProfile(uid: string): void {
@@ -741,8 +679,4 @@ export class OtherUserProfileViewComponent implements OnInit, OnDestroy {
       // noop
     }
   }
-} // Fim de OtherUserProfileViewComponent, que é responsável por exibir o perfil de outro usuário, priorizando dados públicos e mantendo a segurança real no backend.
-// O componente é projetado para ser seguro por design, evitando acesso a dados privados e confiando em serviços de projeção pública e regras de segurança do Firestore para proteger informações sensíveis. Ele também inclui tratamento de erros robusto para garantir que falhas sejam registradas e notificadas adequadamente, sem expor detalhes técnicos ao usuário final.
-// O teste associado, OtherUserProfileViewComponent.spec.ts, é um teste mínimo que verifica a criação do componente e a navegação correta quando o perfil do próprio usuário é acessado. Ele utiliza mocks para os serviços injetados e garante que o componente se comporte conforme esperado sem depender de implementações reais desses serviços, mantendo o teste isolado e focado no comportamento do componente.
-// O teste é projetado para ser mínimo e focado, garantindo que o componente seja criado corretamente e que a navegação funcione como esperado quando o perfil do próprio usuário é acessado. Ele utiliza mocks para os serviços injetados, evitando dependências reais de Firebase/Firestore/Functions durante o teste, o que torna o teste mais rápido e confiável. O teste também corrige a ausência de imports de describe/beforeEach/it/expect no Vitest e inclui os providers necessários para o standalone component.
-// line 621
+}
