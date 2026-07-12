@@ -155,6 +155,34 @@ describe('ExploreFeedService', () => {
     );
   });
 
+  it('deve solicitar a próxima página quando ainda não completou seis perfis', async () => {
+    store.setState({
+      discoveryFeeds: {
+        byQuery: {
+          [queryKey]: {
+            ...emptyDiscoveryFeedSlice,
+            items: compatibleCards.slice(0, 2),
+            nextCursor: {
+              updatedAtMs: 1_699_999_999_999,
+              uid: 'candidate-2',
+            },
+            reachedEnd: false,
+            lastServerSyncAt: 1_700_000_000_000,
+          },
+        },
+      },
+    } as any);
+
+    vi.mocked(store.dispatch).mockClear();
+
+    const profiles = await firstValueFrom(service.compatibleProfiles$);
+
+    expect(profiles).toHaveLength(2);
+    expect(store.dispatch).toHaveBeenCalledWith(
+      DiscoveryActions.loadDiscoveryNextPage({ request })
+    );
+  });
+
   it('não deve consultar todos os perfis para montar compatibilidade', async () => {
     await firstValueFrom(service.compatibleProfiles$);
 
