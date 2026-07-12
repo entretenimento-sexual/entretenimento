@@ -159,9 +159,10 @@ export function toSerializableEpoch(value: unknown): number | null {
 
   if (typeof timestampLike.seconds === 'number') {
     const seconds = timestampLike.seconds;
-    const nanos = typeof timestampLike.nanoseconds === 'number'
-      ? timestampLike.nanoseconds
-      : 0;
+    const nanos =
+      typeof timestampLike.nanoseconds === 'number'
+        ? timestampLike.nanoseconds
+        : 0;
     const epoch = seconds * 1000 + Math.trunc(nanos / 1_000_000);
 
     return Number.isFinite(epoch) && epoch > 0 ? Math.trunc(epoch) : null;
@@ -175,7 +176,8 @@ export function mapPublicProfileCard(
   fallbackUid?: string | null
 ): PublicProfileCard | null {
   const source = asRecord(raw);
-  const uid = firstText(source, ['uid', 'id']) ?? String(fallbackUid ?? '').trim();
+  const uid =
+    firstText(source, ['uid', 'id']) ?? String(fallbackUid ?? '').trim();
   const nickname = firstText(source, ['nickname']);
 
   if (!uid || !nickname) {
@@ -187,8 +189,12 @@ export function mapPublicProfileCard(
     'publicLikesCount',
     'reactionsCount',
   ]);
-
-  const reactionsCount = firstNumber(source, ['reactionsCount']) ?? likesCount;
+  const reactionsCount =
+    firstNumber(source, ['reactionsCount']) ?? likesCount;
+  const profileUniqueViewersCount = firstNumber(source, [
+    'profileUniqueViewersCount',
+    'uniqueViewersCount',
+  ]);
 
   return {
     uid,
@@ -257,7 +263,12 @@ export function mapPublicProfileCard(
     role: firstText(source, ['role']) ?? 'free',
 
     latitude: firstCoordinate(source, ['latitude', 'lat'], -90, 90),
-    longitude: firstCoordinate(source, ['longitude', 'lng', 'lon'], -180, 180),
+    longitude: firstCoordinate(
+      source,
+      ['longitude', 'lng', 'lon'],
+      -180,
+      180
+    ),
     geohash: firstText(source, ['geohash']),
 
     isOnline: source['isOnline'] === true,
@@ -276,12 +287,18 @@ export function mapPublicProfileCard(
       'profileViewsCount',
       'profileViews',
     ]),
-    uniqueViewersCount: firstNumber(source, ['uniqueViewersCount']),
+    profileUniqueViewersCount,
+    uniqueViewersCount: profileUniqueViewersCount,
+    mediaUniqueViewersCount: firstNumber(source, [
+      'mediaUniqueViewersCount',
+    ]),
     likesCount,
     reactionsCount,
     viewScore: firstNumber(source, ['viewScore']),
     engagementScore: firstNumber(source, ['engagementScore']),
-    profileCompletenessScore: firstNumber(source, ['profileCompletenessScore']),
+    profileCompletenessScore: firstNumber(source, [
+      'profileCompletenessScore',
+    ]),
     mediaMetricsUpdatedAt: toSerializableEpoch(
       firstValue(source, ['mediaMetricsUpdatedAt'])
     ),
