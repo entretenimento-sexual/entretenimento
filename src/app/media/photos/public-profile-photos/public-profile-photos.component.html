@@ -1,9 +1,7 @@
-<!-- src/app/media/photos/public-profile-photos/public-profile-photos.component.html -->
-
 @let ownerUid = (ownerUid$ | async);
 @let items = (publicPhotos$ | async);
 
-<section class="public-photos-page" aria-label="Galeria pública do perfil">
+<section class="public-photos-page" aria-labelledby="public-profile-media-title">
   <header class="public-photos-header">
     <a
       class="back-link"
@@ -14,18 +12,20 @@
     </a>
 
     <div class="title-block">
-      <span class="eyebrow">Galeria</span>
+      <span class="eyebrow">Mídias do perfil</span>
 
-      <h2>Fotos públicas</h2>
+      <h1 id="public-profile-media-title">Fotos públicas</h1>
 
       <p class="subtitle">
-        Veja as fotos publicadas pelo perfil. Toque em uma imagem para abrir, reagir e comentar.
+        Explore as fotos aprovadas sem perder o contexto do perfil. Toque em
+        qualquer imagem para abrir a visualização imersiva, navegar, reagir e
+        comentar quando disponível.
       </p>
     </div>
 
-    <div class="gallery-summary" aria-live="polite">
+    <div class="gallery-summary" aria-live="polite" aria-atomic="true">
       <strong>{{ items?.length || 0 }}</strong>
-      <span>foto(s)</span>
+      <span>{{ (items?.length || 0) === 1 ? 'foto' : 'fotos' }}</span>
     </div>
   </header>
 
@@ -36,23 +36,46 @@
       </div>
 
       <div>
-        <h3>Nenhuma foto pública disponível</h3>
-        <p>Este perfil ainda não publicou fotos para exibição pública.</p>
+        <h2>Nenhuma foto pública disponível</h2>
+        <p>Este perfil ainda não publicou fotos aprovadas para visitantes.</p>
       </div>
     </div>
   } @else {
-    <div class="gallery-strip" aria-label="Resumo da galeria">
-      <span class="gallery-pill">Fotos aprovadas</span>
-      <span class="gallery-pill">Comentários e reações ao abrir</span>
+    <div class="gallery-strip" aria-label="Recursos da galeria">
+      <span class="gallery-pill">
+        <i class="fas fa-shield-halved" aria-hidden="true"></i>
+        Conteúdo aprovado
+      </span>
+      <span class="gallery-pill">
+        <i class="fas fa-expand" aria-hidden="true"></i>
+        Visualização imersiva
+      </span>
+      <span class="gallery-pill">
+        <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+        Toque ou use o teclado
+      </span>
     </div>
 
     <div class="photos-grid" role="list" aria-label="Fotos públicas do perfil">
       @for (item of (items || []); track trackByPhotoId($index, item); let i = $index) {
-        <app-public-photo-card
-          [photo]="item"
-          variant="profile"
-          (preview)="openPhoto(i)"
-        />
+        <div
+          class="photo-grid-item"
+          [class.photo-grid-item--featured]="i === 0"
+          [class.photo-grid-item--cover]="item.isCover === true"
+        >
+          @if (i === 0) {
+            <span class="featured-label">
+              <i class="fas fa-sparkles" aria-hidden="true"></i>
+              Destaque do perfil
+            </span>
+          }
+
+          <app-public-photo-card
+            [photo]="item"
+            variant="profile"
+            (preview)="openPhoto(i)"
+          />
+        </div>
       }
     </div>
   }
