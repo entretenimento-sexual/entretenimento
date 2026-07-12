@@ -1,9 +1,14 @@
 // src/app/dashboard/discovery/profiles-discovery-page/profiles-discovery-page.component.spec.ts
-import { Component, Input } from '@angular/core';
+import {
+  Component,
+  EventEmitter,
+  Input,
+  Output,
+} from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ProfilesDiscoveryPageComponent } from './profiles-discovery-page.component';
 import { DiscoveryPublicProfilesFacade } from '../application/discovery-public-profiles.facade';
@@ -29,25 +34,40 @@ class MockOnlineUsersFullComponent {
 class MockPublicProfilesListComponent {
   @Input() profiles: unknown;
   @Input() loading: unknown;
+  @Input() loadingMore: unknown;
+  @Input() refreshing: unknown;
+  @Input() hasMore: unknown;
   @Input() errorMessage: unknown;
+
+  @Output() loadMore = new EventEmitter<void>();
+  @Output() retry = new EventEmitter<void>();
 }
 
 describe('ProfilesDiscoveryPageComponent', () => {
   let component: ProfilesDiscoveryPageComponent;
   let fixture: ComponentFixture<ProfilesDiscoveryPageComponent>;
 
+  const facadeMock = {
+    profiles$: of([]),
+    loading$: of(false),
+    loadingMore$: of(false),
+    refreshing$: of(false),
+    hasMore$: of(false),
+    errorMessage$: of(null),
+    loadMore: vi.fn(),
+    retry: vi.fn(),
+  };
+
   beforeEach(async () => {
+    vi.clearAllMocks();
+
     await TestBed.configureTestingModule({
       imports: [ProfilesDiscoveryPageComponent],
       providers: [
         provideRouter([]),
         {
           provide: DiscoveryPublicProfilesFacade,
-          useValue: {
-            profiles$: of([]),
-            loading$: of(false),
-            errorMessage$: of(null),
-          },
+          useValue: facadeMock,
         },
       ],
     })
