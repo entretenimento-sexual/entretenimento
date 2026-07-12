@@ -135,8 +135,8 @@ describe('UserDiscoveryQueryService', () => {
       { persist: true }
     );
     expect(
-      cacheMock.get.mock.calls.some(([key]) =>
-        String(key).includes('public_profiles:all')
+      cacheMock.get.mock.calls.some((call) =>
+        String((call as unknown[])[0] ?? '').includes('public_profiles:all')
       )
     ).toBe(false);
   });
