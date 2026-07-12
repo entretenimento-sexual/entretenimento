@@ -3,7 +3,7 @@
 // - Validação síncrona para apelido, e-mail, senha e aceite dos termos.
 // - Checagem reativa de disponibilidade do apelido via Observable.
 // - Submit faz checagem estrita antes de criar a conta.
-// - Feedback visual fica na UI; detalhes técnicos só aparecem com debugRegister.
+// - Feedback visual fica na UI; detalhes técnicos só aparecem em dev autorizado.
 import {
   ChangeDetectionStrategy,
   Component,
@@ -42,6 +42,7 @@ import { FirestoreValidationService } from 'src/app/core/services/data-handling/
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
 import { ValidatorService } from 'src/app/core/services/general/validator.service';
 import { IUserRegistrationData } from '../core/interfaces/iuser-registration-data';
+import { environment } from 'src/environments/environment';
 
 type UiBannerVariant = 'info' | 'warn' | 'error' | 'success';
 type UiBanner = {
@@ -51,7 +52,13 @@ type UiBanner = {
   details?: string;
 };
 
-type NicknameCheckState = 'idle' | 'typing' | 'checking' | 'available' | 'taken' | 'unverified';
+type NicknameCheckState =
+  | 'idle'
+  | 'typing'
+  | 'checking'
+  | 'available'
+  | 'taken'
+  | 'unverified';
 
 @Component({
   selector: 'app-register',
@@ -61,24 +68,30 @@ type NicknameCheckState = 'idle' | 'typing' | 'checking' | 'available' | 'taken'
   standalone: false,
 })
 export class RegisterComponent {
-  private fb = inject(FormBuilder);
-  private validatorService = inject(FirestoreValidationService);
-  private registerService = inject(RegisterService);
-  private errorNotification = inject(ErrorNotificationService);
-  private router = inject(Router);
-  private destroyRef = inject(DestroyRef);
+  private readonly fb = inject(FormBuilder);
+  private readonly validatorService = inject(FirestoreValidationService);
+  private readonly registerService = inject(RegisterService);
+  private readonly errorNotification = inject(ErrorNotificationService);
+  private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
-  constructor(private auth: Auth) {
+  constructor(private readonly auth: Auth) {
     this.setupNicknameAvailabilityPipeline();
   }
 
   // ---------------- Debug opt-in ----------------
+  // Disponível somente em ambiente não produtivo com enableDebugTools=true.
   // Ative com: localStorage.setItem('debugRegister', '1')
   debugEnabled(): boolean {
-    return typeof localStorage !== 'undefined' && localStorage.getItem('debugRegister') === '1';
+    return (
+      !environment.production &&
+      environment.enableDebugTools === true &&
+      typeof localStorage !== 'undefined' &&
+      localStorage.getItem('debugRegister') === '1'
+    );
   }
 
-  private dbg(...args: any[]): void {
+  private dbg(...args: unknown[]): void {
     if (this.debugEnabled()) console.debug('[Register]', ...args);
   }
 
@@ -136,28 +149,28 @@ export class RegisterComponent {
   readonly syncing = signal(false);
 
   // ---------------- Nickname UX state ----------------
-  private nicknameTyping$ = new Subject<void>();
-  private nicknameBlur$ = new Subject<void>();
+  private readonly nicknameTyping$ = new Subject<void>();
+  private readonly nicknameBlur$ = new Subject<void>();
 
   readonly nicknameCheckState = signal<NicknameCheckState>('idle');
   readonly nicknameFeedbackArmed = signal(false);
   readonly submitted = signal(false);
 
-  private apelidoPrincipalSig = toSignal(
+  private readonly apelidoPrincipalSig = toSignal(
     this.form.get('apelidoPrincipal')!.valueChanges.pipe(
       startWith(this.form.get('apelidoPrincipal')!.value)
     ),
     { initialValue: this.form.get('apelidoPrincipal')!.value }
   );
 
-  private complementoSig = toSignal(
+  private readonly complementoSig = toSignal(
     this.form.get('complementoApelido')!.valueChanges.pipe(
       startWith(this.form.get('complementoApelido')!.value)
     ),
     { initialValue: this.form.get('complementoApelido')!.value }
   );
 
-  private apelidoStatusSig = toSignal(
+  private readonly apelidoStatusSig = toSignal(
     this.form.get('apelidoPrincipal')!.statusChanges.pipe(
       startWith(this.form.get('apelidoPrincipal')!.status)
     ),
@@ -175,14 +188,21 @@ export class RegisterComponent {
     return this.form.get('apelidoPrincipal')?.hasError('apelidoEmUso') === true;
   });
 
-  readonly nicknameChecking = computed(() => this.nicknameCheckState() === 'checking');
+  readonly nicknameChecking = computed(
+    () => this.nicknameCheckState() === 'checking'
+  );
 
   private hasBlockingNicknameSyncErrors(): boolean {
     const ctrl = this.form.get('apelidoPrincipal');
     if (!ctrl) return true;
 
     const e = ctrl.errors ?? {};
-    return !!(e['required'] || e['minlength'] || e['maxlength'] || e['invalidNickname']);
+    return !!(
+      e['required'] ||
+      e['minlength'] ||
+      e['maxlength'] ||
+      e['invalidNickname']
+    );
   }
 
   private hasBlockingComplementSyncErrors(): boolean {
@@ -249,8 +269,13 @@ export class RegisterComponent {
       .subscribe();
   }
 
-  private runNicknameAvailabilityCheck$(mode: 'soft' | 'strict'): Observable<void> {
-    if (this.hasBlockingNicknameSyncErrors() || this.hasBlockingComplementSyncErrors()) {
+  private runNicknameAvailabilityCheck$(
+    mode: 'soft' | 'strict'
+  ): Observable<void> {
+    if (
+      this.hasBlockingNicknameSyncErrors() ||
+      this.hasBlockingComplementSyncErrors()
+    ) {
       this.nicknameCheckState.set('idle');
       this.clearApelidoEmUsoError();
       return of(void 0);
@@ -271,33 +296,35 @@ export class RegisterComponent {
 
     this.nicknameCheckState.set('checking');
 
-    return this.validatorService.checkIfNicknameExists(fullNick, { mode }).pipe(
-      tap((exists: boolean) => {
-        if (exists) {
-          this.setApelidoEmUsoError();
-          this.nicknameCheckState.set('taken');
-        } else {
+    return this.validatorService
+      .checkIfNicknameExists(fullNick, { mode })
+      .pipe(
+        tap((exists: boolean) => {
+          if (exists) {
+            this.setApelidoEmUsoError();
+            this.nicknameCheckState.set('taken');
+          } else {
+            this.clearApelidoEmUsoError();
+            this.nicknameCheckState.set('available');
+          }
+        }),
+        map(() => void 0),
+        catchError((err) => {
+          this.dbg('nickname check error', err);
+          this.nicknameCheckState.set('unverified');
           this.clearApelidoEmUsoError();
-          this.nicknameCheckState.set('available');
-        }
-      }),
-      map(() => void 0),
-      catchError((err) => {
-        this.dbg('nickname check error', err);
-        this.nicknameCheckState.set('unverified');
-        this.clearApelidoEmUsoError();
 
-        if (mode === 'strict') {
-          return throwError(() => ({
-            code: 'nickname-check-failed',
-            message: 'Não foi possível validar o apelido agora.',
-            original: err,
-          }));
-        }
+          if (mode === 'strict') {
+            return throwError(() => ({
+              code: 'nickname-check-failed',
+              message: 'Não foi possível validar o apelido agora.',
+              original: err,
+            }));
+          }
 
-        return of(void 0);
-      })
-    );
+          return of(void 0);
+        })
+      );
   }
 
   private waitForAuthUserOnce(timeoutMs = 6000): Promise<User> {
@@ -316,12 +343,23 @@ export class RegisterComponent {
     return Promise.race([firstValueFrom(wait$), timeout]);
   }
 
-  private setBanner(variant: UiBannerVariant, title: string, message: string, details?: any): void {
+  private setBanner(
+    variant: UiBannerVariant,
+    title: string,
+    message: string,
+    details?: unknown
+  ): void {
     let det: string | undefined;
 
-    if (details !== undefined) {
+    /**
+     * Detalhes técnicos nunca são serializados no estado da UI em produção.
+     * O erro completo continua sendo tratado pelos serviços centralizados.
+     */
+    if (details !== undefined && this.debugEnabled()) {
       try {
-        det = typeof details === 'string' ? details : JSON.stringify(details, null, 2);
+        det = typeof details === 'string'
+          ? details
+          : JSON.stringify(details, null, 2);
       } catch {
         det = String(details);
       }
@@ -332,11 +370,12 @@ export class RegisterComponent {
   }
 
   toggleTech(): void {
+    if (!this.debugEnabled()) return;
     this.showTech.update((v) => !v);
   }
 
   async syncSessionNow(): Promise<void> {
-    if (this.syncing()) return;
+    if (!this.debugEnabled() || this.syncing()) return;
     this.syncing.set(true);
 
     try {
@@ -359,8 +398,17 @@ export class RegisterComponent {
   }
 
   copyDetails(): void {
+    if (!this.debugEnabled()) return;
+
     const det = this.banner()?.details;
-    if (!det || !navigator?.clipboard) return;
+    if (
+      !det ||
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard
+    ) {
+      return;
+    }
+
     navigator.clipboard.writeText(det).catch(() => { });
   }
 
@@ -380,7 +428,9 @@ export class RegisterComponent {
   }
 
   reloadPage(): void {
-    window.location.reload();
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
   }
 
   togglePasswordVisibility(): void {
@@ -393,17 +443,26 @@ export class RegisterComponent {
 
     const errs = ctrl.errors || {};
 
-    if (controlName === 'apelidoPrincipal' && this.form.hasError('invalidFullNickname')) {
+    if (
+      controlName === 'apelidoPrincipal' &&
+      this.form.hasError('invalidFullNickname')
+    ) {
       return 'Apelido completo inválido.';
     }
 
     if (errs['required']) return 'Campo obrigatório';
-    if (errs['minlength']) return `Mínimo de ${errs['minlength'].requiredLength} caracteres.`;
-    if (errs['maxlength']) return `Máximo de ${errs['maxlength'].requiredLength} caracteres.`;
+    if (errs['minlength']) {
+      return `Mínimo de ${errs['minlength'].requiredLength} caracteres.`;
+    }
+    if (errs['maxlength']) {
+      return `Máximo de ${errs['maxlength'].requiredLength} caracteres.`;
+    }
     if (errs['invalidNickname']) return 'Contém caracteres inválidos.';
     if (errs['apelidoEmUso']) return 'Este apelido já está em uso.';
 
-    if (controlName === 'email' && errs['email']) return 'Formato de e-mail inválido';
+    if (controlName === 'email' && errs['email']) {
+      return 'Formato de e-mail inválido';
+    }
     if (controlName === 'password' && errs['minlength']) {
       return `Senha precisa ter ao menos ${errs['minlength'].requiredLength} caracteres.`;
     }
@@ -421,7 +480,9 @@ export class RegisterComponent {
     this.form.updateValueAndValidity();
 
     if (this.nicknameChecking()) {
-      this.errorNotification.showError('Aguarde a validação do apelido terminar.');
+      this.errorNotification.showError(
+        'Aguarde a validação do apelido terminar.'
+      );
       return;
     }
 
@@ -459,7 +520,10 @@ export class RegisterComponent {
       .pipe(
         switchMap(() => {
           if (this.apelidoEmUso()) {
-            return throwError(() => ({ code: 'nickname-in-use', message: 'Apelido em uso.' }));
+            return throwError(() => ({
+              code: 'nickname-in-use',
+              message: 'Apelido em uso.',
+            }));
           }
 
           return this.registerService.registerUser(payload, password);
@@ -475,7 +539,7 @@ export class RegisterComponent {
             this.setBanner(
               'warn',
               'Conta criada, mas a sessão ainda não apareceu',
-              'Você pode sincronizar a sessão agora ou recarregue a página.',
+              'Você pode recarregar a página e entrar novamente.',
               e
             );
             return;
@@ -483,7 +547,10 @@ export class RegisterComponent {
 
           this.creatingMsg.set('Tudo pronto! Redirecionando…');
           this.router
-            .navigate(['/register/welcome'], { queryParams: { email, autocheck: '1' }, replaceUrl: true })
+            .navigate(['/register/welcome'], {
+              queryParams: { email, autocheck: '1' },
+              replaceUrl: true,
+            })
             .finally(() => this.creating.set(false));
         },
 
@@ -493,21 +560,27 @@ export class RegisterComponent {
           const code = err?.code || '';
           const rawMsg = String(err?.message || '').toLowerCase();
 
-          if (code === 'auth/unauthorized-domain' || code === 'auth/invalid-continue-uri') {
+          if (
+            code === 'auth/unauthorized-domain' ||
+            code === 'auth/invalid-continue-uri'
+          ) {
             this.setBanner(
               'error',
               'Falha ao enviar e-mail de verificação',
-              'Domínio de redirecionamento não autorizado. Avise o suporte.',
+              'Não foi possível preparar o redirecionamento. Procure o suporte.',
               err
             );
-            this.errorNotification.showError('Não foi possível enviar o e-mail de verificação (domínio não autorizado).');
+            this.errorNotification.showError(
+              'Não foi possível enviar o e-mail de verificação.'
+            );
             return;
           }
 
           if (code === 'email-exists-soft') {
-            const msg = 'Se existir uma conta com este e-mail, você receberá instruções para recuperar o acesso.';
+            const msg =
+              'Não foi possível criar uma nova conta com este e-mail. Tente entrar ou use a recuperação de senha.';
             this.infoMessage.set(msg);
-            this.setBanner('info', 'E-mail possivelmente já cadastrado', msg, err);
+            this.setBanner('info', 'Confira seu acesso', msg, err);
             return;
           }
 
@@ -518,31 +591,52 @@ export class RegisterComponent {
               'Tente novamente em instantes antes de concluir o cadastro.',
               err
             );
-            this.errorNotification.showError('Não foi possível validar o apelido agora.');
+            this.errorNotification.showError(
+              'Não foi possível validar o apelido agora.'
+            );
             return;
           }
 
           if (code === 'auth/too-many-requests') {
-            this.setBanner('warn', 'Muitas tentativas', 'Aguarde alguns minutos e tente novamente.', err);
+            this.setBanner(
+              'warn',
+              'Muitas tentativas',
+              'Aguarde alguns minutos e tente novamente.',
+              err
+            );
             return;
           }
 
-          if (code === 'nickname-in-use' || /apelido.*em uso/.test(rawMsg)) {
+          if (
+            code === 'nickname-in-use' ||
+            /apelido.*em uso/.test(rawMsg)
+          ) {
             this.setApelidoEmUsoError();
             this.nicknameCheckState.set('taken');
-            this.setBanner('error', 'Apelido em uso', 'Escolha outro apelido para continuar.', err);
-            this.errorNotification.showError('Apelido em uso. Escolha outro.');
-            setTimeout(() => document.getElementById('apelidoPrincipal')?.focus());
+            this.setBanner(
+              'error',
+              'Apelido em uso',
+              'Escolha outro apelido para continuar.',
+              err
+            );
+            this.errorNotification.showError(
+              'Apelido em uso. Escolha outro.'
+            );
+            setTimeout(() =>
+              document.getElementById('apelidoPrincipal')?.focus()
+            );
             return;
           }
 
           this.setBanner(
             'error',
             'Não foi possível concluir o cadastro',
-            'Tente novamente. Se persistir, copie os detalhes técnicos e envie ao suporte.',
+            'Tente novamente. Se o problema continuar, procure o suporte.',
             err
           );
-          this.errorNotification.showError('Não foi possível concluir o cadastro. Tente novamente.');
+          this.errorNotification.showError(
+            'Não foi possível concluir o cadastro. Tente novamente.'
+          );
         },
       });
   }
@@ -553,6 +647,6 @@ Fluxo de registro:
 1. Usuário preenche apelido principal, complemento, email, senha e aceita termos.
 2. Enquanto digita o apelido, após 3s de inatividade ou no blur, checa disponibilidade em modo soft.
 3. No submit, faz validação completa e checagem estrita de disponibilidade do apelido.
-4. Se tudo ok, cria conta e espera sessão aparecer.
-5. Se sessão não aparecer em tempo útil, mostra banner com opção de sincronizar sessão no modo debug.
+4. Se tudo ok, cria conta, registra o aceite auditável e espera a sessão aparecer.
+5. Se a auditoria de termos falhar temporariamente, o fluxo canônico solicitará o aceite novamente depois.
 */
