@@ -1,12 +1,16 @@
-<!-- src\app\preferences\pages\preferences-editor\preferences-editor.component.html -->
-<main class="preferences-editor-page app-page" aria-label="Editor do novo domínio de preferências">
+<!-- src/app/preferences/pages/preferences-editor/preferences-editor.component.html -->
+<main class="preferences-editor-page app-page" aria-label="Editor de preferências">
   <section class="preferences-editor-shell stack">
     <app-preferences-page-header
-      title="Editor de preferências"
-      subtitle="Edição nova do domínio de preferências, intenção e descoberta."
+      title="Ajuste suas preferências"
+      subtitle="Defina o que você procura, sua intenção atual e como deseja aparecer para outras pessoas."
     >
       <a page-actions class="btn btn-secondary" routerLink="/preferencias">
-        Voltar para preferências
+        Voltar
+      </a>
+
+      <a page-actions class="btn btn-primary" routerLink="/dashboard/principal">
+        Concluir e ir para o início
       </a>
     </app-preferences-page-header>
 
@@ -32,7 +36,7 @@
       <app-intent-state-card [intent]="state.intent"></app-intent-state-card>
 
       <section class="preferences-editor-section" aria-label="Formulário do perfil de preferências">
-        <h2 class="section-title">Perfil de preferências</h2>
+        <h2 class="section-title">O que você procura</h2>
 
         <app-preference-profile-form
           [profile]="state.profile"
@@ -43,7 +47,7 @@
       </section>
 
       <section class="preferences-editor-section" aria-label="Formulário da intenção atual">
-        <h2 class="section-title">Intenção atual</h2>
+        <h2 class="section-title">Sua intenção atual</h2>
 
         <app-intent-state-form
           [intent]="state.intent"
@@ -53,34 +57,34 @@
         </app-intent-state-form>
       </section>
 
-      <section class="preferences-editor-section" aria-label="Capacidades de edição">
-        <h2 class="section-title">Permissões do editor novo</h2>
+      <section class="preferences-editor-section" aria-label="Recursos disponíveis para a conta">
+        <h2 class="section-title">Recursos disponíveis</h2>
 
         <div class="capabilities-grid" role="list">
           <article class="capability-item" role="listitem">
             <span class="capability-label">Preferências avançadas</span>
-            <strong>{{ state.capabilities.canEditAdvancedPreferences ? 'Liberado' : 'Bloqueado' }}</strong>
+            <strong>{{ state.capabilities.canEditAdvancedPreferences ? 'Disponível' : 'Indisponível' }}</strong>
           </article>
 
           <article class="capability-item" role="listitem">
-            <span class="capability-label">Discovery avançado</span>
-            <strong>{{ state.capabilities.canUseAdvancedDiscovery ? 'Liberado' : 'Bloqueado' }}</strong>
+            <span class="capability-label">Descoberta avançada</span>
+            <strong>{{ state.capabilities.canUseAdvancedDiscovery ? 'Disponível' : 'Indisponível' }}</strong>
           </article>
 
           <article class="capability-item" role="listitem">
             <span class="capability-label">Modo discreto</span>
-            <strong>{{ state.capabilities.canUseDiscreetMode ? 'Liberado' : 'Bloqueado' }}</strong>
+            <strong>{{ state.capabilities.canUseDiscreetMode ? 'Disponível' : 'Indisponível' }}</strong>
           </article>
 
           <article class="capability-item" role="listitem">
             <span class="capability-label">Visibilidade prioritária</span>
-            <strong>{{ state.capabilities.canUsePriorityVisibility ? 'Liberado' : 'Bloqueado' }}</strong>
+            <strong>{{ state.capabilities.canUsePriorityVisibility ? 'Disponível' : 'Indisponível' }}</strong>
           </article>
         </div>
       </section>
     } @else {
-      <section class="preferences-editor-section" aria-label="Carregando editor">
-        <p>Carregando editor novo de preferências...</p>
+      <section class="preferences-editor-section" aria-label="Carregando preferências" aria-live="polite">
+        <p>Carregando suas preferências...</p>
       </section>
     }
   </section>
