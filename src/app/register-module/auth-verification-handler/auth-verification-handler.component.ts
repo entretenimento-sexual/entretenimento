@@ -75,6 +75,9 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   public showPassword = false;
   public showConfirmPassword = false;
   public shouldShowRecoveryLink = false;
+  public passwordResetOk = false;
+  public passwordResetCompleted = false;
+  public passwordResetUnavailable = false;
 
   private readonly ngUnsubscribe = new Subject<void>();
 
@@ -89,6 +92,20 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
     private readonly emailInputModalService: EmailInputModalService
   ) {}
 
+  get actionSucceeded(): boolean {
+    return this.mode === 'verifyEmail' ? this.verifyOk : this.passwordResetOk;
+  }
+
+  get canSubmitPasswordReset(): boolean {
+    return (
+      !this.isLoading &&
+      !this.passwordResetCompleted &&
+      !this.passwordResetUnavailable &&
+      this.newPassword.length >= 8 &&
+      this.confirmPassword.length >= 8
+    );
+  }
+
   ngOnInit(): void {
     this.route.queryParams
       .pipe(takeUntil(this.ngUnsubscribe))
@@ -96,6 +113,7 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         const modeFromQuery = (params['mode'] as HandlerMode) ?? '';
         const codeFromQuery = (params['oobCode'] as string | undefined) ?? '';
 
+        this.resetActionState();
         this.mode = modeFromQuery;
         this.oobCode = codeFromQuery;
 
@@ -107,6 +125,8 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
 
         if (!this.oobCode) {
           this.message = 'Código inválido ou ausente.';
+          this.passwordResetUnavailable = this.mode === 'resetPassword';
+          this.shouldShowRecoveryLink = this.mode === 'resetPassword';
           this.isLoading = false;
           return;
         }
@@ -273,10 +293,17 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   }
 
   async resetPassword(): Promise<void> {
-    if (this.mode !== 'resetPassword') return;
+    if (
+      this.mode !== 'resetPassword' ||
+      this.passwordResetCompleted ||
+      this.passwordResetUnavailable
+    ) {
+      return;
+    }
 
     this.isLoading = true;
     this.shouldShowRecoveryLink = false;
+    this.passwordResetOk = false;
 
     if (this.newPassword !== this.confirmPassword) {
       this.message = 'As senhas não coincidem.';
@@ -295,6 +322,9 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
         this.loginService.confirmPasswordReset$(this.oobCode, this.newPassword)
       );
 
+      this.passwordResetOk = true;
+      this.passwordResetCompleted = true;
+      this.passwordResetUnavailable = false;
       this.message = 'Senha redefinida com sucesso. Redirecionando para o login...';
       this.newPassword = '';
       this.confirmPassword = '';
@@ -304,19 +334,22 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
           this.router.navigate(['/login']).catch(() => {});
         }, 1500);
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       this.handlePasswordResetError(error);
     } finally {
       this.isLoading = false;
     }
   }
 
-  private handlePasswordResetError(error: any): void {
-    const code = error?.code;
+  private handlePasswordResetError(error: unknown): void {
+    const code = String((error as { code?: unknown })?.code ?? '');
     const resetErrors = ['auth/expired-action-code', 'auth/invalid-action-code'];
 
+    this.passwordResetOk = false;
+    this.shouldShowRecoveryLink = true;
+
     if (resetErrors.includes(code)) {
-      this.shouldShowRecoveryLink = true;
+      this.passwordResetUnavailable = true;
       this.message =
         code === 'auth/expired-action-code'
           ? 'O link de redefinição de senha expirou.'
@@ -324,12 +357,16 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    this.shouldShowRecoveryLink = true;
-    this.message = 'Erro ao redefinir a senha.';
-  }
+    this.passwordResetUnavailable = false;
+    this.message = 'Não foi possível redefinir a senha agora. Tente novamente.';
 
-  redirectToFAQ(): void {
-    this.router.navigate(['/faq']).catch(() => {});
+    const operationalError = new Error(
+      '[AuthVerificationHandler] Falha técnica ao redefinir senha.'
+    );
+    (operationalError as any).original = error;
+    (operationalError as any).context = 'password-reset-confirmation';
+    (operationalError as any).skipUserNotification = true;
+    this.globalErrorHandlerService.handleError(operationalError);
   }
 
   togglePasswordVisibility(): void {
@@ -343,4 +380,20 @@ export class AuthVerificationHandlerComponent implements OnInit, OnDestroy {
   openPasswordRecoveryModal(): void {
     this.emailInputModalService.openModal();
   }
-} // Linha 346
+
+  private resetActionState(): void {
+    this.isLoading = true;
+    this.message = '';
+    this.verifyOk = false;
+    this.showResendVerifyCTA = false;
+    this.showGoToLoginCTA = false;
+    this.newPassword = '';
+    this.confirmPassword = '';
+    this.showPassword = false;
+    this.showConfirmPassword = false;
+    this.shouldShowRecoveryLink = false;
+    this.passwordResetOk = false;
+    this.passwordResetCompleted = false;
+    this.passwordResetUnavailable = false;
+  }
+}
