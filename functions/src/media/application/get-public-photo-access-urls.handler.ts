@@ -3,7 +3,10 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, storage } from '../../firebaseApp';
-import { normalizeOwnedPublishedPhotoPath } from './photo-storage-path';
+import {
+  containsControlCharacter,
+  normalizeOwnedPublishedPhotoPath,
+} from './photo-storage-path';
 
 interface PublicPhotoAccessRequestItem {
   ownerUid?: string;
@@ -40,7 +43,7 @@ function cleanId(value: unknown): string {
     !normalized ||
     normalized.length > 128 ||
     normalized.includes('/') ||
-    /[\u0000-\u001f\u007f]/.test(normalized)
+    containsControlCharacter(normalized)
   ) {
     return '';
   }
@@ -114,15 +117,19 @@ async function resolveAccessItem(
     throw new Error('O ativo publicado não foi encontrado no Storage.');
   }
 
-  const url = process.env.FUNCTIONS_EMULATOR === 'true'
-    ? buildStorageEmulatorUrl(storagePath)
-    : (
-        await file.getSignedUrl({
-          version: 'v4',
-          action: 'read',
-          expires: expiresAt,
-        })
-      )[0];
+  let url: string;
+
+  if (process.env.FUNCTIONS_EMULATOR === 'true') {
+    url = buildStorageEmulatorUrl(storagePath);
+  } else {
+    const [signedUrl] = await file.getSignedUrl({
+      version: 'v4',
+      action: 'read',
+      expires: expiresAt,
+    });
+
+    url = signedUrl;
+  }
 
   return {
     ownerUid,
