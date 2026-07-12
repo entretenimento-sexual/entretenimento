@@ -4,24 +4,18 @@
 // -----------------------------------------------------------------------------
 //
 // Responsabilidade:
-// - renderizar a lista de perfis públicos do modo "Todos";
-// - exibir estados de loading, vazio e erro;
-// - não consultar Firestore diretamente;
-// - não decidir regra de visibilidade;
-// - não misturar presença online com descoberta geral;
-// - reutilizar o UserCardComponent para manter o mesmo visual dos cards.
-//
-// Supressão explícita desta revisão:
-// - card próprio `.public-profile-card`;
-// - métodos getProfileRoute(), getAvatar(), getLocationLabel() e getProfileMeta().
-//
-// Motivo:
-// - "Todos" e "Online" devem parecer o mesmo produto;
-// - duplicar card gera divergência visual, manutenção dupla e inconsistência mobile;
-// - o UserCardComponent já concentra imagem, ações, orientação, localização,
-//   distância e acessibilidade do card.
+// - renderizar cards públicos já processados pela facade;
+// - exibir loading inicial, revalidação, erro, vazio e carregamento incremental;
+// - emitir retry/loadMore sem conhecer Firestore ou NgRx;
+// - reutilizar UserCardComponent para consistência visual e mobile.
+// -----------------------------------------------------------------------------
 
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  input,
+  output,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
@@ -58,20 +52,35 @@ const USER_TIER_ROLES = [
 export class PublicProfilesListComponent {
   readonly profiles = input<readonly PublicProfileCard[]>([]);
   readonly loading = input<boolean>(false);
+  readonly loadingMore = input<boolean>(false);
+  readonly refreshing = input<boolean>(false);
+  readonly hasMore = input<boolean>(false);
   readonly errorMessage = input<string | null>(null);
+
+  readonly loadMore = output<void>();
+  readonly retry = output<void>();
 
   trackProfile(_: number, profile: PublicProfileCard): string {
     return profile.uid;
   }
 
+  requestLoadMore(): void {
+    if (this.loadingMore() || !this.hasMore()) {
+      return;
+    }
+
+    this.loadMore.emit();
+  }
+
+  requestRetry(): void {
+    this.retry.emit();
+  }
+
   /**
    * Adapter visual entre PublicProfileCard e UserCardComponent.
    *
-   * Importante:
-   * - não altera a fonte dos dados;
-   * - não consulta Firestore;
-   * - apenas monta o objeto mínimo que o UserCardComponent já sabe exibir;
-   * - usa undefined, não null, porque IUserDados tipa vários campos como opcionais.
+   * Não consulta dados e não adiciona campos privados. Ele apenas monta o
+   * contrato mínimo que o card compartilhado já sabe exibir.
    */
   toUserCardProfile(profile: PublicProfileCard): IUserDados {
     const view = profile as PublicProfileCardView;
@@ -96,16 +105,16 @@ export class PublicProfilesListComponent {
 
       latitude: this.toOptionalNumber(profile.latitude),
       longitude: this.toOptionalNumber(profile.longitude),
-      
 
       isOnline: view.isOnline === true,
 
       /**
-       * IUserDados espera number.
-       * Quando não houver lastLogin real, usamos 0.
-       * O UserCardComponent já trata `!user.lastLogin` como ausência de login.
+       * IUserDados espera number. Quando não houver lastLogin real, usamos 0.
+       * O UserCardComponent já trata zero como ausência de atividade conhecida.
        */
-      lastLogin: this.toTimestampMs(view.lastLogin),
+      lastLogin: this.toTimestampMs(
+        view.lastLogin ?? profile.lastSeen ?? profile.updatedAt
+      ),
 
       descricao: this.toOptionalText(view.descricao),
       idade: this.toOptionalNumber(view.idade),
@@ -128,7 +137,6 @@ export class PublicProfilesListComponent {
     }
 
     const text = value.trim();
-
     return text.length ? text : undefined;
   }
 
@@ -139,7 +147,6 @@ export class PublicProfilesListComponent {
 
     if (typeof value === 'string') {
       const parsed = Number(value.trim());
-
       return Number.isFinite(parsed) ? parsed : undefined;
     }
 
@@ -153,13 +160,11 @@ export class PublicProfilesListComponent {
 
     if (value instanceof Date) {
       const time = value.getTime();
-
       return Number.isFinite(time) ? time : 0;
     }
 
     if (typeof value === 'string') {
       const time = new Date(value).getTime();
-
       return Number.isFinite(time) ? time : 0;
     }
 
@@ -170,13 +175,11 @@ export class PublicProfilesListComponent {
 
     if (typeof maybeTimestamp?.toMillis === 'function') {
       const time = maybeTimestamp.toMillis();
-
       return Number.isFinite(time) ? time : 0;
     }
 
     if (typeof maybeTimestamp?.toDate === 'function') {
       const time = maybeTimestamp.toDate().getTime();
-
       return Number.isFinite(time) ? time : 0;
     }
 
@@ -190,6 +193,6 @@ export class PublicProfilesListComponent {
       return role as IUserDados['role'];
     }
 
-    return 'free' as IUserDados['role'];
+    return 'free';
   }
 }
