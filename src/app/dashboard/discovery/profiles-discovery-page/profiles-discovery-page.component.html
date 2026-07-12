@@ -17,21 +17,20 @@
       @case ('all') {
         <!--
           Todos:
-          feed geral/refinado da descoberta.
-
-          Fonte:
-          - public_profiles
-
-          Enriquecimento:
+          - public_profiles paginado por cursor;
+          - cache por usuário/modo/página;
           - presença opcional;
-          - distância quando houver coordenadas;
-          - score/ranking;
-          - elegibilidade pública.
+          - compatibilidade, distância, visibilidade e score no enrichment canônico.
         -->
         <app-public-profiles-list
           [profiles]="(publicProfilesFacade.profiles$ | async) ?? []"
           [loading]="(publicProfilesFacade.loading$ | async) ?? false"
+          [loadingMore]="(publicProfilesFacade.loadingMore$ | async) ?? false"
+          [refreshing]="(publicProfilesFacade.refreshing$ | async) ?? false"
+          [hasMore]="(publicProfilesFacade.hasMore$ | async) ?? false"
           [errorMessage]="(publicProfilesFacade.errorMessage$ | async) ?? null"
+          (loadMore)="publicProfilesFacade.loadMore()"
+          (retry)="publicProfilesFacade.retry()"
         />
       }
 
@@ -39,9 +38,7 @@
         <!--
           Online:
           recorte baseado em presence, hidratado com public_profiles.
-
-          O card já passa pela mesma camada genérica de enrichment usada pelo
-          modo Todos.
+          O card passa pela mesma camada de enrichment usada pelo modo Todos.
         -->
         <app-online-users-full
           [embedded]="true"
