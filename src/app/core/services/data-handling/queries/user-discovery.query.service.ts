@@ -1,5 +1,17 @@
 // src/app/core/services/data-handling/queries/user-discovery.query.service.ts
-import { Injectable, DestroyRef, inject } from '@angular/core';
+// -----------------------------------------------------------------------------
+// Consultas pontuais de public_profiles.
+//
+// Regras arquiteturais:
+// - descoberta geral/compatível usa DiscoveryPublicProfilesRepository paginado;
+// - este serviço atende apenas buscas específicas e hidratação por UID;
+// - nenhuma API carrega integralmente public_profiles;
+// - cache só é usado com chave determinística baseada nos valores da consulta;
+// - QueryConstraint genérica não recebe cache de aplicação para evitar colisão;
+// - erros continuam centralizados e a API pública permanece Observable-first.
+// -----------------------------------------------------------------------------
+
+import { Injectable } from '@angular/core';
 import { forkJoin, Observable, of } from 'rxjs';
 import {
   catchError,
@@ -8,10 +20,8 @@ import {
   shareReplay,
   switchMap,
   take,
+  tap,
 } from 'rxjs/operators';
-
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-
 import {
   QueryConstraint,
   documentId,
@@ -19,18 +29,21 @@ import {
 } from 'firebase/firestore';
 
 import { IUserDados } from '@core/interfaces/iuser-dados';
+import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+import { FirestoreErrorHandlerService } from '@core/services/error-handler/firestore-error-handler.service';
 import { CacheService } from '@core/services/general/cache/cache.service';
 import { FirestoreReadService } from '../firestore/core/firestore-read.service';
-import { FirestoreErrorHandlerService } from '@core/services/error-handler/firestore-error-handler.service';
-import { AuthSessionService } from '@core/services/autentication/auth/auth-session.service';
+
+interface DiscoveryQueryOptions {
+  readonly cacheTTL?: number;
+  readonly cacheKey?: string | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class UserDiscoveryQueryService {
-  private readonly destroyRef = inject(DestroyRef);
-
-  private readonly DISCOVERY_COL = 'public_profiles';
-
+  private static readonly DISCOVERY_COL = 'public_profiles';
   private static readonly UID_BATCH_SIZE = 10;
+  private static readonly DEFAULT_CACHE_TTL_MS = 30_000;
 
   private readonly uid$ = this.authSession.uid$.pipe(
     distinctUntilChanged(),
@@ -42,163 +55,286 @@ export class UserDiscoveryQueryService {
     private readonly cache: CacheService,
     private readonly firestoreError: FirestoreErrorHandlerService,
     private readonly authSession: AuthSessionService
-  ) {
-    this.uid$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((uid) => {
-        if (!uid) {
-          // Future hook: clear discovery cache when CacheService supports prefixes.
-        }
-      });
+  ) {}
+
+  /**
+   * Consulta genérica sem cache de aplicação.
+   *
+   * QueryConstraint não expõe contrato público estável para serialização dos
+   * valores. Cachear apenas por `constraint.type` misturava consultas distintas.
+   */
+  searchUsers(constraints: QueryConstraint[]): Observable<IUserDados[]> {
+    return this.runGuardedQuery(constraints ?? [], {
+      cacheKey: null,
+    });
   }
 
-  private toCleanText(value: unknown): string | null {
-    if (typeof value !== 'string') {
-      return null;
+  getProfilesByOrientationAndLocation(
+    gender: string,
+    orientation: string,
+    municipio: string
+  ): Observable<IUserDados[]> {
+    const normalizedGender = this.toCleanText(gender);
+    const normalizedOrientation = this.toCleanText(orientation);
+    const normalizedMunicipio = this.toCleanText(municipio);
+
+    if (!normalizedGender || !normalizedOrientation || !normalizedMunicipio) {
+      return of([]);
     }
 
-    const text = value.trim();
-    return text.length ? text : null;
+    return this.runGuardedQuery(
+      [
+        where('gender', '==', normalizedGender),
+        where('orientation', '==', normalizedOrientation),
+        where('municipio', '==', normalizedMunicipio),
+      ],
+      {
+        cacheTTL: 60_000,
+        cacheKey: this.buildKnownQueryCacheKey('orientation-location', [
+          normalizedGender,
+          normalizedOrientation,
+          normalizedMunicipio,
+        ]),
+      }
+    );
   }
 
-  private firstText(source: any, keys: readonly string[]): string | null {
-    for (const key of keys) {
-      const value = this.toCleanText(source?.[key]);
+  getUsersByGender$(gender: string): Observable<IUserDados[]> {
+    const normalizedGender = this.toCleanText(gender);
 
-      if (value) {
-        return value;
-      }
+    if (!normalizedGender) {
+      return of([]);
     }
 
-    return null;
+    return this.runGuardedQuery(
+      [where('gender', '==', normalizedGender)],
+      {
+        cacheKey: this.buildKnownQueryCacheKey('gender', [normalizedGender]),
+      }
+    );
   }
 
-  private firstValue<T = unknown>(source: any, keys: readonly string[]): T | null {
-    for (const key of keys) {
-      const value = source?.[key];
+  getUsersByOrientation$(orientation: string): Observable<IUserDados[]> {
+    const normalizedOrientation = this.toCleanText(orientation);
 
-      if (value !== undefined && value !== null) {
-        return value as T;
-      }
+    if (!normalizedOrientation) {
+      return of([]);
     }
 
-    return null;
+    return this.runGuardedQuery(
+      [where('orientation', '==', normalizedOrientation)],
+      {
+        cacheKey: this.buildKnownQueryCacheKey('orientation', [
+          normalizedOrientation,
+        ]),
+      }
+    );
   }
 
-  private firstStringArray(source: any, keys: readonly string[]): readonly string[] | null {
-    for (const key of keys) {
-      const value = source?.[key];
+  getUsersByLocation$(
+    state: string,
+    city?: string
+  ): Observable<IUserDados[]> {
+    const normalizedState = this.toCleanText(state);
+    const normalizedCity = this.toCleanText(city);
 
-      if (!Array.isArray(value)) {
-        continue;
-      }
-
-      const cleaned = value
-        .filter((item): item is string => typeof item === 'string')
-        .map((item) => item.trim())
-        .filter((item) => item.length > 0);
-
-      if (cleaned.length) {
-        return cleaned;
-      }
+    if (!normalizedState) {
+      return of([]);
     }
 
-    return null;
-  }
+    const constraints: QueryConstraint[] = [
+      where('estado', '==', normalizedState),
+    ];
 
-  private toOptionalNumber(value: unknown): number | null {
-    const n =
-      typeof value === 'number'
-        ? value
-        : typeof value === 'string'
-          ? Number(value)
-          : Number.NaN;
+    if (normalizedCity) {
+      constraints.push(where('municipio', '==', normalizedCity));
+    }
 
-    return Number.isFinite(n) ? n : null;
+    return this.runGuardedQuery(constraints, {
+      cacheKey: this.buildKnownQueryCacheKey('location', [
+        normalizedState,
+        normalizedCity ?? '*',
+      ]),
+    });
   }
 
   /**
-   * Lê o primeiro campo numérico válido de uma lista de aliases.
+   * Hidrata somente os proprietários necessários para cards/mídias.
    *
-   * Mantém o mapper compatível com campos antigos e novos de public_profiles,
-   * sem recalcular métrica no front.
+   * O cache externo usa a lista ordenada de UIDs. As consultas internas não
+   * usam o cache genérico, evitando que batches distintos compartilhem resultado.
    */
-  private firstNumber(source: any, keys: readonly string[]): number | null {
-    return this.toOptionalNumber(this.firstValue(source, keys));
+  getProfilesByUids$(
+    uids: string[] | null | undefined,
+    options?: { cacheTTL?: number }
+  ): Observable<IUserDados[]> {
+    const normalizedUids = this.normalizeUidList(uids).sort();
+
+    if (!normalizedUids.length) {
+      return of([]);
+    }
+
+    const cacheTTL = options?.cacheTTL ?? 30_000;
+    const cacheKey = `discovery:public_profiles:uids:${normalizedUids.join(',')}`;
+
+    return this.uid$.pipe(
+      take(1),
+      switchMap((authUid) => {
+        if (!authUid) {
+          return of([]);
+        }
+
+        return this.cache.get<IUserDados[]>(cacheKey).pipe(
+          take(1),
+          switchMap((cachedProfiles) => {
+            if (cachedProfiles !== null) {
+              return of(
+                this.pickProfilesByRequestedUids(
+                  cachedProfiles,
+                  normalizedUids
+                )
+              );
+            }
+
+            const batches = this.chunk(
+              normalizedUids,
+              UserDiscoveryQueryService.UID_BATCH_SIZE
+            );
+            const reads$ = batches.map((batch) =>
+              this.runGuardedQuery(
+                [where(documentId(), 'in', batch)],
+                { cacheKey: null }
+              )
+            );
+
+            return forkJoin(reads$).pipe(
+              map((parts) => parts.flat()),
+              map((profiles) =>
+                this.pickProfilesByRequestedUids(
+                  profiles,
+                  normalizedUids
+                )
+              ),
+              tap((profiles) => {
+                this.cache.set(cacheKey, profiles, cacheTTL, {
+                  persist: true,
+                });
+              })
+            );
+          }),
+          catchError((error) =>
+            this.handleError(error, 'user-discovery.getProfilesByUids$')
+          )
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
 
-  private hasText(value: unknown): boolean {
-    return typeof value === 'string' && value.trim().length > 0;
+  private runGuardedQuery(
+    constraints: QueryConstraint[],
+    options: DiscoveryQueryOptions = {}
+  ): Observable<IUserDados[]> {
+    const cacheTTL =
+      options.cacheTTL ??
+      UserDiscoveryQueryService.DEFAULT_CACHE_TTL_MS;
+    const cacheKey = options.cacheKey ?? null;
+
+    return this.uid$.pipe(
+      take(1),
+      switchMap((authUid) => {
+        if (!authUid) {
+          return of([]);
+        }
+
+        const server$ = this.read
+          .getDocumentsOnce<Record<string, unknown>>(
+            UserDiscoveryQueryService.DISCOVERY_COL,
+            constraints ?? [],
+            {
+              source: 'server',
+              mapIdField: 'uid',
+              requireAuth: true,
+            }
+          )
+          .pipe(
+            map((documents) =>
+              (documents ?? [])
+                .map((document) =>
+                  this.toUserDadosFromPublicProfile(document)
+                )
+                .filter((profile): profile is IUserDados => profile !== null)
+            )
+          );
+
+        if (!cacheKey) {
+          return server$.pipe(
+            catchError((error) =>
+              this.handleError(error, 'user-discovery.runGuardedQuery')
+            )
+          );
+        }
+
+        return this.cache.get<IUserDados[]>(cacheKey).pipe(
+          take(1),
+          switchMap((cachedProfiles) => {
+            if (cachedProfiles !== null) {
+              return of(cachedProfiles);
+            }
+
+            return server$.pipe(
+              tap((profiles) => {
+                this.cache.set(cacheKey, profiles, cacheTTL, {
+                  persist: true,
+                });
+              })
+            );
+          }),
+          catchError((error) =>
+            this.handleError(error, 'user-discovery.runGuardedQuery.cache')
+          )
+        );
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
   }
 
-  private hasFiniteNumber(value: unknown): boolean {
-    const n =
-      typeof value === 'number'
-        ? value
-        : typeof value === 'string'
-          ? Number(value)
-          : Number.NaN;
-
-    return Number.isFinite(n);
-  }
-
-  private normalizeUidList(uids: string[] | null | undefined): string[] {
-    const seen = new Set<string>();
-    const out: string[] = [];
-
-    for (const raw of uids ?? []) {
-      const uid = (raw ?? '').trim();
-
-      if (!uid || seen.has(uid)) {
-        continue;
+  private handleError(
+    error: unknown,
+    context: string
+  ): Observable<IUserDados[]> {
+    return this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
+      error,
+      [],
+      {
+        silent: true,
+        context,
       }
-
-      seen.add(uid);
-      out.push(uid);
-    }
-
-    return out;
+    );
   }
 
-  private chunk<T>(list: T[], size: number): T[][] {
-    if (!list.length || size <= 0) {
-      return [];
-    }
-
-    const out: T[][] = [];
-
-    for (let i = 0; i < list.length; i += size) {
-      out.push(list.slice(i, i + size));
-    }
-
-    return out;
-  }
-
-  private toUserDadosFromPublicProfile(raw: any): IUserDados {
-    const uid = this.firstText(raw, ['uid']) ?? '';
+  private toUserDadosFromPublicProfile(
+    raw: Record<string, unknown>
+  ): IUserDados | null {
+    const uid = this.firstText(raw, ['uid']);
     const nickname = this.firstText(raw, ['nickname']);
 
-    const latitude = this.toOptionalNumber(
-      this.firstValue(raw, ['latitude', 'lat'])
-    );
+    if (!uid || !nickname) {
+      return null;
+    }
 
-    const longitude = this.toOptionalNumber(
-      this.firstValue(raw, ['longitude', 'lng', 'lon'])
-    );
-
-    /**
-     * Métricas públicas canônicas de mídia.
-     *
-     * Fonte real: functions/src/media/application/public-profile-media-metrics.ts
-     * Documento: public_profiles/{uid}
-     *
-     * Este service apenas lê e repassa. Não calcula score e não ordena perfis.
-     * O score fica centralizado em DiscoveryCardEnrichmentService +
-     * discovery-profile-score.utils.ts.
-     */
-    const mediaCount = this.firstNumber(raw, ['mediaCount', 'publicMediaCount']);
-    const photosCount = this.firstNumber(raw, ['photosCount', 'publicPhotosCount']);
-    const videosCount = this.firstNumber(raw, ['videosCount', 'publicVideosCount']);
+    const mediaCount = this.firstNumber(raw, [
+      'mediaCount',
+      'publicMediaCount',
+    ]);
+    const photosCount = this.firstNumber(raw, [
+      'photosCount',
+      'publicPhotosCount',
+    ]);
+    const videosCount = this.firstNumber(raw, [
+      'videosCount',
+      'publicVideosCount',
+    ]);
     const viewsCount = this.firstNumber(raw, [
       'viewsCount',
       'profileViewsCount',
@@ -209,71 +345,48 @@ export class UserDiscoveryQueryService {
       'publicLikesCount',
       'reactionsCount',
     ]);
-    const reactionsCount = this.firstNumber(raw, ['reactionsCount']) ?? likesCount;
-    const uniqueViewersCount = this.firstNumber(raw, ['uniqueViewersCount']);
-    const viewScore = this.firstNumber(raw, ['viewScore']);
-    const engagementScore = this.firstNumber(raw, ['engagementScore']);
-    const profileCompletenessScore = this.firstNumber(raw, [
-      'profileCompletenessScore',
-    ]);
+    const reactionsCount =
+      this.firstNumber(raw, ['reactionsCount']) ?? likesCount;
 
     return {
       uid,
-
       nickname,
       nicknameNormalized:
         this.firstText(raw, ['nicknameNormalized']) ??
-        nickname?.toLowerCase() ??
-        null,
-
+        nickname.toLowerCase(),
       photoURL: this.firstText(raw, [
         'photoURL',
         'photoUrl',
         'avatarUrl',
         'avatarURL',
       ]),
-
       role: this.firstText(raw, ['role']) ?? 'free',
-
-      gender: this.firstText(raw, [
-        'gender',
-        'genero',
-      ]),
-
+      gender: this.firstText(raw, ['gender', 'genero']),
       age: this.firstValue(raw, ['age', 'idade']) ?? null,
-
       orientation: this.firstText(raw, [
         'orientation',
         'sexualOrientation',
         'orientacao',
         'orientacaoSexual',
       ]),
-
-      normalizedGender: this.firstText(raw, [
-        'normalizedGender',
-      ]),
-
+      normalizedGender: this.firstText(raw, ['normalizedGender']),
       normalizedOrientation: this.firstText(raw, [
         'normalizedOrientation',
       ]),
-
       compatibilityReady:
-        typeof raw?.compatibilityReady === 'boolean'
-          ? raw.compatibilityReady
+        typeof raw['compatibilityReady'] === 'boolean'
+          ? raw['compatibilityReady']
           : null,
-
       partner1Orientation: this.firstText(raw, [
         'partner1Orientation',
         'orientation1',
         'orientacaoParceiro1',
       ]),
-
       partner2Orientation: this.firstText(raw, [
         'partner2Orientation',
         'orientation2',
         'orientacaoParceiro2',
       ]),
-
       preferences: this.firstStringArray(raw, [
         'preferences',
         'preferencias',
@@ -282,7 +395,6 @@ export class UserDiscoveryQueryService {
         'lookingFor',
         'buscando',
       ]),
-
       interestedInGenders: this.firstStringArray(raw, [
         'interestedInGenders',
         'interestedInGender',
@@ -290,7 +402,6 @@ export class UserDiscoveryQueryService {
         'preferredGenders',
         'generosDeInteresse',
       ]),
-
       interestedInOrientations: this.firstStringArray(raw, [
         'interestedInOrientations',
         'interestedInOrientation',
@@ -298,33 +409,17 @@ export class UserDiscoveryQueryService {
         'preferredOrientations',
         'orientacoesDeInteresse',
       ]),
-
       municipio: this.firstText(raw, [
         'municipio',
         'cidade',
         'city',
       ]),
-
-      estado: this.firstText(raw, [
-        'estado',
-        'uf',
-        'state',
-      ]),
-
-      latitude,
-      longitude,
+      estado: this.firstText(raw, ['estado', 'uf', 'state']),
+      latitude: this.firstNumber(raw, ['latitude', 'lat']),
+      longitude: this.firstNumber(raw, ['longitude', 'lng', 'lon']),
       geohash: this.firstText(raw, ['geohash']),
-
       createdAt: this.firstValue(raw, ['createdAt']) ?? null,
       updatedAt: this.firstValue(raw, ['updatedAt']) ?? null,
-
-      /**
-       * Métricas públicas agregadas.
-       *
-       * Esses campos são consumidos pelo score canônico de discovery.
-       * Mantemos também aliases legados para evitar quebra em componentes
-       * que ainda leem publicMediaCount/profileViewsCount/publicLikesCount.
-       */
       mediaCount,
       publicMediaCount: mediaCount,
       photosCount,
@@ -337,12 +432,16 @@ export class UserDiscoveryQueryService {
       likesCount,
       publicLikesCount: likesCount,
       reactionsCount,
-      uniqueViewersCount,
-      viewScore,
-      engagementScore,
-      profileCompletenessScore,
-      mediaMetricsUpdatedAt: this.firstValue(raw, ['mediaMetricsUpdatedAt']) ?? null,
-
+      uniqueViewersCount: this.firstNumber(raw, [
+        'uniqueViewersCount',
+      ]),
+      viewScore: this.firstNumber(raw, ['viewScore']),
+      engagementScore: this.firstNumber(raw, ['engagementScore']),
+      profileCompletenessScore: this.firstNumber(raw, [
+        'profileCompletenessScore',
+      ]),
+      mediaMetricsUpdatedAt:
+        this.firstValue(raw, ['mediaMetricsUpdatedAt']) ?? null,
       isOnline: false,
       lastSeen: null,
       lastOnlineAt: null,
@@ -350,49 +449,17 @@ export class UserDiscoveryQueryService {
     } as unknown as IUserDados;
   }
 
-  private isPublicProfileUsableForCard(
-    profile: IUserDados | null | undefined
-  ): boolean {
-    if (!profile?.uid) {
-      return false;
-    }
-
-    if (!this.hasText((profile as any).nickname)) {
-      return false;
-    }
-
-    const hasGender = this.hasText((profile as any).gender);
-    const hasOrientation = this.hasText((profile as any).orientation);
-    const hasLocationText =
-      this.hasText((profile as any).municipio) ||
-      this.hasText((profile as any).estado);
-    const hasCoords =
-      this.hasFiniteNumber((profile as any).latitude) &&
-      this.hasFiniteNumber((profile as any).longitude);
-    const hasPhoto = this.hasText((profile as any).photoURL);
-
-    return hasGender || hasOrientation || hasLocationText || hasCoords || hasPhoto;
-  }
-
   private pickProfilesByRequestedUids(
     profiles: IUserDados[] | null | undefined,
     requestedUids: readonly string[]
   ): IUserDados[] {
-    if (!profiles?.length) {
-      return [];
-    }
-
     const requested = new Set(requestedUids);
     const byUid = new Map<string, IUserDados>();
 
-    for (const profile of profiles) {
-      const uid = (profile?.uid ?? '').trim();
+    for (const profile of profiles ?? []) {
+      const uid = this.toCleanText(profile?.uid);
 
       if (!uid || !requested.has(uid)) {
-        continue;
-      }
-
-      if (!this.isPublicProfileUsableForCard(profile)) {
         continue;
       }
 
@@ -401,312 +468,121 @@ export class UserDiscoveryQueryService {
 
     return requestedUids
       .map((uid) => byUid.get(uid) ?? null)
-      .filter((profile): profile is IUserDados => !!profile);
+      .filter((profile): profile is IUserDados => profile !== null);
   }
 
-  private cachedProfilesCoverRequestedUids(
-    profiles: IUserDados[],
-    requestedUids: readonly string[]
-  ): boolean {
-    if (profiles.length !== requestedUids.length) {
-      return false;
-    }
-
-    const present = new Set(profiles.map((profile) => profile.uid));
-    return requestedUids.every((uid) => present.has(uid));
-  }
-
-  private onceGuardedQuery(
-    constraints: QueryConstraint[] = [],
-    options?: { cacheTTL?: number }
-  ): Observable<IUserDados[]> {
-    const cacheTTL = options?.cacheTTL ?? 30_000;
-    const cacheKey = `discovery:query:${JSON.stringify(
-      constraints.map((item) => item.type ?? 'constraint')
-    )}`;
-
-    return this.uid$.pipe(
-      take(1),
-      switchMap((uid) => {
-        if (!uid) {
-          return of([] as IUserDados[]);
-        }
-
-        return this.cache.get<IUserDados[]>(cacheKey).pipe(
-          switchMap((cached) => {
-            if (cached?.length) {
-              return of(cached);
-            }
-
-            return this.read
-              .getDocumentsOnce<any>(this.DISCOVERY_COL, constraints, {
-                useCache: true,
-                cacheTTL,
-                mapIdField: 'uid',
-                requireAuth: true,
-              })
-              .pipe(
-                map((docs) =>
-                  (docs ?? []).map((doc) =>
-                    this.toUserDadosFromPublicProfile(doc)
-                  )
-                ),
-                map((users) => {
-                  this.cache.set(cacheKey, users, cacheTTL);
-                  return users;
-                })
-              );
-          }),
-          catchError((err) =>
-            this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
-              err,
-              [],
-              {
-                silent: true,
-                context: 'user-discovery.onceGuardedQuery',
-              }
-            )
-          )
-        );
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
+  private normalizeUidList(
+    uids: string[] | null | undefined
+  ): string[] {
+    return Array.from(
+      new Set(
+        (uids ?? [])
+          .map((uid) => this.toCleanText(uid))
+          .filter((uid): uid is string => uid !== null)
+      )
     );
   }
 
-  searchUsers(constraints: QueryConstraint[]): Observable<IUserDados[]> {
-    return this.onceGuardedQuery(constraints ?? [], {
-      cacheTTL: 60_000,
-    });
+  private chunk<T>(items: T[], size: number): T[][] {
+    const chunks: T[][] = [];
+
+    for (let index = 0; index < items.length; index += size) {
+      chunks.push(items.slice(index, index + size));
+    }
+
+    return chunks;
   }
 
-  getProfilesByOrientationAndLocation(
-    gender: string,
-    orientation: string,
-    municipio: string
-  ): Observable<IUserDados[]> {
-    const g = (gender ?? '').trim();
-    const o = (orientation ?? '').trim();
-    const m = (municipio ?? '').trim();
-
-    if (!g || !o || !m) {
-      return of([] as IUserDados[]);
-    }
-
-    return this.searchUsers([
-      where('gender', '==', g),
-      where('orientation', '==', o),
-      where('municipio', '==', m),
-    ]);
-  }
-
-  getUsersByGender$(gender: string): Observable<IUserDados[]> {
-    const clean = this.toCleanText(gender);
-
-    if (!clean) {
-      return of([] as IUserDados[]);
-    }
-
-    return this.onceGuardedQuery([
-      where('gender', '==', clean),
-    ]);
-  }
-
-  getUsersByOrientation$(orientation: string): Observable<IUserDados[]> {
-    const clean = this.toCleanText(orientation);
-
-    if (!clean) {
-      return of([] as IUserDados[]);
-    }
-
-    return this.onceGuardedQuery([
-      where('orientation', '==', clean),
-    ]);
-  }
-
-  getUsersByLocation$(state: string, city?: string): Observable<IUserDados[]> {
-    const cleanState = this.toCleanText(state);
-    const cleanCity = this.toCleanText(city);
-
-    if (!cleanState) {
-      return of([] as IUserDados[]);
-    }
-
-    const constraints: QueryConstraint[] = [
-      where('estado', '==', cleanState),
-    ];
-
-    if (cleanCity) {
-      constraints.push(where('municipio', '==', cleanCity));
-    }
-
-    return this.onceGuardedQuery(constraints);
-  }
-
-  getProfilesByUids$(
-    uids: string[] | null | undefined,
-    opts?: { cacheTTL?: number }
-  ): Observable<IUserDados[]> {
-    const normalized = this.normalizeUidList(uids);
-
-    if (!normalized.length) {
-      return of([] as IUserDados[]);
-    }
-
-    const sorted = [...normalized].sort();
-    const cacheTTL = opts?.cacheTTL ?? 30_000;
-
-    const cacheKey = `discovery:public_profiles:uids:${sorted.join(',')}`;
-    const allProfilesCacheKey = 'discovery:public_profiles:all';
-
-    return this.uid$.pipe(
-      take(1),
-      switchMap((uid) => {
-        if (!uid) {
-          return of([] as IUserDados[]);
-        }
-
-        return forkJoin({
-          cachedAll: this.cache.get<IUserDados[]>(allProfilesCacheKey).pipe(
-            take(1),
-            catchError(() => of(null))
-          ),
-          cachedByUids: this.cache.get<IUserDados[]>(cacheKey).pipe(
-            take(1),
-            catchError(() => of(null))
-          ),
-        }).pipe(
-          switchMap(({ cachedAll, cachedByUids }) => {
-            const fromAllCache = this.pickProfilesByRequestedUids(
-              cachedAll,
-              sorted
-            );
-
-            if (this.cachedProfilesCoverRequestedUids(fromAllCache, sorted)) {
-              this.cache.set(cacheKey, fromAllCache, cacheTTL);
-              return of(fromAllCache);
-            }
-
-            const fromUidCache = this.pickProfilesByRequestedUids(
-              cachedByUids,
-              sorted
-            );
-
-            if (this.cachedProfilesCoverRequestedUids(fromUidCache, sorted)) {
-              return of(fromUidCache);
-            }
-
-            const batches = this.chunk(
-              sorted,
-              UserDiscoveryQueryService.UID_BATCH_SIZE
-            );
-
-            const reads$ = batches.map((batch) =>
-              this.onceGuardedQuery(
-                [where(documentId(), 'in', batch)],
-                { cacheTTL }
-              )
-            );
-
-            return forkJoin(reads$).pipe(
-              map((parts) => parts.flat()),
-              map((profiles) => {
-                const byUid = new Map<string, IUserDados>();
-
-                for (const profile of profiles ?? []) {
-                  const profileUid = (profile?.uid ?? '').trim();
-
-                  if (!profileUid) {
-                    continue;
-                  }
-
-                  byUid.set(profileUid, profile);
-                }
-
-                return sorted
-                  .map((requestedUid) => byUid.get(requestedUid) ?? null)
-                  .filter((profile): profile is IUserDados => !!profile);
-              }),
-              map((profiles) => {
-                this.cache.set(cacheKey, profiles, cacheTTL);
-                return profiles;
-              }),
-              catchError((err) =>
-                this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
-                  err,
-                  [],
-                  {
-                    silent: true,
-                    context: 'user-discovery.getProfilesByUids$',
-                  }
-                )
-              )
-            );
-          }),
-          catchError((err) =>
-            this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
-              err,
-              [],
-              {
-                silent: true,
-                context: 'user-discovery.getProfilesByUids$.cache',
-              }
-            )
-          )
-        );
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
+  private buildKnownQueryCacheKey(
+    kind: string,
+    values: readonly string[]
+  ): string {
+    const encodedValues = values.map((value) =>
+      encodeURIComponent(value.trim().toLowerCase())
     );
+
+    return `discovery:query:${kind}:${encodedValues.join('|')}`;
   }
 
-  getAllUsers$(): Observable<IUserDados[]> {
-    const cacheKey = 'discovery:public_profiles:all';
+  private firstText(
+    source: Record<string, unknown>,
+    keys: readonly string[]
+  ): string | null {
+    for (const key of keys) {
+      const text = this.toCleanText(source[key]);
 
-    return this.uid$.pipe(
-      take(1),
-      switchMap((uid) => {
-        if (!uid) {
-          return of([] as IUserDados[]);
-        }
+      if (text) {
+        return text;
+      }
+    }
 
-        return this.cache.get<IUserDados[]>(cacheKey).pipe(
-          switchMap((cached) => {
-            if (cached?.length) {
-              return of(cached);
-            }
-
-            return this.read
-              .getDocumentsOnce<any>(this.DISCOVERY_COL, [], {
-                useCache: true,
-                cacheTTL: 300_000,
-                mapIdField: 'uid',
-                requireAuth: true,
-              })
-              .pipe(
-                map((docs) =>
-                  (docs ?? []).map((doc) =>
-                    this.toUserDadosFromPublicProfile(doc)
-                  )
-                ),
-                map((users) => {
-                  this.cache.set(cacheKey, users, 600_000);
-                  return users;
-                })
-              );
-          }),
-          catchError((err) =>
-            this.firestoreError.handleFirestoreErrorAndReturn<IUserDados[]>(
-              err,
-              [],
-              {
-                silent: true,
-                context: 'user-discovery.getAllUsers$',
-              }
-            )
-          ),
-        );
-      }),
-
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
+    return null;
   }
-} // Linha 705
+
+  private firstValue<T = unknown>(
+    source: Record<string, unknown>,
+    keys: readonly string[]
+  ): T | null {
+    for (const key of keys) {
+      const value = source[key];
+
+      if (value !== undefined && value !== null) {
+        return value as T;
+      }
+    }
+
+    return null;
+  }
+
+  private firstNumber(
+    source: Record<string, unknown>,
+    keys: readonly string[]
+  ): number | null {
+    const value = this.firstValue(source, keys);
+    const numberValue =
+      typeof value === 'number'
+        ? value
+        : typeof value === 'string'
+          ? Number(value)
+          : Number.NaN;
+
+    return Number.isFinite(numberValue) ? numberValue : null;
+  }
+
+  private firstStringArray(
+    source: Record<string, unknown>,
+    keys: readonly string[]
+  ): readonly string[] | null {
+    for (const key of keys) {
+      const value = source[key];
+
+      if (!Array.isArray(value)) {
+        continue;
+      }
+
+      const items = Array.from(
+        new Set(
+          value
+            .filter((item): item is string => typeof item === 'string')
+            .map((item) => item.trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (items.length) {
+        return items;
+      }
+    }
+
+    return null;
+  }
+
+  private toCleanText(value: unknown): string | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+
+    const text = value.trim();
+    return text.length ? text : null;
+  }
+}
