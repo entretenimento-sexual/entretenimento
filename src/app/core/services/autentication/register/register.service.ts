@@ -3,6 +3,7 @@
 // RegisterService (rules-aware / best-of-both)
 // - Auth propagation: refresh token + onIdTokenChanged
 // - Firestore bootstrap: RegistrationBootstrapService
+// - Terms acceptance: backend audit through TermsAcceptanceService
 // - public_index.rules: createdAt/lastChangedAt MUST be serverTimestamp() => request.time
 // - public_profiles.rules: strict allowedKeys + createdAt/updatedAt MUST be serverTimestamp() => request.time
 // - No avatar/photoURL at signup
@@ -29,6 +30,7 @@ import { FirestoreValidationService } from '../../data-handling/firestore/valida
 import { IUserRegistrationData } from 'src/app/core/interfaces/iuser-registration-data';
 import { EmailVerificationService } from './email-verification.service';
 import { RegistrationBootstrapService } from './registration-bootstrap.service';
+import { TermsAcceptanceService } from '../../compliance/terms-acceptance.service';
 import { ValidatorService } from '../../general/validator.service';
 import { FirebaseError } from 'firebase/app';
 import { environment } from 'src/environments/environment';
@@ -53,6 +55,7 @@ export class RegisterService {
   constructor(
     private readonly emailVerificationService: EmailVerificationService,
     private readonly registrationBootstrap: RegistrationBootstrapService,
+    private readonly termsAcceptance: TermsAcceptanceService,
     private readonly globalErrorHandler: GlobalErrorHandlerService,
     private readonly firestoreValidation: FirestoreValidationService,
     private readonly cache: CacheService,
@@ -114,6 +117,38 @@ export class RegisterService {
               )
             )
           )
+      ),
+
+      /**
+       * O checkbox de cadastro é validado antes da criação da conta, mas o
+       * registro definitivo dos termos pertence ao backend. A Cloud Function
+       * grava versão, horário do servidor e compliance_audit.
+       *
+       * Se a auditoria estiver temporariamente indisponível, o cadastro segue
+       * com acceptedTerms=false. O RegisterFlowFacade encaminhará o usuário para
+       * /register/aceitar-termos após a verificação de e-mail.
+       */
+      switchMap((ctx2) =>
+        this.termsAcceptance.acceptForUser$(ctx2.cred.user.uid).pipe(
+          tap(() =>
+            this.devDebug(ctx2.traceId, 'compliance:terms:ok', {
+              uid: ctx2.cred.user.uid,
+            })
+          ),
+          map(() => ctx2),
+          catchError((err) => {
+            this.safeHandle(
+              '[RegisterService] Falha ao registrar aceite auditável dos termos (warn).',
+              err,
+              {
+                traceId: ctx2.traceId,
+                uid: ctx2.cred.user.uid,
+              }
+            );
+            ctx2.warns.push('terms-acceptance-audit-failed');
+            return of(ctx2);
+          })
+        )
       ),
 
       switchMap((ctx2) =>
