@@ -3,7 +3,7 @@ import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
-import { db, storage } from '../../firebaseApp';
+import { db, FieldValue, storage } from '../../firebaseApp';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 
 interface DeleteProfilePhotoRequest {
@@ -106,7 +106,7 @@ async function recordDeletionAttemptFailure(
 
   await jobRef.set(
     {
-      attempts: db.fieldValue.increment(1),
+      attempts: FieldValue.increment(1),
       updatedAt: Date.now(),
       lastError: normalizeErrorMessage(error),
     },
