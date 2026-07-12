@@ -1,0 +1,144 @@
+@if (state$ | async; as state) {
+  <article
+    class="profile-media-showcase app-card app-card--media"
+    aria-labelledby="profile-media-showcase-title"
+    [attr.aria-busy]="state.status === 'loading' ? 'true' : 'false'"
+  >
+    <header class="profile-media-showcase__header app-card__header">
+      <div class="profile-media-showcase__heading">
+        <span class="profile-media-showcase__eyebrow">Mídias públicas</span>
+        <h2 id="profile-media-showcase-title">Galeria de {{ profileName() }}</h2>
+        <p>
+          Fotos aprovadas que este perfil escolheu compartilhar. Abra uma mídia
+          para navegar sem sair do perfil.
+        </p>
+      </div>
+
+      @if (state.status === 'ready') {
+        <div class="profile-media-showcase__summary" aria-live="polite">
+          <strong>{{ state.items.length }}</strong>
+          <span>{{ state.items.length === 1 ? 'foto' : 'fotos' }}</span>
+        </div>
+      }
+    </header>
+
+    @switch (state.status) {
+      @case ('loading') {
+        <div
+          class="profile-media-showcase__skeleton"
+          role="status"
+          aria-live="polite"
+          aria-label="Carregando mídias públicas"
+        >
+          <span class="profile-media-showcase__skeleton-main"></span>
+          <span></span>
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+      }
+
+      @case ('error') {
+        <div class="profile-media-showcase__state" role="alert">
+          <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+          <div>
+            <h3>Mídias temporariamente indisponíveis</h3>
+            <p>A galeria não pôde ser carregada. O restante do perfil continua disponível.</p>
+          </div>
+          <button
+            type="button"
+            class="app-action app-action--ghost"
+            (click)="retry()"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      }
+
+      @case ('empty') {
+        <div class="profile-media-showcase__state" role="status" aria-live="polite">
+          <i class="fas fa-images" aria-hidden="true"></i>
+          <div>
+            <h3>Nenhuma foto pública aprovada</h3>
+            <p>Este perfil ainda não disponibilizou mídias para visitantes.</p>
+          </div>
+        </div>
+      }
+
+      @case ('ready') {
+        <div
+          class="profile-media-showcase__mosaic"
+          [class.profile-media-showcase__mosaic--single]="state.items.length === 1"
+          [class.profile-media-showcase__mosaic--two]="state.items.length === 2"
+          [class.profile-media-showcase__mosaic--three]="state.items.length === 3"
+          role="list"
+          [attr.aria-label]="'Galeria pública de ' + profileName()"
+        >
+          @for (
+            item of visibleItems(state.items);
+            track trackByPhotoId($index, item);
+            let index = $index
+          ) {
+            <button
+              type="button"
+              class="profile-media-showcase__item"
+              [class.profile-media-showcase__item--featured]="index === 0"
+              [class.profile-media-showcase__item--cover]="item.isCover === true"
+              role="listitem"
+              (click)="openPhoto(index)"
+              [attr.aria-label]="getPhotoAriaLabel(item, index, state.items.length)"
+            >
+              <img
+                [src]="item.url"
+                [alt]="item.alt || 'Foto pública do perfil'"
+                [attr.loading]="index === 0 ? 'eager' : 'lazy'"
+                [attr.fetchpriority]="index === 0 ? 'high' : null"
+                decoding="async"
+                referrerpolicy="no-referrer"
+              />
+
+              <span class="profile-media-showcase__item-gradient" aria-hidden="true"></span>
+
+              @if (index === 0) {
+                <span class="profile-media-showcase__featured-label">
+                  <i class="fas fa-expand" aria-hidden="true"></i>
+                  Abrir destaque
+                </span>
+              }
+
+              @if (item.isCover) {
+                <span class="profile-media-showcase__cover-label">
+                  <i class="fas fa-star" aria-hidden="true"></i>
+                  Capa
+                </span>
+              }
+
+              @if (index === 4 && remainingCount(state.items.length) > 0) {
+                <span class="profile-media-showcase__remaining" aria-hidden="true">
+                  +{{ remainingCount(state.items.length) }}
+                </span>
+              }
+            </button>
+          }
+        </div>
+
+        <footer class="profile-media-showcase__footer app-card__footer">
+          <p>
+            <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+            Toque em uma foto ou use Enter para abrir o visualizador imersivo.
+          </p>
+
+          <a
+            class="profile-media-showcase__gallery-link app-action app-action--primary"
+            [routerLink]="galleryLink()"
+          >
+            <i class="fas fa-images" aria-hidden="true"></i>
+            <span>Ver galeria completa</span>
+          </a>
+
+          <ng-content select="[profile-media-footer]"></ng-content>
+        </footer>
+      }
+    }
+  </article>
+}
