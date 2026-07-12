@@ -37,7 +37,13 @@ export class VideoMetadataPreparationService {
     video.src = objectUrl;
 
     try {
-      await this.waitForEvent(video, 'loadedmetadata', METADATA_TIMEOUT_MS);
+      const metadataLoaded = this.waitForEvent(
+        video,
+        'loadedmetadata',
+        METADATA_TIMEOUT_MS
+      );
+      video.load();
+      await metadataLoaded;
 
       const durationMs = this.normalizeDuration(video.duration);
       const playbackReady =
@@ -62,7 +68,9 @@ export class VideoMetadataPreparationService {
     }
   }
 
-  private async capturePosterBestEffort(video: HTMLVideoElement): Promise<Blob | null> {
+  private async capturePosterBestEffort(
+    video: HTMLVideoElement
+  ): Promise<Blob | null> {
     try {
       if (!video.videoWidth || !video.videoHeight) {
         return null;
@@ -123,15 +131,18 @@ export class VideoMetadataPreparationService {
       };
 
       const onSuccess = (): void => finish(resolve);
-      const onError = (): void => finish(() => reject(new Error('Falha ao ler o vídeo.')));
+      const onError = (): void => finish(() => {
+        reject(new Error('Falha ao ler o vídeo.'));
+      });
       const timeoutId = setTimeout(
-        () => finish(() => reject(new Error('Tempo excedido ao ler o vídeo.'))),
+        () => finish(() => {
+          reject(new Error('Tempo excedido ao ler o vídeo.'));
+        }),
         timeoutMs
       );
 
       video.addEventListener(eventName, onSuccess, { once: true });
       video.addEventListener('error', onError, { once: true });
-      video.load();
     });
   }
 
@@ -154,7 +165,11 @@ export class VideoMetadataPreparationService {
       return 0;
     }
 
-    return Math.min(2, Math.max(0.1, durationSeconds * 0.1), durationSeconds - 0.05);
+    return Math.min(
+      2,
+      Math.max(0.1, durationSeconds * 0.1),
+      durationSeconds - 0.05
+    );
   }
 
   private emptyResult(): IPreparedVideoMetadata {
