@@ -17,7 +17,10 @@ import {
 
 import { LoginService } from '../../core/services/autentication/login.service';
 
-import { EmailInputModalService } from '../../core/services/autentication/email-input-modal.service';
+import {
+  EmailInputModalService,
+  type PasswordRecoveryModalState,
+} from '../../core/services/autentication/email-input-modal.service';
 
 import { AuthVerificationHandlerComponent } from './auth-verification-handler.component';
 import { GlobalErrorHandlerService } from '../../core/services/error-handler/global-error-handler.service';
@@ -46,15 +49,7 @@ describe('AuthVerificationHandlerComponent', () => {
   };
 
   let emailInputModalMock: {
-    state$: BehaviorSubject<{
-      isOpen: boolean;
-      email: string;
-      isSending: boolean;
-      requestCompleted: boolean;
-      submittedEmail: string | null;
-      isLocalDev: boolean;
-      feedback: null;
-    }>;
+    state$: BehaviorSubject<PasswordRecoveryModalState>;
     isModalOpen: Subject<boolean>;
     emailSentMessage: Subject<string>;
     openModal: Mock;
@@ -84,7 +79,7 @@ describe('AuthVerificationHandlerComponent', () => {
     };
 
     emailInputModalMock = {
-      state$: new BehaviorSubject({
+      state$: new BehaviorSubject<PasswordRecoveryModalState>({
         isOpen: false,
         email: '',
         isSending: false,
