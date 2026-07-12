@@ -5,6 +5,18 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+export function containsControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+
+    if (code <= 31 || code === 127) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function normalizeId(value: unknown): string | null {
   const normalized = String(value ?? '').trim();
 
@@ -12,7 +24,7 @@ function normalizeId(value: unknown): string | null {
     !normalized ||
     normalized.length > 128 ||
     normalized.includes('/') ||
-    /[\u0000-\u001f\u007f]/.test(normalized)
+    containsControlCharacter(normalized)
   ) {
     return null;
   }
@@ -25,7 +37,7 @@ function normalizeStoragePath(value: unknown): string | null {
     .trim()
     .replace(/^\/+/, '');
 
-  if (!normalized || /[\u0000-\u001f\u007f]/.test(normalized)) {
+  if (!normalized || containsControlCharacter(normalized)) {
     return null;
   }
 
