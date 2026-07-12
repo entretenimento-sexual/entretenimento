@@ -6,7 +6,8 @@
 // - nenhum QueryDocumentSnapshot/Timestamp entra no NgRx;
 // - cursor usa epoch + uid para paginação determinística;
 // - chave de consulta inclui usuário, modo e tamanho da página;
-// - chave de cache inclui também o cursor da página.
+// - chave de cache inclui também o cursor da página;
+// - o prefixo pertence à política sensível já removida no logout.
 // -----------------------------------------------------------------------------
 
 import { DiscoveryMode } from './discovery-mode.model';
@@ -44,6 +45,8 @@ export interface CachedDiscoveryFeedPage {
 export const DEFAULT_DISCOVERY_PAGE_SIZE = 24;
 export const MIN_DISCOVERY_PAGE_SIZE = 6;
 export const MAX_DISCOVERY_PAGE_SIZE = 48;
+
+const DISCOVERY_CACHE_PREFIX = 'discovery:public_profiles:uids:v2';
 
 export function normalizeDiscoveryViewerUid(value: unknown): string {
   const uid = String(value ?? '').trim();
@@ -105,11 +108,11 @@ export function buildDiscoveryFeedQueryKey(
   const normalized = normalizeDiscoveryRequest(request);
 
   if (!normalized) {
-    return 'discovery:v2:invalid';
+    return `${DISCOVERY_CACHE_PREFIX}:invalid`;
   }
 
   return [
-    'discovery:v2',
+    DISCOVERY_CACHE_PREFIX,
     `viewer=${normalized.viewerUid}`,
     `mode=${normalized.mode}`,
     `size=${normalized.pageSize}`,
