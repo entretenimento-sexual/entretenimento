@@ -7,7 +7,7 @@ import {
   query,
 } from '@angular/fire/firestore';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
 
 import {
@@ -67,6 +67,10 @@ export class VideoPublicationService {
   ): Observable<IVideoPublicationConfig[]> {
     const safeOwnerUid = this.normalizeId(ownerUid);
 
+    if (!safeOwnerUid) {
+      return of([]);
+    }
+
     return this.firestoreCtx.deferObservable$(() => {
       const publicationCollection = collection(
         this.firestore,
@@ -88,9 +92,9 @@ export class VideoPublicationService {
       catchError((error: unknown) => {
         this.reportError(error, {
           op: 'watchOwnVideoPublications$',
-          hasOwnerUid: !!safeOwnerUid,
+          hasOwnerUid: true,
         });
-        throw error;
+        return throwError(() => error);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -108,6 +112,12 @@ export class VideoPublicationService {
       orderIndex: this.normalizeOrderIndex(orderIndex),
     };
 
+    if (!payload.ownerUid || !payload.videoId) {
+      return throwError(
+        () => new Error('Vídeo inválido para publicação.')
+      );
+    }
+
     return this.firestoreCtx.deferPromise$(async () => {
       const callable = httpsCallable<
         PublishVideoRequest,
@@ -119,10 +129,10 @@ export class VideoPublicationService {
       catchError((error: unknown) => {
         this.reportError(error, {
           op: 'publishVideo$',
-          hasOwnerUid: !!payload.ownerUid,
-          hasVideoId: !!payload.videoId,
+          hasOwnerUid: true,
+          hasVideoId: true,
         });
-        throw error;
+        return throwError(() => error);
       })
     );
   }
@@ -136,6 +146,12 @@ export class VideoPublicationService {
       videoId: this.normalizeId(videoId),
     };
 
+    if (!payload.ownerUid || !payload.videoId) {
+      return throwError(
+        () => new Error('Vídeo inválido para despublicação.')
+      );
+    }
+
     return this.firestoreCtx.deferPromise$(async () => {
       const callable = httpsCallable<
         UnpublishVideoRequest,
@@ -147,10 +163,10 @@ export class VideoPublicationService {
       catchError((error: unknown) => {
         this.reportError(error, {
           op: 'unpublishVideo$',
-          hasOwnerUid: !!payload.ownerUid,
-          hasVideoId: !!payload.videoId,
+          hasOwnerUid: true,
+          hasVideoId: true,
         });
-        throw error;
+        return throwError(() => error);
       })
     );
   }
