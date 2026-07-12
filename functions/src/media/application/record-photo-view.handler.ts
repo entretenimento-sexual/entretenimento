@@ -257,7 +257,9 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
           viewerUid,
           firstViewedAt: isUniqueProfileViewer
             ? now
-            : profileViewerData.firstViewedAt ?? now,
+            : profileViewerData.firstViewedAt ??
+              profileViewerData.historicalFirstViewedAt ??
+              now,
           lastViewedAt: now,
           lastSource: source,
           indexVersion: PROFILE_VIEWER_INDEX_VERSION,
