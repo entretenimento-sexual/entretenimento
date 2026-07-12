@@ -28,7 +28,7 @@ import {
 import type { QueryConstraint } from 'firebase/firestore';
 
 import { EMPTY, Observable, concat, of, throwError } from 'rxjs';
-import { map, switchMap, take, tap } from 'rxjs/operators';
+import { switchMap, take, tap } from 'rxjs/operators';
 
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { CacheService } from 'src/app/core/services/general/cache/cache.service';
@@ -42,6 +42,7 @@ import {
   normalizeDiscoveryCursor,
   normalizeDiscoveryRequest,
 } from '../models/discovery-feed-page.model';
+import { PublicProfileCard } from '../models/public-profile-card.model';
 import {
   mapPublicProfileCard,
   toSerializableEpoch,
@@ -136,7 +137,7 @@ export class DiscoveryPublicProfilesRepository {
             documentSnapshot.id
           )
         )
-        .filter((item): item is NonNullable<typeof item> => item !== null);
+        .filter((item): item is PublicProfileCard => item !== null);
 
       const lastDocument = snapshot.docs.at(-1) ?? null;
       const nextCursor = this.toCursor(lastDocument?.id, lastDocument?.data());
