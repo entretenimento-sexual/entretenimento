@@ -1,11 +1,11 @@
 // src/app/core/services/media/media-public-query.service.ts
-// Leitura pública das fotos projetadas.
+// Leitura das projeções públicas de fotos e vídeos.
 //
 // Segurança:
-// - consome somente public_profiles/{uid}/public_photos;
-// - não usa users/{uid}/photos para exibição a terceiros;
-// - a projeção Firestore não precisa conter URL permanente;
-// - URLs temporárias são emitidas por backend e mantidas apenas em memória.
+// - consome somente public_profiles/{uid}/public_photos e public_videos;
+// - não usa bibliotecas privadas para exibição a terceiros;
+// - projeções Firestore não precisam conter URLs permanentes;
+// - URLs temporárias são emitidas pelo backend e mantidas apenas em memória.
 
 import { Injectable, inject } from '@angular/core';
 import {
@@ -18,7 +18,7 @@ import {
   query,
   where,
 } from '@angular/fire/firestore';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, combineLatest, of, throwError } from 'rxjs';
 import {
   catchError,
   map,
@@ -26,14 +26,20 @@ import {
   switchMap,
 } from 'rxjs/operators';
 
+import { IPublicProfileMediaItem } from 'src/app/core/interfaces/media/i-public-profile-media-item';
 import {
   IPublicPhotoItem,
   IPublicPhotoProjection,
 } from 'src/app/core/interfaces/media/i-public-photo-item';
+import {
+  IPublicVideoItem,
+  IPublicVideoProjection,
+} from 'src/app/core/interfaces/media/i-public-video-item';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
+import { PublicVideoAccessService } from './public-video-access.service';
 
 export interface MediaPublicProfileQueryOptions {
   propagateErrors?: boolean;
@@ -46,9 +52,27 @@ export class MediaPublicQueryService {
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
     private readonly publicPhotoAccess: PublicPhotoAccessService,
+    private readonly publicVideoAccess: PublicVideoAccessService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly errorHandler: GlobalErrorHandlerService
   ) {}
+
+  getProfilePublicMedia$(
+    ownerUid: string,
+    options: MediaPublicProfileQueryOptions = {}
+  ): Observable<IPublicProfileMediaItem[]> {
+    return combineLatest([
+      this.getProfilePublicPhotos$(ownerUid, options),
+      this.getProfilePublicVideos$(ownerUid, options),
+    ]).pipe(
+      map(([photos, videos]) =>
+        [...photos, ...videos].sort((left, right) =>
+          this.compareProfileMedia(left, right)
+        )
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
 
   getProfilePublicPhotos$(
     ownerUid: string,
@@ -82,7 +106,7 @@ export class MediaPublicQueryService {
       ),
       catchError((error: unknown) => {
         this.reportError(
-          'Erro ao carregar galeria pública do perfil.',
+          'Erro ao carregar fotos públicas do perfil.',
           error,
           { op: 'getProfilePublicPhotos$', ownerUid: safeOwnerUid },
           true
@@ -91,6 +115,52 @@ export class MediaPublicQueryService {
         return options.propagateErrors
           ? throwError(() => error)
           : of([] as IPublicPhotoItem[]);
+      }),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+  }
+
+  getProfilePublicVideos$(
+    ownerUid: string,
+    options: MediaPublicProfileQueryOptions = {}
+  ): Observable<IPublicVideoItem[]> {
+    const safeOwnerUid = (ownerUid ?? '').trim();
+
+    if (!safeOwnerUid) {
+      return of([]);
+    }
+
+    return this.firestoreCtx.deferObservable$(() => {
+      const publicVideosCollection = collection(
+        this.firestore,
+        `public_profiles/${safeOwnerUid}/public_videos`
+      );
+
+      const publicVideosQuery = query(
+        publicVideosCollection,
+        where('visibility', '==', 'PUBLIC'),
+        where('moderationStatus', '==', 'APPROVED'),
+        orderBy('orderIndex', 'asc'),
+        orderBy('publishedAt', 'desc')
+      );
+
+      return collectionData(publicVideosQuery, { idField: 'id' });
+    }).pipe(
+      map((items) => items as IPublicVideoProjection[]),
+      switchMap((items) =>
+        this.publicVideoAccess.hydratePublicVideoUrls$(items)
+      ),
+      catchError((error: unknown) => {
+        this.reportError(
+          'Erro ao carregar vídeos públicos do perfil.',
+          error,
+          { op: 'getProfilePublicVideos$', ownerUid: safeOwnerUid },
+          true
+        );
+
+        return options.propagateErrors
+          ? throwError(() => error)
+          : of([] as IPublicVideoItem[]);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
@@ -202,6 +272,34 @@ export class MediaPublicQueryService {
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+  }
+
+  private compareProfileMedia(
+    left: IPublicProfileMediaItem,
+    right: IPublicProfileMediaItem
+  ): number {
+    const leftCover = 'isCover' in left && left.isCover === true ? 1 : 0;
+    const rightCover = 'isCover' in right && right.isCover === true ? 1 : 0;
+
+    if (leftCover !== rightCover) {
+      return rightCover - leftCover;
+    }
+
+    const orderDifference = this.safeNumber(left.orderIndex) -
+      this.safeNumber(right.orderIndex);
+
+    if (orderDifference !== 0) {
+      return orderDifference;
+    }
+
+    return this.safeNumber(right.publishedAt) -
+      this.safeNumber(left.publishedAt);
+  }
+
+  private safeNumber(value: unknown): number {
+    return typeof value === 'number' && Number.isFinite(value)
+      ? value
+      : 0;
   }
 
   private reportError(
