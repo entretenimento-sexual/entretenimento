@@ -66,7 +66,7 @@ export const environment: AppEnvironment = {
     // 8. Rode: npm.cmd run validate:prod
     // 9. Só depois faça deploy. O AppModule bloqueia o boot se esta chave continuar
     //    vazia ou como placeholder, para evitar produção sem App Check efetivo.
-    siteKey: 'prod-recaptcha-v3-site-key',
+    siteKey: '6LcL3k8tAAAAALjZRaY4sQiD40xSnkNqtXVed-dI',
   },
 
   features: {
