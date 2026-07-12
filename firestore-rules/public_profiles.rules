@@ -214,4 +214,9 @@ match /public_profiles/{userId} {
   );
 
   allow delete: if false;
+
+  // Índice privado de audiência real. Somente Cloud Functions/Admin SDK acessa.
+  match /profile_viewers/{viewerUid} {
+    allow read, write: if false;
+  }
 }
