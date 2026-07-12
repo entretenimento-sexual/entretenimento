@@ -1,9 +1,9 @@
 // functions/src/notifications/sendNotification.ts
-import {onDocumentCreated} from "firebase-functions/v2/firestore";
-import {getMessaging} from "firebase-admin/messaging";
-import {getFirestore} from "firebase-admin/firestore";
+import {onDocumentCreated} from 'firebase-functions/v2/firestore';
+import {getMessaging} from 'firebase-admin/messaging';
+import {getFirestore} from 'firebase-admin/firestore';
 
-export const sendNotification = onDocumentCreated("notifications/{notificationId}", async (event) => {
+export const sendNotification = onDocumentCreated('notifications/{notificationId}', async (event) => {
   const snap = event.data;
   if (!snap) return;
 
@@ -11,7 +11,7 @@ export const sendNotification = onDocumentCreated("notifications/{notificationId
   if (!notification?.userId) return;
 
   const db = getFirestore();
-  const userDoc = await db.collection("users").doc(notification.userId).get();
+  const userDoc = await db.collection('users').doc(notification.userId).get();
   const fcmToken = userDoc.data()?.fcmToken;
 
   if (fcmToken) {

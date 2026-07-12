@@ -155,24 +155,24 @@ function mapWebhookErrorToStatus(error: unknown): number {
   }
 
   switch (error.code) {
-    case 'invalid-argument':
-      return 400;
+  case 'invalid-argument':
+    return 400;
 
-    case 'unauthenticated':
-      return 401;
+  case 'unauthenticated':
+    return 401;
 
-    case 'permission-denied':
-      return 403;
+  case 'permission-denied':
+    return 403;
 
-    case 'not-found':
-      return 404;
+  case 'not-found':
+    return 404;
 
-    case 'already-exists':
-    case 'failed-precondition':
-      return 409;
+  case 'already-exists':
+  case 'failed-precondition':
+    return 409;
 
-    default:
-      return 500;
+  default:
+    return 500;
   }
 }
 

@@ -81,27 +81,27 @@ export const purgeDeletedAccounts = onSchedule(
             return;
           }
 
-            tx.set(
+          tx.set(
             tombstoneRef,
             {
-                uid,
-                status: 'deleted',
-                source: currentUser.deletionRequestedBy ?? 'system',
-                moderationReason: currentUser.suspensionReason ?? null,
-                emailHash,
-                nickname: currentUser.nickname ?? null,
-                deletionRequestedAt: currentUser.deletionRequestedAt ?? null,
-                deletionUndoUntil: currentUser.deletionUndoUntil ?? null,
-                deletedAt: now,
-                purgeAfter: currentUser.purgeAfter ?? now,
-                legalHold: currentUser.legalHold ?? false,
-                billingHold: currentUser.billingHold ?? false,
-                authDeletionStatus: 'pending',
-                createdAt: now,
-                updatedAt: now,
+              uid,
+              status: 'deleted',
+              source: currentUser.deletionRequestedBy ?? 'system',
+              moderationReason: currentUser.suspensionReason ?? null,
+              emailHash,
+              nickname: currentUser.nickname ?? null,
+              deletionRequestedAt: currentUser.deletionRequestedAt ?? null,
+              deletionUndoUntil: currentUser.deletionUndoUntil ?? null,
+              deletedAt: now,
+              purgeAfter: currentUser.purgeAfter ?? now,
+              legalHold: currentUser.legalHold ?? false,
+              billingHold: currentUser.billingHold ?? false,
+              authDeletionStatus: 'pending',
+              createdAt: now,
+              updatedAt: now,
             },
             { merge: true }
-);
+          );
 
           tx.delete(publicProfileRef);
 

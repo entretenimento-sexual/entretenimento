@@ -194,11 +194,11 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
       const publishedAt = safeNumber(publicPhoto.publishedAt) || now;
       const nextPhotoViewScore = canCountView
         ? calculateViewScore({
-            viewsCount: nextPhotoViewsCount,
-            uniqueViewersCount: nextPhotoUniqueViewersCount,
-            lastViewedAt: now,
-            publishedAt,
-          })
+          viewsCount: nextPhotoViewsCount,
+          uniqueViewersCount: nextPhotoUniqueViewersCount,
+          lastViewedAt: now,
+          publishedAt,
+        })
         : currentPhotoViewScore;
 
       const currentProfileViewsCount = safeNumber(
@@ -224,11 +224,11 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
         : currentMediaUniqueViewersCount;
       const nextProfileViewScore = canCountView
         ? Math.max(
-            0,
-            currentProfileViewScore -
+          0,
+          currentProfileViewScore -
               currentPhotoViewScore +
               nextPhotoViewScore
-          )
+        )
         : currentProfileViewScore;
 
       const engagementScore = calculatePublicProfileEngagementScore({
@@ -263,9 +263,9 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
           lastViewedAt: now,
           ...(canCountView
             ? {
-                lastCountedAt: now,
-                viewsCount: FieldValue.increment(1),
-              }
+              lastCountedAt: now,
+              viewsCount: FieldValue.increment(1),
+            }
             : {}),
         },
         { merge: true }
@@ -286,9 +286,9 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
           indexVersion: PROFILE_VIEWER_INDEX_VERSION,
           ...(canCountView
             ? {
-                lastCountedAt: now,
-                viewsCount: FieldValue.increment(1),
-              }
+              lastCountedAt: now,
+              viewsCount: FieldValue.increment(1),
+            }
             : {}),
         },
         { merge: true }

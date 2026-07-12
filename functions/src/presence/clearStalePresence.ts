@@ -20,9 +20,9 @@
 // Importante:
 // - NÃO sobrescreve lastSeen aqui. lastSeen é “último visto” real do usuário.
 // - Só marca offline (e opcionalmente registra staleClearedAt/offlineReason para auditoria).
-import { onSchedule } from "firebase-functions/v2/scheduler";
-import { FUNCTIONS_REGION } from "../config/functions-region";
-import { db, FieldValue, Timestamp } from "../firebaseApp";
+import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { FUNCTIONS_REGION } from '../config/functions-region';
+import { db, FieldValue, Timestamp } from '../firebaseApp';
 
 // ✅ type-only imports: não alteram runtime, só resolvem tipagem
 import type {
@@ -31,9 +31,9 @@ import type {
   QueryDocumentSnapshot,
   QuerySnapshot,
   WriteBatch,
-} from "firebase-admin/firestore";
+} from 'firebase-admin/firestore';
 
-const WINDOW_SEC = Number(process.env.PRESENCE_WINDOW_SEC || "120");
+const WINDOW_SEC = Number(process.env.PRESENCE_WINDOW_SEC || '120');
 
 // Firestore: limite hard 500 ops/batch. Mantemos folga.
 const MAX_BATCH_OPS = 450;
@@ -48,64 +48,64 @@ export const clearStalePresence = onSchedule(
     memory: '256MiB',
   },
   async () => {
-  const cutoffTs = Timestamp.fromMillis(Date.now() - WINDOW_SEC * 1000);
+    const cutoffTs = Timestamp.fromMillis(Date.now() - WINDOW_SEC * 1000);
 
-  // ✅ Coleção correta: presence/{uid}
-  // Query: isOnline==true && lastSeen < cutoff
-  // Obs: pode exigir índice composto (isOnline + lastSeen).
-  const baseQuery: Query<DocumentData> = db
-    .collection("presence")
-    .where("isOnline", "==", true)
-    .where("lastSeen", "<", cutoffTs)
-    .orderBy("lastSeen", "asc")
-    .limit(PAGE_SIZE);
+    // ✅ Coleção correta: presence/{uid}
+    // Query: isOnline==true && lastSeen < cutoff
+    // Obs: pode exigir índice composto (isOnline + lastSeen).
+    const baseQuery: Query<DocumentData> = db
+      .collection('presence')
+      .where('isOnline', '==', true)
+      .where('lastSeen', '<', cutoffTs)
+      .orderBy('lastSeen', 'asc')
+      .limit(PAGE_SIZE);
 
-  let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
+    let lastDoc: QueryDocumentSnapshot<DocumentData> | null = null;
 
-  try {
-    while (true) {
+    try {
+      while (true) {
       // ✅ Evita ternário no inicializador (resolve TS7022)
-      let q: Query<DocumentData> = baseQuery;
-      if (lastDoc) q = q.startAfter(lastDoc);
+        let q: Query<DocumentData> = baseQuery;
+        if (lastDoc) q = q.startAfter(lastDoc);
 
-      const snap: QuerySnapshot<DocumentData> = await q.get();
-      if (snap.empty) break;
+        const snap: QuerySnapshot<DocumentData> = await q.get();
+        if (snap.empty) break;
 
-      let batch: WriteBatch = db.batch();
-      let ops = 0;
+        let batch: WriteBatch = db.batch();
+        let ops = 0;
 
-      for (const d of snap.docs) {
-        batch.update(d.ref, {
-          isOnline: false,
+        for (const d of snap.docs) {
+          batch.update(d.ref, {
+            isOnline: false,
 
-          // Se você mantém presenceState no doc, é OK setar.
-          // Se quiser ainda mais conservador, remova esta linha e deixe só isOnline=false.
-          presenceState: "offline",
+            // Se você mantém presenceState no doc, é OK setar.
+            // Se quiser ainda mais conservador, remova esta linha e deixe só isOnline=false.
+            presenceState: 'offline',
 
-          // Auditoria opcional
-          staleClearedAt: FieldValue.serverTimestamp(),
-          offlineReason: "stale",
-        });
+            // Auditoria opcional
+            staleClearedAt: FieldValue.serverTimestamp(),
+            offlineReason: 'stale',
+          });
 
-        ops++;
+          ops++;
 
-        if (ops >= MAX_BATCH_OPS) {
-          await safeCommit(batch, ops);
-          batch = db.batch();
-          ops = 0;
+          if (ops >= MAX_BATCH_OPS) {
+            await safeCommit(batch, ops);
+            batch = db.batch();
+            ops = 0;
+          }
         }
+
+        if (ops > 0) await safeCommit(batch, ops);
+
+        lastDoc = snap.docs[snap.docs.length - 1] ?? null;
+        if (snap.size < PAGE_SIZE) break;
       }
-
-      if (ops > 0) await safeCommit(batch, ops);
-
-      lastDoc = snap.docs[snap.docs.length - 1] ?? null;
-      if (snap.size < PAGE_SIZE) break;
-    }
-  } catch (err) {
+    } catch (err) {
     // best-effort: loga e não derruba o agendador
-    console.error("[clearStalePresence] fatal error:", err);
-  }
-});
+      console.error('[clearStalePresence] fatal error:', err);
+    }
+  });
 
 async function safeCommit(batch: WriteBatch, ops: number) {
   try {
