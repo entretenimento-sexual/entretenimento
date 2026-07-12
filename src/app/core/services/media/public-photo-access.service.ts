@@ -1,7 +1,7 @@
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Functions, httpsCallable } from '@angular/fire/functions';
-import { Observable, forkJoin, of } from 'rxjs';
+import { Observable, forkJoin, of, throwError } from 'rxjs';
 import {
   catchError,
   distinctUntilChanged,
@@ -91,6 +91,12 @@ export class PublicPhotoAccessService {
     }
 
     const resolvedUrls = new Map<string, string>();
+    const projectionByIdentity = new Map(
+      eligible.map((projection) => [
+        this.buildIdentityKey(projection.ownerUid, projection.id),
+        projection,
+      ])
+    );
     const pending: IPublicPhotoProjection[] = [];
     const now = Date.now();
 
@@ -132,10 +138,7 @@ export class PublicPhotoAccessService {
               accessItem.ownerUid,
               accessItem.photoId
             );
-            const projection = eligible.find(
-              (item) =>
-                this.buildIdentityKey(item.ownerUid, item.id) === identityKey
-            );
+            const projection = projectionByIdentity.get(identityKey);
 
             if (!projection || !this.isHttpUrl(accessItem.url)) {
               continue;
@@ -178,7 +181,7 @@ export class PublicPhotoAccessService {
           count: projections.length,
         });
 
-        return of({ items: [] });
+        return throwError(() => error);
       })
     );
   }
