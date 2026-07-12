@@ -1,13 +1,3 @@
-<!-- src/app/media/shared/components/public-photo-card/public-photo-card.component.html -->
-<!--
-  Card público de foto.
-
-  Diretriz:
-  - usa o card system global: app-card, app-media-frame, app-media-overlay, app-chip;
-  - mantém classes locais para compatibilidade e ajustes finos;
-  - preserva preview, link de perfil, métricas públicas, data, capa e destaque turbo.
--->
-
 @let item = photo();
 @let mode = variant();
 
@@ -16,12 +6,15 @@
   role="listitem"
   [class.photo-tile--cover]="item.isCover"
   [class.photo-tile--boosted]="mode === 'boosted'"
+  [class.photo-tile--profile]="mode === 'profile'"
 >
   <button
     type="button"
     class="photo-card-link app-media-frame app-media-frame--portrait"
     (click)="onPreview()"
-    [attr.aria-label]="'Abrir foto pública de ' + getOwnerName(item)"
+    [attr.aria-label]="mode === 'profile'
+      ? 'Abrir foto pública em visualização imersiva'
+      : 'Abrir foto pública de ' + getOwnerName(item)"
     title="Abrir foto"
   >
     <img
@@ -29,26 +22,32 @@
       [src]="item.url"
       [alt]="item.alt || 'Foto pública'"
       loading="lazy"
+      decoding="async"
       referrerpolicy="no-referrer"
     />
   </button>
 
-  <div class="photo-overlay app-media-overlay">
-    <a
-      class="photo-owner-link"
-      [routerLink]="profileLink()"
-      [attr.aria-label]="'Abrir perfil de ' + getOwnerName(item)"
-    >
-      <strong>{{ getOwnerName(item) }}</strong>
+  <div
+    class="photo-overlay app-media-overlay"
+    [class.photo-overlay--profile]="mode === 'profile'"
+  >
+    @if (mode !== 'profile') {
+      <a
+        class="photo-owner-link"
+        [routerLink]="profileLink()"
+        [attr.aria-label]="'Abrir perfil de ' + getOwnerName(item)"
+      >
+        <strong>{{ getOwnerName(item) }}</strong>
 
-      @if (getOwnerMeta(item)) {
-        <small>{{ getOwnerMeta(item) }}</small>
-      }
+        @if (getOwnerMeta(item)) {
+          <small>{{ getOwnerMeta(item) }}</small>
+        }
 
-      @if (getOwnerLocation(item)) {
-        <small>{{ getOwnerLocation(item) }}</small>
-      }
-    </a>
+        @if (getOwnerLocation(item)) {
+          <small>{{ getOwnerLocation(item) }}</small>
+        }
+      </a>
+    }
 
     <span class="photo-stats" aria-label="Métricas públicas da foto">
       <span class="stat-chip app-chip app-chip--overlay" aria-label="Curtidas">
