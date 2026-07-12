@@ -40,13 +40,11 @@ export class ProfileAvatarWriteService {
 
     return this.ctx.deferPromise$(async () => {
       const batch = writeBatch(this.db as any);
-      const timestamp = serverTimestamp();
 
       batch.set(
         userRef as any,
         {
           photoURL: safePhotoURL,
-          updatedAt: timestamp,
         },
         { merge: true }
       );
@@ -55,7 +53,7 @@ export class ProfileAvatarWriteService {
         publicProfileRef as any,
         {
           photoURL: safePhotoURL,
-          updatedAt: timestamp,
+          updatedAt: serverTimestamp(),
         },
         { merge: true }
       );
