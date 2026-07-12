@@ -5,6 +5,7 @@ import {
   computed,
   inject,
   input,
+  signal,
 } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -27,6 +28,7 @@ import {
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import type { IProfilePhotoItem } from '../../../photos/photo-viewer/photo-viewer.component';
 
@@ -51,9 +53,11 @@ export class ProfileMediaShowcaseComponent {
   private readonly dialog = inject(MatDialog);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
   private readonly errorNotification = inject(ErrorNotificationService);
+  private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
 
   readonly ownerUid = input.required<string>();
   readonly profileName = input('Perfil');
+  readonly viewerOpening = signal(false);
 
   private readonly refreshSubject = new BehaviorSubject<number>(0);
   private readonly ownerUid$ = toObservable(this.ownerUid).pipe(
@@ -87,10 +91,10 @@ export class ProfileMediaShowcaseComponent {
           status: items.length > 0 ? 'ready' : 'empty',
           items,
         })),
-        startWith<ProfileMediaShowcaseState>({
+        startWith({
           status: 'loading',
           items: [],
-        }),
+        } as ProfileMediaShowcaseState),
         catchError(() => {
           this.errorNotification.showError(
             'Não foi possível carregar as mídias deste perfil agora.'
@@ -110,15 +114,45 @@ export class ProfileMediaShowcaseComponent {
     this.refreshSubject.next(this.refreshSubject.value + 1);
   }
 
-  async openPhoto(index: number): Promise<void> {
-    const state = await firstValueFrom(this.state$);
+  async openPhoto(photoId: string, fallbackIndex: number): Promise<void> {
+    const ownerUid = (this.ownerUid() ?? '').trim();
+    const safePhotoId = (photoId ?? '').trim();
 
-    if (state.status !== 'ready' || !state.items.length) {
+    if (!ownerUid || !safePhotoId || this.viewerOpening()) {
       return;
     }
 
-    const safeIndex = Math.max(0, Math.min(index, state.items.length - 1));
-    const viewerItems = state.items.map((item) => this.toViewerPhotoItem(item));
+    this.viewerOpening.set(true);
+
+    let items: IPublicPhotoItem[];
+
+    try {
+      items = await firstValueFrom(
+        this.mediaPublicQuery.getProfilePublicPhotos$(ownerUid, {
+          propagateErrors: true,
+        })
+      );
+    } catch {
+      this.errorNotification.showError(
+        'Não foi possível atualizar o acesso às mídias deste perfil.'
+      );
+      this.viewerOpening.set(false);
+      return;
+    }
+
+    if (!items.length) {
+      this.errorNotification.showWarning(
+        'Esta foto não está mais disponível para visitantes.'
+      );
+      this.viewerOpening.set(false);
+      return;
+    }
+
+    const refreshedIndex = items.findIndex((item) => item.id === safePhotoId);
+    const safeIndex = refreshedIndex >= 0
+      ? refreshedIndex
+      : Math.max(0, Math.min(fallbackIndex, items.length - 1));
+    const viewerItems = items.map((item) => this.toViewerPhotoItem(item));
     const selected = viewerItems[safeIndex];
 
     try {
@@ -128,7 +162,7 @@ export class ProfileMediaShowcaseComponent {
 
       this.dialog.open(PhotoViewerComponent, {
         data: {
-          ownerUid: selected?.ownerUid ?? (this.ownerUid() ?? '').trim(),
+          ownerUid: selected?.ownerUid ?? ownerUid,
           items: viewerItems,
           startIndex: safeIndex,
           source: 'profile',
@@ -142,10 +176,13 @@ export class ProfileMediaShowcaseComponent {
         panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
         backdropClass: 'photo-viewer-backdrop',
       });
-    } catch {
+    } catch (error) {
+      this.reportViewerError(error, ownerUid, safePhotoId);
       this.errorNotification.showError(
         'Não foi possível abrir a visualização imersiva.'
       );
+    } finally {
+      this.viewerOpening.set(false);
     }
   }
 
@@ -180,5 +217,30 @@ export class ProfileMediaShowcaseComponent {
       reactionsEnabled: item.reactionsEnabled ?? false,
       moderationStatus: item.moderationStatus ?? 'PRIVATE',
     };
+  }
+
+  private reportViewerError(
+    error: unknown,
+    ownerUid: string,
+    photoId: string
+  ): void {
+    try {
+      const normalizedError = error instanceof Error
+        ? error
+        : new Error('Falha ao carregar o visualizador de mídia.');
+
+      (normalizedError as any).original = error;
+      (normalizedError as any).context = {
+        scope: 'ProfileMediaShowcaseComponent',
+        op: 'openPhoto.viewer',
+        hasOwnerUid: !!ownerUid,
+        hasPhotoId: !!photoId,
+      };
+      (normalizedError as any).skipUserNotification = true;
+
+      this.globalErrorHandler.handleError(normalizedError);
+    } catch {
+      // noop
+    }
   }
 }
