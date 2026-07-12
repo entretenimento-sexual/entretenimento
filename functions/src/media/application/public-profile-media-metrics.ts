@@ -303,9 +303,8 @@ async function persistProfileViewerIndex(
 /**
  * Garante que a audiência única do perfil esteja indexada por viewerUid.
  *
- * O backfill é idempotente e protegido por versão. Em concorrência, somente a
- * primeira execução que encontrar a versão antiga consolida o contador legado;
- * as demais preservam incrementos mais recentes.
+ * Depois da migração, retorna o contador já consolidado no perfil e não executa
+ * uma agregação adicional. A contagem exata do índice fica reservada ao refresh.
  */
 export async function ensurePublicProfileViewerIndex(
   ownerUid: string
@@ -323,12 +322,13 @@ export async function ensurePublicProfileViewerIndex(
     return 0;
   }
 
-  const currentVersion = safeInteger(
-    profileSnapshot.data()?.profileViewerIndexVersion
-  );
+  const profile = profileSnapshot.data() ?? {};
+  const currentVersion = safeInteger(profile.profileViewerIndexVersion);
 
   if (currentVersion >= PROFILE_VIEWER_INDEX_VERSION) {
-    return countProfileViewers(publicProfileRef);
+    return safeInteger(
+      profile.profileUniqueViewersCount ?? profile.uniqueViewersCount
+    );
   }
 
   const legacyIndex = await collectLegacyProfileViewers(
@@ -373,7 +373,7 @@ export async function ensurePublicProfileViewerIndex(
     );
   });
 
-  return countProfileViewers(publicProfileRef);
+  return indexedCount;
 }
 
 export async function refreshPublicProfileMediaMetrics(
@@ -387,10 +387,12 @@ export async function refreshPublicProfileMediaMetrics(
 
   const publicProfileRef = db.doc(`public_profiles/${safeOwnerUid}`);
 
+  await ensurePublicProfileViewerIndex(safeOwnerUid);
+
   const [photos, videos, indexedUniqueViewersCount] = await Promise.all([
     aggregateApprovedPublicMedia(publicProfileRef.collection('public_photos')),
     aggregateApprovedPublicMedia(publicProfileRef.collection('public_videos')),
-    ensurePublicProfileViewerIndex(safeOwnerUid),
+    countProfileViewers(publicProfileRef),
   ]);
 
   const total = mergeAggregate(photos, videos);
