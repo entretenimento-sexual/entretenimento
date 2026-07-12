@@ -1,7 +1,8 @@
 // ===============================================================
 // USERS / videos
 // - Biblioteca privada de vídeos do usuário
-// - Somente o dono lê/escreve
+// - Somente o dono lê e cria metadados privados validados
+// - Exclusão fica no backend para não deixar publicação órfã
 // - Sem publicação pública direta
 // - Sem enumeração por terceiros
 // - Publicação usa projeção e ativo físico separados pelo backend
@@ -154,7 +155,7 @@ match /users/{userId}/videos/{videoId} {
   allow update: if isSelf(userId)
     && validUpdatePayload();
 
-  allow delete: if isSelf(userId);
+  allow delete: if false;
 }
 // ===============================================================
 //                         FIM DO USERS / VIDEOS
