@@ -1,18 +1,28 @@
 // src/app/core/interfaces/media/i-public-photo-item.ts
-// Contrato da projeção pública de fotos.
+// Contratos da projeção pública e do item hidratado para exibição.
 //
-// Uso:
-// - leitura por outros usuários
-// - perfil público / perfil de terceiros
-// - não deve carregar metadados privados como path bruto do upload
-import type { IPhotoPublicationScore, TPhotoCommentsPolicy, TPhotoModerationStatus, TPhotoVisibility } from './i-photo-publication-config';
+// Segurança:
+// - a projeção Firestore não precisa armazenar URL permanente;
+// - o item exibido recebe URL temporária emitida pelo backend;
+// - nenhum contrato público contém caminho do upload privado.
 
-export interface IPublicPhotoItem {
+import type {
+  IPhotoPublicationScore,
+  TPhotoCommentsPolicy,
+  TPhotoModerationStatus,
+  TPhotoVisibility,
+} from './i-photo-publication-config';
+
+export type TPublicMediaType = 'PHOTO' | 'VIDEO';
+export type TPublicAssetAccess = 'SIGNED_URL';
+
+export interface IPublicPhotoBase {
   id: string;
   ownerUid: string;
 
-  url: string;
   alt?: string;
+  mediaType?: 'PHOTO';
+  assetAccess?: TPublicAssetAccess;
 
   createdAt: number;
   publishedAt: number;
@@ -36,7 +46,6 @@ export interface IPublicPhotoItem {
   score?: number;
   scoreBreakdown?: IPhotoPublicationScore;
 
-  // Métricas públicas futuras
   likesCount?: number;
   engagementScore?: number;
   viewsCount?: number;
@@ -44,17 +53,24 @@ export interface IPublicPhotoItem {
   lastViewedAt?: number;
   viewScore?: number;
 
-  // Turbo / promoção
   boostActive?: boolean;
   boostPriority?: number;
   boostedUntil?: number | null;
 
-  // Dono público da mídia — preenchido por enriquecimento no front.
-// Não vem necessariamente do documento public_photos.
-ownerNickname?: string | null;
-ownerPhotoURL?: string | null;
-ownerGender?: string | null;
-ownerOrientation?: string | null;
-ownerMunicipio?: string | null;
-ownerEstado?: string | null;
+  ownerNickname?: string | null;
+  ownerPhotoURL?: string | null;
+  ownerGender?: string | null;
+  ownerOrientation?: string | null;
+  ownerMunicipio?: string | null;
+  ownerEstado?: string | null;
+}
+
+/** Documento lido da projeção pública antes da autorização de acesso. */
+export interface IPublicPhotoProjection extends IPublicPhotoBase {
+  url?: string | null;
+}
+
+/** Item pronto para renderização após receber URL temporária. */
+export interface IPublicPhotoItem extends IPublicPhotoBase {
+  url: string;
 }
