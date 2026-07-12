@@ -71,7 +71,7 @@
           [class.profile-media-showcase__mosaic--single]="state.items.length === 1"
           [class.profile-media-showcase__mosaic--two]="state.items.length === 2"
           [class.profile-media-showcase__mosaic--three]="state.items.length === 3"
-          role="list"
+          role="group"
           [attr.aria-label]="'Galeria pública de ' + profileName()"
         >
           @for (
@@ -84,8 +84,9 @@
               class="profile-media-showcase__item"
               [class.profile-media-showcase__item--featured]="index === 0"
               [class.profile-media-showcase__item--cover]="item.isCover === true"
-              role="listitem"
-              (click)="openPhoto(index)"
+              (click)="openPhoto(item.id, index)"
+              [disabled]="viewerOpening()"
+              [attr.aria-busy]="viewerOpening() ? 'true' : 'false'"
               [attr.aria-label]="getPhotoAriaLabel(item, index, state.items.length)"
             >
               <img
