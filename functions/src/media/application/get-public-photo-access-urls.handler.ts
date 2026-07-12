@@ -25,6 +25,11 @@ interface PublicPhotoAccessResponse {
   items: PublicPhotoAccessResponseItem[];
 }
 
+interface PublicPhotoAccessResolution {
+  item: PublicPhotoAccessResponseItem | null;
+  technicalFailure: boolean;
+}
+
 const MAX_ITEMS_PER_REQUEST = 32;
 const SIGNED_URL_TTL_MS = 5 * 60 * 1000;
 
@@ -55,8 +60,10 @@ function buildStorageEmulatorUrl(storagePath: string): string {
     ? configuredHost
     : `http://${configuredHost}`;
   const bucketName = storage.bucket().name;
+  const encodedBucket = encodeURIComponent(bucketName);
+  const encodedPath = encodeURIComponent(storagePath);
 
-  return `${baseUrl}/v0/b/${encodeURIComponent(bucketName)}/o/${encodeURIComponent(storagePath)}?alt=media`;
+  return `${baseUrl}/v0/b/${encodedBucket}/o/${encodedPath}?alt=media`;
 }
 
 async function resolveAccessItem(
@@ -104,7 +111,7 @@ async function resolveAccessItem(
   const [exists] = await file.exists();
 
   if (!exists) {
-    return null;
+    throw new Error('O ativo publicado não foi encontrado no Storage.');
   }
 
   const url = process.env.FUNCTIONS_EMULATOR === 'true'
@@ -163,29 +170,52 @@ export const getPublicPhotoAccessUrls = onCall<PublicPhotoAccessRequest>(
     }
 
     if (!uniqueItems.size) {
-      throw new HttpsError('invalid-argument', 'Nenhuma foto válida informada.');
+      throw new HttpsError(
+        'invalid-argument',
+        'Nenhuma foto válida informada.'
+      );
     }
 
     const expiresAt = Date.now() + SIGNED_URL_TTL_MS;
-    const resolvedItems = await Promise.all(
-      [...uniqueItems.values()].map(async ({ ownerUid, photoId }) => {
-        try {
-          return await resolveAccessItem(ownerUid, photoId, expiresAt);
-        } catch (error) {
-          logger.warn('[getPublicPhotoAccessUrls] Falha ao gerar acesso.', {
-            ownerUid,
-            photoId,
-            error: error instanceof Error ? error.message : String(error ?? ''),
-          });
-          return null;
-        }
-      })
-    );
+    const resolutions = await Promise.all(
+      [...uniqueItems.values()].map(
+        async ({ ownerUid, photoId }): Promise<PublicPhotoAccessResolution> => {
+          try {
+            return {
+              item: await resolveAccessItem(ownerUid, photoId, expiresAt),
+              technicalFailure: false,
+            };
+          } catch (error) {
+            logger.warn('[getPublicPhotoAccessUrls] Falha ao gerar acesso.', {
+              ownerUid,
+              photoId,
+              error: error instanceof Error
+                ? error.message
+                : String(error ?? ''),
+            });
 
-    return {
-      items: resolvedItems.filter(
-        (item): item is PublicPhotoAccessResponseItem => item !== null
-      ),
-    };
+            return {
+              item: null,
+              technicalFailure: true,
+            };
+          }
+        }
+      )
+    );
+    const items = resolutions.flatMap((resolution) =>
+      resolution.item ? [resolution.item] : []
+    );
+    const technicalFailureCount = resolutions.filter(
+      (resolution) => resolution.technicalFailure
+    ).length;
+
+    if (!items.length && technicalFailureCount > 0) {
+      throw new HttpsError(
+        'internal',
+        'Não foi possível liberar as fotos neste momento.'
+      );
+    }
+
+    return { items };
   }
 );
