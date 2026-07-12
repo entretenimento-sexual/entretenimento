@@ -197,81 +197,26 @@
       </section>
 
       <section class="other-profile-page__experience" aria-label="Mídia e interesses do perfil">
-        <article class="other-profile-page__media-panel app-card app-card--media">
-          <div class="other-profile-page__media-visual app-media-frame">
-            @if (publicPhotoPreview$ | async; as previewPhotos) {
-              @if (previewPhotos.length > 0) {
-                <div
-                  class="other-profile-page__gallery-preview"
-                  [class.other-profile-page__gallery-preview--single]="previewPhotos.length === 1"
-                  aria-label="Prévia da galeria do perfil"
-                >
-                  @for (photo of previewPhotos; track trackPhotoById($index, photo)) {
-                    <figure class="other-profile-page__gallery-item app-card app-card--media">
-                      <img
-                        [src]="photo.url"
-                        [attr.alt]="photo.alt || 'Foto publicada no perfil'"
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    </figure>
-                  }
-                </div>
-
-                <div class="other-profile-page__media-overlay app-media-overlay">
-                  <i class="fas fa-images" aria-hidden="true"></i>
-                  <span>Prévia da galeria</span>
-                </div>
-              } @else {
-                <div
-                  class="other-profile-page__gallery-empty"
-                  aria-label="Galeria sem fotos aprovadas"
-                >
-                  <img
-                    [src]="profile.photoURL || 'assets/imagem-padrao.webp'"
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                  />
-
-                  <div class="other-profile-page__gallery-empty-copy app-chip app-chip--overlay">
-                    <i class="fas fa-images" aria-hidden="true"></i>
-                    <span>Galeria ainda sem fotos aprovadas</span>
-                  </div>
-                </div>
-              }
+        <app-profile-media-showcase
+          [ownerUid]="uid || ''"
+          [profileName]="displayName"
+        >
+          @if (viewerAccess$ | async; as access) {
+            @if (!access.isSubscriber) {
+              <p profile-media-footer class="other-profile-page__plan-note">
+                Assinantes recebem mais contexto de descoberta e interação.
+                <a [routerLink]="subscriptionLink">Ver planos</a>
+              </p>
+            } @else {
+              <p
+                profile-media-footer
+                class="other-profile-page__plan-note other-profile-page__plan-note--active"
+              >
+                {{ access.premiumLabel }} ativo para recursos avançados.
+              </p>
             }
-          </div>
-
-          <div class="other-profile-page__media-copy app-card__body">
-            <h2>Galeria</h2>
-
-            <p>
-              Conheça melhor este perfil pelas mídias aprovadas e pelas
-              informações que o usuário decidiu compartilhar.
-            </p>
-
-            @if (photosLink) {
-              <a class="other-profile-page__media-cta app-action app-action--primary" [routerLink]="photosLink">
-                <i class="fas fa-images" aria-hidden="true"></i>
-                <span>Ver galeria</span>
-              </a>
-            }
-
-            @if (viewerAccess$ | async; as access) {
-              @if (!access.isSubscriber) {
-                <p class="other-profile-page__plan-note">
-                  Assinantes recebem mais contexto de descoberta e interação.
-                  <a [routerLink]="subscriptionLink">Ver planos</a>
-                </p>
-              } @else {
-                <p class="other-profile-page__plan-note other-profile-page__plan-note--active">
-                  {{ access.premiumLabel }} ativo para recursos avançados.
-                </p>
-              }
-            }
-          </div>
-        </article>
+          }
+        </app-profile-media-showcase>
 
         <article class="other-profile-page__intentions-panel app-card app-card--compact">
           <header class="other-profile-page__panel-header app-card__header">
