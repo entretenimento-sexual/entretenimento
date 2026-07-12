@@ -1,78 +1,145 @@
 <!-- src/app/authentication/auth-verification-handler/auth-verification-handler.component.html -->
 <div class="auth-container">
-  <!-- Loading -->
   @if (isLoading) {
-  <div class="loading-message">
-    <p>Aguarde, estamos processando sua solicitação…</p>
-  </div>
-  }
-
-  <!-- Mensagem principal -->
-  @if (!isLoading && message) {
-  <div class="alert-container">
-    <p class="alert" [ngClass]="{ 'alert-success': verifyOk, 'alert-error': !verifyOk }">
-      {{ message }}
-    </p>
-
-    <!-- CTAs contextuais para verificação de e-mail -->
-    @if (mode === 'verifyEmail') {
-    <div class="cta-row">
-      @if (verifyOk && !showGoToLoginCTA) {
-      <button class="btn btn-primary" (click)="goToWelcome()">Ir para o welcome</button>
-      }
-      @if (showGoToLoginCTA) {
-      <button class="btn btn-primary" (click)="goToLogin()">Ir para o login</button>
-      }
-      @if (showResendVerifyCTA) {
-      <button class="btn btn-secondary" (click)="resendVerificationEmail()">Reenviar e-mail de verificação</button>
-      }
-      <button class="btn" (click)="redirectToFAQ()">Perguntas frequentes</button>
+    <div class="loading-message" role="status" aria-live="polite" aria-busy="true">
+      <p>Aguarde, estamos processando sua solicitação…</p>
     </div>
-    }
-  </div>
   }
 
-  <!-- Fluxo: verificação de e-mail -->
-  @if (!isLoading && mode === 'verifyEmail') {
-  <!-- Nada adicional fixo aqui; a mensagem + CTAs acima já cobrem todos os casos -->
+  @if (!isLoading && message) {
+    <div class="alert-container">
+      <p
+        class="alert"
+        [class.alert-success]="actionSucceeded"
+        [class.alert-error]="!actionSucceeded"
+        [attr.role]="actionSucceeded ? 'status' : 'alert'"
+        [attr.aria-live]="actionSucceeded ? 'polite' : 'assertive'"
+      >
+        {{ message }}
+      </p>
+
+      @if (mode === 'verifyEmail') {
+        <div class="cta-row">
+          @if (verifyOk && !showGoToLoginCTA) {
+            <button type="button" class="btn btn-primary" (click)="goToWelcome()">
+              Continuar cadastro
+            </button>
+          }
+
+          @if (showGoToLoginCTA) {
+            <button type="button" class="btn btn-primary" (click)="goToLogin()">
+              Ir para o login
+            </button>
+          }
+
+          @if (showResendVerifyCTA) {
+            <button
+              type="button"
+              class="btn btn-secondary"
+              (click)="resendVerificationEmail()"
+            >
+              Reenviar e-mail de verificação
+            </button>
+          }
+        </div>
+      }
+    </div>
   }
 
-  <!-- Fluxo: redefinição de senha -->
-  @if (!isLoading && mode === 'resetPassword') {
-  <div class="form-container">
-    <h2 class="form-header">Redefinir Senha</h2>
-    <form (ngSubmit)="onSubmit()" class="form">
-      <label for="newPassword" class="form-label">Nova Senha</label>
-      <div class="input-wrapper">
-        <input [type]="showPassword ? 'text' : 'password'" [(ngModel)]="newPassword" name="newPassword" required
-          class="input-field" />
-        <button type="button" class="toggle-input" (click)="togglePasswordVisibility()">
-          <i [ngClass]="showPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
+  @if (
+    !isLoading &&
+    mode === 'resetPassword' &&
+    !passwordResetCompleted &&
+    !passwordResetUnavailable
+  ) {
+    <div class="form-container">
+      <h1 class="form-header">Redefinir senha</h1>
+      <p id="password-reset-help" class="form-help">
+        Crie uma senha com pelo menos 8 caracteres.
+      </p>
+
+      <form
+        class="form"
+        novalidate
+        (ngSubmit)="onSubmit()"
+        [attr.aria-busy]="isLoading ? 'true' : 'false'"
+      >
+        <label for="newPassword" class="form-label">Nova senha</label>
+        <div class="input-wrapper">
+          <input
+            id="newPassword"
+            [type]="showPassword ? 'text' : 'password'"
+            [(ngModel)]="newPassword"
+            name="newPassword"
+            required
+            minlength="8"
+            autocomplete="new-password"
+            class="input-field"
+            aria-describedby="password-reset-help"
+            [disabled]="isLoading"
+          />
+          <button
+            type="button"
+            class="toggle-input"
+            (click)="togglePasswordVisibility()"
+            [disabled]="isLoading"
+            [attr.aria-label]="showPassword ? 'Ocultar nova senha' : 'Mostrar nova senha'"
+            [attr.aria-pressed]="showPassword"
+          >
+            <i
+              aria-hidden="true"
+              [ngClass]="showPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"
+            ></i>
+          </button>
+        </div>
+
+        <label for="confirmPassword" class="form-label">Confirmar nova senha</label>
+        <div class="input-wrapper">
+          <input
+            id="confirmPassword"
+            [type]="showConfirmPassword ? 'text' : 'password'"
+            [(ngModel)]="confirmPassword"
+            name="confirmPassword"
+            required
+            minlength="8"
+            autocomplete="new-password"
+            class="input-field"
+            aria-describedby="password-reset-help"
+            [disabled]="isLoading"
+          />
+          <button
+            type="button"
+            class="toggle-input"
+            (click)="toggleConfirmPasswordVisibility()"
+            [disabled]="isLoading"
+            [attr.aria-label]="showConfirmPassword ? 'Ocultar confirmação de senha' : 'Mostrar confirmação de senha'"
+            [attr.aria-pressed]="showConfirmPassword"
+          >
+            <i
+              aria-hidden="true"
+              [ngClass]="showConfirmPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"
+            ></i>
+          </button>
+        </div>
+
+        <button
+          type="submit"
+          class="btn btn-primary submit-button"
+          [disabled]="!canSubmitPasswordReset"
+        >
+          Redefinir senha
         </button>
-      </div>
+      </form>
+    </div>
+  }
 
-      <label for="confirmPassword" class="form-label">Confirmar Nova Senha</label>
-      <div class="input-wrapper">
-        <input [type]="showConfirmPassword ? 'text' : 'password'" [(ngModel)]="confirmPassword" name="confirmPassword"
-          required class="input-field" />
-        <button type="button" class="toggle-input" (click)="toggleConfirmPasswordVisibility()">
-          <i [ngClass]="showConfirmPassword ? 'fa fa-eye-slash' : 'fa fa-eye'"></i>
-        </button>
-      </div>
-
-      <button type="submit" class="btn btn-primary">Redefinir Senha</button>
-    </form>
-
-    @if (shouldShowRecoveryLink) {
+  @if (!isLoading && mode === 'resetPassword' && shouldShowRecoveryLink) {
     <div class="hint-row">
-      <button class="link-button" (click)="openPasswordRecoveryModal()">
-        Reenviar e-mail para recuperação de senha
+      <button type="button" class="link-button" (click)="openPasswordRecoveryModal()">
+        Solicitar um novo link de recuperação
       </button>
     </div>
-    }
-  </div>
   }
 
-  <!-- Modal de recuperação de senha -->
   <app-email-input-modal></app-email-input-modal>
 </div>
