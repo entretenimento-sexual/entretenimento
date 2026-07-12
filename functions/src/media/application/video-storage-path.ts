@@ -1,5 +1,5 @@
 const PRIVATE_VIDEO_PREFIX = 'uploads/videos';
-const PRIVATE_IMAGE_PREFIX = 'uploads/images';
+const PRIVATE_VIDEO_POSTER_PREFIX = 'uploads/video-posters';
 const PUBLISHED_VIDEO_PREFIX = 'published/videos';
 
 function escapeRegExp(value: string): string {
@@ -104,9 +104,20 @@ export function extractOwnedPrivateVideoPath(
 
 export function extractOwnedPrivateVideoPosterPath(
   ownerUid: string,
+  videoId: string,
   value: unknown
 ): string | null {
-  return matchesOwnedPath(ownerUid, value, `${PRIVATE_IMAGE_PREFIX}/[^/]+`);
+  const safeVideoId = normalizeId(videoId);
+
+  if (!safeVideoId) {
+    return null;
+  }
+
+  return matchesOwnedPath(
+    ownerUid,
+    value,
+    `${PRIVATE_VIDEO_POSTER_PREFIX}/${escapeRegExp(safeVideoId)}/[^/]+`
+  );
 }
 
 export function normalizeOwnedPublishedVideoPath(
@@ -158,7 +169,10 @@ export function buildPublishedVideoPath(
     throw new Error('Identificadores inválidos para publicação de vídeo.');
   }
 
-  return `users/${safeOwnerUid}/${PUBLISHED_VIDEO_PREFIX}/${safeVideoId}/assets/${safeAssetVersion}`;
+  return (
+    `users/${safeOwnerUid}/${PUBLISHED_VIDEO_PREFIX}/${safeVideoId}/` +
+    `assets/${safeAssetVersion}`
+  );
 }
 
 export function buildPublishedVideoPosterPath(
@@ -174,5 +188,8 @@ export function buildPublishedVideoPosterPath(
     throw new Error('Identificadores inválidos para publicação do poster.');
   }
 
-  return `users/${safeOwnerUid}/${PUBLISHED_VIDEO_PREFIX}/${safeVideoId}/posters/${safeAssetVersion}`;
+  return (
+    `users/${safeOwnerUid}/${PUBLISHED_VIDEO_PREFIX}/${safeVideoId}/` +
+    `posters/${safeAssetVersion}`
+  );
 }
