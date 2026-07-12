@@ -14,6 +14,7 @@ import { chatReducers } from './reducers.chat';
 import { userReducers } from './reducers.user';
 import { locationReducers } from './reducers.location';
 import { interactionsReducers } from './reducers.interactions';
+import { discoveryFeedReducer } from './reducers.discovery/discovery-feed.reducer';
 
 export const reducers: ActionReducerMap<AppState> = {
   // USER DOMAIN
@@ -31,6 +32,9 @@ export const reducers: ActionReducerMap<AppState> = {
   // LOCATION DOMAIN
   [STORE_FEATURE.location]: locationReducers.location,
   [STORE_FEATURE.nearbyProfiles]: locationReducers.nearbyProfiles,
+
+  // DISCOVERY DOMAIN
+  [STORE_FEATURE.discoveryFeeds]: discoveryFeedReducer,
 
   // INTERACTIONS DOMAIN
   [STORE_FEATURE.friendsPages]: interactionsReducers.friendsPages,
