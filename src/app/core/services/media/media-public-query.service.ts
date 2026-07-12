@@ -1,18 +1,12 @@
 // src/app/core/services/media/media-public-query.service.ts
 // Leitura pública das fotos projetadas.
 //
-// OBJETIVO:
-// - consumir SOMENTE a projeção pública
-// - não usar a coleção privada users/{uid}/photos para exibição a terceiros
-// - servir de base para:
-//   1) galeria pública de um perfil
-//   2) últimas fotos públicas de todos os usuários
-//   3) fotos top
-//   4) fotos turbinadas
-//
-// OBSERVAÇÃO:
-// - usa a subcoleção public_photos para evitar conflito com collectionGroup('photos')
-//   da camada privada.
+// Segurança:
+// - consome somente public_profiles/{uid}/public_photos;
+// - não usa users/{uid}/photos para exibição a terceiros;
+// - a projeção Firestore não precisa conter URL permanente;
+// - URLs temporárias são emitidas por backend e mantidas apenas em memória.
+
 import { Injectable, inject } from '@angular/core';
 import {
   Firestore,
@@ -25,12 +19,21 @@ import {
   where,
 } from '@angular/fire/firestore';
 import { Observable, of } from 'rxjs';
-import { catchError, map, shareReplay } from 'rxjs/operators';
+import {
+  catchError,
+  map,
+  shareReplay,
+  switchMap,
+} from 'rxjs/operators';
 
+import {
+  IPublicPhotoItem,
+  IPublicPhotoProjection,
+} from 'src/app/core/interfaces/media/i-public-photo-item';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
-import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { PublicPhotoAccessService } from './public-photo-access.service';
 
 @Injectable({ providedIn: 'root' })
 export class MediaPublicQueryService {
@@ -38,6 +41,7 @@ export class MediaPublicQueryService {
 
   constructor(
     private readonly firestoreCtx: FirestoreContextService,
+    private readonly publicPhotoAccess: PublicPhotoAccessService,
     private readonly errorNotifier: ErrorNotificationService,
     private readonly errorHandler: GlobalErrorHandlerService
   ) {}
@@ -55,7 +59,7 @@ export class MediaPublicQueryService {
         `public_profiles/${safeOwnerUid}/public_photos`
       );
 
-      const q = query(
+      const publicPhotosQuery = query(
         publicPhotosCollection,
         where('visibility', '==', 'PUBLIC'),
         where('moderationStatus', '==', 'APPROVED'),
@@ -63,9 +67,12 @@ export class MediaPublicQueryService {
         orderBy('publishedAt', 'desc')
       );
 
-      return collectionData(q, { idField: 'id' });
+      return collectionData(publicPhotosQuery, { idField: 'id' });
     }).pipe(
-      map((items) => items as IPublicPhotoItem[]),
+      map((items) => items as IPublicPhotoProjection[]),
+      switchMap((items) =>
+        this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
+      ),
       catchError((error: unknown) => {
         this.reportError(
           'Erro ao carregar galeria pública do perfil.',
@@ -81,19 +88,25 @@ export class MediaPublicQueryService {
 
   getLatestPublicPhotos$(takeCount = 24): Observable<IPublicPhotoItem[]> {
     return this.firestoreCtx.deferObservable$(() => {
-      const cg = collectionGroup(this.firestore, 'public_photos');
+      const publicPhotosGroup = collectionGroup(
+        this.firestore,
+        'public_photos'
+      );
 
-      const q = query(
-        cg,
+      const latestPhotosQuery = query(
+        publicPhotosGroup,
         where('visibility', '==', 'PUBLIC'),
         where('moderationStatus', '==', 'APPROVED'),
         orderBy('publishedAt', 'desc'),
         limit(takeCount)
       );
 
-      return collectionData(q, { idField: 'id' });
+      return collectionData(latestPhotosQuery, { idField: 'id' });
     }).pipe(
-      map((items) => items as IPublicPhotoItem[]),
+      map((items) => items as IPublicPhotoProjection[]),
+      switchMap((items) =>
+        this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
+      ),
       catchError((error: unknown) => {
         this.reportError(
           'Erro ao carregar últimas fotos públicas.',
@@ -109,10 +122,13 @@ export class MediaPublicQueryService {
 
   getTopPublicPhotos$(takeCount = 24): Observable<IPublicPhotoItem[]> {
     return this.firestoreCtx.deferObservable$(() => {
-      const cg = collectionGroup(this.firestore, 'public_photos');
+      const publicPhotosGroup = collectionGroup(
+        this.firestore,
+        'public_photos'
+      );
 
-      const q = query(
-        cg,
+      const topPhotosQuery = query(
+        publicPhotosGroup,
         where('visibility', '==', 'PUBLIC'),
         where('moderationStatus', '==', 'APPROVED'),
         orderBy('score', 'desc'),
@@ -120,9 +136,12 @@ export class MediaPublicQueryService {
         limit(takeCount)
       );
 
-      return collectionData(q, { idField: 'id' });
+      return collectionData(topPhotosQuery, { idField: 'id' });
     }).pipe(
-      map((items) => items as IPublicPhotoItem[]),
+      map((items) => items as IPublicPhotoProjection[]),
+      switchMap((items) =>
+        this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
+      ),
       catchError((error: unknown) => {
         this.reportError(
           'Erro ao carregar fotos em destaque.',
@@ -136,12 +155,18 @@ export class MediaPublicQueryService {
     );
   }
 
-  getBoostedPublicPhotos$(takeCount = 24, nowMs = Date.now()): Observable<IPublicPhotoItem[]> {
+  getBoostedPublicPhotos$(
+    takeCount = 24,
+    nowMs = Date.now()
+  ): Observable<IPublicPhotoItem[]> {
     return this.firestoreCtx.deferObservable$(() => {
-      const cg = collectionGroup(this.firestore, 'public_photos');
+      const publicPhotosGroup = collectionGroup(
+        this.firestore,
+        'public_photos'
+      );
 
-      const q = query(
-        cg,
+      const boostedPhotosQuery = query(
+        publicPhotosGroup,
         where('visibility', '==', 'PUBLIC'),
         where('moderationStatus', '==', 'APPROVED'),
         where('boostActive', '==', true),
@@ -150,9 +175,12 @@ export class MediaPublicQueryService {
         limit(takeCount)
       );
 
-      return collectionData(q, { idField: 'id' });
+      return collectionData(boostedPhotosQuery, { idField: 'id' });
     }).pipe(
-      map((items) => items as IPublicPhotoItem[]),
+      map((items) => items as IPublicPhotoProjection[]),
+      switchMap((items) =>
+        this.publicPhotoAccess.hydratePublicPhotoUrls$(items)
+      ),
       catchError((error: unknown) => {
         this.reportError(
           'Erro ao carregar fotos turbinadas.',
