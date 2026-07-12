@@ -1,44 +1,119 @@
-<!-- src/app/media/videos/profile-videos/profile-videos.component.html -->
+@let busyVideoIds = (busyVideoIds$ | async);
 
 <section class="profile-videos" aria-labelledby="profile-videos-title">
   <header class="profile-videos__header">
-    <h1 id="profile-videos-title">Vídeos</h1>
+    <div>
+      <span class="profile-videos__eyebrow">Biblioteca privada</span>
+      <h1 id="profile-videos-title">Meus vídeos</h1>
+      <p>
+        Os arquivos originais permanecem privados. Ao publicar, o backend cria
+        uma cópia separada e controlada para visitantes.
+      </p>
+    </div>
   </header>
 
   @if (isOwner$ | async) {
-    @if (videos$ | async; as videos) {
-      @if (videos.length > 0) {
+    @if (viewItems$ | async; as items) {
+      @if (items.length > 0) {
         <div class="profile-videos__grid" aria-label="Meus vídeos privados">
-          @for (video of videos; track trackByVideoId($index, video)) {
+          @for (item of items; track trackByVideoId($index, item)) {
             <article class="profile-videos__card">
               <div class="profile-videos__media">
                 <video
-                  [src]="video.url"
+                  [src]="item.video.url"
+                  [poster]="item.video.thumbnailUrl || null"
+                  [attr.aria-label]="item.video.fileName || 'Vídeo privado'"
                   preload="metadata"
                   controls
+                  controlsList="nodownload"
                   playsinline
+                  disablePictureInPicture
                 ></video>
               </div>
 
               <div class="profile-videos__body">
-                <strong>{{ video.fileName || 'Vídeo' }}</strong>
-                <span>{{ formatFileSize(video.sizeBytes) }}</span>
-                <span>{{ video.status }}</span>
+                <div class="profile-videos__title-row">
+                  <strong>{{ item.video.fileName || 'Vídeo' }}</strong>
+
+                  <span
+                    class="profile-videos__publication-chip"
+                    [class.profile-videos__publication-chip--published]="item.publication?.moderationStatus === 'APPROVED'"
+                    [class.profile-videos__publication-chip--pending]="item.publication?.moderationStatus === 'PENDING_REVIEW'"
+                  >
+                    {{ publicationLabel(item) }}
+                  </span>
+                </div>
+
+                <div class="profile-videos__meta" aria-label="Informações do vídeo">
+                  <span>{{ formatFileSize(item.video.sizeBytes) }}</span>
+                  <span>{{ formatDuration(item.video.durationMs) }}</span>
+                  <span>{{ processingLabel(item.video) }}</span>
+                </div>
+
+                @if (item.video.status === 'processing') {
+                  <p class="profile-videos__helper" role="status">
+                    Aguarde o processamento terminar antes de publicar.
+                  </p>
+                } @else if (item.video.status === 'failed') {
+                  <p class="profile-videos__helper profile-videos__helper--error" role="alert">
+                    Este arquivo precisa ser reenviado antes de poder ser publicado.
+                  </p>
+                } @else if (item.publication?.moderationStatus === 'PENDING_REVIEW') {
+                  <p class="profile-videos__helper" role="status">
+                    A cópia pública está pronta e aguarda análise de moderação.
+                  </p>
+                }
+
+                <div class="profile-videos__actions">
+                  @if (item.publication?.isPublished) {
+                    <button
+                      type="button"
+                      class="app-action app-action--ghost"
+                      (click)="unpublishVideo(item)"
+                      [disabled]="busyVideoIds?.has(item.video.id) === true"
+                      [attr.aria-busy]="busyVideoIds?.has(item.video.id) === true ? 'true' : 'false'"
+                    >
+                      <i class="fas fa-eye-slash" aria-hidden="true"></i>
+                      <span>
+                        {{ busyVideoIds?.has(item.video.id) ? 'Removendo...' : 'Remover do perfil' }}
+                      </span>
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="app-action app-action--primary"
+                      (click)="publishVideo(item)"
+                      [disabled]="!canPublish(item) || busyVideoIds?.has(item.video.id) === true"
+                      [attr.aria-busy]="busyVideoIds?.has(item.video.id) === true ? 'true' : 'false'"
+                    >
+                      <i class="fas fa-globe" aria-hidden="true"></i>
+                      <span>
+                        {{ busyVideoIds?.has(item.video.id) ? 'Preparando...' : 'Publicar no perfil' }}
+                      </span>
+                    </button>
+                  }
+                </div>
               </div>
             </article>
           }
         </div>
       } @else {
         <div class="profile-videos__empty" role="status">
-          <strong>Nenhum vídeo privado ainda.</strong>
-          <span>Upload e publicação serão ativados em etapa segura.</span>
+          <i class="fas fa-video" aria-hidden="true"></i>
+          <div>
+            <strong>Nenhum vídeo privado ainda.</strong>
+            <span>O upload seguro será conectado nesta biblioteca no próximo bloco.</span>
+          </div>
         </div>
       }
     }
   } @else {
     <div class="profile-videos__empty" role="status">
-      <strong>Vídeos privados.</strong>
-      <span>Esta área é visível apenas para o dono do perfil.</span>
+      <i class="fas fa-lock" aria-hidden="true"></i>
+      <div>
+        <strong>Biblioteca privada.</strong>
+        <span>Vídeos aprovados para visitantes aparecem diretamente no perfil público.</span>
+      </div>
     </div>
   }
 </section>
