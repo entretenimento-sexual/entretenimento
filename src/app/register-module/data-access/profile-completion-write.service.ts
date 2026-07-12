@@ -13,6 +13,30 @@ import { FirestoreContextService } from 'src/app/core/services/data-handling/fir
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { NicknameUtils } from 'src/app/core/utils/nickname-utils';
 
+const ALLOWED_GENDERS = new Set([
+  'homem',
+  'mulher',
+  'casal-ele-ele',
+  'casal-ele-ela',
+  'casal-ela-ela',
+  'travesti',
+  'transexual',
+  'crossdressers',
+]);
+
+const ALLOWED_ORIENTATIONS = new Set([
+  'bissexual',
+  'homossexual',
+  'heterossexual',
+  'pansexual',
+]);
+
+const BRAZILIAN_UFS = new Set([
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
+  'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
+  'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+]);
+
 export interface AtomicProfileCompletionInput {
   uid: string;
   nickname: string;
@@ -34,6 +58,10 @@ export class ProfileCompletionWriteService {
     const uid = this.cleanText(input.uid);
     const nickname = NicknameUtils.normalizarApelido(input.nickname);
     const nicknameNormalized = NicknameUtils.normalizarApelidoParaIndice(nickname);
+    const gender = this.cleanText(input.gender).toLowerCase();
+    const orientation = this.cleanText(input.orientation).toLowerCase();
+    const estado = this.cleanText(input.estado).toUpperCase();
+    const municipio = this.cleanText(input.municipio);
 
     if (!uid) {
       return throwError(() => this.createError(
@@ -50,6 +78,17 @@ export class ProfileCompletionWriteService {
         'nickname/invalid',
         'O apelido informado é inválido.'
       ));
+    }
+
+    const validationError = this.validateRequiredProfileFields({
+      gender,
+      orientation,
+      estado,
+      municipio,
+    });
+
+    if (validationError) {
+      return throwError(() => validationError);
     }
 
     const userRef = this.ctx.run(() => doc(this.db, 'users', uid));
@@ -101,10 +140,10 @@ export class ProfileCompletionWriteService {
         const userPatch: Record<string, unknown> = {
           uid,
           nickname,
-          gender: this.cleanText(input.gender),
-          orientation: this.cleanText(input.orientation),
-          estado: this.cleanText(input.estado),
-          municipio: this.cleanText(input.municipio),
+          gender,
+          orientation,
+          estado,
+          municipio,
           profileCompleted: true,
           updatedAt: serverTimestamp(),
           updatedAtMs: nowMs,
@@ -125,10 +164,10 @@ export class ProfileCompletionWriteService {
           uid,
           nickname,
           nicknameNormalized,
-          gender: this.cleanTextOrNull(input.gender),
-          orientation: this.cleanTextOrNull(input.orientation),
-          estado: this.cleanTextOrNull(input.estado),
-          municipio: this.cleanTextOrNull(input.municipio),
+          gender,
+          orientation: orientation || null,
+          estado,
+          municipio,
           updatedAt: serverTimestamp(),
         };
 
@@ -165,13 +204,49 @@ export class ProfileCompletionWriteService {
     );
   }
 
-  private cleanText(value: unknown): string {
-    return String(value ?? '').trim();
+  private validateRequiredProfileFields(input: {
+    gender: string;
+    orientation: string;
+    estado: string;
+    municipio: string;
+  }): Error | null {
+    if (!ALLOWED_GENDERS.has(input.gender)) {
+      return this.createError(
+        'profile/invalid-gender',
+        'A identificação de perfil informada é inválida.'
+      );
+    }
+
+    if (input.orientation && !ALLOWED_ORIENTATIONS.has(input.orientation)) {
+      return this.createError(
+        'profile/invalid-orientation',
+        'A orientação informada é inválida.'
+      );
+    }
+
+    if (!BRAZILIAN_UFS.has(input.estado)) {
+      return this.createError(
+        'profile/invalid-state',
+        'O estado informado é inválido.'
+      );
+    }
+
+    if (
+      !input.municipio ||
+      input.municipio.length > 120 ||
+      /[\u0000-\u001F\u007F]/.test(input.municipio)
+    ) {
+      return this.createError(
+        'profile/invalid-city',
+        'O município informado é inválido.'
+      );
+    }
+
+    return null;
   }
 
-  private cleanTextOrNull(value: unknown): string | null {
-    const clean = this.cleanText(value);
-    return clean || null;
+  private cleanText(value: unknown): string {
+    return String(value ?? '').trim();
   }
 
   private createError(code: string, message: string): Error {
