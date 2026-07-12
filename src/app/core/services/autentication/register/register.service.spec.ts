@@ -7,6 +7,7 @@ import { vi } from 'vitest';
 import { RegisterService } from './register.service';
 import { EmailVerificationService } from './email-verification.service';
 import { RegistrationBootstrapService } from './registration-bootstrap.service';
+import { TermsAcceptanceService } from '../../compliance/terms-acceptance.service';
 import { GlobalErrorHandlerService } from '../../error-handler/global-error-handler.service';
 import { FirestoreValidationService } from '../../data-handling/firestore/validation/firestore-validation.service';
 import { CacheService } from '../../general/cache/cache.service';
@@ -31,6 +32,21 @@ describe('RegisterService', () => {
           },
         },
         {
+          provide: TermsAcceptanceService,
+          useValue: {
+            acceptForUser$: vi.fn(() =>
+              of({
+                uid: 'uid-test',
+                record: {
+                  accepted: true,
+                  version: 'v1',
+                  date: Date.now(),
+                },
+              })
+            ),
+          },
+        },
+        {
           provide: GlobalErrorHandlerService,
           useValue: {
             handleError: vi.fn(),
@@ -40,6 +56,7 @@ describe('RegisterService', () => {
           provide: FirestoreValidationService,
           useValue: {
             validateUserData: vi.fn(() => true),
+            checkIfNicknameExists: vi.fn(() => of(false)),
           },
         },
         {
