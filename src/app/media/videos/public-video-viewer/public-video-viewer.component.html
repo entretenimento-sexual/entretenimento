@@ -1,0 +1,88 @@
+<section
+  class="public-video-viewer"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="public-video-viewer-title"
+>
+  <header class="public-video-viewer__header">
+    <div class="public-video-viewer__heading">
+      <span>Vídeo público</span>
+      <h2 id="public-video-viewer-title">
+        {{ current?.title || 'Vídeo do perfil' }}
+      </h2>
+    </div>
+
+    <div class="public-video-viewer__header-actions">
+      <span class="public-video-viewer__position" aria-live="polite">
+        {{ positionLabel }}
+      </span>
+
+      <button
+        type="button"
+        class="public-video-viewer__close"
+        (click)="close()"
+        aria-label="Fechar visualizador de vídeo"
+      >
+        <i class="fas fa-xmark" aria-hidden="true"></i>
+      </button>
+    </div>
+  </header>
+
+  @if (current; as video) {
+    <div class="public-video-viewer__stage">
+      <button
+        type="button"
+        class="public-video-viewer__navigation public-video-viewer__navigation--previous"
+        (click)="previous()"
+        [disabled]="!hasPrevious"
+        aria-label="Abrir vídeo anterior"
+      >
+        <i class="fas fa-chevron-left" aria-hidden="true"></i>
+      </button>
+
+      <div class="public-video-viewer__media-frame">
+        <video
+          #videoPlayer
+          class="public-video-viewer__video"
+          [src]="video.url"
+          [poster]="video.posterUrl || null"
+          [attr.aria-label]="video.alt || video.title || 'Vídeo público do perfil'"
+          controls
+          controlsList="nodownload"
+          playsinline
+          preload="metadata"
+          disablePictureInPicture
+        >
+          Seu navegador não conseguiu reproduzir este vídeo.
+        </video>
+      </div>
+
+      <button
+        type="button"
+        class="public-video-viewer__navigation public-video-viewer__navigation--next"
+        (click)="next()"
+        [disabled]="!hasNext"
+        aria-label="Abrir próximo vídeo"
+      >
+        <i class="fas fa-chevron-right" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <footer class="public-video-viewer__footer">
+      <div>
+        <strong>{{ video.title || 'Vídeo do perfil' }}</strong>
+        <span>{{ formatDuration(video.durationMs) }}</span>
+      </div>
+
+      <p>
+        O vídeo não inicia automaticamente. Use os controles para reproduzir,
+        pausar, ajustar volume ou ampliar.
+      </p>
+    </footer>
+  } @else {
+    <div class="public-video-viewer__empty" role="status">
+      <i class="fas fa-video-slash" aria-hidden="true"></i>
+      <p>Este vídeo não está mais disponível.</p>
+    </div>
+  }
+</section>
