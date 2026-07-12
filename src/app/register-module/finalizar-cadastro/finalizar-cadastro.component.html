@@ -140,7 +140,7 @@
           name="estado"
           required
           class="input-field"
-          (change)="selectedMunicipio = ''; onEstadoChange(); checkFieldValidity('estado', selectedEstado, 'Estado'); checkFieldValidity('municipio', selectedMunicipio, 'Município')"
+          (change)="selectedMunicipio = ''; municipios = []; onEstadoChange(); checkFieldValidity('estado', selectedEstado, 'Estado'); checkFieldValidity('municipio', selectedMunicipio, 'Município')"
           (blur)="checkFieldValidity('estado', selectedEstado, 'Estado')"
           [disabled]="isSubmitting"
           [attr.aria-invalid]="isFieldInvalid('estado') ? 'true' : 'false'"
