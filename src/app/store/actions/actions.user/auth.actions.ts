@@ -80,18 +80,26 @@ export const login = createAction(
 );
 
 /**
- * Login autenticado com sucesso.
+ * Login autenticado com perfil já resolvido.
  *
  * IMPORTANTE:
  * - este action não é a fonte da verdade do UID da sessão
  * - a fonte da verdade continua sendo authSessionChanged
- * - pode existir loginSuccess mesmo quando o usuário ainda exige
- *   fluxos adicionais de produto
+ * - somente um perfil realmente lido deve ser materializado no UserStore
  */
 export const loginSuccess = createAction(
   '[Auth] Login Success',
   props<{ user: IUserDados }>()
 );
+
+/**
+ * Login autenticado, mas o perfil ainda não foi confirmado.
+ *
+ * Este evento encerra o loading sem enviar um objeto transitório para o
+ * UserReducer. A hidratação oficial continua em AuthSessionSyncEffects +
+ * UserEffects + CurrentUserStoreService.
+ */
+export const loginSessionReady = createAction('[Auth] Login Session Ready');
 
 /**
  * Falha real de login/autenticação.
