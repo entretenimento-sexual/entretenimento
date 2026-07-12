@@ -166,7 +166,7 @@ export class DiscoveryPublicProfilesRepository {
 
     constraints.push(
       orderBy('updatedAt', 'desc'),
-      orderBy(documentId(), 'asc')
+      orderBy(documentId(), 'desc')
     );
 
     if (cursor) {
