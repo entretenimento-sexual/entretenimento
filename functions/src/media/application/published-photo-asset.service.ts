@@ -111,10 +111,6 @@ export async function copyPrivatePhotoToPublishedAsset(
         contentType,
         contentDisposition: 'inline',
         cacheControl: 'private, max-age=0, no-store, no-transform',
-        metadata: {
-          publicationOwnerUid: command.ownerUid,
-          publicationPhotoId: command.photoId,
-        },
       },
     });
 
