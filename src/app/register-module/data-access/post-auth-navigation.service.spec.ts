@@ -77,6 +77,29 @@ describe('PostAuthNavigationService', () => {
     );
   });
 
+  it('deve abrir recuperação imediatamente quando o perfil do login por e-mail não foi resolvido', async () => {
+    const flow$ = new BehaviorSubject<RegisterFlowVm>(
+      vm('loading', '/register', {
+        userResolved: false,
+        userExists: false,
+      })
+    );
+    const service = new PostAuthNavigationService({ vm$: flow$ } as any);
+    const result: LoginResult = {
+      success: true,
+      emailVerified: true,
+      user: user({ profileCompleted: undefined }),
+      profileResolution: 'unknown',
+      needsProfileCompletion: undefined,
+    };
+
+    await expect(
+      firstValueFrom(service.resolveAfterEmailLogin$(result, '/friends'))
+    ).resolves.toBe(
+      '/register/recuperar-conta?redirectTo=%2Ffriends'
+    );
+  });
+
   it('deve direcionar login por e-mail para termos antes do perfil', async () => {
     const flow$ = new BehaviorSubject<RegisterFlowVm>(
       vm('termsAcceptance', '/register/aceitar-termos', {
