@@ -30,13 +30,18 @@ interface PublishVideoResponse {
   moderationStatus: 'PENDING_REVIEW' | 'APPROVED';
 }
 
-interface UnpublishVideoRequest {
+interface VideoIdentityRequest {
   ownerUid: string;
   videoId: string;
 }
 
 interface UnpublishVideoResponse {
   videoId: string;
+}
+
+export interface DeleteProfileVideoResponse {
+  videoId: string;
+  cleanupPending: boolean;
 }
 
 interface VideoPublicationDoc {
@@ -141,12 +146,9 @@ export class VideoPublicationService {
     ownerUid: string,
     videoId: string
   ): Observable<UnpublishVideoResponse> {
-    const payload: UnpublishVideoRequest = {
-      ownerUid: this.normalizeId(ownerUid),
-      videoId: this.normalizeId(videoId),
-    };
+    const payload = this.buildIdentityPayload(ownerUid, videoId);
 
-    if (!payload.ownerUid || !payload.videoId) {
+    if (!payload) {
       return throwError(
         () => new Error('Vídeo inválido para despublicação.')
       );
@@ -154,7 +156,7 @@ export class VideoPublicationService {
 
     return this.firestoreCtx.deferPromise$(async () => {
       const callable = httpsCallable<
-        UnpublishVideoRequest,
+        VideoIdentityRequest,
         UnpublishVideoResponse
       >(this.functions, 'unpublishVideo');
       const response = await callable(payload);
@@ -169,6 +171,49 @@ export class VideoPublicationService {
         return throwError(() => error);
       })
     );
+  }
+
+  deleteProfileVideo$(
+    ownerUid: string,
+    videoId: string
+  ): Observable<DeleteProfileVideoResponse> {
+    const payload = this.buildIdentityPayload(ownerUid, videoId);
+
+    if (!payload) {
+      return throwError(
+        () => new Error('Vídeo inválido para exclusão.')
+      );
+    }
+
+    return this.firestoreCtx.deferPromise$(async () => {
+      const callable = httpsCallable<
+        VideoIdentityRequest,
+        DeleteProfileVideoResponse
+      >(this.functions, 'deleteProfileVideo');
+      const response = await callable(payload);
+      return response.data;
+    }).pipe(
+      catchError((error: unknown) => {
+        this.reportError(error, {
+          op: 'deleteProfileVideo$',
+          hasOwnerUid: true,
+          hasVideoId: true,
+        });
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private buildIdentityPayload(
+    ownerUid: string,
+    videoId: string
+  ): VideoIdentityRequest | null {
+    const payload: VideoIdentityRequest = {
+      ownerUid: this.normalizeId(ownerUid),
+      videoId: this.normalizeId(videoId),
+    };
+
+    return payload.ownerUid && payload.videoId ? payload : null;
   }
 
   private mapPublication(
