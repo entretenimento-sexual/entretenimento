@@ -4,6 +4,8 @@ import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
+import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
+import { deletePublishedPhotoAssetOrQueue } from './published-photo-asset.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 
 interface DeleteProfilePhotoRequest {
@@ -31,6 +33,10 @@ type PrivatePhotoDoc = {
   url?: string;
 };
 
+type PhotoPublicationDoc = {
+  publishedStoragePath?: string;
+};
+
 const DELETION_JOBS_COLLECTION = 'media_photo_deletion_jobs';
 const CLEANUP_BATCH_SIZE = 100;
 
@@ -48,61 +54,6 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
       'permission-denied',
       'Você só pode excluir fotos do seu próprio perfil.'
     );
-  }
-}
-
-function normalizeOwnedPrivatePhotoPath(
-  ownerUid: string,
-  value: unknown
-): string | null {
-  const storagePath = String(value ?? '')
-    .trim()
-    .replace(/^\/+/, '');
-  const escapedOwnerUid = ownerUid.replace(
-    /[.*+?^${}()|[\]\\]/g,
-    '\\$&'
-  );
-  const expectedPath = new RegExp(
-    `^users/${escapedOwnerUid}/uploads/images/[^/]+$`
-  );
-
-  return expectedPath.test(storagePath) ? storagePath : null;
-}
-
-function extractOwnedPrivatePhotoPath(
-  ownerUid: string,
-  value: unknown
-): string | null {
-  const rawValue = String(value ?? '').trim();
-  const directPath = normalizeOwnedPrivatePhotoPath(ownerUid, rawValue);
-
-  if (directPath) {
-    return directPath;
-  }
-
-  if (!/^https?:\/\//i.test(rawValue)) {
-    return null;
-  }
-
-  try {
-    const parsedUrl = new URL(rawValue);
-    const objectMarker = '/o/';
-    const objectIndex = parsedUrl.pathname.indexOf(objectMarker);
-
-    if (objectIndex < 0) {
-      return null;
-    }
-
-    const encodedPath = parsedUrl.pathname.slice(
-      objectIndex + objectMarker.length
-    );
-
-    return normalizeOwnedPrivatePhotoPath(
-      ownerUid,
-      decodeURIComponent(encodedPath)
-    );
-  } catch {
-    return null;
   }
 }
 
@@ -176,18 +127,32 @@ export const deleteProfilePhoto = onCall<DeleteProfilePhotoRequest>(
     const publicPhotoRef = db.doc(
       `public_profiles/${ownerUid}/public_photos/${photoId}`
     );
-    const privatePhotoSnap = await privatePhotoRef.get();
+    const [privatePhotoSnap, publicationSnap] = await Promise.all([
+      privatePhotoRef.get(),
+      publicationRef.get(),
+    ]);
+    const publication = publicationSnap.exists
+      ? (publicationSnap.data() as PhotoPublicationDoc)
+      : null;
 
     if (!privatePhotoSnap.exists) {
       const cleanupBatch = db.batch();
       cleanupBatch.delete(publicationRef);
       cleanupBatch.delete(publicPhotoRef);
       await cleanupBatch.commit();
+
+      const publishedAssetDeleted = await deletePublishedPhotoAssetOrQueue({
+        ownerUid,
+        photoId,
+        storagePath: publication?.publishedStoragePath,
+        reason: 'delete-missing-private-photo',
+      });
+
       await refreshPublicProfileMediaMetrics(ownerUid);
 
       return {
         photoId,
-        cleanupPending: false,
+        cleanupPending: !publishedAssetDeleted,
       };
     }
 
@@ -219,13 +184,21 @@ export const deleteProfilePhoto = onCall<DeleteProfilePhotoRequest>(
     /**
      * Primeiro removemos toda projeção pública e registramos um job durável.
      * A limpeza física ocorre depois. Se Storage ou recursiveDelete falharem,
-     * o agendador pode retomar sem republicar a foto.
+     * os agendadores retomam sem republicar a foto.
      */
     const hideBatch = db.batch();
     hideBatch.set(jobRef, job);
     hideBatch.delete(publicationRef);
     hideBatch.delete(publicPhotoRef);
     await hideBatch.commit();
+
+    const publishedAssetDeleted = await deletePublishedPhotoAssetOrQueue({
+      ownerUid,
+      photoId,
+      storagePath: publication?.publishedStoragePath,
+      reason: 'delete-profile-photo',
+    });
+
     await refreshPublicProfileMediaMetrics(ownerUid);
 
     try {
@@ -233,7 +206,7 @@ export const deleteProfilePhoto = onCall<DeleteProfilePhotoRequest>(
 
       return {
         photoId,
-        cleanupPending: false,
+        cleanupPending: !publishedAssetDeleted,
       };
     } catch (error) {
       await recordDeletionAttemptFailure(jobId, error);
@@ -272,7 +245,7 @@ export const cleanupPendingPhotoDeletions = onSchedule(
       if (
         !cleanId(job.ownerUid) ||
         !cleanId(job.photoId) ||
-        !normalizeOwnedPrivatePhotoPath(job.ownerUid, job.storagePath)
+        !extractOwnedPrivatePhotoPath(job.ownerUid, job.storagePath)
       ) {
         logger.error('[cleanupPendingPhotoDeletions] Job inválido.', {
           jobId: jobDoc.id,
