@@ -102,21 +102,37 @@ export function extractOwnedPrivateVideoPath(
   return matchesOwnedPath(ownerUid, value, `${PRIVATE_VIDEO_PREFIX}/[^/]+`);
 }
 
+/**
+ * Compatibilidade:
+ * - assinatura antiga: (ownerUid, value);
+ * - assinatura endurecida: (ownerUid, videoId, value).
+ *
+ * Documentos novos usam o videoId para vincular o poster ao vídeo. A assinatura
+ * antiga continua lendo apenas o namespace privado isolado durante a migração.
+ */
 export function extractOwnedPrivateVideoPosterPath(
   ownerUid: string,
-  videoId: string,
-  value: unknown
+  videoIdOrValue: unknown,
+  maybeValue?: unknown
 ): string | null {
-  const safeVideoId = normalizeId(videoId);
+  const hasExplicitVideoId = maybeValue !== undefined;
+  const value = hasExplicitVideoId ? maybeValue : videoIdOrValue;
+  const safeVideoId = hasExplicitVideoId
+    ? normalizeId(videoIdOrValue)
+    : null;
 
-  if (!safeVideoId) {
+  if (hasExplicitVideoId && !safeVideoId) {
     return null;
   }
+
+  const videoSegment = safeVideoId
+    ? escapeRegExp(safeVideoId)
+    : '[^/]+';
 
   return matchesOwnedPath(
     ownerUid,
     value,
-    `${PRIVATE_VIDEO_POSTER_PREFIX}/${escapeRegExp(safeVideoId)}/[^/]+`
+    `${PRIVATE_VIDEO_POSTER_PREFIX}/${videoSegment}/[^/]+`
   );
 }
 
