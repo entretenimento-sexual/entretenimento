@@ -12,4 +12,9 @@ export {
   setCoverPhoto,
 } from './application/manage-photo-publication.handler';
 
+export {
+  cleanupPendingPhotoDeletions,
+  deleteProfilePhoto,
+} from './application/delete-profile-photo.handler';
+
 export { recordPhotoView } from './application/record-photo-view.handler';
