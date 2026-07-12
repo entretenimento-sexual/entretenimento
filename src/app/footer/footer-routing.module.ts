@@ -7,6 +7,11 @@ import { TermosECondicoesComponent } from './legal-footer/termos-e-condicoes/ter
 import { PoliticaDePrivacidadeComponent } from './legal-footer/politica-de-privacidade/politica-de-privacidade.component';
 
 const routes: Routes = [
+  {
+    path: 'termos',
+    redirectTo: 'termos-e-condicoes',
+    pathMatch: 'full',
+  },
   { path: 'termos-e-condicoes', component: TermosECondicoesComponent },
   { path: 'politica-de-privacidade', component: PoliticaDePrivacidadeComponent },
 ];
