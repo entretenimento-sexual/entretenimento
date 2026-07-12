@@ -38,9 +38,13 @@ import { FriendsRequestsRealtimeEffects } from './effects/effects.interactions/f
 import { FriendsPaginationEffects } from './effects/effects.interactions/friends/pagination.effects';
 import { FriendsPaginationSelectorsCacheCleanupEffects } from
   './effects/effects.interactions/friends/pagination-selectors-cache-cleanup.effects';
+
 // EFFECTS - LOCATION
 import { NearbyProfilesEffects } from './effects/effects.location/nearby-profiles.effects';
 import { LocationEffects } from './effects/effects.location/location.effects';
+
+// EFFECTS - DISCOVERY
+import { DiscoveryFeedEffects } from './effects/effects.discovery/discovery-feed.effects';
 
 const metaReducers = appMetaReducers;
 
@@ -86,21 +90,25 @@ const metaReducers = appMetaReducers;
       FriendsRequestsProfilesEffects,
       FriendsPaginationEffects,
       FriendsPaginationSelectorsCacheCleanupEffects,
+
       // LOCATION
       NearbyProfilesEffects,
       LocationEffects,
+
+      // DISCOVERY
+      DiscoveryFeedEffects,
     ]),
 
     // Devtools só em dev.
     ...(environment.production
       ? []
       : [
-        StoreDevtoolsModule.instrument({
-          maxAge: 50,
-          trace: false,
-          traceLimit: 25,
-        }),
-      ]),
+          StoreDevtoolsModule.instrument({
+            maxAge: 50,
+            trace: false,
+            traceLimit: 25,
+          }),
+        ]),
   ],
 })
 export class AppStoreModule { }
