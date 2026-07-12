@@ -3,13 +3,24 @@
 // PHOTO VIEW TRACKING
 // -----------------------------------------------------------------------------
 // Registra visualizações públicas de fotos via backend confiável.
-// O cliente não escreve viewsCount/viewScore diretamente na projeção pública.
+//
+// Semântica:
+// - viewsCount: visualizações contabilizadas respeitando janela antifraude;
+// - uniqueViewersCount da foto: pessoas únicas daquela foto;
+// - uniqueViewersCount do perfil: pessoas únicas em qualquer mídia do perfil;
+// - profile_viewers/{viewerUid}: índice privado e backend-only da audiência real.
 // -----------------------------------------------------------------------------
 
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
 import { db, FieldValue } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import {
+  PROFILE_VIEWER_INDEX_VERSION,
+  PROFILE_VIEWERS_COLLECTION,
+  calculatePublicProfileEngagementScore,
+  ensurePublicProfileViewerIndex,
+} from './public-profile-media-metrics';
 
 interface RecordPhotoViewRequest {
   ownerUid?: string;
@@ -29,7 +40,9 @@ function cleanId(value: unknown): string {
   return String(value ?? '').trim();
 }
 
-function cleanSource(value: unknown): NonNullable<RecordPhotoViewRequest['source']> {
+function cleanSource(
+  value: unknown
+): NonNullable<RecordPhotoViewRequest['source']> {
   const source = String(value ?? '').trim();
 
   if (
@@ -46,7 +59,9 @@ function cleanSource(value: unknown): NonNullable<RecordPhotoViewRequest['source
 }
 
 function safeNumber(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return typeof value === 'number' && Number.isFinite(value)
+    ? Math.max(0, value)
+    : 0;
 }
 
 function calculateViewScore(input: {
@@ -55,7 +70,8 @@ function calculateViewScore(input: {
   lastViewedAt: number;
   publishedAt: number;
 }): number {
-  const recencyBoost = Math.max(0, input.lastViewedAt - input.publishedAt) / 1_000_000_000;
+  const recencyBoost =
+    Math.max(0, input.lastViewedAt - input.publishedAt) / 1_000_000_000;
 
   return Math.round(
     input.viewsCount * 4 +
@@ -88,20 +104,40 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
       };
     }
 
-    const now = Date.now();
+    /**
+     * Migração lazy e idempotente. Executa leitura histórica apenas enquanto o
+     * perfil ainda não possui o índice canônico versionado.
+     */
+    await ensurePublicProfileViewerIndex(ownerUid);
 
+    const now = Date.now();
     const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
-    const publicPhotoRef = db.doc(`public_profiles/${ownerUid}/public_photos/${photoId}`);
-    const viewerRef = publicPhotoRef.collection('views').doc(viewerUid);
+    const publicPhotoRef = db.doc(
+      `public_profiles/${ownerUid}/public_photos/${photoId}`
+    );
+    const photoViewerRef = publicPhotoRef.collection('views').doc(viewerUid);
+    const profileViewerRef = publicProfileRef
+      .collection(PROFILE_VIEWERS_COLLECTION)
+      .doc(viewerUid);
 
     await db.runTransaction(async (transaction) => {
+      const publicProfileSnap = await transaction.get(publicProfileRef);
       const publicPhotoSnap = await transaction.get(publicPhotoRef);
+      const photoViewerSnap = await transaction.get(photoViewerRef);
+      const profileViewerSnap = await transaction.get(profileViewerRef);
+
+      if (!publicProfileSnap.exists) {
+        throw new HttpsError('not-found', 'Perfil público não encontrado.');
+      }
 
       if (!publicPhotoSnap.exists) {
         throw new HttpsError('not-found', 'Foto pública não encontrada.');
       }
 
+      const publicProfile = publicProfileSnap.data() ?? {};
       const publicPhoto = publicPhotoSnap.data() ?? {};
+      const photoViewerData = photoViewerSnap.data() ?? {};
+      const profileViewerData = profileViewerSnap.data() ?? {};
 
       if (
         publicPhoto.visibility !== 'PUBLIC' ||
@@ -113,88 +149,160 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
         );
       }
 
-      const viewerSnap = await transaction.get(viewerRef);
-      const viewerData = viewerSnap.data() ?? {};
-      const isUniqueView = !viewerSnap.exists;
-      const lastCountedAt = safeNumber(viewerData.lastCountedAt ?? viewerData.lastViewedAt);
-      const canCountView = isUniqueView || now - lastCountedAt >= VIEW_COUNT_INTERVAL_MS;
+      const isUniquePhotoViewer = !photoViewerSnap.exists;
+      const isUniqueProfileViewer = !profileViewerSnap.exists;
+      const lastCountedAt = safeNumber(
+        photoViewerData.lastCountedAt ?? photoViewerData.lastViewedAt
+      );
+      const canCountView =
+        isUniquePhotoViewer || now - lastCountedAt >= VIEW_COUNT_INTERVAL_MS;
 
-      if (!canCountView) {
-        transaction.set(
-          viewerRef,
-          {
-            viewerUid,
-            source,
+      const currentPhotoViewsCount = safeNumber(publicPhoto.viewsCount);
+      const currentPhotoUniqueViewersCount = safeNumber(
+        publicPhoto.uniqueViewersCount
+      );
+      const currentPhotoViewScore = safeNumber(publicPhoto.viewScore);
+
+      const nextPhotoViewsCount = canCountView
+        ? currentPhotoViewsCount + 1
+        : currentPhotoViewsCount;
+      const nextPhotoUniqueViewersCount = isUniquePhotoViewer
+        ? currentPhotoUniqueViewersCount + 1
+        : currentPhotoUniqueViewersCount;
+
+      const publishedAt = safeNumber(publicPhoto.publishedAt) || now;
+      const nextPhotoViewScore = canCountView
+        ? calculateViewScore({
+            viewsCount: nextPhotoViewsCount,
+            uniqueViewersCount: nextPhotoUniqueViewersCount,
             lastViewedAt: now,
-          },
-          { merge: true }
-        );
+            publishedAt,
+          })
+        : currentPhotoViewScore;
 
-        return;
-      }
+      const currentProfileViewsCount = safeNumber(
+        publicProfile.profileViewsCount ?? publicProfile.viewsCount
+      );
+      const currentProfileUniqueViewersCount = safeNumber(
+        publicProfile.profileUniqueViewersCount ??
+          publicProfile.uniqueViewersCount
+      );
+      const currentMediaUniqueViewersCount = safeNumber(
+        publicProfile.mediaUniqueViewersCount
+      );
+      const currentProfileViewScore = safeNumber(publicProfile.viewScore);
 
-      const currentViewsCount =
-        typeof publicPhoto.viewsCount === 'number' ? publicPhoto.viewsCount : 0;
+      const nextProfileViewsCount = canCountView
+        ? currentProfileViewsCount + 1
+        : currentProfileViewsCount;
+      const nextProfileUniqueViewersCount = isUniqueProfileViewer
+        ? currentProfileUniqueViewersCount + 1
+        : currentProfileUniqueViewersCount;
+      const nextMediaUniqueViewersCount = isUniquePhotoViewer
+        ? currentMediaUniqueViewersCount + 1
+        : currentMediaUniqueViewersCount;
+      const nextProfileViewScore = canCountView
+        ? Math.max(
+            0,
+            currentProfileViewScore -
+              currentPhotoViewScore +
+              nextPhotoViewScore
+          )
+        : currentProfileViewScore;
 
-      const currentUniqueViewersCount =
-        typeof publicPhoto.uniqueViewersCount === 'number'
-          ? publicPhoto.uniqueViewersCount
-          : 0;
-
-      const nextViewsCount = currentViewsCount + 1;
-      const nextUniqueViewersCount = isUniqueView
-        ? currentUniqueViewersCount + 1
-        : currentUniqueViewersCount;
-
-      const publishedAt =
-        typeof publicPhoto.publishedAt === 'number' ? publicPhoto.publishedAt : now;
-
-      const viewScore = calculateViewScore({
-        viewsCount: nextViewsCount,
-        uniqueViewersCount: nextUniqueViewersCount,
-        lastViewedAt: now,
-        publishedAt,
+      const engagementScore = calculatePublicProfileEngagementScore({
+        mediaCount: safeNumber(
+          publicProfile.mediaCount ?? publicProfile.publicMediaCount
+        ),
+        photosCount: safeNumber(
+          publicProfile.photosCount ?? publicProfile.publicPhotosCount
+        ),
+        videosCount: safeNumber(
+          publicProfile.videosCount ?? publicProfile.publicVideosCount
+        ),
+        viewsCount: nextProfileViewsCount,
+        uniqueViewersCount: nextProfileUniqueViewersCount,
+        reactionsCount: safeNumber(
+          publicProfile.reactionsCount ??
+            publicProfile.likesCount ??
+            publicProfile.publicLikesCount
+        ),
       });
 
       transaction.set(
-        publicPhotoRef,
+        photoViewerRef,
         {
-          viewsCount: nextViewsCount,
-          uniqueViewersCount: nextUniqueViewersCount,
-          lastViewedAt: now,
-          viewScore,
-          updatedAt: now,
-        },
-        { merge: true }
-      );
-
-      transaction.set(
-        publicProfileRef,
-        {
-          viewsCount: FieldValue.increment(1),
-          profileViewsCount: FieldValue.increment(1),
-          uniqueViewersCount: FieldValue.increment(isUniqueView ? 1 : 0),
-          lastViewedAt: now,
-          mediaMetricsUpdatedAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      transaction.set(
-        viewerRef,
-        {
+          ownerUid,
+          photoId,
           viewerUid,
           source,
-          firstViewedAt: isUniqueView
+          firstViewedAt: isUniquePhotoViewer
             ? now
-            : viewerData.firstViewedAt ?? now,
+            : photoViewerData.firstViewedAt ?? now,
           lastViewedAt: now,
-          lastCountedAt: now,
-          viewsCount: FieldValue.increment(1),
+          ...(canCountView
+            ? {
+                lastCountedAt: now,
+                viewsCount: FieldValue.increment(1),
+              }
+            : {}),
         },
         { merge: true }
       );
+
+      transaction.set(
+        profileViewerRef,
+        {
+          ownerUid,
+          viewerUid,
+          firstViewedAt: isUniqueProfileViewer
+            ? now
+            : profileViewerData.firstViewedAt ?? now,
+          lastViewedAt: now,
+          lastSource: source,
+          indexVersion: PROFILE_VIEWER_INDEX_VERSION,
+          ...(canCountView
+            ? {
+                lastCountedAt: now,
+                viewsCount: FieldValue.increment(1),
+              }
+            : {}),
+        },
+        { merge: true }
+      );
+
+      if (canCountView) {
+        transaction.set(
+          publicPhotoRef,
+          {
+            viewsCount: nextPhotoViewsCount,
+            uniqueViewersCount: nextPhotoUniqueViewersCount,
+            lastViewedAt: now,
+            viewScore: nextPhotoViewScore,
+            updatedAt: now,
+          },
+          { merge: true }
+        );
+      }
+
+      if (canCountView || isUniqueProfileViewer) {
+        transaction.set(
+          publicProfileRef,
+          {
+            viewsCount: nextProfileViewsCount,
+            profileViewsCount: nextProfileViewsCount,
+            uniqueViewersCount: nextProfileUniqueViewersCount,
+            profileUniqueViewersCount: nextProfileUniqueViewersCount,
+            mediaUniqueViewersCount: nextMediaUniqueViewersCount,
+            viewScore: nextProfileViewScore,
+            engagementScore,
+            lastViewedAt: now,
+            profileViewerIndexVersion: PROFILE_VIEWER_INDEX_VERSION,
+            mediaMetricsUpdatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true }
+        );
+      }
     });
 
     return {
