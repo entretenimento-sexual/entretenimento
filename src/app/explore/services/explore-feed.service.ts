@@ -18,6 +18,7 @@ import {
   map,
   shareReplay,
   switchMap,
+  tap,
 } from 'rxjs/operators';
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
@@ -51,6 +52,12 @@ export interface IExploreFeedVm {
   readonly compatibleProfiles: readonly PublicProfileCard[];
   readonly totalItems: number;
   readonly hasAnyContent: boolean;
+}
+
+interface CompatibleProfilesProjection {
+  readonly request: DiscoveryFeedRequest | null;
+  readonly profiles: readonly PublicProfileCard[];
+  readonly shouldLoadMore: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -126,31 +133,63 @@ export class ExploreFeedService {
     );
 
   /**
-   * O Explore mostra no máximo seis perfis, mas a fonte é uma página limitada
-   * de 24 candidatos canônicos. O pipeline existente continua decidindo
-   * compatibilidade mútua, visibilidade e ranking.
+   * O Explore mostra no máximo seis perfis.
+   *
+   * Caso a página atual tenha poucos candidatos aceitos após compatibilidade
+   * mútua e visibilidade, solicita a próxima página pelo mesmo fluxo NgRx até:
+   * - completar seis cards; ou
+   * - alcançar o fim da consulta.
    */
   readonly compatibleProfiles$: Observable<PublicProfileCard[]> = combineLatest([
     this.compatibleRequest$,
     this.compatibleFeedSlice$,
     this.currentUserStore.user$,
   ]).pipe(
-    map(([request, slice, currentUser]) => {
+    map(([request, slice, currentUser]): CompatibleProfilesProjection => {
       if (!request || !currentUser?.uid) {
-        return [];
+        return {
+          request,
+          profiles: [],
+          shouldLoadMore: false,
+        };
       }
 
-      const profiles = slice.items as unknown as readonly IUserDados[];
+      const sourceProfiles = slice.items as unknown as readonly IUserDados[];
       const result = this.cardEnrichment.buildCardsResult({
-        profiles,
+        profiles: sourceProfiles,
         currentUser,
         currentUid: request.viewerUid,
         mode: request.mode,
         applyVisibility: true,
       });
+      const profiles = result.profiles.slice(
+        0,
+        EXPLORE_COMPATIBLE_VISIBLE_LIMIT
+      );
 
-      return result.profiles.slice(0, EXPLORE_COMPATIBLE_VISIBLE_LIMIT);
+      return {
+        request,
+        profiles,
+        shouldLoadMore:
+          profiles.length < EXPLORE_COMPATIBLE_VISIBLE_LIMIT &&
+          slice.items.length > 0 &&
+          slice.nextCursor !== null &&
+          !slice.reachedEnd &&
+          !slice.loadingInitial &&
+          !slice.loadingMore &&
+          !slice.refreshing,
+      };
     }),
+    tap(({ request, shouldLoadMore }) => {
+      if (!request || !shouldLoadMore) {
+        return;
+      }
+
+      this.store.dispatch(
+        DiscoveryActions.loadDiscoveryNextPage({ request })
+      );
+    }),
+    map(({ profiles }) => [...profiles]),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
