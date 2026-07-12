@@ -14,7 +14,13 @@
     <p class="eyebrow">Segurança da conta</p>
 
     <h1 id="recovery-title">
-      {{ status() === 'error' ? 'Precisamos tentar novamente' : 'Recuperando seu cadastro' }}
+      {{
+        status() === 'error'
+          ? 'Precisamos tentar novamente'
+          : status() === 'success'
+            ? 'Cadastro confirmado'
+            : 'Verificando seu cadastro'
+      }}
     </h1>
 
     <p
@@ -27,10 +33,11 @@
     </p>
 
     <div class="info-box">
-      <strong>O que será recuperado</strong>
+      <strong>O que esta etapa faz</strong>
       <p>
-        Somente os dados básicos necessários para retomar o cadastro. Informações
-        de plano, permissões e consentimentos não são inventadas nem elevadas.
+        Confirma os dados básicos da conta e, somente quando necessário, reconstrói
+        o registro mínimo para retomar o cadastro. Plano, permissões e consentimentos
+        não são inventados nem elevados.
       </p>
     </div>
 
