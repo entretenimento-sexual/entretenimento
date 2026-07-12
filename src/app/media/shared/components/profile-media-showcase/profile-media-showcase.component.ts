@@ -309,7 +309,10 @@ export class ProfileMediaShowcaseComponent {
       height: '100vh',
       maxWidth: '100vw',
       maxHeight: '100vh',
-      panelClass: ['public-video-viewer-dialog'],
+      panelClass: [
+        'photo-viewer-dialog--immersive',
+        'public-video-viewer-dialog',
+      ],
       backdropClass: 'photo-viewer-backdrop',
     });
   }
