@@ -14,17 +14,12 @@
     <h1>{{ pageTitle }}</h1>
     <p>{{ introText }}</p>
 
-    <!--
-      Loading visual APENAS de submit.
-      Não usamos mais isLoading para esconder a tela.
-    -->
     @if (isSubmitting) {
       <div class="alert alert-secondary" role="status" aria-live="polite">
         Salvando seus dados...
       </div>
     }
 
-    <!-- Mensagem geral -->
     @if (message) {
       <p
         class="alert"
@@ -62,6 +57,7 @@
             placeholder="Como você quer aparecer?"
             (input)="checkFieldValidity('nickname', nickname, 'Apelido')"
             (blur)="checkFieldValidity('nickname', nickname, 'Apelido')"
+            [disabled]="isSubmitting"
             [attr.aria-invalid]="isFieldInvalid('nickname') ? 'true' : 'false'"
             [attr.aria-describedby]="isFieldInvalid('nickname') ? 'nickname-err nickname-hint' : 'nickname-hint'"
           />
@@ -78,7 +74,6 @@
         </div>
       }
 
-      <!-- Gênero (obrigatório) -->
       <div class="form-field">
         <label for="gender">
           Quero me cadastrar como <span class="req" aria-hidden="true">*</span>
@@ -93,6 +88,7 @@
           class="input-field"
           (change)="checkFieldValidity('gender', gender, 'Quero me cadastrar como')"
           (blur)="checkFieldValidity('gender', gender, 'Quero me cadastrar como')"
+          [disabled]="isSubmitting"
           [attr.aria-invalid]="isFieldInvalid('gender') ? 'true' : 'false'"
           [attr.aria-describedby]="isFieldInvalid('gender') ? 'gender-err' : null"
         >
@@ -114,11 +110,16 @@
         }
       </div>
 
-      <!-- Orientação (opcional) -->
       <div class="form-field">
         <label for="orientation">Eu sou (opcional)</label>
 
-        <select id="orientation" [(ngModel)]="orientation" name="orientation" class="input-field">
+        <select
+          id="orientation"
+          [(ngModel)]="orientation"
+          name="orientation"
+          class="input-field"
+          [disabled]="isSubmitting"
+        >
           <option value="" disabled>Selecione...</option>
           <option value="bissexual">Bissexual</option>
           <option value="homossexual">Homossexual</option>
@@ -127,7 +128,6 @@
         </select>
       </div>
 
-      <!-- Estado (obrigatório) -->
       <div class="form-field">
         <label for="estado">
           Estado <span class="req" aria-hidden="true">*</span>
@@ -140,13 +140,14 @@
           name="estado"
           required
           class="input-field"
-          (change)="onEstadoChange(); checkFieldValidity('estado', selectedEstado, 'Estado')"
+          (change)="selectedMunicipio = ''; onEstadoChange(); checkFieldValidity('estado', selectedEstado, 'Estado'); checkFieldValidity('municipio', selectedMunicipio, 'Município')"
           (blur)="checkFieldValidity('estado', selectedEstado, 'Estado')"
+          [disabled]="isSubmitting"
           [attr.aria-invalid]="isFieldInvalid('estado') ? 'true' : 'false'"
           [attr.aria-describedby]="isFieldInvalid('estado') ? 'estado-err' : null"
         >
           <option value="" disabled>Selecione...</option>
-          @for (estado of estados; track estado) {
+          @for (estado of estados; track estado.id) {
             <option [value]="estado.sigla">{{ estado.nome }}</option>
           }
         </select>
@@ -158,7 +159,6 @@
         }
       </div>
 
-      <!-- Município (obrigatório) -->
       <div class="form-field">
         <label for="municipio">
           Município <span class="req" aria-hidden="true">*</span>
@@ -173,11 +173,12 @@
           class="input-field"
           (change)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
           (blur)="checkFieldValidity('municipio', selectedMunicipio, 'Município')"
+          [disabled]="isSubmitting || !selectedEstado || municipios.length === 0"
           [attr.aria-invalid]="isFieldInvalid('municipio') ? 'true' : 'false'"
           [attr.aria-describedby]="isFieldInvalid('municipio') ? 'municipio-err' : null"
         >
           <option value="" disabled>Selecione...</option>
-          @for (municipio of municipios; track municipio) {
+          @for (municipio of municipios; track municipio.id) {
             <option [value]="municipio.nome">{{ municipio.nome }}</option>
           }
         </select>
@@ -189,7 +190,6 @@
         }
       </div>
 
-      <!-- Foto principal (opcional) -->
       <div class="form-field">
         <label for="avatar">Foto principal (opcional)</label>
 
@@ -198,17 +198,18 @@
           type="file"
           (change)="uploadFile($event)"
           class="input-field"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
+          [disabled]="isSubmitting"
+          aria-describedby="avatar-hint"
         />
 
-        <p class="field-hint">
-          Você pode enviar depois. Uma boa foto aumenta a confiança e a taxa de interação.
+        <p class="field-hint" id="avatar-hint">
+          JPG, PNG ou WEBP, com até 8 MB. Você também pode enviar a foto depois.
         </p>
       </div>
 
-      <!-- Preparação da foto selecionada -->
       @if (isUploading) {
-        <div class="progress-custom" aria-label="Preparando foto selecionada">
+        <div class="progress-custom" aria-label="Enviando foto principal">
           <div
             class="progress-bar-custom"
             role="progressbar"
@@ -222,13 +223,22 @@
         </div>
       }
 
-      <button type="submit" [disabled]="isSubmitting" class="btn-submit">
-        Concluir cadastro
+      <button
+        type="submit"
+        [disabled]="isSubmitting || isLoading"
+        class="btn-submit"
+      >
+        {{ isSubmitting ? 'Concluindo…' : 'Concluir cadastro' }}
       </button>
     </form>
 
     @if (uploadMessage) {
-      <div class="alert alert-warning" style="margin-top: var(--space-2, 12px);">
+      <div
+        class="alert alert-warning"
+        role="alert"
+        aria-live="polite"
+        style="margin-top: var(--space-2, 12px);"
+      >
         {{ uploadMessage }}
       </div>
     }
