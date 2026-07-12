@@ -26,17 +26,25 @@ import {
   switchMap,
 } from 'rxjs/operators';
 
+import {
+  IPublicProfileMediaItem,
+  isPublicPhotoItem,
+  isPublicVideoItem,
+} from 'src/app/core/interfaces/media/i-public-profile-media-item';
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
+import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import type { IProfilePhotoItem } from '../../../photos/photo-viewer/photo-viewer.component';
 
-type ProfileMediaShowcaseStatus = 'loading' | 'ready' | 'empty' | 'error';
+ type ProfileMediaShowcaseStatus = 'loading' | 'ready' | 'empty' | 'error';
 
 interface ProfileMediaShowcaseState {
   status: ProfileMediaShowcaseStatus;
-  items: IPublicPhotoItem[];
+  items: IPublicProfileMediaItem[];
+  photosCount: number;
+  videosCount: number;
 }
 
 const SHOWCASE_ITEM_LIMIT = 5;
@@ -65,7 +73,7 @@ export class ProfileMediaShowcaseComponent {
     distinctUntilChanged()
   );
 
-  readonly galleryLink = computed(() => [
+  readonly photoGalleryLink = computed(() => [
     '/media',
     'perfil',
     (this.ownerUid() ?? '').trim(),
@@ -78,32 +86,23 @@ export class ProfileMediaShowcaseComponent {
   ]).pipe(
     switchMap(([ownerUid]) => {
       if (!ownerUid) {
-        return of<ProfileMediaShowcaseState>({
-          status: 'empty',
-          items: [],
-        });
+        return of(this.buildState('empty', []));
       }
 
-      return this.mediaPublicQuery.getProfilePublicPhotos$(ownerUid, {
+      return this.mediaPublicQuery.getProfilePublicMedia$(ownerUid, {
         propagateErrors: true,
       }).pipe(
-        map((items): ProfileMediaShowcaseState => ({
-          status: items.length > 0 ? 'ready' : 'empty',
-          items,
-        })),
-        startWith({
-          status: 'loading',
-          items: [],
-        } as ProfileMediaShowcaseState),
+        map((items) => this.buildState(
+          items.length > 0 ? 'ready' : 'empty',
+          items
+        )),
+        startWith(this.buildState('loading', [])),
         catchError(() => {
           this.errorNotification.showError(
             'Não foi possível carregar as mídias deste perfil agora.'
           );
 
-          return of<ProfileMediaShowcaseState>({
-            status: 'error',
-            items: [],
-          });
+          return of(this.buildState('error', []));
         })
       );
     }),
@@ -114,21 +113,24 @@ export class ProfileMediaShowcaseComponent {
     this.refreshSubject.next(this.refreshSubject.value + 1);
   }
 
-  async openPhoto(photoId: string, fallbackIndex: number): Promise<void> {
+  async openMedia(
+    item: IPublicProfileMediaItem,
+    fallbackIndex: number
+  ): Promise<void> {
     const ownerUid = (this.ownerUid() ?? '').trim();
-    const safePhotoId = (photoId ?? '').trim();
+    const mediaId = (item.id ?? '').trim();
 
-    if (!ownerUid || !safePhotoId || this.viewerOpening()) {
+    if (!ownerUid || !mediaId || this.viewerOpening()) {
       return;
     }
 
     this.viewerOpening.set(true);
 
-    let items: IPublicPhotoItem[];
+    let items: IPublicProfileMediaItem[];
 
     try {
       items = await firstValueFrom(
-        this.mediaPublicQuery.getProfilePublicPhotos$(ownerUid, {
+        this.mediaPublicQuery.getProfilePublicMedia$(ownerUid, {
           propagateErrors: true,
         })
       );
@@ -140,44 +142,31 @@ export class ProfileMediaShowcaseComponent {
       return;
     }
 
-    if (!items.length) {
+    const selectedIdentity = this.buildMediaIdentity(item);
+    const refreshedIndex = items.findIndex(
+      (candidate) => this.buildMediaIdentity(candidate) === selectedIdentity
+    );
+    const safeIndex = refreshedIndex >= 0
+      ? refreshedIndex
+      : Math.max(0, Math.min(fallbackIndex, items.length - 1));
+    const refreshedItem = items[safeIndex] ?? null;
+
+    if (!refreshedItem) {
       this.errorNotification.showWarning(
-        'Esta foto não está mais disponível para visitantes.'
+        'Esta mídia não está mais disponível para visitantes.'
       );
       this.viewerOpening.set(false);
       return;
     }
 
-    const refreshedIndex = items.findIndex((item) => item.id === safePhotoId);
-    const safeIndex = refreshedIndex >= 0
-      ? refreshedIndex
-      : Math.max(0, Math.min(fallbackIndex, items.length - 1));
-    const viewerItems = items.map((item) => this.toViewerPhotoItem(item));
-    const selected = viewerItems[safeIndex];
-
     try {
-      const { PhotoViewerComponent } = await import(
-        '../../../photos/photo-viewer/photo-viewer.component'
-      );
-
-      this.dialog.open(PhotoViewerComponent, {
-        data: {
-          ownerUid: selected?.ownerUid ?? ownerUid,
-          items: viewerItems,
-          startIndex: safeIndex,
-          source: 'profile',
-        },
-        autoFocus: false,
-        restoreFocus: true,
-        width: '100vw',
-        height: '100vh',
-        maxWidth: '100vw',
-        maxHeight: '100vh',
-        panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
-        backdropClass: 'photo-viewer-backdrop',
-      });
+      if (isPublicVideoItem(refreshedItem)) {
+        await this.openVideoViewer(items, refreshedItem, ownerUid);
+      } else {
+        await this.openPhotoViewer(items, refreshedItem, ownerUid);
+      }
     } catch (error) {
-      this.reportViewerError(error, ownerUid, safePhotoId);
+      this.reportViewerError(error, ownerUid, refreshedItem);
       this.errorNotification.showError(
         'Não foi possível abrir a visualização imersiva.'
       );
@@ -186,7 +175,9 @@ export class ProfileMediaShowcaseComponent {
     }
   }
 
-  visibleItems(items: readonly IPublicPhotoItem[]): readonly IPublicPhotoItem[] {
+  visibleItems(
+    items: readonly IPublicProfileMediaItem[]
+  ): readonly IPublicProfileMediaItem[] {
     return items.slice(0, SHOWCASE_ITEM_LIMIT);
   }
 
@@ -194,15 +185,126 @@ export class ProfileMediaShowcaseComponent {
     return Math.max(0, total - SHOWCASE_ITEM_LIMIT);
   }
 
-  trackByPhotoId(_index: number, item: IPublicPhotoItem): string {
-    return item.id;
+  trackByMediaId(
+    _index: number,
+    item: IPublicProfileMediaItem
+  ): string {
+    return this.buildMediaIdentity(item);
   }
 
-  getPhotoAriaLabel(item: IPublicPhotoItem, index: number, total: number): string {
+  isVideo(item: IPublicProfileMediaItem): item is IPublicVideoItem {
+    return isPublicVideoItem(item);
+  }
+
+  getMediaAriaLabel(
+    item: IPublicProfileMediaItem,
+    index: number,
+    total: number
+  ): string {
     const position = `${index + 1} de ${total}`;
-    const label = item.alt?.trim() || `Foto publicada por ${this.profileName()}`;
+    const mediaType = this.isVideo(item) ? 'vídeo' : 'foto';
+    const label = item.alt?.trim() ||
+      `${mediaType} publicada por ${this.profileName()}`;
 
     return `Abrir ${label}. Mídia ${position}.`;
+  }
+
+  formatDuration(durationMs: number | null | undefined): string {
+    const totalSeconds = Math.max(0, Math.floor(Number(durationMs ?? 0) / 1000));
+
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+      return 'Vídeo';
+    }
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return [hours, minutes, seconds]
+        .map((value, position) => position === 0
+          ? String(value)
+          : String(value).padStart(2, '0'))
+        .join(':');
+    }
+
+    return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  private buildState(
+    status: ProfileMediaShowcaseStatus,
+    items: IPublicProfileMediaItem[]
+  ): ProfileMediaShowcaseState {
+    return {
+      status,
+      items,
+      photosCount: items.filter(isPublicPhotoItem).length,
+      videosCount: items.filter(isPublicVideoItem).length,
+    };
+  }
+
+  private async openPhotoViewer(
+    items: IPublicProfileMediaItem[],
+    selected: IPublicPhotoItem,
+    ownerUid: string
+  ): Promise<void> {
+    const photoItems = items.filter(isPublicPhotoItem);
+    const startIndex = Math.max(
+      0,
+      photoItems.findIndex((item) => item.id === selected.id)
+    );
+    const viewerItems = photoItems.map((item) => this.toViewerPhotoItem(item));
+    const { PhotoViewerComponent } = await import(
+      '../../../photos/photo-viewer/photo-viewer.component'
+    );
+
+    this.dialog.open(PhotoViewerComponent, {
+      data: {
+        ownerUid,
+        items: viewerItems,
+        startIndex,
+        source: 'profile',
+      },
+      autoFocus: false,
+      restoreFocus: true,
+      width: '100vw',
+      height: '100vh',
+      maxWidth: '100vw',
+      maxHeight: '100vh',
+      panelClass: ['photo-viewer-dialog', 'photo-viewer-dialog--immersive'],
+      backdropClass: 'photo-viewer-backdrop',
+    });
+  }
+
+  private async openVideoViewer(
+    items: IPublicProfileMediaItem[],
+    selected: IPublicVideoItem,
+    ownerUid: string
+  ): Promise<void> {
+    const videoItems = items.filter(isPublicVideoItem);
+    const startIndex = Math.max(
+      0,
+      videoItems.findIndex((item) => item.id === selected.id)
+    );
+    const { PublicVideoViewerComponent } = await import(
+      '../../../videos/public-video-viewer/public-video-viewer.component'
+    );
+
+    this.dialog.open(PublicVideoViewerComponent, {
+      data: {
+        ownerUid,
+        items: videoItems,
+        startIndex,
+      },
+      autoFocus: false,
+      restoreFocus: true,
+      width: '100vw',
+      height: '100vh',
+      maxWidth: '100vw',
+      maxHeight: '100vh',
+      panelClass: ['public-video-viewer-dialog'],
+      backdropClass: 'photo-viewer-backdrop',
+    });
   }
 
   private toViewerPhotoItem(item: IPublicPhotoItem): IProfilePhotoItem {
@@ -219,10 +321,14 @@ export class ProfileMediaShowcaseComponent {
     };
   }
 
+  private buildMediaIdentity(item: IPublicProfileMediaItem): string {
+    return `${this.isVideo(item) ? 'VIDEO' : 'PHOTO'}:${item.id}`;
+  }
+
   private reportViewerError(
     error: unknown,
     ownerUid: string,
-    photoId: string
+    item: IPublicProfileMediaItem
   ): void {
     try {
       const normalizedError = error instanceof Error
@@ -232,9 +338,10 @@ export class ProfileMediaShowcaseComponent {
       (normalizedError as any).original = error;
       (normalizedError as any).context = {
         scope: 'ProfileMediaShowcaseComponent',
-        op: 'openPhoto.viewer',
+        op: 'openMedia.viewer',
+        mediaType: this.isVideo(item) ? 'VIDEO' : 'PHOTO',
         hasOwnerUid: !!ownerUid,
-        hasPhotoId: !!photoId,
+        hasMediaId: !!item.id,
       };
       (normalizedError as any).skipUserNotification = true;
 
