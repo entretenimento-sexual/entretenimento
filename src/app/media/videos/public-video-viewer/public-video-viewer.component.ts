@@ -6,19 +6,26 @@ import {
   HostListener,
   Inject,
   ViewChild,
+  inject,
 } from '@angular/core';
 import {
   MAT_DIALOG_DATA,
   MatDialogModule,
   MatDialogRef,
 } from '@angular/material/dialog';
+import { take } from 'rxjs/operators';
 
 import { IPublicVideoItem } from 'src/app/core/interfaces/media/i-public-video-item';
+import {
+  TVideoViewSource,
+  VideoViewTrackingService,
+} from 'src/app/core/services/media/video-view-tracking.service';
 
 export interface IPublicVideoViewerData {
   ownerUid: string;
   items: IPublicVideoItem[];
   startIndex: number;
+  source?: TVideoViewSource;
 }
 
 @Component({
@@ -30,6 +37,9 @@ export interface IPublicVideoViewerData {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PublicVideoViewerComponent {
+  private readonly videoViewTracking = inject(VideoViewTrackingService);
+  private readonly recordedViewKeys = new Set<string>();
+
   @ViewChild('videoPlayer')
   private videoPlayer?: ElementRef<HTMLVideoElement>;
 
@@ -43,6 +53,8 @@ export class PublicVideoViewerComponent {
     this.index = itemsCount > 0
       ? Math.max(0, Math.min(data.startIndex ?? 0, itemsCount - 1))
       : 0;
+
+    this.recordCurrentVideoView();
   }
 
   get current(): IPublicVideoItem | null {
@@ -104,7 +116,10 @@ export class PublicVideoViewerComponent {
   }
 
   formatDuration(durationMs: number | null | undefined): string {
-    const totalSeconds = Math.max(0, Math.floor(Number(durationMs ?? 0) / 1000));
+    const totalSeconds = Math.max(
+      0,
+      Math.floor(Number(durationMs ?? 0) / 1000)
+    );
 
     if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
       return 'Duração não informada';
@@ -128,11 +143,29 @@ export class PublicVideoViewerComponent {
   private changeIndex(nextIndex: number): void {
     this.pauseCurrentVideo();
     this.index = nextIndex;
+    this.recordCurrentVideoView();
 
     queueMicrotask(() => {
       this.videoPlayer?.nativeElement.load();
       this.videoPlayer?.nativeElement.focus({ preventScroll: true });
     });
+  }
+
+  private recordCurrentVideoView(): void {
+    const video = this.current;
+    const ownerUid = (video?.ownerUid ?? this.data.ownerUid ?? '').trim();
+    const videoId = (video?.id ?? '').trim();
+    const viewKey = `${ownerUid}:${videoId}`;
+
+    if (!ownerUid || !videoId || this.recordedViewKeys.has(viewKey)) {
+      return;
+    }
+
+    this.recordedViewKeys.add(viewKey);
+    this.videoViewTracking
+      .recordVideoView$(ownerUid, videoId, this.data.source ?? 'unknown')
+      .pipe(take(1))
+      .subscribe();
   }
 
   private pauseCurrentVideo(): void {
