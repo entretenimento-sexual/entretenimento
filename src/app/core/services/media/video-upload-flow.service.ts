@@ -9,10 +9,10 @@ import {
 } from '@angular/fire/firestore';
 import { Storage } from '@angular/fire/storage';
 import {
-  UploadTask,
   deleteObject,
   getDownloadURL,
   ref,
+  type UploadTask,
   uploadBytesResumable,
 } from 'firebase/storage';
 import { Observable, firstValueFrom } from 'rxjs';
@@ -20,10 +20,7 @@ import { Observable, firstValueFrom } from 'rxjs';
 import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PrivacyDebugLoggerService } from 'src/app/core/services/privacy/privacy-debug-logger.service';
-import {
-  IPreparedVideoMetadata,
-  VideoMetadataPreparationService,
-} from './video-metadata-preparation.service';
+import { VideoMetadataPreparationService } from './video-metadata-preparation.service';
 
 export type VideoUploadProgressPhase =
   | 'preparing'
@@ -84,8 +81,22 @@ export class VideoUploadFlowService {
     command: IVideoUploadCommand
   ): Observable<IVideoUploadFlowEvent> {
     return new Observable<IVideoUploadFlowEvent>((observer) => {
-      const ownerUid = this.requireOwnedUid(command.ownerUid);
-      const file = this.validateFile(command.file);
+      let ownerUid = '';
+      let file: File;
+
+      try {
+        ownerUid = this.requireOwnedUid(command.ownerUid);
+        file = this.validateFile(command.file);
+      } catch (error) {
+        this.reportError(error, {
+          op: 'uploadPrivateVideo$.validate',
+          hasOwnerUid: !!String(command.ownerUid ?? '').trim(),
+          hasFile: !!command.file,
+        });
+        observer.error(error);
+        return undefined;
+      }
+
       const videoRef = doc(collection(this.firestore, `users/${ownerUid}/videos`));
       const videoId = videoRef.id;
       const videoPath = this.buildVideoPath(ownerUid, videoId, file);
@@ -192,13 +203,14 @@ export class VideoUploadFlowService {
 
           const createdAt = Date.now();
           const status = metadata.playbackReady ? 'ready' : 'uploaded';
+          const fileName = this.normalizeDisplayFileName(file.name);
 
           await setDoc(videoRef, {
             id: videoId,
             ownerUid,
             url: videoBinary.url,
             path: videoBinary.path,
-            fileName: this.normalizeDisplayFileName(file.name),
+            fileName,
             mimeType: file.type,
             sizeBytes: file.size,
             durationMs: metadata.durationMs,
@@ -218,7 +230,7 @@ export class VideoUploadFlowService {
               ownerUid,
               url: videoBinary.url,
               path: videoBinary.path,
-              fileName: this.normalizeDisplayFileName(file.name),
+              fileName,
               mimeType: file.type,
               sizeBytes: file.size,
               durationMs: metadata.durationMs,
@@ -349,11 +361,18 @@ export class VideoUploadFlowService {
 
   private buildVideoPath(ownerUid: string, videoId: string, file: File): string {
     const extension = this.resolveVideoExtension(file);
-    return `users/${ownerUid}/uploads/videos/${videoId}-${this.randomId()}.${extension}`;
+
+    return (
+      `users/${ownerUid}/uploads/videos/` +
+      `${videoId}-${this.randomId()}.${extension}`
+    );
   }
 
   private buildPosterPath(ownerUid: string, videoId: string): string {
-    return `users/${ownerUid}/uploads/video-posters/${videoId}/poster-${this.randomId()}.jpg`;
+    return (
+      `users/${ownerUid}/uploads/video-posters/${videoId}/` +
+      `poster-${this.randomId()}.jpg`
+    );
   }
 
   private resolveVideoExtension(file: File): string {
@@ -371,16 +390,26 @@ export class VideoUploadFlowService {
   }
 
   private normalizeDisplayFileName(value: string): string {
-    const safeName = String(value ?? '')
-      .replace(/[\u0000-\u001f\u007f]/g, '')
-      .trim()
-      .slice(0, 160);
+    const raw = String(value ?? '');
+    let withoutControlCharacters = '';
 
+    for (let index = 0; index < raw.length; index += 1) {
+      const characterCode = raw.charCodeAt(index);
+
+      if (characterCode > 31 && characterCode !== 127) {
+        withoutControlCharacters += raw[index];
+      }
+    }
+
+    const safeName = withoutControlCharacters.trim().slice(0, 160);
     return safeName || 'Vídeo';
   }
 
   private randomId(): string {
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    if (
+      typeof crypto !== 'undefined' &&
+      typeof crypto.randomUUID === 'function'
+    ) {
       return crypto.randomUUID();
     }
 
@@ -400,7 +429,10 @@ export class VideoUploadFlowService {
     return Math.max(0, Math.min(100, Math.round(value)));
   }
 
-  private reportCleanupError(error: unknown, assetKind: 'video' | 'poster'): void {
+  private reportCleanupError(
+    error: unknown,
+    assetKind: 'video' | 'poster'
+  ): void {
     this.reportError(error, {
       op: 'rollbackUploadedBinary',
       assetKind,
