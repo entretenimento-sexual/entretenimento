@@ -54,7 +54,10 @@ const SHOWCASE_ITEM_LIMIT = 5;
   standalone: true,
   imports: [CommonModule, RouterModule, MatDialogModule],
   templateUrl: './profile-media-showcase.component.html',
-  styleUrls: ['./profile-media-showcase.component.css'],
+  styleUrls: [
+    './profile-media-showcase.component.css',
+    './profile-media-showcase-video.component.css',
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ProfileMediaShowcaseComponent {
