@@ -2,9 +2,23 @@
 // Não esquecer ferramentas de debug e comentários explicativos
 // Visual clean, simplificado, em português, de fácil navegação e sempre visando o mobile
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  inject,
+  signal,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterModule } from '@angular/router';
-import { distinctUntilChanged, map, tap } from 'rxjs/operators';
+import {
+  distinctUntilChanged,
+  finalize,
+  map,
+  shareReplay,
+  switchMap,
+  tap,
+} from 'rxjs/operators';
 
 import { ErrorNotificationService } from '@core/services/error-handler/error-notification.service';
 
@@ -18,7 +32,6 @@ import { PreferenceProfileFormComponent } from '../../components/preference-prof
 import { IntentStateFormComponent } from '../../components/intent-state-form/intent-state-form.component';
 import { DiscoveryVisibilityPanelComponent } from '../../components/discovery-visibility-panel/discovery-visibility-panel.component';
 import { PreferencesUiService } from '../../state/preferences-ui.service';
-import { Observable } from 'rxjs';
 import { PreferencesPageHeaderComponent } from '../../components/preferences-page-header/preferences-page-header.component';
 import { PreferencesDomainNavComponent } from '../../components/preferences-domain-nav/preferences-domain-nav.component';
 
@@ -45,6 +58,7 @@ export class PreferencesEditorComponent {
   private readonly editorFacade = inject(PreferencesEditorFacade);
   private readonly notifier = inject(ErrorNotificationService);
   private readonly preferencesUi = inject(PreferencesUiService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly isSavingProfile = signal(false);
   readonly isSavingIntent = signal(false);
@@ -55,67 +69,55 @@ export class PreferencesEditorComponent {
     tap((uid) => {
       this.preferencesUi.setActiveView('editor');
       this.preferencesUi.setLastEditorUid(uid);
-    })
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
   );
 
   readonly state$ = this.uid$.pipe(
     map((uid) => uid ?? ''),
-    switchMapSafe((uid) => this.editorFacade.getEditorState$(uid))
+    switchMap((uid) => this.editorFacade.getEditorState$(uid)),
+    shareReplay({ bufferSize: 1, refCount: true })
   );
 
   onSaveProfile(uid: string, profile: PreferenceProfile): void {
-    if (!uid) return;
+    if (!uid || this.isSavingProfile()) return;
 
     this.isSavingProfile.set(true);
 
-    this.editorFacade.saveProfileOnly$(uid, profile).subscribe({
-      next: () => {
-        this.isSavingProfile.set(false);
-        this.notifier.showSuccess('Perfil de preferências salvo com sucesso.');
-      },
-      error: () => {
-        this.isSavingProfile.set(false);
-      },
-    });
+    this.editorFacade
+      .saveProfileOnly$(uid, profile)
+      .pipe(
+        finalize(() => this.isSavingProfile.set(false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe({
+        next: () => {
+          this.notifier.showSuccess('Perfil de preferências salvo com sucesso.');
+        },
+        error: () => {
+          // Feedback de erro já tratado pela façade.
+        },
+      });
   }
 
   onSaveIntent(uid: string, intent: IntentState): void {
-    if (!uid) return;
+    if (!uid || this.isSavingIntent()) return;
 
     this.isSavingIntent.set(true);
 
-    this.editorFacade.saveIntentOnly$(uid, intent).subscribe({
-      next: () => {
-        this.isSavingIntent.set(false);
-        this.notifier.showSuccess('Intenção atual salva com sucesso.');
-      },
-      error: () => {
-        this.isSavingIntent.set(false);
-      },
-    });
-  }
-}
-
-function switchMapSafe<T, R>(project: (value: T) => Observable<R>) {
-  return (source: Observable<T>): Observable<R> =>
-    new Observable<R>((subscriber) => {
-      let innerSub: { unsubscribe(): void } | null = null;
-
-      const outerSub = source.subscribe({
-        next(value) {
-          innerSub?.unsubscribe();
-          innerSub = project(value).subscribe({
-            next: (v) => subscriber.next(v),
-            error: (e) => subscriber.error(e),
-          });
+    this.editorFacade
+      .saveIntentOnly$(uid, intent)
+      .pipe(
+        finalize(() => this.isSavingIntent.set(false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe({
+        next: () => {
+          this.notifier.showSuccess('Intenção atual salva com sucesso.');
         },
-        error: (e) => subscriber.error(e),
-        complete: () => subscriber.complete(),
+        error: () => {
+          // Feedback de erro já tratado pela façade.
+        },
       });
-
-      return () => {
-        innerSub?.unsubscribe();
-        outerSub.unsubscribe();
-      };
-    });
+  }
 }
