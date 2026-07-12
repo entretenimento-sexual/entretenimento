@@ -1,4 +1,5 @@
 @let busyActions = (busyActions$ | async);
+@let pendingDeleteVideoId = (pendingDeleteVideoId$ | async);
 @let uploadPhase = (uploadPhase$ | async) || 'IDLE';
 @let uploadProgress = (uploadProgress$ | async) || 0;
 @let uploadStep = (uploadStep$ | async) || '';
@@ -52,6 +53,7 @@
             class="profile-videos__file-input"
             type="file"
             accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov"
+            aria-describedby="profile-video-file-help"
             [disabled]="!canUpload || isUploadActive()"
             (change)="onVideoSelected($event)"
           />
@@ -256,8 +258,10 @@
                   <button
                     type="button"
                     class="app-action app-action--danger"
-                    (click)="deleteVideo(item)"
+                    (click)="requestDelete(item)"
                     [disabled]="isBusy(item.video.id)"
+                    [attr.aria-expanded]="pendingDeleteVideoId === item.video.id"
+                    [attr.aria-controls]="'video-delete-confirmation-' + item.video.id"
                     [attr.aria-busy]="busyActions?.get(item.video.id) === 'delete' ? 'true' : 'false'"
                   >
                     <i class="fas fa-trash" aria-hidden="true"></i>
@@ -266,6 +270,43 @@
                     </span>
                   </button>
                 </div>
+
+                @if (pendingDeleteVideoId === item.video.id) {
+                  <div
+                    class="profile-videos__delete-confirmation"
+                    [id]="'video-delete-confirmation-' + item.video.id"
+                    role="alert"
+                    aria-live="assertive"
+                  >
+                    <div>
+                      <strong>Excluir definitivamente?</strong>
+                      <p>
+                        O vídeo será removido da biblioteca privada e da área pública.
+                        Esta ação não pode ser desfeita.
+                      </p>
+                    </div>
+
+                    <div class="profile-videos__delete-confirmation-actions">
+                      <button
+                        type="button"
+                        class="app-action app-action--danger"
+                        (click)="confirmDelete(item)"
+                        [disabled]="isBusy(item.video.id)"
+                      >
+                        Excluir definitivamente
+                      </button>
+
+                      <button
+                        type="button"
+                        class="app-action app-action--ghost"
+                        (click)="cancelDelete(item.video.id)"
+                        [disabled]="isBusy(item.video.id)"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                }
               </div>
             </article>
           }
