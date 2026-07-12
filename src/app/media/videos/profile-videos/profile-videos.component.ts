@@ -1,12 +1,6 @@
 // src/app/media/videos/profile-videos/profile-videos.component.ts
 // -----------------------------------------------------------------------------
-// Biblioteca privada e publicação controlada de vídeos.
-//
-// Segurança:
-// - o dono lê apenas users/{uid}/videos;
-// - publicação/despublicação passa por Cloud Functions;
-// - a UI nunca grava projeção pública ou caminho publicado diretamente;
-// - visitantes consomem somente public_profiles/{uid}/public_videos.
+// Biblioteca privada, upload recuperável e publicação controlada de vídeos.
 // -----------------------------------------------------------------------------
 
 import { CommonModule } from '@angular/common';
@@ -20,7 +14,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import {
   BehaviorSubject,
+  EMPTY,
   Observable,
+  Subscription,
   combineLatest,
   of,
 } from 'rxjs';
@@ -38,13 +34,45 @@ import { IVideoItem } from 'src/app/core/interfaces/media/i-video-item';
 import { IVideoPublicationConfig } from 'src/app/core/interfaces/media/i-video-publication-config';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
+import {
+  IMediaPolicyResult,
+  IMediaPolicyViewerSnapshot,
+  MediaPolicyDenyReason,
+  MediaPolicyService,
+} from 'src/app/core/services/media/media-policy.service';
 import { VideoLibraryService } from 'src/app/core/services/media/video-library.service';
 import { VideoPublicationService } from 'src/app/core/services/media/video-publication.service';
+import {
+  IVideoUploadFlowEvent,
+  VideoUploadFlowService,
+  VideoUploadProgressPhase,
+} from 'src/app/core/services/media/video-upload-flow.service';
 
 interface ProfileVideoViewItem {
   video: IVideoItem;
   publication: IVideoPublicationConfig | null;
 }
+
+type VideoBusyAction = 'publish' | 'unpublish' | 'delete';
+type VideoUploadUiPhase =
+  | 'IDLE'
+  | 'READY'
+  | 'PREPARING'
+  | 'UPLOADING'
+  | 'SAVING'
+  | 'DONE';
+
+const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
+const ALLOWED_VIDEO_TYPES = new Set([
+  'video/mp4',
+  'video/webm',
+  'video/quicktime',
+]);
+const PUBLIC_PLAYBACK_TYPES = new Set(['video/mp4', 'video/webm']);
+const DENY_UNKNOWN: IMediaPolicyResult = {
+  decision: 'DENY',
+  reason: 'UNKNOWN',
+};
 
 @Component({
   selector: 'app-profile-videos',
@@ -60,14 +88,62 @@ export class ProfileVideosComponent {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly videoLibrary = inject(VideoLibraryService);
   private readonly videoPublication = inject(VideoPublicationService);
+  private readonly videoUploadFlow = inject(VideoUploadFlowService);
+  private readonly mediaPolicy = inject(MediaPolicyService);
   private readonly errorNotification = inject(ErrorNotificationService);
 
-  private readonly busyVideoIdsSubject = new BehaviorSubject<
-    ReadonlySet<string>
-  >(new Set());
-  readonly busyVideoIds$ = this.busyVideoIdsSubject.asObservable();
+  private readonly busyActionsSubject = new BehaviorSubject<
+    ReadonlyMap<string, VideoBusyAction>
+  >(new Map());
+  readonly busyActions$ = this.busyActionsSubject.asObservable();
 
-  readonly viewerUid$: Observable<string | null> = this.currentUserStore.user$.pipe(
+  private readonly selectedFileSubject = new BehaviorSubject<File | null>(null);
+  readonly selectedFile$ = this.selectedFileSubject.asObservable();
+
+  private readonly previewUrlSubject = new BehaviorSubject<string | null>(null);
+  readonly previewUrl$ = this.previewUrlSubject.asObservable();
+
+  private readonly uploadPhaseSubject = new BehaviorSubject<VideoUploadUiPhase>(
+    'IDLE'
+  );
+  readonly uploadPhase$ = this.uploadPhaseSubject.asObservable();
+
+  private readonly uploadProgressSubject = new BehaviorSubject<number>(0);
+  readonly uploadProgress$ = this.uploadProgressSubject.asObservable();
+
+  private readonly uploadStepSubject = new BehaviorSubject<string>(
+    'Selecione um vídeo para começar.'
+  );
+  readonly uploadStep$ = this.uploadStepSubject.asObservable();
+
+  private uploadSubscription: Subscription | null = null;
+  private cancelRequestedByUser = false;
+
+  readonly viewer$: Observable<IMediaPolicyViewerSnapshot | null | undefined> =
+    this.currentUserStore.user$.pipe(
+      map((user) =>
+        user
+          ? {
+              uid: user.uid,
+              emailVerified: user.emailVerified === true,
+              profileCompleted: user.profileCompleted === true,
+              interactionBlocked: user.interactionBlocked === true,
+            }
+          : user
+      ),
+      distinctUntilChanged((previous, current) =>
+        previous === current ||
+        (!!previous &&
+          !!current &&
+          previous.uid === current.uid &&
+          previous.emailVerified === current.emailVerified &&
+          previous.profileCompleted === current.profileCompleted &&
+          previous.interactionBlocked === current.interactionBlocked)
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  readonly viewerUid$: Observable<string | null> = this.viewer$.pipe(
     map((user) => user?.uid ?? null),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
@@ -92,6 +168,33 @@ export class ProfileVideosComponent {
     map(([viewerUid, ownerUid]) => !!viewerUid && viewerUid === ownerUid),
     distinctUntilChanged(),
     shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly uploadPolicyResult$: Observable<IMediaPolicyResult> = combineLatest([
+    this.viewer$,
+    this.ownerUid$,
+  ]).pipe(
+    switchMap(([viewer, ownerUid]) =>
+      ownerUid
+        ? this.mediaPolicy.canUploadProfileVideosForViewer$(viewer, ownerUid)
+        : of(DENY_UNKNOWN)
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly canUpload$ = this.uploadPolicyResult$.pipe(
+    map((result) => result.decision === 'ALLOW'),
+    distinctUntilChanged()
+  );
+
+  readonly selectedFileName$ = this.selectedFile$.pipe(
+    map((file) => file?.name ?? null),
+    distinctUntilChanged()
+  );
+
+  readonly selectedFileSize$ = this.selectedFile$.pipe(
+    map((file) => (file ? this.formatFileSize(file.size) : null)),
+    distinctUntilChanged()
   );
 
   readonly viewItems$: Observable<ProfileVideoViewItem[]> = combineLatest([
@@ -132,35 +235,171 @@ export class ProfileVideosComponent {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      this.uploadSubscription?.unsubscribe();
+      this.revokePreviewUrl();
+    });
+  }
+
+  onVideoSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0] ?? null;
+
+    if (!file) {
+      return;
+    }
+
+    const mimeType = String(file.type ?? '').toLowerCase();
+
+    if (!ALLOWED_VIDEO_TYPES.has(mimeType)) {
+      this.errorNotification.showError('Envie um vídeo MP4, WebM ou MOV.');
+      input.value = '';
+      return;
+    }
+
+    if (!Number.isFinite(file.size) || file.size <= 0) {
+      this.errorNotification.showError('O arquivo selecionado está vazio.');
+      input.value = '';
+      return;
+    }
+
+    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+      this.errorNotification.showError('O vídeo excede o limite de 500 MB.');
+      input.value = '';
+      return;
+    }
+
+    this.revokePreviewUrl();
+    this.selectedFileSubject.next(file);
+    this.previewUrlSubject.next(URL.createObjectURL(file));
+    this.uploadPhaseSubject.next('READY');
+    this.uploadProgressSubject.next(0);
+    this.uploadStepSubject.next(
+      PUBLIC_PLAYBACK_TYPES.has(mimeType)
+        ? 'Vídeo pronto para envio privado.'
+        : 'MOV será salvo somente na biblioteca privada até existir transcodificação.'
+    );
+  }
+
+  startUpload(): void {
+    if (this.uploadSubscription) {
+      return;
+    }
+
+    this.cancelRequestedByUser = false;
+
+    this.uploadSubscription = combineLatest([
+      this.uploadPolicyResult$,
+      this.ownerUid$,
+      this.selectedFile$,
+      this.uploadPhase$,
+    ]).pipe(
+      take(1),
+      switchMap(([policyResult, ownerUid, file, phase]) => {
+        if (phase !== 'READY' || !file) {
+          this.errorNotification.showWarning(
+            'Selecione um vídeo válido antes de enviar.'
+          );
+          return EMPTY;
+        }
+
+        if (policyResult.decision !== 'ALLOW') {
+          this.errorNotification.showError(
+            this.getPolicyDeniedMessage(policyResult.reason)
+          );
+          return EMPTY;
+        }
+
+        this.uploadPhaseSubject.next('PREPARING');
+        this.uploadProgressSubject.next(0);
+        this.uploadStepSubject.next('Preparando duração e imagem de capa.');
+
+        return this.videoUploadFlow.uploadPrivateVideo$({
+          ownerUid,
+          file,
+        });
+      }),
+      finalize(() => {
+        this.uploadSubscription = null;
+
+        if (
+          this.cancelRequestedByUser &&
+          this.uploadPhaseSubject.value !== 'DONE'
+        ) {
+          this.uploadPhaseSubject.next('READY');
+          this.uploadProgressSubject.next(0);
+          this.uploadStepSubject.next('Upload cancelado. O arquivo pode ser reenviado.');
+        }
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (event) => this.handleUploadEvent(event),
+      error: () => {
+        this.uploadPhaseSubject.next('READY');
+        this.uploadProgressSubject.next(0);
+        this.uploadStepSubject.next('Falha no envio. Revise o arquivo e tente novamente.');
+        this.errorNotification.showError(
+          'Não foi possível enviar o vídeo. Nenhum arquivo incompleto foi mantido.'
+        );
+      },
+    });
+  }
+
+  cancelUpload(): void {
+    if (!this.canCancelUpload()) {
+      return;
+    }
+
+    this.cancelRequestedByUser = true;
+    this.uploadSubscription?.unsubscribe();
+    this.errorNotification.showWarning('Upload cancelado.');
+  }
+
+  resetSelection(fileInput?: HTMLInputElement): void {
+    if (this.isUploadActive()) {
+      return;
+    }
+
+    this.revokePreviewUrl();
+    this.selectedFileSubject.next(null);
+    this.previewUrlSubject.next(null);
+    this.uploadPhaseSubject.next('IDLE');
+    this.uploadProgressSubject.next(0);
+    this.uploadStepSubject.next('Selecione um vídeo para começar.');
+
+    if (fileInput) {
+      fileInput.value = '';
+    }
+  }
+
   publishVideo(item: ProfileVideoViewItem): void {
     if (!this.canPublish(item) || this.isBusy(item.video.id)) {
       return;
     }
 
-    this.setBusy(item.video.id, true);
+    this.setBusyAction(item.video.id, 'publish');
 
-    this.ownerUid$
-      .pipe(
-        take(1),
-        switchMap((ownerUid) =>
-          this.videoPublication.publishVideo$(ownerUid, item.video.id)
-        ),
-        finalize(() => this.setBusy(item.video.id, false)),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe({
-        next: (result) => {
-          const message = result.moderationStatus === 'APPROVED'
-            ? 'Vídeo publicado no perfil.'
-            : 'Vídeo enviado para análise antes da publicação.';
-          this.errorNotification.showSuccess(message);
-        },
-        error: () => {
-          this.errorNotification.showError(
-            'Não foi possível publicar este vídeo.'
-          );
-        },
-      });
+    this.ownerUid$.pipe(
+      take(1),
+      switchMap((ownerUid) =>
+        this.videoPublication.publishVideo$(ownerUid, item.video.id)
+      ),
+      finalize(() => this.clearBusyAction(item.video.id)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (result) => {
+        const message = result.moderationStatus === 'APPROVED'
+          ? 'Vídeo publicado no perfil.'
+          : 'Vídeo enviado para análise antes da publicação.';
+        this.errorNotification.showSuccess(message);
+      },
+      error: () => {
+        this.errorNotification.showError(
+          'Não foi possível publicar este vídeo.'
+        );
+      },
+    });
   }
 
   unpublishVideo(item: ProfileVideoViewItem): void {
@@ -168,41 +407,97 @@ export class ProfileVideosComponent {
       return;
     }
 
-    this.setBusy(item.video.id, true);
+    this.setBusyAction(item.video.id, 'unpublish');
 
-    this.ownerUid$
-      .pipe(
-        take(1),
-        switchMap((ownerUid) =>
-          this.videoPublication.unpublishVideo$(ownerUid, item.video.id)
-        ),
-        finalize(() => this.setBusy(item.video.id, false)),
-        takeUntilDestroyed(this.destroyRef)
-      )
-      .subscribe({
-        next: () => {
-          this.errorNotification.showSuccess(
-            'Vídeo removido da área pública.'
-          );
-        },
-        error: () => {
-          this.errorNotification.showError(
-            'Não foi possível remover a publicação do vídeo.'
-          );
-        },
-      });
+    this.ownerUid$.pipe(
+      take(1),
+      switchMap((ownerUid) =>
+        this.videoPublication.unpublishVideo$(ownerUid, item.video.id)
+      ),
+      finalize(() => this.clearBusyAction(item.video.id)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: () => {
+        this.errorNotification.showSuccess('Vídeo removido da área pública.');
+      },
+      error: () => {
+        this.errorNotification.showError(
+          'Não foi possível remover a publicação do vídeo.'
+        );
+      },
+    });
+  }
+
+  deleteVideo(item: ProfileVideoViewItem): void {
+    if (this.isBusy(item.video.id)) {
+      return;
+    }
+
+    const confirmed = typeof window === 'undefined' || window.confirm(
+      'Excluir este vídeo da biblioteca privada e da área pública? Esta ação não pode ser desfeita.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    this.setBusyAction(item.video.id, 'delete');
+
+    this.ownerUid$.pipe(
+      take(1),
+      switchMap((ownerUid) =>
+        this.videoPublication.deleteProfileVideo$(ownerUid, item.video.id)
+      ),
+      finalize(() => this.clearBusyAction(item.video.id)),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: (result) => {
+        const message = result.cleanupPending
+          ? 'Vídeo ocultado. A limpeza física será concluída automaticamente.'
+          : 'Vídeo excluído com segurança.';
+        this.errorNotification.showSuccess(message);
+      },
+      error: () => {
+        this.errorNotification.showError('Não foi possível excluir este vídeo.');
+      },
+    });
   }
 
   canPublish(item: ProfileVideoViewItem): boolean {
     return (
       !item.publication?.isPublished &&
-      item.video.status !== 'processing' &&
-      item.video.status !== 'failed'
+      item.video.status === 'ready' &&
+      this.isPublicPlaybackCompatible(item.video)
+    );
+  }
+
+  isPublicPlaybackCompatible(video: IVideoItem): boolean {
+    return PUBLIC_PLAYBACK_TYPES.has(
+      String(video.mimeType ?? '').trim().toLowerCase()
     );
   }
 
   isBusy(videoId: string): boolean {
-    return this.busyVideoIdsSubject.value.has(videoId);
+    return this.busyActionsSubject.value.has(videoId);
+  }
+
+  busyAction(videoId: string): VideoBusyAction | null {
+    return this.busyActionsSubject.value.get(videoId) ?? null;
+  }
+
+  canCancelUpload(): boolean {
+    const phase = this.uploadPhaseSubject.value;
+    return (
+      !!this.uploadSubscription &&
+      phase !== 'SAVING' &&
+      phase !== 'DONE'
+    );
+  }
+
+  isUploadActive(): boolean {
+    return ['PREPARING', 'UPLOADING', 'SAVING'].includes(
+      this.uploadPhaseSubject.value
+    );
   }
 
   publicationLabel(item: ProfileVideoViewItem): string {
@@ -234,7 +529,7 @@ export class ProfileVideosComponent {
       return 'Pronto';
     }
 
-    return 'Enviado';
+    return 'Somente privado';
   }
 
   trackByVideoId(_index: number, item: ProfileVideoViewItem): string {
@@ -262,20 +557,101 @@ export class ProfileVideosComponent {
       return 'Duração não informada';
     }
 
-    const minutes = Math.floor(totalSeconds / 60);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return [hours, minutes, seconds]
+        .map((value, index) => index === 0
+          ? String(value)
+          : String(value).padStart(2, '0'))
+        .join(':');
+    }
+
     return `${minutes}:${String(seconds).padStart(2, '0')}`;
   }
 
-  private setBusy(videoId: string, busy: boolean): void {
-    const next = new Set(this.busyVideoIdsSubject.value);
-
-    if (busy) {
-      next.add(videoId);
-    } else {
-      next.delete(videoId);
+  private handleUploadEvent(event: IVideoUploadFlowEvent): void {
+    if (event.type === 'progress') {
+      this.uploadProgressSubject.next(event.progress);
+      this.applyUploadProgressPhase(event.phase);
+      return;
     }
 
-    this.busyVideoIdsSubject.next(next);
+    this.uploadPhaseSubject.next('DONE');
+    this.uploadProgressSubject.next(100);
+    this.uploadStepSubject.next(
+      event.result.status === 'ready'
+        ? 'Vídeo salvo e pronto para publicação.'
+        : 'Vídeo salvo na biblioteca privada.'
+    );
+    this.revokePreviewUrl();
+    this.selectedFileSubject.next(null);
+    this.previewUrlSubject.next(null);
+    this.errorNotification.showSuccess('Vídeo enviado para sua biblioteca privada.');
+  }
+
+  private applyUploadProgressPhase(phase: VideoUploadProgressPhase): void {
+    if (phase === 'preparing') {
+      this.uploadPhaseSubject.next('PREPARING');
+      this.uploadStepSubject.next('Lendo duração e preparando imagem de capa.');
+      return;
+    }
+
+    if (phase === 'uploading-video') {
+      this.uploadPhaseSubject.next('UPLOADING');
+      this.uploadStepSubject.next('Enviando o arquivo privado com segurança.');
+      return;
+    }
+
+    if (phase === 'uploading-poster') {
+      this.uploadPhaseSubject.next('UPLOADING');
+      this.uploadStepSubject.next('Enviando a imagem de capa do vídeo.');
+      return;
+    }
+
+    this.uploadPhaseSubject.next('SAVING');
+    this.uploadStepSubject.next('Confirmando os metadados da biblioteca.');
+  }
+
+  private setBusyAction(videoId: string, action: VideoBusyAction): void {
+    const next = new Map(this.busyActionsSubject.value);
+    next.set(videoId, action);
+    this.busyActionsSubject.next(next);
+  }
+
+  private clearBusyAction(videoId: string): void {
+    const next = new Map(this.busyActionsSubject.value);
+    next.delete(videoId);
+    this.busyActionsSubject.next(next);
+  }
+
+  private revokePreviewUrl(): void {
+    const currentUrl = this.previewUrlSubject.value;
+
+    if (currentUrl) {
+      URL.revokeObjectURL(currentUrl);
+    }
+  }
+
+  private getPolicyDeniedMessage(reason?: MediaPolicyDenyReason): string {
+    if (reason === 'EMAIL_UNVERIFIED') {
+      return 'Confirme seu e-mail antes de enviar vídeos.';
+    }
+
+    if (reason === 'PROFILE_INCOMPLETE') {
+      return 'Conclua seu perfil antes de enviar vídeos.';
+    }
+
+    if (reason === 'INTERACTION_BLOCKED' || reason === 'BLOCKED') {
+      return 'Sua conta não pode enviar mídias neste momento.';
+    }
+
+    if (reason === 'NOT_OWNER') {
+      return 'Você só pode enviar vídeos para o próprio perfil.';
+    }
+
+    return 'Não foi possível liberar o upload de vídeos agora.';
   }
 }
