@@ -46,10 +46,20 @@ describe('AuthVerificationHandlerComponent', () => {
   };
 
   let emailInputModalMock: {
+    state$: BehaviorSubject<{
+      isOpen: boolean;
+      email: string;
+      isSending: boolean;
+      requestCompleted: boolean;
+      submittedEmail: string | null;
+      isLocalDev: boolean;
+      feedback: null;
+    }>;
     isModalOpen: Subject<boolean>;
     emailSentMessage: Subject<string>;
     openModal: Mock;
     closeModal: Mock;
+    updateEmail: Mock;
     sendPasswordRecoveryEmail: Mock;
   };
 
@@ -74,10 +84,20 @@ describe('AuthVerificationHandlerComponent', () => {
     };
 
     emailInputModalMock = {
+      state$: new BehaviorSubject({
+        isOpen: false,
+        email: '',
+        isSending: false,
+        requestCompleted: false,
+        submittedEmail: null,
+        isLocalDev: true,
+        feedback: null,
+      }),
       isModalOpen: new Subject<boolean>(),
       emailSentMessage: new Subject<string>(),
       openModal: vi.fn(),
       closeModal: vi.fn(),
+      updateEmail: vi.fn(),
       sendPasswordRecoveryEmail: vi.fn(),
     };
 
