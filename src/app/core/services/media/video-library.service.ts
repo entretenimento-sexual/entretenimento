@@ -1,8 +1,11 @@
-﻿// src/app/core/services/media/video-library.service.ts
+// src/app/core/services/media/video-library.service.ts
 // -----------------------------------------------------------------------------
 // Leitura da biblioteca privada de vídeos.
 //
-// Nesta etapa não há publicação pública nem upload pela UI.
+// Segurança:
+// - lê somente users/{uid}/videos para o próprio dono;
+// - paths privados não são usados por telas públicas;
+// - publicação pública pertence a serviço e Functions específicos.
 // -----------------------------------------------------------------------------
 
 import { Injectable, inject } from '@angular/core';
@@ -17,7 +20,10 @@ import {
 import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay } from 'rxjs/operators';
 
-import { IVideoItem, VideoProcessingStatus } from 'src/app/core/interfaces/media/i-video-item';
+import {
+  IVideoItem,
+  VideoProcessingStatus,
+} from 'src/app/core/interfaces/media/i-video-item';
 import { FirestoreContextService } from 'src/app/core/services/data-handling/firestore/core/firestore-context.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -32,6 +38,7 @@ interface IVideoDoc {
   sizeBytes?: number | null;
   durationMs?: number | null;
   thumbnailUrl?: string | null;
+  thumbnailPath?: string | null;
   status?: VideoProcessingStatus;
   createdAt?: unknown;
   updatedAt?: unknown;
@@ -53,7 +60,10 @@ export class VideoLibraryService {
     }
 
     return this.firestoreCtx.deferObservable$(() => {
-      const videosRef = collection(this.firestore, `users/${safeOwnerUid}/videos`);
+      const videosRef = collection(
+        this.firestore,
+        `users/${safeOwnerUid}/videos`
+      );
       const videosQuery = query(
         videosRef,
         orderBy('createdAt', 'desc'),
@@ -87,6 +97,7 @@ export class VideoLibraryService {
       sizeBytes: this.normalizeOptionalPositiveNumber(item.sizeBytes),
       durationMs: this.normalizeOptionalPositiveNumber(item.durationMs),
       thumbnailUrl: this.normalizeOptionalText(item.thumbnailUrl),
+      thumbnailPath: this.normalizeOptionalText(item.thumbnailPath),
       status: this.normalizeStatus(item.status),
       createdAt: this.normalizeDateMs(item.createdAt),
       updatedAt: this.normalizeOptionalDateMs(item.updatedAt),
