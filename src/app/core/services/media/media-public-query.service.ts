@@ -18,7 +18,7 @@ import {
   query,
   where,
 } from '@angular/fire/firestore';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import {
   catchError,
   map,
@@ -35,6 +35,10 @@ import { ErrorNotificationService } from 'src/app/core/services/error-handler/er
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
 import { PublicPhotoAccessService } from './public-photo-access.service';
 
+export interface MediaPublicProfileQueryOptions {
+  propagateErrors?: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class MediaPublicQueryService {
   private readonly firestore = inject(Firestore);
@@ -46,7 +50,10 @@ export class MediaPublicQueryService {
     private readonly errorHandler: GlobalErrorHandlerService
   ) {}
 
-  getProfilePublicPhotos$(ownerUid: string): Observable<IPublicPhotoItem[]> {
+  getProfilePublicPhotos$(
+    ownerUid: string,
+    options: MediaPublicProfileQueryOptions = {}
+  ): Observable<IPublicPhotoItem[]> {
     const safeOwnerUid = (ownerUid ?? '').trim();
 
     if (!safeOwnerUid) {
@@ -75,11 +82,15 @@ export class MediaPublicQueryService {
       ),
       catchError((error: unknown) => {
         this.reportError(
-          'Não foi possível carregar as fotos deste perfil agora.',
+          'Erro ao carregar galeria pública do perfil.',
           error,
-          { op: 'getProfilePublicPhotos$', ownerUid: safeOwnerUid }
+          { op: 'getProfilePublicPhotos$', ownerUid: safeOwnerUid },
+          true
         );
-        return of([]);
+
+        return options.propagateErrors
+          ? throwError(() => error)
+          : of([] as IPublicPhotoItem[]);
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
