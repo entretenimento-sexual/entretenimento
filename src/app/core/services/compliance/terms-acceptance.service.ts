@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Observable, defer, from, throwError } from 'rxjs';
-import { catchError, map, switchMap, take } from 'rxjs/operators';
+import { catchError, map, switchMap, take, timeout } from 'rxjs/operators';
 
 import {
   IUserTermsAcceptance,
@@ -57,6 +57,8 @@ export class TermsAcceptanceService {
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly globalError = inject(GlobalErrorHandlerService);
 
+  private readonly ACTION_TIMEOUT_MS = 15_000;
+
   private readonly acceptTermsCallable = httpsCallable<
     Record<string, never>,
     AcceptPlatformTermsResponse
@@ -84,6 +86,7 @@ export class TermsAcceptanceService {
     }
 
     return defer(() => from(this.acceptTermsCallable({}))).pipe(
+      timeout({ first: this.ACTION_TIMEOUT_MS }),
       map((response) => {
         const result = response.data;
 
