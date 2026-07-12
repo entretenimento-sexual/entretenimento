@@ -4,7 +4,10 @@
 // - Marca como offline usuários com lastSeen > janela (ex: 2 minutos)
 // - Usa batch para eficiência (Firestore tem limite de 500 ops por batch)
 // - Erros são logados mas não derrubam a função (best-effort)
-// Não esquecer os comentários explicativos, para contextualizar a lógica e as decisões de design, especialmente em relação à presença online e à integração com o PresenceService. Isso ajuda a evitar confusões futuras sobre onde e como o status online deve ser controlado e lido, e reforça a ideia de que o estado online é derivado do Firestore, sem "simulações" em outros lugares (ex: Auth).
+//
+// Estes comentários contextualizam a lógica e as decisões de design da presença
+// online e sua integração com o PresenceService. O estado online é derivado do
+// Firestore, sem simulações em outros lugares, como o Firebase Auth.
 // Relação com o PresenceService (client):
 // - PresenceService/PresenceWriterService atualizam `presence/{uid}` com:
 //   - isOnline: boolean
