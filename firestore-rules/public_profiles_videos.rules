@@ -1,0 +1,42 @@
+// ===============================================================
+// PUBLIC_PROFILES / public_videos
+// ===============================================================
+
+match /public_profiles/{userId}/public_videos/{videoId} {
+
+  function isPublicReadableVideo() {
+    return resource.data.visibility == "PUBLIC"
+      && resource.data.moderationStatus == "APPROVED";
+  }
+
+  allow get: if signedIn() && (isSelf(userId) || isPublicReadableVideo());
+
+  allow list: if signedIn()
+    && resource.data.visibility == "PUBLIC"
+    && resource.data.moderationStatus == "APPROVED";
+
+  allow create, update, delete: if false;
+
+  match /{allPaths=**} {
+    allow read, write: if false;
+  }
+}
+
+// ------------------------------------------------------------
+// Collection group: public_videos
+// ------------------------------------------------------------
+match /{path=**}/public_videos/{videoId} {
+  allow list: if signedIn()
+    && resource.data.visibility == "PUBLIC"
+    && resource.data.moderationStatus == "APPROVED";
+
+  allow get: if signedIn()
+    && resource.data.visibility == "PUBLIC"
+    && resource.data.moderationStatus == "APPROVED";
+
+  allow create, update, delete: if false;
+}
+
+// ==============================================================
+//           FIM DO PUBLIC_PROFILES_VIDEOS.RULES
+// ==============================================================
