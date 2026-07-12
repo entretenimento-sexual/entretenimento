@@ -34,6 +34,7 @@ const parts = [
   // Discovery, presença e vitrines regionais moderadas.
   'public_profiles.rules',
   'public_profiles_photos.rules',
+  'public_profiles_videos.rules',
   'presence.rules',
   'user_intent_statuses.rules',
   'venues.rules',
@@ -57,6 +58,7 @@ const parts = [
   'users_photos.rules',
   'users_videos.rules',
   'users_photo_publications.rules',
+  'users_video_publications.rules',
   'users_blocks.rules',
 
   // Moderação e auditoria operacional.
