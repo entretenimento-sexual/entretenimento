@@ -1,23 +1,7 @@
 // src/app/core/services/media/media-command.service.ts
-// Commands reais do domínio Media (fotos).
-//
-// AJUSTES DESTA VERSÃO:
-// - SUPRIMIDO o upload simulado com interval(...)
-// - SUPRIMIDA a mutação em memória via MediaQueryService
-// - upload agora delega para PhotoUploadFlowService
-// - delete agora usa PhotoFirestoreService real
-// - mantido o nome dos métodos públicos para reduzir impacto no restante do app
-//
-// OBSERVAÇÃO:
-// - uploadProfilePhoto$ mantém Observable<IMediaUploadProgress>
-// - como o fluxo real atual não expõe progresso granular, emitimos:
-//   1) UPLOADING 0
-//   2) DONE 100
-// - isso é mais honesto do que simular progresso inexistente
-
 import { Injectable } from '@angular/core';
-import { Observable, concat, from, of, throwError } from 'rxjs';
-import { catchError, map, switchMap, take } from 'rxjs/operators';
+import { Observable, from, throwError } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
@@ -42,123 +26,151 @@ export class MediaCommandService {
     private readonly photoFirestoreService: PhotoFirestoreService
   ) {}
 
-  /**
-   * Upload real de foto do perfil.
-   * Mantido o nome do método.
-   */
   uploadProfilePhoto$(
     ownerUid: string,
     file: File,
     _previewUrl?: string | null
   ): Observable<IMediaUploadProgress> {
-    const safeOwnerUid = (ownerUid ?? '').trim();
+    const safeOwnerUid = String(ownerUid ?? '').trim();
 
     if (!safeOwnerUid) {
-      this.errorNotifier.showError('Perfil inválido para upload.');
-      return of({ phase: 'DONE', progress: 0 });
+      return this.failCommand$(
+        new Error('Perfil inválido para upload.'),
+        'Perfil inválido para upload.',
+        { op: 'uploadProfilePhoto$' }
+      );
     }
 
-    if (!file?.type?.startsWith('image/')) {
-      this.errorNotifier.showError('Arquivo inválido. Selecione uma imagem.');
-      return of({ phase: 'DONE', progress: 0 });
+    if (!file || !file.type?.startsWith('image/')) {
+      return this.failCommand$(
+        new Error('Arquivo de imagem inválido.'),
+        'Arquivo inválido. Selecione uma imagem.',
+        {
+          op: 'uploadProfilePhoto$',
+          ownerUid: safeOwnerUid,
+        }
+      );
     }
 
-    const uploading$ = of<IMediaUploadProgress>({
-      phase: 'UPLOADING',
-      progress: 0,
-    });
-
-    const done$ = this.photoUploadFlow.uploadProcessedPhoto$({
+    return this.photoUploadFlow.uploadProcessedPhotoWithProgress$({
       userId: safeOwnerUid,
       processedFile: file,
       originalFileName: file.name,
       mimeType: file.type,
     }).pipe(
-      map((result) => ({
-        phase: 'DONE' as const,
-        progress: 100,
-        photoId: result.photoId,
-        downloadUrl: result.url,
-      })),
-      catchError((error) => {
-        const normalizedError = this.normalizeError(
-          error,
-          'Erro ao enviar foto do perfil.',
-          { op: 'uploadProfilePhoto$', ownerUid: safeOwnerUid, fileName: file.name }
-        );
+      map((event): IMediaUploadProgress => {
+        if (event.type === 'progress') {
+          return {
+            phase: 'UPLOADING',
+            progress: event.progress,
+          };
+        }
 
-        this.errorHandler.handleError(normalizedError);
-        this.errorNotifier.showError('Erro ao enviar foto do perfil.');
-
-        return of<IMediaUploadProgress>({
+        return {
           phase: 'DONE',
-          progress: 0,
-        });
-      })
-    );
-
-    return concat(uploading$, done$);
-  }
-
-  /**
-   * Delete real de foto do perfil.
-   * Mantido o nome do método.
-   */
-  deleteProfilePhoto$(ownerUid: string, photoId: string): Observable<void> {
-    const safeOwnerUid = (ownerUid ?? '').trim();
-    const safePhotoId = (photoId ?? '').trim();
-
-    if (!safeOwnerUid || !safePhotoId) {
-      return of(void 0);
-    }
-
-    return this.photoFirestoreService.getPhotosByUser(safeOwnerUid).pipe(
-      take(1),
-      map((items) => items.find((photo) => (photo.id ?? '').trim() === safePhotoId) ?? null),
-      switchMap((photo) => {
-        if (!photo) {
-          return throwError(() => new Error('Foto não encontrada para exclusão.'));
-        }
-
-        const safePath = (photo.path ?? '').trim();
-        if (!safePath) {
-          return throwError(() => new Error('A foto não possui storagePath válido para exclusão.'));
-        }
-
-        return from(
-          this.photoFirestoreService.deletePhoto(safeOwnerUid, safePhotoId, safePath)
-        );
+          progress: 100,
+          photoId: event.result.photoId,
+          downloadUrl: event.result.url,
+        };
       }),
       catchError((error) => {
-        const normalizedError = this.normalizeError(
-          error,
-          'Erro ao excluir foto do perfil.',
-          { op: 'deleteProfilePhoto$', ownerUid: safeOwnerUid, photoId: safePhotoId }
-        );
+        this.reportSilent(error, {
+          op: 'uploadProfilePhoto$',
+          ownerUid: safeOwnerUid,
+          hasFile: !!file,
+          mimeType: file.type,
+          sizeBytes: file.size,
+        });
 
-        this.errorHandler.handleError(normalizedError);
-        this.errorNotifier.showError('Erro ao excluir foto do perfil.');
-
-        return of(void 0);
+        return throwError(() => error);
       })
     );
   }
 
-  private normalizeError(
-    error: unknown,
-    fallbackMessage: string,
-    context?: Record<string, unknown>
-  ): Error {
-    const normalizedError =
-      error instanceof Error ? error : new Error(fallbackMessage);
+  deleteProfilePhoto$(
+    ownerUid: string,
+    photoId: string
+  ): Observable<void> {
+    const safeOwnerUid = String(ownerUid ?? '').trim();
+    const safePhotoId = String(photoId ?? '').trim();
 
-    (normalizedError as any).original = error;
+    if (!safeOwnerUid || !safePhotoId) {
+      return this.failCommand$(
+        new Error('Foto inválida para exclusão.'),
+        'Foto inválida para exclusão.',
+        {
+          op: 'deleteProfilePhoto$',
+          hasOwnerUid: !!safeOwnerUid,
+          hasPhotoId: !!safePhotoId,
+        }
+      );
+    }
+
+    return from(
+      this.photoFirestoreService.deletePhoto(
+        safeOwnerUid,
+        safePhotoId,
+        ''
+      )
+    ).pipe(
+      catchError((error) => {
+        this.reportSilent(error, {
+          op: 'deleteProfilePhoto$',
+          ownerUid: safeOwnerUid,
+          photoId: safePhotoId,
+        });
+
+        this.errorNotifier.showError(
+          'Erro ao excluir foto do perfil.'
+        );
+
+        return throwError(() => error);
+      })
+    );
+  }
+
+  private failCommand$<T>(
+    error: unknown,
+    userMessage: string,
+    context?: Record<string, unknown>
+  ): Observable<T> {
+    const normalizedError = error instanceof Error
+      ? error
+      : new Error(userMessage);
+
     (normalizedError as any).context = {
       scope: 'MediaCommandService',
       ...(context ?? {}),
     };
+    (normalizedError as any).original = error;
     (normalizedError as any).skipUserNotification = true;
 
-    return normalizedError;
+    this.errorHandler.handleError(normalizedError);
+    this.errorNotifier.showError(userMessage);
+
+    return throwError(() => normalizedError);
+  }
+
+  private reportSilent(
+    error: unknown,
+    context?: Record<string, unknown>
+  ): void {
+    try {
+      const normalizedError = error instanceof Error
+        ? error
+        : new Error('[MediaCommandService] Falha no comando de mídia.');
+
+      (normalizedError as any).context = {
+        scope: 'MediaCommandService',
+        ...(context ?? {}),
+      };
+      (normalizedError as any).original = error;
+      (normalizedError as any).silent = true;
+      (normalizedError as any).skipUserNotification = true;
+
+      this.errorHandler.handleError(normalizedError);
+    } catch {
+      // noop
+    }
   }
 }
