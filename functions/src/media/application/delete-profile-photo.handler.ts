@@ -28,6 +28,7 @@ interface PhotoDeletionJob {
 
 type PrivatePhotoDoc = {
   path?: string;
+  url?: string;
 };
 
 const DELETION_JOBS_COLLECTION = 'media_photo_deletion_jobs';
@@ -68,6 +69,43 @@ function normalizeOwnedPrivatePhotoPath(
   return expectedPath.test(storagePath) ? storagePath : null;
 }
 
+function extractOwnedPrivatePhotoPath(
+  ownerUid: string,
+  value: unknown
+): string | null {
+  const rawValue = String(value ?? '').trim();
+  const directPath = normalizeOwnedPrivatePhotoPath(ownerUid, rawValue);
+
+  if (directPath) {
+    return directPath;
+  }
+
+  if (!/^https?:\/\//i.test(rawValue)) {
+    return null;
+  }
+
+  try {
+    const parsedUrl = new URL(rawValue);
+    const objectMarker = '/o/';
+    const objectIndex = parsedUrl.pathname.indexOf(objectMarker);
+
+    if (objectIndex < 0) {
+      return null;
+    }
+
+    const encodedPath = parsedUrl.pathname.slice(
+      objectIndex + objectMarker.length
+    );
+
+    return normalizeOwnedPrivatePhotoPath(
+      ownerUid,
+      decodeURIComponent(encodedPath)
+    );
+  } catch {
+    return null;
+  }
+}
+
 function buildDeletionJobId(ownerUid: string, photoId: string): string {
   return `${ownerUid}_${photoId}`;
 }
@@ -104,14 +142,18 @@ async function recordDeletionAttemptFailure(
 ): Promise<void> {
   const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
 
-  await jobRef.set(
-    {
+  try {
+    await jobRef.update({
       attempts: FieldValue.increment(1),
       updatedAt: Date.now(),
       lastError: normalizeErrorMessage(error),
-    },
-    { merge: true }
-  );
+    });
+  } catch (updateError) {
+    logger.warn('[photoDeletion] Job já não está disponível para atualização.', {
+      jobId,
+      error: normalizeErrorMessage(updateError),
+    });
+  }
 }
 
 export const deleteProfilePhoto = onCall<DeleteProfilePhotoRequest>(
@@ -150,10 +192,9 @@ export const deleteProfilePhoto = onCall<DeleteProfilePhotoRequest>(
     }
 
     const privatePhoto = privatePhotoSnap.data() as PrivatePhotoDoc;
-    const storagePath = normalizeOwnedPrivatePhotoPath(
-      ownerUid,
-      privatePhoto.path
-    );
+    const storagePath =
+      extractOwnedPrivatePhotoPath(ownerUid, privatePhoto.path) ??
+      extractOwnedPrivatePhotoPath(ownerUid, privatePhoto.url);
 
     if (!storagePath) {
       throw new HttpsError(
