@@ -97,6 +97,12 @@ export class ProfileVideosComponent {
   >(new Map());
   readonly busyActions$ = this.busyActionsSubject.asObservable();
 
+  private readonly pendingDeleteVideoIdSubject = new BehaviorSubject<
+    string | null
+  >(null);
+  readonly pendingDeleteVideoId$ =
+    this.pendingDeleteVideoIdSubject.asObservable();
+
   private readonly selectedFileSubject = new BehaviorSubject<File | null>(null);
   readonly selectedFile$ = this.selectedFileSubject.asObservable();
 
@@ -288,8 +294,9 @@ export class ProfileVideosComponent {
     }
 
     this.cancelRequestedByUser = false;
+    let subscription: Subscription | null = null;
 
-    this.uploadSubscription = combineLatest([
+    const upload$ = combineLatest([
       this.uploadPolicyResult$,
       this.ownerUid$,
       this.selectedFile$,
@@ -321,7 +328,9 @@ export class ProfileVideosComponent {
         });
       }),
       finalize(() => {
-        this.uploadSubscription = null;
+        if (this.uploadSubscription === subscription) {
+          this.uploadSubscription = null;
+        }
 
         if (
           this.cancelRequestedByUser &&
@@ -329,21 +338,29 @@ export class ProfileVideosComponent {
         ) {
           this.uploadPhaseSubject.next('READY');
           this.uploadProgressSubject.next(0);
-          this.uploadStepSubject.next('Upload cancelado. O arquivo pode ser reenviado.');
+          this.uploadStepSubject.next(
+            'Upload cancelado. O arquivo pode ser reenviado.'
+          );
         }
       }),
       takeUntilDestroyed(this.destroyRef)
-    ).subscribe({
+    );
+
+    subscription = upload$.subscribe({
       next: (event) => this.handleUploadEvent(event),
       error: () => {
         this.uploadPhaseSubject.next('READY');
         this.uploadProgressSubject.next(0);
-        this.uploadStepSubject.next('Falha no envio. Revise o arquivo e tente novamente.');
+        this.uploadStepSubject.next(
+          'Falha no envio. Revise o arquivo e tente novamente.'
+        );
         this.errorNotification.showError(
           'Não foi possível enviar o vídeo. Nenhum arquivo incompleto foi mantido.'
         );
       },
     });
+
+    this.uploadSubscription = subscription.closed ? null : subscription;
   }
 
   cancelUpload(): void {
@@ -428,27 +445,42 @@ export class ProfileVideosComponent {
     });
   }
 
-  deleteVideo(item: ProfileVideoViewItem): void {
+  requestDelete(item: ProfileVideoViewItem): void {
     if (this.isBusy(item.video.id)) {
       return;
     }
 
-    const confirmed = typeof window === 'undefined' || window.confirm(
-      'Excluir este vídeo da biblioteca privada e da área pública? Esta ação não pode ser desfeita.'
-    );
+    this.pendingDeleteVideoIdSubject.next(item.video.id);
+  }
 
-    if (!confirmed) {
+  cancelDelete(videoId: string): void {
+    if (
+      this.pendingDeleteVideoIdSubject.value === videoId &&
+      !this.isBusy(videoId)
+    ) {
+      this.pendingDeleteVideoIdSubject.next(null);
+    }
+  }
+
+  confirmDelete(item: ProfileVideoViewItem): void {
+    const videoId = item.video.id;
+
+    if (
+      this.pendingDeleteVideoIdSubject.value !== videoId ||
+      this.isBusy(videoId)
+    ) {
       return;
     }
 
-    this.setBusyAction(item.video.id, 'delete');
+    this.pendingDeleteVideoIdSubject.next(null);
+    this.setBusyAction(videoId, 'delete');
 
     this.ownerUid$.pipe(
       take(1),
       switchMap((ownerUid) =>
-        this.videoPublication.deleteProfileVideo$(ownerUid, item.video.id)
+        this.videoPublication.deleteProfileVideo$(ownerUid, videoId)
       ),
-      finalize(() => this.clearBusyAction(item.video.id)),
+      finalize(() => this.clearBusyAction(videoId)),
       takeUntilDestroyed(this.destroyRef)
     ).subscribe({
       next: (result) => {
@@ -481,12 +513,9 @@ export class ProfileVideosComponent {
     return this.busyActionsSubject.value.has(videoId);
   }
 
-  busyAction(videoId: string): VideoBusyAction | null {
-    return this.busyActionsSubject.value.get(videoId) ?? null;
-  }
-
   canCancelUpload(): boolean {
     const phase = this.uploadPhaseSubject.value;
+
     return (
       !!this.uploadSubscription &&
       phase !== 'SAVING' &&
@@ -551,7 +580,10 @@ export class ProfileVideosComponent {
   }
 
   formatDuration(durationMs: number | null | undefined): string {
-    const totalSeconds = Math.max(0, Math.floor(Number(durationMs ?? 0) / 1000));
+    const totalSeconds = Math.max(
+      0,
+      Math.floor(Number(durationMs ?? 0) / 1000)
+    );
 
     if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
       return 'Duração não informada';
@@ -589,19 +621,25 @@ export class ProfileVideosComponent {
     this.revokePreviewUrl();
     this.selectedFileSubject.next(null);
     this.previewUrlSubject.next(null);
-    this.errorNotification.showSuccess('Vídeo enviado para sua biblioteca privada.');
+    this.errorNotification.showSuccess(
+      'Vídeo enviado para sua biblioteca privada.'
+    );
   }
 
   private applyUploadProgressPhase(phase: VideoUploadProgressPhase): void {
     if (phase === 'preparing') {
       this.uploadPhaseSubject.next('PREPARING');
-      this.uploadStepSubject.next('Lendo duração e preparando imagem de capa.');
+      this.uploadStepSubject.next(
+        'Lendo duração e preparando imagem de capa.'
+      );
       return;
     }
 
     if (phase === 'uploading-video') {
       this.uploadPhaseSubject.next('UPLOADING');
-      this.uploadStepSubject.next('Enviando o arquivo privado com segurança.');
+      this.uploadStepSubject.next(
+        'Enviando o arquivo privado com segurança.'
+      );
       return;
     }
 
