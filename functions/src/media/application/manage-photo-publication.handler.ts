@@ -4,13 +4,23 @@
 // -----------------------------------------------------------------------------
 // Segurança:
 // - somente o dono publica/despublica/define capa;
+// - o arquivo privado nunca é usado diretamente na projeção pública;
+// - a publicação cria uma cópia física versionada em namespace isolado;
+// - a projeção pública não armazena URL permanente nem storagePath;
+// - o acesso temporário é emitido por backend após nova validação;
 // - cliente não grava projeção pública, score ou contadores;
 // - métricas públicas são recalculadas no backend.
 
+import { logger } from 'firebase-functions';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 
-import { db } from '../../firebaseApp';
 import { FUNCTIONS_REGION } from '../../config/functions-region';
+import { db, FieldValue } from '../../firebaseApp';
+import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
+import {
+  copyPrivatePhotoToPublishedAsset,
+  deletePublishedPhotoAssetOrQueue,
+} from './published-photo-asset.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 
 type PhotoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
@@ -32,6 +42,11 @@ type PrivatePhotoDoc = {
   alt?: string;
   createdAt?: number;
   updatedAt?: number;
+};
+
+type PhotoPublicationDoc = {
+  isPublished?: boolean;
+  publishedStoragePath?: string;
 };
 
 interface PublishPhotoRequest {
@@ -87,14 +102,21 @@ function cleanVisibility(value: unknown): PhotoVisibility {
   return 'PUBLIC';
 }
 
-function cleanCommentsPolicy(value: unknown, commentsEnabled: boolean): CommentsPolicy {
+function cleanCommentsPolicy(
+  value: unknown,
+  commentsEnabled: boolean
+): CommentsPolicy {
   if (!commentsEnabled) {
     return 'OFF';
   }
 
   const text = String(value ?? '').trim().toUpperCase();
 
-  if (text === 'FRIENDS' || text === 'SUBSCRIBERS' || text === 'EVERYONE') {
+  if (
+    text === 'FRIENDS' ||
+    text === 'SUBSCRIBERS' ||
+    text === 'EVERYONE'
+  ) {
     return text;
   }
 
@@ -147,6 +169,16 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
   }
 }
 
+function resolvePrivatePhotoStoragePath(
+  ownerUid: string,
+  privatePhoto: PrivatePhotoDoc
+): string | null {
+  return (
+    extractOwnedPrivatePhotoPath(ownerUid, privatePhoto.path) ??
+    extractOwnedPrivatePhotoPath(ownerUid, privatePhoto.url)
+  );
+}
+
 export const publishPhoto = onCall<PublishPhotoRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<PublishPhotoResponse> => {
@@ -162,34 +194,68 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
 
     const visibility = cleanVisibility(request.data?.visibility);
     const commentsEnabled = request.data?.commentsEnabled === true;
-    const commentsPolicy = cleanCommentsPolicy(request.data?.commentsPolicy, commentsEnabled);
+    const commentsPolicy = cleanCommentsPolicy(
+      request.data?.commentsPolicy,
+      commentsEnabled
+    );
     const reactionsEnabled = request.data?.reactionsEnabled === true;
     const isCover = request.data?.isCover === true;
     const orderIndex = normalizeOrderIndex(request.data?.orderIndex);
 
     const privatePhotoRef = db.doc(`users/${ownerUid}/photos/${photoId}`);
-    const publicationRef = db.doc(`users/${ownerUid}/photo_publications/${photoId}`);
-    const publicPhotoRef = db.doc(`public_profiles/${ownerUid}/public_photos/${photoId}`);
+    const publicationRef = db.doc(
+      `users/${ownerUid}/photo_publications/${photoId}`
+    );
+    const publicPhotoRef = db.doc(
+      `public_profiles/${ownerUid}/public_photos/${photoId}`
+    );
 
-    const privatePhotoSnap = await privatePhotoRef.get();
+    const [privatePhotoSnap, previousPublicationSnap] = await Promise.all([
+      privatePhotoRef.get(),
+      publicationRef.get(),
+    ]);
 
     if (!privatePhotoSnap.exists) {
       throw new HttpsError('not-found', 'Foto privada não encontrada.');
     }
 
     const privatePhoto = privatePhotoSnap.data() as PrivatePhotoDoc;
+    const sourceStoragePath = resolvePrivatePhotoStoragePath(
+      ownerUid,
+      privatePhoto
+    );
 
-    if (!privatePhoto.url) {
+    if (!sourceStoragePath) {
       throw new HttpsError(
         'failed-precondition',
-        'A foto não possui URL válida para publicação.'
+        'A foto não possui um arquivo privado válido para publicação.'
+      );
+    }
+
+    let publishedStoragePath = '';
+
+    try {
+      publishedStoragePath = await copyPrivatePhotoToPublishedAsset({
+        ownerUid,
+        photoId,
+        sourceStoragePath,
+      });
+    } catch (error) {
+      logger.error('[publishPhoto] Falha ao preparar ativo publicado.', {
+        ownerUid,
+        photoId,
+        error: error instanceof Error ? error.message : String(error ?? ''),
+      });
+
+      throw new HttpsError(
+        'internal',
+        'Não foi possível preparar a foto para publicação.'
       );
     }
 
     const now = Date.now();
     const moderationStatus = resolveModerationStatus();
     const scoreBreakdown = buildInitialScoreBreakdown();
-
     const batch = db.batch();
 
     if (isCover) {
@@ -241,6 +307,9 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
         publishedAt: now,
         updatedAt: now,
         lastModeratedAt: moderationStatus === 'APPROVED' ? now : null,
+        sourceStoragePath,
+        publishedStoragePath,
+        assetVersion: now,
       },
       { merge: true }
     );
@@ -250,7 +319,9 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       {
         id: photoId,
         ownerUid,
-        url: privatePhoto.url,
+        mediaType: 'PHOTO',
+        assetAccess: 'SIGNED_URL',
+        url: FieldValue.delete(),
         alt: privatePhoto.alt ?? privatePhoto.fileName ?? 'Foto do perfil',
         createdAt: normalizeCreatedAt(privatePhoto.createdAt),
         publishedAt: now,
@@ -272,7 +343,37 @@ export const publishPhoto = onCall<PublishPhotoRequest>(
       { merge: true }
     );
 
-    await batch.commit();
+    try {
+      await batch.commit();
+    } catch (error) {
+      await deletePublishedPhotoAssetOrQueue({
+        ownerUid,
+        photoId,
+        storagePath: publishedStoragePath,
+        reason: 'publish-firestore-rollback',
+      });
+
+      throw error;
+    }
+
+    const previousPublication = previousPublicationSnap.exists
+      ? (previousPublicationSnap.data() as PhotoPublicationDoc)
+      : null;
+    const previousPublishedStoragePath =
+      previousPublication?.publishedStoragePath ?? null;
+
+    if (
+      previousPublishedStoragePath &&
+      previousPublishedStoragePath !== publishedStoragePath
+    ) {
+      await deletePublishedPhotoAssetOrQueue({
+        ownerUid,
+        photoId,
+        storagePath: previousPublishedStoragePath,
+        reason: 'replace-published-photo-version',
+      });
+    }
+
     await refreshPublicProfileMediaMetrics(ownerUid);
 
     return {
@@ -297,9 +398,16 @@ export const unpublishPhoto = onCall<UnpublishPhotoRequest>(
 
     const now = Date.now();
     const batch = db.batch();
-
-    const publicationRef = db.doc(`users/${ownerUid}/photo_publications/${photoId}`);
-    const publicPhotoRef = db.doc(`public_profiles/${ownerUid}/public_photos/${photoId}`);
+    const publicationRef = db.doc(
+      `users/${ownerUid}/photo_publications/${photoId}`
+    );
+    const publicPhotoRef = db.doc(
+      `public_profiles/${ownerUid}/public_photos/${photoId}`
+    );
+    const publicationSnap = await publicationRef.get();
+    const publication = publicationSnap.exists
+      ? (publicationSnap.data() as PhotoPublicationDoc)
+      : null;
 
     batch.set(
       publicationRef,
@@ -314,13 +422,22 @@ export const unpublishPhoto = onCall<UnpublishPhotoRequest>(
         reactionsEnabled: false,
         moderationStatus: 'PRIVATE',
         updatedAt: now,
+        publishedStoragePath: FieldValue.delete(),
+        sourceStoragePath: FieldValue.delete(),
+        assetVersion: FieldValue.delete(),
       },
       { merge: true }
     );
 
     batch.delete(publicPhotoRef);
-
     await batch.commit();
+
+    await deletePublishedPhotoAssetOrQueue({
+      ownerUid,
+      photoId,
+      storagePath: publication?.publishedStoragePath,
+      reason: 'unpublish-photo',
+    });
     await refreshPublicProfileMediaMetrics(ownerUid);
 
     return { photoId };
@@ -340,7 +457,9 @@ export const setCoverPhoto = onCall<SetCoverPhotoRequest>(
 
     assertOwner(requesterUid, ownerUid);
 
-    const targetPublicationRef = db.doc(`users/${ownerUid}/photo_publications/${photoId}`);
+    const targetPublicationRef = db.doc(
+      `users/${ownerUid}/photo_publications/${photoId}`
+    );
     const targetPublicationSnap = await targetPublicationRef.get();
 
     if (!targetPublicationSnap.exists) {
@@ -358,7 +477,6 @@ export const setCoverPhoto = onCall<SetCoverPhotoRequest>(
 
     const now = Date.now();
     const batch = db.batch();
-
     const publishedSnapshot = await db
       .collection(`users/${ownerUid}/photo_publications`)
       .where('isPublished', '==', true)
