@@ -14,20 +14,12 @@ service firebase.storage {
       return signedIn() && request.auth.uid == uid;
     }
 
-    // ------------------------------------------------------------
-    // Validação de upload de imagem
-    // - create/update: request.resource existe
-    // - delete: request.resource é null, então não pode usar este helper
-    // ------------------------------------------------------------
     function isImageCreateOrUpdate() {
       return request.resource != null
         && request.resource.contentType.matches('image/.*')
         && request.resource.size <= 10 * 1024 * 1024;
     }
 
-    // ------------------------------------------------------------
-    // Validação de upload de vídeo
-    // ------------------------------------------------------------
     function isVideoCreateOrUpdate() {
       return request.resource != null
         && request.resource.contentType.matches('video/.*')
@@ -35,76 +27,50 @@ service firebase.storage {
     }
 
     // ============================================================
-    // Upload bruto do usuário
-    //
-    // Fluxo atual do app:
-    // - o upload físico acontece em users/{uid}/uploads/...
-    // - depois o app tenta resolver URL legível / carregar a foto
-    // - portanto, o DONO precisa poder ler seu próprio upload bruto
-    //
-    // Segurança:
-    // - terceiros continuam sem acesso
-    // - create/update continuam limitados por tipo e tamanho
-    // - delete é liberado para o dono sem depender de request.resource
+    // Upload bruto e privado do usuário
     // ============================================================
 
     match /users/{uid}/uploads/images/{fileName} {
-      // Leitura apenas do próprio dono
       allow read: if isSelf(uid);
-
-      // Criação/atualização apenas do dono, validando imagem
       allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
-
-      // Exclusão do próprio dono
       allow delete: if isSelf(uid);
     }
 
     match /users/{uid}/uploads/videos/{fileName} {
-      // Leitura apenas do próprio dono
       allow read: if isSelf(uid);
-
-      // Criação/atualização apenas do dono, validando vídeo
       allow create, update: if isSelf(uid) && isVideoCreateOrUpdate();
+      allow delete: if isSelf(uid);
+    }
 
-      // Exclusão do próprio dono
+    // Poster gerado localmente para um vídeo privado específico.
+    // O namespace separado permite limpeza segura junto do vídeo sem afetar fotos.
+    match /users/{uid}/uploads/video-posters/{videoId}/{fileName} {
+      allow read: if isSelf(uid);
+      allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
       allow delete: if isSelf(uid);
     }
 
     // ============================================================
     // Avatar publicado
-    //
-    // Mantido conforme sua intenção atual:
-    // - leitura para usuário autenticado
-    // - escrita só do dono
-    //
-    // Também corrigido:
-    // - delete separado de create/update
     // ============================================================
 
     match /users/{uid}/published/avatar/{fileName} {
-      // Avatar pode ser lido por usuários autenticados
       allow read: if signedIn();
-
-      // Só o dono cria/atualiza avatar, com validação de imagem
       allow create, update: if isSelf(uid) && isImageCreateOrUpdate();
-
-      // Só o dono remove avatar
       allow delete: if isSelf(uid);
     }
 
     // ============================================================
     // Mídia publicada sensível
-    //
-    // Por enquanto segue fechada.
-    // Quando você criar a etapa formal de publicação/moderação,
-    // estas regras podem ser abertas de forma controlada.
+    // - leitura ocorre somente por URL temporária emitida pelo backend;
+    // - clientes não acessam nem escrevem diretamente estes namespaces.
     // ============================================================
 
-    match /users/{uid}/published/images/{fileName} {
+    match /users/{uid}/published/images/{allPaths=**} {
       allow read, write: if false;
     }
 
-    match /users/{uid}/published/videos/{fileName} {
+    match /users/{uid}/published/videos/{allPaths=**} {
       allow read, write: if false;
     }
 
@@ -115,10 +81,6 @@ service firebase.storage {
     match /system/{allPaths=**} {
       allow read, write: if false;
     }
-
-    // ============================================================
-    // Negação padrão
-    // ============================================================
 
     match /{allPaths=**} {
       allow read, write: if false;
