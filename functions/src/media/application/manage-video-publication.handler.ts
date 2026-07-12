@@ -60,6 +60,7 @@ interface UnpublishVideoRequest {
 const AUTO_APPROVE_VIDEOS =
   process.env.FUNCTIONS_EMULATOR === 'true' ||
   process.env.MEDIA_AUTO_APPROVE_VIDEOS === 'true';
+const PUBLIC_VIDEO_CONTENT_TYPES = new Set(['video/mp4', 'video/webm']);
 
 function containsControlCharacter(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
@@ -148,20 +149,29 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
   }
 }
 
-function assertPublishableStatus(status: unknown): void {
-  const normalizedStatus = String(status ?? '').trim().toLowerCase();
+function assertPublishableVideo(privateVideo: PrivateVideoDoc): void {
+  const status = String(privateVideo.status ?? '').trim().toLowerCase();
+  const mimeType = String(privateVideo.mimeType ?? '').trim().toLowerCase();
+  const durationMs = normalizeOptionalPositiveInteger(privateVideo.durationMs);
 
-  if (normalizedStatus === 'processing') {
+  if (status !== 'ready') {
     throw new HttpsError(
       'failed-precondition',
-      'O vídeo ainda está em processamento.'
+      'O vídeo precisa estar pronto antes da publicação.'
     );
   }
 
-  if (normalizedStatus === 'failed') {
+  if (!PUBLIC_VIDEO_CONTENT_TYPES.has(mimeType)) {
     throw new HttpsError(
       'failed-precondition',
-      'O processamento deste vídeo falhou.'
+      'Publique apenas vídeos MP4 ou WebM compatíveis.'
+    );
+  }
+
+  if (!durationMs) {
+    throw new HttpsError(
+      'failed-precondition',
+      'A duração do vídeo não foi confirmada.'
     );
   }
 }
@@ -266,7 +276,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
     }
 
     const privateVideo = privateVideoSnap.data() as PrivateVideoDoc;
-    assertPublishableStatus(privateVideo.status);
+    assertPublishableVideo(privateVideo);
 
     const sourceVideoStoragePath =
       extractOwnedPrivateVideoPath(ownerUid, privateVideo.path) ??
@@ -282,10 +292,12 @@ export const publishVideo = onCall<PublishVideoRequest>(
     const sourcePosterStoragePath =
       extractOwnedPrivateVideoPosterPath(
         ownerUid,
+        videoId,
         privateVideo.thumbnailPath
       ) ??
       extractOwnedPrivateVideoPosterPath(
         ownerUid,
+        videoId,
         privateVideo.thumbnailUrl
       );
 
