@@ -1,17 +1,27 @@
 <!-- src/app/dashboard/discovery/public-profiles-list/public-profiles-list.component.html -->
 <section class="public-profiles" aria-label="Perfis públicos disponíveis">
-  @if (loading()) {
+  @if (loading() && profiles().length === 0) {
     <div class="public-profiles__state" role="status" aria-live="polite">
       <span class="spinner" aria-hidden="true"></span>
       <p>Carregando perfis...</p>
     </div>
-  } @else if (errorMessage()) {
+  } @else if (errorMessage() && profiles().length === 0) {
     <div
       class="public-profiles__state public-profiles__state--error"
       role="alert"
     >
       <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
-      <p>{{ errorMessage() }}</p>
+
+      <div class="public-profiles__state-copy">
+        <p>{{ errorMessage() }}</p>
+        <button
+          type="button"
+          class="public-profiles__retry"
+          (click)="requestRetry()"
+        >
+          Tentar novamente
+        </button>
+      </div>
     </div>
   } @else if (profiles().length === 0) {
     <div class="public-profiles__state" role="status" aria-live="polite">
@@ -19,13 +29,34 @@
 
       <div class="public-profiles__state-copy">
         <p>Nenhum perfil disponível agora.</p>
-        <span>Confira o modo Online ou volte em instantes. Novos perfis aparecem conforme a descoberta pública é atualizada.</span>
+        <span>
+          Confira o modo Online ou volte em instantes. Novos perfis aparecem
+          conforme a descoberta pública é atualizada.
+        </span>
       </div>
     </div>
   } @else {
-    <p class="public-profiles__result-count" role="status" aria-live="polite">
-      {{ profiles().length === 1 ? '1 perfil encontrado' : (profiles().length + ' perfis encontrados') }}
-    </p>
+    <div class="public-profiles__summary">
+      <p class="public-profiles__result-count" role="status" aria-live="polite">
+        {{ profiles().length === 1 ? '1 perfil carregado' : (profiles().length + ' perfis carregados') }}
+      </p>
+
+      @if (refreshing()) {
+        <span class="public-profiles__refreshing" role="status" aria-live="polite">
+          Atualizando
+        </span>
+      }
+    </div>
+
+    @if (errorMessage()) {
+      <div
+        class="public-profiles__inline-error"
+        role="alert"
+      >
+        <span>{{ errorMessage() }}</span>
+        <button type="button" (click)="requestRetry()">Tentar novamente</button>
+      </div>
+    }
 
     <div class="public-profiles__grid">
       @for (profile of profiles(); track trackProfile($index, profile)) {
@@ -34,6 +65,25 @@
           [user]="toUserCardProfile(profile)"
           [distanciaKm]="getDistance(profile)"
         />
+      }
+    </div>
+
+    <div class="public-profiles__pagination" aria-live="polite">
+      @if (loadingMore()) {
+        <div class="public-profiles__loading-more" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Carregando mais perfis...</span>
+        </div>
+      } @else if (hasMore()) {
+        <button
+          type="button"
+          class="public-profiles__load-more"
+          (click)="requestLoadMore()"
+        >
+          Ver mais perfis
+        </button>
+      } @else {
+        <span class="public-profiles__end">Você chegou ao fim desta seleção.</span>
       }
     </div>
   }
