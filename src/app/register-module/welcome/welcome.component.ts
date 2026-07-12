@@ -64,15 +64,23 @@ export class WelcomeComponent implements OnInit {
   private pollTries = 0;
 
   private readonly destroyRef = inject(DestroyRef);
-
   private readonly ACTION_TIMEOUT_MS = 15_000;
 
   debugEnabled(): boolean {
-    return typeof localStorage !== 'undefined' && localStorage.getItem('debugRegister') === '1';
+    return (
+      !environment.production &&
+      environment.enableDebugTools === true &&
+      typeof localStorage !== 'undefined' &&
+      localStorage.getItem('debugRegister') === '1'
+    );
   }
 
   get isDevEmu(): boolean {
-    return environment.useEmulators && environment.env === 'dev-emu' && this.debugEnabled();
+    return (
+      environment.useEmulators === true &&
+      environment.env === 'dev-emu' &&
+      this.debugEnabled()
+    );
   }
 
   get busy(): boolean {
@@ -102,7 +110,12 @@ export class WelcomeComponent implements OnInit {
         next: (vm) => this.applyVm(vm),
         error: (err) => {
           this.sessionInvalid = true;
-          this.setBanner('error', 'Erro ao ler sessão', 'Tente recarregar a página.', err);
+          this.setBanner(
+            'error',
+            'Erro ao ler sessão',
+            'Tente recarregar a página.',
+            err
+          );
           this.reportError('WelcomeComponent.registerFlow.vm$', err);
         },
       });
@@ -131,7 +144,8 @@ export class WelcomeComponent implements OnInit {
         this.setBanner(
           'info',
           'Confirme seu e-mail',
-          vm.blockingMessage ?? 'Confirme seu e-mail para continuar com segurança.'
+          vm.blockingMessage ??
+            'Confirme seu e-mail para continuar com segurança.'
         );
       }
 
@@ -141,7 +155,10 @@ export class WelcomeComponent implements OnInit {
 
     this.stopPolling();
 
-    if (vm.emailVerified && this.router.url.startsWith('/register/welcome')) {
+    if (
+      vm.emailVerified &&
+      this.router.url.startsWith('/register/welcome')
+    ) {
       this.tryAutoRedirectToNextStep();
     }
   }
@@ -181,7 +198,9 @@ export class WelcomeComponent implements OnInit {
             take(1),
             timeout({ first: this.ACTION_TIMEOUT_MS }),
             map((syncedOk) => ({ dbg, syncedOk })),
-            catchError((err) => of({ dbg, syncedOk: false, syncError: err }))
+            catchError((err) =>
+              of({ dbg, syncedOk: false, syncError: err })
+            )
           )
         ),
         tap(({ dbg, syncedOk, syncError }: any) => {
@@ -215,7 +234,8 @@ export class WelcomeComponent implements OnInit {
           this.setBanner(
             'warn',
             `DEV não verificou${dbg?.traceId ? ` (trace: ${dbg.traceId})` : ''}`,
-            dbg?.note ?? 'Não foi possível aplicar a verificação no emulador.',
+            dbg?.note ??
+              'Não foi possível aplicar a verificação no emulador.',
             details
           );
           this.restartPolling();
@@ -226,6 +246,11 @@ export class WelcomeComponent implements OnInit {
             'DEV erro',
             'Falha ao marcar como verificado no emulador.',
             err
+          );
+          this.reportError(
+            'WelcomeComponent.markVerifiedDev',
+            err,
+            true
           );
           return of(void 0);
         }),
@@ -332,7 +357,10 @@ export class WelcomeComponent implements OnInit {
             );
           }
 
-          this.reportError('WelcomeComponent.resendVerificationEmail', err);
+          this.reportError(
+            'WelcomeComponent.resendVerificationEmail',
+            err
+          );
           return EMPTY;
         }),
         finalize(() => {
@@ -451,7 +479,11 @@ export class WelcomeComponent implements OnInit {
   private navigateToFlowRoute(vm: RegisterFlowVm): void {
     const target = this.resolveTargetRoute(vm);
 
-    if (!target || this.router.url === target || this.router.url.startsWith(target)) {
+    if (
+      !target ||
+      this.router.url === target ||
+      this.router.url.startsWith(target)
+    ) {
       return;
     }
 
@@ -533,9 +565,15 @@ export class WelcomeComponent implements OnInit {
   ): void {
     let det: string | undefined;
 
-    if (details !== undefined) {
+    /**
+     * Em produção, detalhes técnicos não entram no estado renderizável da UI.
+     * O erro completo continua sendo encaminhado ao handler global.
+     */
+    if (details !== undefined && this.debugEnabled()) {
       try {
-        det = typeof details === 'string' ? details : JSON.stringify(details, null, 2);
+        det = typeof details === 'string'
+          ? details
+          : JSON.stringify(details, null, 2);
       } catch {
         det = String(details);
       }
@@ -554,7 +592,13 @@ export class WelcomeComponent implements OnInit {
     if (!this.debugEnabled()) return;
 
     const det = this.banner?.details;
-    if (!det || !navigator?.clipboard) return;
+    if (
+      !det ||
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard
+    ) {
+      return;
+    }
 
     navigator.clipboard.writeText(det).catch(() => {});
   }
@@ -564,7 +608,9 @@ export class WelcomeComponent implements OnInit {
   }
 
   reloadPage(): void {
-    window.location.reload();
+    if (typeof window !== 'undefined') {
+      window.location.reload();
+    }
   }
 
   openInbox(): void {
@@ -586,29 +632,49 @@ export class WelcomeComponent implements OnInit {
       'ig.com.br': 'https://email.ig.com.br',
     };
 
-    const url = map[domain] || 'about:blank';
-    if (url !== 'about:blank') {
+    const url = map[domain] || '';
+    if (url && typeof window !== 'undefined') {
       window.open(url, '_blank', 'noopener,noreferrer');
     }
   }
 
   copyEmail(): void {
-    if (!this.email || !navigator?.clipboard) return;
+    if (
+      !this.email ||
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard
+    ) {
+      return;
+    }
+
     navigator.clipboard.writeText(this.email).catch(() => {});
   }
 
-  private reportError(origin: string, err: unknown, silentToast: boolean = false): void {
+  private reportError(
+    origin: string,
+    err: unknown,
+    silentToast: boolean = false
+  ): void {
     try {
-      (this.globalErrorHandler as any)?.handleError?.(err, origin);
-      (this.globalErrorHandler as any)?.capture?.(err, origin);
+      const reportable = err instanceof Error
+        ? err
+        : new Error(`[${origin}] Erro desconhecido.`);
+
+      (reportable as any).context = origin;
+      (reportable as any).original = err;
+      (reportable as any).skipUserNotification = true;
+
+      this.globalErrorHandler.handleError(reportable);
     } catch {
-      // noop
+      // O relatório não pode quebrar o fluxo de verificação.
     }
 
     if (!silentToast) {
       this.notify.showError('Ocorreu um erro. Tente novamente.');
     }
 
-    console.error(`[${origin}]`, err);
+    if (this.debugEnabled()) {
+      console.error(`[${origin}]`, err);
+    }
   }
 }
