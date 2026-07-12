@@ -108,14 +108,6 @@ export class AuthFacade {
     }
 
     /**
-     * Quando o Firebase Auth concluiu, mas o documento do app precisa ser
-     * recuperado, essa etapa vem antes de termos e conclusão de perfil.
-     */
-    if (result.nextRoute === '/register/recuperar-conta') {
-      return result as AuthFacadeSocialAuthResult;
-    }
-
-    /**
      * Usuário social autenticado, mas sem e-mail verificado, deve voltar para a
      * tela oficial de verificação antes de qualquer etapa posterior.
      */
