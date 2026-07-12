@@ -17,8 +17,6 @@ import { Auth } from '@angular/fire/auth';
 
 import {
   createUserWithEmailAndPassword,
-  fetchSignInMethodsForEmail,
-  sendPasswordResetEmail,
   updateProfile,
   onIdTokenChanged,
   UserCredential,
@@ -80,6 +78,11 @@ export class RegisterService {
     });
 
     return this.validateUserData(userData, traceId).pipe(
+      /**
+       * A criação no Firebase Auth é a verificação atômica do e-mail.
+       * Não consultamos previamente métodos de login nem enviamos recuperação
+       * automática durante o cadastro.
+       */
       switchMap(() =>
         from(createUserWithEmailAndPassword(this.auth, userData.email, password)).pipe(
           timeout({ each: this.NET_TIMEOUT_MS })
@@ -289,42 +292,14 @@ export class RegisterService {
             traceId
           );
         }
-        return this.checkIfEmailExists(email, traceId);
+
+        return of(void 0);
       })
     );
   }
 
   isValidEmailFormat(email: string): boolean {
     return ValidatorService.isValidEmail(email);
-  }
-
-  private checkIfEmailExists(email: string, traceId: string): Observable<void> {
-    return from(fetchSignInMethodsForEmail(this.auth, email)).pipe(
-      timeout({ each: this.NET_TIMEOUT_MS }),
-      switchMap((methods) => {
-        if (!methods || methods.length === 0) return of(void 0);
-
-        return from(sendPasswordResetEmail(this.auth, email)).pipe(
-          timeout({ each: this.NET_TIMEOUT_MS }),
-          switchMap(() =>
-            throwError(() => ({
-              code: 'email-exists-soft',
-              message: 'Se existir uma conta com este e-mail, você receberá instruções para recuperar o acesso.',
-            }))
-          )
-        );
-      }),
-      catchError((err) => {
-        if ((err as FirebaseError)?.code === 'auth/network-request-failed') {
-          return this.handleRegisterError(
-            new Error('Conexão instável ao verificar e-mail. Tente novamente.'),
-            'Verificação de e-mail',
-            traceId
-          );
-        }
-        return throwError(() => err);
-      })
-    );
   }
 
   deleteUserOnFailure(uid: string): Observable<void> {
@@ -352,19 +327,29 @@ export class RegisterService {
     this.safeHandle(`[RegisterService] ${context}`, error, { traceId, mappedMessage: message });
 
     const userErr: any = new Error(message);
-    if (error && (error as any).code) userErr.code = (error as any).code;
+    const originalCode = String((error as any)?.code ?? '');
+
+    /**
+     * Compatibilidade com a UI existente, sem expor detalhes adicionais.
+     * A recuperação só é iniciada quando o próprio usuário escolher essa ação.
+     */
+    userErr.code = originalCode === 'auth/email-already-in-use'
+      ? 'email-exists-soft'
+      : originalCode || undefined;
+
     return throwError(() => userErr);
   }
 
   private mapErrorMessage(error: any): string {
     if ((error as any)?.code === 'email-exists-soft') {
-      return (error as any).message ?? 'Se existir uma conta com este e-mail, você receberá instruções para recuperar o acesso.';
+      return (error as any).message ??
+        'Não foi possível criar uma nova conta com este e-mail. Tente entrar ou recuperar a senha.';
     }
 
     if (error instanceof FirebaseError) {
       switch (error.code) {
         case 'auth/email-already-in-use':
-          return 'Se existir uma conta com este e-mail, você receberá instruções para recuperar o acesso.';
+          return 'Não foi possível criar uma nova conta com este e-mail. Tente entrar ou recuperar a senha.';
         case 'auth/weak-password':
           return 'Senha fraca. Ela precisa ter pelo menos 8 caracteres.';
         case 'auth/invalid-email':
