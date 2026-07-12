@@ -15,6 +15,9 @@ import {
 
 type VideoVisibility = 'FRIENDS' | 'SUBSCRIBERS' | 'PREMIUM' | 'PUBLIC';
 type ModerationStatus = 'PENDING_REVIEW' | 'APPROVED';
+type PublishedVideoAssets = Awaited<
+  ReturnType<typeof copyPrivateVideoToPublishedAsset>
+>;
 
 type PrivateVideoDoc = {
   id?: string;
@@ -58,13 +61,26 @@ const AUTO_APPROVE_VIDEOS =
   process.env.FUNCTIONS_EMULATOR === 'true' ||
   process.env.MEDIA_AUTO_APPROVE_VIDEOS === 'true';
 
+function containsControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+
+    if (code <= 31 || code === 127) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
 
   if (
     !normalized ||
     normalized.length > 128 ||
-    normalized.includes('/')
+    normalized.includes('/') ||
+    containsControlCharacter(normalized)
   ) {
     return '';
   }
@@ -99,6 +115,7 @@ function normalizeOrderIndex(value: unknown): number {
 
 function normalizeCreatedAt(value: unknown): number {
   const numberValue = Number(value ?? 0);
+
   return Number.isFinite(numberValue) && numberValue > 0
     ? Math.trunc(numberValue)
     : Date.now();
@@ -159,7 +176,6 @@ async function cleanupReplacedPublishedAssets(
   const previousVideoStoragePath = previousPublication?.publishedStoragePath;
   const previousPosterStoragePath =
     previousPublication?.publishedPosterStoragePath;
-
   const cleanupTasks: Promise<boolean>[] = [];
 
   if (
@@ -193,6 +209,29 @@ async function cleanupReplacedPublishedAssets(
   }
 
   await Promise.all(cleanupTasks);
+}
+
+async function rollbackPublishedAssets(
+  ownerUid: string,
+  videoId: string,
+  publishedAssets: PublishedVideoAssets
+): Promise<void> {
+  await Promise.all([
+    deletePublishedVideoAssetOrQueue({
+      ownerUid,
+      videoId,
+      storagePath: publishedAssets.videoStoragePath,
+      assetKind: 'video',
+      reason: 'publish-video-firestore-rollback',
+    }),
+    deletePublishedVideoAssetOrQueue({
+      ownerUid,
+      videoId,
+      storagePath: publishedAssets.posterStoragePath,
+      assetKind: 'poster',
+      reason: 'publish-video-poster-firestore-rollback',
+    }),
+  ]);
 }
 
 export const publishVideo = onCall<PublishVideoRequest>(
@@ -241,10 +280,16 @@ export const publishVideo = onCall<PublishVideoRequest>(
     }
 
     const sourcePosterStoragePath =
-      extractOwnedPrivateVideoPosterPath(ownerUid, privateVideo.thumbnailPath) ??
-      extractOwnedPrivateVideoPosterPath(ownerUid, privateVideo.thumbnailUrl);
+      extractOwnedPrivateVideoPosterPath(
+        ownerUid,
+        privateVideo.thumbnailPath
+      ) ??
+      extractOwnedPrivateVideoPosterPath(
+        ownerUid,
+        privateVideo.thumbnailUrl
+      );
 
-    let publishedAssets;
+    let publishedAssets: PublishedVideoAssets;
 
     try {
       publishedAssets = await copyPrivateVideoToPublishedAsset({
@@ -268,7 +313,9 @@ export const publishVideo = onCall<PublishVideoRequest>(
 
     const now = Date.now();
     const moderationStatus = resolveModerationStatus();
-    const durationMs = normalizeOptionalPositiveInteger(privateVideo.durationMs);
+    const durationMs = normalizeOptionalPositiveInteger(
+      privateVideo.durationMs
+    );
     const batch = db.batch();
 
     batch.set(
@@ -309,7 +356,9 @@ export const publishVideo = onCall<PublishVideoRequest>(
           : 'NONE',
         url: FieldValue.delete(),
         posterUrl: FieldValue.delete(),
-        title: String(privateVideo.fileName ?? 'Vídeo do perfil').slice(0, 160),
+        title: String(
+          privateVideo.fileName ?? 'Vídeo do perfil'
+        ).slice(0, 160),
         alt: 'Vídeo publicado no perfil',
         mimeType: publishedAssets.videoContentType,
         sizeBytes: publishedAssets.sizeBytes,
@@ -332,23 +381,7 @@ export const publishVideo = onCall<PublishVideoRequest>(
     try {
       await batch.commit();
     } catch (error) {
-      await Promise.all([
-        deletePublishedVideoAssetOrQueue({
-          ownerUid,
-          videoId,
-          storagePath: publishedAssets.videoStoragePath,
-          assetKind: 'video',
-          reason: 'publish-video-firestore-rollback',
-        }),
-        deletePublishedVideoAssetOrQueue({
-          ownerUid,
-          videoId,
-          storagePath: publishedAssets.posterStoragePath,
-          assetKind: 'poster',
-          reason: 'publish-video-poster-firestore-rollback',
-        }),
-      ]);
-
+      await rollbackPublishedAssets(ownerUid, videoId, publishedAssets);
       throw error;
     }
 
