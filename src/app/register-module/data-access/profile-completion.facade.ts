@@ -25,10 +25,10 @@ import { Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 
 import { RegisterFlowVm } from './register-flow.model';
+import { ProfileAvatarWriteService } from './profile-avatar-write.service';
 import { ProfileCompletionWriteService } from './profile-completion-write.service';
 
 import { FirestoreUserQueryService } from 'src/app/core/services/data-handling/firestore-user-query.service';
-import { FirestoreUserWriteService } from 'src/app/core/services/data-handling/firestore-user-write.service';
 import { StorageService } from 'src/app/core/services/image-handling/storage.service';
 import {
   IBGELocationService,
@@ -76,7 +76,7 @@ export interface ProfileCompletionAvatarUploadResult {
 export class ProfileCompletionFacade {
   constructor(
     private readonly firestoreUserQuery: FirestoreUserQueryService,
-    private readonly firestoreUserWrite: FirestoreUserWriteService,
+    private readonly profileAvatarWrite: ProfileAvatarWriteService,
     private readonly profileCompletionWrite: ProfileCompletionWriteService,
     private readonly storageService: StorageService,
     private readonly ibgeLocationService: IBGELocationService
@@ -154,7 +154,7 @@ export class ProfileCompletionFacade {
             return of({ status: 'upload_failed' } as ProfileCompletionAvatarUploadResult);
           }
 
-          return this.firestoreUserWrite.patchProfileAvatar$(uid, photoURL).pipe(
+          return this.profileAvatarWrite.patchAvatar$(uid, photoURL).pipe(
             map(() => ({
               status: 'uploaded',
               photoURL,
