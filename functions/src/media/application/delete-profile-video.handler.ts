@@ -82,21 +82,16 @@ function normalizeErrorMessage(error: unknown): string {
   return String(error ?? 'unknown').slice(0, 500);
 }
 
-async function executeDeletionJob(
-  jobId: string,
-  job: VideoDeletionJob
-): Promise<void> {
-  const privateVideoRef = db.doc(
-    `users/${job.ownerUid}/videos/${job.videoId}`
-  );
-  const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
-
-  await storage
-    .bucket()
-    .file(job.privateVideoStoragePath)
-    .delete({ ignoreNotFound: true });
-
-  await Promise.all([
+async function cleanupPublishedAssets(
+  job: Pick<
+    VideoDeletionJob,
+    | 'ownerUid'
+    | 'videoId'
+    | 'publishedVideoStoragePath'
+    | 'publishedPosterStoragePath'
+  >
+): Promise<boolean> {
+  const [videoDeleted, posterDeleted] = await Promise.all([
     deletePublishedVideoAssetOrQueue({
       ownerUid: job.ownerUid,
       videoId: job.videoId,
@@ -113,8 +108,35 @@ async function executeDeletionJob(
     }),
   ]);
 
-  await db.recursiveDelete(privateVideoRef);
+  return videoDeleted && posterDeleted;
+}
+
+async function executeDeletionJob(
+  jobId: string,
+  job: VideoDeletionJob
+): Promise<boolean> {
+  const privateVideoRef = db.doc(
+    `users/${job.ownerUid}/videos/${job.videoId}`
+  );
+  const publicVideoRef = db.doc(
+    `public_profiles/${job.ownerUid}/public_videos/${job.videoId}`
+  );
+  const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
+
+  await storage
+    .bucket()
+    .file(job.privateVideoStoragePath)
+    .delete({ ignoreNotFound: true });
+
+  const publishedAssetsDeleted = await cleanupPublishedAssets(job);
+
+  await Promise.all([
+    db.recursiveDelete(privateVideoRef),
+    db.recursiveDelete(publicVideoRef),
+  ]);
   await jobRef.delete();
+
+  return publishedAssetsDeleted;
 }
 
 async function recordDeletionAttemptFailure(
@@ -166,32 +188,34 @@ export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
       : null;
 
     if (!privateVideoSnap.exists) {
+      const now = Date.now();
       const cleanupBatch = db.batch();
       cleanupBatch.delete(publicationRef);
-      cleanupBatch.delete(publicVideoRef);
+      cleanupBatch.set(
+        publicVideoRef,
+        {
+          visibility: 'PRIVATE',
+          moderationStatus: 'HIDDEN',
+          updatedAt: now,
+        },
+        { merge: true }
+      );
       await cleanupBatch.commit();
-
-      await Promise.all([
-        deletePublishedVideoAssetOrQueue({
-          ownerUid,
-          videoId,
-          storagePath: publication?.publishedStoragePath,
-          assetKind: 'video',
-          reason: 'delete-missing-private-video',
-        }),
-        deletePublishedVideoAssetOrQueue({
-          ownerUid,
-          videoId,
-          storagePath: publication?.publishedPosterStoragePath,
-          assetKind: 'poster',
-          reason: 'delete-missing-private-video-poster',
-        }),
-      ]);
       await refreshPublicProfileMediaMetrics(ownerUid);
+
+      const publishedAssetsDeleted = await cleanupPublishedAssets({
+        ownerUid,
+        videoId,
+        publishedVideoStoragePath:
+          publication?.publishedStoragePath ?? null,
+        publishedPosterStoragePath:
+          publication?.publishedPosterStoragePath ?? null,
+      });
+      await db.recursiveDelete(publicVideoRef);
 
       return {
         videoId,
-        cleanupPending: false,
+        cleanupPending: !publishedAssetsDeleted,
       };
     }
 
@@ -227,16 +251,24 @@ export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
     const hideBatch = db.batch();
     hideBatch.set(jobRef, job);
     hideBatch.delete(publicationRef);
-    hideBatch.delete(publicVideoRef);
+    hideBatch.set(
+      publicVideoRef,
+      {
+        visibility: 'PRIVATE',
+        moderationStatus: 'HIDDEN',
+        updatedAt: now,
+      },
+      { merge: true }
+    );
     await hideBatch.commit();
     await refreshPublicProfileMediaMetrics(ownerUid);
 
     try {
-      await executeDeletionJob(jobId, job);
+      const publishedAssetsDeleted = await executeDeletionJob(jobId, job);
 
       return {
         videoId,
-        cleanupPending: false,
+        cleanupPending: !publishedAssetsDeleted,
       };
     } catch (error) {
       await recordDeletionAttemptFailure(jobId, error);
