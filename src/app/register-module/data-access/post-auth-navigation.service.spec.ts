@@ -143,6 +143,33 @@ describe('PostAuthNavigationService', () => {
     ).resolves.toBe('/adulto/confirmar?redirectTo=%2Ffriends');
   });
 
+  it('deve priorizar a recuperação quando o Google autenticou e o perfil falhou', async () => {
+    const flow$ = new BehaviorSubject<RegisterFlowVm>(
+      vm('termsAcceptance', '/register/aceitar-termos', {
+        termsAccepted: false,
+      })
+    );
+    const service = new PostAuthNavigationService({ vm$: flow$ } as any);
+
+    const result: AuthFacadeSocialAuthResult = {
+      success: true,
+      outcome: 'profile-incomplete',
+      isNewUser: false,
+      emailVerified: true,
+      user: user({
+        acceptedTerms: { accepted: false, date: Date.now() },
+      }),
+      nextRoute: '/register/recuperar-conta',
+      code: 'social-auth/session-recovery-required',
+    };
+
+    await expect(
+      firstValueFrom(service.resolveAfterSocialLogin$(result, '/friends'))
+    ).resolves.toBe(
+      '/register/recuperar-conta?redirectTo=%2Ffriends'
+    );
+  });
+
   it('deve liberar o destino original após todas as etapas', async () => {
     const flow$ = new BehaviorSubject<RegisterFlowVm>(
       vm('preferences', '/preferencias/editar/u1', {
