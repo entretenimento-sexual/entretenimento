@@ -127,6 +127,18 @@ describe('AuthVerificationHandlerComponent', () => {
     expect(component.message).toBe('Código inválido ou ausente.');
   });
 
+  it('deve oferecer novo link quando resetPassword vier sem oobCode', () => {
+    queryParamsSubject.next({
+      mode: 'resetPassword',
+    });
+
+    fixture.detectChanges();
+
+    expect(component.passwordResetUnavailable).toBe(true);
+    expect(component.shouldShowRecoveryLink).toBe(true);
+    expect(component.message).toBe('Código inválido ou ausente.');
+  });
+
   it('deve processar verificação de e-mail com sucesso', () => {
     emailVerificationMock.handleEmailVerification.mockReturnValue(
       of({
@@ -145,6 +157,7 @@ describe('AuthVerificationHandlerComponent', () => {
 
     expect(emailVerificationMock.handleEmailVerification).toHaveBeenCalledTimes(1);
     expect(component.verifyOk).toBe(true);
+    expect(component.actionSucceeded).toBe(true);
     expect(component.message).toBe('E-mail verificado com sucesso.');
     expect(component.showResendVerifyCTA).toBe(false);
   });
@@ -180,10 +193,11 @@ describe('AuthVerificationHandlerComponent', () => {
     expect(component.mode).toBe('resetPassword');
     expect(component.oobCode).toBe('reset-code');
     expect(component.isLoading).toBe(false);
+    expect(component.passwordResetUnavailable).toBe(false);
     expect(loginServiceMock.confirmPasswordReset$).not.toHaveBeenCalled();
   });
 
-  it('deve redefinir senha quando as senhas forem válidas', async () => {
+  it('deve redefinir senha e encerrar o formulário quando as senhas forem válidas', async () => {
     queryParamsSubject.next({
       mode: 'resetPassword',
       oobCode: 'reset-code',
@@ -203,6 +217,9 @@ describe('AuthVerificationHandlerComponent', () => {
       'senhaSegura123'
     );
 
+    expect(component.passwordResetOk).toBe(true);
+    expect(component.passwordResetCompleted).toBe(true);
+    expect(component.actionSucceeded).toBe(true);
     expect(component.message).toBe(
       'Senha redefinida com sucesso. Redirecionando para o login...'
     );
@@ -211,18 +228,21 @@ describe('AuthVerificationHandlerComponent', () => {
   it('deve informar erro quando as senhas não coincidirem', async () => {
     component.mode = 'resetPassword';
     component.oobCode = 'reset-code';
+    component.isLoading = false;
     component.newPassword = 'senhaSegura123';
     component.confirmPassword = 'outraSenha123';
 
     await component.resetPassword();
 
     expect(component.message).toBe('As senhas não coincidem.');
+    expect(component.passwordResetOk).toBe(false);
     expect(loginServiceMock.confirmPasswordReset$).not.toHaveBeenCalled();
   });
 
-  it('deve exibir recuperação quando resetPassword falhar por código expirado', async () => {
+  it('deve bloquear formulário e exibir recuperação quando o código estiver expirado', async () => {
     component.mode = 'resetPassword';
     component.oobCode = 'reset-code';
+    component.isLoading = false;
     component.newPassword = 'senhaSegura123';
     component.confirmPassword = 'senhaSegura123';
 
@@ -233,7 +253,36 @@ describe('AuthVerificationHandlerComponent', () => {
     await component.resetPassword();
 
     expect(component.shouldShowRecoveryLink).toBe(true);
+    expect(component.passwordResetUnavailable).toBe(true);
+    expect(component.passwordResetOk).toBe(false);
     expect(component.message).toBe('O link de redefinição de senha expirou.');
+    expect(globalErrorMock.handleError).not.toHaveBeenCalled();
+  });
+
+  it('deve encaminhar falha técnica do reset ao handler global sem duplicar feedback', async () => {
+    component.mode = 'resetPassword';
+    component.oobCode = 'reset-code';
+    component.isLoading = false;
+    component.newPassword = 'senhaSegura123';
+    component.confirmPassword = 'senhaSegura123';
+
+    loginServiceMock.confirmPasswordReset$.mockReturnValue(
+      throwError(() => ({ code: 'auth/network-request-failed' }))
+    );
+
+    await component.resetPassword();
+
+    expect(component.passwordResetUnavailable).toBe(false);
+    expect(component.shouldShowRecoveryLink).toBe(true);
+    expect(component.message).toBe(
+      'Não foi possível redefinir a senha agora. Tente novamente.'
+    );
+    expect(globalErrorMock.handleError).toHaveBeenCalledTimes(1);
+
+    const reportedError = globalErrorMock.handleError.mock.calls[0][0] as Error & {
+      skipUserNotification?: boolean;
+    };
+    expect(reportedError.skipUserNotification).toBe(true);
   });
 
   it('deve abrir modal de recuperação de senha', () => {
