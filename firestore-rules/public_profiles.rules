@@ -85,24 +85,78 @@ match /public_profiles/{userId} {
       || (lat != null && lng != null && gh != null);
   }
 
-  function noClientDiscoveryFieldsOnCreate() {
+  function noClientManagedFieldsOnCreate() {
     return !request.resource.data.keys().hasAny([
       "normalizedGender",
       "normalizedOrientation",
       "interestedInGenders",
       "interestedInOrientations",
       "compatibilityReady",
-      "discoveryNormalizedAt"
+      "discoveryNormalizedAt",
+      "mediaCount",
+      "publicMediaCount",
+      "photosCount",
+      "publicPhotosCount",
+      "videosCount",
+      "publicVideosCount",
+      "viewsCount",
+      "profileViewsCount",
+      "profileViews",
+      "uniqueViewersCount",
+      "profileUniqueViewersCount",
+      "mediaUniqueViewersCount",
+      "reactionsCount",
+      "likesCount",
+      "publicLikesCount",
+      "viewScore",
+      "engagementScore",
+      "profileCompletenessScore",
+      "coverPhotoId",
+      "coverPhotoURL",
+      "coverVideoId",
+      "coverVideoURL",
+      "lastViewedAt",
+      "mediaMetricsUpdatedAt",
+      "profileViewerIndexVersion",
+      "profileViewerIndexBackfilledAt"
     ]);
   }
 
-  function discoveryFieldsUnchangedOnUpdate() {
-    return fieldOrNull("normalizedGender") == existingFieldOrNull("normalizedGender")
-      && fieldOrNull("normalizedOrientation") == existingFieldOrNull("normalizedOrientation")
-      && fieldOrNull("interestedInGenders") == existingFieldOrNull("interestedInGenders")
-      && fieldOrNull("interestedInOrientations") == existingFieldOrNull("interestedInOrientations")
-      && fieldOrNull("compatibilityReady") == existingFieldOrNull("compatibilityReady")
-      && fieldOrNull("discoveryNormalizedAt") == existingFieldOrNull("discoveryNormalizedAt");
+  function backendManagedFieldsUnchangedOnUpdate() {
+    return !request.resource.data.diff(resource.data).changedKeys().hasAny([
+      "normalizedGender",
+      "normalizedOrientation",
+      "interestedInGenders",
+      "interestedInOrientations",
+      "compatibilityReady",
+      "discoveryNormalizedAt",
+      "mediaCount",
+      "publicMediaCount",
+      "photosCount",
+      "publicPhotosCount",
+      "videosCount",
+      "publicVideosCount",
+      "viewsCount",
+      "profileViewsCount",
+      "profileViews",
+      "uniqueViewersCount",
+      "profileUniqueViewersCount",
+      "mediaUniqueViewersCount",
+      "reactionsCount",
+      "likesCount",
+      "publicLikesCount",
+      "viewScore",
+      "engagementScore",
+      "profileCompletenessScore",
+      "coverPhotoId",
+      "coverPhotoURL",
+      "coverVideoId",
+      "coverVideoURL",
+      "lastViewedAt",
+      "mediaMetricsUpdatedAt",
+      "profileViewerIndexVersion",
+      "profileViewerIndexBackfilledAt"
+    ]);
   }
 
   function allowedKeys() {
@@ -127,7 +181,33 @@ match /public_profiles/{userId} {
       "longitude",
       "geohash",
       "createdAt",
-      "updatedAt"
+      "updatedAt",
+      "mediaCount",
+      "publicMediaCount",
+      "photosCount",
+      "publicPhotosCount",
+      "videosCount",
+      "publicVideosCount",
+      "viewsCount",
+      "profileViewsCount",
+      "profileViews",
+      "uniqueViewersCount",
+      "profileUniqueViewersCount",
+      "mediaUniqueViewersCount",
+      "reactionsCount",
+      "likesCount",
+      "publicLikesCount",
+      "viewScore",
+      "engagementScore",
+      "profileCompletenessScore",
+      "coverPhotoId",
+      "coverPhotoURL",
+      "coverVideoId",
+      "coverVideoURL",
+      "lastViewedAt",
+      "mediaMetricsUpdatedAt",
+      "profileViewerIndexVersion",
+      "profileViewerIndexBackfilledAt"
     ]);
   }
 
@@ -192,7 +272,7 @@ match /public_profiles/{userId} {
   allow create: if (
     isSelf(userId)
     && validPublicProfileCreatePayload()
-    && noClientDiscoveryFieldsOnCreate()
+    && noClientManagedFieldsOnCreate()
     && request.resource.data.createdAt == request.time
     && request.resource.data.updatedAt == request.time
     && request.resource.data.role == "free"
@@ -200,11 +280,11 @@ match /public_profiles/{userId} {
 
   allow update: if (
     isSelf(userId)
+    && backendManagedFieldsUnchangedOnUpdate()
     && (
       avatarOnlyUpdate()
       || (
         validClientEditablePublicProfilePayload()
-        && discoveryFieldsUnchangedOnUpdate()
         && immutableIfExisting("uid")
         && immutableExistingOrAbsent("createdAt")
         && request.resource.data.updatedAt == request.time
