@@ -80,6 +80,24 @@ describe('UserDiscoveryQueryService', () => {
     expect(cacheMock.get).not.toHaveBeenCalled();
   });
 
+  it('deve separar cache conhecido pela consulta e pela sessão', async () => {
+    readMock.getDocumentsOnce.mockReturnValue(
+      of([
+        {
+          uid: 'profile-1',
+          nickname: 'Profile',
+          gender: 'man',
+        },
+      ])
+    );
+
+    await firstValueFrom(service.getUsersByGender$('Man'));
+
+    expect(cacheMock.get).toHaveBeenCalledWith(
+      'discovery:public_profiles:uids:query:gender:man:viewer=viewer-1'
+    );
+  });
+
   it('deve hidratar somente os UIDs pedidos com chave determinística', async () => {
     readMock.getDocumentsOnce.mockReturnValue(
       of([
@@ -103,7 +121,7 @@ describe('UserDiscoveryQueryService', () => {
     );
 
     const expectedCacheKey =
-      'discovery:public_profiles:uids:profile-a,profile-b';
+      'discovery:public_profiles:uids:profile-a,profile-b:viewer=viewer-1';
 
     expect(profiles.map((profile) => profile.uid)).toEqual([
       'profile-a',
