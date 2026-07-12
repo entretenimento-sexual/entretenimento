@@ -67,7 +67,19 @@ export interface PublicProfileCard {
   photosCount?: number | null;
   videosCount?: number | null;
   viewsCount?: number | null;
+
+  /** Pessoas distintas que visualizaram qualquer mídia deste perfil. */
+  profileUniqueViewersCount?: number | null;
+
+  /** Alias público compatível de profileUniqueViewersCount. */
   uniqueViewersCount?: number | null;
+
+  /**
+   * Soma técnica dos espectadores únicos de cada mídia.
+   * A mesma pessoa pode aparecer mais de uma vez quando vê mídias diferentes.
+   */
+  mediaUniqueViewersCount?: number | null;
+
   likesCount?: number | null;
   reactionsCount?: number | null;
   viewScore?: number | null;
