@@ -6,7 +6,10 @@ import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import { deletePublishedVideoAssetOrQueue } from './published-video-asset.service';
-import { extractOwnedPrivateVideoPath } from './video-storage-path';
+import {
+  extractOwnedPrivateVideoPath,
+  extractOwnedPrivateVideoPosterPath,
+} from './video-storage-path';
 
 interface DeleteProfileVideoRequest {
   ownerUid?: string;
@@ -22,6 +25,7 @@ interface VideoDeletionJob {
   ownerUid: string;
   videoId: string;
   privateVideoStoragePath: string;
+  privatePosterStoragePath: string | null;
   publishedVideoStoragePath: string | null;
   publishedPosterStoragePath: string | null;
   createdAt: number;
@@ -33,6 +37,8 @@ interface VideoDeletionJob {
 type PrivateVideoDoc = {
   path?: string;
   url?: string;
+  thumbnailPath?: string;
+  thumbnailUrl?: string;
 };
 
 type VideoPublicationDoc = {
@@ -43,13 +49,26 @@ type VideoPublicationDoc = {
 const DELETION_JOBS_COLLECTION = 'media_video_deletion_jobs';
 const CLEANUP_BATCH_SIZE = 50;
 
+function containsControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+
+    if (code <= 31 || code === 127) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function cleanId(value: unknown): string {
   const normalized = String(value ?? '').trim();
 
   if (
     !normalized ||
     normalized.length > 128 ||
-    normalized.includes('/')
+    normalized.includes('/') ||
+    containsControlCharacter(normalized)
   ) {
     return '';
   }
@@ -111,6 +130,25 @@ async function cleanupPublishedAssets(
   return videoDeleted && posterDeleted;
 }
 
+async function deletePrivateAssets(job: VideoDeletionJob): Promise<void> {
+  const bucket = storage.bucket();
+  const deleteTasks: Promise<unknown>[] = [
+    bucket
+      .file(job.privateVideoStoragePath)
+      .delete({ ignoreNotFound: true }),
+  ];
+
+  if (job.privatePosterStoragePath) {
+    deleteTasks.push(
+      bucket
+        .file(job.privatePosterStoragePath)
+        .delete({ ignoreNotFound: true })
+    );
+  }
+
+  await Promise.all(deleteTasks);
+}
+
 async function executeDeletionJob(
   jobId: string,
   job: VideoDeletionJob
@@ -123,11 +161,7 @@ async function executeDeletionJob(
   );
   const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
 
-  await storage
-    .bucket()
-    .file(job.privateVideoStoragePath)
-    .delete({ ignoreNotFound: true });
-
+  await deletePrivateAssets(job);
   const publishedAssetsDeleted = await cleanupPublishedAssets(job);
 
   await Promise.all([
@@ -231,6 +265,17 @@ export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
       );
     }
 
+    const privatePosterStoragePath =
+      extractOwnedPrivateVideoPosterPath(
+        ownerUid,
+        videoId,
+        privateVideo.thumbnailPath
+      ) ??
+      extractOwnedPrivateVideoPosterPath(
+        ownerUid,
+        videoId,
+        privateVideo.thumbnailUrl
+      );
     const now = Date.now();
     const jobId = buildDeletionJobId(ownerUid, videoId);
     const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
@@ -238,6 +283,7 @@ export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
       ownerUid,
       videoId,
       privateVideoStoragePath,
+      privatePosterStoragePath,
       publishedVideoStoragePath:
         publication?.publishedStoragePath ?? null,
       publishedPosterStoragePath:
@@ -303,15 +349,25 @@ export const cleanupPendingVideoDeletions = onSchedule(
 
     for (const jobDoc of jobsSnapshot.docs) {
       const job = jobDoc.data() as VideoDeletionJob;
+      const ownerUid = cleanId(job.ownerUid);
+      const videoId = cleanId(job.videoId);
       const privateVideoStoragePath = extractOwnedPrivateVideoPath(
-        job.ownerUid,
+        ownerUid,
         job.privateVideoStoragePath
       );
+      const privatePosterStoragePath = job.privatePosterStoragePath
+        ? extractOwnedPrivateVideoPosterPath(
+          ownerUid,
+          videoId,
+          job.privatePosterStoragePath
+        )
+        : null;
 
       if (
-        !cleanId(job.ownerUid) ||
-        !cleanId(job.videoId) ||
-        !privateVideoStoragePath
+        !ownerUid ||
+        !videoId ||
+        !privateVideoStoragePath ||
+        (job.privatePosterStoragePath && !privatePosterStoragePath)
       ) {
         logger.error('[cleanupPendingVideoDeletions] Job inválido.', {
           jobId: jobDoc.id,
@@ -322,15 +378,18 @@ export const cleanupPendingVideoDeletions = onSchedule(
       try {
         await executeDeletionJob(jobDoc.id, {
           ...job,
+          ownerUid,
+          videoId,
           privateVideoStoragePath,
+          privatePosterStoragePath,
         });
       } catch (error) {
         await recordDeletionAttemptFailure(jobDoc.id, error);
 
         logger.error('[cleanupPendingVideoDeletions] Falha no retry.', {
           jobId: jobDoc.id,
-          ownerUid: job.ownerUid,
-          videoId: job.videoId,
+          ownerUid,
+          videoId,
           error: normalizeErrorMessage(error),
         });
       }
