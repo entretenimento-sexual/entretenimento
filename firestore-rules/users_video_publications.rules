@@ -1,0 +1,20 @@
+// ==============================================================
+// USERS / video_publications
+//
+// Configuração privada de publicação dos vídeos.
+//
+// Segurança:
+// - o dono pode ler o estado da própria publicação;
+// - publicação, moderação, métricas e caminhos físicos são alterados
+//   exclusivamente por Cloud Functions auditáveis;
+// - o cliente não escreve nem remove configuração de publicação.
+// ==============================================================
+
+match /users/{userId}/video_publications/{videoId} {
+  allow get, list: if isSelf(userId);
+  allow create, update, delete: if false;
+}
+
+// ==============================================================
+//           FIM DO USERS_VIDEO_PUBLICATIONS.RULES
+// ==============================================================
