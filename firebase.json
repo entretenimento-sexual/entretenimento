@@ -10,7 +10,7 @@
         "firebase-debug.*.log"
       ],
 "predeploy": [
-  "npm --prefix functions run lint:deploy",
+  "npm --prefix functions run lint:deploy:all",
   "npm --prefix functions run build"
 ]
     }
