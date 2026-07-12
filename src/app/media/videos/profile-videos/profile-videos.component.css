@@ -11,14 +11,24 @@
   padding: clamp(12px, 2vw, 24px);
 }
 
+.profile-videos__header,
+.profile-videos__upload,
+.profile-videos__card,
+.profile-videos__empty {
+  min-width: 0;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 22px;
+  background: var(--surface-color, #101923);
+  color: var(--text-color, #f5f7fb);
+  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
+}
+
 .profile-videos__header {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 18px;
   padding: clamp(16px, 2vw, 24px);
-  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
-  border-radius: 22px;
   background:
     radial-gradient(
       circle at 8% 10%,
@@ -26,11 +36,10 @@
       transparent 36%
     ),
     var(--surface-color, #101923);
-  color: var(--text-color, #f5f7fb);
-  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
 }
 
-.profile-videos__header > div {
+.profile-videos__header > div,
+.profile-videos__upload-copy {
   display: grid;
   gap: 7px;
   min-width: 0;
@@ -45,7 +54,9 @@
 }
 
 .profile-videos__header h1,
-.profile-videos__header p {
+.profile-videos__header p,
+.profile-videos__upload h2,
+.profile-videos__upload p {
   margin: 0;
 }
 
@@ -56,7 +67,8 @@
   letter-spacing: -0.025em;
 }
 
-.profile-videos__header p {
+.profile-videos__header p,
+.profile-videos__upload-copy p {
   max-width: 68ch;
   color: color-mix(
     in oklab,
@@ -67,6 +79,252 @@
   line-height: 1.48;
 }
 
+.profile-videos__upload {
+  display: grid;
+  gap: clamp(16px, 2vw, 24px);
+  padding: clamp(16px, 2.4vw, 26px);
+  overflow: hidden;
+}
+
+.profile-videos__upload h2 {
+  color: var(--text-color, #f5f7fb);
+  font-size: clamp(1.15rem, 1rem + 0.6vw, 1.55rem);
+  line-height: 1.16;
+}
+
+.profile-videos__policy-state,
+.profile-videos__selected-file {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--warning-color, #f5c451) 32%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+  border-radius: 14px;
+  background: color-mix(
+    in oklab,
+    var(--warning-color, #f5c451) 9%,
+    transparent
+  );
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 82%,
+    transparent
+  );
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.profile-videos__policy-state > i,
+.profile-videos__selected-file > i {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  color: var(--warning-color, #f5c451);
+  background: color-mix(
+    in oklab,
+    var(--warning-color, #f5c451) 14%,
+    transparent
+  );
+}
+
+.profile-videos__selected-file {
+  border-color: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 30%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+  background: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 8%,
+    transparent
+  );
+}
+
+.profile-videos__selected-file > i {
+  color: var(--success-color, #5ed39a);
+  background: color-mix(
+    in oklab,
+    var(--success-color, #5ed39a) 14%,
+    transparent
+  );
+}
+
+.profile-videos__selected-file > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.profile-videos__selected-file strong,
+.profile-videos__selected-file span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-videos__selected-file span {
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 62%,
+    transparent
+  );
+  font-size: 0.78rem;
+}
+
+.profile-videos__upload-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 0.88fr) minmax(280px, 1.12fr);
+  gap: clamp(14px, 2vw, 22px);
+  align-items: stretch;
+}
+
+.profile-videos__picker {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.profile-videos__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.profile-videos__file-input:focus-visible + .profile-videos__file-label {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
+}
+
+.profile-videos__file-label {
+  width: fit-content;
+  min-height: 46px;
+  cursor: pointer;
+}
+
+.profile-videos__file-label--disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.profile-videos__limits,
+.profile-videos__upload-status {
+  margin: 0;
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 66%,
+    transparent
+  );
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.profile-videos__preview {
+  display: grid;
+  place-items: center;
+  min-height: 240px;
+  overflow: hidden;
+  border: 1px solid color-mix(
+    in oklab,
+    var(--surface-border, rgb(255 255 255 / 12%)) 88%,
+    transparent
+  );
+  border-radius: 18px;
+  background: #05070d;
+}
+
+.profile-videos__preview video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  background: #000;
+}
+
+.profile-videos__preview--empty {
+  align-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: color-mix(
+    in oklab,
+    var(--text-color, #f5f7fb) 55%,
+    transparent
+  );
+  text-align: center;
+}
+
+.profile-videos__preview--empty > i {
+  font-size: 2rem;
+  color: var(--primary-color, #ff6b6b);
+}
+
+.profile-videos__progress {
+  display: grid;
+  gap: 9px;
+}
+
+.profile-videos__progress-copy {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.84rem;
+}
+
+.profile-videos__progress-copy span {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.profile-videos__progress-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(
+    in oklab,
+    var(--surface-color, #101923) 82%,
+    var(--text-color, #f5f7fb) 10%
+  );
+}
+
+.profile-videos__progress-track > span {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--primary-color, #ff6b6b),
+    color-mix(in oklab, var(--primary-color, #ff6b6b) 58%, #fff)
+  );
+  transition: width 180ms ease;
+}
+
+.profile-videos__upload-actions,
+.profile-videos__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.profile-videos__upload-actions .app-action {
+  min-height: 46px;
+}
+
 .profile-videos__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
@@ -74,18 +332,9 @@
   align-items: start;
 }
 
-.profile-videos__card,
-.profile-videos__empty {
-  min-width: 0;
-  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
-  border-radius: 20px;
-  background: var(--surface-color, #101923);
-  color: var(--text-color, #f5f7fb);
-  box-shadow: var(--box-shadow, 0 12px 28px rgb(0 0 0 / 16%));
-}
-
 .profile-videos__card {
   overflow: hidden;
+  border-radius: 20px;
 }
 
 .profile-videos__media {
@@ -103,7 +352,8 @@
   background: #000;
 }
 
-.profile-videos__media video:focus-visible {
+.profile-videos__media video:focus-visible,
+.profile-videos__preview video:focus-visible {
   outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
   outline-offset: -3px;
 }
@@ -251,15 +501,30 @@
 }
 
 .profile-videos__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
   padding-top: 2px;
 }
 
 .profile-videos__actions .app-action {
   min-height: 44px;
-  flex: 1 1 180px;
+  flex: 1 1 150px;
+}
+
+.profile-videos__actions .app-action--danger {
+  border-color: color-mix(
+    in oklab,
+    var(--error-color, #ff6b6b) 48%,
+    var(--surface-border, rgb(255 255 255 / 12%))
+  );
+  background: color-mix(
+    in oklab,
+    var(--error-color, #ff6b6b) 10%,
+    transparent
+  );
+  color: color-mix(
+    in oklab,
+    var(--error-color, #ff6b6b) 82%,
+    var(--text-color, #f5f7fb)
+  );
 }
 
 .profile-videos__empty {
@@ -268,6 +533,7 @@
   align-items: center;
   gap: 14px;
   padding: clamp(18px, 2.2vw, 26px);
+  border-radius: 20px;
 }
 
 .profile-videos__empty > i {
@@ -305,6 +571,16 @@
   line-height: 1.42;
 }
 
+@media (max-width: 820px) {
+  .profile-videos__upload-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-videos__preview {
+    min-height: 210px;
+  }
+}
+
 @media (max-width: 700px) {
   .profile-videos {
     gap: 14px;
@@ -312,13 +588,15 @@
   }
 
   .profile-videos__header,
+  .profile-videos__upload,
   .profile-videos__card,
   .profile-videos__empty {
     border-radius: 16px;
     box-shadow: none;
   }
 
-  .profile-videos__header {
+  .profile-videos__header,
+  .profile-videos__upload {
     padding: 16px;
   }
 
@@ -331,8 +609,17 @@
     padding: 13px;
   }
 
-  .profile-videos__actions .app-action {
-    flex-basis: 100%;
+  .profile-videos__upload-actions,
+  .profile-videos__actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .profile-videos__upload-actions .app-action,
+  .profile-videos__actions .app-action,
+  .profile-videos__file-label {
+    width: 100%;
+    min-height: 46px;
   }
 }
 
@@ -345,24 +632,32 @@
     justify-self: start;
   }
 
-  .profile-videos__empty {
+  .profile-videos__empty,
+  .profile-videos__policy-state,
+  .profile-videos__selected-file {
     grid-template-columns: 1fr;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .profile-videos__card,
-  .profile-videos__media video {
+  .profile-videos__progress-track > span,
+  .profile-videos__media video,
+  .profile-videos__preview video {
     transition: none;
   }
 }
 
 html.high-contrast .profile-videos__header,
+html.high-contrast .profile-videos__upload,
 html.high-contrast .profile-videos__card,
 html.high-contrast .profile-videos__empty,
+html.high-contrast .profile-videos__policy-state,
+html.high-contrast .profile-videos__selected-file,
+html.high-contrast .profile-videos__preview,
 html.high-contrast .profile-videos__publication-chip,
 html.high-contrast .profile-videos__meta span,
-html.high-contrast .profile-videos__helper {
+html.high-contrast .profile-videos__helper,
+html.high-contrast .profile-videos__progress-track {
   border-color: currentColor !important;
   background: var(--background-color) !important;
   color: var(--text-color) !important;
