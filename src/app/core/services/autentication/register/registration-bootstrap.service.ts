@@ -11,11 +11,14 @@
 // - manter usuários criados por e-mail/senha e por login social compatíveis;
 // - preservar writes reativos com Observable;
 // - manter compatibilidade com rules atuais.
+// =============================================================================
 //
-// Uso previsto:
-// - RegisterService: criação por e-mail/senha;
-// - SocialAuthService: primeira entrada via Google/social;
-// - futuras Cloud Functions ou fluxos mobile podem espelhar este contrato.
+// Importante sobre conformidade:
+// - o seed nasce com acceptedTerms.accepted=false;
+// - o aceite efetivo é registrado pela Cloud Function acceptPlatformTerms;
+// - isso garante versão, horário do servidor e trilha em compliance_audit;
+// - o checkbox inicial continua sendo uma precondição de cadastro, mas não
+//   substitui a confirmação auditável do backend.
 // =============================================================================
 
 import { Injectable } from '@angular/core';
@@ -108,8 +111,14 @@ export class RegistrationBootstrapService {
           accountStatus: 'active',
           profileCompleted: false,
 
+          /**
+           * O aceite definitivo não é confiado ao cliente.
+           * RegisterService tentará registrá-lo logo após o bootstrap pela
+           * Cloud Function. Se essa chamada falhar, o fluxo canônico exibirá
+           * /register/aceitar-termos posteriormente.
+           */
           acceptedTerms: {
-            accepted: true,
+            accepted: false,
             date: serverTimestamp(),
           },
 
