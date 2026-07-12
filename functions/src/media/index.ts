@@ -23,6 +23,11 @@ export {
 } from './application/delete-profile-photo.handler';
 
 export {
+  cleanupPendingVideoDeletions,
+  deleteProfileVideo,
+} from './application/delete-profile-video.handler';
+
+export {
   cleanupPendingPublishedPhotoAssets,
 } from './application/cleanup-published-photo-assets.handler';
 
