@@ -1,6 +1,6 @@
 // AUTO-GENERATED FILE. DO NOT EDIT.
 // Source: firestore-rules/*
-// Generated at: 2026-07-12T19:47:24.303Z
+// Generated at: 2026-07-12T21:07:58.050Z
 
 // ===== _helpers.rules =====
 // ===============================================================
@@ -771,6 +771,50 @@ match /{path=**}/public_photos/{photoId} {
 
 // ==============================================================
 //           FIM DO PUBLIC_PROFILES_PHOTOS.RULES
+// ==============================================================
+
+// ===== public_profiles_videos.rules =====
+// ===============================================================
+// PUBLIC_PROFILES / public_videos
+// ===============================================================
+
+match /public_profiles/{userId}/public_videos/{videoId} {
+
+  function isPublicReadableVideo() {
+    return resource.data.visibility == "PUBLIC"
+      && resource.data.moderationStatus == "APPROVED";
+  }
+
+  allow get: if signedIn() && (isSelf(userId) || isPublicReadableVideo());
+
+  allow list: if signedIn()
+    && resource.data.visibility == "PUBLIC"
+    && resource.data.moderationStatus == "APPROVED";
+
+  allow create, update, delete: if false;
+
+  match /{allPaths=**} {
+    allow read, write: if false;
+  }
+}
+
+// ------------------------------------------------------------
+// Collection group: public_videos
+// ------------------------------------------------------------
+match /{path=**}/public_videos/{videoId} {
+  allow list: if signedIn()
+    && resource.data.visibility == "PUBLIC"
+    && resource.data.moderationStatus == "APPROVED";
+
+  allow get: if signedIn()
+    && resource.data.visibility == "PUBLIC"
+    && resource.data.moderationStatus == "APPROVED";
+
+  allow create, update, delete: if false;
+}
+
+// ==============================================================
+//           FIM DO PUBLIC_PROFILES_VIDEOS.RULES
 // ==============================================================
 
 // ===== presence.rules =====
@@ -2326,10 +2370,11 @@ match /users/{userId}/imageStates/{stateId} {
 // ===============================================================
 // USERS / videos
 // - Biblioteca privada de vídeos do usuário
-// - Somente o dono lê/escreve
-// - Sem publicação pública nesta etapa
+// - Somente o dono lê e cria metadados privados validados
+// - Exclusão fica no backend para não deixar publicação órfã
+// - Sem publicação pública direta
 // - Sem enumeração por terceiros
-// - Metadados críticos protegidos contra forja pelo client
+// - Publicação usa projeção e ativo físico separados pelo backend
 // ✅ ARQUIVO MODULAR: NÃO pode ter `rules_version` nem `service cloud.firestore`
 // firestore-rules/users_videos.rules
 // ===============================================================
@@ -2346,6 +2391,7 @@ match /users/{userId}/videos/{videoId} {
       "sizeBytes",
       "durationMs",
       "thumbnailUrl",
+      "thumbnailPath",
       "status",
       "createdAt",
       "updatedAt"
@@ -2407,6 +2453,23 @@ match /users/{userId}/videos/{videoId} {
     ];
   }
 
+  function validOwnedVideoPath() {
+    return request.resource.data.path.matches(
+      "^users/" + userId + "/uploads/videos/[^/]+$"
+    );
+  }
+
+  function validOwnedPosterPath() {
+    return !hasReqField("thumbnailPath")
+      || request.resource.data.thumbnailPath == null
+      || (
+        request.resource.data.thumbnailPath is string
+        && request.resource.data.thumbnailPath.matches(
+          "^users/" + userId + "/uploads/images/[^/]+$"
+        )
+      );
+  }
+
   function validBasePayload() {
     return allowedKeys()
       && requiredKeys()
@@ -2414,6 +2477,7 @@ match /users/{userId}/videos/{videoId} {
       && request.resource.data.ownerUid == userId
       && validText("url", 2048)
       && validText("path", 1024)
+      && validOwnedVideoPath()
       && validText("fileName", 240)
       && validMimeType()
       && request.resource.data.sizeBytes is number
@@ -2421,6 +2485,7 @@ match /users/{userId}/videos/{videoId} {
       && request.resource.data.sizeBytes <= 524288000
       && validNumberOrNull("durationMs")
       && validTextOrNull("thumbnailUrl", 2048)
+      && validOwnedPosterPath()
       && validStatus();
   }
 
@@ -2446,6 +2511,7 @@ match /users/{userId}/videos/{videoId} {
         "status",
         "durationMs",
         "thumbnailUrl",
+        "thumbnailPath",
         "updatedAt"
       ]);
   }
@@ -2458,7 +2524,7 @@ match /users/{userId}/videos/{videoId} {
   allow update: if isSelf(userId)
     && validUpdatePayload();
 
-  allow delete: if isSelf(userId);
+  allow delete: if false;
 }
 // ===============================================================
 //                         FIM DO USERS / VIDEOS
@@ -2485,6 +2551,28 @@ match /users/{userId}/photo_publications/{photoId} {
 
 // ==============================================================
 //           FIM DO USERS_PHOTO_PUBLICATIONS.RULES
+// ==============================================================
+
+// ===== users_video_publications.rules =====
+// ==============================================================
+// USERS / video_publications
+//
+// Configuração privada de publicação dos vídeos.
+//
+// Segurança:
+// - o dono pode ler o estado da própria publicação;
+// - publicação, moderação, métricas e caminhos físicos são alterados
+//   exclusivamente por Cloud Functions auditáveis;
+// - o cliente não escreve nem remove configuração de publicação.
+// ==============================================================
+
+match /users/{userId}/video_publications/{videoId} {
+  allow get, list: if isSelf(userId);
+  allow create, update, delete: if false;
+}
+
+// ==============================================================
+//           FIM DO USERS_VIDEO_PUBLICATIONS.RULES
 // ==============================================================
 
 // ===== users_blocks.rules =====
