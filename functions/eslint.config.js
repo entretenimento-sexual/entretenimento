@@ -1,4 +1,4 @@
-// functions/eslint.config.js  (CommonJS, compatível com Node 18)
+// functions/eslint.config.js  (CommonJS, compatível com Node 22)
 const js = require("@eslint/js");
 
 module.exports = [
@@ -14,19 +14,18 @@ module.exports = [
         ecmaVersion: "latest",
       },
     },
-    // NÃO registramos o plugin @typescript-eslint aqui
     rules: {
-      // Base recomendada JS
+      // Base recomendada JS.
       ...js.configs.recommended.rules,
 
-      // Use a regra CORE (não a do plugin) com opções explícitas
+      // Usa a regra core com opções explícitas; o plugin TS não é necessário.
       "no-unused-expressions": ["error", {
         allowShortCircuit: true,
         allowTernary: true,
         allowTaggedTemplates: true,
       }],
 
-      // Estilo
+      // Estilo.
       "quotes": ["error", "single", {
         avoidEscape: true,
         allowTemplateLiterals: true,
@@ -34,7 +33,7 @@ module.exports = [
       "indent": ["error", 2],
       "max-len": ["error", { code: 120 }],
       "linebreak-style": "off",
-      "no-undef": "off", // evita falsos-positivos com tipos TS
+      "no-undef": "off", // Evita falsos positivos com tipos TypeScript.
     },
   },
 ];
