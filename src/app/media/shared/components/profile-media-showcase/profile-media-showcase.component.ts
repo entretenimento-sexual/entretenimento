@@ -38,7 +38,7 @@ import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/g
 import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
 import type { IProfilePhotoItem } from '../../../photos/photo-viewer/photo-viewer.component';
 
- type ProfileMediaShowcaseStatus = 'loading' | 'ready' | 'empty' | 'error';
+type ProfileMediaShowcaseStatus = 'loading' | 'ready' | 'empty' | 'error';
 
 interface ProfileMediaShowcaseState {
   status: ProfileMediaShowcaseStatus;
@@ -194,6 +194,10 @@ export class ProfileMediaShowcaseComponent {
 
   isVideo(item: IPublicProfileMediaItem): item is IPublicVideoItem {
     return isPublicVideoItem(item);
+  }
+
+  isCover(item: IPublicProfileMediaItem): boolean {
+    return isPublicPhotoItem(item) && item.isCover === true;
   }
 
   getMediaAriaLabel(
