@@ -64,6 +64,25 @@ function safeNumber(value: unknown): number {
     : 0;
 }
 
+function assertPublicApprovedPhoto(
+  exists: boolean,
+  data: FirebaseFirestore.DocumentData | undefined
+): void {
+  if (!exists) {
+    throw new HttpsError('not-found', 'Foto pública não encontrada.');
+  }
+
+  if (
+    data?.visibility !== 'PUBLIC' ||
+    data?.moderationStatus !== 'APPROVED'
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Foto indisponível para visualização pública.'
+    );
+  }
+}
+
 function calculateViewScore(input: {
   viewsCount: number;
   uniqueViewersCount: number;
@@ -104,6 +123,21 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
       };
     }
 
+    const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
+    const publicPhotoRef = db.doc(
+      `public_profiles/${ownerUid}/public_photos/${photoId}`
+    );
+
+    /**
+     * Preflight barato: impede que um photoId inexistente acione o backfill
+     * histórico do perfil. A transação revalida o documento depois.
+     */
+    const preflightPhotoSnapshot = await publicPhotoRef.get();
+    assertPublicApprovedPhoto(
+      preflightPhotoSnapshot.exists,
+      preflightPhotoSnapshot.data()
+    );
+
     /**
      * Migração lazy e idempotente. Executa leitura histórica apenas enquanto o
      * perfil ainda não possui o índice canônico versionado.
@@ -111,10 +145,6 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
     await ensurePublicProfileViewerIndex(ownerUid);
 
     const now = Date.now();
-    const publicProfileRef = db.doc(`public_profiles/${ownerUid}`);
-    const publicPhotoRef = db.doc(
-      `public_profiles/${ownerUid}/public_photos/${photoId}`
-    );
     const photoViewerRef = publicPhotoRef.collection('views').doc(viewerUid);
     const profileViewerRef = publicProfileRef
       .collection(PROFILE_VIEWERS_COLLECTION)
@@ -130,24 +160,15 @@ export const recordPhotoView = onCall<RecordPhotoViewRequest>(
         throw new HttpsError('not-found', 'Perfil público não encontrado.');
       }
 
-      if (!publicPhotoSnap.exists) {
-        throw new HttpsError('not-found', 'Foto pública não encontrada.');
-      }
+      assertPublicApprovedPhoto(
+        publicPhotoSnap.exists,
+        publicPhotoSnap.data()
+      );
 
       const publicProfile = publicProfileSnap.data() ?? {};
       const publicPhoto = publicPhotoSnap.data() ?? {};
       const photoViewerData = photoViewerSnap.data() ?? {};
       const profileViewerData = profileViewerSnap.data() ?? {};
-
-      if (
-        publicPhoto.visibility !== 'PUBLIC' ||
-        publicPhoto.moderationStatus !== 'APPROVED'
-      ) {
-        throw new HttpsError(
-          'failed-precondition',
-          'Foto indisponível para visualização pública.'
-        );
-      }
 
       const isUniquePhotoViewer = !photoViewerSnap.exists;
       const isUniqueProfileViewer = !profileViewerSnap.exists;
