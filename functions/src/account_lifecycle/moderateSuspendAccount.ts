@@ -7,7 +7,6 @@ import {
   assertStaffAuthorization,
   createLifecycleAudit,
   getNicknameIndexDocId,
-  normalizeOptionalReason,
   normalizeRequiredReason,
 } from './_shared';
 
