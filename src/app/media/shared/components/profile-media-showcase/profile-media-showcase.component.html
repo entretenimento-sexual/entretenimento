@@ -9,15 +9,20 @@
         <span class="profile-media-showcase__eyebrow">Mídias públicas</span>
         <h2 id="profile-media-showcase-title">Galeria de {{ profileName() }}</h2>
         <p>
-          Fotos aprovadas que este perfil escolheu compartilhar. Abra uma mídia
-          para navegar sem sair do perfil.
+          Fotos e vídeos aprovados que este perfil escolheu compartilhar. Abra
+          uma mídia para visualizar sem sair do perfil.
         </p>
       </div>
 
       @if (state.status === 'ready') {
         <div class="profile-media-showcase__summary" aria-live="polite">
           <strong>{{ state.items.length }}</strong>
-          <span>{{ state.items.length === 1 ? 'foto' : 'fotos' }}</span>
+          <span>{{ state.items.length === 1 ? 'mídia' : 'mídias' }}</span>
+          <small>
+            {{ state.photosCount }} {{ state.photosCount === 1 ? 'foto' : 'fotos' }}
+            ·
+            {{ state.videosCount }} {{ state.videosCount === 1 ? 'vídeo' : 'vídeos' }}
+          </small>
         </div>
       }
     </header>
@@ -57,10 +62,10 @@
 
       @case ('empty') {
         <div class="profile-media-showcase__state" role="status" aria-live="polite">
-          <i class="fas fa-images" aria-hidden="true"></i>
+          <i class="fas fa-photo-film" aria-hidden="true"></i>
           <div>
-            <h3>Nenhuma foto pública aprovada</h3>
-            <p>Este perfil ainda não disponibilizou mídias para visitantes.</p>
+            <h3>Nenhuma mídia pública aprovada</h3>
+            <p>Este perfil ainda não disponibilizou fotos ou vídeos para visitantes.</p>
           </div>
         </div>
       }
@@ -76,27 +81,50 @@
         >
           @for (
             item of visibleItems(state.items);
-            track trackByPhotoId($index, item);
+            track trackByMediaId($index, item);
             let index = $index
           ) {
             <button
               type="button"
               class="profile-media-showcase__item"
               [class.profile-media-showcase__item--featured]="index === 0"
-              [class.profile-media-showcase__item--cover]="item.isCover === true"
-              (click)="openPhoto(item.id, index)"
+              [class.profile-media-showcase__item--cover]="isCover(item)"
+              [class.profile-media-showcase__item--video]="isVideo(item)"
+              (click)="openMedia(item, index)"
               [disabled]="viewerOpening()"
               [attr.aria-busy]="viewerOpening() ? 'true' : 'false'"
-              [attr.aria-label]="getPhotoAriaLabel(item, index, state.items.length)"
+              [attr.aria-label]="getMediaAriaLabel(item, index, state.items.length)"
             >
-              <img
-                [src]="item.url"
-                [alt]="item.alt || 'Foto pública do perfil'"
-                [attr.loading]="index === 0 ? 'eager' : 'lazy'"
-                [attr.fetchpriority]="index === 0 ? 'high' : null"
-                decoding="async"
-                referrerpolicy="no-referrer"
-              />
+              @if (isVideo(item)) {
+                @if (item.posterUrl) {
+                  <img
+                    [src]="item.posterUrl"
+                    [alt]="item.alt || item.title || 'Poster do vídeo público'"
+                    [attr.loading]="index === 0 ? 'eager' : 'lazy'"
+                    [attr.fetchpriority]="index === 0 ? 'high' : null"
+                    decoding="async"
+                    referrerpolicy="no-referrer"
+                  />
+                } @else {
+                  <span class="profile-media-showcase__video-placeholder" aria-hidden="true">
+                    <i class="fas fa-film"></i>
+                  </span>
+                }
+
+                <span class="profile-media-showcase__video-badge" aria-hidden="true">
+                  <i class="fas fa-play"></i>
+                  {{ formatDuration(item.durationMs) }}
+                </span>
+              } @else {
+                <img
+                  [src]="item.url"
+                  [alt]="item.alt || 'Foto pública do perfil'"
+                  [attr.loading]="index === 0 ? 'eager' : 'lazy'"
+                  [attr.fetchpriority]="index === 0 ? 'high' : null"
+                  decoding="async"
+                  referrerpolicy="no-referrer"
+                />
+              }
 
               <span class="profile-media-showcase__item-gradient" aria-hidden="true"></span>
 
@@ -107,7 +135,7 @@
                 </span>
               }
 
-              @if (item.isCover) {
+              @if (isCover(item)) {
                 <span class="profile-media-showcase__cover-label">
                   <i class="fas fa-star" aria-hidden="true"></i>
                   Capa
@@ -126,16 +154,18 @@
         <footer class="profile-media-showcase__footer app-card__footer">
           <p>
             <i class="fas fa-hand-pointer" aria-hidden="true"></i>
-            Toque em uma foto ou use Enter para abrir o visualizador imersivo.
+            Toque em uma mídia ou use Enter para abrir o visualizador imersivo.
           </p>
 
-          <a
-            class="profile-media-showcase__gallery-link app-action app-action--primary"
-            [routerLink]="galleryLink()"
-          >
-            <i class="fas fa-images" aria-hidden="true"></i>
-            <span>Ver galeria completa</span>
-          </a>
+          @if (state.photosCount > 0) {
+            <a
+              class="profile-media-showcase__gallery-link app-action app-action--primary"
+              [routerLink]="photoGalleryLink()"
+            >
+              <i class="fas fa-images" aria-hidden="true"></i>
+              <span>Ver todas as fotos</span>
+            </a>
+          }
 
           <ng-content select="[profile-media-footer]"></ng-content>
         </footer>
