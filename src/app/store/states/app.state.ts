@@ -15,6 +15,7 @@ import { nearbyProfilesReducer } from '../reducers/reducers.location/nearby-prof
 import { cacheReducer } from '../reducers/cache.reducer';
 import { friendsPaginationReducer } from '../reducers/reducers.interactions/friends-pagination.reducer';
 import { friendsReducer } from '../reducers/reducers.interactions/friends.reducer';
+import { discoveryFeedReducer } from '../reducers/reducers.discovery/discovery-feed.reducer';
 
 export interface AppState {
   // USER DOMAIN
@@ -34,18 +35,18 @@ export interface AppState {
   location: ReturnType<typeof locationReducer>;
   nearbyProfiles: ReturnType<typeof nearbyProfilesReducer>;
 
+  // DISCOVERY DOMAIN
+  discoveryFeeds: ReturnType<typeof discoveryFeedReducer>;
+
   // CACHE
   cache: ReturnType<typeof cacheReducer>;
 
-  // ✅ agora existe de verdade no AppState
+  // INTERACTIONS DOMAIN
   interactions_friends: ReturnType<typeof friendsReducer>;
 }
-/*CurrentUserStore manda no IUserDados
-qualquer UID fora disso vira derivado / compat
 
-// ainda está sendo usado em alguns lugares e precisa ser migrado.
-Ferramentas de debug ajudam bastante
-É assim que funcionam as grandes plataformas?
-Compatibilizar o estado online do usuário com o presence.service e aproximar do funcionamento ideal
+/*
+CurrentUserStore manda no IUserDados.
+Qualquer UID fora disso vira derivado / compat.
+Alguns fluxos legados ainda precisam ser migrados.
 */
-
