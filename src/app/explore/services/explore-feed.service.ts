@@ -1,16 +1,46 @@
-//src\app\explore\services\explore-feed.service.ts
-import { Injectable, inject } from '@angular/core';
+// src/app/explore/services/explore-feed.service.ts
+// -----------------------------------------------------------------------------
+// Feed social da área Explorar.
+//
+// Responsabilidades:
+// - compor seções públicas de mídia;
+// - enriquecer mídias apenas com projeções públicas dos proprietários;
+// - consumir perfis compatíveis pela Discovery V2 paginada/NgRx;
+// - não carregar integralmente public_profiles.
+// -----------------------------------------------------------------------------
+
+import { DestroyRef, Injectable, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Store } from '@ngrx/store';
 import { combineLatest, Observable, of } from 'rxjs';
-import { map, shareReplay, switchMap } from 'rxjs/operators';
+import {
+  distinctUntilChanged,
+  map,
+  shareReplay,
+  switchMap,
+} from 'rxjs/operators';
 
 import { IPublicPhotoItem } from 'src/app/core/interfaces/media/i-public-photo-item';
-import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
-import { IExploreSection } from '../models/i-explore-section';
-import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
 import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
-import { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-profile-card.model';
-import { DiscoveryCardEnrichmentService } from 'src/app/dashboard/discovery/application/discovery-card-enrichment.service';
+import { AccessControlService } from 'src/app/core/services/autentication/auth/access-control.service';
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
+import { UserDiscoveryQueryService } from 'src/app/core/services/data-handling/queries/user-discovery.query.service';
+import { MediaPublicQueryService } from 'src/app/core/services/media/media-public-query.service';
+import { DiscoveryCardEnrichmentService } from 'src/app/dashboard/discovery/application/discovery-card-enrichment.service';
+import {
+  DiscoveryFeedRequest,
+  buildDiscoveryFeedQueryKey,
+} from 'src/app/dashboard/discovery/models/discovery-feed-page.model';
+import { PublicProfileCard } from 'src/app/dashboard/discovery/models/public-profile-card.model';
+import * as DiscoveryActions from 'src/app/store/actions/actions.discovery/discovery-feed.actions';
+import { selectDiscoveryFeedSlice } from 'src/app/store/selectors/selectors.discovery/discovery-feed.selectors';
+import { AppState } from 'src/app/store/states/app.state';
+import { emptyDiscoveryFeedSlice } from 'src/app/store/states/states.discovery/discovery-feed.state';
+
+import { IExploreSection } from '../models/i-explore-section';
+
+const EXPLORE_COMPATIBLE_PAGE_SIZE = 24;
+const EXPLORE_COMPATIBLE_VISIBLE_LIMIT = 6;
 
 export interface IExploreFeedVm {
   readonly boostedPhotos: readonly IPublicPhotoItem[];
@@ -25,61 +55,112 @@ export interface IExploreFeedVm {
 
 @Injectable({ providedIn: 'root' })
 export class ExploreFeedService {
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly store = inject(Store<AppState>);
   private readonly mediaPublicQuery = inject(MediaPublicQueryService);
   private readonly discoveryQuery = inject(UserDiscoveryQueryService);
+  private readonly accessControl = inject(AccessControlService);
   private readonly currentUserStore = inject(CurrentUserStoreService);
   private readonly cardEnrichment = inject(DiscoveryCardEnrichmentService);
 
-  readonly boostedPhotos$: Observable<IPublicPhotoItem[]> = this.mediaPublicQuery
-  .getBoostedPublicPhotos$(8)
-  .pipe(
-    switchMap((photos) => this.enrichPublicPhotos$(photos)),
+  /**
+   * Consulta independente do modo "Todos".
+   *
+   * A chave inclui viewer, modo e tamanho, portanto as duas superfícies podem
+   * compartilhar o mesmo slice NgRx sem misturar páginas ou cache.
+   */
+  private readonly compatibleRequest$: Observable<DiscoveryFeedRequest | null> =
+    combineLatest([
+      this.accessControl.authUid$,
+      this.accessControl.canRunApp$,
+    ]).pipe(
+      map(([uid, canRunApp]) => {
+        const viewerUid = this.toNullableText(uid);
+
+        if (!viewerUid || !canRunApp) {
+          return null;
+        }
+
+        return {
+          viewerUid,
+          mode: 'compatible' as const,
+          pageSize: EXPLORE_COMPATIBLE_PAGE_SIZE,
+        };
+      }),
+      distinctUntilChanged(
+        (previous, current) =>
+          this.requestKey(previous) === this.requestKey(current)
+      ),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  private readonly compatibleFeedSlice$ = this.compatibleRequest$.pipe(
+    switchMap((request) => {
+      if (!request) {
+        return of(emptyDiscoveryFeedSlice);
+      }
+
+      return this.store.select(
+        selectDiscoveryFeedSlice(buildDiscoveryFeedQueryKey(request))
+      );
+    }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-readonly topPhotos$: Observable<IPublicPhotoItem[]> = this.mediaPublicQuery
-  .getTopPublicPhotos$(12)
-  .pipe(
-    switchMap((photos) => this.enrichPublicPhotos$(photos)),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly boostedPhotos$: Observable<IPublicPhotoItem[]> =
+    this.mediaPublicQuery.getBoostedPublicPhotos$(8).pipe(
+      switchMap((photos) => this.enrichPublicPhotos$(photos)),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
-private readonly publicPool$: Observable<IPublicPhotoItem[]> = this.mediaPublicQuery
-  .getLatestPublicPhotos$(48)
-  .pipe(
-    switchMap((photos) => this.enrichPublicPhotos$(photos)),
-    shareReplay({ bufferSize: 1, refCount: true })
-  );
+  readonly topPhotos$: Observable<IPublicPhotoItem[]> =
+    this.mediaPublicQuery.getTopPublicPhotos$(12).pipe(
+      switchMap((photos) => this.enrichPublicPhotos$(photos)),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
 
+  private readonly publicPool$: Observable<IPublicPhotoItem[]> =
+    this.mediaPublicQuery.getLatestPublicPhotos$(48).pipe(
+      switchMap((photos) => this.enrichPublicPhotos$(photos)),
+      shareReplay({ bufferSize: 1, refCount: true })
+    );
+
+  /**
+   * O Explore mostra no máximo seis perfis, mas a fonte é uma página limitada
+   * de 24 candidatos canônicos. O pipeline existente continua decidindo
+   * compatibilidade mútua, visibilidade e ranking.
+   */
   readonly compatibleProfiles$: Observable<PublicProfileCard[]> = combineLatest([
-  this.discoveryQuery.getAllUsers$(),
-  this.currentUserStore.user$,
-]).pipe(
-  map(([profiles, currentUser]) => {
-    if (!currentUser?.uid) {
-      return [];
-    }
+    this.compatibleRequest$,
+    this.compatibleFeedSlice$,
+    this.currentUserStore.user$,
+  ]).pipe(
+    map(([request, slice, currentUser]) => {
+      if (!request || !currentUser?.uid) {
+        return [];
+      }
 
-    const result = this.cardEnrichment.buildCardsResult({
-      profiles: profiles ?? [],
-      currentUser,
-      currentUid: currentUser.uid,
-      mode: 'compatible',
-      applyVisibility: true,
-    });
+      const profiles = slice.items as unknown as readonly IUserDados[];
+      const result = this.cardEnrichment.buildCardsResult({
+        profiles,
+        currentUser,
+        currentUid: request.viewerUid,
+        mode: request.mode,
+        applyVisibility: true,
+      });
 
-    return result.profiles.slice(0, 6);
-  }),
-  shareReplay({ bufferSize: 1, refCount: true })
-);
+      return result.profiles.slice(0, EXPLORE_COMPATIBLE_VISIBLE_LIMIT);
+    }),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   readonly vm$: Observable<IExploreFeedVm> = combineLatest([
-  this.boostedPhotos$,
-  this.topPhotos$,
-  this.publicPool$,
-  this.compatibleProfiles$,
-]).pipe(
-  map(([boostedPhotos, topPhotos, publicPool, compatibleProfiles]) => {
+    this.boostedPhotos$,
+    this.topPhotos$,
+    this.publicPool$,
+    this.compatibleProfiles$,
+  ]).pipe(
+    map(([boostedPhotos, topPhotos, publicPool, compatibleProfiles]) => {
       const latestPhotos = this.rankByPublishedAt(publicPool).slice(0, 16);
 
       const safeTopPhotos =
@@ -95,7 +176,7 @@ private readonly publicPool$: Observable<IPublicPhotoItem[]> = this.mediaPublicQ
           kind: 'photos',
           eyebrow: 'Turbo',
           title: 'Fotos turbinadas',
-          description: 'Publicações impulsionadas artificialmente por destaque pago.',
+          description: 'Publicações impulsionadas por destaque pago.',
           note: 'Impulsionadas',
           items: boostedPhotos,
           routeCommands: ['/media', 'fotos-turbinadas'],
@@ -134,14 +215,16 @@ private readonly publicPool$: Observable<IPublicPhotoItem[]> = this.mediaPublicQ
         },
       ];
 
-      const visibleSections = sections.filter((section) => section.items.length > 0);
+      const visibleSections = sections.filter(
+        (section) => section.items.length > 0
+      );
 
       const totalItems =
-          compatibleProfiles.length +
-          visibleSections.reduce(
-            (total, section) => total + section.items.length,
-            0
-          );
+        compatibleProfiles.length +
+        visibleSections.reduce(
+          (total, section) => total + section.items.length,
+          0
+        );
 
       return {
         boostedPhotos,
@@ -157,13 +240,31 @@ private readonly publicPool$: Observable<IPublicPhotoItem[]> = this.mediaPublicQ
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  private rankByPublishedAt(items: readonly IPublicPhotoItem[]): IPublicPhotoItem[] {
+  constructor() {
+    this.compatibleRequest$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((request) => {
+        if (!request) {
+          return;
+        }
+
+        this.store.dispatch(
+          DiscoveryActions.loadDiscoveryFirstPage({ request })
+        );
+      });
+  }
+
+  private rankByPublishedAt(
+    items: readonly IPublicPhotoItem[]
+  ): IPublicPhotoItem[] {
     return [...items].sort(
       (a, b) => this.toNumber(b.publishedAt) - this.toNumber(a.publishedAt)
     );
   }
 
-  private rankByEngagement(items: readonly IPublicPhotoItem[]): IPublicPhotoItem[] {
+  private rankByEngagement(
+    items: readonly IPublicPhotoItem[]
+  ): IPublicPhotoItem[] {
     return [...items].sort((a, b) => {
       const diff = this.getEngagementScore(b) - this.getEngagementScore(a);
 
@@ -177,7 +278,9 @@ private readonly publicPool$: Observable<IPublicPhotoItem[]> = this.mediaPublicQ
 
   private rankByViews(items: readonly IPublicPhotoItem[]): IPublicPhotoItem[] {
     const hasViewMetrics = items.some(
-      (item) => this.toNumber(item.viewsCount) > 0 || this.toNumber(item.viewScore) > 0
+      (item) =>
+        this.toNumber(item.viewsCount) > 0 ||
+        this.toNumber(item.viewScore) > 0
     );
 
     if (!hasViewMetrics) {
@@ -224,57 +327,76 @@ private readonly publicPool$: Observable<IPublicPhotoItem[]> = this.mediaPublicQ
   }
 
   private enrichPublicPhotos$(
-  photos: readonly IPublicPhotoItem[]
-): Observable<IPublicPhotoItem[]> {
-  const ownerUids = Array.from(
-    new Set(
-      (photos ?? [])
-        .map((photo) => photo.ownerUid)
-        .filter((uid): uid is string => typeof uid === 'string' && uid.trim().length > 0)
-    )
-  );
+    photos: readonly IPublicPhotoItem[]
+  ): Observable<IPublicPhotoItem[]> {
+    const ownerUids = Array.from(
+      new Set(
+        (photos ?? [])
+          .map((photo) => photo.ownerUid)
+          .filter(
+            (uid): uid is string =>
+              typeof uid === 'string' && uid.trim().length > 0
+          )
+      )
+    );
 
-  if (!ownerUids.length) {
-    return of([...(photos ?? [])]);
-  }
+    if (!ownerUids.length) {
+      return of([...(photos ?? [])]);
+    }
 
-  return this.discoveryQuery.getProfilesByUids$(ownerUids, {
-    cacheTTL: 300_000,
-  }).pipe(
-    map((profiles) => {
-      const byUid = new Map<string, IUserDados>();
+    return this.discoveryQuery
+      .getProfilesByUids$(ownerUids, { cacheTTL: 300_000 })
+      .pipe(
+        map((profiles) => {
+          const byUid = new Map<string, IUserDados>();
 
-      for (const profile of profiles ?? []) {
-        if (profile?.uid) {
-          byUid.set(profile.uid, profile);
-        }
-      }
+          for (const profile of profiles ?? []) {
+            if (profile?.uid) {
+              byUid.set(profile.uid, profile);
+            }
+          }
 
-      return (photos ?? []).map((photo) =>
-        this.withOwnerProfile(photo, byUid.get(photo.ownerUid) ?? null)
+          return (photos ?? []).map((photo) =>
+            this.withOwnerProfile(
+              photo,
+              byUid.get(photo.ownerUid) ?? null
+            )
+          );
+        })
       );
-    })
-  );
-}
-
-private withOwnerProfile(
-  photo: IPublicPhotoItem,
-  owner: IUserDados | null
-): IPublicPhotoItem {
-  if (!owner) {
-    return photo;
   }
 
-  return {
-    ...photo,
-    ownerNickname: owner.nickname ?? null,
-    ownerPhotoURL: owner.photoURL ?? null,
-    ownerGender: owner.gender ?? null,
-    ownerOrientation: owner.orientation ?? null,
-    ownerMunicipio: owner.municipio ?? null,
-    ownerEstado: owner.estado ?? null,
-  };
-}
+  private withOwnerProfile(
+    photo: IPublicPhotoItem,
+    owner: IUserDados | null
+  ): IPublicPhotoItem {
+    if (!owner) {
+      return photo;
+    }
+
+    return {
+      ...photo,
+      ownerNickname: owner.nickname ?? null,
+      ownerPhotoURL: owner.photoURL ?? null,
+      ownerGender: owner.gender ?? null,
+      ownerOrientation: owner.orientation ?? null,
+      ownerMunicipio: owner.municipio ?? null,
+      ownerEstado: owner.estado ?? null,
+    };
+  }
+
+  private requestKey(request: DiscoveryFeedRequest | null): string {
+    return request ? buildDiscoveryFeedQueryKey(request) : 'none';
+  }
+
+  private toNullableText(value: unknown): string | null {
+    if (typeof value !== 'string') {
+      return null;
+    }
+
+    const text = value.trim();
+    return text.length ? text : null;
+  }
 
   private toNumber(value: unknown): number {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
