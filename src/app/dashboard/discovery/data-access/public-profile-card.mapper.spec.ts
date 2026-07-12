@@ -23,6 +23,8 @@ describe('public-profile-card.mapper', () => {
       publicPhotosCount: 3,
       publicVideosCount: 1,
       profileViewsCount: 20,
+      profileUniqueViewersCount: 7,
+      mediaUniqueViewersCount: 11,
       publicLikesCount: 5,
       updatedAt: {
         seconds: 1_700_000_000,
@@ -44,9 +46,24 @@ describe('public-profile-card.mapper', () => {
       photosCount: 3,
       videosCount: 1,
       viewsCount: 20,
+      profileUniqueViewersCount: 7,
+      uniqueViewersCount: 7,
+      mediaUniqueViewersCount: 11,
       likesCount: 5,
       updatedAt: 1_700_000_000_500,
     });
+  });
+
+  it('deve priorizar o contador único do perfil sobre o alias legado', () => {
+    const card = mapPublicProfileCard({
+      uid: 'profile-viewers',
+      nickname: 'Audiência',
+      profileUniqueViewersCount: 3,
+      uniqueViewersCount: 9,
+    });
+
+    expect(card?.profileUniqueViewersCount).toBe(3);
+    expect(card?.uniqueViewersCount).toBe(3);
   });
 
   it('deve remover duplicidades das preferências públicas', () => {
@@ -68,8 +85,10 @@ describe('public-profile-card.mapper', () => {
       1_700_000_000_000
     );
 
-    expect(toSerializableEpoch({
-      toMillis: () => 1_710_000_000_000,
-    })).toBe(1_710_000_000_000);
+    expect(
+      toSerializableEpoch({
+        toMillis: () => 1_710_000_000_000,
+      })
+    ).toBe(1_710_000_000_000);
   });
 });
