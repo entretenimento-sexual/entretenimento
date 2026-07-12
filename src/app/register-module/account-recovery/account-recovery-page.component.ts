@@ -13,6 +13,7 @@ import {
   timeout,
 } from 'rxjs/operators';
 
+import { IUserDados } from 'src/app/core/interfaces/iuser-dados';
 import { LogoutService } from 'src/app/core/services/autentication/auth/logout.service';
 import { RegistrationRecoveryService } from 'src/app/core/services/autentication/register/registration-recovery.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
@@ -34,7 +35,7 @@ export class AccountRecoveryPageComponent implements OnInit {
   readonly status = signal<RecoveryStatus>('working');
   readonly isWorking = signal(false);
   readonly message = signal(
-    'Estamos reconstruindo os dados básicos da sua conta com segurança.'
+    'Estamos confirmando os dados básicos da sua conta com segurança.'
   );
 
   constructor(
@@ -58,13 +59,19 @@ export class AccountRecoveryPageComponent implements OnInit {
     this.isWorking.set(true);
     this.status.set('working');
     this.message.set(
-      'Estamos reconstruindo os dados básicos da sua conta com segurança.'
+      'Estamos confirmando os dados básicos da sua conta com segurança.'
     );
 
     this.recovery.recoverCurrentRegistration$()
       .pipe(
-        switchMap(({ user }) =>
-          this.registerFlow.vm$.pipe(
+        switchMap(({ user }) => {
+          const lifecycleRoute = this.resolveAccountLifecycleRoute(user);
+
+          if (lifecycleRoute) {
+            return of(lifecycleRoute);
+          }
+
+          return this.registerFlow.vm$.pipe(
             filter(
               (vm) =>
                 vm.uid === user.uid &&
@@ -78,15 +85,15 @@ export class AccountRecoveryPageComponent implements OnInit {
               with: () => of(null as RegisterFlowVm | null),
             }),
             map((vm) => this.resolveNextRoute(vm, user.uid))
-          )
-        ),
+          );
+        }),
         catchError(() => {
           this.status.set('error');
           this.message.set(
-            'Não foi possível recuperar os dados da conta agora. Verifique a conexão e tente novamente.'
+            'Não foi possível confirmar os dados da conta agora. Verifique a conexão e tente novamente.'
           );
           this.errorNotifier.showError(
-            'Falha ao recuperar os dados da conta. Tente novamente.'
+            'Falha ao confirmar os dados da conta. Tente novamente.'
           );
           return EMPTY;
         }),
@@ -96,12 +103,12 @@ export class AccountRecoveryPageComponent implements OnInit {
       )
       .subscribe((target) => {
         this.status.set('success');
-        this.message.set('Dados recuperados. Continuando seu cadastro…');
+        this.message.set('Dados da conta confirmados. Continuando…');
 
         this.router.navigateByUrl(target, { replaceUrl: true }).catch(() => {
           this.status.set('error');
           this.message.set(
-            'Os dados foram recuperados, mas não foi possível abrir a próxima etapa.'
+            'Os dados foram confirmados, mas não foi possível abrir a próxima etapa.'
           );
         });
       });
@@ -166,6 +173,28 @@ export class AccountRecoveryPageComponent implements OnInit {
           ? vm.nextRoute
           : this.buildTermsRoute(redirectTo ?? preferencesRoute);
     }
+  }
+
+  private resolveAccountLifecycleRoute(user: IUserDados): string | null {
+    const status = String(user?.accountStatus ?? '').trim().toLowerCase();
+
+    if (status === 'deleted') {
+      return '/conta/status?reason=deleted';
+    }
+
+    if (
+      status === 'self_suspended' ||
+      status === 'moderation_suspended' ||
+      status === 'pending_deletion' ||
+      status === 'suspended' ||
+      status === 'locked' ||
+      user?.suspended === true ||
+      user?.accountLocked === true
+    ) {
+      return '/conta/status';
+    }
+
+    return null;
   }
 
   private buildTermsRoute(redirectTo: string): string {
