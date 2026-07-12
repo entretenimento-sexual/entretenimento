@@ -4,24 +4,18 @@
 // -----------------------------------------------------------------------------
 // Fonte canônica backend dos sinais públicos de mídia usados pelo discovery.
 //
-// Responsabilidade:
-// - agregar fotos públicas aprovadas;
-// - agregar vídeos públicos aprovados, quando a coleção existir;
-// - consolidar views, unique viewers, reações/likes e engagementScore;
-// - gravar os campos agregados em public_profiles/{uid};
-// - manter o front sem necessidade de varrer subcoleções para ranquear cards.
-//
-// Regra arquitetural:
-// - discovery-profile-score.utils.ts consome os agregados;
-// - DiscoveryCardEnrichmentService aplica o ranking;
-// - esta função é a fonte canônica de métricas públicas de mídia.
-//
-// Observação:
-// - public_videos é opcional neste momento. Se a subcoleção não existir, a query
-//   retorna vazia e videosCount permanece 0, sem quebrar o fluxo atual de fotos.
+// Regras importantes:
+// - uniqueViewersCount representa pessoas únicas do PERFIL;
+// - mediaUniqueViewersCount representa a soma de pessoas únicas por mídia;
+// - profile_viewers/{viewerUid} é um índice privado, determinístico e backend-only;
+// - dados legados são reconstruídos uma única vez antes da versão atual;
+// - nenhum documento de visualizador é enviado ao cliente ou ao NgRx.
 // -----------------------------------------------------------------------------
 
 import { db, FieldValue } from '../../firebaseApp';
+
+export const PROFILE_VIEWER_INDEX_VERSION = 1;
+export const PROFILE_VIEWERS_COLLECTION = 'profile_viewers';
 
 interface PublicMediaMetricDoc {
   id?: string;
@@ -38,11 +32,18 @@ interface PublicMediaMetricDoc {
 interface MediaMetricAggregate {
   count: number;
   viewsCount: number;
-  uniqueViewersCount: number;
+  mediaUniqueViewersCount: number;
   reactionsCount: number;
   aggregateViewScore: number;
   coverId: string | null;
   coverURL: string | null;
+}
+
+interface ProfileViewerAggregate {
+  viewerUid: string;
+  firstViewedAt: number;
+  lastViewedAt: number;
+  viewsCount: number;
 }
 
 function cleanId(value: unknown): string {
@@ -55,11 +56,35 @@ function safeNumber(value: unknown): number {
     : 0;
 }
 
+function safeInteger(value: unknown): number {
+  return Math.floor(safeNumber(value));
+}
+
+function toEpoch(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+
+  if (value instanceof Date) {
+    const epoch = value.getTime();
+    return Number.isFinite(epoch) ? Math.max(0, epoch) : 0;
+  }
+
+  const timestampLike = value as { toMillis?: () => number } | null | undefined;
+
+  if (typeof timestampLike?.toMillis === 'function') {
+    const epoch = timestampLike.toMillis();
+    return Number.isFinite(epoch) ? Math.max(0, Math.floor(epoch)) : 0;
+  }
+
+  return 0;
+}
+
 function emptyAggregate(): MediaMetricAggregate {
   return {
     count: 0,
     viewsCount: 0,
-    uniqueViewersCount: 0,
+    mediaUniqueViewersCount: 0,
     reactionsCount: 0,
     aggregateViewScore: 0,
     coverId: null,
@@ -74,7 +99,8 @@ function mergeAggregate(
   return {
     count: base.count + next.count,
     viewsCount: base.viewsCount + next.viewsCount,
-    uniqueViewersCount: base.uniqueViewersCount + next.uniqueViewersCount,
+    mediaUniqueViewersCount:
+      base.mediaUniqueViewersCount + next.mediaUniqueViewersCount,
     reactionsCount: base.reactionsCount + next.reactionsCount,
     aggregateViewScore: base.aggregateViewScore + next.aggregateViewScore,
     coverId: base.coverId ?? next.coverId,
@@ -82,7 +108,7 @@ function mergeAggregate(
   };
 }
 
-function calculateEngagementScore(input: {
+export function calculatePublicProfileEngagementScore(input: {
   mediaCount: number;
   photosCount: number;
   videosCount: number;
@@ -102,10 +128,14 @@ function calculateEngagementScore(input: {
   const mediaScore = Math.min(1, input.mediaCount / 10) * 20;
   const videoScore = Math.min(1, input.videosCount / 4) * 8;
   const viewScore = Math.min(1, Math.log10(input.viewsCount + 1) / 4) * 32;
-  const uniqueScore = Math.min(1, Math.log10(input.uniqueViewersCount + 1) / 4) * 24;
-  const reactionScore = Math.min(1, Math.log10(input.reactionsCount + 1) / 3) * 16;
+  const uniqueScore =
+    Math.min(1, Math.log10(input.uniqueViewersCount + 1) / 4) * 24;
+  const reactionScore =
+    Math.min(1, Math.log10(input.reactionsCount + 1) / 3) * 16;
 
-  return Math.round(mediaScore + videoScore + viewScore + uniqueScore + reactionScore);
+  return Math.round(
+    mediaScore + videoScore + viewScore + uniqueScore + reactionScore
+  );
 }
 
 async function aggregateApprovedPublicMedia(
@@ -123,8 +153,12 @@ async function aggregateApprovedPublicMedia(
 
     aggregate.count += 1;
     aggregate.viewsCount += safeNumber(item.viewsCount);
-    aggregate.uniqueViewersCount += safeNumber(item.uniqueViewersCount);
-    aggregate.reactionsCount += safeNumber(item.reactionsCount ?? item.likesCount);
+    aggregate.mediaUniqueViewersCount += safeNumber(
+      item.uniqueViewersCount
+    );
+    aggregate.reactionsCount += safeNumber(
+      item.reactionsCount ?? item.likesCount
+    );
     aggregate.aggregateViewScore += safeNumber(item.viewScore ?? item.score);
 
     if (item.isCover === true && !aggregate.coverId) {
@@ -136,7 +170,196 @@ async function aggregateApprovedPublicMedia(
   return aggregate;
 }
 
-export async function refreshPublicProfileMediaMetrics(ownerUid: string): Promise<void> {
+async function countProfileViewers(
+  publicProfileRef: FirebaseFirestore.DocumentReference
+): Promise<number> {
+  const countSnapshot = await publicProfileRef
+    .collection(PROFILE_VIEWERS_COLLECTION)
+    .count()
+    .get();
+
+  return safeInteger(countSnapshot.data().count);
+}
+
+async function collectLegacyProfileViewers(
+  ownerUid: string,
+  publicProfileRef: FirebaseFirestore.DocumentReference
+): Promise<Map<string, ProfileViewerAggregate>> {
+  const [photoSnapshot, videoSnapshot] = await Promise.all([
+    publicProfileRef.collection('public_photos').get(),
+    publicProfileRef.collection('public_videos').get(),
+  ]);
+
+  const mediaRefs = [
+    ...photoSnapshot.docs.map((document) => document.ref),
+    ...videoSnapshot.docs.map((document) => document.ref),
+  ];
+
+  const viewerSnapshots = await Promise.all(
+    mediaRefs.map((mediaRef) => mediaRef.collection('views').get())
+  );
+
+  const viewers = new Map<string, ProfileViewerAggregate>();
+
+  viewerSnapshots.forEach((snapshot) => {
+    snapshot.docs.forEach((document) => {
+      const data = document.data() ?? {};
+      const viewerUid = cleanId(data.viewerUid) || document.id;
+
+      if (!viewerUid || viewerUid === ownerUid) {
+        return;
+      }
+
+      const firstViewedAt =
+        toEpoch(data.firstViewedAt) ||
+        toEpoch(data.createdAt) ||
+        toEpoch(data.lastViewedAt);
+      const lastViewedAt =
+        toEpoch(data.lastViewedAt) ||
+        toEpoch(data.lastCountedAt) ||
+        firstViewedAt;
+      const viewsCount = Math.max(1, safeInteger(data.viewsCount));
+      const current = viewers.get(viewerUid);
+
+      if (!current) {
+        viewers.set(viewerUid, {
+          viewerUid,
+          firstViewedAt,
+          lastViewedAt,
+          viewsCount,
+        });
+        return;
+      }
+
+      viewers.set(viewerUid, {
+        viewerUid,
+        firstViewedAt:
+          current.firstViewedAt && firstViewedAt
+            ? Math.min(current.firstViewedAt, firstViewedAt)
+            : current.firstViewedAt || firstViewedAt,
+        lastViewedAt: Math.max(current.lastViewedAt, lastViewedAt),
+        viewsCount: current.viewsCount + viewsCount,
+      });
+    });
+  });
+
+  return viewers;
+}
+
+async function persistProfileViewerIndex(
+  ownerUid: string,
+  publicProfileRef: FirebaseFirestore.DocumentReference,
+  viewers: Map<string, ProfileViewerAggregate>
+): Promise<void> {
+  const entries = [...viewers.values()];
+  const batchSize = 400;
+
+  for (let index = 0; index < entries.length; index += batchSize) {
+    const batch = db.batch();
+
+    entries.slice(index, index + batchSize).forEach((viewer) => {
+      const viewerRef = publicProfileRef
+        .collection(PROFILE_VIEWERS_COLLECTION)
+        .doc(viewer.viewerUid);
+
+      batch.set(
+        viewerRef,
+        {
+          ownerUid,
+          viewerUid: viewer.viewerUid,
+          firstViewedAt: viewer.firstViewedAt,
+          lastViewedAt: viewer.lastViewedAt,
+          viewsCount: viewer.viewsCount,
+          indexVersion: PROFILE_VIEWER_INDEX_VERSION,
+          indexedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    });
+
+    await batch.commit();
+  }
+}
+
+/**
+ * Garante que a audiência única do perfil esteja indexada por viewerUid.
+ *
+ * O backfill é idempotente e protegido por versão. Em concorrência, somente a
+ * primeira execução que encontrar a versão antiga consolida o contador legado;
+ * as demais preservam incrementos mais recentes.
+ */
+export async function ensurePublicProfileViewerIndex(
+  ownerUid: string
+): Promise<number> {
+  const safeOwnerUid = cleanId(ownerUid);
+
+  if (!safeOwnerUid) {
+    return 0;
+  }
+
+  const publicProfileRef = db.doc(`public_profiles/${safeOwnerUid}`);
+  const profileSnapshot = await publicProfileRef.get();
+
+  if (!profileSnapshot.exists) {
+    return 0;
+  }
+
+  const currentVersion = safeInteger(
+    profileSnapshot.data()?.profileViewerIndexVersion
+  );
+
+  if (currentVersion >= PROFILE_VIEWER_INDEX_VERSION) {
+    return countProfileViewers(publicProfileRef);
+  }
+
+  const legacyViewers = await collectLegacyProfileViewers(
+    safeOwnerUid,
+    publicProfileRef
+  );
+
+  await persistProfileViewerIndex(
+    safeOwnerUid,
+    publicProfileRef,
+    legacyViewers
+  );
+
+  const indexedCount = await countProfileViewers(publicProfileRef);
+
+  await db.runTransaction(async (transaction) => {
+    const latestProfileSnapshot = await transaction.get(publicProfileRef);
+
+    if (!latestProfileSnapshot.exists) {
+      return;
+    }
+
+    const latestVersion = safeInteger(
+      latestProfileSnapshot.data()?.profileViewerIndexVersion
+    );
+
+    if (latestVersion >= PROFILE_VIEWER_INDEX_VERSION) {
+      return;
+    }
+
+    transaction.set(
+      publicProfileRef,
+      {
+        uniqueViewersCount: indexedCount,
+        profileUniqueViewersCount: indexedCount,
+        profileViewerIndexVersion: PROFILE_VIEWER_INDEX_VERSION,
+        profileViewerIndexBackfilledAt: FieldValue.serverTimestamp(),
+        mediaMetricsUpdatedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
+
+  return countProfileViewers(publicProfileRef);
+}
+
+export async function refreshPublicProfileMediaMetrics(
+  ownerUid: string
+): Promise<void> {
   const safeOwnerUid = cleanId(ownerUid);
 
   if (!safeOwnerUid) {
@@ -145,9 +368,10 @@ export async function refreshPublicProfileMediaMetrics(ownerUid: string): Promis
 
   const publicProfileRef = db.doc(`public_profiles/${safeOwnerUid}`);
 
-  const [photos, videos] = await Promise.all([
+  const [photos, videos, indexedUniqueViewersCount] = await Promise.all([
     aggregateApprovedPublicMedia(publicProfileRef.collection('public_photos')),
     aggregateApprovedPublicMedia(publicProfileRef.collection('public_videos')),
+    ensurePublicProfileViewerIndex(safeOwnerUid),
   ]);
 
   const total = mergeAggregate(photos, videos);
@@ -155,44 +379,67 @@ export async function refreshPublicProfileMediaMetrics(ownerUid: string): Promis
   const videosCount = videos.count;
   const mediaCount = photosCount + videosCount;
 
-  const engagementScore = calculateEngagementScore({
-    mediaCount,
-    photosCount,
-    videosCount,
-    viewsCount: total.viewsCount,
-    uniqueViewersCount: total.uniqueViewersCount,
-    reactionsCount: total.reactionsCount,
-  });
+  await db.runTransaction(async (transaction) => {
+    const profileSnapshot = await transaction.get(publicProfileRef);
 
-  await publicProfileRef.set(
-    {
+    if (!profileSnapshot.exists) {
+      return;
+    }
+
+    const profile = profileSnapshot.data() ?? {};
+    const currentUniqueViewersCount = safeInteger(
+      profile.profileUniqueViewersCount ?? profile.uniqueViewersCount
+    );
+    const uniqueViewersCount = Math.max(
+      currentUniqueViewersCount,
+      indexedUniqueViewersCount
+    );
+
+    const engagementScore = calculatePublicProfileEngagementScore({
       mediaCount,
-      publicMediaCount: mediaCount,
-
       photosCount,
-      publicPhotosCount: photosCount,
-
       videosCount,
-      publicVideosCount: videosCount,
-
       viewsCount: total.viewsCount,
-      profileViewsCount: total.viewsCount,
-      uniqueViewersCount: total.uniqueViewersCount,
+      uniqueViewersCount,
       reactionsCount: total.reactionsCount,
-      likesCount: total.reactionsCount,
-      publicLikesCount: total.reactionsCount,
+    });
 
-      viewScore: total.aggregateViewScore,
-      engagementScore,
+    transaction.set(
+      publicProfileRef,
+      {
+        mediaCount,
+        publicMediaCount: mediaCount,
 
-      coverPhotoId: photos.coverId,
-      coverPhotoURL: photos.coverURL,
-      coverVideoId: videos.coverId,
-      coverVideoURL: videos.coverURL,
+        photosCount,
+        publicPhotosCount: photosCount,
 
-      mediaMetricsUpdatedAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
-    },
-    { merge: true }
-  );
+        videosCount,
+        publicVideosCount: videosCount,
+
+        viewsCount: total.viewsCount,
+        profileViewsCount: total.viewsCount,
+
+        uniqueViewersCount,
+        profileUniqueViewersCount: uniqueViewersCount,
+        mediaUniqueViewersCount: total.mediaUniqueViewersCount,
+
+        reactionsCount: total.reactionsCount,
+        likesCount: total.reactionsCount,
+        publicLikesCount: total.reactionsCount,
+
+        viewScore: total.aggregateViewScore,
+        engagementScore,
+
+        coverPhotoId: photos.coverId,
+        coverPhotoURL: photos.coverURL,
+        coverVideoId: videos.coverId,
+        coverVideoURL: videos.coverURL,
+
+        profileViewerIndexVersion: PROFILE_VIEWER_INDEX_VERSION,
+        mediaMetricsUpdatedAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  });
 }
