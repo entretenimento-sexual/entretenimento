@@ -6,6 +6,7 @@ import {
   authSessionChanged,
   login,
   loginFailure,
+  loginSessionReady,
   loginStart,
   loginSuccess,
   logout,
@@ -85,13 +86,14 @@ export const authReducer = createReducer(
   })),
 
   /**
-   * loginSuccess:
-   * - não altera userId / isAuthenticated / emailVerified
+   * loginSuccess / loginSessionReady:
+   * - não alteram userId / isAuthenticated / emailVerified
    * - esses campos pertencem ao authSessionChanged
+   * - loginSessionReady representa sessão válida sem perfil confirmado
    *
    * Aqui apenas encerramos loading/erro.
    */
-  on(loginSuccess, (state): AuthState => ({
+  on(loginSuccess, loginSessionReady, (state): AuthState => ({
     ...state,
     loading: false,
     error: null,
