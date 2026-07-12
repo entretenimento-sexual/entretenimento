@@ -201,16 +201,21 @@ export class VideoUploadFlowService {
           const status = metadata.playbackReady ? 'ready' : 'uploaded';
           const fileName = this.normalizeDisplayFileName(file.name);
 
+          /**
+           * Persistimos somente paths privados. As URLs com token são usadas apenas
+           * no resultado efêmero desta operação e são regeneradas para o dono ao
+           * ler a biblioteca.
+           */
           await setDoc(videoRef, {
             id: videoId,
             ownerUid,
-            url: videoBinary.url,
+            url: videoBinary.path,
             path: videoBinary.path,
             fileName,
             mimeType: file.type,
             sizeBytes: file.size,
             durationMs: metadata.durationMs,
-            thumbnailUrl: posterBinary?.url ?? null,
+            thumbnailUrl: posterBinary?.path ?? null,
             thumbnailPath: posterBinary?.path ?? null,
             status,
             createdAt: serverTimestamp(),
