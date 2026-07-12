@@ -7,6 +7,7 @@
 // - este serviço atende apenas buscas específicas e hidratação por UID;
 // - nenhuma API carrega integralmente public_profiles;
 // - cache só é usado com chave determinística baseada nos valores da consulta;
+// - todo cache é separado por sessão autenticada e removido no logout;
 // - QueryConstraint genérica não recebe cache de aplicação para evitar colisão;
 // - erros continuam centralizados e a API pública permanece Observable-first.
 // -----------------------------------------------------------------------------
@@ -44,6 +45,8 @@ export class UserDiscoveryQueryService {
   private static readonly DISCOVERY_COL = 'public_profiles';
   private static readonly UID_BATCH_SIZE = 10;
   private static readonly DEFAULT_CACHE_TTL_MS = 30_000;
+  private static readonly SENSITIVE_CACHE_PREFIX =
+    'discovery:public_profiles:uids:';
 
   private readonly uid$ = this.authSession.uid$.pipe(
     distinctUntilChanged(),
@@ -161,8 +164,9 @@ export class UserDiscoveryQueryService {
   /**
    * Hidrata somente os proprietários necessários para cards/mídias.
    *
-   * O cache externo usa a lista ordenada de UIDs. As consultas internas não
-   * usam o cache genérico, evitando que batches distintos compartilhem resultado.
+   * O cache externo usa a lista ordenada de UIDs e a sessão autenticada. As
+   * consultas internas não usam cache genérico, evitando que batches distintos
+   * compartilhem resultado.
    */
   getProfilesByUids$(
     uids: string[] | null | undefined,
@@ -175,7 +179,7 @@ export class UserDiscoveryQueryService {
     }
 
     const cacheTTL = options?.cacheTTL ?? 30_000;
-    const cacheKey = `discovery:public_profiles:uids:${normalizedUids.join(',')}`;
+    const baseCacheKey = `${UserDiscoveryQueryService.SENSITIVE_CACHE_PREFIX}${normalizedUids.join(',')}`;
 
     return this.uid$.pipe(
       take(1),
@@ -184,16 +188,21 @@ export class UserDiscoveryQueryService {
           return of([]);
         }
 
+        const cacheKey = this.scopeCacheKey(baseCacheKey, authUid);
+
         return this.cache.get<IUserDados[]>(cacheKey).pipe(
           take(1),
           switchMap((cachedProfiles) => {
-            if (cachedProfiles !== null) {
-              return of(
-                this.pickProfilesByRequestedUids(
-                  cachedProfiles,
-                  normalizedUids
-                )
-              );
+            const cachedSelection = this.pickProfilesByRequestedUids(
+              cachedProfiles,
+              normalizedUids
+            );
+
+            if (
+              cachedProfiles !== null &&
+              cachedSelection.length === normalizedUids.length
+            ) {
+              return of(cachedSelection);
             }
 
             const batches = this.chunk(
@@ -238,7 +247,7 @@ export class UserDiscoveryQueryService {
     const cacheTTL =
       options.cacheTTL ??
       UserDiscoveryQueryService.DEFAULT_CACHE_TTL_MS;
-    const cacheKey = options.cacheKey ?? null;
+    const baseCacheKey = options.cacheKey ?? null;
 
     return this.uid$.pipe(
       take(1),
@@ -247,6 +256,9 @@ export class UserDiscoveryQueryService {
           return of([]);
         }
 
+        const cacheKey = baseCacheKey
+          ? this.scopeCacheKey(baseCacheKey, authUid)
+          : null;
         const server$ = this.read
           .getDocumentsOnce<Record<string, unknown>>(
             UserDiscoveryQueryService.DISCOVERY_COL,
@@ -501,7 +513,11 @@ export class UserDiscoveryQueryService {
       encodeURIComponent(value.trim().toLowerCase())
     );
 
-    return `discovery:query:${kind}:${encodedValues.join('|')}`;
+    return `${UserDiscoveryQueryService.SENSITIVE_CACHE_PREFIX}query:${kind}:${encodedValues.join('|')}`;
+  }
+
+  private scopeCacheKey(baseKey: string, authUid: string): string {
+    return `${baseKey}:viewer=${encodeURIComponent(authUid)}`;
   }
 
   private firstText(
