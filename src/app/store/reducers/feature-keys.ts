@@ -18,9 +18,12 @@ export const STORE_FEATURE = {
   location: 'location',
   nearbyProfiles: 'nearbyProfiles',
 
+  // DISCOVERY DOMAIN
+  discoveryFeeds: 'discoveryFeeds',
+
   // INTERACTIONS DOMAIN
   friendsPages: 'friendsPages',
-  interactionsFriends: 'interactions_friends', // <- valor precisa bater com o AppState/selector
+  interactionsFriends: 'interactions_friends',
 
   // CACHE
   cache: 'cache',
