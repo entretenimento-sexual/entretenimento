@@ -15,6 +15,7 @@ import { ConfirmacaoDialogComponent } from './components-globais/confirmacao-dia
 import { UploadPhotoComponent } from './components-globais/upload-photo/upload-photo.component';
 import { UniversalSidebarComponent } from './components-globais/universal-sidebar/universal-sidebar.component';
 import { ReportContentButtonComponent } from './components-globais/moderation-report/report-content-button/report-content-button.component';
+import { ProfileMediaShowcaseComponent } from '../layout/other-user-profile-view/profile-media-showcase/profile-media-showcase.component';
 
 @NgModule({
   declarations: [
@@ -34,10 +35,12 @@ import { ReportContentButtonComponent } from './components-globais/moderation-re
     MatSnackBarModule,
     UniversalSidebarComponent,
     ReportContentButtonComponent,
+    ProfileMediaShowcaseComponent,
   ],
   exports: [
     UniversalSidebarComponent,
     ReportContentButtonComponent,
+    ProfileMediaShowcaseComponent,
     ModalMensagemComponent,
     TextoDialogComponent,
     ConfirmacaoDialogComponent,
