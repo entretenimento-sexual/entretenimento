@@ -21,14 +21,13 @@ describe('photo editor overlay model', () => {
       strength: 0.03,
     });
 
-    expect(overlay).toMatchObject({
-      kind: 'blur',
-      x: 0.2,
-      y: 0.1,
-      width: 0.6,
-      height: 0.6,
-      strength: 0.03,
-    });
+    expect(overlay).not.toBeNull();
+    expect(overlay?.kind).toBe('blur');
+    expect(overlay?.x).toBeCloseTo(0.2, 10);
+    expect(overlay?.y).toBeCloseTo(0.1, 10);
+    expect(overlay?.width).toBeCloseTo(0.6, 10);
+    expect(overlay?.height).toBeCloseTo(0.6, 10);
+    expect(overlay?.strength).toBeCloseTo(0.03, 10);
   });
 
   it('descarta seleção pequena demais para produzir proteção acidental', () => {
