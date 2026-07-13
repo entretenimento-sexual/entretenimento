@@ -51,11 +51,64 @@ function normalizeMimeType(value: unknown): string {
   return String(value ?? '').trim().toLowerCase();
 }
 
+function statusForExistingJob(state: string): {
+  status: 'queued' | 'processing' | 'failed';
+  stage: string;
+} {
+  if (state === 'FAILED' || state === 'CANCEL_REQUESTED') {
+    return { status: 'failed', stage: 'failed' };
+  }
+
+  if (
+    state === 'SUBMITTING' ||
+    state === 'PROCESSING' ||
+    state === 'SUCCEEDED'
+  ) {
+    return {
+      status: 'processing',
+      stage: state === 'SUCCEEDED' ? 'finalizing' : state.toLowerCase(),
+    };
+  }
+
+  return { status: 'queued', stage: 'queued' };
+}
+
+async function requestCancellationIfPresent(
+  jobRef: FirebaseFirestore.DocumentReference
+): Promise<void> {
+  await db.runTransaction(async (transaction) => {
+    const snapshot = await transaction.get(jobRef);
+
+    if (!snapshot.exists) {
+      return;
+    }
+
+    const state = String(snapshot.get('state') ?? '').trim().toUpperCase();
+
+    if (state === 'CANCELLED' || state === 'CANCEL_REQUESTED') {
+      return;
+    }
+
+    const now = Date.now();
+    transaction.set(
+      jobRef,
+      {
+        state: 'CANCEL_REQUESTED',
+        cancelRequestedAt: now,
+        leaseUntil: null,
+        updatedAt: now,
+        lastErrorCode: 'PRIVATE_VIDEO_DELETED',
+        lastError: 'O vídeo privado foi excluído.',
+      },
+      { merge: true }
+    );
+  });
+}
+
 export const queuePrivateVideoProcessing = onDocumentWritten(
   {
     document: 'users/{ownerUid}/videos/{videoId}',
     region: FUNCTIONS_REGION,
-    retry: true,
   },
   async (event) => {
     const ownerUid = cleanId(event.params.ownerUid);
@@ -73,17 +126,7 @@ export const queuePrivateVideoProcessing = onDocumentWritten(
     const after = event.data?.after;
 
     if (!after?.exists) {
-      await jobRef.set(
-        {
-          state: 'CANCEL_REQUESTED',
-          cancelRequestedAt: Date.now(),
-          leaseUntil: null,
-          updatedAt: Date.now(),
-          lastErrorCode: 'PRIVATE_VIDEO_DELETED',
-          lastError: 'O vídeo privado foi excluído.',
-        },
-        { merge: true }
-      );
+      await requestCancellationIfPresent(jobRef);
       return;
     }
 
@@ -106,24 +149,18 @@ export const queuePrivateVideoProcessing = onDocumentWritten(
       if (jobSnap.exists) {
         const existingJob = jobSnap.data() as Partial<VideoProcessingJob>;
         const state = String(existingJob.state ?? '').trim().toUpperCase();
-        const status = state === 'FAILED'
-          ? 'failed'
-          : state === 'SUCCEEDED'
-            ? 'ready'
-            : state === 'PROCESSING' || state === 'SUBMITTING'
-              ? 'processing'
-              : 'queued';
+        const expected = statusForExistingJob(state);
 
         if (
           video.processingJobId !== processingJobId ||
-          video.status !== status
+          video.status !== expected.status
         ) {
           transaction.set(
             videoSnap.ref,
             {
               processingJobId,
-              status,
-              processingStage: state.toLowerCase() || 'queued',
+              status: expected.status,
+              processingStage: expected.stage,
               updatedAt: Date.now(),
             },
             { merge: true }
