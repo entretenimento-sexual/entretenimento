@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 
 import { logger } from 'firebase-functions';
 
-import { db, storage } from '../../firebaseApp';
+import { db, getDefaultStorageBucket } from '../../firebaseApp';
 import {
   buildPublishedPhotoPath,
   normalizeOwnedPublishedPhotoPath,
@@ -73,11 +73,19 @@ async function enqueuePublishedPhotoAssetCleanup(
 export async function copyPrivatePhotoToPublishedAsset(
   command: CopyPublishedPhotoAssetCommand
 ): Promise<string> {
-  const bucket = storage.bucket();
+  const bucket = getDefaultStorageBucket();
   const sourceFile = bucket.file(command.sourceStoragePath);
   const [sourceExists] = await sourceFile.exists();
 
   if (!sourceExists) {
+    logger.error('[publishedPhotoAsset] Arquivo privado não encontrado.', {
+      ownerUid: command.ownerUid,
+      photoId: command.photoId,
+      bucket: bucket.name,
+      sourceStoragePath: command.sourceStoragePath,
+      storageEmulator: !!process.env.STORAGE_EMULATOR_HOST,
+    });
+
     throw new Error('O arquivo privado da foto não foi encontrado.');
   }
 
@@ -135,8 +143,7 @@ export async function deletePublishedPhotoAssetOrQueue(
   }
 
   try {
-    await storage
-      .bucket()
+    await getDefaultStorageBucket()
       .file(storagePath)
       .delete({ ignoreNotFound: true });
 
@@ -186,8 +193,7 @@ export async function processPendingPublishedPhotoAssetCleanupJobs(
     }
 
     try {
-      await storage
-        .bucket()
+      await getDefaultStorageBucket()
         .file(storagePath)
         .delete({ ignoreNotFound: true });
       await jobDoc.ref.delete();
