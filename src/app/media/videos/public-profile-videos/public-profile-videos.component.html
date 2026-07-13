@@ -1,0 +1,175 @@
+@let ownerUid = (ownerUid$ | async);
+
+@if (state$ | async; as state) {
+  <section class="public-videos-page" aria-labelledby="public-profile-videos-title">
+    <header class="public-videos-header">
+      <a
+        class="back-link"
+        [routerLink]="['/perfil', ownerUid || '']"
+        aria-label="Voltar ao perfil"
+      >
+        <span aria-hidden="true">←</span>
+        <span>Voltar ao perfil</span>
+      </a>
+
+      <div class="title-block">
+        <span class="eyebrow">Mídias do perfil</span>
+        <h1 id="public-profile-videos-title">Vídeos públicos</h1>
+        <p class="subtitle">
+          Assista aos vídeos aprovados que este perfil escolheu compartilhar.
+          Abra qualquer item para usar o player imersivo e navegar pela galeria.
+        </p>
+      </div>
+
+      <div class="gallery-summary" aria-live="polite" aria-atomic="true">
+        @if (state.status === 'ready') {
+          <strong>{{ state.items.length }}</strong>
+          <span>{{ state.items.length === 1 ? 'vídeo' : 'vídeos' }}</span>
+        } @else if (state.status === 'loading') {
+          <i class="fas fa-circle-notch" aria-hidden="true"></i>
+          <span>Carregando</span>
+        } @else {
+          <strong>0</strong>
+          <span>vídeos</span>
+        }
+      </div>
+    </header>
+
+    @switch (state.status) {
+      @case ('loading') {
+        <div class="videos-skeleton" role="status" aria-live="polite">
+          <span class="visually-hidden">Carregando vídeos públicos.</span>
+          @for (placeholder of [1, 2, 3, 4]; track placeholder) {
+            <article class="video-skeleton-card" aria-hidden="true">
+              <span class="video-skeleton-card__poster"></span>
+              <span class="video-skeleton-card__line"></span>
+              <span class="video-skeleton-card__line video-skeleton-card__line--short"></span>
+            </article>
+          }
+        </div>
+      }
+
+      @case ('error') {
+        <div class="state-card" role="alert">
+          <div class="state-card__icon" aria-hidden="true">
+            <i class="fas fa-triangle-exclamation"></i>
+          </div>
+
+          <div>
+            <h2>Vídeos temporariamente indisponíveis</h2>
+            <p>O restante do perfil continua acessível. Tente carregar a galeria novamente.</p>
+          </div>
+
+          <button
+            type="button"
+            class="app-action app-action--primary"
+            (click)="retry()"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      }
+
+      @case ('empty') {
+        <div class="state-card" role="status" aria-live="polite">
+          <div class="state-card__icon" aria-hidden="true">
+            <i class="fas fa-film"></i>
+          </div>
+
+          <div>
+            <h2>Nenhum vídeo público disponível</h2>
+            <p>Este perfil ainda não publicou vídeos aprovados para visitantes.</p>
+          </div>
+        </div>
+      }
+
+      @case ('ready') {
+        <div class="gallery-strip" aria-label="Recursos da galeria">
+          <span class="gallery-pill">
+            <i class="fas fa-shield-halved" aria-hidden="true"></i>
+            Conteúdo aprovado
+          </span>
+          <span class="gallery-pill">
+            <i class="fas fa-play" aria-hidden="true"></i>
+            Player imersivo
+          </span>
+          <span class="gallery-pill">
+            <i class="fas fa-mobile-screen" aria-hidden="true"></i>
+            Otimizado para celular
+          </span>
+        </div>
+
+        <div class="videos-grid" role="list" aria-label="Vídeos públicos do perfil">
+          @for (
+            item of state.items;
+            track trackByVideoId($index, item);
+            let index = $index
+          ) {
+            <article
+              class="video-card"
+              [class.video-card--featured]="index === 0"
+              role="listitem"
+            >
+              <button
+                type="button"
+                class="video-card__preview"
+                (click)="openVideo(index)"
+                [disabled]="viewerOpening()"
+                [attr.aria-busy]="viewerOpening() ? 'true' : 'false'"
+                [attr.aria-label]="getVideoAriaLabel(item, index, state.items.length)"
+              >
+                @if (item.posterUrl) {
+                  <img
+                    [src]="item.posterUrl"
+                    [alt]="item.alt || item.title || 'Capa do vídeo público'"
+                    [attr.loading]="index === 0 ? 'eager' : 'lazy'"
+                    [attr.fetchpriority]="index === 0 ? 'high' : null"
+                    decoding="async"
+                    referrerpolicy="no-referrer"
+                  />
+                } @else {
+                  <span class="video-card__placeholder" aria-hidden="true">
+                    <i class="fas fa-clapperboard"></i>
+                  </span>
+                }
+
+                <span class="video-card__shade" aria-hidden="true"></span>
+
+                <span class="video-card__play" aria-hidden="true">
+                  <i class="fas fa-play"></i>
+                </span>
+
+                <span class="video-card__duration">
+                  {{ formatDuration(item.durationMs) }}
+                </span>
+
+                @if (index === 0) {
+                  <span class="video-card__featured-label">
+                    <i class="fas fa-sparkles" aria-hidden="true"></i>
+                    Destaque
+                  </span>
+                }
+              </button>
+
+              <div class="video-card__body">
+                <h2>{{ item.title || 'Vídeo do perfil' }}</h2>
+                <p>{{ item.alt || 'Vídeo público aprovado.' }}</p>
+
+                <div class="video-card__meta">
+                  <span>
+                    <i class="fas fa-eye" aria-hidden="true"></i>
+                    {{ formatViews(item.viewsCount) }}
+                  </span>
+                  <span>
+                    <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                    Aprovado
+                  </span>
+                </div>
+              </div>
+            </article>
+          }
+        </div>
+      }
+    }
+  </section>
+}
