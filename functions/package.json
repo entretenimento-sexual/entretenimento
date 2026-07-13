@@ -14,6 +14,7 @@
     "lint:fix:chat": "eslint -c eslint.config.js \"src/chat/**/*.ts\" --fix",
     "build": "tsc",
     "build:watch": "tsc --watch",
+    "test": "npm run build && node --test",
     "serve": "npm run build && firebase emulators:start --only functions",
     "shell": "npm run build && firebase functions:shell",
     "start": "npm run shell",
