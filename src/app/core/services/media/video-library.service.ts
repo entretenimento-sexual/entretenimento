@@ -4,8 +4,9 @@
 //
 // Segurança:
 // - lê somente users/{uid}/videos para o próprio dono;
-// - documentos novos persistem paths, não URLs de download com token;
+// - documentos persistem paths, não URLs de download com token;
 // - URLs privadas são resolvidas em memória sob as regras do Storage;
+// - quando pronto, o player usa o derivado processado e preserva o bruto privado;
 // - publicação pública pertence a serviço e Functions específicos.
 // -----------------------------------------------------------------------------
 
@@ -44,9 +45,21 @@ interface IVideoDoc {
   fileName?: string | null;
   mimeType?: string | null;
   sizeBytes?: number | null;
+  sourceMimeType?: string | null;
+  sourceSizeBytes?: number | null;
   durationMs?: number | null;
   thumbnailUrl?: string | null;
   thumbnailPath?: string | null;
+  playbackPath?: string | null;
+  processedStoragePath?: string | null;
+  processedOutputPrefix?: string | null;
+  processedMimeType?: string | null;
+  processedSizeBytes?: number | null;
+  processingJobId?: string | null;
+  processingStage?: string | null;
+  processingErrorCode?: string | null;
+  processingErrorMessage?: string | null;
+  processingCompletedAt?: unknown;
   status?: VideoProcessingStatus;
   createdAt?: unknown;
   updatedAt?: unknown;
@@ -119,21 +132,32 @@ export class VideoLibraryService {
     ownerUid: string,
     item: IVideoItem
   ): Observable<IVideoItem | null> {
-    const videoPath = this.extractOwnedVideoPath(
+    const rawVideoPath = this.extractOwnedVideoPath(
       ownerUid,
       item.path ?? item.url
     );
 
-    if (!videoPath) {
+    if (!rawVideoPath) {
       return of(null);
     }
 
+    const processedVideoPath = this.extractOwnedProcessedPath(
+      ownerUid,
+      item.id,
+      item.processedStoragePath ?? item.playbackPath
+    );
+    const playbackPath = item.status === 'ready' && processedVideoPath
+      ? processedVideoPath
+      : rawVideoPath;
     const posterPath = this.extractOwnedPosterPath(
       ownerUid,
       item.id,
       item.thumbnailPath ?? item.thumbnailUrl
     );
-    const videoUrl$ = this.resolvePrivateLocation$(item.url, videoPath);
+    const videoUrl$ = this.resolvePrivateLocation$(
+      playbackPath === rawVideoPath ? item.url : null,
+      playbackPath
+    );
     const posterUrl$ = posterPath
       ? this.resolvePrivateLocation$(item.thumbnailUrl, posterPath).pipe(
           catchError((error) => {
@@ -150,7 +174,9 @@ export class VideoLibraryService {
       map(({ videoUrl, posterUrl }) => ({
         ...item,
         url: videoUrl,
-        path: videoPath,
+        path: rawVideoPath,
+        playbackPath,
+        processedStoragePath: processedVideoPath,
         thumbnailUrl: posterUrl,
         thumbnailPath: posterPath,
       })),
@@ -183,9 +209,33 @@ export class VideoLibraryService {
       fileName: this.normalizeOptionalText(item.fileName),
       mimeType: this.normalizeOptionalText(item.mimeType),
       sizeBytes: this.normalizeOptionalPositiveNumber(item.sizeBytes),
+      sourceMimeType: this.normalizeOptionalText(item.sourceMimeType),
+      sourceSizeBytes: this.normalizeOptionalPositiveNumber(item.sourceSizeBytes),
       durationMs: this.normalizeOptionalPositiveNumber(item.durationMs),
       thumbnailUrl: this.normalizeOptionalText(item.thumbnailUrl),
       thumbnailPath: this.normalizeOptionalText(item.thumbnailPath),
+      playbackPath: this.normalizeOptionalText(item.playbackPath),
+      processedStoragePath: this.normalizeOptionalText(
+        item.processedStoragePath
+      ),
+      processedOutputPrefix: this.normalizeOptionalText(
+        item.processedOutputPrefix
+      ),
+      processedMimeType: this.normalizeOptionalText(item.processedMimeType),
+      processedSizeBytes: this.normalizeOptionalPositiveNumber(
+        item.processedSizeBytes
+      ),
+      processingJobId: this.normalizeOptionalText(item.processingJobId),
+      processingStage: this.normalizeOptionalText(item.processingStage),
+      processingErrorCode: this.normalizeOptionalText(
+        item.processingErrorCode
+      ),
+      processingErrorMessage: this.normalizeOptionalText(
+        item.processingErrorMessage
+      ),
+      processingCompletedAt: this.normalizeOptionalDateMs(
+        item.processingCompletedAt
+      ),
       status: this.normalizeStatus(item.status),
       createdAt: this.normalizeDateMs(item.createdAt),
       updatedAt: this.normalizeOptionalDateMs(item.updatedAt),
@@ -206,6 +256,26 @@ export class VideoLibraryService {
 
     return new RegExp(
       `^users/${escapedUid}/uploads/videos/[^/]+$`
+    ).test(storagePath)
+      ? storagePath
+      : null;
+  }
+
+  private extractOwnedProcessedPath(
+    ownerUid: string,
+    videoId: string,
+    value: unknown
+  ): string | null {
+    const storagePath = this.resolveStoragePath(value);
+    const escapedUid = this.escapeRegExp(ownerUid);
+    const escapedVideoId = this.escapeRegExp(videoId);
+
+    if (!storagePath || !escapedVideoId) {
+      return null;
+    }
+
+    return new RegExp(
+      `^users/${escapedUid}/processed/videos/${escapedVideoId}/[^/]+/.+$`
     ).test(storagePath)
       ? storagePath
       : null;
@@ -273,7 +343,10 @@ export class VideoLibraryService {
   }
 
   private normalizeStatus(value: unknown): VideoProcessingStatus {
-    return value === 'processing' || value === 'ready' || value === 'failed'
+    return value === 'queued' ||
+      value === 'processing' ||
+      value === 'ready' ||
+      value === 'failed'
       ? value
       : 'uploaded';
   }
