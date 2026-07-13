@@ -13,6 +13,10 @@ export {
 } from './application/manage-photo-publication.handler';
 
 export {
+  syncPublishedPhotoOnPrivateUpdate,
+} from './application/sync-published-photo-on-private-update.handler';
+
+export {
   publishVideo,
   unpublishVideo,
 } from './application/manage-video-publication.handler';
