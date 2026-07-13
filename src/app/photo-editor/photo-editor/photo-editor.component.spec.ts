@@ -1,30 +1,44 @@
 // src/app/photo-editor/photo-editor/photo-editor.component.spec.ts
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap';
-import { firstValueFrom, of } from 'rxjs';
+import { firstValueFrom, of, Subject } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { PhotoEditorComponent } from './photo-editor.component';
 import { AuthSessionService } from '../../core/services/autentication/auth/auth-session.service';
 import { PhotoEditorSessionService } from '../../core/services/image-handling/photo-editor-session.service';
 import { PhotoUploadFlowService } from '../../core/services/image-handling/photo-upload-flow.service';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createErrorTestingProviderMocks,
   provideErrorTestingMocks,
 } from '../../../test/angular-error-testing.providers';
+import { PhotoEditorComponent } from './photo-editor.component';
 
 describe('PhotoEditorComponent', () => {
   let fixture: ComponentFixture<PhotoEditorComponent>;
   let component: PhotoEditorComponent;
+  let uidSubject: Subject<string>;
+  let activeModalMock: {
+    close: ReturnType<typeof vi.fn>;
+    dismiss: ReturnType<typeof vi.fn>;
+  };
 
   beforeEach(async () => {
-    const existingPinturaStyles = document.getElementById('pintura-editor-styles');
-    existingPinturaStyles?.remove();
+    uidSubject = new Subject<string>();
+    activeModalMock = {
+      close: vi.fn(),
+      dismiss: vi.fn(),
+    };
 
-    const pinturaStyles = document.createElement('link');
-    pinturaStyles.id = 'pintura-editor-styles';
-    pinturaStyles.dataset['loaded'] = 'true';
-    document.head.appendChild(pinturaStyles);
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: vi.fn(() => 'blob:photo-editor-test'),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
+    });
 
     const errorProviderMocks = createErrorTestingProviderMocks();
 
@@ -33,15 +47,12 @@ describe('PhotoEditorComponent', () => {
       providers: [
         {
           provide: NgbActiveModal,
-          useValue: {
-            close: vi.fn(),
-            dismiss: vi.fn(),
-          },
+          useValue: activeModalMock,
         },
         {
           provide: AuthSessionService,
           useValue: {
-            uid$: of('u1'),
+            uid$: uidSubject.asObservable(),
             currentAuthUser: { uid: 'u1' },
           },
         },
@@ -70,11 +81,11 @@ describe('PhotoEditorComponent', () => {
       'imageFile',
       new File(['x'], 'foto.jpg', { type: 'image/jpeg' })
     );
-
     fixture.detectChanges();
+    uidSubject.next('u1');
   });
 
-  it('should create', () => {
+  it('deve ser criado', () => {
     expect(component).toBeTruthy();
   });
 
@@ -82,26 +93,26 @@ describe('PhotoEditorComponent', () => {
     expect(component.userId).toBe('u1');
   });
 
-  it('deve inicializar src a partir do imageFile quando não houver storedImageUrl', () => {
-    expect(component.src).toBeTruthy();
+  it('deve manter o arquivo recebido pelo contrato de input', () => {
+    expect(component.imageFile()?.name).toBe('foto.jpg');
+    expect(component.imageFile()?.type).toBe('image/jpeg');
   });
 
-  it('deve inicializar observable de loading', async () => {
+  it('deve iniciar em estado de carregamento enquanto prepara a imagem', async () => {
     await expect(firstValueFrom(component.isLoading$)).resolves.toBe(true);
   });
 
-  it('deve converter imageState para JSON', () => {
-    const result = component.stringifyImageState({
-      crop: undefined,
-    } as any);
-
-    expect(typeof result).toBe('string');
-    expect(result).toContain('"crop":null');
+  it('deve iniciar com o estado nativo padrão do editor', () => {
+    expect(component.rotation).toBe(0);
+    expect(component.zoom).toBe(1);
+    expect(component.panX).toBe(0);
+    expect(component.panY).toBe(0);
+    expect(component.aspectRatio).toBe('original');
   });
 
-  it('deve fazer parse do imageState', () => {
-    const parsed = component.parseImageState('{"foo":"bar"}');
+  it('deve fechar o modal pelo contrato atual', () => {
+    component.onClose();
 
-    expect(parsed as any).toEqual({ foo: 'bar' });
+    expect(activeModalMock.dismiss).toHaveBeenCalledWith('close');
   });
 });
