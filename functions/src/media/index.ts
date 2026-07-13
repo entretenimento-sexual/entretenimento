@@ -23,6 +23,16 @@ export {
 } from './application/register-private-video-upload.handler';
 
 export {
+  queuePrivateVideoProcessing,
+} from './application/queue-video-processing.handler';
+
+export {
+  cleanupCancelledVideoProcessing,
+  reconcileVideoProcessing,
+  submitQueuedVideoProcessing,
+} from './application/video-processing.handler';
+
+export {
   listVideoModerationQueue,
   reviewVideoModeration,
 } from './application/admin-video-moderation.handler';
