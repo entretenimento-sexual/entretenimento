@@ -1,16 +1,10 @@
 import { Injectable, inject } from '@angular/core';
 import { Auth } from '@angular/fire/auth';
-import {
-  Firestore,
-  collection,
-  doc,
-  serverTimestamp,
-  setDoc,
-} from '@angular/fire/firestore';
+import { Firestore, collection, doc } from '@angular/fire/firestore';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { Storage } from '@angular/fire/storage';
 import {
   deleteObject,
-  getDownloadURL,
   ref,
   type UploadTask,
   uploadBytesResumable,
@@ -50,7 +44,29 @@ export interface IVideoUploadCommand {
 
 interface UploadedBinary {
   path: string;
-  url: string;
+}
+
+interface RegisterPrivateVideoUploadRequest {
+  ownerUid: string;
+  videoId: string;
+  videoStoragePath: string;
+  posterStoragePath: string | null;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  durationMs: number | null;
+}
+
+interface RegisterPrivateVideoUploadResponse {
+  videoId: string;
+  ownerUid: string;
+  status: 'uploaded' | 'ready';
+  mimeType: string;
+  sizeBytes: number;
+  durationMs: number | null;
+  videoStoragePath: string;
+  posterStoragePath: string | null;
+  createdAt: number;
 }
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
@@ -72,6 +88,7 @@ class VideoUploadCancelledError extends Error {
 export class VideoUploadFlowService {
   private readonly auth = inject(Auth);
   private readonly firestore = inject(Firestore);
+  private readonly functions = inject(Functions);
   private readonly storage = inject(Storage);
   private readonly metadataPreparation = inject(VideoMetadataPreparationService);
   private readonly errorHandler = inject(GlobalErrorHandlerService);
@@ -103,7 +120,7 @@ export class VideoUploadFlowService {
       let posterPath: string | null = null;
       let activeTask: UploadTask | null = null;
       let cancelRequested = false;
-      let commitStarted = false;
+      let registrationStarted = false;
       let completed = false;
       let cleanupChain = Promise.resolve();
       let videoUploadStarted = false;
@@ -195,31 +212,18 @@ export class VideoUploadFlowService {
 
           observer.next({ type: 'progress', phase: 'saving', progress: 98 });
           assertNotCancelled();
-          commitStarted = true;
+          registrationStarted = true;
 
-          const createdAt = Date.now();
-          const status = metadata.playbackReady ? 'ready' : 'uploaded';
           const fileName = this.normalizeDisplayFileName(file.name);
-
-          /**
-           * Persistimos somente paths privados. As URLs com token são usadas apenas
-           * no resultado efêmero desta operação e são regeneradas para o dono ao
-           * ler a biblioteca.
-           */
-          await setDoc(videoRef, {
-            id: videoId,
+          const registration = await this.registerUploadedVideo({
             ownerUid,
-            url: videoBinary.path,
-            path: videoBinary.path,
+            videoId,
+            videoStoragePath: videoBinary.path,
+            posterStoragePath: posterBinary?.path ?? null,
             fileName,
             mimeType: file.type,
             sizeBytes: file.size,
             durationMs: metadata.durationMs,
-            thumbnailUrl: posterBinary?.path ?? null,
-            thumbnailPath: posterBinary?.path ?? null,
-            status,
-            createdAt: serverTimestamp(),
-            updatedAt: null,
           });
 
           completed = true;
@@ -227,18 +231,18 @@ export class VideoUploadFlowService {
           observer.next({
             type: 'success',
             result: {
-              id: videoId,
-              ownerUid,
-              url: videoBinary.url,
-              path: videoBinary.path,
+              id: registration.videoId,
+              ownerUid: registration.ownerUid,
+              url: registration.videoStoragePath,
+              path: registration.videoStoragePath,
               fileName,
-              mimeType: file.type,
-              sizeBytes: file.size,
-              durationMs: metadata.durationMs,
-              thumbnailUrl: posterBinary?.url ?? null,
-              thumbnailPath: posterBinary?.path ?? null,
-              status,
-              createdAt,
+              mimeType: registration.mimeType,
+              sizeBytes: registration.sizeBytes,
+              durationMs: registration.durationMs,
+              thumbnailUrl: registration.posterStoragePath,
+              thumbnailPath: registration.posterStoragePath,
+              status: registration.status,
+              createdAt: registration.createdAt,
               updatedAt: null,
             },
           });
@@ -248,14 +252,20 @@ export class VideoUploadFlowService {
             hasOwnerUid: true,
             hasVideoId: true,
             hasPoster: !!posterBinary,
-            playbackReady: metadata.playbackReady,
-            mimeType: file.type,
-            sizeBytes: file.size,
+            playbackReady: registration.status === 'ready',
+            mimeType: registration.mimeType,
+            sizeBytes: registration.sizeBytes,
           });
         } catch (error) {
           activeTask = null;
 
-          if (!completed) {
+          /**
+           * Antes da callable, o cliente ainda é responsável pelo rollback.
+           * Depois que o registro backend começa, a Function assume a limpeza e a
+           * idempotência. Isso evita apagar um arquivo já registrado quando a rede
+           * perde apenas a resposta da callable.
+           */
+          if (!completed && !registrationStarted) {
             await scheduleCleanup();
           }
 
@@ -269,7 +279,7 @@ export class VideoUploadFlowService {
             hasVideoId: !!videoId,
             mimeType: file.type,
             sizeBytes: file.size,
-            commitStarted,
+            registrationStarted,
           });
           observer.error(error);
         }
@@ -278,7 +288,7 @@ export class VideoUploadFlowService {
       void run();
 
       return () => {
-        if (completed || commitStarted) {
+        if (completed || registrationStarted) {
           return;
         }
 
@@ -287,6 +297,17 @@ export class VideoUploadFlowService {
         void scheduleCleanup();
       };
     });
+  }
+
+  private registerUploadedVideo(
+    payload: RegisterPrivateVideoUploadRequest
+  ): Promise<RegisterPrivateVideoUploadResponse> {
+    const callable = httpsCallable<
+      RegisterPrivateVideoUploadRequest,
+      RegisterPrivateVideoUploadResponse
+    >(this.functions, 'registerPrivateVideoUpload');
+
+    return callable(payload).then((response) => response.data);
   }
 
   private uploadBinary(
@@ -314,11 +335,7 @@ export class VideoUploadFlowService {
           onProgress(this.normalizeProgress(progress));
         },
         reject,
-        () => {
-          getDownloadURL(task.snapshot.ref)
-            .then((url) => resolve({ path: storagePath, url }))
-            .catch(reject);
-        }
+        () => resolve({ path: storagePath })
       );
     });
   }
