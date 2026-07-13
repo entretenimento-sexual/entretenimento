@@ -99,15 +99,21 @@ const SELECTION_PADDING_PX = 10;
 export function clonePhotoEditorOverlays(
   overlays: readonly PhotoEditorOverlay[]
 ): PhotoEditorOverlay[] {
-  return overlays.map((overlay) => ({
-    ...overlay,
-    ...(overlay.kind === 'datetime' && overlay.dateTimeMeta
-      ? { dateTimeMeta: { ...overlay.dateTimeMeta } }
-      : {}),
-  }));
+  return overlays.map((overlay) => {
+    if (overlay.kind === 'datetime' && overlay.dateTimeMeta) {
+      return {
+        ...overlay,
+        dateTimeMeta: { ...overlay.dateTimeMeta },
+      };
+    }
+
+    return { ...overlay };
+  });
 }
 
-export function normalizePhotoEditorOverlays(value: unknown): PhotoEditorOverlay[] {
+export function normalizePhotoEditorOverlays(
+  value: unknown
+): PhotoEditorOverlay[] {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -119,16 +125,23 @@ export function normalizePhotoEditorOverlays(value: unknown): PhotoEditorOverlay
       continue;
     }
 
-    const source = candidate as Partial<PhotoEditorOverlay> &
-      Record<string, unknown>;
-    const kind = source.kind;
-    const id = normalizeId(source.id);
+    const source = candidate as Record<string, unknown>;
+    const kind = source['kind'];
+    const id = normalizeId(source['id']);
 
     if (kind === 'blur' || kind === 'pixelate') {
-      const x = clampNumber(source.x, 0, 1);
-      const y = clampNumber(source.y, 0, 1);
-      const width = clampNumber(source.width, MIN_PRIVACY_SIZE, 1 - x);
-      const height = clampNumber(source.height, MIN_PRIVACY_SIZE, 1 - y);
+      const x = clampNumber(source['x'], 0, 1);
+      const y = clampNumber(source['y'], 0, 1);
+      const width = clampNumber(
+        source['width'],
+        MIN_PRIVACY_SIZE,
+        Math.max(MIN_PRIVACY_SIZE, 1 - x)
+      );
+      const height = clampNumber(
+        source['height'],
+        MIN_PRIVACY_SIZE,
+        Math.max(MIN_PRIVACY_SIZE, 1 - y)
+      );
 
       if (width < MIN_PRIVACY_SIZE || height < MIN_PRIVACY_SIZE) {
         continue;
@@ -141,7 +154,7 @@ export function normalizePhotoEditorOverlays(value: unknown): PhotoEditorOverlay
         y,
         width,
         height,
-        strength: clampNumber(source.strength, 0.008, 0.08),
+        strength: clampNumber(source['strength'], 0.008, 0.08),
       });
       continue;
     }
@@ -149,12 +162,12 @@ export function normalizePhotoEditorOverlays(value: unknown): PhotoEditorOverlay
     if (kind === 'emoji' || kind === 'text' || kind === 'datetime') {
       const dateTimeMeta =
         kind === 'datetime'
-          ? normalizePhotoEditorDateTimeMeta(source.dateTimeMeta)
+          ? normalizePhotoEditorDateTimeMeta(source['dateTimeMeta'])
           : undefined;
       const valueText =
         kind === 'datetime' && dateTimeMeta
           ? formatPhotoEditorDateTime(dateTimeMeta)
-          : String(source.value ?? '').trim().slice(0, 80);
+          : String(source['value'] ?? '').trim().slice(0, 80);
 
       if (!valueText) {
         continue;
@@ -163,12 +176,12 @@ export function normalizePhotoEditorOverlays(value: unknown): PhotoEditorOverlay
       normalized.push({
         id,
         kind,
-        x: clampNumber(source.x, 0, 1),
-        y: clampNumber(source.y, 0, 1),
-        size: clampNumber(source.size, 0.035, 0.28),
+        x: clampNumber(source['x'], 0, 1),
+        y: clampNumber(source['y'], 0, 1),
+        size: clampNumber(source['size'], 0.035, 0.28),
         value: valueText,
-        style: normalizeCaptionStyle(source.style),
-        fontFamily: normalizeFontFamily(source.fontFamily),
+        style: normalizeCaptionStyle(source['style']),
+        fontFamily: normalizeFontFamily(source['fontFamily']),
         ...(dateTimeMeta ? { dateTimeMeta } : {}),
       });
     }
@@ -180,7 +193,7 @@ export function normalizePhotoEditorOverlays(value: unknown): PhotoEditorOverlay
 export function privacyRegionFromDraft(
   draft: PhotoEditorDraftPrivacyRegion
 ): PhotoEditorPrivacyOverlay | null {
-  if (draft.kind !== 'blur' && draft.kind !== 'pixelate') {
+  if (!isPrivacyKind(draft.kind)) {
     return null;
   }
 
@@ -198,8 +211,12 @@ export function privacyRegionFromDraft(
     kind: draft.kind,
     x: clampNumber(x, 0, 1),
     y: clampNumber(y, 0, 1),
-    width: clampNumber(width, MIN_PRIVACY_SIZE, 1 - x),
-    height: clampNumber(height, MIN_PRIVACY_SIZE, 1 - y),
+    width: clampNumber(width, MIN_PRIVACY_SIZE, Math.max(MIN_PRIVACY_SIZE, 1 - x)),
+    height: clampNumber(
+      height,
+      MIN_PRIVACY_SIZE,
+      Math.max(MIN_PRIVACY_SIZE, 1 - y)
+    ),
     strength: clampNumber(draft.strength, 0.008, 0.08),
   };
 }
@@ -278,39 +295,11 @@ export function getPhotoEditorOverlayBounds(
   height: number,
   context: CanvasRenderingContext2D
 ): PhotoEditorOverlayBounds {
-  if (overlay.kind === 'blur' || overlay.kind === 'pixelate') {
+  if (isPrivacyOverlay(overlay)) {
     return toPixelRect(overlay, width, height);
   }
 
-  const size = Math.max(18, Math.min(width, height) * overlay.size);
-  const x = overlay.x * width;
-  const y = overlay.y * height;
-
-  if (overlay.kind === 'emoji') {
-    return {
-      x: x - size * 0.58,
-      y: y - size * 0.58,
-      width: size * 1.16,
-      height: size * 1.16,
-    };
-  }
-
-  context.save();
-  context.font = resolveCaptionFont(overlay, size);
-  const measuredWidth = Math.min(width * 0.86, context.measureText(overlay.value).width);
-  context.restore();
-
-  const horizontalPadding = overlay.style === 'badge' ? size * 0.55 : size * 0.18;
-  const verticalPadding = overlay.style === 'badge' ? size * 0.32 : size * 0.16;
-  const boxWidth = measuredWidth + horizontalPadding * 2;
-  const boxHeight = size + verticalPadding * 2;
-
-  return {
-    x: x - boxWidth / 2,
-    y: y - boxHeight / 2,
-    width: boxWidth,
-    height: boxHeight,
-  };
+  return getDecorationOverlayBounds(overlay, width, height, context);
 }
 
 export function hitTestPhotoEditorOverlay(
@@ -406,11 +395,55 @@ export function drawPhotoEditorOverlays(
   }
 
   if (preview && selectedOverlayId) {
-    const selected = overlays.find((overlay) => overlay.id === selectedOverlayId);
+    const selected = overlays.find(
+      (overlay) => overlay.id === selectedOverlayId
+    );
     if (selected) {
       drawSelection(context, selected, width, height);
     }
   }
+}
+
+function getDecorationOverlayBounds(
+  overlay: PhotoEditorDecorationOverlay,
+  width: number,
+  height: number,
+  context: CanvasRenderingContext2D
+): PhotoEditorOverlayBounds {
+  const size = Math.max(18, Math.min(width, height) * overlay.size);
+  const x = overlay.x * width;
+  const y = overlay.y * height;
+
+  if (overlay.kind === 'emoji') {
+    return {
+      x: x - size * 0.58,
+      y: y - size * 0.58,
+      width: size * 1.16,
+      height: size * 1.16,
+    };
+  }
+
+  context.save();
+  context.font = resolveCaptionFont(overlay, size);
+  const measuredWidth = Math.min(
+    width * 0.86,
+    context.measureText(overlay.value).width
+  );
+  context.restore();
+
+  const horizontalPadding =
+    overlay.style === 'badge' ? size * 0.55 : size * 0.18;
+  const verticalPadding =
+    overlay.style === 'badge' ? size * 0.32 : size * 0.16;
+  const boxWidth = measuredWidth + horizontalPadding * 2;
+  const boxHeight = size + verticalPadding * 2;
+
+  return {
+    x: x - boxWidth / 2,
+    y: y - boxHeight / 2,
+    width: boxWidth,
+    height: boxHeight,
+  };
 }
 
 function drawBlurOverlay(
@@ -541,7 +574,10 @@ function drawCaptionOverlay(
     const metrics = context.measureText(overlay.value);
     const horizontalPadding = fontSize * 0.55;
     const verticalPadding = fontSize * 0.32;
-    const boxWidth = Math.min(maxWidth, metrics.width + horizontalPadding * 2);
+    const boxWidth = Math.min(
+      maxWidth,
+      metrics.width + horizontalPadding * 2
+    );
     const boxHeight = fontSize + verticalPadding * 2;
 
     context.fillStyle = 'rgb(0 0 0 / 72%)';
@@ -555,7 +591,12 @@ function drawCaptionOverlay(
     );
     context.fill();
     context.fillStyle = '#ffffff';
-    context.fillText(overlay.value, x, y, maxWidth - horizontalPadding * 2);
+    context.fillText(
+      overlay.value,
+      x,
+      y,
+      maxWidth - horizontalPadding * 2
+    );
   } else if (overlay.style === 'neon') {
     context.shadowColor = '#ff4f87';
     context.shadowBlur = Math.max(8, fontSize * 0.28);
@@ -739,7 +780,10 @@ function isValidDateInput(value: unknown): value is string {
   }
 
   const parsed = parseLocalDate(normalized);
-  return !Number.isNaN(parsed.getTime()) && toLocalDateInputValue(parsed) === normalized;
+  return (
+    !Number.isNaN(parsed.getTime()) &&
+    toLocalDateInputValue(parsed) === normalized
+  );
 }
 
 function parseLocalDate(value: string): Date {
@@ -759,6 +803,18 @@ function isSameLocalDate(left: Date, right: Date): boolean {
     left.getMonth() === right.getMonth() &&
     left.getDate() === right.getDate()
   );
+}
+
+function isPrivacyOverlay(
+  overlay: PhotoEditorOverlay
+): overlay is PhotoEditorPrivacyOverlay {
+  return isPrivacyKind(overlay.kind);
+}
+
+function isPrivacyKind(
+  kind: PhotoEditorTool
+): kind is PhotoEditorPrivacyOverlay['kind'] {
+  return kind === 'blur' || kind === 'pixelate';
 }
 
 function pad2(value: number): string {
