@@ -33,6 +33,7 @@ if defined NODE_HOME (
 )
 
 set "FUNCTIONS_DISCOVERY_TIMEOUT=60"
+set "MEDIA_EMULATOR_AUTO_PROCESS_VIDEOS=true"
 
 cd /d "%PROJECT_ROOT%"
 
@@ -64,6 +65,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
+echo [emu:full] Processamento local de MP4/WebM: habilitado
 echo [emu:full] Subindo auth, firestore, storage e functions...
 call npm.cmd run emu:media
 set "EMU_EXIT=%ERRORLEVEL%"
