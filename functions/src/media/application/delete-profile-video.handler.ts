@@ -7,8 +7,13 @@ import { db, FieldValue, storage } from '../../firebaseApp';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import { deletePublishedVideoAssetOrQueue } from './published-video-asset.service';
 import {
+  buildVideoProcessingJobId,
+  VIDEO_PROCESSING_JOBS_COLLECTION,
+} from './video-processing-job';
+import {
   extractOwnedPrivateVideoPath,
   extractOwnedPrivateVideoPosterPath,
+  normalizeOwnedProcessedVideoPrefix,
 } from './video-storage-path';
 
 interface DeleteProfileVideoRequest {
@@ -26,25 +31,33 @@ interface VideoDeletionJob {
   videoId: string;
   privateVideoStoragePath: string;
   privatePosterStoragePath: string | null;
+  processedOutputPrefix: string | null;
   publishedVideoStoragePath: string | null;
   publishedPosterStoragePath: string | null;
+  processingCleanupPending: boolean;
   createdAt: number;
   updatedAt: number;
   attempts: number;
   lastError: string | null;
 }
 
-type PrivateVideoDoc = {
+interface PrivateVideoDoc {
   path?: string;
   url?: string;
   thumbnailPath?: string;
   thumbnailUrl?: string;
-};
+  processedOutputPrefix?: string;
+}
 
-type VideoPublicationDoc = {
+interface VideoPublicationDoc {
   publishedStoragePath?: string;
   publishedPosterStoragePath?: string;
-};
+}
+
+interface VideoProcessingJobDoc {
+  outputPrefix?: string;
+  state?: string;
+}
 
 const DELETION_JOBS_COLLECTION = 'media_video_deletion_jobs';
 const CLEANUP_BATCH_SIZE = 50;
@@ -101,6 +114,17 @@ function normalizeErrorMessage(error: unknown): string {
   return String(error ?? 'unknown').slice(0, 500);
 }
 
+async function refreshMetricsBestEffort(ownerUid: string): Promise<void> {
+  try {
+    await refreshPublicProfileMediaMetrics(ownerUid);
+  } catch (error) {
+    logger.warn('[videoDeletion] Falha ao atualizar métricas derivadas.', {
+      ownerUid,
+      error: normalizeErrorMessage(error),
+    });
+  }
+}
+
 async function cleanupPublishedAssets(
   job: Pick<
     VideoDeletionJob,
@@ -149,6 +173,20 @@ async function deletePrivateAssets(job: VideoDeletionJob): Promise<void> {
   await Promise.all(deleteTasks);
 }
 
+async function deleteProcessedAssets(job: VideoDeletionJob): Promise<void> {
+  if (!job.processedOutputPrefix) {
+    return;
+  }
+
+  const [files] = await storage.bucket().getFiles({
+    prefix: job.processedOutputPrefix,
+  });
+
+  await Promise.all(
+    files.map((file) => file.delete({ ignoreNotFound: true }))
+  );
+}
+
 async function executeDeletionJob(
   jobId: string,
   job: VideoDeletionJob
@@ -161,7 +199,10 @@ async function executeDeletionJob(
   );
   const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
 
-  await deletePrivateAssets(job);
+  await Promise.all([
+    deletePrivateAssets(job),
+    deleteProcessedAssets(job),
+  ]);
   const publishedAssetsDeleted = await cleanupPublishedAssets(job);
 
   await Promise.all([
@@ -193,6 +234,38 @@ async function recordDeletionAttemptFailure(
   }
 }
 
+function requestProcessingCancellation(
+  batch: FirebaseFirestore.WriteBatch,
+  processingJobRef: FirebaseFirestore.DocumentReference,
+  processingJob: VideoProcessingJobDoc | null,
+  now: number
+): boolean {
+  if (!processingJob) {
+    return false;
+  }
+
+  const state = String(processingJob.state ?? '').trim().toUpperCase();
+
+  if (state === 'CANCELLED' || state === 'CANCEL_REQUESTED') {
+    return true;
+  }
+
+  batch.set(
+    processingJobRef,
+    {
+      state: 'CANCEL_REQUESTED',
+      cancelRequestedAt: now,
+      leaseUntil: null,
+      updatedAt: now,
+      lastErrorCode: 'PRIVATE_VIDEO_DELETED',
+      lastError: 'O vídeo privado foi excluído pelo proprietário.',
+    },
+    { merge: true }
+  );
+
+  return true;
+}
+
 export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
   { region: FUNCTIONS_REGION },
   async (request): Promise<DeleteProfileVideoResponse> => {
@@ -213,29 +286,35 @@ export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
     const publicVideoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
-    const [privateVideoSnap, publicationSnap] = await Promise.all([
-      privateVideoRef.get(),
-      publicationRef.get(),
-    ]);
+    const processingJobRef = db
+      .collection(VIDEO_PROCESSING_JOBS_COLLECTION)
+      .doc(buildVideoProcessingJobId(ownerUid, videoId));
+    const [privateVideoSnap, publicationSnap, processingJobSnap] =
+      await Promise.all([
+        privateVideoRef.get(),
+        publicationRef.get(),
+        processingJobRef.get(),
+      ]);
     const publication = publicationSnap.exists
       ? (publicationSnap.data() as VideoPublicationDoc)
       : null;
+    const processingJob = processingJobSnap.exists
+      ? (processingJobSnap.data() as VideoProcessingJobDoc)
+      : null;
+    const now = Date.now();
 
     if (!privateVideoSnap.exists) {
-      const now = Date.now();
       const cleanupBatch = db.batch();
       cleanupBatch.delete(publicationRef);
-      cleanupBatch.set(
-        publicVideoRef,
-        {
-          visibility: 'PRIVATE',
-          moderationStatus: 'HIDDEN',
-          updatedAt: now,
-        },
-        { merge: true }
+      cleanupBatch.delete(publicVideoRef);
+      const processingCleanupPending = requestProcessingCancellation(
+        cleanupBatch,
+        processingJobRef,
+        processingJob,
+        now
       );
       await cleanupBatch.commit();
-      await refreshPublicProfileMediaMetrics(ownerUid);
+      await refreshMetricsBestEffort(ownerUid);
 
       const publishedAssetsDeleted = await cleanupPublishedAssets({
         ownerUid,
@@ -249,7 +328,8 @@ export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
 
       return {
         videoId,
-        cleanupPending: !publishedAssetsDeleted,
+        cleanupPending:
+          !publishedAssetsDeleted || processingCleanupPending,
       };
     }
 
@@ -276,45 +356,56 @@ export const deleteProfileVideo = onCall<DeleteProfileVideoRequest>(
         videoId,
         privateVideo.thumbnailUrl
       );
-    const now = Date.now();
+    const processedOutputPrefix =
+      normalizeOwnedProcessedVideoPrefix(
+        ownerUid,
+        videoId,
+        privateVideo.processedOutputPrefix
+      ) ??
+      normalizeOwnedProcessedVideoPrefix(
+        ownerUid,
+        videoId,
+        processingJob?.outputPrefix
+      );
     const jobId = buildDeletionJobId(ownerUid, videoId);
     const jobRef = db.collection(DELETION_JOBS_COLLECTION).doc(jobId);
+    const hideBatch = db.batch();
+    const processingCleanupPending = requestProcessingCancellation(
+      hideBatch,
+      processingJobRef,
+      processingJob,
+      now
+    );
     const job: VideoDeletionJob = {
       ownerUid,
       videoId,
       privateVideoStoragePath,
       privatePosterStoragePath,
+      processedOutputPrefix,
       publishedVideoStoragePath:
         publication?.publishedStoragePath ?? null,
       publishedPosterStoragePath:
         publication?.publishedPosterStoragePath ?? null,
+      processingCleanupPending,
       createdAt: now,
       updatedAt: now,
       attempts: 0,
       lastError: null,
     };
 
-    const hideBatch = db.batch();
     hideBatch.set(jobRef, job);
     hideBatch.delete(publicationRef);
-    hideBatch.set(
-      publicVideoRef,
-      {
-        visibility: 'PRIVATE',
-        moderationStatus: 'HIDDEN',
-        updatedAt: now,
-      },
-      { merge: true }
-    );
+    hideBatch.delete(publicVideoRef);
     await hideBatch.commit();
-    await refreshPublicProfileMediaMetrics(ownerUid);
+    await refreshMetricsBestEffort(ownerUid);
 
     try {
       const publishedAssetsDeleted = await executeDeletionJob(jobId, job);
 
       return {
         videoId,
-        cleanupPending: !publishedAssetsDeleted,
+        cleanupPending:
+          !publishedAssetsDeleted || processingCleanupPending,
       };
     } catch (error) {
       await recordDeletionAttemptFailure(jobId, error);
@@ -362,12 +453,20 @@ export const cleanupPendingVideoDeletions = onSchedule(
           job.privatePosterStoragePath
         )
         : null;
+      const processedOutputPrefix = job.processedOutputPrefix
+        ? normalizeOwnedProcessedVideoPrefix(
+          ownerUid,
+          videoId,
+          job.processedOutputPrefix
+        )
+        : null;
 
       if (
         !ownerUid ||
         !videoId ||
         !privateVideoStoragePath ||
-        (job.privatePosterStoragePath && !privatePosterStoragePath)
+        (job.privatePosterStoragePath && !privatePosterStoragePath) ||
+        (job.processedOutputPrefix && !processedOutputPrefix)
       ) {
         logger.error('[cleanupPendingVideoDeletions] Job inválido.', {
           jobId: jobDoc.id,
@@ -382,6 +481,7 @@ export const cleanupPendingVideoDeletions = onSchedule(
           videoId,
           privateVideoStoragePath,
           privatePosterStoragePath,
+          processedOutputPrefix,
         });
       } catch (error) {
         await recordDeletionAttemptFailure(jobDoc.id, error);
