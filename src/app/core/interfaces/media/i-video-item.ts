@@ -11,6 +11,7 @@
 
 export type VideoProcessingStatus =
   | 'uploaded'
+  | 'queued'
   | 'processing'
   | 'ready'
   | 'failed';
@@ -23,9 +24,21 @@ export interface IVideoItem {
   readonly fileName?: string | null;
   readonly mimeType?: string | null;
   readonly sizeBytes?: number | null;
+  readonly sourceMimeType?: string | null;
+  readonly sourceSizeBytes?: number | null;
   readonly durationMs?: number | null;
   readonly thumbnailUrl?: string | null;
   readonly thumbnailPath?: string | null;
+  readonly playbackPath?: string | null;
+  readonly processedStoragePath?: string | null;
+  readonly processedOutputPrefix?: string | null;
+  readonly processedMimeType?: string | null;
+  readonly processedSizeBytes?: number | null;
+  readonly processingJobId?: string | null;
+  readonly processingStage?: string | null;
+  readonly processingErrorCode?: string | null;
+  readonly processingErrorMessage?: string | null;
+  readonly processingCompletedAt?: number | null;
   readonly status: VideoProcessingStatus;
   readonly createdAt: number;
   readonly updatedAt?: number | null;
