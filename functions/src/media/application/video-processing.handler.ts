@@ -234,25 +234,6 @@ async function updatePrivateVideoIfPresent(
   await videoRef.set(patch, { merge: true });
 }
 
-async function requestCancellation(
-  jobRef: DocumentReference,
-  job: VideoProcessingJob,
-  reason: string,
-  externalJobName?: string | null
-): Promise<void> {
-  const now = Date.now();
-
-  await jobRef.update({
-    state: 'CANCEL_REQUESTED',
-    externalJobName: externalJobName ?? job.externalJobName ?? null,
-    cancelRequestedAt: job.cancelRequestedAt ?? now,
-    leaseUntil: null,
-    updatedAt: now,
-    lastErrorCode: reason,
-    lastError: 'O processamento foi cancelado porque o vídeo deixou de existir.',
-  });
-}
-
 async function claimQueuedJob(
   jobRef: DocumentReference,
   now: number
