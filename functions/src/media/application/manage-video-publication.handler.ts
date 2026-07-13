@@ -62,7 +62,6 @@ interface UnpublishVideoRequest {
 }
 
 const AUTO_APPROVE_VIDEOS =
-  process.env.FUNCTIONS_EMULATOR === 'true' ||
   process.env.MEDIA_AUTO_APPROVE_VIDEOS === 'true';
 const PUBLIC_VIDEO_CONTENT_TYPES = new Set(['video/mp4', 'video/webm']);
 
@@ -188,10 +187,7 @@ function assertSourceWasNotRejected(
     publication?.rejectedSourceStoragePath ?? ''
   ).trim();
 
-  if (
-    publication?.moderationStatus === 'REJECTED' &&
-    rejectedSourceStoragePath === sourceStoragePath
-  ) {
+  if (rejectedSourceStoragePath === sourceStoragePath) {
     throw new HttpsError(
       'failed-precondition',
       'Este arquivo foi rejeitado pela moderação. Exclua-o e envie uma nova versão.'
@@ -468,6 +464,11 @@ export const unpublishVideo = onCall<UnpublishVideoRequest>(
     const publication = publicationSnap.exists
       ? (publicationSnap.data() as VideoPublicationDoc)
       : null;
+
+    if (publication?.moderationStatus === 'REJECTED') {
+      return { videoId };
+    }
+
     const now = Date.now();
     const batch = db.batch();
 
