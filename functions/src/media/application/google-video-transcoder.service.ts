@@ -132,9 +132,7 @@ function inputUri(sourceStoragePath: string): string {
   return `gs://${bucketName}/${normalizedPath}`;
 }
 
-export async function probeGoogleVideoTranscoder(): Promise<
-  GoogleVideoTranscoderProbeResult
-> {
+export async function probeGoogleVideoTranscoder(): Promise<GoogleVideoTranscoderProbeResult> {
   const checkedAt = Date.now();
   let resolvedProjectId: string | null = null;
   let bucketName: string | null = null;
