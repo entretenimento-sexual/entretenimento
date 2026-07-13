@@ -11,7 +11,9 @@ export const environment: AppEnvironment = {
     apiKey: 'fake-api-key', // qualquer string
     authDomain: 'localhost',
     projectId: 'entretenimento-sexual', // mantém o mesmo projectId
-    storageBucket: 'fake-bucket',
+    // O nome lógico do bucket precisa ser o mesmo no cliente e no Admin SDK.
+    // O Storage Emulator intercepta o tráfego; nenhum arquivo vai para produção.
+    storageBucket: 'entretenimento-sexual.appspot.com',
     appId: 'demo-app',
     messagingSenderId: '0',
   },
@@ -21,11 +23,11 @@ export const environment: AppEnvironment = {
   enableDebugTools: true,
 
   privacyLogging: {
-  enabled: true,
-  allowSensitiveConsoleData: false,
-  allowCacheTrace: false,
-  includeStackTrace: false,
-},
+    enabled: true,
+    allowSensitiveConsoleData: false,
+    allowCacheTrace: false,
+    includeStackTrace: false,
+  },
 
   monitoring: {
     sentry: {
@@ -50,9 +52,9 @@ export const environment: AppEnvironment = {
       enabled: false,
       // ⚠️ Só para DESENVOLVIMENTO local. Em produção NÃO exponha a chave no front.
       apiKey: undefined,
-      useProxy: false,           // direto no browser (pode falhar por CORS)
-      region: 'us-central1'
-    }
+      useProxy: false, // direto no browser (pode falhar por CORS)
+      region: 'us-central1',
+    },
   },
 
   appCheck: {
@@ -64,7 +66,10 @@ export const environment: AppEnvironment = {
   features: {
     enforceEmailVerified: false,
     showGuestBanner: true,
-    restrictedRoutesWhenUnverified: ['/dashboard/chat', '/dashboard/featured-profiles'],
+    restrictedRoutesWhenUnverified: [
+      '/dashboard/chat',
+      '/dashboard/featured-profiles',
+    ],
   },
 
   friendsPageSize: 24,
