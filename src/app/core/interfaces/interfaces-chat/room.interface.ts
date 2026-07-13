@@ -6,15 +6,16 @@ export type RoomPlaceIntentMode = 'now' | 'scheduled';
 export type RoomPlaceIntentVisibility = 'room_members' | 'regional_teaser';
 
 /**
- * Intenção operacional de local da sala.
+ * Snapshot canônico e temporário de um estabelecimento associado à sala.
  *
- * Regras de privacidade:
- * - não armazena coordenada precisa;
- * - não armazena lista de usuários presentes;
- * - serve para rooms, sugestões e projeções agregadas regionais;
- * - a autorização final para preencher esse bloco é validada no backend.
+ * Segurança:
+ * - o cliente envia somente venueId, modo e horário pretendido;
+ * - nome, região, tipo, endereço aproximado, visibilidade e expiração são
+ *   resolvidos pelo backend a partir do catálogo moderado de estabelecimentos;
+ * - não armazena coordenada precisa nem lista pública de pessoas presentes.
  */
 export interface IRoomPlaceIntent {
+  venueId: string;
   mode: RoomPlaceIntentMode;
   visibility: RoomPlaceIntentVisibility;
   region: {
@@ -22,17 +23,23 @@ export interface IRoomPlaceIntent {
     city: string;
   };
   label: string;
+  venueKind?: string | null;
+  addressHint?: string | null;
   startsAt: number;
-  endsAt?: number | null;
-  source: 'owner_declared';
+  endsAt: number;
+  source: 'venue_catalog';
   createdAt?: Timestamp | Date | number | null;
   updatedAt?: Timestamp | Date | number | null;
 }
 
-export type IRoomPlaceIntentInput = Omit<
-  IRoomPlaceIntent,
-  'source' | 'createdAt' | 'updatedAt'
->;
+/**
+ * Entrada mínima aceita pelo cliente. Os demais campos são autoridade do backend.
+ */
+export interface IRoomPlaceIntentInput {
+  venueId: string;
+  mode: RoomPlaceIntentMode;
+  startsAt?: number | null;
+}
 
 export interface IRoom {
   id: string;
@@ -51,7 +58,7 @@ export interface IRoom {
 
   // Para o sort no ChatList:
   lastMessage?: Message;
-  isRoom?: true;                // discriminador opcional
+  isRoom?: true;
 }
 
 // Dados apenas de confirmação de modal (não fazem parte de IRoom)
