@@ -18,6 +18,7 @@ export {
 } from './application/manage-video-publication.handler';
 
 export {
+  cleanupPendingPrivateVideoUploadAssets,
   registerPrivateVideoUpload,
 } from './application/register-private-video-upload.handler';
 
