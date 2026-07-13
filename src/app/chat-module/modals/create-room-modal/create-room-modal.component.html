@@ -1,7 +1,7 @@
 <!-- src/app/chat-module/modals/create-room-modal/create-room-modal.component.html -->
 
 <app-base-modal
-  [title]="isEditing ? 'Edite a Sala' : 'Crie sua Sala'"
+  [title]="isEditing ? 'Editar sala' : 'Criar sala'"
   (closeModal)="cancel()"
 >
   <div body-content>
@@ -18,21 +18,25 @@
           type="text"
           class="input-field"
           formControlName="roomName"
+          minlength="3"
+          maxlength="60"
           autocomplete="off"
           required
           [attr.aria-invalid]="
             roomForm.controls.roomName.touched &&
             roomForm.controls.roomName.invalid
           "
-          aria-describedby="roomName-error"
+          aria-describedby="roomName-help roomName-error"
         />
+
+        <p id="roomName-help" class="form-hint">Entre 3 e 60 caracteres.</p>
 
         @if (
           roomForm.controls.roomName.touched &&
-          roomForm.controls.roomName.hasError('required')
+          roomForm.controls.roomName.invalid
         ) {
           <p id="roomName-error" class="form-error" role="alert">
-            Informe um nome para a sala.
+            Informe um nome entre 3 e 60 caracteres.
           </p>
         }
       </div>
@@ -45,16 +49,33 @@
           class="input-field"
           formControlName="description"
           rows="3"
+          maxlength="280"
+          aria-describedby="description-help description-error"
+          [attr.aria-invalid]="
+            roomForm.controls.description.touched &&
+            roomForm.controls.description.invalid
+          "
         ></textarea>
+
+        <p id="description-help" class="form-hint">Opcional · até 280 caracteres.</p>
+
+        @if (
+          roomForm.controls.description.touched &&
+          roomForm.controls.description.invalid
+        ) {
+          <p id="description-error" class="form-error" role="alert">
+            A descrição deve ter no máximo 280 caracteres.
+          </p>
+        }
       </div>
 
       <section class="place-intent" aria-labelledby="place-intent-title">
         <div class="place-intent__header">
           <div>
-            <h3 id="place-intent-title">Local da room</h3>
+            <h3 id="place-intent-title">Estabelecimento da sala</h3>
             <p>
-              Informe onde você está ou estará. A plataforma usa esse dado para
-              organizar salas e sinais regionais, sem divulgar coordenada precisa.
+              Associe a sala a um local moderado da sua região. O vínculo fica
+              ativo por até 12 horas e não divulga coordenadas precisas.
             </p>
           </div>
 
@@ -62,114 +83,98 @@
         </div>
 
         @if (canUsePlaceIntent) {
-          <label class="place-intent__toggle">
-            <input type="checkbox" formControlName="placeEnabled" />
-            <span>Adicionar local nesta sala</span>
-          </label>
+          @if (venues$ | async; as venues) {
+            @if (venues.length > 0) {
+              <label class="place-intent__toggle">
+                <input type="checkbox" formControlName="placeEnabled" />
+                <span>Adicionar estabelecimento</span>
+              </label>
 
-          @if (roomForm.controls.placeEnabled.value) {
-            <div class="place-intent__grid">
-              <div class="form-group">
-                <label for="placeMode">Quando?</label>
-                <select
-                  id="placeMode"
-                  class="input-field"
-                  formControlName="placeMode"
-                >
-                  <option value="now">Estou aqui agora</option>
-                  <option value="scheduled">Estarei lá depois</option>
-                </select>
-              </div>
+              @if (roomForm.controls.placeEnabled.value) {
+                <div class="place-intent__grid">
+                  <div class="form-group place-intent__wide">
+                    <label for="placeVenueId">Estabelecimento</label>
+                    <select
+                      id="placeVenueId"
+                      class="input-field"
+                      formControlName="placeVenueId"
+                      [attr.aria-invalid]="
+                        roomForm.controls.placeVenueId.touched &&
+                        roomForm.controls.placeVenueId.invalid
+                      "
+                      aria-describedby="placeVenueId-help placeVenueId-error"
+                    >
+                      <option value="">Selecione um local</option>
+                      @for (venue of venues; track venue.id) {
+                        <option [value]="venue.id">
+                          {{ venue.name }} · {{ venue.regionLabel }}
+                        </option>
+                      }
+                    </select>
 
-              <div class="form-group">
-                <label for="placeUf">UF</label>
-                <input
-                  id="placeUf"
-                  type="text"
-                  class="input-field"
-                  formControlName="placeUf"
-                  maxlength="2"
-                  autocapitalize="characters"
-                  autocomplete="address-level1"
-                  [attr.aria-invalid]="
-                    roomForm.controls.placeUf.touched &&
-                    roomForm.controls.placeUf.invalid
-                  "
-                />
-
-                @if (roomForm.controls.placeUf.touched && roomForm.controls.placeUf.invalid) {
-                  <p class="form-error" role="alert">Informe a UF com 2 letras.</p>
-                }
-              </div>
-
-              <div class="form-group">
-                <label for="placeCity">Cidade</label>
-                <input
-                  id="placeCity"
-                  type="text"
-                  class="input-field"
-                  formControlName="placeCity"
-                  autocomplete="address-level2"
-                  [attr.aria-invalid]="
-                    roomForm.controls.placeCity.touched &&
-                    roomForm.controls.placeCity.invalid
-                  "
-                />
-
-                @if (roomForm.controls.placeCity.touched && roomForm.controls.placeCity.invalid) {
-                  <p class="form-error" role="alert">Informe a cidade.</p>
-                }
-              </div>
-
-              <div class="form-group place-intent__wide">
-                <label for="placeLabel">Local ou área</label>
-                <input
-                  id="placeLabel"
-                  type="text"
-                  class="input-field"
-                  formControlName="placeLabel"
-                  maxlength="80"
-                  autocomplete="off"
-                  placeholder="Ex.: Centro, Zona Sul, evento privado"
-                  [attr.aria-invalid]="
-                    roomForm.controls.placeLabel.touched &&
-                    roomForm.controls.placeLabel.invalid
-                  "
-                />
-
-                @if (roomForm.controls.placeLabel.touched && roomForm.controls.placeLabel.invalid) {
-                  <p class="form-error" role="alert">
-                    Informe um local ou área entre 3 e 80 caracteres.
-                  </p>
-                }
-              </div>
-
-              @if (roomForm.controls.placeMode.value === 'scheduled') {
-                <div class="form-group place-intent__wide">
-                  <label for="placeStartsAt">Data e horário</label>
-                  <input
-                    id="placeStartsAt"
-                    type="datetime-local"
-                    class="input-field"
-                    formControlName="placeStartsAt"
-                    [attr.aria-invalid]="
-                      roomForm.controls.placeStartsAt.touched &&
-                      roomForm.controls.placeStartsAt.invalid
-                    "
-                  />
-
-                  @if (roomForm.controls.placeStartsAt.touched && roomForm.controls.placeStartsAt.invalid) {
-                    <p class="form-error" role="alert">
-                      Informe quando você estará nesse local.
+                    <p id="placeVenueId-help" class="form-hint">
+                      Somente locais ativos e liberados para salas são exibidos.
                     </p>
+
+                    @if (
+                      roomForm.controls.placeVenueId.touched &&
+                      roomForm.controls.placeVenueId.invalid
+                    ) {
+                      <p id="placeVenueId-error" class="form-error" role="alert">
+                        Selecione um estabelecimento válido.
+                      </p>
+                    }
+                  </div>
+
+                  <div class="form-group">
+                    <label for="placeMode">Quando?</label>
+                    <select
+                      id="placeMode"
+                      class="input-field"
+                      formControlName="placeMode"
+                    >
+                      <option value="now">Agora</option>
+                      <option value="scheduled">Mais tarde</option>
+                    </select>
+                  </div>
+
+                  @if (roomForm.controls.placeMode.value === 'scheduled') {
+                    <div class="form-group">
+                      <label for="placeStartsAt">Data e horário</label>
+                      <input
+                        id="placeStartsAt"
+                        type="datetime-local"
+                        class="input-field"
+                        formControlName="placeStartsAt"
+                        [min]="minimumScheduledDateTime"
+                        [attr.aria-invalid]="
+                          roomForm.controls.placeStartsAt.touched &&
+                          roomForm.controls.placeStartsAt.invalid
+                        "
+                        aria-describedby="placeStartsAt-error"
+                      />
+
+                      @if (
+                        roomForm.controls.placeStartsAt.touched &&
+                        roomForm.controls.placeStartsAt.invalid
+                      ) {
+                        <p id="placeStartsAt-error" class="form-error" role="alert">
+                          Informe uma data e um horário válidos.
+                        </p>
+                      }
+                    </div>
                   }
                 </div>
               }
-            </div>
+            } @else {
+              <div class="place-intent__locked" role="status" aria-live="polite">
+                Nenhum estabelecimento está liberado para salas na sua região.
+              </div>
+            }
           }
         } @else {
           <div class="place-intent__locked" role="note">
-            Esse preenchimento será liberado para plano premium ou superior.
+            A associação com estabelecimento é exclusiva para plano premium ou superior.
           </div>
         }
       </section>
