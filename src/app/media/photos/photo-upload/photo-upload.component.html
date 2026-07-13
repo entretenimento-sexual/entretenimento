@@ -9,19 +9,20 @@
 @let selectedFileSizeLabel = (selectedFileSizeLabel$ | async);
 @let uploadPercent = (uploadPercent$ | async);
 
-<section class="upload-page" aria-label="Envio de foto do perfil">
+<section class="upload-page" aria-labelledby="photo-upload-title">
   <header class="upload-header app-card">
     <a
       class="upload-header__back-link"
       [routerLink]="['/media', 'perfil', ownerUid || '', 'fotos']"
       aria-label="Voltar para minhas fotos"
     >
-      ← Minhas fotos
+      <i class="fas fa-arrow-left" aria-hidden="true"></i>
+      Minhas fotos
     </a>
 
     <div class="upload-header__copy">
-      <h1>Adicionar foto</h1>
-      <p>Escolha uma imagem, revise a prévia e envie para fortalecer sua vitrine no perfil.</p>
+      <h1 id="photo-upload-title">Adicionar foto</h1>
+      <p>Escolha, confira e envie.</p>
     </div>
   </header>
 
@@ -42,21 +43,21 @@
 
         <p>
           @if (!policy || policy.reason === 'UNKNOWN') {
-            Aguarde enquanto verificamos sua sessão e as permissões do perfil.
+            Aguarde enquanto verificamos sua sessão.
           } @else if (policy.reason === 'NOT_AUTHENTICATED') {
             Faça login para enviar fotos.
           } @else if (policy.reason === 'NOT_OWNER') {
-            Você só pode enviar fotos do seu próprio perfil.
+            Você só pode enviar fotos do próprio perfil.
           } @else if (policy.reason === 'EMAIL_UNVERIFIED') {
-            Confirme seu e-mail antes de enviar fotos.
+            Confirme seu e-mail antes de continuar.
           } @else if (policy.reason === 'PROFILE_INCOMPLETE') {
-            Finalize seu cadastro antes de enviar fotos.
+            Finalize seu cadastro antes de continuar.
           } @else if (policy.reason === 'INTERACTION_BLOCKED' || policy.reason === 'BLOCKED') {
             Sua conta não pode enviar fotos no momento.
           } @else if (policy.reason === 'SUBSCRIPTION_REQUIRED') {
             Assinatura necessária para enviar fotos.
           } @else {
-            Não foi possível autorizar o envio de fotos agora.
+            Não foi possível autorizar o envio agora.
           }
         </p>
       </div>
@@ -78,20 +79,17 @@
               />
 
               <span class="file-drop__icon" aria-hidden="true">
-                <i class="fas fa-cloud-arrow-up"></i>
+                <i class="fas fa-image"></i>
               </span>
-
-              <span class="file-drop__title">Selecionar imagem</span>
-              <span class="file-drop__hint">JPG, PNG ou WEBP • até 10 MB</span>
+              <span class="file-drop__title">Escolher foto</span>
+              <span class="file-drop__hint">JPG, PNG ou WEBP · até 10 MB</span>
             </label>
 
             @if (selectedFileName) {
               <div class="selected-file" aria-live="polite">
                 <i class="fas fa-file-image" aria-hidden="true"></i>
-
                 <div>
                   <strong>{{ selectedFileName }}</strong>
-
                   @if (selectedFileSizeLabel) {
                     <span>{{ selectedFileSizeLabel }}</span>
                   }
@@ -99,55 +97,49 @@
               </div>
             }
 
-            <div class="privacy-callout" role="note">
-              <i class="fas fa-user-shield" aria-hidden="true"></i>
-
-              <div>
-                <strong>Revise antes de publicar</strong>
-                <span>Confira enquadramento, privacidade e qualidade antes de enviar.</span>
-              </div>
-            </div>
+            <p class="upload-note">
+              A foto entra na biblioteca privada. A publicação no perfil é uma etapa separada.
+            </p>
 
             <div class="upload-actions">
               <button
                 type="button"
                 class="btn btn-primary"
-                (click)="editBeforeUpload()"
-                [disabled]="phase !== 'READY'"
-              >
-                <i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i>
-                <span>Editar antes de enviar</span>
-              </button>
-
-              <button
-                type="button"
-                class="btn btn-secondary"
                 (click)="startUpload()"
                 [disabled]="phase !== 'READY'"
               >
                 @if (phase === 'UPLOADING') {
                   Enviando...
                 } @else {
-                  Enviar agora
+                  Enviar foto
                 }
+              </button>
+
+              <button
+                type="button"
+                class="btn btn-secondary"
+                (click)="editBeforeUpload()"
+                [disabled]="phase !== 'READY'"
+              >
+                <i class="fas fa-crop-simple" aria-hidden="true"></i>
+                Ajustar
               </button>
 
               <button
                 type="button"
                 class="btn btn-ghost"
                 (click)="resetSelection(fileInput)"
-                [disabled]="phase === 'UPLOADING'"
+                [disabled]="phase === 'UPLOADING' || phase === 'IDLE'"
               >
-                Limpar seleção
+                Limpar
               </button>
             </div>
 
             @if (phase === 'UPLOADING') {
-              <div class="upload-progress-wrap">
+              <div class="upload-progress-wrap" aria-live="polite">
                 <div
                   class="upload-progress"
                   role="progressbar"
-                  aria-live="polite"
                   [attr.aria-valuemin]="0"
                   [attr.aria-valuemax]="100"
                   [attr.aria-valuenow]="uploadPercent || 0"
@@ -155,10 +147,7 @@
                 >
                   <div class="upload-progress__bar" [style.width.%]="uploadPercent || 0"></div>
                 </div>
-
-                <span class="upload-progress__label">
-                  Enviando... {{ uploadPercent || 0 }}%
-                </span>
+                <span class="upload-progress__label">{{ uploadPercent || 0 }}%</span>
               </div>
             }
           </section>
@@ -171,11 +160,7 @@
             } @else {
               <div class="preview-empty" role="status" aria-live="polite">
                 <i class="fas fa-images" aria-hidden="true"></i>
-
-                <div>
-                  <strong>Nenhuma imagem selecionada</strong>
-                  <span>A prévia aparecerá aqui antes do envio.</span>
-                </div>
+                <strong>Nenhuma foto selecionada</strong>
               </div>
             }
           </section>
@@ -195,11 +180,8 @@
           </div>
 
           <div class="upload-done__copy">
-            <h2>Foto enviada</h2>
-
-            <p>
-              A foto foi salva na vitrine do perfil. A exibição pública segue as regras de publicação e moderação.
-            </p>
+            <h2>Foto adicionada</h2>
+            <p>Ela permanece privada até você decidir publicá-la no perfil.</p>
 
             <div class="upload-actions upload-actions--done">
               <button
@@ -215,7 +197,7 @@
                 class="btn btn-secondary"
                 (click)="sendAnotherPhoto()"
               >
-                Enviar outra foto
+                Adicionar outra
               </button>
             </div>
           </div>
