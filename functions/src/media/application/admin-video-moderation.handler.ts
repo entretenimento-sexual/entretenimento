@@ -11,6 +11,7 @@ import {
 } from './video-storage-path';
 
 type AdminVideoModerationDecision = 'APPROVE' | 'REJECT';
+type ReviewedModerationStatus = 'APPROVED' | 'REJECTED';
 
 interface ListVideoModerationQueueRequest {
   limit?: number;
@@ -45,7 +46,7 @@ interface ReviewVideoModerationRequest {
 interface ReviewVideoModerationResponse {
   ownerUid: string;
   videoId: string;
-  moderationStatus: 'APPROVED' | 'REJECTED';
+  moderationStatus: ReviewedModerationStatus;
   cleanupPending: boolean;
 }
 
@@ -70,6 +71,12 @@ interface VideoPublicationDocument {
   sourceStoragePath?: string;
   publishedStoragePath?: string;
   publishedPosterStoragePath?: string;
+}
+
+interface ModerationTransactionResult {
+  publication: VideoPublicationDocument;
+  moderationStatus: ReviewedModerationStatus;
+  alreadyReviewed: boolean;
 }
 
 const DEFAULT_QUEUE_LIMIT = 40;
@@ -141,12 +148,15 @@ function normalizeLimit(value: unknown): number {
   return Math.max(1, Math.min(MAX_QUEUE_LIMIT, Math.trunc(numberValue)));
 }
 
-function assertAdmin(requestAuth: {
-  uid: string;
-  token: Record<string, unknown>;
-} | null | undefined): string {
-  const adminUid = cleanId(requestAuth?.uid);
-  const token = requestAuth?.token ?? {};
+function assertAdmin(requestAuth: unknown): string {
+  const authData = requestAuth as {
+    uid?: unknown;
+    token?: unknown;
+  } | null | undefined;
+  const adminUid = cleanId(authData?.uid);
+  const token = typeof authData?.token === 'object' && authData.token !== null
+    ? authData.token as Record<string, unknown>
+    : {};
   const roles = Array.isArray(token['roles']) ? token['roles'] : [];
   const allowed = token['admin'] === true ||
     token['role'] === 'admin' ||
@@ -367,99 +377,120 @@ export const reviewVideoModeration = onCall<
     const publicVideoRef = db.doc(
       `public_profiles/${ownerUid}/public_videos/${videoId}`
     );
-    const [publicationSnap, publicVideoSnap] = await Promise.all([
-      publicationRef.get(),
-      publicVideoRef.get(),
-    ]);
-
-    if (!publicationSnap.exists || !publicVideoSnap.exists) {
-      throw new HttpsError('not-found', 'Vídeo pendente não encontrado.');
-    }
-
-    const publication = publicationSnap.data() as VideoPublicationDocument;
-    const publicVideo = publicVideoSnap.data() as PublicVideoDocument;
-
-    if (
-      publication.isPublished !== true ||
-      publication.moderationStatus !== 'PENDING_REVIEW' ||
-      publicVideo.moderationStatus !== 'PENDING_REVIEW'
-    ) {
-      throw new HttpsError(
-        'failed-precondition',
-        'Este vídeo já foi revisado ou deixou a fila.'
-      );
-    }
-
     const adminLogRef = db.collection('admin_logs').doc();
-    const timestamp = FieldValue.serverTimestamp();
-    const batch = db.batch();
+    const moderationStatus: ReviewedModerationStatus =
+      decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
 
-    if (decision === 'APPROVE') {
-      batch.set(
-        publicationRef,
-        {
-          moderationStatus: 'APPROVED',
-          moderationReason: null,
-          lastModeratedAt: timestamp,
-          moderatedBy: adminUid,
-          updatedAt: timestamp,
-        },
-        { merge: true }
-      );
-      batch.set(
-        publicVideoRef,
-        {
-          moderationStatus: 'APPROVED',
-          moderationReason: null,
-          updatedAt: timestamp,
-        },
-        { merge: true }
-      );
-    } else {
-      batch.set(
-        publicationRef,
-        {
-          isPublished: false,
-          visibility: 'PRIVATE',
-          moderationStatus: 'REJECTED',
-          moderationReason: reason,
-          rejectedSourceStoragePath: publication.sourceStoragePath ?? null,
-          lastModeratedAt: timestamp,
-          moderatedBy: adminUid,
-          publishedStoragePath: FieldValue.delete(),
-          publishedPosterStoragePath: FieldValue.delete(),
-          assetVersion: FieldValue.delete(),
-          updatedAt: timestamp,
-        },
-        { merge: true }
-      );
-      batch.set(
-        publicVideoRef,
-        {
-          visibility: 'PRIVATE',
-          moderationStatus: 'REJECTED',
-          moderationReason: reason,
-          updatedAt: timestamp,
-        },
-        { merge: true }
-      );
-    }
+    const transactionResult = await db.runTransaction(
+      async (transaction): Promise<ModerationTransactionResult> => {
+        const publicationSnap = await transaction.get(publicationRef);
 
-    batch.set(adminLogRef, {
-      adminUid,
-      action: 'videoModerationReview',
-      targetUserUid: ownerUid,
-      details: {
-        videoId,
-        decision,
-        previousStatus: 'PENDING_REVIEW',
-        nextStatus: decision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
-        reason: reason || null,
-      },
-      timestamp,
-    });
+        if (!publicationSnap.exists) {
+          throw new HttpsError('not-found', 'Vídeo pendente não encontrado.');
+        }
 
-    await batch.commit();
+        const publication =
+          publicationSnap.data() as VideoPublicationDocument;
+
+        if (publication.moderationStatus === moderationStatus) {
+          return {
+            publication,
+            moderationStatus,
+            alreadyReviewed: true,
+          };
+        }
+
+        if (publication.moderationStatus !== 'PENDING_REVIEW') {
+          throw new HttpsError(
+            'failed-precondition',
+            'Este vídeo já foi revisado ou deixou a fila.'
+          );
+        }
+
+        const publicVideoSnap = await transaction.get(publicVideoRef);
+
+        if (!publicVideoSnap.exists) {
+          throw new HttpsError('not-found', 'Projeção pública não encontrada.');
+        }
+
+        const publicVideo = publicVideoSnap.data() as PublicVideoDocument;
+
+        if (
+          publication.isPublished !== true ||
+          publicVideo.moderationStatus !== 'PENDING_REVIEW'
+        ) {
+          throw new HttpsError(
+            'failed-precondition',
+            'Este vídeo deixou a fila antes da revisão.'
+          );
+        }
+
+        const timestamp = FieldValue.serverTimestamp();
+
+        if (decision === 'APPROVE') {
+          transaction.set(
+            publicationRef,
+            {
+              moderationStatus: 'APPROVED',
+              moderationReason: null,
+              lastModeratedAt: timestamp,
+              moderatedBy: adminUid,
+              updatedAt: timestamp,
+            },
+            { merge: true }
+          );
+          transaction.set(
+            publicVideoRef,
+            {
+              moderationStatus: 'APPROVED',
+              moderationReason: null,
+              updatedAt: timestamp,
+            },
+            { merge: true }
+          );
+        } else {
+          transaction.set(
+            publicationRef,
+            {
+              isPublished: false,
+              visibility: 'PRIVATE',
+              moderationStatus: 'REJECTED',
+              moderationReason: reason,
+              rejectedSourceStoragePath:
+                publication.sourceStoragePath ?? null,
+              lastModeratedAt: timestamp,
+              moderatedBy: adminUid,
+              publishedStoragePath: FieldValue.delete(),
+              publishedPosterStoragePath: FieldValue.delete(),
+              assetVersion: FieldValue.delete(),
+              updatedAt: timestamp,
+            },
+            { merge: true }
+          );
+          transaction.delete(publicVideoRef);
+        }
+
+        transaction.set(adminLogRef, {
+          adminUid,
+          action: 'videoModerationReview',
+          targetUserUid: ownerUid,
+          details: {
+            videoId,
+            decision,
+            previousStatus: 'PENDING_REVIEW',
+            nextStatus: moderationStatus,
+            reason: reason || null,
+          },
+          timestamp,
+        });
+
+        return {
+          publication,
+          moderationStatus,
+          alreadyReviewed: false,
+        };
+      }
+    );
 
     let cleanupPending = false;
 
@@ -468,14 +499,16 @@ export const reviewVideoModeration = onCall<
         deletePublishedVideoAssetOrQueue({
           ownerUid,
           videoId,
-          storagePath: publication.publishedStoragePath,
+          storagePath:
+            transactionResult.publication.publishedStoragePath,
           assetKind: 'video',
           reason: 'video-moderation-rejected',
         }),
         deletePublishedVideoAssetOrQueue({
           ownerUid,
           videoId,
-          storagePath: publication.publishedPosterStoragePath,
+          storagePath:
+            transactionResult.publication.publishedPosterStoragePath,
           assetKind: 'poster',
           reason: 'video-moderation-rejected-poster',
         }),
@@ -495,12 +528,14 @@ export const reviewVideoModeration = onCall<
       }
     }
 
-    await refreshMetricsBestEffort(ownerUid);
+    if (!transactionResult.alreadyReviewed) {
+      await refreshMetricsBestEffort(ownerUid);
+    }
 
     return {
       ownerUid,
       videoId,
-      moderationStatus: decision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+      moderationStatus: transactionResult.moderationStatus,
       cleanupPending,
     };
   }
