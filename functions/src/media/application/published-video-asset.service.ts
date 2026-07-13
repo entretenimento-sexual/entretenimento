@@ -6,6 +6,7 @@ import { db, storage } from '../../firebaseApp';
 import {
   buildPublishedVideoPath,
   buildPublishedVideoPosterPath,
+  normalizeOwnedProcessedVideoPath,
   normalizeOwnedPublishedVideoPath,
   normalizeOwnedPublishedVideoPosterPath,
 } from './video-storage-path';
@@ -27,6 +28,14 @@ interface CopyPublishedVideoAssetCommand {
   videoId: string;
   sourceVideoStoragePath: string;
   sourcePosterStoragePath?: string | null;
+}
+
+interface PrivateVideoProcessingDocument {
+  status?: string;
+  playbackPath?: string;
+  processedStoragePath?: string;
+  processedMimeType?: string;
+  processedSizeBytes?: number;
 }
 
 interface PublishedVideoAssetResult {
@@ -103,6 +112,41 @@ function normalizePublishedAssetPath(
     videoId,
     storagePath
   );
+}
+
+async function resolveProcessedVideoSource(
+  command: CopyPublishedVideoAssetCommand
+): Promise<string> {
+  const privateVideoSnap = await db
+    .doc(`users/${command.ownerUid}/videos/${command.videoId}`)
+    .get();
+
+  if (!privateVideoSnap.exists) {
+    throw new Error('O vídeo privado não foi encontrado para publicação.');
+  }
+
+  const privateVideo =
+    privateVideoSnap.data() as PrivateVideoProcessingDocument;
+  const status = String(privateVideo.status ?? '').trim().toLowerCase();
+  const processedStoragePath =
+    normalizeOwnedProcessedVideoPath(
+      command.ownerUid,
+      command.videoId,
+      privateVideo.processedStoragePath
+    ) ??
+    normalizeOwnedProcessedVideoPath(
+      command.ownerUid,
+      command.videoId,
+      privateVideo.playbackPath
+    );
+
+  if (status !== 'ready' || !processedStoragePath) {
+    throw new Error(
+      'O vídeo ainda não possui um derivado processado para publicação.'
+    );
+  }
+
+  return processedStoragePath;
 }
 
 async function enqueuePublishedVideoAssetCleanup(
@@ -191,11 +235,12 @@ export async function copyPrivateVideoToPublishedAsset(
   command: CopyPublishedVideoAssetCommand
 ): Promise<PublishedVideoAssetResult> {
   const bucket = storage.bucket();
-  const sourceVideo = bucket.file(command.sourceVideoStoragePath);
+  const processedStoragePath = await resolveProcessedVideoSource(command);
+  const sourceVideo = bucket.file(processedStoragePath);
   const [videoExists] = await sourceVideo.exists();
 
   if (!videoExists) {
-    throw new Error('O arquivo privado do vídeo não foi encontrado.');
+    throw new Error('O derivado processado do vídeo não foi encontrado.');
   }
 
   const [videoMetadata] = await sourceVideo.getMetadata();
@@ -203,7 +248,7 @@ export async function copyPrivateVideoToPublishedAsset(
 
   if (!ALLOWED_VIDEO_CONTENT_TYPES.has(videoContentType)) {
     throw new Error(
-      'A publicação pública aceita somente vídeos MP4 ou WebM.'
+      'O derivado processado não possui um formato público compatível.'
     );
   }
 
