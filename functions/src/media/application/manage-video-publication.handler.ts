@@ -10,6 +10,7 @@ import {
 } from './published-video-asset.service';
 import {
   extractOwnedPrivateVideoPath,
+  extractOwnedPrivateVideoPathForId,
   extractOwnedPrivateVideoPosterPath,
 } from './video-storage-path';
 
@@ -36,6 +37,9 @@ type PrivateVideoDoc = {
 
 type VideoPublicationDoc = {
   isPublished?: boolean;
+  moderationStatus?: string;
+  sourceStoragePath?: string;
+  rejectedSourceStoragePath?: string;
   publishedStoragePath?: string;
   publishedPosterStoragePath?: string;
 };
@@ -176,6 +180,25 @@ function assertPublishableVideo(privateVideo: PrivateVideoDoc): void {
   }
 }
 
+function assertSourceWasNotRejected(
+  publication: VideoPublicationDoc | null,
+  sourceStoragePath: string
+): void {
+  const rejectedSourceStoragePath = String(
+    publication?.rejectedSourceStoragePath ?? ''
+  ).trim();
+
+  if (
+    publication?.moderationStatus === 'REJECTED' &&
+    rejectedSourceStoragePath === sourceStoragePath
+  ) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Este arquivo foi rejeitado pela moderação. Exclua-o e envie uma nova versão.'
+    );
+  }
+}
+
 async function cleanupReplacedPublishedAssets(
   ownerUid: string,
   videoId: string,
@@ -276,9 +299,14 @@ export const publishVideo = onCall<PublishVideoRequest>(
     }
 
     const privateVideo = privateVideoSnap.data() as PrivateVideoDoc;
+    const previousPublication = previousPublicationSnap.exists
+      ? (previousPublicationSnap.data() as VideoPublicationDoc)
+      : null;
     assertPublishableVideo(privateVideo);
 
     const sourceVideoStoragePath =
+      extractOwnedPrivateVideoPathForId(ownerUid, videoId, privateVideo.path) ??
+      extractOwnedPrivateVideoPathForId(ownerUid, videoId, privateVideo.url) ??
       extractOwnedPrivateVideoPath(ownerUid, privateVideo.path) ??
       extractOwnedPrivateVideoPath(ownerUid, privateVideo.url);
 
@@ -288,6 +316,8 @@ export const publishVideo = onCall<PublishVideoRequest>(
         'O vídeo não possui um arquivo privado válido para publicação.'
       );
     }
+
+    assertSourceWasNotRejected(previousPublication, sourceVideoStoragePath);
 
     const sourcePosterStoragePath =
       extractOwnedPrivateVideoPosterPath(
@@ -348,6 +378,8 @@ export const publishVideo = onCall<PublishVideoRequest>(
         updatedAt: now,
         lastModeratedAt: moderationStatus === 'APPROVED' ? now : null,
         sourceStoragePath: sourceVideoStoragePath,
+        rejectedSourceStoragePath: FieldValue.delete(),
+        moderatedBy: FieldValue.delete(),
         publishedStoragePath: publishedAssets.videoStoragePath,
         publishedPosterStoragePath:
           publishedAssets.posterStoragePath ?? FieldValue.delete(),
@@ -396,10 +428,6 @@ export const publishVideo = onCall<PublishVideoRequest>(
       await rollbackPublishedAssets(ownerUid, videoId, publishedAssets);
       throw error;
     }
-
-    const previousPublication = previousPublicationSnap.exists
-      ? (previousPublicationSnap.data() as VideoPublicationDoc)
-      : null;
 
     await cleanupReplacedPublishedAssets(
       ownerUid,
