@@ -30,6 +30,7 @@ import {
   AdminVideoModerationDecision,
   AdminVideoModerationService,
   IAdminVideoModerationItem,
+  IAdminVideoProcessingStatus,
 } from 'src/app/core/services/moderation/admin-video-moderation.service';
 
 type VideoModerationQueueStatus = 'loading' | 'ready' | 'empty' | 'error';
@@ -40,9 +41,17 @@ interface VideoModerationQueueState {
   skippedItems: number;
 }
 
+type VideoProcessingPanelStatus = 'loading' | 'ready' | 'error';
+
+interface VideoProcessingPanelState {
+  status: VideoProcessingPanelStatus;
+  data: IAdminVideoProcessingStatus | null;
+}
+
 type ReasonDrafts = Record<string, string>;
 
 const ACCESS_REFRESH_INTERVAL_MS = 8 * 60 * 1000;
+const PROCESSING_STATUS_REFRESH_INTERVAL_MS = 60 * 1000;
 
 @Component({
   selector: 'app-video-moderation',
@@ -60,6 +69,32 @@ export class VideoModerationComponent {
   private readonly refreshSubject = new BehaviorSubject<number>(0);
   readonly busyVideoKey = signal<string | null>(null);
   readonly reasonDrafts = signal<ReasonDrafts>({});
+
+  readonly processingState$: Observable<VideoProcessingPanelState> = merge(
+    this.refreshSubject,
+    timer(
+      PROCESSING_STATUS_REFRESH_INTERVAL_MS,
+      PROCESSING_STATUS_REFRESH_INTERVAL_MS
+    )
+  ).pipe(
+    switchMap(() =>
+      this.moderation.getProcessingStatus$().pipe(
+        map((data) => ({
+          status: 'ready',
+          data,
+        } as VideoProcessingPanelState)),
+        startWith({
+          status: 'loading',
+          data: null,
+        } as VideoProcessingPanelState),
+        catchError(() => of({
+          status: 'error',
+          data: null,
+        } as VideoProcessingPanelState))
+      )
+    ),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
 
   readonly state$: Observable<VideoModerationQueueState> = merge(
     this.refreshSubject,
@@ -89,6 +124,56 @@ export class VideoModerationComponent {
 
   retry(): void {
     this.refreshSubject.next(this.refreshSubject.value + 1);
+  }
+
+  processingStateLabel(status: IAdminVideoProcessingStatus): string {
+    if (status.state === 'READY') {
+      return 'Operacional';
+    }
+
+    if (status.state === 'EMULATOR') {
+      return 'Emulator';
+    }
+
+    return 'Ação necessária';
+  }
+
+  processingStateDescription(status: IAdminVideoProcessingStatus): string {
+    if (status.state === 'READY') {
+      return 'A API respondeu com a identidade usada pelas Functions.';
+    }
+
+    if (status.state === 'EMULATOR') {
+      return 'A consulta externa foi bloqueada no ambiente local por segurança.';
+    }
+
+    return status.provider.errorMessage ||
+      'A API, a região ou as permissões do Transcoder precisam ser revisadas.';
+  }
+
+  formatAge(ageMs: number | null): string {
+    if (!ageMs || ageMs <= 0) {
+      return 'Sem jobs ativos';
+    }
+
+    const totalMinutes = Math.max(1, Math.floor(ageMs / 60_000));
+
+    if (totalMinutes < 60) {
+      return `${totalMinutes} min`;
+    }
+
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    if (hours < 24) {
+      return minutes > 0 ? `${hours} h ${minutes} min` : `${hours} h`;
+    }
+
+    const days = Math.floor(hours / 24);
+    const remainingHours = hours % 24;
+    return remainingHours > 0
+      ? `${days} d ${remainingHours} h`
+      : `${days} d`;
   }
 
   setReason(item: IAdminVideoModerationItem, value: string): void {
