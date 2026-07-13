@@ -34,13 +34,21 @@ import {
 } from 'src/app/core/services/image-handling/photo-editor-session.service';
 import {
   PhotoEditorCaptionStyle,
+  PhotoEditorDateTimeFormat,
+  PhotoEditorDateTimeMeta,
+  PhotoEditorDecorationOverlay,
   PhotoEditorDraftPrivacyRegion,
+  PhotoEditorFontFamily,
   PhotoEditorNormalizedPoint,
   PhotoEditorOverlay,
+  PhotoEditorPrivacyOverlay,
   PhotoEditorTool,
   clonePhotoEditorOverlays,
+  createPhotoEditorDateTimeMeta,
   createPhotoEditorOverlayId,
   drawPhotoEditorOverlays,
+  formatPhotoEditorDateTime,
+  hitTestPhotoEditorOverlay,
   normalizePhotoEditorOverlays,
   privacyRegionFromDraft,
 } from './photo-editor-overlay.model';
@@ -84,6 +92,7 @@ const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.05;
 const KEYBOARD_PAN_STEP = 0.025;
+const KEYBOARD_OVERLAY_STEP = 0.01;
 const MAX_OVERLAY_HISTORY = 50;
 
 @Component({
@@ -116,13 +125,58 @@ export class PhotoEditorComponent implements AfterViewInit {
   readonly photoId = input<string | null>(null);
   readonly isEditMode = input<boolean>(false);
 
-  readonly emojiOptions = ['🙈', '😎', '🔒', '❤️', '🔥', '✨', '⭐', '📍'];
+  readonly emojiGroups: ReadonlyArray<{
+    label: string;
+    items: readonly string[];
+  }> = [
+    {
+      label: 'Privacidade',
+      items: ['🙈', '🔒', '🚫', '🔞', '🕶️', '🎭', '🫣', '🤫'],
+    },
+    {
+      label: 'Reações',
+      items: ['😎', '😉', '😘', '😈', '🥵', '😍', '🤭', '😏'],
+    },
+    {
+      label: 'Destaques',
+      items: ['❤️', '🖤', '🔥', '✨', '⭐', '💋', '👑', '💎'],
+    },
+    {
+      label: 'Símbolos',
+      items: ['📍', '⚡', '🌙', '☀️', '🎉', '🍒', '🍑', '💦'],
+    },
+  ];
+
+  readonly emojiOptions = this.emojiGroups.flatMap((group) => [...group.items]);
+
+  readonly fontOptions: ReadonlyArray<{
+    value: PhotoEditorFontFamily;
+    label: string;
+  }> = [
+    { value: 'system', label: 'Moderna' },
+    { value: 'rounded', label: 'Arredondada' },
+    { value: 'serif', label: 'Elegante' },
+    { value: 'condensed', label: 'Impacto' },
+    { value: 'handwritten', label: 'Manuscrita' },
+    { value: 'mono', label: 'Monoespaçada' },
+  ];
+
+  readonly dateTimeFormatOptions: ReadonlyArray<{
+    value: PhotoEditorDateTimeFormat;
+    label: string;
+  }> = [
+    { value: 'instagram', label: '13 JUL • 15:42' },
+    { value: 'numeric', label: '13/07 • 15:42' },
+    { value: 'long', label: '13 JUL 2026 • 15:42' },
+    { value: 'today', label: 'HOJE • 15:42' },
+  ];
+
   readonly toolOptions: ReadonlyArray<{
     value: PhotoEditorTool;
     label: string;
     shortLabel: string;
   }> = [
-    { value: 'move', label: 'Mover e enquadrar', shortLabel: 'Mover' },
+    { value: 'move', label: 'Mover e selecionar', shortLabel: 'Mover' },
     { value: 'blur', label: 'Borrar área', shortLabel: 'Borrar' },
     { value: 'pixelate', label: 'Pixelar área', shortLabel: 'Pixelar' },
     { value: 'emoji', label: 'Inserir emoji', shortLabel: 'Emoji' },
@@ -143,7 +197,10 @@ export class PhotoEditorComponent implements AfterViewInit {
   selectedEmoji = this.emojiOptions[0];
   captionText = '';
   captionStyle: PhotoEditorCaptionStyle = 'classic';
+  captionFontFamily: PhotoEditorFontFamily = 'system';
+  newDateTimeMeta: PhotoEditorDateTimeMeta = createPhotoEditorDateTimeMeta();
   overlays: PhotoEditorOverlay[] = [];
+  selectedOverlayId: string | null = null;
 
   private sourceImage: HTMLImageElement | null = null;
   private sourceFile: File | null = null;
@@ -158,9 +215,11 @@ export class PhotoEditorComponent implements AfterViewInit {
   private renderFrame: number | null = null;
   private viewReady = false;
   private draggingPointerId: number | null = null;
-  private pointerInteraction: 'pan' | 'privacy' | null = null;
+  private pointerInteraction: 'pan' | 'privacy' | 'overlay' | null = null;
   private lastPointerX = 0;
   private lastPointerY = 0;
+  private overlayDragSnapshot: PhotoEditorOverlay[] | null = null;
+  private overlayDragChanged = false;
   private draftPrivacyRegion: PhotoEditorDraftPrivacyRegion | null = null;
   private previewWidth = 0;
   private previewHeight = 0;
@@ -227,6 +286,24 @@ export class PhotoEditorComponent implements AfterViewInit {
     return this.overlays.length > 0;
   }
 
+  get selectedOverlay(): PhotoEditorOverlay | null {
+    if (!this.selectedOverlayId) {
+      return null;
+    }
+
+    return (
+      this.overlays.find((overlay) => overlay.id === this.selectedOverlayId) ??
+      null
+    );
+  }
+
+  get selectedDateTimeMeta(): PhotoEditorDateTimeMeta | null {
+    const selected = this.selectedOverlay;
+    return selected?.kind === 'datetime' && selected.dateTimeMeta
+      ? selected.dateTimeMeta
+      : null;
+  }
+
   get isPrivacyTool(): boolean {
     return this.activeTool === 'blur' || this.activeTool === 'pixelate';
   }
@@ -240,11 +317,15 @@ export class PhotoEditorComponent implements AfterViewInit {
   }
 
   get toolInstruction(): string {
+    if (this.selectedOverlay) {
+      return 'Arraste o elemento selecionado ou ajuste suas propriedades abaixo.';
+    }
+
     switch (this.activeTool) {
       case 'blur':
         return 'Arraste sobre o rosto, tatuagem ou outra área que precisa ser escondida.';
       case 'pixelate':
-        return 'Arraste sobre a área para aplicar pixels grandes e irreversíveis na foto salva.';
+        return 'Arraste sobre a área para aplicar pixels grandes na foto salva.';
       case 'emoji':
         return 'Escolha um emoji e clique na foto para posicionar.';
       case 'text':
@@ -252,9 +333,9 @@ export class PhotoEditorComponent implements AfterViewInit {
           ? 'Clique na foto para posicionar o texto.'
           : 'Digite o texto antes de clicar na foto.';
       case 'datetime':
-        return 'Clique na foto para inserir a data e hora atuais.';
+        return 'Ajuste data, hora e estilo; depois clique na foto para posicionar.';
       default:
-        return 'Arraste a imagem ou use as setas do teclado para ajustar o enquadramento.';
+        return 'Clique em um elemento para selecioná-lo ou arraste a imagem para enquadrar.';
     }
   }
 
@@ -268,6 +349,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     }
 
     this.activeTool = tool;
+    this.selectedOverlayId = null;
     this.cancelPointerInteraction(false);
     this.scheduleRender();
   }
@@ -279,6 +361,18 @@ export class PhotoEditorComponent implements AfterViewInit {
 
     this.selectedEmoji = emoji;
     this.activeTool = 'emoji';
+    this.selectedOverlayId = null;
+  }
+
+  updateSelectedEmoji(emoji: string): void {
+    if (!this.emojiOptions.includes(emoji)) {
+      return;
+    }
+
+    this.updateSelectedDecoration(
+      (overlay) => ({ ...overlay, value: emoji }),
+      true
+    );
   }
 
   setCaptionStyle(style: PhotoEditorCaptionStyle): void {
@@ -286,7 +380,15 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
-    this.captionStyle = style === 'badge' || style === 'neon' ? style : 'classic';
+    this.captionStyle = this.normalizeCaptionStyle(style);
+  }
+
+  setCaptionFontFamily(fontFamily: PhotoEditorFontFamily): void {
+    if (this.isBusy()) {
+      return;
+    }
+
+    this.captionFontFamily = this.normalizeFontFamily(fontFamily);
   }
 
   updatePrivacyStrength(value: number | string): void {
@@ -307,12 +409,193 @@ export class PhotoEditorComponent implements AfterViewInit {
     );
   }
 
+  setNewDateTimeDate(value: string): void {
+    this.newDateTimeMeta = { ...this.newDateTimeMeta, date: value };
+  }
+
+  setNewDateTimeTime(value: string): void {
+    this.newDateTimeMeta = { ...this.newDateTimeMeta, time: value };
+  }
+
+  setNewDateTimeFormat(value: PhotoEditorDateTimeFormat): void {
+    this.newDateTimeMeta = {
+      ...this.newDateTimeMeta,
+      format: this.normalizeDateTimeFormat(value),
+    };
+  }
+
+  setNewDateTimeIncludeYear(value: boolean): void {
+    this.newDateTimeMeta = {
+      ...this.newDateTimeMeta,
+      includeYear: value === true,
+    };
+  }
+
+  resetNewDateTimeToNow(): void {
+    this.newDateTimeMeta = createPhotoEditorDateTimeMeta();
+  }
+
   addCurrentToolAtCenter(): void {
     if (!this.isDecorationTool || this.isBusy()) {
       return;
     }
 
     this.placeDecorationAt({ x: 0.5, y: 0.5 });
+  }
+
+  selectOverlay(overlayId: string | null): void {
+    this.selectedOverlayId =
+      overlayId && this.overlays.some((overlay) => overlay.id === overlayId)
+        ? overlayId
+        : null;
+    this.scheduleRender();
+  }
+
+  updateSelectedText(value: string): void {
+    const normalized = String(value ?? '').replace(/\s+/g, ' ').slice(0, 40);
+    this.updateSelectedDecoration(
+      (overlay) =>
+        overlay.kind === 'text'
+          ? { ...overlay, value: normalized || overlay.value }
+          : overlay,
+      false
+    );
+  }
+
+  updateSelectedStyle(style: PhotoEditorCaptionStyle): void {
+    const normalized = this.normalizeCaptionStyle(style);
+    this.updateSelectedDecoration(
+      (overlay) => ({ ...overlay, style: normalized }),
+      true
+    );
+  }
+
+  updateSelectedFontFamily(fontFamily: PhotoEditorFontFamily): void {
+    const normalized = this.normalizeFontFamily(fontFamily);
+    this.updateSelectedDecoration(
+      (overlay) => ({ ...overlay, fontFamily: normalized }),
+      true
+    );
+  }
+
+  updateSelectedDecorationSize(value: number | string): void {
+    const size = this.clamp(Number(value) / 100, 0.035, 0.28);
+    this.updateSelectedDecoration(
+      (overlay) => ({ ...overlay, size }),
+      false
+    );
+  }
+
+  updateSelectedPrivacyStrength(value: number | string): void {
+    const strength = this.clamp(Number(value) / 100, 0.008, 0.08);
+    this.updateSelectedPrivacy(
+      (overlay) => ({ ...overlay, strength }),
+      false
+    );
+  }
+
+  updateSelectedDateTimeDate(value: string): void {
+    this.updateSelectedDateTimeMeta({ date: value }, false);
+  }
+
+  updateSelectedDateTimeTime(value: string): void {
+    this.updateSelectedDateTimeMeta({ time: value }, false);
+  }
+
+  updateSelectedDateTimeFormat(value: PhotoEditorDateTimeFormat): void {
+    this.updateSelectedDateTimeMeta(
+      { format: this.normalizeDateTimeFormat(value) },
+      true
+    );
+  }
+
+  updateSelectedDateTimeIncludeYear(value: boolean): void {
+    this.updateSelectedDateTimeMeta({ includeYear: value === true }, true);
+  }
+
+  useCurrentDateTimeForSelected(): void {
+    const current = createPhotoEditorDateTimeMeta();
+    this.updateSelectedDateTimeMeta(
+      {
+        date: current.date,
+        time: current.time,
+      },
+      true
+    );
+  }
+
+  commitSelectedOverlayEdit(): void {
+    if (this.selectedOverlay) {
+      this.commitOverlays(this.overlays);
+    }
+  }
+
+  removeSelectedOverlay(): void {
+    const selectedId = this.selectedOverlayId;
+    if (!selectedId || this.isBusy()) {
+      return;
+    }
+
+    this.selectedOverlayId = null;
+    this.commitOverlays(
+      this.overlays.filter((overlay) => overlay.id !== selectedId)
+    );
+  }
+
+  duplicateSelectedOverlay(): void {
+    const selected = this.selectedOverlay;
+    if (!selected || this.isBusy()) {
+      return;
+    }
+
+    const duplicate = this.offsetOverlay(
+      {
+        ...selected,
+        id: createPhotoEditorOverlayId(),
+        ...(selected.kind === 'datetime' && selected.dateTimeMeta
+          ? { dateTimeMeta: { ...selected.dateTimeMeta } }
+          : {}),
+      },
+      0.035,
+      0.035
+    );
+
+    this.selectedOverlayId = duplicate.id;
+    this.commitOverlays([...this.overlays, duplicate]);
+  }
+
+  bringSelectedOverlayForward(): void {
+    const selectedId = this.selectedOverlayId;
+    if (!selectedId || this.isBusy()) {
+      return;
+    }
+
+    const index = this.overlays.findIndex((overlay) => overlay.id === selectedId);
+    if (index < 0 || index === this.overlays.length - 1) {
+      return;
+    }
+
+    const reordered = clonePhotoEditorOverlays(this.overlays);
+    const [selected] = reordered.splice(index, 1);
+    reordered.splice(index + 1, 0, selected);
+    this.commitOverlays(reordered);
+  }
+
+  sendSelectedOverlayBackward(): void {
+    const selectedId = this.selectedOverlayId;
+    if (!selectedId || this.isBusy()) {
+      return;
+    }
+
+    const index = this.overlays.findIndex((overlay) => overlay.id === selectedId);
+    if (index <= 0) {
+      return;
+    }
+
+    const reordered = clonePhotoEditorOverlays(this.overlays);
+    const [selected] = reordered.splice(index, 1);
+    reordered.splice(index - 1, 0, selected);
+    this.commitOverlays(reordered);
   }
 
   undoOverlay(): void {
@@ -324,6 +607,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.overlays = clonePhotoEditorOverlays(
       this.overlayHistory[this.overlayHistoryIndex]
     );
+    this.ensureSelectedOverlayExists();
     this.scheduleRender();
   }
 
@@ -336,6 +620,7 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.overlays = clonePhotoEditorOverlays(
       this.overlayHistory[this.overlayHistoryIndex]
     );
+    this.ensureSelectedOverlayExists();
     this.scheduleRender();
   }
 
@@ -344,6 +629,7 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
+    this.selectedOverlayId = null;
     this.commitOverlays([]);
   }
 
@@ -405,10 +691,12 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.panY = 0;
     this.aspectRatio = 'original';
     this.activeTool = 'move';
+    this.selectedOverlayId = null;
     this.overlays = [];
     this.overlayHistory = [[]];
     this.overlayHistoryIndex = 0;
     this.draftPrivacyRegion = null;
+    this.newDateTimeMeta = createPhotoEditorDateTimeMeta();
     this.scheduleRender();
   }
 
@@ -421,6 +709,23 @@ export class PhotoEditorComponent implements AfterViewInit {
     if (!point) {
       return;
     }
+
+    const hitOverlay = this.hitTestOverlay(point);
+    if (hitOverlay) {
+      this.selectedOverlayId = hitOverlay.id;
+      this.pointerInteraction = 'overlay';
+      this.overlayDragSnapshot = clonePhotoEditorOverlays(this.overlays);
+      this.overlayDragChanged = false;
+      this.draggingPointerId = event.pointerId;
+      this.lastPointerX = event.clientX;
+      this.lastPointerY = event.clientY;
+      this.capturePointer(event.pointerId);
+      this.scheduleRender();
+      event.preventDefault();
+      return;
+    }
+
+    this.selectedOverlayId = null;
 
     if (this.activeTool === 'move') {
       this.pointerInteraction = 'pan';
@@ -458,14 +763,35 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
+    const width = Math.max(1, this.previewWidth);
+    const height = Math.max(1, this.previewHeight);
+
     if (this.pointerInteraction === 'pan') {
-      const width = Math.max(1, this.previewWidth);
-      const height = Math.max(1, this.previewHeight);
       this.panX += (event.clientX - this.lastPointerX) / width;
       this.panY += (event.clientY - this.lastPointerY) / height;
       this.lastPointerX = event.clientX;
       this.lastPointerY = event.clientY;
       this.scheduleRender();
+      event.preventDefault();
+      return;
+    }
+
+    if (this.pointerInteraction === 'overlay' && this.selectedOverlayId) {
+      const deltaX = (event.clientX - this.lastPointerX) / width;
+      const deltaY = (event.clientY - this.lastPointerY) / height;
+      this.lastPointerX = event.clientX;
+      this.lastPointerY = event.clientY;
+
+      if (deltaX || deltaY) {
+        this.overlays = this.overlays.map((overlay) =>
+          overlay.id === this.selectedOverlayId
+            ? this.offsetOverlay(overlay, deltaX, deltaY)
+            : overlay
+        );
+        this.overlayDragChanged = true;
+        this.scheduleRender();
+      }
+
       event.preventDefault();
       return;
     }
@@ -494,8 +820,11 @@ export class PhotoEditorComponent implements AfterViewInit {
     if (this.pointerInteraction === 'privacy' && this.draftPrivacyRegion) {
       const overlay = privacyRegionFromDraft(this.draftPrivacyRegion);
       if (overlay) {
+        this.selectedOverlayId = overlay.id;
         this.commitOverlays([...this.overlays, overlay]);
       }
+    } else if (this.pointerInteraction === 'overlay' && this.overlayDragChanged) {
+      this.commitOverlays(this.overlays);
     }
 
     this.cancelPointerInteraction(true, event.pointerId);
@@ -506,6 +835,10 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
+    if (this.pointerInteraction === 'overlay' && this.overlayDragSnapshot) {
+      this.overlays = clonePhotoEditorOverlays(this.overlayDragSnapshot);
+    }
+
     this.cancelPointerInteraction(true, event.pointerId);
   }
 
@@ -514,31 +847,77 @@ export class PhotoEditorComponent implements AfterViewInit {
       return;
     }
 
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
+    const key = event.key.toLowerCase();
+
+    if ((event.ctrlKey || event.metaKey) && key === 'z') {
       event.preventDefault();
-      if (event.shiftKey) {
-        this.redoOverlay();
-      } else {
-        this.undoOverlay();
-      }
+      event.shiftKey ? this.redoOverlay() : this.undoOverlay();
       return;
     }
 
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') {
+    if ((event.ctrlKey || event.metaKey) && key === 'y') {
       event.preventDefault();
       this.redoOverlay();
       return;
     }
 
-    if (event.key === 'Escape' && this.activeTool !== 'move') {
+    if ((event.ctrlKey || event.metaKey) && key === 'd' && this.selectedOverlay) {
       event.preventDefault();
-      this.selectTool('move');
+      this.duplicateSelectedOverlay();
       return;
     }
 
-    if (event.key === 'Enter' && this.isDecorationTool) {
+    if (
+      (event.key === 'Delete' || event.key === 'Backspace') &&
+      this.selectedOverlay
+    ) {
+      event.preventDefault();
+      this.removeSelectedOverlay();
+      return;
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (this.selectedOverlay) {
+        this.selectOverlay(null);
+      } else if (this.activeTool !== 'move') {
+        this.selectTool('move');
+      }
+      return;
+    }
+
+    if (event.key === 'Enter' && this.isDecorationTool && !this.selectedOverlay) {
       event.preventDefault();
       this.addCurrentToolAtCenter();
+      return;
+    }
+
+    const selected = this.selectedOverlay;
+    if (selected && event.key.startsWith('Arrow')) {
+      const step = event.shiftKey
+        ? KEYBOARD_OVERLAY_STEP * 3
+        : KEYBOARD_OVERLAY_STEP;
+      let deltaX = 0;
+      let deltaY = 0;
+
+      if (event.key === 'ArrowLeft') {
+        deltaX = -step;
+      } else if (event.key === 'ArrowRight') {
+        deltaX = step;
+      } else if (event.key === 'ArrowUp') {
+        deltaY = -step;
+      } else if (event.key === 'ArrowDown') {
+        deltaY = step;
+      }
+
+      event.preventDefault();
+      this.commitOverlays(
+        this.overlays.map((overlay) =>
+          overlay.id === selected.id
+            ? this.offsetOverlay(overlay, deltaX, deltaY)
+            : overlay
+        )
+      );
       return;
     }
 
@@ -854,6 +1233,7 @@ export class PhotoEditorComponent implements AfterViewInit {
       height,
       overlays: this.overlays,
       draftRegion: preview ? this.draftPrivacyRegion : null,
+      selectedOverlayId: preview ? this.selectedOverlayId : null,
       preview,
       createCanvas: () => this.document.createElement('canvas'),
     });
@@ -1170,6 +1550,7 @@ export class PhotoEditorComponent implements AfterViewInit {
         size,
         value: this.selectedEmoji,
         style: this.captionStyle,
+        fontFamily: this.captionFontFamily,
       };
     } else if (this.activeTool === 'text') {
       const value = this.captionText.replace(/\s+/g, ' ').trim().slice(0, 40);
@@ -1185,45 +1566,174 @@ export class PhotoEditorComponent implements AfterViewInit {
         size,
         value,
         style: this.captionStyle,
+        fontFamily: this.captionFontFamily,
       };
     } else if (this.activeTool === 'datetime') {
+      const dateTimeMeta = { ...this.newDateTimeMeta };
       overlay = {
         id: createPhotoEditorOverlayId(),
         kind: 'datetime',
         x: point.x,
         y: point.y,
         size,
-        value: this.formatDateTimeStamp(),
+        value: formatPhotoEditorDateTime(dateTimeMeta),
         style: this.captionStyle,
+        fontFamily: this.captionFontFamily,
+        dateTimeMeta,
       };
     }
 
     if (overlay) {
+      this.selectedOverlayId = overlay.id;
       this.commitOverlays([...this.overlays, overlay]);
     }
   }
 
-  private formatDateTimeStamp(): string {
-    const now = new Date();
-    const date = new Intl.DateTimeFormat('pt-BR', {
-      day: '2-digit',
-      month: 'short',
-    })
-      .format(now)
-      .replace('.', '')
-      .toUpperCase();
-    const time = new Intl.DateTimeFormat('pt-BR', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: false,
-    }).format(now);
+  private updateSelectedDecoration(
+    transform: (
+      overlay: PhotoEditorDecorationOverlay
+    ) => PhotoEditorDecorationOverlay,
+    commit: boolean
+  ): void {
+    const selectedId = this.selectedOverlayId;
+    if (!selectedId || this.isBusy()) {
+      return;
+    }
 
-    return `${date} • ${time}`;
+    let changed = false;
+    this.overlays = this.overlays.map((overlay) => {
+      if (
+        overlay.id !== selectedId ||
+        (overlay.kind !== 'emoji' &&
+          overlay.kind !== 'text' &&
+          overlay.kind !== 'datetime')
+      ) {
+        return overlay;
+      }
+
+      changed = true;
+      return transform(overlay);
+    });
+
+    if (!changed) {
+      return;
+    }
+
+    if (commit) {
+      this.commitOverlays(this.overlays);
+    } else {
+      this.scheduleRender();
+    }
+  }
+
+  private updateSelectedPrivacy(
+    transform: (overlay: PhotoEditorPrivacyOverlay) => PhotoEditorPrivacyOverlay,
+    commit: boolean
+  ): void {
+    const selectedId = this.selectedOverlayId;
+    if (!selectedId || this.isBusy()) {
+      return;
+    }
+
+    let changed = false;
+    this.overlays = this.overlays.map((overlay) => {
+      if (
+        overlay.id !== selectedId ||
+        (overlay.kind !== 'blur' && overlay.kind !== 'pixelate')
+      ) {
+        return overlay;
+      }
+
+      changed = true;
+      return transform(overlay);
+    });
+
+    if (!changed) {
+      return;
+    }
+
+    if (commit) {
+      this.commitOverlays(this.overlays);
+    } else {
+      this.scheduleRender();
+    }
+  }
+
+  private updateSelectedDateTimeMeta(
+    patch: Partial<PhotoEditorDateTimeMeta>,
+    commit: boolean
+  ): void {
+    this.updateSelectedDecoration((overlay) => {
+      if (overlay.kind !== 'datetime') {
+        return overlay;
+      }
+
+      const dateTimeMeta = {
+        ...(overlay.dateTimeMeta ?? createPhotoEditorDateTimeMeta()),
+        ...patch,
+      };
+      return {
+        ...overlay,
+        dateTimeMeta,
+        value: formatPhotoEditorDateTime(dateTimeMeta),
+      };
+    }, commit);
+  }
+
+  private hitTestOverlay(
+    point: PhotoEditorNormalizedPoint
+  ): PhotoEditorOverlay | null {
+    const canvas = this.editorCanvasRef.nativeElement;
+    const context = canvas.getContext('2d');
+    if (!context || !this.previewWidth || !this.previewHeight) {
+      return null;
+    }
+
+    return hitTestPhotoEditorOverlay(
+      this.overlays,
+      point,
+      this.previewWidth,
+      this.previewHeight,
+      context
+    );
+  }
+
+  private offsetOverlay(
+    overlay: PhotoEditorOverlay,
+    deltaX: number,
+    deltaY: number
+  ): PhotoEditorOverlay {
+    if (overlay.kind === 'blur' || overlay.kind === 'pixelate') {
+      return {
+        ...overlay,
+        x: this.clamp(overlay.x + deltaX, 0, 1 - overlay.width),
+        y: this.clamp(overlay.y + deltaY, 0, 1 - overlay.height),
+      };
+    }
+
+    return {
+      ...overlay,
+      x: this.clamp(overlay.x + deltaX, 0, 1),
+      y: this.clamp(overlay.y + deltaY, 0, 1),
+      ...(overlay.kind === 'datetime' && overlay.dateTimeMeta
+        ? { dateTimeMeta: { ...overlay.dateTimeMeta } }
+        : {}),
+    };
   }
 
   private commitOverlays(next: readonly PhotoEditorOverlay[]): void {
     const normalized = normalizePhotoEditorOverlays(next);
+    const currentSnapshot = this.overlayHistory[this.overlayHistoryIndex] ?? [];
+    const nextSerialized = JSON.stringify(normalized);
+    const currentSerialized = JSON.stringify(currentSnapshot);
+
     this.overlays = clonePhotoEditorOverlays(normalized);
+
+    if (nextSerialized === currentSerialized) {
+      this.ensureSelectedOverlayExists();
+      this.scheduleRender();
+      return;
+    }
 
     const historyBeforeCurrent = this.overlayHistory.slice(
       0,
@@ -1237,6 +1747,7 @@ export class PhotoEditorComponent implements AfterViewInit {
 
     this.overlayHistory = historyBeforeCurrent;
     this.overlayHistoryIndex = this.overlayHistory.length - 1;
+    this.ensureSelectedOverlayExists();
     this.scheduleRender();
   }
 
@@ -1245,6 +1756,16 @@ export class PhotoEditorComponent implements AfterViewInit {
     this.overlays = clonePhotoEditorOverlays(normalized);
     this.overlayHistory = [clonePhotoEditorOverlays(normalized)];
     this.overlayHistoryIndex = 0;
+    this.ensureSelectedOverlayExists();
+  }
+
+  private ensureSelectedOverlayExists(): void {
+    if (
+      this.selectedOverlayId &&
+      !this.overlays.some((overlay) => overlay.id === this.selectedOverlayId)
+    ) {
+      this.selectedOverlayId = null;
+    }
   }
 
   private resolveNormalizedPointer(
@@ -1286,6 +1807,8 @@ export class PhotoEditorComponent implements AfterViewInit {
 
     this.draggingPointerId = null;
     this.pointerInteraction = null;
+    this.overlayDragSnapshot = null;
+    this.overlayDragChanged = false;
     this.draftPrivacyRegion = null;
     this.scheduleRender();
   }
@@ -1401,6 +1924,26 @@ export class PhotoEditorComponent implements AfterViewInit {
     return this.normalizeOutputMimeType(
       this.sourceFile?.type || this.resolveOriginalFileMetadata()?.mimeType
     );
+  }
+
+  private normalizeCaptionStyle(value: unknown): PhotoEditorCaptionStyle {
+    return value === 'badge' || value === 'neon' ? value : 'classic';
+  }
+
+  private normalizeFontFamily(value: unknown): PhotoEditorFontFamily {
+    return value === 'serif' ||
+      value === 'condensed' ||
+      value === 'rounded' ||
+      value === 'handwritten' ||
+      value === 'mono'
+      ? value
+      : 'system';
+  }
+
+  private normalizeDateTimeFormat(value: unknown): PhotoEditorDateTimeFormat {
+    return value === 'numeric' || value === 'long' || value === 'today'
+      ? value
+      : 'instagram';
   }
 
   private isBusy(): boolean {
