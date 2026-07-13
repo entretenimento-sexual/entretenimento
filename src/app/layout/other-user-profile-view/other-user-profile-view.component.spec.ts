@@ -47,32 +47,36 @@ describe('OtherUserProfileViewComponent', () => {
         {
           provide: Store,
           useValue: {
-            select: vi.fn(() => of({ uid: viewerUid, role: 'free', isSubscriber: false })),
+            select: vi.fn(() =>
+              of({ uid: viewerUid, role: 'free', isSubscriber: false })
+            ),
           },
         },
         {
           provide: FirestoreUserQueryService,
           useValue: {
-            getPublicUserById$: vi.fn(() => of({
-              uid: targetUid,
-              email: null,
-              photoURL: null,
-              role: 'free',
-              lastLogin: Date.now(),
-              descricao: '',
-              isSubscriber: false,
-              gender: 'Homem',
-              orientation: 'heterossexual',
-              estado: 'RJ',
-              municipio: 'Rio de Janeiro',
-              preferences: [],
-            })),
+            getPublicUserById$: vi.fn(() =>
+              of({
+                uid: targetUid,
+                email: null,
+                photoURL: null,
+                role: 'free',
+                lastLogin: Date.now(),
+                descricao: '',
+                isSubscriber: false,
+                gender: 'Homem',
+                orientation: 'heterossexual',
+                estado: 'RJ',
+                municipio: 'Rio de Janeiro',
+                preferences: [],
+              })
+            ),
           },
         },
         {
           provide: MediaPublicQueryService,
           useValue: {
-            getProfilePublicPhotos$: vi.fn(() => of([])),
+            getProfilePublicMedia$: vi.fn(() => of([])),
           },
         },
         {
