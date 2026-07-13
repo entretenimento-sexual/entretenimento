@@ -9,6 +9,7 @@ import {
 } from './published-photo-asset.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
 import {
+  PhotoPublicationDoc,
   PrivatePhotoDoc,
   synchronizePublishedPhotoUpdate,
 } from './sync-published-photo-on-private-update.use-case';
@@ -59,7 +60,9 @@ export const syncPublishedPhotoOnPrivateUpdate = onDocumentUpdated(
         now: () => Date.now(),
         loadPublication: async () => {
           const snapshot = await publicationRef.get();
-          return snapshot.exists ? snapshot.data() : null;
+          return snapshot.exists
+            ? (snapshot.data() as PhotoPublicationDoc)
+            : null;
         },
         copyPublishedAsset: copyPrivatePhotoToPublishedAsset,
         commitPatches: async (commit) => {
