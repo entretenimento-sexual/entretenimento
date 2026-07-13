@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   clonePhotoEditorOverlays,
+  createPhotoEditorDateTimeMeta,
+  formatPhotoEditorDateTime,
+  hitTestPhotoEditorOverlay,
   normalizePhotoEditorOverlays,
   privacyRegionFromDraft,
 } from './photo-editor-overlay.model';
@@ -60,6 +63,7 @@ describe('photo editor overlay model', () => {
         size: 3,
         value: '  Texto de teste  ',
         style: 'invalid',
+        fontFamily: 'invalid',
       },
     ]);
 
@@ -78,19 +82,117 @@ describe('photo editor overlay model', () => {
       size: 0.28,
       value: 'Texto de teste',
       style: 'classic',
+      fontFamily: 'system',
     });
   });
 
-  it('clona o histórico sem compartilhar os objetos das anotações', () => {
-    const source = normalizePhotoEditorOverlays([
+  it('formata data e hora conforme a escolha do usuário', () => {
+    const referenceDate = new Date(2026, 6, 13, 18, 0, 0);
+
+    expect(
+      formatPhotoEditorDateTime(
+        {
+          date: '2026-07-13',
+          time: '15:42',
+          format: 'instagram',
+          includeYear: false,
+        },
+        referenceDate
+      )
+    ).toBe('13 JUL • 15:42');
+
+    expect(
+      formatPhotoEditorDateTime(
+        {
+          date: '2026-07-13',
+          time: '15:42',
+          format: 'numeric',
+          includeYear: true,
+        },
+        referenceDate
+      )
+    ).toBe('13/07/2026 • 15:42');
+
+    expect(
+      formatPhotoEditorDateTime(
+        {
+          date: '2026-07-13',
+          time: '15:42',
+          format: 'today',
+          includeYear: false,
+        },
+        referenceDate
+      )
+    ).toBe('HOJE • 15:42');
+  });
+
+  it('cria metadados de data e hora manipuláveis', () => {
+    expect(createPhotoEditorDateTimeMeta(new Date(2026, 6, 13, 9, 5))).toEqual({
+      date: '2026-07-13',
+      time: '09:05',
+      format: 'instagram',
+      includeYear: false,
+    });
+  });
+
+  it('seleciona o elemento superior atingido pelo ponteiro', () => {
+    const overlays = normalizePhotoEditorOverlays([
       {
-        id: 'emoji-1',
+        id: 'text-bottom',
+        kind: 'text',
+        x: 0.5,
+        y: 0.5,
+        size: 0.1,
+        value: 'Fundo',
+        style: 'classic',
+        fontFamily: 'system',
+      },
+      {
+        id: 'emoji-top',
         kind: 'emoji',
         x: 0.5,
         y: 0.5,
         size: 0.1,
         value: '🔒',
         style: 'classic',
+        fontFamily: 'system',
+      },
+    ]);
+    const context = {
+      save: () => undefined,
+      restore: () => undefined,
+      measureText: (value: string) => ({ width: value.length * 12 }),
+      font: '',
+    } as unknown as CanvasRenderingContext2D;
+
+    expect(
+      hitTestPhotoEditorOverlay(
+        overlays,
+        { x: 0.5, y: 0.5 },
+        800,
+        600,
+        context
+      )?.id
+    ).toBe('emoji-top');
+  });
+
+  it('clona metadados de data/hora sem compartilhar referências', () => {
+    const source = normalizePhotoEditorOverlays([
+      {
+        id: 'datetime-1',
+        kind: 'datetime',
+        x: 0.5,
+        y: 0.5,
+        size: 0.1,
+        value: 'ignorado',
+        style: 'badge',
+        fontFamily: 'condensed',
+        dateTimeMeta: {
+          date: '2026-07-13',
+          time: '15:42',
+          format: 'instagram',
+          includeYear: false,
+        },
       },
     ]);
     const cloned = clonePhotoEditorOverlays(source);
@@ -98,5 +200,9 @@ describe('photo editor overlay model', () => {
     expect(cloned).toEqual(source);
     expect(cloned).not.toBe(source);
     expect(cloned[0]).not.toBe(source[0]);
+
+    if (cloned[0]?.kind === 'datetime' && source[0]?.kind === 'datetime') {
+      expect(cloned[0].dateTimeMeta).not.toBe(source[0].dateTimeMeta);
+    }
   });
 });
