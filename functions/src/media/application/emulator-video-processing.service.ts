@@ -18,8 +18,10 @@ interface EmulatorVideoOutput {
 }
 
 function isEnabled(): boolean {
-  return process.env.FUNCTIONS_EMULATOR === 'true' &&
-    process.env.MEDIA_EMULATOR_AUTO_PROCESS_VIDEOS === 'true';
+  return (
+    process.env.FUNCTIONS_EMULATOR === 'true' &&
+    process.env.MEDIA_EMULATOR_AUTO_PROCESS_VIDEOS === 'true'
+  );
 }
 
 function resolveOutput(mimeType: string): EmulatorVideoOutput | null {
@@ -46,11 +48,13 @@ function privateSourcePath(
   job: VideoProcessingJob,
   video: PrivateVideoDocument
 ): string | null {
-  return extractOwnedPrivateVideoPathForId(
+  const pathSource = extractOwnedPrivateVideoPathForId(
     job.ownerUid,
     job.videoId,
     video.path
-  ) ?? extractOwnedPrivateVideoPathForId(
+  );
+
+  return pathSource ?? extractOwnedPrivateVideoPathForId(
     job.ownerUid,
     job.videoId,
     video.url
@@ -141,7 +145,8 @@ export async function completeVideoProcessingInEmulator(
       job,
       'EMULATOR_TRANSCODER_UNAVAILABLE',
       `O emulador local não transcodifica ${job.sourceMimeType || 'este formato'}.`,
-      'No ambiente local, use MP4 ou WebM para testar a publicação. MOV exige o Transcoder real.'
+      'No ambiente local, use MP4 ou WebM para testar a publicação. ' +
+        'MOV exige o Transcoder real.'
     );
     return;
   }
@@ -161,7 +166,8 @@ export async function completeVideoProcessingInEmulator(
         job,
         'EMULATOR_SOURCE_NOT_FOUND',
         'O arquivo privado não foi encontrado no Storage Emulator.',
-        'O arquivo original não foi encontrado. Exclua este item e envie o vídeo novamente.'
+        'O arquivo original não foi encontrado. ' +
+          'Exclua este item e envie o vídeo novamente.'
       );
       return;
     }
@@ -173,8 +179,8 @@ export async function completeVideoProcessingInEmulator(
     });
 
     const [outputMetadata] = await outputFile.getMetadata();
-    const outputSizeBytes = normalizePositiveInteger(outputMetadata.size) ??
-      job.sourceSizeBytes;
+    const outputSizeBytes =
+      normalizePositiveInteger(outputMetadata.size) ?? job.sourceSizeBytes;
     const now = Date.now();
 
     const applied = await db.runTransaction(async (transaction) => {
@@ -243,14 +249,17 @@ export async function completeVideoProcessingInEmulator(
       return;
     }
 
-    logger.info('[emulatorVideoProcessing] Vídeo compatível concluído localmente.', {
-      ownerUid: job.ownerUid,
-      videoId: job.videoId,
-      sourceStoragePath: job.sourceStoragePath,
-      outputStoragePath,
-      mimeType: output.mimeType,
-      sizeBytes: outputSizeBytes,
-    });
+    logger.info(
+      '[emulatorVideoProcessing] Vídeo compatível concluído localmente.',
+      {
+        ownerUid: job.ownerUid,
+        videoId: job.videoId,
+        sourceStoragePath: job.sourceStoragePath,
+        outputStoragePath,
+        mimeType: output.mimeType,
+        sizeBytes: outputSizeBytes,
+      }
+    );
   } catch (error) {
     await outputFile.delete({ ignoreNotFound: true }).catch(() => undefined);
 
@@ -263,7 +272,8 @@ export async function completeVideoProcessingInEmulator(
       job,
       'EMULATOR_PROCESSING_FAILED',
       technicalMessage,
-      'Não foi possível preparar o vídeo no ambiente local. Exclua o item e tente o envio novamente.'
+      'Não foi possível preparar o vídeo no ambiente local. ' +
+        'Exclua o item e tente o envio novamente.'
     );
   }
 }
