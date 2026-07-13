@@ -176,7 +176,6 @@ export async function findGoogleVideoTranscoderJob(
       params: {
         pageSize: 10,
         filter: `labels.processing_version="${processingVersion}"`,
-        orderBy: 'create_time desc',
       },
       timeout: 30_000,
     }
