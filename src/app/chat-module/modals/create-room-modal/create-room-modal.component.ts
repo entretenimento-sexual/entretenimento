@@ -2,21 +2,8 @@
 // -----------------------------------------------------------------------------
 // CREATE ROOM MODAL COMPONENT
 // -----------------------------------------------------------------------------
-// Responsabilidade:
-// - apresentar e validar o formulário;
-// - devolver os dados preenchidos ao componente chamador.
-//
-// Não faz:
-// - não acessa autenticação;
-// - não grava no Firestore;
-// - não abre modal de confirmação;
-// - não trata erro de persistência.
-//
-// Motivo:
-// - a mutação deve possuir um único dono;
-// - o container que abriu o modal já controla permissão, uid e atualização
-//   reativa da lista de salas;
-// - o backend continua validando plano e autorização real para local da room.
+// Formulário reativo para criação/edição de sala.
+// A associação premium usa exclusivamente estabelecimentos moderados do catálogo.
 
 import { Component, Inject, OnInit } from '@angular/core';
 import {
@@ -29,12 +16,16 @@ import {
   MAT_DIALOG_DATA,
   MatDialogRef,
 } from '@angular/material/dialog';
+import { Observable, of } from 'rxjs';
+import { map, shareReplay } from 'rxjs/operators';
 
 import {
   IRoomPlaceIntent,
   IRoomPlaceIntentInput,
   RoomPlaceIntentMode,
 } from 'src/app/core/interfaces/interfaces-chat/room.interface';
+import { IVenueCardVm } from 'src/app/core/interfaces/venues/venue.interface';
+import { VenueService } from 'src/app/core/services/venues/venue.service';
 
 export interface CreateRoomModalData {
   isEditing?: boolean;
@@ -67,9 +58,7 @@ type CreateRoomFormGroup = FormGroup<{
   description: FormControl<string>;
   placeEnabled: FormControl<boolean>;
   placeMode: FormControl<RoomPlaceIntentMode>;
-  placeUf: FormControl<string>;
-  placeCity: FormControl<string>;
-  placeLabel: FormControl<string>;
+  placeVenueId: FormControl<string>;
   placeStartsAt: FormControl<string>;
 }>;
 
@@ -83,9 +72,11 @@ export class CreateRoomModalComponent implements OnInit {
   roomForm!: CreateRoomFormGroup;
   isEditing = false;
   roomId = '';
+  venues$: Observable<readonly IVenueCardVm[]> = of([]);
 
   constructor(
     private readonly formBuilder: FormBuilder,
+    private readonly venueService: VenueService,
     public readonly dialogRef: MatDialogRef<CreateRoomModalComponent>,
     @Inject(MAT_DIALOG_DATA)
     public readonly data: CreateRoomModalData | null
@@ -95,8 +86,13 @@ export class CreateRoomModalComponent implements OnInit {
     return this.data?.canUsePlaceIntent === true;
   }
 
+  get minimumScheduledDateTime(): string {
+    return this.toDateTimeLocalValue(Date.now());
+  }
+
   ngOnInit(): void {
     this.initializeForm();
+    this.initializeVenues();
 
     if (this.data?.isEditing === true) {
       this.isEditing = true;
@@ -110,30 +106,30 @@ export class CreateRoomModalComponent implements OnInit {
 
     const placeIntent = this.data?.roomData?.placeIntent;
 
-    if (this.canUsePlaceIntent && placeIntent) {
+    if (this.canUsePlaceIntent && placeIntent?.venueId) {
       this.roomForm.patchValue({
         placeEnabled: true,
         placeMode: placeIntent.mode === 'scheduled' ? 'scheduled' : 'now',
-        placeUf: String(placeIntent.region?.uf ?? '').toUpperCase(),
-        placeCity: String(placeIntent.region?.city ?? ''),
-        placeLabel: String(placeIntent.label ?? ''),
+        placeVenueId: String(placeIntent.venueId),
         placeStartsAt: this.toDateTimeLocalValue(placeIntent.startsAt),
       });
     }
   }
 
   initializeForm(): void {
-    const defaultUf = String(this.data?.defaultRegion?.uf ?? '').toUpperCase();
-    const defaultCity = String(this.data?.defaultRegion?.city ?? '');
-
     this.roomForm = this.formBuilder.nonNullable.group({
-      roomName: ['', [Validators.required]],
-      description: [''],
+      roomName: [
+        '',
+        [
+          Validators.required,
+          Validators.minLength(3),
+          Validators.maxLength(60),
+        ],
+      ],
+      description: ['', [Validators.maxLength(280)]],
       placeEnabled: [false],
       placeMode: ['now' as RoomPlaceIntentMode],
-      placeUf: [defaultUf],
-      placeCity: [defaultCity],
-      placeLabel: [''],
+      placeVenueId: [''],
       placeStartsAt: [''],
     });
   }
@@ -147,8 +143,8 @@ export class CreateRoomModalComponent implements OnInit {
     const rawValue = this.roomForm.getRawValue();
     const roomName = rawValue.roomName.trim();
 
-    if (!roomName) {
-      this.roomForm.controls.roomName.setErrors({ required: true });
+    if (roomName.length < 3 || roomName.length > 60) {
+      this.roomForm.controls.roomName.setErrors({ size: true });
       this.roomForm.controls.roomName.markAsTouched();
       return;
     }
@@ -175,6 +171,31 @@ export class CreateRoomModalComponent implements OnInit {
     this.dialogRef.close(null);
   }
 
+  private initializeVenues(): void {
+    if (!this.canUsePlaceIntent) {
+      this.venues$ = of([]);
+      return;
+    }
+
+    const uf = String(this.data?.defaultRegion?.uf ?? '').trim().toUpperCase();
+    const city = String(this.data?.defaultRegion?.city ?? '').trim();
+
+    if (!uf || !city) {
+      this.venues$ = of([]);
+      return;
+    }
+
+    this.venues$ = this.venueService
+      .watchVenuesForRegion$(
+        { uf, city },
+        { limit: 60, includeSponsoredFirst: true }
+      )
+      .pipe(
+        map((venues) => venues.filter((venue) => venue.chat.enabled)),
+        shareReplay({ bufferSize: 1, refCount: true })
+      );
+  }
+
   private buildPlaceIntent(
     rawValue: ReturnType<CreateRoomFormGroup['getRawValue']>
   ): IRoomPlaceIntentInput | null | undefined {
@@ -182,46 +203,29 @@ export class CreateRoomModalComponent implements OnInit {
       return null;
     }
 
-    const uf = rawValue.placeUf.trim().toUpperCase();
-    const city = rawValue.placeCity.trim().toLowerCase();
-    const label = rawValue.placeLabel.trim();
+    const venueId = rawValue.placeVenueId.trim();
     const mode = rawValue.placeMode === 'scheduled' ? 'scheduled' : 'now';
     const startsAt =
       mode === 'scheduled'
         ? this.parseDateTimeLocal(rawValue.placeStartsAt)
         : Date.now();
 
-    if (!/^[A-Z]{2}$/.test(uf)) {
-      this.roomForm.controls.placeUf.setErrors({ uf: true });
-      this.roomForm.controls.placeUf.markAsTouched();
+    if (!venueId) {
+      this.roomForm.controls.placeVenueId.setErrors({ required: true });
+      this.roomForm.controls.placeVenueId.markAsTouched();
       return undefined;
     }
 
-    if (!city) {
-      this.roomForm.controls.placeCity.setErrors({ required: true });
-      this.roomForm.controls.placeCity.markAsTouched();
-      return undefined;
-    }
-
-    if (label.length < 3 || label.length > 80) {
-      this.roomForm.controls.placeLabel.setErrors({ size: true });
-      this.roomForm.controls.placeLabel.markAsTouched();
-      return undefined;
-    }
-
-    if (!startsAt) {
-      this.roomForm.controls.placeStartsAt.setErrors({ required: true });
+    if (!startsAt || startsAt < Date.now() - 1000 * 60 * 5) {
+      this.roomForm.controls.placeStartsAt.setErrors({ future: true });
       this.roomForm.controls.placeStartsAt.markAsTouched();
       return undefined;
     }
 
     return {
+      venueId,
       mode,
-      visibility: 'room_members',
-      region: { uf, city },
-      label,
       startsAt,
-      endsAt: null,
     };
   }
 
@@ -237,7 +241,8 @@ export class CreateRoomModalComponent implements OnInit {
   }
 
   private toDateTimeLocalValue(value: unknown): string {
-    const millis = typeof value === 'number' && Number.isFinite(value) ? value : null;
+    const millis =
+      typeof value === 'number' && Number.isFinite(value) ? value : null;
 
     if (!millis) {
       return '';
