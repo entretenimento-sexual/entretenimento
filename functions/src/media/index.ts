@@ -56,6 +56,10 @@ export {
 } from './application/cleanup-published-video-assets.handler';
 
 export {
+  getPrivateVideoAccessUrls,
+} from './application/get-private-video-access-urls.handler';
+
+export {
   getPublicPhotoAccessUrls,
 } from './application/get-public-photo-access-urls.handler';
 
