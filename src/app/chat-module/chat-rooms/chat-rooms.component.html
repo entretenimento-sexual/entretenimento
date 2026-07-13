@@ -11,7 +11,8 @@
         </h1>
 
         <p class="chat-rooms__description">
-          Crie um espaço privado para reunir participantes autorizados. A criação e o acesso seguem validações de segurança da conta.
+          Crie um espaço privado para participantes autorizados. Planos elegíveis
+          também podem associar a sala a um estabelecimento moderado.
         </p>
       </div>
 
@@ -53,12 +54,10 @@
       </div>
 
       <div>
-        <h2 class="chat-rooms__security-title">
-          Acesso protegido
-        </h2>
-
+        <h2 class="chat-rooms__security-title">Acesso protegido</h2>
         <p class="chat-rooms__security-text">
-          As salas não são públicas nem descobríveis. Apenas participantes autorizados devem acessar o espaço.
+          As salas não são públicas nem enumeráveis. Somente participantes
+          autorizados podem acessar o espaço.
         </p>
       </div>
     </section>
@@ -69,9 +68,8 @@
           <h2 id="my-rooms-title" class="chat-rooms__section-title">
             Minhas salas
           </h2>
-
           <p class="chat-rooms__section-description">
-            Espaços criados por você ou dos quais você participa com permissão.
+            Espaços criados por você ou dos quais participa com permissão.
           </p>
         </div>
 
@@ -91,20 +89,16 @@
         <div class="chat-rooms__empty chat-rooms__empty--error" role="alert">
           <h3>Não foi possível carregar suas salas.</h3>
           <p>
-            Atualize a página. Caso o problema persista, a ocorrência será
+            Atualize a página. Se o problema persistir, a ocorrência ficará
             registrada para análise.
           </p>
         </div>
       } @else if (vm.rooms.length === 0) {
         <div class="chat-rooms__empty" role="status">
-          <div class="chat-rooms__empty-icon" aria-hidden="true">
-            💬
-          </div>
-
+          <div class="chat-rooms__empty-icon" aria-hidden="true">💬</div>
           <h3>Nenhuma sala ativa</h3>
-
           <p>
-            Você ainda não criou uma sala privada. Quando criar, ela aparecerá aqui com dados de acesso, segurança e status.
+            Quando você criar ou ingressar em uma sala, ela aparecerá aqui.
           </p>
         </div>
       } @else {
@@ -131,9 +125,7 @@
                   </div>
 
                   <div class="chat-rooms__badges" aria-label="Estado da sala">
-                    <span class="chat-rooms__badge">
-                      Privada
-                    </span>
+                    <span class="chat-rooms__badge">Privada</span>
 
                     @if (room.status === 'closed') {
                       <span class="chat-rooms__badge chat-rooms__badge--closed">
@@ -152,12 +144,10 @@
                     <dt>Participantes</dt>
                     <dd>{{ room.memberCount }}</dd>
                   </div>
-
                   <div>
                     <dt>Entrada</dt>
                     <dd>Controlada</dd>
                   </div>
-
                   <div>
                     <dt>Visibilidade</dt>
                     <dd>Oculta</dd>
@@ -165,8 +155,13 @@
                 </dl>
 
                 @if (room.placeIntent; as place) {
-                  <section class="chat-rooms__place" aria-label="Local declarado da sala">
-                    <span class="chat-rooms__place-marker" aria-hidden="true">Local</span>
+                  <section
+                    class="chat-rooms__place"
+                    aria-label="Estabelecimento verificado da sala"
+                  >
+                    <span class="chat-rooms__place-marker" aria-hidden="true">
+                      Local
+                    </span>
 
                     <div class="chat-rooms__place-copy">
                       <strong>{{ place.label }}</strong>
@@ -174,12 +169,20 @@
                         {{ place.region.city }}, {{ place.region.uf }} ·
                         {{ place.mode === 'scheduled' ? 'programado' : 'agora' }}
                       </span>
+                      @if (place.addressHint) {
+                        <span>{{ place.addressHint }}</span>
+                      }
+                      @if (place.endsAt) {
+                        <span>
+                          Vínculo válido até {{ place.endsAt | date:'dd/MM, HH:mm' }}
+                        </span>
+                      }
                     </div>
                   </section>
                 }
 
                 <p class="chat-rooms__pending-feature">
-                  Conversas e convites da sala seguem o fluxo seguro de participação.
+                  Conversas e convites seguem o fluxo seguro de participação.
                 </p>
 
                 <footer class="chat-rooms__card-footer">
