@@ -19,6 +19,121 @@
     </button>
   </header>
 
+  @if (processingState$ | async; as processing) {
+    <section
+      class="video-moderation__operations"
+      aria-labelledby="video-processing-status-title"
+      [attr.aria-busy]="processing.status === 'loading' ? 'true' : 'false'"
+    >
+      <div class="video-moderation__operations-heading">
+        <div>
+          <p class="video-moderation__eyebrow">Diagnóstico operacional</p>
+          <h3 id="video-processing-status-title">Processamento de vídeos</h3>
+        </div>
+
+        @if (processing.data; as diagnostic) {
+          <span
+            class="video-moderation__health-chip"
+            [class.video-moderation__health-chip--ready]="diagnostic.state === 'READY'"
+            [class.video-moderation__health-chip--warning]="diagnostic.state === 'EMULATOR'"
+            [class.video-moderation__health-chip--error]="diagnostic.state === 'DEGRADED'"
+          >
+            {{ processingStateLabel(diagnostic) }}
+          </span>
+        }
+      </div>
+
+      @if (processing.status === 'loading') {
+        <div class="video-moderation__operations-message" role="status" aria-live="polite">
+          <span class="video-moderation__spinner" aria-hidden="true"></span>
+          <span>Verificando API, permissões e fila de processamento...</span>
+        </div>
+      } @else if (processing.status === 'error') {
+        <div
+          class="video-moderation__operations-message video-moderation__operations-message--error"
+          role="alert"
+        >
+          <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+          <span>O diagnóstico não pôde ser consultado. Revise a sessão e tente atualizar.</span>
+        </div>
+      } @else if (processing.data; as diagnostic) {
+        <p
+          class="video-moderation__operations-summary"
+          [class.video-moderation__operations-summary--error]="diagnostic.state === 'DEGRADED'"
+          role="status"
+        >
+          {{ processingStateDescription(diagnostic) }}
+        </p>
+
+        <div class="video-moderation__operations-grid">
+          <article class="video-moderation__metric">
+            <span>Jobs ativos</span>
+            <strong>{{ diagnostic.queue.activeTotal }}</strong>
+            <small>
+              {{ diagnostic.queue.sampleCapped ? 'Amostra limitada a 100 jobs' : 'Contagem consolidada' }}
+            </small>
+          </article>
+
+          <article class="video-moderation__metric">
+            <span>Job ativo mais antigo</span>
+            <strong>{{ formatAge(diagnostic.queue.oldestActiveAgeMs) }}</strong>
+            <small>{{ diagnostic.queue.staleSampledJobs }} possivelmente atrasado(s)</small>
+          </article>
+
+          <article class="video-moderation__metric">
+            <span>Fila</span>
+            <strong>{{ diagnostic.queue.counts.QUEUED }}</strong>
+            <small>{{ diagnostic.queue.counts.SUBMITTING }} em submissão</small>
+          </article>
+
+          <article class="video-moderation__metric">
+            <span>Em processamento</span>
+            <strong>{{ diagnostic.queue.counts.PROCESSING }}</strong>
+            <small>{{ diagnostic.queue.counts.CANCEL_REQUESTED }} cancelamento(s) pendente(s)</small>
+          </article>
+
+          <article class="video-moderation__metric">
+            <span>Concluídos</span>
+            <strong>{{ diagnostic.queue.counts.SUCCEEDED }}</strong>
+            <small>{{ diagnostic.queue.counts.FAILED }} falha(s)</small>
+          </article>
+
+          <article class="video-moderation__metric">
+            <span>Última verificação</span>
+            <strong>{{ diagnostic.checkedAt | date:'HH:mm:ss' }}</strong>
+            <small>{{ diagnostic.checkedAt | date:'dd/MM/yyyy' }}</small>
+          </article>
+        </div>
+
+        <dl class="video-moderation__configuration">
+          <div>
+            <dt>Projeto</dt>
+            <dd>{{ diagnostic.provider.projectId || 'não identificado' }}</dd>
+          </div>
+          <div>
+            <dt>Região</dt>
+            <dd>{{ diagnostic.provider.location }}</dd>
+          </div>
+          <div>
+            <dt>Template</dt>
+            <dd>{{ diagnostic.provider.templateId }}</dd>
+          </div>
+          <div>
+            <dt>Bucket</dt>
+            <dd>{{ diagnostic.provider.bucketName || 'não identificado' }}</dd>
+          </div>
+        </dl>
+
+        @if (diagnostic.provider.errorCode) {
+          <p class="video-moderation__technical-error" role="alert">
+            <strong>{{ diagnostic.provider.errorCode }}</strong>
+            <span>{{ diagnostic.provider.errorMessage || 'Falha operacional sem detalhes adicionais.' }}</span>
+          </p>
+        }
+      }
+    </section>
+  }
+
   @if (state$ | async; as state) {
     @if (state.status === 'loading') {
       <div class="video-moderation__status" role="status" aria-live="polite">
