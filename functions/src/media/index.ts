@@ -33,6 +33,10 @@ export {
 } from './application/video-processing.handler';
 
 export {
+  getVideoProcessingOperationalStatus,
+} from './application/admin-video-processing-status.handler';
+
+export {
   listVideoModerationQueue,
   reviewVideoModeration,
 } from './application/admin-video-moderation.handler';
