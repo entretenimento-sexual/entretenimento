@@ -9,13 +9,13 @@
 .editor-shell {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  gap: 12px;
+  gap: 10px;
   width: 100%;
   max-width: 1120px;
-  height: min(900px, calc(100dvh - 24px));
+  height: min(940px, calc(100dvh - 24px));
   max-height: calc(100dvh - 24px);
   min-height: 0;
-  padding: clamp(12px, 2vw, 18px);
+  padding: clamp(10px, 1.6vw, 16px);
   overflow: hidden;
   color: var(--text-color, #f5f7fb);
 }
@@ -29,7 +29,7 @@
 
 .editor-title-block {
   display: grid;
-  gap: 4px;
+  gap: 3px;
   min-width: 0;
 }
 
@@ -40,13 +40,13 @@
 }
 
 .editor-title-block h2 {
-  font-size: clamp(1.25rem, 1rem + 1vw, 1.8rem);
+  font-size: clamp(1.2rem, 1rem + 0.8vw, 1.7rem);
   line-height: 1.1;
 }
 
 .eyebrow {
   color: var(--primary-color, #ff7070);
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 850;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -54,14 +54,14 @@
 
 .subtitle {
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
-  font-size: 0.9rem;
-  line-height: 1.4;
+  font-size: 0.86rem;
+  line-height: 1.35;
 }
 
 .editor-card {
   display: grid;
-  grid-template-rows: minmax(220px, 1fr) auto auto auto;
-  gap: 12px;
+  grid-template-rows: minmax(180px, 1fr) auto auto auto auto;
+  gap: 10px;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -77,8 +77,8 @@
   place-items: center;
   width: 100%;
   min-width: 0;
-  min-height: 220px;
-  padding: 12px;
+  min-height: 180px;
+  padding: 10px;
   overflow: hidden;
   background:
     linear-gradient(45deg, rgb(255 255 255 / 3%) 25%, transparent 25%),
@@ -96,18 +96,32 @@
   max-height: 100%;
   border-radius: 12px;
   box-shadow: 0 12px 30px rgb(0 0 0 / 28%);
-  cursor: grab;
   touch-action: none;
   user-select: none;
 }
 
-.editor-canvas:active {
+.editor-canvas.is-pan-tool {
+  cursor: grab;
+}
+
+.editor-canvas.is-pan-tool:active {
   cursor: grabbing;
+}
+
+.editor-canvas.is-draw-tool {
+  cursor: crosshair;
+}
+
+.editor-canvas.is-place-tool {
+  cursor: copy;
 }
 
 .editor-canvas:focus-visible,
 .editor-controls button:focus-visible,
 .editor-controls input:focus-visible,
+.editor-toolbox button:focus-visible,
+.editor-toolbox input:focus-visible,
+.editor-toolbox select:focus-visible,
 .editor-footer button:focus-visible,
 .close-btn:focus-visible {
   outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
@@ -116,7 +130,7 @@
 
 .editor-loading {
   position: absolute;
-  inset: 12px;
+  inset: 10px;
   display: grid;
   place-items: center;
   align-content: center;
@@ -131,16 +145,171 @@
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
 }
 
+.editor-toolbox {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 0 12px;
+}
+
+.editor-toolbox__bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  padding: 2px 0 4px;
+  scrollbar-width: thin;
+}
+
+.editor-tool-button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 9px;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.editor-tool-button.is-active {
+  border-color: color-mix(in oklab, var(--primary-color, #ff7070) 65%, transparent);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent);
+  color: var(--text-color, #f5f7fb);
+}
+
+.editor-tool-button--history {
+  min-width: 36px;
+  padding-inline: 8px;
+  font-size: 1.08rem;
+}
+
+.editor-tool-button--danger:not([disabled]) {
+  color: var(--primary-color, #ff7070);
+}
+
+.editor-toolbox__separator {
+  flex: 0 0 1px;
+  align-self: stretch;
+  min-height: 28px;
+  background: var(--surface-border, rgb(255 255 255 / 12%));
+}
+
+.editor-tool-hint,
+.editor-tool-note {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 67%, transparent);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.editor-tool-panel {
+  display: grid;
+  align-items: end;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 88%, #000 12%);
+}
+
+.editor-tool-panel--privacy {
+  grid-template-columns: minmax(230px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.editor-tool-panel--decoration {
+  grid-template-columns: minmax(180px, 1.25fr) minmax(150px, 0.75fr) auto;
+}
+
+.editor-tool-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.editor-tool-field input[type='text'],
+.editor-tool-field select {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 9px;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 14%));
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 82%, #000 18%);
+  color: var(--text-color, #f5f7fb);
+  font: inherit;
+  font-weight: 650;
+}
+
+.editor-tool-field--range {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.editor-tool-field--range > span {
+  grid-column: 1 / -1;
+}
+
+.editor-tool-field--range input {
+  width: 100%;
+  min-height: 32px;
+  accent-color: var(--primary-color, #ff7070);
+}
+
+.editor-tool-field--range output {
+  align-self: center;
+  min-width: 48px;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.72rem;
+  font-weight: 850;
+  text-align: right;
+}
+
+.editor-emoji-palette {
+  display: flex;
+  gap: 5px;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.editor-emoji-palette button {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 9px;
+  background: transparent;
+  font-size: 1.15rem;
+}
+
+.editor-emoji-palette button.is-active {
+  border-color: var(--primary-color, #ff7070);
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent);
+}
+
+.editor-tool-panel .btn {
+  min-height: 36px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
 .editor-controls {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(220px, 0.8fr);
-  gap: 12px;
-  padding-inline: 14px;
+  gap: 10px;
+  padding-inline: 12px;
 }
 
 .editor-control-group {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -151,33 +320,33 @@
 .editor-control-group > span {
   padding: 0;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 800;
 }
 
 .editor-segmented,
 .editor-inline-actions {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .editor-segmented {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  padding: 4px;
+  padding: 3px;
   border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
-  border-radius: 12px;
+  border-radius: 11px;
   background: color-mix(in oklab, var(--surface-color, #101923) 90%, #000 10%);
 }
 
 .editor-segmented button {
-  min-height: 40px;
-  padding: 7px 9px;
+  min-height: 34px;
+  padding: 5px 8px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 8px;
   background: transparent;
   color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 800;
 }
 
@@ -191,7 +360,8 @@
 }
 
 .editor-inline-actions .btn {
-  min-height: 44px;
+  min-height: 38px;
+  padding-block: 6px;
 }
 
 .editor-zoom {
@@ -205,7 +375,7 @@
 
 .editor-zoom input {
   width: 100%;
-  min-height: 40px;
+  min-height: 34px;
   accent-color: var(--primary-color, #ff7070);
 }
 
@@ -213,13 +383,13 @@
   align-self: center;
   min-width: 50px;
   color: var(--text-color, #f5f7fb);
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 850;
   text-align: right;
 }
 
 .editor-error {
-  margin: 0 14px;
+  margin: 0 12px;
 }
 
 .editor-footer {
@@ -227,22 +397,33 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 0 14px 14px;
+  padding: 0 12px 12px;
 }
 
 .editor-footer__actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
+  gap: 8px;
 }
 
 .editor-footer .btn,
 .close-btn {
-  min-height: 42px;
+  min-height: 38px;
+  padding-block: 6px;
 }
 
 @media (max-width: 900px) {
+  .editor-tool-panel--privacy,
+  .editor-tool-panel--decoration {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .editor-tool-note,
+  .editor-tool-panel--decoration .btn {
+    grid-column: 1 / -1;
+  }
+
   .editor-controls {
     grid-template-columns: 1fr 1fr;
   }
@@ -275,22 +456,30 @@
   }
 
   .editor-card {
-    grid-template-rows: minmax(260px, 48dvh) auto auto auto;
+    grid-template-rows: minmax(240px, 46dvh) auto auto auto auto;
     overflow: visible;
     border-radius: 14px;
     box-shadow: none;
   }
 
   .editor-stage {
-    min-height: 260px;
+    min-height: 240px;
     padding: 8px;
   }
 
+  .editor-toolbox,
   .editor-controls {
-    grid-template-columns: 1fr;
-    padding-inline: 10px;
+    padding-inline: 9px;
   }
 
+  .editor-tool-panel--privacy,
+  .editor-tool-panel--decoration,
+  .editor-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-tool-note,
+  .editor-tool-panel--decoration .btn,
   .editor-zoom {
     grid-column: auto;
   }
@@ -302,7 +491,7 @@
   .editor-footer {
     display: grid;
     grid-template-columns: 1fr;
-    padding: 0 10px 10px;
+    padding: 0 9px 9px;
   }
 
   .editor-footer__actions {
@@ -330,10 +519,10 @@
   }
 }
 
-@media (max-height: 720px) and (min-width: 641px) {
+@media (max-height: 760px) and (min-width: 641px) {
   .editor-shell {
-    gap: 8px;
-    padding-block: 10px;
+    gap: 7px;
+    padding-block: 8px;
   }
 
   .subtitle,
@@ -342,24 +531,24 @@
   }
 
   .editor-card {
-    grid-template-rows: minmax(200px, 1fr) auto auto auto;
-    gap: 8px;
+    grid-template-rows: minmax(150px, 1fr) auto auto auto auto;
+    gap: 7px;
   }
 
   .editor-stage {
-    min-height: 200px;
+    min-height: 150px;
   }
 
-  .editor-inline-actions .btn,
-  .editor-footer .btn,
-  .close-btn {
-    min-height: 38px;
+  .editor-tool-hint,
+  .editor-tool-note {
+    font-size: 0.68rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .editor-canvas,
   .editor-controls button,
+  .editor-toolbox button,
   .editor-footer button {
     scroll-behavior: auto;
     transition: none !important;
@@ -368,7 +557,10 @@
 
 html.high-contrast .editor-card,
 html.high-contrast .editor-segmented,
-html.high-contrast .editor-canvas {
+html.high-contrast .editor-canvas,
+html.high-contrast .editor-tool-panel,
+html.high-contrast .editor-tool-button,
+html.high-contrast .editor-emoji-palette button {
   border-color: currentColor !important;
   background: var(--background-color) !important;
   color: var(--text-color) !important;
