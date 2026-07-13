@@ -1,18 +1,27 @@
 // scripts/dev/seed-room-access.mjs
 // -----------------------------------------------------------------------------
-// Concede acesso de plano a um usuário existente SOMENTE no Firestore Emulator.
+// Concede acesso de plano a um usuario existente SOMENTE nos Emulators.
 //
-// Uso:
-//   npm run seed:room-access:emu -- --uid=<UID> --role=premium
+// Uso por e-mail (recomendado):
+//   npm run seed:room-access:emu -- --email=usuario@teste.com --role=premium
 //
-// O script atualiza o entitlement canônico e as projeções usadas pela interface.
-// Não cria usuário, não opera sem FIRESTORE_EMULATOR_HOST e não aceita admin.
+// Uso por UID:
+//   npm run seed:room-access:emu -- --uid=<UID_REAL> --role=premium
+//
+// O script atualiza o entitlement canonico e as projecoes usadas pela interface.
+// Nao cria usuario, nao opera sem Firestore Emulator e nao aceita admin.
 // -----------------------------------------------------------------------------
 
 import { applicationDefault, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 const DEFAULT_PROJECT_ID = 'entretenimento-sexual';
+const PLACEHOLDER_UIDS = new Set([
+  'UID_DO_USUARIO',
+  '<UID>',
+  '<UID_REAL>',
+]);
 const options = Object.fromEntries(
   process.argv.slice(2).map((argument) => {
     const [key, ...value] = argument.split('=');
@@ -21,20 +30,43 @@ const options = Object.fromEntries(
 );
 
 const projectId = process.env.FIREBASE_PROJECT_ID || DEFAULT_PROJECT_ID;
-const emulatorHost = process.env.FIRESTORE_EMULATOR_HOST;
-const uid = String(options['--uid'] ?? process.env.ROOM_TEST_UID ?? '').trim();
+const firestoreEmulatorHost = process.env.FIRESTORE_EMULATOR_HOST;
+const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+let uid = String(options['--uid'] ?? process.env.ROOM_TEST_UID ?? '').trim();
+const email = String(options['--email'] ?? process.env.ROOM_TEST_EMAIL ?? '')
+  .trim()
+  .toLowerCase();
 const role = String(options['--role'] ?? 'premium').trim().toLowerCase();
 
-if (!emulatorHost) {
+if (!firestoreEmulatorHost) {
   console.error(
     '[seed:room-access] Abortado: FIRESTORE_EMULATOR_HOST ausente. ' +
-      'Este script só pode escrever no emulador.'
+      'Este script so pode escrever no emulador.'
   );
   process.exit(1);
 }
 
-if (!uid || uid.length > 128 || uid.includes('/')) {
-  console.error('[seed:room-access] Informe um UID válido com --uid=<UID>.');
+if (PLACEHOLDER_UIDS.has(uid)) {
+  console.error(
+    '[seed:room-access] Substitua o UID de exemplo por um UID real ou use --email.'
+  );
+  process.exit(2);
+}
+
+if (!uid && !email) {
+  console.error(
+    '[seed:room-access] Informe --email=<EMAIL_DO_EMULADOR> ou --uid=<UID_REAL>.'
+  );
+  process.exit(2);
+}
+
+if (uid && (uid.length > 128 || uid.includes('/'))) {
+  console.error('[seed:room-access] O UID informado e invalido.');
+  process.exit(2);
+}
+
+if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  console.error('[seed:room-access] O e-mail informado e invalido.');
   process.exit(2);
 }
 
@@ -47,6 +79,25 @@ initializeApp({
   projectId,
   credential: applicationDefault(),
 });
+
+if (!uid) {
+  if (!authEmulatorHost) {
+    console.error(
+      '[seed:room-access] FIREBASE_AUTH_EMULATOR_HOST ausente para resolver --email.'
+    );
+    process.exit(1);
+  }
+
+  try {
+    uid = (await getAuth().getUserByEmail(email)).uid;
+  } catch (error) {
+    console.error(
+      `[seed:room-access] Usuario ${email} nao encontrado no Auth Emulator.`
+    );
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(3);
+  }
+}
 
 const db = getFirestore();
 const now = Date.now();
@@ -64,7 +115,7 @@ const [userSnapshot, publicProfileSnapshot, entitlementSnapshot] =
 
 if (!userSnapshot.exists) {
   console.error(
-    `[seed:room-access] Abortado: users/${uid} não existe no emulador.`
+    `[seed:room-access] Abortado: users/${uid} nao existe no Firestore Emulator.`
   );
   process.exit(3);
 }
@@ -127,6 +178,6 @@ if (publicProfileSnapshot.exists) {
 await batch.commit();
 
 console.log(
-  `[seed:room-access] Concluído | projeto=${projectId} | ` +
-    `emulador=${emulatorHost} | uid=${uid} | role=${role}`
+  `[seed:room-access] Concluido | projeto=${projectId} | ` +
+    `firestore=${firestoreEmulatorHost} | uid=${uid} | role=${role}`
 );
