@@ -3,27 +3,15 @@ import { onDocumentUpdated } from 'firebase-functions/v2/firestore';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db } from '../../firebaseApp';
-import { extractOwnedPrivatePhotoPath } from './photo-storage-path';
 import {
   copyPrivatePhotoToPublishedAsset,
   deletePublishedPhotoAssetOrQueue,
 } from './published-photo-asset.service';
 import { refreshPublicProfileMediaMetrics } from './public-profile-media-metrics';
-
-type ModerationStatus = 'PENDING_REVIEW' | 'APPROVED';
-
-type PrivatePhotoDoc = {
-  path?: string;
-  url?: string;
-  fileName?: string;
-  alt?: string;
-};
-
-type PhotoPublicationDoc = {
-  isPublished?: boolean;
-  sourceStoragePath?: string;
-  publishedStoragePath?: string;
-};
+import {
+  PrivatePhotoDoc,
+  synchronizePublishedPhotoUpdate,
+} from './sync-published-photo-on-private-update.use-case';
 
 const AUTO_APPROVE_PHOTOS =
   process.env.FUNCTIONS_EMULATOR === 'true' ||
@@ -33,43 +21,8 @@ function cleanText(value: unknown): string {
   return String(value ?? '').trim();
 }
 
-function resolveSourceStoragePath(
-  ownerUid: string,
-  photo: PrivatePhotoDoc
-): string | null {
-  return (
-    extractOwnedPrivatePhotoPath(ownerUid, photo.path) ??
-    extractOwnedPrivatePhotoPath(ownerUid, photo.url)
-  );
-}
-
-function hasBinaryChanged(
-  ownerUid: string,
-  before: PrivatePhotoDoc,
-  after: PrivatePhotoDoc
-): boolean {
-  return (
-    resolveSourceStoragePath(ownerUid, before) !==
-    resolveSourceStoragePath(ownerUid, after)
-  );
-}
-
-function hasPublicMetadataChanged(
-  before: PrivatePhotoDoc,
-  after: PrivatePhotoDoc
-): boolean {
-  return (
-    cleanText(before.alt) !== cleanText(after.alt) ||
-    cleanText(before.fileName) !== cleanText(after.fileName)
-  );
-}
-
-function resolveModerationStatus(): ModerationStatus {
+function resolveModerationStatus(): 'PENDING_REVIEW' | 'APPROVED' {
   return AUTO_APPROVE_PHOTOS ? 'APPROVED' : 'PENDING_REVIEW';
-}
-
-function resolvePublicAlt(photo: PrivatePhotoDoc): string {
-  return cleanText(photo.alt) || cleanText(photo.fileName) || 'Foto do perfil';
 }
 
 export const syncPublishedPhotoOnPrivateUpdate = onDocumentUpdated(
@@ -88,134 +41,50 @@ export const syncPublishedPhotoOnPrivateUpdate = onDocumentUpdated(
       return;
     }
 
-    const before = (beforeSnapshot.data() ?? {}) as PrivatePhotoDoc;
-    const after = (afterSnapshot.data() ?? {}) as PrivatePhotoDoc;
-    const binaryChanged = hasBinaryChanged(ownerUid, before, after);
-    const metadataChanged = hasPublicMetadataChanged(before, after);
-
-    if (!binaryChanged && !metadataChanged) {
-      return;
-    }
-
     const publicationRef = db.doc(
       `users/${ownerUid}/photo_publications/${photoId}`
     );
     const publicPhotoRef = db.doc(
       `public_profiles/${ownerUid}/public_photos/${photoId}`
     );
-    const publicationSnapshot = await publicationRef.get();
-
-    if (!publicationSnapshot.exists) {
-      return;
-    }
-
-    const publication = publicationSnapshot.data() as PhotoPublicationDoc;
-    if (publication.isPublished !== true) {
-      return;
-    }
-
-    const sourceStoragePath = resolveSourceStoragePath(ownerUid, after);
-    if (!sourceStoragePath) {
-      logger.error(
-        '[syncPublishedPhotoOnPrivateUpdate] Foto privada sem caminho válido.',
-        { ownerUid, photoId }
-      );
-      return;
-    }
-
-    const now = Date.now();
-    const moderationStatus = resolveModerationStatus();
-    const sourceAlreadySynchronized =
-      cleanText(publication.sourceStoragePath) === sourceStoragePath &&
-      !!cleanText(publication.publishedStoragePath);
-    const shouldCopyAsset = binaryChanged && !sourceAlreadySynchronized;
-    let nextPublishedStoragePath = cleanText(
-      publication.publishedStoragePath
-    );
-
-    if (shouldCopyAsset) {
-      nextPublishedStoragePath = await copyPrivatePhotoToPublishedAsset({
+    const result = await synchronizePublishedPhotoUpdate(
+      {
         ownerUid,
         photoId,
-        sourceStoragePath,
-      });
-    }
-
-    const batch = db.batch();
-    const publicationPatch: Record<string, unknown> = {
-      updatedAt: now,
-    };
-    const publicPhotoPatch: Record<string, unknown> = {
-      alt: resolvePublicAlt(after),
-      updatedAt: now,
-    };
-
-    if (binaryChanged) {
-      publicationPatch['sourceStoragePath'] = sourceStoragePath;
-      publicationPatch['publishedStoragePath'] = nextPublishedStoragePath;
-      publicationPatch['assetVersion'] = now;
-      publicationPatch['moderationStatus'] = moderationStatus;
-      publicationPatch['moderationReason'] = null;
-      publicationPatch['lastModeratedAt'] =
-        moderationStatus === 'APPROVED' ? now : null;
-
-      publicPhotoPatch['moderationStatus'] = moderationStatus;
-      publicPhotoPatch['moderationReason'] = null;
-    }
-
-    batch.set(publicationRef, publicationPatch, { merge: true });
-    batch.set(publicPhotoRef, publicPhotoPatch, { merge: true });
-
-    try {
-      await batch.commit();
-    } catch (error) {
-      if (shouldCopyAsset && nextPublishedStoragePath) {
-        await deletePublishedPhotoAssetOrQueue({
-          ownerUid,
-          photoId,
-          storagePath: nextPublishedStoragePath,
-          reason: 'sync-published-photo-firestore-rollback',
-        });
+        before: (beforeSnapshot.data() ?? {}) as PrivatePhotoDoc,
+        after: (afterSnapshot.data() ?? {}) as PrivatePhotoDoc,
+      },
+      {
+        moderationStatus: resolveModerationStatus(),
+        now: () => Date.now(),
+        loadPublication: async () => {
+          const snapshot = await publicationRef.get();
+          return snapshot.exists ? snapshot.data() : null;
+        },
+        copyPublishedAsset: copyPrivatePhotoToPublishedAsset,
+        commitPatches: async (commit) => {
+          const batch = db.batch();
+          batch.set(publicationRef, commit.publicationPatch, { merge: true });
+          batch.set(publicPhotoRef, commit.publicPhotoPatch, { merge: true });
+          await batch.commit();
+        },
+        deletePublishedAsset: deletePublishedPhotoAssetOrQueue,
+        refreshMetrics: refreshPublicProfileMediaMetrics,
+        logError: (message, context) => logger.error(message, context),
       }
-
-      throw error;
-    }
-
-    const previousPublishedStoragePath = cleanText(
-      publication.publishedStoragePath
     );
 
-    if (
-      shouldCopyAsset &&
-      previousPublishedStoragePath &&
-      previousPublishedStoragePath !== nextPublishedStoragePath
-    ) {
-      await deletePublishedPhotoAssetOrQueue({
-        ownerUid,
-        photoId,
-        storagePath: previousPublishedStoragePath,
-        reason: 'sync-published-photo-replace-version',
-      });
+    if (result.status !== 'synchronized') {
+      return;
     }
-
-    await refreshPublicProfileMediaMetrics(ownerUid).catch((error) => {
-      logger.error(
-        '[syncPublishedPhotoOnPrivateUpdate] Falha ao atualizar métricas.',
-        {
-          ownerUid,
-          photoId,
-          error: error instanceof Error ? error.message : String(error ?? ''),
-        }
-      );
-    });
 
     logger.info('[syncPublishedPhotoOnPrivateUpdate] Sincronização concluída.', {
       ownerUid,
       photoId,
-      binaryChanged,
-      metadataChanged,
-      copiedAsset: shouldCopyAsset,
-      moderationStatus,
+      binaryChanged: result.binaryChanged,
+      metadataChanged: result.metadataChanged,
+      copiedAsset: result.copiedAsset,
+      moderationStatus: result.moderationStatus,
     });
   }
 );
