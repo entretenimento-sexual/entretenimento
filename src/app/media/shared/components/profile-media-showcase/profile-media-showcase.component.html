@@ -167,6 +167,16 @@
             </a>
           }
 
+          @if (state.videosCount > 0) {
+            <a
+              class="profile-media-showcase__gallery-link app-action app-action--primary"
+              [routerLink]="['/media', 'perfil', ownerUid(), 'videos-publicos']"
+            >
+              <i class="fas fa-film" aria-hidden="true"></i>
+              <span>Ver todos os vídeos</span>
+            </a>
+          }
+
           <ng-content select="[profile-media-footer]"></ng-content>
         </footer>
       }
