@@ -85,6 +85,12 @@ describe('PhotoEditorComponent', () => {
     uidSubject.next('u1');
   });
 
+  function markEditorIdle(): void {
+    (component as any).isLoadingSubject.next(false);
+    (component as any).isSavingSubject.next(false);
+    (component as any).isClosingSubject.next(false);
+  }
+
   it('deve ser criado', () => {
     expect(component).toBeTruthy();
   });
@@ -110,11 +116,12 @@ describe('PhotoEditorComponent', () => {
     expect(component.aspectRatio).toBe('original');
     expect(component.activeTool).toBe('move');
     expect(component.overlays).toEqual([]);
+    expect(component.selectedOverlay).toBeNull();
     expect(component.canUndo).toBe(false);
     expect(component.canRedo).toBe(false);
   });
 
-  it('deve expor ferramentas de privacidade e decoração no catálogo', () => {
+  it('deve expor catálogos ampliados de ferramentas, emojis e fontes', () => {
     expect(component.toolOptions.map((tool) => tool.value)).toEqual([
       'move',
       'blur',
@@ -123,7 +130,16 @@ describe('PhotoEditorComponent', () => {
       'text',
       'datetime',
     ]);
+    expect(component.emojiOptions.length).toBeGreaterThanOrEqual(24);
     expect(component.emojiOptions).toContain('🔒');
+    expect(component.fontOptions.map((font) => font.value)).toEqual([
+      'system',
+      'rounded',
+      'serif',
+      'condensed',
+      'handwritten',
+      'mono',
+    ]);
   });
 
   it('deve limitar intensidade e tamanho aos intervalos suportados', () => {
@@ -132,6 +148,82 @@ describe('PhotoEditorComponent', () => {
 
     expect(component.privacyStrength).toBe(8);
     expect(component.decorationSize).toBe(28);
+  });
+
+  it('deve selecionar, editar, duplicar e remover um texto', () => {
+    markEditorIdle();
+    component.overlays = [
+      {
+        id: 'text-1',
+        kind: 'text',
+        x: 0.5,
+        y: 0.5,
+        size: 0.1,
+        value: 'Texto inicial',
+        style: 'classic',
+        fontFamily: 'system',
+      },
+    ];
+    (component as any).resetOverlayHistory(component.overlays);
+
+    component.selectOverlay('text-1');
+    component.updateSelectedText('Texto editado');
+    component.updateSelectedFontFamily('condensed');
+    component.commitSelectedOverlayEdit();
+
+    expect(component.selectedOverlay).toMatchObject({
+      id: 'text-1',
+      value: 'Texto editado',
+      fontFamily: 'condensed',
+    });
+
+    component.duplicateSelectedOverlay();
+    expect(component.overlays).toHaveLength(2);
+    expect(component.selectedOverlay?.id).not.toBe('text-1');
+
+    component.removeSelectedOverlay();
+    expect(component.overlays).toHaveLength(1);
+    expect(component.selectedOverlay).toBeNull();
+  });
+
+  it('deve permitir editar data, hora, formato e ano', () => {
+    markEditorIdle();
+    component.overlays = [
+      {
+        id: 'datetime-1',
+        kind: 'datetime',
+        x: 0.5,
+        y: 0.5,
+        size: 0.1,
+        value: '13 JUL • 15:42',
+        style: 'badge',
+        fontFamily: 'rounded',
+        dateTimeMeta: {
+          date: '2026-07-13',
+          time: '15:42',
+          format: 'instagram',
+          includeYear: false,
+        },
+      },
+    ];
+    (component as any).resetOverlayHistory(component.overlays);
+    component.selectOverlay('datetime-1');
+
+    component.updateSelectedDateTimeDate('2026-08-20');
+    component.updateSelectedDateTimeTime('09:30');
+    component.updateSelectedDateTimeFormat('numeric');
+    component.updateSelectedDateTimeIncludeYear(true);
+    component.commitSelectedOverlayEdit();
+
+    expect(component.selectedDateTimeMeta).toEqual({
+      date: '2026-08-20',
+      time: '09:30',
+      format: 'numeric',
+      includeYear: true,
+    });
+    expect(component.selectedOverlay).toMatchObject({
+      value: '20/08/2026 • 09:30',
+    });
   });
 
   it('deve fechar o modal pelo contrato atual', () => {
