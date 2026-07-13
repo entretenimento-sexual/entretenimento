@@ -1,38 +1,117 @@
 <!-- src/app/photo-editor/photo-editor/photo-editor.component.html -->
-<section class="editor-shell" aria-label="Editor de imagem">
+<section class="editor-shell" aria-labelledby="photo-editor-title">
   <header class="editor-header">
     <div class="editor-title-block">
-      <span class="eyebrow">Editor</span>
-      <h2>Editar foto</h2>
-      <p class="subtitle">
-        Ajuste a imagem antes de concluir o envio.
-      </p>
+      <span class="eyebrow">Ajustar foto</span>
+      <h2 id="photo-editor-title">Enquadramento</h2>
+      <p class="subtitle">Arraste a imagem ou use as setas do teclado.</p>
     </div>
 
     <button
+      #closeButton
       type="button"
       class="btn btn-ghost close-btn"
       (click)="onClose()"
-      aria-label="Fechar editor">
+      aria-label="Fechar editor"
+    >
       Fechar
     </button>
   </header>
 
-  <div class="editor-card" [attr.aria-busy]="(isLoading$ | async) ? 'true' : 'false'">
-    <div class="editor-body">
-      <div
-        #editorHost
-        class="pintura-host"
-        [class.pintura-host--hidden]="(isLoading$ | async) || !(isEditorReady$ | async)"
-        aria-hidden="false">
-      </div>
+  <div
+    class="editor-card"
+    [attr.aria-busy]="(isLoading$ | async) || (isSaving$ | async) ? 'true' : 'false'"
+  >
+    <div #editorStage class="editor-stage">
+      <canvas
+        #editorCanvas
+        class="editor-canvas"
+        tabindex="0"
+        role="img"
+        aria-label="Prévia editável da foto. Arraste para reposicionar. Use as setas para ajustes finos e mais ou menos para alterar o zoom."
+        (pointerdown)="onPointerDown($event)"
+        (pointermove)="onPointerMove($event)"
+        (pointerup)="onPointerUp($event)"
+        (pointercancel)="onPointerUp($event)"
+        (keydown)="onCanvasKeydown($event)"
+      ></canvas>
 
       @if ((isLoading$ | async) || !(isEditorReady$ | async)) {
         <div class="editor-loading" role="status" aria-live="polite">
-          <mat-progress-spinner mode="indeterminate"></mat-progress-spinner>
-          <p>Preparando editor...</p>
+          <mat-progress-spinner mode="indeterminate" diameter="38"></mat-progress-spinner>
+          <p>Preparando imagem...</p>
         </div>
       }
+    </div>
+
+    <div class="editor-controls" aria-label="Ferramentas de edição">
+      <fieldset class="editor-control-group editor-control-group--ratio">
+        <legend>Formato</legend>
+
+        <div class="editor-segmented" role="group" aria-label="Formato da foto">
+          <button
+            type="button"
+            [class.is-active]="aspectRatio === 'original'"
+            [attr.aria-pressed]="aspectRatio === 'original'"
+            (click)="setAspectRatio('original')"
+          >
+            Original
+          </button>
+          <button
+            type="button"
+            [class.is-active]="aspectRatio === 'square'"
+            [attr.aria-pressed]="aspectRatio === 'square'"
+            (click)="setAspectRatio('square')"
+          >
+            1:1
+          </button>
+          <button
+            type="button"
+            [class.is-active]="aspectRatio === 'portrait'"
+            [attr.aria-pressed]="aspectRatio === 'portrait'"
+            (click)="setAspectRatio('portrait')"
+          >
+            4:5
+          </button>
+          <button
+            type="button"
+            [class.is-active]="aspectRatio === 'landscape'"
+            [attr.aria-pressed]="aspectRatio === 'landscape'"
+            (click)="setAspectRatio('landscape')"
+          >
+            16:9
+          </button>
+        </div>
+      </fieldset>
+
+      <fieldset class="editor-control-group">
+        <legend>Rotação</legend>
+
+        <div class="editor-inline-actions">
+          <button type="button" class="btn btn-ghost" (click)="rotateLeft()">
+            <i class="fas fa-rotate-left" aria-hidden="true"></i>
+            Esquerda
+          </button>
+          <button type="button" class="btn btn-ghost" (click)="rotateRight()">
+            <i class="fas fa-rotate-right" aria-hidden="true"></i>
+            Direita
+          </button>
+        </div>
+      </fieldset>
+
+      <label class="editor-control-group editor-zoom">
+        <span>Zoom</span>
+        <input
+          type="range"
+          min="1"
+          max="3"
+          step="0.05"
+          [ngModel]="zoom"
+          (ngModelChange)="updateZoom($event)"
+          [attr.aria-valuetext]="zoom.toFixed(2) + ' vezes'"
+        />
+        <output>{{ zoom.toFixed(2) }}×</output>
+      </label>
     </div>
 
     @if ((errorMessage$ | async); as errorMessage) {
@@ -40,5 +119,39 @@
         {{ errorMessage }}
       </div>
     }
+
+    <footer class="editor-footer">
+      <button
+        type="button"
+        class="btn btn-ghost"
+        (click)="resetEditor()"
+        [disabled]="(isLoading$ | async) || (isSaving$ | async)"
+      >
+        Restaurar
+      </button>
+
+      <div class="editor-footer__actions">
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="onClose()"
+          [disabled]="isSaving$ | async"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="save()"
+          [disabled]="(isLoading$ | async) || (isSaving$ | async) || !(isEditorReady$ | async)"
+        >
+          @if (isSaving$ | async) {
+            Salvando...
+          } @else {
+            Aplicar e salvar
+          }
+        </button>
+      </div>
+    </footer>
   </div>
 </section>
