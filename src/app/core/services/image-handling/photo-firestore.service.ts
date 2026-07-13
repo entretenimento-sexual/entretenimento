@@ -298,14 +298,16 @@ export class PhotoFirestoreService {
 
     await this.executeWrite(
       async () => {
-        const callable = httpsCallable<
-          DeleteProfilePhotoCallableRequest,
-          DeleteProfilePhotoCallableResponse
-        >(this.functions, 'deleteProfilePhoto');
+        await this.firestoreCtx.run(() => {
+          const callable = httpsCallable<
+            DeleteProfilePhotoCallableRequest,
+            DeleteProfilePhotoCallableResponse
+          >(this.functions, 'deleteProfilePhoto');
 
-        await callable({
-          ownerUid: safeUserId,
-          photoId: safePhotoId,
+          return callable({
+            ownerUid: safeUserId,
+            photoId: safePhotoId,
+          }).then(() => undefined);
         });
       },
       'Erro ao excluir a foto.',
