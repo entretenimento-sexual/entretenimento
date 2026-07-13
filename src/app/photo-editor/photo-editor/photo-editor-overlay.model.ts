@@ -42,7 +42,7 @@ export type PhotoEditorOverlay =
   | PhotoEditorDecorationOverlay;
 
 export interface PhotoEditorDraftPrivacyRegion {
-  kind: 'blur' | 'pixelate';
+  kind: PhotoEditorTool;
   startX: number;
   startY: number;
   endX: number;
@@ -132,6 +132,10 @@ export function normalizePhotoEditorOverlays(value: unknown): PhotoEditorOverlay
 export function privacyRegionFromDraft(
   draft: PhotoEditorDraftPrivacyRegion
 ): PhotoEditorPrivacyOverlay | null {
+  if (draft.kind !== 'blur' && draft.kind !== 'pixelate') {
+    return null;
+  }
+
   const x = Math.min(draft.startX, draft.endX);
   const y = Math.min(draft.startY, draft.endY);
   const width = Math.abs(draft.endX - draft.startX);
@@ -229,7 +233,10 @@ function drawBlurOverlay(
   height: number
 ): void {
   const rect = toPixelRect(overlay, width, height);
-  const blurRadius = Math.max(6, Math.round(Math.min(width, height) * overlay.strength));
+  const blurRadius = Math.max(
+    6,
+    Math.round(Math.min(width, height) * overlay.strength)
+  );
 
   context.save();
   context.beginPath();
@@ -250,7 +257,10 @@ function drawPixelateOverlay(
   createCanvas: () => HTMLCanvasElement
 ): void {
   const rect = toPixelRect(overlay, width, height);
-  const blockSize = Math.max(6, Math.round(Math.min(width, height) * overlay.strength));
+  const blockSize = Math.max(
+    6,
+    Math.round(Math.min(width, height) * overlay.strength)
+  );
   const sampleWidth = Math.max(1, Math.ceil(rect.width / blockSize));
   const sampleHeight = Math.max(1, Math.ceil(rect.height / blockSize));
   const sampleCanvas = createCanvas();
