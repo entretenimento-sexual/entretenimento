@@ -70,6 +70,7 @@ interface RegisterPrivateVideoUploadResponse {
 }
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
+const REGISTER_RETRY_DELAY_MS = 650;
 const ALLOWED_VIDEO_TYPES = new Set([
   'video/mp4',
   'video/webm',
@@ -299,7 +300,7 @@ export class VideoUploadFlowService {
     });
   }
 
-  private registerUploadedVideo(
+  private async registerUploadedVideo(
     payload: RegisterPrivateVideoUploadRequest
   ): Promise<RegisterPrivateVideoUploadResponse> {
     const callable = httpsCallable<
@@ -307,7 +308,39 @@ export class VideoUploadFlowService {
       RegisterPrivateVideoUploadResponse
     >(this.functions, 'registerPrivateVideoUpload');
 
-    return callable(payload).then((response) => response.data);
+    try {
+      const response = await callable(payload);
+      return response.data;
+    } catch (error) {
+      if (!this.isRetryableRegistrationError(error)) {
+        throw error;
+      }
+
+      await this.delay(REGISTER_RETRY_DELAY_MS);
+      const retryResponse = await callable(payload);
+      return retryResponse.data;
+    }
+  }
+
+  private isRetryableRegistrationError(error: unknown): boolean {
+    if (typeof error !== 'object' || error === null || !('code' in error)) {
+      return false;
+    }
+
+    const code = String((error as { code?: unknown }).code ?? '')
+      .replace(/^functions\//, '');
+
+    return [
+      'deadline-exceeded',
+      'internal',
+      'resource-exhausted',
+      'unavailable',
+      'unknown',
+    ].includes(code);
+  }
+
+  private delay(delayMs: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 
   private uploadBinary(
