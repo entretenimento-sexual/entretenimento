@@ -16,6 +16,7 @@
 // Variáveis:
 // - FIREBASE_EMULATORS_ONLY=auth,firestore,functions
 // - FIREBASE_PROJECT_ID=entretenimento-sexual
+// - FIREBASE_STORAGE_BUCKET=entretenimento-sexual.appspot.com
 // - FIREBASE_EMULATOR_DATA_DIR=.emulator-data
 // - FIREBASE_EMULATOR_BACKUP_DIR=.emulator-data-backups
 // - FIREBASE_EMULATOR_SKIP_BACKUP=1 para pular backup manualmente
@@ -28,6 +29,8 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 const projectId = process.env.FIREBASE_PROJECT_ID || 'entretenimento-sexual';
+const storageBucket =
+  process.env.FIREBASE_STORAGE_BUCKET || `${projectId}.appspot.com`;
 const only = process.env.FIREBASE_EMULATORS_ONLY || 'auth,firestore,functions';
 const dataDir = process.env.FIREBASE_EMULATOR_DATA_DIR || '.emulator-data';
 const backupRootDir = process.env.FIREBASE_EMULATOR_BACKUP_DIR || '.emulator-data-backups';
@@ -219,7 +222,11 @@ if (fs.existsSync(metadataPath)) {
   );
 }
 
-const env = { ...process.env };
+const env = {
+  ...process.env,
+  FIREBASE_PROJECT_ID: projectId,
+  FIREBASE_STORAGE_BUCKET: storageBucket,
+};
 
 if (process.platform === 'win32') {
   const jdkPath = 'C:\\Program Files\\Eclipse Adoptium\\jdk-21.0.10.7-hotspot';
@@ -231,6 +238,7 @@ if (process.platform === 'win32') {
 }
 
 console.log(`[emu:safe] Projeto=${projectId}`);
+console.log(`[emu:safe] StorageBucket=${storageBucket}`);
 console.log(`[emu:safe] Emuladores=${only}`);
 console.log(`[emu:safe] Export-on-exit=${dataDir}`);
 console.log('[emu:safe] Para resetar portas, rode manualmente: npm run emu:pre');
