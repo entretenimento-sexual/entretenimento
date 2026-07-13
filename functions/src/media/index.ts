@@ -27,6 +27,10 @@ export {
 } from './application/queue-video-processing.handler';
 
 export {
+  finalizeVideoProcessingMetadata,
+} from './application/finalize-video-processing-metadata.handler';
+
+export {
   cleanupCancelledVideoProcessing,
   reconcileVideoProcessing,
   submitQueuedVideoProcessing,
