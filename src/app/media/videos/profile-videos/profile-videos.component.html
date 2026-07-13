@@ -14,8 +14,8 @@
       <span class="profile-videos__eyebrow">Biblioteca privada</span>
       <h1 id="profile-videos-title">Meus vídeos</h1>
       <p>
-        Os arquivos originais permanecem privados. Ao publicar, o backend cria
-        uma cópia separada e controlada para visitantes.
+        Os arquivos originais permanecem privados. O backend prepara uma versão
+        compatível e somente essa versão processada pode seguir para publicação.
       </p>
     </div>
   </header>
@@ -30,8 +30,8 @@
         <span class="profile-videos__eyebrow">Novo vídeo</span>
         <h2 id="video-upload-title">Enviar para a biblioteca privada</h2>
         <p>
-          MP4 e WebM podem ser preparados para publicação. MOV permanece privado
-          até existir transcodificação compatível entre navegadores.
+          MP4, WebM e MOV entram em uma fila protegida. O original não é exposto:
+          a publicação usa um derivado MP4 ou WebM produzido pelo backend.
         </p>
       </div>
 
@@ -68,8 +68,8 @@
           </label>
 
           <p class="profile-videos__limits" id="profile-video-file-help">
-            MP4, WebM ou MOV. Limite de 500 MB. O upload pode ser cancelado antes
-            da confirmação final dos metadados.
+            MP4, WebM ou MOV. Limite de 500 MB e duração mínima de 5 segundos.
+            O upload pode ser cancelado antes da confirmação final dos metadados.
           </p>
 
           @if (selectedFileName) {
@@ -202,16 +202,22 @@
                 <div class="profile-videos__meta" aria-label="Informações do vídeo">
                   <span>{{ formatFileSize(item.video.sizeBytes) }}</span>
                   <span>{{ formatDuration(item.video.durationMs) }}</span>
-                  <span>{{ processingLabel(item.video) }}</span>
+                  <span>{{ item.video.status === 'queued' ? 'Na fila' : processingLabel(item.video) }}</span>
                 </div>
 
-                @if (item.video.status === 'processing') {
+                @if (item.video.status === 'queued') {
                   <p class="profile-videos__helper" role="status">
-                    Aguarde o processamento terminar antes de publicar.
+                    Vídeo adicionado à fila. O processamento continuará em segundo
+                    plano e esta tela será atualizada automaticamente.
+                  </p>
+                } @else if (item.video.status === 'processing') {
+                  <p class="profile-videos__helper" role="status">
+                    O backend está preparando uma versão compatível. Aguarde a
+                    conclusão antes de publicar.
                   </p>
                 } @else if (item.video.status === 'failed') {
                   <p class="profile-videos__helper profile-videos__helper--error" role="alert">
-                    Este arquivo precisa ser reenviado antes de poder ser publicado.
+                    {{ item.video.processingErrorMessage || 'Não foi possível processar este arquivo. Exclua-o e envie uma nova versão.' }}
                   </p>
                 } @else if (item.publication?.moderationStatus === 'REJECTED') {
                   <p class="profile-videos__helper profile-videos__helper--error" role="alert">
@@ -220,11 +226,11 @@
                   </p>
                 } @else if (!isPublicPlaybackCompatible(item.video)) {
                   <p class="profile-videos__helper" role="status">
-                    Este formato permanece privado até existir transcodificação para MP4 ou WebM.
+                    O derivado compatível ainda não foi confirmado pelo backend.
                   </p>
                 } @else if (item.video.status !== 'ready') {
                   <p class="profile-videos__helper" role="status">
-                    Não foi possível confirmar duração e compatibilidade. Reenvie um MP4 ou WebM válido.
+                    O vídeo ainda não está pronto para publicação.
                   </p>
                 } @else if (item.publication?.moderationStatus === 'PENDING_REVIEW') {
                   <p class="profile-videos__helper" role="status">
@@ -287,8 +293,8 @@
                     <div>
                       <strong>Excluir definitivamente?</strong>
                       <p>
-                        O vídeo será removido da biblioteca privada e da área pública.
-                        Esta ação não pode ser desfeita.
+                        O original, os derivados processados e qualquer cópia
+                        publicada serão removidos. Esta ação não pode ser desfeita.
                       </p>
                     </div>
 
