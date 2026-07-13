@@ -44,6 +44,68 @@ export interface IAdminVideoModerationResult {
   cleanupPending: boolean;
 }
 
+export type AdminVideoProcessingOperationalState =
+  | 'READY'
+  | 'DEGRADED'
+  | 'EMULATOR';
+
+export type AdminVideoProcessingProviderStatus =
+  | 'READY'
+  | 'EMULATOR_SKIPPED'
+  | 'UNAVAILABLE';
+
+export type AdminVideoProcessingJobState =
+  | 'QUEUED'
+  | 'SUBMITTING'
+  | 'PROCESSING'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'CANCEL_REQUESTED'
+  | 'CANCELLED';
+
+export type AdminVideoProcessingJobCounts = Record<
+  AdminVideoProcessingJobState,
+  number
+>;
+
+export interface IAdminVideoProcessingProviderStatus {
+  status: AdminVideoProcessingProviderStatus;
+  reachable: boolean;
+  projectId: string | null;
+  location: string;
+  templateId: string;
+  bucketName: string | null;
+  checkedAt: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+}
+
+export interface IAdminVideoProcessingQueueStatus {
+  counts: AdminVideoProcessingJobCounts;
+  activeTotal: number;
+  sampledActiveJobs: number;
+  oldestActiveAgeMs: number | null;
+  staleSampledJobs: number;
+  sampleCapped: boolean;
+}
+
+export interface IAdminVideoProcessingStatus {
+  state: AdminVideoProcessingOperationalState;
+  checkedAt: number;
+  provider: IAdminVideoProcessingProviderStatus;
+  queue: IAdminVideoProcessingQueueStatus;
+}
+
+const PROCESSING_JOB_STATES: AdminVideoProcessingJobState[] = [
+  'QUEUED',
+  'SUBMITTING',
+  'PROCESSING',
+  'SUCCEEDED',
+  'FAILED',
+  'CANCEL_REQUESTED',
+  'CANCELLED',
+];
+
 @Injectable({ providedIn: 'root' })
 export class AdminVideoModerationService {
   private readonly functions = inject(Functions);
@@ -73,6 +135,23 @@ export class AdminVideoModerationService {
       })),
       catchError((error) => {
         this.reportError(error, 'listPendingVideos$', {});
+        return throwError(() => error);
+      })
+    );
+  }
+
+  getProcessingStatus$(): Observable<IAdminVideoProcessingStatus> {
+    return defer(() => {
+      const callable = httpsCallable<
+        Record<string, never>,
+        IAdminVideoProcessingStatus
+      >(this.functions, 'getVideoProcessingOperationalStatus');
+
+      return from(callable({}));
+    }).pipe(
+      map((response) => this.normalizeProcessingStatus(response.data)),
+      catchError((error) => {
+        this.reportError(error, 'getProcessingStatus$', {});
         return throwError(() => error);
       })
     );
@@ -142,6 +221,78 @@ export class AdminVideoModerationService {
       posterUrl: this.normalizeOptionalText(item.posterUrl, 4096),
       accessExpiresAt: this.normalizeNonNegativeInteger(item.accessExpiresAt),
     };
+  }
+
+  private normalizeProcessingStatus(
+    value: IAdminVideoProcessingStatus
+  ): IAdminVideoProcessingStatus {
+    const providerStatus = value?.provider?.status === 'READY' ||
+      value?.provider?.status === 'EMULATOR_SKIPPED'
+      ? value.provider.status
+      : 'UNAVAILABLE';
+    const operationalState = value?.state === 'READY' ||
+      value?.state === 'EMULATOR'
+      ? value.state
+      : 'DEGRADED';
+
+    return {
+      state: operationalState,
+      checkedAt: this.normalizeNonNegativeInteger(value?.checkedAt),
+      provider: {
+        status: providerStatus,
+        reachable: value?.provider?.reachable === true,
+        projectId: this.normalizeOptionalText(value?.provider?.projectId, 160),
+        location:
+          this.normalizeOptionalText(value?.provider?.location, 120) ||
+          'não informada',
+        templateId:
+          this.normalizeOptionalText(value?.provider?.templateId, 180) ||
+          'não informado',
+        bucketName: this.normalizeOptionalText(
+          value?.provider?.bucketName,
+          240
+        ),
+        checkedAt: this.normalizeNonNegativeInteger(
+          value?.provider?.checkedAt
+        ),
+        errorCode: this.normalizeOptionalText(
+          value?.provider?.errorCode,
+          160
+        ),
+        errorMessage: this.normalizeOptionalText(
+          value?.provider?.errorMessage,
+          500
+        ),
+      },
+      queue: {
+        counts: this.normalizeProcessingCounts(value?.queue?.counts),
+        activeTotal: this.normalizeNonNegativeInteger(
+          value?.queue?.activeTotal
+        ),
+        sampledActiveJobs: this.normalizeNonNegativeInteger(
+          value?.queue?.sampledActiveJobs
+        ),
+        oldestActiveAgeMs: this.normalizeOptionalPositiveInteger(
+          value?.queue?.oldestActiveAgeMs
+        ),
+        staleSampledJobs: this.normalizeNonNegativeInteger(
+          value?.queue?.staleSampledJobs
+        ),
+        sampleCapped: value?.queue?.sampleCapped === true,
+      },
+    };
+  }
+
+  private normalizeProcessingCounts(
+    value: Partial<AdminVideoProcessingJobCounts> | null | undefined
+  ): AdminVideoProcessingJobCounts {
+    const counts = {} as AdminVideoProcessingJobCounts;
+
+    PROCESSING_JOB_STATES.forEach((state) => {
+      counts[state] = this.normalizeNonNegativeInteger(value?.[state]);
+    });
+
+    return counts;
   }
 
   private normalizeId(value: unknown): string {
