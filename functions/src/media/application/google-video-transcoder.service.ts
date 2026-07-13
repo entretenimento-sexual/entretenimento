@@ -34,12 +34,31 @@ export interface NormalizedTranscoderError {
   retryable: boolean;
 }
 
+export type GoogleVideoTranscoderProbeStatus =
+  | 'READY'
+  | 'EMULATOR_SKIPPED'
+  | 'UNAVAILABLE';
+
+export interface GoogleVideoTranscoderProbeResult {
+  status: GoogleVideoTranscoderProbeStatus;
+  reachable: boolean;
+  projectId: string | null;
+  location: string;
+  templateId: string;
+  bucketName: string | null;
+  checkedAt: number;
+  errorCode: string | null;
+  errorMessage: string | null;
+}
+
 const TRANSCODER_API_BASE_URL = 'https://transcoder.googleapis.com/v1';
 const TRANSCODER_SCOPE = 'https://www.googleapis.com/auth/cloud-platform';
 const TRANSCODER_TEMPLATE_ID =
   process.env.VIDEO_TRANSCODER_TEMPLATE_ID?.trim() || 'preset/web-hd';
 const TRANSCODER_LOCATION =
   process.env.VIDEO_TRANSCODER_LOCATION?.trim() || FUNCTIONS_REGION;
+const ALLOW_LIVE_PROBE_IN_EMULATOR =
+  process.env.VIDEO_TRANSCODER_ALLOW_LIVE_PROBE === 'true';
 const credential = applicationDefault();
 
 function projectId(): string {
@@ -111,6 +130,90 @@ function inputUri(sourceStoragePath: string): string {
   }
 
   return `gs://${bucketName}/${normalizedPath}`;
+}
+
+export async function probeGoogleVideoTranscoder(): Promise<
+  GoogleVideoTranscoderProbeResult
+> {
+  const checkedAt = Date.now();
+  let resolvedProjectId: string | null = null;
+  let bucketName: string | null = null;
+
+  try {
+    resolvedProjectId = projectId();
+    bucketName = String(storage.bucket().name ?? '').trim() || null;
+  } catch (error) {
+    const normalized = normalizeGoogleTranscoderError(error);
+
+    return {
+      status: 'UNAVAILABLE',
+      reachable: false,
+      projectId: resolvedProjectId,
+      location: TRANSCODER_LOCATION,
+      templateId: TRANSCODER_TEMPLATE_ID,
+      bucketName,
+      checkedAt,
+      errorCode: normalized.code,
+      errorMessage: normalized.message,
+    };
+  }
+
+  if (
+    process.env.FUNCTIONS_EMULATOR === 'true' &&
+    !ALLOW_LIVE_PROBE_IN_EMULATOR
+  ) {
+    return {
+      status: 'EMULATOR_SKIPPED',
+      reachable: false,
+      projectId: resolvedProjectId,
+      location: TRANSCODER_LOCATION,
+      templateId: TRANSCODER_TEMPLATE_ID,
+      bucketName,
+      checkedAt,
+      errorCode: null,
+      errorMessage:
+        'A verificação externa foi ignorada no Emulator para evitar acesso ao projeto real.',
+    };
+  }
+
+  try {
+    const authorization = await authorizationHeader();
+
+    await axios.get<GoogleTranscoderListJobsResponse>(
+      `${TRANSCODER_API_BASE_URL}/${parentName()}/jobs`,
+      {
+        headers: { Authorization: authorization },
+        params: { pageSize: 1 },
+        timeout: 15_000,
+      }
+    );
+
+    return {
+      status: 'READY',
+      reachable: true,
+      projectId: resolvedProjectId,
+      location: TRANSCODER_LOCATION,
+      templateId: TRANSCODER_TEMPLATE_ID,
+      bucketName,
+      checkedAt,
+      errorCode: null,
+      errorMessage: null,
+    };
+  } catch (error) {
+    const normalized = normalizeGoogleTranscoderError(error);
+
+    return {
+      status: 'UNAVAILABLE',
+      reachable: false,
+      projectId: resolvedProjectId,
+      location: TRANSCODER_LOCATION,
+      templateId: TRANSCODER_TEMPLATE_ID,
+      bucketName,
+      checkedAt,
+      errorCode: normalized.code,
+      errorMessage: normalized.message,
+    };
+  }
 }
 
 export async function submitGoogleVideoTranscoderJob(
