@@ -270,6 +270,17 @@ async function buildQueueItem(
   };
 }
 
+async function refreshMetricsBestEffort(ownerUid: string): Promise<void> {
+  try {
+    await refreshPublicProfileMediaMetrics(ownerUid);
+  } catch (error) {
+    logger.warn('[videoModeration] Falha ao atualizar métricas derivadas.', {
+      ownerUid,
+      error: error instanceof Error ? error.message : String(error ?? ''),
+    });
+  }
+}
+
 export const listVideoModerationQueue = onCall<
   ListVideoModerationQueueRequest
 >(
@@ -471,10 +482,20 @@ export const reviewVideoModeration = onCall<
       ]);
 
       cleanupPending = !videoDeleted || !posterDeleted;
-      await db.recursiveDelete(publicVideoRef);
+
+      try {
+        await db.recursiveDelete(publicVideoRef);
+      } catch (error) {
+        cleanupPending = true;
+        logger.warn('[videoModeration] Projeção rejeitada aguarda limpeza.', {
+          ownerUid,
+          videoId,
+          error: error instanceof Error ? error.message : String(error ?? ''),
+        });
+      }
     }
 
-    await refreshPublicProfileMediaMetrics(ownerUid);
+    await refreshMetricsBestEffort(ownerUid);
 
     return {
       ownerUid,
