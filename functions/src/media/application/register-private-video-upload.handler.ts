@@ -1,5 +1,8 @@
+import { createHash } from 'node:crypto';
+
 import * as logger from 'firebase-functions/logger';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 
 import { FUNCTIONS_REGION } from '../../config/functions-region';
 import { db, FieldValue, storage } from '../../firebaseApp';
@@ -9,6 +12,7 @@ import {
 } from './video-storage-path';
 
 type RegisteredVideoStatus = 'uploaded' | 'ready';
+type PrivateUploadAssetKind = 'video' | 'poster';
 
 interface RegisterPrivateVideoUploadRequest {
   ownerUid?: string;
@@ -44,8 +48,21 @@ interface RegisteredVideoDocument {
   createdAt?: unknown;
 }
 
+interface PrivateUploadCleanupJob {
+  ownerUid: string;
+  videoId: string;
+  storagePath: string;
+  assetKind: PrivateUploadAssetKind;
+  createdAt: number;
+  updatedAt: number;
+  attempts: number;
+  lastError: string | null;
+}
+
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_POSTER_SIZE_BYTES = 10 * 1024 * 1024;
+const CLEANUP_COLLECTION = 'media_private_video_upload_cleanup_jobs';
+const CLEANUP_BATCH_SIZE = 50;
 const ALLOWED_VIDEO_TYPES = new Set([
   'video/mp4',
   'video/webm',
@@ -129,6 +146,14 @@ function timestampToMillis(value: unknown): number {
   return Date.now();
 }
 
+function normalizeErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message.slice(0, 500);
+  }
+
+  return String(error ?? 'unknown').slice(0, 500);
+}
+
 function assertOwner(requesterUid: string | null, ownerUid: string): void {
   if (!requesterUid) {
     throw new HttpsError('unauthenticated', 'Usuário não autenticado.');
@@ -140,6 +165,25 @@ function assertOwner(requesterUid: string | null, ownerUid: string): void {
       'O vídeo só pode ser registrado no perfil autenticado.'
     );
   }
+}
+
+function cleanupJobId(storagePath: string): string {
+  return createHash('sha256').update(storagePath).digest('hex');
+}
+
+function validateCleanupPath(
+  ownerUid: string,
+  videoId: string,
+  storagePath: unknown,
+  assetKind: PrivateUploadAssetKind
+): string | null {
+  return assetKind === 'video'
+    ? extractOwnedPrivateVideoPathForId(ownerUid, videoId, storagePath)
+    : extractOwnedPrivateVideoPosterPath(
+      ownerUid,
+      videoId,
+      storagePath
+    );
 }
 
 async function readRequiredVideoMetadata(storagePath: string): Promise<{
@@ -211,18 +255,75 @@ async function validateOptionalPoster(storagePath: string | null): Promise<void>
   }
 }
 
-async function deleteUploadedAssetsBestEffort(paths: string[]): Promise<void> {
+async function enqueueCleanup(
+  ownerUid: string,
+  videoId: string,
+  storagePath: string,
+  assetKind: PrivateUploadAssetKind,
+  error: unknown
+): Promise<void> {
+  const now = Date.now();
+  const job: PrivateUploadCleanupJob = {
+    ownerUid,
+    videoId,
+    storagePath,
+    assetKind,
+    createdAt: now,
+    updatedAt: now,
+    attempts: 1,
+    lastError: normalizeErrorMessage(error),
+  };
+
+  await db
+    .collection(CLEANUP_COLLECTION)
+    .doc(cleanupJobId(storagePath))
+    .set(job, { merge: true });
+}
+
+async function clearCleanupJobsBestEffort(paths: string[]): Promise<void> {
   await Promise.all(
     paths.map(async (storagePath) => {
+      try {
+        await db
+          .collection(CLEANUP_COLLECTION)
+          .doc(cleanupJobId(storagePath))
+          .delete();
+      } catch {
+        // O retry agendado também protege objetos já referenciados.
+      }
+    })
+  );
+}
+
+async function deleteUploadedAssetsRecoverably(
+  ownerUid: string,
+  videoId: string,
+  assets: Array<{
+    storagePath: string;
+    assetKind: PrivateUploadAssetKind;
+  }>
+): Promise<void> {
+  await Promise.all(
+    assets.map(async ({ storagePath, assetKind }) => {
       try {
         await storage
           .bucket()
           .file(storagePath)
           .delete({ ignoreNotFound: true });
+        await clearCleanupJobsBestEffort([storagePath]);
       } catch (error) {
-        logger.warn('[registerPrivateVideoUpload] Falha no rollback físico.', {
-          hasStoragePath: !!storagePath,
-          error: error instanceof Error ? error.message : String(error ?? ''),
+        await enqueueCleanup(
+          ownerUid,
+          videoId,
+          storagePath,
+          assetKind,
+          error
+        );
+        logger.warn('[registerPrivateVideoUpload] Limpeza física pendente.', {
+          ownerUid,
+          videoId,
+          assetKind,
+          error: normalizeErrorMessage(error),
         });
       }
     })
@@ -276,6 +377,36 @@ function buildExistingResponse(
   };
 }
 
+function isAlreadyExistsError(error: unknown): boolean {
+  if (typeof error !== 'object' || error === null) {
+    return false;
+  }
+
+  const withCode = error as { code?: unknown };
+  return withCode.code === 6 || String(withCode.code ?? '') === 'already-exists';
+}
+
+async function findExistingResponse(
+  ownerUid: string,
+  videoId: string,
+  videoStoragePath: string,
+  posterStoragePath: string | null
+): Promise<RegisterPrivateVideoUploadResponse | null> {
+  const snapshot = await db.doc(`users/${ownerUid}/videos/${videoId}`).get();
+
+  if (!snapshot.exists) {
+    return null;
+  }
+
+  return buildExistingResponse(
+    videoId,
+    ownerUid,
+    videoStoragePath,
+    posterStoragePath,
+    snapshot.data() as RegisteredVideoDocument
+  );
+}
+
 export const registerPrivateVideoUpload = onCall<
   RegisterPrivateVideoUploadRequest
 >(
@@ -296,6 +427,14 @@ export const registerPrivateVideoUpload = onCall<
       videoId,
       request.data?.videoStoragePath
     );
+
+    if (!videoStoragePath) {
+      throw new HttpsError(
+        'invalid-argument',
+        'O caminho privado do vídeo não pertence ao upload informado.'
+      );
+    }
+
     const rawPosterStoragePath = String(
       request.data?.posterStoragePath ?? ''
     ).trim();
@@ -306,50 +445,40 @@ export const registerPrivateVideoUpload = onCall<
         rawPosterStoragePath
       )
       : null;
+    const existingResponse = await findExistingResponse(
+      ownerUid,
+      videoId,
+      videoStoragePath,
+      posterStoragePath
+    );
 
-    if (!videoStoragePath) {
-      throw new HttpsError(
-        'invalid-argument',
-        'O caminho privado do vídeo não pertence ao upload informado.'
-      );
+    if (existingResponse) {
+      await clearCleanupJobsBestEffort([
+        videoStoragePath,
+        ...(posterStoragePath ? [posterStoragePath] : []),
+      ]);
+      return existingResponse;
     }
 
     if (rawPosterStoragePath && !posterStoragePath) {
-      await deleteUploadedAssetsBestEffort([videoStoragePath]);
+      await deleteUploadedAssetsRecoverably(ownerUid, videoId, [
+        { storagePath: videoStoragePath, assetKind: 'video' },
+      ]);
       throw new HttpsError(
         'invalid-argument',
         'O caminho da capa não pertence ao vídeo informado.'
       );
     }
 
-    const rollbackPaths = [
-      videoStoragePath,
-      ...(posterStoragePath ? [posterStoragePath] : []),
+    let registrationCommitted = false;
+    const rollbackAssets = [
+      { storagePath: videoStoragePath, assetKind: 'video' as const },
+      ...(posterStoragePath
+        ? [{ storagePath: posterStoragePath, assetKind: 'poster' as const }]
+        : []),
     ];
 
     try {
-      const videoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
-      const existingVideo = await videoRef.get();
-
-      if (existingVideo.exists) {
-        const existingResponse = buildExistingResponse(
-          videoId,
-          ownerUid,
-          videoStoragePath,
-          posterStoragePath,
-          existingVideo.data() as RegisteredVideoDocument
-        );
-
-        if (existingResponse) {
-          return existingResponse;
-        }
-
-        throw new HttpsError(
-          'already-exists',
-          'Este identificador já pertence a outro upload.'
-        );
-      }
-
       const [videoMetadata] = await Promise.all([
         readRequiredVideoMetadata(videoStoragePath),
         validateOptionalPoster(posterStoragePath),
@@ -385,22 +514,49 @@ export const registerPrivateVideoUpload = onCall<
           ? 'ready'
           : 'uploaded';
       const createdAt = Date.now();
+      const videoRef = db.doc(`users/${ownerUid}/videos/${videoId}`);
 
-      await videoRef.set({
-        id: videoId,
-        ownerUid,
-        url: videoStoragePath,
-        path: videoStoragePath,
-        fileName: cleanFileName(request.data?.fileName),
-        mimeType: videoMetadata.mimeType,
-        sizeBytes: videoMetadata.sizeBytes,
-        durationMs,
-        thumbnailUrl: posterStoragePath,
-        thumbnailPath: posterStoragePath,
-        status,
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
+      try {
+        await videoRef.create({
+          id: videoId,
+          ownerUid,
+          url: videoStoragePath,
+          path: videoStoragePath,
+          fileName: cleanFileName(request.data?.fileName),
+          mimeType: videoMetadata.mimeType,
+          sizeBytes: videoMetadata.sizeBytes,
+          durationMs,
+          thumbnailUrl: posterStoragePath,
+          thumbnailPath: posterStoragePath,
+          status,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        registrationCommitted = true;
+      } catch (createError) {
+        if (isAlreadyExistsError(createError)) {
+          const concurrentResponse = await findExistingResponse(
+            ownerUid,
+            videoId,
+            videoStoragePath,
+            posterStoragePath
+          );
+
+          if (concurrentResponse) {
+            registrationCommitted = true;
+            await clearCleanupJobsBestEffort(
+              rollbackAssets.map((asset) => asset.storagePath)
+            );
+            return concurrentResponse;
+          }
+        }
+
+        throw createError;
+      }
+
+      await clearCleanupJobsBestEffort(
+        rollbackAssets.map((asset) => asset.storagePath)
+      );
 
       return {
         videoId,
@@ -414,7 +570,13 @@ export const registerPrivateVideoUpload = onCall<
         createdAt,
       };
     } catch (error) {
-      await deleteUploadedAssetsBestEffort(rollbackPaths);
+      if (!registrationCommitted) {
+        await deleteUploadedAssetsRecoverably(
+          ownerUid,
+          videoId,
+          rollbackAssets
+        );
+      }
 
       if (error instanceof HttpsError) {
         throw error;
@@ -423,13 +585,86 @@ export const registerPrivateVideoUpload = onCall<
       logger.error('[registerPrivateVideoUpload] Falha ao registrar upload.', {
         ownerUid,
         videoId,
-        error: error instanceof Error ? error.message : String(error ?? ''),
+        error: normalizeErrorMessage(error),
       });
 
       throw new HttpsError(
         'internal',
         'Não foi possível registrar o vídeo enviado.'
       );
+    }
+  }
+);
+
+export const cleanupPendingPrivateVideoUploadAssets = onSchedule(
+  {
+    region: FUNCTIONS_REGION,
+    schedule: 'every 60 minutes',
+    timeZone: 'America/Sao_Paulo',
+    retryCount: 3,
+  },
+  async () => {
+    const jobsSnapshot = await db
+      .collection(CLEANUP_COLLECTION)
+      .limit(CLEANUP_BATCH_SIZE)
+      .get();
+
+    for (const jobDoc of jobsSnapshot.docs) {
+      const job = jobDoc.data() as PrivateUploadCleanupJob;
+      const ownerUid = cleanId(job.ownerUid);
+      const videoId = cleanId(job.videoId);
+      const storagePath = validateCleanupPath(
+        ownerUid,
+        videoId,
+        job.storagePath,
+        job.assetKind
+      );
+
+      if (!ownerUid || !videoId || !storagePath) {
+        logger.error('[privateVideoUploadCleanup] Job inválido.', {
+          jobId: jobDoc.id,
+        });
+        continue;
+      }
+
+      try {
+        const videoSnapshot = await db
+          .doc(`users/${ownerUid}/videos/${videoId}`)
+          .get();
+        const registeredVideo = videoSnapshot.exists
+          ? (videoSnapshot.data() as RegisteredVideoDocument)
+          : null;
+        const referencedPath = job.assetKind === 'video'
+          ? registeredVideo?.path
+          : registeredVideo?.thumbnailPath;
+
+        if (referencedPath === storagePath) {
+          await jobDoc.ref.delete();
+          continue;
+        }
+
+        await storage
+          .bucket()
+          .file(storagePath)
+          .delete({ ignoreNotFound: true });
+        await jobDoc.ref.delete();
+      } catch (error) {
+        await jobDoc.ref.set(
+          {
+            attempts: Number(job.attempts ?? 0) + 1,
+            updatedAt: Date.now(),
+            lastError: normalizeErrorMessage(error),
+          },
+          { merge: true }
+        );
+        logger.warn('[privateVideoUploadCleanup] Falha no retry.', {
+          jobId: jobDoc.id,
+          ownerUid,
+          videoId,
+          assetKind: job.assetKind,
+          error: normalizeErrorMessage(error),
+        });
+      }
     }
   }
 );
