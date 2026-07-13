@@ -1,15 +1,22 @@
 /* src/app/photo-editor/photo-editor/photo-editor.component.css */
 :host {
   display: block;
+  width: 100%;
   min-width: 0;
+  min-height: 0;
 }
 
 .editor-shell {
   display: grid;
-  gap: 14px;
-  width: min(1120px, 96vw);
-  max-height: 94vh;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 1120px;
+  height: min(900px, calc(100dvh - 24px));
+  max-height: calc(100dvh - 24px);
+  min-height: 0;
   padding: clamp(12px, 2vw, 18px);
+  overflow: hidden;
   color: var(--text-color, #f5f7fb);
 }
 
@@ -53,8 +60,10 @@
 
 .editor-card {
   display: grid;
-  gap: 14px;
+  grid-template-rows: minmax(220px, 1fr) auto auto auto;
+  gap: 12px;
   min-width: 0;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
   border-radius: 18px;
@@ -66,8 +75,9 @@
   position: relative;
   display: grid;
   place-items: center;
+  width: 100%;
   min-width: 0;
-  height: clamp(320px, 62vh, 720px);
+  min-height: 220px;
   padding: 12px;
   overflow: hidden;
   background:
@@ -181,7 +191,7 @@
 }
 
 .editor-inline-actions .btn {
-  min-height: 48px;
+  min-height: 44px;
 }
 
 .editor-zoom {
@@ -195,7 +205,7 @@
 
 .editor-zoom input {
   width: 100%;
-  min-height: 44px;
+  min-height: 40px;
   accent-color: var(--primary-color, #ff7070);
 }
 
@@ -229,7 +239,7 @@
 
 .editor-footer .btn,
 .close-btn {
-  min-height: 44px;
+  min-height: 42px;
 }
 
 @media (max-width: 900px) {
@@ -244,13 +254,20 @@
 
 @media (max-width: 640px) {
   .editor-shell {
-    width: 100%;
-    max-height: 100vh;
-    padding: 10px;
+    height: calc(100dvh - 12px);
+    max-height: calc(100dvh - 12px);
+    padding: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   .editor-header {
+    position: sticky;
+    top: -8px;
+    z-index: 3;
     align-items: center;
+    padding: 8px 0;
+    background: var(--surface-color, #101923);
   }
 
   .subtitle {
@@ -258,14 +275,14 @@
   }
 
   .editor-card {
-    gap: 12px;
+    grid-template-rows: minmax(260px, 48dvh) auto auto auto;
+    overflow: visible;
     border-radius: 14px;
     box-shadow: none;
   }
 
   .editor-stage {
-    height: min(54vh, 520px);
-    min-height: 300px;
+    min-height: 260px;
     padding: 8px;
   }
 
@@ -300,16 +317,43 @@
 }
 
 @media (max-width: 390px) {
-  .editor-header {
-    display: grid;
+  .editor-title-block .eyebrow {
+    display: none;
   }
 
   .close-btn {
-    width: 100%;
+    min-width: 76px;
   }
 
   .editor-footer__actions {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-height: 720px) and (min-width: 641px) {
+  .editor-shell {
+    gap: 8px;
+    padding-block: 10px;
+  }
+
+  .subtitle,
+  .eyebrow {
+    display: none;
+  }
+
+  .editor-card {
+    grid-template-rows: minmax(200px, 1fr) auto auto auto;
+    gap: 8px;
+  }
+
+  .editor-stage {
+    min-height: 200px;
+  }
+
+  .editor-inline-actions .btn,
+  .editor-footer .btn,
+  .close-btn {
+    min-height: 38px;
   }
 }
 
