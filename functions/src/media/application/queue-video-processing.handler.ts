@@ -1,3 +1,4 @@
+import type { DocumentReference } from 'firebase-admin/firestore';
 import * as logger from 'firebase-functions/logger';
 import { onDocumentWritten } from 'firebase-functions/v2/firestore';
 
@@ -28,6 +29,7 @@ interface PrivateVideoDocument {
 }
 
 const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024;
+const MIN_VIDEO_DURATION_MS = 5_000;
 const ALLOWED_VIDEO_TYPES = new Set([
   'video/mp4',
   'video/webm',
@@ -74,7 +76,7 @@ function statusForExistingJob(state: string): {
 }
 
 async function requestCancellationIfPresent(
-  jobRef: FirebaseFirestore.DocumentReference
+  jobRef: DocumentReference
 ): Promise<void> {
   await db.runTransaction(async (transaction) => {
     const snapshot = await transaction.get(jobRef);
@@ -191,7 +193,9 @@ export const queuePrivateVideoProcessing = onDocumentWritten(
         !sourceStoragePath ||
         !ALLOWED_VIDEO_TYPES.has(sourceMimeType) ||
         !sourceSizeBytes ||
-        sourceSizeBytes > MAX_VIDEO_SIZE_BYTES
+        sourceSizeBytes > MAX_VIDEO_SIZE_BYTES ||
+        (sourceDurationMs !== null &&
+          sourceDurationMs < MIN_VIDEO_DURATION_MS)
       ) {
         transaction.set(
           videoSnap.ref,
@@ -200,7 +204,10 @@ export const queuePrivateVideoProcessing = onDocumentWritten(
             processingStage: 'failed',
             processingErrorCode: 'INVALID_PROCESSING_SOURCE',
             processingErrorMessage:
-              'O arquivo privado não pôde ser validado para processamento.',
+              sourceDurationMs !== null &&
+              sourceDurationMs < MIN_VIDEO_DURATION_MS
+                ? 'O vídeo precisa ter pelo menos 5 segundos.'
+                : 'O arquivo privado não pôde ser validado para processamento.',
             updatedAt: Date.now(),
           },
           { merge: true }
