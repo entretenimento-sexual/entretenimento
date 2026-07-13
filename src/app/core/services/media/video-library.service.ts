@@ -92,6 +92,10 @@ export class VideoLibraryService {
   private readonly errorNotifier = inject(ErrorNotificationService);
   private readonly globalErrorHandler = inject(GlobalErrorHandlerService);
   private readonly privacyDebug = inject(PrivacyDebugLoggerService);
+  private readonly privateVideoAccessCallable = httpsCallable<
+    PrivateVideoAccessRequest,
+    PrivateVideoAccessResponse
+  >(this.functions, 'getPrivateVideoAccessUrls');
 
   watchPrivateVideos$(ownerUid: string): Observable<IVideoItem[]> {
     const safeOwnerUid = this.normalizeUid(ownerUid);
@@ -143,13 +147,8 @@ export class VideoLibraryService {
       return of([]);
     }
 
-    const callable = httpsCallable<
-      PrivateVideoAccessRequest,
-      PrivateVideoAccessResponse
-    >(this.functions, 'getPrivateVideoAccessUrls');
-
     return from(
-      callable({
+      this.privateVideoAccessCallable({
         ownerUid,
         videoIds: items.map((item) => item.id),
       })
