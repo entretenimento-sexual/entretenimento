@@ -1,39 +1,17 @@
 // src/app/media/photos/photo-upload/photo-upload.component.ts
-// Não esqueça os comentários explicativos e ferramentas de debug.
-//
-// PACOTE DE INTEGRAÇÃO DO EDITOR:
-// - mantém upload direto com progresso real
-// - adiciona fluxo "Editar antes de enviar"
-// - usa canUploadProfilePhotosForViewer$ (policy endurecida de upload)
-// - mantém preview local e pós-upload com escolha do usuário
-// - mantém tratamento centralizado de erro
-// - limpa a sessão efêmera do editor com segurança
-//
-// AJUSTE DESTA VERSÃO:
-// - SUPRIMIDO o import estático de PhotoEditorComponent
-// - editor agora é carregado por import() dinâmico apenas quando necessário
-// - isso evita que a rota de upload/galeria puxe o editor cedo demais
-// ============================================================================
-// ATENÇÃO — INTEGRAÇÃO PROVISÓRIA COM EDITOR DE IMAGENS
-// ----------------------------------------------------------------------------
-// O editor de imagens atualmente acoplado ao fluxo de upload é considerado
-// provisório. Há histórico de erro residual do software terceirizado de edição,
-// inclusive com stack do Pintura aparecendo fora do fluxo manual de edição.
-//
-// DECISÃO DE ARQUITETURA:
-// - manter este componente funcional mesmo sem depender do editor
-// - preservar o upload direto como fluxo principal e confiável
-// - tratar "Editar antes de enviar" como capacidade opcional e substituível
-//
-// ORIENTAÇÃO PARA EVOLUÇÕES FUTURAS:
-// - não transformar o editor atual em dependência estrutural do upload
-// - manter import dinâmico / lazy loading para qualquer editor visual
-// - facilitar futura troca por outro fornecedor ou por solução interna
-// ============================================================================
-import { ChangeDetectionStrategy, Component, DestroyRef, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+// Fluxo reativo de seleção, ajuste e envio de fotos do perfil.
+// O editor é carregado sob demanda e o foco é gerenciado antes da abertura do modal.
 
+import { CommonModule, DOCUMENT } from '@angular/common';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  inject,
+} from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router, RouterModule } from '@angular/router';
+import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 import { BehaviorSubject, EMPTY, Observable, combineLatest, of } from 'rxjs';
 import {
   catchError,
@@ -44,24 +22,21 @@ import {
   take,
   tap,
 } from 'rxjs/operators';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-
-import { NgbModal } from '@ng-bootstrap/ng-bootstrap';
 
 import { CurrentUserStoreService } from 'src/app/core/services/autentication/auth/current-user-store.service';
 import { ErrorNotificationService } from 'src/app/core/services/error-handler/error-notification.service';
 import { GlobalErrorHandlerService } from 'src/app/core/services/error-handler/global-error-handler.service';
+import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/photo-editor-session.service';
+import {
+  IPhotoUploadFlowEvent,
+  PhotoUploadFlowService,
+} from 'src/app/core/services/image-handling/photo-upload-flow.service';
 import {
   IMediaPolicyResult,
   IMediaPolicyViewerSnapshot,
   MediaPolicyDenyReason,
   MediaPolicyService,
 } from 'src/app/core/services/media/media-policy.service';
-import {
-  PhotoUploadFlowService,
-  IPhotoUploadFlowEvent,
-} from 'src/app/core/services/image-handling/photo-upload-flow.service';
-import { PhotoEditorSessionService } from 'src/app/core/services/image-handling/photo-editor-session.service';
 import { environment } from 'src/environments/environment';
 
 const DENY_UNKNOWN: IMediaPolicyResult = { decision: 'DENY', reason: 'UNKNOWN' };
@@ -78,6 +53,7 @@ type UploadPhase = 'IDLE' | 'READY' | 'UPLOADING' | 'DONE';
 })
 export class PhotoUploadComponent {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly document = inject(DOCUMENT);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly modal = inject(NgbModal);
@@ -177,16 +153,21 @@ export class PhotoUploadComponent {
   readonly file$: Observable<File | null> = this.fileSubject.asObservable();
 
   private readonly previewUrlSubject = new BehaviorSubject<string | null>(null);
-  readonly previewUrl$: Observable<string | null> = this.previewUrlSubject.asObservable();
+  readonly previewUrl$: Observable<string | null> =
+    this.previewUrlSubject.asObservable();
 
   private readonly phaseSubject = new BehaviorSubject<UploadPhase>('IDLE');
   readonly phase$: Observable<UploadPhase> = this.phaseSubject.asObservable();
 
-  private readonly uploadedPhotoIdSubject = new BehaviorSubject<string | null>(null);
-  readonly uploadedPhotoId$: Observable<string | null> = this.uploadedPhotoIdSubject.asObservable();
+  private readonly uploadedPhotoIdSubject = new BehaviorSubject<string | null>(
+    null
+  );
+  readonly uploadedPhotoId$: Observable<string | null> =
+    this.uploadedPhotoIdSubject.asObservable();
 
   private readonly uploadPercentSubject = new BehaviorSubject<number>(0);
-  readonly uploadPercent$: Observable<number> = this.uploadPercentSubject.asObservable();
+  readonly uploadPercent$: Observable<number> =
+    this.uploadPercentSubject.asObservable();
 
   readonly selectedFileName$: Observable<string | null> = this.file$.pipe(
     map((file) => file?.name ?? null),
@@ -314,7 +295,9 @@ export class PhotoUploadComponent {
       .subscribe();
   }
 
-  editBeforeUpload(): void {
+  editBeforeUpload(event?: Event): void {
+    const focusOrigin = this.resolveFocusOrigin(event);
+
     combineLatest([this.policyResult$, this.file$, this.ownerUid$, this.phase$])
       .pipe(take(1), takeUntilDestroyed(this.destroyRef))
       .subscribe(([policyResult, file, ownerUid, phase]) => {
@@ -324,7 +307,10 @@ export class PhotoUploadComponent {
 
         if (policyResult.decision !== 'ALLOW') {
           this.errorNotifier.showError(
-            this.getPolicyDeniedMessage(policyResult.reason, 'editar e enviar fotos')
+            this.getPolicyDeniedMessage(
+              policyResult.reason,
+              'editar e enviar fotos'
+            )
           );
           return;
         }
@@ -343,7 +329,7 @@ export class PhotoUploadComponent {
           return;
         }
 
-        void this.openEditorModal(file, ownerUid);
+        void this.openEditorModal(file, ownerUid, focusOrigin);
       });
   }
 
@@ -374,7 +360,11 @@ export class PhotoUploadComponent {
     });
   }
 
-  private async openEditorModal(file: File, ownerUid: string): Promise<void> {
+  private async openEditorModal(
+    file: File,
+    ownerUid: string,
+    focusOrigin: HTMLElement | null
+  ): Promise<void> {
     this.photoEditorSession.setCreateDraft(file, ownerUid);
 
     try {
@@ -382,12 +372,15 @@ export class PhotoUploadComponent {
         'src/app/photo-editor/photo-editor/photo-editor.component'
       );
 
+      this.releaseFocusBeforeModal();
+
       const modalRef = this.modal.open(PhotoEditorComponent, {
         size: 'xl',
         centered: true,
         backdrop: 'static',
         keyboard: false,
         scrollable: true,
+        ariaLabelledBy: 'photo-editor-title',
         windowClass: 'photo-editor-modal-window',
       });
 
@@ -422,7 +415,45 @@ export class PhotoUploadComponent {
       }
     } finally {
       this.photoEditorSession.clearDraft();
+      this.restoreFocusAfterModal(focusOrigin);
     }
+  }
+
+  private resolveFocusOrigin(event?: Event): HTMLElement | null {
+    const eventTarget = event?.currentTarget;
+
+    if (eventTarget instanceof HTMLElement) {
+      return eventTarget;
+    }
+
+    const activeElement = this.document.activeElement;
+    return activeElement instanceof HTMLElement &&
+      activeElement !== this.document.body
+      ? activeElement
+      : null;
+  }
+
+  private releaseFocusBeforeModal(): void {
+    const activeElement = this.document.activeElement;
+
+    if (
+      activeElement instanceof HTMLElement &&
+      activeElement !== this.document.body
+    ) {
+      activeElement.blur();
+    }
+  }
+
+  private restoreFocusAfterModal(focusOrigin: HTMLElement | null): void {
+    if (!focusOrigin) {
+      return;
+    }
+
+    setTimeout(() => {
+      if (focusOrigin.isConnected && !focusOrigin.hasAttribute('disabled')) {
+        focusOrigin.focus({ preventScroll: true });
+      }
+    }, 0);
   }
 
   private revokePreviewUrl(): void {
@@ -433,10 +464,15 @@ export class PhotoUploadComponent {
   }
 
   private formatBytes(bytes: number): string {
-    if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      return '0 B';
+    }
 
     const units = ['B', 'KB', 'MB', 'GB'];
-    const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const index = Math.min(
+      Math.floor(Math.log(bytes) / Math.log(1024)),
+      units.length - 1
+    );
     const value = bytes / Math.pow(1024, index);
 
     return `${value.toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
@@ -473,7 +509,7 @@ export class PhotoUploadComponent {
     try {
       this.errorNotifier.showError(userMessage);
     } catch {
-      // noop
+      // A notificação não pode interromper o fluxo de erro centralizado.
     }
 
     try {
@@ -486,14 +522,17 @@ export class PhotoUploadComponent {
       (err as any).skipUserNotification = true;
       this.errorHandler.handleError(err);
     } catch {
-      // noop
+      // A telemetria não pode quebrar o fluxo da interface.
     }
 
     this.debug('reportError', { userMessage, context, error });
   }
 
   private debug(msg: string, data?: unknown): void {
-    if (!this.DEBUG) return;
+    if (!this.DEBUG) {
+      return;
+    }
+
     // eslint-disable-next-line no-console
     console.debug(`[PhotoUpload] ${msg}`, data ?? '');
   }
