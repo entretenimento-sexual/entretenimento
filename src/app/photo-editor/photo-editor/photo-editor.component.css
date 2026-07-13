@@ -1,116 +1,332 @@
 /* src/app/photo-editor/photo-editor/photo-editor.component.css */
+:host {
+  display: block;
+  min-width: 0;
+}
+
 .editor-shell {
-  width: min(1180px, 96vw);
-  max-height: 92vh;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3, 16px);
-  padding: var(--space-3, 16px);
-  color: var(--text-color);
+  display: grid;
+  gap: 14px;
+  width: min(1120px, 96vw);
+  max-height: 94vh;
+  padding: clamp(12px, 2vw, 18px);
+  color: var(--text-color, #f5f7fb);
 }
 
 .editor-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: var(--space-3, 16px);
+  gap: 16px;
+}
+
+.editor-title-block {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.editor-title-block h2,
+.editor-title-block p,
+.editor-title-block .eyebrow {
+  margin: 0;
 }
 
 .editor-title-block h2 {
-  margin: 0;
-  font-size: clamp(1.3rem, 1vw + 1rem, 1.8rem);
-  line-height: 1.15;
+  font-size: clamp(1.25rem, 1rem + 1vw, 1.8rem);
+  line-height: 1.1;
 }
 
 .eyebrow {
-  display: inline-block;
-  margin-bottom: 8px;
-  font-size: 0.78rem;
-  font-weight: 700;
+  color: var(--primary-color, #ff7070);
+  font-size: 0.74rem;
+  font-weight: 850;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--primary-color);
 }
 
 .subtitle {
-  margin: 8px 0 0;
-  color: color-mix(in oklab, var(--text-color) 78%, transparent);
-  font-size: 0.96rem;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
 .editor-card {
-  border: 1px solid var(--surface-border);
-  border-radius: 20px;
-  background: color-mix(in oklab, var(--surface-color) 94%, transparent);
-  box-shadow: var(--box-shadow);
+  display: grid;
+  gap: 14px;
+  min-width: 0;
   overflow: hidden;
-  min-height: 420px;
-  display: flex;
-  flex-direction: column;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 18px;
+  background: var(--surface-color, #101923);
+  box-shadow: var(--box-shadow, 0 14px 30px rgb(0 0 0 / 18%));
 }
 
-.editor-body {
+.editor-stage {
   position: relative;
-  min-height: 0;
-  padding: 10px;
-}
-
-.pintura-host {
-  width: 100%;
-  height: min(74vh, 780px);
-  margin: 0 auto;
-  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  height: clamp(320px, 62vh, 720px);
+  padding: 12px;
   overflow: hidden;
-  background: color-mix(in oklab, var(--surface-color) 90%, transparent);
+  background:
+    linear-gradient(45deg, rgb(255 255 255 / 3%) 25%, transparent 25%),
+    linear-gradient(-45deg, rgb(255 255 255 / 3%) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgb(255 255 255 / 3%) 75%),
+    linear-gradient(-45deg, transparent 75%, rgb(255 255 255 / 3%) 75%),
+    #070a0f;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+  background-size: 20px 20px;
 }
 
-.pintura-host--hidden {
-  visibility: hidden;
+.editor-canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 12px;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 28%);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
-:host ::ng-deep .pintura-host .PinturaRoot,
-:host ::ng-deep .pintura-host .pintura-editor {
-  height: 100%;
-  width: 100%;
+.editor-canvas:active {
+  cursor: grabbing;
+}
+
+.editor-canvas:focus-visible,
+.editor-controls button:focus-visible,
+.editor-controls input:focus-visible,
+.editor-footer button:focus-visible,
+.close-btn:focus-visible {
+  outline: var(--focus-ring, 3px solid rgb(255 112 112 / 92%));
+  outline-offset: 3px;
 }
 
 .editor-loading {
   position: absolute;
-  inset: 10px;
+  inset: 12px;
   display: grid;
   place-items: center;
-  gap: 12px;
-  padding: var(--space-4, 24px);
+  align-content: center;
+  gap: 10px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 94%, transparent);
   text-align: center;
-  border-radius: 16px;
-  background: color-mix(in oklab, var(--surface-color) 96%, transparent);
+}
+
+.editor-loading p {
+  margin: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+}
+
+.editor-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(220px, 0.8fr);
+  gap: 12px;
+  padding-inline: 14px;
+}
+
+.editor-control-group {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.editor-control-group legend,
+.editor-control-group > span {
+  padding: 0;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 72%, transparent);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.editor-segmented,
+.editor-inline-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.editor-segmented {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding: 4px;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface-color, #101923) 90%, #000 10%);
+}
+
+.editor-segmented button {
+  min-height: 40px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: color-mix(in oklab, var(--text-color, #f5f7fb) 68%, transparent);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.editor-segmented button.is-active {
+  background: color-mix(in oklab, var(--primary-color, #ff7070) 18%, transparent);
+  color: var(--text-color, #f5f7fb);
+}
+
+.editor-inline-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.editor-inline-actions .btn {
+  min-height: 48px;
+}
+
+.editor-zoom {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+}
+
+.editor-zoom > span {
+  grid-column: 1 / -1;
+}
+
+.editor-zoom input {
+  width: 100%;
+  min-height: 44px;
+  accent-color: var(--primary-color, #ff7070);
+}
+
+.editor-zoom output {
+  align-self: center;
+  min-width: 50px;
+  color: var(--text-color, #f5f7fb);
+  font-size: 0.82rem;
+  font-weight: 850;
+  text-align: right;
 }
 
 .editor-error {
-  margin: 0 12px 12px;
+  margin: 0 14px;
 }
 
+.editor-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+
+.editor-footer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.editor-footer .btn,
 .close-btn {
-  flex-shrink: 0;
+  min-height: 44px;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 900px) {
+  .editor-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .editor-zoom {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
   .editor-shell {
     width: 100%;
     max-height: 100vh;
-    padding: 12px;
+    padding: 10px;
   }
 
   .editor-header {
-    flex-direction: column;
-    align-items: stretch;
+    align-items: center;
+  }
+
+  .subtitle {
+    display: none;
+  }
+
+  .editor-card {
+    gap: 12px;
+    border-radius: 14px;
+    box-shadow: none;
+  }
+
+  .editor-stage {
+    height: min(54vh, 520px);
+    min-height: 300px;
+    padding: 8px;
+  }
+
+  .editor-controls {
+    grid-template-columns: 1fr;
+    padding-inline: 10px;
+  }
+
+  .editor-zoom {
+    grid-column: auto;
+  }
+
+  .editor-segmented {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .editor-footer {
+    display: grid;
+    grid-template-columns: 1fr;
+    padding: 0 10px 10px;
+  }
+
+  .editor-footer__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .editor-footer .btn,
+  .editor-footer__actions .btn {
+    width: 100%;
+  }
+}
+
+@media (max-width: 390px) {
+  .editor-header {
+    display: grid;
   }
 
   .close-btn {
     width: 100%;
   }
 
-  .pintura-host {
-    height: min(64vh, 620px);
+  .editor-footer__actions {
+    grid-template-columns: 1fr;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-canvas,
+  .editor-controls button,
+  .editor-footer button {
+    scroll-behavior: auto;
+    transition: none !important;
+  }
+}
+
+html.high-contrast .editor-card,
+html.high-contrast .editor-segmented,
+html.high-contrast .editor-canvas {
+  border-color: currentColor !important;
+  background: var(--background-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: none !important;
 }
