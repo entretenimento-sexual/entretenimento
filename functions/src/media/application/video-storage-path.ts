@@ -102,6 +102,24 @@ export function extractOwnedPrivateVideoPath(
   return matchesOwnedPath(ownerUid, value, `${PRIVATE_VIDEO_PREFIX}/[^/]+`);
 }
 
+export function extractOwnedPrivateVideoPathForId(
+  ownerUid: string,
+  videoId: string,
+  value: unknown
+): string | null {
+  const safeVideoId = normalizeId(videoId);
+
+  if (!safeVideoId) {
+    return null;
+  }
+
+  return matchesOwnedPath(
+    ownerUid,
+    value,
+    `${PRIVATE_VIDEO_PREFIX}/${escapeRegExp(safeVideoId)}-[^/]+`
+  );
+}
+
 /**
  * Compatibilidade:
  * - assinatura antiga: (ownerUid, value);
