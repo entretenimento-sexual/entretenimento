@@ -295,6 +295,30 @@ async function clearCleanupJobsBestEffort(paths: string[]): Promise<void> {
   );
 }
 
+async function isRegisteredAsset(
+  ownerUid: string,
+  videoId: string,
+  storagePath: string,
+  assetKind: PrivateUploadAssetKind
+): Promise<boolean> {
+  const snapshot = await db.doc(`users/${ownerUid}/videos/${videoId}`).get();
+
+  if (!snapshot.exists) {
+    return false;
+  }
+
+  const video = snapshot.data() as RegisteredVideoDocument;
+  const registeredPath = assetKind === 'video'
+    ? extractOwnedPrivateVideoPathForId(ownerUid, videoId, video.path)
+    : extractOwnedPrivateVideoPosterPath(
+      ownerUid,
+      videoId,
+      video.thumbnailPath
+    );
+
+  return registeredPath === storagePath;
+}
+
 async function deleteUploadedAssetsRecoverably(
   ownerUid: string,
   videoId: string,
@@ -306,6 +330,18 @@ async function deleteUploadedAssetsRecoverably(
   await Promise.all(
     assets.map(async ({ storagePath, assetKind }) => {
       try {
+        if (
+          await isRegisteredAsset(
+            ownerUid,
+            videoId,
+            storagePath,
+            assetKind
+          )
+        ) {
+          await clearCleanupJobsBestEffort([storagePath]);
+          return;
+        }
+
         await storage
           .bucket()
           .file(storagePath)
@@ -445,6 +481,17 @@ export const registerPrivateVideoUpload = onCall<
         rawPosterStoragePath
       )
       : null;
+
+    if (rawPosterStoragePath && !posterStoragePath) {
+      await deleteUploadedAssetsRecoverably(ownerUid, videoId, [
+        { storagePath: videoStoragePath, assetKind: 'video' },
+      ]);
+      throw new HttpsError(
+        'invalid-argument',
+        'O caminho da capa não pertence ao vídeo informado.'
+      );
+    }
+
     const existingResponse = await findExistingResponse(
       ownerUid,
       videoId,
@@ -458,16 +505,6 @@ export const registerPrivateVideoUpload = onCall<
         ...(posterStoragePath ? [posterStoragePath] : []),
       ]);
       return existingResponse;
-    }
-
-    if (rawPosterStoragePath && !posterStoragePath) {
-      await deleteUploadedAssetsRecoverably(ownerUid, videoId, [
-        { storagePath: videoStoragePath, assetKind: 'video' },
-      ]);
-      throw new HttpsError(
-        'invalid-argument',
-        'O caminho da capa não pertence ao vídeo informado.'
-      );
     }
 
     let registrationCommitted = false;
@@ -628,17 +665,14 @@ export const cleanupPendingPrivateVideoUploadAssets = onSchedule(
       }
 
       try {
-        const videoSnapshot = await db
-          .doc(`users/${ownerUid}/videos/${videoId}`)
-          .get();
-        const registeredVideo = videoSnapshot.exists
-          ? (videoSnapshot.data() as RegisteredVideoDocument)
-          : null;
-        const referencedPath = job.assetKind === 'video'
-          ? registeredVideo?.path
-          : registeredVideo?.thumbnailPath;
-
-        if (referencedPath === storagePath) {
+        if (
+          await isRegisteredAsset(
+            ownerUid,
+            videoId,
+            storagePath,
+            job.assetKind
+          )
+        ) {
           await jobDoc.ref.delete();
           continue;
         }
