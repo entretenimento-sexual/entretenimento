@@ -7,6 +7,7 @@ import {
   containsControlCharacter,
   normalizeOwnedPublishedPhotoPath,
 } from './photo-storage-path';
+import { createTemporaryStorageReadUrl } from './temporary-storage-read-url.service';
 
 interface PublicPhotoAccessRequestItem {
   ownerUid?: string;
@@ -53,20 +54,6 @@ function cleanId(value: unknown): string {
 
 function buildRequestKey(ownerUid: string, photoId: string): string {
   return `${ownerUid}:${photoId}`;
-}
-
-function buildStorageEmulatorUrl(storagePath: string): string {
-  const configuredHost = String(
-    process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? '127.0.0.1:9199'
-  ).trim();
-  const baseUrl = /^https?:\/\//i.test(configuredHost)
-    ? configuredHost
-    : `http://${configuredHost}`;
-  const bucketName = storage.bucket().name;
-  const encodedBucket = encodeURIComponent(bucketName);
-  const encodedPath = encodeURIComponent(storagePath);
-
-  return `${baseUrl}/v0/b/${encodedBucket}/o/${encodedPath}?alt=media`;
 }
 
 async function resolveAccessItem(
@@ -117,24 +104,10 @@ async function resolveAccessItem(
     throw new Error('O ativo publicado não foi encontrado no Storage.');
   }
 
-  let url: string;
-
-  if (process.env.FUNCTIONS_EMULATOR === 'true') {
-    url = buildStorageEmulatorUrl(storagePath);
-  } else {
-    const [signedUrl] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: expiresAt,
-    });
-
-    url = signedUrl;
-  }
-
   return {
     ownerUid,
     photoId,
-    url,
+    url: await createTemporaryStorageReadUrl(storagePath, expiresAt),
     expiresAt,
   };
 }
