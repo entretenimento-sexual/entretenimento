@@ -282,9 +282,9 @@ export class ProfileVideosComponent {
     this.uploadPhaseSubject.next('READY');
     this.uploadProgressSubject.next(0);
     this.uploadStepSubject.next(
-      PUBLIC_PLAYBACK_TYPES.has(mimeType)
-        ? 'Vídeo pronto para envio privado.'
-        : 'MOV será salvo somente na biblioteca privada até existir transcodificação.'
+      mimeType === 'video/quicktime'
+        ? 'MOV será enviado e convertido pelo backend antes da publicação.'
+        : 'Vídeo pronto para envio e processamento seguro.'
     );
   }
 
@@ -499,13 +499,16 @@ export class ProfileVideosComponent {
     return (
       !item.publication?.isPublished &&
       item.video.status === 'ready' &&
+      !!item.video.processedStoragePath &&
       this.isPublicPlaybackCompatible(item.video)
     );
   }
 
   isPublicPlaybackCompatible(video: IVideoItem): boolean {
     return PUBLIC_PLAYBACK_TYPES.has(
-      String(video.mimeType ?? '').trim().toLowerCase()
+      String(video.processedMimeType ?? video.mimeType ?? '')
+        .trim()
+        .toLowerCase()
     );
   }
 
@@ -546,6 +549,10 @@ export class ProfileVideosComponent {
   }
 
   processingLabel(video: IVideoItem): string {
+    if (video.status === 'queued') {
+      return 'Na fila';
+    }
+
     if (video.status === 'processing') {
       return 'Processando';
     }
@@ -558,7 +565,7 @@ export class ProfileVideosComponent {
       return 'Pronto';
     }
 
-    return 'Somente privado';
+    return 'Aguardando processamento';
   }
 
   trackByVideoId(_index: number, item: ProfileVideoViewItem): string {
@@ -614,15 +621,17 @@ export class ProfileVideosComponent {
     this.uploadPhaseSubject.next('DONE');
     this.uploadProgressSubject.next(100);
     this.uploadStepSubject.next(
-      event.result.status === 'ready'
-        ? 'Vídeo salvo e pronto para publicação.'
-        : 'Vídeo salvo na biblioteca privada.'
+      event.result.status === 'queued'
+        ? 'Vídeo salvo e adicionado à fila de processamento.'
+        : event.result.status === 'ready'
+          ? 'Vídeo salvo e pronto para publicação.'
+          : 'Vídeo salvo e aguardando processamento.'
     );
     this.revokePreviewUrl();
     this.selectedFileSubject.next(null);
     this.previewUrlSubject.next(null);
     this.errorNotification.showSuccess(
-      'Vídeo enviado para sua biblioteca privada.'
+      'Vídeo recebido. O processamento continuará em segundo plano.'
     );
   }
 
@@ -650,7 +659,7 @@ export class ProfileVideosComponent {
     }
 
     this.uploadPhaseSubject.next('SAVING');
-    this.uploadStepSubject.next('Confirmando os metadados da biblioteca.');
+    this.uploadStepSubject.next('Registrando o vídeo e preparando a fila.');
   }
 
   private setBusyAction(videoId: string, action: VideoBusyAction): void {
