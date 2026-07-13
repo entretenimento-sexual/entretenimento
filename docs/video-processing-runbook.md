@@ -86,6 +86,41 @@ O diagnóstico não cria, altera nem exclui jobs do Transcoder. Um estado
 `Operacional` confirma conectividade e permissão de listagem, mas não substitui
 o teste de processamento completo com um arquivo real.
 
+## Recuperação administrativa
+
+A mesma tela apresenta jobs com falha, atraso ou cancelamento pendente. A lista é
+obtida por:
+
+```text
+listVideoProcessingRecoveryJobs
+```
+
+A intervenção é executada somente pela callable:
+
+```text
+recoverVideoProcessingJob
+```
+
+Cada ação exige justificativa objetiva, identificador idempotente da operação e
+claim administrativo. A decisão é registrada em `admin_logs`.
+
+Ações disponíveis:
+
+```text
+RETRY_FAILED    cria uma nova versão de processamento para um job FAILED
+RECHECK_STALE   libera fila ou lease expirado para reconciliação segura
+CANCEL_ACTIVE   solicita cancelamento e limpeza técnica assíncrona
+```
+
+`RETRY_FAILED` nunca reutiliza o mesmo prefixo de saída. A versão anterior entra
+na coleção técnica `media_video_processing_output_cleanup_jobs` e é removida
+pela rotina `cleanupRetriedVideoProcessingOutputs`.
+
+Não alterar manualmente `state`, `leaseUntil`, `externalJobName` ou
+`outputPrefix` no Firestore. Em jobs `SUBMITTING`, a revalidação não cria outro
+job imediatamente: o reconciliador procura primeiro o job existente pela label
+de versão. Jobs `PROCESSING` devem ser cancelados, não reenfileirados às cegas.
+
 ## Estados persistidos
 
 ```text
@@ -117,6 +152,9 @@ failed
 - upload de MP4, WebM e MOV testado;
 - vídeo com menos de cinco segundos rejeitado;
 - falha transitória testada sem duplicar job;
+- reprocessamento de job `FAILED` testado com uma nova versão;
+- revalidação de `SUBMITTING` testada sem criar job duplicado;
+- cancelamento administrativo testado com limpeza do prefixo;
 - exclusão durante processamento testada;
 - derivado confirmado como reproduzível em Chrome, Firefox, Safari e Edge;
 - publicação bloqueada enquanto não houver `processedStoragePath`;
