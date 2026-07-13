@@ -1,25 +1,5 @@
 // src/app/core/services/batepapo/room-services/room-management.service.ts
-// -----------------------------------------------------------------------------
-// ROOM MANAGEMENT SERVICE
-// -----------------------------------------------------------------------------
-//
-// Responsabilidade atual:
-// - solicitar criação segura de sala privada via Cloud Function;
-// - solicitar encerramento seguro de sala privada via Cloud Function;
-// - manter, temporariamente, assinaturas legadas de update/delete para não
-//   romper consumidores ainda existentes.
-//
-// Segurança:
-// - createRoom() e closeRoom() não gravam diretamente no Firestore;
-// - creatorId recebido por consumidores legados não é enviado ao backend;
-// - o UID real é obtido exclusivamente pelas callables em request.auth.uid;
-// - participants, visibility, status e regras de plano são definidos no backend;
-// - placeIntent é opcional e validado novamente pelo backend.
-//
-// Migração pendente:
-// - updateRoom() e deleteRoom() ainda são métodos legados;
-// - as Rules passam a bloquear mutações estruturais diretas;
-// - edição deverá ganhar callable própria.
+// Serviço de comandos de sala. Criação e encerramento passam por Cloud Functions.
 
 import { Injectable, inject } from '@angular/core';
 import {
@@ -28,18 +8,9 @@ import {
   doc,
   updateDoc,
 } from '@angular/fire/firestore';
-import {
-  Functions,
-  httpsCallable,
-} from '@angular/fire/functions';
+import { Functions, httpsCallable } from '@angular/fire/functions';
 import { serverTimestamp } from 'firebase/firestore';
-import {
-  Observable,
-  defer,
-  from,
-  map,
-  throwError,
-} from 'rxjs';
+import { Observable, defer, from, map, throwError } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
 import {
@@ -99,13 +70,6 @@ export class RoomManagementService {
     ClosePrivateRoomResponse
   >(this.functions, 'closePrivateRoom');
 
-  /**
-   * Cria uma sala privada por backend confiável.
-   *
-   * O segundo parâmetro permanece opcional somente por compatibilidade com
-   * consumidores legados ainda existentes, como RoomEffects. Ele não é
-   * utilizado como identidade nem enviado à Function.
-   */
   createRoom(
     roomDetails: CreateRoomDetails,
     _legacyCreatorId?: string
@@ -115,21 +79,10 @@ export class RoomManagementService {
     const payload: CreatePrivateRoomPayload = {
       roomName: String(roomDetails.roomName ?? '').trim(),
       description: String(roomDetails.description ?? '').trim() || null,
-      placeIntent: roomDetails.placeIntent
-        ? {
-            mode: roomDetails.placeIntent.mode,
-            visibility: roomDetails.placeIntent.visibility,
-            region: roomDetails.placeIntent.region,
-            label: roomDetails.placeIntent.label,
-            startsAt: roomDetails.placeIntent.startsAt,
-            endsAt: roomDetails.placeIntent.endsAt ?? null,
-          }
-        : null,
+      placeIntent: this.toPlaceIntentInput(roomDetails.placeIntent),
     };
 
-    return defer(() =>
-      from(this.createPrivateRoomCallable(payload))
-    ).pipe(
+    return defer(() => from(this.createPrivateRoomCallable(payload))).pipe(
       map((result) => {
         const data = result.data;
 
@@ -137,13 +90,6 @@ export class RoomManagementService {
           throw new Error('Resposta inválida ao criar sala.');
         }
 
-        /**
-         * Projeção imediata para a UI.
-         *
-         * `creationTime` e `lastActivity` canônicos permanecem gravados pelo
-         * backend com serverTimestamp(). O listener do RoomService atualizará
-         * a lista com os timestamps reais do Firestore.
-         */
         return {
           id: data.roomId,
           roomName: data.roomName,
@@ -167,12 +113,6 @@ export class RoomManagementService {
     );
   }
 
-  /**
-   * Encerra logicamente uma sala privada pelo backend.
-   *
-   * Não apaga documento, não altera status pelo cliente e libera o slot do
-   * owner apenas quando a callable confirma a operação.
-   */
   closeRoom(roomId: string): Observable<ClosePrivateRoomResponse> {
     const safeRoomId = String(roomId ?? '').trim();
 
@@ -193,12 +133,8 @@ export class RoomManagementService {
   }
 
   /**
-   * Método legado mantido apenas para preservar consumidores atuais.
-   *
-   * Após a atualização das Rules abaixo, alterações diretas estruturais serão
-   * negadas. A edição segura deverá ser implementada posteriormente por uma
-   * callable específica, sem permitir alteração cliente-side de participantes,
-   * visibilidade ou status.
+   * Compatibilidade temporária. Rules devem bloquear mutações estruturais
+   * diretas; a edição definitiva deverá usar callable própria.
    */
   async updateRoom(
     roomId: string,
@@ -212,7 +148,6 @@ export class RoomManagementService {
       }
 
       const roomRef = doc(this.db, 'rooms', safeRoomId);
-
       await updateDoc(roomRef, {
         ...roomDetails,
         lastActivity: serverTimestamp(),
@@ -224,12 +159,7 @@ export class RoomManagementService {
     }
   }
 
-  /**
-   * Método legado mantido para compatibilidade.
-   *
-   * A exclusão direta já deve permanecer bloqueada por Rules. A evolução
-   * correta é closeRoom(), com fechamento lógico e auditoria.
-   */
+  /** Compatibilidade temporária; o fluxo seguro é closeRoom(). */
   async deleteRoom(roomId: string): Promise<void> {
     try {
       const safeRoomId = String(roomId ?? '').trim();
@@ -247,34 +177,58 @@ export class RoomManagementService {
     }
   }
 
+  private toPlaceIntentInput(
+    placeIntent: IRoomPlaceIntent | IRoomPlaceIntentInput | null | undefined
+  ): IRoomPlaceIntentInput | null {
+    if (!placeIntent) {
+      return null;
+    }
+
+    const venueId = String(placeIntent.venueId ?? '').trim();
+
+    if (!venueId) {
+      return null;
+    }
+
+    return {
+      venueId,
+      mode: placeIntent.mode === 'scheduled' ? 'scheduled' : 'now',
+      startsAt:
+        typeof placeIntent.startsAt === 'number' &&
+        Number.isFinite(placeIntent.startsAt)
+          ? Math.trunc(placeIntent.startsAt)
+          : null,
+    };
+  }
+
   private getCreateRoomUserMessage(error: unknown): string {
-    const code = String(
-      (error as { code?: unknown } | null)?.code ?? ''
-    ).toLowerCase();
+    const code = this.getErrorCode(error);
 
     if (code.includes('unauthenticated')) {
       return 'Entre novamente para criar uma sala.';
     }
 
+    if (code.includes('not-found')) {
+      return 'O estabelecimento selecionado não está mais disponível.';
+    }
+
     if (code.includes('invalid-argument')) {
-      return 'Verifique o nome, a descrição e o local da sala.';
+      return 'Verifique o nome, a descrição, o estabelecimento e o horário da sala.';
     }
 
     if (code.includes('permission-denied')) {
-      return 'Sua conta ou plano atual não permite criar salas com essas opções.';
+      return 'Sua conta ou plano atual não permite criar a sala com essas opções.';
     }
 
     if (code.includes('failed-precondition')) {
-      return 'Não foi possível criar a sala nas condições atuais da sua conta.';
+      return 'A sala ou o estabelecimento não está disponível nas condições atuais.';
     }
 
     return 'Não foi possível criar a sala.';
   }
 
   private getCloseRoomUserMessage(error: unknown): string {
-    const code = String(
-      (error as { code?: unknown } | null)?.code ?? ''
-    ).toLowerCase();
+    const code = this.getErrorCode(error);
 
     if (code.includes('unauthenticated')) {
       return 'Entre novamente para encerrar a sala.';
@@ -295,6 +249,10 @@ export class RoomManagementService {
     return 'Não foi possível encerrar a sala.';
   }
 
+  private getErrorCode(error: unknown): string {
+    return String((error as { code?: unknown } | null)?.code ?? '').toLowerCase();
+  }
+
   private reportError(error: unknown, operation: string): void {
     try {
       const normalizedError = new Error(
@@ -310,7 +268,7 @@ export class RoomManagementService {
 
       this.globalError.handleError(normalizedError);
     } catch {
-      // noop
+      // Falha de telemetria não deve interromper a operação principal.
     }
   }
 }
