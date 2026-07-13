@@ -134,6 +134,187 @@
     </section>
   }
 
+  @if (recoveryState$ | async; as recoveryState) {
+    <section
+      class="video-moderation__recovery"
+      aria-labelledby="video-processing-recovery-title"
+      [attr.aria-busy]="recoveryState.status === 'loading' ? 'true' : 'false'"
+    >
+      <div class="video-moderation__operations-heading">
+        <div>
+          <p class="video-moderation__eyebrow">Recuperação controlada</p>
+          <h3 id="video-processing-recovery-title">Jobs que exigem atenção</h3>
+          <p>
+            As ações são idempotentes, exigem justificativa e ficam registradas
+            no histórico administrativo.
+          </p>
+        </div>
+      </div>
+
+      @if (recoveryState.status === 'loading') {
+        <div class="video-moderation__operations-message" role="status" aria-live="polite">
+          <span class="video-moderation__spinner" aria-hidden="true"></span>
+          <span>Carregando jobs com falha ou atraso...</span>
+        </div>
+      } @else if (recoveryState.status === 'error') {
+        <div
+          class="video-moderation__operations-message video-moderation__operations-message--error"
+          role="alert"
+        >
+          <i class="fas fa-triangle-exclamation" aria-hidden="true"></i>
+          <span>Não foi possível carregar os jobs de recuperação.</span>
+          <button type="button" class="app-action app-action--ghost" (click)="retry()">
+            Tentar novamente
+          </button>
+        </div>
+      } @else if (recoveryState.status === 'empty') {
+        <div class="video-moderation__operations-message" role="status">
+          <i class="fas fa-circle-check" aria-hidden="true"></i>
+          <span>Nenhum job exige intervenção administrativa neste momento.</span>
+        </div>
+      } @else {
+        @if (recoveryState.skippedItems > 0) {
+          <p class="video-moderation__warning" role="status">
+            {{ recoveryState.skippedItems }} job(s) inconsistente(s) foram
+            ignorados e permanecem disponíveis nos logs técnicos.
+          </p>
+        }
+
+        <div class="video-moderation__recovery-grid" aria-label="Jobs de processamento que exigem atenção">
+          @for (item of recoveryState.items; track trackByRecoveryJob($index, item)) {
+            <article
+              class="video-moderation__recovery-card"
+              [class.video-moderation__recovery-card--stale]="item.stale"
+              [attr.aria-busy]="isRecoveryBusy(item) ? 'true' : 'false'"
+            >
+              <header class="video-moderation__recovery-card-header">
+                <div>
+                  <strong>Vídeo {{ item.videoId }}</strong>
+                  <span>Perfil {{ item.ownerUid }}</span>
+                </div>
+                <span
+                  class="video-moderation__job-chip"
+                  [class.video-moderation__job-chip--error]="item.state === 'FAILED'"
+                  [class.video-moderation__job-chip--warning]="item.stale && item.state !== 'FAILED'"
+                >
+                  {{ processingJobStateLabel(item.state) }}
+                </span>
+              </header>
+
+              <dl class="video-moderation__recovery-meta">
+                <div>
+                  <dt>Sem atualização</dt>
+                  <dd>{{ formatAge(item.ageMs) }}</dd>
+                </div>
+                <div>
+                  <dt>Tentativas</dt>
+                  <dd>{{ item.attempts }}</dd>
+                </div>
+                <div>
+                  <dt>Job externo</dt>
+                  <dd>{{ item.hasExternalJob ? 'associado' : 'não associado' }}</dd>
+                </div>
+                <div>
+                  <dt>Situação</dt>
+                  <dd>{{ item.stale ? 'possivelmente atrasado' : 'dentro da janela' }}</dd>
+                </div>
+              </dl>
+
+              @if (item.lastErrorCode || item.lastError) {
+                <div class="video-moderation__recovery-error" role="status">
+                  <strong>{{ item.lastErrorCode || 'PROCESSING_ERROR' }}</strong>
+                  <span>{{ item.lastError || 'Falha sem descrição adicional.' }}</span>
+                </div>
+              }
+
+              <a
+                class="video-moderation__profile-link"
+                [routerLink]="['/outro-perfil', item.ownerUid]"
+              >
+                <i class="fas fa-user" aria-hidden="true"></i>
+                Abrir perfil relacionado
+              </a>
+
+              @if (item.availableActions.length === 0) {
+                <p class="video-moderation__recovery-pending" role="status">
+                  A limpeza ou o cancelamento já está em andamento. Aguarde a
+                  próxima reconciliação automática.
+                </p>
+              } @else {
+                <div class="video-moderation__recovery-actions">
+                  @for (action of item.availableActions; track action) {
+                    @if (isRecoveryConfirmation(item, action)) {
+                      <div class="video-moderation__recovery-confirmation" role="group">
+                        <div>
+                          <strong>{{ recoveryActionLabel(action) }}?</strong>
+                          <span>{{ recoveryActionDescription(action) }}</span>
+                        </div>
+
+                        <label
+                          class="video-moderation__reason"
+                          [attr.for]="'video-recovery-reason-' + item.ownerUid + '-' + item.videoId + '-' + action"
+                        >
+                          <span>Justificativa administrativa</span>
+                          <textarea
+                            [id]="'video-recovery-reason-' + item.ownerUid + '-' + item.videoId + '-' + action"
+                            rows="3"
+                            maxlength="900"
+                            [ngModel]="recoveryReason(item)"
+                            (ngModelChange)="setRecoveryReason(item, $event)"
+                            [disabled]="isRecoveryBusy(item)"
+                            placeholder="Descreva por que esta intervenção é necessária."
+                          ></textarea>
+                          <small>{{ recoveryReason(item).length }}/900</small>
+                        </label>
+
+                        <div class="video-moderation__recovery-confirmation-actions">
+                          <button
+                            type="button"
+                            class="app-action app-action--primary"
+                            (click)="confirmRecovery(item, action)"
+                            [disabled]="isRecoveryBusy(item)"
+                          >
+                            <i class="fas fa-check" aria-hidden="true"></i>
+                            {{ isRecoveryBusy(item) ? 'Confirmando...' : 'Confirmar ação' }}
+                          </button>
+                          <button
+                            type="button"
+                            class="app-action app-action--ghost"
+                            (click)="cancelRecoveryConfirmation()"
+                            [disabled]="isRecoveryBusy(item)"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    } @else {
+                      <button
+                        type="button"
+                        class="app-action"
+                        [class.app-action--danger]="action === 'CANCEL_ACTIVE'"
+                        [class.app-action--ghost]="action !== 'CANCEL_ACTIVE'"
+                        (click)="beginRecovery(item, action)"
+                        [disabled]="isRecoveryBusy(item)"
+                      >
+                        <i
+                          class="fas"
+                          [class.fa-rotate]="action !== 'CANCEL_ACTIVE'"
+                          [class.fa-ban]="action === 'CANCEL_ACTIVE'"
+                          aria-hidden="true"
+                        ></i>
+                        {{ recoveryActionLabel(action) }}
+                      </button>
+                    }
+                  }
+                </div>
+              }
+            </article>
+          }
+        </div>
+      }
+    </section>
+  }
+
   @if (state$ | async; as state) {
     @if (state.status === 'loading') {
       <div class="video-moderation__status" role="status" aria-live="polite">
