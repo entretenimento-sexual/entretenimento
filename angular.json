@@ -30,11 +30,6 @@
                 "glob": "**/*",
                 "input": "node_modules/@fortawesome/fontawesome-free/webfonts",
                 "output": "assets/webfonts"
-              },
-              {
-                "glob": "pintura.css",
-                "input": "node_modules/@pqina/pintura",
-                "output": "assets/pintura"
               }
             ],
             "styles": [
@@ -180,10 +175,10 @@
       "type": "component"
     },
     "@schematics/angular:directive": {
-      "type": "directive"
+      "typeSeparator": "."
     },
     "@schematics/angular:service": {
-      "type": "service"
+      "typeSeparator": "."
     },
     "@schematics/angular:guard": {
       "typeSeparator": "."
