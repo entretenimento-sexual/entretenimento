@@ -39,6 +39,7 @@ import {
   uploadBytes,
 } from 'firebase/storage';
 import {
+  applicationDefault,
   deleteApp as deleteAdminApp,
   initializeApp as initializeAdminApp,
 } from 'firebase-admin/app';
@@ -142,15 +143,9 @@ async function run() {
   connectStorageEmulator(clientStorage, HOST, STORAGE_PORT);
   connectFunctionsEmulator(clientFunctions, HOST, FUNCTIONS_PORT);
 
-  const fakeCredential = {
-    getAccessToken: async () => ({
-      access_token: 'media-e2e-owner-token',
-      expires_in: 3600,
-    }),
-  };
   const adminApp = initializeAdminApp(
     {
-      credential: fakeCredential,
+      credential: applicationDefault(),
       projectId: PROJECT_ID,
       storageBucket: STORAGE_BUCKET,
     },
