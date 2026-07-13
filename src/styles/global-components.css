@@ -110,7 +110,8 @@ button[disabled],
   color: white;
 }
 
-/* Modal */
+/* Modal customizado. O conteúdo é deliberadamente escopado ao overlay próprio
+   para não sobrescrever o .modal-content do Bootstrap/ng-bootstrap. */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -120,7 +121,7 @@ button[disabled],
   align-items: center;
 }
 
-.modal-content {
+.modal-overlay > .modal-content {
   background-color: var(--modal-background);
   padding: 25px;
   border-radius: 16px;
@@ -128,6 +129,23 @@ button[disabled],
   max-width: 450px;
   box-shadow: var(--box-shadow);
   text-align: center;
+}
+
+/* Editor de fotos aberto pelo NgbModal. */
+.photo-editor-modal-window .modal-dialog {
+  width: min(1120px, calc(100vw - 24px));
+  max-width: 1120px;
+  margin: 12px auto;
+}
+
+.photo-editor-modal-window .modal-content {
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--surface-border, rgb(255 255 255 / 12%));
+  border-radius: 18px;
+  background: var(--surface-color, #101923);
+  text-align: left;
 }
 
 /* Spinner */
